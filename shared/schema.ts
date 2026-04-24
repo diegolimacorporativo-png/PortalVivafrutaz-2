@@ -605,6 +605,11 @@ export const companyConfig = pgTable("company_config", {
   corPrimaria: text("cor_primaria").default("#16a34a"), // Verde padrão
   corSecundaria: text("cor_secundaria").default("#ea580c"), // Laranja padrão
   nomeEmpresa: text("nome_empresa").default("VivaFrutaz"),
+  // Certificado Digital A1 (placeholder — preencher depois)
+  certificadoA1Base64: text("certificado_a1_base64"), // Conteúdo do .pfx em base64
+  certificadoA1Senha: text("certificado_a1_senha"),   // Senha do certificado
+  certificadoA1Nome: text("certificado_a1_nome"),     // Nome do arquivo original
+  certificadoA1Validade: text("certificado_a1_validade"), // Data de validade (ISO)
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

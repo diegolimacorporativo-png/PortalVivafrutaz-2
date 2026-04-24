@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  Receipt, Save, Building2, MapPin, FileText, Settings2, ShieldCheck, AlertCircle, CheckCircle2, Phone
+  Receipt, Save, Building2, MapPin, FileText, Settings2, ShieldCheck, AlertCircle, CheckCircle2, Phone, KeyRound, Upload, Trash2, FileCheck2
 } from 'lucide-react';
 
 const REGIME_OPTIONS = [
@@ -72,6 +72,10 @@ export default function FiscalConfigPage() {
     aliquotaPadrao: '0',
     ambienteFiscal: 'homologacao',
     informacoesAdicionais: '',
+    certificadoA1Base64: '',
+    certificadoA1Senha: '',
+    certificadoA1Nome: '',
+    certificadoA1Validade: '',
   });
 
   const { data: config, isLoading } = useQuery<any>({
@@ -103,8 +107,53 @@ export default function FiscalConfigPage() {
       aliquotaPadrao: config.aliquotaPadrao || '0',
       ambienteFiscal: config.ambienteFiscal || 'homologacao',
       informacoesAdicionais: config.informacoesAdicionais || '',
+      certificadoA1Base64: config.certificadoA1Base64 || '',
+      certificadoA1Senha: config.certificadoA1Senha || '',
+      certificadoA1Nome: config.certificadoA1Nome || '',
+      certificadoA1Validade: config.certificadoA1Validade || '',
     });
   }, [config]);
+
+  const handleCertificadoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const isPfx = /\.(pfx|p12)$/i.test(file.name);
+    if (!isPfx) {
+      toast({ title: 'Formato inválido', description: 'O certificado A1 deve estar nos formatos .pfx ou .p12.', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: 'Arquivo muito grande', description: 'O certificado deve ter no máximo 2 MB.', variant: 'destructive' });
+      e.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      const base64 = result.split(',')[1] || '';
+      setForm(prev => ({
+        ...prev,
+        certificadoA1Base64: base64,
+        certificadoA1Nome: file.name,
+      }));
+      toast({ title: 'Certificado carregado', description: `${file.name} pronto para ser salvo.` });
+    };
+    reader.onerror = () => toast({ title: 'Erro ao ler o arquivo', variant: 'destructive' });
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoverCertificado = () => {
+    setForm(prev => ({
+      ...prev,
+      certificadoA1Base64: '',
+      certificadoA1Senha: '',
+      certificadoA1Nome: '',
+      certificadoA1Validade: '',
+    }));
+    toast({ title: 'Certificado removido', description: 'Lembre-se de salvar para confirmar a remoção.' });
+  };
 
   const mutation = useMutation({
     mutationFn: (data: typeof form) => apiRequest('PATCH', '/api/company-config', data),
@@ -253,6 +302,87 @@ export default function FiscalConfigPage() {
                 {REGIME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
             </Field>
+          </Section>
+
+          {/* Certificado Digital A1 */}
+          <Section icon={KeyRound} title="Certificado Digital A1">
+            <p className="text-xs text-muted-foreground -mt-1">
+              Carregue o arquivo <strong>.pfx</strong> ou <strong>.p12</strong> emitido por uma autoridade certificadora (ICP-Brasil) para assinar e transmitir as NF-e ao SEFAZ.
+              Você pode preencher agora ou deixar para depois.
+            </p>
+
+            {form.certificadoA1Nome ? (
+              <div className="flex items-start gap-3 p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-xl">
+                <FileCheck2 className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400 truncate" data-testid="text-cert-name">
+                    {form.certificadoA1Nome}
+                  </p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-500">
+                    Certificado carregado{form.certificadoA1Base64 ? ' (pronto para salvar)' : ''}
+                  </p>
+                </div>
+                {isAllowed && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoverCertificado}
+                    className="text-destructive hover:bg-destructive/10 h-8 px-2"
+                    data-testid="button-remove-cert"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-3 p-3 bg-muted/30 border border-dashed border-border rounded-xl">
+                <AlertCircle className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  Nenhum certificado carregado. Você ainda pode salvar as demais configurações.
+                </p>
+              </div>
+            )}
+
+            <Field label="Arquivo do Certificado (.pfx / .p12)" hint="Tamanho máximo: 2 MB. O arquivo é armazenado de forma segura no banco.">
+              <Input
+                type="file"
+                accept=".pfx,.p12,application/x-pkcs12"
+                onChange={handleCertificadoUpload}
+                disabled={!isAllowed}
+                className="cursor-pointer file:mr-3 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                data-testid="input-cert-file"
+              />
+            </Field>
+
+            <Field label="Senha do Certificado" hint="Senha definida no momento da emissão pelo ICP-Brasil.">
+              <Input
+                type="password"
+                value={form.certificadoA1Senha}
+                onChange={e => set('certificadoA1Senha', e.target.value)}
+                disabled={!isAllowed}
+                placeholder="••••••••"
+                autoComplete="new-password"
+                data-testid="input-cert-password"
+              />
+            </Field>
+
+            <Field label="Validade (opcional)" hint="Data de expiração do certificado, para alertas internos.">
+              <Input
+                type="date"
+                value={form.certificadoA1Validade}
+                onChange={e => set('certificadoA1Validade', e.target.value)}
+                disabled={!isAllowed}
+                data-testid="input-cert-validade"
+              />
+            </Field>
+
+            <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-xl">
+              <Upload className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                <strong>Espaço reservado:</strong> os campos acima já estão prontos para receber o certificado. Quando ele estiver disponível, basta carregar e salvar.
+              </p>
+            </div>
           </Section>
 
           {/* Ambiente */}
