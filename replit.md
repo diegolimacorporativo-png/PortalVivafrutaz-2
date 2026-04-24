@@ -25,6 +25,14 @@ Preferred communication style: Simple, everyday language.
 - **Session Management**: `express-session` with `memorystore`.
 - **API Design**: Centralized, typed API definitions with Zod schemas for validation.
 - **Storage Layer**: `IStorage` interface implemented using Drizzle ORM and PostgreSQL.
+- **Modular ERP Layout** (`server/`):
+  - `index.ts` — bootstrap only (env, listen)
+  - `app.ts` — Express app factory: parsers, security, request log, module loader, legacy routes, central error handler
+  - `core/` — shared infrastructure: `errors/AppError`, `errors/errorHandler`, `http/asyncHandler`, `http/apiResponse`, `http/requireAuth`, `validation/validateRequest`
+  - `modules/<domain>/` — one folder per ERP domain (`auth`, `users`, `finance`, `sales`, `inventory`, `purchases`, `logistics`, `reports`, `ai`); each contains `*.routes.ts`, `*.controller.ts`, `*.service.ts`, `*.repository.ts`, `*.validation.ts`, `*.types.ts`, `index.ts`
+  - `modules/index.ts` — central loader; modules are mounted BEFORE the legacy `routes/routes.ts` so migrated paths take precedence and unmigrated ones keep working
+- **Migration status**: `finance` module is fully refactored (canonical example); other modules are stubbed with READMEs that map exactly which legacy routes to migrate.
+- **Standardized response envelope** (new modules): `{ success: true, data }` or `{ success: false, error: { message, code, details? } }`.
 
 ### Data Storage
 - **Database**: PostgreSQL, accessed via Drizzle ORM.
