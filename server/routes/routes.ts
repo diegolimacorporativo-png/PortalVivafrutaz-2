@@ -41,24 +41,13 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Session setup for auth
-  const isProduction = process.env.NODE_ENV === 'production';
-  app.use(
-    expressSession({
-      secret: process.env.SESSION_SECRET || "super-secret-key",
-      resave: false,
-      saveUninitialized: false,
-      store: new SessionStore({ checkPeriod: 86400000 }),
-      cookie: {
-        maxAge: 86400000,
-        httpOnly: true,
-        secure: isProduction,
-        sameSite: 'lax',
-        path: '/'
-      },
-      name: 'sessionId'
-    })
-  );
+  // Session middleware is now mounted centrally in `server/app.ts` BEFORE
+  // the module loader, so every router (modular + legacy) shares the same
+  // store and cookie config. The legacy mount lived here historically; we
+  // intentionally leave the `expressSession` and `MemoryStore` imports in
+  // place above because other code in this file references them, but the
+  // `app.use(expressSession(...))` block has been removed to avoid mounting
+  // session twice.
 
   // Start backup scheduler
   scheduleBackups();

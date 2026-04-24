@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { registerModules } from "./modules";
 import { registerRoutes } from "./routes/routes";
 import { errorHandler } from "./core/errors/errorHandler";
+import { createSessionMiddleware } from "./core/http/session";
 
 /**
  * App factory.
@@ -81,6 +82,11 @@ export async function buildApp(): Promise<BuildAppResult> {
     });
     next();
   });
+
+  // Session middleware — centralized so every modular router AND the legacy
+  // router share the same session store. MUST come before registerModules
+  // so the auth module can read/write `req.session` (login, logout, /me).
+  app.use(createSessionMiddleware());
 
   // 1) New modular routes — registered first so they shadow any legacy
   //    duplicate path during the incremental migration.

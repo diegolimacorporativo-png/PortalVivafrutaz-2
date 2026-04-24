@@ -22,7 +22,7 @@ Preferred communication style: Simple, everyday language.
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5.
 - **Language**: TypeScript.
-- **Session Management**: `express-session` with `memorystore`.
+- **Session Management**: `express-session` with `memorystore`, mounted centrally in `server/app.ts` via `core/http/session.ts` BEFORE the module loader so every modular and legacy router shares the same session store.
 - **API Design**: Centralized, typed API definitions with Zod schemas for validation.
 - **Storage Layer**: `IStorage` interface implemented using Drizzle ORM and PostgreSQL.
 - **Modular ERP Layout** (`server/`):
@@ -31,8 +31,8 @@ Preferred communication style: Simple, everyday language.
   - `core/` — shared infrastructure: `errors/AppError`, `errors/errorHandler`, `http/asyncHandler`, `http/apiResponse`, `http/requireAuth`, `validation/validateRequest`
   - `modules/<domain>/` — one folder per ERP domain (`auth`, `users`, `finance`, `sales`, `inventory`, `purchases`, `logistics`, `reports`, `ai`); each contains `*.routes.ts`, `*.controller.ts`, `*.service.ts`, `*.repository.ts`, `*.validation.ts`, `*.types.ts`, `index.ts`
   - `modules/index.ts` — central loader; modules are mounted BEFORE the legacy `routes/routes.ts` so migrated paths take precedence and unmigrated ones keep working
-- **Migration status**: `finance` module is fully refactored (canonical example); other modules are stubbed with READMEs that map exactly which legacy routes to migrate.
-- **Standardized response envelope** (new modules): `{ success: true, data }` or `{ success: false, error: { message, code, details? } }`.
+- **Migration status**: `auth`, `finance`, and `users` modules are fully refactored. `auth` and `users` intentionally preserve their legacy raw response shapes (`{user}`/`{company}` and raw arrays) because the existing frontend Zod-parses those shapes; `finance` uses the new envelope. Remaining modules are stubbed with READMEs that map exactly which legacy routes to migrate.
+- **Standardized response envelope** (new modules unless legacy shape is required): `{ success: true, data }` or `{ success: false, error: { message, code, details? } }`.
 
 ### Data Storage
 - **Database**: PostgreSQL, accessed via Drizzle ORM.
