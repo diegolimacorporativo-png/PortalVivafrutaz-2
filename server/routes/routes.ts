@@ -17,13 +17,17 @@ import { scheduleBackups, runBackup, runBackupSQL, listBackups, getBackupPath, d
 import { startEmailScheduler } from "./email-scheduler.ts";
 import fs from "fs";
 import bcrypt from "bcryptjs";
-import { fileURLToPath } from "url";
 import path from "path";
 import { db } from "../database/db.ts";
 import multer from "multer";
 import { createRequire } from "module";
-const __filename = fileURLToPath(import.meta.url);
-const _require = createRequire(__filename);
+// In the production CJS bundle, `require` exists natively. In dev (tsx/ESM)
+// it does not, so we fall back to createRequire anchored at package.json.
+// We deliberately avoid `import.meta.url` here because esbuild emits it as
+// `undefined` in the CJS output, which crashes `fileURLToPath` at startup.
+const _require: NodeRequire = (typeof (globalThis as any).require !== "undefined")
+  ? (globalThis as any).require
+  : createRequire(process.cwd() + "/package.json");
 const pdfParse = _require("pdf-parse");
 import { orders, orderItems, companies, products, aiInteractions, nfManual } from "@shared/schema";
 import { sql, gte, lte, and, eq, desc, isNull } from "drizzle-orm";
