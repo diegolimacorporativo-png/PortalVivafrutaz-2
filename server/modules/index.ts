@@ -1,5 +1,6 @@
 import type { Express, Router } from "express";
 import { definition as financeModule } from "./finance";
+import { definition as usersModule } from "./users";
 
 /**
  * Central module loader.
@@ -23,8 +24,9 @@ interface ModuleDefinition {
 
 export const MODULES: readonly ModuleDefinition[] = [
   financeModule,
+  usersModule,
   // 🔜 Append future modules here as they are implemented:
-  // authModule, usersModule, salesModule, inventoryModule,
+  // authModule, salesModule, inventoryModule,
   // purchasesModule, logisticsModule, reportsModule, aiModule,
 ];
 
