@@ -1,0 +1,290 @@
+IMPLEMENTAÇÃO DE NOVOS MÓDULOS – CONTROLE DE DESPERDÍCIO + CENTRAL DE AVISOS + GESTÃO DE HISTÓRICO
+
+OBJETIVO
+
+Implementar no sistema VivaFrutaz:
+
+• controle de desperdício de produtos
+• integração com planejamento de compras
+• central de avisos para clientes e setores internos
+• filtros de histórico
+• opção de limpeza de dados antigos para manter sistema leve
+
+--------------------------------------------------
+
+MÓDULO 1 – CONTROLE DE DESPERDÍCIO
+
+Criar novo módulo no sistema chamado:
+
+Controle de Desperdício
+
+Acesso permitido para:
+
+Administrador
+Compras
+Operação
+Diretor
+
+--------------------------------------------------
+
+REGISTRO DE DESPERDÍCIO
+
+Permitir registrar produtos descartados.
+
+Campos obrigatórios:
+
+Produto  
+Quantidade descartada  
+Motivo do descarte  
+Data  
+Responsável pelo registro  
+
+Motivos possíveis:
+
+Produto vencido  
+Produto danificado  
+Produto muito maduro  
+Erro de separação  
+Erro logístico  
+Outros
+
+--------------------------------------------------
+
+INTEGRAÇÃO COM PLANEJAMENTO DE COMPRAS
+
+Quando um desperdício for registrado:
+
+o sistema deve recalcular automaticamente a previsão de compra.
+
+Exemplo:
+
+Planejamento semanal:
+
+Banana Prata → 30kg
+
+Registro de desperdício:
+
+5kg descartados
+
+Sistema recalcula automaticamente:
+
+Nova necessidade → 35kg
+
+--------------------------------------------------
+
+PAINEL DE DESPERDÍCIO
+
+Criar painel analítico com:
+
+Total de desperdício por período
+
+Desperdício por produto
+
+Desperdício por motivo
+
+Gráfico de perdas
+
+Filtros disponíveis:
+
+Dia  
+Semana  
+Mês  
+Período personalizado
+
+--------------------------------------------------
+
+ALERTA DE DESPERDÍCIO
+
+Se determinado produto ultrapassar limite configurado de perda:
+
+Exemplo:
+
+Morango → 20%
+
+Sistema envia alerta para:
+
+Compras  
+Operação  
+Administração  
+
+Mensagem exemplo:
+
+"Alerta: desperdício elevado de Morango nesta semana."
+
+--------------------------------------------------
+
+MÓDULO 2 – CENTRAL DE AVISOS
+
+Criar módulo chamado:
+
+Central de Avisos VivaFrutaz
+
+Somente podem criar avisos:
+
+Administrador  
+Diretor  
+Operação  
+
+--------------------------------------------------
+
+CRIAÇÃO DE AVISO
+
+Campos:
+
+Título do aviso
+
+Mensagem
+
+Tipo de aviso:
+
+Informativo  
+Importante  
+Urgente  
+
+Data de início
+
+Data de encerramento
+
+--------------------------------------------------
+
+DESTINATÁRIOS
+
+Permitir escolher quem receberá o aviso.
+
+Filtros disponíveis:
+
+Empresas específicas
+
+Tipo de cliente:
+
+Cliente padrão
+
+Cliente pontual
+
+Cliente industrializado
+
+Também permitir enviar para setores internos:
+
+Compras
+
+Operação
+
+Administradores
+
+--------------------------------------------------
+
+EXIBIÇÃO DO AVISO
+
+Para clientes:
+
+Exibir aviso no painel do cliente ou no login do sistema.
+
+Para equipe interna:
+
+Exibir notificação no painel administrativo.
+
+--------------------------------------------------
+
+NOTIFICAÇÃO AUTOMÁTICA
+
+Quando aviso for marcado como:
+
+IMPORTANTE ou URGENTE
+
+Sistema envia notificação automática para:
+
+Compras  
+Operação  
+Administradores
+
+--------------------------------------------------
+
+HISTÓRICO DE AVISOS
+
+Sistema deve manter registro de todos avisos criados.
+
+Informações registradas:
+
+Data de criação  
+Usuário responsável  
+Clientes impactados  
+Status do aviso
+
+--------------------------------------------------
+
+GESTÃO DE HISTÓRICO E FILTROS
+
+Adicionar filtros para busca de histórico em:
+
+Controle de desperdício
+
+Central de avisos
+
+Pedidos
+
+Pedidos pontuais
+
+Filtros disponíveis:
+
+Data inicial
+
+Data final
+
+Dia
+
+Semana
+
+Mês
+
+Ano
+
+Empresa
+
+Tipo de cliente
+
+--------------------------------------------------
+
+LIMPEZA DE DADOS DO SISTEMA
+
+Para evitar que o sistema fique pesado,
+permitir exclusão de registros antigos.
+
+Criar opção administrativa chamada:
+
+Limpeza de Histórico
+
+Permitir excluir registros antigos de:
+
+Avisos encerrados
+
+Desperdícios antigos
+
+Pedidos muito antigos (opcional)
+
+Filtros para exclusão:
+
+mais de 3 meses
+
+mais de 6 meses
+
+mais de 12 meses
+
+Antes de excluir, o sistema deve perguntar:
+
+"Tem certeza que deseja excluir esses registros?"
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Controle de desperdício integrado ao planejamento de compras
+
+Central de avisos para clientes e setores internos
+
+Notificações automáticas para compras e operação
+
+Sistema com filtros completos de histórico
+
+Ferramenta de limpeza de dados antigos
+
+Sistema mais leve e organizado

@@ -1,0 +1,163 @@
+CORREÇÃO COMPLETA — CATEGORIAS + PRODUTOS + TRAVA DE ID + BLOQUEIO DE DUPLICIDADE
+
+OBJETIVO:
+
+Organizar corretamente categorias, corrigir tela de produtos e implementar travas para impedir duplicação de ID e produtos.
+
+------------------------------------------------
+
+1. CATEGORIAS (REGRA PRINCIPAL)
+
+Categorias devem existir SOMENTE na aba:
+
+"CATEGORIAS"
+
+Permitir:
+
+criar  
+editar  
+excluir  
+
+PROIBIDO:
+
+criar categoria dentro do produto  
+
+------------------------------------------------
+
+2. TELA DE PRODUTO (CORRETA)
+
+REMOVER:
+
+campo de categoria como texto  
+
+ADICIONAR:
+
+lista de categorias da base em formato:
+
+checkbox/cards  
+
+Exemplo:
+
+☑ In Natura       R$ [   ]  
+☑ Higienizado     R$ [   ]  
+☐ Processado  
+
+Ao selecionar:
+
+abrir campo de preço manual  
+
+------------------------------------------------
+
+3. USO DAS CATEGORIAS
+
+Produto deve:
+
+APENAS puxar categorias já cadastradas  
+
+Nunca criar novas  
+
+------------------------------------------------
+
+4. TRAVA DE ID (CRÍTICO)
+
+Implementar validação:
+
+ID do produto deve ser ÚNICO  
+
+Ao tentar salvar:
+
+Se já existir → BLOQUEAR  
+
+Exibir mensagem:
+
+"ID já cadastrado. Utilize outro ou edite o produto existente."
+
+------------------------------------------------
+
+5. TRAVA DE PRODUTO DUPLICADO
+
+Validar combinação:
+
+nome do produto + ID base  
+
+Se já existir:
+
+bloquear criação duplicada  
+
+Exibir mensagem:
+
+"Produto já cadastrado com esse ID."
+
+------------------------------------------------
+
+6. REGRA INTELIGENTE
+
+Permitir:
+
+mesmo produto com múltiplas categorias  
+
+Exemplo:
+
+BANANA NANICA (ID 001)
+
+✔ In Natura  
+✔ Higienizado  
+
+Mas NÃO permitir:
+
+criar outro produto com mesmo ID 001 duplicado  
+
+------------------------------------------------
+
+7. SALVAMENTO CORRETO
+
+Salvar estrutura:
+
+product_id  
+category_id  
+preço_base  
+
+------------------------------------------------
+
+8. INTEGRAÇÃO TOTAL
+
+Garantir funcionamento em:
+
+pedidos  
+cotações  
+tabela de clientes  
+nota fiscal  
+
+------------------------------------------------
+
+9. INTERFACE (OBRIGATÓRIO)
+
+Mostrar claramente:
+
+erro de ID duplicado  
+erro de produto duplicado  
+categorias carregadas corretamente  
+
+------------------------------------------------
+
+10. TESTE REAL
+
+Criar:
+
+Produto: Banana Nanica  
+ID: 001  
+
+Selecionar:
+
+In Natura → R$ 2,30  
+Higienizado → R$ 3,50  
+
+Tentar criar novamente:
+
+ID 001 → deve bloquear  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Produto não pode duplicar ID nem nome base, e categorias só podem ser selecionadas da base central

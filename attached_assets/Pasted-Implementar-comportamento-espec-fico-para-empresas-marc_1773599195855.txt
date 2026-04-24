@@ -1,0 +1,211 @@
+Implementar comportamento específico para empresas marcadas como "Cliente Contratual".
+
+IMPORTANTE:
+Não alterar estrutura existente do banco.
+Não quebrar funcionamento de clientes não contratuais.
+
+As regras abaixo devem ser aplicadas apenas quando:
+
+empresa.tipoContrato = contratual
+ou
+empresa.contratual = true
+
+--------------------------------------------------
+
+1) BLOQUEIO DE PEDIDOS MANUAIS
+
+Clientes contratuais NÃO podem criar pedidos manualmente.
+
+Na área do cliente:
+
+Ocultar ou desativar:
+Botão "Novo Pedido"
+
+Se o cliente tentar acessar rota de criação de pedido:
+
+/novo-pedido
+/orders/new
+
+Bloquear acesso e mostrar mensagem:
+
+"Este cliente possui contrato ativo. Os pedidos são gerados automaticamente conforme o escopo contratual."
+
+--------------------------------------------------
+
+2) NÃO ENVIAR EMAIL DE JANELA DE PEDIDO
+
+Clientes contratuais NÃO devem receber:
+
+- email de abertura de pedidos
+- email de janela de compra
+- email promocional de pedidos
+
+Antes de enviar qualquer email de pedidos verificar:
+
+if empresa.contratual == true
+→ não enviar email.
+
+--------------------------------------------------
+
+3) NÃO APARECER EM FLUXO DE COMPRAS MANUAIS
+
+Clientes contratuais não participam do fluxo:
+
+- abrir pedidos da semana
+- janela de pedidos
+
+Pois os pedidos virão automaticamente do escopo contratual.
+
+--------------------------------------------------
+
+4) ÁREA DO CLIENTE — NOVA ABA
+
+Na área do cliente adicionar uma aba chamada:
+
+"Meu Escopo Contratual"
+
+Essa aba deve ser apenas de VISUALIZAÇÃO.
+
+O cliente não pode editar diretamente os itens do escopo.
+
+--------------------------------------------------
+
+5) O QUE O CLIENTE DEVE VER
+
+Na tela de escopo mostrar:
+
+Produto  
+Categoria  
+Quantidade  
+Frequência (dia da semana)  
+Volume semanal  
+Preço unitário  
+Valor médio ou valor total do item  
+
+Exemplo de visualização:
+
+Segunda-feira  
+10 Bananas  
+Preço unitário: R$2,30  
+Total: R$23,00  
+
+Quarta-feira  
+30 Mangas  
+Preço unitário: R$3,30  
+Total: R$99,00  
+
+--------------------------------------------------
+
+6) RESUMO DO CONTRATO PARA O CLIENTE
+
+Mostrar no topo da tela:
+
+- Volume semanal total
+- Número de entregas na semana
+- Valor médio semanal estimado
+
+Regras:
+
+Se contrato estiver em modo "valor aberto":
+mostrar preço de cada item.
+
+Se contrato estiver em modo "preço médio":
+mostrar valor médio semanal.
+
+--------------------------------------------------
+
+7) SOLICITAÇÃO DE ALTERAÇÃO
+
+Adicionar botão:
+
+"Solicitar alteração de escopo"
+
+Esse botão deve abrir:
+
+- formulário simples
+OU
+- chat com a IA Flora.
+
+O cliente poderá escrever solicitações como:
+
+"Quero alterar quantidade de frutas"
+"Quero adicionar manga nas quartas"
+"Quero trocar banana por maçã"
+
+Essas solicitações devem ser enviadas para o time administrativo.
+
+Podem virar:
+
+- notificação interna
+- ticket de alteração
+- tarefa administrativa.
+
+--------------------------------------------------
+
+8) ATUALIZAÇÃO DA IA FLORA
+
+Atualizar a IA Flora para suportar clientes contratuais.
+
+A IA deve ter acesso aos dados de:
+
+escopo contratual  
+itens do escopo  
+dias de entrega  
+quantidades  
+preços ou valores médios  
+
+Flora deve conseguir responder perguntas como:
+
+"Quais frutas recebo na semana?"
+
+"Qual o volume semanal do meu contrato?"
+
+"Qual o valor médio do meu contrato?"
+
+"Em quais dias recebo entrega?"
+
+"Quantas bananas recebo por semana?"
+
+A IA deve usar os dados reais do escopo do cliente para responder.
+
+--------------------------------------------------
+
+9) FUNÇÃO DA IA PARA ALTERAÇÃO DE ESCOPO
+
+Quando cliente solicitar mudança no chat da Flora, a IA deve:
+
+identificar que é uma solicitação de alteração de escopo  
+registrar pedido de alteração  
+enviar para administração  
+
+Exemplo:
+
+Cliente:
+"Quero aumentar a quantidade de bananas."
+
+Flora responde:
+
+"Posso solicitar essa alteração no seu contrato. Deseja alterar a quantidade semanal de bananas?"
+
+Se confirmado:
+
+registrar solicitação para equipe administrativa.
+
+--------------------------------------------------
+
+10) TESTE FINAL
+
+Testar com:
+
+Cliente contratual  
+Cliente normal  
+
+Cliente contratual deve:
+
+- não ver botão novo pedido
+- não receber email de janela de pedidos
+- ver apenas escopo contratual
+- poder consultar escopo pela IA Flora
+- poder solicitar alteração de escopo
+
+Clientes normais continuam funcionando normalmente.

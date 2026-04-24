@@ -1,0 +1,150 @@
+ATUALIZAÇÃO DE FUNCIONAMENTO – ABA EMPRESAS
+
+Implementar duas melhorias importantes no sistema:
+
+1) Correção do bug ao excluir itens do escopo contratual
+2) Ajuste da coluna HORÁRIO para mostrar janela de entrega inteligente
+
+--------------------------------------------------
+
+1️⃣ CORREÇÃO – EXCLUSÃO DE ITEM NO ESCOPO CONTRATUAL
+
+Problema atual:
+
+Na aba:
+
+Empresas → Editar Empresa → Escopo Contratual
+
+Quando o usuário clica no ícone de lixeira para remover um item:
+
+O sistema:
+
+✔ salva automaticamente
+✔ mostra mensagem "Empresa atualizada com sucesso"
+✔ fecha o painel de edição
+
+Esse comportamento está incorreto.
+
+--------------------------------------------------
+
+COMPORTAMENTO CORRETO
+
+Ao clicar na lixeira:
+
+O sistema deve apenas:
+
+✔ remover o item visualmente da lista
+✔ atualizar o estado local do formulário
+
+Não deve:
+
+✘ salvar automaticamente
+✘ fechar o painel
+✘ mostrar mensagem de sucesso
+
+--------------------------------------------------
+
+SALVAMENTO
+
+A empresa só deve ser atualizada quando o usuário clicar em:
+
+SALVAR ALTERAÇÕES
+
+--------------------------------------------------
+
+IMPLEMENTAÇÃO TÉCNICA
+
+Garantir que o botão de lixeira NÃO dispare submit.
+
+Alterar botão para:
+
+type="button"
+
+Remover qualquer evento de submit automático.
+
+Função de remoção:
+
+removeScopeItem(itemId)
+
+Atualizar estado:
+
+setScopeItems(scopeItems.filter(item => item.id !== itemId))
+
+--------------------------------------------------
+
+2️⃣ AJUSTE DA COLUNA "HORÁRIO" NA LISTA DE EMPRESAS
+
+Atualmente a coluna HORÁRIO mostra apenas um horário fixo.
+
+Isso está incorreto.
+
+O sistema deve mostrar a janela de entrega do cliente.
+
+--------------------------------------------------
+
+FONTE DOS DADOS
+
+Usar as configurações de entrega cadastradas para a empresa.
+
+Exemplo:
+
+Segunda → 09:00 - 10:00
+Terça → 08:00 - 09:00
+Quarta → 09:00 - 12:00
+
+--------------------------------------------------
+
+CÁLCULO AUTOMÁTICO
+
+O sistema deve identificar:
+
+MENOR horário inicial
+MAIOR horário final
+
+No exemplo acima:
+
+Menor horário = 08:00
+Maior horário = 12:00
+
+--------------------------------------------------
+
+EXIBIÇÃO NA LISTA DE EMPRESAS
+
+A coluna HORÁRIO deve mostrar:
+
+08:00 – 12:00
+
+--------------------------------------------------
+
+REGRAS
+
+Se empresa tiver apenas um dia:
+
+Segunda → 09:00 – 10:00
+
+Mostrar:
+
+09:00 – 10:00
+
+Se empresa tiver vários dias:
+
+Calcular menor início e maior final.
+
+--------------------------------------------------
+
+OBJETIVO
+
+✔ mostrar janela logística real do cliente
+✔ facilitar organização de rotas
+✔ evitar horários incorretos
+✔ melhorar visualização no painel de empresas
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ excluir item do escopo não salva automaticamente
+✔ painel permanece aberto
+✔ horário na lista de empresas mostra janela real
+✔ cálculo automático do menor e maior horário
+✔ sistema preparado para módulo de logística inteligente

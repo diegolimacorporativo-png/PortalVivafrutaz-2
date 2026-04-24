@@ -1,0 +1,111 @@
+CORREÇÃO DA EXIBIÇÃO DA SEÇÃO "QUEM SOMOS NÓS" NO SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Garantir que o conteúdo da seção "Quem Somos Nós",
+configurado no painel administrativo,
+seja exibido corretamente para todos os usuários do sistema,
+incluindo os clientes.
+
+Atualmente o conteúdo é salvo no perfil Admin,
+mas não aparece no portal dos clientes.
+
+--------------------------------------------------
+
+1 VERIFICAR SALVAMENTO DO CONTEÚDO
+
+Confirmar que o conteúdo da seção "Quem Somos Nós"
+está sendo salvo corretamente no banco de dados.
+
+Campos esperados:
+
+Título da seção  
+Texto institucional  
+Ano de fundação  
+Missão  
+Visão  
+Valores  
+Imagem institucional (opcional)
+
+--------------------------------------------------
+
+2 CORRIGIR EXIBIÇÃO PARA CLIENTES
+
+Implementar renderização do conteúdo
+para todos os usuários logados.
+
+Perfis que devem visualizar:
+
+Clientes  
+Admin  
+Diretoria  
+Compras  
+Logística  
+Desenvolvedor
+
+Apenas Admin, Diretoria e Desenvolvedor
+podem editar o conteúdo.
+
+--------------------------------------------------
+
+3 LOCAL DE EXIBIÇÃO
+
+Mostrar a seção "Quem Somos Nós"
+no portal do cliente.
+
+Pode aparecer em:
+
+Menu institucional
+ou
+Painel inicial do cliente
+
+Exemplo de exibição:
+
+Quem Somos Nós
+
+A VivaFrutaz foi fundada em [ano]
+com o objetivo de fornecer soluções
+de abastecimento corporativo.
+
+--------------------------------------------------
+
+4 CARREGAMENTO AUTOMÁTICO
+
+Sempre que um cliente acessar o sistema,
+o sistema deve buscar automaticamente
+o conteúdo institucional salvo
+e exibir na interface.
+
+--------------------------------------------------
+
+5 ATUALIZAÇÃO AUTOMÁTICA
+
+Se o Admin atualizar o conteúdo
+na área administrativa,
+a mudança deve aparecer automaticamente
+para todos os usuários.
+
+Não exigir atualização manual do sistema.
+
+--------------------------------------------------
+
+6 PERMISSÕES
+
+Editar conteúdo:
+
+Admin  
+Diretoria  
+Desenvolvedor
+
+Visualizar conteúdo:
+
+Todos os usuários do sistema.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+A seção "Quem Somos Nós" aparece corretamente
+para clientes e usuários internos,
+mostrando o conteúdo institucional
+configurado no painel administrativo.

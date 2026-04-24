@@ -1,0 +1,249 @@
+REALIZAR AUDITORIA PROFUNDA DAS ÚLTIMAS IMPLEMENTAÇÕES, IMPLEMENTAR SISTEMA DE TREINAMENTO DE NOVAS FUNCIONALIDADES, ATUALIZAR IA FLORA E GARANTIR INTEGRIDADE ENTRE MÓDULOS.
+
+IMPORTANTE:
+Não remover nenhuma funcionalidade existente.
+Não alterar estrutura de banco sem migração segura.
+Não quebrar funcionalidades já operacionais.
+Todas as melhorias devem ser complementares.
+
+--------------------------------------------------
+
+1) AUDITORIA COMPLETA DAS ÚLTIMAS IMPLEMENTAÇÕES
+
+Executar auditoria técnica completa nas últimas funcionalidades adicionadas ao sistema.
+
+Itens que devem ser verificados:
+
+• Escopo contratual  
+• Visualização de escopo pelo cliente  
+• Bloqueio de pedidos para clientes contratuais  
+• Integração do escopo com compras  
+• Geração automática de pedidos a partir do escopo  
+• Aba de gestão de notas fiscais  
+• Exportação de notas fiscais para Bling  
+• Cálculo automático de custo médio  
+• Sistema de categorias de produtos  
+• Novo sistema de ID de produto  
+
+Verificar tecnicamente:
+
+• funcionamento no ambiente real de produção
+• funcionamento no ambiente de teste
+• persistência correta de dados no banco
+• se há rotas duplicadas ou endpoints antigos
+• se existem versões antigas do componente rodando
+• inconsistências entre frontend e backend
+• inconsistências entre API e banco de dados
+
+Verificar também:
+
+• se há cache antigo impedindo atualização
+• se o build atual corresponde à última versão do código
+• se existem múltiplos serviços rodando em paralelo
+
+Gerar relatório administrativo contendo:
+
+FUNCIONALIDADES OK  
+FUNCIONALIDADES PARCIAIS  
+FUNCIONALIDADES COM ERRO  
+FUNCIONALIDADES NÃO IMPLEMENTADAS
+
+--------------------------------------------------
+
+2) AUDITORIA DE INTEGRAÇÃO ENTRE MÓDULOS
+
+Confirmar que as funcionalidades estão conectadas corretamente entre os setores do sistema:
+
+Pedidos  
+Compras  
+Financeiro  
+Inventário  
+Logística  
+Contratos
+
+Verificar fluxos como:
+
+Escopo → geração de pedidos  
+Pedidos → planejamento de compras  
+Compras → inventário  
+Pedidos → geração de nota fiscal  
+Nota fiscal → financeiro
+
+Caso existam pontos de quebra nesses fluxos, registrar no relatório de auditoria.
+
+--------------------------------------------------
+
+3) SISTEMA DE AVISO DE NOVAS FUNCIONALIDADES
+
+Criar módulo chamado:
+
+"Novidades do Sistema"
+
+Sempre que uma nova funcionalidade for publicada, o sistema deve mostrar para os usuários um aviso informativo.
+
+Ao entrar no sistema mostrar modal com:
+
+Título:
+"Novas funcionalidades disponíveis"
+
+Conteúdo exemplo:
+
+• Novo sistema de escopo contratual  
+• Nova aba de gestão de notas fiscais  
+• Cadastro de produto com ID  
+• Integração automática com compras  
+
+Cada item deve possuir:
+
+• título
+• pequena descrição
+• botão "Entendi"
+• botão "Ver tutorial rápido"
+
+Após o usuário confirmar, registrar no sistema que ele já visualizou a atualização.
+
+--------------------------------------------------
+
+4) TREINAMENTO CONTEXTUAL DENTRO DAS TELAS
+
+Adicionar sistema de dicas inteligentes dentro do sistema.
+
+Exemplo:
+
+Na aba de contratos:
+
+"Você pode configurar o escopo contratual do cliente nesta área."
+
+Na aba de notas fiscais:
+
+"Utilize esta área para gerar e exportar notas fiscais para o Bling."
+
+Na aba de compras:
+
+"Os pedidos gerados a partir de escopos contratuais aparecem automaticamente aqui."
+
+Essas dicas devem aparecer apenas nas primeiras utilizações da funcionalidade.
+
+--------------------------------------------------
+
+5) ATUALIZAÇÃO COMPLETA DA IA FLORA
+
+Atualizar a base de conhecimento da IA Flora para reconhecer todas as novas funcionalidades do sistema.
+
+A IA deve compreender e explicar:
+
+• escopo contratual
+• pedidos automáticos
+• integração com compras
+• gestão de notas fiscais
+• exportação para Bling
+• cadastro de produtos com ID
+• categorias de produtos
+• cálculo de custo médio
+• funcionamento do portal do cliente
+
+A IA deve funcionar em dois contextos:
+
+USUÁRIOS INTERNOS  
+CLIENTES DO PORTAL
+
+Cada perfil deve receber respostas adaptadas ao seu nível de acesso.
+
+--------------------------------------------------
+
+6) PERGUNTAS RÁPIDAS DA IA
+
+Criar módulo chamado:
+
+"Perguntas rápidas"
+
+Exemplos para usuários internos:
+
+• Como funciona o escopo contratual?
+• Como gerar uma nota fiscal?
+• Como cadastrar um novo produto?
+• Como funciona o custo médio?
+• Como exportar notas para o Bling?
+
+Exemplos para clientes:
+
+• Quais produtos recebo no meu contrato?
+• Em quais dias recebo entregas?
+• Como solicitar alteração de escopo?
+• Como falar com o atendimento?
+
+--------------------------------------------------
+
+7) IA FLORA COM PESQUISA EXTERNA
+
+Permitir que a IA Flora realize pesquisa externa quando a resposta não existir na base interna.
+
+Fluxo de decisão:
+
+1) Buscar resposta na base interna do sistema
+2) Buscar na base de conhecimento
+3) Caso não encontre → realizar pesquisa externa
+
+A resposta deve sempre indicar a fonte utilizada.
+
+Exemplo:
+
+"Informação obtida em:
+site: www.exemplo.com"
+
+--------------------------------------------------
+
+8) FILTROS DE SEGURANÇA NA PESQUISA
+
+Implementar filtros para bloquear pesquisas externas com temas proibidos.
+
+Bloquear conteúdos relacionados a:
+
+pornografia  
+conteúdo adulto  
+violência extrema  
+drogas  
+conteúdo ilegal  
+temas ofensivos  
+apostas  
+conteúdos fora do contexto empresarial  
+
+Também bloquear pesquisas sobre concorrentes da empresa.
+
+Caso a pesquisa seja bloqueada:
+
+A IA deve responder:
+
+"Essa pesquisa não está disponível nas políticas da plataforma."
+
+--------------------------------------------------
+
+9) PROTEÇÃO DE DADOS DO SISTEMA
+
+Garantir que a IA Flora NUNCA envie para pesquisas externas:
+
+dados de clientes  
+pedidos  
+contratos  
+notas fiscais  
+CNPJ  
+emails internos  
+informações financeiras  
+
+Esses dados devem permanecer 100% internos.
+
+--------------------------------------------------
+
+10) TESTES FINAIS
+
+Executar testes completos:
+
+• auditoria das funcionalidades recentes
+• funcionamento do aviso de novas funções
+• funcionamento das dicas no sistema
+• atualização da IA Flora
+• funcionamento das perguntas rápidas
+• funcionamento da pesquisa externa
+• verificação da segurança de dados
+
+Gerar relatório final detalhado para o administrador contendo todas as verificações realizadas.

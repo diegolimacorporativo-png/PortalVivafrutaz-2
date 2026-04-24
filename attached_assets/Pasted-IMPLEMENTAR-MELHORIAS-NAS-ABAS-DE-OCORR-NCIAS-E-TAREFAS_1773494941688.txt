@@ -1,0 +1,154 @@
+IMPLEMENTAR MELHORIAS NAS ABAS DE OCORRÊNCIAS E TAREFAS – SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Melhorar o controle de ocorrências de clientes e aumentar a segurança e organização das tarefas internas do sistema.
+
+--------------------------------------------------
+
+MÓDULO 1 – OCORRÊNCIAS DO CLIENTE
+
+1. BOTÃO DE EXCLUIR OCORRÊNCIA
+
+Adicionar botão:
+
+Excluir Ocorrência
+
+Esse botão deve aparecer apenas para usuários com perfil:
+
+Administrador
+Diretor
+Desenvolvedor
+
+Ao clicar em excluir:
+
+exibir confirmação:
+
+"Tem certeza que deseja excluir esta ocorrência?"
+
+Se confirmado:
+
+remover ocorrência permanentemente do banco de dados.
+
+--------------------------------------------------
+
+2. SINCRONIZAÇÃO ENTRE ADMIN E CLIENTE
+
+Quando uma ocorrência for excluída no painel administrativo:
+
+ela deve desaparecer automaticamente também no acesso do cliente.
+
+Admin exclui → cliente não visualiza mais.
+
+Garantir que a exclusão seja feita diretamente no banco de dados.
+
+--------------------------------------------------
+
+3. GERAR PDF DA OCORRÊNCIA
+
+Adicionar botão:
+
+Baixar Ocorrência (PDF)
+
+O sistema deve gerar um PDF automático com todas as informações da ocorrência.
+
+--------------------------------------------------
+
+4. INFORMAÇÕES DO PDF
+
+Cabeçalho:
+
+VivaFrutaz  
+Relatório de Ocorrência
+
+Dados da ocorrência:
+
+Código da ocorrência
+Data da ocorrência
+Empresa cliente
+Responsável que abriu
+Status da ocorrência
+
+Dados do pedido relacionado:
+
+Número do pedido
+Data do pedido
+Data de entrega
+
+Descrição completa da ocorrência.
+
+Se existirem:
+
+anexos
+observações internas
+respostas da equipe VivaFrutaz
+
+Rodapé do documento:
+
+Documento gerado automaticamente pelo sistema VivaFrutaz  
+Data de geração do relatório.
+
+--------------------------------------------------
+
+5. PERMISSÕES DE OCORRÊNCIA
+
+Cliente pode:
+
+visualizar suas ocorrências
+baixar PDF
+
+Cliente NÃO pode:
+
+excluir ocorrências
+
+Somente administradores podem excluir.
+
+--------------------------------------------------
+
+MÓDULO 2 – CONTROLE DE VISUALIZAÇÃO DE TAREFAS
+
+Implementar controle de acesso nas tarefas do sistema.
+
+Cada tarefa deve possuir um campo:
+
+Responsável pela tarefa
+
+Somente os seguintes usuários podem visualizar a tarefa:
+
+1. Usuário responsável pela tarefa
+2. Administrador
+3. Diretor
+4. Desenvolvedor
+
+Outros usuários do sistema não devem visualizar tarefas que não sejam atribuídas a eles.
+
+--------------------------------------------------
+
+EXEMPLO
+
+Usuário João recebe tarefa.
+
+Somente:
+
+João
+Administrador
+Diretor
+Desenvolvedor
+
+podem visualizar essa tarefa.
+
+Outros usuários não podem visualizar nem acessar.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Ocorrências podem ser excluídas pelos administradores.
+
+Ocorrências podem ser baixadas em PDF.
+
+Ocorrências excluídas desaparecem também para o cliente.
+
+Tarefas ficam visíveis apenas para o responsável e gestores do sistema.
+
+Sistema fica mais organizado e seguro.

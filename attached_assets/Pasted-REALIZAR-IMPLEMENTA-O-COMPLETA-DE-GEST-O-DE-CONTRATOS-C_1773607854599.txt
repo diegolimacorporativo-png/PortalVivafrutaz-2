@@ -1,0 +1,305 @@
+REALIZAR IMPLEMENTAÇÃO COMPLETA DE GESTÃO DE CONTRATOS COM CONTROLE DE VIGÊNCIA, REAJUSTE POR IPCA, DOCUMENTO DE REVISÃO CONTRATUAL E PAINEL DE RENTABILIDADE.
+
+IMPORTANTE:
+
+Não quebrar funcionalidades existentes  
+Não remover campos do banco atual  
+Não alterar estrutura crítica sem migração segura  
+Manter compatibilidade com contratos existentes  
+
+Essa melhoria deve funcionar para:
+
+clientes contratuais  
+contratos com prazo determinado  
+contratos com prazo indefinido  
+
+--------------------------------------------------
+
+ETAPA 1 — AUDITORIA DO MÓDULO DE CONTRATOS
+
+Primeiro verificar estrutura atual do sistema.
+
+Confirmar existência dos campos:
+
+dataInicio  
+dataFim  
+tipoContrato  
+
+Se não existir criar de forma compatível.
+
+Adicionar também:
+
+tipoVigencia
+
+Valores possíveis:
+
+prazo_indefinido  
+prazo_determinado
+
+Garantir que contratos antigos continuem funcionando mesmo sem esses campos preenchidos.
+
+--------------------------------------------------
+
+ETAPA 2 — CONTROLE DE VIGÊNCIA DO CONTRATO
+
+Implementar lógica automática baseada nas datas.
+
+Para contratos com:
+
+tipoVigencia = prazo_indefinido
+
+Criar verificação automática.
+
+Quando completar:
+
+12 meses da dataInicio
+
+Mostrar alerta administrativo:
+
+"Contrato completou 12 meses. Avaliar reajuste por IPCA."
+
+Esse alerta deve aparecer em:
+
+lista de contratos  
+dashboard administrativo  
+detalhes do contrato
+
+--------------------------------------------------
+
+ETAPA 3 — ALERTAS DE VENCIMENTO
+
+Para contratos com:
+
+tipoVigencia = prazo_determinado
+
+Se existir dataFim, calcular tempo restante.
+
+Mostrar avisos automáticos quando faltar:
+
+90 dias  
+60 dias  
+30 dias  
+
+Exemplo de aviso:
+
+"Contrato próximo do vencimento."
+
+Disponibilizar ações rápidas:
+
+Renovar contrato  
+Editar escopo  
+Gerar proposta de renovação  
+Gerar documento de reajuste
+
+--------------------------------------------------
+
+ETAPA 4 — SEÇÃO DE REVISÃO CONTRATUAL
+
+Dentro da tela do contrato criar nova seção:
+
+"Reajuste / Revisão Contratual"
+
+Campos:
+
+percentualReajuste  
+motivoReajuste  
+dataAplicacaoReajuste
+
+Permitir também:
+
+edição manual do valor  
+simulação de reajuste
+
+Exemplo:
+
+valor atual semanal  
+valor atual mensal  
+percentual aplicado  
+
+Calcular automaticamente:
+
+novo valor semanal  
+novo valor mensal
+
+--------------------------------------------------
+
+ETAPA 5 — ATUALIZAÇÃO AUTOMÁTICA DO CONTRATO
+
+Após confirmar reajuste:
+
+Atualizar automaticamente:
+
+escopo contratual  
+valor médio do contrato  
+previsão financeira  
+margem estimada do contrato
+
+Registrar usuário responsável pela alteração.
+
+--------------------------------------------------
+
+ETAPA 6 — EDITOR DE DOCUMENTO DE REAJUSTE
+
+Criar editor interno de documento dentro do contrato.
+
+Esse documento deve permitir:
+
+edição completa de texto  
+inserção de logo da empresa  
+inserção de dados do cliente  
+
+Campos automáticos:
+
+nome da empresa cliente  
+CNPJ  
+data do contrato  
+percentual de reajuste  
+data de aplicação  
+
+Exemplo inicial de texto:
+
+"Conforme previsto em contrato, informamos o reajuste anual baseado no índice IPCA."
+
+Todo texto deve ser editável.
+
+--------------------------------------------------
+
+ETAPA 7 — ASSINATURA ELETRÔNICA
+
+Adicionar área de assinatura no final do documento.
+
+Campos:
+
+nome do responsável  
+cargo  
+data  
+campo para colar imagem de assinatura  
+
+Permitir upload de assinatura ou colagem de imagem.
+
+--------------------------------------------------
+
+ETAPA 8 — EXPORTAÇÃO DO DOCUMENTO
+
+Permitir exportação do documento em:
+
+PDF  
+visualização interna
+
+Garantir que o documento preserve:
+
+logo  
+texto  
+assinatura  
+dados do contrato
+
+--------------------------------------------------
+
+ETAPA 9 — ENVIO MANUAL POR EMAIL
+
+Adicionar botão:
+
+"Enviar reajuste por email"
+
+Esse envio deve ser manual.
+
+O sistema deve:
+
+gerar PDF do documento  
+anexar ao email  
+enviar para email cadastrado do cliente  
+
+Assunto sugerido:
+
+Atualização contratual VivaFrutaz
+
+Corpo inicial do email:
+
+"Olá,
+
+Conforme previsto em contrato, estamos aplicando o reajuste anual baseado no índice IPCA.
+
+Segue documento em anexo.
+
+Atenciosamente  
+Equipe VivaFrutaz"
+
+Permitir edição do texto antes do envio.
+
+--------------------------------------------------
+
+ETAPA 10 — HISTÓRICO DE REAJUSTES
+
+Registrar histórico dentro do contrato.
+
+Salvar:
+
+data do reajuste  
+percentual aplicado  
+novo valor  
+usuário responsável  
+documento enviado
+
+Exibir histórico cronológico.
+
+--------------------------------------------------
+
+ETAPA 11 — PAINEL DE RENTABILIDADE DO CONTRATO
+
+Adicionar painel dentro do contrato mostrando indicadores.
+
+Campos calculados automaticamente:
+
+valor semanal do contrato  
+valor mensal estimado  
+valor anual estimado  
+custo médio estimado  
+margem estimada  
+
+Cálculos:
+
+Valor mensal = valor semanal × 4  
+Valor anual = valor mensal × 12  
+
+Margem estimada = receita total − custo médio total
+
+Atualizar automaticamente sempre que:
+
+escopo for alterado  
+reajuste for aplicado  
+preço for modificado
+
+--------------------------------------------------
+
+ETAPA 12 — ALERTAS DE GESTÃO
+
+Adicionar alertas no dashboard administrativo:
+
+contratos completando 12 meses  
+contratos próximos do vencimento  
+contratos sem reajuste aplicado há mais de 12 meses
+
+--------------------------------------------------
+
+ETAPA 13 — COMPATIBILIDADE
+
+Garantir que:
+
+contratos antigos continuem funcionando  
+novos campos possam ficar vazios  
+nenhum dado existente seja perdido
+
+--------------------------------------------------
+
+ETAPA 14 — TESTE FINAL
+
+Testar cenários:
+
+contrato indefinido completando 12 meses  
+contrato com prazo determinado próximo do vencimento  
+aplicação de reajuste  
+geração de documento  
+exportação em PDF  
+envio de email  
+registro no histórico  
+cálculo de margem do contrato

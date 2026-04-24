@@ -1,0 +1,315 @@
+MÓDULO 1 — CORREÇÃO DA SELEÇÃO DE DIA DO PEDIDO
+
+Na área do cliente → Novo Pedido
+
+Atualmente existem abas de dias:
+
+Segunda-feira
+Quarta-feira
+Sexta-feira
+
+Problema atual:
+
+O cliente pode selecionar produtos na aba de segunda e depois mudar para quarta, misturando pedidos e causando erro.
+
+Correção necessária:
+
+Quando o cliente selecionar um dia para iniciar o pedido:
+	•	Bloquear acesso às outras abas de dias.
+	•	Mostrar aviso se tentar mudar de dia.
+
+Mensagem:
+
+“Você já iniciou um pedido para este dia. Para mudar o dia de entrega, é necessário cancelar o pedido atual.”
+
+Criar botão:
+
+Cancelar pedido atual
+
+Somente após cancelar o pedido o cliente poderá selecionar outro dia.
+
+Cada pedido deve estar vinculado a apenas um dia de entrega.
+
+⸻
+
+MÓDULO 2 — CORREÇÃO DATA DE ENTREGA
+
+Na tela de novo pedido aparece:
+
+Pedido de segunda-feira
+Entrega na terça-feira
+
+Isso está incorreto.
+
+Correção:
+
+Pedidos feitos na aba segunda-feira devem mostrar:
+
+Entrega: Segunda-feira
+
+Remover completamente a lógica que adiciona +1 dia na entrega.
+
+⸻
+
+MÓDULO 3 — PEDIDO PONTUAL DO CLIENTE
+
+Criar nova aba no painel do cliente:
+
+Solicitar Pedido Pontual
+
+Fluxo:
+
+Cliente descreve pedido especial fora da rotina.
+
+Campos:
+
+Dia desejado (segunda a sexta)
+Descrição do pedido
+Quantidade aproximada
+Observações
+
+Botão:
+
+Enviar solicitação
+
+Status visível ao cliente:
+
+Aguardando aprovação
+Aprovado
+Recusado
+
+⸻
+
+MÓDULO 4 — APROVAÇÃO DO PEDIDO PONTUAL (ADMIN)
+
+No painel administrativo criar aba:
+
+Pedidos Pontuais
+
+Tabela com:
+
+Cliente
+Dia solicitado
+Descrição
+Data da solicitação
+Status
+
+Administrador pode:
+
+Aprovar pedido
+Recusar pedido
+
+Quando aprovado, o pedido entra no sistema normalmente.
+
+⸻
+
+MÓDULO 5 — LIMPEZA AUTOMÁTICA DE HISTÓRICO
+
+O histórico de pedidos deve permanecer no sistema por 2 meses apenas.
+
+Criar sistema automático que verifica pedidos antigos.
+
+7 dias antes da exclusão mostrar aviso ao administrador.
+
+Mensagem:
+
+“Existem pedidos com mais de 2 meses. Deseja manter ou liberar a limpeza automática?”
+
+Opções:
+
+Manter histórico
+Excluir histórico
+
+Se aprovado, o sistema remove automaticamente pedidos antigos.
+
+⸻
+
+MÓDULO 6 — REMOVER NUMERAÇÃO DE SEMANA ANUAL
+
+Atualmente o sistema mostra:
+
+Semana 11 do ano
+
+Remover essa lógica completamente.
+
+Mostrar apenas:
+
+Semana selecionada pelo administrador nas janelas de pedidos.
+
+⸻
+
+MÓDULO 7 — COMPLETAR CADASTRO DE EMPRESAS
+
+No cadastro de empresas adicionar campos:
+
+CNPJ
+Endereço completo
+
+Endereço deve incluir:
+
+Rua
+Número
+Bairro
+Cidade
+CEP
+
+⸻
+
+MÓDULO 8 — PAINEL FINANCEIRO PARA NOTAS FISCAIS
+
+Criar nova área no sistema:
+
+Financeiro
+
+Funções:
+
+Filtrar pedidos por:
+
+Empresa
+Data
+Período
+Status
+
+Permitir exportar pedidos para integração com o sistema Nimbi Procurement Platform.
+
+Mostrar dados:
+
+Empresa
+Pedido
+Valor total
+Data
+Status
+
+Botão:
+
+Exportar pedidos
+
+⸻
+
+MÓDULO 9 — USUÁRIO DESENVOLVEDOR
+
+Criar novo tipo de usuário:
+
+Desenvolvedor
+
+Permissões:
+
+Acesso total ao sistema
+Acesso a logs do sistema
+Pode redefinir senha do administrador
+Pode recuperar senha do administrador
+Pode acessar backups
+
+Login protegido por senha.
+
+⸻
+
+MÓDULO 10 — BACKUP DO SISTEMA
+
+Criar backup automático diário.
+
+Horário do backup:
+
+17:00
+
+Salvar backups do banco de dados.
+
+Manter histórico de 30 backups.
+
+Criar painel:
+
+Sistema → Backups
+
+Funções:
+
+Gerar backup manual
+Baixar backup
+Restaurar backup
+
+Registrar ações no sistema de logs.
+
+⸻
+
+MÓDULO 11 — GERENCIAMENTO DE USUÁRIOS
+
+Administrador deve poder criar usuários com diferentes permissões.
+
+Tipos de usuário:
+
+Cliente
+
+Permissões:
+
+Fazer pedidos
+Visualizar histórico de pedidos
+
+Administrador
+
+Permissões:
+
+Acesso total ao sistema
+
+Financeiro
+
+Permissões:
+
+Acessar pedidos
+Acessar área financeira
+Gerar relatórios
+Exportar dados para notas fiscais
+
+⸻
+
+MÓDULO 12 — EXCLUSÃO DE JANELAS DE PEDIDOS
+
+Na área:
+
+Admin → Janelas de pedidos
+
+Adicionar opção:
+
+Excluir janela
+
+Quando excluída, a janela não deve aparecer mais para os clientes.
+
+⸻
+
+MÓDULO 13 — EMAIL AUTOMÁTICO PARA PEDIDOS
+
+Criar sistema automático de envio de email para clientes.
+
+Objetivo:
+
+Lembrar clientes de fazer pedidos antes do prazo.
+
+Exemplo de email:
+
+Assunto:
+
+Reposição semanal de frutas VivaFrutaz
+
+Mensagem:
+
+Olá (nome da empresa)
+
+Seu prazo para pedido de frutas está aberto.
+
+Acesse o portal para realizar seu pedido dentro do prazo.
+
+Link direto para o sistema.
+
+⸻
+
+OBJETIVO FINAL
+
+Melhorar o funcionamento do sistema VivaFrutaz garantindo:
+
+Controle correto de dias de pedido
+Correção de data de entrega
+Sistema de pedidos pontuais
+Limpeza automática de histórico
+Cadastro completo de empresas
+Área financeira organizada
+Controle de usuários
+Backup automático
+Sistema de emails automáticos

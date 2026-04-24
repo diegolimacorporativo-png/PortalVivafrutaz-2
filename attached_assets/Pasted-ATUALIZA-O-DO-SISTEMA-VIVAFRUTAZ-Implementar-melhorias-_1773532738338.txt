@@ -1,0 +1,209 @@
+ATUALIZAÇÃO DO SISTEMA VIVAFRUTAZ
+
+Implementar melhorias no módulo de pedidos pontuais personalizados
+e no planejamento de compras.
+
+--------------------------------------------------
+
+1️⃣ CONTROLE DE ACESSO GLOBAL
+
+Garantir acesso completo para os perfis:
+
+ADMIN
+DESENVOLVEDOR
+DIRETORIA
+
+Esses usuários podem:
+
+✔ acessar todas as abas do sistema
+✔ editar pedidos
+✔ aprovar pedidos
+✔ gerar PDF
+✔ gerar DANFE
+✔ acessar planejamento de compras
+✔ acessar logística
+✔ acessar relatórios
+
+--------------------------------------------------
+
+CLIENTES NÃO PODEM
+
+❌ gerar PDF
+❌ gerar DANFE
+❌ editar quantidades aprovadas
+❌ acessar áreas administrativas
+
+Clientes apenas solicitam pedidos.
+
+--------------------------------------------------
+
+2️⃣ PEDIDOS PONTUAIS PERSONALIZADOS
+
+Criar formulário dinâmico para clientes solicitarem produtos
+fora do catálogo.
+
+Botão:
+
++ ADICIONAR PRODUTO
+
+Campos da solicitação:
+
+Nome do produto
+Quantidade
+Marca (opcional)
+
+--------------------------------------------------
+
+3️⃣ CATEGORIA DO PRODUTO (OBRIGATÓRIO)
+
+Cliente deve escolher a categoria.
+
+Opções:
+
+Frutas
+Hortifruti / Verduras
+Industrializados
+
+Sem selecionar categoria o pedido não pode ser enviado.
+
+--------------------------------------------------
+
+4️⃣ IDENTIFICAÇÃO DE COMPRA
+
+Adicionar campo obrigatório:
+
+Tipo do produto
+
+Produto do catálogo
+Produto fora do catálogo
+
+--------------------------------------------------
+
+5️⃣ PROCESSAMENTO DO PEDIDO
+
+Status inicial:
+
+PENDENTE DE APROVAÇÃO
+
+Admins podem:
+
+✔ editar produtos
+✔ ajustar quantidade
+✔ remover itens
+✔ aprovar pedido
+
+--------------------------------------------------
+
+6️⃣ AJUSTE DE UNIDADES
+
+Admins podem ajustar unidades de venda.
+
+Exemplo:
+
+Cliente pediu:
+
+3 unidades
+
+Produto vendido em:
+
+fardo com 12
+
+Admin ajusta para:
+
+12 unidades.
+
+--------------------------------------------------
+
+7️⃣ PREVISÃO DE ENTREGA
+
+Admins podem definir:
+
+Data prevista de entrega.
+
+Essa informação aparece para o cliente.
+
+--------------------------------------------------
+
+8️⃣ DOCUMENTOS
+
+Após aprovação liberar apenas para usuários internos:
+
+Gerar PDF
+Gerar DANFE
+
+Cliente apenas visualiza o status do pedido.
+
+--------------------------------------------------
+
+9️⃣ INTEGRAÇÃO COM PLANEJAMENTO DE COMPRAS
+
+Quando um pedido pontual for aprovado
+os itens devem ser enviados automaticamente
+para o módulo:
+
+Planejamento de Compras.
+
+--------------------------------------------------
+
+🔟 FILTROS NO PLANEJAMENTO DE COMPRAS
+
+Adicionar filtros para facilitar análise.
+
+Filtros disponíveis:
+
+Pedidos pontuais
+Industrializados
+Hortifruti / Verduras
+Frutas
+Produtos fora de catálogo
+
+--------------------------------------------------
+
+1️⃣1️⃣ FILTRO ESPECÍFICO PARA INDUSTRIALIZADOS
+
+Criar filtro:
+
+Mostrar apenas pedidos pontuais industrializados.
+
+Esse filtro ajuda a equipe de compras
+a identificar rapidamente itens que precisam
+ser comprados de fornecedores.
+
+--------------------------------------------------
+
+1️⃣2️⃣ FILTRO PARA VERDURAS / HORTIFRUTI
+
+Criar filtro:
+
+Mostrar apenas pedidos pontuais de hortifruti / verduras.
+
+Esses produtos geralmente não são vendidos
+sem estoque e precisam ser comprados previamente.
+
+Esse filtro ajuda a equipe de compras
+a organizar pedidos externos.
+
+--------------------------------------------------
+
+1️⃣3️⃣ DADOS MOSTRADOS NO PLANEJAMENTO DE COMPRAS
+
+Mostrar tabela com:
+
+Produto
+Categoria
+Quantidade total necessária
+Pedidos vinculados
+Clientes que solicitaram
+Status da compra
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ clientes podem solicitar produtos fora do catálogo
+✔ admins controlam aprovação e quantidade final
+✔ sistema identifica automaticamente produtos que precisam ser comprados
+✔ planejamento de compras fica organizado por categoria
+✔ filtros ajudam a equipe de compras
+✔ clientes não podem gerar documentos oficiais
+✔ admins e diretoria têm acesso total ao sistema

@@ -1,0 +1,159 @@
+OBJETIVO
+
+Realizar uma auditoria completa no sistema VivaFrutaz para verificar:
+
+- bugs
+- problemas de lógica
+- falhas de segurança
+- inconsistências de dados
+- funcionalidades quebradas
+- erros de integração da Flora IA
+
+O sistema já está em desenvolvimento e possui:
+
+- login de usuários
+- painel administrativo
+- cadastro de empresas
+- sistema de pedidos
+- perfil de clientes
+- IA Flora
+- criação de tarefas
+- exportação de relatórios
+
+A auditoria deve analisar todo o projeto antes de qualquer alteração.
+
+--------------------------------------------------
+
+AUDITORIA DE FUNCIONAMENTO
+
+Verificar se todas as funcionalidades do sistema estão funcionando corretamente:
+
+login e autenticação  
+criação de pedidos  
+edição de pedidos  
+cancelamento de pedidos  
+cadastro de empresas  
+perfil de clientes  
+criação de tarefas  
+exportação de relatórios  
+integração da Flora IA  
+
+Identificar possíveis erros ou comportamentos inesperados.
+
+--------------------------------------------------
+
+ANÁLISE DE BUGS
+
+Detectar problemas como:
+
+erros de interface  
+funções que não executam  
+botões sem ação  
+rotas quebradas  
+erros de banco de dados  
+problemas de sincronização de dados  
+
+Corrigir automaticamente quando possível.
+
+Caso alguma correção possa afetar outra parte do sistema,
+validar antes de aplicar.
+
+--------------------------------------------------
+
+AUDITORIA DA FLORA IA
+
+Verificar se a Flora IA está corretamente integrada com o sistema.
+
+Testar funcionalidades como:
+
+criação de tarefas  
+exportação de relatórios  
+análise de pedidos  
+integração com clientes  
+
+Garantir que os comandos da Flora executem ações reais no sistema.
+
+--------------------------------------------------
+
+INTEGRAÇÃO DA FLORA NO PERFIL DE CLIENTES
+
+Verificar se a atualização que adiciona a Flora IA
+no perfil de clientes foi aplicada corretamente.
+
+Caso não tenha sido aplicada,
+realizar a implementação.
+
+A Flora deve funcionar dentro da página do cliente
+reconhecendo automaticamente qual cliente está sendo visualizado.
+
+--------------------------------------------------
+
+CONTROLE DE PERMISSÕES
+
+Garantir que usuários do grupo de clientes
+tenham acesso apenas às funcionalidades permitidas.
+
+A Flora IA dentro do perfil do cliente
+deve mostrar apenas opções que o cliente pode utilizar.
+
+Exemplo:
+
+clientes não devem ver dados internos da empresa  
+clientes não devem acessar relatórios administrativos  
+clientes não devem acessar dados de outros clientes  
+
+A Flora deve limitar automaticamente as respostas
+com base nas permissões do usuário logado.
+
+--------------------------------------------------
+
+ANÁLISE DE SEGURANÇA
+
+Verificar possíveis falhas como:
+
+acesso indevido a dados  
+exposição de informações sensíveis  
+rotas sem autenticação  
+consultas inseguras ao banco de dados  
+
+Corrigir qualquer vulnerabilidade encontrada.
+
+--------------------------------------------------
+
+TESTES AUTOMÁTICOS
+
+Executar testes básicos de funcionamento após correções.
+
+Testar:
+
+fluxo de login  
+criação de pedido  
+acesso ao perfil do cliente  
+funcionamento da Flora IA  
+exportação de relatórios  
+
+Garantir que tudo funcione corretamente.
+
+--------------------------------------------------
+
+RELATÓRIO FINAL
+
+Após a auditoria, gerar um relatório contendo:
+
+problemas encontrados  
+correções aplicadas  
+melhorias recomendadas  
+pontos do sistema que precisam de atenção futura.
+
+--------------------------------------------------
+
+IMPORTANTE
+
+Não remover funcionalidades existentes.
+
+Preservar a lógica atual do sistema.
+
+Apenas corrigir erros,
+melhorar estabilidade
+e garantir que a Flora IA funcione corretamente
+respeitando as permissões de cada tipo de usuário.

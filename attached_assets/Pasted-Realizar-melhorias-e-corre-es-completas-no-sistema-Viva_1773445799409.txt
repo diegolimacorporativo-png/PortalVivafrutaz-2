@@ -1,0 +1,224 @@
+Realizar melhorias e correções completas no sistema VivaFrutaz B2B.
+
+--------------------------------------------------
+
+GESTÃO DE USUÁRIOS DO SISTEMA
+
+No painel de usuários implementar:
+
+Botão EDITAR usuário
+Botão ATUALIZAR usuário
+Botão EXCLUIR usuário
+
+Somente os seguintes perfis podem alterar usuários:
+
+Administrador
+Diretor
+Desenvolvedor
+
+Permitir alterar:
+
+nome
+email
+cargo
+permissões
+status ativo ou inativo.
+
+--------------------------------------------------
+
+PERMISSÕES DE SENHA
+
+Somente os perfis abaixo podem alterar senha de usuários do sistema:
+
+Administrador
+Diretor
+Desenvolvedor
+
+Usuários administrativos podem alterar apenas senha de clientes.
+
+--------------------------------------------------
+
+CORREÇÃO LOGIN DESENVOLVEDOR
+
+Corrigir erro de login do perfil desenvolvedor.
+
+Verificar:
+
+validação de email
+validação de senha
+verificação de permissões
+
+Garantir que o usuário desenvolvedor consiga acessar a área de desenvolvedor.
+
+--------------------------------------------------
+
+EXPORTAÇÃO PARA FATURAMENTO
+
+Criar sistema completo de exportação de faturamento.
+
+Filtros disponíveis:
+
+Faturamento diário
+Faturamento semanal
+Faturamento mensal
+
+Permitir também seleção manual de datas.
+
+Exemplo:
+
+Selecionar pedidos do dia
+Selecionar pedidos da semana
+Selecionar pedidos do mês
+
+--------------------------------------------------
+
+EXPORTAÇÃO PARA SISTEMA DE FATURAMENTO (NIMBI)
+
+Gerar planilha de exportação contendo:
+
+Empresa
+CNPJ
+Produto
+Descrição do produto
+Quantidade
+Unidade
+Valor unitário
+Valor total
+Observação do cliente
+Tipo de faturamento
+Prazo de pagamento.
+
+A planilha deve ser compatível com sistemas de faturamento como Nimbi.
+
+--------------------------------------------------
+
+EXPIRAÇÃO NIMBI
+
+Criar campo chamado:
+
+Expiração Nimbi
+
+Esse campo deve aparecer:
+
+na aba de pedidos
+na exportação de faturamento.
+
+Permitir filtrar pedidos que precisam ser faturados antes da data limite.
+
+--------------------------------------------------
+
+ACESSO DO USUÁRIO FINANCEIRO
+
+Usuário com perfil FINANCEIRO deve ter acesso a:
+
+aba pedidos
+exportação de faturamento
+relatório financeiro.
+
+O financeiro deve visualizar também:
+
+tipo de faturamento da empresa
+prazo de pagamento
+forma de pagamento
+observação do cliente no pedido.
+
+--------------------------------------------------
+
+AUDITORIA DO SISTEMA
+
+Na aba desenvolvedor criar sistema de auditoria.
+
+Funções:
+
+executar varredura completa do sistema
+verificar erros de banco de dados
+verificar rotas quebradas
+verificar falhas de login
+verificar inconsistências em pedidos.
+
+Mostrar relatório detalhado de erros encontrados.
+
+--------------------------------------------------
+
+IA DE DETECÇÃO DE BUGS
+
+Criar ferramenta de IA no painel de desenvolvedor.
+
+Funções:
+
+analisar logs
+detectar bugs
+sugerir correções
+executar correções quando autorizado pelo desenvolvedor.
+
+Botões:
+
+Executar auditoria
+Detectar bugs
+Sugerir correção
+Aplicar correção.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA PEDIDOS DUPLICADOS
+
+Implementar sistema para impedir pedidos duplicados.
+
+Antes de salvar um pedido verificar:
+
+empresa
+data do pedido
+janela de entrega
+produtos do carrinho.
+
+Se existir pedido idêntico criado nos últimos 60 segundos:
+
+bloquear criação do pedido.
+
+Exibir mensagem:
+
+"Pedido já enviado recentemente. Aguarde confirmação."
+
+--------------------------------------------------
+
+PROTEÇÃO DE CLIQUE DUPLO
+
+Quando cliente clicar em FINALIZAR PEDIDO:
+
+desativar botão imediatamente.
+
+Mostrar mensagem:
+
+"Processando pedido..."
+
+Evitar múltiplos envios.
+
+--------------------------------------------------
+
+LOG DE PEDIDOS
+
+Registrar no sistema de logs:
+
+empresa
+usuário
+data
+hora
+produtos
+valor total.
+
+Isso ajuda a auditoria do sistema.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema VivaFrutaz deve possuir:
+
+gestão completa de usuários
+controle de permissões
+exportação para faturamento
+integração para planilhas usadas no Nimbi
+acesso financeiro aos pedidos
+login de desenvolvedor corrigido
+sistema de auditoria com IA
+proteção contra pedidos duplicados.

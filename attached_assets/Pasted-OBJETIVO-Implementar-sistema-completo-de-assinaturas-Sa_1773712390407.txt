@@ -1,0 +1,376 @@
+OBJETIVO
+
+Implementar sistema completo de assinaturas SaaS com controle de planos, módulos liberados por plano, métodos de pagamento (PIX, cartão e boleto), upgrade de plano, bloqueio automático por inadimplência, plano free configurável, integração com clientes VivaFrutaz e sistema de atualizações visível no guia rápido.
+
+O sistema deve permitir que empresas utilizem o ERP conforme o plano contratado e que o administrador controle totalmente funcionalidades, pagamentos e atualizações.
+
+------------------------------------------------
+
+ARQUITETURA DE PLANOS
+
+Criar tabela:
+
+planos_saas
+
+Campos:
+
+id  
+nome_plano  
+descricao  
+valor_mensal  
+valor_anual  
+tipo_plano (free, premium)  
+limite_usuarios  
+limite_pedidos_mes  
+limite_motoristas  
+limite_rotas  
+gps_habilitado  
+logistica_inteligente  
+ativo  
+
+------------------------------------------------
+
+PLANO FREE
+
+O plano free deve ser configurável pelo administrador.
+
+O administrador pode escolher:
+
+quais módulos estarão disponíveis  
+quantidade de usuários  
+limite de pedidos  
+
+Exemplo:
+
+Plano Free
+
+Dashboard  
+Clientes  
+Pedidos básicos  
+
+Sem:
+
+GPS  
+Logística inteligente  
+IA  
+
+------------------------------------------------
+
+CONTROLE DE MODULOS POR PLANO
+
+Criar tabela:
+
+modulos_sistema
+
+Campos:
+
+id  
+nome_modulo  
+rota  
+descricao  
+icone  
+
+Exemplos de módulos:
+
+Dashboard  
+Clientes  
+Produtos  
+Pedidos  
+Notas fiscais  
+Logística  
+Logística inteligente  
+GPS  
+Rotas  
+Motoristas  
+IA  
+Relatórios  
+Configurações  
+
+------------------------------------------------
+
+RELACIONAMENTO PLANO E MODULOS
+
+Criar tabela:
+
+plano_modulos
+
+Campos:
+
+id  
+plano_id  
+modulo_id  
+
+O administrador seleciona quais módulos cada plano possui.
+
+Interface com checkboxes:
+
+[ ] Dashboard  
+[ ] Clientes  
+[ ] Produtos  
+[ ] Pedidos  
+[ ] Logística  
+[ ] Logística Inteligente  
+[ ] GPS  
+[ ] Rotas  
+[ ] Motoristas  
+[ ] IA  
+[ ] Relatórios  
+[ ] Configurações  
+
+------------------------------------------------
+
+MENU DINÂMICO
+
+O menu do sistema deve exibir apenas os módulos permitidos pelo plano da empresa.
+
+Se o módulo não estiver liberado o sistema deve esconder a aba.
+
+------------------------------------------------
+
+ASSINATURAS
+
+Criar tabela:
+
+assinaturas
+
+Campos:
+
+id  
+empresa_id  
+plano_id  
+status  
+metodo_pagamento  
+valor  
+data_inicio  
+data_vencimento  
+data_pagamento  
+
+Status possíveis:
+
+trial  
+ativa  
+atrasada  
+cancelada  
+
+------------------------------------------------
+
+ASSINATURAS NA ABA CLIENTES
+
+Permitir que clientes já cadastrados no sistema VivaFrutaz possam receber uma assinatura.
+
+Ou seja:
+
+um cliente pode virar uma empresa SaaS.
+
+Ao ativar assinatura para um cliente ele ganha acesso ao sistema conforme o plano.
+
+------------------------------------------------
+
+MÉTODOS DE PAGAMENTO
+
+Criar opções de pagamento:
+
+PIX  
+Cartão  
+Boleto  
+
+Campo:
+
+metodo_pagamento
+
+------------------------------------------------
+
+PIX
+
+Se pagamento for PIX:
+
+gerar QR Code  
+liberar acesso após confirmação.
+
+------------------------------------------------
+
+CARTÃO
+
+Se pagamento for cartão:
+
+autorizar pagamento  
+ativar assinatura automaticamente.
+
+------------------------------------------------
+
+BOLETO
+
+Se pagamento for boleto:
+
+gerar boleto com data de vencimento  
+liberar acesso temporário até vencimento.
+
+Campos adicionais:
+
+linha_digitavel  
+data_vencimento  
+
+------------------------------------------------
+
+VERIFICAÇÃO DE BOLETO
+
+Criar rotina automática diária:
+
+checkBoletos()
+
+Essa função deve:
+
+verificar boletos vencidos  
+verificar se pagamento foi confirmado  
+
+Se boleto estiver vencido e não pago:
+
+alterar status da assinatura para atrasada.
+
+------------------------------------------------
+
+BLOQUEIO AUTOMÁTICO
+
+Se assinatura estiver atrasada:
+
+bloquear acesso ao plano pago  
+mover empresa automaticamente para plano free.
+
+O sistema deve mostrar aviso:
+
+"Seu plano expirou. Regularize pagamento para reativar funcionalidades."
+
+------------------------------------------------
+
+NOTIFICAÇÃO DE ATRASO
+
+Enviar alerta para administrador quando uma assinatura estiver vencida.
+
+Mensagem:
+
+"Assinatura da empresa X está vencida."
+
+------------------------------------------------
+
+UPGRADE DE PLANO
+
+Na área de pagamentos criar botão:
+
+UPGRADE DE PLANO
+
+Ao clicar o cliente pode:
+
+selecionar novo plano  
+selecionar forma de pagamento.
+
+O sistema deve atualizar imediatamente as permissões do plano.
+
+------------------------------------------------
+
+DOWNGRADE AUTOMÁTICO
+
+Se pagamento não for realizado após vencimento:
+
+migrar empresa automaticamente para plano free.
+
+------------------------------------------------
+
+INTEGRAÇÃO COM LOGÍSTICA E GPS
+
+Se plano possuir módulo GPS ou logística inteligente:
+
+ativar automaticamente essas funcionalidades no ERP da empresa.
+
+Caso contrário esconder essas abas.
+
+------------------------------------------------
+
+SISTEMA DE ATUALIZAÇÃO DO ERP
+
+Criar sistema de versão do sistema.
+
+Tabela:
+
+system_versions
+
+Campos:
+
+id  
+version_name  
+descricao  
+data_lancamento  
+
+Sempre que nova versão for publicada mostrar aviso no sistema.
+
+------------------------------------------------
+
+GUIA RÁPIDO
+
+Atualizar o popup Guia Rápido.
+
+Adicionar nova seção:
+
+Atualizações do Sistema
+
+Conteúdo:
+
+Novidades da versão  
+Novos módulos  
+Melhorias  
+
+O popup deve ser:
+
+flutuante  
+arrastável  
+redimensionável  
+
+------------------------------------------------
+
+TESTES AUTOMÁTICOS
+
+Criar empresa teste.
+
+Criar planos:
+
+Free  
+Starter  
+Pro  
+Enterprise  
+
+Criar assinatura para empresa.
+
+Testar:
+
+pagamento PIX  
+pagamento cartão  
+pagamento boleto  
+
+Simular boleto vencido.
+
+Verificar:
+
+bloqueio automático  
+migração para plano free.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve possuir:
+
+planos configuráveis  
+plano free configurável  
+controle de módulos por plano  
+menu dinâmico  
+assinaturas integradas aos clientes  
+pagamento por PIX  
+pagamento por cartão  
+pagamento por boleto  
+verificação automática de vencimento  
+bloqueio automático por inadimplência  
+upgrade de plano  
+downgrade automático  
+integração com GPS e logística  
+sistema de atualizações  
+guia rápido com novidades  
+testes automáticos completos

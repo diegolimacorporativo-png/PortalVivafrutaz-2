@@ -1,0 +1,441 @@
+OBJETIVO
+
+Criar um módulo completo de gestão de entregas, motoristas e rastreamento dentro do ERP existente.
+
+O sistema deve permitir:
+
+gestão de motoristas  
+gestão de rotas  
+checklist de entrega  
+confirmação de entrega  
+registro de horário de entrega  
+mapa de rotas  
+relatórios gerenciais  
+visualização de entrega para clientes  
+previsão de chegada (ETA)  
+rastreamento opcional por GPS  
+
+O sistema deve funcionar mesmo sem GPS, porém permitir habilitar rastreamento futuramente.
+
+Nenhuma funcionalidade atual do sistema deve ser quebrada.
+
+------------------------------------------------
+
+ESTRUTURA DO MÓDULO
+
+Criar novo módulo:
+
+/modules/delivery
+
+Arquivos principais:
+
+driver-profile.ts  
+delivery-checklist.ts  
+route-map.ts  
+gps-tracker.ts  
+eta-engine.ts  
+delivery-report.ts  
+
+------------------------------------------------
+
+PERFIL DE MOTORISTA
+
+Adicionar novo tipo de usuário no sistema.
+
+Role:
+
+motorista
+
+Criar tela:
+
+Perfil do Motorista
+
+Campos obrigatórios:
+
+nome  
+telefone  
+veículo  
+placa  
+capacidade  
+empresa vinculada  
+status  
+
+Status possíveis:
+
+ativo  
+inativo  
+
+------------------------------------------------
+
+ROTAS DEFINIDAS PELO GERENTE
+
+As rotas devem ser criadas apenas por:
+
+admin  
+master  
+diretor  
+gerente_logistica  
+
+Motoristas não podem alterar rotas.
+
+Motoristas apenas visualizam:
+
+rota do dia  
+empresas da rota  
+ordem de entrega  
+
+------------------------------------------------
+
+MAPA DE ROTAS
+
+Implementar sistema de mapa.
+
+Integração possível:
+
+Google Maps  
+OpenStreetMap  
+
+Funções do mapa:
+
+mostrar rota do dia  
+mostrar empresas da rota  
+mostrar ordem de paradas  
+calcular distância total  
+calcular tempo estimado de rota  
+
+------------------------------------------------
+
+CHECKLIST DE ENTREGA
+
+Criar tela no painel do motorista:
+
+Checklist de Entrega
+
+Campos do checklist:
+
+empresa atendida  
+confirmar entrega  
+observação opcional  
+horário de entrega automático  
+
+Fluxo:
+
+motorista seleciona empresa da lista  
+marca entrega realizada  
+preenche checklist  
+
+Ao finalizar checklist:
+
+pedido automaticamente muda para status:
+
+ENTREGUE
+
+------------------------------------------------
+
+REGISTRO DE HORÁRIO DE ENTREGA
+
+Sempre que checklist for enviado registrar automaticamente:
+
+data da entrega  
+hora exata da entrega  
+motorista responsável  
+
+Salvar na tabela:
+
+deliveries
+
+------------------------------------------------
+
+VISUALIZAÇÃO PARA O CLIENTE
+
+Clientes poderão acompanhar a entrega apenas quando:
+
+motorista estiver em rota.
+
+Criar tela:
+
+Acompanhar Entrega
+
+Mostrar:
+
+status da entrega  
+posição na rota  
+previsão de chegada  
+
+------------------------------------------------
+
+PREVISÃO DE CHEGADA
+
+Criar motor de previsão:
+
+eta-engine
+
+Função:
+
+calcular tempo estimado de chegada baseado em:
+
+distância  
+ordem da rota  
+tempo médio de parada  
+tempo médio entre entregas  
+
+------------------------------------------------
+
+RASTREAMENTO OPCIONAL POR GPS
+
+Criar sistema opcional de rastreamento.
+
+Configuração do sistema:
+
+HABILITAR RASTREAMENTO GPS
+
+Valores possíveis:
+
+ativado  
+desativado  
+
+Quando desativado:
+
+sistema usa apenas rota planejada.
+
+Quando ativado:
+
+motorista envia localização em tempo real.
+
+------------------------------------------------
+
+BOTÃO DE ATIVAÇÃO DE GPS
+
+Na área de configurações logísticas criar botão:
+
+ATIVAR RASTREAMENTO GPS
+
+Função:
+
+habilitar rastreamento em tempo real.
+
+Quando ativado:
+
+clientes podem visualizar posição do motorista.
+
+------------------------------------------------
+
+VISUALIZAÇÃO TIPO APLICATIVO DE ENTREGA
+
+Quando GPS estiver ativo mostrar no mapa:
+
+posição do motorista  
+rota planejada  
+próximas paradas  
+previsão de chegada  
+
+Interface semelhante a aplicativos modernos de entrega.
+
+------------------------------------------------
+
+RELATÓRIOS GERENCIAIS
+
+Criar módulo de relatórios.
+
+Filtros disponíveis:
+
+empresa  
+motorista  
+data inicial  
+data final  
+rota  
+
+Relatórios disponíveis:
+
+entregas realizadas  
+tempo médio de entrega  
+empresas atendidas  
+produtividade do motorista  
+
+Permitir:
+
+visualização na tela  
+exportação para Excel  
+exportação para PDF  
+impressão  
+
+------------------------------------------------
+
+RELATÓRIO DE PERFORMANCE DE MOTORISTAS
+
+Mostrar:
+
+quantidade de entregas  
+tempo médio de entrega  
+rotas realizadas  
+horários de entrega  
+empresas atendidas  
+
+------------------------------------------------
+
+CONTROLE DE STATUS DE ENTREGA
+
+Status possíveis:
+
+pendente  
+em rota  
+entregue  
+cancelado  
+
+------------------------------------------------
+
+INTEGRAÇÃO COM PEDIDOS
+
+Sempre que um pedido for criado automaticamente criar registro na tabela:
+
+deliveries
+
+Esse registro será utilizado pela logística.
+
+------------------------------------------------
+
+INTERFACE DO MOTORISTA
+
+Criar interface simples e otimizada para celular.
+
+Motorista deve visualizar apenas:
+
+rota do dia  
+empresas da rota  
+checklist de entrega  
+
+------------------------------------------------
+
+CONTROLE DE ACESSO AO MÓDULO DE LOGÍSTICA
+
+Somente os seguintes perfis podem administrar o sistema logístico:
+
+admin  
+master  
+diretor  
+gerente_logistica  
+
+Esses perfis terão acesso completo às seguintes funções:
+
+criar rotas  
+editar rotas  
+excluir rotas  
+cadastrar motoristas  
+editar cadastro de motoristas  
+definir ordem de paradas  
+programar entregas  
+visualizar mapa de rotas  
+ativar ou desativar rastreamento GPS  
+visualizar relatórios logísticos  
+editar janelas de entrega das empresas  
+
+------------------------------------------------
+
+ACESSO DO MOTORISTA
+
+Usuários com role:
+
+motorista
+
+Terão acesso apenas a:
+
+visualizar rota do dia  
+visualizar empresas da rota  
+preencher checklist de entrega  
+confirmar entrega realizada  
+
+Motoristas não podem:
+
+editar rotas  
+excluir rotas  
+editar pedidos  
+editar empresas  
+
+------------------------------------------------
+
+ACESSO DO CLIENTE
+
+Usuários com role:
+
+cliente
+
+Podem acessar apenas:
+
+status da entrega  
+previsão de chegada  
+visualização da rota quando motorista estiver em rota  
+
+Clientes não podem visualizar:
+
+dados internos da rota  
+dados de outros clientes  
+dados de motoristas  
+
+------------------------------------------------
+
+MIDDLEWARE DE SEGURANÇA
+
+Criar middleware:
+
+checkLogisticsPermissions()
+
+Esse middleware deve validar se o usuário possui uma das roles:
+
+admin  
+master  
+diretor  
+gerente_logistica  
+
+Caso contrário retornar erro:
+
+403 acesso negado.
+
+------------------------------------------------
+
+PROTEÇÃO DAS ROTAS DA API
+
+Todas as rotas relacionadas à logística devem usar esse middleware.
+
+Exemplo:
+
+/api/logistics/routes  
+/api/logistics/drivers  
+/api/logistics/schedule  
+/api/logistics/reports  
+
+------------------------------------------------
+
+LOG DE AUDITORIA
+
+Criar tabela:
+
+logistics_audit_logs
+
+Campos:
+
+id  
+usuario_id  
+acao  
+modulo  
+data_hora  
+detalhes  
+
+Registrar todas as ações administrativas realizadas no módulo de logística.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O ERP deve possuir:
+
+gestão completa de motoristas  
+controle de rotas  
+checklist de entrega  
+registro automático de horário de entrega  
+mapa de rotas  
+previsão de chegada  
+relatórios gerenciais completos  
+rastreamento opcional por GPS  
+visualização de entrega para clientes  
+controle de acesso avançado  
+auditoria completa das ações do sistema

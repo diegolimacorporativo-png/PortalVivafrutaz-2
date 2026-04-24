@@ -1,0 +1,149 @@
+AJUSTES FINAIS COMPLETOS (ERROS + CATEGORIAS + PREÇOS + SANITÁRIO + FRONTEND)
+
+OBJETIVO:
+
+Corrigir erros do sistema, implementar categorias dinâmicas com sincronização total, preços por cliente e módulo sanitário com interface funcional.
+
+------------------------------------------------
+
+1. CORREÇÃO DE ERRO (URGENTE)
+
+Corrigir erro atual do sistema:
+
+"default export cannot be resolved"  
+"Layout.tsx does not provide export default"
+
+Ajustar:
+
+exports e imports  
+garantir funcionamento sem tela de erro  
+
+------------------------------------------------
+
+2. CATEGORIAS DINÂMICAS
+
+REMOVER categorias fixas (bandeja, cortado, etc)
+
+Permitir usuário:
+
+criar  
+editar  
+excluir  
+
+Exemplo real:
+
+Processados  
+In Natura  
+Higienizados  
+
+------------------------------------------------
+
+3. SINCRONIZAÇÃO TOTAL
+
+Toda categoria criada deve aparecer automaticamente em:
+
+produtos  
+pedidos  
+cotações  
+tabela de preços  
+
+Sem recriação manual
+
+------------------------------------------------
+
+4. PRODUTOS
+
+Manter 1 ID por produto
+
+Categorias em formato visual (checkbox/cards)
+
+Ao selecionar:
+
+abrir preço individual por categoria  
+
+------------------------------------------------
+
+5. PREÇO POR CLIENTE
+
+Aplicar taxa administrativa automaticamente:
+
+GRSA, Sodexo etc
+
+Atualizar corretamente em:
+
+planilha de preços  
+pedidos  
+nota fiscal  
+
+------------------------------------------------
+
+6. FRONTEND OBRIGATÓRIO
+
+Garantir interface VISÍVEL para:
+
+categorias (criar/editar/excluir)  
+produtos com múltiplas categorias  
+preços por categoria  
+
+Se não aparecer → criar interface automaticamente
+
+------------------------------------------------
+
+7. VIGILÂNCIA SANITÁRIA
+
+Criar módulo com checklist automático:
+
+perguntas pré-prontas  
+
+Permitir:
+
+editar  
+remover  
+adicionar  
+
+------------------------------------------------
+
+8. AVALIAÇÃO VISUAL
+
+Cada item:
+
+[ OK ] [ NÃO OK ]
+
+Cores:
+
+verde / vermelho  
+
+Resultado:
+
+% automático  
+🙂 😐 🚨  
+
+------------------------------------------------
+
+9. PERMISSÕES
+
+Nutricionista:
+
+acesso total  
+
+Outros usuários:
+
+somente visualizam relatório  
+
+------------------------------------------------
+
+10. EXECUÇÃO REAL
+
+Executar tudo:
+
+corrigir erro  
+renderizar frontend  
+testar categorias  
+testar preços  
+validar sistema completo  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Se não estiver funcionando na tela → NÃO está implementado

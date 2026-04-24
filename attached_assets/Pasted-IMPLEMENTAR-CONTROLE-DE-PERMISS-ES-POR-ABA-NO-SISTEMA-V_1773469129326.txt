@@ -1,0 +1,105 @@
+IMPLEMENTAR CONTROLE DE PERMISSÕES POR ABA NO SISTEMA VIVAFRUTAZ
+
+Objetivo:
+Permitir que administradores definam em quais abas do sistema cada usuário pode acessar e navegar.
+
+--------------------------------------------------
+
+1. NOVA SEÇÃO EM "USUÁRIOS DO SISTEMA"
+
+Dentro da tela de edição de usuário adicionar nova seção chamada:
+
+PERMISSÕES DE ACESSO A ABAS
+
+--------------------------------------------------
+
+2. LISTA DE ABAS DO SISTEMA
+
+Exibir lista de módulos com opção de habilitar ou desabilitar acesso.
+
+Exemplo:
+
+[ ] Dashboard  
+[ ] Pedidos  
+[ ] Pedidos Pontuais  
+[ ] Empresas  
+[ ] Produtos  
+[ ] Logística  
+[ ] Rotas  
+[ ] Motoristas  
+[ ] Ocorrências  
+[ ] Ocorrências Internas  
+[ ] Cotações  
+[ ] Financeiro  
+[ ] Usuários do Sistema  
+[ ] Backup e E-mails  
+[ ] Área do Desenvolvedor  
+[ ] Dashboard Executivo  
+
+Cada aba deve possuir um checkbox para habilitar acesso.
+
+--------------------------------------------------
+
+3. QUEM PODE ALTERAR PERMISSÕES
+
+Somente os seguintes perfis podem alterar permissões:
+
+Administrador  
+Diretor  
+Desenvolvedor  
+
+Outros usuários apenas visualizam.
+
+--------------------------------------------------
+
+4. CONTROLE DE MENU
+
+O menu lateral do sistema deve mostrar apenas as abas que o usuário possui permissão.
+
+Exemplo:
+
+Se o usuário tiver permissão apenas para:
+
+Dashboard  
+Pedidos  
+Logística  
+
+O menu exibirá somente essas três abas.
+
+--------------------------------------------------
+
+5. PROTEÇÃO DE ROTAS
+
+Antes de carregar qualquer página verificar:
+
+se o usuário possui permissão para acessar a aba.
+
+Se não possuir permissão:
+
+bloquear acesso e mostrar mensagem:
+
+"Acesso não autorizado para este módulo."
+
+--------------------------------------------------
+
+6. SINCRONIZAÇÃO DE PERMISSÕES
+
+Após login:
+
+carregar permissões do usuário.
+
+Atualizar automaticamente o menu do sistema com base nessas permissões.
+
+--------------------------------------------------
+
+7. RESULTADO ESPERADO
+
+Após implementação:
+
+Administradores conseguem definir quais abas cada usuário pode acessar.
+
+Usuários visualizam apenas os módulos permitidos.
+
+O sistema bloqueia acesso não autorizado.
+
+Navegação do sistema fica segura e organizada.

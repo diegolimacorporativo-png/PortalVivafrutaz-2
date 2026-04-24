@@ -1,0 +1,160 @@
+CORREÇÃO E ATUALIZAÇÃO DE FUNCIONALIDADES DO PORTAL DO CLIENTE – SISTEMA VIVAFRUTAZ
+
+Executar atualização estrutural no portal do cliente do sistema VivaFrutaz para corrigir erros e ajustar funcionalidades.
+
+Todas as correções devem ser aplicadas automaticamente para:
+	•	todos os clientes já cadastrados
+	•	todos os novos clientes criados futuramente
+
+Garantir que nenhum cliente continue utilizando versão antiga das telas.
+
+⸻
+
+AJUSTE DO ASSISTENTE IA DO CLIENTE
+
+Atualizar o menu do assistente virtual disponível no portal do cliente.
+
+Remover completamente opções administrativas que aparecem para clientes.
+
+Remover opções como:
+	•	cadastrar empresa
+	•	configurações administrativas
+	•	qualquer função interna do sistema
+
+O assistente do cliente deve mostrar apenas as seguintes opções:
+
+1 – Como fazer meu pedido
+2 – Como cancelar pedido
+3 – Como realizar pedido pontual
+4 – Como acessar histórico de pedidos
+5 – Falar com suporte
+
+Adicionar mensagem fixa dentro do assistente:
+
+“Para suporte imediato fale conosco pelo WhatsApp:
+11 99411-3911”
+
+Garantir que o assistente sempre apresente botão para voltar ao menu principal.
+
+⸻
+
+REMOÇÃO DA ABA DE COTAÇÃO PARA CLIENTES
+
+Executar remoção completa do módulo de COTAÇÕES do perfil CLIENTE.
+
+Clientes não devem visualizar:
+	•	menu de cotações
+	•	rotas de cotação
+	•	botões de cotação
+	•	qualquer API relacionada
+
+A aba de cotações deve aparecer apenas para os perfis:
+
+Administrador
+Diretor
+Desenvolvedor
+
+Se um cliente tentar acessar a rota manualmente, bloquear o acesso e redirecionar para o painel principal.
+
+⸻
+
+CORREÇÃO DA ABA DE PEDIDOS PONTUAIS
+
+Atualizar formulário de pedidos pontuais no portal do cliente.
+
+Atualmente o sistema possui apenas o campo:
+
+“Dia desejado”
+
+Adicionar novo campo obrigatório:
+
+“Data do pedido”
+
+Formato do campo:
+
+DD/MM/AAAA
+
+Permitir:
+
+seleção por calendário
+filtro por data
+registro da data escolhida no banco de dados
+
+Garantir que a data selecionada seja enviada corretamente junto com o pedido.
+
+⸻
+
+CORREÇÃO DA ABA DE OCORRÊNCIAS
+
+Corrigir erro que ocorre ao registrar ocorrência no portal do cliente.
+
+Erro atual apresentado:
+
+“erro ao enviar ocorrência”
+“objeto não encontrado”
+
+Executar correção nas seguintes funções:
+
+envio da ocorrência
+validação dos campos
+registro no banco de dados
+retorno da API
+
+Garantir que o cliente consiga:
+
+registrar ocorrência
+anexar imagens
+enviar a solicitação
+visualizar confirmação de envio
+
+⸻
+
+PROTEÇÃO CONTRA ERRO DE OBJETO
+
+Implementar validação antes de renderizar qualquer dado da ocorrência.
+
+Se algum objeto estiver:
+
+undefined
+null
+
+O sistema não deve quebrar a página.
+
+Mostrar mensagem amigável:
+
+“Erro ao carregar dados. Tente novamente.”
+
+Registrar erro técnico apenas no log interno do sistema.
+
+⸻
+
+SINCRONIZAÇÃO PARA TODOS OS CLIENTES
+
+Executar atualização automática para garantir que:
+
+todos os clientes existentes
+todos os novos clientes
+
+recebam:
+
+nova versão do assistente IA
+remoção da aba de cotações
+formulário atualizado de pedidos pontuais
+correção da aba de ocorrências
+
+Nenhum cliente deve continuar utilizando interface antiga.
+
+⸻
+
+TESTES AUTOMÁTICOS
+
+Após aplicar as correções executar testes automáticos nas seguintes funções:
+
+assistente virtual
+registro de ocorrência
+criação de pedidos pontuais
+menu do cliente
+
+Confirmar que nenhuma tela apresenta erro:
+
+“objeto não encontrado”

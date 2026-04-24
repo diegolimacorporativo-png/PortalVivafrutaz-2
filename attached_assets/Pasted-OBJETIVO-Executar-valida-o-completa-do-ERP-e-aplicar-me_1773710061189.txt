@@ -1,0 +1,335 @@
+OBJETIVO
+
+Executar validação completa do ERP e aplicar melhorias avançadas no sistema de logística inteligente.
+
+O sistema deve:
+
+confirmar que todos os prompts anteriores foram executados
+validar correções realizadas
+executar testes automáticos
+melhorar o módulo de logística inteligente
+integrar empresas, rotas, motoristas e janelas de entrega
+criar sugestão automática de atendimento por CEP e CNPJ
+calcular latitude e longitude automaticamente
+permitir múltiplos CEP por rota
+criar motor de sugestão de motorista e horário ideal de entrega
+
+Nenhuma funcionalidade existente deve ser quebrada.
+
+------------------------------------------------
+
+VALIDAÇÃO DAS CORREÇÕES ANTERIORES
+
+Executar escaneamento completo do sistema.
+
+Verificar:
+
+correção de SelectItem value vazio
+correção da área de assinaturas
+correção de acesso negado
+ativação da IA com auto correção
+funcionamento do sistema de faturamento
+funcionamento da empresa teste criada
+
+Executar testes:
+
+login
+criação de empresa
+assinatura
+geração de fatura
+simulação de cobrança
+permissões
+logística
+
+Se algum teste falhar:
+
+registrar erro
+corrigir automaticamente
+executar novamente.
+
+------------------------------------------------
+
+MELHORIAS NO SISTEMA DE LOGÍSTICA INTELIGENTE
+
+Revisar módulo existente.
+
+Diretório esperado:
+
+/modules/logistics
+
+Arquivos esperados:
+
+route-engine.ts
+route-optimizer.ts
+driver-manager.ts
+geo-service.ts
+delivery-scheduler.ts
+
+Se algum não existir, criar.
+
+------------------------------------------------
+
+SUPORTE A MÚLTIPLOS CEP POR ROTA
+
+Modificar estrutura de rotas.
+
+Criar tabela:
+
+route_stops
+
+Campos:
+
+id
+rota_id
+cep
+endereco
+numero
+cidade
+latitude
+longitude
+ordem_parada
+
+Cada rota pode conter vários CEP.
+
+O sistema deve calcular automaticamente a melhor ordem de parada.
+
+------------------------------------------------
+
+CONVERSÃO AUTOMÁTICA DE CEP
+
+Criar serviço:
+
+geo-service
+
+Funções:
+
+buscar endereço por CEP
+converter endereço em latitude
+converter endereço em longitude
+
+Salvar coordenadas automaticamente no banco.
+
+------------------------------------------------
+
+CADASTRO DE EMPRESA COM LOGÍSTICA
+
+Atualizar cadastro de empresa.
+
+Adicionar campos:
+
+cep
+endereco
+numero
+cidade
+latitude
+longitude
+janela_entrega_inicio
+janela_entrega_fim
+dias_entrega
+
+Exemplo:
+
+empresa A
+janela de entrega
+08:00 até 11:00
+
+empresa B
+janela de entrega
+13:00 até 17:00
+
+------------------------------------------------
+
+BUSCA INTELIGENTE POR CNPJ OU CEP
+
+Criar função:
+
+smartCompanySearch()
+
+Entrada:
+
+CNPJ
+CEP
+
+Processo:
+
+buscar empresa
+buscar coordenadas
+analisar rotas existentes
+verificar motoristas disponíveis
+verificar janelas de entrega
+
+Resultado deve mostrar:
+
+melhor horário para atendimento
+melhor motorista para atender
+tempo estimado de deslocamento
+empresas próximas que podem ser atendidas junto
+
+------------------------------------------------
+
+SUGESTÃO DE MOTORISTA
+
+Criar função:
+
+suggestBestDriver()
+
+Critérios:
+
+distância da rota atual
+capacidade do veículo
+carga atual do motorista
+tempo disponível
+proximidade da empresa
+
+Retornar motorista ideal.
+
+------------------------------------------------
+
+ENCAIXE AUTOMÁTICO NA ROTA
+
+Criar função:
+
+suggestRouteInsertion()
+
+Fluxo:
+
+receber coordenadas da empresa
+analisar rotas existentes
+simular inserção da parada
+calcular impacto na rota
+
+Retornar:
+
+rota recomendada
+posição da parada
+tempo adicional.
+
+------------------------------------------------
+
+SIMULAÇÃO DE ROTA
+
+Criar função:
+
+simulateRouteDay()
+
+Essa função deve calcular:
+
+todas as entregas do dia
+distância total
+tempo total de rota
+quantidade de motoristas necessários
+
+Gerar relatório logístico.
+
+------------------------------------------------
+
+INTERFACE DA LOGÍSTICA
+
+Melhorar aba existente:
+
+LOGÍSTICA
+
+Adicionar telas:
+
+Gestão de rotas
+Gestão de motoristas
+Planejamento de entregas
+Mapa de rotas
+Análise de CEP
+
+------------------------------------------------
+
+TELA DE PESQUISA INTELIGENTE
+
+Criar campo de busca:
+
+Buscar empresa por CNPJ ou CEP
+
+Resultado deve mostrar:
+
+janela ideal de entrega
+motorista recomendado
+rota sugerida
+empresas próximas que podem ser atendidas junto.
+
+------------------------------------------------
+
+INTEGRAÇÃO COM PEDIDOS
+
+Sempre que um pedido for criado:
+
+criar automaticamente registro de entrega.
+
+Tabela:
+
+deliveries
+
+Campos:
+
+id
+pedido_id
+empresa_id
+driver_id
+rota_id
+status
+data_entrega
+cep
+latitude
+longitude
+
+------------------------------------------------
+
+TUTORIAL DO SISTEMA
+
+Atualizar o tutorial flutuante existente.
+
+Adicionar novas seções:
+
+como usar logística inteligente
+como cadastrar motoristas
+como cadastrar rotas
+como cadastrar janelas de entrega
+como usar busca inteligente por empresa
+como interpretar sugestões do sistema
+
+Tutorial deve aparecer no popup flutuante já criado.
+
+------------------------------------------------
+
+TESTES AUTOMÁTICOS FINAIS
+
+Executar testes finais em todo o sistema.
+
+Testar:
+
+IA auto correção
+assinaturas
+faturamento
+logística
+permissões
+busca inteligente
+simulação de rotas
+
+Se qualquer erro for detectado:
+
+corrigir automaticamente.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve possuir:
+
+IA com autocorreção funcional
+assinaturas funcionando
+cobrança testada
+erro de select corrigido
+acesso negado corrigido
+logística inteligente avançada
+rotas com múltiplos CEP
+busca inteligente por empresa
+sugestão automática de motorista
+sugestão automática de horário de entrega
+cálculo automático de latitude e longitude
+tutorial atualizado
+testes automatizados executados

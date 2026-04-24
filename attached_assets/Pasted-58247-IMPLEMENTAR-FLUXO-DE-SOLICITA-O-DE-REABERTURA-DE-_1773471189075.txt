@@ -1,0 +1,145 @@
+58247"}
+IMPLEMENTAR FLUXO DE SOLICITAÇÃO DE REABERTURA DE PEDIDOS NO SISTEMA VIVAFRUTAZ
+
+Objetivo:
+Permitir que clientes solicitem alteração de pedidos já confirmados e que administradores possam aprovar ou negar a reabertura do pedido.
+
+--------------------------------------------------
+
+1. BOTÃO NO PORTAL DO CLIENTE
+
+Dentro da página "Meus Pedidos" adicionar botão:
+
+Solicitar alteração do pedido
+
+Esse botão deve aparecer apenas quando o pedido estiver com status:
+
+Pedido Confirmado
+
+--------------------------------------------------
+
+2. FORMULÁRIO DE SOLICITAÇÃO
+
+Ao clicar em "Solicitar alteração do pedido" abrir um formulário com os campos:
+
+Motivo da alteração
+
+Exemplos:
+Adicionar produto  
+Remover item  
+Alterar quantidade  
+Corrigir pedido  
+
+Botão:
+
+Enviar solicitação
+
+--------------------------------------------------
+
+3. NOVO STATUS DO PEDIDO
+
+Após envio da solicitação alterar status para:
+
+Solicitação de Reabertura
+
+Esse status bloqueia edição até aprovação.
+
+--------------------------------------------------
+
+4. ABA DE GESTÃO DE PEDIDOS (ADMIN)
+
+Criar nova seção dentro de:
+
+Gestão de Pedidos
+
+Nome da seção:
+
+Solicitações de Alteração de Pedido
+
+Mostrar lista com:
+
+Número do pedido  
+Empresa  
+Data de entrega  
+Motivo da solicitação  
+Data da solicitação  
+Status
+
+--------------------------------------------------
+
+5. AÇÕES DO ADMINISTRADOR
+
+Dentro da solicitação adicionar dois botões:
+
+Aprovar reabertura  
+Negar solicitação
+
+--------------------------------------------------
+
+6. APROVAÇÃO
+
+Se administrador clicar em:
+
+Aprovar reabertura
+
+O sistema deve:
+
+alterar status do pedido para:
+
+Pedido em edição
+
+e liberar automaticamente edição do pedido para o cliente.
+
+--------------------------------------------------
+
+7. NEGAR SOLICITAÇÃO
+
+Se administrador clicar em:
+
+Negar solicitação
+
+o status volta para:
+
+Pedido Confirmado
+
+e o cliente recebe mensagem:
+
+"Sua solicitação de alteração não foi aprovada."
+
+--------------------------------------------------
+
+8. ATUALIZAÇÃO AUTOMÁTICA NO PORTAL DO CLIENTE
+
+Se reabertura for aprovada:
+
+o pedido aparece automaticamente desbloqueado na área do cliente.
+
+Cliente pode:
+
+adicionar produtos  
+remover produtos  
+alterar quantidades
+
+--------------------------------------------------
+
+9. NOVO TRAVAMENTO
+
+Após o cliente salvar novamente o pedido:
+
+status volta para:
+
+Pedido Confirmado
+
+e o pedido é novamente bloqueado.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Clientes podem solicitar alterações de pedidos confirmados.
+
+Administradores recebem as solicitações em uma área específica.
+
+Pedidos só podem ser alterados após aprovação.
+
+O controle de pedidos e logística permanece orga

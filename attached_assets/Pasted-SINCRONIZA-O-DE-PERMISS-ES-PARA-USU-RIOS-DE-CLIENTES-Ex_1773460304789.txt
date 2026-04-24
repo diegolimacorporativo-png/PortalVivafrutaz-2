@@ -1,0 +1,144 @@
+SINCRONIZAÇÃO DE PERMISSÕES PARA USUÁRIOS DE CLIENTES
+
+Executar auditoria completa nos usuários vinculados às empresas (clientes).
+
+--------------------------------------------------
+
+REVISÃO DOS CLIENTES JÁ CADASTRADOS
+
+Executar verificação em todos os usuários de clientes já existentes no banco.
+
+Validar campos obrigatórios:
+
+id  
+nome  
+email  
+empresa vinculada  
+status
+
+Se algum campo estiver ausente:
+
+corrigir automaticamente  
+ou marcar usuário como inativo.
+
+--------------------------------------------------
+
+ATUALIZAÇÃO DE PERMISSÕES PARA CLIENTES EXISTENTES
+
+Atualizar permissões para todos os clientes já cadastrados.
+
+Garantir que usuários de clientes tenham acesso correto às seguintes áreas:
+
+Dashboard do cliente  
+Pedidos  
+Pedidos pontuais  
+Cotações  
+Ocorrências  
+Histórico de pedidos  
+Perfil da empresa  
+Assistente virtual.
+
+--------------------------------------------------
+
+SINCRONIZAÇÃO AUTOMÁTICA DE ABAS
+
+Executar script que sincronize todas as abas do portal do cliente.
+
+Se nova aba do cliente for criada no sistema:
+
+todos os clientes existentes devem receber acesso automaticamente.
+
+--------------------------------------------------
+
+PREVENÇÃO DE ERRO DE CARREGAMENTO
+
+Ao abrir qualquer página do portal do cliente:
+
+validar se dados da empresa existem.
+
+Se dados retornarem:
+
+null  
+undefined
+
+Não quebrar a página.
+
+Mostrar mensagem:
+
+"Dados da empresa não encontrados."
+
+--------------------------------------------------
+
+PADRONIZAÇÃO DE LOGIN DOS CLIENTES
+
+Aplicar regra automática de login:
+
+@vivafrutaz.com
+
+Funcionamento:
+
+Cliente digita apenas:
+
+empresa01
+
+Sistema converte automaticamente para:
+
+empresa01@vivafrutaz.com
+
+--------------------------------------------------
+
+NORMALIZAÇÃO DE LETRAS NO LOGIN
+
+Converter automaticamente login para letras minúsculas.
+
+Evitar erro de autenticação por:
+
+maiúscula ou minúscula.
+
+--------------------------------------------------
+
+PREVENÇÃO DE DUPLICAÇÃO DE DOMÍNIO
+
+Se cliente já digitar:
+
+empresa01@vivafrutaz.com
+
+O sistema não deve adicionar novamente o domínio.
+
+--------------------------------------------------
+
+PADRÃO PARA NOVOS CLIENTES
+
+Todos os novos usuários de clientes cadastrados no sistema devem automaticamente:
+
+receber ID válido  
+receber permissões padrão do portal do cliente  
+aparecer corretamente nas listas do sistema  
+ter vínculo obrigatório com empresa.
+
+--------------------------------------------------
+
+VERIFICAÇÃO DE EMPRESA VINCULADA
+
+Antes de permitir login de cliente:
+
+verificar se existe empresa vinculada.
+
+Se não existir:
+
+bloquear acesso.
+
+Mensagem:
+
+"Usuário não está vinculado a uma empresa."
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+Após a atualização:
+
+clientes antigos terão permissões corrigidas  
+novos clientes já nascerão com permissões corretas  
+todas as abas do portal funcionarão corretamente  
+não ocorrerão erros de carregamento nas contas de clientes.

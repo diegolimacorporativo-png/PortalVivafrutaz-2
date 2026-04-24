@@ -1,0 +1,173 @@
+OBJETIVO
+
+Implementar sistema completo de GPS no ERP VivaFrutaz com controle por plano SaaS e possibilidade de liberação manual.
+
+O sistema deve integrar GPS com logística, rotas, motoristas, pedidos e clientes.
+
+A funcionalidade deve possuir interface visual completa no sistema.
+
+------------------------------------------------
+
+FASE 1 — MÓDULO GPS
+
+Criar módulo chamado:
+
+GPS Rastreamento
+
+Este módulo deve permitir:
+
+rastreamento de rotas  
+localização de motoristas  
+monitoramento de entregas  
+visualização em mapa  
+
+------------------------------------------------
+
+FASE 2 — CONTROLE POR PLANO
+
+Integrar GPS com sistema de planos.
+
+Adicionar configuração:
+
+Plano Free
+
+GPS desativado.
+
+Plano Starter
+
+GPS básico.
+
+Plano Pro
+
+GPS completo.
+
+Plano Enterprise
+
+GPS completo + análise inteligente de rotas.
+
+------------------------------------------------
+
+FASE 3 — LIBERAÇÃO MANUAL FORA DO PLANO
+
+Criar opção para administradores.
+
+Permitir liberar GPS para empresas mesmo que o plano não inclua.
+
+Criar botão:
+
+Liberar GPS para empresa
+
+Essa opção deve existir em:
+
+Gestão SaaS  
+Painel Master  
+Configuração da empresa
+
+------------------------------------------------
+
+FASE 4 — INTEGRAÇÃO COM LOGÍSTICA
+
+Conectar GPS com:
+
+pedidos  
+rotas  
+motoristas  
+clientes  
+endereços  
+
+Permitir que cada rota mostre no mapa:
+
+posição do motorista  
+pontos de entrega  
+status das entregas.
+
+------------------------------------------------
+
+FASE 5 — PAINEL VISUAL
+
+Criar painel visual do GPS.
+
+Exibir:
+
+mapa com rotas  
+posição dos motoristas  
+entregas em andamento  
+entregas concluídas.
+
+------------------------------------------------
+
+FASE 6 — INTEGRAÇÃO COM ROTAS INTELIGENTES
+
+Conectar GPS com sistema de rotas.
+
+Permitir:
+
+gerar rotas automáticas  
+acompanhar rotas em tempo real  
+verificar progresso da rota.
+
+------------------------------------------------
+
+FASE 7 — SISTEMA INTELIGENTE
+
+Adicionar análise inteligente de logística.
+
+O sistema deve:
+
+analisar rotas  
+identificar atrasos  
+sugerir rotas melhores  
+reorganizar entregas automaticamente.
+
+------------------------------------------------
+
+FASE 8 — INTERFACE VISUAL
+
+Garantir que todas as telas tenham interface.
+
+Criar páginas:
+
+Painel GPS  
+Configuração GPS  
+Gestão de rastreamento.
+
+Adicionar links no menu lateral.
+
+------------------------------------------------
+
+FASE 9 — INTEGRAÇÃO COM IA
+
+Conectar GPS com IA do sistema.
+
+A IA deve:
+
+analisar rotas  
+prever atrasos  
+sugerir melhorias logísticas.
+
+------------------------------------------------
+
+FASE 10 — TESTES AUTOMÁTICOS
+
+Executar testes:
+
+criar rota  
+atribuir motorista  
+ativar GPS  
+acompanhar rota no mapa  
+finalizar entrega.
+
+Corrigir automaticamente qualquer erro encontrado.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve possuir:
+
+GPS integrado ao ERP  
+controle por plano SaaS  
+liberação manual fora do plano  
+painel visual de rastreamento  
+integração com rotas e logística  
+análise inteligente de entregas.

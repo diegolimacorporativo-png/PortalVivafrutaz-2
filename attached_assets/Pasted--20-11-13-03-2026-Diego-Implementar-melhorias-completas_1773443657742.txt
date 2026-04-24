@@ -1,0 +1,282 @@
+[20:11, 13/03/2026] Diego: Implementar melhorias completas no sistema VivaFrutaz B2B.
+
+--------------------------------------------------
+
+GESTÃO DE USUÁRIOS DO SISTEMA
+
+No módulo de usuários adicionar:
+
+Botão EDITAR usuário
+Botão EXCLUIR usuário
+
+Permitir alterar:
+
+nome
+email
+cargo
+permissões
+
+--------------------------------------------------
+
+PERMISSÕES DE USUÁRIO
+
+Criar níveis de acesso:
+
+Cliente
+Financeiro
+Compras
+Operações
+Administrador
+Diretor
+Desenvolvedor
+
+Cada usuário deve acessar apenas as abas permitidas.
+
+Exemplo:
+
+Financeiro:
+acesso financeiro
+pedidos
+exportação
+
+Compras:
+relatório de compras
+produtos vendidos
+
+Operações:
+pedidos
+logística
+
+Administrador:
+controle completo do sistema
+
+Diretor:
+controle total
+pode alterar senha de qualquer usuário
+
+Desenvolvedor:
+controle técnico do sistema
+
+--------------------------------------------------
+
+ALTERAÇÃO DE SENHAS
+
+Somente usuários:
+
+Diretor
+Desenvolvedor
+
+podem alterar senha de qualquer usuário.
+
+Usuários administrativos podem alterar apenas senhas de clientes.
+
+--------------------------------------------------
+
+LOGIN POR PERFIL
+
+Cada perfil deve visualizar apenas as abas permitidas.
+
+Financeiro não pode acessar área de desenvolvimento.
+
+Clientes não podem acessar área administrativa.
+
+--------------------------------------------------
+
+BACKUP DO SISTEMA
+
+Criar sistema automático de backup.
+
+Backup deve incluir:
+
+pedidos
+empresas
+produtos
+usuários
+configurações
+
+Backup automático todos os dias às 17:00.
+
+Gerar link seguro para download do backup.
+
+Exemplo:
+
+backup-vivafrutaz-2026-03-13.zip
+
+--------------------------------------------------
+
+RESTAURAÇÃO DO SISTEMA
+
+Criar função para restaurar backup.
+
+Administrador ou desenvolvedor pode:
+
+subir arquivo de backup
+restaurar sistema completo.
+
+--------------------------------------------------
+
+ÁREA DO DESENVOLVEDOR
+
+Criar aba:
+
+DESENVOLVEDOR
+
+Apenas usuário desenvolvedor pode acessar.
+
+Funções disponíveis:
+
+Auditoria completa do sistema
+
+Verificar:
+
+erros de sistema
+rotas quebradas
+falhas de banco
+problemas de login
+bugs de interface
+
+--------------------------------------------------
+
+IA DE DIAGNÓSTICO
+
+Criar ferramenta de IA interna.
+
+Funções:
+
+analisar logs
+identificar bugs
+sugerir correções
+executar correções quando autorizado pelo desenvolvedor.
+
+Botões:
+
+Executar auditoria
+Detectar bugs
+Sugerir correção
+Aplicar correção
+
+--------------------------------------------------
+
+SISTEMA DE LOGS
+
+Criar sistema de logs.
+
+Registrar:
+
+login de usuários
+criação de pedidos
+alteração de dados
+erros do sistema
+
+Logs visíveis apenas para:
+
+Administrador
+Diretor
+Desenvolvedor
+
+--------------------------------------------------
+
+AJUSTE NO PORTAL DO CLIENTE
+
+Na aba onde aparece a frase:
+
+"Não se trata de uma questão de..."
+
+Substituir por mensagem institucional:
+
+"Na VivaFrutaz acreditamos que frutas frescas fazem parte de um ambiente de trabalho saudável e produtivo."
+
+--------------------------------------------------
+
+ERRO NA ABA DE PEDIDOS
+
+Corrigir erro:
+
+"Objeto não encontrado"
+
+Verificar rotas da página:
+
+novo pedido
+catálogo
+carrinho
+
+Garantir que a criação de pedido funcione corretamente.
+
+--------------------------------------------------
+
+EXPORTAÇÃO DE RELATÓRIOS
+
+Criar exportação para Excel.
+
+Formatos:
+
+Relatório de pedidos
+Relatório de compras
+Relatório financeiro
+Relatório de industrializados
+
+Permitir filtros por:
+
+empresa
+data
+produto
+categoria
+
+--------------------------------------------------
+
+SEGURANÇA DO SISTEMA
+
+Implementar:
+
+verificação de acesso por perfil
+bloqueio de acesso a páginas não autorizadas
+proteção contra erro de rota.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+Sistema VivaFrutaz deve possuir:
+
+controle completo de usuários
+controle de permissões
+backup automático
+restauração de sistema
+auditoria técnica
+IA de diagnóstico de bugs
+exportação completa de dados
+portal do cliente corrigido
+sistema de pedidos funcionando corretamente.
+[20:11, 13/03/2026] Diego: Implementar sistema avançado de proteção e estabilidade no sistema VivaFrutaz B2B.
+
+Objetivo:
+Garantir estabilidade, segurança e evitar perda de dados ou erros críticos no sistema.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA PEDIDOS DUPLICADOS
+
+Implementar verificação para impedir que o mesmo pedido seja criado duas vezes.
+
+Antes de salvar um pedido verificar:
+
+empresa
+data do pedido
+janela de entrega
+itens do carrinho
+
+Se existir pedido idêntico nos últimos 60 segundos:
+
+bloquear criação do pedido.
+
+Exibir mensagem:
+
+"Pedido já enviado. Aguarde confirmação."
+
+--------------------------------------------------
+
+SISTEMA DE FILA DE PEDIDOS
+
+Criar sistema de fila para processamento de pedidos.
+
+Quando vários clientes fizerem pedido ao m…

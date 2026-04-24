@@ -1,0 +1,210 @@
+ATUALIZAÇÕES NECESSÁRIAS – SISTEMA VIVAFRUTAZ
+
+Implementar três melhorias no sistema:
+
+1) VALIDAÇÃO DE FATURAMENTO MÍNIMO SEMANAL
+2) ALTERAÇÃO DE HORÁRIO PARA JANELA DE ENTREGA
+3) CORREÇÃO DA BUSCA AUTOMÁTICA DE COORDENADAS (LAT/LONG)
+
+--------------------------------------------------
+
+1️⃣ FATURAMENTO MÍNIMO SEMANAL
+
+O campo:
+
+"Faturamento mínimo semanal (R$)"
+
+precisa estar conectado ao sistema de pedidos do cliente.
+
+REGRAS:
+
+Quando o cliente fizer pedidos durante a semana,
+o sistema deve somar automaticamente todos os pedidos
+da mesma semana.
+
+Exemplo:
+
+Segunda-feira → pedido R$ 190  
+Quarta-feira → pedido R$ 30  
+
+Total da semana = R$ 220
+
+Se o faturamento mínimo configurado for:
+
+R$ 350
+
+E o cliente tentar finalizar ou encerrar pedidos da semana,
+o sistema deve mostrar alerta.
+
+Mensagem sugerida:
+
+"ATENÇÃO: o faturamento mínimo semanal deste contrato é de R$ 350.
+O valor total de pedidos da semana atual é R$ 220.
+Para finalizar os pedidos da semana é necessário atingir o valor mínimo."
+
+Permitir duas ações:
+
+CONTINUAR PEDIDO
+ADICIONAR MAIS PRODUTOS
+
+Essa validação deve ocorrer:
+
+✔ na tela de pedido
+✔ ao finalizar pedido
+✔ no painel do cliente
+
+--------------------------------------------------
+
+2️⃣ ALTERAR "HORÁRIO DE ENTREGA" PARA "JANELA DE ENTREGA"
+
+Na aba CONFIGURAÇÕES da empresa:
+
+substituir o campo:
+
+"HORÁRIO DE ENTREGA"
+
+por:
+
+"JANELA DE ENTREGA"
+
+Essa janela deve ser vinculada ao módulo:
+
+CONFIGURAÇÃO DE ENTREGA.
+
+--------------------------------------------------
+
+FUNCIONAMENTO
+
+O sistema já possui configuração de dias e horários
+de entrega por cliente.
+
+Exemplo:
+
+Cliente recebe:
+
+Segunda-feira
+08:00 – 10:00
+
+Quarta-feira
+09:00 – 11:00
+
+--------------------------------------------------
+
+REGRAS
+
+Na tela de detalhes da empresa e no login do cliente
+devem aparecer apenas as janelas permitidas.
+
+Exemplo:
+
+Cliente configurado para:
+
+Segunda
+Quarta
+
+O sistema deve mostrar apenas:
+
+SEGUNDA
+08:00 – 10:00
+
+QUARTA
+09:00 – 11:00
+
+Não mostrar dias que o cliente não recebe.
+
+--------------------------------------------------
+
+OBJETIVO
+
+Evitar pedidos fora da janela logística
+e ajudar o sistema de rotas inteligentes.
+
+--------------------------------------------------
+
+3️⃣ CORREÇÃO BUSCA AUTOMÁTICA DE COORDENADAS
+
+Atualmente o botão:
+
+"Buscar Coordenadas"
+
+está retornando erro:
+
+"Endereço não localizado".
+
+Corrigir integração de geocodificação.
+
+--------------------------------------------------
+
+IMPLEMENTAÇÃO
+
+Utilizar API de geocodificação:
+
+OpenStreetMap Nominatim
+
+Endpoint:
+
+https://nominatim.openstreetmap.org/search
+
+--------------------------------------------------
+
+ENDEREÇO UTILIZADO
+
+Montar endereço completo usando:
+
+Rua
+Número
+Bairro
+Cidade
+CEP
+Brasil
+
+Exemplo:
+
+Rua João de Araújo 417, Vila dos Andradas,
+São Paulo, 04469-000, Brasil
+
+--------------------------------------------------
+
+REQUISIÇÃO
+
+GET /search?q=enderecoCompleto&format=json&limit=1
+
+--------------------------------------------------
+
+RETORNO ESPERADO
+
+lat
+lon
+
+--------------------------------------------------
+
+AUTOPREENCHIMENTO
+
+Após clicar em:
+
+BUSCAR COORDENADAS
+
+o sistema deve preencher automaticamente:
+
+Latitude
+Longitude
+
+--------------------------------------------------
+
+VALIDAÇÃO
+
+Se não encontrar resultado:
+
+mostrar mensagem:
+
+"Endereço não encontrado. Verifique os dados ou ajuste o CEP."
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ faturamento mínimo semanal validado no pedido
+✔ janela de entrega vinculada ao cliente
+✔ dias de entrega corretos no portal do cliente
+✔ coordenadas GPS funcionando corretamente
+✔ sistema preparado para rotas inteligentes

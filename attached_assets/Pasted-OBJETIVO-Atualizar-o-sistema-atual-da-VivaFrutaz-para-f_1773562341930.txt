@@ -1,0 +1,115 @@
+OBJETIVO
+
+Atualizar o sistema atual da VivaFrutaz para funcionar perfeitamente em celulares e permitir que o sistema seja instalado como aplicativo (PWA), mantendo também o funcionamento como website normal.
+
+O projeto já está funcionando no Replit e possui diversas funcionalidades internas que não devem ser alteradas ou removidas.
+
+Nenhuma funcionalidade existente deve ser prejudicada.
+
+O objetivo é apenas adicionar suporte completo para celular e permitir instalação como aplicativo.
+
+--------------------------------------------------
+
+RESPONSIVIDADE MOBILE
+
+O sistema deve ser adaptado para funcionar perfeitamente em celulares.
+
+A interface deve ser totalmente responsiva.
+
+Ajustar automaticamente:
+
+- menus
+- tabelas
+- botões
+- formulários
+- dashboards
+- páginas do sistema
+- painel administrativo
+
+para telas menores.
+
+Botões devem ser maiores e fáceis de tocar.
+
+Menus devem funcionar bem em celular, podendo utilizar menu lateral, menu recolhível ou outro formato adequado para dispositivos móveis.
+
+--------------------------------------------------
+
+TRANSFORMAR O SISTEMA EM PWA
+
+Adicionar suporte para que o sistema possa ser instalado no celular como aplicativo.
+
+O sistema deve permitir que o usuário adicione o site à tela inicial do celular.
+
+Quando instalado:
+
+- o sistema deve abrir como aplicativo
+- sem barra do navegador
+- com ícone próprio
+- funcionando de forma semelhante a um aplicativo nativo.
+
+--------------------------------------------------
+
+INSTALAÇÃO DO APP
+
+Quando o usuário acessar o sistema pelo celular,
+o navegador deve oferecer a opção de instalar o aplicativo.
+
+Também pode existir um botão opcional no sistema chamado:
+
+Instalar aplicativo
+
+para facilitar a instalação.
+
+--------------------------------------------------
+
+ÍCONE DO APLICATIVO
+
+Definir ícones para o aplicativo que aparecerão:
+
+- na tela inicial do celular
+- na lista de aplicativos instalados
+
+Os ícones devem utilizar a identidade visual da VivaFrutaz.
+
+--------------------------------------------------
+
+COMPORTAMENTO DO APP
+
+Quando instalado no celular o aplicativo deve abrir diretamente no sistema.
+
+Fluxo esperado:
+
+abrir aplicativo VivaFrutaz
+
+tela de login
+
+após o login o usuário deve acessar normalmente o sistema completo,
+com todas as funcionalidades disponíveis de acordo com as permissões do sistema.
+
+Não limitar ou definir módulos específicos no fluxo.
+
+--------------------------------------------------
+
+IMPORTANTE
+
+Não alterar lógica do sistema existente.
+
+Não remover funcionalidades.
+
+Apenas adicionar:
+
+- suporte mobile
+- experiência otimizada para celular
+- instalação como aplicativo.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+O sistema continuará funcionando como website,
+mas também poderá ser instalado no celular
+como aplicativo da VivaFrutaz.
+
+O usuário poderá abrir o sistema
+diretamente pelo ícone no celular,
+com experiência semelhante a um aplicativo.

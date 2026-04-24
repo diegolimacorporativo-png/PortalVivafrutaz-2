@@ -1,0 +1,480 @@
+ATUALIZAÇÃO COMPLETA E AUDITORIA GERAL DO SISTEMA VIVAFRUTAZ
+
+Executar auditoria completa em todas as funções do sistema
+para detectar e corrigir erros de estabilidade, navegação,
+cotação, login, permissões e envio de e-mails.
+
+--------------------------------------------------
+
+AUDITORIA COMPLETA DO SISTEMA
+
+Executar varredura completa nas seguintes áreas:
+
+login
+empresas
+produtos
+pedidos
+cotações
+grupos de preço
+usuários
+ocorrências
+dashboard
+rotas
+API
+logs
+backup
+relatórios
+sistema de e-mail
+
+Detectar automaticamente:
+
+objetos undefined
+objetos null
+rotas quebradas
+falhas de banco
+erros de redirecionamento
+erros de renderização
+falhas de carregamento
+
+Registrar todos os erros no log interno do sistema.
+
+--------------------------------------------------
+
+CORREÇÃO DO ERRO NA PÁGINA DE COTAÇÃO
+
+Atualmente ocorre erro:
+
+"objeto não encontrado"
+
+quando é selecionado grupo de preços.
+
+Executar validação antes de carregar cotação.
+
+Verificar:
+
+empresa selecionada
+grupo de preço da empresa
+produtos vinculados ao grupo
+
+Se algum dado estiver ausente:
+
+não quebrar a página.
+
+Mostrar aviso:
+
+"Empresa sem grupo de preços configurado."
+
+--------------------------------------------------
+
+VALIDAÇÃO DE RESPOSTA DA API
+
+Todas as APIs devem validar retorno antes de renderizar dados.
+
+Se API retornar:
+
+null
+undefined
+lista vazia
+
+Retornar estrutura segura:
+
+success: false
+message: "Dados não encontrados"
+
+Nunca quebrar a página.
+
+--------------------------------------------------
+
+CORREÇÃO DE REDIRECIONAMENTO
+
+Auditar todas as rotas do sistema.
+
+Garantir que nenhuma página apresente erro
+"objeto não encontrado".
+
+Se página tentar carregar objeto inexistente:
+
+redirecionar automaticamente para:
+
+lista anterior
+ou dashboard
+
+Mostrar mensagem:
+
+"Os dados desta página não estão disponíveis."
+
+--------------------------------------------------
+
+PROTEÇÃO DE ROTAS COM ID
+
+Antes de carregar páginas como:
+
+/empresa/:id
+/pedido/:id
+/cotacao/:id
+
+Validar se o registro existe no banco.
+
+Se não existir:
+
+redirecionar para a página de lista.
+
+--------------------------------------------------
+
+CORREÇÃO AO USAR BOTÃO VOLTAR DO NAVEGADOR
+
+Quando usuário voltar para página anterior:
+
+recarregar dados automaticamente via API.
+
+Não depender apenas de estado temporário do frontend.
+
+--------------------------------------------------
+
+FALLBACK DE CARREGAMENTO
+
+Criar estado visual de carregamento.
+
+Mostrar mensagem:
+
+"Carregando dados..."
+
+Evitar renderização de componentes
+com dados undefined ou null.
+
+--------------------------------------------------
+
+REMOVER EXIBIÇÃO DE ERROS TÉCNICOS
+
+Atualmente o sistema exibe erro:
+
+[plugin:runtime-error-plugin]
+
+Isso não deve aparecer para usuários.
+
+No arquivo:
+
+vite.config.js
+
+Configurar:
+
+server:
+hmr:
+overlay: false
+
+--------------------------------------------------
+
+TRATAMENTO GLOBAL DE ERROS
+
+Criar sistema global de tratamento de erros.
+
+Quando ocorrer erro no frontend:
+
+não mostrar stack trace
+não mostrar erro técnico
+
+Mostrar apenas:
+
+"Ocorreu um erro inesperado. Tente novamente."
+
+Registrar erro completo apenas no log do sistema.
+
+--------------------------------------------------
+
+CORREÇÃO DO LOGIN
+
+Quando usuário digitar senha incorreta:
+
+mostrar apenas:
+
+"Usuário ou senha incorretos."
+
+Nunca mostrar detalhes técnicos.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA ENUMERAÇÃO DE USUÁRIO
+
+Nunca informar se:
+
+usuário existe
+ou senha está errada.
+
+Sempre usar mesma mensagem:
+
+"Usuário ou senha incorretos."
+
+--------------------------------------------------
+
+DESABILITAR ALTERAÇÃO DE SENHA PARA CLIENTES
+
+Usuários CLIENTE não podem alterar senha.
+
+Remover do portal do cliente:
+
+botão alterar senha
+rota alterar senha
+página alterar senha
+
+Se tentar acessar:
+
+mostrar mensagem:
+
+"Alteração de senha não disponível. Entre em contato com o suporte."
+
+--------------------------------------------------
+
+PERMISSÃO PARA ALTERAÇÃO DE SENHA
+
+Somente:
+
+Administrador
+Diretor
+Desenvolvedor
+
+podem alterar senhas.
+
+Podem alterar:
+
+própria senha
+senha de outros usuários
+
+--------------------------------------------------
+
+RESET DE SENHA
+
+Criar função:
+
+"Redefinir senha"
+
+Fluxo:
+
+Admin acessa cadastro do cliente
+Clica em redefinir senha
+Sistema gera senha temporária
+Cliente recebe nova senha por e-mail.
+
+--------------------------------------------------
+
+LOG DE TENTATIVAS DE LOGIN
+
+Registrar:
+
+IP
+usuário
+data
+resultado
+
+Campos:
+
+sucesso
+falha
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA FORÇA BRUTA
+
+Se ocorrer:
+
+5 tentativas de login incorretas
+em menos de 5 minutos
+
+bloquear login por 15 minutos.
+
+Registrar evento no log de segurança.
+
+--------------------------------------------------
+
+CRIAR PERFIL DE USUÁRIO LOGÍSTICA
+
+Adicionar novo perfil chamado:
+
+LOGÍSTICA
+
+Permissões do usuário LOGÍSTICA:
+
+visualizar empresas
+visualizar pedidos
+visualizar cotações
+visualizar datas de entrega
+filtrar pedidos por empresa
+filtrar pedidos por data
+
+Não pode:
+
+editar empresas
+editar produtos
+editar preços
+editar usuários
+alterar configurações
+acessar financeiro
+acessar backup
+acessar logs
+
+Apenas usuários MASTER podem criar LOGÍSTICA.
+
+Usuários MASTER:
+
+Administrador
+Diretor
+Desenvolvedor
+
+--------------------------------------------------
+
+CONFIGURAÇÃO DE ENVIO DE E-MAIL (SMTP)
+
+Implementar sistema de envio automático de e-mails.
+
+Criar variáveis de ambiente:
+
+SMTP_HOST
+SMTP_PORT
+SMTP_USER
+SMTP_PASS
+SMTP_FROM
+
+Exemplo:
+
+SMTP_HOST = smtp.gmail.com
+SMTP_PORT = 587
+SMTP_USER = sistema@vivafrutaz.com
+SMTP_PASS = senha_segura
+SMTP_FROM = VivaFrutaz <sistema@vivafrutaz.com>
+
+--------------------------------------------------
+
+VINCULAR E-MAIL NA EMPRESA
+
+Na tela de cadastro de empresa adicionar campo:
+
+EMAIL PARA RECEBER PEDIDOS
+
+Este e-mail será utilizado para:
+
+receber confirmação de pedidos
+receber cotações
+receber notificações do sistema.
+
+--------------------------------------------------
+
+ENVIO AUTOMÁTICO DE PEDIDOS
+
+Quando um pedido for criado:
+
+enviar e-mail automaticamente para:
+
+empresa cadastrada
+administradores
+gerente de operações
+
+--------------------------------------------------
+
+VALIDAÇÃO DO E-MAIL
+
+Antes de salvar empresa validar:
+
+formato do e-mail.
+
+Se inválido:
+
+mostrar mensagem:
+
+"E-mail inválido."
+
+--------------------------------------------------
+
+BOTÃO TESTAR E-MAIL
+
+Criar botão no painel administrativo:
+
+TESTAR ENVIO DE E-MAIL
+
+Ao clicar:
+
+enviar e-mail de teste.
+
+--------------------------------------------------
+
+LOG DE ENVIO DE E-MAIL
+
+Registrar no sistema:
+
+data
+empresa
+tipo de e-mail
+status
+
+Campos:
+
+enviado
+falhou
+
+--------------------------------------------------
+
+MELHORIA DO ASSISTENTE VIRTUAL VIVAFRUTAZ
+
+Atualizar funcionamento do assistente virtual.
+
+Quando usuário clicar no assistente:
+
+mostrar menu principal.
+
+Exemplo de opções:
+
+1 - Como fazer pedido
+2 - Como cancelar pedido
+3 - Como cadastrar empresa
+4 - Como exportar pedidos
+5 - Falar com suporte
+
+--------------------------------------------------
+
+MENU DE NAVEGAÇÃO DO ASSISTENTE
+
+Após responder qualquer pergunta
+mostrar opções:
+
+Voltar ao menu principal
+Fazer nova pergunta
+Fechar assistente
+
+Botões:
+
+[Voltar ao Menu]
+[Nova Pergunta]
+[Fechar]
+
+--------------------------------------------------
+
+ESTRUTURA DE NAVEGAÇÃO DO ASSISTENTE
+
+Fluxo:
+
+Usuário abre assistente
+Assistente mostra menu
+Usuário escolhe opção
+Assistente responde
+Assistente mostra botão voltar ao menu
+
+Nunca travar a conversa.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema VivaFrutaz passa a ter:
+
+auditoria completa
+correção da página de cotação
+correção de redirecionamento
+tratamento de objetos inexistentes
+navegação estável
+login seguro
+mensagens amigáveis
+clientes sem permissão de alterar senha
+proteção contra força bruta
+perfil de usuário logística
+envio automático de e-mails
+empresa com e-mail vinculado
+assistente virtual com menu navegável
+estabilidade geral do sistema

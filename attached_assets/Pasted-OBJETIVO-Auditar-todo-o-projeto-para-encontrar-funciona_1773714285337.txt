@@ -1,0 +1,172 @@
+OBJETIVO
+
+Auditar todo o projeto para encontrar funcionalidades já implementadas no backend que não estão visíveis no sistema (frontend ou menu).  
+Corrigir automaticamente todas as implementações que existem no código mas não aparecem visualmente.
+
+------------------------------------------------
+
+PASSO 1 — ESCANEAR TODO O PROJETO
+
+Analisar todas as pastas do projeto:
+
+routes  
+controllers  
+services  
+modules  
+models  
+database  
+pages  
+components  
+
+Identificar funcionalidades existentes no backend como:
+
+gestão de planos  
+módulos por plano  
+assinaturas  
+pagamentos  
+clientes  
+empresas  
+produtos  
+pedidos  
+logística  
+logística inteligente  
+gps  
+rotas  
+motoristas  
+ia  
+contratos  
+relatórios  
+configurações
+
+Gerar uma lista de todas funcionalidades detectadas.
+
+------------------------------------------------
+
+PASSO 2 — VERIFICAR SE EXISTE INTERFACE VISUAL
+
+Para cada funcionalidade encontrada verificar:
+
+• existe página no frontend  
+• existe rota de navegação  
+• existe item no menu lateral
+
+Se qualquer um desses itens não existir, marcar como funcionalidade oculta.
+
+------------------------------------------------
+
+PASSO 3 — CRIAR INTERFACES PARA FUNCIONALIDADES OCULTAS
+
+Para cada funcionalidade oculta:
+
+Criar automaticamente uma página visual no frontend contendo:
+
+tabela de dados  
+botão criar  
+botão editar  
+botão excluir  
+filtros  
+indicadores de status
+
+Salvar as páginas em:
+
+frontend/pages/
+
+------------------------------------------------
+
+PASSO 4 — CONECTAR FRONTEND COM BACKEND
+
+Para cada página criada:
+
+conectar com as rotas da API existentes  
+buscar dados reais do backend  
+permitir criação, edição e exclusão de registros
+
+------------------------------------------------
+
+PASSO 5 — ATUALIZAR MENU LATERAL
+
+Adicionar automaticamente ao menu lateral todas as páginas criadas.
+
+O menu deve possuir:
+
+Dashboard  
+Empresas  
+Clientes  
+Usuários  
+Produtos  
+Pedidos  
+Notas fiscais  
+Assinaturas  
+Faturamento  
+Pagamentos  
+Logística  
+Logística Inteligente  
+GPS Rastreamento  
+Rotas  
+Motoristas  
+IA  
+Relatórios  
+Contratos  
+Planos SaaS  
+Atualizações do Sistema  
+Configurações
+
+------------------------------------------------
+
+PASSO 6 — VALIDAR SISTEMA DE PLANOS
+
+Verificar se o controle de módulos por plano está funcionando.
+
+Se não estiver:
+
+corrigir lógica de visibilidade das abas.
+
+Empresas devem ver apenas as abas liberadas pelo plano.
+
+------------------------------------------------
+
+PASSO 7 — TESTAR NAVEGAÇÃO
+
+Executar navegação automática no sistema:
+
+abrir dashboard  
+abrir clientes  
+abrir pedidos  
+abrir logística  
+abrir gps  
+abrir assinaturas  
+abrir planos  
+
+Se alguma página não carregar:
+
+corrigir automaticamente.
+
+------------------------------------------------
+
+PASSO 8 — TESTE DE DADOS
+
+Criar dados de teste se necessário:
+
+empresa teste  
+clientes teste  
+pedidos teste  
+assinatura teste
+
+Garantir que as telas exibam informações reais.
+
+------------------------------------------------
+
+PASSO 9 — RELATÓRIO FINAL
+
+Gerar relatório listando:
+
+funcionalidades detectadas no backend  
+interfaces criadas no frontend  
+abas adicionadas no menu  
+erros corrigidos automaticamente
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve exibir visualmente todas as funcionalidades já implementadas no backend, com páginas acessíveis no menu lateral e totalmente conectadas ao banco de dados.

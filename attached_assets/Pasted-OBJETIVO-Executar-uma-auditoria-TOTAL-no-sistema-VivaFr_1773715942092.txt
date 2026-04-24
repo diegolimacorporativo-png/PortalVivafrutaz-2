@@ -1,0 +1,338 @@
+OBJETIVO
+
+Executar uma auditoria TOTAL no sistema VivaFrutaz ERP SaaS.
+
+Verificar, corrigir e completar automaticamente todas as funcionalidades solicitadas hoje.
+
+Se alguma funcionalidade estiver incompleta, quebrada, apenas no backend ou apenas no frontend, finalizar a implementação.
+
+Corrigir erros de layout, navegação, rotas, APIs, banco de dados e lógica de negócio.
+
+------------------------------------------------
+
+FASE 1 — AUDITORIA COMPLETA DO SISTEMA
+
+Escanear todo o projeto.
+
+Verificar:
+
+Frontend React  
+Rotas do sistema  
+Menu lateral  
+Layout das páginas  
+APIs backend  
+Conexão com banco de dados  
+Permissões por plano  
+Componentes visuais  
+Sistema SaaS  
+Sistema logístico  
+Sistema fiscal  
+
+Verificar funcionamento das seguintes áreas:
+
+Dashboard  
+Empresas  
+Clientes  
+Produtos  
+Pedidos  
+Logística  
+Logística Inteligente  
+GPS Rastreamento  
+Rotas  
+Motoristas  
+Notas fiscais  
+Assinaturas  
+Planos  
+Pagamentos  
+Relatórios  
+Integrações  
+IA  
+Loja de módulos  
+Gestão SaaS  
+Painel Financeiro SaaS  
+
+Se alguma página existir mas não aparecer no menu, adicionar automaticamente.
+
+------------------------------------------------
+
+FASE 2 — CORRIGIR LAYOUT
+
+Auditar todas as páginas.
+
+Se alguma página não possuir layout completo, criar automaticamente.
+
+Garantir que todas as páginas tenham:
+
+header  
+menu funcional  
+tabelas ou cards de dados  
+botões de ação  
+responsividade  
+
+Corrigir problemas de UI:
+
+botões sobrepostos  
+menus quebrados  
+componentes desalinhados  
+guia rápido interferindo no menu  
+
+Garantir navegação limpa entre abas.
+
+------------------------------------------------
+
+FASE 3 — EMPRESAS COM MÚLTIPLOS ENDEREÇOS
+
+Implementar funcionalidade solicitada.
+
+Na aba Empresas criar botão:
+
+Adicionar CEP
+
+Permitir múltiplos endereços por empresa.
+
+Campos:
+
+CEP  
+Rua  
+Número  
+Complemento  
+Bairro  
+Cidade  
+Estado  
+
+Permitir mais de um endereço para:
+
+filial  
+centro de distribuição  
+ponto de entrega  
+
+Garantir que pedidos e rotas possam utilizar esses endereços.
+
+------------------------------------------------
+
+FASE 4 — LOGÍSTICA INTELIGENTE
+
+Auditar completamente o módulo.
+
+Problema atual:
+
+sistema não gera busca  
+pesquisa inteligente não retorna rotas  
+
+Corrigir.
+
+Conectar todos os bancos relacionados:
+
+pedidos  
+clientes  
+endereços  
+rotas  
+motoristas  
+entregas  
+
+Implementar pesquisa inteligente capaz de buscar:
+
+rota por cliente  
+rota por endereço  
+rota por pedido  
+rota por motorista  
+rota por região  
+
+Garantir geração automática de rotas.
+
+Implementar:
+
+otimização de rota  
+agrupamento de pedidos por região  
+sugestão automática de motorista
+
+------------------------------------------------
+
+FASE 5 — CONECTAR TODOS OS BANCOS DE DADOS
+
+Garantir que todos os módulos compartilhem dados.
+
+Conectar:
+
+empresas  
+clientes  
+produtos  
+pedidos  
+entregas  
+rotas  
+motoristas  
+financeiro  
+assinaturas  
+módulos  
+
+Garantir que todas as telas puxem dados corretamente.
+
+------------------------------------------------
+
+FASE 6 — NOTA FISCAL
+
+Corrigir sistema fiscal.
+
+Erro relatado:
+
+campo IBGE faltando.
+
+Criar sistema de preenchimento automático.
+
+Criar aba:
+
+Gerar Nota Fiscal
+
+Sistema deve puxar automaticamente:
+
+dados da empresa  
+dados do cliente  
+endereço  
+cidade  
+código IBGE  
+produtos  
+valores  
+impostos  
+
+Se faltar algum dado obrigatório:
+
+mostrar alerta  
+redirecionar usuário automaticamente para a tela correta para completar dados.
+
+------------------------------------------------
+
+FASE 7 — VINCULAR PAINEL MASTER
+
+Garantir conexão entre:
+
+Painel Master  
+Gestão SaaS  
+Painel Financeiro  
+Loja de Módulos  
+
+O Painel Master deve:
+
+visualizar todas empresas  
+visualizar assinaturas  
+visualizar planos  
+visualizar faturamento  
+gerenciar módulos instalados  
+
+------------------------------------------------
+
+FASE 8 — LOJA DE MÓDULOS
+
+Garantir funcionamento completo.
+
+Corrigir erro:
+
+Falha ao criar módulos padrão.
+
+Criar módulos padrão automaticamente:
+
+IA  
+Logística Inteligente  
+GPS Rastreamento  
+Rotas  
+Motoristas  
+Financeiro  
+Relatórios  
+Integrações  
+Marketplace  
+Dashboard Avançado  
+
+Garantir instalação de módulos por empresa.
+
+------------------------------------------------
+
+FASE 9 — SISTEMA DE ASSINATURA
+
+Auditar sistema.
+
+Garantir funcionamento de:
+
+criação de assinatura  
+planos  
+trial  
+vencimento  
+pagamentos  
+
+Métodos:
+
+PIX  
+Cartão  
+Boleto  
+
+Se pagamento vencer:
+
+notificar administrador  
+bloquear funcionalidades do plano  
+rebaixar para plano Free.
+
+------------------------------------------------
+
+FASE 10 — TESTES AUTOMÁTICOS
+
+Executar testes navegando automaticamente no sistema.
+
+Testar:
+
+dashboard  
+empresas  
+clientes  
+pedidos  
+logística  
+rotas  
+gps  
+assinaturas  
+loja de módulos  
+nota fiscal  
+
+Criar dados de teste se necessário.
+
+------------------------------------------------
+
+FASE 11 — TESTE VISUAL
+
+Executar simulação de navegação no sistema.
+
+Gravar vídeos comprovando funcionamento.
+
+Salvar em:
+
+/tests/videos/
+
+Arquivos esperados:
+
+teste_dashboard.mp4  
+teste_logistica.mp4  
+teste_assinatura.mp4  
+teste_modulos.mp4  
+teste_nf.mp4  
+
+------------------------------------------------
+
+FASE 12 — CORRIGIR ERROS AUTOMATICAMENTE
+
+Se algum teste falhar:
+
+identificar erro  
+corrigir automaticamente  
+executar novamente teste.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+Sistema deve possuir:
+
+todas funcionalidades operacionais  
+layout completo em todas páginas  
+logística inteligente funcional  
+busca de rotas funcionando  
+empresas com múltiplos endereços  
+nota fiscal com preenchimento automático  
+painel master conectado ao SaaS  
+módulos funcionando  
+dados integrados entre bancos  
+testes executados com sucesso.

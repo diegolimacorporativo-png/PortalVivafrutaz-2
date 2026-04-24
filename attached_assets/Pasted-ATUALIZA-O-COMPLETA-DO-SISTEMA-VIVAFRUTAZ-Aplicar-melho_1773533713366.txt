@@ -1,0 +1,207 @@
+ATUALIZAÇÃO COMPLETA DO SISTEMA VIVAFRUTAZ
+
+Aplicar melhorias no módulo:
+
+Pedidos Pontuais
+Planejamento de Compras
+Previsão Inteligente de Compras
+
+--------------------------------------------------
+
+1 CORRIGIR ERRO AO ENVIAR PEDIDO PONTUAL
+
+Atualmente aparece erro:
+
+"Erro ao enviar solicitação"
+
+Verificar endpoint responsável por criar pedido pontual.
+
+Garantir que backend aceite os campos:
+
+nomeProduto
+quantidade
+marca
+categoria
+tipoProduto
+dataPedido
+diaEntrega
+observacoes
+
+Se algum campo estiver faltando
+mostrar mensagem clara ao usuário.
+
+Exemplo:
+
+"Categoria do produto é obrigatória"
+
+Garantir que dados sejam gravados corretamente
+na tabela de pedidos pontuais.
+
+--------------------------------------------------
+
+2 REMOVER SISTEMA DE SEMANA ISO
+
+Atualmente o sistema usa:
+
+2026-W11
+2026-W14
+
+Remover esse formato.
+
+--------------------------------------------------
+
+3 NOVO SISTEMA DE SEMANA BASEADO EM DATA
+
+Criar filtro de planejamento baseado em data inicial.
+
+Exemplo:
+
+Selecionar data inicial:
+
+16/03/2026
+
+O sistema deve calcular automaticamente
+a semana operacional.
+
+Exemplo de exibição:
+
+Semana de compras
+
+16/03
+17/03
+18/03
+19/03
+20/03
+
+--------------------------------------------------
+
+4 EXIBIÇÃO NO TOPO DO PLANEJAMENTO
+
+Mostrar:
+
+Planejamento de Compras
+
+Semana de compras
+16/03 até 20/03
+
+--------------------------------------------------
+
+5 ORGANIZAÇÃO POR DIA
+
+Dividir pedidos no painel por dia.
+
+Exemplo:
+
+SEGUNDA 16/03
+Produtos necessários
+
+TERÇA 17/03
+Produtos necessários
+
+QUARTA 18/03
+Produtos necessários
+
+--------------------------------------------------
+
+6 ROBÔ DE SOMA DE COMPRAS
+
+Criar função automática que soma
+todos os pedidos aprovados da semana.
+
+Exemplo:
+
+Pedidos:
+
+Empresa A → Banana 20kg
+Empresa B → Banana 30kg
+Empresa C → Banana 10kg
+
+Resultado no planejamento:
+
+BANANA → 60kg
+
+--------------------------------------------------
+
+7 LISTA AUTOMÁTICA DE COMPRAS
+
+Gerar lista consolidada.
+
+Exemplo:
+
+Lista de compras da semana
+
+Banana → 120kg
+Cenoura → 40kg
+Granola → 15 caixas
+Leite vegetal → 10 caixas
+
+--------------------------------------------------
+
+8 PREVISÃO INTELIGENTE DE COMPRAS
+
+Criar sistema que analisa histórico
+de pedidos das empresas.
+
+Sistema deve identificar:
+
+produtos mais pedidos
+consumo médio semanal
+tendência de pedidos.
+
+Exemplo:
+
+Histórico:
+
+Banana média semanal 150kg
+Granola média semanal 10 caixas
+
+Sistema sugere compra preventiva.
+
+--------------------------------------------------
+
+9 FILTROS NO PLANEJAMENTO DE COMPRAS
+
+Adicionar filtros:
+
+Pedidos pontuais
+Industrializados
+Hortifruti / Verduras
+Frutas
+Produtos fora de catálogo
+
+--------------------------------------------------
+
+10 FILTRO DE COMPRAS URGENTES
+
+Criar filtro adicional:
+
+Produtos para comprar hoje
+Produtos para comprar amanhã
+Produtos para comprar essa semana
+
+--------------------------------------------------
+
+11 PAINEL DE COMPRAS
+
+Criar área chamada:
+
+Painel de Compras
+
+Mostrar:
+
+Produtos para comprar hoje
+Produtos para comprar amanhã
+Produtos da semana
+Pedidos pontuais pendentes
+
+--------------------------------------------------
+
+12 RESULTADO ESPERADO
+
+✔ pedidos pontuais enviados sem erro
+✔ planejamento baseado em datas reais
+✔ robô somando pedidos automaticamente
+✔ lista de compras automática
+✔ previsão inteligente de compras
+✔ filtros organizados por categoria
+✔ operação de compras mais eficiente

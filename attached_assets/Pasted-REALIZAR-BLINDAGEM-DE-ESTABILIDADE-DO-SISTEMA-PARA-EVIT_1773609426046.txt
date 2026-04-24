@@ -1,0 +1,184 @@
+REALIZAR BLINDAGEM DE ESTABILIDADE DO SISTEMA PARA EVITAR ERROS DE RUNTIME E TELAS QUEBRADAS.
+
+OBJETIVO:
+Garantir que o sistema continue funcionando mesmo quando houver dados ausentes, APIs lentas ou campos indefinidos.
+
+IMPORTANTE:
+Não remover funcionalidades existentes.
+Não alterar lógica de negócio.
+Apenas adicionar camadas de segurança e validação.
+
+--------------------------------------------------
+
+1) PROTEÇÃO CONTRA VARIÁVEIS UNDEFINED
+
+Auditar todo o frontend procurando acessos diretos a variáveis como:
+
+data.campo  
+objeto.propriedade  
+planData  
+orderData  
+clientData  
+
+Substituir por acesso seguro usando optional chaining.
+
+Exemplo:
+
+ANTES:
+data.planData.total
+
+DEPOIS:
+data?.planData?.total
+
+Se o dado não existir, usar fallback seguro.
+
+Exemplo:
+
+const planData = data?.planData || []
+
+--------------------------------------------------
+
+2) FALLBACK PARA TELAS
+
+Nenhuma tela deve quebrar caso a API retorne vazio.
+
+Implementar estados:
+
+Carregando  
+Sem dados  
+Erro amigável  
+
+Exemplo de fallback:
+
+Se planejamento de compras estiver vazio:
+
+Mostrar mensagem:
+
+"Nenhum dado de planejamento disponível no momento."
+
+--------------------------------------------------
+
+3) PROTEÇÃO DE API
+
+Auditar todas as chamadas de API.
+
+Garantir que sempre exista tratamento de erro:
+
+try/catch
+
+Exemplo:
+
+try {
+   carregar dados
+} catch {
+   mostrar erro amigável
+}
+
+Mensagem padrão:
+
+"Ocorreu um erro inesperado. Tente novamente."
+
+--------------------------------------------------
+
+4) COMPONENTE GLOBAL DE ERRO
+
+Criar componente global:
+
+ErrorBoundary
+
+Se qualquer componente quebrar, mostrar tela amigável ao invés de travar o sistema.
+
+Mensagem sugerida:
+
+"Ocorreu um erro inesperado. Nossa equipe já foi notificada."
+
+Adicionar botão:
+
+"Tentar novamente"
+
+--------------------------------------------------
+
+5) VALIDAÇÃO DE SCHEMA
+
+Auditar:
+
+shared/schema.ts
+
+Verificar se todos os campos usados nas telas realmente existem no schema.
+
+Corrigir inconsistências entre:
+
+backend  
+frontend  
+API  
+
+--------------------------------------------------
+
+6) VALIDAÇÃO DE DADOS ANTES DO RENDER
+
+Antes de renderizar qualquer tela verificar se os dados existem.
+
+Exemplo:
+
+if (!data || data.length === 0)
+
+mostrar estado:
+
+Sem dados disponíveis.
+
+--------------------------------------------------
+
+7) LOG DE ERROS
+
+Criar sistema simples de log.
+
+Sempre que ocorrer erro registrar:
+
+tela  
+usuário  
+data  
+mensagem de erro
+
+Esses logs devem ficar disponíveis para administradores.
+
+--------------------------------------------------
+
+8) PROTEÇÃO PARA MÓDULOS CRÍTICOS
+
+Aplicar validação extra nas áreas:
+
+Pedidos  
+Compras  
+Contratos  
+Nota Fiscal  
+Inventário  
+Planejamento de compras  
+
+Garantir que essas telas nunca travem por variável indefinida.
+
+--------------------------------------------------
+
+9) REVISÃO FINAL
+
+Executar testes em:
+
+Planejamento de compras  
+Gestão de NF  
+Escopo contratual  
+Pedidos  
+Contratos  
+Área do cliente  
+
+Verificar se nenhuma tela apresenta erro de runtime.
+
+--------------------------------------------------
+
+10) BUILD LIMPO
+
+Após aplicar todas as proteções:
+
+limpar cache do Vite  
+rebuild completo do frontend  
+reiniciar servidor  
+
+Garantir que o sistema carregue sem erros no navegador.

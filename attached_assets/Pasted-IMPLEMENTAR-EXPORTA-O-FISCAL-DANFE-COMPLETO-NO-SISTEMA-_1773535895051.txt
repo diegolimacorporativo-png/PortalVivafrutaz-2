@@ -1,0 +1,283 @@
+IMPLEMENTAR EXPORTAÇÃO FISCAL + DANFE COMPLETO NO SISTEMA VIVAFRUTAZ
+
+Objetivo:
+Melhorar o DANFE interno e permitir exportação de dados fiscais para qualquer ERP, sem depender de API fiscal ou integração direta com SEFAZ neste momento.
+
+--------------------------------------------------
+
+1 - MELHORAR DANFE INTERNO
+
+Atualizar o layout do DANFE interno para incluir informações fiscais básicas.
+
+Informações do remetente (empresa):
+
+Razão social
+Nome fantasia
+CNPJ
+Inscrição estadual
+Endereço completo
+Cidade
+Estado
+CEP
+Telefone
+Email
+
+Informações do cliente (destinatário):
+
+Nome da empresa
+CNPJ ou CPF
+Inscrição estadual
+Endereço completo
+Cidade
+Estado
+CEP
+Contato
+
+--------------------------------------------------
+
+2 - INFORMAÇÕES DA OPERAÇÃO
+
+Adicionar no DANFE:
+
+Número do pedido
+Número da pré-nota
+Natureza da operação
+CFOP
+Data do pedido
+Data de entrega
+Semana logística
+
+Exemplo:
+
+Natureza da operação:
+Venda de mercadoria adquirida
+
+CFOP:
+5102
+
+--------------------------------------------------
+
+3 - INFORMAÇÕES DOS PRODUTOS
+
+Cada item do pedido deve mostrar:
+
+Produto
+Quantidade
+Unidade
+Preço unitário
+Subtotal
+
+Adicionar também:
+
+NCM do produto
+CFOP do item
+
+Exemplo:
+
+Produto: Banana
+NCM: 08039000
+CFOP: 5102
+Quantidade: 11
+Unidade: KG
+Valor unitário: R$ 2,58
+Subtotal: R$ 28,38
+
+--------------------------------------------------
+
+4 - OBSERVAÇÕES DO PEDIDO
+
+A observação administrativa inserida no pedido deve aparecer no DANFE.
+
+Exemplo:
+
+"Dar desconto na banana"
+
+Essa observação também deve aparecer na exportação de nota fiscal.
+
+--------------------------------------------------
+
+5 - QR CODE
+
+Manter QR Code no DANFE contendo:
+
+ID do pedido
+link interno do pedido
+data de entrega
+
+Esse QR Code deve permitir consultar o pedido dentro do sistema VivaFrutaz.
+
+--------------------------------------------------
+
+6 - EXPORTAÇÃO PARA ERP
+
+Criar botão no pedido:
+
+EXPORTAR NOTA FISCAL
+
+Esse botão deve permitir exportação em:
+
+PDF
+EXCEL
+XML
+
+--------------------------------------------------
+
+7 - ESTRUTURA DO EXCEL PARA ERP
+
+O sistema deve gerar planilha com os seguintes campos:
+
+numero_pedido
+numero_pre_nota
+data_pedido
+data_entrega
+
+cliente_nome
+cliente_cnpj
+cliente_endereco
+cidade
+estado
+cep
+
+produto
+ncm
+cfop
+quantidade
+unidade
+valor_unitario
+valor_total
+
+valor_total_nota
+
+Essa estrutura deve funcionar para ERPs como:
+
+Tiny
+Bling
+Omie
+Conta Azul
+SAP
+TOTVS
+
+--------------------------------------------------
+
+8 - EXPORTAÇÃO XML SIMPLES
+
+Criar botão:
+
+EXPORTAR XML
+
+O XML deve conter:
+
+pedido
+cliente
+produtos
+valores
+data
+endereço entrega
+
+Esse XML não precisa ser NF-e oficial.
+Ele serve apenas para integração com ERPs ou contabilidade.
+
+--------------------------------------------------
+
+9 - CADASTRO FISCAL DE PRODUTOS
+
+Atualizar cadastro de produtos para incluir:
+
+NCM
+CFOP padrão
+Unidade comercial
+
+Exemplo:
+
+Produto: Banana
+NCM: 08039000
+CFOP: 5102
+Unidade: KG
+
+Essas informações devem ser puxadas automaticamente quando o produto for usado em pedidos.
+
+--------------------------------------------------
+
+10 - CONTROLE DE PRÉ-NOTA
+
+Criar número automático de pré-nota.
+
+Formato:
+
+VF-NF-000001
+VF-NF-000002
+VF-NF-000003
+
+Esse número deve aparecer:
+
+no DANFE
+na exportação Excel
+na exportação XML
+
+--------------------------------------------------
+
+11 - STATUS FISCAL DO PEDIDO
+
+Adicionar campo no pedido:
+
+Status Fiscal
+
+Opções:
+
+Nota pendente
+Nota exportada
+Nota emitida
+Nota cancelada
+
+Esse status deve aparecer no painel de pedidos.
+
+--------------------------------------------------
+
+12 - FILTROS FISCAIS
+
+Na aba de pedidos criar filtros:
+
+Pedidos com nota pendente
+Pedidos com nota exportada
+Pedidos faturados
+
+Permitir busca por:
+
+data
+cliente
+número da pré-nota
+número do pedido
+
+--------------------------------------------------
+
+13 - PERMISSÕES
+
+Somente usuários internos podem:
+
+Gerar DANFE
+Exportar nota fiscal
+Exportar XML
+
+Perfis com acesso:
+
+Admin
+Diretoria
+Financeiro
+Compras
+Desenvolvedor
+
+Clientes NÃO podem exportar notas.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Sistema VivaFrutaz passa a ter:
+
+DANFE interno completo
+Exportação para ERP
+Planilha pronta para emissão de NF
+XML simples para integração
+Controle fiscal de pedidos
+Compatibilidade com qualquer sistema contábil
+Controle de pré-nota fiscal

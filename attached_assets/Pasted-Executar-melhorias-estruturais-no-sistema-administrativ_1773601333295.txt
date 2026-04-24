@@ -1,0 +1,263 @@
+Executar melhorias estruturais no sistema administrativo e no portal do cliente.
+
+IMPORTANTE:
+Não remover funcionalidades existentes.
+Não alterar estrutura do banco de dados.
+Apenas adicionar melhorias e verificar integrações.
+
+--------------------------------------------------
+
+1) FILTRO DE NAVEGAÇÃO NO PAINEL ADMIN
+
+Adicionar um sistema de filtro ou organização nas abas principais do sistema.
+
+Objetivo:
+Facilitar encontrar funcionalidades dentro do app.
+
+Implementar um menu organizado por categorias:
+
+Comercial
+- Empresas
+- Contratos
+- Escopo contratual
+- Clientes
+
+Pedidos
+- Pedidos
+- Pedidos automáticos
+- Histórico de pedidos
+
+Compras
+- Compras
+- Fornecedores
+- Previsão de compras
+
+Logística
+- Rotas
+- Entregas
+- Planejamento de entrega
+
+Financeiro
+- Faturamento
+- Nota Fiscal
+- Custos
+- Margem
+
+Relatórios
+- Relatórios financeiros
+- Relatórios de vendas
+- Relatórios de contratos
+
+Criar também:
+
+barra de busca de funcionalidades
+
+para localizar rapidamente telas do sistema.
+
+--------------------------------------------------
+
+2) NOVA ABA ESPECÍFICA PARA NOTA FISCAL
+
+Criar uma nova área no sistema chamada:
+
+"Gestão de Notas Fiscais"
+
+Essa aba deve centralizar todo o processo de faturamento.
+
+Adicionar filtros:
+
+Data inicial
+Data final
+Empresa
+Tipo de cliente
+Tipo de contrato
+
+Filtros de contrato:
+
+Cliente avulso
+Cliente contratual
+Contrato semanal
+Contrato mensal
+
+Também permitir:
+
+filtrar pedidos faturados
+filtrar pedidos pendentes de faturamento
+
+--------------------------------------------------
+
+3) GERAÇÃO DE NOTA FISCAL
+
+A aba de nota fiscal deve permitir:
+
+selecionar pedidos
+agrupar pedidos por empresa
+gerar faturamento consolidado
+
+Especialmente para:
+
+clientes contratuais com faturamento mensal.
+
+Fluxo:
+
+Pedidos do período
+↓
+Selecionar empresa
+↓
+Agrupar pedidos
+↓
+Gerar nota fiscal consolidada.
+
+--------------------------------------------------
+
+4) EXPORTAÇÃO PARA BLING
+
+Implementar integração de exportação de NF para o sistema:
+
+Bling
+
+A exportação deve enviar:
+
+empresa
+CNPJ
+endereço
+itens
+quantidades
+preços
+valor total
+data de emissão
+
+Utilizar os dados já existentes no sistema.
+
+Criar botão:
+
+"Exportar para Bling"
+
+--------------------------------------------------
+
+5) VISUALIZAÇÃO DE DANFE
+
+Após gerar uma nota fiscal permitir:
+
+visualizar DANFE
+
+Criar botão:
+
+"Visualizar DANFE"
+
+Permitir também:
+
+download em PDF.
+
+--------------------------------------------------
+
+6) ATUALIZAÇÃO AUTOMÁTICA DE FATURAMENTO
+
+Sempre que:
+
+pedido for criado
+pedido for entregue
+pedido for faturado
+
+As abas relacionadas devem atualizar automaticamente.
+
+Exemplo:
+
+Pedidos
+Financeiro
+Notas fiscais
+Relatórios
+
+--------------------------------------------------
+
+7) VERIFICAR CÁLCULO DE CUSTO MÉDIO
+
+Auditar o cálculo atual de custo médio.
+
+Verificar se:
+
+Quantidade × custo unitário está sendo calculado corretamente.
+
+Exemplo:
+
+10 bananas × 2,30
+30 mangas × 3,30
+
+Somar valores totais
+Calcular custo médio do escopo.
+
+Se não estiver automático, corrigir.
+
+--------------------------------------------------
+
+8) AUDITORIA DA IA DO CLIENTE (FLORA)
+
+Verificar quais dados a IA do cliente tem acesso.
+
+Garantir acesso a:
+
+escopo contratual
+produtos do escopo
+quantidades
+dias de entrega
+valor médio do contrato
+valor por item
+
+Se essas informações não estiverem disponíveis para a IA, atualizar a integração.
+
+--------------------------------------------------
+
+9) IA RESPONDENDO SOBRE ESCOPO
+
+A IA deve conseguir responder perguntas como:
+
+"Quais frutas recebo?"
+
+"Qual meu volume semanal?"
+
+"Qual o valor do meu contrato?"
+
+"Quais dias recebo entrega?"
+
+Essas respostas devem usar os dados reais do escopo do cliente.
+
+--------------------------------------------------
+
+10) VERIFICAR ABA DE VISUALIZAÇÃO DO ESCOPO DO CLIENTE
+
+Confirmar se existe a opção:
+
+"Solicitar novo escopo"
+
+Se não existir, adicionar botão:
+
+"Solicitar alteração ou novo escopo"
+
+Esse botão deve levar para:
+
+formulário de contato
+ou
+chat com IA Flora
+
+E direcionar a solicitação para o time administrativo.
+
+--------------------------------------------------
+
+11) TESTE FINAL
+
+Validar funcionamento com:
+
+cliente contratual
+cliente avulso
+administrador
+
+Verificar:
+
+menu organizado
+filtros funcionando
+nota fiscal gerando corretamente
+exportação para Bling funcionando
+DANFE disponível
+cálculo de custo médio correto
+IA respondendo sobre escopo
+cliente conseguindo solicitar alteração de escopo.

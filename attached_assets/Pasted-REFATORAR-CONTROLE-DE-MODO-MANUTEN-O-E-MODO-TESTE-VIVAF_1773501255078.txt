@@ -1,0 +1,135 @@
+REFATORAR CONTROLE DE MODO MANUTENÇÃO E MODO TESTE – VIVAFRUTAZ
+
+OBJETIVO
+
+Corrigir o problema atual onde os modos do sistema possuem apenas botão de ativar e não possuem opção clara de desativar.
+
+Implementar controle mais simples usando botão de alternância (ligar/desligar).
+
+--------------------------------------------------
+
+1️⃣ CONTROLE POR BOTÃO TOGGLE (LIGAR / DESLIGAR)
+
+Substituir os botões atuais:
+
+"Ativar Manutenção"
+"Ativar Modo Teste"
+
+por um botão de alternância:
+
+Modo Manutenção
+
+[ DESLIGADO ]  ← padrão
+[ LIGADO ]
+
+Modo Teste
+
+[ DESLIGADO ]  ← padrão
+[ LIGADO ]
+
+Esse botão deve funcionar como switch.
+
+--------------------------------------------------
+
+2️⃣ LÓGICA DO SISTEMA
+
+Modo Manutenção
+
+Quando estiver LIGADO:
+
+maintenance_mode = true
+
+Regras:
+
+clientes não podem acessar pedidos
+clientes não podem criar pedidos
+clientes veem mensagem:
+
+"Sistema temporariamente em manutenção."
+
+Administradores continuam com acesso total.
+
+--------------------------------------------------
+
+Modo Manutenção DESLIGADO:
+
+maintenance_mode = false
+
+Sistema volta ao funcionamento normal.
+
+--------------------------------------------------
+
+Modo Teste
+
+Quando estiver LIGADO:
+
+test_mode = true
+
+Regras:
+
+clientes padrão não podem criar pedidos reais
+apenas usuários administradores e usuários com perfil SISTEMA_TESTE podem criar pedidos
+
+Pedidos criados nesse modo devem ser marcados:
+
+pedido_teste = true
+
+Esses pedidos:
+
+não entram no faturamento
+não aparecem em relatórios financeiros
+
+--------------------------------------------------
+
+Modo Teste DESLIGADO
+
+test_mode = false
+
+Sistema volta a registrar pedidos normalmente.
+
+--------------------------------------------------
+
+3️⃣ INDICADOR VISUAL NO PAINEL
+
+Mostrar status do sistema no painel administrativo:
+
+Sistema Operando Normalmente
+
+ou
+
+Modo Manutenção Ativo
+
+ou
+
+Modo Teste Ativo
+
+Usar cores:
+
+verde = normal
+amarelo = modo teste
+vermelho = manutenção
+
+--------------------------------------------------
+
+4️⃣ NOTIFICAÇÃO AO ALTERAR MODO
+
+Sempre que um modo for alterado:
+
+mostrar notificação no sistema.
+
+Exemplo:
+
+"Modo manutenção ativado."
+
+ou
+
+"Modo manutenção desativado."
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ botão simples de ligar/desligar  
+✔ administrador consegue ativar e desativar modos facilmente  
+✔ clientes são bloqueados automaticamente quando necessário  
+✔ sistema mostra status visual claro

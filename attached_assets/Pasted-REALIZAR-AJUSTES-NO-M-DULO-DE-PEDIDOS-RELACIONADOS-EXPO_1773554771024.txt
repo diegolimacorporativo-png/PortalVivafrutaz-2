@@ -1,0 +1,153 @@
+REALIZAR AJUSTES NO MÓDULO DE PEDIDOS RELACIONADOS À EXPORTAÇÃO PARA O ERP BLING.
+
+CONTEXTO:
+
+Atualmente existe um campo exibido na tela de pedidos com o label "EXPIRAÇÃO NIMBI". Esse texto está incorreto para o sistema atual.
+
+O sistema agora utiliza integração com o ERP Bling, portanto o texto exibido ao usuário precisa refletir corretamente essa funcionalidade.
+
+OBJETIVO 1 — CORREÇÃO DO TEXTO DA INTERFACE
+
+Alterar o texto exibido para o usuário de:
+
+EXPIRAÇÃO NIMBI
+
+para:
+
+EXPORTAR PARA BLING
+
+REGRAS IMPORTANTES:
+
+1. Alterar APENAS o texto visível da interface (label).
+2. NÃO alterar lógica de integração com ERP.
+3. NÃO alterar nomes de campos no banco de dados.
+4. NÃO alterar nomes de variáveis internas.
+5. NÃO alterar endpoints de API.
+6. NÃO alterar estrutura de tabelas.
+7. NÃO alterar comportamento do botão "Salvar".
+8. Garantir que o campo continue registrando a mesma informação que antes.
+
+VERIFICAÇÕES DE INTERFACE:
+
+Também verificar e atualizar, se existir:
+
+- tooltip do campo
+- placeholder
+- descrição abaixo do campo
+- título da seção
+
+COMPATIBILIDADE:
+
+Caso o campo esteja vinculado internamente a nomes como:
+
+nimbi_expiration
+nimbi_date
+nimbi_export
+
+Manter esses nomes internos exatamente como estão. Alterar apenas o texto exibido ao usuário.
+
+RESULTADO ESPERADO:
+
+Na tela de pedidos o usuário deve visualizar:
+
+EXPORTAR PARA BLING
+
+sem alteração no funcionamento atual.
+
+------------------------------------------------------
+
+OBJETIVO 2 — IMPLEMENTAR CONTROLE SEGURO DE EXPORTAÇÃO PARA O ERP BLING
+
+Para evitar duplicação de pedidos e melhorar o controle da integração, implementar um sistema de status de exportação.
+
+Adicionar os seguintes campos na tabela de pedidos (caso ainda não existam):
+
+status_exportacao_erp
+data_exportacao_erp
+id_erp
+
+DESCRIÇÃO DOS CAMPOS:
+
+status_exportacao_erp
+Status da exportação para o ERP.
+
+Valores permitidos:
+
+nao_exportado
+exportando
+exportado
+erro
+
+data_exportacao_erp
+Data e hora em que o pedido foi enviado ao ERP.
+
+id_erp
+ID retornado pelo ERP Bling após criação do pedido.
+
+FLUXO DE FUNCIONAMENTO:
+
+1. Quando um pedido é criado:
+
+status_exportacao_erp = nao_exportado
+
+2. Quando o usuário clicar em:
+
+EXPORTAR PARA BLING
+
+O sistema deve:
+
+alterar status_exportacao_erp para:
+
+exportando
+
+3. O sistema envia o pedido para o ERP Bling.
+
+4. Se a API retornar sucesso:
+
+status_exportacao_erp = exportado
+data_exportacao_erp = data atual
+id_erp = ID retornado pelo Bling
+
+5. Se ocorrer erro:
+
+status_exportacao_erp = erro
+
+Registrar também a mensagem de erro.
+
+REGRAS DE SEGURANÇA:
+
+Se um pedido possuir:
+
+status_exportacao_erp = exportado
+
+O sistema deve bloquear nova exportação e exibir a mensagem:
+
+"Este pedido já foi exportado para o ERP Bling."
+
+INTERFACE DO PEDIDO:
+
+Adicionar exibição do campo:
+
+Status Bling:
+
+com os valores:
+
+Não exportado
+Exportando
+Exportado
+Erro
+
+IMPORTANTE:
+
+- Não alterar lógica existente de criação de pedidos.
+- Não alterar estrutura dos itens do pedido.
+- Não alterar cálculos de valores.
+- Não alterar integração já existente com o ERP Bling.
+- Garantir total compatibilidade com o sistema atual.
+
+RESULTADO FINAL:
+
+1. O campo "EXPIRAÇÃO NIMBI" passa a aparecer como "EXPORTAR PARA BLING".
+2. O sistema passa a controlar corretamente o status de exportação dos pedidos.
+3. Evitar duplicação de pedidos enviados ao ERP.
+4. Melhorar rastreabilidade da integração com o Bling.

@@ -1,0 +1,384 @@
+OBJETIVO
+
+Atualizar e evoluir o ERP existente adicionando:
+
+- IA interna de desenvolvimento
+- IA de correção automática de bugs
+- módulo de logística inteligente
+- sistema de rotas dinâmicas
+- endereços de entrega por dia da semana
+- motoristas e planejamento de rotas
+- sugestão automática de encaixe de novas rotas
+- preparação de deploy universal
+
+O sistema deve implementar essas funções sem quebrar as funcionalidades atuais.
+
+------------------------------------------------
+
+CORREÇÃO DE ERROS DO SISTEMA
+
+Criar um mecanismo de auto análise do sistema.
+
+Fluxo:
+
+1 escanear backend
+2 escanear frontend
+3 escanear banco de dados
+4 detectar erros
+5 gerar correção
+6 aplicar correção
+
+Antes de qualquer alteração o sistema deve criar backup automático.
+
+Backups devem ser salvos em:
+
+/backups/system
+
+------------------------------------------------
+
+CORREÇÃO DE ERRO DE ACESSO NEGADO
+
+Analisar rotas que retornam erro:
+
+403
+401
+acesso negado
+
+Verificar:
+
+middleware de autenticação
+permissões de usuário
+token JWT
+roles do sistema
+
+Se necessário criar middleware novo:
+
+checkPermissions()
+
+Esse middleware deve validar:
+
+admin
+gerente
+operador
+cliente
+
+------------------------------------------------
+
+IA DE DESENVOLVIMENTO
+
+Criar módulo:
+
+ai-developer
+
+Estrutura:
+
+/modules/ai
+
+Arquivos:
+
+ai-engine.ts
+ai-developer.ts
+ai-autofix.ts
+system-scanner.ts
+deploy-builder.ts
+
+Funções da IA:
+
+analisar sistema
+detectar bugs
+corrigir código
+criar novas abas
+criar novas APIs
+criar novas tabelas
+melhorar código existente
+
+Sempre criar backup antes de modificar arquivos.
+
+------------------------------------------------
+
+INTERFACE DA IA
+
+Criar nova aba no painel administrativo:
+
+AI LAB
+
+Botões:
+
+Analisar sistema
+Corrigir sistema
+Criar nova função
+Simular melhorias
+Preparar deploy
+
+------------------------------------------------
+
+LOGS DA IA
+
+Criar tabela:
+
+ai_logs
+
+campos:
+
+id
+data
+ação
+arquivo_afetado
+status
+detalhes
+
+Registrar todas as ações feitas pela IA.
+
+------------------------------------------------
+
+MÓDULO DE LOGÍSTICA INTELIGENTE
+
+Criar módulo:
+
+smart-logistics
+
+Estrutura:
+
+/modules/logistics
+
+Arquivos:
+
+route-engine.ts
+route-optimizer.ts
+driver-manager.ts
+geo-service.ts
+delivery-scheduler.ts
+
+------------------------------------------------
+
+GESTÃO DE MOTORISTAS
+
+Criar tabela:
+
+drivers
+
+campos:
+
+id
+nome
+telefone
+veiculo
+placa
+capacidade
+status
+empresa_id
+
+Funções:
+
+criar motorista
+editar motorista
+desativar motorista
+visualizar rotas
+
+------------------------------------------------
+
+GESTÃO DE ENTREGAS
+
+Criar tabela:
+
+deliveries
+
+campos:
+
+id
+pedido_id
+empresa_id
+driver_id
+status
+data_entrega
+cep
+endereco
+numero
+cidade
+latitude
+longitude
+
+Status possíveis:
+
+pendente
+em rota
+entregue
+cancelado
+
+------------------------------------------------
+
+EMPRESAS COM ENDEREÇOS DIFERENTES POR DIA
+
+Criar tabela:
+
+empresa_enderecos
+
+campos:
+
+id
+empresa_id
+dia_semana
+cep
+rua
+numero
+cidade
+latitude
+longitude
+
+Permitir múltiplos endereços.
+
+Exemplo:
+
+segunda -> endereço A  
+quarta -> endereço B  
+sexta -> endereço C
+
+Sistema deve selecionar automaticamente o endereço correto no dia do pedido.
+
+------------------------------------------------
+
+BUSCA DE ENDEREÇO POR CEP
+
+Criar serviço:
+
+geo-service
+
+Funções:
+
+buscar endereço pelo CEP  
+converter endereço em latitude  
+converter endereço em longitude  
+
+Salvar coordenadas automaticamente.
+
+------------------------------------------------
+
+ROTA INTELIGENTE
+
+Criar engine:
+
+route-optimizer
+
+Funções:
+
+calculateDistance()
+
+calcula distância entre pontos
+
+suggestInsertion()
+
+analisa rotas existentes e sugere onde inserir nova parada
+
+Fluxo:
+
+1 receber novo pedido  
+2 ler CEP  
+3 converter para coordenadas  
+4 analisar rotas existentes  
+5 sugerir motorista ideal  
+6 sugerir posição da parada na rota  
+
+------------------------------------------------
+
+SIMULAÇÃO DE ROTAS
+
+Criar função:
+
+simulateRouteDay()
+
+Simular:
+
+todas as entregas do dia  
+distribuição entre motoristas  
+distância total  
+tempo estimado  
+
+Gerar relatório de eficiência.
+
+------------------------------------------------
+
+INTEGRAÇÃO COM PEDIDOS
+
+Sempre que um pedido for criado:
+
+criar registro automático na tabela deliveries.
+
+Se existir rota planejada:
+
+adicionar automaticamente na rota.
+
+------------------------------------------------
+
+INTERFACE DO USUÁRIO
+
+Criar nova tela:
+
+Planejamento de Rotas
+
+Componentes:
+
+lista de motoristas  
+lista de entregas  
+mapa  
+campo CEP  
+
+Botão:
+
+ANALISAR ROTA
+
+Sistema deve sugerir:
+
+melhor motorista  
+melhor posição na rota  
+tempo adicional estimado  
+
+------------------------------------------------
+
+DEPLOY UNIVERSAL
+
+Criar módulo:
+
+deploy-builder
+
+Gerar automaticamente:
+
+Dockerfile  
+docker-compose.yml  
+deploy.sh  
+ecosystem.config.js  
+.env.example  
+
+Sistema deve ser capaz de rodar em:
+
+Docker  
+VPS Linux  
+servidores cloud  
+containers  
+
+------------------------------------------------
+
+TESTES AUTOMÁTICOS
+
+Antes de aplicar qualquer correção ou melhoria:
+
+rodar testes automáticos.
+
+Se o teste falhar:
+
+cancelar alteração.
+
+------------------------------------------------
+
+OBJETIVO FINAL
+
+O ERP deve possuir:
+
+IA interna de desenvolvimento  
+IA que corrige bugs automaticamente  
+logística inteligente  
+gestão de motoristas  
+rotas automáticas  
+endereços variáveis por dia  
+sugestão de rotas  
+deploy universal  
+logs completos de todas as ações

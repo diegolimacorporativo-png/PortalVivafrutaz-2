@@ -1,0 +1,329 @@
+IMPLEMENTAR NOVO MÓDULO COMPLETO: SIMULAÇÃO DE ESCOPO COMERCIAL.
+
+OBJETIVO:
+Permitir que a equipe comercial crie simulações de escopo para novos clientes antes de ativá-los no sistema.
+
+A simulação deve ajudar a entender:
+
+volume de frutas  
+frequência de entrega  
+faturamento estimado  
+tipo ideal de contrato  
+
+Esse módulo NÃO deve alterar clientes ativos até que a simulação seja confirmada.
+
+--------------------------------------------------
+
+1) NOVO MÓDULO NO SISTEMA
+
+Criar nova aba no menu administrativo chamada:
+
+"Simulação de Escopo"
+
+Essa área deve ser independente dos clientes ativos.
+
+Ela será usada apenas para:
+
+pré-venda  
+simulação comercial  
+planejamento de novos contratos.
+
+--------------------------------------------------
+
+2) CADASTRO DE NOVA SIMULAÇÃO
+
+Criar formulário inicial com campos:
+
+Nome da empresa  
+CNPJ (opcional)  
+Cidade  
+Contato principal  
+Telefone  
+Email  
+
+Tipo de modelo pretendido:
+
+Semanal  
+Mensal  
+Contratual  
+
+Também permitir deixar em:
+
+"A definir"
+
+--------------------------------------------------
+
+3) CONFIGURAÇÃO DE LIMITES DE FATURAMENTO
+
+Adicionar campos configuráveis na simulação:
+
+Faturamento mínimo semanal  
+Faturamento mínimo mensal  
+
+Esses valores devem ser editáveis.
+
+Exemplo:
+
+350 mínimo semanal  
+1400 mínimo mensal  
+
+Esses limites servirão como trava para validar se o escopo é viável.
+
+--------------------------------------------------
+
+4) CONFIGURAÇÃO DE ROTA
+
+Permitir selecionar:
+
+Rota da manhã  
+Rota da tarde  
+
+Configurar mínimos de rota:
+
+Manhã → mínimo 350  
+Tarde → mínimo 450  
+
+Esses valores devem ser editáveis.
+
+--------------------------------------------------
+
+5) MONTAGEM DO ESCOPO SIMULADO
+
+Criar área de montagem de escopo.
+
+Campos para cada item:
+
+Produto  
+Categoria  
+Quantidade  
+Unidade  
+Dia da semana  
+Frequência  
+
+Exemplo:
+
+Banana — 10kg — segunda  
+Maçã — 8kg — quarta  
+Manga — 6kg — sexta  
+
+O sistema deve puxar automaticamente:
+
+preço unitário do produto  
+categoria  
+unidade padrão.
+
+--------------------------------------------------
+
+6) CÁLCULO AUTOMÁTICO
+
+A cada item adicionado calcular automaticamente:
+
+valor do item  
+valor semanal estimado  
+valor mensal estimado  
+
+Mostrar resumo em tempo real.
+
+--------------------------------------------------
+
+7) PAINEL DE RESUMO DA SIMULAÇÃO
+
+Criar painel lateral mostrando:
+
+Total semanal estimado  
+Total mensal estimado  
+Número de entregas por semana  
+Volume total de frutas  
+Ticket médio por entrega  
+
+Atualizar automaticamente conforme o escopo muda.
+
+--------------------------------------------------
+
+8) MOTOR DE VALIDAÇÃO COMERCIAL
+
+Criar sistema que verifica se a simulação atende os mínimos comerciais.
+
+Verificações:
+
+faturamento semanal mínimo  
+faturamento mensal mínimo  
+mínimo da rota  
+
+Se o valor for menor que o mínimo mostrar alerta.
+
+Mensagem exemplo:
+
+"Escopo abaixo do faturamento mínimo semanal."
+
+--------------------------------------------------
+
+9) MOTOR DE SUGESTÃO AUTOMÁTICA
+
+Se o escopo não atender o mínimo, o sistema deve sugerir alternativas.
+
+Exemplo:
+
+"Este cliente não atinge o mínimo contratual."
+
+Sugestões possíveis:
+
+mudar para modelo semanal  
+aumentar frequência de entregas  
+aumentar volume mínimo  
+
+Essas sugestões devem aparecer automaticamente.
+
+--------------------------------------------------
+
+10) CLASSIFICAÇÃO AUTOMÁTICA DO CLIENTE
+
+Baseado na simulação classificar o cliente automaticamente.
+
+Categorias:
+
+Cliente pequeno  
+Cliente médio  
+Cliente corporativo  
+Cliente estratégico  
+
+Basear classificação em:
+
+volume semanal  
+faturamento estimado.
+
+--------------------------------------------------
+
+11) SIMULAÇÃO DE MARGEM
+
+Integrar com dados de custo médio dos produtos.
+
+Calcular automaticamente:
+
+custo estimado  
+valor de venda  
+margem estimada  
+
+Exemplo:
+
+Venda: 450  
+Custo: 260  
+
+Margem: 42%
+
+--------------------------------------------------
+
+12) SALVAR SIMULAÇÕES
+
+Permitir salvar simulações.
+
+Campos salvos:
+
+empresa  
+escopo simulado  
+valores estimados  
+data de criação  
+usuário responsável.
+
+--------------------------------------------------
+
+13) HISTÓRICO DE SIMULAÇÕES
+
+Permitir visualizar simulações antigas.
+
+Filtros:
+
+empresa  
+data  
+responsável.
+
+--------------------------------------------------
+
+14) CONVERTER SIMULAÇÃO EM CLIENTE
+
+Adicionar botão:
+
+"Converter em Cliente"
+
+Quando acionado o sistema deve:
+
+criar empresa no cadastro de clientes  
+criar escopo do cliente  
+definir tipo de contrato  
+gerar login de acesso  
+ativar cliente no sistema.
+
+--------------------------------------------------
+
+15) DEFINIÇÃO AUTOMÁTICA DO MODELO
+
+Ao converter escolher:
+
+Cliente semanal  
+Cliente mensal  
+Cliente contratual  
+
+O sistema deve aplicar automaticamente as regras de cada modelo.
+
+--------------------------------------------------
+
+16) INTEGRAÇÃO COM OUTROS MÓDULOS
+
+Após conversão integrar automaticamente com:
+
+Pedidos  
+Compras  
+Inventário  
+Logística  
+Financeiro  
+Nota Fiscal  
+
+O escopo aprovado deve alimentar automaticamente o sistema.
+
+--------------------------------------------------
+
+17) INTEGRAÇÃO COM IA FLORA
+
+A IA Flora deve conseguir acessar simulações.
+
+Funções da IA:
+
+explicar simulação  
+sugerir ajustes de escopo  
+calcular margens  
+explicar frequência de entregas.
+
+--------------------------------------------------
+
+18) PERMISSÕES
+
+Somente usuários com permissão podem criar simulações.
+
+Permissões:
+
+Administradores  
+Diretoria  
+Comercial.
+
+--------------------------------------------------
+
+19) TESTES
+
+Testar:
+
+criação de simulação  
+adição de produtos  
+cálculo automático  
+alerta de faturamento mínimo  
+motor de sugestão  
+conversão para cliente ativo.
+
+--------------------------------------------------
+
+20) RESULTADO FINAL
+
+Garantir que o sistema permita:
+
+simular escopos rapidamente  
+validar viabilidade comercial  
+converter simulação em cliente ativo sem retrabalho.

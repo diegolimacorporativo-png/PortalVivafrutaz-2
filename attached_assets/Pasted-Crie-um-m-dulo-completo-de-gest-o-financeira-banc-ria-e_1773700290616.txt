@@ -1,0 +1,359 @@
+Crie um módulo completo de gestão financeira, bancária e fiscal para um ERP SaaS desenvolvido em Node.js com Express e banco PostgreSQL.
+
+O sistema já possui:
+- empresas
+- clientes
+- produtos
+- pedidos
+- dashboard administrativo
+- geração de XML de nota
+- importação de XML de nota
+
+Primeiro passo: AUDITAR E CORRIGIR O MÓDULO DE IMPORTAÇÃO DE NOTA FISCAL.
+
+1. Verificar o código responsável por importar XML de NFe.
+2. Corrigir possíveis problemas como:
+- falha no parse do XML
+- XML com namespace da SEFAZ não sendo lido
+- produtos da nota não sendo vinculados ao banco
+- duplicação de nota
+- falha ao salvar chave de acesso
+- erro de encoding
+3. Implementar importação robusta:
+
+Fluxo:
+upload XML
+→ validar XML
+→ parse XML
+→ verificar duplicidade pela chave de acesso
+→ salvar nota
+→ salvar itens
+→ vincular cliente
+→ registrar no financeiro
+
+Criar endpoint:
+
+POST /nfe/importar
+
+Criar tabela:
+
+nfe_import_logs
+
+Campos:
+id
+data
+usuario
+status
+mensagem
+
+------------------------------------------------
+
+Agora implementar módulos completos do ERP.
+
+CONTAS A RECEBER
+
+Gerar automaticamente contas a receber quando um pedido for aprovado.
+
+Tabela:
+
+accounts_receivable
+
+Campos:
+
+id
+company_id
+customer_id
+order_id
+valor
+data_emissao
+data_vencimento
+status (pendente, pago, vencido, cancelado)
+forma_pagamento
+codigo_pix
+linha_digitavel
+pix_payload
+pix_qrcode
+
+Endpoints:
+
+POST /finance/accounts-receivable
+GET /finance/accounts-receivable
+PATCH /finance/accounts-receivable/:id/pay
+
+------------------------------------------------
+
+CONTAS A PAGAR
+
+Tabela:
+
+accounts_payable
+
+Campos:
+
+id
+company_id
+fornecedor
+descricao
+valor
+data_vencimento
+status
+categoria
+
+Endpoints:
+
+POST /finance/accounts-payable
+GET /finance/accounts-payable
+PATCH /finance/accounts-payable/:id/pay
+
+------------------------------------------------
+
+FLUXO DE CAIXA
+
+Tabela:
+
+financial_transactions
+
+Campos:
+
+id
+company_id
+tipo (entrada ou saida)
+valor
+descricao
+data
+referencia_id
+
+Endpoint:
+
+GET /finance/cashflow
+
+------------------------------------------------
+
+PIX AUTOMÁTICO
+
+Ao criar conta a receber:
+
+- gerar payload PIX padrão BR Code
+- gerar QR Code
+- gerar código copia e cola
+
+Usar biblioteca QRCode.
+
+Endpoint:
+
+GET /finance/pix/:id
+
+Fluxo:
+
+pedido criado
+→ gera conta a receber
+→ gera PIX
+→ cliente paga
+→ sistema marca pagamento
+→ registrar entrada no fluxo de caixa
+
+------------------------------------------------
+
+CONCILIAÇÃO DE PAGAMENTOS
+
+Criar função para reconciliar pagamentos automaticamente.
+
+Fluxo:
+
+pagamento recebido
+→ identificar conta a receber
+→ atualizar status
+→ registrar transação financeira
+
+------------------------------------------------
+
+INTEGRAÇÃO BANCÁRIA
+
+Criar módulo de integração bancária para permitir conexão com bancos.
+
+Estrutura:
+
+/modules/banking
+
+Tabelas:
+
+bank_accounts
+bank_transactions
+
+Campos bank_accounts:
+
+id
+company_id
+bank_name
+bank_code
+agency
+account_number
+pix_key
+api_client_id
+api_client_secret
+certificate
+environment
+
+Implementar suporte inicial para integração com API do banco:
+
+- Itaú
+- Banco do Brasil
+- Banco Inter
+- Sicoob
+- Sicredi
+
+Criar funções:
+
+createPixCharge()
+createBoleto()
+getBankTransactions()
+handleWebhook()
+
+Endpoints:
+
+POST /bank/pix
+POST /bank/boleto
+GET /bank/transactions
+POST /bank/webhook
+
+------------------------------------------------
+
+EMISSÃO DE NOTA FISCAL ELETRÔNICA (NFe)
+
+Implementar módulo completo de NFe com integração direta com WebService da SEFAZ.
+
+Funcionalidades:
+
+- geração de XML padrão NFe
+- assinatura digital com certificado A1
+- envio para WebService da SEFAZ
+- armazenamento do XML autorizado
+- tratamento de rejeições
+
+Tabelas:
+
+nfe
+nfe_items
+nfe_events
+
+Campos principais:
+
+id
+company_id
+chave_acesso
+protocolo_autorizacao
+status
+xml_enviado
+xml_autorizado
+data_emissao
+
+Endpoints:
+
+POST /nfe/emitir
+GET /nfe/:id
+GET /nfe/:id/xml
+
+------------------------------------------------
+
+EMISSÃO AUTOMÁTICA DE NF QUANDO PEDIDO FOR APROVADO
+
+Implementar fluxo:
+
+pedido aprovado
+→ gerar XML da NFe
+→ assinar XML
+→ enviar para SEFAZ
+→ receber autorização
+→ salvar chave de acesso
+→ gerar DANFE
+→ vincular nota ao pedido
+
+------------------------------------------------
+
+CANCELAMENTO DE NFE
+
+Endpoint:
+
+POST /nfe/:id/cancelar
+
+Enviar evento de cancelamento para SEFAZ.
+
+------------------------------------------------
+
+DANFE
+
+Gerar PDF da nota fiscal com:
+
+- dados da empresa
+- dados do cliente
+- produtos
+- valores
+- impostos
+- QR Code da nota
+
+------------------------------------------------
+
+DASHBOARD FINANCEIRO
+
+Criar métricas:
+
+- faturamento mensal
+- contas a receber
+- contas a pagar
+- fluxo de caixa
+- lucro líquido
+- saldo bancário
+
+Endpoint:
+
+GET /dashboard/finance
+
+------------------------------------------------
+
+EXPORTAÇÃO DE RELATÓRIOS
+
+Permitir exportação em:
+
+CSV
+Excel
+PDF
+
+------------------------------------------------
+
+SEGURANÇA
+
+Implementar:
+
+- autenticação JWT
+- isolamento por company_id
+- validação de dados
+- logs de auditoria
+
+------------------------------------------------
+
+ESTRUTURA DE PASTAS
+
+/backend
+/modules
+  /finance
+  /nfe
+  /pix
+  /banking
+/services
+/controllers
+/routes
+
+------------------------------------------------
+
+Retornar:
+
+- estrutura completa do banco de dados
+- queries SQL
+- código Node.js
+- exemplo de geração de PIX
+- exemplo de XML de NFe
+- exemplo de assinatura digital
+- exemplo de envio para SEFAZ
+- exemplo de DANFE
+- fluxo completo financeiro
+- fluxo completo de emissão de nota fiscal

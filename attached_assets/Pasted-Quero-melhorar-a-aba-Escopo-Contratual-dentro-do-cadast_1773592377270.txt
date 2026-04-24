@@ -1,0 +1,262 @@
+Quero melhorar a aba "Escopo Contratual" dentro do cadastro de empresas.
+
+IMPORTANTE:
+
+- Não alterar a estrutura atual das abas do sistema.
+- Não criar novas abas principais.
+- Não remover campos existentes no banco de dados.
+- Apenas adicionar melhorias e novos campos mantendo compatibilidade com dados existentes.
+
+Estrutura atual que deve permanecer:
+
+Empresas
+  ├ Dados Básicos
+  ├ Configurações
+  ├ Financeiro
+  ├ Escopo Contratual
+  └ Configuração de Entrega
+
+Todas as melhorias devem acontecer dentro da aba "Escopo Contratual".
+
+--------------------------------------------------
+
+MODELOS DE CONTRATO
+
+A funcionalidade deve funcionar para todos os modelos existentes:
+
+- Contrato Fixo
+- Contrato Variável
+- Contrato Alternado
+- Rotação 4 semanas
+
+--------------------------------------------------
+
+OBJETIVO
+
+Transformar o escopo contratual em uma estrutura semelhante à criação de itens de pedido ou itens de nota fiscal.
+
+Cada linha do escopo deve representar um item que poderá ser utilizado para:
+
+- geração automática de pedidos
+- consolidação de faturamento
+- geração de nota fiscal
+- geração de DANFE
+
+Todos os campos devem ser editáveis diretamente na tabela.
+
+--------------------------------------------------
+
+ESTRUTURA DOS ITENS DO ESCOPO
+
+Cada item do escopo contratual deve conter:
+
+Dia da semana  
+Semana do ciclo  
+Categoria  
+Produto  
+Quantidade  
+Preço unitário  
+Custo médio (opcional)  
+Total  
+
+--------------------------------------------------
+
+CATEGORIA
+
+Adicionar campo "Categoria" antes do campo produto.
+
+Regras:
+
+- As categorias devem vir da tabela de categorias já existente no sistema.
+- Produtos devem poder ser filtrados pela categoria selecionada.
+- Categoria deve ser salva junto com o item do escopo.
+
+Exemplos de categorias:
+
+Frutas da estação  
+Pote 100g  
+Pote mix  
+Fruta individual  
+
+--------------------------------------------------
+
+PREÇO EDITÁVEL
+
+O campo "Preço unitário" deve ser editável no escopo contratual.
+
+Isso permite que cada empresa tenha preços diferentes por produto.
+
+Esse preço será utilizado para:
+
+- pedidos
+- faturamento
+- geração de nota fiscal
+- geração de DANFE
+
+--------------------------------------------------
+
+CUSTO MÉDIO
+
+Adicionar campo opcional chamado:
+
+Custo médio
+
+Esse campo será usado para análise financeira e cálculo de margem.
+
+Não é obrigatório preencher.
+
+--------------------------------------------------
+
+TOTAL AUTOMÁTICO
+
+Criar cálculo automático:
+
+Total = Quantidade × Preço unitário
+
+O campo total deve atualizar automaticamente sempre que:
+
+- quantidade for alterada
+- preço unitário for alterado
+
+O campo total não deve ser editável manualmente.
+
+--------------------------------------------------
+
+EDIÇÃO DOS ITENS
+
+Os itens do escopo devem permitir:
+
+- adicionar item
+- editar item
+- remover item
+- alterar produto
+- alterar categoria
+- alterar quantidade
+- alterar preço
+- alterar custo médio
+
+A edição deve acontecer diretamente na tabela, sem abrir novas páginas.
+
+--------------------------------------------------
+
+RESUMO FINANCEIRO DO CONTRATO
+
+Adicionar um painel no topo da aba "Escopo Contratual" contendo:
+
+Valor estimado semanal  
+Valor estimado mensal  
+Custo estimado  
+Margem estimada  
+
+Cálculos:
+
+Valor semanal = soma dos totais dos itens da semana
+
+Valor mensal = valor semanal × 4
+
+Margem estimada = valor total - custo total
+
+Os valores devem atualizar automaticamente conforme os itens forem editados.
+
+--------------------------------------------------
+
+INTEGRAÇÃO COM PEDIDOS
+
+O escopo contratual deve servir como base para geração automática de pedidos.
+
+Fluxo esperado:
+
+Escopo contratual  
+↓  
+Sistema identifica semana atual  
+↓  
+Gera pedidos automaticamente  
+↓  
+Pedidos aparecem na aba "Pedidos"
+
+Cada pedido deve conter:
+
+empresa  
+data de entrega  
+produtos  
+quantidades  
+preços  
+
+--------------------------------------------------
+
+INTEGRAÇÃO COM LOGÍSTICA
+
+Os pedidos gerados devem utilizar também as informações da aba:
+
+"Configuração de Entrega"
+
+Incluindo:
+
+dia de entrega  
+janela de horário de entrega  
+
+Essas informações devem ser usadas pela logística.
+
+--------------------------------------------------
+
+FATURAMENTO MENSAL CONSOLIDADO
+
+Empresas contratuais devem permitir faturamento mensal.
+
+Isso significa:
+
+O sistema pode gerar vários pedidos durante o mês, mas o faturamento deve consolidar todos os pedidos em uma única nota fiscal mensal.
+
+Fluxo:
+
+Pedidos da empresa durante o mês  
+↓  
+Financeiro agrupa pedidos  
+↓  
+Gerar uma única nota fiscal mensal
+
+--------------------------------------------------
+
+GERAÇÃO DE NOTA FISCAL E DANFE
+
+O sistema deve utilizar os dados dos pedidos gerados para criar:
+
+faturamento  
+nota fiscal  
+DANFE  
+
+Utilizando:
+
+empresa  
+produtos  
+quantidades  
+preços  
+datas de entrega  
+
+--------------------------------------------------
+
+COMPATIBILIDADE COM DADOS EXISTENTES
+
+Registros antigos do escopo contratual devem continuar funcionando normalmente.
+
+Caso novos campos não existam em registros antigos:
+
+- utilizar valores padrão
+- permitir campos vazios
+
+Não quebrar registros já existentes.
+
+--------------------------------------------------
+
+VALIDAÇÃO FINAL
+
+Após implementar as melhorias verificar:
+
+- se os campos estão salvando corretamente
+- se o cálculo do total está funcionando
+- se categorias estão sendo vinculadas corretamente
+- se o resumo financeiro está calculando corretamente
+- se registros antigos continuam funcionando
+- se pedidos podem ser gerados corretamente
+- se faturamento mensal está funcionando
+- se geração de nota fiscal e DANFE funciona corretamente

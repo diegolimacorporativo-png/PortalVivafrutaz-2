@@ -1,0 +1,104 @@
+A visualização do escopo contratual ainda está incorreta no sistema.
+
+Mesmo após a implementação anterior, ao acessar o sistema com um usuário real as informações não aparecem corretamente.
+
+Portanto revisar novamente a implementação e corrigir o problema de visualização.
+
+IMPORTANTE
+
+Não criar novas abas.
+Não alterar a estrutura geral da tela.
+Não remover funcionalidades existentes.
+
+Apenas corrigir a lógica de visualização dentro da aba:
+
+Empresas → Editar empresa → Escopo Contratual
+
+--------------------------------------------------
+
+PROBLEMA ATUAL
+
+A interface não está mostrando corretamente:
+
+- bloqueio do escopo para clientes não contratuais
+- painel de resumo financeiro
+- dados atualizados dos itens do escopo
+
+Durante o teste automático parece funcionar, porém no uso real do sistema as informações não aparecem corretamente.
+
+Isso indica que pode existir problema em:
+
+- renderização do frontend
+- condição lógica de exibição
+- carregamento dos dados do banco
+- estado da aplicação após salvar alterações
+
+--------------------------------------------------
+
+CORREÇÕES NECESSÁRIAS
+
+1) Revisar a condição que verifica se a empresa é contratual.
+
+Se empresa NÃO for contratual:
+
+- mostrar cadeado
+- bloquear edição do escopo
+- impedir adicionar itens
+
+Se empresa for contratual:
+
+- liberar edição normalmente
+
+--------------------------------------------------
+
+2) Restaurar o painel de resumo financeiro no topo da aba.
+
+O painel deve mostrar:
+
+Valor estimado semanal  
+Valor estimado mensal  
+Custo estimado  
+Margem estimada  
+
+Cálculos:
+
+Valor semanal = soma dos totais dos itens da semana  
+Valor mensal = valor semanal × 4  
+Custo estimado = soma (quantidade × custo médio)  
+Margem estimada = valor total − custo total  
+
+Os valores devem atualizar automaticamente quando itens forem alterados.
+
+--------------------------------------------------
+
+3) Garantir que os dados exibidos na tela estejam sincronizados com o banco de dados.
+
+Após salvar alterações:
+
+- recarregar os dados do escopo
+- atualizar o estado da interface
+- garantir que os cálculos sejam renderizados corretamente.
+
+--------------------------------------------------
+
+TESTE REAL
+
+Após corrigir executar testes reais:
+
+1) criar empresa contratual
+2) adicionar itens no escopo
+3) verificar se painel financeiro aparece
+4) alterar quantidade e preço
+5) verificar se cálculos atualizam
+6) criar empresa não contratual
+7) verificar se escopo aparece bloqueado com cadeado.
+
+--------------------------------------------------
+
+RELATÓRIO
+
+Após corrigir informar:
+
+- quais arquivos foram revisados
+- quais funções de visualização foram corrigidas
+- qual era o problema que impedia a interface de mostrar os dados corretamente.

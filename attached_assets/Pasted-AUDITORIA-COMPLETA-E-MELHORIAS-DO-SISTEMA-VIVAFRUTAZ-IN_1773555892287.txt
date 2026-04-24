@@ -1,0 +1,364 @@
+AUDITORIA COMPLETA E MELHORIAS DO SISTEMA VIVAFRUTAZ
+INCLUINDO SEGURANÇA DE DOWNLOADS, AUDITORIA, PREVISÃO DE PEDIDOS, ROTEIRIZAÇÃO E DETECTOR DE BUGS
+
+OBJETIVO
+
+Realizar auditoria e melhorias em múltiplos módulos do sistema VivaFrutaz:
+
+Previsão de pedidos
+Roteirização logística
+Painel de auditoria
+Detector de bugs
+Segurança de atualização do sistema
+Controle de downloads automáticos
+
+Nenhuma funcionalidade existente deve ser removida.
+Apenas melhorar, auditar e corrigir.
+
+--------------------------------------------------
+
+1 AUDITORIA DO SISTEMA DE PREVISÃO DE PEDIDOS
+
+Verificar como o sistema calcula previsões de pedidos.
+
+Confirmar se utiliza:
+
+histórico de pedidos
+frequência de compra
+produtos mais comprados
+média de consumo
+sazonalidade
+intervalo entre pedidos
+
+Se algum fator não estiver sendo usado,
+sugerir implementação.
+
+--------------------------------------------------
+
+2 MELHORIA NA PREVISÃO
+
+Adicionar cálculo baseado em média histórica.
+
+Exemplo:
+
+Semana 1: 10 kg
+Semana 2: 12 kg
+Semana 3: 11 kg
+
+Média calculada:
+
+11 kg
+
+Previsão próxima semana:
+
+11 kg
+
+Adicionar detecção de tendência crescente ou decrescente.
+
+--------------------------------------------------
+
+3 ALERTA DE VARIAÇÃO DE PEDIDO
+
+Se um pedido estiver muito acima ou abaixo da média histórica,
+mostrar alerta.
+
+Exemplo:
+
+média histórica: 10 kg
+pedido atual: 40 kg
+
+alerta:
+
+Pedido fora do padrão histórico do cliente.
+
+--------------------------------------------------
+
+4 PAINEL DE PREVISÃO PARA COMPRAS
+
+Criar painel consolidado de previsão de compra baseado em todos os pedidos previstos.
+
+Exemplo:
+
+Banana: 120 kg
+Maçã: 90 kg
+Melão: 40 unidades
+
+--------------------------------------------------
+
+5 AUDITORIA DA ROTEIRIZAÇÃO LOGÍSTICA
+
+Verificar se o sistema utiliza:
+
+endereço completo
+latitude
+longitude
+janela de entrega
+dia da entrega
+distância entre clientes
+
+Confirmar se rotas são calculadas por:
+
+menor distância
+ou menor tempo estimado.
+
+--------------------------------------------------
+
+6 MELHORIAS NA ROTA
+
+Considerar também:
+
+horário mínimo da janela
+horário máximo da janela
+tempo médio de descarga
+tempo médio entre clientes
+
+--------------------------------------------------
+
+7 OTIMIZAÇÃO DA ORDEM DE ENTREGA
+
+Sistema deve sugerir automaticamente
+a melhor sequência de entrega
+baseada em proximidade geográfica
+e janelas de horário.
+
+--------------------------------------------------
+
+8 MAPA VISUAL DE ROTA
+
+Verificar se existe visualização em mapa.
+
+Caso não exista,
+integrar com mapa gratuito.
+
+Mostrar:
+
+clientes no mapa
+ordem da rota
+trajeto sugerido.
+
+--------------------------------------------------
+
+9 TEMPO ESTIMADO DE ENTREGA
+
+Sistema deve calcular:
+
+tempo entre empresas
+tempo total da rota.
+
+--------------------------------------------------
+
+10 ALERTA DE CONFLITO DE HORÁRIO
+
+Se duas empresas tiverem janelas iguais
+e distância grande,
+mostrar alerta para logística.
+
+--------------------------------------------------
+
+11 MELHORAR PAINEL DE AUDITORIA
+
+Alertas atuais:
+
+empresas inativas
+produtos inativos
+tentativas de login falhas
+
+Transformar esses alertas em itens clicáveis.
+
+Ao clicar,
+mostrar detalhes completos.
+
+--------------------------------------------------
+
+12 DETALHES DE EMPRESAS INATIVAS
+
+Mostrar:
+
+nome
+CNPJ
+último login
+último pedido
+data de cadastro
+responsável
+email
+
+Filtros:
+
+30 dias
+60 dias
+90 dias
+
+Botões:
+
+abrir cadastro
+editar empresa.
+
+--------------------------------------------------
+
+13 DETALHES DE PRODUTOS INATIVOS
+
+Mostrar:
+
+nome do produto
+categoria
+data de criação
+última venda
+quantidade vendida
+motivo de inativação
+
+Botões:
+
+editar produto
+reativar produto.
+
+--------------------------------------------------
+
+14 DETALHES DE LOGIN FALHO
+
+Mostrar:
+
+email usado
+data e hora
+IP
+navegador
+dispositivo
+
+Botões:
+
+bloquear IP
+bloquear usuário.
+
+--------------------------------------------------
+
+15 EXPANSÃO DO DETECTOR DE BUGS
+
+Cada erro deve mostrar:
+
+tipo do erro
+mensagem
+arquivo
+linha do código
+data e hora
+usuário afetado
+página onde ocorreu.
+
+--------------------------------------------------
+
+16 HISTÓRICO COMPLETO DE ERROS
+
+Criar tabela com:
+
+data
+erro
+usuário
+página
+status.
+
+Status:
+
+aberto
+em análise
+resolvido.
+
+--------------------------------------------------
+
+17 FILTROS DE ERROS
+
+Permitir filtrar por:
+
+data
+usuário
+tipo de erro
+módulo.
+
+--------------------------------------------------
+
+18 EXPORTAÇÃO DE RELATÓRIO
+
+Permitir exportar auditoria em:
+
+PDF
+Excel
+
+Conteúdo:
+
+empresas inativas
+produtos inativos
+tentativas de login falhas
+erros do sistema.
+
+--------------------------------------------------
+
+19 CORREÇÃO DE DOWNLOAD AUTOMÁTICO DE ARQUIVOS
+
+Problema atual:
+
+Quando o sistema é atualizado,
+o navegador faz downloads automáticos
+de arquivos internos do sistema
+como arquivos de desenvolvedor.
+
+Isso não deve acontecer para usuários
+nem para clientes.
+
+--------------------------------------------------
+
+20 REGRAS DE SEGURANÇA
+
+Bloquear download automático de:
+
+arquivos de build
+arquivos de desenvolvimento
+arquivos internos do sistema.
+
+Esses arquivos incluem:
+
+.map
+.dev
+.source
+logs
+arquivos de debug.
+
+--------------------------------------------------
+
+21 BLOQUEIO DE DOWNLOAD PARA CLIENTES
+
+Clientes não devem ter acesso a:
+
+arquivos internos
+arquivos do servidor
+arquivos de desenvolvimento.
+
+Permitir download apenas de:
+
+PDF
+Excel
+DANFE
+relatórios autorizados.
+
+--------------------------------------------------
+
+22 CONTROLE DE ATUALIZAÇÃO DO SISTEMA
+
+Quando o sistema for atualizado:
+
+não iniciar downloads automáticos
+apenas recarregar arquivos necessários.
+
+Se necessário:
+
+mostrar mensagem:
+
+"Nova versão do sistema disponível.
+Atualize a página."
+
+--------------------------------------------------
+
+23 RESULTADO ESPERADO
+
+Sistema mais seguro
+sem downloads automáticos indevidos
+auditoria interativa
+detector de bugs completo
+previsão de pedidos mais precisa
+roteirização logística otimizada.

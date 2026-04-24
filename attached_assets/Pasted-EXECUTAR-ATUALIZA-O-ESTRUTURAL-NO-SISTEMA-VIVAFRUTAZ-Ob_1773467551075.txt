@@ -1,0 +1,199 @@
+EXECUTAR ATUALIZAÇÃO ESTRUTURAL NO SISTEMA VIVAFRUTAZ
+
+Objetivo:
+Estabilizar login, sessão de usuário, redirecionamento de rotas e adicionar módulo de Cotações dentro da área de Logística.
+
+Garantir que o sistema funcione corretamente para todos os usuários sem quebrar páginas.
+
+--------------------------------------------------
+
+1. SEPARAÇÃO DE ROTAS PÚBLICAS E PRIVADAS
+
+Definir rotas públicas:
+
+/login
+
+Definir rotas privadas:
+
+/dashboard
+/pedidos
+/pedidos-pontuais
+/empresas
+/produtos
+/tarefas
+/logistica
+/logistica/cotacoes
+/rotas
+/ocorrencias
+/usuarios
+/financeiro
+
+Somente usuários autenticados podem acessar rotas privadas.
+
+--------------------------------------------------
+
+2. REDIRECIONAMENTO APÓS LOGIN
+
+Após autenticação bem sucedida:
+
+redirecionar automaticamente para:
+
+/dashboard
+
+Nunca redirecionar para "/".
+
+Evitar uso de:
+
+window.location = "/"
+
+Utilizar navegação segura do sistema.
+
+--------------------------------------------------
+
+3. BLOQUEAR ACESSO AO LOGIN QUANDO USUÁRIO JÁ ESTIVER LOGADO
+
+Se usuário autenticado tentar acessar:
+
+/login
+
+redirecionar automaticamente para:
+
+/dashboard
+
+Evitar loops de login.
+
+--------------------------------------------------
+
+4. PROTEÇÃO DE ROTAS DO SISTEMA
+
+Antes de carregar qualquer página privada:
+
+verificar sessão do usuário.
+
+Se sessão não existir:
+
+redirecionar automaticamente para:
+
+/login
+
+--------------------------------------------------
+
+5. CORREÇÃO DE QUEBRA DE OBJETOS
+
+Adicionar verificação antes de acessar objetos da API.
+
+Substituir acessos diretos por verificação segura.
+
+Exemplo:
+
+usuario?.nome  
+pedido?.status  
+empresa?.nome  
+
+Evitar erro:
+
+undefined is not an object
+
+--------------------------------------------------
+
+6. PROTEÇÃO GLOBAL DA APLICAÇÃO
+
+Implementar Error Boundary global no sistema.
+
+Se ocorrer erro de renderização:
+
+não quebrar a aplicação.
+
+Exibir mensagem amigável:
+
+"Ocorreu um erro inesperado. Atualize a página."
+
+--------------------------------------------------
+
+7. SINCRONIZAÇÃO DE USUÁRIOS
+
+Garantir que todos os usuários possuam sessão válida após login.
+
+Atualizar automaticamente:
+
+tokens  
+permissões  
+estrutura de sessão  
+
+--------------------------------------------------
+
+8. CORREÇÃO DE CACHE
+
+Evitar carregamento de versão antiga da aplicação.
+
+Forçar atualização de componentes quando necessário.
+
+--------------------------------------------------
+
+9. ADICIONAR MÓDULO DE COTAÇÕES NA LOGÍSTICA
+
+Criar área de:
+
+Logística → Cotações
+
+Rota:
+
+/logistica/cotacoes
+
+Essa aba deve permitir:
+
+visualizar solicitações de cotação  
+acompanhar status de cotação  
+registrar retorno de fornecedores  
+acompanhar histórico de cotações  
+
+--------------------------------------------------
+
+10. PERMISSÕES DO MÓDULO COTAÇÕES
+
+Permitir acesso para:
+
+Administrador  
+Diretor  
+Desenvolvedor  
+Operações  
+Logística  
+
+Bloquear acesso para:
+
+Clientes
+
+--------------------------------------------------
+
+11. MENU DA LOGÍSTICA
+
+Atualizar menu lateral do perfil Logística para incluir:
+
+Dashboard  
+Pedidos  
+Pedidos Pontuais  
+Logística  
+Rotas  
+Motoristas  
+Ocorrências  
+Cotações  
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Após a atualização:
+
+login redireciona corretamente para dashboard
+
+usuário logado não volta para login
+
+rotas do sistema não quebram
+
+navegação entre páginas funciona corretamente
+
+sistema permanece estável
+
+área de Cotações aparece dentro da Logística
+
+usuários de logística conseguem acessar e acompanhar cotações

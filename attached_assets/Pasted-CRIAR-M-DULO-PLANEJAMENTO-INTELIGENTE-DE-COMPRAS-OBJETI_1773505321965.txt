@@ -1,0 +1,169 @@
+CRIAR MÓDULO – PLANEJAMENTO INTELIGENTE DE COMPRAS
+
+OBJETIVO
+
+Criar um módulo que consolide automaticamente todos os pedidos do sistema
+e gere uma lista de compras para o setor de compras da VivaFrutaz.
+
+O sistema deve somar:
+
+• pedidos semanais
+• pedidos contratuais
+• pedidos pontuais
+• escopos fixos de empresas
+
+Gerando uma lista de compras organizada.
+
+--------------------------------------------------
+
+1️⃣ CRIAR NOVO MÓDULO
+
+Criar nova área no sistema:
+
+Compras
+→ Planejamento de Compras
+
+Somente acessível para:
+
+Administrador  
+Diretor  
+Compras  
+Desenvolvedor
+
+--------------------------------------------------
+
+2️⃣ CONSOLIDAÇÃO AUTOMÁTICA DE PEDIDOS
+
+O sistema deve somar automaticamente todos os produtos solicitados.
+
+Fontes de dados:
+
+• pedidos semanais
+• escopos contratuais
+• pedidos pontuais aprovados
+• escopos alternados semanais
+
+Exemplo:
+
+Pedidos da semana:
+
+Banana Prata – 28kg  
+Banana Nanica – 15kg  
+Maçã Fuji – 32kg  
+Morango – 12 caixas  
+
+--------------------------------------------------
+
+3️⃣ FILTROS DO PLANEJAMENTO
+
+Permitir gerar planejamento por:
+
+• dia
+• semana
+• período personalizado
+
+Exemplo:
+
+Planejamento de compras:
+
+Semana 18/03 – 22/03
+
+--------------------------------------------------
+
+4️⃣ AGRUPAMENTO POR PRODUTO
+
+Sistema deve agrupar automaticamente por produto.
+
+Exemplo:
+
+Banana Prata
+
+Empresa A → 5kg  
+Empresa B → 8kg  
+Empresa C → 15kg  
+
+Total necessário → 28kg
+
+--------------------------------------------------
+
+5️⃣ VISUALIZAÇÃO DETALHADA
+
+Permitir expandir cada produto para ver:
+
+• quais empresas solicitaram
+• quantidade por empresa
+• data da entrega
+
+--------------------------------------------------
+
+6️⃣ EXPORTAÇÃO
+
+Permitir exportar lista de compras em:
+
+PDF
+
+ou
+
+Planilha Excel
+
+Exemplo:
+
+LISTA DE COMPRAS – SEMANA
+
+Produto | Quantidade Total | Unidade
+Banana Prata | 28 | kg
+Maçã Fuji | 32 | kg
+Morango | 12 | caixas
+
+--------------------------------------------------
+
+7️⃣ STATUS DE COMPRA
+
+Setor de compras pode marcar cada item como:
+
+Pendente  
+Comprando  
+Comprado  
+Produto indisponível
+
+--------------------------------------------------
+
+8️⃣ PREVISÃO DE RECEBIMENTO
+
+Compras pode inserir:
+
+• fornecedor
+• previsão de chegada
+• observações
+
+--------------------------------------------------
+
+9️⃣ ALERTA AUTOMÁTICO
+
+Quando novos pedidos forem criados:
+
+o sistema deve atualizar automaticamente
+o planejamento de compras.
+
+--------------------------------------------------
+
+🔟 INTEGRAÇÃO COM LOGÍSTICA
+
+Depois que compras marcar produto como:
+
+Comprado
+
+O sistema pode sugerir:
+
+• separação de pedidos
+• organização de rotas de entrega
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ compras consegue ver tudo que precisa comprar
+✔ sistema soma pedidos automaticamente
+✔ planejamento semanal automatizado
+✔ redução de erros de compra
+✔ integração com logística

@@ -1,0 +1,278 @@
+IMPLEMENTAR IA OPERACIONAL FLORA NO SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Criar uma IA chamada Flora que funcione como assistente inteligente
+do sistema VivaFrutaz, com acesso aos módulos operacionais
+para responder perguntas, executar tarefas e auxiliar usuários.
+
+A IA deve funcionar como assistente interno e também
+como suporte para clientes.
+
+--------------------------------------------------
+
+1 ACESSO AOS MÓDULOS DO SISTEMA
+
+A IA Flora deve ter acesso às informações de:
+
+Empresas
+Pedidos semanais
+Pedidos pontuais
+Compras
+Estoque
+Inventário
+Catálogo de produtos
+Logística
+Agenda de entregas
+Rotas de entrega
+Planejamento de compras
+Financeiro (apenas leitura)
+Tarefas
+Sistema de auditoria
+
+--------------------------------------------------
+
+2 CONSULTA DE LOGÍSTICA
+
+Permitir comandos como:
+
+Flora que horas essa empresa pode receber entrega
+Flora qual a previsão de entrega do pedido
+Flora como está a logística de amanhã
+
+Se faltar informação a IA deve perguntar:
+
+Qual empresa?
+Qual data da entrega?
+
+Após receber os dados,
+consultar agenda de logística
+e retornar janelas disponíveis.
+
+Exemplo de resposta:
+
+Empresa: Hospital São Lucas
+
+Janelas disponíveis:
+
+08:30 às 09:00
+10:10 às 10:40
+13:20 às 14:00
+
+--------------------------------------------------
+
+3 CONSULTA DE PEDIDOS
+
+Permitir comandos:
+
+Flora verificar pedidos da semana
+Flora verificar pedidos pontuais
+Flora gerar relatório de pedidos
+Flora gerar PDF de pedidos
+Flora exportar pedidos para Bling
+
+A IA deve consultar o banco de dados
+e retornar os resultados.
+
+--------------------------------------------------
+
+4 CONSULTA DE COMPRAS
+
+Permitir comandos:
+
+Flora gerar lista de compras
+Flora verificar produtos faltando
+Flora analisar pedidos de compras
+
+A IA deve cruzar:
+
+pedidos confirmados
+pedidos pontuais
+estoque atual
+planejamento de compras
+
+--------------------------------------------------
+
+5 CONSULTA DE ESTOQUE
+
+Permitir comandos:
+
+Flora verificar estoque
+Flora produtos com estoque baixo
+Flora produtos próximos da validade
+
+A IA consulta o módulo de inventário.
+
+--------------------------------------------------
+
+6 MONITORAMENTO DE CLIENTES
+
+Permitir comandos:
+
+Flora verificar clientes inativos
+Flora empresas sem pedido
+
+O sistema deve identificar empresas
+que não fizeram pedidos recentemente.
+
+--------------------------------------------------
+
+7 EXECUÇÃO DE TAREFAS
+
+Permitir comandos:
+
+Flora criar tarefa
+Flora gerar relatório
+Flora exportar pedidos
+Flora gerar PDF
+Flora gerar planilha Excel
+
+Exemplo:
+
+Flora criar tarefa para logística
+Prazo amanhã
+Prioridade alta
+
+--------------------------------------------------
+
+8 PERGUNTAS AUTOMÁTICAS
+
+Sempre que faltar informação
+a IA deve perguntar ao usuário.
+
+Exemplos:
+
+Qual empresa?
+Qual data?
+Qual pedido?
+Qual produto?
+
+--------------------------------------------------
+
+9 RESERVA DE HORÁRIOS DE ENTREGA
+
+Se o usuário solicitar,
+a IA pode sugerir horários disponíveis.
+
+Exemplo:
+
+Deseja reservar a janela
+10:10 às 10:40?
+
+--------------------------------------------------
+
+10 PERMISSÕES
+
+Clientes:
+
+podem consultar:
+
+previsão de entrega
+status de pedidos
+informações da empresa
+
+Usuários internos:
+
+podem acessar todas as funções.
+
+Perfis com acesso total:
+
+Administrador
+Diretoria
+Desenvolvedor
+
+--------------------------------------------------
+
+11 REGISTRO DE AÇÕES
+
+Toda ação executada pela IA
+deve ser registrada no log do sistema.
+
+Registrar:
+
+Usuário
+Ação realizada
+Data
+Hora
+
+--------------------------------------------------
+
+12 ABA TREINAR FLORA
+
+Criar nova aba no sistema chamada:
+
+TREINAR FLORA
+
+Disponível apenas para perfis:
+
+Administrador
+Diretoria
+Desenvolvedor
+
+Objetivo:
+
+Permitir que usuários autorizados
+treinem e melhorem a IA Flora.
+
+--------------------------------------------------
+
+13 FUNCIONALIDADES DA ABA TREINAR FLORA
+
+Nesta aba deve ser possível:
+
+Adicionar novos comandos
+Adicionar respostas personalizadas
+Corrigir respostas da IA
+Adicionar conhecimento sobre o sistema
+Treinar a IA para responder perguntas específicas
+
+Exemplo de treinamento:
+
+Pergunta:
+
+Como funciona pedido pontual?
+
+Resposta ensinada:
+
+Pedido pontual é utilizado
+quando o cliente precisa solicitar
+produtos fora do pedido semanal.
+
+--------------------------------------------------
+
+14 MEMÓRIA DA IA
+
+Todo treinamento realizado
+na aba Treinar Flora
+deve ser salvo no banco de dados
+para que a IA utilize nas próximas respostas.
+
+--------------------------------------------------
+
+15 HISTÓRICO DE TREINAMENTO
+
+Registrar:
+
+Usuário que treinou a IA
+Data do treinamento
+Pergunta ensinada
+Resposta ensinada
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+A IA Flora deve funcionar como
+assistente inteligente operacional
+do sistema VivaFrutaz,
+capaz de:
+
+consultar logística
+consultar pedidos
+consultar compras
+consultar estoque
+analisar dados
+executar tarefas
+gerar relatórios
+auxiliar usuários
+e aprender com treinamentos internos.

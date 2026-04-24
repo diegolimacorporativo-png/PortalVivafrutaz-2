@@ -1,0 +1,128 @@
+IMPLEMENTAR SISTEMA INTELIGENTE DE E-MAILS
+INTEGRADO COM JANELA DE PEDIDOS
+
+OBJETIVO
+
+Criar sistema de envio automático de e-mails
+baseado na janela de pedidos dos clientes
+e no status do pedido semanal.
+
+--------------------------------------------------
+
+1 INTEGRAÇÃO COM JANELA DE PEDIDOS
+
+O sistema deve verificar automaticamente:
+
+• se a janela de pedidos está aberta
+• se o cliente possui pedido semanal
+• se o pedido ainda não foi finalizado
+
+Somente nessas condições enviar e-mail.
+
+--------------------------------------------------
+
+2 LEMBRETE DE ABERTURA DE PEDIDO
+
+Quando a janela de pedidos abrir
+o sistema deve enviar automaticamente:
+
+"Lembrete de pedido semanal"
+
+Somente para clientes que possuem
+pedido programado naquela semana.
+
+--------------------------------------------------
+
+3 COBRANÇA DE PEDIDO NÃO FINALIZADO
+
+Se o cliente não finalizou o pedido
+dentro da janela de pedidos
+o sistema deve enviar lembretes automáticos.
+
+Configuração editável:
+
+Horários de cobrança.
+
+Exemplo:
+
+Segunda 15:00
+Terça 10:00
+
+Se o cliente finalizar o pedido
+o sistema para os envios automaticamente.
+
+--------------------------------------------------
+
+4 PEDIDO CONFIRMADO
+
+Quando o pedido for confirmado
+enviar e-mail automático ao cliente.
+
+Conteúdo:
+
+Resumo do pedido
+Data de entrega
+
+Anexar PDF do pedido.
+
+--------------------------------------------------
+
+5 PEDIDO RECUSADO
+
+Se o pedido for recusado
+enviar e-mail com motivo obrigatório.
+
+--------------------------------------------------
+
+6 AVISOS ADMINISTRATIVOS
+
+Permitir envio manual de e-mails.
+
+Opções:
+
+• cliente específico
+• grupo de clientes
+• todos os clientes
+
+Envio deve ser feito em cópia oculta (BCC).
+
+--------------------------------------------------
+
+7 AGENDAMENTO DE ENVIO
+
+Permitir configurar horários para:
+
+Lembrete de pedido
+Cobrança de pedido não finalizado
+
+Admin pode editar horários.
+
+--------------------------------------------------
+
+8 CONDIÇÃO DE ENVIO
+
+Antes de enviar e-mail
+o sistema deve verificar:
+
+janela de pedido aberta
+pedido ainda não finalizado
+cliente ativo
+
+--------------------------------------------------
+
+9 HISTÓRICO DE E-MAILS
+
+Registrar:
+
+data
+cliente
+tipo de e-mail
+status de envio.
+
+--------------------------------------------------
+
+RESULTADO
+
+Sistema envia e-mails automáticos
+baseados na janela de pedidos
+e no status dos pedidos semanais.

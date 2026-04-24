@@ -1,0 +1,289 @@
+IMPLEMENTAR SISTEMA DE LEITURA AUTOMÁTICA DE NOTA FISCAL (OCR)  
+INTEGRADO AO MÓDULO DE ESTOQUE / INVENTÁRIO DO SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Criar um sistema inteligente que permita importar notas fiscais através de:
+
+- Foto da nota fiscal
+- Upload de PDF da nota fiscal
+- Upload de imagem da nota fiscal
+
+O sistema deve usar tecnologia OCR para reconhecer automaticamente as informações da nota e preencher os dados do inventário.
+
+--------------------------------------------------
+
+1 CRIAR BOTÃO DE IMPORTAÇÃO DE NOTA FISCAL
+
+No módulo:
+
+Estoque / Inventário
+
+Adicionar botão:
+
+Importar Nota Fiscal
+
+Opções dentro do botão:
+
+- Tirar foto da nota fiscal
+- Enviar imagem da nota fiscal
+- Enviar PDF da nota fiscal
+
+Fluxo:
+
+Usuário seleciona a nota  
+Sistema faz leitura OCR  
+Sistema extrai dados  
+Sistema mostra tela de conferência  
+Usuário confirma entrada no estoque
+
+--------------------------------------------------
+
+2 TECNOLOGIA OCR
+
+Utilizar OCR para leitura de texto.
+
+Opções recomendadas:
+
+- Tesseract OCR
+ou
+- Google Vision OCR
+ou
+- Biblioteca OCR open source
+
+O OCR deve ser capaz de identificar automaticamente:
+
+Fornecedor  
+CNPJ  
+Número da nota fiscal  
+Data da nota  
+Lista de produtos  
+Quantidade  
+Unidade  
+Valor unitário  
+Valor total
+
+--------------------------------------------------
+
+3 EXTRAÇÃO DE DADOS DA NOTA
+
+O sistema deve identificar automaticamente:
+
+Fornecedor  
+CNPJ fornecedor  
+Número da nota fiscal  
+Data de emissão  
+Produtos listados  
+Quantidade de cada produto  
+Unidade de medida  
+Valor unitário  
+Valor total da nota
+
+--------------------------------------------------
+
+4 TELA DE CONFERÊNCIA DA NOTA
+
+Após a leitura OCR abrir uma tela de revisão.
+
+Exibir:
+
+Fornecedor  
+Número da nota  
+Data da nota
+
+Tabela de produtos detectados:
+
+Produto  
+Quantidade  
+Unidade  
+Valor unitário  
+Valor total
+
+Usuário pode editar qualquer campo antes de confirmar.
+
+Botões:
+
+Confirmar Entrada no Estoque  
+Cancelar
+
+--------------------------------------------------
+
+5 VINCULAÇÃO COM PRODUTOS DO SISTEMA
+
+Ao detectar um produto na nota fiscal o sistema deve:
+
+Tentar encontrar o produto equivalente no cadastro de produtos.
+
+Exemplo:
+
+Banana  
+Banana prata  
+Banana nanica
+
+Se encontrar correspondência:
+
+vincular automaticamente
+
+Se não encontrar:
+
+mostrar opção:
+
+Criar novo produto  
+Selecionar produto existente
+
+--------------------------------------------------
+
+6 ENTRADA AUTOMÁTICA NO INVENTÁRIO
+
+Após confirmação da nota fiscal:
+
+Criar automaticamente entrada de estoque.
+
+Campos preenchidos automaticamente:
+
+Produto  
+Fornecedor  
+Quantidade  
+Unidade  
+Valor de compra  
+Data de entrada  
+Número da nota fiscal  
+Data da nota fiscal
+
+--------------------------------------------------
+
+7 ARMAZENAMENTO DA NOTA
+
+Salvar a nota fiscal no sistema.
+
+Guardar:
+
+Imagem da nota ou PDF original
+
+Criar histórico de notas fiscais recebidas.
+
+Nova aba no inventário:
+
+Histórico de Notas Fiscais
+
+Mostrar tabela:
+
+Fornecedor  
+Número da nota  
+Data  
+Valor total  
+Quantidade de produtos  
+Botão visualizar nota
+
+--------------------------------------------------
+
+8 INTEGRAÇÃO COM ESTOQUE
+
+Após confirmar a entrada da nota fiscal:
+
+Atualizar estoque automaticamente.
+
+Exemplo:
+
+Estoque atual banana: 100kg  
+Nota recebida: 30kg  
+
+Novo estoque:
+
+130kg
+
+--------------------------------------------------
+
+9 CONTROLE DE DUPLICIDADE
+
+Sistema deve verificar se a nota fiscal já foi registrada.
+
+Verificação por:
+
+Número da nota  
+CNPJ do fornecedor
+
+Se duplicado:
+
+Mostrar alerta:
+
+Esta nota fiscal já foi registrada no sistema.
+
+--------------------------------------------------
+
+10 EXPORTAÇÃO DE DADOS
+
+Permitir exportar dados das notas fiscais.
+
+Botões:
+
+Exportar Excel  
+Exportar CSV  
+Exportar PDF
+
+Filtros disponíveis:
+
+Fornecedor  
+Data  
+Número da nota  
+Produto
+
+--------------------------------------------------
+
+11 PERMISSÕES DE ACESSO
+
+Podem acessar esse recurso:
+
+Compras  
+Admin  
+Diretoria  
+Desenvolvedor
+
+Clientes não possuem acesso ao inventário nem a notas fiscais.
+
+--------------------------------------------------
+
+12 INTERFACE VISUAL
+
+No módulo Estoque / Inventário adicionar:
+
+Botões:
+
+Adicionar Produto  
+Registrar Entrada  
+Importar Nota Fiscal
+
+Painel deve mostrar:
+
+Total de produtos  
+Produtos OK  
+Baixo estoque  
+Comprar urgente
+
+--------------------------------------------------
+
+13 SEGURANÇA
+
+Salvar todas as notas fiscais importadas.
+
+Registrar no sistema:
+
+Usuário que importou a nota  
+Data da importação  
+Alterações feitas na conferência
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+O sistema VivaFrutaz deve permitir que o usuário:
+
+Tire foto da nota fiscal  
+Ou envie PDF da nota fiscal  
+
+O sistema reconheça automaticamente os dados da nota fiscal  
+Preencha os produtos  
+Permita conferência  
+E registre automaticamente a entrada no estoque.
+
+Isso elimina digitação manual e reduz erros operacionais.

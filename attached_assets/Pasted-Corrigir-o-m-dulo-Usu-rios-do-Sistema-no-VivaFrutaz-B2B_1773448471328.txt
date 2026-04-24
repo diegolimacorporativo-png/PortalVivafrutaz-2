@@ -1,0 +1,124 @@
+Corrigir o módulo "Usuários do Sistema" no VivaFrutaz B2B.
+
+IMPORTANTE:
+Esse módulo NÃO deve ser confundido com cadastro de empresas.
+Ele deve gerenciar apenas usuários internos do sistema.
+
+--------------------------------------------------
+
+CORREÇÃO DO PAINEL USUÁRIOS DO SISTEMA
+
+Na tabela de usuários adicionar ações:
+
+Botão EDITAR usuário
+Botão EXCLUIR usuário
+Botão ALTERAR SENHA
+
+Essas opções devem aparecer na linha de cada usuário.
+
+--------------------------------------------------
+
+PERMISSÃO PARA ALTERAR USUÁRIOS
+
+Somente os perfis abaixo podem editar usuários:
+
+Diretor
+Administrador
+Desenvolvedor
+
+Outros perfis não podem alterar usuários.
+
+--------------------------------------------------
+
+EDIÇÃO DE USUÁRIO
+
+Quando clicar em EDITAR abrir formulário contendo:
+
+Nome
+Email
+Perfil
+Status ativo/inativo
+
+E nova seção chamada:
+
+PERMISSÕES DE ACESSO.
+
+--------------------------------------------------
+
+CONTROLE DE PERMISSÕES POR ABA
+
+Criar sistema de permissões por módulo do sistema.
+
+Cada usuário poderá ter acesso apenas às abas liberadas.
+
+Exemplo:
+
+Pedidos
+Produtos
+Empresas
+Categorias
+Compras
+Financeiro
+Janelas de Pedido
+Execuções de Pedido
+Industrializados
+Painel Financeiro
+Usuários do Sistema
+Configurações.
+
+Essas permissões devem aparecer como caixas de seleção.
+
+--------------------------------------------------
+
+EXEMPLO DE CONFIGURAÇÃO
+
+Usuário: ops@vivafrutaz.com
+
+Permitir acesso apenas a:
+
+Pedidos
+Produtos
+
+Bloquear acesso a:
+
+Janelas de Pedido
+Configurações
+Usuários do Sistema
+Financeiro.
+
+--------------------------------------------------
+
+SALVAR PERMISSÕES
+
+Quando administrador salvar usuário:
+
+guardar permissões no banco de dados.
+
+Sempre que usuário entrar no sistema:
+
+carregar apenas as abas permitidas.
+
+--------------------------------------------------
+
+SEGURANÇA DE ACESSO
+
+Se usuário tentar acessar aba não autorizada:
+
+bloquear acesso
+mostrar mensagem:
+
+"Acesso não autorizado."
+
+Registrar tentativa no sistema de logs.
+
+--------------------------------------------------
+
+CONTROLE DE PERMISSÕES ADMINISTRATIVAS
+
+Usuários com perfil:
+
+Diretor
+Administrador
+Desenvolvedor
+
+podem habilitar ou remover permissões de qualquer usuário.

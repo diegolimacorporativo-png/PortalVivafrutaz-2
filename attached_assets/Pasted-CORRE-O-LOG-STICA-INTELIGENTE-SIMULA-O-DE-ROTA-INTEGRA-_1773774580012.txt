@@ -1,0 +1,162 @@
+CORREÇÃO LOGÍSTICA INTELIGENTE (SIMULAÇÃO DE ROTA + INTEGRAÇÃO COM PEDIDOS)
+
+OBJETIVO:
+
+Corrigir a aba “Logística Inteligente” para que a simulação de rotas funcione com base nos pedidos reais do sistema.
+
+------------------------------------------------
+
+1. CORREÇÃO SIMULAÇÃO DE ROTA
+
+Problema atual:
+
+data selecionada não retorna rotas  
+
+Correção:
+
+Ao selecionar uma data:
+
+buscar automaticamente pedidos daquele dia  
+
+------------------------------------------------
+
+2. INTEGRAÇÃO COM PEDIDOS
+
+A simulação deve puxar:
+
+endereços dos pedidos  
+CEP  
+latitude/longitude  
+janela de horário  
+
+Se não tiver lat/lng:
+
+converter automaticamente via CEP  
+
+------------------------------------------------
+
+3. GERAÇÃO AUTOMÁTICA DE ROTA
+
+Ao clicar “Gerar Sugestão”:
+
+sistema deve:
+
+montar rota com base nos pedidos  
+ordenar por melhor sequência  
+considerar distância + horário  
+
+------------------------------------------------
+
+4. INSERÇÃO MANUAL (NOVA)
+
+Ao adicionar novo ponto/CEP:
+
+incluir automaticamente na rota  
+
+Recalcular:
+
+sequência  
+tempo  
+distância  
+
+------------------------------------------------
+
+5. VISÃO GERAL (CORRIGIR)
+
+Na aba visão geral:
+
+mostrar:
+
+total de entregas do dia  
+rotas geradas  
+km total  
+tempo estimado  
+
+------------------------------------------------
+
+6. SIMULAÇÃO DE ROTA (VISUAL)
+
+Mostrar:
+
+lista de paradas (1,2,3...)  
+nome do cliente  
+horário  
+endereço  
+
+------------------------------------------------
+
+7. BUSCA CEP / GEO
+
+Corrigir para:
+
+sempre retornar lat/lng válido  
+
+Sem isso:
+
+não calcular rota  
+
+------------------------------------------------
+
+8. ENTREGAS
+
+A aba entregas deve:
+
+mostrar pedidos vinculados à rota  
+
+Status:
+
+pendente  
+em rota  
+entregue  
+
+------------------------------------------------
+
+9. PESQUISA INTELIGENTE
+
+Permitir buscar:
+
+por cliente  
+por endereço  
+por CEP  
+
+------------------------------------------------
+
+10. RELATÓRIOS
+
+Gerar relatório com:
+
+rotas do dia  
+ordem de entrega  
+km total  
+tempo  
+
+------------------------------------------------
+
+11. VALIDAÇÃO
+
+Se não houver pedidos na data:
+
+mostrar:
+
+“Nenhum pedido encontrado para essa data”  
+
+------------------------------------------------
+
+12. TESTE REAL
+
+Criar pedidos com:
+
+datas iguais  
+endereços diferentes  
+
+Selecionar data  
+
+Sistema deve:
+
+gerar rota automaticamente  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+A simulação de rota deve funcionar 100% integrada aos pedidos do dia, gerando automaticamente a melhor rota com base nos dados reais do sistema

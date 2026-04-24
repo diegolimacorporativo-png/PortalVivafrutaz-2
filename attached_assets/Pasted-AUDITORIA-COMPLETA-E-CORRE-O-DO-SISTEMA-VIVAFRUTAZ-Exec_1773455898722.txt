@@ -1,0 +1,363 @@
+AUDITORIA COMPLETA E CORREÇÃO DO SISTEMA VIVAFRUTAZ
+
+Executar auditoria geral no sistema para corrigir falhas nas áreas:
+
+Empresas  
+Pedidos Pontuais  
+Ocorrências de Clientes  
+Logs do Sistema  
+Backup & E-mails  
+Usuários do Sistema  
+Logística
+
+--------------------------------------------------
+
+AJUSTE NO CADASTRO DE EMPRESAS
+
+Na tela:
+
+Empresas → Nova Empresa
+
+Atualmente existe campo:
+
+Email (Login)
+
+Alterar nome do campo para:
+
+LOGIN
+
+Esse campo será utilizado exclusivamente para acesso ao portal do cliente.
+
+--------------------------------------------------
+
+NOVO CAMPO DE E-MAIL PARA NOTIFICAÇÕES
+
+Adicionar novo campo abaixo do LOGIN:
+
+E-mail de notificações
+
+Esse e-mail será utilizado para envio automático de:
+
+notificação de pedidos
+cotações
+alertas
+confirmações
+ocorrências registradas
+
+--------------------------------------------------
+
+INTEGRAÇÃO COM SMTP
+
+Na tela:
+
+Backup & E-mails
+
+Permitir configuração das variáveis:
+
+SMTP_HOST  
+SMTP_PORT  
+SMTP_USER  
+SMTP_PASS  
+SMTP_FROM  
+
+Adicionar botão:
+
+TESTAR ENVIO DE E-MAIL
+
+Esse botão deve enviar e-mail de teste para:
+
+SMTP_USER
+
+Mensagem:
+
+"Teste de envio de e-mail do sistema VivaFrutaz."
+
+--------------------------------------------------
+
+MELHORIAS NO SISTEMA DE BACKUP
+
+Tela:
+
+Backup & E-mails
+
+Cada backup deve ter ações:
+
+Baixar  
+Restaurar  
+Excluir  
+
+--------------------------------------------------
+
+LIMITE DE BACKUPS
+
+Manter automaticamente apenas:
+
+30 backups mais recentes.
+
+Backups antigos devem ser removidos automaticamente.
+
+--------------------------------------------------
+
+BOTÃO LIMPAR BACKUPS ANTIGOS
+
+Adicionar botão:
+
+"LIMPAR BACKUPS ANTIGOS"
+
+Remover backups com mais de:
+
+30 dias.
+
+--------------------------------------------------
+
+MELHORAR GERENCIAMENTO DOS LOGS DO SISTEMA
+
+Na tela:
+
+Área do Desenvolvedor → Logs do Sistema
+
+Adicionar recursos avançados.
+
+--------------------------------------------------
+
+SELEÇÃO DE LOGS
+
+Adicionar checkbox em cada linha da tabela.
+
+Adicionar checkbox no cabeçalho:
+
+Selecionar todos.
+
+--------------------------------------------------
+
+EXCLUSÃO DE LOGS SELECIONADOS
+
+Criar botão:
+
+Excluir selecionados
+
+Fluxo:
+
+usuário seleciona logs
+clica em excluir
+sistema pede confirmação
+
+Mensagem:
+
+"Tem certeza que deseja excluir os logs selecionados?"
+
+Após confirmação remover registros do banco.
+
+--------------------------------------------------
+
+LIMPAR LOGS POR PERÍODO
+
+Adicionar botão:
+
+"LIMPAR POR DATA"
+
+Abrir modal com:
+
+Data inicial  
+Data final  
+
+Botão:
+
+"LIMPAR LOGS"
+
+Excluir registros dentro do período.
+
+--------------------------------------------------
+
+LIMPEZA AUTOMÁTICA DE LOGS
+
+Criar rotina automática:
+
+remover logs com mais de 90 dias.
+
+Executar diariamente.
+
+--------------------------------------------------
+
+EXPORTAÇÃO DE LOGS
+
+Permitir exportação de logs em:
+
+CSV  
+Excel
+
+--------------------------------------------------
+
+REGISTRO DE AUDITORIA
+
+Sempre que logs forem removidos registrar evento:
+
+ação: CLEAN_LOGS  
+usuário  
+quantidade removida  
+data e hora
+
+--------------------------------------------------
+
+CORREÇÃO DO ERRO AO REGISTRAR OCORRÊNCIA DE CLIENTE
+
+Auditar módulo:
+
+Ocorrências de Clientes
+
+Verificar:
+
+validação do formulário
+requisição da API
+salvamento no banco
+retorno da resposta
+
+Garantir fluxo correto:
+
+cliente registra ocorrência  
+ocorrência salva no banco  
+ocorrência aparece na lista  
+evento registrado no log
+
+--------------------------------------------------
+
+TRATAMENTO DE ERROS EM OCORRÊNCIAS
+
+Se ocorrer falha no envio:
+
+não quebrar a página.
+
+Mostrar mensagem:
+
+"Não foi possível registrar a ocorrência. Tente novamente."
+
+Erro técnico deve ser registrado apenas no log interno.
+
+--------------------------------------------------
+
+CORREÇÃO DO ERRO EM PEDIDOS PONTUAIS
+
+Atualmente ao criar pedido pontual ocorre erro ao enviar solicitação.
+
+Executar auditoria no módulo:
+
+Pedidos Pontuais
+
+Verificar:
+
+validação do formulário
+dados enviados para API
+estrutura da requisição
+salvamento no banco
+retorno da API
+
+--------------------------------------------------
+
+FLUXO CORRETO DO PEDIDO PONTUAL
+
+Usuário cria pedido pontual  
+Sistema envia requisição para API  
+Pedido é salvo no banco  
+Pedido aparece na lista de pedidos  
+Registro criado no log do sistema
+
+--------------------------------------------------
+
+VALIDAÇÃO DE DADOS DO PEDIDO
+
+Garantir validação de:
+
+empresa selecionada  
+produtos do pedido  
+quantidade válida  
+data de entrega  
+
+Se algum campo estiver vazio:
+
+não enviar requisição.
+
+Mostrar mensagem amigável.
+
+--------------------------------------------------
+
+TRATAMENTO DE ERRO EM PEDIDOS
+
+Se ocorrer erro no envio:
+
+mostrar mensagem:
+
+"Não foi possível registrar o pedido. Tente novamente."
+
+Erro técnico deve ir apenas para o log.
+
+--------------------------------------------------
+
+CRIAR MÓDULO LOGÍSTICA
+
+Criar novo módulo:
+
+LOGÍSTICA
+
+Funções principais:
+
+gestão de rotas  
+controle de motoristas  
+visualização de pedidos por rota  
+status de entrega
+
+--------------------------------------------------
+
+CADASTRO DE ROTAS
+
+Campos:
+
+nome da rota  
+motorista responsável  
+empresas atendidas  
+dias da rota
+
+--------------------------------------------------
+
+STATUS DE ENTREGA
+
+Status disponíveis:
+
+Aguardando saída  
+Em rota  
+Entregue  
+Ocorrência
+
+--------------------------------------------------
+
+PERMISSÃO DE ACESSO
+
+Somente usuários com perfil:
+
+Administrador  
+Diretor  
+Logística  
+Gerente de Operações
+
+podem acessar o módulo.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+Após a atualização o sistema VivaFrutaz terá:
+
+correção no cadastro de empresas
+campo LOGIN separado
+e-mail de notificações
+envio automático de e-mails
+sistema SMTP funcional
+gestão avançada de logs
+exclusão e limpeza de logs
+exportação de logs
+gestão completa de backups
+limpeza automática de backups
+correção de ocorrências de clientes
+correção de pedidos pontuais
+criação do módulo logística
+
+Sistema mais estável e preparado para operação real.

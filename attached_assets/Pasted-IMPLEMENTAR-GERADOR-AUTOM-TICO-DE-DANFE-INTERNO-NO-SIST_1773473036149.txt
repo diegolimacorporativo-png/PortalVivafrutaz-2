@@ -1,0 +1,169 @@
+IMPLEMENTAR GERADOR AUTOMÁTICO DE DANFE INTERNO NO SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Criar geração automática de DANFE (Documento Auxiliar da Nota Fiscal Eletrônica) interno em PDF a partir dos pedidos confirmados no sistema VivaFrutaz.
+
+Esse documento será utilizado para:
+
+controle interno
+entrega de pedidos
+conferência logística
+apoio ao financeiro para emissão posterior da NF-e oficial.
+
+--------------------------------------------------
+
+1. GERAÇÃO AUTOMÁTICA
+
+Quando um pedido mudar de status para:
+
+Pedido Confirmado
+
+o sistema deve gerar automaticamente um documento DANFE interno em PDF.
+
+Esse documento deve ficar vinculado ao pedido.
+
+--------------------------------------------------
+
+2. BOTÃO NO PEDIDO
+
+Adicionar botão dentro da tela do pedido:
+
+Gerar DANFE
+
+Permitir também:
+
+Baixar DANFE
+Visualizar DANFE
+
+--------------------------------------------------
+
+3. INFORMAÇÕES DO DOCUMENTO
+
+O DANFE deve conter as seguintes informações.
+
+--------------------------------------------------
+
+DADOS DA EMPRESA
+
+Nome da empresa
+VivaFrutaz
+
+CNPJ
+
+Endereço
+
+Telefone
+
+--------------------------------------------------
+
+DADOS DO CLIENTE
+
+Nome da empresa cliente
+
+CNPJ
+
+Endereço
+
+Contato
+
+--------------------------------------------------
+
+DADOS DO PEDIDO
+
+Número do pedido
+
+Data do pedido
+
+Data de entrega
+
+Status do pedido
+
+--------------------------------------------------
+
+LISTA DE PRODUTOS
+
+Tabela contendo:
+
+Produto
+Quantidade
+Unidade
+Preço unitário
+Subtotal
+
+--------------------------------------------------
+
+TOTAIS
+
+Total de itens
+
+Valor total do pedido
+
+--------------------------------------------------
+
+INFORMAÇÕES LOGÍSTICAS
+
+Rota de entrega
+
+Motorista responsável
+
+Janela de entrega
+
+--------------------------------------------------
+
+4. IDENTIFICAÇÃO DO DOCUMENTO
+
+No topo do documento exibir:
+
+DANFE INTERNO - DOCUMENTO AUXILIAR DE ENTREGA
+
+Informação adicional:
+
+"Este documento não substitui a Nota Fiscal Eletrônica."
+
+--------------------------------------------------
+
+5. QR CODE DO PEDIDO
+
+Adicionar QR Code contendo:
+
+ID do pedido
+
+ou
+
+Link interno do pedido no sistema.
+
+Isso permite rastreabilidade rápida.
+
+--------------------------------------------------
+
+6. HISTÓRICO
+
+Salvar o DANFE gerado no sistema.
+
+Permitir download posterior.
+
+--------------------------------------------------
+
+7. PERMISSÕES
+
+Permitir acesso ao DANFE para os seguintes perfis:
+
+Administrador
+Diretor
+Financeiro
+Logística
+
+--------------------------------------------------
+
+8. USO NA ENTREGA
+
+Motoristas poderão visualizar ou imprimir o DANFE para levar na entrega.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Sistema VivaFrutaz gera automaticamente documentos DANFE em PDF a partir dos pedidos.
+
+Esses documentos ajudam na logística, conferência de entrega e suporte ao faturamento.

@@ -1,0 +1,208 @@
+Implementar melhorias administrativas no sistema VivaFrutaz B2B.
+
+--------------------------------------------------
+
+GESTÃO DE USUÁRIOS DO SISTEMA
+
+Na aba "Usuários do Sistema" adicionar as seguintes ações:
+
+Botão ALTERAR usuário
+Botão EXCLUIR usuário
+Botão MUDAR SENHA
+
+Somente os seguintes perfis podem executar essas ações:
+
+Diretor
+Administrador
+Desenvolvedor
+
+Esses usuários podem:
+
+editar nome
+editar email
+editar permissões
+ativar ou desativar usuário
+excluir usuário
+alterar senha de qualquer usuário.
+
+Usuários comuns não podem editar outros usuários.
+
+--------------------------------------------------
+
+CONTROLE DE PERMISSÕES
+
+Adicionar validação de segurança:
+
+Se usuário não for Diretor, Admin ou Desenvolvedor:
+
+bloquear acesso às funções de edição e exclusão de usuários.
+
+Registrar tentativa no sistema de logs.
+
+--------------------------------------------------
+
+AUDITORIA DE CÓDIGO PARA DESENVOLVEDOR
+
+Na aba "Desenvolvedor" criar ferramenta de auditoria de código.
+
+Função:
+
+Executar varredura completa no código do sistema.
+
+Verificar:
+
+erros de sintaxe
+rotas quebradas
+imports inválidos
+dependências ausentes
+problemas de conexão com banco
+erros de autenticação
+componentes que podem quebrar a interface
+
+Exibir relatório com:
+
+arquivo
+linha do erro
+tipo de problema
+sugestão de correção.
+
+Adicionar botão:
+
+Executar auditoria do sistema.
+
+--------------------------------------------------
+
+IA DE DIAGNÓSTICO
+
+Dentro da aba desenvolvedor adicionar ferramenta de IA.
+
+Funções:
+
+analisar logs do sistema
+detectar possíveis bugs
+sugerir correções
+executar correções quando autorizado.
+
+Botões disponíveis:
+
+Executar auditoria
+Detectar bugs
+Sugerir correção
+Aplicar correção.
+
+--------------------------------------------------
+
+CONFIGURAÇÃO DE EMAILS
+
+Criar nova aba chamada:
+
+CONFIGURAÇÃO DE EMAILS
+
+Nessa aba permitir inserir manualmente:
+
+Email remetente
+Servidor SMTP
+Porta SMTP
+Usuário do email
+Senha do email
+
+Exemplo de campos:
+
+smtp servidor
+smtp porta
+email remetente
+senha do email
+
+Salvar configuração no sistema.
+
+--------------------------------------------------
+
+LISTA DE EMAILS PARA ENVIO AUTOMÁTICO
+
+Criar campo para cadastrar emails manualmente.
+
+Permitir adicionar vários emails.
+
+Esses emails serão usados para:
+
+lembrete de pedido
+confirmação de pedido
+cobrança de pedido não realizado.
+
+--------------------------------------------------
+
+ENVIO AUTOMÁTICO DE EMAILS
+
+Criar sistema automático de envio de emails.
+
+Tipos de mensagens:
+
+Lembrete de pedido da semana
+Confirmação de pedido realizado
+Aviso de prazo de pedido
+
+Emails devem ser enviados para empresas cadastradas.
+
+--------------------------------------------------
+
+PAINEL DO DIRETOR
+
+Criar aba exclusiva chamada:
+
+PAINEL DO DIRETOR
+
+Apenas usuários com perfil DIRETOR podem acessar.
+
+--------------------------------------------------
+
+TAREFAS DO DIRETOR
+
+Dentro do painel criar sistema de tarefas.
+
+Diretor pode:
+
+criar tarefa
+editar tarefa
+excluir tarefa
+atribuir tarefa para equipe.
+
+Campos da tarefa:
+
+título
+descrição
+responsável
+data limite
+status.
+
+Status possíveis:
+
+Pendente
+Em andamento
+Concluído.
+
+--------------------------------------------------
+
+OBSERVAÇÕES INTERNAS
+
+Adicionar campo de observações internas no painel do diretor.
+
+Permitir registrar:
+
+avisos internos
+orientações para equipe
+anotações importantes da operação.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema VivaFrutaz deve possuir:
+
+gestão segura de usuários
+controle de alteração de senha
+auditoria de código para desenvolvedor
+ferramenta de diagnóstico de bugs
+configuração manual de emails
+envio automático de mensagens
+painel exclusivo do diretor
+sistema interno de tarefas e observações.

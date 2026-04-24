@@ -1,0 +1,310 @@
+OBJETIVO
+
+Finalizar a arquitetura do sistema VivaFrutaz ERP SaaS, estabilizar todas as funcionalidades e completar automaticamente qualquer implementação incompleta.
+
+O sistema deve entrar em modo de estabilidade após esta execução.
+
+A partir disso a IA deve atuar apenas para:
+
+correção de bugs  
+manutenção do sistema  
+otimização de performance  
+auditoria automática
+
+------------------------------------------------
+
+EXTENSÃO DO PROCESSO ATUAL
+
+Continuar a execução do processo atual sem reiniciar nenhuma auditoria já realizada.
+
+Não recriar módulos ou funcionalidades que já tenham sido implementadas.
+
+Apenas complementar, corrigir e finalizar o sistema.
+
+------------------------------------------------
+
+FASE 1 — ORGANIZAÇÃO FINAL DA ARQUITETURA
+
+Reorganizar o sistema em módulos estáveis:
+
+core  
+saas  
+logistica  
+financeiro  
+fiscal  
+ia  
+gps  
+modulos
+
+Cada módulo deve possuir:
+
+rotas próprias  
+serviços próprios  
+controladores próprios  
+integração clara com banco de dados.
+
+------------------------------------------------
+
+FASE 2 — TRAVAR CRIAÇÃO DE NOVAS FUNCIONALIDADES
+
+Após concluir a auditoria:
+
+desativar criação automática de novas funcionalidades.
+
+A IA deve operar apenas em modo:
+
+diagnóstico  
+correção de bugs  
+manutenção
+
+Adicionar botão na interface da IA:
+
+CORRIGIR AUTOMATICAMENTE
+
+Esse botão deve permitir que a IA identifique erros e execute a correção automaticamente.
+
+------------------------------------------------
+
+FASE 3 — ESTABILIZAR BANCO DE DADOS
+
+Auditar todas as tabelas existentes.
+
+Verificar integridade entre:
+
+empresas  
+clientes  
+produtos  
+pedidos  
+rotas  
+motoristas  
+endereços  
+assinaturas  
+planos  
+modulos  
+usuarios
+
+Corrigir automaticamente:
+
+tabelas duplicadas  
+chaves estrangeiras quebradas  
+dados inconsistentes.
+
+Garantir que todos os módulos compartilhem dados corretamente.
+
+------------------------------------------------
+
+FASE 4 — PADRONIZAÇÃO DE APIS
+
+Revisar todas as APIs do sistema.
+
+Padronizar rotas:
+
+/api/empresas  
+/api/clientes  
+/api/produtos  
+/api/pedidos  
+/api/logistica  
+/api/rotas  
+/api/motoristas  
+/api/gps  
+/api/assinaturas  
+/api/modulos  
+/api/fiscal
+
+Garantir respostas padronizadas e estáveis.
+
+------------------------------------------------
+
+FASE 5 — ESTABILIZAÇÃO DO FRONTEND
+
+Auditar todas as páginas do sistema.
+
+Garantir que todas tenham:
+
+layout completo  
+menu lateral funcional  
+tabelas ou cards  
+botões de ação  
+responsividade.
+
+Se alguma funcionalidade existir no backend mas não possuir interface visual, criar automaticamente a interface no frontend.
+
+------------------------------------------------
+
+FASE 6 — CORRIGIR MENU E GUIA
+
+Corrigir conflito entre:
+
+menu lateral  
+guia rápido  
+treinamento do sistema.
+
+Garantir que nenhum elemento visual bloqueie a navegação.
+
+------------------------------------------------
+
+FASE 7 — GPS COM CONTROLE POR PLANO
+
+Implementar sistema completo de GPS integrado à logística.
+
+Permitir:
+
+rastreamento de motoristas  
+visualização de rotas no mapa  
+monitoramento de entregas em tempo real.
+
+Integrar com:
+
+pedidos  
+rotas  
+motoristas  
+endereços.
+
+------------------------------------------------
+
+FASE 8 — CONTROLE DE GPS POR PLANO
+
+Integrar GPS ao sistema SaaS.
+
+Planos:
+
+Free → GPS desativado  
+Starter → GPS básico  
+Pro → GPS completo  
+Enterprise → GPS completo com análise inteligente.
+
+Criar opção administrativa:
+
+liberar GPS manualmente para empresa mesmo fora do plano.
+
+Essa configuração deve existir em:
+
+Gestão SaaS  
+Painel Master  
+Configuração da empresa.
+
+------------------------------------------------
+
+FASE 9 — CHECKLIST DE MOTORISTA
+
+Criar sistema de checklist dentro do módulo de motoristas.
+
+Antes de iniciar rota:
+
+confirmar veículo  
+confirmar carga  
+confirmar pedidos.
+
+Durante entrega:
+
+selecionar empresa atendida  
+confirmar entrega  
+registrar horário  
+marcar pedido como entregue automaticamente.
+
+------------------------------------------------
+
+FASE 10 — ROTAS COM GPS
+
+Integrar sistema de rotas com GPS.
+
+Permitir:
+
+visualizar rota no mapa  
+acompanhar progresso da entrega  
+mostrar posição do motorista em tempo real.
+
+------------------------------------------------
+
+FASE 11 — IA FLORA
+
+Conectar sistema com a IA Flora.
+
+Permitir que a IA:
+
+analise rotas  
+detecte erros no sistema  
+sugira melhorias operacionais  
+execute correção automática de bugs.
+
+------------------------------------------------
+
+FASE 12 — TREINAMENTO DO SISTEMA
+
+Criar nova seção no menu:
+
+Treinamento
+
+Conteúdo:
+
+explicação das funcionalidades  
+guia do sistema  
+tutoriais internos  
+explicação dos módulos  
+explicação dos planos SaaS.
+
+------------------------------------------------
+
+FASE 13 — TESTES AUTOMÁTICOS
+
+Executar testes automáticos navegando pelo sistema.
+
+Testar:
+
+dashboard  
+empresas  
+clientes  
+pedidos  
+logística  
+rotas  
+gps  
+motoristas  
+assinaturas  
+planos  
+nota fiscal  
+loja de módulos.
+
+Criar dados de teste automaticamente se necessário.
+
+------------------------------------------------
+
+FASE 14 — TESTE VISUAL
+
+Executar simulação automática da navegação.
+
+Gravar vídeos demonstrando funcionamento.
+
+Salvar em:
+
+/tests/videos/
+
+------------------------------------------------
+
+FASE 15 — RELATÓRIO FINAL
+
+Gerar relatório final contendo:
+
+arquitetura final  
+módulos ativos  
+funcionalidades corrigidas  
+erros encontrados  
+erros corrigidos  
+status geral do sistema.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve ficar:
+
+arquiteturalmente organizado  
+com banco de dados consistente  
+com APIs padronizadas  
+com GPS funcional  
+com rotas inteligentes  
+com checklist de motorista  
+com IA de correção automática  
+com treinamento integrado  
+com testes automáticos executados.
+
+A partir deste ponto o sistema deve operar em modo estável e receber apenas correções de bugs.

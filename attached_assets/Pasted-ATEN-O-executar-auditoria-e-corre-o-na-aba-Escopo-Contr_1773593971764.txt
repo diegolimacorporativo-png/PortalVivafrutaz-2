@@ -1,0 +1,140 @@
+ATENÇÃO: executar auditoria e correção na aba "Escopo Contratual".
+
+O sistema anteriormente possuía funcionalidades que desapareceram após alterações recentes.
+
+Corrigir sem alterar a estrutura atual das abas e sem remover funcionalidades existentes.
+
+NÃO criar novas abas.
+NÃO modificar layout geral.
+Apenas corrigir a lógica dentro da aba "Escopo Contratual".
+
+Tela afetada:
+
+Empresas
+→ Editar empresa
+→ Escopo Contratual
+
+--------------------------------------------------
+
+PROBLEMA 1 — BLOQUEIO DO ESCOPO
+
+Anteriormente o escopo contratual ficava BLOQUEADO para empresas que NÃO são clientes contratuais.
+
+Esse bloqueio foi removido e precisa ser restaurado.
+
+Regras:
+
+Se empresa NÃO for contratual:
+
+- mostrar ícone de cadeado
+- impedir edição
+- impedir adicionar itens
+- impedir alteração de produtos
+
+Se empresa for contratual:
+
+- liberar edição normalmente
+
+--------------------------------------------------
+
+PROBLEMA 2 — RESUMO FINANCEIRO DO CONTRATO
+
+O sistema possuía um painel de resumo financeiro no topo da aba Escopo Contratual e ele desapareceu.
+
+Restaurar esse painel contendo:
+
+Valor estimado semanal  
+Valor estimado mensal  
+Custo estimado  
+Margem estimada  
+
+Cálculos:
+
+Valor semanal = soma dos totais dos itens do escopo da semana
+
+Valor mensal = valor semanal × 4
+
+Custo estimado = soma (quantidade × custo médio)
+
+Margem estimada = valor total de venda − custo total
+
+Esses valores devem atualizar automaticamente quando:
+
+- itens forem adicionados
+- itens forem removidos
+- quantidade mudar
+- preço mudar
+- custo médio mudar
+
+--------------------------------------------------
+
+PROBLEMA 3 — ESCOPOS DEVEM ALIMENTAR COMPRAS
+
+Itens adicionados no escopo contratual precisam gerar demanda para o setor de compras.
+
+Fluxo esperado:
+
+Escopo contratual
+↓
+Sistema soma quantidades por produto
+↓
+Essas quantidades aparecem na aba Compras como previsão de compra.
+
+Isso garante que o setor de compras saiba o volume necessário para atender os contratos.
+
+--------------------------------------------------
+
+PROBLEMA 4 — GERAÇÃO DE PEDIDOS
+
+Pedidos de clientes contratuais devem ser gerados automaticamente a partir do escopo.
+
+Fluxo esperado:
+
+Escopo contratual
+↓
+Sistema identifica semana atual
+↓
+Gera pedidos automaticamente
+↓
+Pedidos aparecem na aba "Pedidos"
+
+--------------------------------------------------
+
+PROBLEMA 5 — FATURAMENTO E NOTA FISCAL
+
+Verificar se os pedidos gerados de clientes contratuais podem ser utilizados para:
+
+- faturamento
+- geração de nota fiscal
+- geração de DANFE
+
+Fluxo esperado:
+
+Pedidos do mês
+↓
+Financeiro agrupa pedidos
+↓
+Sistema gera uma única nota fiscal mensal consolidada
+
+Verificar também se:
+
+- produtos
+- quantidades
+- preços
+
+estão sendo corretamente utilizados na geração da nota fiscal.
+
+--------------------------------------------------
+
+AUDITORIA FINAL
+
+Após corrigir executar uma auditoria completa verificando:
+
+1) Se o cadeado voltou a funcionar para clientes não contratuais
+2) Se o resumo financeiro voltou a aparecer
+3) Se os cálculos de margem estão corretos
+4) Se o escopo alimenta corretamente o setor de compras
+5) Se pedidos estão sendo gerados corretamente
+6) Se o financeiro consegue gerar nota fiscal desses pedidos
+
+Gerar um relatório informando se tudo está funcionando corretamente.

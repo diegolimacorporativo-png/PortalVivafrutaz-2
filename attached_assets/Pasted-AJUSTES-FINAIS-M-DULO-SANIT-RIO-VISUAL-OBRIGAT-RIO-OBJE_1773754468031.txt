@@ -1,0 +1,132 @@
+AJUSTES FINAIS + MÓDULO SANITÁRIO (VISUAL OBRIGATÓRIO)
+
+OBJETIVO:
+
+Corrigir produtos/categorias, preços por cliente e criar módulo de vigilância sanitária com interface funcional.
+
+------------------------------------------------
+
+1. PRODUTOS E CATEGORIAS
+
+Manter 1 ID por produto.
+
+Permitir múltiplas categorias (checkbox/cards):
+
+[ ] In Natura  
+[ ] Higienizado  
+[ ] Pote BIO  
+[ ] Bandeja  
+
+Ao selecionar:
+
+abrir campo de preço por categoria
+
+------------------------------------------------
+
+2. PREÇO POR CLIENTE
+
+Aplicar automaticamente taxa administrativa:
+
+GRSA, Sodexo, etc
+
+Calcular preço final por cliente (sem mostrar cálculo)
+
+Integrar com:
+
+pedidos  
+cotações  
+nota fiscal  
+
+------------------------------------------------
+
+3. FRONTEND OBRIGATÓRIO
+
+Garantir que tudo apareça na tela:
+
+categorias selecionáveis  
+campos de preço  
+layout organizado  
+
+Se não aparecer → criar interface automaticamente
+
+------------------------------------------------
+
+4. TESTE
+
+Criar produto "Banana"
+
+Adicionar categorias + preços
+
+Validar funcionamento visual e cálculo por cliente
+
+------------------------------------------------
+
+5. VIGILÂNCIA SANITÁRIA
+
+Criar módulo com checklist automático:
+
+perguntas pré-prontas carregadas ao iniciar avaliação  
+
+Permitir:
+
+editar  
+remover  
+adicionar perguntas  
+
+------------------------------------------------
+
+6. AVALIAÇÃO
+
+Cada item:
+
+[ OK ] [ NÃO OK ]  
+campo de observação  
+
+Calcular % automaticamente
+
+Exibir resultado:
+
+90%+ → ótimo 🙂  
+70–89% → médio 😐  
+<70% → crítico 🚨  
+
+------------------------------------------------
+
+7. VISUAL SANITÁRIO
+
+Interface com:
+
+lista de checklist  
+cores (verde/vermelho)  
+barra de progresso (%)  
+resultado com emoji  
+
+------------------------------------------------
+
+8. PERMISSÕES
+
+Nutricionista:
+
+acesso total  
+
+Outros usuários:
+
+somente visualizam relatório  
+
+------------------------------------------------
+
+9. EXECUÇÃO REAL
+
+Não apenas código.
+
+Executar:
+
+renderização frontend  
+testes reais  
+validação completa  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Se não estiver visível na interface, considerar NÃO implementado.

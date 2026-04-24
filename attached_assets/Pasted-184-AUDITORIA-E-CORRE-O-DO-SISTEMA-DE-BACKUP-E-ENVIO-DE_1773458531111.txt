@@ -1,0 +1,195 @@
+184"}
+AUDITORIA E CORREÇÃO DO SISTEMA DE BACKUP E ENVIO DE E-MAILS
+
+Executar correção completa no módulo:
+
+Backup & E-mails
+
+Objetivo:
+
+corrigir download do backup
+configurar envio de e-mails SMTP
+implementar backup automático diário.
+
+--------------------------------------------------
+
+CORREÇÃO DO DOWNLOAD DE BACKUP
+
+Atualmente ao clicar em:
+
+Baixar Backup
+
+o sistema abre uma página HTML do frontend
+em vez de baixar o arquivo do banco.
+
+Corrigir a rota de exportação.
+
+Criar endpoint:
+
+/api/backup/download
+
+Fluxo correto:
+
+1 gerar backup do banco de dados
+2 converter para arquivo
+3 enviar arquivo como download.
+
+Configurar cabeçalhos:
+
+Content-Type: application/octet-stream
+Content-Disposition: attachment; filename=backup_vivafrutaz_DATA.sql
+
+Formato do arquivo:
+
+backup_vivafrutaz_YYYY_MM_DD.sql
+
+Ao clicar em:
+
+Backup & E-mails → Baixar Backup
+
+o navegador deve iniciar download automático.
+
+--------------------------------------------------
+
+OPÇÕES DE EXPORTAÇÃO
+
+Adicionar opções de exportação:
+
+Backup SQL
+Backup JSON
+
+Permitir selecionar formato antes do download.
+
+--------------------------------------------------
+
+BACKUP AUTOMÁTICO
+
+Criar sistema de backup automático.
+
+Executar backup:
+
+1 vez por dia.
+
+Horário padrão:
+
+17:00.
+
+Salvar backup em:
+
+/backups/
+
+Nome do arquivo:
+
+backup_vivafrutaz_DATA.sql
+
+Manter histórico máximo:
+
+30 backups.
+
+Se ultrapassar 30 backups
+remover o mais antigo automaticamente.
+
+--------------------------------------------------
+
+ENVIO DE BACKUP POR E-MAIL
+
+Após gerar backup automático
+enviar arquivo para e-mail do administrador.
+
+Assunto:
+
+Backup automático VivaFrutaz
+
+Mensagem:
+
+Backup gerado com sucesso.
+
+Data:
+Hora:
+
+Anexar arquivo de backup.
+
+--------------------------------------------------
+
+CONFIGURAÇÃO SMTP
+
+Atualmente o sistema mostra:
+
+E-mail SMTP: Não configurado
+
+Criar configuração SMTP no sistema.
+
+Campos necessários:
+
+Servidor SMTP
+Porta
+Usuário
+Senha
+Criptografia
+
+Suportar:
+
+TLS
+SSL.
+
+--------------------------------------------------
+
+EXEMPLO DE CONFIGURAÇÃO
+
+Servidor SMTP:
+
+smtp.gmail.com
+
+Porta:
+
+587
+
+Criptografia:
+
+TLS
+
+--------------------------------------------------
+
+TESTE DE E-MAIL
+
+Adicionar botão:
+
+Testar envio de e-mail.
+
+Ao clicar:
+
+enviar e-mail de teste para administrador.
+
+Mensagem:
+
+"E-mail de teste do sistema VivaFrutaz."
+
+--------------------------------------------------
+
+LOG DE BACKUP
+
+Registrar eventos no sistema:
+
+BACKUP_CREATED
+BACKUP_SENT_EMAIL
+BACKUP_DOWNLOAD
+
+Registrar:
+
+data
+hora
+usuário responsável.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Após correção o sistema deve:
+
+baixar backup corretamente
+gerar backup diário automático
+manter histórico de backups
+enviar backup por e-mail
+permitir exportação em SQL ou JSON
+permitir teste de SMTP
+registrar logs de ba

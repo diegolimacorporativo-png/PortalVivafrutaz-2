@@ -1,0 +1,144 @@
+147"}
+REALIZAR CORREÇÃO NA ÁREA DE PLANEJAMENTO DE COMPRAS E AUDITORIA DAS ÚLTIMAS ALTERAÇÕES DO SISTEMA.
+
+IMPORTANTE:
+Não quebrar funcionalidades existentes.
+Manter compatibilidade com dados atuais.
+
+--------------------------------------------------
+
+1) CORRIGIR ERRO ATUAL
+
+Erro identificado:
+
+[plugin:runtime-error-plugin] Can't find variable: planData
+
+Esse erro ocorre na tela:
+
+Planejamento de Compras
+
+Causa provável:
+A variável planData não está definida ou não está sendo retornada pela API.
+
+Corrigir verificando:
+
+declaração da variável  
+importação  
+retorno da API  
+estado do React/Vue  
+
+Garantir que o código utilize fallback seguro:
+
+if (!planData) {
+   mostrar mensagem "Sem dados de planejamento"
+}
+
+ou inicializar:
+
+const planData = planData || [];
+
+A tela nunca deve quebrar por variável indefinida.
+
+--------------------------------------------------
+
+2) REVISÃO COMPLETA DA ÁREA DE COMPRAS
+
+Auditar a aba:
+
+Compras  
+Planejamento de Compras  
+
+Verificar se os dados estão vindo corretamente de:
+
+pedidos semanais  
+pedidos mensais  
+escopo contratual  
+
+O planejamento de compras deve consolidar:
+
+produto  
+quantidade total necessária  
+data de entrega  
+empresa solicitante  
+
+Exemplo esperado:
+
+Banana — 320kg  
+Maçã — 150kg  
+Manga — 90kg
+
+--------------------------------------------------
+
+3) CONSOLIDAÇÃO AUTOMÁTICA
+
+Garantir que o Planejamento de Compras utilize dados de:
+
+pedidos ativos  
+contratos ativos  
+escopos semanais  
+
+O sistema deve calcular automaticamente:
+
+demanda total da semana.
+
+--------------------------------------------------
+
+4) ALERTAS DE ESTOQUE
+
+Se existir inventário no sistema, verificar integração.
+
+Se estoque atual < demanda da semana
+
+mostrar alerta:
+
+"Estoque insuficiente para atender pedidos."
+
+--------------------------------------------------
+
+5) REVISÃO DAS ÚLTIMAS ALTERAÇÕES DO SISTEMA
+
+Auditar as últimas implementações feitas:
+
+Gestão de Nota Fiscal  
+Contratos e reajuste IPCA  
+Controle de safra de produtos  
+Permissões de usuário  
+Modo manutenção  
+Modo teste  
+Área de exportação de pedidos  
+
+Verificar:
+
+erros de variável undefined  
+erros de API  
+campos inexistentes  
+problemas de cache  
+
+Corrigir qualquer inconsistência encontrada.
+
+--------------------------------------------------
+
+6) TESTE GERAL
+
+Após correções executar testes:
+
+Planejamento de compras  
+Exportação de pedidos  
+Gestão de nota fiscal  
+Contratos  
+Escopo contratual  
+Área de clientes  
+
+Garantir que nenhuma tela apresente erro de runtime.
+
+--------------------------------------------------
+
+7) BUILD LIMPO
+
+Após as correções:
+
+limpar cache do Vite  
+rebuild do frontend  
+reiniciar servidor  
+
+Garantir que o sistema carregue sem erros no naveg

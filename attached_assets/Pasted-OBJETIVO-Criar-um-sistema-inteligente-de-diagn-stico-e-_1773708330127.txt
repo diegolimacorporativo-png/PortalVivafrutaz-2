@@ -1,0 +1,160 @@
+OBJETIVO
+
+Criar um sistema inteligente de diagnóstico e correção de erros de emissão de Nota Fiscal Eletrônica (NF-e).
+
+Esse sistema deve detectar automaticamente erros retornados pela SEFAZ e orientar o usuário para corrigir os dados necessários.
+
+------------------------------------------------
+
+CRIAR MÓDULO
+
+/modules/nfe/diagnostics
+
+Arquivos:
+
+nfe-validator.ts
+nfe-error-parser.ts
+nfe-fix-suggestions.ts
+nfe-training.ts
+
+------------------------------------------------
+
+CAPTURA DE ERROS
+
+Criar função:
+
+captureNFeError()
+
+Capturar dados:
+
+codigo
+mensagem
+campo_afetado
+
+Exemplo:
+
+422
+emitente.cMun obrigatório
+
+------------------------------------------------
+
+ANÁLISE DO ERRO
+
+Criar função:
+
+parseNFeError()
+
+Ela deve identificar:
+
+campo faltante
+tabela relacionada
+tela de cadastro correspondente
+
+Exemplo:
+
+emitente.cMun
+
+→ cadastro da empresa  
+→ campo código IBGE do município
+
+------------------------------------------------
+
+SUGESTÃO AUTOMÁTICA
+
+Criar função:
+
+generateFixSuggestion()
+
+Exemplo de resposta:
+
+Erro detectado:
+
+Código IBGE do município não informado.
+
+Sugestão:
+
+Acessar cadastro da empresa e preencher o município corretamente.
+
+------------------------------------------------
+
+BOTÃO DE CORREÇÃO AUTOMÁTICA
+
+Sempre que ocorrer erro de NF criar botão:
+
+CORRIGIR DADOS FISCAIS
+
+Esse botão deve redirecionar automaticamente para a tela correta.
+
+Exemplo:
+
+erro emitente.cMun  
+→ abrir cadastro da empresa  
+→ focar campo município
+
+------------------------------------------------
+
+VALIDAÇÃO ANTES DE ENVIAR
+
+Criar função:
+
+validateNFeBeforeSend()
+
+Verificar:
+
+CNPJ da empresa  
+Inscrição estadual  
+Código IBGE  
+endereço completo  
+dados do cliente  
+produtos do pedido  
+
+Se algo estiver faltando:
+
+bloquear envio da NF.
+
+------------------------------------------------
+
+PAINEL DE DIAGNÓSTICO
+
+Na tela de emissão de nota criar painel:
+
+Diagnóstico Fiscal
+
+Mostrar:
+
+status da NF  
+erros detectados  
+campos faltantes  
+botão corrigir  
+
+------------------------------------------------
+
+TREINAMENTO DA IA
+
+Criar tabela:
+
+nfe_training_logs
+
+campos:
+
+id  
+erro  
+campo  
+solucao  
+data  
+
+Toda vez que ocorrer erro registrar a solução.
+
+Assim o sistema aprende a corrigir automaticamente erros futuros.
+
+------------------------------------------------
+
+OBJETIVO FINAL
+
+O ERP deve:
+
+detectar erros da SEFAZ automaticamente  
+identificar o campo faltante  
+mostrar sugestão clara de correção  
+redirecionar para tela correta  
+validar dados antes de reenviar a nota

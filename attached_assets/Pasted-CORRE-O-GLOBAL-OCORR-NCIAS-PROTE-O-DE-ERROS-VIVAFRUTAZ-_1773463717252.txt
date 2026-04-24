@@ -1,0 +1,269 @@
+CORREÇÃO GLOBAL + OCORRÊNCIAS + PROTEÇÃO DE ERROS VIVAFRUTAZ
+
+Executar atualização global no sistema VivaFrutaz com objetivo de corrigir erros de frontend, falhas de envio de ocorrência e instabilidade causada por objetos indefinidos.
+
+Todas as correções devem ser aplicadas automaticamente para:
+	•	todos os usuários administrativos
+	•	todos os usuários internos
+	•	todos os clientes existentes
+	•	todos os novos clientes criados futuramente
+
+Nenhuma atualização pode afetar apenas parte dos usuários.
+
+⸻
+
+CORREÇÃO DO ERRO OBJETO NÃO ENCONTRADO
+
+Corrigir erro exibido:
+
+plugin runtime-error-plugin
+objeto não foi encontrado aqui
+
+Adicionar proteção contra:
+
+undefined
+null
+dados inexistentes da API
+
+Se algum objeto não existir o sistema não deve quebrar.
+
+Mostrar mensagem amigável:
+
+“Ocorreu um erro inesperado. Tente novamente.”
+
+Registrar erro técnico apenas nos logs do sistema.
+
+⸻
+
+IMPLEMENTAÇÃO DE ERROR BOUNDARY GLOBAL
+
+Criar um componente global chamado:
+
+ErrorBoundaryGlobal
+
+Esse componente deve envolver toda a aplicação para capturar automaticamente erros de renderização do React.
+
+Esse sistema deve capturar erros como:
+
+component crash
+undefined object
+api failure
+render failure
+
+Quando erro ocorrer:
+
+impedir quebra da aplicação
+registrar erro no log interno
+mostrar tela amigável ao usuário
+
+Mensagem exibida:
+
+“Ocorreu um erro inesperado. Tente novamente ou entre em contato com o suporte.”
+
+Mostrar botão:
+
+“Tentar novamente”
+
+⸻
+
+DESATIVAR TELA VERMELHA DO VITE
+
+Atualizar arquivo:
+
+vite.config.js
+
+Adicionar configuração:
+
+server: {
+hmr: {
+overlay: false
+}
+}
+
+Isso impede que erros técnicos apareçam para usuários.
+
+⸻
+
+CORREÇÃO DO MÓDULO DE OCORRÊNCIAS
+
+Executar correção completa no módulo de registro de ocorrências do portal do cliente.
+
+Problemas detectados:
+
+erro ao registrar ocorrência
+erro objeto não encontrado
+falha no envio de imagem
+falha no backend
+
+Corrigir fluxo completo de envio.
+
+⸻
+
+SUPORTE A MÚLTIPLAS IMAGENS
+
+Atualizar campo de upload de fotos para permitir múltiplos arquivos.
+
+Permitir até:
+
+5 imagens por ocorrência
+
+Formatos aceitos:
+
+JPG
+PNG
+JPEG
+
+Tamanho máximo por imagem:
+
+5MB
+
+Após selecionar as imagens mostrar miniaturas.
+
+⸻
+
+REMOVER IMAGEM (ÍCONE LIXEIRA)
+
+Cada imagem anexada deve exibir um botão de remoção.
+
+Adicionar ícone:
+
+lixeira
+
+Quando clicar na lixeira:
+
+remover imagem da lista
+remover imagem do envio do formulário
+
+⸻
+
+VISUALIZAÇÃO DAS IMAGENS
+
+Exibir área de preview:
+
+Imagem 1 🗑️
+Imagem 2 🗑️
+Imagem 3 🗑️
+
+Adicionar botão:
+
+“Adicionar mais fotos”
+
+⸻
+
+CORREÇÃO DO ENVIO DE OCORRÊNCIA
+
+Garantir que o backend receba corretamente os dados do formulário.
+
+Enviar via:
+
+FormData
+
+Campos obrigatórios:
+
+tipo de ocorrência
+descrição
+telefone
+email
+empresa
+imagens anexadas
+
+Corrigir erro que impede salvar ocorrência no banco de dados.
+
+⸻
+
+CONFIRMAÇÃO DE REGISTRO
+
+Após registrar ocorrência mostrar mensagem:
+
+“Ocorrência registrada com sucesso. Nossa equipe irá analisar.”
+
+Limpar automaticamente o formulário.
+
+⸻
+
+PROTEÇÃO CONTRA ERROS DE API
+
+Se API retornar:
+
+null
+undefined
+erro
+
+Mostrar fallback visual:
+
+“Não foi possível carregar os dados no momento.”
+
+Nunca quebrar a página.
+
+⸻
+
+VALIDAÇÃO DE ROTAS
+
+Se uma página tentar abrir registro inexistente:
+
+exemplo
+
+/empresa/9999
+
+E empresa não existir.
+
+Redirecionar automaticamente para:
+
+/empresas
+
+Mostrar alerta:
+
+“Registro não encontrado.”
+
+⸻
+
+REGISTRO DE ERROS
+
+Todos os erros detectados devem ser registrados em:
+
+Painel Desenvolvedor
+Logs do Sistema
+
+Registrar:
+
+data
+hora
+rota acessada
+usuário
+erro técnico
+
+⸻
+
+TESTE AUTOMÁTICO
+
+Executar testes em todas as áreas:
+
+login
+empresas
+produtos
+pedidos
+pedidos pontuais
+ocorrências
+logística
+rotas
+usuários
+portal cliente
+assistente IA
+
+Garantir que nenhuma tela quebre por erro de objeto.
+
+⸻
+
+RESULTADO FINAL ESPERADO
+
+Após essa atualização o sistema VivaFrutaz deve ter:
+
+✔ correção do erro objeto não encontrado
+✔ remoção da tela vermelha do Vite
+✔ Error Boundary global ativo
+✔ registro de ocorrências funcionando
+✔ suporte a múltiplas fotos
+✔ botão de remover foto (lixeira)
+✔ validação segura de dados
+✔ estabilidade em todas as telas
+✔ correção aplicada a todos usuários

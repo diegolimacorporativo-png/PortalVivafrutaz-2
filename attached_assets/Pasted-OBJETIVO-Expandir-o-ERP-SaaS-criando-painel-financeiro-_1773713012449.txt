@@ -1,0 +1,244 @@
+OBJETIVO
+
+Expandir o ERP SaaS criando painel financeiro do SaaS, sistema white-label para empresas clientes, marketplace de módulos e sistema de testes visuais automáticos que grava vídeos validando as funcionalidades.
+
+------------------------------------------------
+
+PAINEL FINANCEIRO SAAS
+
+Criar nova área administrativa chamada:
+
+Painel SaaS
+
+Esse painel deve mostrar métricas financeiras do sistema.
+
+Criar tabela:
+
+saas_metrics
+
+Campos:
+
+id
+empresas_ativas
+assinaturas_ativas
+faturamento_mensal
+faturamento_anual
+planos_ativos
+empresas_trial
+
+------------------------------------------------
+
+DASHBOARD SAAS
+
+Exibir gráficos:
+
+Receita mensal (MRR)
+Receita anual (ARR)
+Empresas por plano
+Assinaturas ativas
+Assinaturas vencidas
+
+Mostrar também:
+
+Total de empresas
+Total de usuários
+Total de pedidos gerados no sistema
+
+------------------------------------------------
+
+WHITE LABEL
+
+Permitir que cada empresa personalize seu ERP.
+
+Criar tabela:
+
+empresa_config
+
+Campos:
+
+empresa_id
+logo_empresa
+cor_primaria
+cor_secundaria
+dominio_personalizado
+
+A empresa poderá:
+
+enviar logo
+definir cores
+configurar domínio próprio.
+
+Exemplo:
+
+erp.empresaA.com
+erp.empresaB.com
+
+------------------------------------------------
+
+MARKETPLACE DE MÓDULOS
+
+Criar área:
+
+Loja de Módulos
+
+Empresas poderão instalar módulos adicionais.
+
+Criar tabela:
+
+modulos_marketplace
+
+Campos:
+
+id
+nome_modulo
+descricao
+preco
+categoria
+ativo
+
+Exemplos de módulos:
+
+IA Logística
+GPS Rastreamento
+Relatórios Avançados
+Integração API
+Automação de Rotas
+
+------------------------------------------------
+
+INSTALAÇÃO DE MODULO
+
+Criar tabela:
+
+empresa_modulos
+
+Campos:
+
+id
+empresa_id
+modulo_id
+status
+
+Empresas podem:
+
+instalar módulo
+remover módulo
+ativar módulo
+
+------------------------------------------------
+
+ATUALIZAÇÃO DE MODULOS
+
+Marketplace deve permitir:
+
+instalar novas versões
+visualizar changelog
+receber notificações de atualização.
+
+------------------------------------------------
+
+SISTEMA DE TESTE VISUAL AUTOMÁTICO
+
+Implementar sistema de testes E2E que abre o ERP automaticamente e executa testes simulando um usuário real.
+
+Usar ferramenta de automação de navegador.
+
+------------------------------------------------
+
+TESTES AUTOMÁTICOS
+
+Criar testes que executem os seguintes passos:
+
+1 abrir sistema
+2 realizar login
+3 acessar dashboard
+4 acessar clientes
+5 acessar pedidos
+6 acessar logística
+7 acessar assinaturas
+8 criar assinatura
+9 gerar fatura
+10 simular pagamento
+
+------------------------------------------------
+
+GRAVAÇÃO DE VÍDEO DOS TESTES
+
+Durante os testes o sistema deve:
+
+gravar vídeo da navegação
+salvar vídeo automaticamente.
+
+Salvar em:
+
+/tests/videos/
+
+Exemplo:
+
+test_dashboard.mp4
+test_assinatura.mp4
+test_pagamento.mp4
+test_logistica.mp4
+
+------------------------------------------------
+
+RELATÓRIO VISUAL DE TESTE
+
+Após executar testes gerar relatório visual contendo:
+
+status do teste
+tempo de execução
+erros encontrados
+link do vídeo gravado.
+
+------------------------------------------------
+
+TESTE DE PLANOS
+
+Criar testes automáticos para validar planos.
+
+Teste Starter
+
+verificar acesso a módulos básicos.
+
+Teste Pro
+
+verificar acesso a logística e rotas.
+
+Teste Enterprise
+
+verificar acesso completo.
+
+------------------------------------------------
+
+TESTE DE PAGAMENTOS
+
+Executar testes simulando:
+
+PIX
+Cartão
+Boleto
+
+Validar:
+
+ativação de assinatura
+bloqueio por vencimento
+downgrade para plano free.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve possuir:
+
+painel financeiro SaaS
+dashboard de receita
+white-label por empresa
+domínio personalizado
+marketplace de módulos
+instalação de módulos
+notificação de atualização
+testes automáticos do sistema
+gravação de vídeo dos testes
+relatórios visuais dos testes
+validação de assinaturas e pagamentos

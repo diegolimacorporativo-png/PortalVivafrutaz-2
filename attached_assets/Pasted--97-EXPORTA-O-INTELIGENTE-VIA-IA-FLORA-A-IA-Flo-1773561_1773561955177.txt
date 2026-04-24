@@ -1,0 +1,176 @@
+--------------------------------------------------
+
+97 EXPORTAÇÃO INTELIGENTE VIA IA FLORA
+
+A IA Flora deve ser capaz de interpretar
+solicitações de exportação de dados
+e executar uma das seguintes ações:
+
+1 Gerar automaticamente o relatório solicitado.
+
+ou
+
+2 Redirecionar o usuário para a tela de exportação
+já com os filtros aplicados.
+
+A Flora não deve funcionar apenas como chat aberto.
+A interface principal deve apresentar filtros e atalhos
+de consulta rápida para facilitar o uso do sistema.
+
+--------------------------------------------------
+
+98 INTERPRETAÇÃO DE COMANDOS
+
+A Flora deve interpretar comandos como:
+
+Flora exportar pedidos da semana
+Flora exportar faturamento do mês
+Flora exportar pedidos da empresa Hospital São Lucas
+Flora gerar relatório financeiro
+
+A IA deve identificar automaticamente:
+
+empresa
+período
+tipo de relatório
+status do pedido
+
+--------------------------------------------------
+
+99 GERAÇÃO AUTOMÁTICA DE RELATÓRIO
+
+Se o comando estiver completo
+a Flora deve gerar automaticamente o arquivo.
+
+Exemplo:
+
+Usuário:
+
+Flora exportar pedidos da semana em Excel
+
+Resposta:
+
+Gerando relatório de pedidos da semana.
+
+Arquivo disponível para download.
+
+--------------------------------------------------
+
+100 REDIRECIONAMENTO INTELIGENTE
+
+Se o comando estiver incompleto
+ou precisar de ajuste
+a Flora deve abrir a tela de exportação
+com filtros já aplicados.
+
+Exemplo:
+
+Usuário:
+
+Flora exportar pedidos do hospital central
+
+Ação da Flora:
+
+abrir página de exportação
+com filtro da empresa já aplicado.
+
+--------------------------------------------------
+
+101 FILTROS AUTOMÁTICOS
+
+A Flora deve aplicar automaticamente filtros como:
+
+empresa
+período
+status do pedido
+tipo de pedido
+valor
+forma de pagamento
+
+--------------------------------------------------
+
+102 CONFIRMAÇÃO DE EXPORTAÇÃO
+
+Antes de gerar relatório
+a Flora pode confirmar.
+
+Exemplo:
+
+Encontrei 12 pedidos.
+
+Deseja exportar em:
+
+PDF
+Excel
+
+--------------------------------------------------
+
+103 HISTÓRICO DE EXPORTAÇÃO
+
+Registrar no sistema:
+
+usuário que solicitou
+data da exportação
+tipo de relatório
+período
+
+--------------------------------------------------
+
+104 INTERFACE COM FILTROS RÁPIDOS
+
+A Flora não deve iniciar com chat aberto.
+
+A interface principal da Flora deve funcionar
+como um painel inteligente de filtros rápidos,
+semelhante ao sistema de pedidos.
+
+Exemplo de filtros exibidos:
+
+Pedidos
+Pendentes
+Sem pedido
+Estoque baixo
+Lista de compras
+Logística
+Financeiro
+Relatórios
+Exportar dados
+Criar empresa
+
+Cada filtro deve funcionar como um atalho
+para abrir automaticamente consultas
+ou páginas do sistema com filtros aplicados.
+
+--------------------------------------------------
+
+105 CAMPO DE BUSCA OPCIONAL
+
+A Flora pode possuir um campo de busca
+para comandos em linguagem natural,
+porém o chat não deve ser o elemento principal.
+
+O foco da interface deve ser:
+
+filtros rápidos
+atalhos operacionais
+consultas rápidas do sistema
+
+--------------------------------------------------
+
+106 RESULTADO ESPERADO
+
+A IA Flora deve permitir que usuários
+exportem relatórios financeiros e pedidos
+utilizando comandos de linguagem natural
+ou filtros rápidos da interface.
+
+A IA deve:
+
+gerar relatórios automaticamente
+aplicar filtros inteligentes
+abrir telas do sistema já filtradas
+facilitar análises rápidas de pedidos e faturamento
+
+Isso deve tornar o processo
+mais rápido, visual e intuitivo
+dentro do sistema VivaFrutaz.

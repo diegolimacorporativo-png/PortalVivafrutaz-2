@@ -1,0 +1,394 @@
+FILTRO DE BUSCA NA ABA EMPRESAS
+
+Na página Admin → Empresas, criar sistema de busca para localizar empresas rapidamente.
+
+Adicionar campo de pesquisa no topo da tabela.
+
+Campo:
+
+Pesquisar empresa
+
+A busca deve funcionar por:
+
+Nome da empresa
+Email
+Contato
+
+Implementar filtro dinâmico.
+
+Exemplo:
+
+Digitando:
+
+Netflix
+
+Sistema retorna apenas empresas que contenham esse nome.
+
+Adicionar também filtros adicionais:
+
+Empresa ativa / inativa
+Tipo de cliente
+
+Tipos:
+
+Cliente semanal
+Cliente mensal
+Cliente pontual
+
+Se não houver resultados mostrar mensagem:
+
+Nenhuma empresa encontrada.
+
+Garantir que a busca funcione mesmo com grande quantidade de empresas.
+
+⸻
+
+MÓDULO 2
+
+TIPOS DE CLIENTE
+
+No cadastro de empresas adicionar campo:
+
+Tipo de cliente
+
+Opções:
+
+Cliente semanal
+Cliente mensal
+Cliente pontual
+
+Comportamento:
+
+Cliente semanal
+Recebe lembrete semanal de pedidos.
+
+Cliente mensal
+Permite programação de pedidos mensais.
+
+Cliente pontual
+Não recebe emails automáticos.
+
+⸻
+
+MÓDULO 3
+
+JANELA GLOBAL DE PEDIDOS
+
+Criar sistema de controle de janelas de pedidos.
+
+Regra padrão:
+
+Pedidos liberados até quinta-feira às 12:00.
+
+Após esse horário pedidos devem ser bloqueados.
+
+Mensagem exibida ao cliente:
+
+Prazo de pedidos encerrado.
+
+⸻
+
+CONTROLE GLOBAL
+
+Criar no admin:
+
+Controle Global de Pedidos
+
+Com duas opções:
+
+Abrir pedidos
+Fechar pedidos
+
+Se estiver fechado:
+
+Nenhum cliente pode fazer pedidos.
+
+Mensagem:
+
+Pedidos temporariamente indisponíveis.
+
+⸻
+
+MÓDULO 4
+
+EXCEÇÃO DE CLIENTES NA JANELA DE PEDIDOS
+
+Criar aba chamada:
+
+Clientes com exceção de pedidos.
+
+Permitir adicionar empresas que poderão fazer pedidos mesmo após o fechamento da janela.
+
+Campos:
+
+Empresa
+Motivo da exceção
+Data da exceção
+
+Esses clientes continuam podendo enviar pedidos fora do prazo.
+
+⸻
+
+MÓDULO 5
+
+ALERTA DE PRODUTOS INDUSTRIALIZADOS
+
+Adicionar campo no cadastro de produto:
+
+Produto industrializado
+
+Sim / Não
+
+Quando um cliente adicionar produto industrializado no carrinho:
+
+Sistema deve:
+
+Registrar automaticamente no módulo de compras.
+
+Criar também notificação administrativa:
+
+Produto industrializado vendido.
+
+⸻
+
+ABA ADMINISTRATIVA
+
+Criar nova aba:
+
+Controle de Industrializados
+
+Mostrar tabela com:
+
+Produto
+Empresa
+Quantidade
+Data
+Pedido
+
+Filtros:
+
+Empresa
+Produto
+Data
+Semana
+
+Adicionar botão:
+
+Exportar Excel.
+
+⸻
+
+MÓDULO 6
+
+CATEGORIAS DE PRODUTOS
+
+Criar sistema de categorias.
+
+Categorias iniciais:
+
+Frutas In Natura
+Frutas Higienizadas
+Frutas Cortadas
+Snacks Saudáveis
+Mix de Oleaginosas
+Industrializados
+
+Admin pode:
+
+Adicionar categoria
+Editar categoria
+Excluir categoria.
+
+⸻
+
+MÓDULO 7
+
+PRODUTO BASE (FRUTA)
+
+Criar cadastro de produto base.
+
+Campos:
+
+Nome do produto
+Categoria
+Produto ativo ou inativo
+
+Campos adicionais:
+
+Produto sazonal
+Produto industrializado
+
+⸻
+
+MÓDULO 8
+
+VARIAÇÕES DE VENDA
+
+Cada produto pode ter várias formas de venda.
+
+Exemplos:
+
+Kg
+Unidade
+Porção
+Bandeja
+Display
+Pacote
+Pote
+Caixa
+
+Campos da variação:
+
+Produto vinculado
+Tipo de venda
+Preço
+Unidade
+
+⸻
+
+OBSERVAÇÃO DO PRODUTO
+
+Adicionar campo:
+
+Observação
+
+Exemplos:
+
+Display com 12 unidades
+Display com 15 unidades
+Bandeja com 6 potes
+Caixa com 20 unidades
+
+Essa observação deve aparecer:
+
+No catálogo do cliente
+No pedido
+No relatório administrativo
+
+⸻
+
+MÓDULO 9
+
+CONTROLE DE DISPONIBILIDADE POR DIA
+
+Permitir definir dias específicos de venda para alguns produtos.
+
+Exemplo:
+
+Produto: Morango
+
+Disponível:
+
+Segunda
+Quarta
+Sexta
+
+Se o dia atual não estiver permitido o produto não aparece no catálogo.
+
+⸻
+
+MÓDULO 10
+
+MELHORIA DO CARRINHO
+
+No carrinho do cliente adicionar:
+
+Campo:
+
+Observação do pedido
+
+Exemplo:
+
+Bananas mais verdes.
+
+Esse campo deve aparecer:
+
+No pedido
+No painel administrativo
+Nos relatórios.
+
+⸻
+
+MÓDULO 11
+
+RELATÓRIO DE COMPRAS
+
+Criar relatório administrativo de compras.
+
+Mostrar:
+
+Produto
+Quantidade total vendida
+Unidade
+
+Filtros:
+
+Empresa
+Produto
+Semana
+Calendário selecionável
+
+⸻
+
+MÓDULO 12
+
+EXPORTAÇÃO PARA EXCEL
+
+Criar botão exportar Excel.
+
+Campos da planilha:
+
+Empresa
+Código do pedido
+Produto
+Categoria
+Quantidade
+Preço unitário
+Total
+Data
+
+Adicionar fórmula automática:
+
+Total = Quantidade * Preço Unitário
+
+⸻
+
+MÓDULO 13
+
+CORREÇÃO DA PÁGINA CONTROLE GLOBAL DE PEDIDOS
+
+Corrigir erro de renderização da página:
+
+admin/order-windows
+
+Garantir que listas sejam renderizadas apenas se existirem dados.
+
+Adicionar validação:
+
+Se não houver janelas cadastradas mostrar:
+
+Nenhuma janela de pedidos configurada.
+
+Evitar renderização com valores null ou undefined.
+
+Garantir que todos os componentes tenham chave única.
+
+Exemplo:
+
+key={id}
+
+⸻
+
+OBJETIVO FINAL
+
+O sistema VivaFrutaz deve permitir:
+
+gestão completa de empresas
+controle de janelas de pedidos
+exceções de clientes
+controle de produtos industrializados
+relatórios de compras
+exportação para Excel
+organização de catálogo de frutas
+venda por kg, unidade ou porção
+alertas administrativos

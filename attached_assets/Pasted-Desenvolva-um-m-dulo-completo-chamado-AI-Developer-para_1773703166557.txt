@@ -1,0 +1,231 @@
+Desenvolva um módulo completo chamado AI Developer para um sistema ERP SaaS desenvolvido em Node.js com Express e PostgreSQL.
+
+O objetivo é criar um sistema interno de inteligência artificial capaz de analisar o código do projeto, detectar erros, sugerir correções, criar novas funcionalidades e auxiliar na manutenção do ERP.
+
+Este módulo não deve apenas responder perguntas, mas também possuir ferramentas para analisar arquivos, ler código e sugerir alterações estruturais no sistema.
+
+-------------------------------------
+
+ARQUITETURA DO PROJETO
+
+O ERP possui a seguinte estrutura:
+
+/backend
+/modules
+/controllers
+/routes
+/services
+/database
+/utils
+
+O módulo AI Developer deve seguir o mesmo padrão arquitetural do sistema.
+
+Criar a seguinte estrutura:
+
+/modules/ai-developer
+aiDeveloperController.js
+aiDeveloperService.js
+aiDeveloperRoutes.js
+codeAnalyzer.js
+bugDetector.js
+deployGenerator.js
+systemIndexer.js
+
+-------------------------------------
+
+ROTA ADMINISTRATIVA
+
+Criar rota administrativa protegida:
+
+POST /admin/ai-developer
+
+Essa rota deve exigir autenticação JWT e permitir acesso apenas para usuários com permissão SUPER_ADMIN.
+
+Criar também uma interface administrativa:
+
+/admin/ai-developer
+
+Essa interface deve funcionar como um painel de comando onde o administrador pode solicitar análises e melhorias do sistema.
+
+-------------------------------------
+
+INDEXAÇÃO DO SISTEMA
+
+Criar um mecanismo chamado systemIndexer que analisa automaticamente toda a estrutura do projeto.
+
+Ele deve escanear as seguintes pastas:
+
+backend
+modules
+controllers
+routes
+services
+database
+
+Gerar um mapa interno contendo:
+
+lista de arquivos
+funções encontradas
+endpoints da API
+dependências
+tabelas do banco de dados
+
+Esse mapa permitirá que o módulo AI Developer compreenda a arquitetura completa do ERP.
+
+-------------------------------------
+
+FERRAMENTAS DE ANÁLISE DE CÓDIGO
+
+Criar funções internas:
+
+readFile(path)
+writeFile(path)
+listFiles(directory)
+searchCode(keyword)
+createFile(path, content)
+updateFile(path, content)
+
+Essas ferramentas permitirão que o sistema leia arquivos e sugira alterações.
+
+-------------------------------------
+
+DETECÇÃO DE BUGS
+
+Criar módulo bugDetector capaz de analisar:
+
+logs do servidor
+erros do backend
+falhas de API
+erros de banco de dados
+erros de importação de XML
+falhas na emissão de NFe
+
+Fluxo:
+
+erro detectado
+localizar arquivo responsável
+ler código
+gerar análise do problema
+sugerir correção
+
+Antes de aplicar qualquer alteração, exibir diff de código para aprovação do administrador.
+
+-------------------------------------
+
+CRIAÇÃO AUTOMÁTICA DE FUNCIONALIDADES
+
+O módulo deve interpretar comandos administrativos como:
+
+criar módulo de estoque
+criar aba de fornecedores
+criar relatório financeiro
+criar endpoint de API
+
+Quando solicitado, gerar automaticamente:
+
+controllers
+routes
+services
+queries SQL
+integração com banco
+integração com menu do sistema
+
+-------------------------------------
+
+ANÁLISE DE BANCO DE DADOS
+
+Conectar ao PostgreSQL e analisar:
+
+estrutura das tabelas
+índices existentes
+relacionamentos
+consultas lentas
+
+Sugerir otimizações como:
+
+criação de índices
+melhoria de queries
+estruturação de dados
+
+-------------------------------------
+
+ANÁLISE DE PERFORMANCE
+
+Verificar:
+
+uso de CPU
+uso de memória
+tempo de resposta das APIs
+consultas SQL lentas
+
+Gerar relatório de otimização.
+
+-------------------------------------
+
+AUDITORIA DE SEGURANÇA
+
+Verificar:
+
+validação de dados
+uso correto de autenticação JWT
+controle de permissões
+possíveis vulnerabilidades
+
+Gerar relatório de segurança.
+
+-------------------------------------
+
+GERAÇÃO DE DEPLOY
+
+Criar ferramenta deployGenerator capaz de gerar scripts para rodar o ERP em diferentes ambientes:
+
+Docker
+VPS Linux
+Render
+Railway
+AWS
+Google Cloud
+
+Gerar automaticamente:
+
+Dockerfile
+docker-compose.yml
+deploy.sh
+.env.example
+
+Garantir que o sistema funcione corretamente em novos servidores.
+
+-------------------------------------
+
+MONITORAMENTO DO SISTEMA
+
+Criar mecanismo que monitora erros do sistema continuamente.
+
+Quando um erro for detectado:
+
+registrar log
+analisar erro
+gerar relatório
+sugerir correção
+
+-------------------------------------
+
+INTERFACE DO PAINEL
+
+Criar página administrativa:
+
+/admin/ai-developer
+
+Essa página deve possuir um painel onde o administrador pode executar comandos como:
+
+analisar sistema
+verificar bugs
+criar funcionalidade
+otimizar banco
+gerar deploy
+
+-------------------------------------
+
+OBJETIVO FINAL
+
+Criar um módulo avançado capaz de auxiliar no desenvolvimento e manutenção do ERP, permitindo análise automática do sistema, identificação de problemas e geração de melhorias estruturais.

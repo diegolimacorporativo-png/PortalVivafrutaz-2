@@ -1,0 +1,153 @@
+IMPLEMENTAR MELHORIAS DE NAVEGAÇÃO NO SISTEMA E CRIAR PERFIL DE USUÁRIO MASTER COM CONTROLE TOTAL.
+
+IMPORTANTE:
+Não remover nenhuma funcionalidade existente.
+Não alterar banco de dados sem migração segura.
+Não quebrar permissões atuais de usuários.
+
+--------------------------------------------------
+
+1) CORREÇÃO DA BARRA DE PESQUISA / NAVEGAÇÃO
+
+Problema atual:
+A barra de pesquisa do sistema permite digitar apenas uma letra.
+
+Correção necessária:
+
+• permitir digitação completa de palavras e frases
+• remover qualquer limitação que bloqueie mais de um caractere
+• permitir pesquisa dinâmica conforme o usuário digita
+
+A barra de pesquisa deve aceitar:
+
+nomes de clientes  
+nomes de produtos  
+códigos de produtos  
+empresas  
+pedidos  
+contratos  
+notas fiscais  
+categorias  
+usuários  
+
+--------------------------------------------------
+
+2) SISTEMA DE PESQUISA GLOBAL
+
+Transformar a barra de navegação em uma pesquisa global.
+
+Quando o usuário digitar algo, o sistema deve buscar em:
+
+clientes  
+empresas  
+produtos  
+pedidos  
+contratos  
+notas fiscais  
+categorias  
+usuários  
+
+Mostrar resultados organizados por categoria.
+
+Exemplo de exibição:
+
+CLIENTES
+Empresa ABC
+
+PRODUTOS
+Banana Pote Bio
+
+PEDIDOS
+Pedido #1023
+
+CONTRATOS
+Contrato Empresa ABC
+
+--------------------------------------------------
+
+3) MELHORIAS DE EXPERIÊNCIA NA PESQUISA
+
+Implementar:
+
+• pesquisa instantânea (sem precisar apertar enter)
+• lista de sugestões
+• navegação rápida para o item selecionado
+• destaque visual do resultado encontrado
+
+--------------------------------------------------
+
+4) CRIAÇÃO DE PERFIL DE USUÁRIO MASTER
+
+Criar um novo tipo de usuário no sistema chamado:
+
+MASTER
+
+Esse perfil deve possuir acesso absoluto ao sistema.
+
+Permissões do usuário MASTER:
+
+• acesso total a todas as áreas do sistema
+• acesso administrativo completo
+• acesso ao banco de dados via sistema
+• acesso a todos os módulos
+• acesso ao painel de auditoria
+• acesso a configurações avançadas
+
+--------------------------------------------------
+
+5) PODERES DO USUÁRIO MASTER
+
+O usuário MASTER deve poder:
+
+resetar senhas de qualquer usuário
+editar permissões de qualquer usuário
+ativar ou desativar usuários
+criar novos administradores
+visualizar logs completos do sistema
+visualizar histórico de alterações
+visualizar histórico da IA
+ativar ou desativar funcionalidades do sistema
+colocar sistema em modo manutenção
+desbloquear contas bloqueadas
+
+--------------------------------------------------
+
+6) PROTEÇÃO DO USUÁRIO MASTER
+
+Para segurança:
+
+• apenas um ou poucos usuários podem ser MASTER
+• esse perfil não pode ser alterado por usuários comuns
+• ações críticas devem gerar log de auditoria
+
+Registrar:
+
+quem fez a ação  
+qual ação foi feita  
+data e hora  
+
+--------------------------------------------------
+
+7) LOG DE AÇÕES CRÍTICAS
+
+Registrar todas ações do usuário MASTER em histórico administrativo.
+
+Exemplos:
+
+reset de senha  
+alteração de permissões  
+exclusão de usuários  
+ativação de modo manutenção  
+
+--------------------------------------------------
+
+8) TESTES
+
+Testar:
+
+barra de pesquisa permitindo digitar frases completas
+pesquisa retornando resultados de diferentes módulos
+funcionamento correto do perfil MASTER
+capacidade de resetar senhas
+controle de permissões funcionando corretamente
+registro de logs administrativos

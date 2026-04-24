@@ -1,0 +1,231 @@
+Implementar sistema completo de tarefas e ocorrências no sistema VivaFrutaz B2B.
+
+O sistema deve possuir três módulos:
+
+1) Tarefas da diretoria
+2) Ocorrências de clientes
+3) Ocorrências internas da empresa
+
+--------------------------------------------------
+
+MODULO 1 - TAREFAS DA DIRETORIA
+
+Criar nova aba chamada:
+
+TAREFAS
+
+Apenas usuários com perfil abaixo podem criar tarefas:
+
+Diretor
+Administrador
+
+--------------------------------------------------
+
+CRIAR TAREFA
+
+Campos obrigatórios:
+
+Título da tarefa
+Descrição detalhada
+Responsável (usuário do sistema)
+Data limite
+Prioridade
+
+Prioridades possíveis:
+
+Baixa
+Média
+Alta
+
+--------------------------------------------------
+
+STATUS DA TAREFA
+
+Cada tarefa deve possuir status:
+
+Pendente
+Em andamento
+Concluída
+
+--------------------------------------------------
+
+VISUALIZAÇÃO
+
+Usuários do sistema devem visualizar apenas tarefas atribuídas a eles.
+
+Diretor e administrador podem visualizar todas as tarefas.
+
+--------------------------------------------------
+
+NOTIFICAÇÃO
+
+Quando nova tarefa for criada:
+
+mostrar alerta para usuário responsável.
+
+--------------------------------------------------
+
+LOG
+
+Registrar criação, edição e conclusão de tarefas no sistema de logs.
+
+--------------------------------------------------
+
+MODULO 2 - OCORRÊNCIAS DE CLIENTES
+
+No portal do cliente criar nova aba chamada:
+
+OCORRÊNCIAS
+
+--------------------------------------------------
+
+REGISTRAR OCORRÊNCIA
+
+Clientes podem registrar problemas ou reclamações.
+
+Campos do formulário:
+
+Tipo de ocorrência
+Descrição detalhada
+Número de contato
+Email
+Upload de foto
+
+--------------------------------------------------
+
+TIPOS DE OCORRÊNCIA
+
+Criar lista padrão:
+
+Problema de entrega
+Produto com defeito
+Produto faltando
+Qualidade do produto
+Reclamação geral
+Outro
+
+--------------------------------------------------
+
+UPLOAD DE FOTO
+
+Permitir que cliente anexe foto do problema.
+
+Salvar imagem junto da ocorrência.
+
+--------------------------------------------------
+
+STATUS DA OCORRÊNCIA
+
+Cada ocorrência deve possuir status:
+
+Aberta
+Em análise
+Resolvida
+
+--------------------------------------------------
+
+DESTINO DAS OCORRÊNCIAS
+
+Ocorrências criadas por clientes devem aparecer apenas para:
+
+Diretor
+Administrador
+Desenvolvedor
+Gerente de Operações
+
+--------------------------------------------------
+
+NOTIFICAÇÃO
+
+Quando nova ocorrência for registrada:
+
+mostrar alerta no painel administrativo.
+
+--------------------------------------------------
+
+MODULO 3 - OCORRÊNCIAS INTERNAS
+
+Criar nova aba chamada:
+
+OCORRÊNCIAS INTERNAS
+
+--------------------------------------------------
+
+QUEM PODE CRIAR
+
+Todos os usuários do sistema podem registrar ocorrências internas.
+
+--------------------------------------------------
+
+CAMPOS DA OCORRÊNCIA INTERNA
+
+Título
+Descrição
+Categoria
+Responsável
+Prioridade
+Data
+
+--------------------------------------------------
+
+CATEGORIAS
+
+Logística
+Qualidade
+Financeiro
+Sistema
+Outro
+
+--------------------------------------------------
+
+PRIORIDADE
+
+Baixa
+Média
+Alta
+
+--------------------------------------------------
+
+STATUS
+
+Aberta
+Em análise
+Resolvida
+
+--------------------------------------------------
+
+VISUALIZAÇÃO
+
+Ocorrências internas podem ser visualizadas por:
+
+Administrador
+Diretor
+Gerente de Operações
+Desenvolvedor
+
+--------------------------------------------------
+
+HISTÓRICO
+
+Manter histórico completo de todas as ocorrências internas.
+
+--------------------------------------------------
+
+NOTIFICAÇÕES
+
+Quando nova ocorrência interna for criada:
+
+mostrar alerta no painel administrativo.
+
+--------------------------------------------------
+
+REGISTRO EM LOGS
+
+Registrar todas ações:
+
+criação
+edição
+alteração de status
+resolução
+
+no sistema de logs do VivaFrutaz.

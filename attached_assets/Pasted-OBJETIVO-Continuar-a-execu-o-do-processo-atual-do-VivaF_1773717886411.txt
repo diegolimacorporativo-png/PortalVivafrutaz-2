@@ -1,0 +1,157 @@
+OBJETIVO
+
+Continuar a execução do processo atual do VivaFrutaz ERP SaaS sem reiniciar nenhuma auditoria já iniciada.
+
+Não recriar módulos, tabelas, APIs ou funcionalidades que já foram criadas durante a execução atual.
+
+O objetivo desta etapa é apenas:
+
+finalizar implementações  
+corrigir falhas de integração  
+garantir que todas as funcionalidades já criadas apareçam visualmente no sistema.
+
+------------------------------------------------
+
+CONTINUIDADE DA EXECUÇÃO
+
+A execução atual já está rodando.
+
+Não reiniciar auditoria.
+
+Não repetir criação de módulos.
+
+Somente verificar o que já foi implementado e garantir que:
+
+todas as abas apareçam no menu  
+todas as telas possuam interface visual  
+todas as funcionalidades estejam acessíveis ao usuário.
+
+------------------------------------------------
+
+FASE 1 — VERIFICAR MENU LATERAL
+
+Escanear todas as páginas criadas no sistema.
+
+Se alguma página existir mas não aparecer no menu lateral, adicionar automaticamente.
+
+O menu deve conter:
+
+Dashboard  
+Empresas  
+Clientes  
+Produtos  
+Pedidos  
+Logística  
+Logística Inteligente  
+GPS Rastreamento  
+Rotas  
+Motoristas  
+Notas Fiscais  
+Assinaturas  
+Planos  
+Loja de Módulos  
+Relatórios  
+Treinamento  
+Configurações
+
+Garantir que todos os botões levem para a página correta.
+
+------------------------------------------------
+
+FASE 2 — GARANTIR INTERFACE VISUAL
+
+Verificar se existem funcionalidades criadas apenas no backend.
+
+Se existir funcionalidade sem interface visual:
+
+criar automaticamente a tela no frontend.
+
+Cada página deve possuir:
+
+layout  
+tabela ou painel de dados  
+botões de ação  
+formulários de cadastro.
+
+------------------------------------------------
+
+FASE 3 — CONECTAR FRONTEND COM BACKEND
+
+Verificar se as páginas existentes estão conectadas às APIs.
+
+Corrigir casos onde:
+
+a API existe mas não é chamada  
+os dados não aparecem na tela  
+botões não executam ações.
+
+Garantir comunicação completa entre frontend e backend.
+
+------------------------------------------------
+
+FASE 4 — GARANTIR FUNCIONAMENTO DAS ABAS
+
+Testar abertura das abas:
+
+Empresas  
+Clientes  
+Pedidos  
+Logística  
+Rotas  
+Motoristas  
+GPS  
+Assinaturas  
+Loja de módulos  
+Nota fiscal
+
+Se alguma página abrir vazia ou quebrada:
+
+corrigir automaticamente.
+
+------------------------------------------------
+
+FASE 5 — TESTAR FUNÇÕES PRINCIPAIS
+
+Executar testes simulando uso real.
+
+Testar:
+
+criar empresa  
+criar cliente  
+criar produto  
+criar pedido  
+gerar rota  
+atribuir motorista  
+ativar GPS  
+criar assinatura.
+
+Corrigir automaticamente qualquer erro encontrado.
+
+------------------------------------------------
+
+FASE 6 — GARANTIR QUE TUDO APAREÇA
+
+Após finalizar a execução:
+
+verificar que todas as funcionalidades implementadas estão visíveis na interface.
+
+Nenhuma funcionalidade deve ficar apenas no backend.
+
+Todas devem possuir:
+
+menu  
+rota  
+página visual.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve apresentar:
+
+todas as abas visíveis no menu  
+todas as funcionalidades acessíveis  
+todas as páginas com layout completo  
+todas as APIs conectadas ao frontend
+
+sem recriar nada que já tenha sido implementado anteriormente.

@@ -1,0 +1,112 @@
+IMPLEMENTAR MÓDULO DE SUPORTE + MELHORAR DADOS DO DANFE – SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+1) Criar uma aba de suporte centralizada para contato da empresa.
+2) Completar automaticamente as informações do remetente no DANFE interno.
+
+--------------------------------------------------
+
+MÓDULO 1 – ABA SUPORTE
+
+Criar uma nova aba no painel administrativo chamada:
+
+SUPORTE
+
+Nessa aba devem existir campos editáveis:
+
+Número de telefone / WhatsApp de suporte
+E-mail de suporte
+Mensagem padrão de ajuda (opcional)
+
+Exemplo de campos:
+
+Telefone suporte:
+Email suporte:
+Mensagem padrão:
+
+Essas informações devem ficar salvas no sistema.
+
+--------------------------------------------------
+
+USO DAS INFORMAÇÕES DE SUPORTE
+
+As informações cadastradas na aba SUPORTE devem ser utilizadas automaticamente em:
+
+1) Chat de ajuda do sistema
+2) Mensagens automáticas da IA
+3) Página pública do site
+4) Mensagens de erro do sistema
+5) Área de ajuda do cliente
+
+Exemplo:
+
+"Se precisar de ajuda, entre em contato com nosso suporte:
+WhatsApp: (xx) xxxx-xxxx
+Email: suporte@vivafrutaz.com"
+
+Sempre puxar os dados diretamente da aba SUPORTE.
+
+--------------------------------------------------
+
+MÓDULO 2 – MELHORAR INFORMAÇÕES DO DANFE INTERNO
+
+No DANFE interno, completar automaticamente as informações do REMETENTE.
+
+Atualmente aparecem campos vazios.
+
+Adicionar os seguintes dados da empresa VivaFrutaz:
+
+Nome da empresa
+Endereço completo
+Cidade / Estado
+Telefone
+Email de contato
+CNPJ (se existir)
+
+Essas informações devem aparecer no bloco:
+
+REMETENTE (VivaFrutaz)
+
+Exemplo:
+
+VivaFrutaz
+Endereço: Rua XXXXX, 123
+Cidade: São Paulo – SP
+Telefone: (11) XXXX-XXXX
+Email: contato@vivafrutaz.com
+CNPJ: XX.XXX.XXX/0001-XX
+
+--------------------------------------------------
+
+MELHORIA IMPORTANTE
+
+Criar uma tabela chamada:
+
+CONFIG_EMPRESA
+
+Ela deve armazenar:
+
+nome_empresa
+endereco
+cidade
+estado
+telefone
+email
+cnpj
+
+O DANFE deve puxar automaticamente essas informações dessa tabela.
+
+Assim, se a empresa mudar telefone ou endereço,
+basta atualizar no painel administrativo.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Criar aba de suporte com telefone e email editáveis.
+
+IA e site passam a usar automaticamente essas informações.
+
+DANFE interno passa a mostrar corretamente os dados da empresa emissora.
+
+Sistema fica mais profissional e padronizado.

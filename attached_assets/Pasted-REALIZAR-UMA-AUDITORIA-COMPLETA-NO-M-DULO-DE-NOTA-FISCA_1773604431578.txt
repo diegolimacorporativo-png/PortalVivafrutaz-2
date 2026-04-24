@@ -1,0 +1,113 @@
+REALIZAR UMA AUDITORIA COMPLETA NO MÓDULO DE NOTA FISCAL DO SISTEMA.
+
+OBJETIVO:
+Verificar se já existe uma estrutura fiscal completa e corrigir ou implementar o que estiver faltando.
+
+PASSO 1 — VERIFICAR CONFIGURAÇÃO FISCAL DA EMPRESA
+
+Verificar se já existe uma estrutura como:
+
+empresaFiscalConfig
+ou
+fiscalSettings
+
+Campos esperados:
+
+CNPJ
+Razão social
+Inscrição estadual
+Regime tributário
+CFOP padrão
+Natureza da operação
+Alíquota padrão
+Cidade
+Estado
+Ambiente (produção/homologação)
+
+Se não existir, criar uma nova aba administrativa chamada:
+
+"Configurações Fiscais"
+
+Apenas usuários ADMIN ou DIRETOR podem editar.
+
+--------------------------------------------------
+
+PASSO 2 — CORRIGIR ERRO ATUAL
+
+Erro identificado:
+
+undefined is not an object
+(data.vivaFrutaz.defaultCfop)
+
+Criar fallback seguro:
+
+const defaultCfop = data?.vivaFrutaz?.defaultCfop || "5102";
+
+Garantir que a tela de gestão de NF nunca quebre se dados fiscais não existirem.
+
+--------------------------------------------------
+
+PASSO 3 — AUDITORIA DA ABA DE GESTÃO DE NF
+
+Verificar se existem as funções:
+
+gerar DANFE
+exportar PDF
+exportar para Bling
+listar pedidos faturáveis
+
+Se algo estiver incompleto, corrigir.
+
+--------------------------------------------------
+
+PASSO 4 — INTEGRAÇÃO COM PEDIDOS
+
+Garantir que a NF puxe automaticamente:
+
+empresa
+itens do pedido
+quantidade
+valor unitário
+valor total
+data de entrega
+
+--------------------------------------------------
+
+PASSO 5 — FILTROS DA GESTÃO DE NF
+
+Adicionar filtros avançados:
+
+Data inicial
+Data final
+Empresa
+Tipo de contrato
+Contratual
+Semanal
+Avulso
+Status da NF
+Exportado para Bling
+
+--------------------------------------------------
+
+PASSO 6 — CÁLCULOS AUTOMÁTICOS
+
+Verificar se o sistema calcula automaticamente:
+
+valor total da NF
+custo médio
+margem estimada
+
+Se não calcular automaticamente, implementar.
+
+--------------------------------------------------
+
+PASSO 7 — TESTE FINAL
+
+Testar:
+
+criação de NF
+visualização DANFE
+exportação PDF
+exportação Bling
+filtros funcionando
+cálculos automáticos

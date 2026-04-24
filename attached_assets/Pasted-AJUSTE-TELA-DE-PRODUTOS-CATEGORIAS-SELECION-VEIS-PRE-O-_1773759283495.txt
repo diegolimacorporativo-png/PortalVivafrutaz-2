@@ -1,0 +1,113 @@
+AJUSTE TELA DE PRODUTOS — CATEGORIAS SELECIONÁVEIS + PREÇO POR CATEGORIA
+
+OBJETIVO:
+
+Permitir selecionar múltiplas categorias no cadastro de produto e definir preço individual por categoria, usando a base única de categorias.
+
+------------------------------------------------
+
+1. REMOVER CAMPO ATUAL
+
+Remover campo único de categoria do produto.
+
+------------------------------------------------
+
+2. LISTAR CATEGORIAS DINÂMICAS
+
+Carregar automaticamente todas as categorias da base do sistema.
+
+Exibir em formato visual:
+
+checkbox ou cards
+
+------------------------------------------------
+
+3. SELEÇÃO + PREÇO
+
+Ao selecionar uma categoria:
+
+abrir campo de preço individual
+
+Exemplo:
+
+☑ In Natura       R$ [   ]  
+☑ Higienizado     R$ [   ]  
+☐ Processado  
+
+------------------------------------------------
+
+4. MULTIPLAS CATEGORIAS
+
+Permitir selecionar várias categorias no mesmo produto.
+
+Cada uma com seu preço independente.
+
+------------------------------------------------
+
+5. SALVAMENTO CORRETO
+
+Salvar:
+
+produto_id  
+category_id  
+preço_base  
+
+(NÃO salvar categoria como texto)
+
+------------------------------------------------
+
+6. INTEGRAÇÃO DE PREÇO
+
+Usar preço da categoria + taxa administrativa do cliente
+
+Aplicar automaticamente em:
+
+pedidos  
+cotações  
+tabela de preços  
+nota fiscal  
+
+------------------------------------------------
+
+7. UNIDADE POR CATEGORIA
+
+Cada categoria deve ter unidade:
+
+KG / UN / PORÇÃO  
+
+Essa unidade deve refletir na nota fiscal
+
+------------------------------------------------
+
+8. FRONTEND OBRIGATÓRIO
+
+Garantir:
+
+categorias visíveis na tela  
+campo de preço aparecendo ao selecionar  
+layout organizado e funcional  
+
+------------------------------------------------
+
+9. VALIDAÇÃO
+
+Criar produto teste:
+
+Banana  
+
+Selecionar:
+
+In Natura → preço 2,30  
+Higienizado → preço 3,50  
+
+Validar:
+
+salvamento correto  
+exibição correta  
+uso em pedidos  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Produto deve permitir múltiplas categorias com preços na mesma tela, de forma visual e funcional

@@ -1,0 +1,206 @@
+rd" id="87421"}
+Realizar auditoria completa do ERP VivaFrutaz e corrigir problemas de acesso, integração entre módulos e funcionalidades incompletas.
+
+------------------------------------------------
+
+CORREÇÃO DE PERMISSÃO DO AI DEVELOPER
+
+O módulo AI Developer está bloqueando acesso com a mensagem:
+
+"Acesso restrito a MASTER/ADMIN/DEVELOPER".
+
+Corrigir sistema de permissões.
+
+Criar níveis de acesso claros:
+
+SUPER_ADMIN
+ADMIN
+USER
+
+O usuário SUPER_ADMIN deve ter acesso completo ao módulo AI Developer.
+
+Verificar autenticação JWT e garantir que a role do usuário seja corretamente identificada no backend.
+
+Se o usuário logado for o proprietário do sistema, conceder automaticamente acesso de SUPER_ADMIN.
+
+------------------------------------------------
+
+CORREÇÃO DA FUNÇÃO "ANALISAR SISTEMA"
+
+O botão "Analisar Sistema" deve:
+
+indexar todo o projeto
+mapear arquivos
+analisar controllers
+analisar rotas
+analisar banco de dados
+analisar dependências
+
+Corrigir erro que impede execução dessa função.
+
+Garantir que a função possa rodar quando acionada por usuário SUPER_ADMIN.
+
+------------------------------------------------
+
+INTEGRAÇÃO ENTRE PEDIDOS E NF-e
+
+Corrigir sistema de emissão de nota fiscal.
+
+A geração de NF-e deve utilizar pedidos reais cadastrados no sistema.
+
+Atualizar tela de emissão de NF-e para permitir:
+
+buscar pedidos existentes
+selecionar pedido
+gerar XML automaticamente
+
+O campo "Número do Pedido" deve referenciar o ID real da tabela de pedidos.
+
+Garantir que todos os dados do pedido sejam usados para gerar a nota:
+
+cliente
+itens
+quantidade
+valores
+impostos
+endereço de entrega
+
+Adicionar botão dentro do pedido:
+
+"Emitir NF-e"
+
+------------------------------------------------
+
+INTEGRAÇÃO COM SEFAZ
+
+Revisar sistema de emissão de NF-e.
+
+Garantir suporte para:
+
+certificado digital A1
+geração de XML
+envio para SEFAZ
+consulta de autorização
+cancelamento de NF-e
+
+Criar variáveis de ambiente:
+
+CERT_PATH
+CERT_PASSWORD
+
+Atualizar painel de NF-e para mostrar status da SEFAZ:
+
+conectado
+offline
+erro de certificado
+erro de envio
+
+------------------------------------------------
+
+TIPOS DE FATURAMENTO
+
+Adicionar no cadastro de clientes:
+
+tipo_faturamento
+
+Opções:
+
+diario
+semanal
+mensal
+
+Funcionamento:
+
+diario -> gerar NF-e automaticamente após cada pedido
+semanal -> consolidar pedidos da semana e gerar NF-e
+mensal -> consolidar pedidos do mês e gerar NF-e
+
+Criar rotina automática que verifica pedidos faturáveis.
+
+------------------------------------------------
+
+ENDEREÇOS MÚLTIPLOS DE CLIENTES
+
+Criar tabela:
+
+clientes_enderecos
+
+Campos:
+
+id
+cliente_id
+nome_endereco
+logradouro
+numero
+cidade
+estado
+cep
+principal
+
+Permitir que clientes tenham vários endereços.
+
+Na criação do pedido permitir escolher endereço de entrega.
+
+------------------------------------------------
+
+INTEGRAÇÃO COM FINANCEIRO
+
+Garantir que cada pedido gere automaticamente uma conta a receber.
+
+Fluxo correto:
+
+pedido criado
+valor calculado
+registro automático no financeiro
+
+Campos necessários:
+
+cliente
+valor
+data de vencimento
+status
+forma de pagamento
+
+------------------------------------------------
+
+INTEGRAÇÃO BANCÁRIA
+
+Revisar integração com banco Itaú.
+
+Permitir:
+
+importação de extrato
+conciliação automática
+identificação de pagamentos
+
+Relacionar pagamentos com contas a receber.
+
+------------------------------------------------
+
+AUDITORIA DE SISTEMA
+
+AI Developer deve ser capaz de executar:
+
+analisar sistema
+detectar bugs
+auditoria de segurança
+analisar performance
+otimizar banco
+gerar deploy
+
+Corrigir qualquer erro que impeça execução dessas funções.
+
+------------------------------------------------
+
+OBJETIVO FINAL
+
+Deixar o ERP VivaFrutaz totalmente funcional, integrado e com sistema de IA administrativa operacional.
+
+Garantir funcionamento completo entre:
+
+clientes
+pedidos
+financeiro
+integração bancária
+NF-e
+SEF

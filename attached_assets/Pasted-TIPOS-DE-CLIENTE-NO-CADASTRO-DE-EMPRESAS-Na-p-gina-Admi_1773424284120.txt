@@ -1,0 +1,290 @@
+TIPOS DE CLIENTE NO CADASTRO DE EMPRESAS
+
+Na página:
+
+Admin → Cadastro de Empresas
+
+Ajustar campo:
+
+Tipo de cliente
+
+Adicionar nova opção:
+
+Cliente semanal
+
+Lista final deve conter:
+
+Cliente semanal
+Cliente mensal
+Cliente pontual
+
+Comportamento:
+
+Cliente semanal
+Faz pedidos todas as semanas.
+
+Cliente mensal
+Pode ter programação mensal de pedidos.
+
+Cliente pontual
+Cliente esporádico que não recebe notificações automáticas.
+
+⸻
+
+MÓDULO 2
+
+TAXA ADMINISTRATIVA AUTOMÁTICA
+
+Criar sistema de aplicação automática de taxa administrativa por empresa.
+
+No cadastro de empresas adicionar campo:
+
+Taxa administrativa
+
+Criar botões de seleção rápida.
+
+Botões disponíveis:
+
+GRSA → 27%
+SODEXO → 18%
+
+Esses botões devem automaticamente preencher o campo de taxa administrativa.
+
+Exemplo:
+
+Selecionar GRSA
+
+Sistema define automaticamente:
+
+Taxa administrativa = 27%
+
+Selecionar SODEXO
+
+Sistema define automaticamente:
+
+Taxa administrativa = 18%
+
+O administrador também pode inserir valor manual se necessário.
+
+IMPORTANTE:
+
+Clientes não podem visualizar a taxa administrativa.
+
+Somente administradores do sistema podem ver essa informação.
+
+O sistema deve calcular automaticamente o preço final exibido ao cliente.
+
+Exemplo:
+
+Produto base = 2,00
+Taxa administrativa = 27%
+
+Preço final mostrado ao cliente:
+
+2,54
+
+⸻
+
+MÓDULO 3
+
+FILTRO DE PRODUTOS NA TELA DE PEDIDOS DO CLIENTE
+
+Na página onde o cliente realiza pedidos adicionar filtros.
+
+Filtros disponíveis:
+
+Filtrar por data de entrega.
+
+Exemplo:
+
+Segunda-feira
+Quarta-feira
+Sexta-feira
+
+Quando o cliente selecionar segunda-feira, o sistema deve permitir pedidos apenas para essa data.
+
+Não permitir selecionar múltiplos dias no mesmo pedido.
+
+Exemplo:
+
+Se o cliente estiver fazendo pedido de segunda-feira, bloquear seleção de quarta-feira.
+
+⸻
+
+FILTRO POR CATEGORIA DE PRODUTO
+
+Adicionar filtro de categorias igual ao painel administrativo.
+
+Categorias exemplo:
+
+Frutas In Natura Higienizadas
+Frutas In Natura Não Higienizadas
+Snacks Saudáveis
+Mix de Oleaginosas
+Industrializados
+
+O cliente pode selecionar a categoria para facilitar a busca de produtos.
+
+⸻
+
+MÓDULO 4
+
+ABA MEUS PEDIDOS
+
+Criar aba no painel do cliente chamada:
+
+Meus pedidos
+
+Essa aba deve mostrar histórico de pedidos.
+
+Adicionar filtros:
+
+Filtro por data
+Filtro por mês
+Filtro por ano
+
+Mostrar tabela com:
+
+Número do pedido
+Data do pedido
+Valor total
+Status
+
+⸻
+
+MÓDULO 5
+
+MENSAGEM DE BOAS-VINDAS
+
+Na tela inicial do cliente mostrar mensagem personalizada.
+
+Mensagem:
+
+Olá, (Nome do cliente)
+
+Bem-vindo ao portal da VivaFrutaz.
+Vamos reabastecer seu estoque de frutas.
+
+Adicionar também aviso operacional:
+
+Pedido será fornecido conforme planilha preenchida.
+Favor atenção aos tipos de embalagens.
+
+Prazo para cancelamento ou redução de pedido:
+
+2 dias úteis de antecedência (até às 09:00).
+
+⸻
+
+MÓDULO 6
+
+OBSERVAÇÃO DO PEDIDO
+
+No carrinho do cliente adicionar campo:
+
+Observação do pedido
+
+Exemplo de mensagem padrão exibida no campo:
+
+Bananas mais verdes, solicito produto que não está na planilha (informar nome do produto).
+
+Esse campo deve ser editável pelo cliente.
+
+Essa observação deve aparecer:
+
+No pedido
+No painel administrativo
+Nos relatórios de pedidos
+
+⸻
+
+MÓDULO 7
+
+RECUPERAÇÃO DE SENHA
+
+Remover erro técnico exibido quando senha está incorreta.
+
+Mensagem atual:
+
+Invalid credentials or inactive account
+
+Substituir por mensagem amigável:
+
+Email ou senha incorretos.
+
+Adicionar botão:
+
+Esqueci minha senha
+
+Fluxo de recuperação:
+
+Cliente informa email.
+
+Sistema envia solicitação de recuperação de senha.
+
+Essa solicitação deve aparecer no painel administrativo.
+
+Admin pode:
+
+Aprovar redefinição de senha
+Gerar nova senha
+Enviar nova senha ao cliente
+
+⸻
+
+MÓDULO 8
+
+CORREÇÃO DE LOGIN
+
+Corrigir erro no arquivo:
+
+use-auth.ts
+
+Garantir que o sistema não exiba erro técnico no front-end.
+
+Adicionar tratamento de erro seguro.
+
+Exemplo de comportamento esperado:
+
+Se login falhar:
+
+Mostrar mensagem amigável ao usuário.
+
+Não exibir erro técnico do sistema.
+
+⸻
+
+MÓDULO 9
+
+MELHORIA DE USABILIDADE
+
+Garantir que:
+
+Pedidos tenham fluxo simples.
+
+Cliente:
+
+Seleciona data
+Filtra categoria
+Seleciona produtos
+Adiciona ao carrinho
+Finaliza pedido.
+
+Interface deve ser simples e intuitiva.
+
+⸻
+
+OBJETIVO FINAL
+
+O sistema VivaFrutaz deve permitir:
+
+Cadastro completo de empresas
+Classificação de clientes semanal, mensal ou pontual
+Aplicação automática de taxa administrativa
+Filtros de produtos no pedido
+Controle de pedidos por data
+Histórico de pedidos do cliente
+Mensagens operacionais claras
+Observação personalizada no pedido
+Sistema de recuperação de senha
+Experiência de uso simples para os clientes

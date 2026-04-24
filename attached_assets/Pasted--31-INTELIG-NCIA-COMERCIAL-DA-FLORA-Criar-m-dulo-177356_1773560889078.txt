@@ -1,0 +1,523 @@
+--------------------------------------------------
+
+31 INTELIGÊNCIA COMERCIAL DA FLORA
+
+Criar módulo de análise comercial dentro da IA Flora  
+para monitorar comportamento de compra dos clientes  
+e identificar oportunidades ou riscos comerciais.
+
+--------------------------------------------------
+
+32 ANÁLISE DE FREQUÊNCIA DE PEDIDOS
+
+A IA deve analisar:
+
+histórico de pedidos  
+frequência de compra  
+valor médio dos pedidos  
+produtos comprados  
+
+Identificar padrões de compra.
+
+Exemplo:
+
+Empresa Hospital Vida  
+realiza pedidos toda segunda-feira.
+
+--------------------------------------------------
+
+33 DETECÇÃO DE CLIENTE INATIVO
+
+Se um cliente costuma fazer pedidos  
+e parar de comprar por determinado período,  
+a IA deve gerar alerta.
+
+Exemplo:
+
+Empresa Hospital Vida  
+não realiza pedidos há 2 semanas.
+
+Status:
+
+Cliente possivelmente inativo.
+
+--------------------------------------------------
+
+34 ALERTA DE QUEDA DE PEDIDOS
+
+Se o volume de pedidos cair,  
+a IA deve identificar.
+
+Exemplo:
+
+Empresa Clínica Central
+
+Média de pedidos:  
+R$ 3.000 por semana
+
+Última semana:  
+R$ 900
+
+Alerta:
+
+queda significativa no volume de compras.
+
+--------------------------------------------------
+
+35 OPORTUNIDADES DE VENDA
+
+A IA deve identificar produtos  
+que o cliente costumava comprar  
+mas deixou de pedir.
+
+Exemplo:
+
+Hospital São Lucas  
+não pediu banana nas últimas 2 semanas.
+
+Sugestão:
+
+oferecer reposição.
+
+--------------------------------------------------
+
+36 SUGESTÕES COMERCIAIS
+
+A IA deve sugerir ações comerciais.
+
+Exemplo:
+
+Cliente com queda de pedidos.
+
+Sugestão da Flora:
+
+Entrar em contato com cliente  
+para verificar necessidade de reposição.
+
+--------------------------------------------------
+
+37 LISTA DE CLIENTES EM RISCO
+
+Criar painel chamado:
+
+CLIENTES EM RISCO
+
+Mostrar:
+
+empresa  
+tempo sem pedidos  
+último pedido  
+valor médio anterior
+
+--------------------------------------------------
+
+38 PAINEL DE OPORTUNIDADES
+
+Criar painel chamado:
+
+OPORTUNIDADES COMERCIAIS
+
+Mostrar:
+
+clientes que reduziram compras  
+produtos que pararam de ser pedidos  
+clientes com potencial de aumento de compra
+
+--------------------------------------------------
+
+39 COMANDOS DA FLORA
+
+Permitir comandos:
+
+Flora analisar clientes  
+Flora clientes em risco  
+Flora oportunidades de venda  
+Flora empresas que reduziram pedidos
+
+--------------------------------------------------
+
+40 PERMISSÕES
+
+Acesso permitido para:
+
+Administrador  
+Diretoria  
+Comercial  
+Desenvolvedor
+
+Clientes não têm acesso a esse módulo.
+
+--------------------------------------------------
+
+41 MÓDULO FINANCEIRO INTELIGENTE
+
+Criar módulo financeiro analítico  
+integrado à IA Flora.
+
+A IA deve analisar:
+
+pedidos confirmados  
+histórico de faturamento  
+valor médio por cliente  
+pedidos previstos  
+pedidos pontuais
+
+--------------------------------------------------
+
+42 PREVISÃO DE FATURAMENTO
+
+A IA deve prever o faturamento da empresa.
+
+Exemplo:
+
+Flora prever faturamento do mês
+
+Resposta exemplo:
+
+Faturamento previsto:  
+R$ 182.000
+
+Baseado em:
+
+pedidos confirmados  
+histórico de vendas  
+previsão de pedidos
+
+--------------------------------------------------
+
+43 FATURAMENTO POR CLIENTE
+
+Permitir consulta:
+
+Flora faturamento por cliente
+
+Mostrar:
+
+empresa  
+total comprado no mês  
+média mensal
+
+--------------------------------------------------
+
+44 CLIENTES MAIS RENTÁVEIS
+
+Permitir comando:
+
+Flora clientes mais rentáveis
+
+Mostrar ranking:
+
+Top 10 clientes  
+valor total comprado  
+frequência de pedidos
+
+--------------------------------------------------
+
+45 ANÁLISE DE QUEDA DE FATURAMENTO
+
+Se houver queda no faturamento geral,  
+a IA deve identificar causas.
+
+Exemplo:
+
+Queda detectada:  
+15%
+
+Possíveis causas:
+
+redução de pedidos  
+clientes inativos  
+queda em produtos específicos
+
+--------------------------------------------------
+
+46 RELATÓRIO FINANCEIRO AUTOMÁTICO
+
+Permitir comando:
+
+Flora gerar relatório financeiro
+
+Gerar:
+
+PDF  
+Excel
+
+Com dados de:
+
+faturamento  
+clientes  
+produtos  
+volume de vendas
+
+--------------------------------------------------
+
+47 ALERTA DE FATURAMENTO
+
+Se o faturamento mensal  
+estiver abaixo da média histórica  
+a IA deve alertar.
+
+Exemplo:
+
+Faturamento atual  
+20% abaixo da média dos últimos 3 meses.
+
+--------------------------------------------------
+
+48 PAINEL DE INTELIGÊNCIA FINANCEIRA
+
+Criar painel chamado:
+
+INTELIGÊNCIA FINANCEIRA
+
+Mostrar:
+
+faturamento atual  
+previsão de faturamento  
+clientes mais rentáveis  
+crescimento ou queda de vendas
+
+--------------------------------------------------
+
+49 COMANDOS FINANCEIROS DA FLORA
+
+Permitir comandos:
+
+Flora prever faturamento  
+Flora relatório financeiro  
+Flora ranking de clientes  
+Flora analisar faturamento
+
+--------------------------------------------------
+
+50 INTELIGÊNCIA LOGÍSTICA DA FLORA
+
+Criar módulo de análise logística  
+para monitorar rotas de entrega  
+agenda logística  
+e capacidade de distribuição.
+
+--------------------------------------------------
+
+51 ANÁLISE DA AGENDA DE ENTREGAS
+
+A IA deve analisar:
+
+agenda de entregas  
+quantidade de pedidos por rota  
+horários de entrega  
+empresas atendidas  
+capacidade logística
+
+--------------------------------------------------
+
+52 PREVISÃO DE SOBRECARGA
+
+Se uma rota estiver próxima do limite  
+a IA deve gerar alerta.
+
+Exemplo:
+
+Rota 2  
+Capacidade utilizada: 92%
+
+--------------------------------------------------
+
+53 SUGESTÃO DE REDISTRIBUIÇÃO
+
+Se houver sobrecarga em rotas  
+a IA deve sugerir redistribuição.
+
+Exemplo:
+
+Mover entregas da rota 2  
+para rota 3.
+
+--------------------------------------------------
+
+54 CONSULTA DE LOGÍSTICA
+
+Permitir comandos:
+
+Flora como está a logística de amanhã  
+Flora quantas entregas temos hoje  
+Flora rotas disponíveis
+
+--------------------------------------------------
+
+55 PREVISÃO DE ATRASO
+
+Se houver muitas entregas  
+em horários próximos  
+a IA deve alertar possível atraso.
+
+--------------------------------------------------
+
+56 RELATÓRIO DE LOGÍSTICA
+
+Permitir comando:
+
+Flora gerar relatório logístico
+
+Gerar:
+
+PDF  
+Excel
+
+Com dados de:
+
+rotas  
+empresas  
+horários  
+entregas
+
+--------------------------------------------------
+
+57 PAINEL DE INTELIGÊNCIA LOGÍSTICA
+
+Criar painel chamado:
+
+INTELIGÊNCIA LOGÍSTICA
+
+Mostrar:
+
+rotas ativas  
+capacidade utilizada  
+previsão de sobrecarga  
+sugestões de redistribuição
+
+--------------------------------------------------
+
+58 COMANDOS LOGÍSTICOS DA FLORA
+
+Permitir comandos:
+
+Flora analisar logística  
+Flora prever rotas  
+Flora capacidade de entrega  
+Flora agenda de entregas
+
+--------------------------------------------------
+
+59 PERMISSÕES LOGÍSTICAS
+
+Administrador  
+Diretoria  
+Logística  
+Compras  
+Desenvolvedor
+
+Clientes apenas:
+
+previsão de entrega  
+status do pedido
+
+--------------------------------------------------
+
+60 MÓDULO DE AUTO OTIMIZAÇÃO DA FLORA
+
+Criar sistema de análise automática  
+do desempenho do sistema VivaFrutaz.
+
+A IA deve monitorar:
+
+tempo de resposta do sistema  
+erros detectados  
+fluxo de pedidos  
+processos operacionais  
+uso de funcionalidades
+
+--------------------------------------------------
+
+61 DETECÇÃO DE GARGALOS
+
+A IA deve identificar processos lentos.
+
+Exemplo:
+
+Tempo médio de aprovação de pedidos  
+acima de 3 horas.
+
+Sugestão:
+
+automatizar aprovação para clientes recorrentes.
+
+--------------------------------------------------
+
+62 ANÁLISE DE EFICIÊNCIA OPERACIONAL
+
+Permitir comando:
+
+Flora analisar eficiência do sistema
+
+A IA deve avaliar:
+
+tempo médio de pedidos  
+tempo médio de aprovação  
+tempo de resposta do sistema  
+erros registrados
+
+--------------------------------------------------
+
+63 SUGESTÕES DE MELHORIAS
+
+A IA deve sugerir melhorias como:
+
+automatizações  
+ajustes de fluxo  
+melhoria em processos  
+organização de rotas
+
+--------------------------------------------------
+
+64 CORREÇÃO AUTOMÁTICA DE ERROS
+
+Quando possível  
+a IA pode executar ajustes automáticos.
+
+Exemplo:
+
+corrigir campos inconsistentes  
+reativar integrações desconectadas  
+reiniciar processos travados
+
+--------------------------------------------------
+
+65 ALERTA DE PROBLEMAS DO SISTEMA
+
+Se erros forem detectados  
+a IA deve alertar administradores.
+
+Exemplo:
+
+Erro detectado no módulo de pedidos.
+
+Sugestão:
+
+verificar integração ERP.
+
+--------------------------------------------------
+
+66 COMANDOS DE OTIMIZAÇÃO
+
+Permitir comandos:
+
+Flora analisar sistema  
+Flora detectar erros  
+Flora sugerir melhorias  
+Flora otimizar processos
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+A IA Flora deve atuar como:
+
+assistente operacional  
+analista comercial  
+analista financeiro  
+analista logístico  
+analista de desempenho do sistema
+
+otimizando continuamente  
+o funcionamento do VivaFrutaz.

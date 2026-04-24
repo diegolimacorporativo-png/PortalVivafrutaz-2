@@ -1,0 +1,106 @@
+5"}
+CORREÇÃO DEFINITIVA DE CONFLITO DE VERSÕES (VIVAFRUTAZ / VIVAFRUTAS)
+
+Objetivo:
+Eliminar completamente versões antigas da aplicação que ainda utilizam o nome "Vivafrutas" e garantir que apenas a versão atual "VivaFrutaz" seja carregada.
+
+--------------------------------------------------
+
+1. BUSCA GLOBAL NO PROJETO
+
+Executar busca em todo o código por:
+
+Vivafrutas
+
+Substituir todas as ocorrências por:
+
+VivaFrutaz
+
+Isso inclui:
+
+títulos da aplicação  
+variáveis  
+rotas  
+arquivos de configuração  
+metadados HTML  
+
+--------------------------------------------------
+
+2. ATUALIZAR META TAGS DO HTML
+
+Garantir que o arquivo principal da aplicação contenha:
+
+<title>VivaFrutaz</title>
+
+E remover qualquer referência antiga ao nome Vivafrutas.
+
+--------------------------------------------------
+
+3. LIMPEZA DE BUILD ANTIGA
+
+Remover completamente builds antigas da aplicação.
+
+Limpar pastas:
+
+dist  
+build  
+.cache  
+
+Gerar nova build da aplicação.
+
+--------------------------------------------------
+
+4. LIMPEZA DE CACHE DO SISTEMA
+
+Ao iniciar a aplicação executar automaticamente:
+
+localStorage.clear()
+sessionStorage.clear()
+
+Garantir que nenhuma configuração antiga permaneça armazenada.
+
+--------------------------------------------------
+
+5. PROTEÇÃO DE VERSÃO DA APLICAÇÃO
+
+Criar variável global:
+
+APP_NAME = "VivaFrutaz"
+
+Se o sistema detectar qualquer referência diferente:
+
+forçar recarregamento completo da aplicação.
+
+--------------------------------------------------
+
+6. RECARREGAMENTO APÓS LOGIN
+
+Após autenticação do usuário executar:
+
+window.location.replace("/dashboard")
+
+Isso garante que o sistema carregue a versão correta da aplicação.
+
+--------------------------------------------------
+
+7. PROTEÇÃO CONTRA BUILD ANTIGO
+
+Adicionar verificação de versão da aplicação.
+
+Se detectar build antiga:
+
+forçar atualização automática da página.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Após implementação:
+
+o sistema carregará apenas a versão VivaFrutaz.
+
+nenhuma referência a Vivafrutas aparecerá.
+
+login sempre carregará a versão correta da aplicação.
+
+menus e rotas funcionarão sem conflitos de vers

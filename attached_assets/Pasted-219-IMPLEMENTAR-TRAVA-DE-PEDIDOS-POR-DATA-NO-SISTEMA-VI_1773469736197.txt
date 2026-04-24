@@ -1,0 +1,132 @@
+219"}
+IMPLEMENTAR TRAVA DE PEDIDOS POR DATA NO SISTEMA VIVAFRUTAZ
+
+Objetivo:
+Impedir que clientes criem múltiplos pedidos para a mesma data de entrega e permitir alterações somente através de solicitação de reabertura do pedido.
+
+--------------------------------------------------
+
+1. VERIFICAÇÃO DE PEDIDO EXISTENTE
+
+Ao iniciar um novo pedido o sistema deve verificar:
+
+cliente_id  
+data_entrega
+
+Se já existir um pedido do mesmo cliente para a mesma data:
+
+bloquear criação de novo pedido.
+
+--------------------------------------------------
+
+2. MENSAGEM PARA O CLIENTE
+
+Se o cliente tentar criar um novo pedido para a mesma data mostrar mensagem:
+
+"Você já possui um pedido registrado para essa data de entrega."
+
+Exibir botão:
+
+Ver meu pedido
+
+--------------------------------------------------
+
+3. TRAVAMENTO DO PEDIDO
+
+Após finalização do pedido o status deve ficar:
+
+Pedido Confirmado
+
+Esse pedido não poderá ser editado diretamente pelo cliente.
+
+--------------------------------------------------
+
+4. NOVA FUNÇÃO: SOLICITAR REABERTURA
+
+Dentro do pedido adicionar botão:
+
+Solicitar alteração do pedido
+
+Quando clicado:
+
+abrir formulário com campo:
+
+Motivo da alteração
+
+Exemplo:
+
+Adicionar produto  
+Remover item  
+Corrigir quantidade  
+
+--------------------------------------------------
+
+5. ENVIO PARA ANÁLISE
+
+Após solicitação:
+
+enviar notificação para:
+
+Administrador  
+Logística  
+Comercial
+
+Status do pedido passa para:
+
+Solicitação de Alteração
+
+--------------------------------------------------
+
+6. APROVAÇÃO DA REABERTURA
+
+Usuários autorizados podem:
+
+Aprovar alteração  
+Negar alteração
+
+Se aprovado:
+
+pedido volta para status:
+
+Pedido em edição
+
+Cliente pode alterar produtos.
+
+--------------------------------------------------
+
+7. NOVO TRAVAMENTO
+
+Após cliente finalizar novamente:
+
+pedido volta para:
+
+Pedido Confirmado
+
+E novamente bloqueia novos pedidos para a mesma data.
+
+--------------------------------------------------
+
+8. PERMISSÕES
+
+Podem aprovar reabertura:
+
+Administrador  
+Diretor  
+Logística  
+Comercial
+
+Clientes apenas solicitam alteração.
+
+--------------------------------------------------
+
+9. RESULTADO ESPERADO
+
+Após implementação:
+
+Clientes não poderão criar múltiplos pedidos para o mesmo dia.
+
+Alterações serão feitas apenas mediante solicitação.
+
+Logística terá maior controle sobre pedidos.
+
+Sistema evita duplicidade de pedidos e confusão operaci

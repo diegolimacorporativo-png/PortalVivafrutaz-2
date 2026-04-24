@@ -1,0 +1,128 @@
+104"}
+ATUALIZAÇÃO DO MÓDULO DE COTAÇÕES COM RESPOSTA DA LOGÍSTICA
+
+Objetivo:
+Permitir que o perfil Logística responda às cotações definindo janelas de horário disponíveis para entrega.
+
+--------------------------------------------------
+
+1. NOVA SEÇÃO NA COTAÇÃO
+
+Dentro da tela:
+
+Editar Cotação
+
+Adicionar nova seção abaixo de:
+
+Nota de Logística
+
+Nome da seção:
+
+Janelas de Entrega da Logística
+
+--------------------------------------------------
+
+2. CAMPOS DA JANELA
+
+Permitir adicionar múltiplas janelas de horário.
+
+Estrutura:
+
+Janela 1  
+Horário início  
+Horário fim  
+
+Exemplo:
+
+Janela 1  
+08:00 até 08:30
+
+Janela 2  
+09:00 até 09:30
+
+Janela 3  
+14:00 até 14:30
+
+Permitir botão:
+
+Adicionar nova janela
+
+--------------------------------------------------
+
+3. PERMISSÕES
+
+Somente os seguintes perfis podem editar as janelas:
+
+Logística  
+Administrador  
+Diretor  
+Desenvolvedor
+
+Outros perfis apenas visualizam.
+
+--------------------------------------------------
+
+4. SALVAMENTO DAS JANELAS
+
+Quando clicar em:
+
+Salvar
+
+Registrar no banco de dados:
+
+ID da cotação  
+Horário início  
+Horário fim  
+Usuário que respondeu  
+Data da resposta
+
+--------------------------------------------------
+
+5. STATUS DA COTAÇÃO
+
+Quando logística adicionar janelas:
+
+Atualizar status da cotação para:
+
+Horários Disponíveis
+
+--------------------------------------------------
+
+6. VISUALIZAÇÃO PARA ADMIN
+
+Administrador, Diretor e Desenvolvedor devem ver:
+
+empresa  
+contato  
+cidade  
+volume estimado  
+produtos de interesse  
+nota da logística  
+janelas de horário disponíveis
+
+--------------------------------------------------
+
+7. HISTÓRICO
+
+Registrar no histórico da cotação:
+
+Logística definiu janelas de entrega.
+
+Exemplo:
+
+14/03/2026  
+Logística adicionou janelas de entrega.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Após implementação:
+
+Logística pode responder às cotações com horários de entrega disponíveis.
+
+As janelas ficam registradas na cotação.
+
+Administradores e diretores conseguem visualizar essas janelas.
+
+Sistema passa a ter fluxo completo entre cotação e logís

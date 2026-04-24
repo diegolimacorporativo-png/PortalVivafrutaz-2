@@ -1,0 +1,165 @@
+You are maintaining the VivaFrutaz B2B Ordering System.
+
+Fix the following bugs and implement improvements.
+
+--------------------------------------------------
+LANGUAGE
+Convert the entire interface to Brazilian Portuguese (PT-BR).
+
+Examples:
+
+Login → Entrar
+Dashboard → Painel
+Orders → Pedidos
+Companies → Empresas
+Products → Produtos
+Price Groups → Grupos de Preço
+Delivery Schedule → Agenda de Entregas
+Purchasing Reports → Relatório de Compras
+Financial Dashboard → Painel Financeiro
+Settings → Configurações
+
+Login page:
+
+Title: VivaFrutaz
+Subtitle: Plataforma Corporativa de Pedidos de Frutas
+
+Fields:
+Email
+Senha
+
+Button:
+Acessar VivaFrutaz
+
+--------------------------------------------------
+BUG FIX 1
+Price groups mixing between companies (GRSA and Sodexo).
+
+Ensure each company is strictly linked to one price_group_id.
+
+When loading product prices, filter by the company price group only.
+
+Never duplicate prices.
+
+--------------------------------------------------
+BUG FIX 2
+Runtime error in order window:
+
+PLUGIN:RUNTIME-ERROR-PLUGIN
+Variable not found: PACKAGEOPEN
+
+Fix the variable name and ensure order window logic works correctly.
+
+Order window must check:
+
+order_open_date
+order_close_date
+
+Block orders outside the allowed window.
+
+--------------------------------------------------
+BUG FIX 3
+Fix "Maximum call stack size exceeded" plugin error.
+
+Prevent infinite loops in plugins or recursive functions.
+
+--------------------------------------------------
+CLIENT PORTAL IMPROVEMENTS
+
+When client logs in show section:
+
+SEUS DIAS DE ENTREGA
+
+Example buttons:
+
+Segunda-feira
+Quarta-feira
+Sexta-feira
+
+When user clicks a delivery day:
+
+Redirect to order page with title:
+
+Pedido para entrega na Segunda-feira
+
+--------------------------------------------------
+NEW FEATURE
+Add button:
+
+Replicar pedido da última semana
+
+When clicked:
+
+Load last week's order items into cart.
+
+--------------------------------------------------
+ADMIN CONTROL
+
+Admin must be able to enable or disable order replication.
+
+Admin setting:
+
+Permitir replicação de pedidos por outras empresas
+
+Deadline rule:
+
+Orders allowed until Thursday 12:00.
+
+After deadline show message:
+
+Prazo de pedidos encerrado para esta semana.
+
+--------------------------------------------------
+CLIENT PORTAL FIX
+
+New companies currently do not see the order page.
+
+Fix this.
+
+When a new company logs in for the first time show:
+
+Crie seu primeiro pedido de frutas.
+
+--------------------------------------------------
+PURCHASING REPORT IMPROVEMENT
+
+Add filters:
+
+Empresa
+Semana
+Dia
+Mês
+Ano
+Produto
+
+Show grouped reports:
+
+Total por dia
+Total por semana
+Total por mês
+Total por ano
+
+Example:
+
+Banana → 200 kg
+Maçã → 150 kg
+Melão → 90 kg
+
+Add export options:
+
+Exportar Excel
+Exportar PDF
+
+--------------------------------------------------
+FINAL GOAL
+
+The VivaFrutaz system must have:
+
+Interface fully translated to Portuguese
+Fixed price groups
+Working order windows
+Client delivery day selector
+Repeat last order button
+Admin replication control
+Improved purchasing reports
+Fixed plugin errors

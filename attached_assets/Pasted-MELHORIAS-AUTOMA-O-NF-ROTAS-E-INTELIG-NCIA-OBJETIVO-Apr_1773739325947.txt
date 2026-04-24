@@ -1,0 +1,118 @@
+MELHORIAS — AUTOMAÇÃO, NF, ROTAS E INTELIGÊNCIA
+
+OBJETIVO:
+
+Aprimorar o sistema sem criar novas abas desnecessárias, organizando fluxos automáticos e validações inteligentes.
+
+------------------------------------------------
+
+1. AUTOMAÇÃO SEM CLIQUE
+
+Implementar fluxo automático:
+
+Pedido criado → entra em Pedidos  
+Pedido aprovado → entra automaticamente na Logística  
+Sistema gera rota automaticamente com base em endereço  
+Entrega concluída → libera para emissão de NF  
+NF válida → emitir automaticamente (se todos dados ok)
+
+------------------------------------------------
+
+2. DADOS FISCAIS (EMPRESA + CLIENTE)
+
+Criar dentro da área de NF:
+
+seção organizada (sem duplicar abas):
+
+Dados fiscais da empresa  
+Dados fiscais do cliente  
+
+Garantir vínculo com pedidos.
+
+------------------------------------------------
+
+3. ASSINATURA ELETRÔNICA
+
+Implementar:
+
+uso de certificado digital A1  
+assinatura automática do XML  
+validação antes de envio para SEFAZ  
+
+------------------------------------------------
+
+4. AUTO INVESTIGADOR DE NF
+
+Criar sistema que:
+
+analisa todos os dados antes da emissão  
+verifica campos obrigatórios  
+identifica erros automaticamente  
+
+Se houver erro:
+
+mostrar mensagem clara  
+redirecionar automaticamente para a tela correta  
+
+------------------------------------------------
+
+5. TUTORIAL INTELIGENTE
+
+Na tela de NF:
+
+mostrar passo a passo de emissão  
+explicar erros  
+integrar com aba de Treinamento  
+
+------------------------------------------------
+
+6. LOGÍSTICA AUTOMÁTICA
+
+Ao cadastrar endereço:
+
+permitir definir janela de entrega (horário)
+
+Ao criar pedido:
+
+entrar automaticamente na logística  
+sugerir rota com base em distância  
+agrupar pedidos por região  
+
+Permitir:
+
+editar motoristas  
+separar rotas manualmente  
+
+------------------------------------------------
+
+7. INTELIGÊNCIA DE ROTAS
+
+Sistema deve:
+
+calcular distância (km)  
+detectar sobrecarga de motorista  
+redistribuir rotas automaticamente  
+sugerir melhor divisão  
+
+------------------------------------------------
+
+8. REGRAS IMPORTANTES
+
+Não criar abas duplicadas  
+Apenas melhorar e integrar funcionalidades existentes  
+Garantir que tudo esteja conectado entre:
+
+pedidos  
+logística  
+rotas  
+motoristas  
+nota fiscal  
+
+------------------------------------------------
+
+RESULTADO:
+
+Sistema automático  
+emissão de NF sem erro  
+logística inteligente funcional  
+fluxo completo sem intervenção manual

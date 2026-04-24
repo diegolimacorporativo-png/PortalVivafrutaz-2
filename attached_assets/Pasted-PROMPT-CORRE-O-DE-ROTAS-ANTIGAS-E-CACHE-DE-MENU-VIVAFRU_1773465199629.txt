@@ -1,0 +1,150 @@
+PROMPT – CORREÇÃO DE ROTAS ANTIGAS E CACHE DE MENU VIVAFRUTAZ
+
+Executar correção estrutural no sistema VivaFrutaz para eliminar redirecionamento para páginas antigas e evitar que menus carreguem rotas obsoletas.
+
+Esse problema ocorre porque ainda existem referências internas ao módulo antigo OS, enquanto o sistema atual utiliza o módulo Tarefas.
+
+Todas as correções devem ser aplicadas para:
+	•	administradores
+	•	desenvolvedores
+	•	equipe interna
+	•	todos os clientes
+	•	novos usuários cadastrados futuramente
+
+⸻
+
+REMOVER REFERÊNCIAS AO MÓDULO ANTIGO “OS”
+
+Executar varredura completa no código procurando qualquer referência ao módulo antigo:
+
+OS
+ordem-servico
+ordemServico
+serviceOrder
+
+Substituir todas as rotas antigas por:
+
+/tarefas
+
+Remover qualquer import ou componente antigo relacionado ao módulo OS.
+
+⸻
+
+CORRIGIR ROTAS DO SISTEMA
+
+Garantir que todas as rotas utilizem apenas o módulo atual:
+
+/tarefas
+
+Nunca permitir redirecionamento automático para:
+
+/os
+/ordem-servico
+
+Se alguma rota antiga for acessada redirecionar automaticamente para:
+
+/tarefas
+
+⸻
+
+ATUALIZAR MENU LATERAL
+
+Revisar todo o menu do sistema.
+
+Garantir que o botão:
+
+Tarefas
+
+aponte apenas para:
+
+/tarefas
+
+Remover qualquer link antigo ainda presente no menu.
+
+⸻
+
+LIMPAR CACHE DE ROTAS
+
+Implementar limpeza automática de cache quando o sistema atualizar módulos.
+
+Forçar atualização de rotas sempre que o usuário navegar entre páginas.
+
+Evitar que o navegador carregue páginas antigas do cache.
+
+⸻
+
+PROTEÇÃO CONTRA ROTAS INEXISTENTES
+
+Criar verificação global de rotas.
+
+Se usuário acessar rota inexistente:
+
+exemplo
+
+/os
+/os/123
+
+Redirecionar automaticamente para:
+
+/tarefas
+
+Mostrar aviso amigável:
+
+“Essa página foi atualizada para o novo módulo de tarefas.”
+
+⸻
+
+SINCRONIZAÇÃO DE ESTADO DO MENU
+
+Garantir que o estado do menu lateral seja sincronizado com a rota atual.
+
+Se o usuário clicar em um item do menu:
+
+o sistema deve atualizar corretamente a rota ativa.
+
+Evitar conflitos entre:
+
+estado antigo
+estado novo
+
+⸻
+
+IMPLEMENTAR FALLBACK DE NAVEGAÇÃO
+
+Criar fallback para evitar quebra de página quando rota antiga for acessada.
+
+Fluxo:
+
+rota antiga detectada
+redirecionar automaticamente para rota atual
+
+⸻
+
+TESTE AUTOMÁTICO
+
+Executar testes em todas as rotas do sistema:
+
+dashboard
+empresas
+produtos
+pedidos
+pedidos pontuais
+tarefas
+logística
+ocorrências
+usuários
+
+Confirmar que nenhuma página redirecione para módulo OS.
+
+⸻
+
+RESULTADO ESPERADO
+
+Após a correção o sistema VivaFrutaz deve ter:
+
+✔ menu funcionando corretamente
+✔ navegação estável
+✔ remoção completa do módulo OS
+✔ rotas sincronizadas com tarefas
+✔ eliminação do bug de redirecionamento
+✔ sistema funcionando para todos os usuários

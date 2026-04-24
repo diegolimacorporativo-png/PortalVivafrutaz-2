@@ -1,0 +1,119 @@
+USUÁRIOS + PERMISSÃO VIGILÂNCIA SANITÁRIA + INTEGRAÇÃO EM PACOTES
+
+OBJETIVO:
+
+Criar controle de usuários com permissão específica para módulo de vigilância sanitária e incluir essa funcionalidade nos planos/pacotes do sistema.
+
+------------------------------------------------
+
+1. ABA DE USUÁRIOS
+
+Criar tela de gerenciamento:
+
+criar usuário  
+editar  
+excluir  
+
+Campos:
+
+nome  
+email  
+senha  
+tipo de usuário  
+
+------------------------------------------------
+
+2. TIPOS DE USUÁRIO
+
+Criar níveis:
+
+ADMIN  
+OPERACIONAL  
+NUTRICIONISTA  
+
+------------------------------------------------
+
+3. PERMISSÃO VIGILÂNCIA SANITÁRIA
+
+Usuário NUTRICIONISTA:
+
+acesso total ao módulo sanitário  
+
+Outros usuários:
+
+apenas visualizar relatórios  
+
+NÃO podem editar checklist ou notas
+
+------------------------------------------------
+
+4. CONTROLE DE ACESSO
+
+Restringir:
+
+edição de checklist  
+criação de perguntas  
+lançamento de notas  
+
+Apenas para NUTRICIONISTA
+
+------------------------------------------------
+
+5. INTEGRAÇÃO COM PACOTES (PLANOS)
+
+Adicionar no sistema de planos:
+
+✔ Plano básico → sem vigilância sanitária  
+✔ Plano intermediário → visualização de relatórios  
+✔ Plano completo → acesso total (nutricionista)
+
+------------------------------------------------
+
+6. VALIDAÇÃO POR PLANO
+
+Sistema deve:
+
+verificar plano da empresa  
+
+Se não tiver acesso:
+
+bloquear módulo sanitário  
+
+------------------------------------------------
+
+7. ENVIO DE RELATÓRIOS
+
+Nutricionista pode:
+
+gerar relatório  
+enviar  
+
+Outros usuários:
+
+apenas visualizar  
+
+------------------------------------------------
+
+8. FRONTEND OBRIGATÓRIO
+
+Criar interface:
+
+aba usuários  
+seleção de tipo (dropdown)  
+controle visual de permissões  
+
+------------------------------------------------
+
+9. EXECUÇÃO REAL
+
+Testar:
+
+criar usuário nutricionista  
+acessar módulo sanitário  
+validar bloqueio para outros usuários  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Apenas usuários autorizados e planos ativos podem acessar e editar a vigilância sanitária

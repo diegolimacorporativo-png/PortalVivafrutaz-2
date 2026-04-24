@@ -1,0 +1,132 @@
+CORREÇÃO RELATÓRIO VIGILÂNCIA SANITÁRIA (PDF + IMPRESSÃO)
+
+OBJETIVO:
+
+Corrigir a geração de PDF e impressão dos relatórios da vigilância sanitária para funcionar corretamente, com layout profissional e logo da empresa.
+
+------------------------------------------------
+
+1. CORREÇÃO GERAÇÃO DE PDF
+
+Corrigir botão:
+
+“Gerar PDF”
+
+Garantir que:
+
+o PDF seja gerado corretamente  
+não saia em branco  
+não quebre layout  
+
+PDF deve conter:
+
+logo da empresa  
+nome da empresa  
+data  
+responsável (nutricionista)  
+lista de avaliações  
+status (conforme / não conforme)  
+porcentagem final  
+observações  
+
+------------------------------------------------
+
+2. CORREÇÃO IMPRESSÃO
+
+Corrigir botão:
+
+“Imprimir”
+
+Ao clicar:
+
+abrir versão formatada do relatório  
+sem cortar conteúdo  
+sem layout quebrado  
+
+Deve sair:
+
+igual ao PDF  
+
+------------------------------------------------
+
+3. LOGO NO CABEÇALHO
+
+Inserir automaticamente:
+
+logo da empresa no topo  
+
+Centralizado ou à esquerda  
+
+Não pode ficar distorcida  
+
+------------------------------------------------
+
+4. PADRONIZAÇÃO VISUAL
+
+Organizar layout:
+
+cabeçalho fixo  
+tabela organizada  
+cores:
+
+verde = conforme  
+vermelho = não conforme  
+
+Adicionar:
+
+percentual final destacado  
+
+------------------------------------------------
+
+5. AJUSTE DE QUEBRA DE PÁGINA
+
+Corrigir:
+
+itens cortando no meio  
+
+Aplicar:
+
+quebra automática de página no PDF  
+
+------------------------------------------------
+
+6. PRÉ-VISUALIZAÇÃO
+
+Antes de imprimir:
+
+mostrar preview do relatório  
+
+------------------------------------------------
+
+7. VALIDAÇÃO
+
+Se não houver dados:
+
+bloquear PDF  
+
+Mensagem:
+
+“Relatório vazio”  
+
+------------------------------------------------
+
+8. TESTE REAL
+
+Criar relatório com dados  
+
+Testar:
+
+gerar PDF  
+imprimir  
+
+Verificar:
+
+logo aparece  
+dados corretos  
+layout alinhado  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Relatórios da vigilância sanitária devem gerar PDF e impressão com layout profissional, sem erros, com logo e dados completos

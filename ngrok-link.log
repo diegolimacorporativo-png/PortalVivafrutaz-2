@@ -1,0 +1,27 @@
+﻿═══════════════════════════════════════════════════════
+🎉 NGROK TUNNEL ATIVO - ACESSO RESTAURADO
+═══════════════════════════════════════════════════════
+
+📱 URL PÚBLICA (HTTPS):
+   https://unusefully-inexperienced-shad.ngrok-free.dev
+
+🌐 ENDPOINTS DISPONÍVEIS:
+   ✓ Chat Clara IA: https://unusefully-inexperienced-shad.ngrok-free.dev/api/clara/chat
+   ✓ API Health: https://unusefully-inexperienced-shad.ngrok-free.dev/api/health
+   ✓ ERP VivaFrutaz: https://unusefully-inexperienced-shad.ngrok-free.dev
+   ✓ Dashboard Admin: https://unusefully-inexperienced-shad.ngrok-free.dev/admin
+   ✓ Insert NF Manual: https://unusefully-inexperienced-shad.ngrok-free.dev/admin/insert-nf-manual
+
+💻 PARA TESTES:
+   - Desktop local: http://localhost:5000
+   - Outro navegador na rede: https://unusefully-inexperienced-shad.ngrok-free.dev
+   - Mobile/externo: https://unusefully-inexperienced-shad.ngrok-free.dev
+
+⚙️ STATUS:
+   Backend Node.js: ✅ RODANDO (porta 5000)
+   Ngrok Tunnel: ✅ ATIVO
+   Certificado HTTPS: ✅ VÁLIDO
+   Acesso Externo: ✅ FUNCIONANDO
+
+⏱️ Log Data: 23/03/2026 16:39:51
+═══════════════════════════════════════════════════════

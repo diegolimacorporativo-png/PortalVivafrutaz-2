@@ -1,0 +1,445 @@
+OBJETIVO GERAL
+
+Evoluir o ERP VivaFrutaz para uma plataforma SaaS multi-empresa com:
+
+- painel MASTER administrativo
+- gestão de empresas clientes
+- sistema de planos e assinaturas
+- faturamento integrado a gateways/bancos
+- controle de permissões por usuário
+- IA desenvolvedora capaz de criar módulos e corrigir bugs
+- isolamento total de dados entre empresas
+
+O sistema atual NÃO deve ser quebrado. As novas funções devem ser adicionadas como módulos separados.
+
+--------------------------------------------------
+
+ARQUITETURA
+
+Backend:
+Node.js
+Express
+
+Banco:
+PostgreSQL
+
+Frontend:
+React
+
+Estrutura do projeto existente deve ser preservada.
+
+Adicionar estrutura modular:
+
+/server/modules
+/server/middleware
+/server/services
+/client/modules
+
+--------------------------------------------------
+
+MULTI EMPRESA
+
+Implementar arquitetura multi-tenant.
+
+Criar tabela:
+
+empresas
+id
+nome
+cnpj
+email
+telefone
+status
+plano_id
+created_at
+
+Todas as tabelas operacionais devem possuir:
+
+empresa_id
+
+Exemplo de tabelas:
+
+clientes
+produtos
+pedidos
+financeiro
+notas_fiscais
+usuarios
+
+Toda query deve respeitar:
+
+WHERE empresa_id = req.session.empresaId
+
+Garantindo isolamento de dados.
+
+--------------------------------------------------
+
+USUÁRIOS E PERMISSÕES
+
+Criar tabela:
+
+usuarios
+id
+nome
+email
+senha
+empresa_id
+role
+created_at
+
+Roles permitidas:
+
+MASTER
+ADMIN
+USER
+
+Permissões:
+
+MASTER
+acesso total ao sistema
+gestão de empresas
+gestão de planos
+gestão financeira global
+
+ADMIN
+gestão da empresa
+usuarios da empresa
+produtos
+pedidos
+financeiro
+
+USER
+uso normal do ERP
+
+--------------------------------------------------
+
+PAINEL MASTER
+
+Criar nova área administrativa acessível apenas para MASTER.
+
+Menu:
+
+MASTER DASHBOARD
+
+Empresas
+Planos
+Assinaturas
+Faturamento
+Integrações Bancárias
+Logs
+AI LAB
+Configurações do Sistema
+
+--------------------------------------------------
+
+GESTÃO DE EMPRESAS
+
+Criar módulo:
+
+/master/empresas
+
+Funções:
+
+listar empresas
+criar empresa
+editar empresa
+bloquear empresa
+ativar empresa
+ver uso do sistema
+
+Campos:
+
+nome
+cnpj
+email
+telefone
+plano
+status
+
+--------------------------------------------------
+
+PLANOS E ASSINATURAS
+
+Criar tabela:
+
+planos
+id
+nome
+preco
+limite_usuarios
+limite_produtos
+limite_pedidos
+created_at
+
+Criar tabela:
+
+assinaturas
+id
+empresa_id
+plano_id
+status
+data_inicio
+data_expiracao
+gateway_pagamento
+subscription_gateway_id
+
+Planos padrão:
+
+BASIC
+49
+
+PRO
+149
+
+ENTERPRISE
+299
+
+Criar tela de gestão de planos onde o MASTER pode:
+
+editar preço
+alterar limites
+ativar/desativar plano
+
+--------------------------------------------------
+
+COBRANÇA E FATURAMENTO
+
+Criar módulo:
+
+billing
+
+Integrações preparadas para:
+
+Mercado Pago
+Stripe
+PIX
+API bancária
+
+Criar endpoint:
+
+/api/billing/create-subscription
+
+Fluxo:
+
+empresa escolhe plano
+gerar cobrança
+redirecionar para pagamento
+webhook confirma pagamento
+assinatura ativada
+
+Criar webhook:
+
+/api/billing/webhook
+
+Atualizar status da assinatura.
+
+--------------------------------------------------
+
+INTEGRAÇÕES BANCÁRIAS
+
+Criar módulo:
+
+bank_integrations
+
+Tabela:
+
+bank_integrations
+id
+empresa_id
+bank_name
+api_key
+api_secret
+status
+
+Permitir adicionar bancos:
+
+Itaú
+Bradesco
+Santander
+PIX
+
+Cada empresa pode conectar seus bancos.
+
+MASTER também pode conectar conta global para receber assinaturas.
+
+--------------------------------------------------
+
+BLOQUEIO POR INADIMPLÊNCIA
+
+Se assinatura estiver vencida:
+
+bloquear acesso a:
+
+pedidos
+financeiro
+notas fiscais
+
+Mostrar tela:
+
+"Assinatura vencida. Regularize o pagamento."
+
+--------------------------------------------------
+
+AI LAB (IA DESENVOLVEDORA)
+
+Criar nova aba:
+
+AI LAB
+
+Funções:
+
+Analisar Sistema
+Detectar Bugs
+Auto Corrigir Sistema
+Criar Módulo
+Executar Testes
+Simular Uso
+Gerar Documentação
+
+--------------------------------------------------
+
+CRIAR MÓDULO AUTOMATICAMENTE
+
+Função:
+
+Criar Módulo
+
+Exemplo de comando:
+
+criar módulo estoque
+
+A IA deve gerar automaticamente:
+
+rota backend
+controller
+model
+migration banco
+página frontend
+menu lateral
+
+Estrutura:
+
+/server/modules/{modulo}
+/client/modules/{modulo}
+
+--------------------------------------------------
+
+TESTES AUTOMÁTICOS
+
+Criar botão:
+
+Executar Testes
+
+Testar:
+
+rotas API
+erros 500
+respostas HTTP
+conexão banco
+fluxo pedidos
+fluxo financeiro
+
+Gerar relatório.
+
+--------------------------------------------------
+
+AUTO CORREÇÃO DE BUGS
+
+Criar função:
+
+Auto Corrigir Sistema
+
+Processo:
+
+ler logs
+identificar erro
+localizar arquivo
+aplicar correção
+criar backup antes da alteração
+
+Pasta:
+
+/backups/ai-fixes
+
+--------------------------------------------------
+
+SIMULAÇÃO DE USO
+
+Criar função:
+
+Simular Usuário
+
+A IA deve simular:
+
+cliente criando pedido
+emissão de nota
+registro financeiro
+consulta relatório
+
+Detectar erros de fluxo.
+
+--------------------------------------------------
+
+LOGS
+
+Criar sistema de logs:
+
+/logs/system.log
+/logs/billing.log
+/logs/ai.log
+
+Registrar:
+
+ações do sistema
+erros
+correções da IA
+pagamentos
+
+--------------------------------------------------
+
+SEGURANÇA
+
+Mover todas credenciais para:
+
+.env
+
+Criar:
+
+.env.example
+
+Nunca salvar chaves no código.
+
+Implementar:
+
+rate limit
+CORS seguro
+validação de inputs com Zod
+
+--------------------------------------------------
+
+DEPLOY
+
+Manter suporte a Docker.
+
+Gerar:
+
+Dockerfile
+docker-compose.yml
+deploy.sh
+
+Porta padrão:
+
+5000
+
+--------------------------------------------------
+
+OBJETIVO FINAL
+
+Transformar o ERP VivaFrutaz em:
+
+plataforma SaaS multi-empresa
+com cobrança por assinatura
+gestão de empresas
+painel master
+integração bancária
+IA desenvolvedora capaz de criar módulos e corrigir bugs.

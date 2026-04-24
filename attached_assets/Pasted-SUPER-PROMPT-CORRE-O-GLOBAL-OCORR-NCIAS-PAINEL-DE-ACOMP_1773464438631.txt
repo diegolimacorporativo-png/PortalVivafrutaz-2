@@ -1,0 +1,298 @@
+SUPER PROMPT – CORREÇÃO GLOBAL + OCORRÊNCIAS + PAINEL DE ACOMPANHAMENTO VIVAFRUTAZ
+
+Executar atualização estrutural completa no sistema VivaFrutaz com objetivo de:
+	•	corrigir erro de upload de imagens
+	•	eliminar erro “request entity too large”
+	•	eliminar erro “objeto não encontrado”
+	•	estabilizar renderização do frontend
+	•	criar sistema de acompanhamento de ocorrências para clientes
+
+Todas as correções devem ser aplicadas automaticamente para:
+	•	administradores
+	•	equipe interna
+	•	clientes existentes
+	•	novos clientes criados futuramente
+
+Nenhuma atualização deve funcionar apenas para alguns usuários.
+
+⸻
+
+CORREÇÃO DO ERRO “REQUEST ENTITY TOO LARGE”
+
+Aumentar limite de upload do servidor.
+
+Se o backend utilizar Express configurar:
+
+bodyParser.json({ limit: “25mb” })
+
+bodyParser.urlencoded({
+extended: true,
+limit: “25mb”
+})
+
+Se o sistema utilizar multer configurar:
+
+limite por arquivo: 5MB
+máximo de arquivos por ocorrência: 5
+
+⸻
+
+VALIDAÇÃO DE TAMANHO DE IMAGEM NO FRONTEND
+
+Antes de enviar imagem validar tamanho.
+
+Se arquivo ultrapassar:
+
+5MB
+
+bloquear envio.
+
+Mostrar mensagem:
+
+“Cada imagem deve ter no máximo 5MB.”
+
+⸻
+
+OTIMIZAÇÃO AUTOMÁTICA DE IMAGEM
+
+Antes do upload aplicar compressão automática.
+
+Redimensionar imagens muito grandes.
+
+Limite recomendado:
+
+1600px largura máxima.
+
+⸻
+
+UPLOAD DE MÚLTIPLAS IMAGENS
+
+Permitir até:
+
+5 imagens por ocorrência.
+
+Formatos aceitos:
+
+JPG
+JPEG
+PNG
+
+Mostrar contador:
+
+1/5
+2/5
+3/5
+
+⸻
+
+REMOÇÃO DE IMAGEM
+
+Cada imagem anexada deve exibir:
+
+ícone de lixeira.
+
+Ao clicar na lixeira:
+
+remover imagem da lista
+remover imagem do envio do formulário
+
+⸻
+
+CORREÇÃO DO ENVIO DA OCORRÊNCIA
+
+Garantir envio utilizando:
+
+FormData
+
+Campos enviados:
+
+tipo de ocorrência
+descrição
+telefone
+email
+empresa
+imagens anexadas
+
+Corrigir erro que impede salvar ocorrência no banco.
+
+⸻
+
+IMPLEMENTAR PAINEL DE OCORRÊNCIAS PARA CLIENTE
+
+Criar área onde o cliente possa acompanhar suas ocorrências.
+
+Adicionar nova página no portal do cliente:
+
+“Minhas Ocorrências”
+
+Essa página deve mostrar lista de ocorrências abertas pelo cliente.
+
+Informações exibidas:
+
+número da ocorrência
+data de abertura
+tipo da ocorrência
+status
+última atualização
+
+⸻
+
+STATUS DA OCORRÊNCIA
+
+Cada ocorrência deve ter status:
+
+Aberta
+Em análise
+Respondida
+Resolvida
+
+⸻
+
+VISUALIZAR DETALHES DA OCORRÊNCIA
+
+Ao clicar na ocorrência abrir página de detalhes.
+
+Mostrar:
+
+descrição enviada pelo cliente
+imagens anexadas
+data de abertura
+status atual
+
+⸻
+
+RESPOSTA DOS ADMINISTRADORES
+
+Criar campo interno para administradores responderem ocorrência.
+
+Administradores podem:
+
+enviar mensagem
+anexar imagem
+alterar status da ocorrência
+
+As respostas devem aparecer para o cliente dentro da ocorrência.
+
+⸻
+
+CHAT SIMPLES NA OCORRÊNCIA
+
+Criar área de mensagens dentro da ocorrência.
+
+Fluxo:
+
+cliente abre ocorrência
+administrador responde
+cliente visualiza resposta
+
+Formato tipo histórico de mensagens.
+
+⸻
+
+NOTIFICAÇÃO DE ATUALIZAÇÃO
+
+Quando administrador responder ocorrência:
+
+mostrar aviso no portal do cliente.
+
+Mensagem:
+
+“Sua ocorrência recebeu uma atualização.”
+
+⸻
+
+CORREÇÃO DO ERRO “OBJETO NÃO ENCONTRADO”
+
+Adicionar validação antes de acessar dados da API.
+
+Se objeto não existir:
+
+não quebrar tela.
+
+Mostrar fallback:
+
+“Dados indisponíveis no momento.”
+
+⸻
+
+IMPLEMENTAR LOADING STATE
+
+Enquanto dados não carregarem mostrar:
+
+spinner
+ou skeleton loader
+
+Somente renderizar componente após carregar dados.
+
+⸻
+
+ERROR BOUNDARY GLOBAL
+
+Criar componente:
+
+ErrorBoundaryGlobal
+
+Esse componente deve envolver toda a aplicação.
+
+Se ocorrer erro:
+
+não quebrar tela
+não mostrar erro técnico
+mostrar mensagem amigável
+
+Mensagem exibida:
+
+“Ocorreu um erro inesperado. Tente novamente.”
+
+⸻
+
+DESATIVAR TELA VERMELHA DO VITE
+
+Atualizar arquivo:
+
+vite.config.js
+
+Configuração:
+
+server: {
+hmr: {
+overlay: false
+}
+}
+
+Isso impede que erros técnicos apareçam para usuários.
+
+⸻
+
+REGISTRO DE ERROS
+
+Registrar erros em:
+
+Painel Desenvolvedor → Logs do Sistema
+
+Registrar:
+
+data
+hora
+rota acessada
+usuário
+erro técnico
+
+⸻
+
+TESTE AUTOMÁTICO
+
+Executar testes completos em:
+
+login
+empresas
+produtos
+pedidos
+pedidos pontuais
+ocorrências
+logística
+rotas
+usuários
+portal cliente
+
+Garantir que nenhuma página quebre por erro de objeto.

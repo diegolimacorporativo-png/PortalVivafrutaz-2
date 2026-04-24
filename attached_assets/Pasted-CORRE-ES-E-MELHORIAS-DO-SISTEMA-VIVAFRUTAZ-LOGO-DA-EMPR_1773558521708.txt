@@ -1,0 +1,218 @@
+CORREÇÕES E MELHORIAS DO SISTEMA VIVAFRUTAZ  
+LOGO DA EMPRESA, EXPORTAÇÃO PARA BLING E IA OPERACIONAL INTERATIVA
+
+OBJETIVO
+
+Corrigir problemas existentes e ampliar a funcionalidade da IA operacional
+para que ela seja interativa, inteligente e capaz de executar tarefas dentro do sistema.
+
+Não alterar a estrutura visual atual do sistema,
+apenas corrigir funcionalidades e adicionar inteligência.
+
+--------------------------------------------------
+
+1 CORREÇÃO DA LOGO DA EMPRESA
+
+Atualmente o sistema não permite alterar a imagem da logo da VivaFrutaz.
+
+Implementar corretamente a funcionalidade de upload e alteração da logo.
+
+Requisitos:
+
+Permitir upload da logo da empresa nas configurações do sistema.
+
+Formatos permitidos:
+
+PNG  
+JPG  
+SVG  
+
+Após o upload:
+
+Salvar imagem no servidor
+Atualizar automaticamente o portal de login
+Atualizar o topo do sistema
+Atualizar documentos gerados em PDF
+
+Exemplo:
+
+Portal de login  
+Topo do sistema  
+Pedidos em PDF  
+DANFE  
+Relatórios
+
+Apenas os perfis abaixo podem alterar a logo:
+
+Admin  
+Diretoria  
+Desenvolvedor
+
+--------------------------------------------------
+
+2 CORREÇÃO DE TEXTO NO PAINEL FINANCEIRO
+
+No painel financeiro ainda existe o campo:
+
+"EXPORTAR PARA NIMBI"
+
+Substituir por:
+
+"EXPORTAR PARA BLING"
+
+Regras:
+
+Alterar apenas o texto exibido na interface
+Não alterar lógica do sistema
+Não alterar estrutura do banco de dados
+Não alterar integração existente
+
+Verificar também:
+
+tooltip  
+placeholder  
+descrições relacionadas
+
+--------------------------------------------------
+
+3 MELHORAR IA OPERACIONAL
+
+A IA operacional deve ser interativa e permitir conversas com usuários do sistema.
+
+Exemplo de perguntas que usuários podem fazer:
+
+Como está o movimento hoje?
+Quantos pedidos temos hoje?
+Quais pedidos estão pendentes?
+Quais empresas ainda não fizeram pedido?
+
+A IA deve consultar dados do sistema e responder.
+
+--------------------------------------------------
+
+4 CONSULTA DE INFORMAÇÕES EXTERNAS
+
+A IA pode também responder perguntas gerais.
+
+Exemplo:
+
+Qual a previsão do tempo hoje?
+Como está o clima para entregas?
+
+A IA pode consultar serviços externos de clima
+e responder ao usuário.
+
+--------------------------------------------------
+
+5 EXECUÇÃO DE TAREFAS PELO CHAT DA IA
+
+Usuários internos devem poder pedir ações para a IA executar.
+
+Exemplo:
+
+Adicionar nova empresa
+
+Prompt do usuário:
+
+Adicione uma empresa no sistema
+
+IA solicita as informações necessárias:
+
+Nome da empresa  
+CNPJ  
+Endereço  
+Contato  
+Email  
+
+Após receber os dados,
+criar cadastro automaticamente.
+
+--------------------------------------------------
+
+6 AÇÕES ADMINISTRATIVAS
+
+Usuários internos podem solicitar ações como:
+
+Verificar pedidos pontuais
+Mostrar pedidos pendentes
+Listar empresas inativas
+Analisar erros do sistema
+Verificar status do estoque
+Verificar rotas de entrega
+
+A IA deve consultar o banco de dados
+e retornar as informações.
+
+--------------------------------------------------
+
+7 EXECUÇÃO DE AÇÕES AUTOMÁTICAS
+
+Se solicitado,
+a IA pode executar tarefas administrativas.
+
+Exemplo:
+
+Criar empresa
+Criar pedido
+Buscar pedidos pontuais
+Gerar relatório
+Mostrar alertas do sistema
+
+Sempre pedir confirmação antes de executar ações críticas.
+
+--------------------------------------------------
+
+8 COMPORTAMENTO DIFERENTE POR PERFIL
+
+Cliente
+
+Pode perguntar:
+
+Status do pedido  
+Previsão de entrega  
+Produtos disponíveis  
+
+Usuário interno
+
+Pode:
+
+consultar pedidos  
+consultar empresas  
+ver relatórios  
+
+Admin / Diretoria / Desenvolvedor
+
+Podem:
+
+executar ações no sistema  
+criar cadastros  
+gerar relatórios  
+ver auditoria  
+analisar erros
+
+--------------------------------------------------
+
+9 HISTÓRICO DE INTERAÇÕES
+
+Salvar histórico das interações da IA.
+
+Mostrar:
+
+Usuário  
+Data  
+Pergunta  
+Resposta  
+Ação executada (se houver)
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Sistema com:
+
+Logo VivaFrutaz configurável
+Correção do texto "Exportar para Bling"
+IA operacional interativa
+IA capaz de responder perguntas
+IA capaz de executar tarefas administrativas
+Histórico de interações com a IA

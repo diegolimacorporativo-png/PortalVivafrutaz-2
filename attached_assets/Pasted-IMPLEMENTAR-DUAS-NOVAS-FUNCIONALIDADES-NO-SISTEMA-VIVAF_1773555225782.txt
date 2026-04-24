@@ -1,0 +1,186 @@
+IMPLEMENTAR DUAS NOVAS FUNCIONALIDADES NO SISTEMA VIVAFRUTAZ
+
+--------------------------------------------------
+
+FUNCIONALIDADE 1 — ABA INSTITUCIONAL "QUEM SOMOS NÓS"
+
+Criar uma nova seção institucional no sistema chamada:
+
+Quem Somos Nós
+
+Objetivo:
+Permitir que administradores editem manualmente informações institucionais da empresa que serão exibidas para os usuários do sistema.
+
+Localização sugerida:
+
+Menu:
+Painel
+ou
+Informações da empresa
+ou
+Menu lateral institucional
+
+--------------------------------------------------
+
+PAINEL DE EDIÇÃO (ADMIN / DIRETORIA / DESENVOLVEDOR)
+
+Criar tela editável com os seguintes campos:
+
+Título da seção  
+Texto institucional  
+Ano de fundação  
+Missão da empresa  
+Visão da empresa  
+Valores da empresa  
+
+Campo adicional:
+
+Imagem institucional (logo ou foto)
+
+Permitir upload de imagem.
+
+Botão:
+
+Salvar informações
+
+As informações devem ser armazenadas no banco de dados.
+
+--------------------------------------------------
+
+EXIBIÇÃO PARA USUÁRIOS
+
+Todos os usuários logados no sistema podem visualizar:
+
+Clientes
+Admin
+Diretoria
+Compras
+Logística
+
+A aba deve mostrar:
+
+Título  
+Texto institucional  
+Imagem da empresa  
+Informações institucionais
+
+Exemplo exibido:
+
+Quem Somos Nós
+
+"A VivaFrutaz foi fundada em XXXX com o objetivo de oferecer soluções inteligentes de abastecimento corporativo..."
+
+--------------------------------------------------
+
+FUNCIONALIDADE 2 — CONFIGURAÇÃO SMTP PARA ENVIO AUTOMÁTICO DE E-MAILS
+
+Adicionar dentro do sistema uma área de configuração de envio de e-mails via SMTP.
+
+Localização:
+
+Configurações do sistema
+ou
+Configuração de e-mails
+
+Nome da seção:
+
+Configuração SMTP
+
+--------------------------------------------------
+
+CAMPOS DE CONFIGURAÇÃO SMTP
+
+Criar os seguintes campos editáveis:
+
+Servidor SMTP  
+Porta SMTP  
+Usuário SMTP  
+Senha SMTP  
+Email remetente  
+Nome do remetente
+
+Exemplo:
+
+SMTP Server: smtp.office365.com  
+Porta: 587  
+Usuário: contato@empresa.com  
+Senha: ********  
+Email remetente: pedidos@empresa.com  
+Nome remetente: VivaFrutaz  
+
+--------------------------------------------------
+
+SEGURANÇA
+
+A senha SMTP deve ser armazenada de forma segura.
+
+Não exibir a senha completa na interface após salvar.
+
+Mostrar apenas:
+
+********
+
+--------------------------------------------------
+
+BOTÃO DE TESTE
+
+Criar botão:
+
+Testar envio de e-mail
+
+Ao clicar o sistema envia um e-mail de teste para o administrador.
+
+Mensagem esperada:
+
+"Configuração SMTP funcionando corretamente."
+
+--------------------------------------------------
+
+INTEGRAÇÃO COM SISTEMA DE E-MAILS AUTOMÁTICOS
+
+Conectar o SMTP com os envios automáticos do sistema.
+
+O sistema deve usar essa configuração para enviar:
+
+Lembrete de pedido semanal  
+Confirmação de pedido  
+Pedido recusado com motivo  
+Avisos importantes  
+Comunicados gerais  
+Notificações administrativas  
+
+--------------------------------------------------
+
+AUTOMAÇÃO DE ENVIO
+
+Os e-mails automáticos devem utilizar a configuração SMTP cadastrada.
+
+Exemplo:
+
+Cliente não finalizou pedido na janela aberta  
+Sistema envia lembrete automático.
+
+Pedido confirmado  
+Sistema envia confirmação automática.
+
+--------------------------------------------------
+
+PERMISSÕES
+
+Apenas os perfis abaixo podem editar SMTP:
+
+Admin  
+Diretoria  
+Desenvolvedor
+
+Clientes não podem acessar essa área.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ Sistema possui aba institucional "Quem Somos Nós" editável  
+✔ Administradores podem editar conteúdo institucional  
+✔ Usuários visualizam informações da empresa  
+✔ Sistema possui configuração SMTP interna  
+✔ Sistema envia e-mails automáticos usando SMTP configurado

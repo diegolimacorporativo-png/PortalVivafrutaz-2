@@ -1,0 +1,222 @@
+SISTEMA COMPLETO — LOGÍSTICA + IMPORTAÇÃO + CATEGORIAS + VALIDAÇÕES (VISUAL + FUNCIONAL)
+
+OBJETIVO:
+
+Corrigir falhas atuais e transformar o sistema em um ERP/TMS totalmente funcional, com dados reais, integração automática e interface visual completa.
+
+------------------------------------------------
+
+1. CORREÇÃO IMPORTAÇÃO (URGENTE)
+
+Corrigir sistema de importação que não funciona:
+
+Permitir importar:
+
+XML (nota fiscal)  
+Planilha (Excel/CSV)  
+
+Ao importar:
+
+criar automaticamente produtos  
+criar pedidos  
+criar clientes (se não existir)  
+
+Evitar duplicação:
+
+validar por ID / nome / CNPJ  
+
+Mostrar preview antes de importar  
+
+Botão:
+
+IMPORTAR DADOS  
+
+Status:
+
+importando...  
+concluído  
+erro detalhado  
+
+------------------------------------------------
+
+2. PAINEL DO MOTORISTA (CORRIGIR VAZIO)
+
+Hoje está “Sem entregas hoje”
+
+Corrigir para:
+
+buscar pedidos com data atual  
+
+Mostrar:
+
+total  
+pendentes  
+entregues  
+
+Listar entregas do dia automaticamente  
+
+------------------------------------------------
+
+3. LOGÍSTICA COM ROTA REAL
+
+Ao ter pedidos:
+
+gerar rota automaticamente  
+
+Usar:
+
+CEP → endereço → latitude/longitude  
+
+Corrigir erro de distância  
+
+Mostrar:
+
+sequência da rota (1,2,3...)  
+KM total  
+tempo estimado  
+
+Botão:
+
+INICIAR ROTA  
+
+------------------------------------------------
+
+4. MAPA GPS (VISUAL)
+
+Aba "Mapa GPS" deve:
+
+mostrar mapa real  
+pontos das entregas  
+linha da rota  
+
+Estilo:
+
+tipo Uber / iFood  
+
+------------------------------------------------
+
+5. CATEGORIAS DINÂMICAS (INTEGRADO)
+
+Permitir:
+
+criar  
+editar  
+excluir categorias  
+
+Refletir automaticamente em:
+
+produtos  
+pedidos  
+cotações  
+preços  
+
+No produto:
+
+selecionar categorias (checkbox)  
+
+Ao selecionar:
+
+liberar preço por categoria  
+
+------------------------------------------------
+
+6. TRAVA DE SEGURANÇA (IMPORTANTE)
+
+Não permitir:
+
+produto duplicado  
+ID duplicado  
+
+Validação:
+
+ID único obrigatório  
+
+Exemplo:
+
+BANANA NANICA não pode duplicar  
+
+Mostrar erro claro ao usuário  
+
+------------------------------------------------
+
+7. PREÇO POR CLIENTE
+
+Aplicar automaticamente:
+
+taxa administrativa (GRSA, Sodexo)
+
+Atualizar em:
+
+pedido  
+tabela  
+nota fiscal  
+
+------------------------------------------------
+
+8. USUÁRIOS + PERMISSÕES
+
+Criar aba:
+
+USUÁRIOS  
+
+Permitir:
+
+admin  
+financeiro  
+motorista  
+vigilância sanitária  
+
+Controle de acesso por tela  
+
+------------------------------------------------
+
+9. RELATÓRIOS (CORRIGIR)
+
+Gerar:
+
+entregas do dia  
+rotas  
+KM  
+tempo  
+
+Botão:
+
+IMPRIMIR  
+
+------------------------------------------------
+
+10. INTERFACE (OBRIGATÓRIO)
+
+Tudo deve ter interface visual:
+
+listas  
+cards  
+botões  
+feedback de erro  
+feedback de sucesso  
+
+Nada pode ficar só no backend  
+
+------------------------------------------------
+
+11. TESTE REAL AUTOMÁTICO
+
+Sistema deve permitir:
+
+importar planilha  
+
+Gerar automaticamente:
+
+produtos  
+clientes  
+pedidos  
+
+Criar rota  
+
+Exibir no painel do motorista  
+
+------------------------------------------------
+
+REGRA FINAL:
+
+Sistema deve funcionar com dados reais, sem telas vazias, com automação completa entre importação, pedidos, logística e painel do motorista

@@ -1,0 +1,188 @@
+Crie um módulo completo de gestão financeira e fiscal para um ERP SaaS desenvolvido em Node.js com Express e banco PostgreSQL.
+
+O sistema já possui:
+- empresas
+- clientes
+- produtos
+- pedidos
+- dashboard administrativo
+
+Agora implemente um sistema completo com os seguintes módulos:
+
+1. CONTAS A RECEBER
+Criar estrutura para gerar automaticamente contas a receber quando um pedido for aprovado.
+
+Campos:
+- id
+- company_id
+- customer_id
+- order_id
+- valor
+- data_emissao
+- data_vencimento
+- status (pendente, pago, vencido, cancelado)
+- forma_pagamento (pix, boleto, transferencia)
+- codigo_pix
+- linha_digitavel
+
+Endpoints:
+POST /finance/accounts-receivable
+GET /finance/accounts-receivable
+PATCH /finance/accounts-receivable/:id/pay
+
+2. CONTAS A PAGAR
+Permitir registrar despesas e fornecedores.
+
+Campos:
+- id
+- fornecedor
+- descricao
+- valor
+- data_vencimento
+- status
+- categoria
+
+Endpoints:
+POST /finance/accounts-payable
+GET /finance/accounts-payable
+PATCH /finance/accounts-payable/:id/pay
+
+3. FLUXO DE CAIXA
+Criar sistema de movimentação financeira com entradas e saídas.
+
+Tabela:
+financial_transactions
+
+Campos:
+- id
+- company_id
+- tipo (entrada ou saida)
+- valor
+- descricao
+- data
+- referencia_id
+
+Criar endpoint:
+GET /finance/cashflow
+
+4. PIX AUTOMÁTICO
+Implementar geração automática de cobrança PIX ao criar uma conta a receber.
+
+Funções necessárias:
+- gerar código PIX padrão BR Code
+- gerar QR Code
+- gerar campo copia e cola
+
+Usar biblioteca qrcode para gerar imagem.
+
+Campos adicionais:
+pix_payload
+pix_qrcode
+
+Criar endpoint:
+GET /finance/pix/:id
+
+5. CONCILIAÇÃO DE PAGAMENTOS
+Criar mecanismo para marcar contas como pagas e registrar transação financeira.
+
+Fluxo:
+pedido criado
+→ gera conta a receber
+→ cliente paga via PIX
+→ sistema marca conta como paga
+→ registra entrada no fluxo de caixa
+
+6. EMISSÃO DE NOTA FISCAL ELETRÔNICA (NFe)
+
+Implementar módulo de NFe com:
+
+- geração de XML no layout oficial da SEFAZ
+- assinatura digital usando certificado A1
+- envio para WebService da SEFAZ
+- armazenamento do XML autorizado
+- tratamento de rejeições
+
+Tabelas:
+nfe
+nfe_items
+nfe_events
+
+Campos principais:
+- chave_acesso
+- protocolo_autorizacao
+- status
+- xml_enviado
+- xml_autorizado
+
+Endpoints:
+POST /nfe/emitir
+GET /nfe/:id
+GET /nfe/:id/xml
+
+7. CANCELAMENTO DE NFE
+
+Endpoint:
+POST /nfe/:id/cancelar
+
+Enviar evento de cancelamento para SEFAZ.
+
+8. DANFE
+
+Gerar PDF da nota fiscal (DANFE) com:
+
+- dados da empresa
+- dados do cliente
+- produtos
+- impostos
+- QR code da nota
+
+9. DASHBOARD FINANCEIRO
+
+Criar métricas:
+
+- faturamento do mês
+- contas a receber
+- contas a pagar
+- fluxo de caixa
+- lucro líquido
+
+Endpoints:
+
+GET /dashboard/finance
+
+10. ESTRUTURA DE PASTAS
+
+/backend
+/modules
+  /finance
+  /nfe
+  /pix
+  /payments
+/services
+/controllers
+/routes
+
+11. SEGURANÇA
+
+- autenticação JWT
+- isolamento por company_id
+- validação de dados
+
+12. EXPORTAÇÃO
+
+Permitir exportar relatórios financeiros em:
+
+- CSV
+- Excel
+- PDF
+
+Retorne:
+
+- estrutura completa do banco de dados
+- exemplos de queries SQL
+- código Node.js
+- exemplo de geração de PIX
+- exemplo de XML de NFe
+- exemplo de envio para SEFAZ
+- exemplo de DANFE
+- exemplo de fluxo financeiro completo

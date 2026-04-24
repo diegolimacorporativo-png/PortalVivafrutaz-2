@@ -1,0 +1,122 @@
+IMPLEMENTAÇÃO DE BUSCA AUTOMÁTICA DE ENDEREÇO E COORDENADAS
+
+Objetivo:
+
+Melhorar o cadastro de endereço das empresas
+utilizando CEP para preencher endereço automaticamente
+e gerar latitude e longitude sem usar Google Maps.
+
+Sistema deve utilizar APIs gratuitas.
+
+--------------------------------------------------
+
+ETAPA 1 — BUSCA DE ENDEREÇO PELO CEP
+
+Quando o usuário digitar o CEP
+o sistema deve consultar a API:
+
+https://viacep.com.br/ws/CEP/json/
+
+Exemplo:
+
+https://viacep.com.br/ws/04469000/json/
+
+--------------------------------------------------
+
+RETORNO DA API
+
+logradouro
+bairro
+localidade
+uf
+
+--------------------------------------------------
+
+PREENCHIMENTO AUTOMÁTICO
+
+Após o CEP ser digitado o sistema deve preencher:
+
+Rua / Logradouro
+Bairro
+Cidade
+Estado
+
+Esses campos ficam bloqueados para evitar erro manual.
+
+--------------------------------------------------
+
+ETAPA 2 — USUÁRIO DIGITA APENAS
+
+Número do endereço.
+
+Exemplo:
+
+417
+
+--------------------------------------------------
+
+ETAPA 3 — GERAR COORDENADAS GPS
+
+Após o número ser preenchido
+o sistema monta o endereço completo:
+
+logradouro + número + cidade + estado + Brasil
+
+Exemplo:
+
+Rua João de Araújo 417
+São Paulo SP
+Brasil
+
+--------------------------------------------------
+
+ETAPA 4 — CONSULTAR NOMINATIM (OPENSTREETMAP)
+
+API:
+
+https://nominatim.openstreetmap.org/search
+
+Requisição:
+
+/search?q=enderecoCompleto&format=json&limit=1
+
+--------------------------------------------------
+
+RETORNO
+
+lat
+lon
+
+--------------------------------------------------
+
+AUTOPREENCHIMENTO
+
+Preencher automaticamente:
+
+Latitude
+Longitude
+
+Esses dados serão utilizados no sistema logístico.
+
+--------------------------------------------------
+
+VALIDAÇÃO
+
+Se não encontrar endereço:
+
+mostrar aviso:
+
+"Não foi possível localizar as coordenadas automaticamente.
+Verifique o número ou ajuste o CEP."
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ usuário digita apenas o CEP
+✔ rua e bairro preenchidos automaticamente
+✔ usuário informa apenas o número
+✔ latitude e longitude geradas automaticamente
+✔ cadastro de empresa mais rápido
+✔ sistema preparado para rotas logísticas
+✔ 100% gratuito

@@ -1,0 +1,147 @@
+import { v4 as uuidv4 } from 'uuid';
+import type { NFeInput } from './nfeValidator';
+
+// UF → cUF IBGE codes
+const UF_IBGE: Record<string, string> = {
+  AC: '12', AL: '27', AM: '13', AP: '16', BA: '29', CE: '23', DF: '53',
+  ES: '32', GO: '52', MA: '21', MG: '31', MS: '50', MT: '51', PA: '15',
+  PB: '25', PE: '26', PI: '22', PR: '41', RJ: '33', RN: '24', RO: '11',
+  RR: '14', RS: '43', SC: '42', SE: '28', SP: '35', TO: '17',
+};
+
+// City → IBGE municipality code (common cities)
+const CIDADE_IBGE: Record<string, string> = {
+  'SAO PAULO': '3550308', 'SÃO PAULO': '3550308',
+  'CAMPINAS': '3509502', 'SANTOS': '3548100', 'SOROCABA': '3552205',
+  'GUARULHOS': '3518800', 'OSASCO': '3534401', 'RIBEIRAO PRETO': '3543402',
+  'RIBEIRÃO PRETO': '3543402', 'SAO BERNARDO DO CAMPO': '3548708',
+  'RIO DE JANEIRO': '3304557', 'BELO HORIZONTE': '3106200',
+  'SALVADOR': '2927408', 'FORTALEZA': '2304400', 'CURITIBA': '4106902',
+  'MANAUS': '1302603', 'RECIFE': '2611606', 'PORTO ALEGRE': '4314902',
+  'BELEM': '1501402', 'GOIANIA': '5208707', 'BRASILIA': '5300108',
+  'FLORIANOPOLIS': '4205407', 'JOINVILLE': '4209102',
+};
+
+function getMunCode(xMun: string, uf: string): string {
+  const key = xMun.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return CIDADE_IBGE[xMun.toUpperCase()] || CIDADE_IBGE[key] || `${UF_IBGE[uf] || '35'}99999`;
+}
+
+function pad(n: number | string, length: number, char = '0'): string {
+  return String(n).padStart(length, char);
+}
+
+function calcCDV(chave43: string): string {
+  const digits = chave43.replace(/\D/g, '');
+  let weights = [2, 3, 4, 5, 6, 7, 8, 9];
+  let sum = 0;
+  let wi = 0;
+  for (let i = digits.length - 1; i >= 0; i--) {
+    sum += parseInt(digits[i]) * weights[wi % 8];
+    wi++;
+  }
+  const rem = sum % 11;
+  return rem < 2 ? '0' : String(11 - rem);
+}
+
+function gerarChaveNFe(params: {
+  cUF: string; aamm: string; cnpj: string; mod: string;
+  serie: string; nNF: string; tpEmis: string; cNF: string;
+}): string {
+  const base43 = `${params.cUF}${params.aamm}${params.cnpj}${params.mod}${params.serie}${params.nNF}${params.tpEmis}${params.cNF}`;
+  return base43 + calcCDV(base43);
+}
+
+function fmtValor(v: number, dec = 2): string {
+  return v.toFixed(dec);
+}
+
+function sanitizeXml(s: string): string {
+  return String(s || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;')
+    .slice(0, 160);
+}
+
+export interface NFeGerada {
+  chaveNFe: string;
+  numero: string;
+  serie: string;
+  xmlGerado: string;
+  dataEmissao: string;
+}
+
+export async function gerarNFeXML(
+  input: NFeInput,
+  numero: number
+): Promise<NFeGerada> {
+  const now = new Date();
+  const tzOffset = '-03:00';
+  const pad2 = (n: number) => pad(n, 2);
+  const dhEmi = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}${tzOffset}`;
+  const aamm = `${String(now.getFullYear()).slice(2)}${pad2(now.getMonth() + 1)}`;
+
+  const serie = input.serie || '001';
+  const tpAmb = input.tpAmb || '2'; // 2=homologação por padrão
+  const crt = input.emitente.crt || '1';
+  const uf = input.emitente.uf.toUpperCase();
+  const cUF = UF_IBGE[uf] || '35';
+  const cnpjEmit = input.emitente.cnpj.replace(/\D/g, '');
+  const nNF = pad(numero, 9);
+  const cNF = pad(String(Math.floor(Math.random() * 99999999)), 8);
+
+  const chaveNFe = gerarChaveNFe({ cUF, aamm, cnpj: cnpjEmit, mod: '55', serie, nNF, tpEmis: '1', cNF });
+
+  const cMunEmit = input.emitente.cMun || getMunCode(input.emitente.xMun, uf);
+  const ufDest = input.destinatario.uf.toUpperCase();
+  const cMunDest = input.destinatario.cMun || getMunCode(input.destinatario.xMun, ufDest);
+
+  // Calcular totais
+  const vProd = input.produtos.reduce((s, p) => s + p.vProd, 0);
+  const vFrete = input.valorFrete || 0;
+  const vSeg = input.valorSeguro || 0;
+  const vDesc = input.valorDesconto || 0;
+  const vNF = vProd + vFrete + vSeg - vDesc;
+
+  // Gerar itens
+  const itenXml = input.produtos.map((p, idx) => {
+    const ncm = p.ncm.replace(/\D/g, '').slice(0, 8).padEnd(8, '0');
+    const icmsXml = crt === '1' || crt === '2'
+      ? `<ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>`
+      : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${fmtValor(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
+
+    return `<det nItem="${idx + 1}"><prod><cProd>${sanitizeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${sanitizeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${sanitizeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${fmtValor(p.vProd)}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${sanitizeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
+  }).join('');
+
+  const cnpjDest = input.destinatario.cnpj?.replace(/\D/g, '') || '';
+  const cpfDest = input.destinatario.cpf?.replace(/\D/g, '') || '';
+  const docDestXml = cnpjDest
+    ? `<CNPJ>${cnpjDest}</CNPJ>`
+    : `<CPF>${cpfDest.padStart(11, '0')}</CPF>`;
+
+  const idDestOp = uf === ufDest ? '1' : '2'; // 1=operação interna 2=interestadual
+
+  const natOp = sanitizeXml(input.natOp || 'Venda de mercadoria adquirida');
+  const xNomeEmit = sanitizeXml(input.emitente.xNome);
+  const xFantEmit = sanitizeXml(input.emitente.xFant || input.emitente.xNome);
+  const xNomeDest = sanitizeXml(input.destinatario.xNome);
+  const ieDest = input.destinatario.ie ? `<IE>${sanitizeXml(input.destinatario.ie)}</IE>` : '<indIEDest>9</indIEDest>';
+  const emailDest = input.destinatario.email ? `<email>${sanitizeXml(input.destinatario.email)}</email>` : '';
+
+  const infAdic = input.informacoesAdicionais
+    ? `<infAdic><infCpl>${sanitizeXml(input.informacoesAdicionais)}</infCpl></infAdic>`
+    : '';
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${serie}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${sanitizeXml(input.emitente.logradouro)}</xLgr><nro>${sanitizeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${sanitizeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${sanitizeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${sanitizeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${sanitizeXml(input.destinatario.logradouro)}</xLgr><nro>${sanitizeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${sanitizeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${sanitizeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${fmtValor(vProd)}</vProd><vFrete>${fmtValor(vFrete)}</vFrete><vSeg>${fmtValor(vSeg)}</vSeg><vDesc>${fmtValor(vDesc)}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${fmtValor(vNF)}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${fmtValor(vNF)}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
+
+  return {
+    chaveNFe,
+    numero: String(numero),
+    serie,
+    xmlGerado: xml,
+    dataEmissao: dhEmi,
+  };
+}

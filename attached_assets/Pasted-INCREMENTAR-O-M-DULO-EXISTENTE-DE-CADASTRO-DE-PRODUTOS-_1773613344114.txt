@@ -1,0 +1,139 @@
+INCREMENTAR O MÓDULO EXISTENTE DE CADASTRO DE PRODUTOS.
+
+IMPORTANTE:
+Não remover nenhum campo existente.
+Não alterar funcionamento atual do cadastro de produtos.
+Apenas adicionar novos recursos complementares.
+
+--------------------------------------------------
+
+1) CAMPO DE ID DO PRODUTO
+
+Adicionar no cadastro de produto um campo chamado:
+
+ID do Produto
+
+Esse ID servirá para identificar o produto base (exemplo: fruta).
+
+Regras:
+
+• pode ser preenchido manualmente
+• ou gerado automaticamente pelo sistema
+• deve ser único no sistema
+• deve ser editável por administradores
+
+Exemplo:
+
+001 – Banana  
+002 – Manga  
+003 – Maçã
+
+Esse ID permitirá que o sistema entenda que produtos derivados pertencem ao mesmo produto base.
+
+--------------------------------------------------
+
+2) CAMPO "DISPONIBILIDADE DE CATEGORIAS"
+
+Adicionar um novo campo chamado:
+
+Disponibilidade de categorias
+
+Com duas opções:
+
+( ) Disponível em todas as categorias
+
+( ) Definir categorias específicas
+
+--------------------------------------------------
+
+3) SELEÇÃO DE CATEGORIAS
+
+Se o usuário escolher:
+
+"Definir categorias específicas"
+
+O sistema deve abrir uma lista com as categorias já cadastradas no sistema.
+
+Exemplo:
+
+☑ Pote BIO  
+☑ Pouch  
+☐ In natura higienizada  
+☐ In natura não higienizada  
+☐ Mix
+
+O produto só poderá ser usado nas categorias selecionadas.
+
+Se o usuário escolher:
+
+"Disponível em todas as categorias"
+
+O produto poderá ser usado em qualquer categoria existente ou futura.
+
+--------------------------------------------------
+
+4) RELAÇÃO COM PRODUTOS DERIVADOS
+
+O sistema deve usar o ID do produto para entender que diferentes itens pertencem ao mesmo produto base.
+
+Exemplo:
+
+ID 002 → Manga
+
+Itens possíveis no sistema:
+
+Manga – Pote BIO  
+Manga – Pouch  
+Manga – In natura  
+Manga – Higienizada
+
+Todos pertencem ao mesmo produto base.
+
+--------------------------------------------------
+
+5) INTEGRAÇÃO COM CONTROLE DE CUSTO
+
+Quando uma nota fiscal de compra for lançada com um produto base (exemplo: Manga):
+
+O sistema deve identificar o ID correspondente e verificar todos os produtos derivados que usam esse mesmo ID.
+
+Isso permitirá:
+
+• análise de custo médio  
+• alertas de aumento de preço  
+• impacto em diferentes categorias
+
+--------------------------------------------------
+
+6) ALERTA DE VARIAÇÃO DE PREÇO
+
+Se o sistema detectar uma variação significativa de preço (exemplo: +20%):
+
+Mostrar alerta administrativo:
+
+"Foi detectado aumento no custo do produto Manga (+22%). Deseja revisar a tabela de preços?"
+
+Mostrar também quais produtos derivados podem ser impactados.
+
+--------------------------------------------------
+
+7) COMPATIBILIDADE COM SISTEMA ATUAL
+
+Garantir que:
+
+• produtos existentes continuem funcionando
+• pedidos antigos não sejam alterados
+• categorias existentes permaneçam iguais
+• nenhuma funcionalidade atual seja removida
+
+--------------------------------------------------
+
+8) TESTES
+
+Testar:
+
+• cadastro de novo produto com ID
+• uso da opção "todas categorias"
+• uso da opção "categorias específicas"
+• funcionamento normal do sistema atual
+• integração com notas fiscais de compra

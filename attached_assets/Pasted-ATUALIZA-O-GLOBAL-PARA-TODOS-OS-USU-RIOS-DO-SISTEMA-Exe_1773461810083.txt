@@ -1,0 +1,180 @@
+ATUALIZAÇÃO GLOBAL PARA TODOS OS USUÁRIOS DO SISTEMA
+
+Executar atualização global no sistema VivaFrutaz para garantir que todas as correções, permissões e melhorias sejam aplicadas para todos os usuários do sistema.
+
+A atualização deve incluir:
+	•	usuários já cadastrados
+	•	novos usuários
+	•	clientes já cadastrados
+	•	novos clientes
+
+Nenhuma correção deve ser aplicada apenas para novos registros.
+
+⸻
+
+ATUALIZAÇÃO DE PERMISSÕES EXISTENTES
+
+Executar script de atualização no banco de dados para revisar todos os usuários existentes.
+
+Atualizar automaticamente:
+	•	permissões
+	•	perfis de acesso
+	•	menus disponíveis
+	•	rotas permitidas
+	•	acesso às abas
+
+Garantir que todos os usuários tenham acesso correto conforme seu perfil.
+
+Perfis existentes que devem ser atualizados:
+
+Administrador
+Desenvolvedor
+Diretor
+Gerente de Operações
+Financeiro
+Logística
+Cliente
+
+⸻
+
+REPROCESSAMENTO DE CONFIGURAÇÕES DO SISTEMA
+
+Executar reprocessamento completo das configurações para evitar inconsistências entre usuários antigos e novos.
+
+Revisar e atualizar:
+	•	permissões de acesso
+	•	carregamento de menus
+	•	rotas internas
+	•	validações de API
+	•	configuração de tarefas
+	•	sistema de ocorrências
+	•	sistema de pedidos
+	•	sistema de logística
+	•	sistema de empresas
+
+⸻
+
+CORREÇÃO GLOBAL DE ERROS DE OBJETO
+
+Executar varredura em todo sistema para detectar:
+
+undefined
+null
+objeto não encontrado
+
+Implementar validação antes de renderizar qualquer informação.
+
+Se objeto não existir:
+
+não quebrar a página
+mostrar mensagem amigável.
+
+⸻
+
+PADRONIZAÇÃO DE NOMES DO SISTEMA
+
+Garantir padronização completa entre:
+
+OS (nome antigo)
+TAREFAS (nome atual)
+
+Substituir completamente:
+
+OS → TAREFAS
+
+Atualizar:
+	•	rotas
+	•	banco de dados
+	•	APIs
+	•	componentes
+	•	permissões
+
+Garantir funcionamento completo da aba Tarefas.
+
+⸻
+
+CORREÇÃO GLOBAL DO LOGIN
+
+Remover exibição de erros técnicos no login.
+
+Usuários nunca devem visualizar:
+	•	páginas de erro do Vite
+	•	código HTML
+	•	mensagens técnicas
+
+Mostrar apenas:
+
+Usuário ou senha incorretos.
+
+Registrar erro apenas no log interno.
+
+⸻
+
+SINCRONIZAÇÃO DE PERMISSÕES
+
+Executar sincronização automática entre:
+
+banco de dados
+sistema de permissões
+menus do sistema
+
+Garantir que todos usuários carreguem corretamente todas as abas permitidas.
+
+⸻
+
+APLICAR CORREÇÕES EM TODOS OS USUÁRIOS
+
+Executar atualização completa em:
+
+✔ todos usuários antigos
+✔ novos usuários
+✔ todos clientes antigos
+✔ novos clientes
+
+Garantir que todos recebam:
+	•	correções de login
+	•	correções de tarefas
+	•	correções de ocorrências
+	•	correções de pedidos
+	•	correções de permissões
+	•	correções de interface
+	•	correções de carregamento de dados
+
+⸻
+
+TESTE GLOBAL AUTOMÁTICO
+
+Após aplicar todas as atualizações executar testes automáticos nas principais funções:
+
+login
+empresas
+pedidos
+ocorrências
+tarefas
+logística
+usuários
+relatórios
+
+Garantir que nenhuma página apresente erro:
+
+objeto não encontrado
+
+ou
+
+erro interno do sistema.
+
+⸻
+
+RESULTADO FINAL ESPERADO
+
+Após a atualização global:
+
+✔ todos os usuários possuem permissões corretas
+✔ todas as abas carregam corretamente
+✔ sistema de tarefas funciona para todos
+✔ login mostra apenas erro amigável
+✔ ocorrências funcionam para clientes
+✔ pedidos funcionam corretamente
+✔ logística funciona corretamente
+✔ sistema sem erro de objeto inexistente
+✔ correções aplicadas para todos os usuários do sistema.

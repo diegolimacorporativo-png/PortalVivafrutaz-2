@@ -1,0 +1,239 @@
+EXECUTAR AUDITORIA TÉCNICA COMPLETA NO SISTEMA E IMPLEMENTAR CONTROLE AVANÇADO DA IA FLORA.
+
+OBJETIVO:
+Garantir estabilidade do sistema, verificar últimas implementações e criar ferramentas administrativas para controle da IA e análise de uso.
+
+IMPORTANTE:
+Não remover funcionalidades existentes.
+Não alterar banco de dados sem migração segura.
+Não quebrar funcionamento atual do sistema.
+Todas as alterações devem manter compatibilidade com o sistema existente.
+
+--------------------------------------------------
+
+1) AUDITORIA TÉCNICA COMPLETA DO SISTEMA
+
+Executar auditoria profunda em todo o projeto.
+
+Verificar:
+
+• rotas duplicadas
+• endpoints não utilizados
+• funções antigas ainda carregadas
+• inconsistência entre frontend e backend
+• serviços duplicados rodando
+• componentes que foram substituídos mas continuam ativos
+
+Também verificar:
+
+• build atual corresponde ao código mais recente
+• cache do sistema impedindo atualização
+• inconsistência entre ambiente de teste e produção
+
+Gerar relatório administrativo contendo:
+
+FUNCIONALIDADES FUNCIONANDO
+FUNCIONALIDADES PARCIAIS
+FUNCIONALIDADES COM ERRO
+ROTAS DUPLICADAS
+COMPONENTES OBSOLETOS
+
+--------------------------------------------------
+
+2) AUDITORIA DAS ÚLTIMAS FUNCIONALIDADES IMPLEMENTADAS
+
+Verificar funcionamento real das funcionalidades recentes:
+
+• escopo contratual
+• visualização de escopo pelo cliente
+• bloqueio de pedidos para clientes contratuais
+• geração automática de pedidos por escopo
+• integração com compras
+• planejamento de compras
+• gestão de notas fiscais
+• exportação para Bling
+• cálculo automático de custo médio
+• cadastro de produtos com ID
+• sistema de categorias de produtos
+• sistema de contratos com vigência
+• alerta de reajuste IPCA
+• modo treinamento do sistema
+
+Verificar se:
+
+• estão funcionando no ambiente real
+• persistem corretamente no banco de dados
+• estão integradas com pedidos, compras e financeiro
+
+--------------------------------------------------
+
+3) AUDITORIA DE INTEGRAÇÃO ENTRE MÓDULOS
+
+Validar fluxo completo entre módulos do sistema:
+
+ESCOPOS CONTRATUAIS
+↓
+GERAÇÃO DE PEDIDOS
+↓
+PLANEJAMENTO DE COMPRAS
+↓
+INVENTÁRIO
+↓
+NOTAS FISCAIS
+↓
+FINANCEIRO
+
+Caso existam falhas nesse fluxo, registrar no relatório.
+
+--------------------------------------------------
+
+4) CONTROLE DE PESQUISA DA IA FLORA
+
+Criar sistema de controle para a IA Flora.
+
+Adicionar configuração administrativa:
+
+"MODO IA INTELIGENTE"
+
+Quando ativado:
+a IA pode buscar informações externas na internet.
+
+Quando desativado:
+a IA deve responder apenas com base nas informações internas do sistema.
+
+Adicionar botão administrativo:
+
+"Desativar pesquisa externa da IA"
+
+Nesse modo a IA funciona apenas com:
+
+• dados do sistema
+• base de conhecimento interna
+• escopo do cliente
+• informações cadastradas no ERP
+
+--------------------------------------------------
+
+5) HISTÓRICO COMPLETO DE CONVERSAS DA IA
+
+Criar sistema de registro de conversas da IA.
+
+Cada interação deve registrar:
+
+data e hora
+usuário que fez a pergunta
+empresa do usuário
+pergunta realizada
+resposta da IA
+se utilizou pesquisa externa ou interna
+
+Salvar essas informações em tabela de auditoria.
+
+--------------------------------------------------
+
+6) PAINEL ADMINISTRATIVO DE AUDITORIA DA IA
+
+Criar nova área administrativa:
+
+"Auditoria da IA Flora"
+
+Apenas usuários com cargo:
+
+Administrador
+Desenvolvedor
+Diretoria
+
+devem ter acesso.
+
+Nesse painel permitir:
+
+visualizar histórico de perguntas
+filtrar por usuário
+filtrar por empresa
+filtrar por data
+filtrar por tipo de resposta
+
+Também permitir identificar:
+
+perguntas sem resposta
+erros da IA
+pesquisas externas realizadas
+
+--------------------------------------------------
+
+7) FILTRO DE SEGURANÇA PARA PESQUISAS
+
+Caso pesquisa externa esteja ativada, aplicar filtros automáticos.
+
+Bloquear pesquisas relacionadas a:
+
+pornografia
+conteúdo adulto
+violência
+drogas
+conteúdo ilegal
+apostas
+conteúdo ofensivo
+assuntos fora do contexto empresarial
+
+Bloquear também pesquisas sobre concorrentes.
+
+Caso pesquisa seja bloqueada:
+
+a IA deve responder:
+
+"Essa pesquisa não está disponível nas políticas da plataforma."
+
+--------------------------------------------------
+
+8) PROTEÇÃO DE DADOS DO SISTEMA
+
+Garantir que nenhuma informação sensível seja enviada para pesquisas externas.
+
+Nunca permitir envio de:
+
+dados de clientes
+pedidos
+contratos
+notas fiscais
+CNPJ
+emails internos
+dados financeiros
+
+Esses dados devem permanecer apenas dentro do sistema.
+
+--------------------------------------------------
+
+9) LOGS DE ERRO DA IA
+
+Registrar automaticamente:
+
+erros da IA
+falhas de resposta
+problemas de integração
+
+Esses logs devem aparecer no painel de auditoria administrativa.
+
+--------------------------------------------------
+
+10) TESTES AUTOMÁTICOS
+
+Executar testes finais verificando:
+
+funcionamento do controle de IA
+registro do histórico de conversas
+funcionamento do painel de auditoria
+integração da IA com sistema
+segurança de dados
+funcionamento das funcionalidades auditadas
+
+--------------------------------------------------
+
+11) RELATÓRIO FINAL
+
+Gerar relatório administrativo contendo:
+
+resultado da auditoria
+problemas encontrados
+correções aplicadas
+recomendações técnicas para estabilidade do sistema

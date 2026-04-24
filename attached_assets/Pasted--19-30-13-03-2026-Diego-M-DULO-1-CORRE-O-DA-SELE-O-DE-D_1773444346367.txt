@@ -1,0 +1,734 @@
+[19:30, 13/03/2026] Diego: MÓDULO 1 — CORREÇÃO DA SELEÇÃO DE DIA DO PEDIDO
+
+Na área do cliente → Novo Pedido
+
+Atualmente existem abas de dias:
+
+Segunda-feira
+Quarta-feira
+Sexta-feira
+
+Problema atual:
+
+O cliente pode selecionar produtos na aba de segunda e depois mudar para quarta, misturando pedidos e causando erro.
+
+Correção necessária:
+
+Quando o cliente selecionar um dia para iniciar o pedido:
+	•	Bloquear acesso às outras abas de dias.
+	•	Mostrar aviso se tentar mudar de dia.
+
+Mensagem:
+
+“Você já iniciou um pedido para este dia. Para mudar o dia de entrega, é necessário cancelar o pedido atual.”
+
+Criar botão:
+
+Cancelar pedido atual
+
+Somente após cancelar o pedido o cliente poderá selecionar outro dia.
+
+Cada pedido deve estar vinculado a apenas um dia de entrega.
+
+⸻
+
+MÓDULO 2 — CORREÇÃO DATA DE ENTREGA
+
+Na tela de novo pedido aparece:
+
+Pedido de segunda-feira
+Entrega na terça-feira
+
+Isso está incorreto.
+
+Correção:
+
+Pedidos feitos na aba segunda-feira devem mostrar:
+
+Entrega: Segunda-feira
+
+Remover completamente a lógica que adiciona +1 dia na entrega.
+
+⸻
+
+MÓDULO 3 — PEDIDO PONTUAL DO CLIENTE
+
+Criar nova aba no painel do cliente:
+
+Solicitar Pedido Pontual
+
+Fluxo:
+
+Cliente descreve pedido especial fora da rotina.
+
+Campos:
+
+Dia desejado (segunda a sexta)
+Descrição do pedido
+Quantidade aproximada
+Observações
+
+Botão:
+
+Enviar solicitação
+
+Status visível ao cliente:
+
+Aguardando aprovação
+Aprovado
+Recusado
+
+⸻
+
+MÓDULO 4 — APROVAÇÃO DO PEDIDO PONTUAL (ADMIN)
+
+No painel administrativo criar aba:
+
+Pedidos Pontuais
+
+Tabela com:
+
+Cliente
+Dia solicitado
+Descrição
+Data da solicitação
+Status
+
+Administrador pode:
+
+Aprovar pedido
+Recusar pedido
+
+Quando aprovado, o pedido entra no sistema normalmente.
+
+⸻
+
+MÓDULO 5 — LIMPEZA AUTOMÁTICA DE HISTÓRICO
+
+O histórico de pedidos deve permanecer no sistema por 2 meses apenas.
+
+Criar sistema automático que verifica pedidos antigos.
+
+7 dias antes da exclusão mostrar aviso ao administrador.
+
+Mensagem:
+
+“Existem pedidos com mais de 2 meses. Deseja manter ou liberar a limpeza automática?”
+
+Opções:
+
+Manter histórico
+Excluir histórico
+
+Se aprovado, o sistema remove automaticamente pedidos antigos.
+
+⸻
+
+MÓDULO 6 — REMOVER NUMERAÇÃO DE SEMANA ANUAL
+
+Atualmente o sistema mostra:
+
+Semana 11 do ano
+
+Remover essa lógica completamente.
+
+Mostrar apenas:
+
+Semana selecionada pelo administrador nas janelas de pedidos.
+
+⸻
+
+MÓDULO 7 — COMPLETAR CADASTRO DE EMPRESAS
+
+No cadastro de empresas adicionar campos:
+
+CNPJ
+Endereço completo
+
+Endereço deve incluir:
+
+Rua
+Número
+Bairro
+Cidade
+CEP
+
+⸻
+
+MÓDULO 8 — PAINEL FINANCEIRO PARA NOTAS FISCAIS
+
+Criar nova área no sistema:
+
+Financeiro
+
+Funções:
+
+Filtrar pedidos por:
+
+Empresa
+Data
+Período
+Status
+
+Permitir exportar pedidos para integração com o sistema Nimbi Procurement Platform.
+
+Mostrar dados:
+
+Empresa
+Pedido
+Valor total
+Data
+Status
+
+Botão:
+
+Exportar pedidos
+
+⸻
+
+MÓDULO 9 — USUÁRIO DESENVOLVEDOR
+
+Criar novo tipo de usuário:
+
+Desenvolvedor
+
+Permissões:
+
+Acesso total ao sistema
+Acesso a logs do sistema
+Pode redefinir senha do administrador
+Pode recuperar senha do administrador
+Pode acessar backups
+
+Login protegido por senha.
+
+⸻
+
+MÓDULO 10 — BACKUP DO SISTEMA
+
+Criar backup automático diário.
+
+Horário do backup:
+
+17:00
+
+Salvar backups do banco de dados.
+
+Manter histórico de 30 backups.
+
+Criar painel:
+
+Sistema → Backups
+
+Funções:
+
+Gerar backup manual
+Baixar backup
+Restaurar backup
+
+Registrar ações no sistema de logs.
+
+⸻
+
+MÓDULO 11 — GERENCIAMENTO DE USUÁRIOS
+
+Administrador deve poder criar usuários com diferentes permissões.
+
+Tipos de usuário:
+
+Cliente
+
+Permissões:
+
+Fazer pedidos
+Visualizar histórico de pedidos
+
+Administrador
+
+Permissões:
+
+Acesso total ao sistema
+
+Financeiro
+
+Permissões:
+
+Acessar pedidos
+Acessar área financeira
+Gerar relatórios
+Exportar dados para notas fiscais
+
+⸻
+
+MÓDULO 12 — EXCLUSÃO DE JANELAS DE PEDIDOS
+
+Na área:
+
+Admin → Janelas de pedido…
+[20:11, 13/03/2026] Diego: Implementar melhorias completas no sistema VivaFrutaz B2B.
+
+--------------------------------------------------
+
+GESTÃO DE USUÁRIOS DO SISTEMA
+
+No módulo de usuários adicionar:
+
+Botão EDITAR usuário
+Botão EXCLUIR usuário
+
+Permitir alterar:
+
+nome
+email
+cargo
+permissões
+
+--------------------------------------------------
+
+PERMISSÕES DE USUÁRIO
+
+Criar níveis de acesso:
+
+Cliente
+Financeiro
+Compras
+Operações
+Administrador
+Diretor
+Desenvolvedor
+
+Cada usuário deve acessar apenas as abas permitidas.
+
+Exemplo:
+
+Financeiro:
+acesso financeiro
+pedidos
+exportação
+
+Compras:
+relatório de compras
+produtos vendidos
+
+Operações:
+pedidos
+logística
+
+Administrador:
+controle completo do sistema
+
+Diretor:
+controle total
+pode alterar senha de qualquer usuário
+[20:11, 13/03/2026] Diego: Desenvolvedor:
+controle técnico do sistema
+
+--------------------------------------------------
+
+ALTERAÇÃO DE SENHAS
+
+Somente usuários:
+
+Diretor
+Desenvolvedor
+
+podem alterar senha de qualquer usuário.
+
+Usuários administrativos podem alterar apenas senhas de clientes.
+
+--------------------------------------------------
+
+LOGIN POR PERFIL
+
+Cada perfil deve visualizar apenas as abas permitidas.
+
+Financeiro não pode acessar área de desenvolvimento.
+
+Clientes não podem acessar área administrativa.
+
+--------------------------------------------------
+
+BACKUP DO SISTEMA
+
+Criar sistema automático de backup.
+
+Backup deve incluir:
+
+pedidos
+empresas
+produtos
+usuários
+configurações
+
+Backup automático todos os dias às 17:00.
+
+Gerar link seguro para download do backup.
+
+Exemplo:
+
+backup-vivafrutaz-2026-03-13.zip
+
+--------------------------------------------------
+
+RESTAURAÇÃO DO SISTEMA
+
+Criar função para restaurar backup.
+
+Administrador ou desenvolvedor pode:
+
+subir arquivo de backup
+restaurar sistema completo.
+
+--------------------------------------------------
+
+ÁREA DO DESENVOLVEDOR
+
+Criar aba:
+
+DESENVOLVEDOR
+
+Apenas usuário desenvolvedor pode acessar.
+
+Funções disponíveis:
+
+Auditoria completa do sistema
+
+Verificar:
+
+erros de sistema
+rotas quebradas
+falhas de banco
+problemas de login
+bugs de interface
+
+--------------------------------------------------
+
+IA DE DIAGNÓSTICO
+
+Criar ferramenta de IA interna.
+
+Funções:
+
+analisar logs
+identificar bugs
+sugerir correções
+executar correções quando autorizado pelo desenvolvedor.
+
+Botões:
+
+Executar auditoria
+Detectar bugs
+Sugerir correção
+Aplicar correção
+
+--------------------------------------------------
+
+SISTEMA DE LOGS
+
+Criar sistema de logs.
+
+Registrar:
+
+login de usuários
+criação de pedidos
+alteração de dados
+erros do sistema
+
+Logs visíveis apenas para:
+
+Administrador
+Diretor
+Desenvolvedor
+
+--------------------------------------------------
+
+AJUSTE NO PORTAL DO CLIENTE
+
+Na aba onde aparece a frase:
+
+"Não se trata de uma questão de..."
+
+Substituir por mensagem institucional:
+
+"Na VivaFrutaz acreditamos que frutas frescas fazem parte de um ambiente de trabalho saudável e produtivo."
+
+--------------------------------------------------
+
+ERRO NA ABA DE PEDIDOS
+
+Corrigir erro:
+
+"Objeto não encontrado"
+
+Verificar rotas da página:
+
+novo pedido
+catálogo
+carrinho
+
+Garantir que a criação de pedido funcione corretamente.
+
+--------------------------------------------------
+
+EXPORTAÇÃO DE RELATÓRIOS
+
+Criar exportação para Excel.
+
+Formatos:
+
+Relatório de pedidos
+Relatório de compras
+Relatório financeiro
+Relatório de industrializados
+
+Permitir filtros por:
+
+empresa
+data
+produto
+categoria
+
+--------------------------------------------------
+
+SEGURANÇA DO SISTEMA
+
+Implementar:
+
+verificação de acesso por perfil
+bloqueio de acesso a páginas não autorizadas
+proteção contra erro de rota.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+Sistema VivaFrutaz deve possuir:
+
+controle completo de usuários
+controle de permissões
+backup automático
+restauração de sistema
+auditoria técnica
+IA de diagnóstico de bugs
+exportação completa de dados
+portal do cliente corrigido
+sistema de pedidos funcionando corretamente.
+[20:11, 13/03/2026] Diego: Implementar sistema avançado de proteção e estabilidade no sistema VivaFrutaz B2B.
+
+Objetivo:
+Garantir estabilidade, segurança e evitar perda de dados ou erros críticos no sistema.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA PEDIDOS DUPLICADOS
+
+Implementar verificação para impedir que o mesmo pedido seja criado duas vezes.
+
+Antes de salvar um pedido verificar:
+
+empresa
+data do pedido
+janela de entrega
+itens do carrinho
+
+Se existir pedido idêntico nos últimos 60 segundos:
+
+bloquear criação do pedido.
+
+Exibir mensagem:
+
+"Pedido já enviado. Aguarde confirmação."
+
+--------------------------------------------------
+
+SISTEMA DE FILA DE PEDIDOS
+
+Criar sistema de fila para processamento de pedidos.Quando vários clientes fizerem pedido ao mesmo tempo o sistema deve:
+
+colocar pedidos em fila
+processar um por vez
+garantir consistência no banco de dados.
+
+--------------------------------------------------
+
+LOGS COMPLETOS DO SISTEMA
+
+Criar sistema de logs detalhados.
+
+Registrar:
+
+logins
+criação de pedidos
+edição de pedidos
+alteração de preços
+cadastro de empresas
+cadastro de produtos
+erros de sistema
+
+Salvar logs com:
+
+data
+hora
+usuário
+ação executada
+IP do usuário
+
+Logs devem ser visíveis apenas para:
+
+Administrador
+Diretor
+Desenvolvedor
+
+--------------------------------------------------
+
+MONITORAMENTO DE ERROS
+
+Criar monitoramento automático de erros.
+
+Quando ocorrer erro no sistema registrar:
+
+rota acessada
+erro ocorrido
+usuário
+hora do erro
+
+Exibir mensagem amigável para usuário:
+
+"Ocorreu um erro inesperado. Nossa equipe foi notificada."
+
+--------------------------------------------------
+
+AUTO RESTART DO SERVIDOR
+
+Implementar sistema de auto reinicialização.
+
+Se o servidor parar ou travar:
+
+reiniciar automaticamente.
+
+Verificar servidor a cada 5 minutos.
+
+--------------------------------------------------
+
+SISTEMA DE BACKUP AUTOMÁTICO
+
+Criar backup automático do banco de dados.
+
+Backup diário às 17:00.
+
+Backup deve incluir:
+
+pedidos
+empresas
+produtos
+categorias
+usuários
+configurações
+
+Salvar backups com nome:
+
+backup-vivafrutaz-ANO-MES-DIA.zip
+
+Exemplo:
+
+backup-vivafrutaz-2026-03-13.zip
+
+--------------------------------------------------
+
+RETENÇÃO DE BACKUPS
+
+Manter backups por 30 dias.
+
+Excluir backups mais antigos automaticamente.
+
+--------------------------------------------------
+
+RESTORE DE BACKUP
+
+Criar função restaurar backup.
+
+Usuário Administrador ou Desenvolvedor pode:
+
+selecionar backup
+restaurar sistema completo.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA ERROS DE BANCO
+
+Adicionar verificação de integridade no banco de dados.
+
+Antes de salvar dados verificar:
+
+campos obrigatórios
+valores válidos
+integridade entre tabelas.
+
+Exemplo:
+
+pedido não pode existir sem empresa
+produto não pode existir sem categoria.
+
+--------------------------------------------------
+
+VALIDAÇÃO DE FORMULÁRIOS
+
+Adicionar validação em:
+
+cadastro de empresas
+cadastro de produtos
+criação de pedidos
+
+Evitar envio de formulários incompletos.
+
+--------------------------------------------------
+
+RECUPERAÇÃO AUTOMÁTICA DE SESSÃO
+
+Se sessão do usuário expirar:
+
+mostrar tela de login novamente
+sem perder dados do carrinho.
+
+--------------------------------------------------
+
+CACHE DE PERFORMANCE
+
+Implementar cache nas páginas:
+
+catálogo
+produtos
+categorias
+
+Reduzir carregamento do sistema.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA ACESSO NÃO AUTORIZADO
+
+Bloquear acesso direto a rotas administrativas.
+
+Exemplo:
+
+/admin
+/dev
+/financeiro
+
+Somente usuários autorizados podem acessar.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Sistema VivaFrutaz deve possuir:
+
+proteção contra pedidos duplicados
+fila segura de pedidos
+logs completos
+monitoramento de erros
+backup automático
+restauração de backups
+auto restart do servidor
+proteção contra erros de banco
+segurança de acesso por perfil
+melhor performance e estabilidade.

@@ -1,0 +1,127 @@
+REFATORAR CONTROLES DE SISTEMA E REGRAS DE PEDIDO – VIVAFRUTAZ
+
+ATENÇÃO
+A implementação anterior dos modos de sistema não está funcionando corretamente.
+Refazer a lógica completa garantindo funcionamento correto.
+
+--------------------------------------------------
+
+PARTE 1 – CORRIGIR CONTROLE DE MODO MANUTENÇÃO E MODO TESTE
+
+Atualmente o sistema possui apenas botão de ativar.
+
+Refazer o controle para funcionar assim:
+
+SE maintenance_mode = false
+mostrar botão:
+"ATIVAR MANUTENÇÃO"
+
+SE maintenance_mode = true
+mostrar botão:
+"DESATIVAR MANUTENÇÃO"
+
+Quando manutenção estiver ativa:
+
+clientes não podem acessar o sistema
+clientes não podem criar pedidos
+clientes não podem editar pedidos
+
+Mostrar mensagem:
+
+"Sistema em manutenção. Pedidos temporariamente desabilitados."
+
+--------------------------------------------------
+
+PARTE 2 – MODO TESTE
+
+Mesmo comportamento:
+
+SE test_mode = false
+mostrar botão:
+"ATIVAR MODO TESTE"
+
+SE test_mode = true
+mostrar botão:
+"DESATIVAR MODO TESTE"
+
+Quando modo teste estiver ativo:
+
+clientes padrão não podem criar pedidos
+
+mostrar aviso:
+
+"Sistema em modo teste. Criação de pedidos temporariamente bloqueada."
+
+Administradores ainda podem acessar tudo normalmente.
+
+--------------------------------------------------
+
+PARTE 3 – BLOQUEAR PEDIDOS DURANTE MODOS DO SISTEMA
+
+Se qualquer um desses estiver ativo:
+
+maintenance_mode = true
+OU
+test_mode = true
+
+então:
+
+desabilitar botão "Novo Pedido" para clientes padrão.
+
+Administradores continuam podendo criar pedidos.
+
+--------------------------------------------------
+
+PARTE 4 – REGRA DE 1 PEDIDO POR DIA POR CLIENTE
+
+Atualmente o sistema permite múltiplos pedidos para o mesmo dia.
+
+Implementar regra obrigatória:
+
+Cada empresa pode criar apenas:
+
+1 pedido por dia de entrega.
+
+Exemplo:
+
+Cliente cria pedido para segunda-feira.
+
+Sistema deve bloquear criação de outro pedido para a mesma segunda.
+
+Mostrar mensagem:
+
+"Já existe um pedido registrado para este dia. Caso precise alterar, solicite abertura do pedido ao administrador."
+
+--------------------------------------------------
+
+PARTE 5 – ALTERAÇÃO DE PEDIDOS
+
+Quando cliente quiser alterar um pedido já criado:
+
+não permitir novo pedido.
+
+Mostrar botão:
+
+"SOLICITAR ALTERAÇÃO"
+
+Esse botão deve:
+
+enviar solicitação para o painel administrativo.
+
+Administrador pode então:
+
+liberar edição do pedido existente.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Modo manutenção pode ser ativado e desativado.
+
+Modo teste pode ser ativado e desativado.
+
+Clientes não conseguem criar pedidos quando modos estão ativos.
+
+Cada cliente pode criar apenas 1 pedido por dia.
+
+Alterações devem ser solicitadas ao administrador.

@@ -1,0 +1,119 @@
+IMPLEMENTAR SUGESTÃO AUTOMÁTICA DE JANELA DE ENTREGA NA ABA DE COTAÇÃO – SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Automatizar o processo de sugestão de janela de entrega para empresas cadastradas.
+
+O sistema deve identificar automaticamente:
+
+1) a empresa solicitante
+2) os dias de entrega cadastrados
+3) as janelas de horário disponíveis
+
+E sugerir essas informações automaticamente na área de cotação.
+
+--------------------------------------------------
+
+MÓDULO 1 – CONFIGURAÇÃO NA ABA CADASTRO DE EMPRESAS
+
+Adicionar no cadastro da empresa um bloco chamado:
+
+CONFIGURAÇÃO DE ENTREGA
+
+Campos editáveis:
+
+Dias de entrega permitidos
+Janela de horário por dia
+
+Exemplo de configuração:
+
+Empresa: Datadog
+
+Segunda-feira
+Entrega permitida: SIM
+Janela: 09:00 até 10:30
+
+Terça-feira
+Entrega permitida: SIM
+Janela: 09:00 até 10:00
+
+Quarta-feira
+Entrega permitida: SIM
+Janela: 09:00 até 10:30
+
+Quinta-feira
+Entrega permitida: NÃO
+
+Sexta-feira
+Entrega permitida: NÃO
+
+Essas informações devem ficar armazenadas no cadastro da empresa.
+
+--------------------------------------------------
+
+MÓDULO 2 – IDENTIFICAÇÃO AUTOMÁTICA NA COTAÇÃO
+
+Quando uma nova cotação for criada para uma empresa:
+
+O sistema deve:
+
+1) identificar automaticamente a empresa selecionada
+2) consultar a configuração de entrega cadastrada
+3) verificar os dias permitidos
+4) verificar as janelas de horário
+
+--------------------------------------------------
+
+MÓDULO 3 – MENSAGEM AUTOMÁTICA NA COTAÇÃO
+
+Após identificar as informações da empresa, o sistema deve exibir automaticamente uma mensagem informativa:
+
+Exemplo:
+
+"Empresas próximas com mesma rota e janela de entrega:
+
+Empresa: Datadog
+Segunda e Quarta
+Janela disponível: 09:00 às 10:30
+
+Terça-feira
+Janela disponível: 09:00 às 10:00
+
+Essa empresa já possui rota logística ativa nesses horários."
+
+--------------------------------------------------
+
+MÓDULO 4 – AGRUPAMENTO DE ROTAS
+
+O sistema também deve verificar:
+
+outras empresas próximas com janelas semelhantes.
+
+Se encontrar, exibir mensagem:
+
+"Existe rota logística próxima para este horário."
+
+Isso ajuda a otimizar entregas e consolidar rotas.
+
+--------------------------------------------------
+
+MÓDULO 5 – BENEFÍCIOS OPERACIONAIS
+
+Essa automação deve permitir:
+
+reduzir criação de novas rotas desnecessárias
+aproveitar rotas já existentes
+orientar o time comercial durante a cotação
+melhorar planejamento logístico
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Sistema identifica automaticamente as janelas de entrega da empresa.
+
+Área de cotação mostra sugestões automáticas de horário.
+
+Equipe comercial passa a visualizar informações logísticas antes de fechar uma cotação.
+
+Sistema começa a organizar entregas por rota automaticamente.

@@ -1,0 +1,138 @@
+Executar RESET completo do módulo Escopo Contratual.
+
+O módulo atual apresenta inconsistências:
+- funções aparecem em testes mas não na interface real
+- partes da interface desapareceram (resumo financeiro / margem)
+- bloqueio de escopo para clientes não contratuais desapareceu
+- alterações parecem não persistir
+
+Provavelmente a implementação atual está fragmentada.
+
+--------------------------------------------------
+
+PASSO 1 — BACKUP
+
+Localizar todos arquivos relacionados ao escopo contratual.
+
+Exemplos:
+ContractScope
+ContractScopeItems
+ContractSummary
+CompanyContractScope
+ContractScopeService
+
+Criar cópia de segurança em:
+
+/backup/contract-scope/
+
+--------------------------------------------------
+
+PASSO 2 — REMOVER IMPLEMENTAÇÃO ATUAL
+
+Remover completamente:
+
+lógica de renderização do escopo
+cálculos financeiros atuais
+painel de resumo atual
+controle de edição atual
+
+Manter apenas:
+
+estrutura da aba "Escopo Contratual"
+estrutura de banco de dados existente.
+
+--------------------------------------------------
+
+PASSO 3 — RECRIAR IMPLEMENTAÇÃO
+
+Criar nova implementação limpa contendo:
+
+Item do escopo com:
+
+- Dia da semana
+- Semana do ciclo
+- Categoria
+- Produto
+- Quantidade
+- Preço unitário
+- Custo médio
+- Total automático
+
+Regra:
+
+Total = Quantidade × Preço unitário
+
+Total não pode ser editado manualmente.
+
+--------------------------------------------------
+
+PASSO 4 — RESUMO FINANCEIRO
+
+Adicionar painel no topo da aba contendo:
+
+Valor estimado semanal
+Valor estimado mensal
+Custo estimado
+Margem estimada
+
+Cálculos:
+
+Valor semanal = soma dos totais dos itens
+Valor mensal = valor semanal × 4
+Custo estimado = soma (quantidade × custo médio)
+Margem estimada = valor total − custo total
+
+Atualizar automaticamente ao editar itens.
+
+--------------------------------------------------
+
+PASSO 5 — BLOQUEIO
+
+Se empresa não for contratual:
+
+mostrar cadeado
+bloquear edição do escopo.
+
+--------------------------------------------------
+
+PASSO 6 — INTEGRAÇÕES
+
+Garantir integração direta com:
+
+Pedidos
+Compras
+Inventário
+Logística
+Financeiro
+
+Fluxo esperado:
+
+Escopo → Pedidos → Compras → Logística → Financeiro.
+
+--------------------------------------------------
+
+PASSO 7 — BUILD LIMPO
+
+Após implementar:
+
+limpar cache
+rebuild do frontend
+reiniciar servidor.
+
+--------------------------------------------------
+
+PASSO 8 — TESTE REAL
+
+Testar com:
+
+empresa contratual
+empresa não contratual
+
+Validar:
+
+edição do escopo
+painel financeiro
+bloqueio de escopo
+integração com pedidos.
+
+Mostrar evidência real da interface funcionando.

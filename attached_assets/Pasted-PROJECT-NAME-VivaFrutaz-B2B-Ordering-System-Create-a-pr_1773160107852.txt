@@ -1,0 +1,475 @@
+PROJECT NAME
+
+VivaFrutaz B2B Ordering System
+
+Create a professional B2B fruit ordering platform called VivaFrutaz.
+
+Companies must log in and place weekly fruit orders with different pricing rules.
+
+The system must run on Node.js with Express and must work reliably on Replit.
+
+--------------------------------------------------
+
+APPLICATION BRANDING
+
+System name: VivaFrutaz
+
+LOGIN PAGE
+
+Title:
+VivaFrutaz
+
+Subtitle:
+Corporate Fruit Ordering Platform
+
+Fields:
+
+Email
+Password
+
+Button:
+
+Access VivaFrutaz
+
+Colors:
+
+Primary color: Green
+Secondary color: Orange
+
+--------------------------------------------------
+
+USER ROLES
+
+Create role-based access.
+
+ADMIN
+Full control of the system.
+
+OPERATIONS_MANAGER
+Can see companies and delivery schedule.
+
+PURCHASE_MANAGER
+Can see fruit quantity reports.
+
+CLIENT
+Companies that place orders.
+
+--------------------------------------------------
+
+DATABASE STRUCTURE
+
+Users
+
+id
+name
+email
+password
+role
+
+Companies
+
+id
+company_name
+contact_name
+email
+password
+price_group_id
+allowed_order_days
+active
+created_at
+
+PriceGroups
+
+id
+group_name
+description
+
+Products
+
+id
+name
+category
+unit
+active
+
+ProductPrices
+
+id
+product_id
+price_group_id
+price
+
+Orders
+
+id
+company_id
+order_date
+delivery_date
+week_reference
+total_value
+allow_replication
+created_at
+
+OrderItems
+
+id
+order_id
+product_id
+quantity
+unit_price
+total_price
+
+OrderWindows
+
+id
+week_reference
+order_open_date
+order_close_date
+delivery_start_date
+delivery_end_date
+active
+
+--------------------------------------------------
+
+ADMIN DASHBOARD
+
+Sidebar menu must include:
+
+Dashboard
+Companies
+Products
+Price Groups
+Orders
+Order Calendar
+Delivery Schedule
+Purchasing Reports
+Financial Dashboard
+Settings
+
+--------------------------------------------------
+
+COMPANY MANAGEMENT
+
+Admin must be able to:
+
+Create company
+Edit company
+Delete company
+Assign price group
+Define allowed order days
+
+Example
+
+Company A
+
+Allowed days:
+Monday
+Wednesday
+
+Company B
+
+Allowed days:
+Tuesday
+Thursday
+
+If a company tries to order on a non-allowed day the system must block the order.
+
+--------------------------------------------------
+
+PRICE GROUP MANAGEMENT
+
+Admin can create different price groups.
+
+Example:
+
+Corporate Basic
+Corporate Plus
+Corporate Premium
+
+Admin can:
+
+Create group
+Edit group
+Delete group
+
+--------------------------------------------------
+
+PRODUCT MANAGEMENT
+
+Admin must manage fruit products.
+
+Admin can:
+
+Create product
+Edit product
+Delete product
+Activate or deactivate product
+
+Examples:
+
+Banana
+Apple
+Melon
+Pineapple
+Grapes
+Fruit Box Small
+Fruit Box Large
+
+--------------------------------------------------
+
+CUSTOM PRICING PER GROUP
+
+Admin defines different prices per price group.
+
+Example:
+
+Banana Box
+
+Basic group price → 45
+Plus group price → 49
+Premium group price → 55
+
+When a company logs in the system automatically applies the correct price.
+
+--------------------------------------------------
+
+CLIENT PORTAL
+
+When companies log in they only see the client portal.
+
+Sections:
+
+Create Order
+Cart
+Order History
+Repeat Last Order
+
+Clients cannot access admin tools.
+
+--------------------------------------------------
+
+FIRST ORDER EXPERIENCE
+
+If a company logs in for the first time show:
+
+Create your first fruit order.
+
+--------------------------------------------------
+
+CART SYSTEM
+
+Cart must support:
+
+Unlimited items
+Increase quantity
+Decrease quantity
+Remove items
+
+Show subtotal per product.
+
+Show total order value.
+
+--------------------------------------------------
+
+ORDER WINDOW CONTROL
+
+Admin controls when companies can place orders.
+
+Admin defines:
+
+Week reference
+Order open date
+Order close date
+Delivery start date
+Delivery end date
+
+Example
+
+Week 10
+
+Orders open:
+March 5
+
+Orders close:
+March 7
+
+Deliveries:
+March 10 to March 14
+
+If orders are outside this window show message:
+
+Orders for this week are closed.
+
+--------------------------------------------------
+
+WEEKLY ORDER SYSTEM
+
+Orders must be organized by week.
+
+Companies choose delivery day.
+
+Example:
+
+Monday delivery
+Wednesday delivery
+Friday delivery
+
+System must validate allowed days.
+
+--------------------------------------------------
+
+ORDER HISTORY
+
+Companies must see previous orders including:
+
+Products
+Quantities
+Delivery dates
+Total values
+
+--------------------------------------------------
+
+REPEAT LAST ORDER
+
+Add button:
+
+Repeat last week's order.
+
+This copies all products into the cart.
+
+--------------------------------------------------
+
+ORDER REPLICATION
+
+Admin option:
+
+Allow other companies to replicate the same order.
+
+Admin can enable or disable this option.
+
+--------------------------------------------------
+
+OPERATIONS MANAGER PANEL
+
+Operations manager can see:
+
+All company orders
+Delivery schedules
+
+Example
+
+Monday deliveries
+
+Company A
+Company B
+Company C
+
+Wednesday deliveries
+
+Company D
+Company E
+
+Operations manager cannot modify pricing or products.
+
+--------------------------------------------------
+
+PURCHASE MANAGER PANEL
+
+Create dashboard:
+
+Purchasing Reports
+
+This aggregates product quantities across all orders.
+
+Example report
+
+Banana → 200 kg
+Apple → 150 kg
+Melon → 90 kg
+Pineapple → 70 kg
+
+Filters
+
+Week
+Company
+Product
+Date range
+
+Buttons
+
+Export Excel
+Export PDF
+
+--------------------------------------------------
+
+FINANCIAL DASHBOARD
+
+Admin dashboard must show:
+
+Weekly revenue
+Monthly revenue
+Top companies
+Top selling fruits
+
+--------------------------------------------------
+
+SERVER CONFIGURATION
+
+Ensure stable Node server configuration.
+
+Use environment port.
+
+Example
+
+const PORT = process.env.PORT || 3000
+
+app.listen(PORT)
+
+--------------------------------------------------
+
+ROOT ROUTE
+
+Create root route to avoid preview errors.
+
+app.get("/", (req,res)=>{
+res.send("VivaFrutaz B2B System Running")
+})
+
+--------------------------------------------------
+
+HEALTH CHECK ROUTE
+
+Create endpoint
+
+/health
+
+Return
+
+status ok
+
+--------------------------------------------------
+
+REPLIT RUN COMMAND
+
+Use
+
+npm run dev
+
+--------------------------------------------------
+
+FINAL RESULT
+
+The VivaFrutaz system must include:
+
+Company login
+Admin dashboard
+Price groups
+Custom pricing
+Weekly orders
+Cart system
+Order history
+Repeat orders
+Delivery scheduling
+Purchasing reports
+Excel export
+Stable server configuration

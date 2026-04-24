@@ -1,0 +1,183 @@
+IMPLEMENTAR FILTROS DE HISTÓRICO E ESTRUTURA DE EMPRESAS CONTRATUAIS NO SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Melhorar organização do histórico de pedidos para clientes e criar estrutura profissional para empresas contratuais com escopo fixo ou variável de frutas.
+
+--------------------------------------------------
+
+1. FILTROS NO HISTÓRICO DE PEDIDOS DO CLIENTE
+
+Na aba:
+
+Clientes → Pedidos → Histórico
+
+Adicionar filtros de pesquisa.
+
+Filtros disponíveis:
+
+Data inicial  
+Data final  
+Status do pedido  
+Número do pedido
+
+Status possíveis:
+
+Pedido Confirmado  
+Em preparação  
+Em entrega  
+Finalizado  
+Cancelado
+
+Adicionar também campo de busca por número do pedido.
+
+--------------------------------------------------
+
+2. LIMITE DE HISTÓRICO DE PEDIDOS
+
+No portal do cliente exibir apenas pedidos dos últimos:
+
+60 dias
+
+Pedidos mais antigos continuam armazenados no banco de dados, porém não aparecem para o cliente.
+
+Administradores continuam podendo visualizar todos os pedidos no painel administrativo.
+
+--------------------------------------------------
+
+3. HISTÓRICO EM PEDIDOS PONTUAIS
+
+Aplicar o mesmo comportamento para:
+
+Pedidos Pontuais
+
+Exibir apenas pedidos dos últimos:
+
+60 dias
+
+Adicionar filtros:
+
+Data inicial  
+Data final  
+Status  
+Número do pedido
+
+--------------------------------------------------
+
+4. CRIAR ESTRUTURA DE EMPRESAS CONTRATUAIS
+
+No cadastro de empresas adicionar campo:
+
+Tipo de Empresa
+
+Opções:
+
+Cliente Semanal
+Cliente Contratual
+
+Esse campo define o funcionamento da empresa dentro do sistema.
+
+--------------------------------------------------
+
+5. MODELO DE CONTRATO
+
+Se a empresa for marcada como:
+
+Cliente Contratual
+
+Liberar novo campo chamado:
+
+Modelo de Contrato
+
+Opções disponíveis:
+
+Contrato Fixo
+Contrato Variável
+Contrato Alternado
+
+--------------------------------------------------
+
+6. CONTRATO FIXO
+
+A empresa possui escopo fixo de frutas.
+
+Exemplo:
+
+Segunda-feira  
+Banana  
+Maçã
+
+Quarta-feira  
+Mamão  
+Melão
+
+O sistema gera automaticamente os pedidos conforme esse escopo.
+
+Cliente não precisa criar pedidos manualmente.
+
+--------------------------------------------------
+
+7. CONTRATO VARIÁVEL
+
+A empresa possui um escopo base de frutas.
+
+Porém o cliente pode solicitar alterações antes do pedido ser gerado.
+
+O sistema mantém o escopo salvo mas permite ajustes.
+
+--------------------------------------------------
+
+8. CONTRATO ALTERNADO
+
+Contrato com rotação semanal de produtos.
+
+Funcionamento:
+
+Semana 1 → Lista de produtos A
+
+Semana 2 → Lista de produtos B
+
+Semana 3 → volta para Lista A
+
+Semana 4 → volta para Lista B
+
+E assim sucessivamente.
+
+--------------------------------------------------
+
+9. GERAÇÃO AUTOMÁTICA DE PEDIDOS
+
+Para empresas contratuais o sistema deve gerar pedidos automaticamente conforme:
+
+dias de entrega cadastrados  
+escopo definido no contrato
+
+Esses pedidos aparecem automaticamente no painel administrativo.
+
+--------------------------------------------------
+
+10. COMPATIBILIDADE COM CLIENTES SEMANAIS
+
+Empresas marcadas como:
+
+Cliente Semanal
+
+continuam funcionando normalmente com pedidos criados manualmente pelos clientes.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Clientes visualizam histórico organizado com filtros.
+
+Histórico limitado a 60 dias melhora desempenho do sistema.
+
+Sistema passa a suportar empresas contratuais com:
+
+escopo fixo  
+escopo variável  
+escopo alternado
+
+Pedidos contratuais podem ser gerados automaticamente.
+
+Sistema VivaFrutaz passa a ter estrutura profissional para gestão de contratos corporativos.

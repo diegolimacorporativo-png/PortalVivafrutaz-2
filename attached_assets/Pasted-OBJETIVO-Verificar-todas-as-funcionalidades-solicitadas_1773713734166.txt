@@ -1,0 +1,333 @@
+OBJETIVO
+
+Verificar todas as funcionalidades solicitadas anteriormente e garantir que todas foram implementadas corretamente.
+
+Se alguma funcionalidade ainda não existir no sistema ela deve ser criada automaticamente.
+
+Se existirem pastas, serviços ou rotas sem interface visual, o sistema deve gerar automaticamente as páginas de frontend correspondentes.
+
+Após implementar o sistema deve executar testes visuais automáticos e gravar vídeos comprovando o funcionamento.
+
+------------------------------------------------
+
+PASSO 1 — VERIFICAR IMPLEMENTAÇÃO
+
+Escanear todo o projeto procurando por:
+
+gestão de planos  
+gestão de módulos  
+controle de funcionalidades por plano  
+sistema de assinatura  
+pagamentos  
+controle de usuários por empresa  
+upgrade de planos  
+logística inteligente  
+gps  
+rotas  
+ia  
+dashboard  
+
+Se alguma funcionalidade não existir ela deve ser criada automaticamente.
+
+------------------------------------------------
+
+PASSO 2 — ANALISAR PASTAS EXISTENTES
+
+Escanear todas as pastas do projeto:
+
+routes  
+controllers  
+services  
+modules  
+pages  
+components  
+
+Para cada funcionalidade encontrada:
+
+verificar se existe interface visual.
+
+Se existir backend mas não existir interface frontend:
+
+criar automaticamente uma página visual.
+
+------------------------------------------------
+
+PASSO 3 — CRIAR INTERFACES VISUAIS AUTOMATICAMENTE
+
+Para cada funcionalidade detectada criar páginas visuais completas contendo:
+
+tabela de dados  
+botão criar  
+botão editar  
+botão excluir  
+filtros de busca  
+paginação  
+indicadores de status
+
+As páginas devem seguir o padrão visual do sistema.
+
+------------------------------------------------
+
+PASSO 4 — CRIAR ABAS OBRIGATÓRIAS
+
+O sistema deve possuir as seguintes abas visuais no menu:
+
+Dashboard  
+Empresas  
+Clientes  
+Usuários  
+Produtos  
+Pedidos  
+Notas fiscais  
+Assinaturas  
+Faturamento  
+Pagamentos  
+Logística  
+Logística Inteligente  
+GPS Rastreamento  
+Rotas  
+Motoristas  
+IA  
+Relatórios  
+Contratos  
+Planos SaaS  
+Atualizações do Sistema  
+Configurações  
+
+Se alguma dessas abas não existir criar automaticamente.
+
+------------------------------------------------
+
+PASSO 5 — ATUALIZAR MENU LATERAL
+
+Adicionar automaticamente no menu lateral todas as páginas criadas.
+
+Cada item do menu deve navegar para sua rota correspondente.
+
+------------------------------------------------
+
+PASSO 6 — SISTEMA DE MÓDULOS POR PLANO
+
+Criar sistema onde o MASTER possa selecionar quais funcionalidades cada plano possui.
+
+Na tela de criação de plano devem existir CHECKBOXES selecionáveis:
+
+☑ Dashboard  
+☑ Empresas  
+☑ Clientes  
+☑ Usuários  
+☑ Produtos  
+☑ Pedidos  
+☑ Notas fiscais  
+☑ Logística  
+☑ Logística Inteligente  
+☑ GPS  
+☑ Rotas  
+☑ Motoristas  
+☑ IA  
+☑ Relatórios  
+
+Somente os módulos selecionados devem aparecer no menu das empresas que possuem aquele plano.
+
+------------------------------------------------
+
+PASSO 7 — LIMITE DE USUÁRIOS
+
+Cada plano deve possuir:
+
+limite máximo de usuários  
+limite máximo de pedidos  
+limite de motoristas  
+limite de veículos  
+
+Esses limites devem ser configuráveis pelo MASTER.
+
+------------------------------------------------
+
+PASSO 8 — CRIAR PLANOS DE TESTE
+
+Criar planos automaticamente:
+
+Plano Free  
+Plano Starter  
+Plano Pro  
+Plano Enterprise  
+
+------------------------------------------------
+
+Plano Free
+
+Dashboard  
+Clientes  
+Pedidos básicos  
+
+Limite:
+
+3 usuários
+
+------------------------------------------------
+
+Plano Starter
+
+Dashboard  
+Clientes  
+Pedidos  
+Produtos  
+
+Limite:
+
+10 usuários
+
+------------------------------------------------
+
+Plano Pro
+
+Dashboard  
+Clientes  
+Pedidos  
+Produtos  
+Logística  
+Rotas  
+Motoristas  
+
+Limite:
+
+30 usuários
+
+------------------------------------------------
+
+Plano Enterprise
+
+Todos módulos do sistema.
+
+Limite:
+
+ilimitado
+
+------------------------------------------------
+
+PASSO 9 — CRIAR EMPRESA TESTE
+
+Criar empresa:
+
+Empresa Teste ERP
+
+Associar plano Starter.
+
+------------------------------------------------
+
+PASSO 10 — SISTEMA DE PAGAMENTO
+
+Criar suporte para:
+
+PIX  
+Cartão  
+Boleto
+
+Se pagamento for boleto:
+
+definir data de vencimento.
+
+Se a data vencer e pagamento não for identificado:
+
+notificar administrador  
+bloquear acesso ao plano pago  
+rebaixar empresa para plano Free.
+
+------------------------------------------------
+
+PASSO 11 — SISTEMA DE CONTRATOS
+
+Criar aba onde o administrador pode:
+
+colar contrato do cliente  
+editar contrato  
+aplicar correção automática de IPCA  
+registrar histórico de alterações.
+
+------------------------------------------------
+
+PASSO 12 — SISTEMA DE ATUALIZAÇÃO DO SAAS
+
+Criar sistema onde o administrador pode:
+
+enviar atualizações do sistema  
+selecionar quais empresas receberão atualização  
+enviar atualização para todas empresas  
+registrar versão do sistema instalada em cada empresa.
+
+------------------------------------------------
+
+PASSO 13 — TESTE VISUAL AUTOMÁTICO
+
+Executar testes automáticos navegando pelo sistema.
+
+abrir dashboard  
+abrir clientes  
+abrir pedidos  
+abrir logística  
+abrir assinaturas  
+criar assinatura  
+simular pagamento  
+alterar plano da empresa.
+
+------------------------------------------------
+
+PASSO 14 — GRAVAR VÍDEO DO TESTE
+
+Durante os testes gravar vídeo da navegação.
+
+Salvar vídeos em:
+
+/tests/videos/
+
+Arquivos esperados:
+
+teste_dashboard.mp4  
+teste_assinatura.mp4  
+teste_logistica.mp4  
+teste_pagamento.mp4  
+teste_upgrade_plano.mp4  
+
+------------------------------------------------
+
+PASSO 15 — GERAR RELATÓRIO
+
+Após executar testes gerar relatório contendo:
+
+status dos testes  
+erros encontrados  
+links para vídeos gravados.
+
+------------------------------------------------
+
+PASSO 16 — CORRIGIR ERROS AUTOMATICAMENTE
+
+Se algum teste falhar o sistema deve:
+
+identificar o erro  
+corrigir automaticamente  
+executar novamente o teste.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve possuir:
+
+todas abas visuais funcionando  
+todas rotas conectadas ao frontend  
+gestão completa de planos  
+gestão de módulos por plano  
+controle de funcionalidades por empresa  
+limite de usuários por plano  
+assinaturas funcionando  
+pagamentos funcionando  
+upgrade de planos  
+contratos de clientes  
+logística inteligente  
+gps  
+rotas  
+ia  
+testes automáticos executados  
+vídeos gravados comprovando funcionamento

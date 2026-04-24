@@ -1,0 +1,456 @@
+OBJETIVO
+
+Executar uma análise completa no sistema ERP existente e aplicar correções automáticas.
+
+O sistema deve:
+
+corrigir erros
+corrigir falhas de permissão
+ativar IA de autocorreção
+corrigir sistema de assinaturas
+melhorar módulo de logística
+corrigir erro de SelectItem vazio
+resolver acesso negado
+testar automaticamente o sistema
+criar empresa teste
+simular cobrança
+criar guia rápido flutuante
+
+Nenhuma funcionalidade existente deve ser quebrada.
+
+------------------------------------------------
+
+SEGURANÇA
+
+Antes de qualquer modificação:
+
+criar backup completo do sistema.
+
+Salvar em:
+
+/backups/system
+
+Backup deve incluir:
+
+frontend
+backend
+database schema
+configs
+
+------------------------------------------------
+
+ESCANEAMENTO COMPLETO
+
+Criar processo automático de escaneamento.
+
+Escanear:
+
+frontend
+backend
+database
+rotas de API
+middlewares
+permissões
+componentes UI
+
+Detectar:
+
+erros
+warnings
+código quebrado
+imports inválidos
+permissões incorretas
+
+------------------------------------------------
+
+CORREÇÃO DE COMPONENTES SELECT
+
+Erro identificado:
+
+<Select.Item /> must have a value prop that is not an empty string.
+
+Esse erro ocorre quando um SelectItem possui:
+
+value=""
+
+ou
+
+value={""}
+
+Escanear todo frontend.
+
+Diretórios:
+
+pages
+components
+modules
+billing
+subscriptions
+admin
+
+Localizar:
+
+Select
+SelectItem
+Select.Item
+
+Substituir automaticamente.
+
+EXEMPLO
+
+ANTES
+
+<SelectItem value="">
+Plano Básico
+</SelectItem>
+
+DEPOIS
+
+<SelectItem value="plano_basico">
+Plano Básico
+</SelectItem>
+
+Garantir que cada Select possua:
+
+<SelectValue placeholder="Selecione uma opção" />
+
+------------------------------------------------
+
+VALIDAÇÃO DOS FORMULÁRIOS DE ASSINATURA
+
+Campos obrigatórios:
+
+empresa
+plano
+valor
+ciclo de cobrança
+forma de pagamento
+
+Se algum campo estiver vazio:
+
+bloquear envio
+mostrar erro amigável
+
+------------------------------------------------
+
+TESTE AUTOMÁTICO DO SISTEMA DE ASSINATURAS
+
+Criar empresa teste automaticamente.
+
+Nome:
+
+Empresa Teste ERP
+
+Criar plano:
+
+Plano Starter
+valor: 199
+ciclo: mensal
+
+Criar assinatura ativa.
+
+Gerar fatura.
+
+Simular cobrança.
+
+Validar:
+
+assinatura ativa
+fatura criada
+status atualizado
+
+Registrar resultado no log.
+
+------------------------------------------------
+
+CORREÇÃO DA ABA DE IA
+
+Atualmente a IA apenas sugere correções.
+
+Modificar para permitir:
+
+AUTO CORREÇÃO.
+
+Criar botão:
+
+AUTO CORRIGIR SISTEMA
+
+Fluxo do botão:
+
+1 escanear sistema
+2 detectar erro
+3 gerar correção
+4 aplicar correção automaticamente
+5 registrar log
+
+------------------------------------------------
+
+MÓDULO DE IA
+
+Criar ou melhorar:
+
+/modules/ai
+
+Arquivos:
+
+ai-engine.ts
+ai-scanner.ts
+ai-autofix.ts
+ai-logger.ts
+
+Funções da IA:
+
+analisar código
+detectar bugs
+corrigir bugs automaticamente
+melhorar código
+criar novas funções
+corrigir rotas quebradas
+corrigir imports
+corrigir componentes UI
+
+Toda modificação deve:
+
+criar backup antes
+registrar log
+
+------------------------------------------------
+
+LOGS DA IA
+
+Criar tabela:
+
+ai_logs
+
+Campos:
+
+id
+data
+ação
+arquivo_afetado
+status
+detalhes
+
+Registrar:
+
+análise
+correção
+erro encontrado
+arquivo alterado
+
+------------------------------------------------
+
+CORREÇÃO DE ACESSO NEGADO
+
+Detectado erro de acesso na aba:
+
+configuração de suporte.
+
+Escanear:
+
+middlewares
+JWT
+permissões
+roles
+
+Criar middleware de validação:
+
+checkPermissions()
+
+Roles suportadas:
+
+admin
+gerente
+operador
+cliente
+
+Se rota exigir admin, validar corretamente.
+
+Evitar erro:
+
+403
+401
+acesso negado indevido.
+
+------------------------------------------------
+
+MELHORIAS NA ABA DE LOGÍSTICA
+
+Verificar módulo existente de logística.
+
+Diretório:
+
+/modules/logistics
+
+Melhorar sistema existente.
+
+Arquivos esperados:
+
+route-engine.ts
+route-optimizer.ts
+driver-manager.ts
+delivery-manager.ts
+
+Se não existir, criar.
+
+------------------------------------------------
+
+FUNÇÕES DA LOGÍSTICA INTELIGENTE
+
+Sistema deve:
+
+calcular rotas
+organizar entregas
+sugerir melhor motorista
+sugerir encaixe em rota existente
+
+Fluxo:
+
+1 novo pedido criado
+2 verificar endereço
+3 converter CEP em coordenadas
+4 analisar rotas existentes
+5 sugerir melhor motorista
+6 inserir entrega na rota
+
+------------------------------------------------
+
+TABELA MOTORISTAS
+
+Criar tabela:
+
+drivers
+
+Campos:
+
+id
+nome
+telefone
+veiculo
+placa
+capacidade
+status
+empresa_id
+
+------------------------------------------------
+
+TABELA ENTREGAS
+
+Criar tabela:
+
+deliveries
+
+Campos:
+
+id
+pedido_id
+empresa_id
+driver_id
+status
+data_entrega
+cep
+endereco
+numero
+cidade
+latitude
+longitude
+
+Status:
+
+pendente
+em rota
+entregue
+cancelado
+
+------------------------------------------------
+
+SIMULAÇÃO DE ROTAS
+
+Criar função:
+
+simulateRouteDay()
+
+Função deve calcular:
+
+entregas do dia
+distância total
+tempo estimado
+distribuição entre motoristas
+
+Gerar relatório.
+
+------------------------------------------------
+
+GUIA RÁPIDO FLUTUANTE
+
+Criar componente:
+
+FloatingGuide
+
+Características:
+
+popup flutuante
+movível
+redimensionável
+não fixo
+arrastável
+fechável
+
+Usuário pode mover o popup na tela.
+
+Salvar posição no navegador.
+
+------------------------------------------------
+
+BOTÃO DE GUIA
+
+Criar botão:
+
+GUIA RÁPIDO
+
+Conteúdo do guia:
+
+1 como criar empresa
+2 como criar plano
+3 como ativar assinatura
+4 como gerar cobrança
+5 como usar logística
+6 como usar IA
+
+------------------------------------------------
+
+TESTES AUTOMÁTICOS
+
+Após todas as correções:
+
+rodar testes automáticos.
+
+Testar:
+
+login
+assinaturas
+logística
+IA
+permissões
+faturamento
+
+Se teste falhar:
+
+cancelar alteração.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+Sistema deve possuir:
+
+erro SelectItem corrigido
+IA com auto correção
+assinaturas funcionando
+empresa teste criada
+cobrança simulada
+logística inteligente melhorada
+erro de acesso negado corrigido
+guia rápido flutuante
+logs completos da IA
+backup automático

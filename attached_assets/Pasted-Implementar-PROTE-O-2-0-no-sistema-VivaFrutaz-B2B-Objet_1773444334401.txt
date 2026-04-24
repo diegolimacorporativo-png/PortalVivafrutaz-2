@@ -1,0 +1,205 @@
+Implementar PROTEÇÃO 2.0 no sistema VivaFrutaz B2B.
+
+Objetivo:
+Criar arquitetura de alta estabilidade para evitar perda de dados, bugs críticos e quedas do sistema.
+
+--------------------------------------------------
+
+BACKUP REDUNDANTE
+
+Criar dois tipos de backup:
+
+1) Backup local
+2) Backup em nuvem
+
+Backup deve incluir:
+
+pedidos
+empresas
+produtos
+categorias
+usuários
+configurações
+logs
+
+Executar backup automático todos os dias às 17:00.
+
+Salvar backups com nome:
+
+backup-vivafrutaz-ANO-MES-DIA.zip
+
+Exemplo:
+
+backup-vivafrutaz-2026-03-13.zip
+
+--------------------------------------------------
+
+BACKUP DE EMERGÊNCIA
+
+Sempre que:
+
+novo pedido for criado
+empresa for cadastrada
+produto for alterado
+
+criar snapshot automático do banco.
+
+--------------------------------------------------
+
+SISTEMA DE MONITORAMENTO
+
+Criar monitoramento do servidor.
+
+Verificar servidor a cada 2 minutos.
+
+Se detectar:
+
+travamento
+queda
+erro crítico
+
+executar reinicialização automática do servidor.
+
+Registrar evento nos logs.
+
+--------------------------------------------------
+
+MONITORAMENTO DE BANCO DE DADOS
+
+Verificar integridade do banco a cada 10 minutos.
+
+Detectar:
+
+dados corrompidos
+relacionamentos quebrados
+pedidos incompletos
+
+Registrar erros no painel de auditoria.
+
+--------------------------------------------------
+
+SISTEMA DE AUDITORIA
+
+Criar aba:
+
+AUDITORIA DO SISTEMA
+
+Apenas acessível por:
+
+Administrador
+Diretor
+Desenvolvedor
+
+Executar auditoria completa verificando:
+
+rotas quebradas
+falhas de banco
+pedidos duplicados
+problemas de login
+problemas de sessão
+
+Mostrar relatório de saúde do sistema.
+
+--------------------------------------------------
+
+IA DE DIAGNÓSTICO
+
+Criar ferramenta interna de análise de bugs.
+
+Funções:
+
+analisar logs
+detectar erros
+sugerir correções
+executar correções com autorização do desenvolvedor
+
+Botões:
+
+Executar auditoria
+Detectar bugs
+Sugerir correção
+Aplicar correção
+
+--------------------------------------------------
+
+LOGS EXTERNOS
+
+Criar integração com sistema externo de logs.
+
+Registrar:
+
+erros críticos
+falhas de servidor
+falhas de login
+erros de banco de dados
+
+Salvar logs externos para auditoria futura.
+
+--------------------------------------------------
+
+PROTEÇÃO CONTRA PERDA DE PEDIDOS
+
+Implementar sistema de salvamento automático.
+
+Durante criação do pedido:
+
+salvar carrinho automaticamente.
+
+Se usuário fechar navegador:
+
+recuperar carrinho salvo.
+
+--------------------------------------------------
+
+RECUPERAÇÃO AUTOMÁTICA DE SESSÃO
+
+Se sessão do usuário expirar:
+
+redirecionar para login
+manter carrinho salvo.
+
+--------------------------------------------------
+
+PROTEÇÃO DE ROTAS
+
+Bloquear acesso direto a rotas internas.
+
+Exemplo:
+
+/admin
+/dev
+/auditoria
+/financeiro
+
+Somente usuários autorizados podem acessar.
+
+--------------------------------------------------
+
+MODO MANUTENÇÃO
+
+Criar modo manutenção.
+
+Quando ativado:
+
+clientes não podem fazer pedidos
+administradores continuam com acesso.
+
+Mensagem exibida:
+
+"Sistema VivaFrutaz em manutenção. Retornaremos em breve."
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema VivaFrutaz deve possuir:
+
+backup redundante
+monitoramento automático do servidor
+auditoria completa do sistema
+detecção automática de bugs
+logs externos
+proteção contra perda de pedidos
+recuperação automática de carrinho
+segurança de rotas
+modo manutenção.

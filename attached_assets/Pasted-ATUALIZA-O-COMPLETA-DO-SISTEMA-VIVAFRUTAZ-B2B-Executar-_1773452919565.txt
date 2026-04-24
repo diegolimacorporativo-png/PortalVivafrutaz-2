@@ -1,0 +1,389 @@
+ATUALIZAÇÃO COMPLETA DO SISTEMA VIVAFRUTAZ B2B
+
+Executar implementação das melhorias abaixo e corrigir erros existentes no sistema.
+
+--------------------------------------------------
+
+CORREÇÃO DA PÁGINA DE COTAÇÃO
+
+Corrigir erro atual na página de cotação.
+
+Problema relatado:
+
+quando selecionar GRUPO DE PREÇOS aparece erro:
+
+"objeto não encontrado"
+
+e a página não continua o fluxo.
+
+Sistema só volta a funcionar após atualizar a página.
+
+Executar correção completa:
+
+verificar estado do formulário
+verificar rota da API
+verificar carregamento do grupo de preços
+verificar retorno do banco de dados
+
+Garantir que:
+
+ao selecionar grupo de preços
+o sistema continue normalmente para o próximo passo.
+
+--------------------------------------------------
+
+CORREÇÃO DE ERRO DE REDIRECIONAMENTO
+
+Corrigir erro ao navegar entre páginas do sistema.
+
+Problema:
+
+ao mudar de página ocorre erro:
+
+"objeto não encontrado"
+
+ou falha de redirecionamento.
+
+Executar auditoria nas rotas do sistema:
+
+/admin
+/empresas
+/pedidos
+/cotacao
+/produtos
+/dashboard
+/ocorrencias
+
+Garantir:
+
+rotas válidas
+componentes carregando corretamente
+tratamento de erro caso dados não existam.
+
+--------------------------------------------------
+
+CRIAR DASHBOARD EXECUTIVO INTELIGENTE
+
+Criar nova aba chamada:
+
+DASHBOARD EXECUTIVO
+
+Acesso permitido para:
+
+Diretor  
+Administrador  
+Financeiro  
+Desenvolvedor  
+
+--------------------------------------------------
+
+INDICADORES PRINCIPAIS
+
+Mostrar no topo do painel:
+
+Faturamento do dia  
+Faturamento da semana  
+Faturamento do mês  
+
+Total de pedidos do dia  
+Total de pedidos da semana  
+Total de pedidos do mês  
+
+Mostrar também:
+
+Ticket médio do período
+
+--------------------------------------------------
+
+FATURAMENTO POR EMPRESA
+
+Criar gráfico mostrando:
+
+empresas que mais compraram.
+
+Campos:
+
+Empresa  
+Valor total comprado  
+Número de pedidos  
+
+Filtros:
+
+dia  
+semana  
+mês  
+ano  
+
+--------------------------------------------------
+
+PRODUTOS MAIS VENDIDOS
+
+Criar ranking de produtos.
+
+Campos:
+
+Produto  
+Quantidade vendida  
+Valor total vendido  
+
+Filtros:
+
+dia  
+semana  
+mês  
+ano  
+
+--------------------------------------------------
+
+CLIENTES SEM PEDIDO
+
+Criar relatório automático mostrando:
+
+empresas que não fizeram pedido na semana atual.
+
+Campos:
+
+Empresa  
+Data do último pedido  
+Dias sem pedido  
+
+Se empresa ficar mais de 10 dias sem pedido:
+
+gerar alerta no dashboard.
+
+--------------------------------------------------
+
+PREVISÃO DE COMPRA DE FRUTAS
+
+Criar cálculo automático baseado no histórico.
+
+Calcular:
+
+média semanal de consumo por produto.
+
+Mostrar tabela:
+
+Produto  
+Média semanal  
+Média mensal  
+Sugestão de compra  
+
+--------------------------------------------------
+
+RELATÓRIO PEDIDOS POR DIA
+
+Criar gráfico de pedidos por dia da semana:
+
+Segunda  
+Terça  
+Quarta  
+Quinta  
+Sexta  
+
+--------------------------------------------------
+
+ANÁLISE DE CLIENTES
+
+Criar ranking:
+
+TOP CLIENTES
+
+Campos:
+
+Empresa  
+Valor total comprado  
+Quantidade de pedidos  
+Ticket médio  
+
+--------------------------------------------------
+
+ALERTAS AUTOMÁTICOS
+
+Mostrar alerta no dashboard quando:
+
+cliente ficar mais de 10 dias sem pedido  
+queda de pedidos comparado à semana anterior  
+queda de faturamento  
+
+--------------------------------------------------
+
+FILTROS GERAIS
+
+Adicionar filtros no topo do dashboard:
+
+período  
+empresa  
+produto  
+categoria  
+
+--------------------------------------------------
+
+EXPORTAÇÃO
+
+Criar botão:
+
+EXPORTAR RELATÓRIO
+
+Exportar em Excel contendo:
+
+empresa  
+produto  
+quantidade  
+valor unitário  
+valor total  
+categoria  
+data do pedido  
+
+--------------------------------------------------
+
+CORREÇÃO DA ABA DE OCORRÊNCIAS
+
+Corrigir erro atual:
+
+"Objeto não encontrado"
+
+Corrigir problema de plugin que impede criação de ocorrência.
+
+Revisar completamente:
+
+formulário de ocorrência  
+salvamento no banco  
+rota da API  
+exibição no painel administrativo  
+
+Campos obrigatórios da ocorrência:
+
+empresa  
+nome do solicitante  
+telefone  
+email  
+descrição da ocorrência  
+foto opcional  
+data  
+
+Ocorrências devem ser enviadas para:
+
+Diretor  
+Administrador  
+Gerente de operações  
+Desenvolvedor  
+
+Criar painel de acompanhamento com status:
+
+Aberta  
+Em análise  
+Resolvida  
+
+--------------------------------------------------
+
+ATUALIZAR MENSAGEM NO PORTAL DO CLIENTE
+
+Criar seção institucional no portal.
+
+Título:
+
+MISSÃO VIVAFRUTAZ
+
+Texto:
+
+Garantir a total satisfação de nossos clientes, prestando um serviço de altíssimo nível e oferecendo produtos de qualidade.
+
+Na VivaFrutaz acreditamos que frutas frescas fazem parte de um ambiente de trabalho saudável e produtivo.
+
+--------------------------------------------------
+
+CRIAR ASSISTENTE VIRTUAL VIVAFRUTAZ
+
+Criar assistente virtual interno chamado:
+
+ASSISTENTE VIVAFRUTAZ
+
+Função:
+
+ajudar usuários do sistema  
+explicar funcionalidades  
+tirar dúvidas  
+
+Disponível para:
+
+clientes  
+administradores  
+financeiro  
+logística  
+
+Exemplos de perguntas:
+
+Como fazer um pedido?  
+Como cancelar pedido?  
+Como exportar pedidos?  
+Como cadastrar empresa?  
+
+Assistente deve abrir como:
+
+ícone flutuante no canto inferior do sistema.
+
+Opção de ativar ou desativar.
+
+--------------------------------------------------
+
+CRIAR SISTEMA DE TESTE AUTOMÁTICO
+
+Criar ferramenta chamada:
+
+TESTE AUTOMÁTICO DO SISTEMA
+
+Executar verificação completa:
+
+login  
+cadastro de empresas  
+cadastro de produtos  
+criação de pedidos  
+exportação  
+relatórios  
+ocorrências  
+dashboard  
+backup  
+rotas  
+cotação  
+
+Detectar:
+
+rotas quebradas  
+erros de API  
+problemas de banco  
+problemas de plugin  
+problemas de redirecionamento  
+
+--------------------------------------------------
+
+AUTO CORREÇÃO
+
+Quando erro for detectado:
+
+registrar erro no log  
+sugerir correção  
+permitir aplicação da correção  
+
+Botões:
+
+Executar teste completo  
+Detectar erros  
+Sugerir correção  
+Aplicar correção  
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema VivaFrutaz passa a ter:
+
+dashboard executivo  
+monitoramento de vendas  
+ranking de clientes  
+previsão de compras  
+correção da aba de ocorrências  
+correção da página de cotação  
+correção de erros de redirecionamento  
+assistente virtual interno  
+ferramenta automática de testes  
+detecção de erros do sistema

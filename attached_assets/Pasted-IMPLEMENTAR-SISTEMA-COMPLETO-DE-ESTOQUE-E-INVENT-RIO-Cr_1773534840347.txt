@@ -1,0 +1,277 @@
+IMPLEMENTAR SISTEMA COMPLETO DE ESTOQUE E INVENTÁRIO
+
+Criar módulo completo de inventário
+integrado aos pedidos, compras e pedidos pontuais
+do sistema VivaFrutaz.
+
+--------------------------------------------------
+
+1 CRIAR NOVA ABA
+
+Nome:
+
+Estoque / Inventário
+
+--------------------------------------------------
+
+2 REGISTRO DE ENTRADA DE PRODUTOS
+
+Permitir registrar entrada de produtos manualmente
+ou via nota fiscal.
+
+Campos:
+
+Produto
+Categoria
+Fornecedor
+Quantidade
+Unidade
+Valor de compra
+Número da Nota Fiscal
+Data da nota
+Data de entrada
+Validade estimada
+Observações
+
+--------------------------------------------------
+
+3 IMPORTAÇÃO DE NOTA FISCAL
+
+Permitir carregar:
+
+PDF da nota fiscal
+Foto da nota fiscal
+
+Sistema deve ler automaticamente as informações
+da nota fiscal e sugerir preenchimento dos campos.
+
+Exemplo de leitura automática:
+
+Fornecedor
+Produtos
+Quantidades
+Valores
+Número da nota
+Data da nota
+
+Usuário apenas confirma as informações.
+
+--------------------------------------------------
+
+4 BAIXA AUTOMÁTICA NO ESTOQUE
+
+Quando uma nota fiscal for confirmada
+os produtos devem entrar automaticamente no estoque.
+
+Exemplo:
+
+Nota fiscal:
+
+Banana → 120kg
+Maçã → 50kg
+
+Sistema atualiza estoque automaticamente.
+
+--------------------------------------------------
+
+5 SAÍDA AUTOMÁTICA
+
+Quando um pedido for confirmado
+o sistema deve descontar automaticamente do estoque.
+
+Exemplo:
+
+Estoque banana: 120kg
+Pedido aprovado: 20kg
+
+Novo estoque:
+
+100kg
+
+--------------------------------------------------
+
+6 ALERTA DE ESTOQUE MÍNIMO
+
+Cada produto deve ter campo:
+
+Estoque mínimo.
+
+Se estoque atual ficar abaixo
+mostrar alerta.
+
+Exemplo:
+
+"Banana abaixo do estoque mínimo"
+
+Sistema deve sugerir reposição automática.
+
+--------------------------------------------------
+
+7 PAINEL DE ESTOQUE
+
+Mostrar tabela com:
+
+Produto
+Categoria
+Fornecedor
+Estoque atual
+Estoque mínimo
+Valor médio de compra
+Status
+
+Status possíveis:
+
+OK
+Baixo estoque
+Comprar
+
+--------------------------------------------------
+
+8 FILTRO POR DATA NO INVENTÁRIO
+
+Adicionar filtro de período.
+
+Usuário pode selecionar:
+
+Data inicial
+Data final
+
+Exemplo:
+
+01/03 até 31/03
+
+Mostrar movimentações do período.
+
+--------------------------------------------------
+
+9 CONTROLE DE VALIDADE
+
+Para frutas e hortifruti
+permitir registrar validade estimada.
+
+Sistema deve mostrar alerta:
+
+Produto perto do vencimento.
+
+--------------------------------------------------
+
+10 CONTROLE DE DESPERDÍCIO
+
+Criar botão:
+
+Registrar desperdício.
+
+Campos:
+
+Produto
+Quantidade descartada
+Motivo
+Data
+
+Motivos possíveis:
+
+Produto estragado
+Produto vencido
+Produto danificado
+Perda operacional
+
+--------------------------------------------------
+
+11 INVENTÁRIO FÍSICO
+
+Permitir conferência manual.
+
+Usuário pode registrar:
+
+Estoque físico real.
+
+Sistema calcula diferença.
+
+Exemplo:
+
+Sistema: 100kg
+Físico: 92kg
+
+Diferença:
+
+-8kg
+
+Registrar ajuste de inventário.
+
+--------------------------------------------------
+
+12 EXPORTAÇÃO DE INVENTÁRIO
+
+Permitir exportar dados em:
+
+PDF
+Excel
+
+Conteúdo exportado:
+
+Produtos
+Estoque atual
+Movimentações
+Desperdícios
+Ajustes de inventário
+
+--------------------------------------------------
+
+13 EXPORTAÇÃO DE PEDIDOS PONTUAIS
+
+Pedidos pontuais aprovados devem permitir exportação.
+
+Formatos:
+
+PDF
+Excel
+
+Conteúdo do documento:
+
+Empresa solicitante
+Lista de produtos
+Quantidade solicitada
+Quantidade aprovada
+Categoria
+Data do pedido
+Data de entrega
+Observações
+
+--------------------------------------------------
+
+14 INTEGRAÇÃO COM COMPRAS
+
+Se estoque ficar abaixo do mínimo
+o sistema deve sugerir compra automaticamente.
+
+Produto deve aparecer no:
+
+Planejamento de Compras.
+
+--------------------------------------------------
+
+15 PERMISSÕES
+
+Podem acessar inventário:
+
+Compras
+Admin
+Diretoria
+Desenvolvedor
+
+Clientes não acessam inventário.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ controle completo de estoque
+✔ entrada via nota fiscal
+✔ leitura automática de NF
+✔ baixa automática de pedidos
+✔ controle de validade
+✔ registro de desperdício
+✔ inventário físico
+✔ exportação em PDF
+✔ exportação em Excel
+✔ integração com compras

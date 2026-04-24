@@ -1,0 +1,924 @@
+{
+  "version": "1.0",
+  "createdAt": "2026-03-14T00:46:45.453Z",
+  "tables": {
+    "users": [
+      {
+        "id": 1,
+        "name": "Admin User",
+        "email": "admin@vivafrutaz.com",
+        "password": "admin",
+        "role": "ADMIN",
+        "active": true
+      },
+      {
+        "id": 3,
+        "name": "Purchasing",
+        "email": "buy@vivafrutaz.com",
+        "password": "buy",
+        "role": "PURCHASE_MANAGER",
+        "active": true
+      },
+      {
+        "id": 4,
+        "name": "Financeiro@vivafrutaz.com",
+        "email": "adm3@vivafrutaz.com.br",
+        "password": "123456",
+        "role": "PURCHASE_MANAGER",
+        "active": true
+      },
+      {
+        "id": 5,
+        "name": "Desenvolvedor@vivafrutaz.com",
+        "email": "desenvolvedor@vivafrutaz.com",
+        "password": "123456",
+        "role": "DEVELOPER",
+        "active": true
+      },
+      {
+        "id": 6,
+        "name": "Fernando",
+        "email": "Fernando@vivafrutaz.com",
+        "password": "123456",
+        "role": "DIRECTOR",
+        "active": true
+      },
+      {
+        "id": 7,
+        "name": "Desenvolvedor VF",
+        "email": "dev@vivafrutaz.com",
+        "password": "dev",
+        "role": "DEVELOPER",
+        "active": true
+      },
+      {
+        "id": 2,
+        "name": "Operations",
+        "email": "ops@vivafrutaz.com",
+        "password": "Viva2026@",
+        "role": "OPERATIONS_MANAGER",
+        "active": true
+      }
+    ],
+    "companies": [
+      {
+        "id": 5,
+        "companyName": "Google SKY ",
+        "contactName": "Google SKY ",
+        "email": "googlesky@vivafrutaz.com",
+        "password": "123456",
+        "phone": null,
+        "cnpj": null,
+        "priceGroupId": 4,
+        "allowedOrderDays": [
+          "Segunda-feira",
+          "Quarta-feira"
+        ],
+        "addressStreet": null,
+        "addressNumber": null,
+        "addressNeighborhood": null,
+        "addressCity": null,
+        "addressZip": null,
+        "active": true,
+        "clientType": "mensal",
+        "minWeeklyBilling": "400.00",
+        "deliveryTime": null,
+        "adminFee": "12.00",
+        "billingTerm": "15",
+        "billingType": "deposito",
+        "billingFormat": "diario",
+        "paymentDates": null,
+        "financialNotes": null,
+        "createdAt": "2026-03-12T19:20:18.637Z"
+      },
+      {
+        "id": 2,
+        "companyName": "Allianz",
+        "contactName": "Allianz",
+        "email": "allianzgrsa@vivafrutaz.com",
+        "password": "123456",
+        "phone": null,
+        "cnpj": null,
+        "priceGroupId": 3,
+        "allowedOrderDays": [
+          "Segunda feira e quarta feira",
+          "Segunda-feira",
+          "Quarta-feira"
+        ],
+        "addressStreet": null,
+        "addressNumber": null,
+        "addressNeighborhood": null,
+        "addressCity": null,
+        "addressZip": null,
+        "active": true,
+        "clientType": "mensal",
+        "minWeeklyBilling": null,
+        "deliveryTime": null,
+        "adminFee": "27.00",
+        "billingTerm": null,
+        "billingType": null,
+        "billingFormat": null,
+        "paymentDates": null,
+        "financialNotes": null,
+        "createdAt": "2026-03-10T17:32:28.835Z"
+      },
+      {
+        "id": 3,
+        "companyName": "Pinterest",
+        "contactName": "Anderson ",
+        "email": "pinterest@vivafrutaz.com",
+        "password": "123456",
+        "phone": null,
+        "cnpj": null,
+        "priceGroupId": 3,
+        "allowedOrderDays": [
+          "Segunda-feira",
+          "Quinta-feira",
+          "Sexta-feira",
+          "Quarta-feira",
+          "Terça-feira"
+        ],
+        "addressStreet": null,
+        "addressNumber": null,
+        "addressNeighborhood": null,
+        "addressCity": null,
+        "addressZip": null,
+        "active": true,
+        "clientType": "mensal",
+        "minWeeklyBilling": "500.00",
+        "deliveryTime": "09:00",
+        "adminFee": "0.00",
+        "billingTerm": null,
+        "billingType": null,
+        "billingFormat": null,
+        "paymentDates": null,
+        "financialNotes": null,
+        "createdAt": "2026-03-11T19:51:59.602Z"
+      },
+      {
+        "id": 4,
+        "companyName": "Ripple",
+        "contactName": "Expressobox",
+        "email": "Ripple@vivafrutaz.com",
+        "password": "123456",
+        "phone": null,
+        "cnpj": null,
+        "priceGroupId": 5,
+        "allowedOrderDays": [
+          "Segunda-feira"
+        ],
+        "addressStreet": null,
+        "addressNumber": null,
+        "addressNeighborhood": null,
+        "addressCity": null,
+        "addressZip": null,
+        "active": false,
+        "clientType": "mensal",
+        "minWeeklyBilling": null,
+        "deliveryTime": null,
+        "adminFee": "0.00",
+        "billingTerm": null,
+        "billingType": null,
+        "billingFormat": null,
+        "paymentDates": null,
+        "financialNotes": null,
+        "createdAt": "2026-03-12T17:26:32.981Z"
+      },
+      {
+        "id": 1,
+        "companyName": "Betano GRSA",
+        "contactName": "Betano",
+        "email": "Betanogrsa@vivafrutaz.com",
+        "password": "123456",
+        "phone": null,
+        "cnpj": null,
+        "priceGroupId": 3,
+        "allowedOrderDays": [
+          "Monday",
+          "Wednesday",
+          "Segunda-feira",
+          "Quarta-feira"
+        ],
+        "addressStreet": null,
+        "addressNumber": null,
+        "addressNeighborhood": null,
+        "addressCity": null,
+        "addressZip": null,
+        "active": true,
+        "clientType": "mensal",
+        "minWeeklyBilling": null,
+        "deliveryTime": null,
+        "adminFee": "12.00",
+        "billingTerm": null,
+        "billingType": null,
+        "billingFormat": null,
+        "paymentDates": null,
+        "financialNotes": null,
+        "createdAt": "2026-03-10T16:37:36.452Z"
+      }
+    ],
+    "priceGroups": [
+      {
+        "id": 1,
+        "groupName": "Corporate Basic",
+        "description": "Standard pricing"
+      },
+      {
+        "id": 2,
+        "groupName": "Corporate Plus",
+        "description": "Discounted pricing"
+      },
+      {
+        "id": 3,
+        "groupName": "GRSA",
+        "description": ""
+      },
+      {
+        "id": 4,
+        "groupName": "Sodexo",
+        "description": ""
+      },
+      {
+        "id": 5,
+        "groupName": "Tabela padrão ",
+        "description": ""
+      },
+      {
+        "id": 6,
+        "groupName": "Cliente testec",
+        "description": ""
+      }
+    ],
+    "categories": [
+      {
+        "id": 6,
+        "name": "Industrializados",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 1,
+        "name": "Frutas In Natura higienizadas (Embaladas em plastico)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 3,
+        "name": "Frutas processadas (Embalagem plástica)",
+        "description": "100g",
+        "active": true
+      },
+      {
+        "id": 9,
+        "name": "Frutas In Natura (Não higienizadas e não embaladas)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 2,
+        "name": "Frutas In Natura (Higienizadas embaladas em biodegradável)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 7,
+        "name": "Frutas processas (Pote biodegradável)",
+        "description": "100g",
+        "active": true
+      },
+      {
+        "id": 8,
+        "name": "Snacks Saudáveis (Embalagem biodegradavel)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 4,
+        "name": "Snacks Saudáveis (Embalagem plástica)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 10,
+        "name": "Frutas processadas (KG)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 5,
+        "name": "Linha de Oleaginosas e secas (Embalagem plástica)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 11,
+        "name": "Linha de Oleaginosas e secas (Embalagem biodegradável)",
+        "description": null,
+        "active": true
+      },
+      {
+        "id": 13,
+        "name": "Bebida",
+        "description": null,
+        "active": true
+      }
+    ],
+    "products": [
+      {
+        "id": 4,
+        "name": "Banana",
+        "category": "In natura ",
+        "unit": "piece",
+        "active": true,
+        "basePrice": "2.30",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": null
+      },
+      {
+        "id": 5,
+        "name": "Banana ",
+        "category": "Frutas in natura",
+        "unit": "unidade",
+        "active": true,
+        "basePrice": "2.30",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": null
+      },
+      {
+        "id": 6,
+        "name": "Banana",
+        "category": "In natura ",
+        "unit": "unidade",
+        "active": false,
+        "basePrice": "2.50",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": null
+      },
+      {
+        "id": 1,
+        "name": "Banana",
+        "category": "Fruit",
+        "unit": "unidade",
+        "active": false,
+        "basePrice": "2.30",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": null
+      },
+      {
+        "id": 7,
+        "name": "Manga",
+        "category": "Frutas In natura ",
+        "unit": "kg",
+        "active": true,
+        "basePrice": "3.50",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": null
+      },
+      {
+        "id": 8,
+        "name": "Biscoito Integral",
+        "category": "Industrializados",
+        "unit": "display",
+        "active": true,
+        "basePrice": "5.00",
+        "isIndustrialized": true,
+        "isSeasonal": false,
+        "observation": "Display com 12 unidades",
+        "availableDays": [
+          "Segunda-feira"
+        ]
+      },
+      {
+        "id": 3,
+        "name": "Melon in natura ",
+        "category": "Frutas Higienizadas",
+        "unit": "unidade",
+        "active": true,
+        "basePrice": "2.30",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": null
+      },
+      {
+        "id": 2,
+        "name": "Morango ",
+        "category": "Frutas In Natura",
+        "unit": "unidade",
+        "active": true,
+        "basePrice": "2.30",
+        "isIndustrialized": false,
+        "isSeasonal": true,
+        "observation": "Higienizadas ",
+        "availableDays": [
+          "Terça-feira"
+        ]
+      },
+      {
+        "id": 9,
+        "name": "Abacaxi ",
+        "category": "Frutas processas (Pote biodegradável)",
+        "unit": "pote",
+        "active": true,
+        "basePrice": "3.85",
+        "isIndustrialized": false,
+        "isSeasonal": false,
+        "observation": null,
+        "availableDays": [
+          "Segunda-feira",
+          "Terça-feira",
+          "Quarta-feira",
+          "Quinta-feira",
+          "Sexta-feira"
+        ]
+      }
+    ],
+    "productPrices": [
+      {
+        "id": 1,
+        "productId": 1,
+        "priceGroupId": 1,
+        "price": "45.00"
+      },
+      {
+        "id": 2,
+        "productId": 1,
+        "priceGroupId": 2,
+        "price": "40.00"
+      },
+      {
+        "id": 3,
+        "productId": 2,
+        "priceGroupId": 1,
+        "price": "45.00"
+      },
+      {
+        "id": 4,
+        "productId": 2,
+        "priceGroupId": 2,
+        "price": "40.00"
+      },
+      {
+        "id": 5,
+        "productId": 3,
+        "priceGroupId": 1,
+        "price": "45.00"
+      },
+      {
+        "id": 6,
+        "productId": 3,
+        "priceGroupId": 2,
+        "price": "40.00"
+      }
+    ],
+    "orderWindows": [],
+    "orderExceptions": [
+      {
+        "id": 1,
+        "companyId": 1,
+        "reason": "Cliente VIP com contrato especial de pedido tardio",
+        "expiryDate": "2026-03-16",
+        "active": true,
+        "createdAt": "2026-03-13T17:00:09.310Z"
+      }
+    ],
+    "orders": [
+      {
+        "id": 1,
+        "orderCode": "VF-2026-000001",
+        "status": "ACTIVE",
+        "adminNote": "Produto enviado com avaria - desconto de R$ 5,00 aplicado",
+        "companyId": 3,
+        "orderDate": "2026-03-13T12:54:44.815Z",
+        "deliveryDate": "2026-03-17T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "2.64",
+        "orderNote": "Banana bem madura",
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T12:54:44.815Z"
+      },
+      {
+        "id": 2,
+        "orderCode": "VF-2026-000002",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 2,
+        "orderDate": "2026-03-13T13:04:19.678Z",
+        "deliveryDate": "2026-03-17T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "46.77",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T13:04:19.678Z"
+      },
+      {
+        "id": 3,
+        "orderCode": "VF-2026-000003",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 2,
+        "orderDate": "2026-03-13T13:04:29.324Z",
+        "deliveryDate": "2026-03-19T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "23.36",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T13:04:29.324Z"
+      },
+      {
+        "id": 4,
+        "orderCode": "VF-2026-000004",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 2,
+        "orderDate": "2026-03-13T17:09:46.252Z",
+        "deliveryDate": "2026-03-17T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "21.46",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T17:09:46.252Z"
+      },
+      {
+        "id": 5,
+        "orderCode": "VF-2026-000005",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 1,
+        "orderDate": "2026-03-13T17:41:00.949Z",
+        "deliveryDate": "2026-03-19T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "77.02",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T17:41:00.949Z"
+      },
+      {
+        "id": 6,
+        "orderCode": "VF-2026-000006",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 1,
+        "orderDate": "2026-03-13T17:41:20.213Z",
+        "deliveryDate": "2026-03-17T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "91.90",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T17:41:20.213Z"
+      },
+      {
+        "id": 7,
+        "orderCode": "VF-2026-000007",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 1,
+        "orderDate": "2026-03-13T17:41:44.836Z",
+        "deliveryDate": "2026-03-17T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "91.90",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T17:41:44.836Z"
+      },
+      {
+        "id": 8,
+        "orderCode": "VF-2026-000008",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 1,
+        "orderDate": "2026-03-13T20:44:50.787Z",
+        "deliveryDate": "2026-03-17T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "468.99",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T20:44:50.787Z"
+      },
+      {
+        "id": 9,
+        "orderCode": "VF-2026-000009",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 1,
+        "orderDate": "2026-03-13T20:47:09.232Z",
+        "deliveryDate": "2026-03-19T00:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "28.38",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T20:47:09.232Z"
+      },
+      {
+        "id": 10,
+        "orderCode": "VF-2026-000010",
+        "status": "ACTIVE",
+        "adminNote": null,
+        "companyId": 1,
+        "orderDate": "2026-03-13T23:04:01.808Z",
+        "deliveryDate": "2026-03-16T15:00:00.000Z",
+        "weekReference": "Semana 11 - Mar 2026",
+        "totalValue": "32.60",
+        "orderNote": null,
+        "allowReplication": false,
+        "nimbiExpiration": null,
+        "createdAt": "2026-03-13T23:04:01.808Z"
+      }
+    ],
+    "orderItems": [
+      {
+        "id": 1,
+        "orderId": 1,
+        "productId": 1,
+        "quantity": 1,
+        "unitPrice": "2.64",
+        "totalPrice": "2.64"
+      },
+      {
+        "id": 2,
+        "orderId": 2,
+        "productId": 1,
+        "quantity": 6,
+        "unitPrice": "2.92",
+        "totalPrice": "17.52"
+      },
+      {
+        "id": 3,
+        "orderId": 2,
+        "productId": 6,
+        "quantity": 5,
+        "unitPrice": "3.18",
+        "totalPrice": "15.90"
+      },
+      {
+        "id": 4,
+        "orderId": 2,
+        "productId": 7,
+        "quantity": 3,
+        "unitPrice": "4.45",
+        "totalPrice": "13.35"
+      },
+      {
+        "id": 5,
+        "orderId": 3,
+        "productId": 1,
+        "quantity": 8,
+        "unitPrice": "2.92",
+        "totalPrice": "23.36"
+      },
+      {
+        "id": 8,
+        "orderId": 4,
+        "productId": 3,
+        "quantity": 3,
+        "unitPrice": "2.92",
+        "totalPrice": "8.76"
+      },
+      {
+        "id": 9,
+        "orderId": 4,
+        "productId": 8,
+        "quantity": 2,
+        "unitPrice": "6.35",
+        "totalPrice": "12.70"
+      },
+      {
+        "id": 10,
+        "orderId": 5,
+        "productId": 2,
+        "quantity": 6,
+        "unitPrice": "2.58",
+        "totalPrice": "15.48"
+      },
+      {
+        "id": 11,
+        "orderId": 5,
+        "productId": 3,
+        "quantity": 3,
+        "unitPrice": "2.58",
+        "totalPrice": "7.74"
+      },
+      {
+        "id": 12,
+        "orderId": 5,
+        "productId": 4,
+        "quantity": 10,
+        "unitPrice": "2.58",
+        "totalPrice": "25.80"
+      },
+      {
+        "id": 13,
+        "orderId": 5,
+        "productId": 8,
+        "quantity": 5,
+        "unitPrice": "5.60",
+        "totalPrice": "28.00"
+      },
+      {
+        "id": 14,
+        "orderId": 6,
+        "productId": 4,
+        "quantity": 6,
+        "unitPrice": "2.58",
+        "totalPrice": "15.48"
+      },
+      {
+        "id": 15,
+        "orderId": 6,
+        "productId": 5,
+        "quantity": 9,
+        "unitPrice": "2.58",
+        "totalPrice": "23.22"
+      },
+      {
+        "id": 16,
+        "orderId": 6,
+        "productId": 7,
+        "quantity": 5,
+        "unitPrice": "3.92",
+        "totalPrice": "19.60"
+      },
+      {
+        "id": 17,
+        "orderId": 6,
+        "productId": 8,
+        "quantity": 6,
+        "unitPrice": "5.60",
+        "totalPrice": "33.60"
+      },
+      {
+        "id": 18,
+        "orderId": 7,
+        "productId": 4,
+        "quantity": 6,
+        "unitPrice": "2.58",
+        "totalPrice": "15.48"
+      },
+      {
+        "id": 19,
+        "orderId": 7,
+        "productId": 5,
+        "quantity": 9,
+        "unitPrice": "2.58",
+        "totalPrice": "23.22"
+      },
+      {
+        "id": 20,
+        "orderId": 7,
+        "productId": 7,
+        "quantity": 5,
+        "unitPrice": "3.92",
+        "totalPrice": "19.60"
+      },
+      {
+        "id": 21,
+        "orderId": 7,
+        "productId": 8,
+        "quantity": 6,
+        "unitPrice": "5.60",
+        "totalPrice": "33.60"
+      },
+      {
+        "id": 22,
+        "orderId": 8,
+        "productId": 3,
+        "quantity": 5,
+        "unitPrice": "2.58",
+        "totalPrice": "12.90"
+      },
+      {
+        "id": 23,
+        "orderId": 8,
+        "productId": 4,
+        "quantity": 5,
+        "unitPrice": "2.58",
+        "totalPrice": "12.90"
+      },
+      {
+        "id": 24,
+        "orderId": 8,
+        "productId": 5,
+        "quantity": 6,
+        "unitPrice": "2.58",
+        "totalPrice": "15.48"
+      },
+      {
+        "id": 25,
+        "orderId": 8,
+        "productId": 7,
+        "quantity": 4,
+        "unitPrice": "3.92",
+        "totalPrice": "15.68"
+      },
+      {
+        "id": 26,
+        "orderId": 8,
+        "productId": 8,
+        "quantity": 2,
+        "unitPrice": "5.60",
+        "totalPrice": "11.20"
+      },
+      {
+        "id": 27,
+        "orderId": 8,
+        "productId": 9,
+        "quantity": 93,
+        "unitPrice": "4.31",
+        "totalPrice": "400.83"
+      },
+      {
+        "id": 28,
+        "orderId": 9,
+        "productId": 3,
+        "quantity": 7,
+        "unitPrice": "2.58",
+        "totalPrice": "18.06"
+      },
+      {
+        "id": 29,
+        "orderId": 9,
+        "productId": 4,
+        "quantity": 4,
+        "unitPrice": "2.58",
+        "totalPrice": "10.32"
+      },
+      {
+        "id": 30,
+        "orderId": 10,
+        "productId": 4,
+        "quantity": 1,
+        "unitPrice": "2.58",
+        "totalPrice": "2.58"
+      },
+      {
+        "id": 31,
+        "orderId": 10,
+        "productId": 5,
+        "quantity": 1,
+        "unitPrice": "2.58",
+        "totalPrice": "2.58"
+      },
+      {
+        "id": 32,
+        "orderId": 10,
+        "productId": 7,
+        "quantity": 7,
+        "unitPrice": "3.92",
+        "totalPrice": "27.44"
+      }
+    ],
+    "systemSettings": [
+      {
+        "key": "orders_enabled",
+        "value": "true"
+      },
+      {
+        "key": "maintenance_mode",
+        "value": "true"
+      },
+      {
+        "key": "test_mode",
+        "value": "true"
+      }
+    ],
+    "specialOrderRequests": [
+      {
+        "id": 1,
+        "companyId": 1,
+        "requestedDay": "Segunda-feira",
+        "description": "10 maçãs ",
+        "quantity": "10",
+        "observations": "In natura ",
+        "status": "REJECTED",
+        "adminNote": "Pedido pontual recusado.",
+        "createdAt": "2026-03-13T23:03:42.582Z",
+        "resolvedAt": "2026-03-13T23:06:33.115Z"
+      }
+    ]
+  },
+  "counts": {
+    "users": 7,
+    "companies": 5,
+    "orders": 10,
+    "products": 9
+  }
+}

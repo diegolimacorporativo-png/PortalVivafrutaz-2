@@ -1,0 +1,202 @@
+REALIZAR UMA AUDITORIA E IMPLEMENTAÇÃO DE FUNCIONALIDADES OPERACIONAIS NO SISTEMA.
+
+IMPORTANTE:
+Não quebrar funcionalidades existentes.
+Aplicar melhorias mantendo compatibilidade com dados atuais.
+
+--------------------------------------------------
+
+1) EXPORTAÇÃO GERAL DE PEDIDOS
+
+Criar ferramenta para o GERENTE DE OPERAÇÕES exportar todos os pedidos do sistema.
+
+Adicionar botão:
+
+"Exportar Pedidos"
+
+Local:
+Painel de Pedidos ou Painel Operacional.
+
+Permitir exportação em:
+
+Excel
+CSV
+PDF
+
+Filtros obrigatórios:
+
+Empresa
+Período (data inicial / final)
+Tipo de pedido
+
+Tipos de pedido:
+
+Semanal
+Mensal
+Pontual
+Contratual
+Teste
+
+Campos exportados:
+
+Empresa
+Tipo de contrato
+Data do pedido
+Data de entrega
+Produto
+Categoria
+Quantidade
+Preço unitário
+Valor total
+Status
+Observações
+
+Permitir também exportação:
+
+"Todos os pedidos consolidados da semana".
+
+--------------------------------------------------
+
+2) OPÇÃO DE FREQUÊNCIA DE PEDIDOS PARA CLIENTE
+
+Na área do cliente → Aba Pedidos
+
+Adicionar campo de seleção:
+
+"Tipo de pedido preferido"
+
+Opções:
+
+Pedido semanal
+Pedido mensal
+Pedido pontual
+
+Se cliente escolher:
+
+Pedido semanal → sistema abre janela de pedido toda semana.
+
+Pedido mensal → cliente faz um pedido válido para todo o mês.
+
+Pedido pontual → cliente compra apenas quando quiser.
+
+Essa preferência deve ser salva no cadastro do cliente.
+
+--------------------------------------------------
+
+3) CONTROLE DE SAFRA DE PRODUTOS
+
+Já existe campo "Modo Safra" no cadastro de produtos.
+
+Melhorar comportamento.
+
+Quando um produto for marcado como:
+
+Safra encerrada
+Produto indisponível
+
+O sistema deve automaticamente:
+
+verificar pedidos existentes que contenham esse produto.
+
+Mostrar um alerta administrativo:
+
+"Produto X saiu de safra. Existem pedidos ativos contendo esse produto."
+
+Listar:
+
+empresa
+pedido
+quantidade
+data de entrega
+
+Criar botão:
+
+"Gerenciar substituição"
+
+Opções:
+
+substituir produto por outro
+remover produto
+dar desconto no item
+adicionar observação na nota fiscal
+
+Essas alterações devem atualizar automaticamente:
+
+pedido
+faturamento
+nota fiscal.
+
+--------------------------------------------------
+
+4) VERIFICAÇÃO DE PERMISSÕES DE USUÁRIO
+
+Confirmar se foi implementado o sistema de permissões avançadas.
+
+Cada usuário deve ter flags de acesso como:
+
+ver pedidos
+criar pedidos
+editar pedidos
+excluir pedidos
+
+ver compras
+editar compras
+
+ver financeiro
+editar financeiro
+
+gerar nota fiscal
+exportar Bling
+
+Se não existir, implementar na aba:
+
+"Usuários do Sistema"
+
+--------------------------------------------------
+
+5) EXCLUSÃO ADMINISTRATIVA DE PEDIDOS
+
+Verificar se existe função para:
+
+Excluir pedidos do sistema.
+
+Se não existir ou estiver incompleta, criar função:
+
+"Excluir histórico de pedidos"
+
+Permitir:
+
+excluir pedidos específicos
+excluir pedidos por período
+excluir pedidos de um cliente
+
+Somente usuários com função:
+
+ADMIN
+DIRETOR
+DESENVOLVEDOR
+
+podem executar.
+
+--------------------------------------------------
+
+6) LOG DE SEGURANÇA
+
+Sempre registrar:
+
+quem excluiu
+data
+motivo
+quantos pedidos foram removidos.
+
+--------------------------------------------------
+
+7) TESTE FINAL
+
+Testar:
+
+exportação de pedidos
+frequência semanal/mensal
+alerta de produto fora de safra
+permissões de usuário
+exclusão administrativa de pedidos

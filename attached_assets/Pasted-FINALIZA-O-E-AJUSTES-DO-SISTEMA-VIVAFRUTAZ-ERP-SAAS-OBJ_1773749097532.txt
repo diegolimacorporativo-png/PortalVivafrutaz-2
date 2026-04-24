@@ -1,0 +1,298 @@
+FINALIZAÇÃO E AJUSTES DO SISTEMA VIVAFRUTAZ ERP SAAS
+
+OBJETIVO:
+
+Ajustar funcionalidades existentes, corrigir erros, garantir funcionamento completo e VISUAL, sem recriar módulos já existentes.
+
+Sistema deve entrar em modo estável.
+
+------------------------------------------------
+
+1. PRODUTOS COM MÚLTIPLAS CATEGORIAS E PREÇOS
+
+Manter ID único por produto.
+
+Permitir múltiplas categorias dentro do mesmo produto, cada uma com:
+
+nome da categoria  
+preço próprio  
+
+Exemplo:
+
+Produto: Banana Nanica  
+- In natura higienizada → preço 2.30  
+- In natura não higienizada → preço 1.10  
+
+Permitir:
+
+adicionar  
+editar  
+remover categorias  
+
+Garantir interface visual funcional.
+
+------------------------------------------------
+
+2. PREÇO DINÂMICO COM TAXA ADMINISTRATIVA
+
+Integrar preços com taxa administrativa da empresa.
+
+Sistema deve:
+
+calcular automaticamente preço final por cliente  
+não exibir essa lógica ao cliente  
+
+------------------------------------------------
+
+3. CONTROLE DE PREÇO POR PERFIL
+
+Cada cliente deve receber preço conforme:
+
+taxa administrativa  
+configuração da empresa  
+
+Aplicar em:
+
+pedidos  
+cotação  
+nota fiscal  
+
+------------------------------------------------
+
+4. PERMISSÕES — USUÁRIO MASTER
+
+Corrigir permissões.
+
+Usuário master deve ter acesso total:
+
+todas telas  
+todas APIs  
+manutenção  
+testes  
+lançamento de versões  
+
+Remover qualquer erro de acesso negado.
+
+------------------------------------------------
+
+5. ERRO 403 — NOVA VERSÃO
+
+Corrigir erro ao salvar nova versão.
+
+Verificar:
+
+backend (permissão)  
+token/autenticação  
+envio de headers  
+role do usuário  
+
+Garantir funcionamento completo.
+
+------------------------------------------------
+
+6. SOLICITAÇÃO DE COTAÇÃO
+
+Calcular automaticamente custo médio.
+
+Permitir edição manual.
+
+Exibir custo apenas quando:
+
+usuário tiver permissão  
+ou cliente solicitar valor detalhado  
+
+------------------------------------------------
+
+7. CLIENTES CONTRATUAIS
+
+Não exibir preços.
+
+Mostrar apenas:
+
+produtos  
+quantidades  
+volume  
+frequência de entrega  
+
+------------------------------------------------
+
+8. ABA DE DADOS PARA NOTA FISCAL
+
+Criar nova aba exclusiva:
+
+DADOS FISCAIS
+
+Campos editáveis:
+
+empresa (emitente)  
+CNPJ  
+inscrição estadual  
+endereço  
+dados do cliente  
+dados automáticos vindos de pedidos  
+
+Permitir importar dados de qualquer módulo.
+
+------------------------------------------------
+
+9. NOTA FISCAL INTEGRADA
+
+Garantir fluxo automático:
+
+pedido → logística → nota fiscal  
+
+Gerar:
+
+XML válido  
+DANFE  
+envio por email (SMTP)  
+
+Validar antes de emitir.
+
+------------------------------------------------
+
+10. SMTP (EMAIL)
+
+Verificar configuração SMTP (ex: Gmail).
+
+Garantir:
+
+envio de NF por email  
+tratamento de erro  
+logs de envio  
+
+------------------------------------------------
+
+11. GPS E LOGÍSTICA
+
+Garantir funcionamento:
+
+rastreamento de motoristas  
+visualização de rotas  
+posição em tempo real  
+
+Controle por plano:
+
+Free → desativado  
+Starter → básico  
+Pro → completo  
+Enterprise → completo + inteligência  
+
+Permitir liberação manual no SaaS.
+
+------------------------------------------------
+
+12. ROTAS AUTOMÁTICAS
+
+Ao criar pedido:
+
+gerar rota automaticamente  
+considerar endereço e janela de entrega  
+
+Permitir:
+
+editar rotas  
+atribuir motoristas  
+
+Sistema deve:
+
+calcular distância (KM)  
+detectar sobrecarga  
+sugerir ajustes  
+
+------------------------------------------------
+
+13. CHECKLIST DE MOTORISTA
+
+Antes da rota:
+
+confirmar veículo  
+confirmar carga  
+confirmar pedidos  
+
+Durante:
+
+confirmar entrega  
+registrar horário  
+
+------------------------------------------------
+
+14. USUÁRIO MOTORISTA (CAMPO)
+
+Criar perfil restrito:
+
+acesso apenas a:
+
+rotas do dia  
+empresas da rota  
+notas fiscais da rota  
+GPS  
+
+------------------------------------------------
+
+15. TREINAMENTO E TUTORIAIS
+
+Criar seção:
+
+Treinamento
+
+Incluir:
+
+tutorial de uso do GPS  
+onde adicionar rota  
+como emitir nota fiscal  
+
+Se houver erro:
+
+direcionar automaticamente para tela correta.
+
+------------------------------------------------
+
+16. AJUSTE DO PAINEL (GUIA RÁPIDO)
+
+Corrigir painel que está sobrepondo tela.
+
+Permitir:
+
+minimizar  
+reposicionar  
+não bloquear navegação  
+
+------------------------------------------------
+
+17. FLUXO TOTAL DO SISTEMA
+
+Garantir integração completa:
+
+cliente faz pedido  
+pedido vai para logística  
+logística gera rota  
+rota gera entrega  
+entrega gera nota fiscal  
+
+Sem quebra de fluxo.
+
+------------------------------------------------
+
+18. VALIDAÇÃO FINAL
+
+Verificar:
+
+todas telas com interface  
+todas funções visíveis  
+todas APIs funcionando  
+sem erro de permissão  
+
+Executar testes automáticos.
+
+Corrigir qualquer erro encontrado.
+
+------------------------------------------------
+
+RESULTADO FINAL:
+
+Sistema estável  
+funcionalidades completas  
+fluxo automatizado  
+interface organizada  
+sem erros críticos

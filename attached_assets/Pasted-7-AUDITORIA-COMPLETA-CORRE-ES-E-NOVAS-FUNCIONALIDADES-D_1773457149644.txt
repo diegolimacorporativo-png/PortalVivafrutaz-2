@@ -1,0 +1,399 @@
+7"}
+AUDITORIA COMPLETA, CORREÇÕES E NOVAS FUNCIONALIDADES DO SISTEMA VIVAFRUTAZ
+
+Executar auditoria completa e implementar melhorias nos módulos:
+
+Login  
+Empresas  
+Pedidos Pontuais  
+Tarefas  
+Ocorrências de Clientes  
+Logística  
+Motoristas  
+Logs do Sistema  
+Usuários do Sistema  
+Painel de IA  
+Permissões de Usuário  
+
+Objetivo:
+
+corrigir erros existentes
+melhorar experiência de uso
+aumentar estabilidade do sistema
+implementar novas funcionalidades.
+
+--------------------------------------------------
+
+LOGIN COM DOMÍNIO FIXO
+
+Na tela de login adicionar campo:
+
+Usuário
+
+O sistema deve automaticamente adicionar o domínio:
+
+@vivafrutaz.com
+
+Exemplo:
+
+Usuário digita:
+
+diego
+
+Sistema converte automaticamente para:
+
+diego@vivafrutaz.com
+
+Visualmente mostrar:
+
+campo usuário
+@vivafrutaz.com fixo ao lado.
+
+--------------------------------------------------
+
+LOGIN NÃO SENSÍVEL A MAIÚSCULAS
+
+O login não deve ser sensível a letras maiúsculas ou minúsculas.
+
+Antes da validação executar:
+
+converter login para minúsculo.
+
+Exemplo:
+
+loginDigitado = loginDigitado.toLowerCase()
+
+Exemplos válidos:
+
+diego
+Diego
+DIEGO
+DiEgO
+
+Todos devem acessar normalmente.
+
+--------------------------------------------------
+
+MANTER SISTEMA ATIVO
+
+Implementar sistema para evitar que o site entre em modo de inatividade.
+
+Criar requisição automática a cada 5 minutos para manter servidor ativo.
+
+Objetivo:
+
+evitar que o sistema "durma".
+
+--------------------------------------------------
+
+CORREÇÃO DO MÓDULO DE TAREFAS
+
+Corrigir erros ao:
+
+criar tarefa
+editar tarefa
+selecionar responsável.
+
+Garantir uso correto do campo:
+
+responsavel_id
+
+Validar se o usuário selecionado existe no banco.
+
+--------------------------------------------------
+
+TRATAMENTO DE ERRO DE TAREFAS
+
+Se ocorrer erro ao salvar tarefa:
+
+mostrar mensagem:
+
+"Não foi possível salvar a tarefa. Tente novamente."
+
+Erro técnico deve ser registrado apenas no log.
+
+--------------------------------------------------
+
+CORREÇÃO DE PEDIDOS PONTUAIS
+
+Executar auditoria no módulo:
+
+Pedidos Pontuais
+
+Verificar:
+
+validação do formulário
+estrutura da requisição
+salvamento no banco
+retorno da API.
+
+Fluxo correto:
+
+usuário cria pedido
+pedido salvo no banco
+pedido aparece na lista.
+
+--------------------------------------------------
+
+CORREÇÃO EM OCORRÊNCIAS DE CLIENTES
+
+Corrigir erro ao registrar ocorrência.
+
+Garantir que:
+
+formulário valide dados
+API receba dados corretamente
+registro seja salvo no banco.
+
+--------------------------------------------------
+
+FILTROS DE HISTÓRICO DE OCORRÊNCIAS
+
+Adicionar filtros:
+
+empresa
+status
+data inicial
+data final
+responsável.
+
+--------------------------------------------------
+
+RESPONDER OCORRÊNCIAS
+
+Adicionar botão:
+
+Responder.
+
+Abrir campo de resposta.
+
+Campos:
+
+mensagem
+usuário que respondeu
+data da resposta.
+
+--------------------------------------------------
+
+VISUALIZAÇÃO PARA CLIENTE
+
+Cliente deve visualizar:
+
+resposta da equipe
+nome do usuário que respondeu
+data e hora da resposta.
+
+--------------------------------------------------
+
+STATUS DA OCORRÊNCIA
+
+Criar status:
+
+Aberta
+Em análise
+Respondida
+Resolvida.
+
+--------------------------------------------------
+
+CORREÇÃO DO MÓDULO LOGÍSTICA
+
+Corrigir erro ao acessar:
+
+Logística → Motoristas.
+
+Garantir funcionamento correto:
+
+listar motoristas
+adicionar motorista
+editar motorista
+remover motorista.
+
+--------------------------------------------------
+
+CAMPOS DO MOTORISTA
+
+Nome  
+Telefone  
+Veículo  
+Placa  
+Status.
+
+--------------------------------------------------
+
+VALIDAÇÃO DE MOTORISTAS
+
+Campos obrigatórios:
+
+nome
+telefone
+veículo.
+
+--------------------------------------------------
+
+GESTÃO DE LOGS DO SISTEMA
+
+Na área:
+
+Área do Desenvolvedor → Logs do Sistema
+
+Adicionar funcionalidades.
+
+--------------------------------------------------
+
+SELEÇÃO DE LOGS
+
+Adicionar checkbox em cada linha.
+
+Adicionar opção:
+
+Selecionar todos.
+
+--------------------------------------------------
+
+EXCLUSÃO DE LOGS
+
+Adicionar botão:
+
+Excluir selecionados.
+
+Confirmar antes de excluir.
+
+--------------------------------------------------
+
+LIMPAR LOGS POR DATA
+
+Adicionar botão:
+
+Limpar por período.
+
+Campos:
+
+data inicial
+data final.
+
+--------------------------------------------------
+
+LIMPEZA AUTOMÁTICA
+
+Excluir logs com mais de:
+
+90 dias.
+
+--------------------------------------------------
+
+EXPORTAÇÃO DE LOGS
+
+Permitir exportação em:
+
+CSV
+Excel.
+
+--------------------------------------------------
+
+IA PARA CLIENTES
+
+Disponibilizar assistente inteligente no portal do cliente.
+
+Funções:
+
+consultar pedidos
+consultar ocorrências
+consultar entregas
+tirar dúvidas sobre sistema.
+
+--------------------------------------------------
+
+IA INTERNA PARA EQUIPE
+
+Criar assistente interno para funcionários.
+
+Perfis atendidos:
+
+Administrador
+Diretor
+Gerente de Operações
+Financeiro
+Desenvolvedor.
+
+--------------------------------------------------
+
+FUNÇÕES DA IA
+
+A IA deve permitir:
+
+consultar pedidos
+consultar ocorrências
+verificar status de ocorrências
+identificar quem respondeu ocorrência
+consultar tarefas
+consultar entregas.
+
+--------------------------------------------------
+
+GESTÃO DE PERMISSÕES
+
+Criar nova aba:
+
+Gestão de Permissões.
+
+Administrador pode criar novos cargos.
+
+Exemplos:
+
+Supervisor
+Logística
+Atendimento
+Compras
+Suporte.
+
+--------------------------------------------------
+
+DEFINIR PERMISSÕES
+
+Cada cargo pode ter permissões como:
+
+visualizar pedidos
+editar pedidos
+criar empresas
+acessar logística
+ver financeiro
+responder ocorrências
+gerenciar usuários
+acessar logs.
+
+--------------------------------------------------
+
+VINCULAR CARGO AO USUÁRIO
+
+Cada usuário terá:
+
+cargo
+permissões vinculadas ao cargo.
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+Após implementação o sistema VivaFrutaz terá:
+
+login com domínio automático
+login ignorando letras maiúsculas
+sistema ativo sem entrar em repouso
+correção do módulo de tarefas
+correção de pedidos pontuais
+correção de ocorrências de clientes
+filtros avançados de ocorrências
+resposta de ocorrências para clientes
+histórico completo de interações
+correção do módulo logística
+funcionamento da tela de motoristas
+gestão avançada de logs
+exclusão e limpeza de logs
+exportação de logs
+IA para clientes
+IA interna para funcionários
+consulta inteligente de ocorrências
+criação de cargos personalizados
+gestão completa de permissões
+sistema mais estável e preparado para crescimen

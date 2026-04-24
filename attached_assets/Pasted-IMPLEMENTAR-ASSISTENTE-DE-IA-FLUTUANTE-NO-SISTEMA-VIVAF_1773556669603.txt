@@ -1,0 +1,120 @@
+IMPLEMENTAR ASSISTENTE DE IA FLUTUANTE NO SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Criar um assistente de inteligência artificial flutuante
+disponível em todas as telas do sistema.
+
+A IA deve ajudar usuários,
+verificar erros
+e fornecer suporte automático.
+
+--------------------------------------------------
+
+1 CRIAR BOTÃO FLUTUANTE
+
+Adicionar botão flutuante no canto inferior direito do sistema.
+
+Texto ou ícone:
+
+Assistente IA
+ou
+ícone de chat.
+
+Botão deve aparecer em todas as páginas.
+
+--------------------------------------------------
+
+2 JANELA DE CHAT
+
+Ao clicar no botão
+abrir janela de conversa.
+
+Mostrar:
+
+mensagem de boas-vindas
+campo para digitar mensagem.
+
+--------------------------------------------------
+
+3 SAUDAÇÃO AUTOMÁTICA
+
+A IA deve enviar mensagens automáticas.
+
+Exemplo:
+
+Bom dia equipe.
+Hoje temos 12 pedidos programados.
+
+--------------------------------------------------
+
+4 VERIFICAÇÃO AUTOMÁTICA DO SISTEMA
+
+IA deve analisar:
+
+campos vazios
+produtos sem preço
+empresas sem endereço
+pedidos incompletos
+
+Mostrar alerta se encontrar erros.
+
+--------------------------------------------------
+
+5 SUPORTE A USUÁRIOS
+
+Usuários podem perguntar:
+
+como criar pedidos
+como editar empresas
+como gerar relatórios.
+
+IA responde com orientações.
+
+--------------------------------------------------
+
+6 ALERTAS ADMINISTRATIVOS
+
+Para usuários internos mostrar:
+
+empresas inativas
+produtos inativos
+pedidos pendentes
+erros detectados.
+
+--------------------------------------------------
+
+7 COMPORTAMENTO POR PERFIL
+
+Clientes:
+
+ajuda com pedidos
+status de entrega
+informações de catálogo.
+
+Usuários internos:
+
+alertas do sistema
+verificação de dados.
+
+Desenvolvedor:
+
+informações técnicas
+logs
+detector de bugs.
+
+--------------------------------------------------
+
+8 SEGURANÇA
+
+Clientes não podem acessar dados internos do sistema.
+
+--------------------------------------------------
+
+9 RESULTADO ESPERADO
+
+Sistema possui assistente de IA flutuante
+disponível em todas as páginas
+capaz de ajudar usuários
+verificar erros
+e melhorar a operação do sistema.

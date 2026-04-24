@@ -1,0 +1,113 @@
+AJUSTES NO SISTEMA – PERFIL USUÁRIO TESTE E HISTÓRICO DE PEDIDOS
+
+OBJETIVO
+Adicionar o perfil de usuário de teste no sistema e melhorar a visualização do histórico de pedidos para clientes.
+
+--------------------------------------------------
+
+1️⃣ ADICIONAR PERFIL "USUÁRIO TESTE" NO SISTEMA
+
+Na área:
+
+Usuários do Sistema
+
+Atualmente não existe a opção de selecionar o perfil:
+
+SISTEMA_TESTE
+
+Criar esse novo tipo de perfil na estrutura de permissões do sistema.
+
+Perfil:
+
+SISTEMA_TESTE
+
+Permissões desse usuário:
+
+✔ acessar catálogo de produtos  
+✔ criar pedidos  
+✔ visualizar histórico de pedidos  
+✔ criar pedidos pontuais  
+
+Regras especiais para esse perfil:
+
+Pedidos criados por esse usuário devem ser marcados automaticamente como:
+
+pedido_teste = true
+
+Esses pedidos:
+
+✔ não entram em relatórios financeiros  
+✔ não entram no faturamento  
+✔ não entram em relatórios de vendas  
+✔ servem apenas para testes do sistema  
+
+Esse perfil deve aparecer no campo:
+
+Tipo de Usuário
+
+junto com:
+
+Administrador  
+Cliente  
+Compras  
+Diretor  
+Desenvolvedor  
+SISTEMA_TESTE
+
+--------------------------------------------------
+
+2️⃣ MELHORAR HISTÓRICO DE PEDIDOS PARA CLIENTES
+
+Na aba:
+
+Histórico de Pedidos
+
+Atualmente o cliente não consegue visualizar claramente o pedido completo.
+
+Ajustar para permitir que o cliente possa:
+
+✔ abrir o pedido realizado  
+✔ visualizar todos os itens solicitados  
+✔ visualizar quantidades  
+✔ visualizar valores unitários  
+✔ visualizar subtotal por item  
+✔ visualizar valor total do pedido  
+✔ visualizar data do pedido  
+✔ visualizar data de entrega  
+✔ visualizar status do pedido  
+
+Criar botão:
+
+"Visualizar Pedido"
+
+Ao clicar, abrir uma página ou modal com os detalhes completos do pedido.
+
+--------------------------------------------------
+
+3️⃣ PERMISSÃO SOMENTE VISUALIZAÇÃO
+
+O cliente deve apenas visualizar o pedido.
+
+Não permitir:
+
+✖ editar itens  
+✖ excluir itens  
+✖ alterar quantidades  
+
+Para alterações manter a regra existente:
+
+Botão:
+
+Solicitar Alteração
+
+Esse botão envia solicitação para administração revisar o pedido.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+✔ perfil SISTEMA_TESTE aparece na criação de usuários  
+✔ pedidos de teste não afetam faturamento  
+✔ clientes conseguem visualizar seus pedidos completos  
+✔ histórico de pedidos fica mais transparente  
+✔ alterações continuam sendo feitas apenas via solicitação

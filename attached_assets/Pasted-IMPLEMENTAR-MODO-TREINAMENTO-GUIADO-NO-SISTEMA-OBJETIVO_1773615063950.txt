@@ -1,0 +1,104 @@
+IMPLEMENTAR MODO TREINAMENTO GUIADO NO SISTEMA.
+
+OBJETIVO:
+Criar um modo interativo que ensine novos usuários a utilizar o sistema através de um tour guiado pelas principais funcionalidades.
+
+IMPORTANTE:
+Não alterar funcionalidades existentes.
+O modo treinamento deve ser opcional e não interferir no funcionamento normal do sistema.
+
+--------------------------------------------------
+
+1) BOTÃO DE ATIVAÇÃO
+
+Adicionar botão chamado:
+
+"Modo Treinamento"
+
+Local sugerido:
+menu principal ou perfil do usuário.
+
+Quando ativado, o sistema inicia o tour guiado.
+
+--------------------------------------------------
+
+2) TOUR GUIADO DO SISTEMA
+
+Criar sequência de explicações nas principais telas:
+
+Dashboard
+Pedidos
+Compras
+Contratos
+Produtos
+Notas fiscais
+Inventário
+Clientes
+
+Cada etapa deve:
+
+destacar a área da tela
+mostrar um balão de explicação
+ter botão "Próximo"
+
+Exemplo de legenda:
+
+"Esta área mostra os pedidos realizados pelos clientes."
+
+--------------------------------------------------
+
+3) DESTAQUE VISUAL
+
+Durante o treinamento:
+
+escurecer o restante da tela
+destacar apenas o elemento explicado
+mostrar seta ou borda destacada
+
+--------------------------------------------------
+
+4) CONTROLE DO TREINAMENTO
+
+Adicionar opções:
+
+Próximo
+Voltar
+Pular treinamento
+Finalizar treinamento
+
+Salvar no sistema se o usuário já realizou o treinamento.
+
+--------------------------------------------------
+
+5) TREINAMENTO CONTEXTUAL
+
+Mostrar pequenas dicas nas primeiras utilizações das funcionalidades.
+
+Exemplo:
+
+Na primeira vez que entrar na aba de compras:
+
+"Os pedidos gerados a partir de escopos contratuais aparecem aqui."
+
+--------------------------------------------------
+
+6) INTEGRAÇÃO COM IA FLORA
+
+Durante o treinamento permitir que a IA Flora responda dúvidas sobre a função mostrada.
+
+Exemplo:
+
+"Como cadastrar um produto?"
+
+A IA deve responder usando a base de conhecimento do sistema.
+
+--------------------------------------------------
+
+7) TESTE FINAL
+
+Verificar:
+
+funcionamento do botão de treinamento
+navegação entre etapas
+registro de usuários que já fizeram o treinamento
+integração com IA Flora

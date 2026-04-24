@@ -1,0 +1,232 @@
+REFATORAÇÃO E MELHORIAS – SISTEMA VIVAFRUTAZ
+
+OBJETIVO
+
+Implementar melhorias nos módulos:
+
+• Painel (Dashboard)
+• Empresas
+• Pedidos
+• DANFE
+• Logística
+• Escopos contratuais
+• Integração de endereços com rotas
+
+Garantir que o sistema fique mais analítico, organizado e integrado.
+
+--------------------------------------------------
+
+1️⃣ MELHORAR ABA PAINEL (DASHBOARD)
+
+Adicionar filtros analíticos no painel.
+
+Criar filtros por:
+
+• dia
+• semana
+• mês
+• período personalizado
+• ano
+
+Informações que devem ser filtradas:
+
+TOTAL DE PEDIDOS ATIVOS
+
+RECEITA TOTAL
+
+CLIENTES ATIVOS
+
+ENTREGAS PENDENTES
+
+Exemplo de uso:
+
+Filtro:
+01/03 até 31/03
+
+Sistema deve mostrar:
+
+• total de pedidos nesse período
+• receita nesse período
+• clientes ativos nesse período
+• entregas pendentes nesse período
+
+--------------------------------------------------
+
+2️⃣ ATUALIZAÇÃO AUTOMÁTICA POR DATA
+
+O sistema deve atualizar automaticamente os dados conforme a data atual.
+
+Exemplo:
+
+Entrega marcada para:
+
+16/03
+
+Se hoje for:
+
+17/03
+
+Esse pedido deve sair da lista de entregas futuras e entrar em:
+
+Histórico ou entregas concluídas.
+
+O painel deve refletir automaticamente a data atual.
+
+--------------------------------------------------
+
+3️⃣ MELHORAR ESCOPOS NA ABA EMPRESAS
+
+Na edição de empresas existe escopo:
+
+Contrato alternado com rotação quinzenal.
+
+Modificar para:
+
+ROTAÇÃO SEMANAL.
+
+Estrutura nova:
+
+Semana 1 – Lista A
+
+Semana 2 – Lista B
+
+Semana 3 – Lista C
+
+Semana 4 – Lista D
+
+Sistema deve repetir ciclo automaticamente após semana 4.
+
+--------------------------------------------------
+
+4️⃣ EXPORTAÇÃO DE ESCOPOS EM PDF
+
+Permitir gerar PDF de escopos cadastrados.
+
+Funcionar para:
+
+• escopo fixo
+• escopo variável
+• escopo alternado
+
+Quando for escopo alternado, o PDF deve separar:
+
+Semana 1
+Semana 2
+Semana 3
+Semana 4
+
+Cada semana com sua lista de produtos.
+
+--------------------------------------------------
+
+5️⃣ CORRIGIR ERRO DE GERAÇÃO DE DANFE
+
+Atualmente o sistema gera a DANFE corretamente,
+mas mesmo assim aparece mensagem de erro.
+
+Corrigir lógica para que:
+
+Se o PDF for gerado com sucesso,
+não apareça mensagem de erro.
+
+--------------------------------------------------
+
+6️⃣ INCLUIR OBSERVAÇÃO ADMINISTRATIVA NA DANFE
+
+Na aba de pedidos existe campo:
+
+Observação Administrativa.
+
+Essa informação deve aparecer também na DANFE.
+
+Exemplo:
+
+Observação administrativa no pedido:
+
+"Dar desconto na banana"
+
+Na DANFE deve aparecer em campo:
+
+Observações da Nota
+
+--------------------------------------------------
+
+7️⃣ INTEGRAÇÃO LOGÍSTICA COM ENDEREÇO DA EMPRESA
+
+No sistema de logística:
+
+Quando selecionar uma empresa para entrega,
+o sistema deve puxar automaticamente:
+
+• endereço cadastrado
+• cidade
+• CEP
+• coordenadas (se existir)
+
+Essas informações devem ser usadas para:
+
+organização de rotas inteligentes.
+
+--------------------------------------------------
+
+8️⃣ VINCULAÇÃO PARA ROTA INTELIGENTE
+
+A rota logística deve considerar:
+
+• endereço da empresa
+• proximidade entre empresas
+• janela de horário de entrega
+
+Esses dados devem ser usados para montar rotas automaticamente.
+
+--------------------------------------------------
+
+9️⃣ VERIFICAR SITUAÇÃO DOS PEDIDOS PONTUAIS
+
+Auditar o módulo de pedidos pontuais.
+
+Verificar se já existe:
+
+• solicitação com vários produtos
+• edição pelo setor de compras
+• resposta para o cliente
+• previsão de entrega editável
+
+Caso não exista, implementar:
+
+Estrutura de pedido pontual com múltiplos produtos.
+
+Campos:
+
+Produto
+
+Quantidade
+
+Marca preferida
+
+Especificação
+
+Permitir adicionar várias linhas de produtos.
+
+Compras pode:
+
+• editar pedido
+• ajustar quantidades
+• responder cliente
+• definir previsão de entrega
+
+Cliente deve visualizar resposta no painel.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+• Dashboard com filtros analíticos completos
+• atualização automática por data
+• escopos semanais funcionando
+• geração de PDF de escopos
+• DANFE sem erro de geração
+• observação administrativa aparecendo na DANFE
+• logística vinculada ao endereço das empresas
+• base pronta para rotas inteligentes
+• pedidos pontuais organizados e funcionais

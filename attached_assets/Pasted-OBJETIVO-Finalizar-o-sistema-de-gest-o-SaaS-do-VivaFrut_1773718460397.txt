@@ -1,0 +1,148 @@
+OBJETIVO
+
+Finalizar o sistema de gestão SaaS do VivaFrutaz ERP criando um sistema completo de planos editáveis e controle gerencial de funcionalidades por empresa.
+
+O administrador deve poder criar planos personalizados escolhendo quais funcionalidades cada cliente terá acesso.
+
+Também deve existir um sistema de atualização central que sincronize as IAs do sistema em todos os perfis com controle de limite por plano.
+
+------------------------------------------------
+
+FASE 1 — CRIAR CONSTRUTOR DE PLANOS
+
+Criar seção no Painel Master chamada:
+
+Gestão de Planos
+
+Permitir que o administrador crie planos totalmente editáveis.
+
+Campos do plano:
+
+nome do plano  
+descrição  
+valor mensal  
+status ativo ou inativo.
+
+------------------------------------------------
+
+FASE 2 — SELEÇÃO DE FUNCIONALIDADES
+
+Dentro da criação de plano permitir selecionar quais funcionalidades estarão disponíveis para empresas.
+
+Lista de módulos:
+
+Dashboard  
+Empresas  
+Clientes  
+Produtos  
+Pedidos  
+Logística  
+Rotas  
+Motoristas  
+GPS  
+Relatórios  
+Financeiro  
+Nota Fiscal  
+Integrações  
+IA  
+Loja de módulos.
+
+Cada módulo deve poder ser ativado ou desativado.
+
+Essas configurações devem controlar automaticamente o menu do sistema da empresa.
+
+------------------------------------------------
+
+FASE 3 — LIMITES POR PLANO
+
+Permitir definir limites operacionais por plano.
+
+Campos:
+
+quantidade máxima de usuários  
+quantidade máxima de motoristas  
+quantidade máxima de pedidos mensais  
+limite de uso da IA.
+
+O sistema deve bloquear automaticamente quando o limite for atingido.
+
+------------------------------------------------
+
+FASE 4 — ATRIBUIÇÃO DE PLANO À EMPRESA
+
+Dentro da gestão de empresas permitir selecionar qual plano cada empresa utiliza.
+
+Quando o plano for alterado o sistema deve atualizar automaticamente:
+
+menus  
+permissões  
+módulos disponíveis.
+
+------------------------------------------------
+
+FASE 5 — SINCRONIZAÇÃO DAS IAS
+
+Criar sistema central de atualização das IAs do sistema.
+
+Criar botão administrativo chamado:
+
+Atualizar IA do Sistema
+
+Esse botão deve:
+
+sincronizar todas as IAs do sistema  
+atualizar modelos de análise  
+corrigir configurações  
+aplicar atualizações para todas as empresas.
+
+------------------------------------------------
+
+FASE 6 — CONTROLE DE IA POR PERFIL
+
+Implementar controle de uso de IA por tipo de usuário.
+
+Perfis:
+
+Administrador Master  
+Empresa Cliente  
+Usuário comum.
+
+Empresas clientes devem possuir limites de uso definidos pelo plano.
+
+Exemplo:
+
+Free → IA limitada  
+Starter → IA básica  
+Pro → IA completa  
+Enterprise → IA ilimitada.
+
+------------------------------------------------
+
+FASE 7 — INTERFACE VISUAL
+
+Criar telas completas para:
+
+gestão de planos  
+configuração de módulos  
+controle de limites  
+atualização da IA.
+
+Todas as telas devem aparecer no menu do Painel Master.
+
+------------------------------------------------
+
+FASE 8 — TESTES AUTOMÁTICOS
+
+Executar testes criando:
+
+plano de teste  
+empresa de teste.
+
+Verificar se:
+
+as funcionalidades aparecem corretamente  
+os módulos são ativados ou desativados  
+os limites são aplicados corretamente  
+a sincronização de IA funciona.
+
+Corrigir automaticamente qualquer erro encontrado.

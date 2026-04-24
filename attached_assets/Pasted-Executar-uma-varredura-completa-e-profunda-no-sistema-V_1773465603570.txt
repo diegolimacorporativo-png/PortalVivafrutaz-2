@@ -1,0 +1,229 @@
+Executar uma varredura completa e profunda no sistema VivaFrutaz para identificar e corrigir inconsistências estruturais no frontend e backend.
+
+Objetivo da varredura:
+
+- eliminar rotas quebradas
+- remover componentes antigos
+- corrigir referências incorretas
+- corrigir objetos não encontrados
+- limpar menus e links antigos
+- melhorar estabilidade geral do sistema
+
+Aplicar correções automaticamente para:
+
+- administradores
+- desenvolvedores
+- equipe interna
+- clientes existentes
+- novos usuários cadastrados futuramente
+
+--------------------------------------------------
+
+1. VARREDURA DE ROTAS
+
+Escanear todo o sistema em busca de rotas quebradas ou desatualizadas.
+
+Identificar rotas que não possuem mais componentes associados.
+
+Exemplos de rotas antigas que devem ser verificadas:
+
+/os
+/ordem-servico
+/old-dashboard
+
+Remover rotas antigas ou redirecionar automaticamente para as rotas atuais.
+
+Garantir que todas as rotas registradas possuam componentes válidos.
+
+--------------------------------------------------
+
+2. REMOÇÃO DE MÓDULOS ANTIGOS
+
+Executar busca em todo o código para encontrar módulos antigos ainda presentes no sistema.
+
+Exemplo identificado anteriormente:
+
+OS (ordem de serviço)
+
+Esse módulo foi substituído por:
+
+Tarefas
+
+Remover completamente:
+
+- componentes antigos
+- rotas antigas
+- imports antigos
+- links de menu antigos
+
+--------------------------------------------------
+
+3. LIMPEZA DE COMPONENTES DUPLICADOS
+
+Escanear todos os componentes do frontend.
+
+Identificar:
+
+- componentes duplicados
+- componentes não utilizados
+- componentes órfãos
+
+Remover componentes que não estejam ligados a nenhuma rota ou funcionalidade ativa.
+
+--------------------------------------------------
+
+4. VERIFICAÇÃO DE IMPORTS
+
+Revisar todos os arquivos do sistema.
+
+Detectar automaticamente:
+
+- imports quebrados
+- imports de arquivos inexistentes
+- imports duplicados
+
+Corrigir ou remover imports inválidos.
+
+--------------------------------------------------
+
+5. VALIDAÇÃO DE OBJETOS DA API
+
+Escanear todo o frontend procurando acessos diretos a objetos da API.
+
+Exemplo problemático:
+
+data.user.name
+
+Se data ou user não existirem isso quebra a página.
+
+Aplicar proteção utilizando:
+
+optional chaining
+
+Exemplo:
+
+data?.user?.name
+
+ou validação antes da renderização.
+
+--------------------------------------------------
+
+6. PADRONIZAÇÃO DE CHAMADAS DE API
+
+Revisar todas as chamadas de API do sistema.
+
+Garantir que todas possuam tratamento de erro.
+
+Se API retornar:
+
+- null
+- undefined
+- erro 500
+
+Exibir mensagem amigável ao usuário.
+
+Evitar quebra de página.
+
+--------------------------------------------------
+
+7. LIMPEZA DO MENU DO SISTEMA
+
+Revisar todos os menus do sistema:
+
+- menu lateral
+- menus internos
+- navegação superior
+
+Garantir que todos os links apontem para rotas válidas.
+
+Remover links antigos ou inexistentes.
+
+--------------------------------------------------
+
+8. SINCRONIZAÇÃO DE ESTADO DAS PÁGINAS
+
+Verificar possíveis conflitos de estado no React.
+
+Garantir que ao trocar de página o sistema não reutilize estados antigos.
+
+Resetar estados ao trocar de rota.
+
+Evitar exibição de dados de páginas anteriores.
+
+--------------------------------------------------
+
+9. LIMPEZA DE CACHE
+
+Implementar verificação para evitar carregamento de código antigo pelo navegador.
+
+Forçar atualização de componentes quando houver mudanças no sistema.
+
+Evitar conflitos entre versões do frontend.
+
+--------------------------------------------------
+
+10. ERROR BOUNDARY GLOBAL
+
+Garantir que toda a aplicação esteja protegida por um Error Boundary global.
+
+Se ocorrer erro de renderização:
+
+- impedir quebra da aplicação
+- registrar erro nos logs
+- mostrar mensagem amigável
+
+Mensagem exibida:
+
+"Ocorreu um erro inesperado. Tente novamente."
+
+--------------------------------------------------
+
+11. LOG DE ERROS
+
+Registrar todos os erros detectados em:
+
+Painel Desenvolvedor -> Logs do Sistema
+
+Registrar:
+
+- data
+- hora
+- rota acessada
+- usuário
+- tipo de erro
+
+--------------------------------------------------
+
+12. TESTE AUTOMÁTICO
+
+Executar testes automáticos em todos os módulos do sistema:
+
+- login
+- empresas
+- produtos
+- pedidos
+- pedidos pontuais
+- tarefas
+- logística
+- ocorrências
+- rotas
+- usuários
+- portal do cliente
+- assistente IA
+
+Garantir que nenhuma página apresente erro de objeto ou rota quebrada.
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+Após a varredura o sistema VivaFrutaz deve ter:
+
+- rotas limpas e organizadas
+- módulos antigos removidos
+- componentes duplicados eliminados
+- imports corrigidos
+- validação segura de dados
+- menus sincronizados
+- navegação estável
+- redução significativa de bugs no sistema

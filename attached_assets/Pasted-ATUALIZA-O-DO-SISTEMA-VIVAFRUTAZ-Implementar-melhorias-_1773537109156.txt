@@ -1,0 +1,243 @@
+ATUALIZAÇÃO DO SISTEMA VIVAFRUTAZ
+
+Implementar melhorias no sistema envolvendo:
+pedidos pontuais,
+assistente virtual inteligente,
+conteúdo educativo sobre frutas
+e melhorias de experiência para clientes.
+
+--------------------------------------------------
+
+1 - DOWNLOAD PDF PEDIDOS PONTUAIS
+
+Na aba "Pedidos Pontuais" implementar botão:
+
+GERAR PDF
+
+O PDF deve conter:
+
+Nome do cliente
+Empresa
+Data da solicitação
+Data prevista de entrega
+Lista de produtos solicitados
+
+Tabela contendo:
+
+Produto
+Categoria
+Quantidade solicitada
+Quantidade aprovada
+Observações
+
+Mostrar também:
+
+Status do pedido
+Data de aprovação
+Responsável pela aprovação
+
+Adicionar rodapé:
+
+Documento gerado pelo sistema VivaFrutaz
+Data de geração
+Número do pedido pontual
+
+Permitir download e também impressão.
+
+--------------------------------------------------
+
+2 - ATUALIZAÇÃO DO ASSISTENTE VIRTUAL
+
+Atualizar o assistente virtual do sistema para conhecer
+TODAS as funcionalidades do VivaFrutaz.
+
+Ele deve responder perguntas sobre:
+
+Empresas
+Produtos
+Categorias
+Grupos de preço
+Janelas de pedido
+Exceções de pedido
+Pedidos
+Compras
+Industrializados
+Painel financeiro
+Senhas de clientes
+Pedidos pontuais
+Usuários do sistema
+Backups
+Área do desenvolvedor
+
+O assistente deve explicar cada funcionalidade.
+
+Exemplo:
+
+"Empresas é onde você cadastra clientes do sistema."
+
+"Produtos é onde você cadastra os itens vendidos."
+
+--------------------------------------------------
+
+3 - ASSISTENTE COM PERMISSÃO POR PERFIL
+
+O assistente deve responder baseado no perfil do usuário.
+
+Perfis internos:
+
+Administrador
+Diretoria
+Compras
+Financeiro
+Desenvolvedor
+
+Perfis clientes:
+
+Cliente empresa
+
+Cada perfil deve receber respostas diferentes.
+
+Exemplo:
+
+Cliente NÃO deve receber instruções sobre:
+
+Área do desenvolvedor
+Backups
+Configurações internas
+Gestão de usuários
+
+Clientes devem receber ajuda sobre:
+
+Como fazer pedidos
+Como acompanhar pedidos
+Como usar pedidos pontuais
+Como consultar histórico
+Como ver previsão de entrega
+Como atualizar dados da empresa
+
+--------------------------------------------------
+
+4 - ASSISTENTE EXPLICANDO PREVISÃO DE ENTREGA
+
+Na área de clientes o assistente virtual deve explicar:
+
+Datas de entrega
+Janelas de pedido
+Horários de entrega
+Pedidos semanais
+
+Exemplo de resposta do assistente:
+
+"A previsão de entrega depende da janela de pedidos definida para sua empresa. Após o pedido confirmado, o sistema informa automaticamente a data estimada de entrega."
+
+--------------------------------------------------
+
+5 - ASSISTENTE EXPLICANDO CATÁLOGO
+
+O assistente deve explicar a área de catálogo.
+
+Exemplo:
+
+"O catálogo apresenta todos os produtos disponíveis para sua empresa, com preços, categorias e unidades de venda."
+
+Também explicar:
+
+Categorias de produtos
+Produtos industrializados
+Produtos sazonais
+Produtos disponíveis apenas sob pedido
+
+--------------------------------------------------
+
+6 - QUADRO DE CURIOSIDADES DE FRUTAS
+
+Criar novo componente no sistema chamado:
+
+CURIOSIDADES DO DIA
+
+Esse quadro pode aparecer:
+
+no painel
+na área de produtos
+no portal do cliente
+
+Exemplo de conteúdo:
+
+"Você sabia?"
+
+"A maçã é uma das frutas mais consumidas no mundo e possui fibras que ajudam na digestão."
+
+"A banana é rica em potássio e ajuda na saúde muscular."
+
+"As frutas cítricas são ótimas fontes de vitamina C."
+
+O sistema deve mostrar curiosidades aleatórias.
+
+--------------------------------------------------
+
+7 - CURIOSIDADES NOS PRODUTOS
+
+Na página de cada produto adicionar campo:
+
+Curiosidade do produto
+
+Exemplo:
+
+Produto: Maçã
+
+Curiosidade:
+
+"A maçã contém antioxidantes naturais e pode ajudar na saúde do coração."
+
+Essas curiosidades podem aparecer:
+
+na página do produto
+no catálogo
+no assistente virtual
+
+--------------------------------------------------
+
+8 - ASSISTENTE RESPONDENDO SOBRE PRODUTOS
+
+Se o usuário perguntar:
+
+"Fale sobre a maçã"
+
+O assistente deve responder:
+
+Informações do produto
+Categoria
+Unidade de venda
+Curiosidades
+Sugestões de consumo
+
+--------------------------------------------------
+
+9 - EXPERIÊNCIA EDUCATIVA PARA CLIENTES
+
+Objetivo do sistema:
+
+Não apenas vender frutas,
+mas também educar clientes sobre alimentação saudável.
+
+O assistente pode sugerir:
+
+benefícios das frutas
+curiosidades
+dicas de consumo
+
+--------------------------------------------------
+
+RESULTADO ESPERADO
+
+O sistema VivaFrutaz terá:
+
+PDF de pedidos pontuais
+Assistente virtual inteligente
+Assistente com controle por perfil
+Explicação automática do sistema
+Explicação do catálogo
+Explicação de previsão de entrega
+Curiosidades de frutas
+Informações educativas nos produtos
+Melhor experiência para clientes

@@ -1,0 +1,87 @@
+O sistema já possui no cadastro da empresa o campo "Tipo de Empresa" com os valores:
+
+- Cliente Semanal
+- Mensal
+- Pontual
+- Cliente Contratual
+
+Não criar novos campos para frequência de pedido.
+Usar esse campo existente para controlar automações.
+
+-------------------------------------
+
+REGRAS DE E-MAIL AUTOMÁTICO
+
+Cliente Semanal
+Enviar e-mail automático semanal solicitando pedido.
+
+Cliente Mensal
+Enviar e-mail automático uma vez por mês solicitando programação de pedidos.
+
+Cliente Pontual
+Não enviar solicitação automática.
+Enviar apenas e-mails de confirmação quando o cliente fizer um pedido.
+
+Cliente Contratual
+Não enviar e-mail solicitando pedidos.
+Esses clientes possuem escopo contratual definido no sistema.
+
+-------------------------------------
+
+NOTIFICAÇÕES PUSH
+
+Aplicar a mesma lógica usada para e-mails.
+
+Cliente Semanal
+Recebe notificação semanal para enviar pedido.
+
+Cliente Mensal
+Recebe notificação mensal.
+
+Cliente Pontual
+Recebe apenas confirmação de pedido.
+
+Cliente Contratual
+Não recebe notificação solicitando pedido.
+
+-------------------------------------
+
+CONFIGURAÇÃO DE ENTREGA
+
+Na aba "Configuração de Entrega" adicionar campos de janela de horário:
+
+- Horário inicial de entrega
+- Horário final de entrega
+
+Essas informações devem ser vinculadas ao dia de entrega.
+
+Exemplo:
+
+Segunda-feira
+Horário inicial: 08:00
+Horário final: 11:00
+
+Esses horários devem ser utilizados posteriormente pela logística para planejamento de entregas.
+
+-------------------------------------
+
+REGRAS PARA CLIENTE CONTRATUAL
+
+Quando a empresa for marcada como "Cliente Contratual":
+
+- habilitar o uso da aba "Escopo Contratual"
+- não enviar e-mails solicitando pedidos
+- não enviar notificações push solicitando pedidos
+
+-------------------------------------
+
+AUDITORIA
+
+Após implementar essas mudanças, executar auditoria para verificar:
+
+- se o campo tipo de empresa está sendo respeitado nas automações
+- se clientes contratuais não recebem solicitação de pedidos
+- se clientes semanais recebem e-mail semanal
+- se clientes mensais recebem e-mail mensal
+- se clientes pontuais recebem apenas confirmação
+- se janelas de horário de entrega estão salvando corretamente

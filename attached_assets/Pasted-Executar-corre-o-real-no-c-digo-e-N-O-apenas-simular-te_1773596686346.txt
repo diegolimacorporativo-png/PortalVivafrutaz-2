@@ -1,0 +1,97 @@
+Executar correção real no código e NÃO apenas simular testes.
+
+A correção anterior aparentemente funcionou apenas em testes internos da IA, porém no sistema real o problema continua.
+
+Portanto seguir obrigatoriamente os passos abaixo.
+
+--------------------------------------------------
+
+PASSO 1 — LOCALIZAR O ARQUIVO REAL
+
+Encontrar no projeto o arquivo responsável pela interface:
+
+Empresas → Editar empresa → Escopo Contratual.
+
+Mostrar o caminho completo do arquivo no projeto.
+
+Exemplo esperado:
+
+/src/components/CompanyContractScope.tsx
+ou
+/src/pages/company/editContractScope.ts
+
+--------------------------------------------------
+
+PASSO 2 — MOSTRAR O CÓDIGO ATUAL
+
+Antes de modificar qualquer coisa, mostrar o trecho atual do código responsável por:
+
+- exibição do escopo contratual
+- verificação se a empresa é contratual
+- renderização do resumo financeiro
+
+--------------------------------------------------
+
+PASSO 3 — IMPLEMENTAR CORREÇÃO
+
+Aplicar correções diretamente no código para:
+
+1) Bloquear escopo para empresas não contratuais.
+
+Se empresa NÃO for contratual:
+
+mostrar cadeado
+bloquear edição
+bloquear criação de itens.
+
+2) Restaurar painel de resumo financeiro contendo:
+
+Valor semanal
+Valor mensal
+Custo estimado
+Margem estimada.
+
+3) Garantir que os cálculos atualizem automaticamente ao editar itens.
+
+--------------------------------------------------
+
+PASSO 4 — MOSTRAR O CÓDIGO MODIFICADO
+
+Após implementar a correção, mostrar o trecho do código atualizado.
+
+Destacar claramente o que foi alterado.
+
+--------------------------------------------------
+
+PASSO 5 — REBUILD DO SISTEMA
+
+Após salvar:
+
+recompilar frontend
+reiniciar servidor
+limpar cache da aplicação.
+
+--------------------------------------------------
+
+PASSO 6 — TESTE REAL
+
+Executar teste real:
+
+1) criar empresa contratual
+2) adicionar itens no escopo
+3) verificar painel financeiro
+
+Depois:
+
+1) criar empresa não contratual
+2) verificar se escopo aparece bloqueado.
+
+--------------------------------------------------
+
+RELATÓRIO FINAL
+
+Informar:
+
+quais arquivos foram alterados
+qual era o bug encontrado
+como foi corrigido.

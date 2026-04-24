@@ -1,0 +1,182 @@
+EXECUTAR SINCRONIZAÇÃO GLOBAL COMPLETA DO SISTEMA VIVAFRUTAZ
+
+Objetivo:
+Corrigir erros de carregamento, objetos não encontrados e permissões quebradas em todas as abas do sistema.
+
+Aplicar atualização para:
+
+- todos os usuários existentes
+- todos os novos usuários criados futuramente
+- todos os perfis do sistema
+
+Perfis incluídos:
+
+Administrador
+Diretor
+Desenvolvedor
+Gerente de operações
+Financeiro
+Logística
+Cliente
+
+--------------------------------------------------
+
+1. SINCRONIZAÇÃO GLOBAL DE USUÁRIOS
+
+Executar varredura completa na tabela de usuários do banco de dados.
+
+Verificar se todos os usuários possuem:
+
+estrutura atual de permissões
+estrutura atual de acesso
+estrutura atual de módulos
+
+Se algum usuário estiver com estrutura antiga:
+
+atualizar automaticamente.
+
+Garantir que todos os usuários estejam alinhados com a versão atual do sistema.
+
+--------------------------------------------------
+
+2. SINCRONIZAÇÃO DE PERMISSÕES
+
+Executar sincronização completa de permissões.
+
+Garantir que todos os perfis tenham acesso correto aos módulos.
+
+Administrador
+Diretor
+Desenvolvedor
+
+devem possuir acesso total ao sistema.
+
+--------------------------------------------------
+
+3. CORREÇÃO DE CARREGAMENTO DAS ABAS
+
+Executar verificação em todas as abas do sistema:
+
+dashboard
+empresas
+produtos
+pedidos
+pedidos pontuais
+tarefas
+logística
+rotas
+motoristas
+ocorrências
+relatórios
+industrializados
+cotações
+usuários do sistema
+portal do cliente
+assistente IA
+
+Verificar se alguma aba está tentando acessar objetos inexistentes.
+
+Se encontrar objetos null ou undefined:
+
+aplicar validação segura antes da renderização.
+
+Exemplo:
+
+data?.campo
+usuario?.nome
+pedido?.status
+
+--------------------------------------------------
+
+4. PROTEÇÃO CONTRA QUEBRA DE PÁGINA
+
+Implementar proteção global para evitar quebra de páginas.
+
+Se algum objeto não existir:
+
+não quebrar a página.
+
+Exibir fallback seguro.
+
+Exemplo:
+
+"Dados não encontrados."
+
+--------------------------------------------------
+
+5. ATUALIZAÇÃO AUTOMÁTICA DE USUÁRIOS ANTIGOS
+
+Aplicar migração automática para todos os usuários já cadastrados.
+
+Atualizar:
+
+permissões
+estrutura de acesso
+módulos liberados
+estrutura de banco
+
+--------------------------------------------------
+
+6. PADRÃO PARA NOVOS USUÁRIOS
+
+Garantir que todo novo usuário criado no sistema receba automaticamente:
+
+estrutura completa de permissões
+acesso correto aos módulos
+estrutura de dados atualizada
+
+Evitar que novos usuários tenham problemas de carregamento.
+
+--------------------------------------------------
+
+7. CORREÇÃO DE CACHE DO SISTEMA
+
+Evitar carregamento de versões antigas do frontend.
+
+Forçar atualização de componentes quando necessário.
+
+Evitar que o sistema mostre versões antigas das páginas.
+
+--------------------------------------------------
+
+8. VALIDAÇÃO GLOBAL DE APIs
+
+Revisar todas as chamadas de API do sistema.
+
+Se API retornar:
+
+null
+undefined
+erro de servidor
+
+não quebrar a interface.
+
+Exibir mensagem amigável.
+
+--------------------------------------------------
+
+9. REGISTRO DE ERROS
+
+Registrar automaticamente qualquer erro detectado em:
+
+Painel Desenvolvedor → Logs do Sistema.
+
+Registrar:
+
+usuário
+rota acessada
+erro detectado
+data e hora
+
+--------------------------------------------------
+
+10. RESULTADO FINAL
+
+Após a sincronização o sistema deve:
+
+funcionar para todos os usuários
+não quebrar páginas
+corrigir problemas de objetos não encontrados
+alinhar permissões antigas
+garantir compatibilidade entre versões
+manter estabilidade geral do sistema VivaFrutaz

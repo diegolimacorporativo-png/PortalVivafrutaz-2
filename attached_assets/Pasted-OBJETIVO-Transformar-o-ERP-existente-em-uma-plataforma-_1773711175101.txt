@@ -1,0 +1,362 @@
+OBJETIVO
+
+Transformar o ERP existente em uma plataforma SaaS multiempresa completa.
+
+Cada empresa cliente deve possuir um ambiente isolado dentro do sistema, com suas próprias configurações, usuários, pedidos, notas fiscais, logística e dados operacionais.
+
+A empresa administradora do sistema terá acesso à gestão de planos, contratos e faturamento das empresas clientes.
+
+Nenhuma empresa cliente pode visualizar dados de outra empresa.
+
+------------------------------------------------
+
+ARQUITETURA MULTIEMPRESA
+
+Implementar arquitetura multi-tenant.
+
+Criar tabela:
+
+empresas_clientes
+
+Campos:
+
+id  
+nome_empresa  
+cnpj  
+email  
+telefone  
+plano_id  
+status  
+data_criacao  
+data_expiracao_plano  
+ambiente_ativo  
+
+Todas as tabelas operacionais do sistema devem possuir o campo:
+
+empresa_id
+
+Isso garante separação total de dados entre empresas.
+
+------------------------------------------------
+
+AMBIENTE ISOLADO POR EMPRESA
+
+Cada empresa cliente deve possuir:
+
+seus próprios usuários  
+seus próprios pedidos  
+seus próprios clientes  
+seus próprios produtos  
+suas próprias notas fiscais  
+suas próprias rotas  
+seus próprios motoristas  
+suas próprias configurações  
+
+Nenhuma empresa pode visualizar dados de outra empresa.
+
+------------------------------------------------
+
+EMISSÃO DE NOTA FISCAL POR EMPRESA
+
+Cada empresa deve emitir notas fiscais com seus próprios dados fiscais.
+
+Campos necessários:
+
+CNPJ  
+inscrição estadual  
+razão social  
+endereço fiscal  
+certificado digital  
+
+As notas fiscais emitidas devem utilizar apenas as informações da empresa cliente.
+
+------------------------------------------------
+
+GESTÃO DE PLANOS SAAS
+
+Criar tabela:
+
+planos_saas
+
+Campos:
+
+id  
+nome_plano  
+descricao  
+valor_mensal  
+valor_anual  
+limite_usuarios  
+limite_pedidos_mes  
+limite_motoristas  
+limite_rotas  
+limite_empresas_filiais  
+limite_emissoes_nf  
+gps_habilitado  
+logistica_avancada  
+suporte_prioritario  
+api_integracao  
+status  
+
+Esses limites controlam o uso do sistema por empresa.
+
+------------------------------------------------
+
+CONTROLE DE USO DO PLANO
+
+O sistema deve monitorar automaticamente:
+
+quantidade de usuários ativos  
+quantidade de pedidos criados no mês  
+quantidade de motoristas cadastrados  
+quantidade de rotas cadastradas  
+quantidade de notas fiscais emitidas  
+
+Se o limite do plano for atingido o sistema deve:
+
+bloquear criação adicional  
+exibir aviso de limite atingido  
+sugerir upgrade de plano.
+
+------------------------------------------------
+
+SUGESTÃO AUTOMÁTICA DE UPGRADE
+
+Criar função:
+
+suggestPlanUpgrade()
+
+Essa função deve analisar o uso do sistema pela empresa.
+
+Se o uso estiver próximo do limite do plano, mostrar aviso:
+
+"Seu plano está próximo do limite. Recomendamos upgrade para evitar bloqueios."
+
+------------------------------------------------
+
+TIPOS DE COBRANÇA
+
+Permitir dois tipos de cobrança:
+
+mensal  
+anual  
+
+Campo:
+
+tipo_cobranca
+
+------------------------------------------------
+
+GESTÃO DE CONTRATOS
+
+Criar tabela:
+
+contratos_clientes
+
+Campos:
+
+id  
+empresa_id  
+plano_id  
+data_inicio  
+data_fim  
+valor_contrato  
+tipo_contrato  
+status  
+arquivo_contrato  
+indice_reajuste  
+
+Status possíveis:
+
+ativo  
+suspenso  
+cancelado  
+
+------------------------------------------------
+
+UPLOAD DE CONTRATO
+
+Na tela de gestão de contratos permitir upload de contrato do cliente.
+
+Formato permitido:
+
+PDF
+
+Campo:
+
+arquivo_contrato
+
+------------------------------------------------
+
+REAJUSTE AUTOMÁTICO POR IPCA
+
+Criar função:
+
+applyAnnualAdjustment()
+
+Essa função deve:
+
+verificar contratos ativos  
+aplicar reajuste anual baseado no índice IPCA.
+
+O sistema deve atualizar automaticamente o valor do contrato.
+
+------------------------------------------------
+
+GESTÃO DE FATURAMENTO SAAS
+
+Criar tabela:
+
+faturas_saas
+
+Campos:
+
+id  
+empresa_id  
+contrato_id  
+valor  
+data_vencimento  
+status  
+metodo_pagamento  
+banco_destino  
+
+Status possíveis:
+
+pendente  
+pago  
+atrasado  
+cancelado  
+
+------------------------------------------------
+
+CONFIGURAÇÃO DE BANCOS DE RECEBIMENTO
+
+Criar tabela:
+
+bancos_recebimento
+
+Campos:
+
+id  
+nome_banco  
+tipo_integracao  
+agencia  
+conta  
+status  
+
+O administrador poderá definir qual banco receberá os pagamentos das assinaturas.
+
+------------------------------------------------
+
+SELEÇÃO DE BANCO POR CONTRATO
+
+Cada contrato poderá definir qual banco receberá o pagamento da assinatura.
+
+Campo:
+
+banco_destino
+
+------------------------------------------------
+
+SUSPENSÃO AUTOMÁTICA POR INADIMPLÊNCIA
+
+Criar função:
+
+checkPaymentStatus()
+
+Se uma fatura estiver atrasada por mais de 15 dias o sistema deve:
+
+bloquear criação de novos pedidos  
+bloquear emissão de notas fiscais  
+exibir aviso de inadimplência.
+
+------------------------------------------------
+
+USUÁRIO GESTOR DE CONTRATOS
+
+Criar novo tipo de usuário:
+
+gestor_contratos
+
+Esse usuário terá acesso apenas às seguintes áreas:
+
+empresas clientes  
+planos SaaS  
+gestão de contratos  
+faturamento SaaS  
+relatórios de faturamento  
+
+Esse usuário não pode acessar áreas operacionais do ERP.
+
+------------------------------------------------
+
+PERMISSÕES DO GESTOR DE CONTRATOS
+
+Pode:
+
+criar empresas clientes  
+editar contratos  
+alterar planos  
+visualizar faturamento  
+aplicar reajustes  
+gerar relatórios  
+
+Não pode:
+
+editar pedidos  
+editar logística  
+alterar dados operacionais do ERP.
+
+------------------------------------------------
+
+DASHBOARD ADMINISTRATIVO DO SAAS
+
+Criar painel administrativo para a empresa dona do sistema.
+
+Mostrar:
+
+empresas ativas  
+empresas por plano  
+faturamento mensal  
+faturamento anual  
+contratos ativos  
+empresas inadimplentes  
+
+------------------------------------------------
+
+RELATÓRIO DE USO POR EMPRESA
+
+Criar sistema que registre:
+
+quantidade de pedidos  
+quantidade de notas fiscais  
+quantidade de usuários  
+quantidade de rotas  
+
+Esse relatório deve ser utilizado para:
+
+análise de uso  
+sugestão de upgrade de plano.
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema deve possuir:
+
+arquitetura SaaS multiempresa  
+ambientes isolados por empresa  
+gestão de planos com limites  
+controle de usuários por plano  
+controle de pedidos por plano  
+controle de motoristas por plano  
+controle de rotas por plano  
+controle de emissão de notas fiscais  
+gestão completa de contratos  
+upload de contrato do cliente  
+reajuste automático por IPCA  
+gestão de faturamento das assinaturas  
+configuração de bancos de recebimento  
+suspensão automática por inadimplência  
+usuário gestor de contratos  
+dashboard administrativo do SaaS  
+sugestões automáticas de upgrade de plano

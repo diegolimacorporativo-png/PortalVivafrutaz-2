@@ -1,0 +1,322 @@
+ATUALIZAÇÃO COMPLETA E AUDITORIA GERAL DO SISTEMA VIVAFRUTAZ
+
+Executar auditoria completa em todos os módulos e funções do sistema
+para detectar e corrigir erros de estabilidade, navegação, banco de dados,
+APIs, permissões e carregamento.
+
+--------------------------------------------------
+
+VARREDURA COMPLETA DO MENU DO SISTEMA
+
+Executar auditoria completa nos seguintes módulos:
+
+Painel  
+Empresas  
+Produtos  
+Categorias  
+Grupos de Preço  
+Janelas de Pedido  
+Exceções de Pedido  
+Pedidos  
+Compras  
+Industrializados  
+Painel Financeiro  
+Senhas de Clientes  
+Pedidos Pontuais  
+Usuários do Sistema  
+Backup e E-mails  
+Área do Desenvolvedor  
+Tarefas  
+Ocorrências de Clientes  
+Ocorrências Internas  
+Logística  
+Cotação de Empresas  
+Painel Executivo
+
+--------------------------------------------------
+
+CORREÇÃO DE NOME DE MÓDULO
+
+No menu lateral existe um item chamado:
+
+OS
+
+Corrigir nome para:
+
+TAREFAS
+
+Atualizar também:
+
+rota do sistema  
+título da página  
+permissões  
+API vinculada
+
+Nova rota sugerida:
+
+/tarefas
+
+--------------------------------------------------
+
+AUDITORIA DE ROTAS
+
+Verificar todas as rotas do sistema.
+
+Detectar:
+
+rotas quebradas  
+rotas inexistentes  
+rotas duplicadas
+
+Caso rota não exista:
+
+redirecionar para página anterior
+ou dashboard.
+
+--------------------------------------------------
+
+AUDITORIA DE BANCO DE DADOS
+
+Verificar todas as tabelas relacionadas aos módulos:
+
+empresas  
+produtos  
+pedidos  
+usuarios  
+cotações  
+ocorrencias  
+tarefas  
+logs  
+backups
+
+Detectar:
+
+registros inexistentes  
+IDs inválidos  
+referências quebradas
+
+--------------------------------------------------
+
+VALIDAÇÃO DE OBJETOS
+
+Detectar automaticamente:
+
+undefined  
+null  
+arrays vazios
+
+Se ocorrer erro:
+
+não quebrar a página.
+
+Mostrar mensagem amigável:
+
+"Dados não disponíveis."
+
+--------------------------------------------------
+
+AUDITORIA DE APIs
+
+Verificar todas as APIs utilizadas pelo sistema.
+
+Se API retornar erro:
+
+retornar estrutura segura:
+
+success: false  
+message: "Erro ao carregar dados."
+
+--------------------------------------------------
+
+CORREÇÃO DA PÁGINA DE COTAÇÃO
+
+Corrigir erro:
+
+"objeto não encontrado"
+
+quando selecionar empresa ou grupo de preço.
+
+Validar antes de carregar:
+
+empresa selecionada  
+grupo de preço  
+produtos vinculados
+
+Se faltar informação:
+
+mostrar aviso:
+
+"Empresa sem grupo de preços configurado."
+
+--------------------------------------------------
+
+CORREÇÃO DE REDIRECIONAMENTO
+
+Evitar erro ao:
+
+voltar página  
+recarregar navegador  
+abrir rota diretamente
+
+Se registro não existir:
+
+redirecionar automaticamente para lista.
+
+--------------------------------------------------
+
+FALLBACK DE CARREGAMENTO
+
+Criar estado visual:
+
+"Carregando dados..."
+
+Evitar renderização com:
+
+undefined  
+null
+
+--------------------------------------------------
+
+REMOVER ERROS TÉCNICOS VISÍVEIS
+
+Desativar overlay de erro do Vite.
+
+No arquivo:
+
+vite.config.js
+
+Configurar:
+
+server:  
+hmr:  
+overlay: false
+
+--------------------------------------------------
+
+TRATAMENTO GLOBAL DE ERROS
+
+Criar sistema global de captura de erros.
+
+Se ocorrer erro:
+
+não mostrar stack trace  
+não mostrar erro técnico
+
+Mostrar apenas:
+
+"Ocorreu um erro inesperado. Tente novamente."
+
+Registrar erro completo no log interno.
+
+--------------------------------------------------
+
+AUDITORIA DE PERMISSÕES
+
+Verificar permissões de cada módulo para:
+
+Administrador  
+Diretor  
+Desenvolvedor  
+Gerente de Operações  
+Gerente de Compras  
+Financeiro  
+Logística  
+Cliente
+
+Garantir que cada perfil veja apenas
+os módulos permitidos.
+
+--------------------------------------------------
+
+SISTEMA DE RESPOSTA PARA PEDIDOS PONTUAIS
+
+Adicionar função administrativa
+para responder pedidos pontuais.
+
+Permitir:
+
+Aprovar pedido  
+Recusar pedido
+
+Perfis que podem executar ação:
+
+Administrador  
+Diretor  
+Desenvolvedor
+
+--------------------------------------------------
+
+MOTIVO DA RECUSA
+
+Se pedido for recusado:
+
+exibir campo obrigatório:
+
+"Motivo da recusa"
+
+Salvar no banco de dados.
+
+Exemplos:
+
+Produto indisponível  
+Fora da janela de entrega  
+Estoque insuficiente  
+Pedido fora do contrato
+
+--------------------------------------------------
+
+NOTIFICAÇÃO AO CLIENTE
+
+Cliente deve visualizar:
+
+Status: Pedido Recusado  
+Motivo informado pelo administrador.
+
+--------------------------------------------------
+
+ENVIO DE E-MAIL
+
+Quando pedido for recusado
+enviar e-mail automático contendo:
+
+número do pedido  
+status recusado  
+motivo da recusa.
+
+--------------------------------------------------
+
+ASSISTENTE VIRTUAL
+
+Atualizar assistente virtual.
+
+Mostrar menu inicial:
+
+1 - Como fazer pedido  
+2 - Como cancelar pedido  
+3 - Como cadastrar empresa  
+4 - Como exportar pedidos  
+5 - Falar com suporte
+
+Após resposta mostrar botões:
+
+[Voltar ao Menu]  
+[Nova Pergunta]  
+[Fechar]
+
+--------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema VivaFrutaz passa a ter:
+
+auditoria completa de todos os módulos  
+correção de rotas e APIs  
+correção de erros de objeto  
+menu corrigido (OS → TAREFAS)  
+tratamento global de erros  
+correção da cotação  
+sistema de pedidos recusados com motivo  
+notificação ao cliente  
+envio automático de e-mail  
+assistente virtual com navegação  
+estabilidade geral do sistema

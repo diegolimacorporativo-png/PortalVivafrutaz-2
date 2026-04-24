@@ -1,0 +1,177 @@
+AUDITORIA COMPLETA DO SISTEMA – VIVAFRUTAZ
+
+OBJETIVO
+
+Realizar uma auditoria completa do sistema VivaFrutaz.
+
+A auditoria deve analisar:
+
+• estrutura do sistema
+• funcionalidades existentes
+• módulos implementados
+• regras de negócio
+• segurança
+• performance
+• lógica logística
+• integração entre módulos
+
+Gerar um relatório técnico claro informando:
+
+1️⃣ O que já está implementado
+2️⃣ O que está parcialmente implementado
+3️⃣ O que ainda não existe
+4️⃣ O que está quebrado ou com erro
+5️⃣ O que precisa ser refatorado
+
+---------------------------------------------
+
+ANALISAR OS SEGUINTES MÓDULOS
+
+CADASTRO DE EMPRESAS
+Verificar se existem campos para:
+
+• endereço completo
+• CEP
+• coordenadas geográficas
+• janela de entrega
+• dias de entrega
+• tipo de cliente
+• rota logística
+
+Informar se esses dados podem ser usados para cálculo de rota.
+
+---------------------------------------------
+
+MÓDULO DE PEDIDOS
+
+Verificar:
+
+• criação de pedidos
+• regra de 1 pedido por dia
+• histórico de pedidos
+• visualização completa de pedidos
+• pedidos pontuais
+• solicitação de alteração
+
+Confirmar se todos os pedidos possuem:
+
+empresa_id  
+data_entrega  
+status  
+itens do pedido  
+
+---------------------------------------------
+
+MODO MANUTENÇÃO E MODO TESTE
+
+Confirmar funcionamento de:
+
+• modo manutenção
+• modo teste
+• bloqueio de pedidos
+• botão de ativar / desativar modos
+
+---------------------------------------------
+
+USUÁRIOS DO SISTEMA
+
+Verificar se existem os perfis:
+
+Administrador  
+Diretor  
+Compras  
+Cliente  
+Desenvolvedor  
+
+Confirmar se existe também:
+
+SISTEMA_TESTE
+
+Verificar se pedidos desse perfil são ignorados em relatórios financeiros.
+
+---------------------------------------------
+
+MÓDULO DE COMUNICAÇÃO
+
+Verificar se existe sistema para:
+
+• avisos para clientes
+• avisos por empresa
+• avisos por tipo de cliente
+• avisos exibidos no painel do cliente
+
+Se não existir, marcar como funcionalidade a implementar.
+
+---------------------------------------------
+
+DANFE E DOCUMENTOS
+
+Verificar geração de DANFE interno.
+
+Confirmar se existem campos para:
+
+• endereço da empresa emissora
+• telefone
+• dados completos da VivaFrutaz
+
+---------------------------------------------
+
+AUDITORIA E MELHORIA – SISTEMA DE ROTAS VIVAFRUTAZ
+
+OBJETIVO
+
+Verificar se o sistema já possui lógica de organização
+de rotas de entrega e implementar melhorias com sugestões
+automáticas baseadas em localização e horário.
+
+--------------------------------------------------
+
+1️⃣ VERIFICAR FUNCIONALIDADES EXISTENTES
+
+Analisar se o sistema já possui:
+
+✔ agrupamento de pedidos por região
+✔ organização por dia de entrega
+✔ sugestão de rota logística
+✔ sugestão de horário de entrega
+✔ cálculo de proximidade entre empresas
+
+Gerar relatório técnico informando:
+
+• O que já existe
+• O que ainda não existe
+• O que precisa ser implementado
+
+--------------------------------------------------
+
+2️⃣ AGRUPAMENTO AUTOMÁTICO DE ROTAS
+
+Verificar se o sistema consegue agrupar pedidos por:
+
+• dia de entrega
+• região
+• proximidade geográfica
+
+Se não existir, sugerir estrutura para implementar.
+
+--------------------------------------------------
+
+3️⃣ SUGESTÃO AUTOMÁTICA DE HORÁRIO
+
+Verificar se o sistema utiliza:
+
+janela de entrega cadastrada nas empresas.
+
+Exemplo:
+
+Empresa Datadog  
+Segunda-feira  
+09:00 – 10:30
+
+Sistema deve sugerir rota dentro dessa janela.
+
+--------------------------------------------------
+
+4️⃣ PAINEL DE LOGÍSTICA
+
+Verificar se existe painel para equipe logística

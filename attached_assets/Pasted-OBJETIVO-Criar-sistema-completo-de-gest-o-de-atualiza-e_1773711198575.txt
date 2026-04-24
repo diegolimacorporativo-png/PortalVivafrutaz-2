@@ -1,0 +1,221 @@
+OBJETIVO
+
+Criar sistema completo de gestão de atualizações para o ERP SaaS multiempresa.
+
+O administrador do sistema deve ser capaz de controlar quais empresas recebem atualizações do sistema.
+
+O sistema deve permitir:
+
+atualizar todas as empresas  
+atualizar apenas empresas específicas  
+liberar versões beta para empresas selecionadas  
+registrar histórico de atualizações  
+executar rollback em caso de erro  
+
+------------------------------------------------
+
+GESTÃO DE VERSÕES DO SISTEMA
+
+Criar tabela:
+
+system_versions
+
+Campos:
+
+id  
+version_name  
+descricao  
+data_lancamento  
+tipo_versao  
+status  
+
+Tipos de versão:
+
+stable  
+beta  
+hotfix  
+
+Status:
+
+ativa  
+inativa  
+
+------------------------------------------------
+
+REGISTRO DE ATUALIZAÇÕES
+
+Criar tabela:
+
+system_updates
+
+Campos:
+
+id  
+version_id  
+empresa_id  
+data_aplicacao  
+status  
+detalhes  
+
+Status possíveis:
+
+pendente  
+aplicado  
+erro  
+
+------------------------------------------------
+
+PAINEL DE GESTÃO DE ATUALIZAÇÕES
+
+Criar nova aba administrativa:
+
+Gestão de Atualizações do Sistema
+
+Funções da tela:
+
+criar nova versão  
+editar versão  
+visualizar histórico de versões  
+aplicar atualização  
+visualizar empresas atualizadas  
+
+------------------------------------------------
+
+CRIAÇÃO DE NOVA VERSÃO
+
+Na criação de nova versão permitir informar:
+
+nome da versão  
+descrição das melhorias  
+tipo da versão (stable, beta, hotfix)
+
+------------------------------------------------
+
+LIBERAÇÃO DE ATUALIZAÇÃO PARA EMPRESAS
+
+Ao publicar atualização permitir escolher:
+
+aplicar para todas as empresas  
+aplicar apenas para empresas selecionadas.
+
+O administrador deve poder selecionar empresas manualmente.
+
+------------------------------------------------
+
+ATUALIZAÇÃO GLOBAL
+
+Criar botão:
+
+ATUALIZAR TODAS AS EMPRESAS
+
+Essa função deve:
+
+aplicar nova versão para todas as empresas ativas.
+
+------------------------------------------------
+
+ATUALIZAÇÃO SELETIVA
+
+Criar opção:
+
+Selecionar Empresas
+
+Permitir escolher manualmente quais empresas receberão a atualização.
+
+------------------------------------------------
+
+EMPRESAS EM BETA
+
+Permitir que algumas empresas participem de testes beta.
+
+Criar campo na tabela empresas_clientes:
+
+beta_tester
+
+Se verdadeiro, empresa pode receber versões beta.
+
+------------------------------------------------
+
+VERIFICAÇÃO AUTOMÁTICA DE VERSÃO
+
+Sempre que empresa acessar o sistema verificar:
+
+se existe nova versão disponível.
+
+Se existir mostrar aviso:
+
+"Nova versão disponível para seu sistema."
+
+------------------------------------------------
+
+LOG DE ATUALIZAÇÃO
+
+Registrar todas atualizações aplicadas.
+
+Criar tabela:
+
+update_logs
+
+Campos:
+
+id  
+empresa_id  
+versao  
+data_atualizacao  
+status  
+detalhes  
+
+------------------------------------------------
+
+ROLLBACK DE VERSÃO
+
+Criar função:
+
+rollbackVersion()
+
+Se uma atualização causar erro o administrador pode restaurar versão anterior.
+
+O sistema deve:
+
+restaurar versão anterior  
+registrar rollback no log.
+
+------------------------------------------------
+
+NOTIFICAÇÃO DE ATUALIZAÇÃO
+
+Sempre que uma empresa receber atualização mostrar popup:
+
+"Sistema atualizado para versão X."
+
+Mostrar também:
+
+lista de melhorias da versão.
+
+------------------------------------------------
+
+BACKUP AUTOMÁTICO
+
+Antes de aplicar qualquer atualização executar:
+
+backup completo do banco de dados.
+
+Salvar em:
+
+/backups/system_updates/
+
+------------------------------------------------
+
+RESULTADO FINAL
+
+O sistema SaaS deve possuir:
+
+gestão completa de versões do sistema  
+liberação seletiva de atualização  
+atualização global para todas empresas  
+atualização para empresas específicas  
+modo beta para testes  
+histórico completo de atualizações  
+sistema de rollback  
+backup automático antes de atualizar  
+notificação de atualização para empresas

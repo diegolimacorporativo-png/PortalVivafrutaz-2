@@ -1,0 +1,164 @@
+="93275"}
+IMPLEMENTAR SISTEMA AVANÇADO DE SEGURANÇA DE LOGIN E MONITORAMENTO DE SERVIDOR.
+
+IMPORTANTE:
+Não alterar sistema de autenticação existente sem migração segura.
+Adicionar camadas extras de segurança.
+
+--------------------------------------------------
+
+ETAPA 1 — BLOQUEIO DE LOGIN POR TENTATIVAS
+
+Implementar sistema de proteção contra tentativa de senha incorreta.
+
+Para cada usuário registrar:
+
+loginAttempts  
+lastLoginAttempt  
+isLocked
+
+Regras:
+
+Após 3 tentativas de senha incorreta:
+
+bloquear conta automaticamente.
+
+Mostrar mensagem:
+
+"Conta temporariamente bloqueada por segurança.
+Entre em contato com o administrador."
+
+--------------------------------------------------
+
+ETAPA 2 — ALERTA PARA ADMINISTRADORES
+
+Quando conta for bloqueada registrar evento.
+
+Salvar:
+
+email do usuário  
+data  
+IP da tentativa  
+quantidade de tentativas
+
+Enviar alerta interno para:
+
+Administradores  
+Diretores  
+Desenvolvedores
+
+--------------------------------------------------
+
+ETAPA 3 — DESBLOQUEIO DE CONTA
+
+Criar função administrativa:
+
+"Desbloquear usuário"
+
+Somente usuários com permissão:
+
+ADMIN  
+DESENVOLVEDOR  
+DIRETOR
+
+podem executar.
+
+Ao desbloquear:
+
+resetar tentativas  
+remover bloqueio
+
+--------------------------------------------------
+
+ETAPA 4 — PROTEÇÃO PARA FUNCIONÁRIOS
+
+Aplicar o mesmo sistema de bloqueio para:
+
+funcionários  
+motoristas  
+usuários internos
+
+Após 3 tentativas erradas:
+
+bloquear acesso.
+
+--------------------------------------------------
+
+ETAPA 5 — LOG DE SEGURANÇA
+
+Criar log de segurança.
+
+Registrar:
+
+tentativas de login  
+contas bloqueadas  
+desbloqueios feitos por administradores
+
+Campos:
+
+usuário  
+IP  
+data  
+tipo de evento
+
+--------------------------------------------------
+
+ETAPA 6 — MONITORAMENTO DE SERVIDOR
+
+Criar sistema de monitoramento interno.
+
+Verificar periodicamente:
+
+servidor ativo  
+API respondendo  
+banco de dados conectado
+
+Se algum serviço falhar:
+
+registrar alerta.
+
+--------------------------------------------------
+
+ETAPA 7 — SISTEMA DE FAILOVER
+
+Preparar sistema para suporte a:
+
+servidor principal  
+servidor backup
+
+Se servidor principal não responder:
+
+ativar servidor secundário automaticamente.
+
+Registrar evento de failover.
+
+--------------------------------------------------
+
+ETAPA 8 — PAINEL DE SAÚDE DO SISTEMA
+
+Criar painel administrativo chamado:
+
+"Saúde do Sistema"
+
+Mostrar:
+
+Status do servidor  
+Status do banco  
+Status da API  
+Tempo de resposta médio
+
+Mostrar histórico de falhas.
+
+--------------------------------------------------
+
+ETAPA 9 — TESTES DE SEGURANÇA
+
+Testar:
+
+tentativas de login erradas  
+bloqueio automático  
+desbloqueio administrativo  
+registro de logs  
+alerta de sistema
+
+Garantir que o sistema continue funcionando nor

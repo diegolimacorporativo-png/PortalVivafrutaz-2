@@ -1,0 +1,250 @@
+Atualize o módulo AI Developer do ERP VivaFrutaz para se tornar um AGENTE DE DESENVOLVIMENTO AUTÔNOMO.
+
+OBJETIVO
+
+Criar um sistema onde a IA possa:
+
+analisar sistema
+criar novas abas
+gerar código automaticamente
+executar testes
+corrigir bugs
+melhorar performance
+gerar deploy seguro
+
+---
+
+CRIAR NOVA ABA
+
+AI LAB
+
+Dentro do AI Developer.
+
+Essa aba será o centro de controle da IA.
+
+---
+
+FUNÇÕES DO AI LAB
+
+1 ANALISAR SISTEMA
+
+Mapear automaticamente:
+
+rotas express
+controllers
+models
+banco de dados
+interfaces frontend
+middlewares
+integrações externas
+APIs
+
+Gerar um índice do sistema.
+
+---
+
+2 CRIAR NOVAS ABAS AUTOMATICAMENTE
+
+Adicionar botão:
+
+CRIAR MÓDULO
+
+Exemplo de comando:
+
+criar módulo estoque
+criar módulo entregas
+criar módulo fornecedores
+criar módulo relatórios
+
+A IA deve automaticamente:
+
+criar rotas backend
+criar controller
+criar model
+criar tabelas no banco
+criar página frontend
+criar menu lateral
+
+Arquitetura padrão:
+
+/server/routes
+/server/controllers
+/server/models
+/client/pages
+/client/components
+
+---
+
+3 TESTE AUTOMÁTICO DO SISTEMA
+
+Adicionar botão:
+
+EXECUTAR TESTES
+
+O sistema deve testar automaticamente:
+
+todas rotas API
+respostas HTTP
+erros 500
+conexão com banco
+integração financeira
+geração de notas fiscais
+
+Testar endpoints como:
+
+/api/orders
+/api/customers
+/api/products
+/api/finance
+/api/nfe
+
+Relatório:
+
+rotas funcionando
+rotas quebradas
+tempo de resposta
+erros encontrados
+
+---
+
+4 CORREÇÃO AUTOMÁTICA
+
+Adicionar botão:
+
+AUTO CORRIGIR SISTEMA
+
+A IA deve:
+
+analisar logs
+identificar erro
+localizar arquivo
+gerar correção
+aplicar patch
+
+Sempre criar backup antes.
+
+/backups/ai-fixes
+
+---
+
+5 TESTE DE BANCO DE DADOS
+
+Adicionar função:
+
+ANALISAR BANCO
+
+Verificar:
+
+tabelas sem índice
+queries lentas
+duplicação de dados
+erros de relacionamento
+
+Otimizar automaticamente.
+
+---
+
+6 SIMULAÇÃO DE USUÁRIO
+
+Criar função:
+
+SIMULAR USO DO SISTEMA
+
+A IA deve simular:
+
+cliente fazendo pedido
+emissão de nota
+registro financeiro
+consulta de relatório
+
+Para detectar erros reais de uso.
+
+---
+
+7 MONITORAMENTO EM TEMPO REAL
+
+Adicionar painel:
+
+HEALTH MONITOR
+
+Mostrar:
+
+CPU
+RAM
+tempo de resposta API
+erros por minuto
+requisições por segundo
+
+---
+
+8 CORREÇÃO DE SEGURANÇA
+
+Se encontrar:
+
+credenciais hardcoded
+eval()
+SQL injection
+CORS aberto
+rotas admin sem auth
+
+corrigir automaticamente.
+
+---
+
+9 GERAR DOCUMENTAÇÃO
+
+Criar botão:
+
+GERAR DOCUMENTAÇÃO
+
+A IA deve gerar:
+
+documentação das APIs
+documentação do banco
+estrutura do sistema
+guia para novos desenvolvedores
+
+---
+
+10 SISTEMA DE LOG INTELIGENTE
+
+Criar:
+
+/logs/ai-dev.log
+
+Registrar:
+
+análise feita
+bugs encontrados
+correções aplicadas
+arquivos modificados
+
+---
+
+INTERFACE
+
+Nova aba:
+
+AI LAB
+
+Botões:
+
+Analisar Sistema
+Criar Módulo
+Executar Testes
+Auto Corrigir Sistema
+Analisar Banco
+Simular Uso
+Gerar Documentação
+
+---
+
+OBJETIVO FINAL
+
+Transformar o AI Developer em uma IA capaz de:
+
+desenvolver novas funcionalidades
+detectar bugs
+corrigir erros automaticamente
+testar o sistema
+manter estabilidade do ERP

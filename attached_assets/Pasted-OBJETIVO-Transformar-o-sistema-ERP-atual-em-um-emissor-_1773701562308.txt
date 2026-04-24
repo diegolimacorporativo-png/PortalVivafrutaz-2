@@ -1,0 +1,364 @@
+OBJETIVO
+
+Transformar o sistema ERP atual em um emissor completo de NF-e com integração SEFAZ e integração bancária automática para contas a pagar e receber.
+
+O sistema já possui pedidos, clientes e produtos. Precisamos adicionar:
+
+• Emissão de NF-e (modelo 55)
+• Integração SEFAZ
+• Assinatura com certificado digital
+• Geração de DANFE
+• Integração com bancos
+• Conciliação bancária automática
+• Contas a pagar e receber
+
+-------------------------------------
+
+PARTE 1 — NF-e (SEFAZ)
+
+Criar módulo fiscal completo.
+
+Estrutura de pastas:
+
+server/
+services/
+nfe/
+nfeGenerator.ts
+nfeValidator.ts
+nfeSender.ts
+nfeSignature.ts
+danfeGenerator.ts
+
+Fluxo da nota:
+
+pedido aprovado
+↓
+validar dados fiscais
+↓
+gerar XML NF-e 4.00
+↓
+assinar certificado digital
+↓
+enviar para SEFAZ
+↓
+receber protocolo
+↓
+salvar XML autorizado
+↓
+gerar DANFE PDF
+
+-------------------------------------
+
+PARTE 2 — GERADOR XML NF-e
+
+Criar função:
+
+generateNFeXML(pedido)
+
+Estrutura obrigatória:
+
+<NFe>
+ <infNFe versao="4.00">
+  <ide>
+  <emit>
+  <dest>
+  <det>
+  <total>
+ </infNFe>
+</NFe>
+
+Campos obrigatórios:
+
+ide
+cUF
+natOp
+mod = 55
+serie
+nNF
+dhEmi
+tpNF
+
+emit
+CNPJ
+xNome
+enderEmit
+IE
+
+dest
+CNPJ ou CPF
+xNome
+enderDest
+UF
+CEP
+
+produtos
+cProd
+xProd
+NCM
+CFOP
+uCom
+qCom
+vUnCom
+vProd
+
+-------------------------------------
+
+PARTE 3 — IMPOSTOS
+
+Criar impostos padrão Simples Nacional.
+
+ICMS
+
+<ICMS>
+<ICMSSN102>
+<orig>0</orig>
+<CSOSN>102</CSOSN>
+</ICMSSN102>
+</ICMS>
+
+PIS
+
+<PIS>
+<PISNT>
+<CST>07</CST>
+</PISNT>
+</PIS>
+
+COFINS
+
+<COFINS>
+<COFINSNT>
+<CST>07</CST>
+</COFINSNT>
+</COFINS>
+
+-------------------------------------
+
+PARTE 4 — CERTIFICADO DIGITAL
+
+Criar suporte para certificado A1 (.pfx)
+
+Criar configuração:
+
+CERT_PATH
+CERT_PASSWORD
+
+Função:
+
+signXML(xml)
+
+Bibliotecas Node:
+
+xml-crypto
+node-forge
+
+-------------------------------------
+
+PARTE 5 — ENVIO PARA SEFAZ
+
+Criar serviço:
+
+sendNFeToSefaz(xml)
+
+Estados:
+
+autorizada
+rejeitada
+denegada
+
+Salvar retorno:
+
+protocolo
+chaveNFe
+data_autorizacao
+
+-------------------------------------
+
+PARTE 6 — DANFE
+
+Gerar DANFE PDF automaticamente.
+
+Biblioteca sugerida:
+
+pdfkit
+
+Salvar em:
+
+/storage/nfe/danfe/
+
+-------------------------------------
+
+PARTE 7 — VALIDAÇÃO
+
+Antes de emitir verificar:
+
+CNPJ válido
+destinatário com CNPJ ou CPF
+UF preenchido
+NCM preenchido
+valor_total maior que zero
+
+Se erro retornar mensagem.
+
+-------------------------------------
+
+PARTE 8 — INTEGRAÇÃO BANCÁRIA
+
+Criar módulo financeiro.
+
+Estrutura:
+
+services/financeiro/
+
+contasReceber.ts
+contasPagar.ts
+bankIntegration.ts
+bankReconciliation.ts
+
+-------------------------------------
+
+PARTE 9 — CONECTAR BANCOS
+
+Usar API Open Finance.
+
+Criar integração com:
+
+Itaú
+Banco do Brasil
+Bradesco
+Santander
+
+Fluxo:
+
+ERP
+↓
+API bancária
+↓
+extrato bancário
+↓
+conciliar pagamentos
+
+Criar funções:
+
+connectBank()
+getBankTransactions()
+createPayment()
+registerReceivable()
+
+-------------------------------------
+
+PARTE 10 — CONTAS A PAGAR
+
+Criar tabela:
+
+contas_pagar
+
+campos:
+
+id
+fornecedor
+valor
+data_vencimento
+status
+pedido_id
+
+Status:
+
+pendente
+pago
+atrasado
+
+-------------------------------------
+
+PARTE 11 — CONTAS A RECEBER
+
+Criar tabela:
+
+contas_receber
+
+campos:
+
+id
+cliente
+valor
+data_vencimento
+status
+nota_fiscal_id
+
+Status:
+
+pendente
+recebido
+vencido
+
+-------------------------------------
+
+PARTE 12 — CONCILIAÇÃO AUTOMÁTICA
+
+Comparar:
+
+valor bancário
+valor da fatura
+data
+
+Se coincidir:
+
+marcar como pago.
+
+-------------------------------------
+
+PARTE 13 — ROTAS API
+
+Criar endpoints:
+
+POST /nfe/emitir
+GET /nfe/:id
+GET /nfe/:id/danfe
+
+POST /financeiro/receber
+POST /financeiro/pagar
+GET /financeiro/extrato
+
+-------------------------------------
+
+PARTE 14 — AUTOMAÇÃO
+
+Quando pedido mudar status para:
+
+"faturado"
+
+executar automaticamente:
+
+emitir nota
+criar conta a receber
+
+-------------------------------------
+
+PARTE 15 — LOGS
+
+Salvar logs:
+
+/logs/nfe
+/logs/bank
+
+-------------------------------------
+
+PARTE 16 — SEGURANÇA
+
+Sanitizar CNPJ
+Sanitizar CPF
+Remover caracteres especiais.
+
+-------------------------------------
+
+RESULTADO FINAL ESPERADO
+
+ERP capaz de:
+
+• emitir NF-e automaticamente
+• enviar para SEFAZ
+• gerar DANFE
+• registrar contas a receber
+• conectar com bancos
+• conciliar pagamentos
+• controlar contas a pagar
