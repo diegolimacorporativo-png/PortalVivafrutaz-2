@@ -6,11 +6,19 @@ import { eq, and } from "drizzle-orm";
 export const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
 
-webpush.setVapidDetails(
-  "mailto:admin@vivafrutaz.com",
-  VAPID_PUBLIC_KEY,
-  VAPID_PRIVATE_KEY
-);
+const PUSH_ENABLED = Boolean(VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY);
+
+if (PUSH_ENABLED) {
+  webpush.setVapidDetails(
+    "mailto:admin@vivafrutaz.com",
+    VAPID_PUBLIC_KEY,
+    VAPID_PRIVATE_KEY
+  );
+} else {
+  console.warn(
+    "[PUSH] VAPID keys not configured. Push notifications are disabled."
+  );
+}
 
 // Default notification event configurations
 export const DEFAULT_NOTIFICATION_SETTINGS = [
