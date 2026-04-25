@@ -267,10 +267,16 @@ export default function FinancePage() {
     : Array.isArray((arRaw as any)?.data)
       ? ((arRaw as any).data as AR[])
       : [];
-  const { data: apList = [], isLoading: apLoading, refetch: refetchAP } = useQuery<AP[]>({
+  const { data: apRaw, isLoading: apLoading, refetch: refetchAP } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-payable', filterAP],
     queryFn: () => fetch(`/api/finance/accounts-payable?status=${filterAP}`, { credentials: 'include' }).then(r => r.json()),
   });
+  console.log('[finance] AP response shape:', apRaw);
+  const apList: AP[] = Array.isArray(apRaw)
+    ? (apRaw as AP[])
+    : Array.isArray((apRaw as any)?.data)
+      ? ((apRaw as any).data as AP[])
+      : [];
   const { data: cfRaw, isLoading: cfLoading, refetch: refetchCF } = useQuery<unknown>({
     queryKey: ['/api/finance/cashflow', cfFrom, cfTo],
     queryFn: () => fetch(`/api/finance/cashflow?from=${cfFrom}&to=${cfTo}`, { credentials: 'include' }).then(r => r.json()),
