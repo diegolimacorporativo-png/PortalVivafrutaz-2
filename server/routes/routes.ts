@@ -1093,145 +1093,19 @@ export async function registerRoutes(
   });
 
   // --- Safra Alerts: products out of season with active orders ---
-  app.get('/api/products/safra-alerts', async (req, res) => {
-    try {
-      const [allProducts, allOrders, allCompanies] = await Promise.all([
-        storage.getProducts(),
-        storage.getOrders(),
-        storage.getCompanies(),
-      ]);
-
-      const outOfSeasonProducts = allProducts.filter((p: any) => p.outOfSeason);
-      if (outOfSeasonProducts.length === 0) return res.json([]);
-
-      const activeOrders = allOrders.filter((o: any) => o.status !== 'CANCELLED');
-      const productIds = new Set(outOfSeasonProducts.map((p: any) => p.id));
-
-      const alerts = await Promise.all(outOfSeasonProducts.map(async (product: any) => {
-        const affectedOrders: any[] = [];
-        for (const order of activeOrders) {
-          try {
-            const detail = await storage.getOrder(order.id);
-            const matchingItem = (detail?.items || []).find((item: any) => item.productId === product.id);
-            if (matchingItem) {
-              const company = allCompanies.find((c: any) => c.id === order.companyId);
-              affectedOrders.push({
-                orderId: order.id,
-                orderCode: order.orderCode,
-                companyId: order.companyId,
-                companyName: company?.companyName || `Empresa #${order.companyId}`,
-                deliveryDate: order.deliveryDate,
-                itemId: matchingItem.id,
-                quantity: matchingItem.quantity,
-                unitPrice: matchingItem.unitPrice,
-                totalPrice: matchingItem.totalPrice,
-              });
-            }
-          } catch { /* ignore */ }
-        }
-        return { product, affectedOrders };
-      }));
-
-      res.json(alerts.filter(a => a.affectedOrders.length > 0));
-    } catch {
-      res.status(500).json({ message: "Erro interno" });
-    }
-  });
+  app.get('/api/products/safra-alerts', (req, res) => productController.safraAlerts(req, res));
 
   // --- Próximo código de produto disponível ---
   app.get('/api/products/next-code', (req, res, next) => productController.nextCode(req, res, next));
 
   // Verificar se um productCode já está em uso
-  app.get('/api/products/check-code', async (req: any, res) => {
-    try {
-      const code = String(req.query.code || '').trim();
-      const excludeId = req.query.excludeId ? Number(req.query.excludeId) : null;
-      if (!code) return res.json({ exists: false });
-      const all = await storage.getProducts();
-      const match = (all as any[]).find(
-        (p: any) => p.productCode && p.productCode.trim() === code && (!excludeId || p.id !== excludeId)
-      );
-      res.json({ exists: !!match, product: match ? { id: match.id, name: match.name } : null });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/products/check-code', (req, res) => productController.checkCode(req, res));
 
   // Verificar se existe produto com mesmo nome + código
-  app.get('/api/products/check-duplicate', async (req: any, res) => {
-    try {
-      const name = String(req.query.name || '').trim().toLowerCase();
-      const code = String(req.query.code || '').trim();
-      const excludeId = req.query.excludeId ? Number(req.query.excludeId) : null;
-      if (!name) return res.json({ exists: false });
-      const all = await storage.getProducts();
-      const match = (all as any[]).find((p: any) => {
-        const sameName = p.name.trim().toLowerCase() === name;
-        const sameCode = code ? (p.productCode || '').trim() === code : false;
-        const notSelf = !excludeId || p.id !== excludeId;
-        return notSelf && sameName && (sameCode || !code);
-      });
-      res.json({ exists: !!match, product: match ? { id: match.id, name: match.name } : null });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/products/check-duplicate', (req, res) => productController.checkDuplicate(req, res));
 
   // --- Alertas de variação de preço (via notas fiscais) ---
-  app.get('/api/products/price-alerts', async (req: any, res) => {
-    try {
-      const [allProducts, allInvoices] = await Promise.all([
-        storage.getProducts(),
-        storage.getFiscalInvoices(),
-      ]);
-
-      const ALERT_THRESHOLD = 0.20; // 20% de variação
-      const alerts: any[] = [];
-
-      for (const product of allProducts as any[]) {
-        if (!product.basePrice || Number(product.basePrice) <= 0) continue;
-        const basePrice = Number(product.basePrice);
-
-        // Buscar itens de notas fiscais ligados a este produto
-        const linkedItems: { unitPrice: number; invoiceDate: string; invoiceNumber: string; supplier: string }[] = [];
-        for (const invoice of allInvoices as any[]) {
-          const items = (invoice.items as any[]) || [];
-          for (const item of items) {
-            if (item.linkedProductId === product.id && item.unitPrice) {
-              linkedItems.push({
-                unitPrice: Number(item.unitPrice),
-                invoiceDate: invoice.issueDate || invoice.importedAt,
-                invoiceNumber: invoice.invoiceNumber,
-                supplier: invoice.supplier,
-              });
-            }
-          }
-        }
-
-        if (linkedItems.length === 0) continue;
-
-        // Pegar o custo mais recente
-        const latestCost = linkedItems[0]!.unitPrice;
-        const variation = (latestCost - basePrice) / basePrice;
-
-        if (Math.abs(variation) >= ALERT_THRESHOLD) {
-          // Encontrar produtos derivados (mesmo productCode)
-          const derivedProducts = product.productCode
-            ? (allProducts as any[]).filter(
-                (p: any) => p.productCode === product.productCode && p.id !== product.id
-              )
-            : [];
-
-          alerts.push({
-            product: { id: product.id, name: product.name, category: product.category, productCode: product.productCode, basePrice: basePrice },
-            latestCost,
-            variation: +(variation * 100).toFixed(1),
-            direction: variation > 0 ? 'increase' : 'decrease',
-            latestInvoice: linkedItems[0],
-            derivedProducts: derivedProducts.map((p: any) => ({ id: p.id, name: p.name, category: p.category })),
-          });
-        }
-      }
-
-      res.json(alerts);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/products/price-alerts', (req, res) => productController.priceAlerts(req, res));
 
   // --- Substitute/manage item in order (safra management) ---
   app.post('/api/orders/:orderId/substitute-item', async (req, res) => {
@@ -1926,92 +1800,19 @@ export async function registerRoutes(
   });
 
   // Toggle out-of-season flag for a product
-  app.patch('/api/products/:id/out-of-season', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { outOfSeason } = req.body;
-      if (typeof outOfSeason !== 'boolean') return res.status(400).json({ message: 'outOfSeason deve ser boolean' });
-      const product = await storage.updateProduct(id, { outOfSeason } as any);
-      const actingUser = req.session?.userId ? await storage.getUser(req.session.userId) : null;
-      await storage.createLog({
-        action: outOfSeason ? 'PRODUCT_OUT_OF_SEASON' : 'PRODUCT_IN_SEASON',
-        description: `Produto #${id} marcado como ${outOfSeason ? 'FORA DE SAFRA' : 'EM SAFRA'} por ${actingUser?.name || 'Sistema'}`,
-        userEmail: actingUser?.email || 'sistema',
-        level: 'INFO',
-        ip: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '',
-      });
-      res.json(product);
-    } catch {
-      res.status(500).json({ message: 'Erro interno' });
-    }
-  });
+  app.patch('/api/products/:id/out-of-season', (req, res) => productController.setOutOfSeason(req, res));
 
   // ── Product Sub-Categories (múltiplas categorias com preços por produto) ──────
-  app.get('/api/products/:productId/sub-categories', async (req: any, res) => {
-    try {
-      const productId = Number(req.params.productId);
-      const rows = await storage.getProductSubCategoriesByProductId(productId);
-      res.json(rows);
-    } catch { res.status(500).json({ message: 'Erro interno' }); }
-  });
+  app.get('/api/products/:productId/sub-categories', (req, res) => productController.listSubCategories(req, res));
 
-  app.post('/api/products/:productId/sub-categories', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR','PURCHASE_MANAGER'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Sem permissão' });
-    }
-    try {
-      const productId = Number(req.params.productId);
-      const { categoryName, price, active } = req.body;
-      if (!categoryName || !price) return res.status(400).json({ message: 'categoryName e price são obrigatórios' });
-      const row = await storage.createProductSubCategory({ productId, categoryName, price: String(price), active: active !== false });
-      res.status(201).json(row);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.post('/api/products/:productId/sub-categories', (req, res) => productController.createSubCategory(req, res));
 
-  app.patch('/api/products/sub-categories/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR','PURCHASE_MANAGER'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Sem permissão' });
-    }
-    try {
-      const id = Number(req.params.id);
-      const { categoryName, price, active } = req.body;
-      const updates: any = {};
-      if (categoryName !== undefined) updates.categoryName = categoryName;
-      if (price !== undefined) updates.price = String(price);
-      if (active !== undefined) updates.active = active;
-      const row = await storage.updateProductSubCategory(id, updates);
-      res.json(row);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.patch('/api/products/sub-categories/:id', (req, res) => productController.updateSubCategory(req, res));
 
-  app.delete('/api/products/sub-categories/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR','PURCHASE_MANAGER'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Sem permissão' });
-    }
-    try {
-      await storage.deleteProductSubCategory(Number(req.params.id));
-      res.json({ ok: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.delete('/api/products/sub-categories/:id', (req, res) => productController.deleteSubCategory(req, res));
 
   // Excluir TODAS as subcategorias de um produto (usado para re-sincronizar ao editar)
-  app.delete('/api/products/:productId/sub-categories', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR','PURCHASE_MANAGER'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Sem permissão' });
-    }
-    try {
-      await storage.deleteProductSubCategoriesByProductId(Number(req.params.productId));
-      res.json({ ok: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.delete('/api/products/:productId/sub-categories', (req, res) => productController.deleteAllSubCategoriesForProduct(req, res));
 
   // Product Prices
   app.get(api.productPrices.list.path, async (req, res) => {
