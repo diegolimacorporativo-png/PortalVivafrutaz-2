@@ -2,12 +2,15 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  UnauthorizedError,
 } from "../../shared/errors/AppError";
 import { usersRepository, UsersRepository } from "./users.repository";
 import type {
   ChangePasswordInput,
   InsertUser,
   SafeUser,
+  UnlockUserInput,
+  UnlockUserResult,
   User,
 } from "./users.types";
 
@@ -17,6 +20,14 @@ const PASSWORD_CHANGE_ROLES = [
   "ADMIN",
   "DIRECTOR",
   "DEVELOPER",
+] as const;
+
+/** Roles allowed to unlock a locked user account. Mirrors legacy gate. */
+const ACCOUNT_UNLOCK_ROLES = [
+  "MASTER",
+  "ADMIN",
+  "DEVELOPER",
+  "DIRECTOR",
 ] as const;
 
 /** Mask the bcrypt hash before sending a User over the wire. */
@@ -124,6 +135,54 @@ export class UsersService {
     });
 
     return { ok: true };
+  }
+
+  // ── Privileged account unlock ──────────────────────────────────────────
+  /**
+   * Mirrors legacy POST /api/admin/users/:id/unlock exactly:
+   *   - 401 (Portuguese: "Not authenticated") when no actor in session.
+   *   - 403 (Portuguese: "Sem permissão para desbloquear contas.") when actor
+   *     lacks MASTER/ADMIN/DEVELOPER/DIRECTOR role.
+   *   - 404 (Portuguese: "Usuário não encontrado.") when target does not exist.
+   *   - On success: clears `isLocked` and `loginAttempts`, writes an
+   *     ACCOUNT_UNLOCKED audit log at INFO level, and returns the same
+   *     localised success message as the legacy handler.
+   */
+  async unlockUser(input: UnlockUserInput): Promise<UnlockUserResult> {
+    const { targetUserId, actorUserId, ip } = input;
+
+    if (actorUserId == null) {
+      throw new UnauthorizedError("Not authenticated");
+    }
+
+    const actor = await this.repo.getById(actorUserId);
+    if (!actor || !ACCOUNT_UNLOCK_ROLES.includes(actor.role as any)) {
+      throw new ForbiddenError("Sem permissão para desbloquear contas.");
+    }
+
+    const target = await this.repo.getById(targetUserId);
+    if (!target) {
+      throw new NotFoundError("Usuário não encontrado.");
+    }
+
+    await this.repo.update(targetUserId, {
+      isLocked: false,
+      loginAttempts: 0,
+    } as Partial<InsertUser>);
+
+    await this.repo.log({
+      action: "ACCOUNT_UNLOCKED",
+      description: `Conta desbloqueada por ${actor.name} (${actor.role}): ${target.email}`,
+      userId: actor.id,
+      userEmail: target.email,
+      userRole: actor.role,
+      level: "INFO",
+      ip,
+    });
+
+    return {
+      message: `Conta de ${target.name} desbloqueada com sucesso.`,
+    };
   }
 }
 

@@ -2,6 +2,8 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "../services/storage.ts";
 import { productController } from "../modules/products/products.controller";
+import { usersController } from "../modules/users/users.controller";
+import { asyncHandler } from "../shared/utils/asyncHandler";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
@@ -1367,22 +1369,12 @@ export async function registerRoutes(
   });
 
   // ─── Security: Unlock user account ────────────────────────────
-  app.post('/api/admin/users/:id/unlock', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão para desbloquear contas.' });
-    try {
-      const id = Number(req.params.id);
-      const target = await storage.getUser(id);
-      if (!target) return res.status(404).json({ message: 'Usuário não encontrado.' });
-      await storage.updateUser(id, { isLocked: false, loginAttempts: 0 });
-      const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '';
-      await storage.createLog({ action: 'ACCOUNT_UNLOCKED', description: `Conta desbloqueada por ${actor.name} (${actor.role}): ${target.email}`, userId: actor.id, userEmail: target.email, userRole: actor.role, level: 'INFO', ip });
-      return res.json({ message: `Conta de ${target.name} desbloqueada com sucesso.` });
-    } catch (err) {
-      res.status(500).json({ message: 'Erro ao desbloquear conta.' });
-    }
-  });
+  // Migrated to server/modules/users (controller.unlock + service.unlockUser).
+  // This thin delegation preserves the legacy mount path /api/admin/users/:id/unlock
+  // (the users router lives at /api/users, so admin-prefixed paths stay here).
+  // Behaviour parity: 401/403/404 status codes, Portuguese messages, audit log,
+  // and success payload all match the legacy handler exactly.
+  app.post('/api/admin/users/:id/unlock', asyncHandler(usersController.unlock));
 
   // ─── Security: Unlock company account ─────────────────────────
   app.post('/api/admin/companies/:id/unlock', async (req, res) => {
@@ -1535,44 +1527,11 @@ export async function registerRoutes(
   });
 
   // ─── User Management ───────────────────────────────────────────
-  app.get('/api/users', async (req, res) => {
-    try {
-      const allUsers = await storage.getUsers();
-      // Don't expose passwords
-      res.json(allUsers.map(u => ({ ...u, password: '***' })));
-    } catch { res.status(500).json({ message: "Erro interno" }); }
-  });
-
-  app.post('/api/users', async (req, res) => {
-    try {
-      const { name, email, password, role, active } = req.body;
-      if (!name || !email || !password || !role) return res.status(400).json({ message: "Campos obrigatórios faltando." });
-      const user = await storage.createUser({ name, email, password, role, active: active !== false });
-      res.status(201).json({ ...user, password: '***' });
-    } catch { res.status(500).json({ message: "Email já cadastrado ou erro interno." }); }
-  });
-
-  app.put('/api/users/:id', async (req, res) => {
-    try {
-      const { name, email, password, role, active, tabPermissions } = req.body;
-      const updates: any = {};
-      if (name) updates.name = name;
-      if (email) updates.email = email;
-      if (password && password !== '***') updates.password = password;
-      if (role) updates.role = role;
-      if (active !== undefined) updates.active = active;
-      if (tabPermissions !== undefined) updates.tabPermissions = tabPermissions; // null resets to no restriction
-      const user = await storage.updateUser(Number(req.params.id), updates);
-      res.json({ ...user, password: '***' });
-    } catch { res.status(500).json({ message: "Erro interno" }); }
-  });
-
-  app.delete('/api/users/:id', async (req, res) => {
-    try {
-      await storage.deleteUser(Number(req.params.id));
-      res.status(204).end();
-    } catch { res.status(500).json({ message: "Erro interno" }); }
-  });
+  // GET/POST /api/users, PUT/DELETE /api/users/:id are served by the users
+  // module (server/modules/users), which is mounted BEFORE this file in
+  // server/app.ts. Inline duplicates were removed because Express resolved
+  // the modular router first — they were unreachable dead code.
+  // See: server/modules/users/users.routes.ts
 
   // ─── Order Cleanup Check (Module 5) ────────────────────────────
   app.get('/api/admin/order-cleanup-check', async (req, res) => {
@@ -2640,44 +2599,14 @@ export async function registerRoutes(
   });
 
   // --- Password Change Route ---
-  app.put('/api/users/:id/password', async (req, res) => {
-    try {
-      const sess = req.session as any;
-      const actorId = sess?.userId;
-      const actor = actorId ? await storage.getUser(actorId) : null;
-
-      // Only ADMIN, DIRECTOR, DEVELOPER may change passwords
-      if (!actor || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(actor.role)) {
-        await storage.createLog({ action: 'PASSWORD_CHANGE_BLOCKED', description: `Tentativa de alteração de senha bloqueada (sem permissão)`, userEmail: actor?.email || '', userRole: actor?.role || '', ip: req.ip || '', level: 'WARN' });
-        return res.status(403).json({ message: 'Acesso restrito. Apenas diretoria ou administração podem alterar esta senha.' });
-      }
-
-      const targetId = Number(req.params.id);
-      const target = await storage.getUser(targetId);
-      if (!target) return res.status(404).json({ message: 'Usuário não encontrado' });
-
-      // Protect critical profiles: only ADMIN/DIRECTOR/DEVELOPER targets allowed (already checked actor role above, so this is fine)
-      const { newPassword } = req.body;
-      if (!newPassword || newPassword.trim().length < 3) {
-        return res.status(400).json({ message: 'Senha inválida' });
-      }
-
-      await storage.updateUser(targetId, { password: newPassword.trim() });
-      await storage.createLog({
-        action: 'PASSWORD_CHANGED',
-        description: `Senha alterada: usuário "${target.email}" (${target.role}) por "${actor.email}" (${actor.role})`,
-        userId: actor.id,
-        userEmail: actor.email,
-        userRole: actor.role,
-        ip: req.ip || '',
-        level: 'WARN',
-      });
-      res.json({ ok: true });
-    } catch (err) {
-      console.error('Password change error:', err);
-      res.status(500).json({ message: 'Erro interno' });
-    }
-  });
+  // PUT /api/users/:id/password is served by the users module
+  // (server/modules/users), mounted BEFORE this file in server/app.ts. The
+  // inline implementation was removed because Express resolved the modular
+  // router first — it was unreachable dead code. Behaviour parity is
+  // preserved: same role gate, same audit logs (PASSWORD_CHANGE_BLOCKED /
+  // PASSWORD_CHANGED), same Portuguese error messages, and the same
+  // `newPassword.trim().length < 3` validation (now in users.validation.ts).
+  // See: server/modules/users/users.routes.ts
 
   // --- Test Mode ---
   app.get('/api/settings/test-mode', async (req, res) => {

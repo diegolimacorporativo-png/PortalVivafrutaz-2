@@ -65,6 +65,32 @@ export class UsersController {
 
     return res.json(result);
   };
+
+  /**
+   * Privileged unlock — POST /api/admin/users/:id/unlock.
+   *
+   * Mounted from the legacy `routes.ts` as a thin delegation (the path lives
+   * under `/api/admin/...`, not `/api/users/...`, so it does not belong on the
+   * users router itself). The IP-derivation logic mirrors the legacy handler:
+   * trust `x-forwarded-for` first, fall back to socket.remoteAddress.
+   */
+  unlock = async (req: Request, res: Response) => {
+    const targetUserId = Number((req.params as any).id);
+    const actorUserId =
+      (req as any).session?.userId ?? (req as any).userId ?? null;
+    const ip =
+      (req.headers["x-forwarded-for"] as string | undefined)?.split(",")[0] ||
+      req.socket.remoteAddress ||
+      "";
+
+    const result = await this.service.unlockUser({
+      targetUserId,
+      actorUserId,
+      ip,
+    });
+
+    return res.json(result);
+  };
 }
 
 export const usersController = new UsersController();

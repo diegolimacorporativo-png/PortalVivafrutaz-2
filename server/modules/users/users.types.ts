@@ -31,3 +31,18 @@ export interface ChangePasswordInput {
   actorUserId: number | null;
   ip: string;
 }
+
+/**
+ * Inputs for the privileged account-unlock endpoint. Mirrors the legacy
+ * POST /api/admin/users/:id/unlock contract: only privileged actors may
+ * invoke; an audit log entry is written on success.
+ */
+export interface UnlockUserInput {
+  targetUserId: number;
+  actorUserId: number | null;
+  ip: string;
+}
+
+export interface UnlockUserResult {
+  message: string;
+}
