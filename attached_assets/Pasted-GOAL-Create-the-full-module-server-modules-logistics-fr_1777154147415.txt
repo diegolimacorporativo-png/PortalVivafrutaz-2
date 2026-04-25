@@ -1,0 +1,295 @@
+GOAL:
+Create the full module server/modules/logistics/ from scratch,
+migrating ALL /api/logistics/* endpoints from server/routes/routes.ts
+into a clean layered architecture:
+
+routes → controller → service → repository → storage
+
+⚠️ THIS TASK IS STRICTLY NON-BREAKING.
+The system is already in production.
+
+--------------------------------------------------
+🔒 HARD RULES (MUST FOLLOW)
+--------------------------------------------------
+
+- DO NOT change:
+  - endpoint paths
+  - HTTP methods
+  - response structure (body shape)
+  - status codes
+  - business logic
+
+- DO NOT "improve", "refactor", or "optimize" behavior
+- DO NOT introduce new validations
+- DO NOT rename fields
+- DO NOT change error messages
+
+- IF ANY DOUBT → STOP AND REPORT (do not guess)
+
+--------------------------------------------------
+STEP 1 — DISCOVERY (MANDATORY)
+--------------------------------------------------
+
+Scan server/routes/routes.ts and extract ALL logistics endpoints:
+
+app.<method>('/api/logistics/...')
+
+Build a table:
+
+METHOD | PATH | DESCRIPTION | RESPONSE SHAPE
+
+Example:
+GET | /api/logistics/shipments | list shipments | Array<Shipment>
+
+If any endpoint is unclear → STOP.
+
+--------------------------------------------------
+STEP 2 — FILE STRUCTURE
+--------------------------------------------------
+
+Create:
+
+server/modules/logistics/
+  logistics.controller.ts
+  logistics.service.ts
+  logistics.repository.ts
+  logistics.routes.ts
+  logistics.types.ts
+  logistics.validation.ts (ONLY if legacy already validates)
+  index.ts
+
+--------------------------------------------------
+STEP 3 — TYPES
+--------------------------------------------------
+
+- Reuse existing types from:
+  @shared/schema OR storage types
+
+- DO NOT invent new fields
+- DO NOT change names
+
+If types don't exist:
+→ infer EXACTLY from legacy responses
+
+--------------------------------------------------
+STEP 4 — REPOSITORY
+--------------------------------------------------
+
+Create thin wrappers over storage:
+
+Example:
+- getShipments → storage.getShipments()
+- createShipment → storage.createShipment()
+
+Rules:
+- NO business logic
+- NO transformations
+- NO validation
+
+--------------------------------------------------
+STEP 5 — SERVICE
+--------------------------------------------------
+
+Move ALL business logic from routes.ts:
+
+- loops
+- conditionals
+- calculations
+- filtering
+- role checks
+- side-effects
+
+Rules:
+- NO Express imports
+- return plain objects
+- throw errors (do NOT use res)
+
+--------------------------------------------------
+STEP 6 — CONTROLLER
+--------------------------------------------------
+
+- Translate HTTP → service
+
+Pattern:
+
+async method(req, res, next) {
+  try {
+    const result = await service.method(...)
+    res.json(result)
+  } catch (err) {
+    next(err)
+  }
+}
+
+⚠️ EXCEPTION:
+If legacy returns:
+- 400 "Bad request"
+→ MUST preserve using try/catch and res.status(400)
+
+--------------------------------------------------
+STEP 7 — ROUTER
+--------------------------------------------------
+
+Create logistics.routes.ts:
+
+router.get('/shipments', controller.list)
+router.post('/shipments', controller.create)
+
+Mount path:
+'/api/logistics'
+
+--------------------------------------------------
+STEP 8 — MODULE REGISTRATION
+--------------------------------------------------
+
+In:
+server/modules/index.ts
+
+Add:
+
+import logisticsModule from './logistics'
+
+Include in MODULES array.
+
+--------------------------------------------------
+STEP 9 — SAFE MIGRATION (CRITICAL)
+--------------------------------------------------
+
+In server/routes/routes.ts:
+
+REPLACE each inline handler:
+
+BEFORE:
+app.get('/api/logistics/...', async (...) => { ... })
+
+AFTER:
+app.get('/api/logistics/...',
+  (req, res, next) =>
+    logisticsController.method(req, res).catch(next)
+)
+
+⚠️ KEEP ORDER:
+Static routes BEFORE dynamic (:id)
+
+--------------------------------------------------
+STEP 10 — SHADOW CHECK
+--------------------------------------------------
+
+If module router is mounted BEFORE routes.ts:
+
+→ Inline routes are SHADOWED
+
+You MAY remove them ONLY IF:
+- 100% identical path exists in module
+- confirmed by testing
+
+--------------------------------------------------
+STEP 11 — TESTS (MANDATORY — DO NOT SKIP)
+--------------------------------------------------
+
+Create:
+
+server/modules/logistics/__tests__/logistics.test.ts
+
+You MUST implement tests using Jest or Vitest.
+
+Minimum required tests:
+
+--------------------------------------------------
+TEST 1 — SUCCESS
+--------------------------------------------------
+
+Call one endpoint (e.g. GET /api/logistics/...):
+
+Expect:
+- status 200
+- response EXACTLY equal to legacy format
+
+--------------------------------------------------
+TEST 2 — VALIDATION / BAD REQUEST
+--------------------------------------------------
+
+Send invalid payload:
+
+Expect:
+- status 400
+- SAME message as legacy
+
+--------------------------------------------------
+TEST 3 — UNAUTHORIZED
+--------------------------------------------------
+
+Call endpoint without session:
+
+Expect:
+- status 401
+- SAME response shape
+
+--------------------------------------------------
+TEST 4 — EDGE CASE
+--------------------------------------------------
+
+Example:
+- empty list
+- invalid id
+
+Must match legacy behavior EXACTLY
+
+--------------------------------------------------
+TEST RULES:
+--------------------------------------------------
+
+- NO mocking business logic
+- Use real service/repository
+- You may mock storage ONLY if needed
+- Compare FULL response body (deepEqual)
+
+--------------------------------------------------
+STEP 12 — VALIDATION COMMANDS
+--------------------------------------------------
+
+Run ALL:
+
+npx tsc --noEmit
+npm run check
+npm run check:strict
+npm test
+
+IF ANY FAILS → FIX BEFORE CONTINUING
+
+--------------------------------------------------
+STEP 13 — RUNTIME CHECK
+--------------------------------------------------
+
+Test manually:
+
+1 success endpoint
+1 error endpoint
+
+Compare BEFORE vs AFTER:
+
+- status codes identical
+- JSON identical
+
+--------------------------------------------------
+STEP 14 — FINAL REPORT
+--------------------------------------------------
+
+Return:
+
+- Total endpoints migrated
+- Files created
+- Inline routes removed or kept
+- Any uncertainties
+- Test results
+- Risk level (LOW / MEDIUM / HIGH)
+
+--------------------------------------------------
+SUCCESS CRITERIA
+--------------------------------------------------
+
+✅ ZERO inline business logic left in routes.ts for /api/logistics/*
+✅ ZERO behavior change
+✅ ZERO type errors
+✅ TESTS CREATED AND PASSING
+✅ Module fully isolated and reusable

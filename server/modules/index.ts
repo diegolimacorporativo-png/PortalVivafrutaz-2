@@ -2,6 +2,7 @@ import type { Express, Router } from "express";
 import { definition as authModule } from "./auth";
 import { definition as companiesModule } from "./companies";
 import { definition as financeModule } from "./finance";
+import { definition as logisticsModule } from "./logistics";
 import { definition as ordersModule } from "./orders";
 import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
 import { ordersRouterV2 } from "./orders/orders.routes.v2";
@@ -41,11 +42,12 @@ const MODULES: readonly ModuleDefinition[] = [
   authModule,
   companiesModule,
   financeModule,
+  logisticsModule,
   ordersModule,
   usersModule,
   // 🔜 Append future modules here:
   // salesModule, inventoryModule, purchasesModule,
-  // logisticsModule, reportsModule, aiModule,
+  // reportsModule, aiModule,
 ];
 
 /**
