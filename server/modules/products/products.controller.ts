@@ -53,13 +53,12 @@ export class ProductController {
     }
   }
 
-  async nextCode(_req: Request, res: Response): Promise<void> {
+  async nextCode(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const nextCode = await productService.getNextProductCode();
       res.json({ nextCode });
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
-      res.status(500).json({ message });
+    } catch (err) {
+      next(err);
     }
   }
 }

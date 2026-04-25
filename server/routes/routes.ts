@@ -1139,7 +1139,7 @@ export async function registerRoutes(
   });
 
   // --- Próximo código de produto disponível ---
-  app.get('/api/products/next-code', (req, res) => productController.nextCode(req, res));
+  app.get('/api/products/next-code', (req, res, next) => productController.nextCode(req, res, next));
 
   // Verificar se um productCode já está em uso
   app.get('/api/products/check-code', async (req: any, res) => {
