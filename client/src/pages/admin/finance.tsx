@@ -257,10 +257,16 @@ export default function FinancePage() {
     queryKey: ['/api/finance/dashboard'],
     refetchInterval: 60000,
   });
-  const { data: arList = [], isLoading: arLoading, refetch: refetchAR } = useQuery<AR[]>({
+  const { data: arRaw, isLoading: arLoading, refetch: refetchAR } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-receivable', filterAR],
     queryFn: () => fetch(`/api/finance/accounts-receivable?status=${filterAR}`, { credentials: 'include' }).then(r => r.json()),
   });
+  console.log('[finance] AR response shape:', arRaw);
+  const arList: AR[] = Array.isArray(arRaw)
+    ? (arRaw as AR[])
+    : Array.isArray((arRaw as any)?.data)
+      ? ((arRaw as any).data as AR[])
+      : [];
   const { data: apList = [], isLoading: apLoading, refetch: refetchAP } = useQuery<AP[]>({
     queryKey: ['/api/finance/accounts-payable', filterAP],
     queryFn: () => fetch(`/api/finance/accounts-payable?status=${filterAP}`, { credentials: 'include' }).then(r => r.json()),
