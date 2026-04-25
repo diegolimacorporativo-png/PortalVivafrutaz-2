@@ -14,6 +14,7 @@ import {
 } from "../../core/tenant/scope";
 import { requireTenantId } from "../../core/tenant/context";
 import { storage } from "../../services/storage";
+import { NotFoundError } from "../../shared/errors/AppError";
 import type {
   AccountReceivable,
   InsertAccountReceivable,
@@ -78,6 +79,11 @@ export class FinanceRepository {
       .insert(accountsReceivable)
       .values(withTenant(data))
       .returning();
+    if (!row) {
+      // INSERT … RETURNING with no row back is effectively impossible — the
+      // DB would have raised already. Defensive guard to satisfy the type.
+      throw new NotFoundError("Falha ao criar conta a receber.");
+    }
     return row;
   }
 
@@ -95,6 +101,11 @@ export class FinanceRepository {
         and(eq(accountsReceivable.id, id), tenantWhere(accountsReceivable)),
       )
       .returning();
+    if (!row) {
+      throw new NotFoundError(
+        `Conta a receber #${id} não encontrada no tenant atual.`,
+      );
+    }
     return row;
   }
 
@@ -107,8 +118,12 @@ export class FinanceRepository {
           and(eq(accountsReceivable.id, id), tenantWhere(accountsReceivable)),
         )
         .returning();
-      if (!row) return row;
-      const today = new Date().toISOString().split("T")[0];
+      if (!row) {
+        throw new NotFoundError(
+          `Conta a receber #${id} não encontrada no tenant atual.`,
+        );
+      }
+      const today = new Date().toISOString().substring(0, 10);
       await tx.insert(financialTransactions).values(
         withTenant({
           tipo: "entrada",
@@ -154,6 +169,9 @@ export class FinanceRepository {
       .insert(accountsPayable)
       .values(withTenant(data))
       .returning();
+    if (!row) {
+      throw new NotFoundError("Falha ao criar conta a pagar.");
+    }
     return row;
   }
 
@@ -167,6 +185,11 @@ export class FinanceRepository {
       .set(safe)
       .where(and(eq(accountsPayable.id, id), tenantWhere(accountsPayable)))
       .returning();
+    if (!row) {
+      throw new NotFoundError(
+        `Conta a pagar #${id} não encontrada no tenant atual.`,
+      );
+    }
     return row;
   }
 
@@ -177,8 +200,12 @@ export class FinanceRepository {
         .set({ status: "pago", pagoEm: new Date() })
         .where(and(eq(accountsPayable.id, id), tenantWhere(accountsPayable)))
         .returning();
-      if (!row) return row;
-      const today = new Date().toISOString().split("T")[0];
+      if (!row) {
+        throw new NotFoundError(
+          `Conta a pagar #${id} não encontrada no tenant atual.`,
+        );
+      }
+      const today = new Date().toISOString().substring(0, 10);
       await tx.insert(financialTransactions).values(
         withTenant({
           tipo: "saida",
@@ -221,12 +248,17 @@ export class FinanceRepository {
       .insert(financialTransactions)
       .values(withTenant(data))
       .returning();
+    if (!row) {
+      throw new NotFoundError("Falha ao criar lançamento financeiro.");
+    }
     return row;
   }
 
   // ── Dashboard ──────────────────────────────────────────────────────────
   async getDashboard(): Promise<FinancialDashboard> {
-    const today = new Date().toISOString().split("T")[0];
+    // .substring(0,10) preserves the "YYYY-MM-DD" prefix and returns string
+    // (split("T")[0] is string | undefined under noUncheckedIndexedAccess).
+    const today = new Date().toISOString().substring(0, 10);
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
     const sumExpr = sql<string>`coalesce(sum(valor::numeric), 0)`;
@@ -292,20 +324,27 @@ export class FinanceRepository {
         ),
       );
 
-    const recebidoMes = parseFloat(entradas.sum);
-    const pagoMes = parseFloat(saidas.sum);
+    // SQL aggregates without GROUP BY always return exactly one row, but TS
+    // can't see that. The "0" fallback is unreachable at runtime; it only
+    // satisfies noUncheckedIndexedAccess. parseFloat("0") === 0.
+    const arTotalSum = parseFloat(arTotal?.sum ?? "0");
+    const apTotalSum = parseFloat(apTotal?.sum ?? "0");
+    const arVencidosSum = parseFloat(arVencidos?.sum ?? "0");
+    const apVencidosSum = parseFloat(apVencidos?.sum ?? "0");
+    const recebidoMes = parseFloat(entradas?.sum ?? "0");
+    const pagoMes = parseFloat(saidas?.sum ?? "0");
 
     return {
-      totalReceber: parseFloat(arTotal.sum),
-      totalPagar: parseFloat(apTotal.sum),
-      saldoProjetado: parseFloat(arTotal.sum) - parseFloat(apTotal.sum),
-      vencidasReceber: parseFloat(arVencidos.sum),
-      vencidasPagar: parseFloat(apVencidos.sum),
+      totalReceber: arTotalSum,
+      totalPagar: apTotalSum,
+      saldoProjetado: arTotalSum - apTotalSum,
+      vencidasReceber: arVencidosSum,
+      vencidasPagar: apVencidosSum,
       // Legacy-compatible aliases for existing frontend consumers.
-      totalReceivable: parseFloat(arTotal.sum),
-      totalPayable: parseFloat(apTotal.sum),
-      vencidosAR: parseFloat(arVencidos.sum),
-      vencidosAP: parseFloat(apVencidos.sum),
+      totalReceivable: arTotalSum,
+      totalPayable: apTotalSum,
+      vencidosAR: arVencidosSum,
+      vencidosAP: apVencidosSum,
       recebidoMes,
       pagoMes,
       balanceMes: recebidoMes - pagoMes,

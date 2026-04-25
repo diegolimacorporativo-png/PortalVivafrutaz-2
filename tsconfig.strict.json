@@ -1,6 +1,10 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["server/modules/orders/**/*", "shared/**/*"],
+  "include": [
+    "server/modules/orders/**/*",
+    "server/modules/finance/**/*",
+    "shared/**/*"
+  ],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
   "compilerOptions": {
     "noUncheckedIndexedAccess": true
