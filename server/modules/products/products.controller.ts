@@ -134,6 +134,10 @@ export class ProductController {
   async setOutOfSeason(req: Request, res: Response): Promise<void> {
     try {
       const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
       const { outOfSeason } = req.body as { outOfSeason?: unknown };
       if (typeof outOfSeason !== 'boolean') {
         res.status(400).json({ message: 'outOfSeason deve ser boolean' });
@@ -143,7 +147,8 @@ export class ProductController {
       const ip = getClientIp(req);
       const product = await productService.toggleOutOfSeason(id, outOfSeason, userId, ip);
       res.json(product);
-    } catch {
+    } catch (err) {
+      console.warn('[products.controller] setOutOfSeason failed', err);
       res.status(500).json({ message: 'Erro interno' });
     }
   }
@@ -151,26 +156,35 @@ export class ProductController {
   async listSubCategories(req: Request, res: Response): Promise<void> {
     try {
       const productId = Number(req.params.productId);
+      if (!productId) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
       const rows = await productService.listSubCategoriesForProduct(productId);
       res.json(rows);
-    } catch {
+    } catch (err) {
+      console.warn('[products.controller] listSubCategories failed', err);
       res.status(500).json({ message: 'Erro interno' });
     }
   }
 
   async createSubCategory(req: Request, res: Response): Promise<void> {
-    const userId = getSessionUserId(req);
-    if (!userId) {
-      res.status(401).json({ message: 'Não autenticado' });
-      return;
-    }
-    const actor = await productService.getActor(userId);
-    if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
-      res.status(403).json({ message: 'Sem permissão' });
-      return;
-    }
     try {
+      const userId = getSessionUserId(req);
+      if (!userId) {
+        res.status(401).json({ message: 'Não autenticado' });
+        return;
+      }
+      const actor = await productService.getActor(userId);
+      if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
+        res.status(403).json({ message: 'Sem permissão' });
+        return;
+      }
       const productId = Number(req.params.productId);
+      if (!productId) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
       const { categoryName, price, active } = req.body as {
         categoryName?: string;
         price?: string | number;
@@ -183,24 +197,29 @@ export class ProductController {
       const row = await productService.addSubCategory(productId, { categoryName, price, active });
       res.status(201).json(row);
     } catch (e) {
+      console.warn('[products.controller] createSubCategory failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
   }
 
   async updateSubCategory(req: Request, res: Response): Promise<void> {
-    const userId = getSessionUserId(req);
-    if (!userId) {
-      res.status(401).json({ message: 'Não autenticado' });
-      return;
-    }
-    const actor = await productService.getActor(userId);
-    if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
-      res.status(403).json({ message: 'Sem permissão' });
-      return;
-    }
     try {
+      const userId = getSessionUserId(req);
+      if (!userId) {
+        res.status(401).json({ message: 'Não autenticado' });
+        return;
+      }
+      const actor = await productService.getActor(userId);
+      if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
+        res.status(403).json({ message: 'Sem permissão' });
+        return;
+      }
       const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
       const { categoryName, price, active } = req.body as {
         categoryName?: string;
         price?: string | number;
@@ -209,46 +228,59 @@ export class ProductController {
       const row = await productService.editSubCategory(id, { categoryName, price, active });
       res.json(row);
     } catch (e) {
+      console.warn('[products.controller] updateSubCategory failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
   }
 
   async deleteSubCategory(req: Request, res: Response): Promise<void> {
-    const userId = getSessionUserId(req);
-    if (!userId) {
-      res.status(401).json({ message: 'Não autenticado' });
-      return;
-    }
-    const actor = await productService.getActor(userId);
-    if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
-      res.status(403).json({ message: 'Sem permissão' });
-      return;
-    }
     try {
-      await productService.removeSubCategory(Number(req.params.id));
+      const userId = getSessionUserId(req);
+      if (!userId) {
+        res.status(401).json({ message: 'Não autenticado' });
+        return;
+      }
+      const actor = await productService.getActor(userId);
+      if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
+        res.status(403).json({ message: 'Sem permissão' });
+        return;
+      }
+      const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
+      await productService.removeSubCategory(id);
       res.json({ ok: true });
     } catch (e) {
+      console.warn('[products.controller] deleteSubCategory failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
   }
 
   async deleteAllSubCategoriesForProduct(req: Request, res: Response): Promise<void> {
-    const userId = getSessionUserId(req);
-    if (!userId) {
-      res.status(401).json({ message: 'Não autenticado' });
-      return;
-    }
-    const actor = await productService.getActor(userId);
-    if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
-      res.status(403).json({ message: 'Sem permissão' });
-      return;
-    }
     try {
-      await productService.removeAllSubCategoriesForProduct(Number(req.params.productId));
+      const userId = getSessionUserId(req);
+      if (!userId) {
+        res.status(401).json({ message: 'Não autenticado' });
+        return;
+      }
+      const actor = await productService.getActor(userId);
+      if (!actor || !ALLOWED_SUB_CATEGORY_ROLES.includes(actor.role)) {
+        res.status(403).json({ message: 'Sem permissão' });
+        return;
+      }
+      const productId = Number(req.params.productId);
+      if (!productId) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
+      await productService.removeAllSubCategoriesForProduct(productId);
       res.json({ ok: true });
     } catch (e) {
+      console.warn('[products.controller] deleteAllSubCategoriesForProduct failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }

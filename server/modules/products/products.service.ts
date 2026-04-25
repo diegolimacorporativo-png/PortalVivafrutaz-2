@@ -87,7 +87,7 @@ export class ProductService {
       .filter((c): c is string => Boolean(c))
       .map((c) => parseInt(c.replace(/\D/g, ''), 10))
       .filter((n) => !isNaN(n));
-    const maxCode = usedCodes.length > 0 ? Math.max(...usedCodes) : 0;
+    const maxCode = usedCodes.reduce((m, v) => Math.max(m, v), 0);
     return String(maxCode + 1).padStart(3, '0');
   }
 
@@ -123,7 +123,9 @@ export class ProductService {
               totalPrice: matchingItem.totalPrice,
             });
           }
-        } catch { /* ignore */ }
+        } catch (err) {
+          console.warn(`[products.service] getSafraAlerts: failed to load order detail for orderId=${order.id}`, err);
+        }
       }
       return { product, affectedOrders };
     }));
