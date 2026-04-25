@@ -71,12 +71,10 @@ export class ProductService {
   }
 
   async updateProduct(id: number, input: UpdateProductInput): Promise<Product> {
-    await this.getProduct(id);
     return this.repo.update(id, input);
   }
 
   async deleteProduct(id: number): Promise<void> {
-    await this.getProduct(id);
     return this.repo.delete(id);
   }
 

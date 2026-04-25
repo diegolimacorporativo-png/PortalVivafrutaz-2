@@ -44,27 +44,28 @@ export interface IProductRepository {
 
 export class ProductRepository implements IProductRepository {
   async findAll(): Promise<Product[]> {
-    throw new Error("Not implemented — wire to DB in future migration");
+    return storage.getProducts();
   }
 
   async findAllForCodeLookup(): Promise<SchemaProduct[]> {
     return storage.getProducts();
   }
 
-  async findById(_id: number): Promise<Product | undefined> {
-    throw new Error("Not implemented — wire to DB in future migration");
+  async findById(id: number): Promise<Product | undefined> {
+    const all = await storage.getProducts();
+    return all.find((p) => p.id === id);
   }
 
-  async create(_input: CreateProductInput): Promise<Product> {
-    throw new Error("Not implemented — wire to DB in future migration");
+  async create(input: CreateProductInput): Promise<Product> {
+    return storage.createProduct(input);
   }
 
-  async update(_id: number, _input: UpdateProductInput): Promise<Product> {
-    throw new Error("Not implemented — wire to DB in future migration");
+  async update(id: number, input: UpdateProductInput): Promise<Product> {
+    return storage.updateProduct(id, input);
   }
 
-  async delete(_id: number): Promise<void> {
-    throw new Error("Not implemented — wire to DB in future migration");
+  async delete(id: number): Promise<void> {
+    return storage.deleteProduct(id);
   }
 
   async findAllProducts(): Promise<SchemaProduct[]> {

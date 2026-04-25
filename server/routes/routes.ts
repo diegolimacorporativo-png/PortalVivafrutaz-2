@@ -1768,36 +1768,12 @@ export async function registerRoutes(
     }
   });
 
-  // Products
-  app.get(api.products.list.path, async (req, res) => {
-    const products = await storage.getProducts();
-    res.json(products);
-  });
-
-  app.post(api.products.create.path, async (req, res) => {
-    try {
-      const input = api.products.create.input.parse(req.body);
-      const product = await storage.createProduct(input);
-      res.status(201).json(product);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-
-  app.put(api.products.update.path, async (req, res) => {
-    try {
-      const input = api.products.update.input.parse(req.body);
-      const product = await storage.updateProduct(Number(req.params.id), input);
-      res.json(product);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-
-  app.delete(api.products.delete.path, async (req, res) => {
-    await storage.deleteProduct(Number(req.params.id));
-    res.status(204).end();
-  });
+  // Products (CRUD delegated to productController)
+  app.get(api.products.list.path, (req, res, next) => productController.list(req, res, next));
+  app.get('/api/products/:id', (req, res, next) => productController.getById(req, res, next));
+  app.post(api.products.create.path, (req, res, next) => productController.create(req, res, next));
+  app.put(api.products.update.path, (req, res, next) => productController.update(req, res, next));
+  app.delete(api.products.delete.path, (req, res, next) => productController.remove(req, res, next));
 
   // Toggle out-of-season flag for a product
   app.patch('/api/products/:id/out-of-season', (req, res) => productController.setOutOfSeason(req, res));

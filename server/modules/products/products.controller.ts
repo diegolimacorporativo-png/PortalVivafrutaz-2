@@ -39,32 +39,42 @@ export class ProductController {
     }
   }
 
-  async create(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async create(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       const input = createProductSchema.parse(req.body);
       const product = await productService.createProduct(input);
       res.status(201).json(product);
     } catch (err) {
-      next(err);
+      console.warn('[products.controller] create failed', err);
+      res.status(400).json({ message: "Bad request" });
     }
   }
 
-  async update(req: Request, res: Response, next: NextFunction): Promise<void> {
+  async update(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
-      const { id } = productIdParamSchema.parse(req.params);
+      const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
       const input = updateProductSchema.parse(req.body);
       const product = await productService.updateProduct(id, input);
       res.json(product);
     } catch (err) {
-      next(err);
+      console.warn('[products.controller] update failed', err);
+      res.status(400).json({ message: "Bad request" });
     }
   }
 
   async remove(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { id } = productIdParamSchema.parse(req.params);
+      const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ message: 'Invalid id' });
+        return;
+      }
       await productService.deleteProduct(id);
-      res.status(204).send();
+      res.status(204).end();
     } catch (err) {
       next(err);
     }
