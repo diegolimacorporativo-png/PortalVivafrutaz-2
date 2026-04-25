@@ -1,7 +1,8 @@
-import type { Express } from "express";
+import type { Express, NextFunction, Request, Response } from "express";
 import type { Server } from "http";
 import { storage } from "../services/storage.ts";
 import { productController } from "../modules/products/products.controller";
+import { ordersController } from "../modules/orders/orders.controller";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
@@ -1027,70 +1028,8 @@ export async function registerRoutes(
   });
 
   // --- Orders export with full detail (company, items, products) ---
-  app.get('/api/orders/export', async (req, res) => {
-    try {
-      const { dateFrom, dateTo, companyId, orderType } = req.query;
-      const [allOrders, allCompanies, allProducts] = await Promise.all([
-        storage.getOrders(),
-        storage.getCompanies(),
-        storage.getProducts(),
-      ]);
-
-      let filtered = allOrders;
-
-      if (dateFrom) {
-        const from = new Date(dateFrom as string);
-        filtered = filtered.filter((o: any) => new Date(o.orderDate) >= from);
-      }
-      if (dateTo) {
-        const to = new Date(dateTo as string);
-        to.setHours(23, 59, 59, 999);
-        filtered = filtered.filter((o: any) => new Date(o.orderDate) <= to);
-      }
-      if (companyId && companyId !== 'all') {
-        filtered = filtered.filter((o: any) => o.companyId === Number(companyId));
-      }
-      if (orderType && orderType !== 'all') {
-        if (orderType === 'teste') {
-          filtered = filtered.filter((o: any) => o.orderCode?.includes('TESTE') || o.weekReference?.includes('TESTE'));
-        } else {
-          filtered = filtered.filter((o: any) => {
-            const company = allCompanies.find((c: any) => c.id === o.companyId);
-            return company?.clientType === orderType;
-          });
-        }
-      }
-
-      // Enrich with items and company data
-      const enriched = await Promise.all(filtered.map(async (order: any) => {
-        const company = allCompanies.find((c: any) => c.id === order.companyId);
-        let items: any[] = [];
-        try {
-          const detail = await storage.getOrder(order.id);
-          items = detail?.items || [];
-        } catch { /* ignore */ }
-
-        return {
-          ...order,
-          companyName: company?.companyName || `Empresa #${order.companyId}`,
-          clientType: company?.clientType || '',
-          items: items.map((item: any) => {
-            const product = allProducts.find((p: any) => p.id === item.productId);
-            return {
-              ...item,
-              productName: product?.name || `Produto #${item.productId}`,
-              productCategory: product?.category || '',
-              productUnit: product?.unit || '',
-            };
-          }),
-        };
-      }));
-
-      res.json(enriched);
-    } catch {
-      res.status(500).json({ message: "Erro interno" });
-    }
-  });
+  // Delegated to ordersController.export — owned by server/modules/orders.
+  app.get('/api/orders/export', (req: Request, res: Response, next: NextFunction) => ordersController.export(req, res).catch(next));
 
   // --- Safra Alerts: products out of season with active orders ---
   app.get('/api/products/safra-alerts', (req, res) => productController.safraAlerts(req, res));
@@ -1108,73 +1047,8 @@ export async function registerRoutes(
   app.get('/api/products/price-alerts', (req, res) => productController.priceAlerts(req, res));
 
   // --- Substitute/manage item in order (safra management) ---
-  app.post('/api/orders/:orderId/substitute-item', async (req, res) => {
-    try {
-      const orderId = Number(req.params.orderId);
-      const { action, itemId, newProductId, discountPct, nfNote } = req.body;
-      if (!orderId || !itemId || !action) return res.status(400).json({ message: 'Dados inválidos' });
-
-      const detail = await storage.getOrder(orderId);
-      if (!detail) return res.status(404).json({ message: 'Pedido não encontrado' });
-
-      const items = detail.items as any[];
-      const targetIdx = items.findIndex((i: any) => i.id === itemId);
-      if (targetIdx === -1) return res.status(404).json({ message: 'Item não encontrado' });
-      const target = items[targetIdx];
-
-      let newItems = [...items];
-      let description = '';
-
-      if (action === 'remove') {
-        newItems.splice(targetIdx, 1);
-        description = `Item removido do pedido ${detail.order.orderCode} (safra encerrada)`;
-      } else if (action === 'replace' && newProductId) {
-        const allProducts = await storage.getProducts();
-        const newProduct = allProducts.find((p: any) => p.id === newProductId);
-        if (!newProduct) return res.status(404).json({ message: 'Produto substituto não encontrado' });
-        newItems[targetIdx] = { ...target, productId: newProductId, unitPrice: newProduct.basePrice || target.unitPrice };
-        newItems[targetIdx].totalPrice = String(Number(newItems[targetIdx].unitPrice) * Number(target.quantity));
-        description = `Produto substituído no pedido ${detail.order.orderCode} (safra encerrada)`;
-      } else if (action === 'discount' && discountPct) {
-        const pct = Number(discountPct);
-        const newUnit = Number(target.unitPrice) * (1 - pct / 100);
-        newItems[targetIdx] = { ...target, unitPrice: String(newUnit.toFixed(2)), totalPrice: String((newUnit * Number(target.quantity)).toFixed(2)) };
-        description = `Desconto de ${pct}% aplicado no pedido ${detail.order.orderCode} (safra encerrada)`;
-      } else if (action === 'note') {
-        description = `Obs. NF adicionada no pedido ${detail.order.orderCode}: "${nfNote}"`;
-      } else {
-        return res.status(400).json({ message: 'Ação inválida' });
-      }
-
-      // Recalculate total
-      const newTotal = newItems.reduce((sum: number, i: any) => sum + Number(i.totalPrice), 0);
-      await storage.updateOrder(orderId, { totalValue: String(newTotal.toFixed(2)) });
-      if (action !== 'note') {
-        await storage.updateOrderItems(orderId, newItems.map((i: any) => ({
-          productId: i.productId,
-          quantity: Number(i.quantity),
-          unitPrice: String(i.unitPrice),
-          totalPrice: String(i.totalPrice),
-        })));
-      }
-
-      const actingUser = req.session?.userId ? await storage.getUser(req.session.userId) : null;
-      await storage.createLog({
-        action: 'SAFRA_SUBSTITUTION',
-        description: `${description}. Operador: ${actingUser?.name || 'Sistema'}`,
-        userEmail: actingUser?.email || 'sistema',
-        level: 'INFO',
-        ip: (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.socket.remoteAddress || '',
-      });
-
-      if (action === 'note') {
-        return res.json({ ok: true, note: nfNote });
-      }
-      res.json({ ok: true });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.substituteItem — owned by server/modules/orders.
+  app.post('/api/orders/:orderId/substitute-item', (req: Request, res: Response, next: NextFunction) => ordersController.substituteItem(req, res).catch(next));
 
   // --- System Logs API ---
   app.get('/api/admin/logs', async (req, res) => {
@@ -2135,341 +2009,41 @@ export async function registerRoutes(
   });
 
   // Admin order management
-  app.patch('/api/orders/:id', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { status, adminNote, nimbiExpiration } = req.body;
-      const updates: any = {};
-      if (status !== undefined) updates.status = status;
-      if (adminNote !== undefined) updates.adminNote = adminNote;
-      if (nimbiExpiration !== undefined) updates.nimbiExpiration = nimbiExpiration || null;
-      const order = await storage.updateOrder(id, updates);
-      res.json(order);
-
-      // Send status change email + push notification (non-blocking)
-      if (status && ['CONFIRMED', 'DELIVERED', 'CANCELLED'].includes(status)) {
-        try {
-          const orderData = await storage.getOrder(id);
-          if (orderData) {
-            const oa = orderData as any;
-            const company = await storage.getCompany(oa.companyId);
-            if (company) {
-              await sendOrderStatusChanged({
-                toEmail: company.email,
-                companyName: company.companyName,
-                vfCode: oa.vfCode || `#${id}`,
-                status,
-                adminNote,
-              });
-            }
-            // Fire push notification for cancellation
-            if (status === 'CANCELLED') {
-              const companyName = (await storage.getCompany(oa.companyId))?.companyName || `Empresa #${oa.companyId}`;
-              fireNotification('order_cancelled', {
-                code: oa.vfCode || `#${id}`,
-                company: companyName,
-              }, { url: `/admin/orders` });
-            } else {
-              const statusLabel: Record<string, string> = {
-                CONFIRMED: 'Confirmado', DELIVERED: 'Entregue', CANCELLED: 'Cancelado'
-              };
-              const companyName = (await storage.getCompany(oa.companyId))?.companyName || `Empresa #${oa.companyId}`;
-              fireNotification('order_updated', {
-                code: oa.vfCode || `#${id}`,
-                company: companyName,
-                status: statusLabel[status] || status,
-              }, { url: `/admin/orders` });
-            }
-          }
-        } catch (emailErr) {
-          console.error("[EMAIL] Erro ao enviar email de status:", emailErr);
-        }
-      }
-      // Auto-deduct inventory when order is CONFIRMED (non-blocking)
-      if (status === 'CONFIRMED') {
-        (async () => {
-          try {
-            const orderData = await storage.getOrder(id);
-            if (!orderData) return;
-            const allProducts = await storage.getProducts();
-            const productMap = new Map(allProducts.map(p => [p.id, p]));
-            const today = new Date().toISOString().substring(0, 10);
-            for (const item of orderData.items) {
-              const product = productMap.get(item.productId);
-              const productName = product?.name || `Produto #${item.productId}`;
-              const setting = await storage.getInventorySettingByProductId(item.productId)
-                || await storage.getInventorySettingByProductName(productName);
-              if (!setting) continue;
-              const prev = parseFloat(setting.currentStock || '0');
-              const qty = parseFloat(String(item.quantity || 0));
-              const newStock = Math.max(0, prev - qty);
-              await storage.upsertInventorySetting({ ...setting, currentStock: String(newStock) });
-              await storage.createInventoryMovement({
-                productId: item.productId || null,
-                productName,
-                movementType: 'EXIT',
-                quantity: String(qty),
-                balanceAfter: String(newStock),
-                unit: setting.unit,
-                referenceType: 'order',
-                referenceId: id,
-                notes: `Pedido confirmado: ${orderData.order.orderCode || `#${id}`}`,
-                date: today,
-                createdBy: 'Sistema',
-              });
-            }
-          } catch (invErr) {
-            console.error('[INVENTORY] Erro ao baixar estoque do pedido:', invErr);
-          }
-        })();
-      }
-      // Auto-create Conta a Receber when order is CONFIRMED (non-blocking)
-      if (status === 'CONFIRMED') {
-        (async () => {
-          try {
-            const existing = await storage.getAccountReceivableByOrderId(id);
-            if (!existing) {
-              const orderData = await storage.getOrder(id);
-              if (!orderData) return;
-              const oa = orderData.order as any;
-              const total = orderData.items.reduce((sum: number, item: any) => sum + parseFloat(item.totalPrice || '0'), 0);
-              if (total <= 0) return;
-              const today = new Date();
-              const due = new Date(today);
-              due.setDate(due.getDate() + 30);
-              const toDate = (d: Date) => d.toISOString().substring(0, 10);
-              const config = await storage.getCompanyConfig();
-              let pixPayload: string | undefined;
-              if (config?.cnpj) {
-                const chave = config.cnpj.replace(/\D/g, '');
-                pixPayload = (() => {
-                  const sanitize = (s: string, max: number) => s.replace(/[^\w\s]/gi, '').slice(0, max).trim() || 'VIVA';
-                  const tlv = (id: string, v: string) => `${id}${String(v.length).padStart(2, '0')}${v}`;
-                  const merchant = tlv('00', 'br.gov.bcb.pix') + tlv('01', chave.slice(0, 77));
-                  const addData = tlv('62', tlv('05', `AR${Date.now().toString().slice(-10)}`));
-                  let payload = tlv('00', '01') + tlv('26', merchant) + tlv('52', '0000') + tlv('53', '986') + tlv('54', total.toFixed(2)) + tlv('58', 'BR') + tlv('59', sanitize(config.companyName || 'VIVAFRUTAZ', 25)) + tlv('60', sanitize(config.city || 'SAOPAULO', 15)) + addData + '6304';
-                  let crc = 0xFFFF;
-                  for (let i = 0; i < payload.length; i++) { crc ^= payload.charCodeAt(i) << 8; for (let j = 0; j < 8; j++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1); }
-                  return payload + ((crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0'));
-                })();
-              }
-              await storage.createAccountReceivable({
-                companyId: oa.companyId,
-                orderId: id,
-                descricao: `Pedido ${oa.orderCode || oa.vfCode || `#${id}`}`,
-                valor: total.toFixed(2),
-                dataEmissao: toDate(today),
-                dataVencimento: toDate(due),
-                status: 'pendente',
-                formaPagamento: 'pix',
-                pixPayload,
-              });
-            }
-          } catch (arErr) {
-            console.error('[FINANCE] Erro ao criar conta a receber:', arErr);
-          }
-        })();
-      }
-    } catch (err) {
-      console.error("Update order error:", err);
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
+  // Delegated to ordersController.update — owned by server/modules/orders.
+  app.patch('/api/orders/:id', (req: Request, res: Response, next: NextFunction) => ordersController.update(req, res).catch(next));
 
   // ─── ORDER DELETION (Admin/Director/Developer only) ────────────────────────
 
   // Bulk delete orders
-  app.delete('/api/orders/bulk', async (req, res) => {
-    try {
-      const userId = (req.session as any)?.userId;
-      if (!userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(userId);
-      if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) {
-        return res.status(403).json({ message: 'Sem permissão para excluir pedidos' });
-      }
-      const { orderIds, motivo, confirmar } = req.body;
-      if (!Array.isArray(orderIds) || orderIds.length === 0) {
-        return res.status(400).json({ message: 'Nenhum pedido selecionado' });
-      }
-      // Check for fiscally processed orders requiring double confirmation
-      const orderResults = await Promise.all(orderIds.map((id: number) => storage.getOrder(Number(id))));
-      const fiscalOrders = orderResults.filter(r => r && ['nota_emitida', 'nota_exportada'].includes(r.order.fiscalStatus || ''));
-      if (fiscalOrders.length > 0 && !confirmar) {
-        return res.status(409).json({
-          message: 'Confirmação necessária',
-          requiresConfirmation: true,
-          billedCount: fiscalOrders.length,
-          billedCodes: fiscalOrders.map(r => r!.order.orderCode || String(r!.order.id)),
-        });
-      }
-      await storage.createLog({
-        action: 'BULK_ORDER_DELETE',
-        description: `${orderIds.length} pedido(s) excluído(s) em lote por ${user.name} (${user.role}). Motivo: ${motivo || 'Não informado'}`,
-        userId: user.id, userEmail: user.email, userRole: user.role, level: 'WARN',
-      });
-      for (const id of orderIds) await storage.deleteOrder(Number(id));
-      res.json({ success: true, deleted: orderIds.length });
-    } catch (err) {
-      console.error('[DELETE /api/orders/bulk]', err);
-      res.status(500).json({ message: 'Erro ao excluir pedidos' });
-    }
-  });
+  // Delegated to ordersController.bulkDelete — owned by server/modules/orders.
+  app.delete('/api/orders/bulk', (req: Request, res: Response, next: NextFunction) => ordersController.bulkDelete(req, res).catch(next));
 
   // Delete single order
-  app.delete('/api/orders/:id', async (req, res) => {
-    try {
-      const userId = (req.session as any)?.userId;
-      if (!userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(userId);
-      if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) {
-        return res.status(403).json({ message: 'Sem permissão para excluir pedidos' });
-      }
-      const id = Number(req.params.id);
-      const { motivo, confirmar } = req.body;
-      const data = await storage.getOrder(id);
-      if (!data) return res.status(404).json({ message: 'Pedido não encontrado' });
-      const isFiscal = ['nota_emitida', 'nota_exportada'].includes(data.order.fiscalStatus || '');
-      if (isFiscal && !confirmar) {
-        return res.status(409).json({
-          message: 'Confirmação necessária',
-          requiresConfirmation: true,
-          orderCode: data.order.orderCode || String(id),
-        });
-      }
-      await storage.createLog({
-        action: 'ORDER_DELETED',
-        description: `Pedido #${data.order.orderCode || id} excluído por ${user.name} (${user.role}). Motivo: ${motivo || 'Não informado'}`,
-        userId: user.id, userEmail: user.email, userRole: user.role, level: 'WARN',
-      });
-      await storage.deleteOrder(id);
-      res.json({ success: true });
-    } catch (err) {
-      console.error('[DELETE /api/orders/:id]', err);
-      res.status(500).json({ message: 'Erro ao excluir pedido' });
-    }
-  });
+  // Delegated to ordersController.remove — owned by server/modules/orders.
+  app.delete('/api/orders/:id', (req: Request, res: Response, next: NextFunction) => ordersController.remove(req, res).catch(next));
 
   // Client requests reopening of a confirmed/locked order
-  app.post('/api/orders/:id/request-reopen', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const companyId = req.session?.companyId;
-      if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
-      const data = await storage.getOrder(id);
-      if (!data) return res.status(404).json({ message: 'Pedido não encontrado' });
-      if (data.order.companyId !== companyId) return res.status(403).json({ message: 'Sem permissão' });
-      if (!['CONFIRMED', 'ACTIVE'].includes(data.order.status)) {
-        return res.status(400).json({ message: 'Pedido não pode ser reaberto neste status.' });
-      }
-      const { reason } = req.body;
-      if (!reason || String(reason).trim().length < 3) {
-        return res.status(400).json({ message: 'Informe o motivo da alteração.' });
-      }
-      const updated = await storage.updateOrder(id, {
-        status: 'REOPEN_REQUESTED',
-        reopenReason: String(reason).trim(),
-        reopenRequestedAt: new Date(),
-      });
-      await storage.createLog({ action: 'ORDER_REOPEN_REQUESTED', description: `Pedido ${data.order.orderCode} — solicitação de alteração: ${reason}`, companyId, userRole: 'CLIENT', level: 'INFO' });
-      res.json(updated);
-    } catch (err: any) {
-      res.status(500).json({ message: err?.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.requestReopen — owned by server/modules/orders.
+  app.post('/api/orders/:id/request-reopen', (req: Request, res: Response, next: NextFunction) => ordersController.requestReopen(req, res).catch(next));
 
   // Admin approves reopening → OPEN_FOR_EDITING
-  app.post('/api/orders/:id/approve-reopen', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const userId = req.session?.userId;
-      if (!userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(userId);
-      const REOPEN_ROLES = ['ADMIN', 'DIRECTOR', 'OPERATIONS_MANAGER', 'LOGISTICS'];
-      if (!user || !REOPEN_ROLES.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const data = await storage.getOrder(id);
-      if (!data) return res.status(404).json({ message: 'Pedido não encontrado' });
-      if (data.order.status !== 'REOPEN_REQUESTED') {
-        return res.status(400).json({ message: 'Pedido não está em solicitação de alteração.' });
-      }
-      const updated = await storage.updateOrder(id, { status: 'OPEN_FOR_EDITING' });
-      await storage.createLog({ action: 'ORDER_REOPEN_APPROVED', description: `Pedido ${data.order.orderCode} aprovado para edição por ${user.email}`, userRole: user.role, level: 'INFO' });
-      res.json(updated);
-    } catch (err: any) {
-      res.status(500).json({ message: err?.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.approveReopen — owned by server/modules/orders.
+  app.post('/api/orders/:id/approve-reopen', (req: Request, res: Response, next: NextFunction) => ordersController.approveReopen(req, res).catch(next));
 
   // Admin denies reopening → back to CONFIRMED
-  app.post('/api/orders/:id/deny-reopen', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const userId = req.session?.userId;
-      if (!userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(userId);
-      const REOPEN_ROLES = ['ADMIN', 'DIRECTOR', 'OPERATIONS_MANAGER', 'LOGISTICS'];
-      if (!user || !REOPEN_ROLES.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const data = await storage.getOrder(id);
-      if (!data) return res.status(404).json({ message: 'Pedido não encontrado' });
-      if (data.order.status !== 'REOPEN_REQUESTED') {
-        return res.status(400).json({ message: 'Pedido não está em solicitação de alteração.' });
-      }
-      const updated = await storage.updateOrder(id, { status: 'CONFIRMED', reopenReason: null, reopenRequestedAt: null });
-      await storage.createLog({ action: 'ORDER_REOPEN_DENIED', description: `Pedido ${data.order.orderCode} negado por ${user.email}`, userRole: user.role, level: 'INFO' });
-      res.json(updated);
-    } catch (err: any) {
-      res.status(500).json({ message: err?.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.denyReopen — owned by server/modules/orders.
+  app.post('/api/orders/:id/deny-reopen', (req: Request, res: Response, next: NextFunction) => ordersController.denyReopen(req, res).catch(next));
 
   // Client re-finalizes an open-for-editing order → back to CONFIRMED
-  app.post('/api/orders/:id/finalize-edit', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const companyId = req.session?.companyId;
-      if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
-      const data = await storage.getOrder(id);
-      if (!data) return res.status(404).json({ message: 'Pedido não encontrado' });
-      if (data.order.companyId !== companyId) return res.status(403).json({ message: 'Sem permissão' });
-      if (data.order.status !== 'OPEN_FOR_EDITING') {
-        return res.status(400).json({ message: 'Pedido não está em modo de edição.' });
-      }
-      const { items } = req.body;
-      if (Array.isArray(items) && items.length > 0) {
-        await storage.updateOrderItems(id, items);
-      }
-      const updated = await storage.updateOrder(id, { status: 'CONFIRMED', reopenReason: null, reopenRequestedAt: null });
-      await storage.createLog({ action: 'ORDER_EDIT_FINALIZED', description: `Pedido ${data.order.orderCode} re-finalizado pelo cliente`, companyId, userRole: 'CLIENT', level: 'INFO' });
-      res.json(updated);
-    } catch (err: any) {
-      res.status(500).json({ message: err?.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.finalizeEdit — owned by server/modules/orders.
+  app.post('/api/orders/:id/finalize-edit', (req: Request, res: Response, next: NextFunction) => ordersController.finalizeEdit(req, res).catch(next));
 
   // Admin endpoint to check orders with REOPEN_REQUESTED status
-  app.get('/api/orders/reopen-requests', async (req, res) => {
-    try {
-      const userId = req.session?.userId;
-      if (!userId) return res.status(401).json({ message: 'Não autenticado' });
-      const allOrders = await storage.getOrders();
-      res.json(allOrders.filter(o => o.status === 'REOPEN_REQUESTED'));
-    } catch (err: any) {
-      res.status(500).json({ message: err?.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.reopenRequests — owned by server/modules/orders.
+  app.get('/api/orders/reopen-requests', (req: Request, res: Response, next: NextFunction) => ordersController.reopenRequests(req, res).catch(next));
 
-  app.put('/api/orders/:id/items', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { items } = req.body;
-      if (!Array.isArray(items)) return res.status(400).json({ message: "items required" });
-      await storage.updateOrderItems(id, items);
-      const result = await storage.getOrder(id);
-      res.json(result);
-    } catch (err) {
-      console.error("Update order items error:", err);
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
+  // Delegated to ordersController.replaceItems — owned by server/modules/orders.
+  app.put('/api/orders/:id/items', (req: Request, res: Response, next: NextFunction) => ordersController.replaceItems(req, res).catch(next));
 
   // Categories
   app.get('/api/categories', async (req, res) => {
@@ -3242,190 +2816,27 @@ export async function registerRoutes(
   });
 
   // ─── DANFE Records ───────────────────────────────────────────
-  app.get('/api/orders/:id/danfe-logs', async (req, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      const allowed = ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'LOGISTICS', 'DEVELOPER', 'OPERATIONS_MANAGER'];
-      if (!user || !allowed.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const records = await storage.getDanfeRecordsByOrderId(Number(req.params.id));
-      res.json(records);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // Delegated to ordersController.listDanfeLogs — owned by server/modules/orders.
+  app.get('/api/orders/:id/danfe-logs', (req: Request, res: Response, next: NextFunction) => ordersController.listDanfeLogs(req, res).catch(next));
 
-  app.post('/api/orders/:id/danfe-log', async (req, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      const allowed = ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'LOGISTICS', 'DEVELOPER', 'OPERATIONS_MANAGER'];
-      if (!user || !allowed.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const record = await storage.createDanfeRecord({
-        orderId: Number(req.params.id),
-        orderCode: req.body.orderCode ?? null,
-        generatedByUserId: user.id,
-        generatedByEmail: user.email,
-      });
-      res.status(201).json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // Delegated to ordersController.createDanfeLog — owned by server/modules/orders.
+  app.post('/api/orders/:id/danfe-log', (req: Request, res: Response, next: NextFunction) => ordersController.createDanfeLog(req, res).catch(next));
 
   // ── Fiscal: atualizar status fiscal e pré-nota ────────────────
-  app.patch('/api/orders/:id/fiscal', async (req, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      const allowed = ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER', 'PURCHASE_MANAGER'];
-      if (!user || !allowed.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const id = Number(req.params.id);
-      const { fiscalStatus, preNotaNumber } = req.body;
-      const updates: any = {};
-      if (fiscalStatus) updates.fiscalStatus = fiscalStatus;
-      if (preNotaNumber !== undefined) updates.preNotaNumber = preNotaNumber;
-      const order = await storage.updateOrder(id, updates);
-      res.json(order);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // Delegated to ordersController.updateFiscal — owned by server/modules/orders.
+  app.patch('/api/orders/:id/fiscal', (req: Request, res: Response, next: NextFunction) => ordersController.updateFiscal(req, res).catch(next));
 
   // ── Fiscal: gerar número de pré-nota automático ───────────────
-  app.post('/api/orders/:id/generate-prenota', async (req, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      const allowed = ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER', 'PURCHASE_MANAGER'];
-      if (!user || !allowed.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const id = Number(req.params.id);
-      const orderData = await storage.getOrder(id);
-      if (!orderData) return res.status(404).json({ message: 'Pedido não encontrado' });
-      if ((orderData.order as any).preNotaNumber) return res.json({ preNotaNumber: (orderData.order as any).preNotaNumber });
-      // Generate VF-NF-XXXXXX based on order id
-      const preNotaNumber = `VF-NF-${id.toString().padStart(6, '0')}`;
-      const updated = await storage.updateOrder(id, { preNotaNumber } as any);
-      res.json({ preNotaNumber, order: updated });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // Delegated to ordersController.generatePrenota — owned by server/modules/orders.
+  app.post('/api/orders/:id/generate-prenota', (req: Request, res: Response, next: NextFunction) => ordersController.generatePrenota(req, res).catch(next));
 
   // ── Fiscal: exportar dados para ERP (JSON com estrutura Excel/XML) ──
   // ─── BLING EXPORT — Status-tracked export to ERP Bling ───────
-  app.post('/api/orders/:id/bling-export', async (req, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      const allowed = ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER', 'PURCHASE_MANAGER'];
-      if (!user || !allowed.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const id = Number(req.params.id);
-      const orderData = await storage.getOrder(id);
-      if (!orderData) return res.status(404).json({ message: 'Pedido não encontrado' });
-      const o = orderData.order as any;
-      if (o.erpExportStatus === 'exportado') {
-        return res.status(409).json({ message: 'Este pedido já foi exportado para o ERP Bling.' });
-      }
-      // Mark as exporting
-      await storage.updateOrder(id, { erpExportStatus: 'exportando' });
-      try {
-        // Build export payload (same logic as export-erp GET)
-        const company = await storage.getCompany(o.companyId);
-        const allProducts = await storage.getProducts();
-        const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
-        const config = await storage.getCompanyConfig();
-        const fmtDate = (d: any) => { try { return new Date(d).toISOString().split('T')[0]; } catch { return ''; } };
-        const items = orderData.items.map((item: any) => {
-          const prod = productMap.get(item.productId) as any;
-          return {
-            produto: prod?.name || `Produto #${item.productId}`,
-            ncm: prod?.ncm || '',
-            cfop: prod?.cfop || (config as any)?.defaultCfop || '5102',
-            quantidade: item.quantity,
-            unidade: prod?.commercialUnit || prod?.unit || 'UN',
-            valor_unitario: parseFloat(item.unitPrice || '0'),
-            valor_total: parseFloat(item.totalPrice || '0'),
-          };
-        });
-        const exportPayload = {
-          numero_pedido: o.orderCode || `VF-${id}`,
-          data_pedido: fmtDate(o.orderDate),
-          data_entrega: fmtDate(o.deliveryDate),
-          cliente_nome: company?.companyName || '',
-          cliente_cnpj: company?.cnpj || '',
-          valor_total_nota: parseFloat(o.totalValue || '0'),
-          itens: items,
-        };
-        // Generate a Bling reference ID for traceability
-        const generatedErpId = `BLING-${new Date().getFullYear()}-${id.toString().padStart(6, '0')}-${Date.now().toString().slice(-4)}`;
-        const updated = await storage.updateOrder(id, {
-          erpExportStatus: 'exportado',
-          erpExportedAt: new Date(),
-          erpId: generatedErpId,
-          erpExportError: null,
-        });
-        await storage.createLog({ action: 'ERP_BLING_EXPORT', description: `Pedido ${o.orderCode} exportado para Bling. ID: ${generatedErpId}`, userId: user.id, userEmail: user.email, userRole: user.role, level: 'INFO' });
-        res.json({ success: true, erpId: generatedErpId, order: updated, exportPayload });
-      } catch (exportErr: any) {
-        await storage.updateOrder(id, { erpExportStatus: 'erro', erpExportError: exportErr.message || 'Erro desconhecido' });
-        return res.status(500).json({ message: `Erro na exportação: ${exportErr.message}` });
-      }
-    } catch (err: any) {
-      res.status(500).json({ message: err?.message || 'Erro interno' });
-    }
-  });
+  // Delegated to ordersController.blingExport — owned by server/modules/orders.
+  app.post('/api/orders/:id/bling-export', (req: Request, res: Response, next: NextFunction) => ordersController.blingExport(req, res).catch(next));
 
-  app.get('/api/orders/:id/export-erp', async (req, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      const allowed = ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER', 'PURCHASE_MANAGER'];
-      if (!user || !allowed.includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const id = Number(req.params.id);
-      const orderData = await storage.getOrder(id);
-      if (!orderData) return res.status(404).json({ message: 'Pedido não encontrado' });
-      const company = await storage.getCompany((orderData.order as any).companyId);
-      const allProducts = await storage.getProducts();
-      const productMap = new Map(allProducts.map(p => [p.id, p]));
-      const config = await storage.getCompanyConfig();
-      const o = orderData.order as any;
-      const fmtDate = (d: any) => { try { return new Date(d).toISOString().split('T')[0]; } catch { return ''; } };
-      const items = orderData.items.map(item => {
-        const prod = productMap.get(item.productId);
-        return {
-          produto: prod?.name || `Produto #${item.productId}`,
-          ncm: (prod as any)?.ncm || '',
-          cfop: (prod as any)?.cfop || (config as any)?.defaultCfop || '5102',
-          quantidade: item.quantity,
-          unidade: (prod as any)?.commercialUnit || prod?.unit || 'UN',
-          valor_unitario: parseFloat(item.unitPrice || '0'),
-          valor_total: parseFloat(item.totalPrice || '0'),
-        };
-      });
-      const exportData = {
-        numero_pedido: o.orderCode || `VF-${id}`,
-        numero_pre_nota: o.preNotaNumber || '',
-        data_pedido: fmtDate(o.orderDate),
-        data_entrega: fmtDate(o.deliveryDate),
-        semana_referencia: o.weekReference || '',
-        cliente_nome: company?.companyName || '',
-        cliente_cnpj: company?.cnpj || '',
-        cliente_ie: (company as any)?.stateRegistration || '',
-        cliente_endereco: [company?.addressStreet, company?.addressNumber].filter(Boolean).join(', '),
-        cidade: company?.addressCity || '',
-        estado: (company as any)?.addressState || '',
-        cep: company?.addressZip || '',
-        contato: company?.contactName || '',
-        natureza_operacao: (config as any)?.defaultNatureza || 'Venda de mercadoria adquirida',
-        cfop_geral: (config as any)?.defaultCfop || '5102',
-        remetente_nome: (config as any)?.companyName || 'VivaFrutaz',
-        remetente_cnpj: (config as any)?.cnpj || '',
-        remetente_ie: (config as any)?.stateRegistration || '',
-        remetente_endereco: (config as any)?.address || '',
-        remetente_cidade: (config as any)?.city || '',
-        remetente_estado: (config as any)?.state || '',
-        remetente_cep: (config as any)?.cep || '',
-        itens: items,
-        valor_total_nota: parseFloat(o.totalValue || '0'),
-        observacoes: [o.orderNote, o.adminNote].filter(Boolean).join(' | '),
-        status_fiscal: o.fiscalStatus || 'nota_pendente',
-      };
-      res.json(exportData);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // Delegated to ordersController.exportErp — owned by server/modules/orders.
+  app.get('/api/orders/:id/export-erp', (req: Request, res: Response, next: NextFunction) => ordersController.exportErp(req, res).catch(next));
 
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
   // SECURITY: Cross-tenant by design (executive overview spans all empresas).
@@ -8440,36 +7851,8 @@ export async function registerRoutes(
   });
 
   // ─── Auto-create delivery when order is created ────────────────────────────
-  app.post('/api/orders/create-with-delivery', async (req: any, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const actor = await storage.getUser(req.session.userId);
-      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
-      const { companyId, deliveryDate, items, ...rest } = req.body;
-      if (!companyId) return res.status(400).json({ message: 'companyId obrigatório' });
-
-      const totalValue = (items || []).reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0);
-      const order = await storage.createOrder({
-        companyId, deliveryDate, totalValue: String(Math.round(totalValue * 100) / 100),
-        status: 'ACTIVE', orderDate: new Date(), fiscalStatus: 'nota_pendente',
-        erpExportStatus: 'nao_exportado', ...rest
-      }, items || []);
-
-      // Auto-create delivery
-      const company = await storage.getCompany(companyId);
-      const delivery = await storage.createDelivery({
-        orderId: order.id, companyId,
-        status: 'pendente',
-        scheduledDate: deliveryDate || null,
-        addressStreet: company?.addressStreet || null,
-        addressZip: company?.addressZip || null,
-        addressCity: company?.addressCity || null,
-        addressState: company?.addressState || null,
-      });
-
-      res.json({ order, delivery });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
-  });
+  // Delegated to ordersController.createWithDelivery — owned by server/modules/orders.
+  app.post('/api/orders/create-with-delivery', (req: Request, res: Response, next: NextFunction) => ordersController.createWithDelivery(req, res).catch(next));
 
   // ─── Smart Route Plan (Inteligência de Rotas) ───────────────────────────────
   app.get('/api/logistics/smart-route-plan', async (req: any, res) => {
