@@ -97,10 +97,10 @@ export function withTenant<T extends Record<string, unknown>>(
 export function withTenant<T extends Record<string, unknown>>(
   tableOrData: TenantTable | T,
   maybeData?: T,
-): T & Record<string, number> {
+): Record<string, unknown> {
   const id = requireTenantId();
   if (maybeData === undefined) {
-    return { ...(tableOrData as T), tenantId: id } as T & { tenantId: number };
+    return { ...(tableOrData as T), tenantId: id };
   }
   const fieldName = tenantFieldName(tableOrData as TenantTable);
   return { ...(maybeData as T), [fieldName]: id };
@@ -119,12 +119,10 @@ export function withTenantAll<T extends Record<string, unknown>>(
 export function withTenantAll<T extends Record<string, unknown>>(
   tableOrRows: TenantTable | T[],
   maybeRows?: T[],
-): Array<T & Record<string, number>> {
+): Array<Record<string, unknown>> {
   const id = requireTenantId();
   if (maybeRows === undefined) {
-    return (tableOrRows as T[]).map((r) => ({ ...r, tenantId: id })) as Array<
-      T & { tenantId: number }
-    >;
+    return (tableOrRows as T[]).map((r) => ({ ...r, tenantId: id }));
   }
   const fieldName = tenantFieldName(tableOrRows as TenantTable);
   return (maybeRows as T[]).map((r) => ({ ...r, [fieldName]: id }));

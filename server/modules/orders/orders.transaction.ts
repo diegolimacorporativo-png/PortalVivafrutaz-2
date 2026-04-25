@@ -131,9 +131,9 @@ export async function executeWorkflowTransaction(
     // transaction's lifetime. Unlike SELECT … FOR UPDATE it does not block —
     // it returns false immediately if another transaction already holds it.
     // This makes the behaviour predictable (fast fail, no queue pile-up).
-    const [lockResult] = await tx.execute(
+    const [lockResult] = (await tx.execute(
       sql`SELECT pg_try_advisory_xact_lock(${orderId}::bigint) AS acquired`,
-    ) as Array<{ acquired: boolean }>;
+    )) as unknown as Array<{ acquired: boolean }>;
 
     if (!lockResult?.acquired) {
       throw new ConflictError(
@@ -147,9 +147,9 @@ export async function executeWorkflowTransaction(
     //
     // Re-read the current workflow_status now that we hold the advisory lock.
     // If it changed, a concurrent request already committed a transition.
-    const [currentRow] = await tx.execute(
+    const [currentRow] = (await tx.execute(
       sql`SELECT workflow_status FROM orders WHERE id = ${orderId}`,
-    ) as Array<{ workflow_status: string }>;
+    )) as unknown as Array<{ workflow_status: string }>;
 
     if (!currentRow) {
       throw new ConflictError(
@@ -211,7 +211,7 @@ export async function executeWorkflowTransaction(
         // transactions queue rather than race for the same stock counter.
         // Even with the advisory lock on the ORDER, a non-order write
         // (manual adjustment, purchase receipt) might touch this row.
-        const settingRows = await tx.execute(
+        const settingRows = (await tx.execute(
           item.productId
             ? sql`SELECT id,
                          current_stock::numeric  AS current_stock,
@@ -229,7 +229,7 @@ export async function executeWorkflowTransaction(
                   WHERE  product_name = ${item.productName}
                   LIMIT  1
                   FOR UPDATE`,
-        ) as Array<{ id: number; current_stock: number; unit: string; product_name: string }>;
+        )) as unknown as Array<{ id: number; current_stock: number; unit: string; product_name: string }>;
 
         if (settingRows.length === 0) continue; // non-tracked product — skip
 
@@ -238,7 +238,7 @@ export async function executeWorkflowTransaction(
 
         // Idempotency: skip if this order already has an EXIT movement for
         // this product (belt-and-suspenders against state-machine failure).
-        const existingMove = await tx.execute(
+        const existingMove = (await tx.execute(
           sql`SELECT id
               FROM   inventory_movements
               WHERE  movement_type  = 'EXIT'
@@ -249,7 +249,7 @@ export async function executeWorkflowTransaction(
                     OR product_name = ${item.productName || ""}
                      )
               LIMIT 1`,
-        ) as Array<{ id: number }>;
+        )) as unknown as Array<{ id: number }>;
 
         if (existingMove.length > 0) continue;
 
@@ -279,13 +279,13 @@ export async function executeWorkflowTransaction(
         // between the SELECT … FOR UPDATE read above and this UPDATE in case
         // another connection somehow updates the row (should not happen with
         // FOR UPDATE, but this is belt-and-suspenders).
-        const deducted = await tx.execute(
+        const deducted = (await tx.execute(
           sql`UPDATE inventory_settings
               SET    current_stock = current_stock::numeric - ${qty}::numeric
               WHERE  id            = ${setting.id}
                 AND  current_stock::numeric >= ${qty}::numeric
               RETURNING current_stock::text AS new_stock`,
-        ) as Array<{ new_stock: string }>;
+        )) as unknown as Array<{ new_stock: string }>;
 
         if (deducted.length === 0) {
           // Race condition: someone else consumed stock between our SELECT
@@ -368,14 +368,14 @@ export async function executeWorkflowTransaction(
     // ── Step 4c: SHIPPED — conditional delivery row update ──────────────────
     if (to === OrderStatus.SHIPPED) {
       // Only update if currently 'pendente' — idempotent and status-safe.
-      const updated = await tx.execute(
+      const updated = (await tx.execute(
         sql`UPDATE deliveries
             SET    status     = 'em_rota',
                    updated_at = NOW()
             WHERE  order_id   = ${orderId}
               AND  status     = 'pendente'
             RETURNING id`,
-      ) as Array<{ id: number }>;
+      )) as unknown as Array<{ id: number }>;
 
       deliveryUpdated = updated.length > 0;
     }

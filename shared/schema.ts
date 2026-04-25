@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, date, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, date, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -23,7 +23,7 @@ export const users = pgTable("users", {
 
 export const priceGroups = pgTable("price_groups", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  empresaId: integer("empresa_id").references((): AnyPgColumn => companies.id),
   groupName: text("group_name").notNull(),
   description: text("description"),
 });

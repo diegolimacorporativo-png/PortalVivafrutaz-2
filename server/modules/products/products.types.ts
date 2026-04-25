@@ -10,5 +10,7 @@ export interface Product {
   updatedAt: Date;
 }
 
-export type CreateProductInput = Omit<Product, "id" | "createdAt" | "updatedAt">;
+export type CreateProductInput = Omit<Product, "id" | "createdAt" | "updatedAt" | "description"> & {
+  description?: string | null;
+};
 export type UpdateProductInput = Partial<CreateProductInput>;
