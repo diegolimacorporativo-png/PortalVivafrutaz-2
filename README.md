@@ -7,6 +7,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-4.9%2B-blue)
 ![Node](https://img.shields.io/badge/Node-18%2B-brightgreen)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15%2B-336791)
+[![Tests](https://github.com/diegolimacorporativo-png/PortalVivafrutaz-2/actions/workflows/test.yml/badge.svg)](https://github.com/diegolimacorporativo-png/PortalVivafrutaz-2/actions/workflows/test.yml)
 
 ---
 
