@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ordersService, OrdersService, ActorContext } from "./orders.service";
-import { ok, created, noContent } from "../../core/http/apiResponse";
+import { ok, created, noContent } from "../../shared/utils/apiResponse";
 import type { OrderStatus } from "./orders.workflow";
 
 /**

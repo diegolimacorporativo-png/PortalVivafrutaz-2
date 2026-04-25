@@ -10,7 +10,7 @@ import {
   type WorkflowEventPayload,
 } from "@shared/schema";
 import { legacyStatusFor, OrderStatus } from "./orders.workflow";
-import { BadRequestError, ConflictError } from "../../core/errors/AppError";
+import { BadRequestError, ConflictError } from "../../shared/errors/AppError";
 
 // ─── Result types ─────────────────────────────────────────────────────────────
 

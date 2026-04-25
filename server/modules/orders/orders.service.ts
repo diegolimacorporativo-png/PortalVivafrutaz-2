@@ -5,7 +5,7 @@ import {
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
-} from "../../core/errors/AppError";
+} from "../../shared/errors/AppError";
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {

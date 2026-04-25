@@ -10,7 +10,7 @@ import {
   stripTenantFields,
 } from "../../core/tenant/scope";
 import { currentTenantId, requireTenantId } from "../../core/tenant/context";
-import { ForbiddenError, NotFoundError } from "../../core/errors/AppError";
+import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import type {
   Order,
   OrderDetail,

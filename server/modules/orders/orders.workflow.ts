@@ -1,4 +1,4 @@
-import { BadRequestError, ForbiddenError } from "../../core/errors/AppError";
+import { BadRequestError, ForbiddenError } from "../../shared/errors/AppError";
 
 // ─── Legacy status alignment ──────────────────────────────────────────────────
 /**

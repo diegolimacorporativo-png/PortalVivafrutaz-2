@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../../core/http/asyncHandler";
-import { validateRequest } from "../../core/validation/validateRequest";
+import { asyncHandler } from "../../shared/utils/asyncHandler";
+import { validate } from "../../shared/middlewares/validate";
 import { tenantContext } from "../../middleware/tenant";
 import { ordersController } from "./orders.controller";
 import {
@@ -65,13 +65,13 @@ router.use(tenantContext);
 // ── GETs (literals BEFORE /:id) ────────────────────────────────────────
 router.get(
   "/",
-  validateRequest(listOrdersQuerySchema, "query"),
+  validate(listOrdersQuerySchema, "query"),
   asyncHandler(ordersController.list),
 );
 
 router.get(
   "/export",
-  validateRequest(exportQuerySchema, "query"),
+  validate(exportQuerySchema, "query"),
   asyncHandler(ordersController.export),
 );
 
@@ -83,84 +83,84 @@ router.get(
 router.get(
   "/:id",
   ordersController.ensureNumericId,
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.get),
 );
 
 router.get(
   "/:id/danfe-logs",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.listDanfeLogs),
 );
 
 router.get(
   "/:id/export-erp",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.exportErp),
 );
 
 // ── POSTs (literals BEFORE /:id) ───────────────────────────────────────
 router.post(
   "/",
-  validateRequest(createOrderBodySchema, "body"),
+  validate(createOrderBodySchema, "body"),
   asyncHandler(ordersController.create),
 );
 
 router.post(
   "/create-with-delivery",
-  validateRequest(createWithDeliveryBodySchema, "body"),
+  validate(createWithDeliveryBodySchema, "body"),
   asyncHandler(ordersController.createWithDelivery),
 );
 
 router.post(
   "/:id/request-reopen",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(requestReopenBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(requestReopenBodySchema, "body"),
   asyncHandler(ordersController.requestReopen),
 );
 
 router.post(
   "/:id/approve-reopen",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.approveReopen),
 );
 
 router.post(
   "/:id/deny-reopen",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.denyReopen),
 );
 
 router.post(
   "/:id/finalize-edit",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(finalizeEditBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(finalizeEditBodySchema, "body"),
   asyncHandler(ordersController.finalizeEdit),
 );
 
 router.post(
   "/:id/substitute-item",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(substituteItemBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(substituteItemBodySchema, "body"),
   asyncHandler(ordersController.substituteItem),
 );
 
 router.post(
   "/:id/danfe-log",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(createDanfeLogBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(createDanfeLogBodySchema, "body"),
   asyncHandler(ordersController.createDanfeLog),
 );
 
 router.post(
   "/:id/generate-prenota",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.generatePrenota),
 );
 
 router.post(
   "/:id/bling-export",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(ordersController.blingExport),
 );
 
@@ -175,8 +175,8 @@ router.post(
  */
 router.post(
   "/:id/transition",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(transitionBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(transitionBodySchema, "body"),
   asyncHandler(ordersController.transition),
 );
 
@@ -184,38 +184,38 @@ router.post(
 router.patch(
   "/:id",
   ordersController.ensureNumericId,
-  validateRequest(idParamSchema, "params"),
-  validateRequest(updateOrderBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(updateOrderBodySchema, "body"),
   asyncHandler(ordersController.update),
 );
 
 router.patch(
   "/:id/fiscal",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(updateFiscalBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(updateFiscalBodySchema, "body"),
   asyncHandler(ordersController.updateFiscal),
 );
 
 // ── PUT ────────────────────────────────────────────────────────────────
 router.put(
   "/:id/items",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(updateOrderItemsBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(updateOrderItemsBodySchema, "body"),
   asyncHandler(ordersController.replaceItems),
 );
 
 // ── DELETEs (literal /bulk BEFORE /:id) ────────────────────────────────
 router.delete(
   "/bulk",
-  validateRequest(bulkDeleteBodySchema, "body"),
+  validate(bulkDeleteBodySchema, "body"),
   asyncHandler(ordersController.bulkDelete),
 );
 
 router.delete(
   "/:id",
   ordersController.ensureNumericId,
-  validateRequest(idParamSchema, "params"),
-  validateRequest(deleteOrderBodySchema, "body"),
+  validate(idParamSchema, "params"),
+  validate(deleteOrderBodySchema, "body"),
   asyncHandler(ordersController.remove),
 );
 
