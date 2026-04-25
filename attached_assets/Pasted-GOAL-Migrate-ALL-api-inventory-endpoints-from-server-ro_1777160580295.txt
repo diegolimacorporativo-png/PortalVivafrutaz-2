@@ -1,0 +1,251 @@
+GOAL:
+Migrate ALL /api/inventory/* endpoints from server/routes/routes.ts
+into a fully isolated module at server/modules/inventory/
+using the architecture:
+routes → controller → service → repository
+
+CRITICAL: This must be a ZERO-BEHAVIOR-CHANGE migration.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🚨 HARD RULES (NON-NEGOTIABLE)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+- DO NOT change endpoint paths
+- DO NOT change HTTP methods
+- DO NOT change response shape (body EXACTLY the same)
+- DO NOT change status codes
+- DO NOT introduce new validations
+- DO NOT "improve" logic
+- DO NOT remove routes unless 100% shadowed
+- PRESERVE all auth behavior exactly (session, role checks, or no auth)
+
+If ANY uncertainty → STOP and report
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 1 — DISCOVERY (MANDATORY)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Scan server/routes/routes.ts and:
+
+1. Enumerate ALL:
+   app.get/post/put/patch/delete('/api/inventory/...')
+
+2. Build table:
+
+METHOD | PATH | AUTH TYPE | NOTES
+
+3. Identify:
+- static routes vs dynamic (:id)
+- inline helpers used (auth, validators, storage calls)
+
+OUTPUT full mapping before proceeding
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 2 — MODULE READINESS CHECK
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Verify if module exists:
+
+server/modules/inventory/
+
+If NOT → CREATE:
+
+- inventory.types.ts
+- inventory.repository.ts
+- inventory.service.ts
+- inventory.controller.ts
+- inventory.routes.ts
+- index.ts
+
+FOLLOW EXACT PATTERN from:
+server/modules/orders/
+server/modules/logistics/
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 3 — BUSINESS LOGIC EXTRACTION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+For EACH endpoint:
+
+- Copy logic EXACTLY from routes.ts
+- Move into service layer
+- DO NOT MODIFY anything
+- DO NOT refactor
+
+Service must contain:
+- all conditionals
+- all validations
+- all storage calls
+- all side-effects
+
+Repository:
+- thin wrapper over storage/db
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 4 — CONTROLLER LAYER
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Controller must:
+
+- receive (req, res)
+- call service
+- return SAME response shape
+
+NO transformation allowed
+
+Auth patterns MUST be preserved:
+
+Examples:
+- session-only
+- role-based
+- no-auth routes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — ROUTER CREATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+inventory.routes.ts must:
+
+- replicate ALL routes EXACTLY
+- preserve order:
+  static routes BEFORE dynamic (:id)
+
+Example:
+
+router.get('/dashboard', ...)
+router.get('/:id', ...)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — MODULE REGISTRATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+In:
+server/modules/index.ts
+
+Add:
+
+import inventoryModule from './inventory';
+
+Include in modules list.
+
+Ensure mounting in:
+
+server/app.ts
+
+BEFORE:
+registerRoutes(app)
+
+CRITICAL:
+module must take precedence over legacy routes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7 — SAFE REPLACEMENT (LEGACY)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Replace each inline handler with:
+
+(req: Request, res: Response, next: NextFunction) =>
+  inventoryController.<method>(req, res).catch(next)
+
+DO NOT delete yet
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 8 — SHADOW ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+For each route:
+
+IF module router already handles it:
+
+→ mark as SHADOWED
+
+Only remove inline route IF:
+- path identical
+- method identical
+- behavior identical
+- tested
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 9 — TESTS (MANDATORY - FAIL IF MISSING)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Create:
+
+tests/unit/inventory.test.ts
+
+Using node:test (DO NOT install libs)
+
+Must cover:
+
+✅ 1 success case (200/201)
+✅ 1 validation error (400)
+✅ 1 auth error (401/403)
+✅ 1 edge case from legacy behavior
+
+Tests MUST assert:
+
+- status code EXACT
+- response body EXACT (deepEqual)
+
+If mismatch → FAIL
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 10 — VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Run:
+
+npx tsc --noEmit
+npm run check
+npm run check:strict
+npm test
+
+ALL must pass with ZERO errors
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 11 — RUNTIME CHECK
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Test manually:
+
+1 success response
+1 error response
+
+Compare BEFORE vs AFTER:
+
+- status code identical
+- JSON identical
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 12 — CLEANUP
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Remove:
+
+- orphan helpers
+- unused imports
+- dead inline logic (ONLY if shadowed)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+STEP 13 — FINAL REPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Return:
+
+- total endpoints migrated
+- shadowed routes removed
+- endpoints NOT migrated (and why)
+- diff summary
+- risk level (LOW / MEDIUM / HIGH)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+✅ SUCCESS CRITERIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+- ZERO inline logic left for /api/inventory/*
+- ZERO behavior change
+- ZERO type errors
+- TESTS passing 100%
+- Module fully isolated
+
+If ALL conditions met → MIGRATION COMPLETE
