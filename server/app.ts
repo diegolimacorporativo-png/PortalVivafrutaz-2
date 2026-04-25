@@ -1,6 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
-import { registerModules } from "./modules";
+import { registerModules, registerV1Modules, registerV2Modules } from "./modules";
 import { registerRoutes } from "./routes/routes";
 import { errorHandler } from "./core/errors/errorHandler";
 import { createSessionMiddleware } from "./core/http/session";
@@ -88,9 +88,12 @@ export async function buildApp(): Promise<BuildAppResult> {
   // so the auth module can read/write `req.session` (login, logout, /me).
   app.use(createSessionMiddleware());
 
-  // 1) New modular routes — registered first so they shadow any legacy
-  //    duplicate path during the incremental migration.
-  registerModules(app);
+  // 1) Modular routes — registered in version order so v2 wins ties,
+  //    then v1, then the unversioned legacy-compat paths.
+  //    All three share the same service/repository/business-logic layer.
+  registerV2Modules(app); // /api/v2/* — full apiResponse envelope guarantee
+  registerV1Modules(app); // /api/v1/* — same behaviour as legacy, versioned alias
+  registerModules(app);   // /api/*   — unversioned, backward-compat forever
 
   // 2) Legacy monolithic routes — kept until every endpoint has a module.
   await registerRoutes(httpServer, app);
