@@ -63,3 +63,32 @@ export function normalizeMeta(response: unknown): Record<string, unknown> {
   }
   return {};
 }
+
+/**
+ * Pull the error block out of any failure response — works for both the
+ * standard envelope (`{ success:false, error:{ message, code, details } }`)
+ * and the legacy raw shape (`{ message, ...extras }`). Always returns an
+ * object; missing fields fall back to `undefined` so destructuring is safe.
+ *
+ * Use this for failure handlers that need to read structured details (e.g.
+ * a 409 carrying `requiresConfirmation`, `billedCount`, etc.).
+ */
+export interface NormalizedError {
+  message?: string;
+  code?: string;
+  details?: any;
+}
+export function normalizeError(response: unknown): NormalizedError {
+  if (!response || typeof response !== "object") return {};
+  const env = response as ApiEnvelope<unknown>;
+  if (env.error && typeof env.error === "object") {
+    return {
+      message: env.error.message,
+      code: env.error.code,
+      details: (env.error as any).details,
+    };
+  }
+  // Legacy shape — the body itself IS the error payload.
+  const raw = response as Record<string, any>;
+  return { message: raw.message, code: raw.code, details: raw };
+}

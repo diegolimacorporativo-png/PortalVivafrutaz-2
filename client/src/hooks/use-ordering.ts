@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
-import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
+import { normalizeList, normalizeOne, normalizeError } from "@/lib/normalizeResponse";
 
 // ========== ORDER WINDOWS ==========
 export function useOrderWindows() {
@@ -178,8 +178,15 @@ export function useCreateOrder() {
         body: JSON.stringify(data),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to create order");
-      return res.json();
+      // The backend now wraps responses in the standard envelope
+      // (`{ success, data }`); legacy callers also receive raw payloads,
+      // so `normalizeOne` returns the unwrapped order in either case.
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        const err = normalizeError(body);
+        throw new Error(err.message || "Failed to create order");
+      }
+      return normalizeOne<any>(body) ?? body;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });

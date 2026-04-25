@@ -4,7 +4,7 @@ import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient as globalQueryClient } from "@/lib/queryClient";
-import { normalizeOne } from "@/lib/normalizeResponse";
+import { normalizeOne, normalizeList, normalizeError } from "@/lib/normalizeResponse";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
@@ -364,7 +364,9 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     queryFn: async () => {
       const res = await fetch(`/api/orders/${order.id}/danfe-logs`, { credentials: "include" });
       if (!res.ok) return [];
-      return res.json();
+      // Migrated endpoint returns the standard envelope; legacy fallback
+      // returns a bare array. `normalizeList` handles both transparently.
+      return normalizeList<any>(await res.json());
     },
     enabled: showHistory,
   });
@@ -504,9 +506,10 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     setGenNota(true);
     try {
       const res = await fetch(`/api/orders/${order.id}/generate-prenota`, { method: "POST", credentials: "include" });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.message || "Erro ao gerar pré-nota");
-      toast({ title: `Pré-nota gerada: ${result.preNotaNumber}` });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(normalizeError(body).message || "Erro ao gerar pré-nota");
+      const ok = normalizeOne<{ preNotaNumber: string }>(body) ?? body;
+      toast({ title: `Pré-nota gerada: ${ok.preNotaNumber}` });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
     } catch (e: any) {
       toast({ title: "Erro ao gerar pré-nota", description: e.message, variant: "destructive" });
@@ -1347,17 +1350,25 @@ function DeleteHistoryModal({ orders, companies, onClose, onDeleted }: {
         credentials: 'include',
         body: JSON.stringify({ orderIds: selectedIds, motivo, confirmar: forceConfirm }),
       });
-      const data = await res.json();
-      if (res.status === 409 && data.requiresConfirmation) {
-        setFiscalConflict({ count: data.billedCount, codes: data.billedCodes || [] });
+      const body = await res.json().catch(() => ({}));
+      // Tolerate both shapes: standard envelope (`error.details.{...}`) AND
+      // legacy raw shape (`{ message, requiresConfirmation, ... }`).
+      const err = normalizeError(body);
+      const conflictDetails = err.details || body;
+      if (res.status === 409 && conflictDetails?.requiresConfirmation) {
+        setFiscalConflict({
+          count: conflictDetails.billedCount,
+          codes: conflictDetails.billedCodes || [],
+        });
         setStep('confirm-fiscal');
         return;
       }
       if (!res.ok) {
-        toast({ title: data.message || 'Erro ao excluir pedidos', variant: 'destructive' });
+        toast({ title: err.message || 'Erro ao excluir pedidos', variant: 'destructive' });
         return;
       }
-      toast({ title: `${data.deleted} pedido(s) excluído(s) com sucesso!` });
+      const ok = normalizeOne<{ deleted: number }>(body) ?? body;
+      toast({ title: `${ok.deleted} pedido(s) excluído(s) com sucesso!` });
       onDeleted();
       onClose();
     } catch {
@@ -1587,13 +1598,14 @@ export default function OrdersPage() {
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
-      const data = await res.json();
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        toast({ title: data.message || "Erro ao exportar para Bling", variant: "destructive" });
+        toast({ title: normalizeError(body).message || "Erro ao exportar para Bling", variant: "destructive" });
         return;
       }
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
-      toast({ title: `Pedido exportado para Bling com sucesso! ID: ${data.erpId}` });
+      const ok = normalizeOne<{ erpId: string }>(body) ?? body;
+      toast({ title: `Pedido exportado para Bling com sucesso! ID: ${ok.erpId}` });
     } catch (e: any) {
       toast({ title: e.message || "Erro ao exportar para Bling", variant: "destructive" });
     }
@@ -1609,7 +1621,7 @@ export default function OrdersPage() {
       const res = await fetch(`/api/orders/${order.id}/approve-reopen`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(normalizeError(d).message); }
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
       toast({ title: "Reabertura aprovada! Pedido em edição pelo cliente." });
     } catch (e: any) { toast({ title: e.message || "Erro", variant: "destructive" }); }
@@ -1620,7 +1632,7 @@ export default function OrdersPage() {
       const res = await fetch(`/api/orders/${order.id}/deny-reopen`, {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.message); }
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(normalizeError(d).message); }
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
       toast({ title: "Reabertura negada. Pedido confirmado." });
     } catch (e: any) { toast({ title: e.message || "Erro", variant: "destructive" }); }
