@@ -271,10 +271,16 @@ export default function FinancePage() {
     queryKey: ['/api/finance/accounts-payable', filterAP],
     queryFn: () => fetch(`/api/finance/accounts-payable?status=${filterAP}`, { credentials: 'include' }).then(r => r.json()),
   });
-  const { data: cashflow = [], isLoading: cfLoading, refetch: refetchCF } = useQuery<FT[]>({
+  const { data: cfRaw, isLoading: cfLoading, refetch: refetchCF } = useQuery<unknown>({
     queryKey: ['/api/finance/cashflow', cfFrom, cfTo],
     queryFn: () => fetch(`/api/finance/cashflow?from=${cfFrom}&to=${cfTo}`, { credentials: 'include' }).then(r => r.json()),
   });
+  console.log('[finance] Cashflow response shape:', cfRaw);
+  const cashflow: FT[] = Array.isArray(cfRaw)
+    ? (cfRaw as FT[])
+    : Array.isArray((cfRaw as any)?.data)
+      ? ((cfRaw as any).data as FT[])
+      : [];
 
   const payAR = useMutation({
     mutationFn: (id: number) => apiRequest('PATCH', `/api/finance/accounts-receivable/${id}/pay`, {}),
