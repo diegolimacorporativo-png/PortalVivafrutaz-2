@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -607,7 +608,7 @@ export default function MasterControl() {
   const { data: planos = [] } = useQuery<Plano[]>({ queryKey: ['/api/master/planos'] });
   const { data: assinaturas = [] } = useQuery<Assinatura[]>({ queryKey: ['/api/master/assinaturas'] });
   const { data: billingEvents = [] } = useQuery<BillingEvent[]>({ queryKey: ['/api/master/billing-events'] });
-  const { data: companies = [] } = useQuery<Company[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<Company[]>({ queryKey: ['/api/companies'], select: normalizeList });
 
   const updateUserMutation = useMutation({
     mutationFn: ({ id, updates }: { id: number; updates: any }) =>

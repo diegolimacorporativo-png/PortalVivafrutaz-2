@@ -13,6 +13,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
+import { normalizeList } from "@/lib/normalizeResponse";
 
 type Announcement = {
   id: number;
@@ -84,6 +85,7 @@ export default function AnnouncementsPage() {
 
   const { data: companies = [] } = useQuery<Company[]>({
     queryKey: ['/api/companies'],
+    select: normalizeList,
   });
 
   const createMutation = useMutation({

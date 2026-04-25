@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
 
 // ========== COMPANIES ==========
 export function useCompanies() {
@@ -10,7 +11,8 @@ export function useCompanies() {
     queryFn: async () => {
       const res = await fetch(api.companies.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch companies");
-      return api.companies.list.responses[200].parse(await res.json());
+      // Backend returns { success, data: [...] } — unwrap before validating with the legacy schema.
+      return api.companies.list.responses[200].parse(normalizeList(await res.json()));
     }
   });
 }
@@ -27,7 +29,7 @@ export function useCreateCompany() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create company");
-      return api.companies.create.responses[201].parse(await res.json());
+      return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });
@@ -52,7 +54,7 @@ export function useUpdateCompany() {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update company");
-      return api.companies.update.responses[200].parse(await res.json());
+      return api.companies.update.responses[200].parse(normalizeOne(await res.json()));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });

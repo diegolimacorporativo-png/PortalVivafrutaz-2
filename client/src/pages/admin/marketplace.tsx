@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -85,6 +86,7 @@ export default function Marketplace() {
 
   const { data: companies = [] } = useQuery<any[]>({
     queryKey: ['/api/companies'],
+    select: normalizeList,
   });
 
   const { data: modulosEmpresa = [] } = useQuery<EmpresaModuloExtended[]>({

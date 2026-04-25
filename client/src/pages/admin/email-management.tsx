@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { normalizeList } from "@/lib/normalizeResponse";
 import { useToast } from "@/hooks/use-toast";
 import {
   Mail, Clock, Send, History, Plus, Trash2, Edit2, CheckCircle2,
@@ -97,6 +98,7 @@ export default function EmailManagement() {
 
   const { data: companies = [] } = useQuery<any[]>({
     queryKey: ['/api/companies'],
+    select: normalizeList,
   });
 
   const { data: activeWindow } = useQuery<any>({

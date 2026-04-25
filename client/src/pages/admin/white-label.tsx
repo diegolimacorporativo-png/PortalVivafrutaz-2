@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { normalizeList } from "@/lib/normalizeResponse";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/Layout";
 import {
@@ -121,6 +122,7 @@ export default function WhiteLabelPage() {
 
   const { data: companies = [], isLoading: loadingCompanies } = useQuery<Company[]>({
     queryKey: ["/api/companies"],
+    select: normalizeList,
   });
 
   const { data: config, isLoading: loadingConfig } = useQuery<EmpresaConfig | null>({

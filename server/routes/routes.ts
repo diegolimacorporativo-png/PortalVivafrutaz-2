@@ -32,6 +32,7 @@ const pdfParse = _require("pdf-parse");
 import { orders, orderItems, companies, products, aiInteractions, nfManual } from "@shared/schema";
 import { sql, gte, lte, and, eq, desc, isNull } from "drizzle-orm";
 import { AIDeveloper } from "../services/aiDeveloper.ts";
+import { ok, created, noContent, fail } from "../core/http/apiResponse";
 
 const claraIA = new AIDeveloper();
 
@@ -1773,30 +1774,31 @@ export async function registerRoutes(
     }
   });
 
-  // Companies
+  // Companies — uses standardized response envelope { success, data, meta? }
   app.get(api.companies.list.path, async (req, res) => {
     try {
       const companies = await storage.getCompanies();
-      res.json(companies);
+      return ok(res, companies);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      return fail(res, e.message, "INTERNAL_ERROR", 500);
     }
   });
 
   app.get(api.companies.get.path, async (req, res) => {
     const company = await storage.getCompany(Number(req.params.id));
-    if (!company) return res.status(404).json({ message: "Not found" });
-    res.json(company);
+    if (!company) return fail(res, "Not found", "NOT_FOUND", 404);
+    return ok(res, company);
   });
 
   app.post(api.companies.create.path, async (req, res) => {
     try {
       const input = api.companies.create.input.parse(req.body);
       const company = await storage.createCompany(input);
-      res.status(201).json(company);
+      return created(res, company);
     } catch (err) {
-      if (err instanceof z.ZodError) return res.status(400).json({ message: err.errors[0].message });
-      res.status(500).json({ message: "Internal error" });
+      if (err instanceof z.ZodError)
+        return fail(res, err.errors[0].message, "VALIDATION_ERROR", 400, err.errors);
+      return fail(res, "Internal error", "INTERNAL_ERROR", 500);
     }
   });
 
@@ -1804,36 +1806,39 @@ export async function registerRoutes(
     try {
       const input = api.companies.update.input.parse(req.body);
       const company = await storage.updateCompany(Number(req.params.id), input);
-      res.json(company);
+      return ok(res, company);
     } catch (err) {
-      res.status(400).json({ message: "Bad request" });
+      if (err instanceof z.ZodError)
+        return fail(res, err.errors[0].message, "VALIDATION_ERROR", 400, err.errors);
+      return fail(res, "Bad request", "BAD_REQUEST", 400);
     }
   });
 
   app.delete(api.companies.delete.path, async (req, res) => {
     await storage.deleteCompany(Number(req.params.id));
-    res.status(204).end();
+    return noContent(res);
   });
 
   // Client updates own preferred order type
   app.patch('/api/companies/my/preferred-order-type', async (req, res) => {
     try {
       const companyId = req.session?.companyId;
-      if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!companyId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const { preferredOrderType } = req.body;
       const valid = ['semanal', 'mensal', 'pontual'];
-      if (!valid.includes(preferredOrderType)) return res.status(400).json({ message: 'Tipo inválido' });
+      if (!valid.includes(preferredOrderType))
+        return fail(res, 'Tipo inválido', 'BAD_REQUEST', 400);
       const updated = await storage.updateCompany(companyId, { preferredOrderType } as any);
-      res.json({ ok: true, preferredOrderType: (updated as any).preferredOrderType });
+      return ok(res, { preferredOrderType: (updated as any).preferredOrderType });
     } catch {
-      res.status(500).json({ message: 'Erro interno' });
+      return fail(res, 'Erro interno', 'INTERNAL_ERROR', 500);
     }
   });
 
   // ─── Contract Scopes ─────────────────────────────────────────
   // ─── Delivery Window Suggestions ────────────────────────────
   app.get('/api/companies/delivery-suggestions', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       const { city } = req.query;
       const allCompanies = await storage.getCompanies();
@@ -1870,21 +1875,21 @@ export async function registerRoutes(
         };
       });
 
-      res.json(result);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, result);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.get('/api/companies/:id/contract-scopes', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const scopes = await storage.getContractScopes(Number(req.params.id));
-      res.json(scopes);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, scopes);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.post('/api/companies/:id/contract-scopes', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const scope = await storage.createContractScope({
         companyId: Number(req.params.id),
         dayOfWeek: req.body.dayOfWeek,
@@ -1896,13 +1901,13 @@ export async function registerRoutes(
         averageCost: req.body.averageCost != null ? String(req.body.averageCost) : null,
         observation: req.body.observation ?? null,
       });
-      res.status(201).json(scope);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return created(res, scope);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.put('/api/companies/:id/contract-scopes/:scopeId', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const updates: any = {};
       if (req.body.dayOfWeek !== undefined) updates.dayOfWeek = req.body.dayOfWeek;
       if (req.body.weekNumber !== undefined) updates.weekNumber = req.body.weekNumber ?? null;
@@ -1913,44 +1918,44 @@ export async function registerRoutes(
       if (req.body.averageCost !== undefined) updates.averageCost = req.body.averageCost != null ? String(req.body.averageCost) : null;
       if (req.body.observation !== undefined) updates.observation = req.body.observation ?? null;
       const scope = await storage.updateContractScope(Number(req.params.scopeId), updates);
-      res.json(scope);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, scope);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.delete('/api/companies/:id/contract-scopes/:scopeId', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       await storage.deleteContractScope(Number(req.params.scopeId));
-      res.status(204).end();
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return noContent(res);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // ─── Contract Management (Vigência + Reajustes) ──────────────────────────
   // Update contract vigencia / dates
   app.patch('/api/companies/:id/contract-info', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const companyId = Number(req.params.id);
       const { contractStartDate, contractEndDate, contractVigencia } = req.body;
       const updated = await storage.updateCompany(companyId, { contractStartDate, contractEndDate, contractVigencia } as any);
       await storage.createLog({ action: 'CONTRACT_INFO_UPDATED', description: `Vigência contratual atualizada para empresa ID ${companyId}`, userId: req.session.userId, userEmail: undefined, userRole: 'ADMIN', level: 'INFO' });
-      res.json(updated);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, updated);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Get contract adjustments history
   app.get('/api/companies/:id/contract-adjustments', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const adjustments = await storage.getContractAdjustments(Number(req.params.id));
-      res.json(adjustments);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, adjustments);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Create contract adjustment
   app.post('/api/companies/:id/contract-adjustments', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const companyId = Number(req.params.id);
       const user = await storage.getUser(req.session.userId);
       const adj = await storage.createContractAdjustment({
@@ -1964,23 +1969,23 @@ export async function registerRoutes(
         await storage.updateCompany(companyId, { minWeeklyBilling: req.body.newWeeklyValue });
       }
       await storage.createLog({ action: 'CONTRACT_ADJUSTMENT_CREATED', description: `Reajuste de ${req.body.adjustmentPercentage}% criado para empresa ID ${companyId} por ${user?.email}`, userId: req.session.userId, userEmail: user?.email || undefined, userRole: 'ADMIN', level: 'INFO' });
-      res.status(201).json(adj);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return created(res, adj);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Update contract adjustment (save document content, email sent status)
   app.patch('/api/companies/:id/contract-adjustments/:adjId', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const updated = await storage.updateContractAdjustment(Number(req.params.adjId), req.body);
-      res.json(updated);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, updated);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Get all contract alerts (dashboard use)
   app.get('/api/contracts/alerts', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const companies = await storage.getCompanies();
       const now = new Date();
       const alerts: any[] = [];
@@ -2015,21 +2020,21 @@ export async function registerRoutes(
         }
       }
 
-      res.json(alerts);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, alerts);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Send adjustment email
   app.post('/api/companies/:id/contract-adjustments/:adjId/send-email', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const company = await storage.getCompany(Number(req.params.id));
-      if (!company) return res.status(404).json({ message: 'Empresa não encontrada' });
+      if (!company) return fail(res, 'Empresa não encontrada', 'NOT_FOUND', 404);
       const adj = await storage.getContractAdjustment(Number(req.params.adjId));
-      if (!adj) return res.status(404).json({ message: 'Reajuste não encontrado' });
+      if (!adj) return fail(res, 'Reajuste não encontrado', 'NOT_FOUND', 404);
 
       const smtpConfig = await storage.getSmtpConfig();
-      if (!smtpConfig?.host) return res.status(400).json({ message: 'SMTP não configurado' });
+      if (!smtpConfig?.host) return fail(res, 'SMTP não configurado', 'BAD_REQUEST', 400);
 
       const { emailBody, emailSubject } = req.body;
       const targetEmail = (company as any).notificationEmail || company.email;
@@ -2052,22 +2057,22 @@ export async function registerRoutes(
       await storage.updateContractAdjustment(adj.id, { emailSentAt: new Date() } as any);
       const user = await storage.getUser(req.session.userId);
       await storage.createLog({ action: 'CONTRACT_EMAIL_SENT', description: `Email de reajuste contratual enviado para ${targetEmail} (empresa ${company.companyName})`, userId: req.session.userId, userEmail: user?.email || undefined, userRole: 'ADMIN', level: 'INFO' });
-      res.json({ success: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, { sent: true });
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Generate orders from contract scope for the current week
   app.post('/api/companies/:id/generate-orders-from-scope', async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const companyId = Number(req.params.id);
       const company = await storage.getCompany(companyId);
-      if (!company) return res.status(404).json({ message: 'Empresa não encontrada' });
+      if (!company) return fail(res, 'Empresa não encontrada', 'NOT_FOUND', 404);
       if ((company as any).clientType !== 'contratual') {
-        return res.status(400).json({ message: 'Empresa não é do tipo contratual' });
+        return fail(res, 'Empresa não é do tipo contratual', 'BAD_REQUEST', 400);
       }
       const scopes = await storage.getContractScopes(companyId);
-      if (!scopes.length) return res.status(400).json({ message: 'Escopo contratual vazio. Adicione itens ao escopo primeiro.' });
+      if (!scopes.length) return fail(res, 'Escopo contratual vazio. Adicione itens ao escopo primeiro.', 'BAD_REQUEST', 400);
 
       const products = await storage.getProducts();
       const prodById = new Map(products.map(p => [p.id, p]));
@@ -2146,52 +2151,52 @@ export async function registerRoutes(
         createdOrders.push({ ...order, dayName });
       }
 
-      res.json({ created: createdOrders.length, orders: createdOrders, weekLabel });
+      return ok(res, { created: createdOrders.length, orders: createdOrders, weekLabel });
     } catch (e: any) {
       console.error('Generate orders from scope error:', e);
-      res.status(500).json({ message: e.message });
+      return fail(res, e.message, 'INTERNAL_ERROR', 500);
     }
   });
 
   // ─── Company Addresses (Múltiplos Endereços) ────────────────────────────────
   app.get('/api/companies/:id/addresses', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       const addrs = await storage.getCompanyAddresses(Number(req.params.id));
-      res.json(addrs);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, addrs);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.post('/api/companies/:id/addresses', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       const addr = await storage.createCompanyAddress({ ...req.body, companyId: Number(req.params.id) });
-      res.status(201).json(addr);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return created(res, addr);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.put('/api/companies/:companyId/addresses/:addrId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       const addr = await storage.updateCompanyAddress(Number(req.params.addrId), req.body);
-      res.json(addr);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, addr);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.delete('/api/companies/:companyId/addresses/:addrId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       await storage.deleteCompanyAddress(Number(req.params.addrId));
-      res.json({ ok: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return noContent(res);
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.patch('/api/companies/:companyId/addresses/:addrId/set-primary', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       await storage.setPrimaryAddress(Number(req.params.companyId), Number(req.params.addrId));
-      res.json({ ok: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, { primary: true });
+    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // Company validation endpoint — checks all companies for missing required fields
@@ -10009,7 +10014,7 @@ export async function registerRoutes(
 
   // ─── GPS Status por Empresa ──────────────────────────────────────────────
   app.get('/api/companies/:id/gps-status', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     try {
       const companyId = Number(req.params.id);
       const [cfg, assinaturas, planos] = await Promise.all([
@@ -10022,28 +10027,28 @@ export async function registerRoutes(
       const gpsViaPlano = plano?.gpsHabilitado ?? false;
       const gpsManualOverride = cfg?.gpsManualOverride ?? false;
       const gpsAtivo = gpsViaPlano || gpsManualOverride;
-      res.json({
+      return ok(res, {
         companyId,
         gpsAtivo,
         gpsViaPlano,
         gpsManualOverride,
         plano: plano ? { id: plano.id, nome: plano.nome, tipoPlano: plano.tipoPlano } : null,
       });
-    } catch(e: any) { res.status(500).json({ message: e.message }); }
+    } catch(e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   app.post('/api/companies/:id/gps-toggle', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DIRECTOR'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Acesso negado' });
+      return fail(res, 'Acesso negado', 'FORBIDDEN', 403);
     }
     try {
       const companyId = Number(req.params.id);
       const { enabled } = req.body;
       const cfg = await storage.upsertEmpresaConfig(companyId, { gpsManualOverride: enabled });
-      res.json({ success: true, gpsManualOverride: cfg.gpsManualOverride });
-    } catch(e: any) { res.status(500).json({ message: e.message }); }
+      return ok(res, { gpsManualOverride: cfg.gpsManualOverride });
+    } catch(e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
   });
 
   // ─── Marketplace: Módulos Disponíveis ─────────────────────────────────────

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { normalizeList } from "@/lib/normalizeResponse";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -82,7 +83,7 @@ function OrderSearchPanel({ onSelect, selectedId }: { onSelect: (id: number, cod
     queryFn: () => fetch("/api/orders", { credentials: "include" }).then(r => r.json()),
   });
 
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ["/api/companies"] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ["/api/companies"], select: normalizeList });
   const { data: nfes = [] } = useQuery<any[]>({ queryKey: ["/api/nfe"] });
 
   const emittedOrderIds = new Set((nfes as any[]).filter(n => ["autorizada","enviada","gerada","assinada"].includes(n.status)).map((n: any) => n.orderId));

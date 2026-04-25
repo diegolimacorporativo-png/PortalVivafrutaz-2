@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-catalog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
 import type { Company } from "@shared/schema";
 
 const DAYS_OPTIONS = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira"];
@@ -191,7 +192,7 @@ function AddressesTab({ company }: { company: Company | null }) {
     queryFn: async () => {
       if (!companyId) return [];
       const r = await fetch(`/api/companies/${companyId}/addresses`);
-      return r.json();
+      return normalizeList(await r.json());
     },
     enabled: !!companyId,
   });
@@ -555,9 +556,10 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Erro ao gerar pedidos');
-      alert(`✅ ${data.created} pedido(s) gerado(s) com sucesso para a semana atual!`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error?.message || json.message || 'Erro ao gerar pedidos');
+      const payload: any = normalizeOne(json) ?? json;
+      alert(`✅ ${payload.created ?? 0} pedido(s) gerado(s) com sucesso para a semana atual!`);
       queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
     } catch (e: any) {
       alert('Erro: ' + e.message);
@@ -569,7 +571,7 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
     queryFn: async () => {
       if (!company?.id) return [];
       const res = await fetch(`/api/companies/${company.id}/contract-scopes`, { credentials: 'include' });
-      return res.json();
+      return normalizeList(await res.json());
     },
     enabled: !!company?.id,
   });

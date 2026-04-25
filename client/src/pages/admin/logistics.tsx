@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -256,7 +257,7 @@ function RoutesTab() {
   const { data: routes = [], isLoading } = useQuery<LogisticsRoute[]>({ queryKey: ['/api/logistics/routes'] });
   const { data: drivers = [] } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'] });
   const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'] });
-  const { data: allCompanies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: allCompanies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
 
   const saveMut = useMutation({
     mutationFn: (data: any) => editItem

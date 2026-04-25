@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { normalizeList, normalizeOne } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -44,7 +45,7 @@ function StatusBadge({ status }: { status: string }) {
 
 function DashboardTab() {
   const { data: stats, isLoading } = useQuery<any>({ queryKey: ['/api/saas/dashboard'] });
-  const { data: companies } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { toast } = useToast();
 
   const inadimplenciaMut = useMutation({
@@ -211,7 +212,7 @@ function DashboardTab() {
 function ContratosTab() {
   const { toast } = useToast();
   const { data: contratos = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const { data: bancos = [] } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'] });
   const [showForm, setShowForm] = useState(false);
@@ -425,7 +426,7 @@ function ContratosTab() {
 function FaturasTab() {
   const { toast } = useToast();
   const { data: faturas = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/saas/faturas'] });
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: contratos = [] } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ empresaId: '', contratoId: '', valor: '', dataVencimento: '', status: 'pendente', metodoPagamento: '', observacoes: '' });
@@ -941,7 +942,7 @@ function AssinaturasTab() {
   const { toast } = useToast();
   const { data: assinaturas = [], isLoading, refetch } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'] });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [showPagamento, setShowPagamento] = useState<any>(null);
@@ -1255,7 +1256,7 @@ function AssinaturasTab() {
 
 function GpsTab() {
   const { toast } = useToast();
-  const { data: companies = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: assinaturas = [] } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'] });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});

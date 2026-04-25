@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { normalizeList } from "@/lib/normalizeResponse";
 import {
   Building2, Calendar, AlertTriangle, CheckCircle, Clock, TrendingUp,
   FileText, Send, History, ChevronDown, ChevronRight, Edit3,
@@ -361,9 +362,11 @@ function ContractDetail({ company, onBack }: { company: Company; onBack: () => v
 
   const { data: scopes = [] } = useQuery<ContractScope[]>({
     queryKey: ['/api/companies', company.id, 'contract-scopes'],
+    select: normalizeList,
   });
   const { data: adjustments = [], refetch: refetchAdj } = useQuery<ContractAdjustment[]>({
     queryKey: ['/api/companies', company.id, 'contract-adjustments'],
+    select: normalizeList,
   });
 
   const weeklyRevenue = scopes.reduce((sum, s) => sum + (parseFloat(s.unitPrice || '0') * s.quantity), 0);
@@ -702,8 +705,8 @@ export default function ContractsPage() {
   const [search, setSearch] = useState('');
   const [filterVigencia, setFilterVigencia] = useState('');
 
-  const { data: companies = [] } = useQuery<Company[]>({ queryKey: ['/api/companies'] });
-  const { data: alerts = [] } = useQuery<ContractAlert[]>({ queryKey: ['/api/contracts/alerts'] });
+  const { data: companies = [] } = useQuery<Company[]>({ queryKey: ['/api/companies'], select: normalizeList });
+  const { data: alerts = [] } = useQuery<ContractAlert[]>({ queryKey: ['/api/contracts/alerts'], select: normalizeList });
 
   const contractualCompanies = companies.filter(c =>
     (c.clientType === 'contratual' || (c as any).contractStartDate || (c as any).contractVigencia) &&

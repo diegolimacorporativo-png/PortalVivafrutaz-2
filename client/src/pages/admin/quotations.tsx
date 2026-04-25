@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,7 +59,7 @@ function DeliverySuggestionsPanel({ city }: { city: string }) {
       setLoading(true);
       try {
         const res = await fetch(`/api/companies/delivery-suggestions?city=${encodeURIComponent(city.trim())}`, { credentials: 'include' });
-        if (res.ok) setSuggestions(await res.json());
+        if (res.ok) setSuggestions(normalizeList(await res.json()));
       } catch {}
       setLoading(false);
     }, 500);
@@ -348,7 +349,7 @@ function ConvertToCompanyModal({ quotation, onClose }: { quotation: CompanyQuota
       });
       if (!res.ok) {
         const err = await res.json();
-        throw new Error(err.message || 'Erro ao criar empresa');
+        throw new Error(err?.error?.message || err.message || 'Erro ao criar empresa');
       }
       await fetch(`/api/quotations/${quotation.id}`, {
         method: 'PATCH',

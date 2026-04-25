@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -222,7 +223,7 @@ function VersionsTab() {
 function PublishTab() {
   const { toast } = useToast();
   const { data: versions = [] } = useQuery<any[]>({ queryKey: ['/api/system/versions'] });
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const [selectedVersion, setSelectedVersion] = useState('');
   const [aplicarTodas, setAplicarTodas] = useState(true);
   const [selectedEmpresas, setSelectedEmpresas] = useState<number[]>([]);
@@ -391,7 +392,7 @@ function PublishTab() {
 
 function HistoryTab() {
   const { data: logs = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/system/update-logs'] });
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { toast } = useToast();
   const [showRollback, setShowRollback] = useState(false);
   const [rollbackForm, setRollbackForm] = useState({ empresaId: '', versionName: '' });
@@ -489,7 +490,7 @@ function HistoryTab() {
 
 function BetaTab() {
   const { toast } = useToast();
-  const { data: companies = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
 
   const toggleBetaMut = useMutation({
     mutationFn: ({ id, betaTester }: any) => apiRequest('PUT', `/api/companies/${id}`, { betaTester }),

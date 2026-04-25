@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus, CheckCircle2,
@@ -99,7 +100,7 @@ function PixModal({ ar, onClose }: { ar: AR; onClose: () => void }) {
 
 function ARForm({ onSuccess }: { onSuccess: () => void }) {
   const { toast } = useToast();
-  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'] });
+  const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     companyId: '', descricao: '', valor: '', dataEmissao: new Date().toISOString().split('T')[0],

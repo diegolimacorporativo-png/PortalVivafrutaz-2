@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { ContextualTip } from '@/components/ContextualTip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import {
   Receipt, Search, Filter, Calendar, Building2, Download, Eye,
@@ -60,6 +61,7 @@ export default function FiscalManagement() {
 
   const { data: companies = [] } = useQuery<any[]>({
     queryKey: ['/api/companies'],
+    select: normalizeList,
     staleTime: 60000,
   });
 
