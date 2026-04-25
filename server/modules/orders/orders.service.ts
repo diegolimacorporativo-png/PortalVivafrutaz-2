@@ -13,12 +13,9 @@ import {
   assertTransitionAllowed,
   assertTransitionRole,
   validateBusinessRules,
-  legacyStatusFor,
 } from "./orders.workflow";
-import { executeWorkflowTransaction } from "./orders.transaction";
-import {
-  fireNotification,
-} from "../../services/pushService";
+import { buildPixPayload } from "../../shared/utils/pix";
+import { fireNotification } from "../../services/pushService";
 import {
   sendOrderPlaced,
   sendOrderStatusChanged,
@@ -144,9 +141,7 @@ export class OrdersService {
     const { dateFrom, dateTo, companyId, orderType } = filters;
     const [allOrders, allCompanies, allProducts] = await Promise.all([
       this.repo.list(),
-      // companies/products are not on the orders repo — pull through storage
-      // directly via the methods we already exposed.
-      (await import("../../services/storage")).storage.getCompanies(),
+      this.repo.getCompanies(),
       this.repo.getProducts(),
     ]);
 
@@ -644,15 +639,10 @@ export class OrdersService {
 
     // ── Phase 3: Atomic transaction — ALL critical writes ─────────────────────
     //
-    // Sequence inside the transaction:
-    //   pg_try_advisory_xact_lock → optimistic check → status update
-    //   → per-transition ops (pre-nota, inventory, AR, delivery)
-    //   → INSERT workflow_events (outbox)
-    //
-    // pg_try_advisory_xact_lock provides distributed serialization across all
-    // Node.js replicas, replacing the in-process Set used previously.
-    // Any throw → automatic ROLLBACK. No partial state ever persists.
-    const txResult = await executeWorkflowTransaction({
+    // Delegated entirely to the repository layer so the service never touches
+    // ORM code directly. The repository wraps executeWorkflowTransaction()
+    // which runs everything inside a single pg BEGIN/COMMIT block.
+    const txResult = await this.repo.executeTransition({
       orderId:                id,
       to,
       from,                                   // for outbox payload
@@ -689,73 +679,6 @@ export class OrdersService {
     };
   }
 
-  /**
-   * Non-critical (best-effort) side effects fired after a successful commit.
-   *
-   * Separated from `transition()` so a push/log failure never causes the
-   * caller to see a 5xx even though the business state was already committed.
-   *
-   * Each step has its own try/catch so a failure in one doesn't skip the rest.
-   */
-  private async afterWorkflowTransitionNonCritical(
-    id: number,
-    to: OrderStatus,
-    from: string,
-    orderRow: any,
-    user: any,
-    txResult: Awaited<ReturnType<typeof executeWorkflowTransaction>>,
-  ) {
-    // Push notification
-    try {
-      const statusLabel: Record<string, string> = {
-        PENDING_APPROVAL: "Aguardando aprovação",
-        APPROVED:         "Aprovado",
-        REJECTED:         "Rejeitado",
-        INVOICED:         "Faturado",
-        SHIPPED:          "Em expedição",
-        DELIVERED:        "Entregue",
-        CANCELLED:        "Cancelado",
-      };
-      fireNotification(
-        to === OrderStatus.CANCELLED ? "order_cancelled" : "order_updated",
-        {
-          code:    orderRow.orderCode || `#${id}`,
-          company: `Empresa #${orderRow.companyId}`,
-          status:  statusLabel[to] || to,
-        },
-        { url: `/admin/orders/${id}` },
-      );
-    } catch {
-      /* swallow */
-    }
-
-    // Audit log
-    try {
-      const parts: string[] = [
-        `Pedido #${id} (${orderRow.orderCode || id}): ${from} → ${to}`,
-      ];
-      if (txResult.preNotaNumber)
-        parts.push(`pre-nota: ${txResult.preNotaNumber}`);
-      if (txResult.inventoryLinesDeducted)
-        parts.push(`estoque: ${txResult.inventoryLinesDeducted} produto(s) baixado(s)`);
-      if (txResult.arCreated)
-        parts.push("conta a receber criada");
-      if (txResult.deliveryUpdated)
-        parts.push("entrega: em_rota");
-
-      await this.repo.createLog({
-        action:      "WORKFLOW_TRANSITION",
-        description: parts.join(" — "),
-        userId:      user.id,
-        userEmail:   user.email,
-        userRole:    user.role,
-        level:       "INFO",
-      });
-    } catch (logErr) {
-      console.error("[WORKFLOW] Erro ao gravar log de auditoria:", logErr);
-    }
-  }
-
   private async afterStatusChange(
     id: number,
     status: string,
@@ -775,9 +698,7 @@ export class OrdersService {
           adminNote,
         });
       }
-      const companyName =
-        (await this.repo.getCompany(oa.companyId))?.companyName ||
-        `Empresa #${oa.companyId}`;
+      const companyName = company?.companyName || `Empresa #${oa.companyId}`;
       if (status === "CANCELLED") {
         fireNotification(
           "order_cancelled",
@@ -857,43 +778,9 @@ export class OrdersService {
     due.setDate(due.getDate() + 30);
     const toDate = (d: Date) => d.toISOString().split("T")[0];
     const config: any = await this.repo.getCompanyConfig();
-    let pixPayload: string | undefined;
-    if (config?.cnpj) {
-      const chave = String(config.cnpj).replace(/\D/g, "");
-      pixPayload = (() => {
-        const sanitize = (s: string, max: number) =>
-          s.replace(/[^\w\s]/gi, "").slice(0, max).trim() || "VIVA";
-        const tlv = (idTag: string, v: string) =>
-          `${idTag}${String(v.length).padStart(2, "0")}${v}`;
-        const merchant =
-          tlv("00", "br.gov.bcb.pix") + tlv("01", chave.slice(0, 77));
-        const addData = tlv(
-          "62",
-          tlv("05", `AR${Date.now().toString().slice(-10)}`),
-        );
-        let payload =
-          tlv("00", "01") +
-          tlv("26", merchant) +
-          tlv("52", "0000") +
-          tlv("53", "986") +
-          tlv("54", total.toFixed(2)) +
-          tlv("58", "BR") +
-          tlv("59", sanitize(config.companyName || "VIVAFRUTAZ", 25)) +
-          tlv("60", sanitize(config.city || "SAOPAULO", 15)) +
-          addData +
-          "6304";
-        let crc = 0xffff;
-        for (let i = 0; i < payload.length; i++) {
-          crc ^= payload.charCodeAt(i) << 8;
-          for (let j = 0; j < 8; j++)
-            crc =
-              crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
-        }
-        return (
-          payload + (crc & 0xffff).toString(16).toUpperCase().padStart(4, "0")
-        );
-      })();
-    }
+    const pixPayload = config?.cnpj
+      ? buildPixPayload(config.cnpj, total, config.companyName, config.city)
+      : undefined;
     await this.repo.createAccountReceivable({
       companyId: oa.companyId,
       orderId: id,

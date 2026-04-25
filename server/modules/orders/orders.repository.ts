@@ -11,6 +11,11 @@ import {
 } from "../../core/tenant/scope";
 import { currentTenantId, requireTenantId } from "../../core/tenant/context";
 import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
+import {
+  executeWorkflowTransaction,
+  type TransactionInput,
+  type CriticalTransitionResult,
+} from "./orders.transaction";
 import type {
   Order,
   OrderDetail,
@@ -287,6 +292,24 @@ export class OrdersRepository {
 
   getAccountsReceivableByCompanyId(companyId: number) {
     return storage.getAccountsReceivable({ companyId });
+  }
+
+  /** All companies — used by the export report. */
+  getCompanies() {
+    return storage.getCompanies();
+  }
+
+  /**
+   * Execute all critical DB writes for a workflow transition atomically.
+   *
+   * Architecture decision: the transaction function uses raw Drizzle ORM and
+   * is therefore a DB-layer concern. Keeping its call site here (repository)
+   * means the service never touches ORM code directly — it only composes
+   * high-level repo methods. `orders.transaction.ts` acts as a private
+   * implementation detail of this repository.
+   */
+  executeTransition(input: TransactionInput): Promise<CriticalTransitionResult> {
+    return executeWorkflowTransaction(input);
   }
 }
 

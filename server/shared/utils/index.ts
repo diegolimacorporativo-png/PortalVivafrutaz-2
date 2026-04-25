@@ -1,6 +1,7 @@
 export { asyncHandler } from "./asyncHandler";
 export { ok, created, noContent, fail } from "./apiResponse";
 export { parsePagination, paginate } from "./paginate";
+export { buildPixPayload } from "./pix";
 export type { PaginationParams, PaginatedResult } from "./paginate";
 export type {
   ApiSuccess,
