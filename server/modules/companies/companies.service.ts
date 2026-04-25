@@ -343,8 +343,9 @@ export class CompaniesService {
 
     const byDay: Record<string, typeof scopes> = {};
     for (const s of scopes) {
-      if (!byDay[s.dayOfWeek]) byDay[s.dayOfWeek] = [];
-      byDay[s.dayOfWeek].push(s);
+      // ??= initializes the slot to [] only if absent, then push goes through
+      // a single non-undefined reference (TS narrows the index access).
+      (byDay[s.dayOfWeek] ??= []).push(s);
     }
 
     const createdOrders: any[] = [];

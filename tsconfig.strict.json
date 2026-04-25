@@ -4,6 +4,7 @@
     "server/modules/orders/**/*",
     "server/modules/finance/**/*",
     "server/modules/users/**/*",
+    "server/modules/companies/**/*",
     "shared/**/*"
   ],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],

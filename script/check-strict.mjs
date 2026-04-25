@@ -5,6 +5,7 @@ const SCOPES = [
   "server/modules/orders/",
   "server/modules/finance/",
   "server/modules/users/",
+  "server/modules/companies/",
 ];
 
 const result = spawnSync(
