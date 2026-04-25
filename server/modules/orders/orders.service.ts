@@ -87,23 +87,6 @@ export interface ActorContext {
 }
 
 /**
- * In-process mutex for workflow transitions.
- *
- * Holds the set of order IDs that are currently inside an active
- * `transition()` call within THIS Node.js process. Before opening a DB
- * transaction, `transition()` checks this set and rejects immediately (409)
- * if the same order is already being transitioned.
- *
- * Why: The database-level `SELECT … FOR UPDATE` already serializes concurrent
- * transitions at the pg level, but checking the in-process set lets us reject
- * without even consuming a connection-pool slot, which is faster and cheaper.
- *
- * Scope: This only guards within a single process. Multi-replica deployments
- * rely entirely on the FOR UPDATE row lock for cross-process serialization.
- */
-const TRANSITION_IN_FLIGHT = new Set<number>();
-
-/**
  * OrdersService — business rules of the orders module.
  *
  * Architecture decision: services own *behavior*. They orchestrate the
@@ -659,65 +642,51 @@ export class OrdersService {
         `Produto #${item.productId}`,
     }));
 
-    // ── Phase 2.5: In-process mutex check ─────────────────────────────────────
+    // ── Phase 3: Atomic transaction — ALL critical writes ─────────────────────
     //
-    // Reject immediately if this order is already being transitioned within
-    // THIS process. This saves a connection-pool slot versus letting it block
-    // at the FOR UPDATE gate. Cross-process safety is handled by FOR UPDATE.
-    if (TRANSITION_IN_FLIGHT.has(id)) {
-      throw new ConflictError(
-        `Pedido #${id} já está sendo processado. Aguarde a conclusão e tente novamente.`,
-        { orderId: id },
-      );
-    }
-    TRANSITION_IN_FLIGHT.add(id);
+    // Sequence inside the transaction:
+    //   pg_try_advisory_xact_lock → optimistic check → status update
+    //   → per-transition ops (pre-nota, inventory, AR, delivery)
+    //   → INSERT workflow_events (outbox)
+    //
+    // pg_try_advisory_xact_lock provides distributed serialization across all
+    // Node.js replicas, replacing the in-process Set used previously.
+    // Any throw → automatic ROLLBACK. No partial state ever persists.
+    const txResult = await executeWorkflowTransaction({
+      orderId:                id,
+      to,
+      from,                                   // for outbox payload
+      expectedWorkflowStatus: from,           // optimistic-lock token
+      currentLegacyStatus:    orderRow.status,
+      orderSnapshot:          orderRow,
+      itemsSnapshot:          enrichedItems,
+      companyConfig,
+      actor: {
+        id:    user.id,
+        email: user.email,
+        role:  user.role,
+        name:  (user as any).name,
+      },
+    });
 
-    try {
-      // ── Phase 3: Atomic transaction — ALL critical writes ──────────────────
-      //
-      // Inside: SELECT … FOR UPDATE → optimistic-lock check → status update →
-      //         per-transition critical ops (pre-nota, inventory, AR, delivery).
-      // Any throw → automatic ROLLBACK. No partial state ever persists.
-      const txResult = await executeWorkflowTransaction({
-        orderId:                id,
-        to,
-        expectedWorkflowStatus: from,          // optimistic-lock token
-        currentLegacyStatus:    orderRow.status,
-        orderSnapshot:          orderRow,
-        itemsSnapshot:          enrichedItems,
-        companyConfig,
-        actor: {
-          id:    user.id,
-          email: user.email,
-          role:  user.role,
-          name:  (user as any).name,
-        },
-      });
+    // ── Phase 4: Side effects handled by outbox worker ─────────────────────
+    //
+    // Push notification and audit log are written atomically to workflow_events
+    // inside the transaction above. The outbox worker (orders.outbox.worker.ts)
+    // picks them up asynchronously and retries on failure — no fire-and-forget.
 
-      // ── Phase 4: Non-critical side effects (fire-and-forget) ──────────────
-      //
-      // Push notification and audit log are best-effort. A failure here never
-      // rolls back the already-committed transition.
-      this.afterWorkflowTransitionNonCritical(id, to, from, orderRow, user, txResult).catch(
-        (err) => console.error("[WORKFLOW] Non-critical side-effect error:", err),
-      );
+    const details: Record<string, unknown> = {};
+    if (txResult.preNotaNumber)          details.preNotaNumber          = txResult.preNotaNumber;
+    if (txResult.inventoryLinesDeducted) details.inventoryLinesDeducted = txResult.inventoryLinesDeducted;
+    if (txResult.arCreated)              details.arCreated              = true;
+    if (txResult.deliveryUpdated)        details.deliveryUpdated        = true;
 
-      const details: Record<string, unknown> = {};
-      if (txResult.preNotaNumber)          details.preNotaNumber          = txResult.preNotaNumber;
-      if (txResult.inventoryLinesDeducted) details.inventoryLinesDeducted = txResult.inventoryLinesDeducted;
-      if (txResult.arCreated)              details.arCreated              = true;
-      if (txResult.deliveryUpdated)        details.deliveryUpdated        = true;
-
-      return {
-        order:          txResult.updatedOrder as unknown as Order,
-        workflowStatus: to,
-        from,
-        details,
-      };
-    } finally {
-      // Always release the in-process lock — even on error.
-      TRANSITION_IN_FLIGHT.delete(id);
-    }
+    return {
+      order:          txResult.updatedOrder as unknown as Order,
+      workflowStatus: to,
+      from,
+      details,
+    };
   }
 
   /**

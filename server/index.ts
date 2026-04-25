@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import { buildApp } from "./app";
 import { serveStatic } from "./static";
 import { getUser } from "./controllers/userController";
+import { startOutboxWorker } from "./modules/orders/orders.outbox.worker";
 
 /**
  * Bootstrap.
@@ -42,6 +43,10 @@ export function log(message: string, source = "express") {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+
+  // Workflow event outbox worker — processes side-effects asynchronously
+  // (push notifications, audit logs) with retry semantics.
+  startOutboxWorker();
 
   // Memory monitor — useful in production to catch leaks early.
   setInterval(() => {

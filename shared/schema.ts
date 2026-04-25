@@ -1550,3 +1550,36 @@ export const sanitaryEvaluationItems = pgTable("sanitary_evaluation_items", {
 export type SanitaryEvaluationItem = typeof sanitaryEvaluationItems.$inferSelect;
 export const insertSanitaryEvaluationItemSchema = createInsertSchema(sanitaryEvaluationItems).omit({ id: true, createdAt: true });
 export type InsertSanitaryEvaluationItem = z.infer<typeof insertSanitaryEvaluationItemSchema>;
+
+// ─── Workflow Event Outbox ─────────────────────────────────────────────────────
+// Transactional outbox for workflow side-effects (push notifications, audit logs).
+// Events are written atomically inside the order transition transaction so they
+// are guaranteed to exist if and only if the transition committed.
+// A background worker processes them asynchronously with retry semantics.
+export const workflowEvents = pgTable("workflow_events", {
+  id:           serial("id").primaryKey(),
+  orderId:      integer("order_id").notNull(),
+  eventType:    text("event_type").notNull(),      // always 'TRANSITION' for now
+  payload:      jsonb("payload").notNull(),         // WorkflowEventPayload (see below)
+  processedAt:  timestamp("processed_at"),          // NULL = pending
+  errorMessage: text("error_message"),              // last error (if any)
+  retryCount:   integer("retry_count").default(0).notNull(),
+  createdAt:    timestamp("created_at").defaultNow().notNull(),
+});
+export type WorkflowEvent = typeof workflowEvents.$inferSelect;
+
+/** Strongly-typed payload stored as JSONB in workflow_events.payload */
+export interface WorkflowEventPayload {
+  orderId:     number;
+  orderCode:   string | null;
+  companyId:   number;
+  from:        string;
+  to:          string;
+  actor:       { id: number; email: string; role: string; name?: string };
+  result: {
+    preNotaNumber?:          string | null;
+    inventoryLinesDeducted?: number;
+    arCreated?:              boolean;
+    deliveryUpdated?:        boolean;
+  };
+}
