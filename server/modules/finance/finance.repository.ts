@@ -6,7 +6,12 @@ import {
   financialTransactions,
   systemLogs,
 } from "@shared/schema";
-import { tenantWhere, tenantAnd, withTenant } from "../../core/tenant/scope";
+import {
+  tenantWhere,
+  tenantAnd,
+  withTenant,
+  stripTenantFields,
+} from "../../core/tenant/scope";
 import { requireTenantId } from "../../core/tenant/context";
 import { storage } from "../../services/storage";
 import type {
@@ -80,9 +85,9 @@ export class FinanceRepository {
     id: number,
     data: Partial<InsertAccountReceivable>,
   ): Promise<AccountReceivable> {
-    // Strip empresaId from the patch so a malicious payload can't reassign
-    // tenancy. Tenant migration is a separate, privileged operation.
-    const { empresaId: _ignored, ...safe } = data as any;
+    // Strip any tenant field from the patch so a malicious payload can't
+    // reassign tenancy. Tenant migration is a separate, privileged operation.
+    const safe = stripTenantFields(data as Record<string, unknown>);
     const [row] = await db
       .update(accountsReceivable)
       .set(safe)
@@ -156,7 +161,7 @@ export class FinanceRepository {
     id: number,
     data: Partial<InsertAccountPayable>,
   ): Promise<AccountPayable> {
-    const { empresaId: _ignored, ...safe } = data as any;
+    const safe = stripTenantFields(data as Record<string, unknown>);
     const [row] = await db
       .update(accountsPayable)
       .set(safe)

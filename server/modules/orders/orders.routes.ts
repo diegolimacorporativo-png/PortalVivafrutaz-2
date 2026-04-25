@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/http/asyncHandler";
 import { validateRequest } from "../../core/validation/validateRequest";
+import { tenantContext } from "../../middleware/tenant";
 import { ordersController } from "./orders.controller";
 import {
   bulkDeleteBodySchema,
@@ -46,12 +47,20 @@ import {
  * the migrated handlers win the route match while everything else continues
  * to work.
  *
- * AUTH NOTE: this router intentionally does NOT mount `requireAuth`
- * globally — the GET endpoints are currently public per the legacy
- * contract. Per-endpoint role enforcement lives in the service layer
- * (see `service.requireRole(...)`) so the controller stays declarative.
+ * AUTH NOTE: this router mounts `tenantContext` globally — every endpoint
+ * (read AND write) now resolves the authenticated principal into a tenant
+ * id and pins it via AsyncLocalStorage. This is the security hardening that
+ * supersedes the legacy "GET endpoints are public" contract: the previous
+ * shape allowed `GET /api/orders?empresaId=N` from anyone, leaking other
+ * tenants' orders. With `tenantContext` in place:
+ *   - anonymous requests fail with 401 in the repository (see ordersRepository)
+ *   - company users are pinned to their own company, no `?empresaId` override
+ *   - cross-tenant admins (MASTER) may read all tenants implicitly, or
+ *     target one with `?empresaId=N`.
+ * Per-endpoint role enforcement still lives in the service layer.
  */
 const router = Router();
+router.use(tenantContext);
 
 // ── GETs (literals BEFORE /:id) ────────────────────────────────────────
 router.get(

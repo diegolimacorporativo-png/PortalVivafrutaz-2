@@ -678,7 +678,7 @@ export type InsertPurchasePlanStatus = z.infer<typeof insertPurchasePlanStatusSc
 // Configuração de estoque por produto (estoque atual + mínimo)
 export const inventorySettings = pgTable("inventory_settings", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   productId: integer("product_id"),
   productName: text("product_name").notNull(),
   unit: text("unit").notNull().default("kg"),
@@ -688,7 +688,7 @@ export const inventorySettings = pgTable("inventory_settings", {
   category: text("category"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("inventory_settings_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("inventory_settings_empresa_id_idx").on(table.tenantId),
 }));
 export const insertInventorySettingsSchema = createInsertSchema(inventorySettings).omit({ id: true, updatedAt: true });
 export type InventorySettings = typeof inventorySettings.$inferSelect;
@@ -697,7 +697,7 @@ export type InsertInventorySettings = z.infer<typeof insertInventorySettingsSche
 // Entradas de estoque (NF ou manual)
 export const inventoryEntries = pgTable("inventory_entries", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   productId: integer("product_id"),
   productName: text("product_name").notNull(),
   category: text("category"),
@@ -714,7 +714,7 @@ export const inventoryEntries = pgTable("inventory_entries", {
   createdById: integer("created_by_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("inventory_entries_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("inventory_entries_empresa_id_idx").on(table.tenantId),
 }));
 export const insertInventoryEntrySchema = createInsertSchema(inventoryEntries).omit({ id: true, createdAt: true });
 export type InventoryEntry = typeof inventoryEntries.$inferSelect;
@@ -723,7 +723,7 @@ export type InsertInventoryEntry = z.infer<typeof insertInventoryEntrySchema>;
 // Movimentações de estoque (entradas, saídas, ajustes, desperdícios)
 export const inventoryMovements = pgTable("inventory_movements", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   productId: integer("product_id"),
   productName: text("product_name").notNull(),
   movementType: text("movement_type").notNull(), // ENTRY | EXIT | ADJUSTMENT | WASTE
@@ -737,7 +737,7 @@ export const inventoryMovements = pgTable("inventory_movements", {
   createdBy: text("created_by").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("inventory_movements_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("inventory_movements_empresa_id_idx").on(table.tenantId),
 }));
 export const insertInventoryMovementSchema = createInsertSchema(inventoryMovements).omit({ id: true, createdAt: true });
 export type InventoryMovement = typeof inventoryMovements.$inferSelect;
@@ -746,7 +746,7 @@ export type InsertInventoryMovement = z.infer<typeof insertInventoryMovementSche
 // Inventário Físico (conferência manual)
 export const inventoryPhysicalCounts = pgTable("inventory_physical_counts", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   productId: integer("product_id"),
   productName: text("product_name").notNull(),
   unit: text("unit").notNull().default("kg"),
@@ -759,7 +759,7 @@ export const inventoryPhysicalCounts = pgTable("inventory_physical_counts", {
   createdById: integer("created_by_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("inventory_physical_counts_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("inventory_physical_counts_empresa_id_idx").on(table.tenantId),
 }));
 export const insertInventoryPhysicalCountSchema = createInsertSchema(inventoryPhysicalCounts).omit({ id: true, createdAt: true });
 export type InventoryPhysicalCount = typeof inventoryPhysicalCounts.$inferSelect;
@@ -953,7 +953,7 @@ export type InsertScopeSimulation = z.infer<typeof insertScopeSimulationSchema>;
 
 export const accountsReceivable = pgTable("accounts_receivable", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   companyId: integer("company_id"),
   orderId: integer("order_id"),
   descricao: text("descricao").notNull(),
@@ -967,7 +967,7 @@ export const accountsReceivable = pgTable("accounts_receivable", {
   observacoes: text("observacoes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("accounts_receivable_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("accounts_receivable_empresa_id_idx").on(table.tenantId),
 }));
 export const insertAccountReceivableSchema = createInsertSchema(accountsReceivable).omit({ id: true, createdAt: true });
 export type AccountReceivable = typeof accountsReceivable.$inferSelect;
@@ -975,7 +975,7 @@ export type InsertAccountReceivable = z.infer<typeof insertAccountReceivableSche
 
 export const accountsPayable = pgTable("accounts_payable", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   fornecedor: text("fornecedor").notNull(),
   descricao: text("descricao").notNull(),
   valor: numeric("valor", { precision: 12, scale: 2 }).notNull(),
@@ -986,7 +986,7 @@ export const accountsPayable = pgTable("accounts_payable", {
   observacoes: text("observacoes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("accounts_payable_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("accounts_payable_empresa_id_idx").on(table.tenantId),
 }));
 export const insertAccountPayableSchema = createInsertSchema(accountsPayable).omit({ id: true, createdAt: true });
 export type AccountPayable = typeof accountsPayable.$inferSelect;
@@ -994,7 +994,7 @@ export type InsertAccountPayable = z.infer<typeof insertAccountPayableSchema>;
 
 export const financialTransactions = pgTable("financial_transactions", {
   id: serial("id").primaryKey(),
-  empresaId: integer("empresa_id").references(() => companies.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
   tipo: text("tipo").notNull(), // entrada | saida
   valor: numeric("valor", { precision: 12, scale: 2 }).notNull(),
   descricao: text("descricao").notNull(),
@@ -1003,7 +1003,7 @@ export const financialTransactions = pgTable("financial_transactions", {
   referenciaId: integer("referencia_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
-  empresaIdIdx: index("financial_transactions_empresa_id_idx").on(table.empresaId),
+  tenantIdIdx: index("financial_transactions_empresa_id_idx").on(table.tenantId),
 }));
 export const insertFinancialTransactionSchema = createInsertSchema(financialTransactions).omit({ id: true, createdAt: true });
 export type FinancialTransaction = typeof financialTransactions.$inferSelect;

@@ -2,6 +2,12 @@ import bcrypt from "bcryptjs";
 import { db } from "../database/db";
 import { cache } from "./cache.js";
 import {
+  tenantWhere,
+  tenantAnd,
+  withTenant,
+  stripTenantFields,
+} from "../core/tenant/scope";
+import {
   users, priceGroups, companies, categories, products, productPrices, productSubCategories, orderWindows, orderExceptions, orders, orderItems, systemSettings, passwordResetRequests, specialOrderRequests, systemLogs, testOrders, tasks, clientIncidents, incidentMessages, internalIncidents, logisticsDrivers, logisticsVehicles, logisticsRoutes, logisticsMaintenance, companyQuotations, contractScopes, danfeRecords, companyConfig, companySettings, announcements, wasteControl, purchasePlanStatus, inventorySettings, inventoryEntries, inventoryMovements, inventoryPhysicalCounts, fiscalInvoices, emailSchedules, emailLogs, aboutUs, smtpConfig, claraTraining, pushSubscriptions, notificationSettings, contractAdjustments, scopeSimulations, accountsReceivable, accountsPayable, financialTransactions,
   type AccountReceivable, type InsertAccountReceivable,
   type AccountPayable, type InsertAccountPayable,
@@ -1399,67 +1405,73 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Inventory Settings ───────────────────────────────────────
+  // Every method below funnels its WHERE clause through `tenantAnd(...)` and
+  // every INSERT through `withTenant(table, ...)` so cross-tenant access is
+  // impossible by construction. Cross-tenant admins (no tenant pinned) may
+  // still read all rows — `tenantAnd` returns the current-tenant predicate
+  // which throws if no context is installed; `getCurrentTenantOrSkip()` is
+  // the explicit opt-out for legitimately cross-tenant background jobs.
   async getInventorySettings(): Promise<InventorySettings[]> {
-    return db.select().from(inventorySettings).orderBy(inventorySettings.productName);
+    return db.select().from(inventorySettings).where(tenantWhere(inventorySettings)).orderBy(inventorySettings.productName);
   }
   async getInventorySettingByProductId(productId: number): Promise<InventorySettings | undefined> {
-    const [r] = await db.select().from(inventorySettings).where(eq(inventorySettings.productId, productId));
+    const [r] = await db.select().from(inventorySettings).where(tenantAnd(inventorySettings, eq(inventorySettings.productId, productId)));
     return r;
   }
   async getInventorySettingByProductName(productName: string): Promise<InventorySettings | undefined> {
-    const [r] = await db.select().from(inventorySettings).where(eq(inventorySettings.productName, productName));
+    const [r] = await db.select().from(inventorySettings).where(tenantAnd(inventorySettings, eq(inventorySettings.productName, productName)));
     return r;
   }
   async upsertInventorySetting(data: InsertInventorySettings): Promise<InventorySettings> {
     if (data.productId) {
       const existing = await this.getInventorySettingByProductId(data.productId);
       if (existing) {
-        const [r] = await db.update(inventorySettings).set({ ...data, updatedAt: new Date() }).where(eq(inventorySettings.id, existing.id)).returning();
+        const [r] = await db.update(inventorySettings).set({ ...stripTenantFields(data as any), updatedAt: new Date() }).where(tenantAnd(inventorySettings, eq(inventorySettings.id, existing.id))).returning();
         return r;
       }
     }
-    const [r] = await db.insert(inventorySettings).values({ ...data, updatedAt: new Date() } as any).returning();
+    const [r] = await db.insert(inventorySettings).values(withTenant(inventorySettings, { ...data, updatedAt: new Date() } as any)).returning();
     return r;
   }
   async updateInventoryStock(id: number, currentStock: number): Promise<InventorySettings> {
-    const [r] = await db.update(inventorySettings).set({ currentStock: String(currentStock), updatedAt: new Date() }).where(eq(inventorySettings.id, id)).returning();
+    const [r] = await db.update(inventorySettings).set({ currentStock: String(currentStock), updatedAt: new Date() }).where(tenantAnd(inventorySettings, eq(inventorySettings.id, id))).returning();
     return r;
   }
 
   // ─── Inventory Entries ────────────────────────────────────────
   async getInventoryEntries(filters?: { from?: string; to?: string }): Promise<InventoryEntry[]> {
-    let q = db.select().from(inventoryEntries).$dynamic();
-    if (filters?.from) q = q.where(gte(inventoryEntries.entryDate, filters.from));
-    if (filters?.to) q = q.where(lte(inventoryEntries.entryDate, filters.to));
-    return q.orderBy(desc(inventoryEntries.createdAt));
+    const conds = [];
+    if (filters?.from) conds.push(gte(inventoryEntries.entryDate, filters.from));
+    if (filters?.to) conds.push(lte(inventoryEntries.entryDate, filters.to));
+    return db.select().from(inventoryEntries).where(tenantAnd(inventoryEntries, ...conds)).orderBy(desc(inventoryEntries.createdAt));
   }
   async createInventoryEntry(data: InsertInventoryEntry): Promise<InventoryEntry> {
-    const [r] = await db.insert(inventoryEntries).values(data).returning();
+    const [r] = await db.insert(inventoryEntries).values(withTenant(inventoryEntries, data as any)).returning();
     return r;
   }
   async deleteInventoryEntry(id: number): Promise<void> {
-    await db.delete(inventoryEntries).where(eq(inventoryEntries.id, id));
+    await db.delete(inventoryEntries).where(tenantAnd(inventoryEntries, eq(inventoryEntries.id, id)));
   }
 
   // ─── Inventory Movements ─────────────────────────────────────
   async getInventoryMovements(filters?: { from?: string; to?: string; productId?: number }): Promise<InventoryMovement[]> {
-    let q = db.select().from(inventoryMovements).$dynamic();
-    if (filters?.from) q = q.where(gte(inventoryMovements.date, filters.from));
-    if (filters?.to) q = q.where(lte(inventoryMovements.date, filters.to));
-    if (filters?.productId) q = q.where(eq(inventoryMovements.productId, filters.productId));
-    return q.orderBy(desc(inventoryMovements.createdAt));
+    const conds = [];
+    if (filters?.from) conds.push(gte(inventoryMovements.date, filters.from));
+    if (filters?.to) conds.push(lte(inventoryMovements.date, filters.to));
+    if (filters?.productId) conds.push(eq(inventoryMovements.productId, filters.productId));
+    return db.select().from(inventoryMovements).where(tenantAnd(inventoryMovements, ...conds)).orderBy(desc(inventoryMovements.createdAt));
   }
   async createInventoryMovement(data: InsertInventoryMovement): Promise<InventoryMovement> {
-    const [r] = await db.insert(inventoryMovements).values(data).returning();
+    const [r] = await db.insert(inventoryMovements).values(withTenant(inventoryMovements, data as any)).returning();
     return r;
   }
 
   // ─── Inventory Physical Counts ────────────────────────────────
   async getInventoryPhysicalCounts(): Promise<InventoryPhysicalCount[]> {
-    return db.select().from(inventoryPhysicalCounts).orderBy(desc(inventoryPhysicalCounts.createdAt));
+    return db.select().from(inventoryPhysicalCounts).where(tenantWhere(inventoryPhysicalCounts)).orderBy(desc(inventoryPhysicalCounts.createdAt));
   }
   async createInventoryPhysicalCount(data: InsertInventoryPhysicalCount): Promise<InventoryPhysicalCount> {
-    const [r] = await db.insert(inventoryPhysicalCounts).values(data).returning();
+    const [r] = await db.insert(inventoryPhysicalCounts).values(withTenant(inventoryPhysicalCounts, data as any)).returning();
     return r;
   }
 
