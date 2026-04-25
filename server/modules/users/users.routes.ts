@@ -1,6 +1,6 @@
 import { Router } from "express";
-import { asyncHandler } from "../../core/http/asyncHandler";
-import { validateRequest } from "../../core/validation/validateRequest";
+import { asyncHandler } from "../../shared/utils/asyncHandler";
+import { validate } from "../../shared/middlewares/validate";
 import { usersController } from "./users.controller";
 import {
   createUserSchema,
@@ -12,11 +12,15 @@ import {
 /**
  * Users router — wires HTTP method+path → middleware chain → controller.
  *
- * Architecture decision: identical to the finance router. Reading this file
+ * Architecture decision: identical to the orders router. Reading this file
  * alone tells you the full HTTP contract of the module.
  *
+ * Shared utilities used:
+ *   - `asyncHandler`  from `shared/utils/asyncHandler`
+ *   - `validate`      from `shared/middlewares/validate`
+ *
  * AUTH NOTE:
- * Unlike the finance module (where every endpoint requires auth), the legacy
+ * Unlike orders (where `tenantContext` secures every endpoint), the legacy
  * users routes did NOT enforce session checks on the CRUD endpoints, and the
  * existing frontend / E2E flow rely on that. We preserve that exact behaviour
  * to avoid breaking callers. Authorisation for the privileged password-change
@@ -35,30 +39,30 @@ router.get("/", asyncHandler(usersController.list));
 // ── Create ──────────────────────────────────────────────────────────────
 router.post(
   "/",
-  validateRequest(createUserSchema),
+  validate(createUserSchema, "body"),
   asyncHandler(usersController.create),
 );
 
 // ── Update ──────────────────────────────────────────────────────────────
 router.put(
   "/:id",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(updateUserSchema),
+  validate(idParamSchema, "params"),
+  validate(updateUserSchema, "body"),
   asyncHandler(usersController.update),
 );
 
 // ── Delete ──────────────────────────────────────────────────────────────
 router.delete(
   "/:id",
-  validateRequest(idParamSchema, "params"),
+  validate(idParamSchema, "params"),
   asyncHandler(usersController.remove),
 );
 
 // ── Privileged: change password ─────────────────────────────────────────
 router.put(
   "/:id/password",
-  validateRequest(idParamSchema, "params"),
-  validateRequest(changePasswordSchema),
+  validate(idParamSchema, "params"),
+  validate(changePasswordSchema, "body"),
   asyncHandler(usersController.changePassword),
 );
 

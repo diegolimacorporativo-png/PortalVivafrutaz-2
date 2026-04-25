@@ -2,7 +2,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-} from "../../core/errors/AppError";
+} from "../../shared/errors/AppError";
 import { usersRepository, UsersRepository } from "./users.repository";
 import type {
   ChangePasswordInput,

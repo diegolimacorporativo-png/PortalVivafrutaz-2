@@ -4,21 +4,26 @@ import { usersService, UsersService } from "./users.service";
 /**
  * UsersController — thin HTTP adapter.
  *
- * Architecture decision: identical to FinanceController — controllers do three
+ * Architecture decision: identical to OrdersController — controllers do three
  * things and nothing else:
- *   1. Pull pre-validated input out of `req` (validation already happened).
+ *   1. Pull pre-validated input out of `req` (validation already happened via
+ *      the `validate` middleware).
  *   2. Call the service.
  *   3. Shape the response.
  * No business logic, no DB calls, no Zod, no try/catch (asyncHandler does it).
  *
- * BACKWARD-COMPAT NOTE — response shape:
- * The legacy users routes returned RAW arrays/objects (e.g. `User[]`,
- * `{ ok: true }`) and the existing frontend (`client/src/pages/admin/users.tsx`)
- * consumes `res.json()` directly. To honour "do not break existing endpoints"
- * we deliberately bypass the `ok()` / `created()` envelope helpers here and
- * write the legacy shape verbatim. Errors still flow through AppError → the
- * central errorHandler, which preserves the legacy `{ message }` field via
- * its compatibility branch.
+ * BACKWARD-COMPAT — response shape:
+ * The legacy users routes returned RAW arrays/objects (e.g. `User[]`, `{ ok:
+ * true }`) and the existing frontend (`client/src/pages/admin/users.tsx`)
+ * consumes `res.json()` directly. The standard `ok()/created()/noContent()`
+ * helpers from `shared/utils/apiResponse` are intentionally NOT used here
+ * because they wrap data in `{ success: true, data: ... }`, which would break
+ * every existing frontend query. Migrating to the envelope is the recommended
+ * follow-up — it requires a paired frontend update using `useSafeListQuery`/
+ * `useSafeQuery` to normalise both the old and new shapes during the window.
+ *
+ * Errors still flow through AppError → the central errorHandler, which
+ * preserves the legacy `{ message }` field via its compatibility branch.
  */
 export class UsersController {
   constructor(private readonly service: UsersService = usersService) {}
