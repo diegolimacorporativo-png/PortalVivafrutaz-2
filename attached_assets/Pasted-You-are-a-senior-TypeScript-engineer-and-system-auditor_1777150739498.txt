@@ -1,0 +1,178 @@
+You are a senior TypeScript engineer and system auditor.
+
+Your task is to perform a FULL regression audit of the products module after its migration
+from the legacy routes layer into the modular architecture.
+
+---
+
+## CONTEXT
+
+The products domain was fully migrated from:
+
+server/routes/routes.ts
+
+into:
+
+server/modules/products/
+
+Architecture now follows:
+
+routes → controller → service → repository
+
+All endpoints are now delegated.
+
+---
+
+## GOAL
+
+Verify that the migration is:
+
+- 100% behavior-safe
+- 100% type-safe
+- 100% production-safe
+
+AND detect any hidden regressions.
+
+---
+
+## SCOPE
+
+Focus ONLY on:
+
+server/modules/products/**
+server/routes/routes.ts (only product-related delegations)
+
+---
+
+## REQUIRED AUDIT CHECKS
+
+### 1. ROUTING
+
+- Ensure ALL /api/products/* endpoints:
+  - exist
+  - are reachable
+  - are delegated (no inline logic left)
+
+---
+
+### 2. RESPONSE PARITY
+
+For EACH endpoint:
+
+- Compare current vs expected legacy behavior:
+
+Check:
+
+- status codes
+- response shape
+- field names
+- error messages
+
+⚠️ Flag ANY difference
+
+---
+
+### 3. ERROR HANDLING
+
+Verify:
+
+- No unhandled promise rejections
+- No async outside try/catch (unless using next)
+- No mixed patterns (res.status vs next) inconsistently
+
+---
+
+### 4. SERVICE PURITY
+
+Ensure:
+
+- NO Express usage (req, res)
+- NO HTTP logic
+- ONLY business logic
+
+---
+
+### 5. REPOSITORY INTEGRITY
+
+Verify:
+
+- No "Not implemented"
+- No fake mocks
+- All methods hit real storage layer
+- No data transformation breaking schema
+
+---
+
+### 6. TYPE SAFETY
+
+- No any
+- No ts-ignore
+- No unsafe casts
+- Compatible with:
+  "strict": true
+  "noUncheckedIndexedAccess": true
+
+---
+
+### 7. EDGE CASES
+
+Test logically:
+
+- invalid ids
+- empty arrays
+- missing params
+- malformed body
+- null/undefined data paths
+
+---
+
+### 8. PERFORMANCE RISKS
+
+Identify:
+
+- N+1 queries
+- full-table scans
+- nested loops
+- memory-heavy operations
+
+⚠️ Do NOT fix — only report
+
+---
+
+### 9. DEAD CODE
+
+Find:
+
+- unused exports
+- unused routers
+- unreachable code
+
+---
+
+### 10. FINAL VERDICT
+
+Classify:
+
+- SAFE
+- SAFE WITH WARNINGS
+- NOT SAFE
+
+---
+
+## OUTPUT FORMAT
+
+1. Summary
+2. Critical issues (if any)
+3. Warnings
+4. Safe areas
+5. Performance notes
+6. Final verdict
+
+---
+
+## RULES
+
+- DO NOT change any code
+- DO NOT refactor
+- DO NOT suggest architecture changes unless critical
+- ONLY audit
