@@ -1,0 +1,164 @@
+You are a senior software architect specializing in scalable SaaS ERP systems.
+
+Your task is to standardize, refactor, and stabilize the entire application (frontend + backend) using a production-ready architecture.
+
+GOALS:
+- Eliminate response inconsistencies
+- Prevent frontend crashes caused by unexpected API shapes
+- Standardize backend responses
+- Prepare the system for SaaS scale (multi-tenant)
+
+========================================
+BACKEND STANDARDIZATION
+========================================
+
+1. STANDARD RESPONSE FORMAT (MANDATORY)
+
+ALL API responses MUST follow this structure:
+
+SUCCESS:
+{
+  "success": true,
+  "data": [],
+  "meta": {
+    "pagination": {},
+    "filters": {}
+  }
+}
+
+ERROR:
+{
+  "success": false,
+  "error": {
+    "message": "string",
+    "code": "ERROR_CODE"
+  }
+}
+
+2. CREATE GLOBAL RESPONSE HELPERS:
+
+Create utility functions:
+
+- ok(data, meta?)
+- fail(message, code?)
+
+3. ENFORCE IN ALL CONTROLLERS:
+- Replace any raw JSON responses
+- Ensure every endpoint uses the standard format
+
+4. MULTI-TENANT PREPARATION:
+- Add tenantId in all relevant entities
+- Ensure queries are tenant-scoped
+
+========================================
+FRONTEND STANDARDIZATION
+========================================
+
+1. CREATE A GLOBAL NORMALIZER:
+
+File:
+shared/utils/normalizeResponse.ts
+
+Rules:
+- Accept:
+  - raw arrays
+  - { data: [] }
+  - { success: true, data: [] }
+- Always return a safe array
+
+2. IMPLEMENT:
+
+export function normalizeList<T>(response: any): T[] {
+  if (!response) return []
+
+  if (Array.isArray(response)) return response
+
+  if (response?.data && Array.isArray(response.data)) return response.data
+
+  return []
+}
+
+3. CREATE SAFE QUERY HOOK:
+
+shared/hooks/useSafeQuery.ts
+
+- Wrap React Query
+- Automatically normalize data
+- Prevent .map crashes
+
+4. ENFORCE USAGE:
+
+Replace all useQuery instances that use .map()
+
+OLD:
+data?.map()
+
+NEW:
+useSafeQuery + normalized data
+
+========================================
+DATA FETCHING PATTERN
+========================================
+
+Use React Query best practices:
+
+- queryKey structured by module
+- no direct API calls in components
+- use services layer
+
+Example:
+services/financeService.ts
+
+========================================
+PROJECT STRUCTURE
+========================================
+
+server/
+  core/
+    http/
+    utils/
+    database/
+  modules/
+    finance/
+    crm/
+    inventory/
+    logistics/
+    fiscal/
+    ai/
+  shared/
+
+client/
+  shared/
+    hooks/
+    utils/
+    services/
+  modules/
+    finance/
+    crm/
+    dashboard/
+
+========================================
+CLEANUP TASKS
+========================================
+
+- Remove:
+  - Pasted-* files
+  - duplicated prompts
+  - unused code
+- Standardize naming conventions
+- Remove inconsistent API patterns
+
+========================================
+OUTPUT REQUIRED
+========================================
+
+1. Show updated backend response helper
+2. Show normalizeResponse implementation
+3. Show useSafeQuery implementation
+4. Refactor ONE real module (finance) as example
+5. List all fixes applied
+6. Highlight risks or remaining inconsistencies
+
+IMPORTANT:
+Do not break business logic.
+Focus on stability, scalability, and consistency.
