@@ -80,7 +80,12 @@ function OrderSearchPanel({ onSelect, selectedId }: { onSelect: (id: number, cod
 
   const { data: orders = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/orders"],
-    queryFn: () => fetch("/api/orders", { credentials: "include" }).then(r => r.json()),
+    queryFn: async () =>
+      normalizeList<any>(
+        await fetch("/api/orders", { credentials: "include" }).then((r) =>
+          r.json(),
+        ),
+      ),
   });
 
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ["/api/companies"], select: normalizeList });

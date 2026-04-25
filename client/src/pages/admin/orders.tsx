@@ -4,6 +4,7 @@ import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient as globalQueryClient } from "@/lib/queryClient";
+import { normalizeOne } from "@/lib/normalizeResponse";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
@@ -369,10 +370,11 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   });
 
   const buildDanfeData = async (): Promise<DanfeData> => {
-    const [detail, configRes] = await Promise.all([
+    const [detailRaw, configRes] = await Promise.all([
       fetch(`/api/orders/${order.id}`, { credentials: "include" }).then(r => r.json()),
       fetch("/api/company-config", { credentials: "include" }).then(r => r.ok ? r.json() : {} as any),
     ]);
+    const detail = normalizeOne<any>(detailRaw) ?? { order, items: [] };
     const items = (detail.items || []).map((item: any) => {
       const product = products.find((p: any) => p.id === Number(item.productId));
       return {

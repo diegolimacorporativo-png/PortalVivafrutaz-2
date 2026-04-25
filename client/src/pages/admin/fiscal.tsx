@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ContextualTip } from '@/components/ContextualTip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
-import { normalizeList } from '@/lib/normalizeResponse';
+import { normalizeList, normalizeOne } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import {
   Receipt, Search, Filter, Calendar, Building2, Download, Eye,
@@ -56,6 +56,7 @@ export default function FiscalManagement() {
 
   const { data: ordersRaw = [], isLoading, refetch } = useQuery<any[]>({
     queryKey: ['/api/orders'],
+    select: normalizeList,
     staleTime: 30000,
   });
 
@@ -162,7 +163,7 @@ export default function FiscalManagement() {
     let detail: any = { order, items: [] };
     try {
       const res = await fetch(`/api/orders/${order.id}`, { credentials: 'include' });
-      if (res.ok) detail = await res.json();
+      if (res.ok) detail = normalizeOne<any>(await res.json()) ?? detail;
     } catch { /* use fallback */ }
 
     const detailOrder = detail.order || detail;

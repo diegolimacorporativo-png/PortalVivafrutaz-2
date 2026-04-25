@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
+import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
 
 // ========== ORDER WINDOWS ==========
 export function useOrderWindows() {
@@ -116,40 +117,51 @@ export function useUpdateSetting() {
 }
 
 // ========== ORDERS ==========
+//
+// The orders module is in mid-migration: `GET /api/orders` and
+// `GET /api/orders/:id` now return the standardized
+// `{ success, data }` envelope, while the rest of the endpoints still return
+// the legacy raw shape. Routing every response through `normalizeList` /
+// `normalizeOne` keeps these hooks tolerant of *both* shapes during the
+// migration window — no breaking change for callers, no `.map is not a
+// function` errors when the backend toggles.
+type OrderRow = z.infer<typeof api.orders.list.responses[200]>[number];
+type OrderDetail = z.infer<typeof api.orders.get.responses[200]>;
+
 export function useOrders() {
-  return useQuery({
+  return useQuery<OrderRow[]>({
     queryKey: [api.orders.list.path],
     queryFn: async () => {
       const res = await fetch(api.orders.list.path, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch orders");
-      return api.orders.list.responses[200].parse(await res.json());
+      return normalizeList<OrderRow>(await res.json());
     }
   });
 }
 
 export function useCompanyOrders(companyId?: number) {
-  return useQuery({
+  return useQuery<OrderRow[]>({
     queryKey: [api.orders.companyOrders.path, companyId],
     queryFn: async () => {
       if (!companyId) return [];
       const url = buildUrl(api.orders.companyOrders.path, { companyId });
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch company orders");
-      return api.orders.companyOrders.responses[200].parse(await res.json());
+      return normalizeList<OrderRow>(await res.json());
     },
     enabled: !!companyId,
   });
 }
 
 export function useOrderDetail(orderId?: number) {
-  return useQuery({
+  return useQuery<OrderDetail | null>({
     queryKey: [api.orders.get.path, orderId],
     queryFn: async () => {
       if (!orderId) return null;
       const url = buildUrl(api.orders.get.path, { id: orderId });
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) return null;
-      return api.orders.get.responses[200].parse(await res.json());
+      return normalizeOne<OrderDetail>(await res.json());
     },
     enabled: !!orderId,
   });

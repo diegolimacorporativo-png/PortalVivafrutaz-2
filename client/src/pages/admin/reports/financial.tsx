@@ -3,6 +3,7 @@ import { useFinancialReport } from "@/hooks/use-ordering";
 import { Layout } from "@/components/Layout";
 import { PieChart, TrendingUp, Award, FileDown, Calendar, Filter } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { normalizeList } from "@/lib/normalizeResponse";
 
 type DateFilter = 'today' | 'week' | 'month' | 'custom';
 
@@ -39,7 +40,7 @@ const FILTER_LABELS: Record<DateFilter, string> = {
 
 export default function FinancialReportPage() {
   const { data: report, isLoading } = useFinancialReport();
-  const { data: orders } = useQuery<any[]>({ queryKey: ['/api/orders'] });
+  const { data: orders = [] } = useQuery<any[]>({ queryKey: ['/api/orders'], select: normalizeList });
   const [dateFilter, setDateFilter] = useState<DateFilter>('month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
