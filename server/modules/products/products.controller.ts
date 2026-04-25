@@ -93,7 +93,8 @@ export class ProductController {
     try {
       const alerts = await productService.getSafraAlerts();
       res.json(alerts);
-    } catch {
+    } catch (err) {
+      console.warn('[products.controller] safraAlerts failed', err);
       res.status(500).json({ message: "Erro interno" });
     }
   }

@@ -21,7 +21,7 @@ export const definition = {
  * contract used by every other module.
  */
 export const adminDefinition = {
-  name: "users-admin",
+  name: "users-admin-v1",
   basePath: "/api/admin/users",
   router: usersAdminRouter,
 } as const;

@@ -1,0 +1,104 @@
+Apply two small, non-breaking fixes across the products and users modules.
+
+Goal:
+1) Fix W2: add proper logging in safraAlerts controller catch
+2) Fix duplicated module name ("users-admin") in loader logs
+DO NOT change any runtime behavior, routes, response shapes, or status codes.
+
+----------------------------------------
+PART 1 — Fix W2 (missing log in safraAlerts)
+----------------------------------------
+
+File:
+server/modules/products/products.controller.ts
+
+Locate method:
+async safraAlerts(_req: Request, res: Response): Promise<void>
+
+Current catch block:
+catch {
+  res.status(500).json({ message: "Erro interno" });
+}
+
+Replace with:
+catch (err) {
+  console.warn('[products.controller] safraAlerts failed', err);
+  res.status(500).json({ message: "Erro interno" });
+}
+
+Rules:
+- Do NOT change response message
+- Do NOT introduce next()
+- Do NOT change status code
+- Only add logging
+
+----------------------------------------
+PART 2 — Fix duplicated module name in admin loader
+----------------------------------------
+
+Problem:
+users-admin module is mounted twice:
+- /api/admin/users
+- /api/v1/admin/users
+
+Both use the same name "users-admin", causing confusing logs.
+
+File:
+server/modules/users/index.ts
+
+Locate adminDefinition:
+export const adminDefinition = {
+  name: 'users-admin',
+  basePath: '/api/admin/users',
+  router: usersAdminRouter
+}
+
+Update ONLY the name field:
+
+name: 'users-admin-v1'
+
+----------------------------------------
+
+File:
+server/modules/index.ts
+
+When registering AUX_MODULES, ensure log output reflects basePath.
+
+If logs are printed like:
+console.log(`Mounted module ${mod.name} at ${mod.basePath}`);
+
+NO change needed.
+
+If logs do NOT include basePath, update logging to:
+
+console.log(`[modules] mounted ${mod.name} at ${mod.basePath}`);
+
+----------------------------------------
+
+Constraints:
+- DO NOT change any routes
+- DO NOT change mounting paths
+- DO NOT touch business logic
+- DO NOT modify controller/service behavior beyond the log
+- DO NOT introduce new abstractions
+
+----------------------------------------
+
+Validation checklist:
+- npm run check passes
+- npm run check:strict passes
+- npm test passes
+- App boots without errors
+- safraAlerts still returns:
+  500 { message: "Erro interno" }
+- Logs now include:
+  [products.controller] safraAlerts failed ...
+- Module logs clearly distinguish mounts:
+  users-admin-v1 at /api/v1/admin/users
+
+----------------------------------------
+
+Expected outcome:
+- W2 resolved (no more silent failure)
+- Cleaner module logs (no ambiguity)
+- Zero behavior change
