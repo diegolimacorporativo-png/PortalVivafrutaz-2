@@ -198,6 +198,8 @@ export const orders = pgTable("orders", {
   orderCode: text("order_code").unique(),
   status: text("status").default("ACTIVE").notNull(),
   // status values: ACTIVE (legacy), CONFIRMED, REOPEN_REQUESTED, OPEN_FOR_EDITING, CANCELLED, DELIVERED
+  workflowStatus: text("workflow_status").default("CREATED").notNull(),
+  // workflowStatus values: CREATED, PENDING_APPROVAL, APPROVED, REJECTED, INVOICED, SHIPPED, DELIVERED, CANCELLED
   adminNote: text("admin_note"),
   companyId: integer("company_id").references(() => companies.id).notNull(),
   orderDate: timestamp("order_date").defaultNow().notNull(),

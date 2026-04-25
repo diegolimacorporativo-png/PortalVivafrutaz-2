@@ -142,3 +142,23 @@ export const createDanfeLogBodySchema = z
     orderCode: z.string().nullable().optional(),
   })
   .passthrough();
+
+/**
+ * `POST /api/orders/:id/transition`
+ *
+ * `to`     — the target workflowStatus value (enum validated here).
+ * `reason` — optional human-readable note recorded in the audit log.
+ */
+export const transitionBodySchema = z.object({
+  to: z.enum([
+    "CREATED",
+    "PENDING_APPROVAL",
+    "APPROVED",
+    "REJECTED",
+    "INVOICED",
+    "SHIPPED",
+    "DELIVERED",
+    "CANCELLED",
+  ]),
+  reason: z.string().max(500).optional(),
+});

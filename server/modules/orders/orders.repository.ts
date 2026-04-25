@@ -168,6 +168,14 @@ export class OrdersRepository {
   createInventoryMovement(data: any) {
     return storage.createInventoryMovement(data);
   }
+
+  updateDelivery(id: number, data: Record<string, any>) {
+    return storage.updateDelivery(id, data as any);
+  }
+
+  getAccountsReceivableByCompanyId(companyId: number) {
+    return storage.getAccountsReceivable({ companyId });
+  }
 }
 
 export const ordersRepository = new OrdersRepository();

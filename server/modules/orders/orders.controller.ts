@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { ordersService, OrdersService, ActorContext } from "./orders.service";
 import { ok, created, noContent } from "../../core/http/apiResponse";
+import type { OrderStatus } from "./orders.workflow";
 
 /**
  * OrdersController — thin HTTP adapter.
@@ -179,6 +180,26 @@ export class OrdersController {
   blingExport = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
     return ok(res, await this.service.blingExport(id, this.actor(req)));
+  };
+
+  // ── WORKFLOW TRANSITION ─────────────────────────────────────────────
+  /**
+   * POST /api/orders/:id/transition
+   *
+   * Body: { to: OrderStatus, reason?: string }
+   * Response: { order, workflowStatus, from }
+   *
+   * Moves the order's workflowStatus through the controlled state machine.
+   * All existing endpoints (PATCH /api/orders/:id, fiscal, ERP, etc.) are
+   * completely unaffected — this only touches `workflowStatus`.
+   */
+  transition = async (req: Request, res: Response) => {
+    const id = Number((req.params as any).id);
+    const { to, reason } = req.body as { to: OrderStatus; reason?: string };
+    return ok(
+      res,
+      await this.service.transition(id, to, this.actor(req), reason),
+    );
   };
 
   /** GET /api/orders/:id/export-erp */

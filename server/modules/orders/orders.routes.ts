@@ -14,6 +14,7 @@ import {
   listOrdersQuerySchema,
   requestReopenBodySchema,
   substituteItemBodySchema,
+  transitionBodySchema,
   updateFiscalBodySchema,
   updateOrderBodySchema,
   updateOrderItemsBodySchema,
@@ -152,6 +153,22 @@ router.post(
   "/:id/bling-export",
   validateRequest(idParamSchema, "params"),
   asyncHandler(ordersController.blingExport),
+);
+
+/**
+ * POST /api/orders/:id/transition
+ *
+ * Controlled state machine for the order workflow.
+ * Body: { to: OrderStatus, reason?: string }
+ *
+ * This endpoint is purely ADDITIVE — it only updates `workflowStatus`.
+ * The legacy `status` field and all existing endpoints remain unchanged.
+ */
+router.post(
+  "/:id/transition",
+  validateRequest(idParamSchema, "params"),
+  validateRequest(transitionBodySchema, "body"),
+  asyncHandler(ordersController.transition),
 );
 
 // ── PATCH ──────────────────────────────────────────────────────────────

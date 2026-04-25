@@ -47,7 +47,7 @@ Preferred communication style: Simple, everyday language.
 - **Dual Portal System**: Separate interfaces for client companies and internal administration.
 - **Role-Based Access**: Granular permissions across various user roles.
 - **Price Management**: Dynamic pricing via price groups and administrative fees.
-- **Ordering System**: Time-windowed orders, special orders, cart functionality, and order workflow management.
+- **Ordering System**: Time-windowed orders, special orders, cart functionality, and order workflow management. Includes a controlled state machine (`workflowStatus`) with 8 states (CREATED → PENDING_APPROVAL → APPROVED → INVOICED → SHIPPED → DELIVERED, plus REJECTED/CANCELLED), RBAC-gated transitions, and business rule enforcement (customer active, no overdue AR, invoice present before shipping). Driven via `POST /api/orders/:id/transition`. Fully additive — legacy `status` field and all existing endpoints untouched.
 - **Reporting & Exports**: Comprehensive purchasing and financial reports, CSV export, DANFE Internal PDF, ERP Bling Export, and Fiscal Export Module (XML/XLSX).
 - **Logistics Module**: Route, driver, vehicle management, maintenance, quotations, and a Route Assistant with geocoding for optimized delivery. GPS tracking and control per plan.
 - **Contratual Client Module**: Dedicated experience for contract clients, including scope viewing, change requests, and restricted ordering.
