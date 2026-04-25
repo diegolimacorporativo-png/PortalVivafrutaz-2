@@ -48,6 +48,12 @@ export interface SessionPayload {
   userId?: number;
   companyId?: number;
   userType?: LoginType;
+  /**
+   * Cached role for the logged-in admin user. Stored at login so
+   * requireRole() can authorize without an extra DB round-trip per request.
+   * Absent for company-portal sessions (companies don't have a role).
+   */
+  userRole?: string;
 }
 
 export interface ForgotPasswordOutcome {

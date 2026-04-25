@@ -1062,6 +1062,7 @@ export const nfManual = pgTable("nf_manual", {
   observacoes: text("observacoes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   userId: integer("user_id").references(() => users.id),
+  tenantId: integer("empresa_id").references(() => companies.id),
 });
 export const insertNfManualSchema = createInsertSchema(nfManual).omit({ id: true, createdAt: true });
 export type NfManual = typeof nfManual.$inferSelect;
@@ -1118,6 +1119,7 @@ export const aiInteractions = pgTable("ai_interactions", {
   actionExecuted: text("action_executed"),
   actionData: jsonb("action_data"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  tenantId: integer("empresa_id").references(() => companies.id),
 });
 export type AiInteraction = typeof aiInteractions.$inferSelect;
 export const insertAiInteractionSchema = createInsertSchema(aiInteractions).omit({ id: true, createdAt: true });

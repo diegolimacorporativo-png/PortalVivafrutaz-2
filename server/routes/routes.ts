@@ -33,6 +33,10 @@ import { orders, orderItems, companies, products, aiInteractions, nfManual } fro
 import { sql, gte, lte, and, eq, desc, isNull } from "drizzle-orm";
 import { AIDeveloper } from "../services/aiDeveloper.ts";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
+import { tenantContext, requireTenant } from "../middleware/tenant";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
+import { currentTenantId } from "../core/tenant/context";
 
 const claraIA = new AIDeveloper();
 
@@ -4126,10 +4130,13 @@ export async function registerRoutes(
   });
 
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
-  app.get('/api/executive-dashboard', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    const user = await storage.getUser(req.session.userId);
-    if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
+  // SECURITY: Cross-tenant by design (executive overview spans all empresas).
+  // Locked behind requireAuth + requireRole — only admin-level roles can read.
+  // Direct db.select() below is intentional and gated by the role check.
+  app.get('/api/executive-dashboard',
+    requireAuthCore,
+    requireRole(['MASTER', 'ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER']),
+    async (req, res) => {
     try {
       const { period = 'month' } = req.query;
       const now = new Date();
@@ -5399,15 +5406,26 @@ export async function registerRoutes(
   });
 
   // ─── IA ASSISTENTE VIRTUAL (Interactive AI Chat) ──────────────
-  app.get('/api/assistant/history', async (req: any, res) => {
-    if (!req.session?.userId && !req.session?.companyId) return res.status(401).json({ message: 'Não autenticado' });
+  // SECURITY: tenantContext resolves the principal; tenantWhere(aiInteractions)
+  // scopes the read to the current tenant. MASTER without a target tenant sees
+  // an empty list — they must pass ?empresaId=N to inspect a specific tenant.
+  app.get('/api/assistant/history', tenantContext, async (req: any, res) => {
     try {
+      const tenantId = currentTenantId();
+      // Cross-tenant admins (MASTER without ?empresaId) get nothing — there is
+      // no "global AI history" view; they must scope to a tenant explicitly.
+      if (tenantId == null) {
+        return res.json([]);
+      }
       const rows = await db.select().from(aiInteractions)
+        .where(tenantWhere(aiInteractions))
         .orderBy(desc(aiInteractions.createdAt))
         .limit(50);
+      // Within a tenant, company-portal users only see their company's
+      // interactions; admin-portal users see everything in the tenant.
       const filtered = req.session?.companyId
         ? rows.filter((r: any) => r.companyId === req.session.companyId)
-        : rows.filter((r: any) => r.userId === req.session.userId);
+        : rows;
       res.json(filtered);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -6237,7 +6255,12 @@ export async function registerRoutes(
     }
 
     // Save interaction to history
+    // SECURITY: stamp tenantId so the row is reachable via tenantWhere(aiInteractions).
+    // Falls back to company.empresaId / user.empresaId; null only when neither side
+    // has a resolvable tenant (legacy support before users/companies linked).
     try {
+      const tenantId =
+        company?.id ?? company?.empresaId ?? user?.empresaId ?? null;
       await db.insert(aiInteractions).values({
         userId: user?.id || null,
         companyId: company?.id || null,
@@ -6248,6 +6271,7 @@ export async function registerRoutes(
         intent,
         actionExecuted,
         actionData: actionData ? actionData : null,
+        tenantId,
       });
     } catch { /* ignore history save errors */ }
 
@@ -7203,14 +7227,15 @@ export async function registerRoutes(
     });
 
     // POST /api/nf-manual — inserir NF manual
-    app.post('/api/nf-manual', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    // SECURITY: tenantContext + requireTenant force a pinned tenant; withTenant
+    // stamps tenantId from session, ignoring anything in the request body.
+    app.post('/api/nf-manual', tenantContext, requireTenant, async (req: any, res) => {
       try {
         const { numeroNf, dataEmissao, clienteFornecedor, produtos, impostos, observacoes } = req.body;
         if (!numeroNf || !dataEmissao || !clienteFornecedor || !produtos) {
           return res.status(400).json({ message: 'Campos obrigatórios: numeroNf, dataEmissao, clienteFornecedor, produtos' });
         }
-        const nf = await db.insert(nfManual).values({
+        const nf = await db.insert(nfManual).values(withTenant(nfManual, {
           numeroNf,
           dataEmissao,
           clienteFornecedor,
@@ -7218,16 +7243,22 @@ export async function registerRoutes(
           impostos,
           observacoes,
           userId: req.session.userId,
-        }).returning();
+        })).returning();
         res.status(201).json({ success: true, nf: nf[0] });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
     // GET /api/nf-manual — listar NF manuais
-    app.get('/api/nf-manual', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    // SECURITY: tenantContext resolves the principal; tenantWhere(nfManual)
+    // filters by current tenant. MASTER without ?empresaId sees an empty list.
+    app.get('/api/nf-manual', tenantContext, async (req: any, res) => {
       try {
-        const nfs = await db.select().from(nfManual).orderBy(desc(nfManual.createdAt));
+        if (currentTenantId() == null) {
+          return res.json([]);
+        }
+        const nfs = await db.select().from(nfManual)
+          .where(tenantWhere(nfManual))
+          .orderBy(desc(nfManual.createdAt));
         res.json(nfs);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
@@ -8233,11 +8264,15 @@ export async function registerRoutes(
   });
 
   // ─── MASTER: Assinaturas ─────────────────────────────────────────────────────
-  app.get('/api/master/assinaturas', async (req: any, res) => {
+  // SECURITY: All /api/master/* endpoints are MASTER-only. The role check is
+  // centralized via requireRole(['MASTER']) — composes after requireAuthCore so
+  // anonymous callers get 401 and non-MASTER users get 403, both via the
+  // standard error-handler shape. ?companyId=N is a *filter*, not a security
+  // boundary — MASTER is by definition cross-tenant.
+  const requireMaster = [requireAuthCore, requireRole(['MASTER'])];
+
+  app.get('/api/master/assinaturas', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const filters: any = {};
       if (req.query.companyId) filters.companyId = Number(req.query.companyId);
       if (req.query.status) filters.status = req.query.status;
@@ -8245,32 +8280,23 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post('/api/master/assinaturas', async (req: any, res) => {
+  app.post('/api/master/assinaturas', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const assinatura = await storage.createAssinatura(req.body);
       res.status(201).json(assinatura);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.put('/api/master/assinaturas/:id', async (req: any, res) => {
+  app.put('/api/master/assinaturas/:id', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const assinatura = await storage.updateAssinatura(Number(req.params.id), req.body);
       res.json(assinatura);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // ─── MASTER: Billing Events ───────────────────────────────────────────────────
-  app.get('/api/master/billing-events', async (req: any, res) => {
+  app.get('/api/master/billing-events', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const filters: any = {};
       if (req.query.companyId) filters.companyId = Number(req.query.companyId);
       if (req.query.status) filters.status = req.query.status;
@@ -8278,32 +8304,23 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post('/api/master/billing-events', async (req: any, res) => {
+  app.post('/api/master/billing-events', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const event = await storage.createBillingEvent(req.body);
       res.status(201).json(event);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.put('/api/master/billing-events/:id', async (req: any, res) => {
+  app.put('/api/master/billing-events/:id', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const event = await storage.updateBillingEvent(Number(req.params.id), req.body);
       res.json(event);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // ─── MASTER: Company-level assinatura lookup ─────────────────────────────────
-  app.get('/api/master/companies/:id/assinatura', async (req: any, res) => {
+  app.get('/api/master/companies/:id/assinatura', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const assinatura = await storage.getAssinaturaByCompany(Number(req.params.id));
       res.json(assinatura || null);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -8367,11 +8384,20 @@ export async function registerRoutes(
   });
 
   // ─── Deliveries CRUD ─────────────────────────────────────────────────────────
-  app.get('/api/deliveries', async (req: any, res) => {
+  // SECURITY: tenantContext pins the principal. Pinned admins/companies are
+  // FORCED to filter by their own tenant — even if they pass ?companyId=X. Only
+  // unscoped MASTER may target a different companyId via ?companyId=N.
+  app.get('/api/deliveries', tenantContext, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      const tenantId = currentTenantId();
       const filters: any = {};
-      if (req.query.companyId) filters.companyId = Number(req.query.companyId);
+      if (tenantId != null) {
+        // Pinned: ignore body/query overrides; force own tenant.
+        filters.companyId = tenantId;
+      } else if (req.query.companyId) {
+        // Cross-tenant admin (MASTER without ?empresaId): explicit target ok.
+        filters.companyId = Number(req.query.companyId);
+      }
       if (req.query.driverId) filters.driverId = Number(req.query.driverId);
       if (req.query.routeId) filters.routeId = Number(req.query.routeId);
       if (req.query.status) filters.status = req.query.status;

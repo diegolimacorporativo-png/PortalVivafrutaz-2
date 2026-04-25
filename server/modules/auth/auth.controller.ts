@@ -62,6 +62,10 @@ export class AuthController {
     if (outcome.kind === "admin-success") {
       session.userId = outcome.user.id;
       session.userType = "admin";
+      // Cache the role on the session so requireRole() can authorize without
+      // an extra DB round-trip per request. requireRole still falls back to a
+      // DB lookup for legacy sessions written before this field existed.
+      session.userRole = outcome.user.role;
     } else {
       session.companyId = outcome.company.id;
       session.userType = "company";
