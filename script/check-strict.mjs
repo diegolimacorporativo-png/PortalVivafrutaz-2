@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
-const SCOPES = ["server/modules/orders/", "server/modules/finance/"];
+const SCOPES = [
+  "server/modules/orders/",
+  "server/modules/finance/",
+  "server/modules/users/",
+];
 
 const result = spawnSync(
   "npx",

@@ -3,6 +3,7 @@
   "include": [
     "server/modules/orders/**/*",
     "server/modules/finance/**/*",
+    "server/modules/users/**/*",
     "shared/**/*"
   ],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
