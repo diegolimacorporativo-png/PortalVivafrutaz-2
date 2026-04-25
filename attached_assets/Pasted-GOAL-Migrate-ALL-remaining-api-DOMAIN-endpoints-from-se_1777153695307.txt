@@ -1,0 +1,135 @@
+GOAL:
+Migrate ALL remaining /api/<DOMAIN>/* endpoints from server/routes/routes.ts
+to server/modules/<domain>/ using controller delegation,
+with ZERO behavior change and ZERO runtime risk.
+
+CRITICAL RULE:
+If ANY endpoint in the module is missing, incomplete, or behaves differently → STOP and report instead of proceeding.
+
+---
+
+STEP 1 — DISCOVERY
+- Enumerate ALL /api/<DOMAIN>/* routes in routes.ts
+- For each route, map:
+  METHOD + PATH → inline handler
+- Group them by:
+  - CRUD
+  - custom endpoints
+  - admin endpoints
+
+---
+
+STEP 2 — MODULE READINESS CHECK (MANDATORY)
+Verify in server/modules/<domain>/:
+
+Controller:
+- Every route has a matching controller method
+
+Service:
+- Method exists AND contains full business logic (not stub / not partial)
+
+Repository:
+- No "Not implemented"
+- All storage calls exist
+
+Router:
+- Paths EXACTLY match existing endpoints (including params like :id vs :orderId)
+
+Mount:
+- Confirm module router is mounted BEFORE routes.ts in server/app.ts
+
+If ANY mismatch:
+→ STOP
+→ List missing endpoints or inconsistencies
+
+---
+
+STEP 3 — PARAM COMPATIBILITY CHECK (IMPORTANT)
+Before replacing:
+
+- Compare route params:
+  Example:
+    routes.ts → /api/orders/:orderId
+    module   → /api/orders/:id
+
+If mismatch:
+- DO NOT change route path
+- Adapt controller to support BOTH:
+  const id = Number(req.params.id ?? req.params.orderId);
+
+---
+
+STEP 4 — SAFE REPLACEMENT
+Replace each inline handler with:
+
+(req: Request, res: Response, next: NextFunction) =>
+  <domain>Controller.<method>(req, res).catch(next)
+
+Rules:
+- Preserve route order (static BEFORE dynamic)
+- DO NOT modify path or HTTP method
+- DO NOT change response structure
+
+---
+
+STEP 5 — SHADOW CHECK (VERY IMPORTANT)
+If module router already handles the same path:
+
+- Mark inline route as SHADOWED
+- Confirm:
+  - same path
+  - same method
+  - same behavior
+
+Only then:
+→ Remove inline route
+
+If ANY doubt:
+→ keep delegation instead
+
+---
+
+STEP 6 — VALIDATION
+Run:
+
+- npx tsc --noEmit
+- npm run check
+- npm run check:strict
+- npm test
+
+Must pass:
+- 0 type errors
+- 0 test failures
+
+---
+
+STEP 7 — RUNTIME VERIFICATION
+Test at least:
+
+1. Success case (200 or 201)
+2. Error case (400 or 401)
+
+Compare BEFORE vs AFTER:
+- status code identical
+- response body identical
+
+---
+
+STEP 8 — REPORT
+Return:
+
+- Total endpoints migrated
+- Shadowed routes removed (if any)
+- Any endpoints NOT migrated (and why)
+- Param mismatches handled
+- Diff summary (before vs after)
+- Risk level (LOW / MEDIUM / HIGH)
+
+---
+
+SUCCESS CRITERIA:
+
+- ZERO inline business logic for /api/<DOMAIN>/*
+- ZERO behavior change
+- ZERO type errors
+- ZERO unhandled promises

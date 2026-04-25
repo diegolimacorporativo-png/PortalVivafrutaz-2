@@ -3,6 +3,8 @@ import type { Server } from "http";
 import { storage } from "../services/storage.ts";
 import { productController } from "../modules/products/products.controller";
 import { ordersController } from "../modules/orders/orders.controller";
+import { authController } from "../modules/auth/auth.controller";
+import { financeController } from "../modules/finance/finance.controller";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
@@ -1289,18 +1291,8 @@ export async function registerRoutes(
   });
 
   // Forgot Password — Client submits a request
-  app.post('/api/auth/forgot-password', async (req, res) => {
-    try {
-      const { email } = req.body;
-      if (!email) return res.status(400).json({ message: "Email obrigatório." });
-      const company = await storage.getCompanyByEmail(email);
-      if (!company) return res.status(404).json({ message: "Email não encontrado no sistema." });
-      const request = await storage.createPasswordResetRequest(company.id);
-      return res.json({ message: "Solicitação enviada! A equipe VivaFrutaz irá redefinir sua senha em breve.", requestId: request.id });
-    } catch (err) {
-      res.status(500).json({ message: "Erro interno. Tente novamente." });
-    }
-  });
+  // Delegated to authController.forgotPassword — owned by server/modules/auth.
+  app.post('/api/auth/forgot-password', (req: Request, res: Response, next: NextFunction) => authController.forgotPassword(req, res).catch(next));
 
   // ─── Special Order Requests ───────────────────────────────────
   // Client: submit special order
@@ -2237,26 +2229,8 @@ export async function registerRoutes(
   });
 
   // --- Log Unauthorized Route Access ---
-  app.post('/api/auth/log-unauthorized', async (req, res) => {
-    try {
-      const sess = req.session as any;
-      const userId = sess?.userId;
-      const user = userId ? await storage.getUser(userId) : null;
-      const { route } = req.body;
-      await storage.createLog({
-        action: 'UNAUTHORIZED_ACCESS',
-        description: `Tentativa de acesso não autorizado à rota: ${route || '?'}`,
-        userId: user?.id ?? undefined,
-        userEmail: user?.email || '(desconhecido)',
-        userRole: user?.role || '(desconhecido)',
-        ip: req.ip || '',
-        level: 'WARN',
-      });
-      res.json({ ok: true });
-    } catch {
-      res.json({ ok: false });
-    }
-  });
+  // Delegated to authController.logUnauthorized — owned by server/modules/auth.
+  app.post('/api/auth/log-unauthorized', (req: Request, res: Response, next: NextFunction) => authController.logUnauthorized(req, res).catch(next));
 
   // ─── TAREFAS ──────────────────────────────────────────────────
   app.get('/api/tasks', async (req, res) => {
@@ -5322,178 +5296,29 @@ export async function registerRoutes(
   });
 
   // ─── Módulo Financeiro ───────────────────────────────────────────────────
+  // PIX payload generation has been migrated to server/modules/finance/finance.service.ts.
+  // The local helper that previously lived here was removed when the inline
+  // /api/finance/* handlers were delegated to financeController below.
 
-  function generatePixPayload(chave: string, nome: string, cidade: string, valor: number, txid: string): string {
-    const sanitize = (s: string, max: number) => s.replace(/[^\w\s]/gi, '').slice(0, max).padEnd(1, ' ').trim();
-    const tlv = (id: string, value: string) => `${id}${String(value.length).padStart(2, '0')}${value}`;
-    const merchant = tlv('00', 'br.gov.bcb.pix') + tlv('01', chave.slice(0, 77));
-    const gui = tlv('26', merchant);
-    const addData = tlv('62', tlv('05', sanitize(txid, 25)));
-    const nomeClean = sanitize(nome, 25);
-    const cidadeClean = sanitize(cidade, 15);
-    const valorStr = valor > 0 ? valor.toFixed(2) : '';
-    let payload = tlv('00', '01') + gui + tlv('52', '0000') + tlv('53', '986');
-    if (valorStr) payload += tlv('54', valorStr);
-    payload += tlv('58', 'BR') + tlv('59', nomeClean) + tlv('60', cidadeClean) + addData + '6304';
-    // CRC16-CCITT
-    let crc = 0xFFFF;
-    for (let i = 0; i < payload.length; i++) {
-      crc ^= payload.charCodeAt(i) << 8;
-      for (let j = 0; j < 8; j++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
-    }
-    return payload + ((crc & 0xFFFF).toString(16).toUpperCase().padStart(4, '0'));
-  }
+  // ─── Finance — Delegated to financeController, owned by server/modules/finance ───
+  app.get('/api/finance/dashboard', (req: Request, res: Response, next: NextFunction) => financeController.getDashboard(req, res).catch(next));
 
-  // GET /api/finance/dashboard
-  app.get('/api/finance/dashboard', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const data = await storage.getFinancialDashboard();
-      res.json(data);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/finance/accounts-receivable', (req: Request, res: Response, next: NextFunction) => financeController.listAccountsReceivable(req, res).catch(next));
+  app.post('/api/finance/accounts-receivable', (req: Request, res: Response, next: NextFunction) => financeController.createAccountReceivable(req, res).catch(next));
+  app.patch('/api/finance/accounts-receivable/:id', (req: Request, res: Response, next: NextFunction) => financeController.updateAccountReceivable(req, res).catch(next));
+  app.patch('/api/finance/accounts-receivable/:id/pay', (req: Request, res: Response, next: NextFunction) => financeController.payAccountReceivable(req, res).catch(next));
+  app.delete('/api/finance/accounts-receivable/:id', (req: Request, res: Response, next: NextFunction) => financeController.deleteAccountReceivable(req, res).catch(next));
 
-  // GET /api/finance/accounts-receivable
-  app.get('/api/finance/accounts-receivable', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const { status, companyId } = req.query;
-      const data = await storage.getAccountsReceivable({
-        status: status as string | undefined,
-        companyId: companyId ? Number(companyId) : undefined,
-      });
-      res.json(data);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/finance/accounts-payable', (req: Request, res: Response, next: NextFunction) => financeController.listAccountsPayable(req, res).catch(next));
+  app.post('/api/finance/accounts-payable', (req: Request, res: Response, next: NextFunction) => financeController.createAccountPayable(req, res).catch(next));
+  app.patch('/api/finance/accounts-payable/:id', (req: Request, res: Response, next: NextFunction) => financeController.updateAccountPayable(req, res).catch(next));
+  app.patch('/api/finance/accounts-payable/:id/pay', (req: Request, res: Response, next: NextFunction) => financeController.payAccountPayable(req, res).catch(next));
+  app.delete('/api/finance/accounts-payable/:id', (req: Request, res: Response, next: NextFunction) => financeController.deleteAccountPayable(req, res).catch(next));
 
-  // POST /api/finance/accounts-receivable
-  app.post('/api/finance/accounts-receivable', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const body = req.body;
-      // Generate PIX payload if forma_pagamento is pix
-      let pixPayload: string | undefined;
-      if (body.formaPagamento === 'pix' || !body.formaPagamento) {
-        const config = await storage.getCompanyConfig();
-        if (config?.cnpj) {
-          pixPayload = generatePixPayload(
-            config.cnpj.replace(/\D/g, ''),
-            config.companyName || 'VivaFrutaz',
-            config.city || 'SAO PAULO',
-            parseFloat(body.valor || '0'),
-            `AR${Date.now().toString().slice(-10)}`
-          );
-        }
-      }
-      const record = await storage.createAccountReceivable({ ...body, pixPayload });
-      await storage.createLog({ action: 'FINANCE_AR_CREATE', description: `Conta a receber criada: ${record.descricao} R$${record.valor}`, level: 'INFO', userId: req.session.userId });
-      res.status(201).json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/finance/cashflow', (req: Request, res: Response, next: NextFunction) => financeController.listCashflow(req, res).catch(next));
+  app.post('/api/finance/cashflow', (req: Request, res: Response, next: NextFunction) => financeController.createCashflowEntry(req, res).catch(next));
 
-  // PATCH /api/finance/accounts-receivable/:id
-  app.patch('/api/finance/accounts-receivable/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const record = await storage.updateAccountReceivable(Number(req.params.id), req.body);
-      res.json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // PATCH /api/finance/accounts-receivable/:id/pay
-  app.patch('/api/finance/accounts-receivable/:id/pay', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const record = await storage.payAccountReceivable(Number(req.params.id));
-      await storage.createLog({ action: 'FINANCE_AR_PAY', description: `Conta a receber marcada como paga: ${record.descricao}`, level: 'INFO', userId: req.session.userId });
-      res.json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // DELETE /api/finance/accounts-receivable/:id
-  app.delete('/api/finance/accounts-receivable/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      await storage.deleteAccountReceivable(Number(req.params.id));
-      res.json({ success: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // GET /api/finance/accounts-payable
-  app.get('/api/finance/accounts-payable', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const data = await storage.getAccountsPayable({ status: req.query.status as string });
-      res.json(data);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // POST /api/finance/accounts-payable
-  app.post('/api/finance/accounts-payable', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const record = await storage.createAccountPayable(req.body);
-      await storage.createLog({ action: 'FINANCE_AP_CREATE', description: `Conta a pagar criada: ${record.descricao} R$${record.valor}`, level: 'INFO', userId: req.session.userId });
-      res.status(201).json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // PATCH /api/finance/accounts-payable/:id
-  app.patch('/api/finance/accounts-payable/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const record = await storage.updateAccountPayable(Number(req.params.id), req.body);
-      res.json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // PATCH /api/finance/accounts-payable/:id/pay
-  app.patch('/api/finance/accounts-payable/:id/pay', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const record = await storage.payAccountPayable(Number(req.params.id));
-      await storage.createLog({ action: 'FINANCE_AP_PAY', description: `Conta a pagar marcada como paga: ${record.descricao}`, level: 'INFO', userId: req.session.userId });
-      res.json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // DELETE /api/finance/accounts-payable/:id
-  app.delete('/api/finance/accounts-payable/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      await storage.deleteAccountPayable(Number(req.params.id));
-      res.json({ success: true });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // GET /api/finance/cashflow
-  app.get('/api/finance/cashflow', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const { from, to } = req.query;
-      const data = await storage.getFinancialTransactions({ from: from as string, to: to as string });
-      res.json(data);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // POST /api/finance/cashflow — manual transaction
-  app.post('/api/finance/cashflow', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const record = await storage.createFinancialTransaction({ ...req.body, referenciaTipo: 'manual' });
-      res.status(201).json(record);
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  // GET /api/finance/pix/:id — return pix payload for an AR
-  app.get('/api/finance/pix/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const ar = await storage.getAccountReceivable(Number(req.params.id));
-      if (!ar) return res.status(404).json({ message: 'Conta a receber não encontrada' });
-      res.json({ id: ar.id, descricao: ar.descricao, valor: ar.valor, pixPayload: ar.pixPayload });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/finance/pix/:id', (req: Request, res: Response, next: NextFunction) => financeController.getPixForReceivable(req, res).catch(next));
 
   // ─── NF-e Routes ─────────────────────────────────────────────────────────
   {
