@@ -1,0 +1,104 @@
+GOAL:
+Remover completamente o productsRouter não utilizado do módulo de produtos, sem alterar nenhum comportamento em runtime, rotas, respostas ou arquitetura atual baseada em delegação via routes.ts.
+
+CONTEXT:
+- O sistema NÃO utiliza productsRouter.
+- Todas as rotas de produtos são delegadas diretamente via productController em server/routes/routes.ts.
+- productsRouter (em server/modules/products/products.routes.ts) está atualmente morto (não montado).
+- server/modules/products/index.ts ainda exporta productsRouter, mas ninguém consome.
+
+CONSTRAINTS (STRICT):
+- NÃO alterar server/routes/routes.ts
+- NÃO alterar controllers, services, repositories
+- NÃO alterar endpoints existentes
+- NÃO alterar response shape
+- NÃO adicionar novas rotas
+- NÃO quebrar imports existentes
+- TypeScript deve continuar 100% clean
+- npm run check, check:strict e test devem continuar passando
+
+---
+
+TASKS:
+
+1. DELETE FILE:
+- Remover completamente:
+  server/modules/products/products.routes.ts
+
+2. CLEAN EXPORTS:
+- Editar:
+  server/modules/products/index.ts
+
+- Remover qualquer export relacionado a:
+  productsRouter
+
+- Garantir que o arquivo exporta apenas:
+  - productController
+  - productService
+  - productRepository (se aplicável)
+  - types válidos
+
+3. VERIFY NO DEAD IMPORTS:
+- Procurar no projeto inteiro:
+  "productsRouter"
+
+- Garantir:
+  - Nenhum import restante
+  - Nenhuma referência quebrada
+
+4. TYPE SAFETY:
+- Rodar:
+  npm run check
+  npm run check:strict
+
+- Deve retornar:
+  OK, 0 errors
+
+5. TESTS:
+- Rodar:
+  npm test
+
+- Resultado esperado:
+  100% PASS (sem alterações)
+
+6. RUNTIME CHECK:
+- Subir o servidor
+- Testar endpoints:
+
+  GET /api/products
+  GET /api/products/:id
+  POST /api/products
+  GET /api/products/next-code
+
+- Garantir:
+  - Todas respostas idênticas ao estado anterior
+
+---
+
+EXPECTED RESULT:
+
+- Nenhum código morto no módulo de produtos
+- Nenhum productsRouter no projeto
+- Arquitetura permanece:
+  routes.ts → controller → service → repository
+
+- Nenhuma mudança de comportamento
+- Nenhuma quebra de endpoint
+- Nenhuma mudança de contrato
+
+---
+
+OUTPUT FORMAT:
+
+- Lista de arquivos alterados/removidos
+- Confirmação de:
+  - TypeScript OK
+  - Tests OK
+  - Runtime OK
+- Confirmação explícita:
+  "productsRouter removido sem impacto no sistema"
+
+DO NOT:
+- Refatorar arquitetura
+- Introduzir router modular
+- Alterar padrão atual
