@@ -6,6 +6,7 @@
     "server/modules/users/**/*",
     "server/modules/companies/**/*",
     "server/modules/auth/**/*",
+    "server/routes/**/*",
     "server/session.d.ts",
     "shared/**/*"
   ],

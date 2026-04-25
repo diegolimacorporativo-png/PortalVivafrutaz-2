@@ -37,6 +37,7 @@ import { tenantContext, requireTenant } from "../middleware/tenant";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
+import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
 
 const claraIA = new AIDeveloper();
 
@@ -414,7 +415,7 @@ export async function registerRoutes(
             if (!productWeeklyAvg[item.productId]) {
               productWeeklyAvg[item.productId] = { name: (item as any).productName || String(item.productId), avgQty: 0 };
             }
-            productWeeklyAvg[item.productId].avgQty += item.quantity / 4;
+            productWeeklyAvg[item.productId]!.avgQty += item.quantity / 4;
           }
         }
 
@@ -472,13 +473,14 @@ export async function registerRoutes(
           // Sort and get last order
           const sorted = compOrders.sort((a: any, b: any) => new Date(b.orderDate || b.createdAt).getTime() - new Date(a.orderDate || a.createdAt).getTime());
           const lastOrder = sorted[0];
+          if (!lastOrder) continue;
           const daysSince = Math.floor((now - new Date(lastOrder.orderDate || lastOrder.createdAt).getTime()) / 86400000);
 
           // Calculate historical ordering frequency (days between orders)
           if (compOrders.length >= 2) {
             const dates = sorted.map((o: any) => new Date(o.orderDate || o.createdAt).getTime());
             let totalGap = 0;
-            for (let i = 0; i < dates.length - 1; i++) totalGap += dates[i] - dates[i + 1];
+            for (let i = 0; i < dates.length - 1; i++) totalGap += dates[i]! - dates[i + 1]!;
             const avgGapDays = totalGap / (dates.length - 1) / 86400000;
             const overdueThreshold = avgGapDays * 1.8; // 80% over normal frequency
 
@@ -653,7 +655,8 @@ export async function registerRoutes(
           const ipsMap: Record<string, number> = {};
           for (const l of loginFails) {
             const match = l.description?.match(/(\d+\.\d+\.\d+\.\d+)/);
-            if (match) ipsMap[match[1]] = (ipsMap[match[1]] || 0) + 1;
+            const ip = match?.[1];
+            if (ip) ipsMap[ip] = (ipsMap[ip] || 0) + 1;
           }
           const suspectIps = Object.entries(ipsMap).filter(([, c]) => c >= 5);
           alerts.push({
@@ -1215,7 +1218,7 @@ export async function registerRoutes(
         if (linkedItems.length === 0) continue;
 
         // Pegar o custo mais recente
-        const latestCost = linkedItems[0].unitPrice;
+        const latestCost = linkedItems[0]!.unitPrice;
         const variation = (latestCost - basePrice) / basePrice;
 
         if (Math.abs(variation) >= ALERT_THRESHOLD) {
@@ -2482,7 +2485,7 @@ export async function registerRoutes(
             if (!orderData) return;
             const allProducts = await storage.getProducts();
             const productMap = new Map(allProducts.map(p => [p.id, p]));
-            const today = new Date().toISOString().split('T')[0];
+            const today = new Date().toISOString().substring(0, 10);
             for (const item of orderData.items) {
               const product = productMap.get(item.productId);
               const productName = product?.name || `Produto #${item.productId}`;
@@ -2526,7 +2529,7 @@ export async function registerRoutes(
               const today = new Date();
               const due = new Date(today);
               due.setDate(due.getDate() + 30);
-              const toDate = (d: Date) => d.toISOString().split('T')[0];
+              const toDate = (d: Date) => d.toISOString().substring(0, 10);
               const config = await storage.getCompanyConfig();
               let pixPayload: string | undefined;
               if (config?.cnpj) {
@@ -3801,8 +3804,8 @@ export async function registerRoutes(
           const co = allCompanies.find(c => c.id === o.companyId);
           companyMap[o.companyId] = { companyId: o.companyId, companyName: co?.companyName || `Empresa #${o.companyId}`, total: 0, count: 0 };
         }
-        companyMap[o.companyId].total += parseFloat(o.totalValue || '0');
-        companyMap[o.companyId].count += 1;
+        companyMap[o.companyId]!.total += parseFloat(o.totalValue || '0');
+        companyMap[o.companyId]!.count += 1;
       }
       const topCompanies = Object.values(companyMap).sort((a, b) => b.total - a.total).slice(0, 10);
 
@@ -3816,8 +3819,8 @@ export async function registerRoutes(
           const pr = allProds.find(p => p.id === item.productId);
           productMap[item.productId] = { productId: item.productId, productName: pr?.name || `Produto #${item.productId}`, qty: 0, total: 0 };
         }
-        productMap[item.productId].qty += item.quantity;
-        productMap[item.productId].total += parseFloat(item.totalPrice || '0');
+        productMap[item.productId]!.qty += item.quantity;
+        productMap[item.productId]!.total += parseFloat(item.totalPrice || '0');
       }
       const topProducts = Object.values(productMap).sort((a, b) => b.total - a.total).slice(0, 10);
 
@@ -3832,7 +3835,8 @@ export async function registerRoutes(
       const lastOrderByCompany: Record<number, Date> = {};
       for (const o of allOrdersAll.filter(x => x.status !== 'CANCELLED')) {
         const d = new Date(o.orderDate);
-        if (!lastOrderByCompany[o.companyId] || d > lastOrderByCompany[o.companyId]) {
+        const existing = lastOrderByCompany[o.companyId];
+        if (!existing || d > existing) {
           lastOrderByCompany[o.companyId] = d;
         }
       }
@@ -3982,7 +3986,7 @@ export async function registerRoutes(
     if (session.userId) {
       // Staff seeing client view — return all active
       const all = await storage.getAnnouncements();
-      const today = new Date().toISOString().split('T')[0];
+      const today = new Date().toISOString().substring(0, 10);
       return res.json(all.filter(a => a.active && a.startDate <= today && a.endDate >= today));
     }
     return res.status(401).json({ message: 'Não autorizado' });
@@ -4148,11 +4152,11 @@ export async function registerRoutes(
         const today = new Date();
         const day = today.getDay() || 7; // ISO: Mon=1..Sun=7
         const mon = new Date(today); mon.setDate(today.getDate() - (day - 1));
-        startDate = mon.toISOString().split('T')[0];
+        startDate = mon.toISOString().substring(0, 10);
       }
       const startD = new Date(startDate + 'T12:00:00');
       const endD = new Date(startD); endD.setDate(startD.getDate() + 4);
-      const endDate = endD.toISOString().split('T')[0];
+      const endDate = endD.toISOString().substring(0, 10);
       const weekRef = startDate; // use startDate as weekRef for plan statuses
 
       const [allOrders, allProducts, allCompanies] = await Promise.all([
@@ -4165,7 +4169,7 @@ export async function registerRoutes(
 
       const filtered = allOrders.filter(o => {
         if (['CANCELLED'].includes(o.status)) return false;
-        const d = new Date(o.deliveryDate).toISOString().split('T')[0];
+        const d = new Date(o.deliveryDate).toISOString().substring(0, 10);
         if (d < startDate) return false;
         if (d > endDate) return false;
         return true;
@@ -4199,7 +4203,7 @@ export async function registerRoutes(
               entry.companies.push({
                 companyId: order.companyId, companyName,
                 quantity: Number(item.quantity || 0),
-                deliveryDate: new Date(order.deliveryDate).toISOString().split('T')[0],
+                deliveryDate: new Date(order.deliveryDate).toISOString().substring(0, 10),
                 orderId: order.id,
                 orderCode: order.orderCode || `VF-${order.id}`,
               });
@@ -4258,7 +4262,7 @@ export async function registerRoutes(
             if (offset === undefined) continue;
             const deliveryDate = new Date(startD);
             deliveryDate.setDate(startD.getDate() + offset);
-            const delivDateStr = deliveryDate.toISOString().split('T')[0];
+            const delivDateStr = deliveryDate.toISOString().substring(0, 10);
             if (categoryFilter && categoryFilter !== 'all') continue; // scopes don't have category filter here
             const key = `scope__${productName}`;
             if (!productMap.has(key)) {
@@ -4291,16 +4295,16 @@ export async function registerRoutes(
           if (!byDay[d]) {
             const dt = new Date(d + 'T12:00:00');
             byDay[d] = {
-              date: d, dayName: DAY_NAMES[dt.getDay()],
+              date: d, dayName: DAY_NAMES[dt.getDay()] ?? '',
               shortDate: dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
               items: [],
             };
           }
           // Check if this product already in day
-          let dayItem = byDay[d].items.find(i => i.productName === p.productName && i.source === p.source);
+          let dayItem = byDay[d]!.items.find(i => i.productName === p.productName && i.source === p.source);
           if (!dayItem) {
             dayItem = { ...p, totalQty: 0, companies: [], planStatus: p.planStatus };
-            byDay[d].items.push(dayItem);
+            byDay[d]!.items.push(dayItem);
           }
           dayItem.totalQty += c.quantity;
           dayItem.companies.push(c);
@@ -4712,13 +4716,15 @@ export async function registerRoutes(
         const products: Record<string, any>[] = [];
         const detRegex = /<det[^>]*>([\s\S]*?)<\/det>/gi;
         const prodRegex = /<prod>([\s\S]*?)<\/prod>/i;
-        const tagVal = (src: string, tag: string) => { const m = src.match(new RegExp(`<${tag}[^>]*>([^<]+)</${tag}>`, 'i')); return m ? m[1].trim() : ''; };
+        const tagVal = (src: string, tag: string) => { const m = src.match(new RegExp(`<${tag}[^>]*>([^<]+)</${tag}>`, 'i')); return m && m[1] ? m[1].trim() : ''; };
         let detMatch;
         while ((detMatch = detRegex.exec(text)) !== null) {
           const det = detMatch[1];
+          if (!det) continue;
           const prodMatch = prodRegex.exec(det);
           if (prodMatch) {
             const p = prodMatch[1];
+            if (!p) continue;
             products.push({
               tipo: 'produto',
               codigo: tagVal(p, 'cProd'),
@@ -4733,7 +4739,7 @@ export async function registerRoutes(
         }
         // Also get destinatário as client
         const destMatch = text.match(/<dest>([\s\S]*?)<\/dest>/i);
-        if (destMatch) {
+        if (destMatch && destMatch[1]) {
           const d = destMatch[1];
           rows.push({
             tipo: 'cliente',
@@ -4749,7 +4755,14 @@ export async function registerRoutes(
       } else {
         // Excel / CSV
         const wb = XLSX.read(buffer, { type: 'buffer' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
+        const firstSheetName = wb.SheetNames[0];
+        if (!firstSheetName) {
+          throw new BadRequestError('Planilha sem abas válidas');
+        }
+        const ws = wb.Sheets[firstSheetName];
+        if (!ws) {
+          throw new BadRequestError('Planilha sem abas válidas');
+        }
         const data: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
         rows = data.map((r: any) => {
           // Try to auto-detect columns with common Portuguese names
@@ -4905,7 +4918,7 @@ export async function registerRoutes(
             purchasePrice: item.unitPrice ? String(item.unitPrice) : null,
             invoiceNumber,
             invoiceDate: issueDate || null,
-            entryDate: new Date().toISOString().split('T')[0],
+            entryDate: new Date().toISOString().substring(0, 10),
             expiryDate: null,
             notes: `Importado da nota fiscal ${invoiceNumber}`,
             createdBy: session.userId ? String(session.userId) : 'System',
@@ -5383,7 +5396,7 @@ export async function registerRoutes(
 
         // Check if asking about a specific company's delivery window
         const companyMatch = message.match(/(?:empresa|cliente|para)\s+([A-Za-záàâãéèêíïóôõöúçñü\s]+)/i);
-        if (companyMatch) {
+        if (companyMatch && companyMatch[1]) {
           const searchName = companyMatch[1].trim().toLowerCase();
           const allCompanies = await storage.getCompanies();
           const found = allCompanies.find((c: any) => c.companyName?.toLowerCase().includes(searchName));
@@ -5403,7 +5416,7 @@ export async function registerRoutes(
             }
             response = deliveryInfo;
           } else {
-            response = `⚠️ Empresa "**${companyMatch[1].trim()}**" não encontrada. Verifique o nome e tente novamente.`;
+            response = `⚠️ Empresa "**${companyMatch[1]!.trim()}**" não encontrada. Verifique o nome e tente novamente.`;
           }
         } else {
           response = `🚚 **Logística e Rotas**\n\n• Rotas cadastradas: **${routes.length}**\n${routeLines ? `\n${routeLines}\n` : ''}\n${activeWindow ? `📅 Janela ativa: **${activeWindow.weekReference}** — entrega de ${new Date(activeWindow.deliveryStartDate).toLocaleDateString('pt-BR')} a ${new Date(activeWindow.deliveryEndDate).toLocaleDateString('pt-BR')}` : '⚠️ Nenhuma janela de entrega ativa'}\n\nDica: "Clara, qual o horário de entrega da empresa [Nome]?"`;
@@ -5475,7 +5488,7 @@ export async function registerRoutes(
       let companyParam = '';
       let companyLabel = '';
       const empresaMatch = msg.match(/(?:da empresa|do cliente|empresa|cliente)\s+([a-záéíóúãõâêôçñ\s]{2,30})(?:\s|$)/i);
-      if (empresaMatch) {
+      if (empresaMatch && empresaMatch[1]) {
         const searchName = empresaMatch[1].trim().toLowerCase();
         const allCompanies = await storage.getCompanies();
         const found = allCompanies.find((c: any) =>
@@ -5507,7 +5520,7 @@ export async function registerRoutes(
         let filtered = allOrders;
         if (dateFrom) filtered = filtered.filter((o: any) => new Date(o.orderDate || o.createdAt) >= dateFrom!);
         if (companyParam) {
-          const cid = parseInt(companyParam.split('=')[1]);
+          const cid = parseInt(companyParam.split('=')[1] ?? '');
           filtered = filtered.filter((o: any) => o.companyId === cid);
         }
         if (statusParam) {
@@ -5539,7 +5552,7 @@ export async function registerRoutes(
         const ordersByCompany: Record<number, any[]> = {};
         for (const o of allOrders.filter((o: any) => o.status !== 'CANCELLED')) {
           if (!ordersByCompany[o.companyId]) ordersByCompany[o.companyId] = [];
-          ordersByCompany[o.companyId].push(o);
+          ordersByCompany[o.companyId]!.push(o);
         }
         const atRisk = activeCompanies.filter((c: any) => {
           const orders = ordersByCompany[c.id] || [];
@@ -5605,7 +5618,7 @@ export async function registerRoutes(
             const c = allCompanies.find((c: any) => c.id === o.companyId);
             byCompany[o.companyId] = { name: c?.companyName || `#${o.companyId}`, total: 0 };
           }
-          byCompany[o.companyId].total += parseFloat(o.totalValue || '0');
+          byCompany[o.companyId]!.total += parseFloat(o.totalValue || '0');
         }
         const top = Object.values(byCompany).sort((a, b) => b.total - a.total).slice(0, 8);
         const lines = top.map((c, i) => `${i + 1}. **${c.name}** — R$ ${c.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`).join('\n');
@@ -5787,11 +5800,11 @@ export async function registerRoutes(
           if (/valor|preço|custo|quanto custa|quanto pago/.test(msg)) {
             response = `💰 **Valor do seu contrato**\n\n• Valor semanal estimado: **R$ ${valorSemanal.toFixed(2).replace('.', ',')}**\n• Valor mensal estimado: **R$ ${(valorSemanal * 4).toFixed(2).replace('.', ',')}**\n• Entregas por semana: **${entregas}**\n\nPara mais detalhes acesse **Meu Escopo Contratual** no menu.`;
           } else if (/dia|dias|quando|entrega/.test(msg)) {
-            const diasList = Object.keys(byDay).map(d => `• **${d}** — ${byDay[d].length} item(s)`).join('\n');
+            const diasList = Object.keys(byDay).map(d => `• **${d}** — ${byDay[d]!.length} item(s)`).join('\n');
             response = `📅 **Seus dias de entrega**\n\n${diasList || '• Nenhum dia configurado ainda'}\n\nTotal de **${entregas}** entrega(s) por semana.`;
           } else if (/quantas|quantidade|quantos/.test(msg)) {
             const match = msg.match(/(banana|manga|maçã|maca|limão|limao|laranja|melão|melao|uva|morango)/);
-            if (match) {
+            if (match && match[1]) {
               const fruit = match[1];
               const items = scopes.filter(s => (s as any).productName?.toLowerCase().includes(fruit) || (s as any).categoryName?.toLowerCase().includes(fruit));
               if (items.length === 0) {
@@ -5922,7 +5935,7 @@ export async function registerRoutes(
       const ordersByCompany: Record<number, any[]> = {};
       for (const o of allOrders) {
         if (!ordersByCompany[o.companyId]) ordersByCompany[o.companyId] = [];
-        ordersByCompany[o.companyId].push(o);
+        ordersByCompany[o.companyId]!.push(o);
       }
 
       // Build product order history per company (for dropped products)
@@ -5933,13 +5946,13 @@ export async function registerRoutes(
         try {
           const { items } = await storage.getOrder(o.id) || { items: [] };
           for (const item of items) {
-            if (!productHistoryByCompany[o.companyId][item.productId]) {
-              productHistoryByCompany[o.companyId][item.productId] = { productName: (item as any).productName || `Produto #${item.productId}`, lastOrdered: 0, totalOrders: 0 };
+            if (!productHistoryByCompany[o.companyId]![item.productId]) {
+              productHistoryByCompany[o.companyId]![item.productId] = { productName: (item as any).productName || `Produto #${item.productId}`, lastOrdered: 0, totalOrders: 0 };
             }
-            if (orderDate > productHistoryByCompany[o.companyId][item.productId].lastOrdered) {
-              productHistoryByCompany[o.companyId][item.productId].lastOrdered = orderDate;
+            if (orderDate > productHistoryByCompany[o.companyId]![item.productId]!.lastOrdered) {
+              productHistoryByCompany[o.companyId]![item.productId]!.lastOrdered = orderDate;
             }
-            productHistoryByCompany[o.companyId][item.productId].totalOrders++;
+            productHistoryByCompany[o.companyId]![item.productId]!.totalOrders++;
           }
         } catch { /* skip */ }
       }
@@ -6064,8 +6077,8 @@ export async function registerRoutes(
           const comp = allCompanies.find((c: any) => c.id === o.companyId);
           revenueByCompany[o.companyId] = { companyName: comp?.companyName || `#${o.companyId}`, total: 0, orderCount: 0 };
         }
-        revenueByCompany[o.companyId].total += parseFloat(o.totalValue || '0');
-        revenueByCompany[o.companyId].orderCount++;
+        revenueByCompany[o.companyId]!.total += parseFloat(o.totalValue || '0');
+        revenueByCompany[o.companyId]!.orderCount++;
       }
 
       const topClients = Object.entries(revenueByCompany)
@@ -6147,8 +6160,8 @@ export async function registerRoutes(
       }
 
       const scheduleArray = Object.values(deliverySchedule).sort((a, b) => {
-        const [da, ma, ya] = a.date.split('/').map(Number);
-        const [db, mb, yb] = b.date.split('/').map(Number);
+        const [da = 0, ma = 0, ya = 0] = a.date.split('/').map(Number);
+        const [db = 0, mb = 0, yb = 0] = b.date.split('/').map(Number);
         return new Date(ya, ma - 1, da).getTime() - new Date(yb, mb - 1, db).getTime();
       }).map(d => ({ ...d, totalValue: parseFloat(d.totalValue.toFixed(2)) }));
 
@@ -6971,8 +6984,8 @@ export async function registerRoutes(
         const config = getItauConfigFromAccount(acc);
         if (!config) return res.status(400).json({ message: 'Credenciais não configuradas' });
         const { from, to } = req.query as Record<string, string>;
-        const dataInicio = from || new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
-        const dataFim = to || new Date().toISOString().split('T')[0];
+        const dataInicio = from || new Date(Date.now() - 30 * 86400000).toISOString().substring(0, 10);
+        const dataFim = to || new Date().toISOString().substring(0, 10);
         const transacoes = await getItauExtrato(config, dataInicio, dataFim);
 
         // Persist new transactions
@@ -6985,7 +6998,7 @@ export async function registerRoutes(
             });
           }
         }
-        await storage.updateBankAccount(acc.id, { ultimaSincronizacao: new Date(), saldoAtual: transacoes.length > 0 ? String(transacoes[0].saldoApos || 0) : undefined });
+        await storage.updateBankAccount(acc.id, { ultimaSincronizacao: new Date(), saldoAtual: transacoes.length > 0 ? String(transacoes[0]!.saldoApos || 0) : undefined });
         res.json({ transacoes, periodo: { dataInicio, dataFim } });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
@@ -8539,8 +8552,8 @@ export async function registerRoutes(
       deliveries.forEach((d: any) => {
         if (!d.driverId) return;
         if (!driverStats[d.driverId]) driverStats[d.driverId] = { count: 0, entregues: 0 };
-        driverStats[d.driverId].count++;
-        if (d.status === 'entregue') driverStats[d.driverId].entregues++;
+        driverStats[d.driverId]!.count++;
+        if (d.status === 'entregue') driverStats[d.driverId]!.entregues++;
       });
 
       res.json({
