@@ -23,6 +23,38 @@ import { storage } from "../services/storage";
 export function tenantContext(req: Request, res: Response, next: NextFunction) {
   const session = (req as any).session;
 
+  // Service request — the caller proved possession of the internal API key
+  // via `requireAuthOrService`. They have no session to derive a tenant from,
+  // so we read the target tenant from `?empresaId=N` or `X-Empresa-Id`. We
+  // intentionally permit `empresaId == null` here so cross-tenant tooling
+  // (admin reports, dataset exports) can still hit endpoints that don't
+  // require pinning. Routes that DO require a tenant will reject via
+  // `requireTenant` further down the chain.
+  if (req.isService && !session?.userId && !session?.companyId) {
+    const headerVal =
+      (req.header("X-Empresa-Id") as string | undefined) ??
+      (req.query.empresaId as string | undefined);
+    let target: number | null = null;
+    if (headerVal != null && headerVal !== "") {
+      const parsed = Number(headerVal);
+      if (!Number.isInteger(parsed) || parsed <= 0) {
+        return next(new ForbiddenError("empresaId alvo inválido"));
+      }
+      target = parsed;
+    }
+    const principal: TenantPrincipal = {
+      kind: "admin",
+      empresaId: target,
+      userId: 0,
+      role: "SERVICE",
+    } as TenantPrincipal;
+    (req as any).empresaId = target;
+    return runWithTenant(
+      { principal, empresaId: target },
+      () => next(),
+    );
+  }
+
   // Company portal: the tenant is the company itself. No override possible.
   if (session?.companyId) {
     const principal: TenantPrincipal = {

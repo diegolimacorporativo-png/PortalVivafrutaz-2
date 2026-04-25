@@ -1,0 +1,168 @@
+You are a senior backend architect working on a multi-tenant SaaS ERP.
+
+Your task is to introduce a secure "service access layer" (API Key / Service Token)
+to safely replace previously public endpoints, and continue cleaning the legacy routes.ts.
+
+========================================
+GOAL
+========================================
+
+1. Allow controlled external/system access WITHOUT requiring session login
+2. Prevent unauthorized public access
+3. Maintain backward compatibility
+4. Continue reducing routes.ts safely
+
+========================================
+STEP 1 — CREATE SERVICE AUTH MIDDLEWARE
+========================================
+
+Create:
+
+server/middleware/serviceAuth.ts
+
+Behavior:
+
+- Check header:
+  x-api-key
+
+- Compare with:
+  process.env.INTERNAL_API_KEY
+
+- If valid:
+  allow request (bypass requireAuth)
+
+- If invalid:
+  return:
+  fail(res, "Unauthorized service access", "UNAUTHORIZED", 401)
+
+- Attach to request:
+  req.isService = true
+
+========================================
+STEP 2 — COMBINE AUTH MODES
+========================================
+
+Create a helper middleware:
+
+requireAuthOrService
+
+Logic:
+
+IF:
+  req.session.userId exists → allow
+
+ELSE IF:
+  req.isService === true → allow
+
+ELSE:
+  401 UNAUTHORIZED
+
+========================================
+STEP 3 — APPLY TO SAFE ENDPOINTS
+========================================
+
+Identify endpoints that were previously public, such as:
+
+- GET /api/companies
+- GET /api/orders (if any legacy)
+- integrations / hooks / cron usage
+
+Apply:
+
+requireAuthOrService
+
+NOT only requireAuth
+
+========================================
+STEP 4 — DO NOT BREAK TENANT SECURITY
+========================================
+
+Even for service requests:
+
+- STILL require tenant scoping
+
+Rules:
+
+IF service request:
+  MUST pass tenant via:
+    ?empresaId=1
+    OR header:
+    x-empresa-id
+
+Use tenantContext as usual
+
+========================================
+STEP 5 — HARDEN TENANT CONTEXT
+========================================
+
+Update tenant middleware:
+
+IF req.isService:
+  allow tenant from header/query
+
+ELSE (user session):
+  ignore query param and force tenant from session
+
+========================================
+STEP 6 — APPLY TO COMPANIES MODULE
+========================================
+
+In companies.routes.ts:
+
+- Replace requireAuth with requireAuthOrService WHERE SAFE
+
+Example:
+
+router.get('/', requireAuthOrService, tenantContext, controller.list)
+
+DO NOT allow:
+- create/update/delete via service unless explicitly intended
+
+========================================
+STEP 7 — CLEAN routes.ts SAFELY
+========================================
+
+In server/routes/routes.ts:
+
+1. Remove any leftover public endpoints
+2. Replace them with module-based routing
+3. Add comments:
+
+// migrated to companies module
+// secured via requireAuthOrService
+
+========================================
+STEP 8 — VALIDATION
+========================================
+
+Test scenarios:
+
+1. No auth → should return 401
+2. Logged user → works
+3. API Key only → works
+4. API Key + tenant → scoped correctly
+5. API Key without tenant → 403
+
+========================================
+OUTPUT
+========================================
+
+Show:
+
+1. serviceAuth middleware
+2. requireAuthOrService
+3. updated companies.routes.ts example
+4. tenantContext adjustment
+5. security explanation
+6. risks
+
+========================================
+IMPORTANT
+========================================
+
+- DO NOT expose endpoints publicly again
+- DO NOT bypass tenant isolation
+- DO NOT allow service to mutate data unless explicitly defined
+- KEEP system backward compatible
+
+Proceed carefully.
