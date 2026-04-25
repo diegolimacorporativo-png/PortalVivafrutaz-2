@@ -121,7 +121,9 @@ export async function executeWorkflowTransaction(
     actor,
   } = input;
   const newLegacyStatus = legacyStatusFor(to, currentLegacyStatus);
-  const today = new Date().toISOString().split("T")[0];
+  // .substring(0,10) preserves the exact "YYYY-MM-DD" prefix of toISOString()
+  // and returns string (not string | undefined as .split("T")[0] would).
+  const today = new Date().toISOString().substring(0, 10);
 
   return db.transaction(async (tx) => {
 
@@ -177,6 +179,16 @@ export async function executeWorkflowTransaction(
       .where(eq(orders.id, orderId))
       .returning();
 
+    if (!updatedOrder) {
+      // Defensive: the optimistic-lock check above proved the row exists and
+      // matches expectedWorkflowStatus, so an empty .returning() here would
+      // signal a concurrent DELETE between the two reads. Surface as 409.
+      throw new ConflictError(
+        `Pedido #${orderId} não pôde ser atualizado (linha desapareceu durante a transação).`,
+        { orderId },
+      );
+    }
+
     let preNotaNumber: string | null = null;
     let inventoryLinesDeducted = 0;
     let arCreated = false;
@@ -231,9 +243,9 @@ export async function executeWorkflowTransaction(
                   FOR UPDATE`,
         )) as unknown as Array<{ id: number; current_stock: number; unit: string; product_name: string }>;
 
-        if (settingRows.length === 0) continue; // non-tracked product — skip
+        const setting = settingRows[0];
+        if (!setting) continue; // non-tracked product — skip
 
-        const setting      = settingRows[0];
         const currentStock = Number(setting.current_stock);
 
         // Idempotency: skip if this order already has an EXIT movement for
@@ -287,7 +299,8 @@ export async function executeWorkflowTransaction(
               RETURNING current_stock::text AS new_stock`,
         )) as unknown as Array<{ new_stock: string }>;
 
-        if (deducted.length === 0) {
+        const deductedRow = deducted[0];
+        if (!deductedRow) {
           // Race condition: someone else consumed stock between our SELECT
           // FOR UPDATE and this UPDATE — should be extremely rare.
           const productLabel = item.productName || setting.product_name;
@@ -298,7 +311,7 @@ export async function executeWorkflowTransaction(
           );
         }
 
-        const newStock = deducted[0].new_stock;
+        const newStock = deductedRow.new_stock;
 
         await tx.insert(inventoryMovements).values({
           productId:    item.productId ?? null,
@@ -336,7 +349,7 @@ export async function executeWorkflowTransaction(
           const emissao    = new Date();
           const vencimento = new Date(emissao);
           vencimento.setDate(vencimento.getDate() + 30);
-          const toDateStr  = (d: Date) => d.toISOString().split("T")[0];
+          const toDateStr  = (d: Date) => d.toISOString().substring(0, 10);
 
           let pixPayload: string | undefined;
           if (companyConfig?.cnpj) {

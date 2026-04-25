@@ -8,6 +8,7 @@
     "build": "tsx script/build.ts",
     "start": "cross-env NODE_ENV=production node --max-old-space-size=2048 dist/index.cjs",
     "check": "tsc",
+    "check:strict": "node script/check-strict.mjs",
     "db:push": "drizzle-kit push",
     "validate": "node -e \"require('child_process').execSync('pwsh ./validate.ps1 || bash ./validate.sh');\"",
     "tunnel": "node scripts/ngrok-tunnel.js",
