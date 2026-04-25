@@ -5,6 +5,8 @@
     "server/modules/finance/**/*",
     "server/modules/users/**/*",
     "server/modules/companies/**/*",
+    "server/modules/auth/**/*",
+    "server/session.d.ts",
     "shared/**/*"
   ],
   "exclude": ["node_modules", "build", "dist", "**/*.test.ts"],
