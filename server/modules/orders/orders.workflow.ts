@@ -1,5 +1,42 @@
 import { BadRequestError, ForbiddenError } from "../../core/errors/AppError";
 
+// ─── Legacy status alignment ──────────────────────────────────────────────────
+/**
+ * Maps each `workflowStatus` value to the equivalent legacy `status` value
+ * written in the `orders.status` column.
+ *
+ * Purpose: prevent the two columns from drifting apart. Every time
+ * `workflowStatus` changes, `status` is updated to the corresponding value
+ * inside the same DB transaction — so any frontend, report, or legacy endpoint
+ * that still reads `orders.status` sees a consistent picture without
+ * any code change on their side.
+ *
+ * Mapping rationale:
+ *  CREATED / PENDING_APPROVAL → "ACTIVE"    (order exists, not yet actionable)
+ *  APPROVED / INVOICED / SHIPPED → "CONFIRMED" (admin-approved, progressing)
+ *  DELIVERED  → "DELIVERED"
+ *  REJECTED   → "CANCELLED"  (terminal rejection ≡ cancelled in legacy)
+ *  CANCELLED  → "CANCELLED"
+ */
+export const LEGACY_STATUS_MAP: Record<string, string> = {
+  CREATED:          "ACTIVE",
+  PENDING_APPROVAL: "ACTIVE",
+  APPROVED:         "CONFIRMED",
+  INVOICED:         "CONFIRMED",
+  SHIPPED:          "CONFIRMED",
+  DELIVERED:        "DELIVERED",
+  REJECTED:         "CANCELLED",
+  CANCELLED:        "CANCELLED",
+};
+
+/**
+ * Returns the legacy `status` that should be written alongside `workflowStatus`.
+ * Falls back to the existing legacy status if the mapping is unknown.
+ */
+export function legacyStatusFor(workflowStatus: string, current: string): string {
+  return LEGACY_STATUS_MAP[workflowStatus] ?? current;
+}
+
 /**
  * OrderStatus — the controlled state machine for the order workflow.
  *

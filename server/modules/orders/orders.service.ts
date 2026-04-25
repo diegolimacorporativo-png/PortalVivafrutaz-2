@@ -13,7 +13,9 @@ import {
   assertTransitionAllowed,
   assertTransitionRole,
   validateBusinessRules,
+  legacyStatusFor,
 } from "./orders.workflow";
+import { executeWorkflowTransaction } from "./orders.transaction";
 import {
   fireNotification,
 } from "../../services/pushService";
@@ -559,133 +561,187 @@ export class OrdersService {
    * `POST /api/orders/:id/transition`
    *
    * Drives the order through the controlled `workflowStatus` state machine.
-   * The legacy `status` column is NOT touched — all existing endpoints keep
-   * reading/writing it without any change in behavior.
    *
-   * Safety contract:
-   *  1. Auth check — caller must be authenticated.
-   *  2. State guard — `assertTransitionAllowed` rejects illegal arcs.
-   *  3. RBAC guard  — `assertTransitionRole` rejects under-privileged actors.
-   *  4. Business rules — `validateBusinessRules` enforces domain invariants
-   *     (customer active, no overdue AR, invoice present before shipping).
-   *  5. Persist — single `repo.update` write with the new `workflowStatus`.
-   *  6. Side-effects — fire-and-forget (matching existing service pattern) so
-   *     a downstream failure (stock, finance, logistics) never rolls back the
-   *     primary state change. Each hook has its own try/catch.
+   * ─── Safety contract (4 phases) ────────────────────────────────────────
    *
-   * Risks & mitigations:
-   *  - Non-atomic side effects: acceptable per existing pattern; each hook is
-   *    idempotent and retryable.
-   *  - Legacy `status` drift: `workflowStatus` is additive; reconciliation
-   *    with the legacy column is a planned follow-up.
+   * PHASE 1 — Pre-flight reads (no DB writes yet)
+   *   Load order, acting user, company, AR. Fail fast with 4xx before
+   *   opening any transaction slot.
+   *
+   * PHASE 2 — Validation (pure, synchronous after reads)
+   *   a. Auth: actor must be an authenticated staff user.
+   *   b. State guard: `assertTransitionAllowed` rejects illegal arcs.
+   *   c. RBAC: `assertTransitionRole` rejects under-privileged callers.
+   *   d. Business rules: `validateBusinessRules` checks domain invariants
+   *      (customer active/not-locked, no overdue AR, invoice present for SHIP).
+   *
+   * PHASE 3 — Atomic transaction (critical — all-or-nothing)
+   *   Calls `executeWorkflowTransaction` which runs inside a single pg BEGIN.
+   *   Writes: workflowStatus + status (legacy sync) + per-transition critical
+   *   ops (pre-nota, inventory deduction, AR creation, delivery status update).
+   *   Any error causes automatic ROLLBACK — no partial state ever persists.
+   *
+   * PHASE 4 — Non-critical side effects (fire-and-forget)
+   *   Push notification and audit log are best-effort. A transient failure
+   *   in these never rolls back the committed business state.
+   *
+   * ─── Status consistency ─────────────────────────────────────────────────
+   *   The legacy `orders.status` column is updated inside the SAME transaction
+   *   as `orders.workflow_status` using `legacyStatusFor()` mapping. This
+   *   prevents any divergence between the two columns that could confuse
+   *   legacy endpoints or existing frontend queries.
+   *
+   * ─── Risks ──────────────────────────────────────────────────────────────
+   *   - The audit log and push notification are outside the transaction.
+   *     In the unlikely event of a crash between COMMIT and log write, the
+   *     transition will have occurred but without a log entry. Acceptable
+   *     trade-off vs. making the log a blocking critical dependency.
+   *   - Inventory deduction is idempotent only if the workflow state machine
+   *     is respected (APPROVED can only be entered once). The transition guard
+   *     enforces this.
    */
   async transition(
     id: number,
     to: OrderStatus,
     actor: ActorContext,
     reason?: string,
-  ): Promise<{ order: Order; workflowStatus: OrderStatus; from: string }> {
+  ): Promise<{ order: Order; workflowStatus: OrderStatus; from: string; details: Record<string, unknown> }> {
+
+    // ── Phase 1: Pre-flight reads ──────────────────────────────────────
     if (!actor.userId) throw new UnauthorizedError();
-    const user = await this.repo.getUser(actor.userId);
+
+    const [user, orderData] = await Promise.all([
+      this.repo.getUser(actor.userId),
+      this.repo.get(id),
+    ]);
     if (!user) throw new UnauthorizedError();
-
-    const orderData = await this.repo.get(id);
     if (!orderData) throw new NotFoundError("Pedido não encontrado");
-    const orderRow: any = orderData.order;
 
+    const orderRow: any = orderData.order;
     const from: string = (orderRow.workflowStatus as string) || OrderStatus.CREATED;
 
+    const [company, arByCompany, allProducts, companyConfig] = await Promise.all([
+      this.repo.getCompany(orderRow.companyId),
+      this.repo.getAccountsReceivableByCompanyId(orderRow.companyId),
+      this.repo.getProducts(),
+      this.repo.getCompanyConfig(),
+    ]);
+
+    // ── Phase 2: Validation ────────────────────────────────────────────
     assertTransitionAllowed(from, to);
     assertTransitionRole(to, user.role);
-
-    const company = await this.repo.getCompany(orderRow.companyId);
-    const arByCompany = await this.repo.getAccountsReceivableByCompanyId(orderRow.companyId);
-
     validateBusinessRules({ orderId: id, to, company, orderRow, arByCompany });
 
-    const updated = await this.repo.update(id, { workflowStatus: to });
+    // Enrich order items with productName so the transaction can write it
+    // to inventory_movements without doing a separate products table query
+    // inside the transaction (keeps tx short and avoids holding locks).
+    const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
+    const enrichedItems = (orderData.items as any[]).map((item) => ({
+      ...item,
+      productName:
+        (productMap.get(item.productId) as any)?.name ||
+        `Produto #${item.productId}`,
+    }));
 
-    await this.repo.createLog({
-      action: "WORKFLOW_TRANSITION",
-      description: `Pedido #${id} (${orderRow.orderCode || id}): ${from} → ${to}${reason ? ` — ${reason}` : ""}`,
-      userId: user.id,
-      userEmail: user.email,
-      userRole: user.role,
-      level: "INFO",
+    // ── Phase 3: Atomic transaction — ALL critical writes ──────────────
+    const txResult = await executeWorkflowTransaction({
+      orderId: id,
+      to,
+      currentLegacyStatus: orderRow.status,
+      orderSnapshot: orderRow,
+      itemsSnapshot: enrichedItems,
+      companyConfig,
+      actor: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        name: (user as any).name,
+      },
     });
 
-    this.afterWorkflowTransition(id, to, from, orderRow, user).catch((err) =>
-      console.error("[orders.afterWorkflowTransition] side-effect error:", err),
+    // ── Phase 4: Non-critical side effects (fire-and-forget) ───────────
+    this.afterWorkflowTransitionNonCritical(id, to, from, orderRow, user, txResult).catch(
+      (err) => console.error("[WORKFLOW] Non-critical side-effect error:", err),
     );
 
-    return { order: updated, workflowStatus: to, from };
+    const details: Record<string, unknown> = {};
+    if (txResult.preNotaNumber)          details.preNotaNumber          = txResult.preNotaNumber;
+    if (txResult.inventoryLinesDeducted) details.inventoryLinesDeducted = txResult.inventoryLinesDeducted;
+    if (txResult.arCreated)              details.arCreated              = true;
+    if (txResult.deliveryUpdated)        details.deliveryUpdated        = true;
+
+    return {
+      order: txResult.updatedOrder as unknown as Order,
+      workflowStatus: to,
+      from,
+      details,
+    };
   }
 
   /**
-   * Side effects triggered by workflow transitions.
-   * Each step is isolated so a failure in one never blocks the others.
+   * Non-critical (best-effort) side effects fired after a successful commit.
    *
-   * APPROVED  → generate pre-nota (if not already exists), reserve stock
-   * INVOICED  → seed account-receivable (if not already seeded)
-   * SHIPPED   → mark logistics delivery as "em rota"
+   * Separated from `transition()` so a push/log failure never causes the
+   * caller to see a 5xx even though the business state was already committed.
+   *
+   * Each step has its own try/catch so a failure in one doesn't skip the rest.
    */
-  private async afterWorkflowTransition(
+  private async afterWorkflowTransitionNonCritical(
     id: number,
     to: OrderStatus,
     from: string,
     orderRow: any,
     user: any,
+    txResult: Awaited<ReturnType<typeof executeWorkflowTransaction>>,
   ) {
-    if (to === OrderStatus.APPROVED) {
-      try {
-        if (!orderRow.preNotaNumber) {
-          const preNotaNumber = `VF-NF-${id.toString().padStart(6, "0")}`;
-          await this.repo.update(id, { preNotaNumber } as any);
-          console.log(`[WORKFLOW] Pre-nota gerada para pedido #${id}: ${preNotaNumber}`);
-        }
-      } catch (err) {
-        console.error("[WORKFLOW] Erro ao gerar pre-nota:", err);
-      }
-
-      try {
-        await this.deductInventoryOnConfirm(id);
-      } catch (err) {
-        console.error("[WORKFLOW] Erro ao reservar estoque:", err);
-      }
-    }
-
-    if (to === OrderStatus.INVOICED) {
-      try {
-        await this.seedAccountReceivableOnConfirm(id);
-      } catch (err) {
-        console.error("[WORKFLOW] Erro ao criar conta a receber:", err);
-      }
-    }
-
-    if (to === OrderStatus.SHIPPED) {
-      try {
-        const delivery = await this.repo.getDeliveryByOrder(id);
-        if (delivery) {
-          await this.repo.updateDelivery((delivery as any).id, { status: "em_rota" });
-          console.log(`[WORKFLOW] Entrega #${(delivery as any).id} marcada como em_rota`);
-        }
-      } catch (err) {
-        console.error("[WORKFLOW] Erro ao atualizar logística:", err);
-      }
-    }
-
+    // Push notification
     try {
+      const statusLabel: Record<string, string> = {
+        PENDING_APPROVAL: "Aguardando aprovação",
+        APPROVED:         "Aprovado",
+        REJECTED:         "Rejeitado",
+        INVOICED:         "Faturado",
+        SHIPPED:          "Em expedição",
+        DELIVERED:        "Entregue",
+        CANCELLED:        "Cancelado",
+      };
       fireNotification(
-        "order_updated",
+        to === OrderStatus.CANCELLED ? "order_cancelled" : "order_updated",
         {
-          code: orderRow.orderCode || `#${id}`,
+          code:    orderRow.orderCode || `#${id}`,
           company: `Empresa #${orderRow.companyId}`,
-          status: to,
+          status:  statusLabel[to] || to,
         },
         { url: `/admin/orders/${id}` },
       );
     } catch {
       /* swallow */
+    }
+
+    // Audit log
+    try {
+      const parts: string[] = [
+        `Pedido #${id} (${orderRow.orderCode || id}): ${from} → ${to}`,
+      ];
+      if (txResult.preNotaNumber)
+        parts.push(`pre-nota: ${txResult.preNotaNumber}`);
+      if (txResult.inventoryLinesDeducted)
+        parts.push(`estoque: ${txResult.inventoryLinesDeducted} produto(s) baixado(s)`);
+      if (txResult.arCreated)
+        parts.push("conta a receber criada");
+      if (txResult.deliveryUpdated)
+        parts.push("entrega: em_rota");
+
+      await this.repo.createLog({
+        action:      "WORKFLOW_TRANSITION",
+        description: parts.join(" — "),
+        userId:      user.id,
+        userEmail:   user.email,
+        userRole:    user.role,
+        level:       "INFO",
+      });
+    } catch (logErr) {
+      console.error("[WORKFLOW] Erro ao gravar log de auditoria:", logErr);
     }
   }
 
