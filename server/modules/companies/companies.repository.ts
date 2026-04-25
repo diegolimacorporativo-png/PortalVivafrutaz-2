@@ -9,7 +9,7 @@ import {
 import { storage } from "../../services/storage";
 import { tenantWhere } from "../../core/tenant/scope";
 import { currentTenantId } from "../../core/tenant/context";
-import { ForbiddenError } from "../../core/errors/AppError";
+import { ForbiddenError } from "../../shared/errors/AppError";
 import type {
   Company,
   InsertCompany,

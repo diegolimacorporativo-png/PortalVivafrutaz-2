@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ForbiddenError, UnauthorizedError } from "../errors/AppError";
+import { ForbiddenError, UnauthorizedError } from "../../shared/errors/AppError";
 
 /**
  * TenantContext — request-scoped multi-tenant identity carried implicitly

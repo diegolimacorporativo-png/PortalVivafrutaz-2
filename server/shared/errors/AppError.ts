@@ -1,14 +1,11 @@
 /**
- * AppError — canonical error hierarchy for the shared architecture.
+ * AppError — canonical error hierarchy for the entire backend.
  *
- * This is the single source of truth for typed HTTP errors. The legacy
- * `server/core/errors/AppError.ts` remains untouched for backward compat with
- * modules that haven't migrated yet. New and refactored modules import from
- * here.
- *
- * Every subclass maps 1-to-1 with an HTTP status so the central errorHandler
- * in `server/core/errors/errorHandler.ts` can produce a clean `{ success:
- * false, error }` envelope without any instanceof branching.
+ * Single source of truth for typed HTTP errors. Every operational error
+ * thrown in the codebase must extend this class so the central
+ * errorHandler in `server/core/errors/errorHandler.ts` can rely on
+ * `instanceof AppError` to map it to a clean `{ success: false, error }`
+ * envelope, preserving `status`, `code`, and `details` consistently.
  */
 export class AppError extends Error {
   public readonly status: number;

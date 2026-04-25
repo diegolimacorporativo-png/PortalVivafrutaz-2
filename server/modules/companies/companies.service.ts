@@ -2,7 +2,7 @@ import {
   NotFoundError,
   BadRequestError,
   ForbiddenError,
-} from "../../core/errors/AppError";
+} from "../../shared/errors/AppError";
 import {
   companiesRepository,
   CompaniesRepository,

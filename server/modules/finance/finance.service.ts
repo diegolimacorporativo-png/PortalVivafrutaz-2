@@ -1,4 +1,4 @@
-import { NotFoundError } from "../../core/errors/AppError";
+import { NotFoundError } from "../../shared/errors/AppError";
 import { financeRepository, FinanceRepository } from "./finance.repository";
 import type {
   AccountReceivable,

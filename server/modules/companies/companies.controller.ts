@@ -4,7 +4,7 @@ import {
   CompaniesService,
 } from "./companies.service";
 import { ok, created, noContent } from "../../core/http/apiResponse";
-import { UnauthorizedError } from "../../core/errors/AppError";
+import { UnauthorizedError } from "../../shared/errors/AppError";
 
 /**
  * CompaniesController — thin HTTP adapter.

@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { financeService, FinanceService } from "./finance.service";
 import { ok, created, noContent } from "../../core/http/apiResponse";
-import { UnauthorizedError } from "../../core/errors/AppError";
+import { UnauthorizedError } from "../../shared/errors/AppError";
 
 /**
  * FinanceController — thin HTTP adapter.

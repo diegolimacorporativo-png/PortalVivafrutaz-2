@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { UnauthorizedError, ForbiddenError } from "../errors/AppError";
+import { UnauthorizedError, ForbiddenError } from "../../shared/errors/AppError";
 import { storage } from "../../services/storage";
 
 /**
