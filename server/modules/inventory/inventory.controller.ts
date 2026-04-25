@@ -89,7 +89,7 @@ export class InventoryController {
         return res.status(e.status).json({ message: e.message });
       }
       // Legacy fallback — see routes.ts line ~3343.
-      console.error("Inventory entry error:", e);
+      console.warn('[inventory.controller] createEntry failed', e);
       res.status(500).json({ message: "Erro ao registrar entrada" });
     }
   };
@@ -131,7 +131,7 @@ export class InventoryController {
         return res.status(e.status).json({ message: e.message });
       }
       // Legacy fallback — see routes.ts line ~3414.
-      console.error("Physical count error:", e);
+      console.warn('[inventory.controller] createPhysicalCount failed', e);
       res.status(500).json({ message: "Erro ao registrar contagem física" });
     }
   };

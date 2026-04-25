@@ -1,0 +1,213 @@
+GOAL:
+Padronizar TODOS os controllers do projeto para usar fluxo consistente de erro com next(err),
+SEM alterar comportamento, SEM alterar response shape e SEM alterar status codes.
+
+STRICT RULES:
+- NÃO alterar nenhuma mensagem de erro existente
+- NÃO alterar nenhum status HTTP
+- NÃO alterar nenhum response body (shape deve permanecer idêntico)
+- NÃO alterar lógica de negócio
+- NÃO alterar validações
+- NÃO mover lógica para outro layer
+- NÃO introduzir novos formatos de erro
+- Se houver dúvida de comportamento → PARAR e reportar
+
+---
+
+STEP 1 — DISCOVERY
+
+Para cada módulo em:
+server/modules/*
+
+Identificar em TODOS os controllers:
+- métodos async que usam try/catch
+- métodos que fazem res.status(...).json(...) dentro do catch
+- métodos que usam next(err)
+- métodos com catch vazio ou sem log
+
+Classificar cada método:
+
+TIPO A:
+try {
+  ...
+} catch (err) {
+  res.status(...).json(...)
+}
+
+TIPO B:
+try {
+  ...
+} catch (err) {
+  next(err)
+}
+
+TIPO C:
+async sem try/catch (ex: return service())
+
+TIPO D:
+catch vazio ou sem log
+
+---
+
+STEP 2 — NORMALIZAÇÃO SEGURA
+
+Regra global:
+
+👉 Controllers NÃO devem decidir erro
+👉 Controllers devem DELEGAR erro
+
+Aplicar:
+
+---
+
+CASO 1 — Métodos TIPO A (res.json no catch)
+
+ANTES:
+catch (err) {
+  res.status(400).json({ message: "Bad request" });
+}
+
+DEPOIS:
+catch (err) {
+  return next(err);
+}
+
+⚠️ EXCEÇÃO (IMPORTANTE):
+Se esse endpoint LEGACY retorna SEMPRE shape fixa (ex: "Bad request"),
+ENTÃO manter o comportamento:
+
+catch (err) {
+  console.warn('[<controller>] <method> failed', err);
+  res.status(400).json({ message: "Bad request" });
+}
+
+👉 Ou seja:
+- manter response manual SOMENTE se for comportamento legado obrigatório
+- MAS adicionar log (se não existir)
+
+---
+
+CASO 2 — Métodos TIPO B
+
+ANTES:
+catch (err) {
+  next(err);
+}
+
+DEPOIS:
+✔️ manter igual
+✔️ garantir que NÃO existe lógica extra no catch
+
+---
+
+CASO 3 — Métodos TIPO C (sem try/catch)
+
+ANTES:
+async method(req, res) {
+  const data = await service.method();
+  res.json(data);
+}
+
+DEPOIS:
+✔️ NÃO adicionar try/catch
+✔️ garantir que a rota usa:
+
+(req, res, next) =>
+  controller.method(req, res).catch(next)
+
+---
+
+CASO 4 — Métodos TIPO D (catch vazio ou sem log)
+
+ANTES:
+catch {}
+
+OU
+
+catch (err) {
+  res.status(500).json({ message: "Erro interno" });
+}
+
+DEPOIS:
+catch (err) {
+  console.warn('[<controller>] <method> failed', err);
+  res.status(500).json({ message: "Erro interno" });
+}
+
+---
+
+STEP 3 — LOG PADRÃO
+
+Adicionar log em TODOS os catches que respondem manualmente:
+
+Formato:
+
+console.warn('[<module>.controller] <method> failed', err);
+
+Exemplo:
+console.warn('[products.controller] safraAlerts failed', err);
+
+---
+
+STEP 4 — PROMISE SAFETY
+
+Garantir que TODAS as rotas em:
+
+server/routes/routes.ts
+
+OU nos routers dos módulos usam:
+
+(req, res, next) =>
+  controller.method(req, res).catch(next)
+
+👉 ZERO promises sem catch
+
+---
+
+STEP 5 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm run check
+- npm run check:strict
+- npm test
+
+---
+
+STEP 6 — RUNTIME CHECK
+
+Testar:
+
+1 endpoint com sucesso → 200/201
+1 endpoint com erro → 400/401/500
+
+Comparar:
+
+ANTES vs DEPOIS:
+
+- status code → idêntico
+- body → idêntico
+
+---
+
+STEP 7 — REPORT
+
+Retornar:
+
+- total de controllers analisados
+- total de métodos ajustados
+- quantos mantiveram resposta manual (legacy)
+- quantos migraram para next(err)
+- endpoints com comportamento especial preservado
+- risco final (LOW obrigatório)
+
+---
+
+SUCCESS CRITERIA:
+
+✅ ZERO mudança de comportamento
+✅ ZERO mudança de response shape
+✅ ZERO promise sem catch
+✅ TODOS controllers consistentes
+✅ TODOS erros logados (quando manual)

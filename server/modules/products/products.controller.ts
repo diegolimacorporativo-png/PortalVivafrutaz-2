@@ -110,6 +110,7 @@ export class ProductController {
       }
       res.json(result);
     } catch (e) {
+      console.warn('[products.controller] checkCode failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -127,6 +128,7 @@ export class ProductController {
       }
       res.json(result);
     } catch (e) {
+      console.warn('[products.controller] checkDuplicate failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -137,6 +139,7 @@ export class ProductController {
       const alerts = await productService.getPriceAlerts();
       res.json(alerts);
     } catch (e) {
+      console.warn('[products.controller] priceAlerts failed', e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }

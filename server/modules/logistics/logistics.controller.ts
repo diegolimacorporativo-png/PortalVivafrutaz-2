@@ -25,6 +25,13 @@
  * shapes are also preserved bit-for-bit (raw `{ message }`, not the v2
  * envelope) because there are existing frontend callers that read these
  * fields directly.
+ *
+ * ERROR-FLOW NOTE — every catch in this file responds manually because the
+ * legacy wire contract (status code + Portuguese `{ message }`) is observable
+ * and there are existing frontend callers reading these exact strings. We
+ * therefore PRESERVE each manual response and add a single
+ * `console.warn('[logistics.controller] <method> failed', err)` line so the
+ * standardized log makes the failure visible in production.
  */
 import type { Request, Response } from "express";
 import { LogisticsService, logisticsService } from "./logistics.service";
@@ -103,7 +110,8 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(await this.service.listDrivers());
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] listDrivers failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -115,6 +123,7 @@ export class LogisticsController {
       const driver = await this.service.createDriver(req.body, user);
       res.json(driver);
     } catch (e: any) {
+      console.warn('[logistics.controller] createDriver failed', e);
       // Preserve legacy: BadRequestError → 400; everything else → 500.
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
@@ -130,7 +139,8 @@ export class LogisticsController {
       res.json(
         await this.service.updateDriver(parseInt(req.params.id as string), req.body),
       );
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] updateDriver failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -141,7 +151,8 @@ export class LogisticsController {
     try {
       await this.service.deleteDriver(parseInt(req.params.id as string));
       res.json({ ok: true });
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] deleteDriver failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -152,7 +163,8 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(await this.service.listVehicles());
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] listVehicles failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -163,6 +175,7 @@ export class LogisticsController {
     try {
       res.json(await this.service.createVehicle(req.body, user));
     } catch (e: any) {
+      console.warn('[logistics.controller] createVehicle failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -177,7 +190,8 @@ export class LogisticsController {
       res.json(
         await this.service.updateVehicle(parseInt(req.params.id as string), req.body),
       );
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] updateVehicle failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -188,7 +202,8 @@ export class LogisticsController {
     try {
       await this.service.deleteVehicle(parseInt(req.params.id as string));
       res.json({ ok: true });
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] deleteVehicle failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -199,7 +214,8 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(await this.service.listRoutes());
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] listRoutes failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -210,6 +226,7 @@ export class LogisticsController {
     try {
       res.json(await this.service.createRoute(req.body, user));
     } catch (e: any) {
+      console.warn('[logistics.controller] createRoute failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -224,7 +241,8 @@ export class LogisticsController {
       res.json(
         await this.service.updateRoute(parseInt(req.params.id as string), req.body),
       );
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] updateRoute failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -235,7 +253,8 @@ export class LogisticsController {
     try {
       await this.service.deleteRoute(parseInt(req.params.id as string));
       res.json({ ok: true });
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] deleteRoute failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -246,7 +265,8 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(await this.service.listMaintenance());
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] listMaintenance failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -257,6 +277,7 @@ export class LogisticsController {
     try {
       res.json(await this.service.createMaintenance(req.body, user));
     } catch (e: any) {
+      console.warn('[logistics.controller] createMaintenance failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -271,7 +292,8 @@ export class LogisticsController {
       res.json(
         await this.service.updateMaintenance(parseInt(req.params.id as string), req.body),
       );
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] updateMaintenance failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -282,7 +304,8 @@ export class LogisticsController {
     try {
       await this.service.deleteMaintenance(parseInt(req.params.id as string));
       res.json({ ok: true });
-    } catch {
+    } catch (err) {
+      console.warn('[logistics.controller] deleteMaintenance failed', err);
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -296,7 +319,7 @@ export class LogisticsController {
       );
       res.json(result);
     } catch (e: any) {
-      console.error("Route assistant error:", e);
+      console.warn('[logistics.controller] routeAssistant failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -308,6 +331,7 @@ export class LogisticsController {
       const result = await this.service.suggestRoute(req.body);
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] suggestRoute failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -324,6 +348,7 @@ export class LogisticsController {
       );
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] dayOrders failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -338,6 +363,7 @@ export class LogisticsController {
       const result = await this.service.simulateDay(req.body);
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] simulateDay failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -351,6 +377,7 @@ export class LogisticsController {
       const result = await this.service.calculateDistance(req.body);
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] calculateDistance failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -366,6 +393,7 @@ export class LogisticsController {
       const logs = await this.service.getAuditLogs();
       res.json(logs);
     } catch (e: any) {
+      console.warn('[logistics.controller] auditLogs failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -386,6 +414,7 @@ export class LogisticsController {
       );
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] deliveriesReport failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -398,6 +427,7 @@ export class LogisticsController {
       );
       res.json(stops);
     } catch (e: any) {
+      console.warn('[logistics.controller] listRouteStops failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -410,6 +440,7 @@ export class LogisticsController {
       );
       res.json(stop);
     } catch (e: any) {
+      console.warn('[logistics.controller] createRouteStop failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -422,6 +453,7 @@ export class LogisticsController {
       );
       res.json(stop);
     } catch (e: any) {
+      console.warn('[logistics.controller] updateRouteStop failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -431,6 +463,7 @@ export class LogisticsController {
       await this.service.deleteRouteStop(Number(req.params.stopId as string));
       res.json({ ok: true });
     } catch (e: any) {
+      console.warn('[logistics.controller] deleteRouteStop failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -441,6 +474,7 @@ export class LogisticsController {
       const result = await this.service.geoCep(req.params.cep as string);
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] geoCep failed', e);
       if (e?.status === 404) {
         return res.status(404).json({ message: e.message });
       }
@@ -455,6 +489,7 @@ export class LogisticsController {
       const result = await this.service.smartSearch(q);
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] smartSearch failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -470,6 +505,7 @@ export class LogisticsController {
       );
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] bestDriver failed', e);
       res.status(500).json({ message: e.message });
     }
   };
@@ -480,6 +516,7 @@ export class LogisticsController {
       const result = await this.service.routeInsertion(req.body);
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] routeInsertion failed', e);
       if (e?.status === 400) {
         return res.status(400).json({ message: e.message });
       }
@@ -496,6 +533,7 @@ export class LogisticsController {
       );
       res.json(result);
     } catch (e: any) {
+      console.warn('[logistics.controller] smartRoutePlan failed', e);
       res.status(500).json({ message: e.message });
     }
   };

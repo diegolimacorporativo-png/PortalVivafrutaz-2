@@ -37,6 +37,7 @@ export class AuthController {
       input = loginSchema.parse(req.body);
     } catch (err) {
       if (err instanceof ZodError) {
+        console.warn('[auth.controller] login failed', err);
         res.status(400).json({ message: "Usuário ou senha incorretos." });
         return;
       }
@@ -123,7 +124,8 @@ export class AuthController {
     let email: string;
     try {
       email = forgotPasswordSchema.parse(req.body).email;
-    } catch {
+    } catch (err) {
+      console.warn('[auth.controller] forgotPassword failed', err);
       res.status(400).json({ message: "Email obrigatório." });
       return;
     }
