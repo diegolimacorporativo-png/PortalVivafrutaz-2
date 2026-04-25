@@ -1,9 +1,9 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "bash"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
-channel = "stable-24_05"
+channel = "stable-25_05"
 packages = ["glib", "nss", "nspr", "atk", "xorg.libX11", "xorg.libxcb", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "libxkbcommon", "cups", "pango", "cairo", "dbus", "expat", "fontconfig", "freetype", "zip"]
 
 [[ports]]
