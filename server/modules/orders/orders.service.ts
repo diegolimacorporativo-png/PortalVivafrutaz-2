@@ -87,6 +87,23 @@ export interface ActorContext {
 }
 
 /**
+ * In-process mutex for workflow transitions.
+ *
+ * Holds the set of order IDs that are currently inside an active
+ * `transition()` call within THIS Node.js process. Before opening a DB
+ * transaction, `transition()` checks this set and rejects immediately (409)
+ * if the same order is already being transitioned.
+ *
+ * Why: The database-level `SELECT … FOR UPDATE` already serializes concurrent
+ * transitions at the pg level, but checking the in-process set lets us reject
+ * without even consuming a connection-pool slot, which is faster and cheaper.
+ *
+ * Scope: This only guards within a single process. Multi-replica deployments
+ * rely entirely on the FOR UPDATE row lock for cross-process serialization.
+ */
+const TRANSITION_IN_FLIGHT = new Set<number>();
+
+/**
  * OrdersService — business rules of the orders module.
  *
  * Architecture decision: services own *behavior*. They orchestrate the
@@ -607,7 +624,7 @@ export class OrdersService {
     reason?: string,
   ): Promise<{ order: Order; workflowStatus: OrderStatus; from: string; details: Record<string, unknown> }> {
 
-    // ── Phase 1: Pre-flight reads ──────────────────────────────────────
+    // ── Phase 1: Pre-flight reads (no DB writes, no locks yet) ────────────────
     if (!actor.userId) throw new UnauthorizedError();
 
     const [user, orderData] = await Promise.all([
@@ -618,7 +635,7 @@ export class OrdersService {
     if (!orderData) throw new NotFoundError("Pedido não encontrado");
 
     const orderRow: any = orderData.order;
-    const from: string = (orderRow.workflowStatus as string) || OrderStatus.CREATED;
+    const from: string  = (orderRow.workflowStatus as string) || OrderStatus.CREATED;
 
     const [company, arByCompany, allProducts, companyConfig] = await Promise.all([
       this.repo.getCompany(orderRow.companyId),
@@ -627,15 +644,14 @@ export class OrdersService {
       this.repo.getCompanyConfig(),
     ]);
 
-    // ── Phase 2: Validation ────────────────────────────────────────────
+    // ── Phase 2: Validation (pure — all reads are done, no writes yet) ───────
     assertTransitionAllowed(from, to);
     assertTransitionRole(to, user.role);
     validateBusinessRules({ orderId: id, to, company, orderRow, arByCompany });
 
-    // Enrich order items with productName so the transaction can write it
-    // to inventory_movements without doing a separate products table query
-    // inside the transaction (keeps tx short and avoids holding locks).
-    const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
+    // Enrich items with productName before entering the transaction so the tx
+    // body only needs to do writes — no products table lookup under lock.
+    const productMap    = new Map(allProducts.map((p: any) => [p.id, p]));
     const enrichedItems = (orderData.items as any[]).map((item) => ({
       ...item,
       productName:
@@ -643,39 +659,65 @@ export class OrdersService {
         `Produto #${item.productId}`,
     }));
 
-    // ── Phase 3: Atomic transaction — ALL critical writes ──────────────
-    const txResult = await executeWorkflowTransaction({
-      orderId: id,
-      to,
-      currentLegacyStatus: orderRow.status,
-      orderSnapshot: orderRow,
-      itemsSnapshot: enrichedItems,
-      companyConfig,
-      actor: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: (user as any).name,
-      },
-    });
+    // ── Phase 2.5: In-process mutex check ─────────────────────────────────────
+    //
+    // Reject immediately if this order is already being transitioned within
+    // THIS process. This saves a connection-pool slot versus letting it block
+    // at the FOR UPDATE gate. Cross-process safety is handled by FOR UPDATE.
+    if (TRANSITION_IN_FLIGHT.has(id)) {
+      throw new ConflictError(
+        `Pedido #${id} já está sendo processado. Aguarde a conclusão e tente novamente.`,
+        { orderId: id },
+      );
+    }
+    TRANSITION_IN_FLIGHT.add(id);
 
-    // ── Phase 4: Non-critical side effects (fire-and-forget) ───────────
-    this.afterWorkflowTransitionNonCritical(id, to, from, orderRow, user, txResult).catch(
-      (err) => console.error("[WORKFLOW] Non-critical side-effect error:", err),
-    );
+    try {
+      // ── Phase 3: Atomic transaction — ALL critical writes ──────────────────
+      //
+      // Inside: SELECT … FOR UPDATE → optimistic-lock check → status update →
+      //         per-transition critical ops (pre-nota, inventory, AR, delivery).
+      // Any throw → automatic ROLLBACK. No partial state ever persists.
+      const txResult = await executeWorkflowTransaction({
+        orderId:                id,
+        to,
+        expectedWorkflowStatus: from,          // optimistic-lock token
+        currentLegacyStatus:    orderRow.status,
+        orderSnapshot:          orderRow,
+        itemsSnapshot:          enrichedItems,
+        companyConfig,
+        actor: {
+          id:    user.id,
+          email: user.email,
+          role:  user.role,
+          name:  (user as any).name,
+        },
+      });
 
-    const details: Record<string, unknown> = {};
-    if (txResult.preNotaNumber)          details.preNotaNumber          = txResult.preNotaNumber;
-    if (txResult.inventoryLinesDeducted) details.inventoryLinesDeducted = txResult.inventoryLinesDeducted;
-    if (txResult.arCreated)              details.arCreated              = true;
-    if (txResult.deliveryUpdated)        details.deliveryUpdated        = true;
+      // ── Phase 4: Non-critical side effects (fire-and-forget) ──────────────
+      //
+      // Push notification and audit log are best-effort. A failure here never
+      // rolls back the already-committed transition.
+      this.afterWorkflowTransitionNonCritical(id, to, from, orderRow, user, txResult).catch(
+        (err) => console.error("[WORKFLOW] Non-critical side-effect error:", err),
+      );
 
-    return {
-      order: txResult.updatedOrder as unknown as Order,
-      workflowStatus: to,
-      from,
-      details,
-    };
+      const details: Record<string, unknown> = {};
+      if (txResult.preNotaNumber)          details.preNotaNumber          = txResult.preNotaNumber;
+      if (txResult.inventoryLinesDeducted) details.inventoryLinesDeducted = txResult.inventoryLinesDeducted;
+      if (txResult.arCreated)              details.arCreated              = true;
+      if (txResult.deliveryUpdated)        details.deliveryUpdated        = true;
+
+      return {
+        order:          txResult.updatedOrder as unknown as Order,
+        workflowStatus: to,
+        from,
+        details,
+      };
+    } finally {
+      // Always release the in-process lock — even on error.
+      TRANSITION_IN_FLIGHT.delete(id);
+    }
   }
 
   /**
