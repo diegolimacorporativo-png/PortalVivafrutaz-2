@@ -27,6 +27,17 @@ export class ProductService {
     await this.getProduct(id);
     return this.repo.delete(id);
   }
+
+  async getNextProductCode(): Promise<string> {
+    const all = await this.repo.findAllForCodeLookup();
+    const usedCodes = all
+      .map((p) => p.productCode)
+      .filter((c): c is string => Boolean(c))
+      .map((c) => parseInt(c.replace(/\D/g, ''), 10))
+      .filter((n) => !isNaN(n));
+    const maxCode = usedCodes.length > 0 ? Math.max(...usedCodes) : 0;
+    return String(maxCode + 1).padStart(3, '0');
+  }
 }
 
 export const productService = new ProductService();

@@ -1,3 +1,5 @@
+import type { Product as SchemaProduct } from "@shared/schema";
+import { storage } from "../../services/storage";
 import type { Product, CreateProductInput, UpdateProductInput } from "./products.types";
 
 export interface IProductRepository {
@@ -6,11 +8,16 @@ export interface IProductRepository {
   create(input: CreateProductInput): Promise<Product>;
   update(id: number, input: UpdateProductInput): Promise<Product>;
   delete(id: number): Promise<void>;
+  findAllForCodeLookup(): Promise<SchemaProduct[]>;
 }
 
 export class ProductRepository implements IProductRepository {
   async findAll(): Promise<Product[]> {
     throw new Error("Not implemented — wire to DB in future migration");
+  }
+
+  async findAllForCodeLookup(): Promise<SchemaProduct[]> {
+    return storage.getProducts();
   }
 
   async findById(_id: number): Promise<Product | undefined> {

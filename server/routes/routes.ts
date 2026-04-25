@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "../services/storage.ts";
+import { productController } from "../modules/products/products.controller";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
@@ -1138,19 +1139,7 @@ export async function registerRoutes(
   });
 
   // --- Próximo código de produto disponível ---
-  app.get('/api/products/next-code', async (req: any, res) => {
-    try {
-      const all = await storage.getProducts();
-      const usedCodes = (all as any[])
-        .map((p: any) => p.productCode)
-        .filter(Boolean)
-        .map((c: string) => parseInt(c.replace(/\D/g, ''), 10))
-        .filter((n: number) => !isNaN(n));
-      const maxCode = usedCodes.length > 0 ? Math.max(...usedCodes) : 0;
-      const next = String(maxCode + 1).padStart(3, '0');
-      res.json({ nextCode: next });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  app.get('/api/products/next-code', (req, res) => productController.nextCode(req, res));
 
   // Verificar se um productCode já está em uso
   app.get('/api/products/check-code', async (req: any, res) => {

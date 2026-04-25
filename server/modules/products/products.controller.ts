@@ -52,6 +52,16 @@ export class ProductController {
       next(err);
     }
   }
+
+  async nextCode(_req: Request, res: Response): Promise<void> {
+    try {
+      const nextCode = await productService.getNextProductCode();
+      res.json({ nextCode });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      res.status(500).json({ message });
+    }
+  }
 }
 
 export const productController = new ProductController();
