@@ -3,7 +3,7 @@ import { definition as authModule } from "./auth";
 import { definition as companiesModule } from "./companies";
 import { definition as financeModule } from "./finance";
 import { definition as ordersModule } from "./orders";
-import { definition as usersModule } from "./users";
+import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
 import { ordersRouterV2 } from "./orders/orders.routes.v2";
 
 /**
@@ -49,6 +49,17 @@ const MODULES: readonly ModuleDefinition[] = [
 ];
 
 /**
+ * Auxiliary mounts — modules that need to expose a second router under a
+ * different base path (e.g. legacy `/api/admin/*` namespaces). These are
+ * mounted by `registerModules` and `registerV1Modules` alongside the canonical
+ * ones; they are intentionally excluded from `V2_MODULES` because admin
+ * endpoints retain the legacy non-envelope response shape.
+ */
+const AUX_MODULES: readonly ModuleDefinition[] = [
+  usersAdminModule,
+];
+
+/**
  * v2 modules — only modules that have a v2 controller implementing the full
  * `shared/utils/apiResponse` contract (ok/created/noContent/fail on every
  * response) should be listed here.
@@ -72,6 +83,10 @@ export function registerModules(app: Express): void {
     app.use(mod.basePath, mod.router);
     console.log(`[modules] mounted '${mod.name}' at ${mod.basePath}`);
   }
+  for (const mod of AUX_MODULES) {
+    app.use(mod.basePath, mod.router);
+    console.log(`[modules] mounted '${mod.name}' at ${mod.basePath}`);
+  }
 }
 
 /**
@@ -83,6 +98,11 @@ export function registerModules(app: Express): void {
  */
 export function registerV1Modules(app: Express): void {
   for (const mod of MODULES) {
+    const v1Path = `/api/v1${mod.basePath.slice("/api".length)}`;
+    app.use(v1Path, mod.router);
+    console.log(`[modules] mounted '${mod.name}' at ${v1Path} (v1)`);
+  }
+  for (const mod of AUX_MODULES) {
     const v1Path = `/api/v1${mod.basePath.slice("/api".length)}`;
     app.use(v1Path, mod.router);
     console.log(`[modules] mounted '${mod.name}' at ${v1Path} (v1)`);

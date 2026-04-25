@@ -2,8 +2,6 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { storage } from "../services/storage.ts";
 import { productController } from "../modules/products/products.controller";
-import { usersController } from "../modules/users/users.controller";
-import { asyncHandler } from "../shared/utils/asyncHandler";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
@@ -1368,14 +1366,6 @@ export async function registerRoutes(
     });
   });
 
-  // ─── Security: Unlock user account ────────────────────────────
-  // Migrated to server/modules/users (controller.unlock + service.unlockUser).
-  // This thin delegation preserves the legacy mount path /api/admin/users/:id/unlock
-  // (the users router lives at /api/users, so admin-prefixed paths stay here).
-  // Behaviour parity: 401/403/404 status codes, Portuguese messages, audit log,
-  // and success payload all match the legacy handler exactly.
-  app.post('/api/admin/users/:id/unlock', asyncHandler(usersController.unlock));
-
   // ─── Security: Unlock company account ─────────────────────────
   app.post('/api/admin/companies/:id/unlock', async (req, res) => {
     if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
@@ -1525,13 +1515,6 @@ export async function registerRoutes(
       }
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
-
-  // ─── User Management ───────────────────────────────────────────
-  // GET/POST /api/users, PUT/DELETE /api/users/:id are served by the users
-  // module (server/modules/users), which is mounted BEFORE this file in
-  // server/app.ts. Inline duplicates were removed because Express resolved
-  // the modular router first — they were unreachable dead code.
-  // See: server/modules/users/users.routes.ts
 
   // ─── Order Cleanup Check (Module 5) ────────────────────────────
   app.get('/api/admin/order-cleanup-check', async (req, res) => {
@@ -2597,16 +2580,6 @@ export async function registerRoutes(
       ]
     });
   });
-
-  // --- Password Change Route ---
-  // PUT /api/users/:id/password is served by the users module
-  // (server/modules/users), mounted BEFORE this file in server/app.ts. The
-  // inline implementation was removed because Express resolved the modular
-  // router first — it was unreachable dead code. Behaviour parity is
-  // preserved: same role gate, same audit logs (PASSWORD_CHANGE_BLOCKED /
-  // PASSWORD_CHANGED), same Portuguese error messages, and the same
-  // `newPassword.trim().length < 3` validation (now in users.validation.ts).
-  // See: server/modules/users/users.routes.ts
 
   // --- Test Mode ---
   app.get('/api/settings/test-mode', async (req, res) => {
