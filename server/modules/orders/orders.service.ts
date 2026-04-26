@@ -533,11 +533,65 @@ export class OrdersService {
       console.warn("[priceResolver] observer error (createWithDelivery)", e);
     }
 
+    // ── FEATURE FLAG — per-company new pricing (STEP 3.8) ──
+    // Default = legacy. Only flips when company.useNewPricing === true
+    // (strict equality — undefined / null / truthy-soup never count).
+    // When ON, we replace each item's unitPrice/totalPrice using the
+    // central resolver and recompute the order totalValue. Rollback is
+    // a single UPDATE: companies.use_new_pricing = false.
+    let computedTotal = totalValue;
+    const useNewPricing = company?.useNewPricing === true;
+    if (useNewPricing) {
+      try {
+        const adminFee =
+          company && company.adminFee != null && company.adminFee !== ""
+            ? Number(company.adminFee)
+            : 0;
+        const productCache = new Map<number, any>();
+        for (const it of (items || []) as any[]) {
+          let product = productCache.get(it.productId);
+          if (!product) {
+            product = await this.repo.getProductById(it.productId);
+            if (product) productCache.set(it.productId, product);
+          }
+          if (!product) continue;
+          const newUnit = resolveProductPrice({
+            basePrice: Number(product.basePrice),
+            subCategoryPrice: null, // FUTURE — STEP 4
+            contractPrice: null,    // FUTURE — STEP 4
+            adminFee,
+          });
+          if (!Number.isFinite(newUnit)) continue;
+          it.unitPrice = String(newUnit.toFixed(2));
+          it.totalPrice = String(
+            (newUnit * Number(it.quantity || 0)).toFixed(2),
+          );
+        }
+        computedTotal = (items || []).reduce(
+          (s: number, i: any) => s + Number(i.totalPrice || 0),
+          0,
+        );
+        console.info("[pricing] new pricing ENABLED", {
+          scope: "orders.service",
+          method: "createWithDelivery",
+          companyId,
+        });
+      } catch (e) {
+        // If anything in the new path blows up, log loudly and fall back
+        // to the legacy values that the client already sent.
+        console.error(
+          "[pricing] new pricing FAILED — falling back to legacy",
+          { companyId, err: (e as Error)?.message },
+        );
+        computedTotal = totalValue;
+      }
+    }
+
     const order = await this.repo.create(
       {
         companyId,
         deliveryDate,
-        totalValue: String(Math.round(totalValue * 100) / 100),
+        totalValue: String(Math.round(computedTotal * 100) / 100),
         status: "ACTIVE",
         orderDate: new Date(),
         fiscalStatus: "nota_pendente",
@@ -1079,6 +1133,52 @@ export class OrdersService {
       console.warn("[priceResolver] observer error (replaceItems)", e);
     }
 
+    // ── FEATURE FLAG — per-company new pricing (STEP 3.8) ──
+    // Reuse the company already loaded for the observer above. Only
+    // touches item prices when company.useNewPricing === true.
+    try {
+      if (observedCompanyId != null) {
+        const company: any = await this.repo.getCompany(observedCompanyId);
+        if (company?.useNewPricing === true) {
+          const adminFee =
+            company.adminFee != null && company.adminFee !== ""
+              ? Number(company.adminFee)
+              : 0;
+          const productCache = new Map<number, any>();
+          for (const it of items as any[]) {
+            let product = productCache.get(it.productId);
+            if (!product) {
+              product = await this.repo.getProductById(it.productId);
+              if (product) productCache.set(it.productId, product);
+            }
+            if (!product) continue;
+            const newUnit = resolveProductPrice({
+              basePrice: Number(product.basePrice),
+              subCategoryPrice: null,
+              contractPrice: null,
+              adminFee,
+            });
+            if (!Number.isFinite(newUnit)) continue;
+            it.unitPrice = String(newUnit.toFixed(2));
+            it.totalPrice = String(
+              (newUnit * Number(it.quantity || 0)).toFixed(2),
+            );
+          }
+          console.info("[pricing] new pricing ENABLED", {
+            scope: "orders.service",
+            method: "replaceItems",
+            companyId: observedCompanyId,
+            orderId: id,
+          });
+        }
+      }
+    } catch (e) {
+      console.error(
+        "[pricing] new pricing FAILED — falling back to legacy",
+        { method: "replaceItems", orderId: id, err: (e as Error)?.message },
+      );
+    }
+
     await this.repo.updateItems(id, items as any);
     const result = await this.repo.get(id);
     if (!result) throw new NotFoundError("Pedido não encontrado");
@@ -1167,6 +1267,50 @@ export class OrdersService {
         );
       } catch (e) {
         console.warn("[priceResolver] observer error (substituteItem.replace)", e);
+      }
+
+      // ── FEATURE FLAG — per-company new pricing (STEP 3.8) ──
+      // Only takes effect when company.useNewPricing === true.
+      try {
+        const cId = (detail.order as any)?.companyId ?? null;
+        if (cId != null) {
+          const company: any = await this.repo.getCompany(cId);
+          if (company?.useNewPricing === true) {
+            const adminFee =
+              company.adminFee != null && company.adminFee !== ""
+                ? Number(company.adminFee)
+                : 0;
+            const newUnit = resolveProductPrice({
+              basePrice: Number(newProduct.basePrice),
+              subCategoryPrice: null,
+              contractPrice: null,
+              adminFee,
+            });
+            if (Number.isFinite(newUnit)) {
+              newItems[targetIdx].unitPrice = String(newUnit.toFixed(2));
+              newItems[targetIdx].totalPrice = String(
+                (newUnit * Number(target.quantity || 0)).toFixed(2),
+              );
+              console.info("[pricing] new pricing ENABLED", {
+                scope: "orders.service",
+                method: "substituteItem.replace",
+                companyId: cId,
+                orderId,
+                itemId,
+              });
+            }
+          }
+        }
+      } catch (e) {
+        console.error(
+          "[pricing] new pricing FAILED — falling back to legacy",
+          {
+            method: "substituteItem.replace",
+            orderId,
+            itemId,
+            err: (e as Error)?.message,
+          },
+        );
       }
     } else if (action === "discount" && discountPct !== undefined) {
       const pct = Number(discountPct);

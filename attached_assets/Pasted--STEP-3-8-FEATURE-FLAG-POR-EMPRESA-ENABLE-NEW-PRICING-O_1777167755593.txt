@@ -1,0 +1,177 @@
+# 🚀 STEP 3.8 — FEATURE FLAG POR EMPRESA (ENABLE NEW PRICING)
+
+## 🎯 OBJETIVO
+Permitir ativar o novo resolveProductPrice por empresa, de forma segura, progressiva e com rollback imediato.
+
+Regra crítica:
+- DEFAULT = comportamento atual (legacy)
+- NOVO resolver só entra quando company.useNewPricing === true
+
+---
+
+# 🧱 STEP 1 — ALTERAÇÃO NO SCHEMA (SAFE)
+
+## 📁 shared/schema.ts
+
+Adicionar coluna em companies:
+
+ts useNewPricing: boolean("use_new_pricing").default(false).notNull(), 
+
+📌 Garantias:
+- default(false) → nenhuma empresa muda comportamento automaticamente
+- notNull() → evita inconsistência futura
+
+---
+
+# 🗄️ STEP 2 — MIGRAÇÃO SEGURA (DRIZZLE)
+
+Rodar:
+
+bash npm run db:push 
+
+📌 Esperado:
+- ALTER TABLE ADD COLUMN (sem drop, sem alteração destrutiva)
+- Nenhum dado afetado
+
+---
+
+# 🛡️ STEP 3 — FALLBACK GARANTIDO
+
+## Regra global obrigatória:
+
+ts const useNewPricing = company?.useNewPricing === true; 
+
+📌 Nunca confiar em:
+- undefined
+- null
+- truthy solto
+
+👉 Só ativa com === true
+
+---
+
+# ⚙️ STEP 4 — INTEGRAÇÃO NO orders.service.ts
+
+## 🎯 Local: createWithDelivery
+
+### 🔁 ANTES (legado)
+ts const unitPrice = Number(product.basePrice); 
+
+---
+
+### ✅ DEPOIS (feature flag)
+
+ts const useNewPricing = company?.useNewPricing === true;  let unitPrice: number;  if (useNewPricing) {   unitPrice = resolveProductPrice({     basePrice: Number(product.basePrice),     subCategoryPrice: null, // FUTURE     contractPrice: null,    // FUTURE     adminFee: company.adminFee ?? 0,   }); } else {   unitPrice = Number(product.basePrice); } 
+
+---
+
+# 🔁 STEP 5 — INTEGRAÇÃO NOS OUTROS PONTOS
+
+## replaceItems
+## substituteItem (apenas replace)
+
+👉 Aplicar EXATAMENTE o mesmo padrão:
+
+ts const useNewPricing = company?.useNewPricing === true;  const unitPrice = useNewPricing   ? resolveProductPrice({...})   : legacyValue; 
+
+📌 NÃO alterar:
+- ordem de execução
+- estrutura de loops
+- persistência
+- cálculos existentes
+
+---
+
+# 📊 STEP 6 — LOG DE ATIVAÇÃO (IMPORTANTE)
+
+Adicionar log SOMENTE quando ativado:
+
+ts if (useNewPricing) {   console.info(     `[${req.requestId}] [pricing] new pricing ENABLED`,     { companyId: company.id }   ); } 
+
+📌 Não logar em excesso — apenas por request
+
+---
+
+# 🔬 STEP 7 — VALIDAÇÃO
+
+## ✅ TypeScript
+bash npx tsc --noEmit 
+
+## ✅ Testes
+bash npm run test:unit 
+
+## ✅ Smoke test
+
+### Empresa SEM flag
+- Pedido → mesmo valor de antes
+
+### Empresa COM flag
+- Pedido → valor com adminFee aplicado
+
+---
+
+# 🧪 STEP 8 — TESTE REAL CONTROLADO
+
+1. Escolher 1 empresa piloto
+2. Atualizar no banco:
+
+sql UPDATE companies SET use_new_pricing = true WHERE id = X; 
+
+3. Criar pedido
+4. Validar:
+   - unitPrice
+   - total
+   - logs [priceResolver]
+   - NF (se aplicável)
+
+---
+
+# 🔄 STEP 9 — ROLLBACK IMEDIATO
+
+Se algo der errado:
+
+sql UPDATE companies SET use_new_pricing = false WHERE id = X; 
+
+💥 Efeito imediato — sem deploy, sem restart
+
+---
+
+# 🛑 REGRAS DE OURO
+
+❌ NÃO recalcular pedidos antigos  
+❌ NÃO alterar orderItems existentes  
+❌ NÃO mexer em NFe agora  
+❌ NÃO remover cálculo legado  
+
+✅ Apenas trocar fonte de cálculo em tempo real
+
+---
+
+# 📌 RESULTADO FINAL
+
+Você passa a ter:
+
+- Controle total por cliente
+- Rollout progressivo
+- Segurança de produção
+- Base pronta para:
+  - pricing por categoria
+  - pricing por contrato
+  - automação futura
+
+---
+
+# 🔥 PRÓXIMO PASSO (DEPOIS DISSO)
+
+👉 STEP 4 — PRICING POR CATEGORIA (REAL)
+
+- UI + backend integrados
+- persistência em productSubCategories.price
+- integração no resolver
+
+---
+
+STATUS FINAL:  
+✅ ZERO quebra  
+✅ ZERO regressão  
+✅ PRONTO PARA PRODUÇÃO CONTROLADA
