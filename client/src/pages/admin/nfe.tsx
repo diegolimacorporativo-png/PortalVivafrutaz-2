@@ -316,6 +316,7 @@ function SelectedOrderEmitRow({
 }) {
   const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(selectedOrderId);
   const blocked = canEmit === false;
+  const [isShaking, setIsShaking] = useState(false);
 
   return (
     <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 flex-wrap">
@@ -349,15 +350,18 @@ function SelectedOrderEmitRow({
           id={`emit-btn-${selectedOrderId}`}
           data-testid="button-emitir-nfe"
           onClick={() => {
+            if (isShaking) return;
             if (blocked) {
+              setIsShaking(true);
+              setTimeout(() => setIsShaking(false), 400);
               toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
               return;
             }
             emitirMutation.mutate(selectedOrderId);
           }}
-          disabled={emitirMutation.isPending || blocked || checkingEmit}
+          disabled={emitirMutation.isPending || checkingEmit}
           title={blocked ? blockReason : "Gerar XML"}
-          className={`bg-emerald-600 hover:bg-emerald-700 text-white ${justUnlocked ? "unlock-highlight" : ""}`}
+          className={`bg-emerald-600 hover:bg-emerald-700 text-white ${justUnlocked ? "unlock-highlight" : ""} ${isShaking ? "shake-horizontal" : ""} ${blocked ? "opacity-70 cursor-not-allowed" : ""}`}
         >
           {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
           Gerar XML

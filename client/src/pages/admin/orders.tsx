@@ -371,6 +371,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   });
 
   const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(order.id);
+  const [isShaking, setIsShaking] = useState(false);
 
   const emitirNfeMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/nfe/emitir", { orderId: order.id }),
@@ -717,7 +718,10 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                   id={`emit-btn-${order.id}`}
                   data-testid={`button-emitir-nfe-${order.id}`}
                   onClick={() => {
+                    if (isShaking) return;
                     if (canEmit === false) {
+                      setIsShaking(true);
+                      setTimeout(() => setIsShaking(false), 400);
                       toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
                       return;
                     }
@@ -726,11 +730,10 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                   disabled={
                     emitirNfeMutation.isPending ||
                     order.status === "CANCELLED" ||
-                    canEmit === false ||
                     checkingEmit
                   }
                   title={canEmit === false ? blockReason : "Emitir NF"}
-                  className={`flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 ${justUnlocked ? "unlock-highlight" : ""}`}
+                  className={`flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 ${justUnlocked ? "unlock-highlight" : ""} ${isShaking ? "shake-horizontal" : ""} ${canEmit === false ? "opacity-70 cursor-not-allowed" : ""}`}
                 >
                   {emitirNfeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
                   {emitirNfeMutation.isPending ? "Gerando NF-e..." : "Emitir NF-e"}

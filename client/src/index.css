@@ -66,10 +66,22 @@
   .unlock-highlight {
     animation: pulse-green 1.2s ease;
   }
+
+  .shake-horizontal {
+    animation: shake 0.4s;
+  }
 }
 
 @keyframes pulse-green {
   0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
   50%  { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.7); }
   100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
+@keyframes shake {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-4px); }
+  50%  { transform: translateX(4px); }
+  75%  { transform: translateX(-4px); }
+  100% { transform: translateX(0); }
 }

@@ -128,6 +128,7 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
 
   const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(orderId);
   const emitBlocked = canEmit === false;
+  const [isShaking, setIsShaking] = useState(false);
 
   const resolveMutation = useMutation({
     mutationFn: (id: number) => apiRequest('PATCH', `/api/nfe/diagnostics/training/${id}/resolve`, {}),
@@ -225,15 +226,18 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
                 size="sm"
                 id={`emit-btn-${orderId}`}
                 onClick={() => {
+                  if (isShaking) return;
                   if (emitBlocked) {
+                    setIsShaking(true);
+                    setTimeout(() => setIsShaking(false), 400);
                     toast({ title: 'Faturamento bloqueado', description: blockReason, variant: 'destructive' });
                     return;
                   }
                   onEmitirClick();
                 }}
-                disabled={emitBlocked || checkingEmit}
+                disabled={checkingEmit}
                 title={emitBlocked ? blockReason : 'Emitir NF-e'}
-                className={`h-8 text-xs ${justUnlocked ? 'unlock-highlight' : ''}`}
+                className={`h-8 text-xs ${justUnlocked ? 'unlock-highlight' : ''} ${isShaking ? 'shake-horizontal' : ''} ${emitBlocked ? 'opacity-70 cursor-not-allowed' : ''}`}
                 data-testid="button-emitir-ready"
               >
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
