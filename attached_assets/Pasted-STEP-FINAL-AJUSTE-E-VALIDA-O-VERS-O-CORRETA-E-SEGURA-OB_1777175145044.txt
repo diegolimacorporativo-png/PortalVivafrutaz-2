@@ -1,0 +1,134 @@
+STEP FINAL — AJUSTE E VALIDAÇÃO (VERSÃO CORRETA E SEGURA)
+
+OBJETIVO  
+Corrigir:
+
+- produtos não aparecem no cliente  
+- garantir renderização correta  
+- validar pricing já implementado  
+
+🚫 NÃO criar novas features  
+🚫 NÃO alterar schema  
+🚫 NÃO mexer no resolver  
+
+---
+
+## STEP 1 — VALIDAR FETCH (COM TRATAMENTO CORRETO)
+
+Arquivo:
+client/src/pages/client/create-order.tsx
+
+ts const res = await fetch("/api/v1/products", {   credentials: "include", });  if (!res.ok) {   console.error("Erro ao buscar produtos:", res.status);   return; }  const data = await res.json(); console.log("PRODUTOS:", data); 
+
+⚠️ IMPORTANTE  
+Se der erro 401/403 → problema é autenticação (sessão)
+
+---
+
+## STEP 2 — AJUSTAR RESPONSE (PADRÃO DO SEU BACKEND)
+
+Você disse que usa v1/v2 → provavelmente retorna:
+
+json { "success": true, "data": [...] } 
+
+👉 então o padrão CORRETO é:
+
+ts setProducts(data.data ?? []); 
+
+⚠️ evita crash se vier undefined
+
+---
+
+## STEP 3 — GARANTIR STATE TIPADO (EVITA BUG SILENCIOSO)
+
+ts const [products, setProducts] = useState<any[]>([]); 
+
+---
+
+## STEP 4 — VALIDAR RENDER (COM PROTEÇÃO)
+
+tsx {Array.isArray(products) &&   products.map((p) => (     <div key={p.id}>{p.name}</div>   ))} 
+
+⚠️ evita erro se products vier null
+
+---
+
+## STEP 5 — FALLBACK VISUAL (IMPORTANTE PRA DEBUG)
+
+tsx {products.length === 0 && (   <p>Nenhum produto disponível</p> )} 
+
+---
+
+## STEP 6 — CHECK RÁPIDO DE PROBLEMAS COMUNS
+
+Se ainda não aparecer:
+
+### 🔴 Caso 1 — console mostra []
+👉 backend não está retornando produtos
+
+### 🔴 Caso 2 — erro 401/403
+👉 sessão não está sendo enviada
+
+✔ solução:
+ts credentials: "include" 
+
+### 🔴 Caso 3 — data = { success: true, data: [] }
+👉 banco vazio ou filtro ativo
+
+---
+
+## STEP 7 — VALIDAR PRICING (SEM MUDAR NADA)
+
+ts const price = resolvePrice({   basePrice: product.basePrice,   subCategoryPrice: selectedSubCategory?.price,   contractPrice: product.contractPrice,   adminFee: company?.adminFee,   useNewPricing: company?.useNewPricing === true,   pricingMode: product.pricingMode, }); 
+
+⚠️ NÃO alterar nada aqui
+
+---
+
+## STEP 8 — TESTE REAL (OBRIGATÓRIO)
+
+1. Abrir cliente  
+2. Ver produtos  
+
+✔ apareceu → OK  
+
+3. Selecionar produto  
+
+✔ preço aparece  
+
+4. Alterar quantidade  
+
+✔ subtotal correto  
+
+---
+
+## STEP 9 — SEGURANÇA (CONFIRMAR)
+
+🚫 NÃO pode aparecer:
+
+- adminFee
+- %
+- taxa
+
+✔ apenas preço final
+
+---
+
+## RESULTADO FINAL
+
+✔ produtos visíveis  
+✔ render funcionando  
+✔ pricing correto  
+✔ sem alteração de backend  
+
+---
+
+## SE NÃO FUNCIONAR (DEBUG FINAL)
+
+Me envie:
+
+1. console.log("PRODUTOS:", data)
+2. status da requisição (Network)
+3. print da tela
+
+Que eu resolvo direto sem tentat
