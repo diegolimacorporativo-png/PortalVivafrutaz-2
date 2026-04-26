@@ -30,6 +30,7 @@ export interface IProductRepository {
   findAllProducts(): Promise<SchemaProduct[]>;
   findAllOrders(): Promise<SchemaOrder[]>;
   findOrderDetail(id: number): Promise<{ order: SchemaOrder; items: SchemaOrderItem[] } | undefined>;
+  findOrderItemByProduct(orderId: number, productId: number): Promise<SchemaOrderItem | undefined>;
   findAllCompanies(): Promise<SchemaCompany[]>;
   findAllFiscalInvoices(): Promise<SchemaFiscalInvoice[]>;
   updateProductFlags(id: number, updates: Partial<InsertProduct>): Promise<SchemaProduct>;
@@ -52,8 +53,7 @@ export class ProductRepository implements IProductRepository {
   }
 
   async findById(id: number): Promise<Product | undefined> {
-    const all = await storage.getProducts();
-    return all.find((p) => p.id === id);
+    return storage.getProductById(id);
   }
 
   async create(input: CreateProductInput): Promise<Product> {
@@ -78,6 +78,10 @@ export class ProductRepository implements IProductRepository {
 
   async findOrderDetail(id: number): Promise<{ order: SchemaOrder; items: SchemaOrderItem[] } | undefined> {
     return storage.getOrder(id);
+  }
+
+  async findOrderItemByProduct(orderId: number, productId: number): Promise<SchemaOrderItem | undefined> {
+    return storage.getOrderItemByProduct(orderId, productId);
   }
 
   async findAllCompanies(): Promise<SchemaCompany[]> {

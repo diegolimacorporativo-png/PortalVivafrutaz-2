@@ -1,0 +1,208 @@
+GOAL:
+Eliminar padrões O(N), N+1 e scans completos desnecessários no domínio,
+SEM alterar comportamento, SEM alterar response shape e SEM alterar regras de negócio.
+
+STRICT RULES:
+- NÃO alterar nenhum endpoint
+- NÃO alterar nenhum response (shape, status, mensagens)
+- NÃO alterar lógica de negócio
+- NÃO alterar validações
+- NÃO alterar contratos do service
+- NÃO alterar nomes de campos retornados
+- NÃO otimizar mudando regra (apenas acesso a dados)
+- Se houver qualquer risco de mudança de comportamento → PARAR e reportar
+
+---
+
+STEP 1 — DISCOVERY (PERFORMANCE HOTSPOTS)
+
+Escanear:
+
+server/modules/**/services
+server/modules/**/repositories
+
+Identificar padrões:
+
+1. FULL SCAN:
+- storage.getProducts()
+- storage.getOrders()
+- storage.getInvoices()
+seguido de .find(...) ou .filter(...)
+
+2. N+1:
+- loops com await dentro:
+  for (...) {
+    await repo.get(...)
+  }
+
+3. LOOKUP FREQUENTE:
+- checkDuplicate
+- checkCode
+- findById feito manualmente
+
+---
+
+STEP 2 — DEFINIR MÉTODOS NOVOS NO STORAGE
+
+No arquivo:
+
+server/services/storage.ts
+
+Adicionar métodos (sem remover os existentes):
+
+// PRODUCTS
+getProductById(id: number)
+findProductByCode(code: string)
+
+// ORDERS
+getOrderById(id: number)
+orderHasProduct(orderId: number, productId: number)
+
+// INVENTORY (se aplicável)
+getInventorySettingById(id: number)
+
+⚠️ IMPORTANTE:
+- Implementação deve usar fonte real (DB ou memória existente)
+- NÃO alterar retorno dos métodos antigos
+- NÃO remover getProducts()
+
+---
+
+STEP 3 — IMPLEMENTAÇÃO SEGURA
+
+Substituir APENAS acesso a dados:
+
+ANTES:
+const products = await storage.getProducts();
+const product = products.find(p => p.id === id);
+
+DEPOIS:
+const product = await storage.getProductById(id);
+
+---
+
+ANTES:
+const exists = products.some(p => p.code === code);
+
+DEPOIS:
+const exists = await storage.findProductByCode(code);
+
+---
+
+ANTES (N+1):
+for (const order of orders) {
+  const detail = await repo.getOrder(order.id);
+}
+
+DEPOIS:
+✔️ manter lógica
+✔️ mas usar método direto:
+await storage.getOrderById(order.id)
+
+(ou otimizar para lookup direto se possível)
+
+---
+
+STEP 4 — REPOSITORY UPDATE
+
+Atualizar repositories para usar novos métodos:
+
+ANTES:
+findById → getProducts + find
+
+DEPOIS:
+findById → storage.getProductById
+
+⚠️ manter assinatura EXATAMENTE igual
+
+---
+
+STEP 5 — SERVICE LAYER
+
+Substituir apenas os acessos:
+
+- NÃO alterar lógica
+- NÃO alterar fluxo
+- NÃO alterar regras
+
+---
+
+STEP 6 — N+1 MITIGAÇÃO (LIMITADA)
+
+Para casos como safraAlerts:
+
+ANTES:
+for product:
+  for order:
+    await findOrderDetail(order.id)
+
+DEPOIS (mínimo seguro):
+- usar orderHasProduct(orderId, productId)
+
+⚠️ NÃO reescrever algoritmo inteiro
+⚠️ apenas trocar acesso pesado por lookup direto
+
+---
+
+STEP 7 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm run check
+- npm run check:strict
+- npm test
+
+---
+
+STEP 8 — RUNTIME CHECK
+
+Testar:
+
+1. GET /api/products
+2. GET /api/products/:id
+3. GET /api/products/next-code
+4. endpoints que usam safraAlerts / priceAlerts
+5. orders export
+
+Comparar:
+
+ANTES vs DEPOIS:
+
+- status → idêntico
+- body → idêntico
+- mensagens → idênticas
+
+---
+
+STEP 9 — PERFORMANCE SANITY CHECK
+
+Garantir:
+
+- nenhuma chamada a getProducts() seguida de .find()
+- nenhuma chamada a getOrders() seguida de .filter() para lookup simples
+- loops não fazem mais queries desnecessárias
+
+---
+
+STEP 10 — REPORT
+
+Retornar:
+
+- métodos novos criados no storage
+- quantos full scans removidos
+- quantos N+1 mitigados
+- arquivos modificados
+- risco final (LOW obrigatório)
+
+---
+
+SUCCESS CRITERIA:
+
+✅ ZERO mudança de comportamento
+✅ ZERO mudança de response
+✅ FULL SCANS eliminados onde possível
+✅ N+1 reduzido (sem refactor agressivo)
+✅ TypeScript limpo
+
+Esse assim eu mando né ?

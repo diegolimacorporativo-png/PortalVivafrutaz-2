@@ -119,6 +119,13 @@ export interface IStorage {
 
   // Products
   getProducts(): Promise<Product[]>;
+  /**
+   * Direct-lookup variant of `getProducts()` for `where id = ?`. Lets callers
+   * avoid the full-table scan + `.find()` pattern. Returns `undefined` when
+   * no row matches — same contract as the previous `(await getProducts()).find(...)`
+   * call site behaviour.
+   */
+  getProductById(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
   updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product>;
   deleteProduct(id: number): Promise<void>;
@@ -153,6 +160,15 @@ export interface IStorage {
 
   // Orders
   getOrders(): Promise<Order[]>;
+  /**
+   * Direct lookup of a single order item by (orderId, productId). Lets the
+   * `safraAlerts` flow avoid loading every order's full detail just to scan
+   * the items array. Returns `undefined` when the order has no item for
+   * `productId`. If multiple items match (rare), the lowest-id row is
+   * returned to mirror `Array.prototype.find` semantics over insertion-order
+   * results from the legacy `getOrder().items` shape.
+   */
+  getOrderItemByProduct(orderId: number, productId: number): Promise<OrderItem | undefined>;
   getOrdersByCompanyId(companyId: number): Promise<Order[]>;
   getOrder(id: number): Promise<{ order: Order, items: OrderItem[] } | undefined>;
   getCompanyOrders(companyId: number): Promise<Order[]>;
@@ -241,6 +257,13 @@ export interface IStorage {
   deletePurchasePlanStatus(id: number): Promise<void>;
   // Inventory — Settings (stock levels per product)
   getInventorySettings(): Promise<InventorySettings[]>;
+  /**
+   * Direct-by-id lookup for inventory_settings. Replaces the legacy
+   * `(await getInventorySettings()).find(s => s.id === id)` pattern in
+   * `inventoryService.updateSetting`. Tenant-scoped to mirror the rest of
+   * the inventory_settings query surface.
+   */
+  getInventorySettingById(id: number): Promise<InventorySettings | undefined>;
   getInventorySettingByProductId(productId: number): Promise<InventorySettings | undefined>;
   getInventorySettingByProductName(productName: string): Promise<InventorySettings | undefined>;
   upsertInventorySetting(data: InsertInventorySettings): Promise<InventorySettings>;
@@ -643,6 +666,16 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
+  /**
+   * Direct-by-id lookup. Mirrors `getProducts()`'s lack of tenant scoping
+   * (the existing call sites used `(await getProducts()).find(p => p.id === id)`
+   * which is also globally scoped). Returns `undefined` when not found.
+   */
+  async getProductById(id: number): Promise<Product | undefined> {
+    const [row] = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    return row;
+  }
+
   async createProduct(product: InsertProduct): Promise<Product> {
     const [newProduct] = await db.insert(products).values(product).returning();
     return newProduct;
@@ -764,6 +797,22 @@ export class DatabaseStorage implements IStorage {
     if (!order) return undefined;
     const items = await db.select().from(orderItems).where(eq(orderItems.orderId, id));
     return { order, items };
+  }
+
+  /**
+   * Direct (orderId, productId) → single OrderItem lookup. Replaces the
+   * legacy `(await getOrder(orderId))?.items.find(i => i.productId === pid)`
+   * pattern used by `safraAlerts`. Not tenant-scoped — matches `getOrder`'s
+   * own scoping. Lowest-id ordering preserves `.find()` semantics.
+   */
+  async getOrderItemByProduct(orderId: number, productId: number): Promise<OrderItem | undefined> {
+    const [row] = await db
+      .select()
+      .from(orderItems)
+      .where(and(eq(orderItems.orderId, orderId), eq(orderItems.productId, productId)))
+      .orderBy(orderItems.id)
+      .limit(1);
+    return row;
   }
 
   async updateOrder(id: number, updates: { status?: string; adminNote?: string; reopenReason?: string | null; reopenRequestedAt?: Date | null; totalValue?: string; fiscalStatus?: string | null; preNotaNumber?: string | null; nimbiExpiration?: string | null; orderNote?: string | null; deliveryDate?: string | Date; [key: string]: any }): Promise<Order> {
@@ -1413,6 +1462,15 @@ export class DatabaseStorage implements IStorage {
   // the explicit opt-out for legitimately cross-tenant background jobs.
   async getInventorySettings(): Promise<InventorySettings[]> {
     return db.select().from(inventorySettings).where(tenantWhere(inventorySettings)).orderBy(inventorySettings.productName);
+  }
+  /**
+   * Direct-by-id lookup. Tenant-scoped to mirror the rest of the
+   * inventory_settings query surface — `(await getInventorySettings()).find`
+   * was implicitly tenant-scoped because `getInventorySettings()` itself is.
+   */
+  async getInventorySettingById(id: number): Promise<InventorySettings | undefined> {
+    const [r] = await db.select().from(inventorySettings).where(tenantAnd(inventorySettings, eq(inventorySettings.id, id)));
+    return r;
   }
   async getInventorySettingByProductId(productId: number): Promise<InventorySettings | undefined> {
     const [r] = await db.select().from(inventorySettings).where(tenantAnd(inventorySettings, eq(inventorySettings.productId, productId)));

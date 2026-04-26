@@ -105,8 +105,7 @@ export class ProductService {
       const affectedOrders: SafraAlertOrder[] = [];
       for (const order of activeOrders) {
         try {
-          const detail = await this.repo.findOrderDetail(order.id);
-          const matchingItem = (detail?.items || []).find((item) => item.productId === product.id);
+          const matchingItem = await this.repo.findOrderItemByProduct(order.id, product.id);
           if (matchingItem) {
             const company = allCompanies.find((c) => c.id === order.companyId);
             affectedOrders.push({

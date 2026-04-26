@@ -192,6 +192,10 @@ export class OrdersRepository {
     return storage.getProducts();
   }
 
+  getProductById(id: number) {
+    return storage.getProductById(id);
+  }
+
   getCompanyConfig() {
     return storage.getCompanyConfig();
   }

@@ -1024,10 +1024,7 @@ export class OrdersService {
       newItems.splice(targetIdx, 1);
       description = `Item removido do pedido ${(detail.order as any).orderCode} (safra encerrada)`;
     } else if (action === "replace" && newProductId) {
-      const allProducts = await this.repo.getProducts();
-      const newProduct = (allProducts as any[]).find(
-        (p) => p.id === newProductId,
-      );
+      const newProduct = (await this.repo.getProductById(newProductId)) as any;
       if (!newProduct)
         throw new NotFoundError("Produto substituto não encontrado");
       newItems[targetIdx] = {

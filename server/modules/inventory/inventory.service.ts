@@ -46,7 +46,7 @@ export class InventoryService {
     body: UpdateSettingBody,
   ): Promise<InventorySettings> {
     const { minStock, avgPurchasePrice, category } = body || {};
-    const existing = (await this.repo.getSettings()).find((s) => s.id === id);
+    const existing = await this.repo.getSettingById(id);
     if (!existing) {
       throw new NotFoundError("Configuração não encontrada");
     }
