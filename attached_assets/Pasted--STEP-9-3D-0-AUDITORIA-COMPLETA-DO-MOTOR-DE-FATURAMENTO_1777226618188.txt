@@ -1,0 +1,203 @@
+## STEP 9.3D.0 — AUDITORIA COMPLETA DO MOTOR DE FATURAMENTO + CRON (READ-ONLY)
+
+### OBJETIVO
+
+Realizar uma auditoria completa da estrutura atual de faturamento para:
+
+1. Entender como o CRON está funcionando  
+2. Validar o fluxo real de emissão  
+3. Confirmar reaproveitamento correto das regras (canEmitNFe)  
+4. Mapear pontos de risco  
+5. Preparar o sistema para monitoramento (STEP 9.3D)  
+
+---
+
+### 🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+- NÃO alterar código
+- NÃO criar arquivos
+- NÃO mover funções
+- NÃO refatorar nada
+- NÃO corrigir nada ainda
+- NÃO sugerir melhorias estruturais neste momento
+
+👉 Apenas LER, ANALISAR e REPORTAR
+
+---
+
+### 📂 ESCOPO DA ANÁLISE
+
+Você DEVE analisar profundamente:
+
+#### 1. CRON
+- server/jobs/faturamento.cron.ts
+- Frequência (horário, timezone)
+- Flag AUTO_FATURAMENTO
+- Lógica de execução (dry-run vs real)
+- Controle de concorrência (batch)
+- Logs gerados
+
+---
+
+#### 2. GUARD (CORE DO SISTEMA)
+- server/modules/nfe/faturamento.guard.ts
+
+Validar:
+- Todas as regras aplicadas
+- Ordem das validações
+- Dependências (orders, companies)
+- Integração com engine
+
+---
+
+#### 3. ENGINE (INTELIGÊNCIA)
+- server/modules/nfe/faturamento.engine.ts
+
+Validar:
+- Classificação por clientType
+- Interpretação de billingTerm
+- Uso das flags:
+  - BILLING_STRICT_MODE
+  - BILLING_DRY_RUN
+- Regras de bloqueio por ciclo (semanal/mensal)
+
+---
+
+#### 4. FLAGS
+- server/config/flags.ts
+
+Validar:
+- Estado atual:
+  - AUTO_FATURAMENTO
+  - BILLING_STRICT_MODE
+  - BILLING_DRY_RUN
+- Impacto real no sistema
+
+---
+
+#### 5. EMISSÃO
+- /api/nfe/emitir
+- /api/nfe/emitir-lote
+
+Validar:
+- Se ambos usam canEmitNFe
+- Se existe duplicação de lógica
+- Se existe risco de bypass
+
+---
+
+#### 6. LISTAGEM DE ELEGÍVEIS
+- /api/nfe/eligible
+
+Validar:
+- Critérios de pré-filtro
+- Uso do guard
+- Performance (Promise.all)
+
+---
+
+#### 7. BUILDER DE NF-e
+- server/modules/nfe/nfe-input.builder.ts
+
+Validar:
+- Se está desacoplado corretamente
+- Se é reutilizado pelo cron e endpoints
+
+---
+
+#### 8. DRY-RUN METRICS
+- server/modules/nfe/dryrun-metrics.ts
+- /api/nfe/dry-run/metrics
+- /api/nfe/dry-run/metrics/window
+
+Validar:
+- Armazenamento em memória
+- Estrutura dos dados
+- Limites (ex: 200 eventos)
+- Uso no engine
+
+---
+
+### 📊 O QUE VOCÊ DEVE ENTREGAR
+
+Responder EXATAMENTE neste formato:
+
+---
+
+### 1. STATUS GERAL DO SISTEMA
+
+Classifique:
+
+- Segurança do faturamento: (ALTO / MÉDIO / BAIXO)
+- Risco de emissão incorreta: (ALTO / MÉDIO / BAIXO)
+- Nível de automação atual: (% estimado)
+
+---
+
+### 2. FLUXO REAL ATUAL (PASSO A PASSO)
+
+Descreva:
+
+CRON → GUARD → ENGINE → EMISSÃO
+
+---
+
+### 3. PONTOS FORTES (O QUE ESTÁ MUITO BEM FEITO)
+
+Liste claramente
+
+---
+
+### 4. GAPS / RISCOS (SEM SUGERIR SOLUÇÃO AINDA)
+
+Exemplos:
+- Falta de monitoramento
+- Falta de visibilidade
+- Dependência de logs
+- Possíveis falhas de concorrência
+
+---
+
+### 5. VALIDAÇÃO DAS FLAGS
+
+Explique o comportamento real com:
+
+AUTO_FATURAMENTO = false  
+BILLING_STRICT_MODE = false  
+BILLING_DRY_RUN = true  
+
+---
+
+### 6. O CRON ESTÁ PRONTO PARA PRODUÇÃO?
+
+Responder:
+
+SIM / NÃO / PARCIAL  
+
+Justificar tecnicamente.
+
+---
+
+### 7. CHECK FINAL
+
+Confirmar:
+
+- ❌ Nenhuma regra crítica está sendo ignorada
+- ❌ Nenhum endpoint burla o guard
+- ❌ Nenhuma emissão ocorre fora das regras
+
+---
+
+### IMPORTANTE
+
+👉 NÃO implementar nada ainda  
+👉 NÃO sugerir código  
+👉 NÃO modificar comportamento  
+
+---
+
+### FINALIDADE
+
+Essa auditoria será usada como base para:
+
+➡️ STEP 9.3D — MONITORAMENTO DO CRON (UI + STATUS + CONTROLE)
