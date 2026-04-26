@@ -60,6 +60,9 @@ const emptyForm = {
   productCode: "",
   categorySelections: [] as CategorySelection[],
   pricingMode: "category" as PricingMode,
+  // Imagem do produto. Pode ser uma URL externa (https://...) ou um
+  // caminho interno servido pelo backend (/uploads/products/<arquivo>).
+  imageUrl: null as string | null,
 };
 
 function productToForm(p: Product): typeof emptyForm {
@@ -92,6 +95,7 @@ function productToForm(p: Product): typeof emptyForm {
     productCode: (p as any).productCode || "",
     categorySelections: [],
     pricingMode: inferredMode,
+    imageUrl: (p as any).imageUrl ?? null,
   };
 }
 
@@ -506,6 +510,11 @@ export default function ProductsPage() {
   const [codeError, setCodeError] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Modo de origem da imagem do produto: "url" (link externo) ou
+  // "upload" (arquivo armazenado no servidor em /uploads/products).
+  // Default "url" para novos produtos; ao editar é detectado automaticamente.
+  const [imageMode, setImageMode] = useState<"url" | "upload">("url");
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Carrega sub-categorias ao abrir produto para edição
   const { data: editingSubCats = [] } = useQuery<any[]>({
@@ -546,6 +555,50 @@ export default function ProductsPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.pricingMode]);
+
+  // ── AJUSTE 1: detecta o modo correto ao abrir um produto existente.
+  // Sem isso, ao editar um produto cuja imagem veio de upload, o form
+  // mostraria o campo "URL" mesmo que o caminho seja /uploads/... Esse
+  // efeito roda só quando o `imageUrl` muda — não interfere quando o
+  // usuário troca o modo manualmente (ver handleChangeImageMode).
+  useEffect(() => {
+    if (formData.imageUrl?.startsWith("/uploads")) {
+      setImageMode("upload");
+    } else if (formData.imageUrl) {
+      setImageMode("url");
+    }
+  }, [formData.imageUrl]);
+
+  // ── AJUSTE 2: a troca de modo é uma ação explícita do usuário,
+  // só nesses pontos limpamos a `imageUrl`. Um useEffect com `imageMode`
+  // como dep apagaria a imagem de uma URL recém-carregada do banco.
+  function handleChangeImageMode(mode: "url" | "upload") {
+    setImageMode(mode);
+    setFormData(prev => ({ ...prev, imageUrl: null }));
+  }
+
+  async function handleUploadImage(file: File) {
+    try {
+      setUploadingImage(true);
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/admin/products/upload-image", {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.message || "Falha ao enviar a imagem");
+      }
+      const json = await res.json() as { imageUrl: string };
+      setFormData(prev => ({ ...prev, imageUrl: json.imageUrl }));
+    } catch (e: any) {
+      toast({ title: "Erro no upload", description: e?.message || "Tente novamente.", variant: "destructive" });
+    } finally {
+      setUploadingImage(false);
+    }
+  }
 
   const openCreate = () => {
     setEditingProduct(null);
@@ -631,6 +684,23 @@ export default function ProductsPage() {
       }
     }
 
+    // ── AJUSTE 5: validação de protocolo na URL externa.
+    // Em modo "url" exigimos http:// ou https:// para evitar caminhos
+    // relativos ou protocolos exóticos (data:, javascript:, etc.) que
+    // quebrariam o preview ou abririam vetor de XSS na imagem.
+    if (imageMode === "url" && formData.imageUrl) {
+      const trimmed = formData.imageUrl.trim();
+      const isHttp = /^https?:\/\//i.test(trimmed);
+      if (!isHttp) {
+        toast({
+          title: "URL inválida",
+          description: "A URL da imagem deve começar com http:// ou https://",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     // Trava de ID duplicado
     if (formData.productCode.trim()) {
       const excludeId = editingProduct?.id;
@@ -684,6 +754,9 @@ export default function ProductsPage() {
       // Backend ignora por enquanto, mas já viaja no payload para que a
       // próxima etapa (persistência) seja apenas adicionar a coluna.
       pricingMode: formData.pricingMode,
+      // Imagem do produto: pode ser uma URL externa ou um caminho
+      // /uploads/products/<arquivo>. null quando o admin removeu.
+      imageUrl: formData.imageUrl || null,
     };
 
     try {
@@ -818,9 +891,33 @@ export default function ProductsPage() {
               )}
             </div>
 
-            <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${product.active ? 'bg-secondary/10' : 'bg-muted'}`}>
-              <Package className={`w-8 h-8 ${product.active ? 'text-secondary' : 'text-muted-foreground'}`} />
-            </div>
+            {(product as any).imageUrl ? (
+              <div className="w-20 h-20 rounded-2xl overflow-hidden mb-4 border-2 border-border bg-white">
+                <img
+                  src={(product as any).imageUrl}
+                  alt={product.name}
+                  onError={(e) => {
+                    // Fallback discreto: esconde o <img> e mostra o ícone
+                    // genérico no lugar, sem quebrar o layout do card.
+                    const img = e.currentTarget;
+                    img.style.display = "none";
+                    const parent = img.parentElement;
+                    if (parent && !parent.querySelector(".img-fallback")) {
+                      const fallback = document.createElement("div");
+                      fallback.className = "img-fallback w-full h-full flex items-center justify-center bg-muted";
+                      fallback.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="text-muted-foreground"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>';
+                      parent.appendChild(fallback);
+                    }
+                  }}
+                  className="w-full h-full object-cover"
+                  data-testid={`img-product-${product.id}`}
+                />
+              </div>
+            ) : (
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${product.active ? 'bg-secondary/10' : 'bg-muted'}`}>
+                <Package className={`w-8 h-8 ${product.active ? 'text-secondary' : 'text-muted-foreground'}`} />
+              </div>
+            )}
 
             {(product as any).productCode && (
               <span className="mb-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono font-bold">
@@ -1203,6 +1300,104 @@ export default function ProductsPage() {
               )}
             </div>
           )}
+
+          {/* ── Imagem do Produto ───────────────────────────── */}
+          <div className="rounded-2xl border-2 border-border bg-muted/10 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <label className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                <Package className="w-4 h-4" /> Imagem do produto
+                <span className="text-xs font-normal text-muted-foreground">(opcional)</span>
+              </label>
+              {formData.imageUrl && (
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, imageUrl: null }))}
+                  className="text-xs font-bold text-red-600 hover:text-red-700 hover:underline"
+                  data-testid="button-remove-image"
+                >
+                  Remover imagem
+                </button>
+              )}
+            </div>
+
+            {/* Mode toggle */}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => handleChangeImageMode("url")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold border-2 transition-all ${imageMode === "url" ? 'bg-primary text-white border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+                data-testid="button-image-mode-url"
+              >
+                Usar URL
+              </button>
+              <button
+                type="button"
+                onClick={() => handleChangeImageMode("upload")}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold border-2 transition-all ${imageMode === "upload" ? 'bg-primary text-white border-primary' : 'border-border text-muted-foreground hover:border-primary/50'}`}
+                data-testid="button-image-mode-upload"
+              >
+                Enviar arquivo
+              </button>
+            </div>
+
+            {/* URL input */}
+            {imageMode === "url" && (
+              <input
+                type="url"
+                placeholder="https://exemplo.com/imagem.jpg"
+                value={formData.imageUrl ?? ""}
+                onChange={e => set("imageUrl", e.target.value || null)}
+                data-testid="input-image-url"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary focus:outline-none text-sm"
+              />
+            )}
+
+            {/* Upload input */}
+            {imageMode === "upload" && (
+              <div className="space-y-2">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  onChange={e => {
+                    const f = e.target.files?.[0];
+                    if (f) handleUploadImage(f);
+                    e.target.value = "";
+                  }}
+                  disabled={uploadingImage}
+                  data-testid="input-image-file"
+                  className="block w-full text-xs text-muted-foreground file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary file:text-white file:font-bold file:cursor-pointer hover:file:bg-primary/90 disabled:opacity-50"
+                />
+                {uploadingImage && (
+                  <p className="text-xs text-muted-foreground">Enviando arquivo…</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Formatos: JPG, PNG, WEBP ou GIF · Máx. 5MB.
+                </p>
+              </div>
+            )}
+
+            {/* ── AJUSTE 3 + 4: preview seguro com fallback. */}
+            {formData.imageUrl && (
+              <div className="flex items-center gap-3 pt-2 border-t border-border">
+                <img
+                  src={formData.imageUrl}
+                  alt="Pré-visualização do produto"
+                  onError={(e) => {
+                    e.currentTarget.style.opacity = "0.4";
+                    e.currentTarget.title = "Imagem indisponível";
+                  }}
+                  className="w-20 h-20 object-cover rounded-lg border-2 border-border bg-white"
+                  data-testid="img-product-preview"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-foreground">Pré-visualização</p>
+                  <p className="text-xs text-muted-foreground truncate" title={formData.imageUrl}>
+                    {formData.imageUrl.startsWith("/uploads") ? "Arquivo enviado" : formData.imageUrl}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Status */}
           <div>

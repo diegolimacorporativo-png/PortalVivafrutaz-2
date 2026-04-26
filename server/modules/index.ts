@@ -9,6 +9,7 @@ import {
   definition as productsModule,
   categoriesDefinition as categoriesModule,
   pricingAdminDefinition as pricingAdminModule,
+  productsAdminDefinition as productsAdminModule,
 } from "./products";
 import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
 import { ordersRouterV2 } from "./orders/orders.routes.v2";
@@ -69,6 +70,7 @@ const AUX_MODULES: readonly ModuleDefinition[] = [
   categoriesModule,
   usersAdminModule,
   pricingAdminModule,
+  productsAdminModule,
 ];
 
 /**

@@ -1,0 +1,149 @@
+STEP 8.13 — SUPORTE A IMAGEM VIA URL (VERSÃO AJUSTADA)
+
+STATUS  
+✔ CORRETO (com melhorias críticas aplicadas)
+
+---
+
+AJUSTE 1 — PRESERVAR IMAGEM AO EDITAR
+
+PROBLEMA  
+Ao abrir um produto existente, o modo sempre começa como "url"  
+mesmo que a imagem tenha vindo de upload.
+
+SOLUÇÃO
+
+ts
+useEffect(() => {
+  if (formData.imageUrl?.startsWith("/uploads")) {
+    setImageMode("upload");
+  } else if (formData.imageUrl) {
+    setImageMode("url");
+  }
+}, [formData.imageUrl]);
+
+---
+
+AJUSTE 2 — NÃO APAGAR IMAGEM SEM QUERER
+
+PROBLEMA  
+Seu useEffect atual limpa imageUrl sempre que troca modo → perigoso.
+
+ANTES (errado):
+
+ts
+useEffect(() => {
+  setFormData((prev) => ({
+    ...prev,
+    imageUrl: null,
+  }));
+}, [imageMode]);
+
+---
+
+DEPOIS (correto):
+
+ts
+function handleChangeMode(mode: "url" | "upload") {
+  setImageMode(mode);
+
+  setFormData((prev) => ({
+    ...prev,
+    imageUrl: null,
+  }));
+}
+
+---
+
+E no JSX:
+
+tsx
+onChange={() => handleChangeMode("url")}
+onChange={() => handleChangeMode("upload")}
+
+✔ só limpa quando usuário troca manualmente  
+✔ não apaga sozinho  
+
+---
+
+AJUSTE 3 — PREVIEW MAIS SEGURO
+
+PROBLEMA  
+Se URL quebrar → imagem quebra layout
+
+SOLUÇÃO
+
+tsx
+<img
+  src={formData.imageUrl}
+  onError={(e) => {
+    e.currentTarget.src = "/placeholder.png";
+  }}
+  style={{ width: 100, borderRadius: 8 }}
+/>
+
+---
+
+AJUSTE 4 — UX MELHOR (OPCIONAL MAS RECOMENDADO)
+
+Adicionar botão para remover imagem:
+
+tsx
+{formData.imageUrl && (
+  <button
+    type="button"
+    onClick={() =>
+      setFormData((prev) => ({ ...prev, imageUrl: null }))
+    }
+  >
+    Remover imagem
+  </button>
+)}
+
+---
+
+AJUSTE 5 — VALIDAR HTTPS (EVITA PROBLEMA FUTURO)
+
+ts
+if (imageMode === "url" && formData.imageUrl) {
+  if (!formData.imageUrl.startsWith("http")) {
+    throw new Error("URL deve começar com http ou https");
+  }
+}
+
+---
+
+RESULTADO FINAL
+
+✔ funciona com URL  
+✔ funciona com upload  
+✔ não perde imagem sem querer  
+✔ não quebra UI  
+✔ mantém consistência ao editar  
+✔ preparado para produção  
+
+---
+
+RISCO
+
+LOW ✅
+
+---
+
+OBS FINAL (IMPORTANTE)
+
+URL externa pode:
+
+- sair do ar  
+- ficar lenta  
+- mudar imagem  
+
+Futuro:
+
+usar Cloudinary como proxy
+
+---
+
+STATUS
+
+✔ APROVADO PARA USO REAL

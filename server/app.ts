@@ -1,5 +1,7 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
+import path from "path";
+import fs from "fs";
 import { registerModules, registerV1Modules, registerV2Modules } from "./modules";
 import { registerRoutes } from "./routes/routes";
 import { errorHandler } from "./core/errors/errorHandler";
@@ -75,6 +77,25 @@ export async function buildApp(): Promise<BuildAppResult> {
     }
     next();
   });
+
+  // Serve uploaded user content (product images, etc.) from disk.
+  // Lives at `/uploads/...` and shares the same path layout the upload
+  // endpoint returns. We register it BEFORE the modular routers so the
+  // request never falls into the API path matchers, and BEFORE Vite so
+  // dev mode also serves these files. Directory is created on demand.
+  const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+  if (!fs.existsSync(UPLOADS_DIR)) {
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  }
+  app.use(
+    "/uploads",
+    express.static(UPLOADS_DIR, {
+      // Long cache: filenames are content-hashed (random suffix) so they
+      // are effectively immutable. Browsers and CDNs can cache aggressively.
+      maxAge: "30d",
+      fallthrough: true,
+    }),
+  );
 
   // Request logger for /api responses.
   app.use((req, res, next) => {

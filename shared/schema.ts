@@ -151,6 +151,11 @@ export const products = pgTable("products", {
   categoryAvailability: text("category_availability").notNull().default("all"),
   // Lista de categorias permitidas quando categoryAvailability = 'specific'
   allowedCategories: jsonb("allowed_categories"),
+  // URL da imagem do produto. Pode ser:
+  //   - URL externa (https://...) — informada pelo admin
+  //   - Caminho interno (/uploads/products/<arquivo>) — gerado pelo upload
+  // Detectamos a origem pelo prefixo "/uploads" no frontend.
+  imageUrl: text("image_url"),
 }, (table) => ({
   productCodeIdx: index("products_product_code_idx").on(table.productCode),
 }));

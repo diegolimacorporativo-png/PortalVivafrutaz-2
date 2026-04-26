@@ -12,6 +12,7 @@
 import { productsRouter } from "./products.routes";
 import { categoriesRouter } from "./categories.routes";
 import { pricingAdminRouter } from "./pricing.routes";
+import { productUploadRouter } from "./upload.routes";
 
 export { productService } from "./products.service";
 export { productRepository } from "./products.repository";
@@ -40,6 +41,16 @@ export const pricingAdminDefinition = {
   name: "pricing-admin",
   basePath: "/api/admin/pricing",
   router: pricingAdminRouter,
+} as const;
+
+/**
+ * Privileged image upload endpoint — mounted at /api/admin/products.
+ * Single POST /upload-image route that returns `{ imageUrl }`.
+ */
+export const productsAdminDefinition = {
+  name: "products-admin",
+  basePath: "/api/admin/products",
+  router: productUploadRouter,
 } as const;
 
 export type ModuleDefinition = typeof definition;
