@@ -1,0 +1,150 @@
+## STEP 9.3F.3 — DASHBOARD DE ALERTAS (AUDITORIA COMPLETA)
+
+### OBJETIVO
+
+Criar uma camada de VISIBILIDADE dos alertas enviados:
+
+- ver histórico de alertas disparados
+- saber quais canais funcionaram/falharam
+- detectar rate-limit
+- auditar problemas de notificação
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar lógica do cron  
+- NÃO alterar alerts.service.ts (somente adicionar tracking leve)  
+- NÃO alterar SMTP  
+- NÃO alterar envio existente  
+
+👉 Apenas adicionar observabilidade dos alertas
+
+---
+
+## STEP 1 — STORE EM MEMÓRIA (ALERT LOG)
+
+Arquivo:
+server/modules/nfe/alerts-log.store.ts (NOVO)
+
+ts type AlertLog = {   at: number;   severity: "ALERT" | "CRITICAL";   title: string;   message: string;   results: {     channel: "email" | "slack" | "whatsapp";     ok: boolean;   }[];   rateLimited?: boolean; };  const MAX = 200;  const logs: AlertLog[] = [];  export function recordAlertLog(entry: AlertLog) {   logs.unshift(entry);   if (logs.length > MAX) logs.pop(); }  export function getAlertLogs() {   return logs; } 
+
+---
+
+## STEP 2 — INTEGRAR NO alerts.service.ts
+
+👉 SEM alterar lógica existente
+
+Apenas adicionar no final do emitAlert(...):
+
+ts import { recordAlertLog } from "@/modules/nfe/alerts-log.store"; 
+
+E logo antes do return final:
+
+ts recordAlertLog({   at: Date.now(),   severity,   title,   message,   results,   rateLimited: false }); 
+
+---
+
+### IMPORTANTE — RATE LIMIT
+
+No ponto onde já existe:
+
+ts console.warn("[ALERT_RATE_LIMIT]") 
+
+Adicionar:
+
+ts recordAlertLog({   at: Date.now(),   severity,   title,   message,   results: [],   rateLimited: true }); 
+
+---
+
+## STEP 3 — ENDPOINT DE ALERTAS
+
+Arquivo:
+server/routes/routes.ts
+
+ts import { getAlertLogs } from "@/modules/nfe/alerts-log.store";  app.get("/api/cron/alerts/logs", async (req, res) => {   try {     return res.json(getAlertLogs());   } catch (error) {     console.error("[ALERT_LOGS_ERROR]", error);     return res.status(500).json({       error: "Erro ao buscar logs de alertas"     });   } }); 
+
+---
+
+## STEP 4 — UI (DASHBOARD DE ALERTAS)
+
+Arquivo:
+client/src/pages/admin/faturamento.tsx
+
+### CONSUMIR:
+
+ts GET /api/cron/alerts/logs 
+
+---
+
+### EXIBIR:
+
+Para cada alerta:
+
+- Data (pt-BR)
+- Severidade:
+  - 🔴 CRITICAL
+  - 🟠 ALERT
+- Título
+- Canais:
+
+| Canal     | Status |
+|----------|--------|
+| Email     | ✅ / ❌ |
+| Slack     | ✅ / ❌ |
+| WhatsApp  | ⚠️ (não implementado) |
+
+- Rate limit:
+  - ⚠️ "Bloqueado por anti-spam"
+
+---
+
+### COMPORTAMENTO
+
+- Atualização automática (polling 10–15s)
+- Ordem: mais recente primeiro
+- Máx: 200 registros (mesmo do backend)
+
+---
+
+## RESULTADO FINAL
+
+ANTES:
+❌ Você não sabia se alertas estavam funcionando  
+❌ Sem visibilidade de falhas  
+❌ Sem auditoria  
+
+DEPOIS:
+✅ Histórico completo de alertas  
+✅ Debug imediato (email falhou? slack caiu?)  
+✅ Visibilidade de rate-limit  
+✅ Base para monitoramento real  
+
+---
+
+## RISCO
+
+LOW ✅  
+(somente leitura + store em memória)
+
+---
+
+## PRÓXIMO PASSO (9.3F.4)
+
+→ Persistir alertas no banco (igual ao cron)
+
+- tabela alert_logs
+- histórico permanente
+- analytics
+
+---
+
+## RESUMO SIMPLES
+
+Você saiu de:
+
+❌ "envia alerta e torce"
+
+Para:
+
+✅ "sabe exatamente o que foi enviado, quando e se deu certo

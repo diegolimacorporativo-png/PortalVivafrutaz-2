@@ -90,6 +90,45 @@ type AlertRecipient = {
   label?: string;
 };
 
+type AlertLogEntry = {
+  at: number;
+  severity: "ALERT" | "CRITICAL";
+  title: string;
+  message: string;
+  results: Array<{
+    channel: AlertChannel;
+    target?: string;
+    ok: boolean;
+    reason?: string;
+  }>;
+  rateLimited?: boolean;
+};
+
+function ChannelStat({
+  icon,
+  label,
+  results,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  results: Array<{ ok: boolean; reason?: string }>;
+}) {
+  const ok = results.filter((r) => r.ok).length;
+  const fail = results.length - ok;
+  const allOk = fail === 0;
+  const allFail = ok === 0;
+  const cls = allOk
+    ? "bg-green-100 text-green-800"
+    : allFail
+    ? "bg-red-100 text-red-800"
+    : "bg-amber-100 text-amber-800";
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded ${cls}`}>
+      {icon} {label} {allOk ? "✅" : allFail ? "❌" : `${ok}/${results.length}`}
+    </span>
+  );
+}
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
   try {
@@ -185,6 +224,12 @@ export default function CentralFaturamento() {
     const base = recipients ?? serverRecipients;
     setRecipients(base.filter((_, i) => i !== idx));
   }
+
+  // STEP 9.3F.3 — auditoria de alertas disparados (poll a cada 12s).
+  const { data: alertLogs = [], isLoading: alertLogsLoading } = useQuery<AlertLogEntry[]>({
+    queryKey: ["/api/cron/alerts/logs"],
+    refetchInterval: 12000,
+  });
 
   const runCron = useMutation({
     mutationFn: async () => {
@@ -532,6 +577,106 @@ export default function CentralFaturamento() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Auditoria de alertas — STEP 9.3F.3 */}
+      <Card data-testid="card-alert-logs">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Activity className="w-4 h-4 text-violet-600" />
+            Auditoria de alertas
+            {!alertLogsLoading && (
+              <Badge variant="secondary" className="ml-1" data-testid="badge-alert-logs-count">
+                {alertLogs.length}
+              </Badge>
+            )}
+          </CardTitle>
+          <p className="text-xs text-gray-500 mt-1">
+            Últimos {alertLogs.length} eventos do sistema de alertas (volátil — limpa em cada restart). Atualiza a cada 12s.
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {alertLogsLoading ? (
+            <div className="p-4 space-y-2">
+              <Skeleton className="h-12 w-full rounded" />
+              <Skeleton className="h-12 w-full rounded" />
+            </div>
+          ) : alertLogs.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-gray-400 text-center">
+              Nenhum alerta disparado ainda.
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100 max-h-[480px] overflow-y-auto">
+              {alertLogs.map((log, idx) => {
+                const dt = new Date(log.at).toLocaleString("pt-BR", {
+                  timeZone: "America/Sao_Paulo",
+                });
+                const sevColor =
+                  log.severity === "CRITICAL"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-orange-100 text-orange-800";
+                const sevDot = log.severity === "CRITICAL" ? "🔴" : "🟠";
+                const channelStats = {
+                  email: log.results.filter((r) => r.channel === "email"),
+                  slack: log.results.filter((r) => r.channel === "slack"),
+                  whatsapp: log.results.filter((r) => r.channel === "whatsapp"),
+                };
+                return (
+                  <li
+                    key={`${log.at}-${idx}`}
+                    className={`px-4 py-3 ${log.rateLimited ? "bg-amber-50/40" : ""}`}
+                    data-testid={`row-alert-log-${idx}`}
+                  >
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-gray-500 w-40 shrink-0">{dt}</span>
+                      <Badge className={`${sevColor} hover:${sevColor}`}>
+                        {sevDot} {log.severity}
+                      </Badge>
+                      <span
+                        className="text-sm font-medium text-gray-800 truncate"
+                        data-testid={`text-alert-title-${idx}`}
+                      >
+                        {log.title}
+                      </span>
+                      {log.rateLimited && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto"
+                          data-testid={`badge-rate-limited-${idx}`}
+                        >
+                          ⚠️ Bloqueado por anti-spam
+                        </Badge>
+                      )}
+                    </div>
+                    {!log.rateLimited && log.results.length > 0 && (
+                      <div className="flex items-center gap-3 mt-2 ml-40 text-xs flex-wrap">
+                        {channelStats.email.length > 0 && (
+                          <ChannelStat
+                            icon={<Mail className="w-3.5 h-3.5" />}
+                            label="Email"
+                            results={channelStats.email}
+                          />
+                        )}
+                        {channelStats.slack.length > 0 && (
+                          <ChannelStat
+                            icon={<MessageSquare className="w-3.5 h-3.5" />}
+                            label="Slack"
+                            results={channelStats.slack}
+                          />
+                        )}
+                        {channelStats.whatsapp.length > 0 && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-100 text-gray-600">
+                            <Phone className="w-3.5 h-3.5" /> WhatsApp ⚠️ não implementado
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </li>
                 );
               })}

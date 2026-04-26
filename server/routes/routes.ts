@@ -57,6 +57,7 @@ import {
   setAlertRecipients,
   alertRecipientsArraySchema,
 } from "../services/alerts.service";
+import { getAlertLogs } from "../modules/nfe/alerts-log.store";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5129,6 +5130,21 @@ export async function registerRoutes(
         } catch (err) {
           console.error('[ALERT_RECIPIENTS_PUT_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao salvar destinatários' });
+        }
+      },
+    );
+
+    // STEP 9.3F.3 — Auditoria de alertas disparados (memória, últimos 200).
+    app.get(
+      '/api/cron/alerts/logs',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (_req: any, res) => {
+        try {
+          return res.json(getAlertLogs());
+        } catch (err) {
+          console.error('[ALERT_LOGS_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao buscar logs de alertas' });
         }
       },
     );

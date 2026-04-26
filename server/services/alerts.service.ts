@@ -20,6 +20,7 @@
 import { z } from "zod";
 import { storage } from "./storage";
 import { sendAdminBroadcast, mailerStatus } from "./mailer";
+import { recordAlertLog } from "../modules/nfe/alerts-log.store";
 
 const RECIPIENTS_KEY = "cron_alerts.recipients";
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
@@ -224,6 +225,15 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
   const key = input.rateLimitKey ?? `cron:${input.severity.toLowerCase()}`;
   if (isRateLimited(key)) {
     console.warn("[ALERT_RATE_LIMIT]", { key, severity: input.severity });
+    // STEP 9.3F.3 — registra mesmo quando bloqueado por rate-limit.
+    recordAlertLog({
+      at: Date.now(),
+      severity: input.severity,
+      title: input.title,
+      message: input.message,
+      results: [],
+      rateLimited: true,
+    });
     return { rateLimited: true, attempted: 0, delivered: 0, results: [] };
   }
 
@@ -286,6 +296,21 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
       slack: slacks.length,
       whatsapp: whatsapps.length,
     },
+  });
+
+  // STEP 9.3F.3 — registra a execução completa para o dashboard de auditoria.
+  recordAlertLog({
+    at: Date.now(),
+    severity: input.severity,
+    title: input.title,
+    message: input.message,
+    results: results.map((r) => ({
+      channel: r.channel,
+      target: r.target,
+      ok: r.ok,
+      reason: r.reason,
+    })),
+    rateLimited: false,
   });
 
   return {
