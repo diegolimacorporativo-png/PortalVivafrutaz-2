@@ -1,0 +1,295 @@
+# 🧠 AUDITORIA + BASE DE IMPLEMENTAÇÃO — FATURAMENTO COMPLETO (VERSÃO HARDENED)
+
+## 🎯 OBJETIVO
+
+Mapear e preparar o sistema para suportar TODOS os modelos reais de faturamento, garantindo:
+
+- compatibilidade total com o sistema atual
+- zero regressão financeira
+- preparação correta para NF-e
+- suporte completo a contratos (inclusive custo médio)
+
+---
+
+# ⚠️ PRINCÍPIO ARQUITETURAL (OBRIGATÓRIO)
+
+👉 O sistema atual é a fonte da verdade operacional  
+👉 O novo fluxo fiscal NÃO pode alterar o fluxo existente  
+
+### Isso significa:
+
+- orders continua sendo a base operacional
+- accounts_receivable continua sendo financeiro oficial
+- nf_drafts será apenas camada fiscal editável
+
+---
+
+# ⚠️ REGRA CRÍTICA DE NEGÓCIO
+
+Existem 3 tipos de faturamento:
+
+- STANDARD
+- CONTRACT_OPEN
+- CONTRACT_AVERAGE
+
+E cada um deve gerar NF de forma diferente.
+
+---
+
+# 🧾 1. CLIENTE PADRÃO (STANDARD)
+
+✔ Fonte: orders + order_items  
+✔ Total: orders.totalValue  
+✔ NF: espelho do pedido  
+
+❌ Proibido editar valores
+
+---
+
+# 🔁 2. CLIENTE RECORRENTE (SEM CONTRATO)
+
+✔ Igual ao STANDARD  
+✔ Apenas frequência muda  
+
+---
+
+# 📑 3. CLIENTE CONTRATUAL
+
+## 🚨 NÃO DEPENDE DIRETAMENTE DO PEDIDO
+
+---
+
+## 🟡 CONTRACT_OPEN
+
+✔ NF baseada em edição manual  
+✔ Pode ignorar completamente orders  
+
+---
+
+## 🟢 CONTRACT_AVERAGE
+
+✔ Baseado em custo médio  
+✔ NÃO usa preço real dos produtos  
+✔ NÃO usa total do pedido  
+
+---
+
+## 💡 REGRA DE NEGÓCIO REAL
+
+- preço pode ser MAIOR que o custo real
+- contrato fixa preço anual
+- reajuste externo (ex: IPCA)
+
+---
+
+# ⚙️ COMPORTAMENTO OBRIGATÓRIO
+
+Para CONTRACT_AVERAGE:
+
+Sistema deve permitir:
+
+### MODO 1 — AGRUPADO
+
+- 1 item: "Frutas in natura"
+- valor total manual
+- controlado por flag:
+
+useGroupedItems = true
+
+---
+
+### MODO 2 — DETALHADO
+
+- múltiplos itens
+- preço médio por item
+- controlado por:
+
+useGroupedItems = false
+
+---
+
+# 🧩 CONFIGURAÇÃO DA EMPRESA
+
+Verificar existência de:
+
+billingType:
+
+- STANDARD
+- CONTRACT_OPEN
+- CONTRACT_AVERAGE
+
+---
+
+# 🔐 REGRA MULTI-TENANT (CRÍTICA)
+
+Tudo deve respeitar:
+
+- tenantId (empresa_id)
+- isolamento total de dados
+- uso obrigatório de withTenant / tenantWhere
+
+❌ Nunca buscar dados sem filtro de tenant
+
+---
+
+# 🧱 ESCOPOS CONTRATUAIS
+
+Sistema já possui contractScopes.
+
+Auditar:
+
+- está sendo usado?
+- está sendo ignorado?
+- está consistente com pedidos?
+
+---
+
+## ⚠️ REQUISITO
+
+Escopo deve ser:
+
+✔ editável  
+✔ versionável (se possível)  
+✔ desacoplado do pedido  
+
+---
+
+# 🧾 GERAÇÃO DA NF-e
+
+## STANDARD / RECORRENTE
+
+→ origem: orders
+
+---
+
+## CONTRACT_OPEN
+
+→ origem: nf_drafts (manual)
+
+---
+
+## CONTRACT_AVERAGE
+
+→ origem: nf_drafts com lógica:
+
+- agrupado OU detalhado
+- valores independentes do pedido
+
+---
+
+# 🧠 RELAÇÃO COM nf_drafts (FISCAL 1)
+
+Auditar se nf_drafts suporta:
+
+- billingType ✔
+- edição de items ✔
+- totals ✔
+- flag useGroupedItems ❌ (provavelmente ainda não existe)
+
+---
+
+# ⚠️ REGRA CRÍTICA DE CÁLCULO
+
+Hoje existem múltiplos cálculos de totalValue no sistema.
+
+👉 ISSO É UM RISCO REAL
+
+Durante auditoria, identificar:
+
+- quantos pontos calculam total
+- divergências possíveis
+
+❌ NÃO corrigir agora  
+✔ Apenas mapear
+
+---
+
+# 🔍 AUDITORIA OBRIGATÓRIA
+
+## 1. EMPRESAS
+
+- existe billingType?
+- onde está salvo?
+- está sendo usado?
+
+---
+
+## 2. PEDIDOS
+
+- onde totalValue é calculado?
+- existe função central?
+
+---
+
+## 3. CONTRATOS
+
+- contractScopes está ativo?
+- influencia preço?
+
+---
+
+## 4. NF ATUAL
+
+- buildNFeInput usa order ou draft?
+- permite edição?
+- depende de runtime?
+
+---
+
+## 5. nf_drafts
+
+- suporta contratos?
+- suporta agrupamento?
+- suporta edição total?
+
+---
+
+# 🚫 PROIBIDO
+
+❌ alterar orders  
+❌ alterar cálculo atual  
+❌ alterar accounts_receivable  
+❌ alterar emissão de NF existente  
+❌ integrar com SEFAZ  
+❌ corrigir inconsistências agora  
+
+---
+
+# 🎯 OBJETIVO FINAL
+
+Preparar o sistema para:
+
+✔ múltiplos modelos de faturamento  
+✔ NF correta por tipo  
+✔ contratos editáveis  
+✔ custo médio real  
+✔ zero regressão  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Relatório completo contendo:
+
+- o que já existe
+- o que falta
+- inconsistências encontradas
+- riscos
+- plano seguro de evolução
+
+---
+
+# 🔜 PRÓXIMO PASSO
+
+👉 STEP FISCAL 2 — Draft → NF (sem SEFAZ ainda)
+
+---
+
+## 🚀 EXECUÇÃO
+
+1. Auditar tudo  
+2. Mapear fluxos  
+3. Validar contra regras  
+4. NÃO implementar  
+
+Sem exceç
