@@ -5,6 +5,7 @@ import { registerRoutes } from "./routes/routes";
 import { errorHandler } from "./core/errors/errorHandler";
 import { createSessionMiddleware } from "./core/http/session";
 import { requestIdMiddleware } from "./middleware/requestId";
+import { requestLogger } from "./middleware/requestLogger";
 
 /**
  * App factory.
@@ -34,6 +35,12 @@ export async function buildApp(): Promise<BuildAppResult> {
   // can rely on `req.requestId` being a non-empty string. Also sets the
   // `X-Request-Id` response header so clients can include it in bug reports.
   app.use(requestIdMiddleware);
+
+  // Entry/exit logger SECOND: depends on `req.requestId` being set, must run
+  // before any router so the "incoming" line is emitted as early as possible
+  // and `res.on('finish')` captures the true end-of-response status/duration
+  // even when downstream middleware short-circuits the pipeline.
+  app.use(requestLogger);
 
   // Allow request handlers to read raw body when needed (webhooks, signatures).
   app.use(

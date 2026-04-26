@@ -1,0 +1,167 @@
+GOAL:
+Adicionar log de entrada/saída de requisições HTTP com requestId
+para permitir rastreamento completo (request → controller → erro),
+SEM alterar comportamento, SEM alterar response e SEM quebrar endpoints.
+
+STRICT RULES:
+- NÃO alterar endpoints (paths, métodos)
+- NÃO alterar response body (shape, mensagens, status)
+- NÃO alterar lógica de negócio
+- NÃO alterar validações
+- NÃO remover logs existentes
+- NÃO alterar contratos de controllers/services
+- NÃO adicionar dependências externas (usar console.*)
+- Se qualquer mudança afetar resposta → PARAR
+
+---
+
+STEP 1 — LOCALIZAR PONTO DE LOG
+
+Abrir:
+
+server/app.ts
+
+Identificar onde o Express é configurado (antes de registerModules/registerRoutes).
+
+---
+
+STEP 2 — CRIAR MIDDLEWARE DE REQUEST LOG
+
+Criar middleware inline ou em:
+
+server/middlewares/requestLogger.ts
+
+Requisitos:
+
+- logar no início da request (incoming)
+- logar ao finalizar a response (outgoing)
+- incluir:
+  - requestId
+  - method
+  - path
+  - status code
+  - tempo de execução (ms)
+
+Implementação:
+
+const requestLogger = (req, res, next) => {
+  const start = Date.now();
+
+  console.info(
+    `[${req.requestId}] --> ${req.method} ${req.originalUrl}`
+  );
+
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+
+    console.info(
+      `[${req.requestId}] <-- ${req.method} ${req.originalUrl} ${res.statusCode} ${duration}ms`
+    );
+  });
+
+  next();
+};
+
+---
+
+STEP 3 — REGISTRAR MIDDLEWARE
+
+Em server/app.ts:
+
+ORDEM OBRIGATÓRIA:
+
+app.use(requestIdMiddleware);
+app.use(requestLogger);
+
+⚠️ Deve vir antes de:
+- registerModules()
+- registerRoutes()
+
+⚠️ NÃO mover middlewares existentes
+
+---
+
+STEP 4 — PADRÃO DE LOG
+
+Garantir formato consistente:
+
+IN:
+[uuid] --> GET /api/products
+
+OUT:
+[uuid] <-- GET /api/products 200 32ms
+
+---
+
+STEP 5 — NÃO ALTERAR RESPONSE
+
+⚠️ PROIBIDO:
+- alterar res.json
+- alterar status
+- alterar headers (exceto o já existente X-Request-Id)
+- alterar fluxo de execução
+
+---
+
+STEP 6 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm run check
+- npm test
+
+---
+
+STEP 7 — RUNTIME CHECK
+
+Fazer uma request:
+
+GET /api/products
+
+Esperado:
+
+HEADER:
+X-Request-Id: <uuid>
+
+LOGS:
+
+[abc-123] --> GET /api/products
+[abc-123] <-- GET /api/products 200 25ms
+
+---
+
+STEP 8 — CORRELAÇÃO COMPLETA
+
+Validar que o mesmo requestId aparece também em:
+
+- controller logs
+- errorHandler logs
+
+Exemplo completo:
+
+[abc-123] --> GET /api/products
+[abc-123] [products.controller] list failed
+[abc-123] <-- GET /api/products 500 40ms
+
+---
+
+STEP 9 — REPORT
+
+Retornar:
+
+- arquivo criado (se houver)
+- arquivo modificado (app.ts)
+- exemplo real de logs
+- confirmação de zero mudança de comportamento
+- risco final (LOW obrigatório)
+
+---
+
+SUCCESS CRITERIA:
+
+✅ Cada request logada na entrada e saída
+✅ requestId presente em TODOS os logs
+✅ tempo de execução visível
+✅ nenhum impacto em response
+✅ TypeScript limpo
