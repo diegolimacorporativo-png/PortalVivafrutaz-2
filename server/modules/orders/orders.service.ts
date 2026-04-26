@@ -803,6 +803,20 @@ export class OrdersService {
     // ── Phase 2: Validation (pure — all reads are done, no writes yet) ───────
     assertTransitionAllowed(from, to);
     assertTransitionRole(to, user.role);
+
+    // STEP 7.1 — Skip-step guard: APPROVED → INVOICED is allowed by the state
+    // machine (legacy fast path), but only privileged roles can use it. Regular
+    // operators must follow the operational pipeline:
+    //   APPROVED → PROCESSING → READY → INVOICED
+    if (from === OrderStatus.APPROVED && to === OrderStatus.INVOICED) {
+      const isPrivileged = user.role === "MASTER" || user.role === "DIRECTOR";
+      if (!isPrivileged) {
+        throw new BadRequestError(
+          "Fluxo operacional obrigatório: iniciar separação primeiro.",
+        );
+      }
+    }
+
     validateBusinessRules({ orderId: id, to, company, orderRow, arByCompany });
 
     // Enrich items with productName before entering the transaction so the tx
