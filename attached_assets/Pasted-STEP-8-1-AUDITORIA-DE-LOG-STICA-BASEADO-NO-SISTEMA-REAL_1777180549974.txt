@@ -1,0 +1,189 @@
+STEP 8.1 — AUDITORIA DE LOGÍSTICA (BASEADO NO SISTEMA REAL)
+
+OBJETIVO  
+Entender exatamente:
+
+- o que já existe  
+- o que pode ser reaproveitado  
+- onde a logística deve se encaixar no workflow atual  
+
+---
+
+🚫 NÃO criar tabela nova  
+🚫 NÃO criar módulo novo ainda  
+🚫 NÃO duplicar “rota” / “entrega”  
+🚫 NÃO separar sistema de motorista fora do fluxo  
+
+👉 Apenas análise + ajustes planejados  
+
+---
+
+## STEP 1 — DESCOBERTA DE ESTRUTURA
+
+Verificar no backend:
+
+### PEDIDOS
+
+Campos importantes:
+
+- status  
+- workflowStatus  
+- deliveryDate  
+- companyId  
+
+👉 Esses já são a base da logística  
+
+---
+
+### WORKFLOW (ESSENCIAL)
+
+Você já tem:
+
+CREATED  
+→ PENDING_APPROVAL  
+→ APPROVED  
+→ PROCESSING  
+→ READY  
+→ INVOICED  
+→ SHIPPED  
+→ DELIVERED  
+
+👉 LOGÍSTICA começa aqui:
+
+- READY → pronto para roteirização  
+- SHIPPED → saiu para entrega  
+
+---
+
+### LOGS (já existentes)
+
+Tabela: system_logs  
+
+👉 já registra:
+
+- transições  
+- ações  
+- usuário  
+
+👉 isso será a base da timeline logística  
+
+---
+
+### VERIFICAR SE JÁ EXISTE
+
+Buscar no código:
+
+- route  
+- delivery  
+- driver  
+- vehicle  
+- map  
+- lat  
+- lng  
+
+👉 mapear se algo disso já existe  
+
+---
+
+## STEP 2 — IDENTIFICAR GAPS (SEM INVENTAR)
+
+Responder:
+
+❓ Existe vínculo pedido → motorista?  
+- ❌ não existe → GAP  
+
+❓ Existe agrupamento de pedidos (rota)?  
+- ❌ não existe → GAP  
+
+❓ Existe controle de status de entrega detalhado?  
+Hoje só tem:
+
+- SHIPPED  
+- DELIVERED  
+
+👉 falta granularidade  
+
+❓ Existe painel de motorista?  
+- ❌ não existe → GAP  
+
+---
+
+## STEP 3 — ONDE A LOGÍSTICA ENTRA
+
+👉 Integração correta com seu sistema atual:
+
+📌 READY  
+- pedido pronto  
+- entra na fila de roteirização  
+
+📌 SHIPPED  
+- motorista atribuído  
+- rota definida  
+- pedido sai para entrega  
+
+📌 DELIVERED  
+- finalização  
+
+👉 NÃO criar novos estados ainda  
+
+---
+
+## STEP 4 — USUÁRIO MOTORISTA
+
+Base existente:
+
+- tabela users  
+- campo role  
+
+👉 criar role: DRIVER  
+
+Regras:
+
+✔ motorista vê apenas pedidos atribuídos  
+✔ NÃO pode editar pedido  
+✔ NÃO acessa admin  
+
+👉 isso é controle de acesso, não sistema separado  
+
+---
+
+## STEP 5 — ROTAS (ANÁLISE)
+
+Verificar se já existe:
+
+- groupId  
+- batch  
+- deliveryGroup  
+
+Se não existir:
+
+👉 marcar como GAP (não criar ainda)  
+
+---
+
+## STEP 6 — MAPS / ROTEIRIZAÇÃO
+
+Validar:
+
+- já existe integração com mapas?  
+- já calcula rota automaticamente?  
+- já existe lat/lng nas empresas?  
+
+Se não:
+
+👉 marcar como GAP  
+
+---
+
+## RESULTADO ESPERADO
+
+✔ visão clara do que já existe  
+✔ gaps identificados  
+✔ zero duplicação  
+✔ base pronta para STEP 8.2  
+
+---
+
+RISCO
+
+ZERO ✅
