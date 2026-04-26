@@ -1,0 +1,55 @@
+## STEP 9.2Y.1 — AJUSTE DO GATE + ENDPOINT DE VALIDAÇÃO
+
+### OBJETIVO
+
+1. Ajustar o guard para usar apenas:
+   → fiscal_status === "nota_liberada"
+
+2. Criar endpoint:
+   → GET /api/nfe/can-emit/:orderId
+
+Sem alterar schema, sem quebrar fluxo.
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar banco  
+- NÃO mudar fluxo de emissão  
+- NÃO duplicar lógica  
+- Reutilizar canEmitNFe  
+
+---
+
+### STEP 1 — AJUSTAR GUARD
+
+Arquivo:
+
+server/modules/nfe/faturamento.guard.ts
+
+ts import { db } from "@/db"; import { sql } from "drizzle-orm";  export async function canEmitNFe(orderId: number) {   const result = await db.execute(sql`     SELECT        o.id,       o.status,       o.fiscal_status,       o.delivery_date,       c.contract_start_date,       c.contract_end_date     FROM orders o     JOIN companies c ON c.id = o.company_id     WHERE o.id = ${orderId}   `);    const order = result.rows?.[0];    if (!order) {     return { allowed: false, reason: "Pedido não encontrado" };   }    const now = new Date();    // Pedido cancelado   if (order.status === "CANCELLED") {     return { allowed: false, reason: "Pedido cancelado" };   }    // ✅ REGRA PRINCIPAL   if (order.fiscal_status !== "nota_liberada") {     return {       allowed: false,       reason: "Pedido ainda não liberado para faturamento"     };   }    // Entrega ainda não ocorreu   if (order.delivery_date && new Date(order.delivery_date) > now) {     return {       allowed: false,       reason: "Entrega ainda não realizada"     };   }    // Contrato ainda não iniciou   if (order.contract_start_date && new Date(order.contract_start_date) > now) {     return {       allowed: false,       reason: "Contrato ainda não iniciado"     };   }    // Contrato expirado   if (order.contract_end_date && new Date(order.contract_end_date) < now) {     return {       allowed: false,       reason: "Contrato da empresa expirado"     };   }    return { allowed: true }; } 
+
+---
+
+### STEP 2 — CRIAR ENDPOINT DE VALIDAÇÃO
+
+Arquivo:
+
+server/routes/routes.ts
+
+ts import { canEmitNFe } from "@/modules/nfe/faturamento.guard";  app.get("/api/nfe/can-emit/:orderId", async (req, res) => {   try {     const orderId = Number(req.params.orderId);      if (!orderId) {       return res.status(400).json({         error: "orderId inválido"       });     }      const result = await canEmitNFe(orderId);      return res.json({       orderId,       ...result     });    } catch (error) {     console.error("[NFE_CAN_EMIT_ERROR]", error);      return res.status(500).json({       error: "Erro ao validar faturamento"     });   } }); 
+
+---
+
+### RESULTADO
+
+✔ Guard corrigido (sem travar fluxos futuros)  
+✔ Endpoint pronto para frontend  
+✔ Mesma lógica usada em emissão e validação  
+✔ Zero duplicação  
+
+---
+
+### RISCO
+
+LOW ✅ (somente leitura + bloqueio)

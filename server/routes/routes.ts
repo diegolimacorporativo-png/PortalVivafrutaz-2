@@ -5087,6 +5087,21 @@ export async function registerRoutes(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
+    // GET /api/nfe/can-emit/:orderId — validação prévia (mesma lógica do guard)
+    app.get('/api/nfe/can-emit/:orderId', async (req: any, res) => {
+      try {
+        const orderId = Number(req.params.orderId);
+        if (!orderId) {
+          return res.status(400).json({ error: 'orderId inválido' });
+        }
+        const result = await canEmitNFe(orderId);
+        return res.json({ orderId, ...result });
+      } catch (error) {
+        console.error('[NFE_CAN_EMIT_ERROR]', error);
+        return res.status(500).json({ error: 'Erro ao validar emissão' });
+      }
+    });
+
     // POST /api/nfe/emitir — gerar XML + criar registro
     app.post('/api/nfe/emitir', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });

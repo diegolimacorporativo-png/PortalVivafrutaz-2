@@ -43,12 +43,11 @@ export async function canEmitNFe(orderId: number): Promise<CanEmitNFeResult> {
     return { allowed: false, reason: "Pedido cancelado não pode emitir NF" };
   }
 
-  if (order.fiscal_status === "nota_emitida") {
-    return { allowed: false, reason: "Pedido já possui NF emitida" };
-  }
-
-  if (order.fiscal_status === "nota_cancelada") {
-    return { allowed: false, reason: "NF deste pedido foi cancelada" };
+  if (order.fiscal_status !== "nota_liberada") {
+    return {
+      allowed: false,
+      reason: "Pedido ainda não foi liberado para emissão fiscal",
+    };
   }
 
   if (!order.delivery_date) {
