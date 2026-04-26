@@ -1,0 +1,179 @@
+# 🔍 AUDITORIA COMPLETA — SISTEMA FINANCEIRO (PRÉ-FISCAL)
+
+## 🎯 OBJETIVO
+
+Mapear toda a lógica financeira existente no sistema.
+
+👉 NÃO implementar nada  
+👉 NÃO alterar nada  
+👉 NÃO corrigir nada  
+
+✅ Apenas entender o que já existe
+
+---
+
+# ⚠️ IMPORTANTE
+
+Sistema fiscal (NF-e) DEVE reutilizar:
+
+- totais
+- cálculos
+- preços
+- estrutura de pedido
+
+👉 NÃO pode existir lógica paralela
+
+---
+
+# 🧭 FASE 1 — DISCOVERY GLOBAL
+
+Buscar no projeto inteiro por:
+
+### 🔎 Palavras-chave
+
+- price
+- total
+- subtotal
+- amount
+- value
+- discount
+- tax
+- fee
+- payment
+- billing
+- invoice
+- order
+- cart
+- checkout
+
+---
+
+# 🧱 FASE 2 — ESTRUTURA DE PEDIDOS
+
+Identificar:
+
+- tabela orders (ou equivalente)
+- tabela order_items
+
+Para cada uma, mapear:
+
+## Orders
+
+- total
+- subtotal
+- desconto
+- frete
+- status
+- forma de pagamento
+
+## Order Items
+
+- produto
+- quantidade
+- preço unitário
+- total por item
+
+---
+
+# ⚙️ FASE 3 — CÁLCULOS
+
+Identificar:
+
+- onde o total é calculado
+- como o subtotal é formado
+- onde descontos são aplicados
+- se há arredondamento
+- se há impostos já considerados
+
+👉 ESSENCIAL
+
+---
+
+# 💳 FASE 4 — PAGAMENTOS
+
+Mapear:
+
+- integrações (Mercado Pago, Stripe, etc.)
+- status de pagamento
+- confirmação de pagamento
+- webhook (se existir)
+
+---
+
+# 🧪 FASE 5 — LÓGICA ESPALHADA
+
+Procurar:
+
+- cálculos duplicados
+- regras em múltiplos arquivos
+- funções não centralizadas
+- inconsistências
+
+---
+
+# 📡 FASE 6 — FLUXO REAL
+
+Responder:
+
+1. Como um pedido é criado?
+2. Quando o valor final é definido?
+3. O valor muda depois?
+4. Existe recalculo?
+5. O valor salvo é confiável?
+
+---
+
+# 🔗 FASE 7 — COMPATIBILIDADE COM NF-e
+
+Responder:
+
+- Estrutura atual serve para NF-e?
+- Falta algum campo obrigatório?
+- O total do pedido pode virar total da nota?
+- Há inconsistências que podem gerar erro fiscal?
+
+---
+
+# 📊 FASE 8 — RELATÓRIO FINAL
+
+Formato obrigatório:
+
+json {   "ordersStructure": {},   "itemsStructure": {},   "calculations": {},   "payments": {},   "inconsistencies": [],   "duplicatedLogic": [],   "isReliableForFiscal": true/false,   "missingForFiscal": [],   "riskLevel": "low | medium | high" } 
+
+---
+
+# 🚫 PROIBIDO
+
+❌ Não corrigir nada  
+❌ Não sugerir implementação ainda  
+❌ Não criar nova lógica  
+❌ Não alterar arquivos  
+
+---
+
+# 🎯 RESULTADO ESPERADO
+
+Você deve me dizer:
+
+👉 Se o sistema financeiro é confiável  
+👉 Se pode ser usado para NF-e  
+👉 O que falta  
+👉 O que pode quebrar  
+
+---
+
+# 🔜 PRÓXIMO PASSO
+
+Após essa auditoria:
+
+👉 STEP FISCAL 1 (com base no que já existe)
+
+---
+
+## 🚀 EXECUTAR
+
+1. Varredura completa  
+2. Mapear estrutura financeira  
+3. Identificar riscos  
+4. Consolidar relatório  
+5. NÃO alterar nada
