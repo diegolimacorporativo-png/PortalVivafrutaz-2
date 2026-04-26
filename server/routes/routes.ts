@@ -5213,6 +5213,72 @@ export async function registerRoutes(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
+    // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
+    app.post('/api/nfe/emitir-lote', requireActiveSubscription, async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      try {
+        const { orderIds } = req.body;
+        if (!Array.isArray(orderIds) || orderIds.length === 0) {
+          return res.status(400).json({ error: 'Lista de pedidos inválida' });
+        }
+
+        const results = await Promise.all(
+          orderIds.map(async (orderId: number) => {
+            try {
+              // Verificar NF-e já emitida
+              const existing = await storage.getNfeEmissaoByOrderId(Number(orderId));
+              if (existing && ['autorizada', 'enviada'].includes(existing.status)) {
+                return { orderId, status: 'skipped', reason: 'NF-e já emitida' };
+              }
+
+              // Guard — mesma regra do /api/nfe/emitir, sem duplicar
+              const check = await canEmitNFe(Number(orderId));
+              if (!check.allowed) {
+                return { orderId, status: 'blocked', reason: check.reason };
+              }
+
+              const input = await buildNFeInput(Number(orderId));
+              const erros = validarNFeInput(input);
+              if (erros.length > 0) {
+                return { orderId, status: 'error', reason: `Dados fiscais incompletos: ${erros.join(', ')}` };
+              }
+
+              const numero = await storage.getNextNfeNumero();
+              const gerada = await gerarNFeXML(input, numero);
+
+              const nfe = await storage.createNfeEmissao({
+                orderId: Number(orderId),
+                numero: gerada.numero,
+                serie: gerada.serie,
+                chaveNFe: gerada.chaveNFe,
+                status: 'gerada',
+                xmlGerado: gerada.xmlGerado,
+                dataEmissao: gerada.dataEmissao,
+                ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+              });
+
+              await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
+              await storage.createLog({ action: 'NF-E_LOTE_GERADA', description: `NF-e nº ${numero} gerada em lote para pedido #${orderId}.`, level: 'INFO', userId: req.session.userId });
+
+              return { orderId, status: 'success', nfe };
+            } catch (e: any) {
+              return { orderId, status: 'error', reason: e.message };
+            }
+          }),
+        );
+
+        const total    = results.length;
+        const success  = results.filter(r => r.status === 'success').length;
+        const blocked  = results.filter(r => r.status === 'blocked').length;
+        const errors   = results.filter(r => r.status === 'error').length;
+        const skipped  = results.filter(r => r.status === 'skipped').length;
+
+        return res.json({ summary: { total, success, blocked, errors, skipped }, results });
+      } catch (e: any) {
+        return res.status(500).json({ message: e.message });
+      }
+    });
+
     // POST /api/nfe/:id/enviar — transmitir ao SEFAZ
     app.post('/api/nfe/:id/enviar', async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });

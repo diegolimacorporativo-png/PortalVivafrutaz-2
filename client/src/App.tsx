@@ -65,6 +65,7 @@ import AdminCommercialIntelligence from "@/pages/admin/commercial-intelligence";
 import AdminFinancialIntelligence from "@/pages/admin/financial-intelligence";
 import AdminFinance from "@/pages/admin/finance";
 import AdminNfe from "@/pages/admin/nfe";
+import CentralFaturamento from "@/pages/admin/faturamento";
 import InsertNfManual from "@/pages/admin/insert-nf-manual";
 import AdminBanco from "@/pages/admin/banco";
 import AdminAiDeveloper from "@/pages/admin/ai-developer";
@@ -358,6 +359,9 @@ function Router() {
       </Route>
       <Route path="/admin/nfe">
         {() => <ProtectedRoute component={AdminNfe} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR']} tabKey="nfe" />}
+      </Route>
+      <Route path="/admin/faturamento">
+        {() => <ProtectedRoute component={CentralFaturamento} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR']} tabKey="faturamento" />}
       </Route>
       <Route path="/admin/insert-nf-manual">
         {() => <ProtectedRoute component={InsertNfManual} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR']} tabKey="insert-nf-manual" />}

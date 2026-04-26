@@ -1,0 +1,125 @@
+## STEP 9.3B — CENTRAL DE FATURAMENTO (INTELIGENTE + CONTROLADA)
+
+### OBJETIVO
+
+Criar uma central que:
+
+1. Lista pedidos elegíveis automaticamente  
+2. Permite emissão manual assistida  
+3. Permite emissão em lote (controlada)  
+4. Nunca quebra regra do guard  
+5. Prepara automação futura (cron)
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar schema  
+- NÃO duplicar lógica  
+- NÃO mexer no canEmitNFe  
+- NÃO alterar /api/nfe/emitir existente  
+
+👉 Tudo deve reutilizar o que já existe
+
+---
+
+### STEP 1 — ENDPOINT DE EMISSÃO EM LOTE
+
+Arquivo:
+server/routes/routes.ts
+
+ts app.post("/api/nfe/emitir-lote", async (req, res) => {   try {     const { orderIds } = req.body;      if (!Array.isArray(orderIds) || orderIds.length === 0) {       return res.status(400).json({         error: "Lista de pedidos inválida"       });     }      const results = await Promise.all(       orderIds.map(async (orderId: number) => {         try {           const check = await canEmitNFe(orderId);            if (!check.allowed) {             return {               orderId,               success: false,               reason: check.reason             };           }            const response = await fetch(             `${process.env.BASE_URL}/api/nfe/emitir`,             {               method: "POST",               headers: {                 "Content-Type": "application/json",                 Cookie: req.headers.cookie || ""               },               body: JSON.stringify({ orderId })             }           );            if (!response.ok) {             return {               orderId,               success: false,               reason: "Erro ao emitir NF"             };           }            return {             orderId,             success: true           };          } catch (err) {           return {             orderId,             success: false,             reason: "Erro interno"           };         }       })     );      console.log("[NFE_LOTE_EXECUTADO]", {       total: orderIds.length,       success: results.filter(r => r.success).length     });      return res.json({       total: results.length,       success: results.filter(r => r.success).length,       failed: results.filter(r => !r.success).length,       results     });    } catch (error) {     console.error("[NFE_LOTE_ERROR]", error);      return res.status(500).json({       error: "Erro ao emitir lote"     });   } }); 
+
+---
+
+### STEP 2 — HOOK DE EMISSÃO EM LOTE
+
+Arquivo:
+client/src/hooks/use-emitir-lote-nfe.ts
+
+ts import { useMutation } from "@tanstack/react-query"; import { apiRequest } from "@/lib/api";  export function useEmitirLoteNfe() {   return useMutation({     mutationFn: async (orderIds: number[]) => {       const res = await apiRequest("POST", "/api/nfe/emitir-lote", {         orderIds       });        return res.json();     }   }); } 
+
+---
+
+### STEP 3 — USAR /api/nfe/eligible
+
+👉 Já existente  
+👉 Já respeita TODAS as regras  
+👉 Não precisa mexer
+
+---
+
+### STEP 4 — UI (CENTRAL DE FATURAMENTO)
+
+Arquivo sugerido:
+client/src/pages/admin/faturamento.tsx
+
+Funcionalidades:
+
+- Carregar lista:
+GET /api/nfe/eligible
+
+- Exibir pedidos com checkbox
+
+- Seleção múltipla
+
+- Botão principal:
+
+ts confirm("Deseja emitir X notas fiscais?") 
+
+- Ação:
+
+ts emitirLote(orderIdsSelecionados) 
+
+- Exibir resultado:
+
+- ✅ sucesso
+- ❌ erro + motivo
+
+---
+
+### RESULTADO FINAL
+
+ANTES:
+→ emissão manual, pedido por pedido
+
+DEPOIS:
+
+✔ lista automática de elegíveis  
+✔ emissão assistida  
+✔ emissão em lote  
+✔ respeita TODAS as regras  
+✔ evita erro humano  
+✔ pronto para automação futura  
+
+---
+
+### RISCO
+
+LOW ✅
+
+---
+
+### PRÓXIMO PASSO
+
+STEP 9.3C — AUTOMAÇÃO (CRON)
+
+---
+
+### RESUMO
+
+Você saiu de:
+
+❌ clicar pedido por pedido  
+
+Para:
+
+✅ ver tudo pronto  
+✅ selecionar  
+✅ emitir com 1 clique  
+```
+:::
+
+---
+
+Se quiser, no próximo passo (9.3C) eu já te entrego o cron inteligente respeitando semanal/mensal/subsequente, que é onde isso aqui vira automático de verdade sem erro fiscal.

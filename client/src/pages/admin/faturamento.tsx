@@ -1,0 +1,309 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useEmitirLoteNfe, type LoteResponse } from "@/hooks/use-emitir-lote-nfe";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  RefreshCw,
+  Zap,
+  FileText,
+  Building2,
+  Clock,
+  SkipForward,
+} from "lucide-react";
+
+type EligibleOrder = {
+  orderId: number;
+  companyId: number;
+  faturamento: {
+    tipo: string;
+    prazoDias: number;
+  };
+};
+
+const TIPO_BADGE: Record<string, string> = {
+  semanal:    "bg-blue-100 text-blue-800",
+  mensal:     "bg-purple-100 text-purple-800",
+  imediato:   "bg-green-100 text-green-800",
+  contratual: "bg-orange-100 text-orange-800",
+  pontual:    "bg-gray-100 text-gray-700",
+};
+
+function StatusIcon({ status }: { status: string }) {
+  if (status === "success") return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+  if (status === "blocked") return <XCircle className="w-4 h-4 text-orange-500" />;
+  if (status === "skipped") return <SkipForward className="w-4 h-4 text-gray-400" />;
+  return <AlertCircle className="w-4 h-4 text-red-500" />;
+}
+
+export default function CentralFaturamento() {
+  const { toast } = useToast();
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [loteResult, setLoteResult] = useState<LoteResponse | null>(null);
+
+  const { data: eligible = [], isLoading, refetch } = useQuery<EligibleOrder[]>({
+    queryKey: ["/api/nfe/eligible"],
+  });
+
+  const emitirLote = useEmitirLoteNfe();
+
+  function toggleAll() {
+    if (selected.size === eligible.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(eligible.map((o) => o.orderId)));
+    }
+  }
+
+  function toggleOne(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function handleEmitir() {
+    const orderIds = Array.from(selected);
+    try {
+      const result = await emitirLote.mutateAsync(orderIds);
+      setLoteResult(result);
+      setSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/nfe/eligible"] });
+      toast({
+        title: "Lote processado",
+        description: `${result.summary.success} emitidas · ${result.summary.blocked} bloqueadas · ${result.summary.errors} erros`,
+      });
+    } catch (e: any) {
+      toast({ title: "Erro ao emitir lote", description: e.message, variant: "destructive" });
+    }
+  }
+
+  const allSelected = eligible.length > 0 && selected.size === eligible.length;
+  const someSelected = selected.size > 0;
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Central de Faturamento</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Pedidos elegíveis para emissão de NF-e agora
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isLoading}
+          data-testid="button-refresh-eligible"
+        >
+          <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          Atualizar
+        </Button>
+      </div>
+
+      {/* Lista de elegíveis */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <FileText className="w-4 h-4 text-emerald-600" />
+              Pedidos prontos para NF-e
+              {!isLoading && (
+                <Badge variant="secondary" className="ml-1" data-testid="badge-eligible-count">
+                  {eligible.length}
+                </Badge>
+              )}
+            </CardTitle>
+            {eligible.length > 0 && (
+              <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  className="w-4 h-4 rounded"
+                  data-testid="checkbox-select-all"
+                />
+                Selecionar todos
+              </label>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {isLoading ? (
+            <div className="p-4 space-y-3">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : eligible.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-14 text-gray-400">
+              <CheckCircle2 className="w-10 h-10 mb-3 text-emerald-300" />
+              <p className="font-medium">Nenhum pedido elegível no momento</p>
+              <p className="text-xs mt-1">Todos os pedidos liberados já foram faturados ou aguardam ciclo.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {eligible.map((order) => (
+                <li
+                  key={order.orderId}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                  onClick={() => toggleOne(order.orderId)}
+                  data-testid={`row-eligible-${order.orderId}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(order.orderId)}
+                    onChange={() => toggleOne(order.orderId)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-4 h-4 rounded flex-shrink-0"
+                    data-testid={`checkbox-order-${order.orderId}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-sm text-gray-900" data-testid={`text-order-id-${order.orderId}`}>
+                        Pedido #{order.orderId}
+                      </span>
+                      <span
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${TIPO_BADGE[order.faturamento.tipo] ?? "bg-gray-100 text-gray-700"}`}
+                        data-testid={`badge-tipo-${order.orderId}`}
+                      >
+                        {order.faturamento.tipo}
+                      </span>
+                      {order.faturamento.prazoDias > 0 && (
+                        <span className="flex items-center gap-1 text-xs text-gray-500">
+                          <Clock className="w-3 h-3" />
+                          {order.faturamento.prazoDias}d
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-400">
+                      <Building2 className="w-3 h-3" />
+                      Empresa #{order.companyId}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Ação de emissão em lote */}
+      {someSelected && (
+        <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3">
+          <span className="text-sm font-medium text-emerald-800">
+            {selected.size} pedido{selected.size > 1 ? "s" : ""} selecionado{selected.size > 1 ? "s" : ""}
+          </span>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                data-testid="button-emitir-lote"
+              >
+                <Zap className="w-4 h-4 mr-2" />
+                Emitir {selected.size} NF{selected.size > 1 ? "s" : ""}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Confirmar emissão em lote</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Você está prestes a emitir <strong>{selected.size} NF-e{selected.size > 1 ? "s" : ""}</strong>.
+                  Cada pedido passará pelo guard de faturamento antes da emissão.
+                  <br /><br />
+                  Esta ação não pode ser desfeita.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel data-testid="button-cancel-lote">Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleEmitir}
+                  disabled={emitirLote.isPending}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  data-testid="button-confirm-lote"
+                >
+                  {emitirLote.isPending ? "Emitindo..." : "Confirmar emissão"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
+      {/* Resultado do lote */}
+      {loteResult && (
+        <Card data-testid="card-lote-result">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Resultado da emissão</CardTitle>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <span className="flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded-full">
+                <CheckCircle2 className="w-3 h-3" />
+                {loteResult.summary.success} emitidas
+              </span>
+              {loteResult.summary.blocked > 0 && (
+                <span className="flex items-center gap-1 text-xs font-medium text-orange-700 bg-orange-50 px-2 py-1 rounded-full">
+                  <XCircle className="w-3 h-3" />
+                  {loteResult.summary.blocked} bloqueadas
+                </span>
+              )}
+              {loteResult.summary.errors > 0 && (
+                <span className="flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-1 rounded-full">
+                  <AlertCircle className="w-3 h-3" />
+                  {loteResult.summary.errors} erros
+                </span>
+              )}
+              {loteResult.summary.skipped > 0 && (
+                <span className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                  <SkipForward className="w-3 h-3" />
+                  {loteResult.summary.skipped} puladas
+                </span>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ul className="divide-y divide-gray-100">
+              {loteResult.results.map((r) => (
+                <li
+                  key={r.orderId}
+                  className="flex items-center gap-3 px-4 py-3"
+                  data-testid={`row-result-${r.orderId}`}
+                >
+                  <StatusIcon status={r.status} />
+                  <span className="text-sm font-medium text-gray-800 w-28">
+                    Pedido #{r.orderId}
+                  </span>
+                  <span className="text-xs text-gray-500 flex-1 truncate">
+                    {r.reason ?? (r.status === "success" ? `NF-e ${r.nfe?.numero ?? "gerada"}` : "")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
