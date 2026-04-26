@@ -14,8 +14,9 @@
  *   - Falha desta camada NUNCA pode quebrar o fluxo principal de alertas.
  *
  * F.14 — Envio real:
- *   - Usa `sendMail(to, subject, html)` de `./mailer` (1:1 por usuário).
- *   - Sem broadcast, sem agrupamento, sem nova função de envio.
+ *   - Usa `sendGenericEmail(to, subject, html)` de `./mailer` (wrapper público
+ *     estável que delega 100% para o sender interno do mailer). 1:1 por usuário.
+ *   - Sem broadcast, sem agrupamento, sem nova lógica de envio.
  *   - SMTP não configurado → success:false, reason:"SMTP_NOT_CONFIGURED".
  *   - Erro de envio       → success:false, reason normalizado.
  *
@@ -33,7 +34,7 @@ import {
   getUserPreferences,
   isSeverityAllowed,
 } from "./alerts.preferences";
-import { sendMail, isMailerConfigured } from "./mailer";
+import { sendGenericEmail, isMailerConfigured } from "./mailer";
 
 export type DeliveryChannel = "email" | "whatsapp";
 
@@ -152,7 +153,7 @@ async function deliverEmailToUser(
   try {
     const subject = input.title || "Alerta VivaFrutaz";
     const html = buildAlertHtml(input);
-    const r = await sendMail(toEmail, subject, html);
+    const r = await sendGenericEmail(toEmail, subject, html);
     if (r.sent) {
       return { channel: "email", success: true, userId };
     }

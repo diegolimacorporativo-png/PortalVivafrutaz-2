@@ -71,6 +71,18 @@ export async function sendMail(to: string, subject: string, html: string) {
   }
 }
 
+/**
+ * Wrapper público genérico — interface estável para envio simples (to/subject/html).
+ * Delega 100% para `sendMail` interno; não duplica lógica nem cria transporter novo.
+ */
+export async function sendGenericEmail(
+  to: string,
+  subject: string,
+  html: string,
+) {
+  return sendMail(to, subject, html);
+}
+
 export async function sendTestEmail(toEmail: string, toName: string = 'Admin') {
   const html = wrapTemplate('Teste de Configuração SMTP', `
     <p>Olá, <strong>${toName}</strong>!</p>
