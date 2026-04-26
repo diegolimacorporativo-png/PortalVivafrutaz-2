@@ -521,6 +521,7 @@ export class DatabaseStorage implements IStorage {
       toUpdate.password = await bcrypt.hash(updates.password, 10);
     }
     const [updated] = await db.update(users).set(toUpdate).where(eq(users.id, id)).returning();
+    if (updated?.empresaId) invalidateUsageCache(updated.empresaId);
     return updated;
   }
 
@@ -850,6 +851,7 @@ export class DatabaseStorage implements IStorage {
       processedUpdates.deliveryDate = new Date(processedUpdates.deliveryDate);
     }
     const [updated] = await db.update(orders).set(processedUpdates).where(eq(orders.id, id)).returning();
+    if (updated?.companyId) invalidateUsageCache(updated.companyId);
     return updated;
   }
 
@@ -1159,7 +1161,8 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteUser(id: number): Promise<void> {
-    await db.delete(users).where(eq(users.id, id));
+    const [deleted] = await db.delete(users).where(eq(users.id, id)).returning();
+    if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
   }
 
   async createTestOrder(data: { orderCode: string; companyId: number; companyName: string; deliveryDate: Date; weekReference: string; totalValue: string; orderNote?: string | null; items: any[]; createdBy?: number }): Promise<TestOrder> {
@@ -1173,7 +1176,8 @@ export class DatabaseStorage implements IStorage {
 
   async deleteOrder(id: number): Promise<void> {
     await db.delete(orderItems).where(eq(orderItems.orderId, id));
-    await db.delete(orders).where(eq(orders.id, id));
+    const [deleted] = await db.delete(orders).where(eq(orders.id, id)).returning();
+    if (deleted?.companyId) invalidateUsageCache(deleted.companyId);
   }
 
   async createLog(log: { action: string; description: string; userId?: number; companyId?: number; userEmail?: string; userRole?: string; ip?: string; level?: string }): Promise<void> {
@@ -1329,10 +1333,12 @@ export class DatabaseStorage implements IStorage {
   }
   async updateDriver(id: number, data: Partial<LogisticsDriver>): Promise<LogisticsDriver> {
     const [d] = await db.update(logisticsDrivers).set(data as any).where(eq(logisticsDrivers.id, id)).returning();
+    if ((d as any)?.empresaId) invalidateUsageCache((d as any).empresaId);
     return d;
   }
   async deleteDriver(id: number): Promise<void> {
-    await db.delete(logisticsDrivers).where(eq(logisticsDrivers.id, id));
+    const [deleted] = await db.delete(logisticsDrivers).where(eq(logisticsDrivers.id, id)).returning();
+    if ((deleted as any)?.empresaId) invalidateUsageCache((deleted as any).empresaId);
   }
 
   // ─── Logística: Veículos ──────────────────────────────────────
@@ -1362,10 +1368,12 @@ export class DatabaseStorage implements IStorage {
   }
   async updateRoute(id: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute> {
     const [r] = await db.update(logisticsRoutes).set(data as any).where(eq(logisticsRoutes.id, id)).returning();
+    if ((r as any)?.empresaId) invalidateUsageCache((r as any).empresaId);
     return r;
   }
   async deleteRoute(id: number): Promise<void> {
-    await db.delete(logisticsRoutes).where(eq(logisticsRoutes.id, id));
+    const [deleted] = await db.delete(logisticsRoutes).where(eq(logisticsRoutes.id, id)).returning();
+    if ((deleted as any)?.empresaId) invalidateUsageCache((deleted as any).empresaId);
   }
 
   // ─── Logística: Manutenção ────────────────────────────────────

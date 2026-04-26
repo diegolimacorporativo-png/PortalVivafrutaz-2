@@ -1,0 +1,151 @@
+STEP 9.1D — CACHE INVALIDATION COMPLETA (CREATE + UPDATE + DELETE)
+
+OBJETIVO  
+Finalizar o sistema de cache garantindo consistência TOTAL:
+
+✔ create já coberto  
+✔ adicionar update  
+✔ adicionar delete  
+✔ manter padrão centralizado no storage  
+
+👉 pronto para escala  
+
+---
+
+🚫 NÃO alterar schema  
+🚫 NÃO mover lógica de lugar  
+🚫 NÃO duplicar código  
+👉 manter tudo no storage layer  
+
+---
+
+## STEP 0 — CONTEXTO
+
+Já existe:
+
+✔ usage-cache.ts  
+✔ invalidateUsageCache(companyId)  
+✔ invalidação nos CREATE  
+
+👉 NÃO alterar isso  
+
+---
+
+## STEP 1 — IDENTIFICAR MÉTODOS DE UPDATE
+
+Localizar no:
+
+server/services/storage.ts
+
+Métodos como:
+
+- updateUser  
+- updateOrder  
+- updateDriver  
+- updateRoute  
+
+---
+
+## STEP 2 — APLICAR INVALIDAÇÃO (UPDATE)
+
+Após update bem-sucedido:
+
+ts
+if (updated?.empresaId || updated?.companyId) {
+  invalidateUsageCache(updated.empresaId ?? updated.companyId);
+}
+
+---
+
+## STEP 3 — IDENTIFICAR MÉTODOS DE DELETE
+
+Localizar:
+
+- deleteUser  
+- deleteOrder  
+- deleteDriver  
+- deleteRoute  
+
+---
+
+## STEP 4 — CUIDADO CRÍTICO (DELETE)
+
+Antes de deletar, capturar o companyId:
+
+ts
+const existing = await db.select().from(...).where(...).limit(1);
+
+Após delete:
+
+ts
+if (existing?.empresaId || existing?.companyId) {
+  invalidateUsageCache(existing.empresaId ?? existing.companyId);
+}
+
+---
+
+## STEP 5 — REGRAS IMPORTANTES
+
+✔ INVALIDAR somente após sucesso  
+✔ NÃO invalidar se nada foi alterado  
+✔ NÃO quebrar transação  
+✔ manter padrão igual ao CREATE  
+
+---
+
+## STEP 6 — TRANSAÇÕES
+
+Se estiver dentro de transaction:
+
+✔ invalidar somente após commit  
+✔ usar .then() se necessário  
+
+---
+
+## STEP 7 — EVITAR OVER-INVALIDATION
+
+👉 NÃO invalidar em:
+
+- GET  
+- SELECT  
+- leitura  
+
+👉 apenas mutações reais  
+
+---
+
+## STEP 8 — TESTES
+
+1. Criar → atualizar → deletar usuário  
+→ uso sempre correto  
+
+2. Criar → cancelar pedido  
+→ contagem ajustada  
+
+3. Criar → alterar rota  
+→ refletir imediatamente  
+
+---
+
+## STEP 9 — RESULTADO
+
+ANTES:
+→ inconsistência silenciosa em updates/deletes  
+
+DEPOIS:
+→ consistência total do sistema  
+
+---
+
+## BENEFÍCIOS
+
+✔ pronto para escala  
+✔ dados confiáveis  
+✔ base para cobrança futura  
+✔ zero drift de métricas  
+
+---
+
+## RISCO
+
+ZERO ✅ (continuação do padrão existente)
