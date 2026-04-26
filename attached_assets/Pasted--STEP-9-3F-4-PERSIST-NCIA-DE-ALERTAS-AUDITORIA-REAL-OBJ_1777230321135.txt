@@ -1,0 +1,140 @@
+## STEP 9.3F.4 — PERSISTÊNCIA DE ALERTAS (AUDITORIA REAL)
+
+### OBJETIVO
+
+Evoluir o sistema de alertas para:
+
+- NÃO perder histórico ao reiniciar  
+- permitir análise real (dias, semanas)  
+- medir confiabilidade dos canais (email/slack)  
+- base para dashboards e BI  
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar lógica de envio (emitAlert)  
+- NÃO alterar cron  
+- NÃO alterar mailer  
+- NÃO alterar endpoints existentes  
+
+👉 Apenas adicionar persistência paralela
+
+---
+
+## STEP 1 — CRIAR TABELA
+
+Arquivo:
+shared/schema.ts
+
+ts export const alert_logs = pgTable("alert_logs", {   id: serial("id").primaryKey(),    createdAt: timestamp("created_at").defaultNow(),    severity: text("severity"), // 'ALERT' | 'CRITICAL'   title: text("title"),   message: text("message"),    rateLimited: boolean("rate_limited").default(false),    // resumo por canal   emailOk: integer("email_ok"),   emailFail: integer("email_fail"),    slackOk: integer("slack_ok"),   slackFail: integer("slack_fail"),    whatsappOk: integer("whatsapp_ok"),   whatsappFail: integer("whatsapp_fail") }); 
+
+---
+
+## STEP 2 — FUNÇÃO DE PERSISTÊNCIA
+
+Arquivo:
+server/services/alerts.service.ts
+
+Adicionar:
+
+ts import { db } from "../db"; import { alert_logs } from "../../shared/schema";  async function persistAlertLog(data: any) {   try {     await db.insert(alert_logs).values(data);   } catch (err) {     console.error("[ALERT_LOG_PERSIST_ERROR]", err);   } } 
+
+---
+
+## STEP 3 — INTEGRAR NO emitAlert
+
+⚠️ SEM alterar lógica existente  
+👉 apenas adicionar no FINAL da função
+
+ts await persistAlertLog({   severity,   title,   message,   rateLimited,    emailOk,   emailFail,   slackOk,   slackFail,   whatsappOk,   whatsappFail }); 
+
+---
+
+## STEP 4 — CONTABILIZAR RESULTADOS
+
+Antes do persist, montar os contadores:
+
+ts let emailOk = 0; let emailFail = 0; let slackOk = 0; let slackFail = 0; let whatsappOk = 0; let whatsappFail = 0;  for (const r of results) {   if (r.channel === "email") {     r.ok ? emailOk++ : emailFail++;   }   if (r.channel === "slack") {     r.ok ? slackOk++ : slackFail++;   }   if (r.channel === "whatsapp") {     r.ok ? whatsappOk++ : whatsappFail++;   } } 
+
+---
+
+## STEP 5 — ENDPOINT DE HISTÓRICO
+
+Arquivo:
+server/routes/routes.ts
+
+ts app.get("/api/cron/alerts/history", async (req, res) => {   try {     const rows = await db       .select()       .from(alert_logs)       .orderBy(desc(alert_logs.createdAt))       .limit(100);      return res.json(rows);    } catch (error) {     console.error("[ALERT_HISTORY_ERROR]", error);      return res.status(500).json({       error: "Erro ao buscar histórico de alertas"     });   } }); 
+
+👉 Proteção opcional (recomendado):
+
+ts requireAuth, requireRole(['MASTER','ADMIN','DIRECTOR']) 
+
+---
+
+## STEP 6 — UI (HISTÓRICO REAL)
+
+Arquivo:
+client/src/pages/admin/faturamento.tsx
+
+Consumir:
+
+ts GET /api/cron/alerts/history 
+
+Exibir tabela:
+
+- Data  
+- Severidade (🔴 CRITICAL / 🟠 ALERT)  
+- Título  
+- Email (ok/fail)  
+- Slack (ok/fail)  
+- WhatsApp (ok/fail)  
+- Rate-limit (⚠️)
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ logs somem no restart  
+❌ auditoria parcial  
+❌ sem histórico confiável  
+
+DEPOIS:
+✅ histórico persistente  
+✅ auditoria real  
+✅ métricas por canal  
+✅ base para dashboard  
+✅ base para BI  
+
+---
+
+## RISCO
+
+LOW ✅  
+(apenas INSERT isolado com try/catch)
+
+---
+
+## PRÓXIMO PASSO (9.3F.5)
+
+→ DASHBOARD INTELIGENTE:
+
+- alertas por dia  
+- taxa de falha por canal  
+- ranking de erros  
+- tendências  
+
+---
+
+## RESUMO SIMPLES
+
+Você saiu de:
+
+❌ "alerta aconteceu e sumiu"
+
+Para:
+
+✅ "alerta rastreável, auditável e analisável"
+
+---
