@@ -1584,6 +1584,26 @@ export type SanitaryEvaluationItem = typeof sanitaryEvaluationItems.$inferSelect
 export const insertSanitaryEvaluationItemSchema = createInsertSchema(sanitaryEvaluationItems).omit({ id: true, createdAt: true });
 export type InsertSanitaryEvaluationItem = z.infer<typeof insertSanitaryEvaluationItemSchema>;
 
+// ─── Price Adjustment Snapshots ───────────────────────────────────────────────
+// Records every applied price adjustment so an admin can review history and,
+// when needed, roll back a specific batch. Each row captures one entity
+// (product or sub-category) participating in a batch identified by `batchId`.
+export const priceAdjustmentSnapshots = pgTable("price_adjustment_snapshots", {
+  id: serial("id").primaryKey(),
+  batchId: text("batch_id").notNull(),               // groups all rows of one apply call
+  entityType: text("entity_type").notNull(),         // 'product' | 'subcategory'
+  entityId: integer("entity_id").notNull(),
+  oldPrice: numeric("old_price", { precision: 10, scale: 2 }).notNull(),
+  newPrice: numeric("new_price", { precision: 10, scale: 2 }).notNull(),
+  percentage: numeric("percentage", { precision: 10, scale: 4 }).notNull(),
+  appliedBy: integer("applied_by"),                  // user id of the admin who applied
+  appliedAt: timestamp("applied_at").defaultNow().notNull(),
+  rolledBackAt: timestamp("rolled_back_at"),         // null = still active
+}, (table) => ({
+  batchIdIdx: index("price_adjustment_snapshots_batch_id_idx").on(table.batchId),
+}));
+export type PriceAdjustmentSnapshot = typeof priceAdjustmentSnapshots.$inferSelect;
+
 // ─── Workflow Event Outbox ─────────────────────────────────────────────────────
 // Transactional outbox for workflow side-effects (push notifications, audit logs).
 // Events are written atomically inside the order transition transaction so they
