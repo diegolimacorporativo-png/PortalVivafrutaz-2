@@ -1,0 +1,177 @@
+STEP TEST — AMBIENTE CONTROLADO (EMPRESA + PEDIDO REAL)
+
+OBJETIVO  
+Criar um cenário real de teste para validar:
+
+- produtos aparecem no cliente  
+- pricing funcionando  
+- pedido sendo criado  
+- timeline aparecendo  
+- fluxo completo visível  
+
+---
+
+🚫 NÃO alterar lógica existente  
+🚫 NÃO criar feature nova  
+👉 apenas dados de teste controlados  
+
+---
+
+## STEP 1 — CRIAR EMPRESA TESTE
+
+Criar:
+
+ts id="cmp01" name: "Empresa Teste" useNewPricing: true adminFee: 10 
+
+---
+
+## STEP 2 — CRIAR USUÁRIOS
+
+### Admin
+
+ts id="usr01" email: admin@test.com role: ADMIN companyId: Empresa Teste 
+
+---
+
+### Cliente
+
+ts id="usr02" email: cliente@test.com role: CLIENT companyId: Empresa Teste 
+
+---
+
+## STEP 3 — CRIAR PRODUTOS (FORÇAR TODOS CENÁRIOS)
+
+### Produto A — base
+
+ts id="prd01" name: "Banana Teste" basePrice: 10 
+
+---
+
+### Produto B — categoria
+
+ts id="prd02" name: "Maçã Teste" basePrice: null subCategory:   - Pequeno: 8   - Grande: 12 pricingMode: "category" 
+
+---
+
+### Produto C — contrato
+
+ts id="prd03" name: "Melão Teste" basePrice: 20 contractPrice: 15 
+
+---
+
+### Produto D — edge (sem preço)
+
+ts id="prd04" name: "Produto Sem Preço" basePrice: null 
+
+---
+
+## STEP 4 — GARANTIR VISIBILIDADE
+
+IMPORTANTE:
+
+✔ produtos devem estar active = true  
+✔ sem filtro bloqueando no frontend  
+
+---
+
+## STEP 5 — TESTE NO CLIENTE
+
+Entrar como:
+
+cliente@test.com
+
+Validar:
+
+✔ produtos aparecem  
+✔ Produto A → preço base  
+✔ Produto B → muda com categoria  
+✔ Produto C → usa contrato  
+✔ Produto D → NÃO aparece  
+
+---
+
+## STEP 6 — CRIAR PEDIDO REAL
+
+Selecionar:
+
+- Banana (2x)
+- Maçã Pequena (1x)
+
+Validar:
+
+✔ subtotal correto  
+✔ preço com adminFee aplicado  
+
+---
+
+## STEP 7 — ENVIAR PEDIDO
+
+Validar:
+
+✔ resposta OK  
+✔ aparece no admin  
+
+---
+
+## STEP 8 — TESTAR TIMELINE
+
+Abrir pedido:
+
+✔ aparece log de criação  
+✔ aparece workflow  
+✔ aparece usuário  
+
+---
+
+## STEP 9 — TESTAR ALTERAÇÃO
+
+Cliente:
+
+✔ solicitar alteração  
+
+Admin:
+
+✔ aprovar  
+
+Validar timeline:
+
+✔ REQUEST  
+✔ APPROVE  
+✔ UPDATE  
+
+---
+
+## STEP 10 — FORÇAR LOG MANUAL (SE NECESSÁRIO)
+
+Se timeline não aparecer:
+
+Adicionar temporário:
+
+ts id="dbg01" console.log("TIMELINE:", logs); 
+
+---
+
+## RESULTADO ESPERADO
+
+✔ frontend refletindo dados reais  
+✔ pricing funcionando visualmente  
+✔ timeline visível  
+✔ fluxo completo testado  
+
+---
+
+## SE NÃO FUNCIONAR
+
+Enviar:
+
+- print da tela  
+- console.log  
+- resposta da API  
+
+👉 que eu corrijo direto
+
+---
+
+RISCO
+
+ZERO ✅
