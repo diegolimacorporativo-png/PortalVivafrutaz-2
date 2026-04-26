@@ -380,7 +380,7 @@ export class OrdersService {
     try {
       await this.repo.createLog({
         action: "ORDER_CREATED",
-        description: `Pedido criado: ${newOrder.vfCode || `#${newOrder.id}`} (empresa ${order.companyId})`,
+        description: `Pedido criado: ${newOrder.orderCode || `#${newOrder.id}`} (empresa ${order.companyId})`,
         companyId: order.companyId,
         userRole: "CLIENT",
       });
