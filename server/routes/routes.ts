@@ -5,6 +5,7 @@ import { ordersController } from "../modules/orders/orders.controller";
 import { authController } from "../modules/auth/auth.controller";
 import { financeController } from "../modules/finance/finance.controller";
 import { logisticsController } from "../modules/logistics/logistics.controller";
+import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
@@ -6662,6 +6663,13 @@ export async function registerRoutes(
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+
+      // STEP 8.7 — RBAC: only DRIVER + internal logistics roles may hit /api/driver/*.
+      // Customers (CLIENT, etc.) are explicitly rejected so they can't enumerate
+      // delivery routes by guessing this URL.
+      if (!isDriverOrInternal(actor.role)) {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
       const today = new Date().toISOString().split('T')[0];
 
       const allCompanies = await storage.getCompanies();
@@ -6671,6 +6679,12 @@ export async function registerRoutes(
       const myDriver = drivers.find((d: any) =>
         d.email === actor.email || d.name === actor.name
       );
+
+      // STEP 8.7 — DRIVER must have a matching logistics_drivers row;
+      // without it we can't safely determine ownership, so return empty.
+      if (actor.role === 'DRIVER' && !myDriver) {
+        return res.json({ deliveries: [], driver: null, date: today, source: 'deliveries' });
+      }
 
       // Try deliveries table first
       let allDeliveries = await storage.getDeliveries({ date: today });
@@ -6707,9 +6721,16 @@ export async function registerRoutes(
         })) as any;
       }
 
-      let deliveries = myDriver
-        ? allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id)
-        : allDeliveries;
+      // STEP 8.7 — DRIVER role gets STRICT filter to its own driverId only;
+      // internal admins keep the legacy "unassigned-or-mine" semantics.
+      let deliveries: any[];
+      if (actor.role === 'DRIVER' && myDriver) {
+        deliveries = allDeliveries.filter((d: any) => d.driverId === myDriver.id);
+      } else if (myDriver) {
+        deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);
+      } else {
+        deliveries = allDeliveries;
+      }
 
       const enriched = deliveries.map((d: any) => ({
         ...d,
@@ -6732,8 +6753,26 @@ export async function registerRoutes(
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+
+      // STEP 8.7 — gate the endpoint to DRIVER + internal logistics roles.
+      if (!isDriverOrInternal(actor.role)) {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
+
       const { driverId, latitude, longitude, accuracy, speed, heading } = req.body;
       if (!driverId || !latitude || !longitude) return res.status(400).json({ message: 'driverId, latitude e longitude obrigatórios' });
+
+      // STEP 8.7 — drivers can only post GPS for THEIR OWN driverId. This stops
+      // a compromised driver account from spoofing positions for someone else.
+      // Internal staff (admin / logistics) keep the legacy ability to post on
+      // behalf of any driver (used by the route-assistant tooling).
+      if (actor.role === 'DRIVER') {
+        const ownDriverId = await resolveOwnDriverId(storage, actor);
+        if (!ownDriverId || Number(driverId) !== ownDriverId) {
+          return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
+        }
+      }
+
       const pos = await storage.createGpsPosition({ driverId, latitude, longitude, accuracy, speed, heading });
       res.json(pos);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -6741,7 +6780,22 @@ export async function registerRoutes(
 
   app.get('/api/driver/:driverId/gps', async (req: any, res) => {
     try {
-      const pos = await storage.getLatestGpsPosition(Number(req.params.driverId));
+      // STEP 8.7 — endpoint was previously fully open. Now requires session +
+      // role gate, and DRIVERs can only read their OWN latest position.
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      if (!isDriverOrInternal(actor.role)) {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
+      const targetDriverId = Number(req.params.driverId);
+      if (actor.role === 'DRIVER') {
+        const ownDriverId = await resolveOwnDriverId(storage, actor);
+        if (!ownDriverId || targetDriverId !== ownDriverId) {
+          return res.status(403).json({ message: 'Motorista só pode consultar a própria posição' });
+        }
+      }
+      const pos = await storage.getLatestGpsPosition(targetDriverId);
       res.json(pos || null);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

@@ -1,0 +1,139 @@
+STEP 8.7 — RBAC DO MOTORISTA (ACESSO SEGURO AO PAINEL)
+
+OBJETIVO  
+Garantir que:
+
+✔ apenas motoristas acessem rotas de motorista  
+✔ cada motorista veja apenas sua própria rota  
+✔ admin continue vendo tudo  
+
+👉 SEM alterar schema  
+👉 SEM quebrar fluxo atual  
+
+---
+
+🚫 NÃO criar tabela  
+🚫 NÃO mudar estrutura de logística  
+👉 apenas controle de acesso  
+
+---
+
+## STEP 1 — PADRÃO DE ROLE
+
+No sistema já existem roles como:
+
+ADMIN, MASTER, DIRECTOR, LOGISTICS, OPERATIONS_MANAGER
+
+👉 Adicionar uso da role:
+
+DRIVER
+
+⚠️ NÃO precisa migration (campo já é text)
+
+---
+
+## STEP 2 — IDENTIFICAR MOTORISTA
+
+Hoje o sistema já usa:
+
+logistics_drivers + vínculo por email/name
+
+👉 Reforçar esse vínculo no backend:
+
+ts const user = req.user;  const driver = await db.execute(sql`   SELECT id   FROM logistics_drivers   WHERE email = ${user.email}   LIMIT 1 `); 
+
+---
+
+## STEP 3 — PROTEGER ENDPOINT
+
+Arquivo:
+
+server/modules/logistics/logistics.routes.ts
+
+Para endpoints de motorista:
+
+- /api/driver/*
+- /api/logistics/track/:routeId (parcial)
+
+Adicionar middleware:
+
+ts function requireDriverOrAdmin(req, res, next) {   const role = req.user?.role;    if (     role === "DRIVER" ||     role === "ADMIN" ||     role === "MASTER" ||     role === "DIRECTOR" ||     role === "LOGISTICS"   ) {     return next();   }    return res.status(403).json({ error: "Acesso negado" }); } 
+
+---
+
+## STEP 4 — FILTRAR ROTA DO MOTORISTA
+
+No endpoint:
+
+GET /api/driver/route-today
+
+Adicionar filtro:
+
+ts if (user.role === "DRIVER") {   const driverId = driver.rows?.[0]?.id;    query += sql` AND r.driver_id = ${driverId}`; } 
+
+---
+
+## STEP 5 — PROTEGER TRACKING (IMPORTANTE)
+
+No:
+
+/api/logistics/track/:routeId
+
+Adicionar:
+
+ts if (user.role === "DRIVER") {   if (route.driver_id !== driverId) {     return res.status(403).json({ error: "Rota não pertence ao motorista" });   } } 
+
+---
+
+## STEP 6 — ADMIN CONTINUA TOTAL
+
+✔ ADMIN / LOGISTICS veem tudo  
+✔ DRIVER vê só o que é dele  
+
+---
+
+## STEP 7 — FRONTEND (driver panel)
+
+Nada estrutural muda
+
+✔ apenas garantir que:
+- driver usa sua conta
+- tela consome /api/driver/route-today
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ qualquer usuário acessa rota  
+❌ motorista pode ver rota de outro  
+
+DEPOIS:
+✔ acesso restrito por role  
+✔ motorista vê só sua rota  
+✔ admin mantém controle total  
+
+---
+
+## SEGURANÇA
+
+✔ evita vazamento de dados  
+✔ prepara sistema para multi-empresa  
+✔ base para monetização  
+
+---
+
+## IMPORTANTE (FUTURO)
+
+Depois você pode evoluir para:
+
+✔ user.driverId (FK real)  
+✔ login separado de motorista  
+
+👉 mas NÃO agora  
+
+---
+
+RISCO
+
+ZERO ✅ (apenas controle de acesso)

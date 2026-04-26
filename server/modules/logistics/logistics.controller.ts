@@ -721,6 +721,21 @@ export class LogisticsController {
           const actor = await (this.service as any).repo.getUser(sessionUserId);
           if (actor && (LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
             isInternal = true;
+          } else if (actor && actor.role === "DRIVER") {
+            // STEP 8.7 — DRIVER ownership gate. A driver may only see THEIR
+            // own route; any other route id returns 403 instead of leaking
+            // the redacted public payload (which would still confirm the
+            // route's existence and a couple of customer names). When the
+            // route IS theirs, we treat them as "internal" for ETA purposes
+            // — they need the timing/distance to actually do the deliveries.
+            const ownDriverId = await resolveOwnDriverId(
+              { getDrivers: () => (this.service as any).repo.getDrivers() },
+              actor,
+            );
+            if (!ownDriverId || Number(route.driver_id) !== ownDriverId) {
+              return res.status(403).json({ error: "Rota não pertence ao motorista" });
+            }
+            isInternal = true;
           }
         } catch (lookupErr) {
           // Fail closed — if we can't confirm internal status, treat as customer.
