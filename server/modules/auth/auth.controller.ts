@@ -75,7 +75,10 @@ export class AuthController {
     await new Promise<void>((resolve) => {
       req.session.save((err) => {
         if (err) {
-          console.error("[LOGIN] Erro ao salvar sessão:", err);
+          console.error(
+            `[${req.requestId}] [auth.controller] session save failed`,
+            err,
+          );
           res
             .status(500)
             .json({ message: "Erro ao processar login. Tente novamente." });

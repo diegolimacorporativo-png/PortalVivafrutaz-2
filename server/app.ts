@@ -91,7 +91,10 @@ export async function buildApp(): Promise<BuildAppResult> {
         const duration = Date.now() - start;
         let line = `${req.method} ${req.path} ${res.statusCode} in ${duration}ms`;
         if (captured) line += ` :: ${JSON.stringify(captured)}`;
-        console.log(`${time} [express] ${line}`);
+        // Prefix with requestId so this line correlates with the entry/exit
+        // logs from `requestLogger` and any controller/errorHandler logs.
+        // Format intentionally preserved: only the `[<reqId>]` prefix is new.
+        console.log(`${time} [${req.requestId}] [express] ${line}`);
       }
     });
     next();

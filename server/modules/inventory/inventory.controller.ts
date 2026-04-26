@@ -49,6 +49,10 @@ export class InventoryController {
       res.json(updated);
     } catch (e) {
       if (e instanceof AppError) {
+        console.warn(
+          `[${req.requestId}] [inventory.controller] updateSetting failed`,
+          e,
+        );
         return res.status(e.status).json({ message: e.message });
       }
       throw e;
@@ -63,6 +67,10 @@ export class InventoryController {
       res.json(result);
     } catch (e) {
       if (e instanceof AppError) {
+        console.warn(
+          `[${req.requestId}] [inventory.controller] createSetting failed`,
+          e,
+        );
         return res.status(e.status).json({ message: e.message });
       }
       throw e;
@@ -86,6 +94,10 @@ export class InventoryController {
       res.json(entry);
     } catch (e: any) {
       if (e instanceof AppError) {
+        console.warn(
+          `[${req.requestId}] [inventory.controller] createEntry failed`,
+          e,
+        );
         return res.status(e.status).json({ message: e.message });
       }
       // Legacy fallback — see routes.ts line ~3343.
@@ -128,6 +140,10 @@ export class InventoryController {
       res.json(count);
     } catch (e: any) {
       if (e instanceof AppError) {
+        console.warn(
+          `[${req.requestId}] [inventory.controller] createPhysicalCount failed`,
+          e,
+        );
         return res.status(e.status).json({ message: e.message });
       }
       // Legacy fallback — see routes.ts line ~3414.
