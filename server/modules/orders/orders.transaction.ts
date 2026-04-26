@@ -13,6 +13,17 @@ import { legacyStatusFor, OrderStatus } from "./orders.workflow";
 import { BadRequestError, ConflictError } from "../../shared/errors/AppError";
 import { buildPixPayload } from "../../shared/utils/pix";
 
+// ─── Compatibility helper ─────────────────────────────────────────────────────
+// `tx.execute(sql\`…\`)` returns either a plain row array (older drizzle) or a
+// `QueryResult`-shaped `{ rows, command, fields, … }` (current drizzle/node-pg).
+// `rowsOf` normalizes both shapes so destructuring/iteration is safe regardless
+// of the underlying driver version.
+function rowsOf<T = any>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  const rows = (result as { rows?: T[] } | null)?.rows;
+  return Array.isArray(rows) ? rows : [];
+}
+
 // ─── Result types ─────────────────────────────────────────────────────────────
 
 export interface CriticalTransitionResult {
@@ -133,11 +144,16 @@ export async function executeWorkflowTransaction(
     // transaction's lifetime. Unlike SELECT … FOR UPDATE it does not block —
     // it returns false immediately if another transaction already holds it.
     // This makes the behaviour predictable (fast fail, no queue pile-up).
-    const [lockResult] = (await tx.execute(
-      sql`SELECT pg_try_advisory_xact_lock(${orderId}::bigint) AS acquired`,
-    )) as unknown as Array<{ acquired: boolean }>;
+    const lockResult = rowsOf<{ acquired: boolean }>(
+      await tx.execute(
+        sql`SELECT pg_try_advisory_xact_lock(${orderId}::bigint) AS acquired`,
+      ),
+    )[0];
 
-    if (!lockResult?.acquired) {
+    if (!lockResult) {
+      throw new BadRequestError("Falha ao obter lock do pedido");
+    }
+    if (!lockResult.acquired) {
       throw new ConflictError(
         `Pedido #${orderId} já está sendo processado em outro servidor. ` +
         `Aguarde um momento e tente novamente.`,
@@ -149,9 +165,11 @@ export async function executeWorkflowTransaction(
     //
     // Re-read the current workflow_status now that we hold the advisory lock.
     // If it changed, a concurrent request already committed a transition.
-    const [currentRow] = (await tx.execute(
-      sql`SELECT workflow_status FROM orders WHERE id = ${orderId}`,
-    )) as unknown as Array<{ workflow_status: string }>;
+    const currentRow = rowsOf<{ workflow_status: string }>(
+      await tx.execute(
+        sql`SELECT workflow_status FROM orders WHERE id = ${orderId}`,
+      ),
+    )[0];
 
     if (!currentRow) {
       throw new ConflictError(
@@ -223,25 +241,27 @@ export async function executeWorkflowTransaction(
         // transactions queue rather than race for the same stock counter.
         // Even with the advisory lock on the ORDER, a non-order write
         // (manual adjustment, purchase receipt) might touch this row.
-        const settingRows = (await tx.execute(
-          item.productId
-            ? sql`SELECT id,
-                         current_stock::numeric  AS current_stock,
-                         unit,
-                         product_name
-                  FROM   inventory_settings
-                  WHERE  product_id   = ${item.productId}
-                  LIMIT  1
-                  FOR UPDATE`
-            : sql`SELECT id,
-                         current_stock::numeric  AS current_stock,
-                         unit,
-                         product_name
-                  FROM   inventory_settings
-                  WHERE  product_name = ${item.productName}
-                  LIMIT  1
-                  FOR UPDATE`,
-        )) as unknown as Array<{ id: number; current_stock: number; unit: string; product_name: string }>;
+        const settingRows = rowsOf<{ id: number; current_stock: number; unit: string; product_name: string }>(
+          await tx.execute(
+            item.productId
+              ? sql`SELECT id,
+                           current_stock::numeric  AS current_stock,
+                           unit,
+                           product_name
+                    FROM   inventory_settings
+                    WHERE  product_id   = ${item.productId}
+                    LIMIT  1
+                    FOR UPDATE`
+              : sql`SELECT id,
+                           current_stock::numeric  AS current_stock,
+                           unit,
+                           product_name
+                    FROM   inventory_settings
+                    WHERE  product_name = ${item.productName}
+                    LIMIT  1
+                    FOR UPDATE`,
+          ),
+        );
 
         const setting = settingRows[0];
         if (!setting) continue; // non-tracked product — skip
@@ -250,18 +270,20 @@ export async function executeWorkflowTransaction(
 
         // Idempotency: skip if this order already has an EXIT movement for
         // this product (belt-and-suspenders against state-machine failure).
-        const existingMove = (await tx.execute(
-          sql`SELECT id
-              FROM   inventory_movements
-              WHERE  movement_type  = 'EXIT'
-                AND  reference_type = 'order'
-                AND  reference_id   = ${orderId}
-                AND  (
-                       product_id   = ${item.productId ?? null}
-                    OR product_name = ${item.productName || ""}
-                     )
-              LIMIT 1`,
-        )) as unknown as Array<{ id: number }>;
+        const existingMove = rowsOf<{ id: number }>(
+          await tx.execute(
+            sql`SELECT id
+                FROM   inventory_movements
+                WHERE  movement_type  = 'EXIT'
+                  AND  reference_type = 'order'
+                  AND  reference_id   = ${orderId}
+                  AND  (
+                         product_id   = ${item.productId ?? null}
+                      OR product_name = ${item.productName || ""}
+                       )
+                LIMIT 1`,
+          ),
+        );
 
         if (existingMove.length > 0) continue;
 
@@ -291,13 +313,15 @@ export async function executeWorkflowTransaction(
         // between the SELECT … FOR UPDATE read above and this UPDATE in case
         // another connection somehow updates the row (should not happen with
         // FOR UPDATE, but this is belt-and-suspenders).
-        const deducted = (await tx.execute(
-          sql`UPDATE inventory_settings
-              SET    current_stock = current_stock::numeric - ${qty}::numeric
-              WHERE  id            = ${setting.id}
-                AND  current_stock::numeric >= ${qty}::numeric
-              RETURNING current_stock::text AS new_stock`,
-        )) as unknown as Array<{ new_stock: string }>;
+        const deducted = rowsOf<{ new_stock: string }>(
+          await tx.execute(
+            sql`UPDATE inventory_settings
+                SET    current_stock = current_stock::numeric - ${qty}::numeric
+                WHERE  id            = ${setting.id}
+                  AND  current_stock::numeric >= ${qty}::numeric
+                RETURNING current_stock::text AS new_stock`,
+          ),
+        );
 
         const deductedRow = deducted[0];
         if (!deductedRow) {
@@ -381,14 +405,16 @@ export async function executeWorkflowTransaction(
     // ── Step 4c: SHIPPED — conditional delivery row update ──────────────────
     if (to === OrderStatus.SHIPPED) {
       // Only update if currently 'pendente' — idempotent and status-safe.
-      const updated = (await tx.execute(
-        sql`UPDATE deliveries
-            SET    status     = 'em_rota',
-                   updated_at = NOW()
-            WHERE  order_id   = ${orderId}
-              AND  status     = 'pendente'
-            RETURNING id`,
-      )) as unknown as Array<{ id: number }>;
+      const updated = rowsOf<{ id: number }>(
+        await tx.execute(
+          sql`UPDATE deliveries
+              SET    status     = 'em_rota',
+                     updated_at = NOW()
+              WHERE  order_id   = ${orderId}
+                AND  status     = 'pendente'
+              RETURNING id`,
+        ),
+      );
 
       deliveryUpdated = updated.length > 0;
     }
