@@ -36,6 +36,7 @@
 import type { Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../../database/db";
+import { calculateETA, summariseETA } from "./eta.service";
 import { LogisticsService, logisticsService } from "./logistics.service";
 import {
   LOGISTICS_ADMIN_ROLES,
@@ -621,6 +622,87 @@ export class LogisticsController {
         }
       }
 
+      // 5. Compute ETA per stop in memory.
+      // Prefer route_stops for the sequence (richer, ordemParada-based);
+      // if there are none, fall back to deliveries ordered by route_position
+      // so the customer ETA still works on routes that don't yet have
+      // route_stops materialised.
+      const now = new Date();
+      const etaSourceFromStops = stops.map((s) => ({
+        ...s,
+        // Match a delivery by company so dwell time is skipped for delivered ones.
+        status: deliveries.find((d) => d.company_id === s.company_id)?.status,
+        tempoEstimadoMin: s.tempo_estimado_min,
+      }));
+      const etaSourceFromDeliveries = deliveries.map((d) => ({
+        ...d,
+        tempoEstimadoMin: null,
+      }));
+      const useStops = etaSourceFromStops.length > 0;
+      const etaSource = useStops ? etaSourceFromStops : etaSourceFromDeliveries;
+      const etaResults = calculateETA(etaSource, driverPosition, now);
+      const etaSummary = summariseETA(etaResults, now);
+
+      // Build the output stops array (always derived from route_stops when
+      // available so legacy callers see the same shape).
+      const stopsOut = useStops
+        ? stops.map((s, i) => ({
+            id: s.id,
+            ordem: s.ordem_parada,
+            companyId: s.company_id,
+            cep: s.cep,
+            endereco: s.endereco,
+            numero: s.numero,
+            cidade: s.cidade,
+            estado: s.estado,
+            latitude: s.latitude,
+            longitude: s.longitude,
+            janelaInicio: s.janela_inicio,
+            janelaFim: s.janela_fim,
+            tempoEstimadoMin: s.tempo_estimado_min,
+            distanceKm: etaResults[i]?.distanceKm ?? 0,
+            legMinutes: etaResults[i]?.legMinutes ?? 0,
+            etaMinutes: etaResults[i]?.etaMinutes ?? 0,
+            etaTime: etaResults[i]?.etaTime ?? null,
+          }))
+        : [];
+
+      const deliveriesOut = deliveries.map((d, i) => {
+        // When ETA was computed off the deliveries array, attach per-row.
+        const etaRow = !useStops ? etaResults[i] : undefined;
+        return {
+          id: d.id,
+          orderId: d.order_id,
+          companyId: d.company_id,
+          companyName: d.company_name,
+          status: d.status,
+          routePosition: d.route_position,
+          latitude: d.latitude,
+          longitude: d.longitude,
+          scheduledDate: d.scheduled_date,
+          deliveredAt: d.delivered_at,
+          // ETA — when stops drove the calc, mirror the matching stop's ETA
+          // so the customer page gets a number even when there are no
+          // route_stops rows enriched on this delivery.
+          etaMinutes: etaRow
+            ? etaRow.etaMinutes
+            : (() => {
+                const matched = etaResults.find(
+                  (r: any) => r.company_id === d.company_id,
+                );
+                return matched?.etaMinutes ?? null;
+              })(),
+          etaTime: etaRow
+            ? etaRow.etaTime
+            : (() => {
+                const matched = etaResults.find(
+                  (r: any) => r.company_id === d.company_id,
+                );
+                return matched?.etaTime ?? null;
+              })(),
+        };
+      });
+
       res.json({
         route: {
           id: route.id,
@@ -637,34 +719,10 @@ export class LogisticsController {
               phone: route.driver_phone,
             }
           : null,
-        stops: stops.map((s) => ({
-          id: s.id,
-          ordem: s.ordem_parada,
-          companyId: s.company_id,
-          cep: s.cep,
-          endereco: s.endereco,
-          numero: s.numero,
-          cidade: s.cidade,
-          estado: s.estado,
-          latitude: s.latitude,
-          longitude: s.longitude,
-          janelaInicio: s.janela_inicio,
-          janelaFim: s.janela_fim,
-          tempoEstimadoMin: s.tempo_estimado_min,
-        })),
-        deliveries: deliveries.map((d) => ({
-          id: d.id,
-          orderId: d.order_id,
-          companyId: d.company_id,
-          companyName: d.company_name,
-          status: d.status,
-          routePosition: d.route_position,
-          latitude: d.latitude,
-          longitude: d.longitude,
-          scheduledDate: d.scheduled_date,
-          deliveredAt: d.delivered_at,
-        })),
+        stops: stopsOut,
+        deliveries: deliveriesOut,
         driverPosition,
+        eta: etaSummary,
       });
     } catch (e: any) {
       console.warn(`[${(req as any).requestId}] [logistics.controller] routeTracking failed`, e);

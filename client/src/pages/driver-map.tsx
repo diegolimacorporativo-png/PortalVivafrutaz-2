@@ -67,14 +67,26 @@ interface TrackingResponse {
     cidade: string | null; estado: string | null;
     latitude: string | null; longitude: string | null;
     janelaInicio: string | null; janelaFim: string | null; tempoEstimadoMin: number | null;
+    distanceKm?: number; legMinutes?: number; etaMinutes?: number; etaTime?: string | null;
   }>;
   deliveries: Array<{
     id: number; orderId: number | null; companyId: number | null; companyName: string | null;
     status: string; routePosition: number | null;
     latitude: string | null; longitude: string | null;
     scheduledDate: string | null; deliveredAt: string | null;
+    etaMinutes?: number | null; etaTime?: string | null;
   }>;
   driverPosition: { lat: string; lng: string; accuracy: string | null; speed: string | null; heading: string | null; updatedAt: string } | null;
+  eta: { totalDistanceKm: number; totalMinutes: number; totalEtaTime: string; avgSpeedKmh: number };
+}
+
+function formatEtaMinutes(min: number | null | undefined): string {
+  if (min == null) return "—";
+  if (min <= 0) return "chegando";
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${h}h${m > 0 ? ` ${m}min` : ""}`;
 }
 
 // Re-fits the map whenever the set of points changes (driver or stops).
@@ -129,6 +141,9 @@ export default function DriverMap() {
             subtitle: [s.cidade, s.estado].filter(Boolean).join(" / "),
             status: matched?.status || "pendente",
             window: s.janelaInicio && s.janelaFim ? `${s.janelaInicio} – ${s.janelaFim}` : null,
+            etaMinutes: s.etaMinutes ?? null,
+            etaTime: s.etaTime ?? null,
+            distanceKm: s.distanceKm ?? null,
           };
         });
     }
@@ -143,6 +158,9 @@ export default function DriverMap() {
         subtitle: d.scheduledDate ?? "",
         status: d.status,
         window: null,
+        etaMinutes: d.etaMinutes ?? null,
+        etaTime: d.etaTime ?? null,
+        distanceKm: null as number | null,
       }));
   }, [data]);
 
@@ -232,6 +250,17 @@ export default function DriverMap() {
               GPS ainda não recebido
             </span>
           )}
+          {data.eta && data.eta.totalMinutes > 0 && (
+            <span
+              className="flex items-center gap-1 text-gray-700 ml-auto"
+              data-testid="text-route-eta-total"
+              title={`Velocidade média ${data.eta.avgSpeedKmh} km/h • ${data.eta.totalDistanceKm.toFixed(1)} km`}
+            >
+              <Clock className="w-3.5 h-3.5 text-blue-500" />
+              Rota total: <strong>{formatEtaMinutes(data.eta.totalMinutes)}</strong>
+              <span className="text-gray-400">• {data.eta.totalDistanceKm.toFixed(1)} km</span>
+            </span>
+          )}
         </div>
       )}
 
@@ -274,7 +303,7 @@ export default function DriverMap() {
           {stopMarkers.map((s) => (
             <Marker key={s.id} position={[s.lat, s.lng]} icon={stopIcon(s.status, s.position)}>
               <Popup>
-                <div className="text-sm">
+                <div className="text-sm" data-testid={`popup-${s.id}`}>
                   <div className="font-semibold text-gray-900">{s.title}</div>
                   {s.subtitle && <div className="text-gray-500 text-xs">{s.subtitle}</div>}
                   <div className="mt-1 text-xs">
@@ -282,6 +311,25 @@ export default function DriverMap() {
                     {s.position != null && <> &middot; #{s.position}</>}
                   </div>
                   {s.window && <div className="text-xs text-gray-500">Janela: {s.window}</div>}
+                  {s.status !== "entregue" && s.etaMinutes != null && (
+                    <div
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 rounded px-2 py-1"
+                      data-testid={`text-eta-${s.id}`}
+                    >
+                      <Clock className="w-3 h-3" />
+                      Chega em {formatEtaMinutes(s.etaMinutes)}
+                      {s.etaTime && (
+                        <span className="font-normal text-blue-500">
+                          (~{new Date(s.etaTime).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })})
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {s.distanceKm != null && s.distanceKm > 0 && (
+                    <div className="text-[10px] text-gray-400 mt-1">
+                      Trecho: {s.distanceKm.toFixed(2)} km
+                    </div>
+                  )}
                 </div>
               </Popup>
             </Marker>
