@@ -1,0 +1,256 @@
+# 🚀 STEP 9.3F.6 — Alertas Inteligentes (EXECUÇÃO FINAL)
+
+## ✅ STATUS
+SPEC APROVADO COM AJUSTES — implementar exatamente como abaixo.
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS (NÃO QUEBRAR)
+
+- ❌ NÃO alterar emitAlert
+- ❌ NÃO alterar endpoints existentes
+- ❌ NÃO remover memory store
+- ❌ NÃO alterar /api/cron/alerts/logs (apenas extensão opcional)
+- ❌ NÃO alterar /api/cron/alerts/analytics
+- ❌ NÃO acoplar inteligência dentro do emitAlert
+- ✅ TUDO deve ser aditivo e isolado
+
+---
+
+# 🧱 FASE 1 — SCHEMA (ADITIVO)
+
+## Arquivo: shared/schema.ts
+
+Adicionar coluna:
+
+ts suppressed: boolean("suppressed").default(false).notNull(), 
+
+Executar:
+npm run db:push
+
+---
+
+# 🧱 FASE 2 — STORE (EXTENSÃO SEGURA)
+
+## Arquivo: server/modules/nfe/alerts-log.store.ts
+
+- Permitir campo opcional:
+ts suppressed?: boolean 
+
+- Default:
+ts suppressed: false 
+
+- NÃO alterar comportamento atual
+
+---
+
+# 🧠 FASE 3 — CONFIG CENTRAL
+
+## Arquivo: server/services/alerts.intelligence.ts (NOVO)
+
+Criar:
+
+ts export const INTELLIGENCE_CONFIG = {   ANOMALY_BASELINE_MIN: 3,   ANOMALY_WARNING_PCT: 50,   ANOMALY_CRITICAL_PCT: 100,    CHANNEL_MIN_SAMPLES: 5,   CHANNEL_WARNING_RATE: 0.75,   // 🔧 AJUSTADO   CHANNEL_CRITICAL_RATE: 0.50,    RECURRING_TITLE_MIN: 3,    SUPPRESSION_WINDOW_HOURS: 24,   SUPPRESSION_THRESHOLD: 8,     // 🔧 AJUSTADO }; 
+
+---
+
+# 🧠 FASE 4 — WRAPPER (AUTO-SUPRESSÃO)
+
+## Arquivo: server/services/alerts.smart.ts (NOVO)
+
+Criar função:
+
+ts emitAlertSmart() 
+
+## ⚠️ REGRAS CRÍTICAS
+
+- Consultar cron_alert_logs
+- Contar por title nas últimas 24h
+- Considerar apenas:
+sql suppressed = false 
+
+---
+
+## 🔴 SE ATINGIR LIMITE
+
+- NÃO chamar emitAlert
+- Chamar persistAlertLog com:
+
+ts {   suppressed: true,   rate_limited: false, // 🔥 IMPORTANTE (NÃO CONFUNDIR MÉTRICA)   context: {     reason: "title_too_frequent_24h",     count24h,     threshold,   } } 
+
+- Retornar:
+
+ts { suppressed: true } 
+
+---
+
+## 🟢 SE NÃO ATINGIR
+
+ts return emitAlert(input) 
+
+---
+
+# 🔁 FASE 5 — MIGRAÇÃO CONTROLADA
+
+👉 ALTERAR APENAS:
+
+- Cron de NFe
+
+Substituir:
+
+ts emitAlert(...) 
+
+por:
+
+ts emitAlertSmart(...) 
+
+❌ NÃO alterar outros módulos
+
+---
+
+# 📊 FASE 6 — ENDPOINT: ANOMALIAS
+
+Criar:
+
+GET /api/cron/alerts/anomalies
+
+## Parâmetros:
+
+- currentHours: default 24 (1–168)
+- baselineDays: default 7 (1–90)
+
+## Regras:
+
+- baseline ≥ 3
+- calcular delta %
+
+## Classificação:
+
+- ≥100% → critical
+- ≥50% → warning
+
+---
+
+# 📊 FASE 7 — ENDPOINT: INSIGHTS
+
+Criar:
+
+GET /api/cron/alerts/insights
+
+## Parâmetro:
+
+- windowHours: default 24
+
+## Regras:
+
+### R1 — Spike total
+### R2 — Spike por severidade
+### R3 — Canal com baixa taxa (<75% warning / <50% critical)
+### R4 — Título recorrente (≥3 + spike)
+### R5 — Supressão >30%
+
+---
+
+## ⚠️ IMPORTANTE
+
+- NÃO disparar alertas
+- Apenas leitura do banco
+
+---
+
+# 🖥️ FASE 8 — FRONTEND
+
+## Arquivo: faturamento.tsx
+
+### Inserir novo card ANTES de analytics:
+
+Insights Inteligentes
+
+---
+
+## 🔁 Queries:
+
+- /anomalies
+- /insights
+
+Refetch: 30s
+
+---
+
+## 🎛️ Seletor:
+
+ts 24h / 7d / 30d 
+
+---
+
+## 📊 UI:
+
+- Lista de insights (badge: info / warning / critical)
+- Bloco de anomalias
+- Estado vazio:
+
+"Sistema saudável"
+
+---
+
+# 🏷️ FASE 9 — AUDITORIA
+
+Adicionar badge:
+
+Suprimido
+
+Quando:
+ts suppressed === true 
+
+❌ NÃO alterar estrutura do endpoint
+
+---
+
+# 🧪 FASE 10 — VALIDAÇÃO
+
+## 1. Supressão
+
+- disparar 9 → envia
+- disparar 10 → suprime
+
+---
+
+## 2. Analytics
+
+- NÃO pode confundir com rate_limited
+
+---
+
+## 3. Insights
+
+- aparecem corretamente
+- não quebram UI
+
+---
+
+## 4. Segurança
+
+- endpoints protegidos
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ Sistema detecta anomalias  
+✔ Sistema gera insights automáticos  
+✔ Sistema evita spam de alertas  
+✔ Tudo baseado em dados reais  
+✔ Zero impacto no fluxo atual  
+
+---
+
+# 🚀 EXECUTAR
+
+Implementar TODAS as fases acima seguindo exatamente as regras.
+
+Ao finalizar:
+
+- Validar endpoints
+- Validar UI
+- Confirmar que emitAlert não foi alterado
+- Confirmar que não houve regressão

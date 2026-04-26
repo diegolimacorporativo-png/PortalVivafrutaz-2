@@ -58,6 +58,8 @@ import {
   alertRecipientsArraySchema,
 } from "../services/alerts.service";
 import { getAlertLogs, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
+// STEP 9.3F.6 — inteligência sobre cron_alert_logs (puramente leitura).
+import { buildAnomalies, buildInsights } from "../services/alerts.intelligence";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5156,6 +5158,9 @@ export async function registerRoutes(
               message: log.message,
               results: log.results,
               rateLimited: log.rateLimited,
+              // STEP 9.3F.6 — campo NOVO opcional. Não remove nem altera os
+              // demais; consumidores antigos simplesmente ignoram.
+              suppressed: log.suppressed,
             })),
           );
         } catch (err) {
@@ -5251,6 +5256,48 @@ export async function registerRoutes(
         } catch (err) {
           console.error('[ALERT_ANALYTICS_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao calcular analytics de alertas' });
+        }
+      },
+    );
+
+    // STEP 9.3F.6 — Detecção de anomalias (spike).
+    // GET /api/cron/alerts/anomalies?currentHours=24&baselineDays=7
+    app.get(
+      '/api/cron/alerts/anomalies',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const currentHours = Number(req.query.currentHours ?? 24);
+          const baselineDays = Number(req.query.baselineDays ?? 7);
+          const report = await buildAnomalies({
+            currentHours: Number.isFinite(currentHours) ? currentHours : 24,
+            baselineDays: Number.isFinite(baselineDays) ? baselineDays : 7,
+          });
+          return res.json(report);
+        } catch (err) {
+          console.error('[ALERT_ANOMALIES_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao calcular anomalias de alertas' });
+        }
+      },
+    );
+
+    // STEP 9.3F.6 — Insights automáticos (somente leitura, NUNCA dispara alerta).
+    // GET /api/cron/alerts/insights?windowHours=24
+    app.get(
+      '/api/cron/alerts/insights',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const windowHours = Number(req.query.windowHours ?? 24);
+          const report = await buildInsights({
+            windowHours: Number.isFinite(windowHours) ? windowHours : 24,
+          });
+          return res.json(report);
+        } catch (err) {
+          console.error('[ALERT_INSIGHTS_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao calcular insights de alertas' });
         }
       },
     );

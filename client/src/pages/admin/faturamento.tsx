@@ -102,6 +102,37 @@ type AlertLogEntry = {
     reason?: string;
   }>;
   rateLimited?: boolean;
+  // STEP 9.3F.6 — campo opcional adicionado pelo backend.
+  suppressed?: boolean;
+};
+
+// STEP 9.3F.6 — payloads dos endpoints de inteligência.
+type AnomalyEntry = {
+  dimension: "total" | "severity" | "channel";
+  key: string;
+  current: number;
+  baselineDailyAvg: number;
+  deltaPct: number;
+  level: "ok" | "warning" | "critical";
+  label: string;
+};
+type AnomalyReport = {
+  currentHours: number;
+  baselineDays: number;
+  generatedAt: string;
+  anomalies: AnomalyEntry[];
+};
+type InsightEntry = {
+  id: string;
+  level: "info" | "warning" | "critical";
+  title: string;
+  detail: string;
+  metric: Record<string, unknown>;
+};
+type InsightReport = {
+  windowHours: number;
+  generatedAt: string;
+  insights: InsightEntry[];
 };
 
 // STEP 9.3F.5 — analytics dos alertas persistidos (já normalizados como number).
@@ -253,6 +284,43 @@ export default function CentralFaturamento() {
       return (await res.json()) as AlertAnalytics;
     },
     refetchInterval: 15000,
+  });
+
+  // STEP 9.3F.6 — janela de inteligência (24h / 7d / 30d) + queries paralelas.
+  // Mapeia para horas/dias compatíveis com os endpoints (/anomalies clamp 1..168h).
+  type IntelWindow = "24h" | "7d" | "30d";
+  const [intelWindow, setIntelWindow] = useState<IntelWindow>("24h");
+  const intelParams = (() => {
+    switch (intelWindow) {
+      case "7d":  return { currentHours: 168, baselineDays: 30, windowHours: 168 };
+      case "30d": return { currentHours: 168, baselineDays: 90, windowHours: 720 }; // anomalias capadas em 168h
+      default:    return { currentHours: 24,  baselineDays: 7,  windowHours: 24  };
+    }
+  })();
+
+  const { data: anomalies, isLoading: anomaliesLoading } = useQuery<AnomalyReport>({
+    queryKey: ["/api/cron/alerts/anomalies", intelParams.currentHours, intelParams.baselineDays],
+    queryFn: async () => {
+      const res = await fetch(
+        `/api/cron/alerts/anomalies?currentHours=${intelParams.currentHours}&baselineDays=${intelParams.baselineDays}`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return (await res.json()) as AnomalyReport;
+    },
+    refetchInterval: 30000,
+  });
+
+  const { data: insightsData, isLoading: insightsLoading } = useQuery<InsightReport>({
+    queryKey: ["/api/cron/alerts/insights", intelParams.windowHours],
+    queryFn: async () => {
+      const res = await fetch(`/api/cron/alerts/insights?windowHours=${intelParams.windowHours}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return (await res.json()) as InsightReport;
+    },
+    refetchInterval: 30000,
   });
 
   const runCron = useMutation({
@@ -609,6 +677,123 @@ export default function CentralFaturamento() {
         </CardContent>
       </Card>
 
+      {/* Insights Inteligentes — STEP 9.3F.6 */}
+      <Card data-testid="card-alert-intelligence">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Activity className="w-4 h-4 text-purple-600" />
+              Insights inteligentes
+              <Badge variant="secondary" className="ml-1" data-testid="badge-intel-window">
+                Janela: {intelWindow}
+              </Badge>
+            </CardTitle>
+            <div className="flex items-center gap-1" role="group" aria-label="Janela de inteligência">
+              {(["24h", "7d", "30d"] as const).map((w) => (
+                <Button
+                  key={w}
+                  size="sm"
+                  variant={intelWindow === w ? "default" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setIntelWindow(w)}
+                  data-testid={`button-intel-window-${w}`}
+                >
+                  {w}
+                </Button>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Detecção automática de anomalias e observações em linguagem natural. Não dispara alertas — apenas leitura. Atualiza a cada 30s.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {(insightsLoading && !insightsData) || (anomaliesLoading && !anomalies) ? (
+            <div className="space-y-3">
+              <Skeleton className="h-16 rounded" />
+              <Skeleton className="h-16 rounded" />
+              <Skeleton className="h-24 rounded" />
+            </div>
+          ) : (insightsData?.insights.length ?? 0) === 0 && (anomalies?.anomalies.length ?? 0) === 0 ? (
+            <div
+              className="px-2 py-6 text-sm text-emerald-700 text-center flex items-center justify-center gap-2"
+              data-testid="text-intel-empty"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              Sistema saudável — nenhuma anomalia detectada na janela.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Insights */}
+              {(insightsData?.insights.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-2">Observações</div>
+                  <ul className="space-y-2">
+                    {insightsData!.insights.map((it, idx) => {
+                      const cls =
+                        it.level === "critical"
+                          ? "bg-red-100 text-red-800"
+                          : it.level === "warning"
+                          ? "bg-amber-100 text-amber-800"
+                          : "bg-slate-100 text-slate-700";
+                      return (
+                        <li
+                          key={`${it.id}-${idx}`}
+                          className="border rounded p-3"
+                          data-testid={`row-intel-insight-${idx}`}
+                        >
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Badge className={`${cls} hover:${cls} uppercase text-[10px]`}>
+                              {it.level}
+                            </Badge>
+                            <span className="text-sm font-medium text-gray-800">{it.title}</span>
+                          </div>
+                          <p className="text-xs text-gray-600 mt-1">{it.detail}</p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+
+              {/* Anomalias (resumo compacto) */}
+              {(anomalies?.anomalies.length ?? 0) > 0 && (
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-2">
+                    Anomalias detectadas (atual vs baseline {anomalies!.baselineDays}d)
+                  </div>
+                  <ul className="divide-y divide-gray-100 border rounded">
+                    {anomalies!.anomalies.map((a, idx) => {
+                      const cls =
+                        a.level === "critical"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-amber-100 text-amber-800";
+                      return (
+                        <li
+                          key={`${a.dimension}-${a.key}-${idx}`}
+                          className="flex items-center justify-between gap-3 px-3 py-2 text-sm"
+                          data-testid={`row-intel-anomaly-${idx}`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Badge className={`${cls} hover:${cls} uppercase text-[10px] shrink-0`}>
+                              {a.level}
+                            </Badge>
+                            <span className="text-gray-700 truncate">{a.label}</span>
+                          </div>
+                          <span className="text-xs text-gray-500 whitespace-nowrap">
+                            {a.current} vs {a.baselineDailyAvg}/dia
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Analytics de alertas — STEP 9.3F.5 */}
       <Card data-testid="card-alert-analytics">
         <CardHeader className="pb-3">
@@ -795,7 +980,9 @@ export default function CentralFaturamento() {
                 return (
                   <li
                     key={`${log.at}-${idx}`}
-                    className={`px-4 py-3 ${log.rateLimited ? "bg-amber-50/40" : ""}`}
+                    className={`px-4 py-3 ${
+                      log.suppressed ? "bg-purple-50/40" : log.rateLimited ? "bg-amber-50/40" : ""
+                    }`}
                     data-testid={`row-alert-log-${idx}`}
                   >
                     <div className="flex items-center gap-2 flex-wrap">
@@ -809,7 +996,16 @@ export default function CentralFaturamento() {
                       >
                         {log.title}
                       </span>
-                      {log.rateLimited && (
+                      {log.suppressed && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-purple-100 text-purple-800 hover:bg-purple-100 ml-auto"
+                          data-testid={`badge-suppressed-${idx}`}
+                        >
+                          🛑 Suprimido
+                        </Badge>
+                      )}
+                      {!log.suppressed && log.rateLimited && (
                         <Badge
                           variant="secondary"
                           className="bg-amber-100 text-amber-800 hover:bg-amber-100 ml-auto"

@@ -26,6 +26,11 @@ export type AlertLog = {
   message: string;
   results: AlertLogChannelResult[];
   rateLimited?: boolean;
+  /** STEP 9.3F.6 — marcado quando o emitAlertSmart bloqueia o envio
+   *  por excesso de repetição na janela de 24h. NUNCA é setado pelo emitAlert. */
+  suppressed?: boolean;
+  /** STEP 9.3F.6 — payload livre (motivo, contadores, etc.) gravado no jsonb context. */
+  context?: Record<string, unknown> | null;
 };
 
 const MAX_LOGS = 200;
@@ -59,7 +64,10 @@ export async function persistAlertLog(entry: AlertLog): Promise<void> {
       message:     entry.message,
       results:     entry.results ?? [],
       rateLimited: entry.rateLimited ?? false,
-      context:     null,
+      // STEP 9.3F.6 — flag opcional, default false. Mantém compatibilidade total
+      // com chamadas antigas (emitAlert continua não passando este campo).
+      suppressed:  entry.suppressed ?? false,
+      context:     entry.context ?? null,
     });
   } catch (err) {
     console.error("[ALERT_PERSIST_ERROR]", err);

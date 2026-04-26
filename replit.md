@@ -73,6 +73,21 @@ Preferred communication style: Simple, everyday language.
 - **Maintenance Mode**: System-wide maintenance mode with client-side blocking and staff access.
 - **Per-User Test Mode**: Allows individual users to operate in a test environment without affecting live data.
 
+## STEP 9.3F.6 — Alertas Inteligentes (additive, isolated)
+- **DB**: column `cron_alert_logs.suppressed boolean default false notNull`.
+- **Backend services** (new, isolated):
+  - `server/services/alerts.intelligence.ts` — `INTELLIGENCE_CONFIG` (CHANNEL_WARNING_RATE=0.75, SUPPRESSION_THRESHOLD=8) + `buildAnomalies` (current vs baseline) + `buildInsights` (rules R1–R5).
+  - `server/services/alerts.smart.ts` — `emitAlertSmart` wrapper that suppresses repeats over threshold and persists `suppressed=true` with `rate_limited=false` and empty `results` (does NOT touch `emitAlert`).
+- **Cron migration**: `server/jobs/faturamento.cron.ts` calls `emitAlertSmart` instead of `emitAlert` (only place migrated).
+- **Endpoints (auth: MASTER/ADMIN/DIRECTOR)**:
+  - `GET /api/cron/alerts/anomalies?currentHours=1..168&baselineDays=1..90`
+  - `GET /api/cron/alerts/insights?windowHours=1..720`
+  - `GET /api/cron/alerts/logs` — extended additively to include `suppressed`.
+- **Frontend** (`client/src/pages/admin/faturamento.tsx`):
+  - New "Insights inteligentes" card BEFORE the analytics card with 24h/7d/30d window selector and 30s refetch.
+  - "🛑 Suprimido" badge in audit list when `log.suppressed === true`.
+- **Untouched**: `emitAlert`, `/api/cron/alerts/analytics`, anti-spam rate-limiting, all other cron jobs and modules.
+
 ## External Dependencies
 
 ### Core Infrastructure

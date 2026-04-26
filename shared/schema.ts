@@ -1671,6 +1671,10 @@ export const cronAlertLogs = pgTable(
     message:     text("message").notNull(),
     results:     jsonb("results").notNull(),       // Array<{ channel, target?, ok, reason? }>
     rateLimited: boolean("rate_limited").notNull().default(false),
+    // STEP 9.3F.6 — flag adicional pra auto-supressão inteligente.
+    // Importante: NÃO compartilha métrica com rate_limited. Linhas suprimidas
+    // são gravadas com rate_limited=false + suppressed=true (decisão do spec).
+    suppressed:  boolean("suppressed").notNull().default(false),
     context:     jsonb("context"),                 // opcional: payload bruto do alerta
   },
   // STEP 9.3F.4.A — índice em created_at para acelerar orderBy/desc + prune por janela.

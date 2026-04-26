@@ -23,7 +23,9 @@ import {
   setCronResult,
 } from "../modules/nfe/cron-status.store";
 import { cronFaturamentoRuns } from "@shared/schema";
-import { emitAlert } from "../services/alerts.service";
+// STEP 9.3F.6 — migrado de emitAlert → emitAlertSmart (camada de auto-supressão).
+// O emitAlert continua existindo e intocado; só este cron chama o wrapper.
+import { emitAlertSmart } from "../services/alerts.smart";
 
 const CONCURRENCY_LIMIT = 5;
 
@@ -96,7 +98,7 @@ async function emitCronAlerts(args: {
       triggeredBy: args.triggeredBy,
     });
     try {
-      await emitAlert({
+      await emitAlertSmart({
         severity: "ALERT",
         title: "Erros no cron de faturamento",
         message: `Foram detectados ${args.errors} erro(s) em ${args.total} pedido(s) elegível(is).`,
@@ -119,7 +121,7 @@ async function emitCronAlerts(args: {
       triggeredBy: args.triggeredBy,
     });
     try {
-      await emitAlert({
+      await emitAlertSmart({
         severity: "CRITICAL",
         title: "Falha total no cron de faturamento",
         message: "Nenhuma NF foi emitida nesta execução, apesar de existirem pedidos elegíveis.",
