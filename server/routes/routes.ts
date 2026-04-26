@@ -5165,6 +5165,96 @@ export async function registerRoutes(
       },
     );
 
+    // STEP 9.3F.5 — Analytics dos alertas persistidos.
+    // GET /api/cron/alerts/analytics?days=N (1..90, default 7)
+    // Retorna contadores normalizados (number, nunca string) e arrays consistentes.
+    app.get(
+      '/api/cron/alerts/analytics',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const rawDays = Number(req.query.days ?? 7);
+          const days = Math.min(90, Math.max(1, Number.isFinite(rawDays) ? rawDays : 7));
+          const cutoff = new Date();
+          cutoff.setDate(cutoff.getDate() - days);
+
+          // 🔹 Totais — uma única passagem usando FILTER agregado.
+          const totalsRows = await db.execute(sql`
+            SELECT
+              COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE rate_limited = true)::int  AS rate_limited,
+              COUNT(*) FILTER (WHERE rate_limited = false)::int AS sent
+            FROM cron_alert_logs
+            WHERE created_at >= ${cutoff}
+          `);
+          const t = (totalsRows.rows?.[0] ?? {}) as Record<string, unknown>;
+          const totals = {
+            total:        Number(t.total ?? 0),
+            rate_limited: Number(t.rate_limited ?? 0),
+            sent:         Number(t.sent ?? 0),
+          };
+
+          // 🔹 Por severidade.
+          const sevRows = await db.execute(sql`
+            SELECT severity, COUNT(*)::int AS count
+            FROM cron_alert_logs
+            WHERE created_at >= ${cutoff}
+            GROUP BY severity
+            ORDER BY count DESC
+          `);
+          const bySeverity = (sevRows.rows ?? []).map((r: any) => ({
+            severity: String(r.severity ?? ''),
+            count:    Number(r.count ?? 0),
+          }));
+
+          // 🔹 Por canal — destranca o jsonb `results` em linhas.
+          // COALESCE(results, '[]') protege contra NULL acidental.
+          const chRows = await db.execute(sql`
+            SELECT (elem->>'channel') AS channel, COUNT(*)::int AS count
+            FROM cron_alert_logs,
+                 LATERAL jsonb_array_elements(COALESCE(results, '[]'::jsonb)) AS elem
+            WHERE created_at >= ${cutoff}
+              AND rate_limited = false
+            GROUP BY channel
+            ORDER BY count DESC
+          `);
+          const byChannel = (chRows.rows ?? [])
+            .filter((r: any) => r.channel)
+            .map((r: any) => ({
+              channel: String(r.channel),
+              count:   Number(r.count ?? 0),
+            }));
+
+          // 🔹 Top 10 títulos recorrentes.
+          const titleRows = await db.execute(sql`
+            SELECT title, COUNT(*)::int AS count
+            FROM cron_alert_logs
+            WHERE created_at >= ${cutoff}
+            GROUP BY title
+            ORDER BY count DESC, title ASC
+            LIMIT 10
+          `);
+          const topTitles = (titleRows.rows ?? []).map((r: any) => ({
+            title: String(r.title ?? ''),
+            count: Number(r.count ?? 0),
+          }));
+
+          return res.json({
+            days,
+            since: cutoff.toISOString(),
+            totals,
+            bySeverity,
+            byChannel,
+            topTitles,
+          });
+        } catch (err) {
+          console.error('[ALERT_ANALYTICS_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao calcular analytics de alertas' });
+        }
+      },
+    );
+
     // STEP 9.3F.4.A — Prune manual dos logs antigos (admin only).
     // DELETE /api/cron/alerts/logs?days=90  → remove tudo com createdAt < hoje - days.
     // Mínimo de 1 dia para evitar wipe acidental da tabela inteira.

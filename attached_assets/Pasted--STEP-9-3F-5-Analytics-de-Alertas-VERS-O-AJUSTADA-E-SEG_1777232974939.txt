@@ -1,0 +1,125 @@
+# 📊 STEP 9.3F.5 — Analytics de Alertas (VERSÃO AJUSTADA E SEGURA)
+
+## 🎯 OBJETIVO
+Transformar cron_alert_logs em métricas úteis:
+
+- totais por severidade  
+- taxa de rate-limit  
+- sucesso vs falha  
+- canais mais usados  
+- alertas recorrentes  
+- janela: 7 / 30 / 90 dias  
+
+👉 SEM alterar:
+- emitAlert  
+- store memória  
+- rotas existentes  
+
+---
+
+# 🧭 FASE 1 — DISCOVERY (NÃO ALTERAR)
+
+Confirmar:
+
+- tabela cron_alert_logs existe  
+- campos: createdAt, severity, results, rateLimited  
+- rota /api/cron/alerts/logs funcional  
+
+👉 NÃO ALTERAR NADA
+
+---
+
+# 🧱 FASE 2 — ENDPOINT ANALYTICS (CORRIGIDO)
+
+## Arquivo: server/routes/routes.ts
+
+ts id="adj1" import { sql } from "drizzle-orm"; import { cronAlertLogs } from "@shared/schema";  app.get(   "/api/cron/alerts/analytics",   requireAuthCore,   requireRole(["MASTER", "ADMIN", "DIRECTOR"]),   async (req, res) => {     try {       const days = Math.min(90, Math.max(1, Number(req.query.days ?? 7)));        const cutoff = new Date();       cutoff.setDate(cutoff.getDate() - days);        // 🔹 Totais (Postgres retorna string → converter depois)       const totals = await db.execute(sql`         SELECT           COUNT(*) as total,           COUNT(*) FILTER (WHERE rate_limited = true) as rate_limited,           COUNT(*) FILTER (WHERE rate_limited = false) as sent         FROM cron_alert_logs         WHERE created_at >= ${cutoff}       `);        // 🔹 Por severidade       const bySeverity = await db.execute(sql`         SELECT severity, COUNT(*) as count         FROM cron_alert_logs         WHERE created_at >= ${cutoff}         GROUP BY severity       `);        // 🔹 Por canal (JSONB seguro)       const byChannel = await db.execute(sql`         SELECT           COALESCE(r->>'channel', 'unknown') as channel,           COUNT(*) as count         FROM cron_alert_logs,         jsonb_array_elements(COALESCE(results, '[]'::jsonb)) as r         WHERE created_at >= ${cutoff}         GROUP BY channel       `);        // 🔹 Top títulos       const topTitles = await db.execute(sql`         SELECT title, COUNT(*) as count         FROM cron_alert_logs         WHERE created_at >= ${cutoff}         GROUP BY title         ORDER BY count DESC         LIMIT 5       `);        // 🔧 Normalização segura       const totalsRaw = totals.rows[0] ?? {};        const response = {         windowDays: days,          totals: {           total: Number(totalsRaw.total ?? 0),           rate_limited: Number(totalsRaw.rate_limited ?? 0),           sent: Number(totalsRaw.sent ?? 0),         },          bySeverity: bySeverity.rows.map((r) => ({           severity: r.severity,           count: Number(r.count),         })),          byChannel: byChannel.rows.map((r) => ({           channel: r.channel ?? "unknown",           count: Number(r.count),         })),          topTitles: topTitles.rows.map((r) => ({           title: r.title,           count: Number(r.count),         })),       };        return res.json(response);     } catch (err) {       console.error("[ALERT_ANALYTICS_ERROR]", err);       return res.status(500).json({ ok: false });     }   } ); 
+
+---
+
+# ⚙️ FASE 3 — FRONTEND (faturamento.tsx)
+
+## Query
+
+ts id="adj2" const { data: analytics } = useQuery({   queryKey: ["alert-analytics", 7],   queryFn: () =>     fetch("/api/cron/alerts/analytics?days=7").then((r) => r.json()),   refetchInterval: 15000, }); 
+
+---
+
+## 📊 Cards principais
+
+tsx id="adj3" <div className="grid grid-cols-3 gap-4">   <div>     <h3>Total</h3>     <p>{analytics?.totals?.total ?? 0}</p>   </div>    <div>     <h3>Rate Limited</h3>     <p>{analytics?.totals?.rate_limited ?? 0}</p>   </div>    <div>     <h3>Enviados</h3>     <p>{analytics?.totals?.sent ?? 0}</p>   </div> </div> 
+
+---
+
+## 📊 Severidade
+
+tsx id="adj4" {analytics?.bySeverity?.map((s) => (   <div key={s.severity}>     {s.severity}: {s.count}   </div> ))} 
+
+---
+
+## 📊 Canais
+
+tsx id="adj5" {analytics?.byChannel?.map((c) => (   <div key={c.channel}>     {c.channel}: {c.count}   </div> ))} 
+
+---
+
+## 📊 Top alertas
+
+tsx id="adj6" {analytics?.topTitles?.map((t) => (   <div key={t.title}>     {t.title} ({t.count})   </div> ))} 
+
+---
+
+# 🧪 FASE 4 — VALIDAÇÃO
+
+## Endpoint
+bash id="adj7" GET /api/cron/alerts/analytics?days=7 
+
+Verificar:
+- números corretos (não strings)
+- arrays consistentes
+
+---
+
+## UI
+- sem crash  
+- valores coerentes  
+- polling funcionando  
+
+---
+
+## Segurança
+- 401 sem auth  
+- role obrigatória  
+
+---
+
+# 🛡️ REGRAS CRÍTICAS
+
+❌ NÃO alterar emitAlert  
+❌ NÃO mexer em persistência  
+❌ NÃO alterar rota /logs  
+❌ NÃO usar jsonb sem COALESCE  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ Analytics confiável  
+✔ Dados normalizados  
+✔ Sem risco de crash JSONB  
+✔ Sem bug de tipo (string → number)  
+✔ Pronto para gráficos  
+
+---
+
+# 🚀 STATUS
+
+Sistema evolui de:
+👉 logs → inteligência real
+
+Próximo nível:
+- gráficos (charts)
+- alertas inteligentes
+- insights automáticos
+
+--

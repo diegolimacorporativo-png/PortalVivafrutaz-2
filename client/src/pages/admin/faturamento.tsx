@@ -104,6 +104,16 @@ type AlertLogEntry = {
   rateLimited?: boolean;
 };
 
+// STEP 9.3F.5 — analytics dos alertas persistidos (já normalizados como number).
+type AlertAnalytics = {
+  days: number;
+  since: string;
+  totals: { total: number; rate_limited: number; sent: number };
+  bySeverity: Array<{ severity: string; count: number }>;
+  byChannel: Array<{ channel: string; count: number }>;
+  topTitles: Array<{ title: string; count: number }>;
+};
+
 function ChannelStat({
   icon,
   label,
@@ -229,6 +239,20 @@ export default function CentralFaturamento() {
   const { data: alertLogs = [], isLoading: alertLogsLoading } = useQuery<AlertLogEntry[]>({
     queryKey: ["/api/cron/alerts/logs"],
     refetchInterval: 12000,
+  });
+
+  // STEP 9.3F.5 — janela analítica selecionável + query de analytics.
+  const [analyticsDays, setAnalyticsDays] = useState<7 | 30 | 90>(7);
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<AlertAnalytics>({
+    queryKey: ["/api/cron/alerts/analytics", analyticsDays],
+    queryFn: async () => {
+      const res = await fetch(`/api/cron/alerts/analytics?days=${analyticsDays}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return (await res.json()) as AlertAnalytics;
+    },
+    refetchInterval: 15000,
   });
 
   const runCron = useMutation({
@@ -581,6 +605,147 @@ export default function CentralFaturamento() {
                 );
               })}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Analytics de alertas — STEP 9.3F.5 */}
+      <Card data-testid="card-alert-analytics">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Activity className="w-4 h-4 text-indigo-600" />
+              Analytics de alertas
+              <Badge variant="secondary" className="ml-1" data-testid="badge-analytics-window">
+                Últimos {analyticsDays} {analyticsDays === 1 ? "dia" : "dias"}
+              </Badge>
+            </CardTitle>
+            <div className="flex items-center gap-1" role="group" aria-label="Janela de análise">
+              {[7, 30, 90].map((d) => (
+                <Button
+                  key={d}
+                  size="sm"
+                  variant={analyticsDays === d ? "default" : "outline"}
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setAnalyticsDays(d as 7 | 30 | 90)}
+                  data-testid={`button-analytics-window-${d}`}
+                >
+                  {d}d
+                </Button>
+              ))}
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Métricas agregadas dos alertas persistidos no banco. Atualiza a cada 15s.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {analyticsLoading && !analytics ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-3">
+                <Skeleton className="h-20 rounded" />
+                <Skeleton className="h-20 rounded" />
+                <Skeleton className="h-20 rounded" />
+              </div>
+              <Skeleton className="h-24 rounded" />
+            </div>
+          ) : !analytics || analytics.totals.total === 0 ? (
+            <div className="px-2 py-6 text-sm text-gray-400 text-center" data-testid="text-analytics-empty">
+              Sem alertas no período selecionado.
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {/* Totais */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="rounded border bg-gray-50 px-3 py-3" data-testid="card-analytics-total">
+                  <div className="text-xs text-gray-500">Total</div>
+                  <div className="text-2xl font-semibold text-gray-800">{analytics.totals.total}</div>
+                </div>
+                <div className="rounded border bg-green-50 px-3 py-3" data-testid="card-analytics-sent">
+                  <div className="text-xs text-green-700">Enviados</div>
+                  <div className="text-2xl font-semibold text-green-800">{analytics.totals.sent}</div>
+                </div>
+                <div className="rounded border bg-amber-50 px-3 py-3" data-testid="card-analytics-rate-limited">
+                  <div className="text-xs text-amber-700">Rate-limited</div>
+                  <div className="text-2xl font-semibold text-amber-800">{analytics.totals.rate_limited}</div>
+                </div>
+              </div>
+
+              {/* Severidade + Canais lado-a-lado */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-2">Por severidade</div>
+                  {analytics.bySeverity.length === 0 ? (
+                    <div className="text-xs text-gray-400">—</div>
+                  ) : (
+                    <ul className="space-y-1">
+                      {analytics.bySeverity.map((s) => {
+                        const cls =
+                          s.severity === "CRITICAL"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-orange-100 text-orange-800";
+                        return (
+                          <li
+                            key={s.severity}
+                            className="flex items-center justify-between text-sm"
+                            data-testid={`row-analytics-severity-${s.severity}`}
+                          >
+                            <Badge className={`${cls} hover:${cls}`}>{s.severity}</Badge>
+                            <span className="font-medium text-gray-700">{s.count}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium text-gray-600 mb-2">Por canal (envios)</div>
+                  {analytics.byChannel.length === 0 ? (
+                    <div className="text-xs text-gray-400">—</div>
+                  ) : (
+                    <ul className="space-y-1">
+                      {analytics.byChannel.map((c) => (
+                        <li
+                          key={c.channel}
+                          className="flex items-center justify-between text-sm"
+                          data-testid={`row-analytics-channel-${c.channel}`}
+                        >
+                          <span className="inline-flex items-center gap-1 text-gray-700 capitalize">
+                            {c.channel === "email" && <Mail className="w-3.5 h-3.5" />}
+                            {c.channel === "slack" && <MessageSquare className="w-3.5 h-3.5" />}
+                            {c.channel === "whatsapp" && <Phone className="w-3.5 h-3.5" />}
+                            {c.channel}
+                          </span>
+                          <span className="font-medium text-gray-700">{c.count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* Top alertas recorrentes */}
+              <div>
+                <div className="text-xs font-medium text-gray-600 mb-2">Top alertas recorrentes</div>
+                {analytics.topTitles.length === 0 ? (
+                  <div className="text-xs text-gray-400">—</div>
+                ) : (
+                  <ul className="divide-y divide-gray-100 border rounded">
+                    {analytics.topTitles.map((t, idx) => (
+                      <li
+                        key={`${t.title}-${idx}`}
+                        className="flex items-center justify-between px-3 py-2 text-sm"
+                        data-testid={`row-analytics-title-${idx}`}
+                      >
+                        <span className="truncate text-gray-700 mr-3">{t.title}</span>
+                        <Badge variant="secondary" className="shrink-0">{t.count}</Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>
