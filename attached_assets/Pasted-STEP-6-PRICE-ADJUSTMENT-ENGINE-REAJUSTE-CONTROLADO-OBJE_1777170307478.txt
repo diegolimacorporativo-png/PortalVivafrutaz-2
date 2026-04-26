@@ -1,0 +1,204 @@
+STEP 6 — PRICE ADJUSTMENT ENGINE (REAJUSTE CONTROLADO)
+
+OBJETIVO  
+Permitir reajuste de preços (basePrice e subCategoryPrice) com segurança, preview (dry-run), aplicação controlada e rollback, SEM afetar contractScopes e SEM quebrar histórico.
+
+---
+
+ESCOPO (O QUE PODE / NÃO PODE)
+
+✔️ Atualizar:
+- products.basePrice
+- productSubCategories.price
+
+❌ NÃO atualizar:
+- contractScopes.unitPrice (preço negociado)
+- orderItems (histórico)
+- NFe / financeiro
+
+---
+
+REGRAS DE NEGÓCIO
+
+1. Reajuste é percentual (ex: +10%, -5%)
+2. Sempre arredondar para 2 casas
+3. Nunca gerar preço negativo
+4. Sempre permitir preview antes de aplicar
+5. Nunca afetar contratos (contractScopes)
+
+---
+
+STEP 6.1 — SERVICE (CORE ENGINE)
+
+Criar:
+
+ts id="svc_adjust" adjustPrices(params) 
+
+Params:
+
+ts id="svc_params" {   percentage: number; // ex: 10 = +10%   target: "base" | "subcategory" | "all";   productIds?: number[];   categoryIds?: number[];   dryRun: boolean; } 
+
+---
+
+STEP 6.2 — CÁLCULO (FUNÇÃO PURA)
+
+ts id="calc_fn" function applyAdjustment(price: number, percentage: number) {   const adjusted = price * (1 + percentage / 100);    if (!isFinite(adjusted) || isNaN(adjusted)) return price;    return Number(adjusted.toFixed(2)); } 
+
+---
+
+STEP 6.3 — PREVIEW (DRY-RUN)
+
+Se dryRun === true:
+
+NÃO salvar nada.
+
+Retornar:
+
+ts id="preview_shape" {   summary: {     totalItems: number;     avgIncrease: number;   },   changes: [     {       type: "product" | "subcategory",       id: number,       name: string,       oldPrice: number,       newPrice: number,       diff: number     }   ] } 
+
+---
+
+STEP 6.4 — FETCH OTIMIZADO
+
+Buscar dados em lote:
+
+ts id="fetch_products" const products = await db.select().from(products); 
+
+ts id="fetch_sub" const subCategories = await db.select().from(productSubCategories); 
+
+⚠️ NÃO fazer queries dentro de loop  
+⚠️ Trabalhar em memória
+
+---
+
+STEP 6.5 — FILTROS
+
+Aplicar filtros antes do cálculo:
+
+- productIds (se enviado)
+- categoryIds (se enviado)
+- target
+
+---
+
+STEP 6.6 — APLICAÇÃO REAL
+
+Se dryRun === false:
+
+Atualizar em batch:
+
+ts id="update_product" await db   .update(products)   .set({ basePrice: newPrice })   .where(eq(products.id, id)); 
+
+ts id="update_sub" await db   .update(productSubCategories)   .set({ price: newPrice })   .where(eq(productSubCategories.id, id)); 
+
+---
+
+STEP 6.7 — TRANSAÇÃO (OBRIGATÓRIO)
+
+ts id="tx" await db.transaction(async (tx) => {   // todas updates aqui }); 
+
+Se qualquer erro → rollback automático
+
+---
+
+STEP 6.8 — LOG DE EXECUÇÃO
+
+ts id="log_apply" console.info("[pricing] adjustment applied", {   percentage,   target,   totalAffected }); 
+
+---
+
+STEP 6.9 — PROTEÇÃO DE CONTRATOS
+
+Nunca tocar:
+
+ts id="no_contract" contractScopes 
+
+Mesmo se produto for atualizado, contrato continua prevalecendo no resolver.
+
+---
+
+STEP 6.10 — ENDPOINT ADMIN
+
+Criar:
+
+POST /api/admin/pricing/adjust
+
+Body:
+
+json id="api_body" {   "percentage": 10,   "target": "all",   "dryRun": true } 
+
+---
+
+STEP 6.11 — SEGURANÇA
+
+- requireAuth
+- requireRole(["ADMIN"])
+
+---
+
+STEP 6.12 — VALIDAÇÃO
+
+Testar:
+
+1. dryRun = true → nada muda
+2. dryRun = false → preços atualizados
+3. percentage negativo (ex: -10%) → desconto funciona
+4. contrato existente → NÃO muda preço final
+5. produto sem preço → ignorado
+
+---
+
+STEP 6.13 — ROLLBACK MANUAL (OPCIONAL MAS RECOMENDADO)
+
+Antes de aplicar:
+
+Salvar snapshot:
+
+ts id="snapshot" {   productId,   oldPrice,   timestamp } 
+
+Permite reverter depois.
+
+---
+
+RESULTADO FINAL
+
+Sistema agora suporta:
+
+✔️ reajuste mensal de preços  
+✔️ simulação antes de aplicar  
+✔️ impacto controlado  
+✔️ proteção de contratos  
+✔️ rollback seguro  
+
+---
+
+CENÁRIO REAL
+
+Você compra fruta mais caro:
+
+1. roda preview (+10%)
+2. vê impacto
+3. aplica
+4. contratos continuam intactos
+5. pedidos novos já usam novo preço automaticamente
+
+---
+
+RISCO FINAL
+
+LOW ✅
+
+Motivo:
+
+- transaction protegida
+- dryRun obrigatório antes de aplicar
+- contratos isolados
+- sem impacto em histórico
+
+---
+
+PRÓXIMO PASSO (OPCIONAL)
+
+- agendamento automático mensal
+- UI de aprovação
+- alertas de va
