@@ -1,0 +1,145 @@
+STEP TEST — AMBIENTE CONTROLADO (VERSÃO FINAL CORRIGIDA)
+
+OBJETIVO  
+Criar um cenário real de teste para validar frontend + pricing + pedidos + timeline.
+
+---
+
+🚫 NÃO alterar lógica  
+🚫 NÃO mexer no backend  
+👉 apenas criar dados reais de teste  
+
+---
+
+## STEP 1 — CRIAR EMPRESA
+
+Criar empresa:
+
+ts name: "Empresa Teste" useNewPricing: true adminFee: 10 
+
+---
+
+## STEP 2 — CRIAR USUÁRIOS
+
+### ADMIN
+
+ts email: "admin@test.com" role: "ADMIN" companyId: "Empresa Teste" 
+
+---
+
+### CLIENTE
+
+ts email: "cliente@test.com" role: "CLIENT" companyId: "Empresa Teste" 
+
+---
+
+## STEP 3 — CRIAR PRODUTOS
+
+### PRODUTO A — BASE
+
+ts name: "Banana Teste" basePrice: 10 active: true 
+
+---
+
+### PRODUTO B — CATEGORIA
+
+ts name: "Maçã Teste" basePrice: null pricingMode: "category" subCategories: [   { name: "Pequeno", price: 8 },   { name: "Grande", price: 12 } ] active: true 
+
+---
+
+### PRODUTO C — SIMULAÇÃO (SEM CONTRATO REAL)
+
+ts name: "Melão Teste" basePrice: 20 subCategoryPrice: 18 active: true 
+
+---
+
+### PRODUTO D — SEM PREÇO (EDGE CASE)
+
+ts name: "Produto Sem Preço" basePrice: null active: true 
+
+---
+
+## STEP 4 — VALIDAR NO CLIENTE
+
+Entrar como:
+
+cliente@test.com
+
+Validar:
+
+✔ Banana aparece com preço  
+✔ Maçã muda preço ao trocar categoria  
+✔ Melão aparece com preço  
+✔ Produto sem preço NÃO aparece  
+
+---
+
+## STEP 5 — CRIAR PEDIDO
+
+Selecionar:
+
+- Banana (2x)
+- Maçã Pequeno (1x)
+
+Validar:
+
+✔ subtotal correto  
+✔ preço com +10% aplicado  
+
+---
+
+## STEP 6 — ENVIAR PEDIDO
+
+Validar:
+
+✔ resposta OK  
+✔ pedido aparece no admin  
+
+---
+
+## STEP 7 — VALIDAR TIMELINE
+
+Abrir pedido:
+
+✔ aparece criação  
+✔ aparece status  
+✔ aparece usuário  
+
+---
+
+## STEP 8 — TESTAR ALTERAÇÃO
+
+Cliente:
+
+✔ solicitar alteração  
+
+Admin:
+
+✔ aprovar  
+
+Validar timeline:
+
+✔ REQUEST  
+✔ APPROVE  
+✔ UPDATE  
+
+---
+
+## STEP 9 — DEBUG (SE NECESSÁRIO)
+
+ts console.log("PRODUTOS:", products); console.log("PEDIDO:", data); console.log("TIMELINE:", logs); 
+
+---
+
+## RESULTADO ESPERADO
+
+✔ frontend funcionando  
+✔ pricing correto  
+✔ pedido funcionando  
+✔ timeline visível  
+
+---
+
+RISCO
+
+ZERO ✅
