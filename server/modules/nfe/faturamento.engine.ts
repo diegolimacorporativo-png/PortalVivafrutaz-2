@@ -165,7 +165,7 @@ export function getFaturamentoContext(
               deliveryDate: delivery.toISOString(),
               diffDias,
             });
-            recordDryRun({ orderId: orderId as number, tipo: "semanal", motivo, at: Date.now() });
+            recordDryRun({ orderId: orderId as number, companyId: Number(pick(company, "id") ?? 0), tipo: "semanal", motivo, at: Date.now() });
           }
           if (BILLING_STRICT_MODE) {
             ctx.podeEmitir = false;
@@ -189,7 +189,7 @@ export function getFaturamentoContext(
               motivo,
               deliveryDate: delivery.toISOString(),
             });
-            recordDryRun({ orderId: orderId as number, tipo: "mensal", motivo, at: Date.now() });
+            recordDryRun({ orderId: orderId as number, companyId: Number(pick(company, "id") ?? 0), tipo: "mensal", motivo, at: Date.now() });
           }
           if (BILLING_STRICT_MODE) {
             ctx.podeEmitir = false;

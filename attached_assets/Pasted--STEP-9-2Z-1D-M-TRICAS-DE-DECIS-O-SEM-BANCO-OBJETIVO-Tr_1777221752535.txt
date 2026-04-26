@@ -1,0 +1,90 @@
+## STEP 9.2Z.1D — MÉTRICAS DE DECISÃO (SEM BANCO)
+
+### OBJETIVO
+
+Transformar o dry-run em ferramenta de decisão real
+
+---
+
+## 🚫 REGRAS
+
+- NÃO usar banco
+- NÃO criar dashboard complexo
+- NÃO alterar lógica do engine
+- Apenas enriquecer métricas
+
+---
+
+## STEP 1 — ADICIONAR companyId
+
+dryrun-metrics.ts
+
+ts type DryRunEvent = {   orderId: number;   companyId: number;   tipo: string;   motivo: string;   at: number; }; 
+
+---
+
+## STEP 2 — PASSAR companyId DO ENGINE
+
+faturamento.engine.ts
+
+ts const event = {   orderId: order.id,   companyId: company.id,   tipo: context.tipo,   motivo: context.motivo,   at: Date.now(), }; 
+
+---
+
+## STEP 3 — AGRUPAMENTO POR EMPRESA
+
+dryrun-metrics.ts
+
+ts const metrics = {   total: 0,   byTipo: {} as Record<string, number>,   byCompany: {} as Record<number, number>,   events: [] as DryRunEvent[], }; 
+
+---
+
+## STEP 4 — CONTABILIZAR
+
+ts metrics.byCompany[event.companyId] =   (metrics.byCompany[event.companyId] || 0) + 1; 
+
+---
+
+## STEP 5 — TOP IMPACTO
+
+ts export function getTopCompanies(limit = 5) {   return Object.entries(metrics.byCompany)     .sort((a, b) => b[1] - a[1])     .slice(0, limit)     .map(([companyId, count]) => ({       companyId: Number(companyId),       count,     })); } 
+
+---
+
+## STEP 6 — EXPOR NO ENDPOINT
+
+routes.ts
+
+ts import { getTopCompanies } from "@/modules/nfe/dryrun-metrics";  app.get("/api/nfe/dry-run/metrics", (req, res) => {   const base = getDryRunMetrics();    return res.json({     ...base,     topCompanies: getTopCompanies(),   }); }); 
+
+---
+
+## RESULTADO
+
+json {   "total": 120,   "byTipo": {     "semanal": 80,     "mensal": 40   },   "byCompany": {     "12": 30,     "7": 25   },   "topCompanies": [     { "companyId": 12, "count": 30 },     { "companyId": 7, "count": 25 }   ] } 
+
+---
+
+## O QUE VOCÊ DESCOBRE AGORA
+
+✔ quem vai ser mais impactado  
+✔ qual tipo pesa mais  
+✔ se vale ativar bloqueio  
+
+---
+
+## DECISÃO FINAL
+
+Se você ver:
+
+txt 80% semanal → bloqueio seguro 
+
+ou
+
+txt 1 cliente concentra 60% → tratar manualmente antes 
+
+---
+
+## RISCO
+
+ZERO ✅

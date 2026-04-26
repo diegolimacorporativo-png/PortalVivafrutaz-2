@@ -34,6 +34,7 @@ export async function canEmitNFe(orderId: number): Promise<CanEmitNFeResult> {
       o.status,
       o.fiscal_status,
       o.delivery_date,
+      c.id AS company_id,
       c.client_type,
       c.billing_term,
       c.payment_dates,
@@ -58,6 +59,7 @@ export async function canEmitNFe(orderId: number): Promise<CanEmitNFeResult> {
     delivery_date: row.delivery_date,
   };
   const company = {
+    id: row.company_id,
     client_type: row.client_type,
     billing_term: row.billing_term,
     payment_dates: row.payment_dates,
