@@ -1,0 +1,200 @@
+## STEP 9.3F.0 — AUDITORIA DE NOTIFICAÇÕES (SMTP + ALERTAS)
+
+### OBJETIVO
+
+ANTES de implementar alertas reais, analisar:
+
+1. Se já existe SMTP configurado  
+2. Como e onde emails são enviados  
+3. Se já existe algum sistema de notificação  
+4. Como usuários e roles estão estruturados  
+5. Onde armazenar números de WhatsApp com segurança  
+
+---
+
+### 🚫 REGRAS (CRÍTICO)
+
+- NÃO alterar código existente  
+- NÃO refatorar nada  
+- NÃO criar integração ainda  
+- NÃO instalar libs novas  
+
+👉 Apenas leitura + análise
+
+---
+
+## STEP 1 — MAPEAR SMTP EXISTENTE
+
+### Procurar no projeto:
+
+- "nodemailer"
+- "smtp"
+- "mail"
+- "transporter"
+- "sendMail"
+- ".env"
+
+### Identificar:
+
+- Onde o transporter é criado
+- Se já existe serviço tipo:
+  - email.service.ts
+  - mailer.ts
+- Se já existem templates
+
+### Retornar:
+
+json id="smtp_audit" {   "smtpExiste": true/false,   "arquivo": "caminho do arquivo",   "reutilizavel": true/false,   "observacoes": "ex: já usado para pedidos / login / reset senha" } 
+
+---
+
+## STEP 2 — MAPEAR SISTEMA DE NOTIFICAÇÕES
+
+### Procurar:
+
+- console.error / console.warn com padrão
+- logs estruturados
+- qualquer tentativa de alerta
+
+### Verificar:
+
+- Já existe algo como:
+  - alert.service
+  - notification.service
+  - webhook
+
+### Retornar:
+
+json id="notif_audit" {   "existeSistema": true/false,   "tipo": "email | log | nenhum",   "reutilizavel": true/false } 
+
+---
+
+## STEP 3 — MAPEAR USERS + ROLES
+
+### Identificar:
+
+- Onde está o user:
+  - useAuth()
+  - req.user
+  - session
+
+### Descobrir:
+
+- Quais roles existem exatamente (strings reais)
+- Exemplo esperado:
+  - ADMIN
+  - MASTER
+  - DIRECTOR
+
+### Retornar:
+
+json id="roles_audit" {   "rolesEncontradas": ["ADMIN", "MASTER", "DIRECTOR"],   "campoRole": "user.role",   "caseSensitive": true/false } 
+
+---
+
+## STEP 4 — MAPEAR ONDE GUARDAR WHATSAPP
+
+### Procurar no schema:
+
+- tabela users
+- tabela companies
+- tabela settings/config
+
+### Verificar:
+
+- existe campo JSON?
+- existe tabela de configurações?
+
+### Objetivo:
+
+Definir melhor lugar para:
+
+ts whatsapp_alert_numbers: string[] 
+
+### Retornar:
+
+json id="whatsapp_storage" {   "localRecomendado": "users | settings | nova tabela",   "justificativa": "motivo técnico" } 
+
+---
+
+## STEP 5 — SEGURANÇA (CRÍTICO)
+
+Definir regra:
+
+Somente roles podem gerenciar alertas:
+
+- ADMIN
+- MASTER
+- DIRECTOR
+
+### Validar:
+
+- Onde essa verificação já existe no projeto
+- Se há middleware ou helper reutilizável
+
+### Retornar:
+
+json id="security_audit" {   "temMiddleware": true/false,   "comoValidar": "ex: req.user.role === 'ADMIN'",   "reutilizar": true/false } 
+
+---
+
+## STEP 6 — DECISÃO FINAL (OBRIGATÓRIO)
+
+Gerar conclusão:
+
+json id="final_decision" {   "usarSMTPExistente": true/false,   "criarServicoAlertas": true,   "usarWhatsApp": true,   "permitirMultiplosNumeros": true,   "precisaNovaTabela": true/false,   "prontoParaStep9_3F": true/false } 
+
+---
+
+## RESULTADO ESPERADO
+
+Após essa auditoria você terá:
+
+✅ Segurança de não duplicar SMTP  
+✅ Base correta para alertas  
+✅ Estrutura limpa para WhatsApp  
+✅ Controle total por admins  
+✅ Zero risco de quebrar produção  
+
+---
+
+## PRÓXIMO STEP
+
+👉 STEP 9.3F.1
+
+Implementação real:
+
+- serviço unificado de alertas
+- WhatsApp multi-número
+- Slack webhook
+- email reaproveitando SMTP existente
+- controle por role
+
+---
+
+## RESUMO SIMPLES
+
+Você NÃO vai sair integrando no escuro.
+
+Você vai:
+
+🔎 entender o sistema  
+🧠 decidir certo  
+⚙️ implementar limpo  
+
+---
+
+## IMPORTANTE
+
+Sem essa auditoria, você corre risco de:
+
+❌ duplicar email  
+❌ quebrar envio existente  
+❌ vazar alerta  
+❌ bagunçar permissões  
+
+---
+
+Quando terminar, me manda o resultado.
+
+Eu te entrego o STEP 9.3F.1 completo já adaptado ao seu sistema real
