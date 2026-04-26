@@ -48,6 +48,7 @@ import {
 } from "../modules/billing/subscription.middleware";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
+import { getDryRunMetrics } from "../modules/nfe/dryrun-metrics";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5100,6 +5101,11 @@ export async function registerRoutes(
         console.error('[NFE_CAN_EMIT_ERROR]', error);
         return res.status(500).json({ error: 'Erro ao validar emissão' });
       }
+    });
+
+    // GET /api/nfe/dry-run/metrics — STEP 9.2Z.1C: métricas em memória dos bloqueios simulados
+    app.get('/api/nfe/dry-run/metrics', (req: any, res) => {
+      return res.json(getDryRunMetrics());
     });
 
     // POST /api/nfe/emitir — gerar XML + criar registro

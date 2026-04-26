@@ -1,0 +1,87 @@
+## STEP 9.2Z.1C — AGREGADOR DE DRY-RUN (SEM BANCO, SEM UI)
+
+### OBJETIVO
+
+Capturar métricas de impacto do faturamento:
+
+- Quantos pedidos seriam bloqueados
+- Por tipo (semanal/mensal)
+- Últimas ocorrências
+
+SEM usar banco de dados
+
+---
+
+## 🚫 REGRAS
+
+- NÃO criar tabela
+- NÃO usar storage
+- NÃO criar dashboard complexo
+- Tudo em memória (temporário)
+
+---
+
+## STEP 1 — CRIAR STORE EM MEMÓRIA
+
+Arquivo:
+
+server/modules/nfe/dryrun-metrics.ts
+
+ts id="3k92jd" type DryRunEvent = {   orderId: number;   tipo: string;   motivo: string;   at: number; };  const MAX_EVENTS = 200;  const metrics = {   total: 0,   byTipo: {} as Record<string, number>,   events: [] as DryRunEvent[], };  export function recordDryRun(event: DryRunEvent) {   metrics.total++;    metrics.byTipo[event.tipo] = (metrics.byTipo[event.tipo] || 0) + 1;    metrics.events.unshift(event);    if (metrics.events.length > MAX_EVENTS) {     metrics.events.pop();   } }  export function getDryRunMetrics() {   return metrics; } 
+
+---
+
+## STEP 2 — INTEGRAR NO ENGINE
+
+Arquivo:
+
+faturamento.engine.ts
+
+ts id="l29xqz" import { recordDryRun } from "./dryrun-metrics"; 
+
+---
+
+### Substituir console.warn:
+
+ts id="92kdla" if (BILLING_DRY_RUN) {   const event = {     orderId: order.id,     tipo: context.tipo,     motivo: context.motivo,     at: Date.now(),   };    console.warn("[NFE_DRY_RUN_BLOCK]", event);    recordDryRun(event); } 
+
+---
+
+## STEP 3 — ENDPOINT SIMPLES
+
+server/routes/routes.ts
+
+ts id="z1k9sd" import { getDryRunMetrics } from "@/modules/nfe/dryrun-metrics";  app.get("/api/nfe/dry-run/metrics", (req, res) => {   return res.json(getDryRunMetrics()); }); 
+
+---
+
+## RESULTADO
+
+Você ganha:
+
+json id="p9q0al" {   "total": 42,   "byTipo": {     "semanal": 30,     "mensal": 12   },   "events": [     { "orderId": 101, "tipo": "semanal", "motivo": "...", "at": 1710000000 }   ] } 
+
+---
+
+## BENEFÍCIOS
+
+✔ visão imediata do impacto  
+✔ zero custo de banco  
+✔ zero risco  
+✔ pronto pra evoluir depois  
+
+---
+
+## LIMITAÇÕES (ACEITAS)
+
+- reinicia ao subir servidor
+- não é histórico permanente
+- não é BI
+
+👉 E tudo bem. Esse é o objetivo.
+
+---
+
+## RISCO
+
+ZERO ✅

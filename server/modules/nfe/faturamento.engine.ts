@@ -1,4 +1,5 @@
 import { BILLING_STRICT_MODE, BILLING_DRY_RUN } from "../../config/flags";
+import { recordDryRun } from "./dryrun-metrics";
 
 /**
  * STEP 9.2Z — Motor de Faturamento (Fase 1, sem alterar schema).
@@ -164,6 +165,7 @@ export function getFaturamentoContext(
               deliveryDate: delivery.toISOString(),
               diffDias,
             });
+            recordDryRun({ orderId: orderId as number, tipo: "semanal", motivo, at: Date.now() });
           }
           if (BILLING_STRICT_MODE) {
             ctx.podeEmitir = false;
@@ -187,6 +189,7 @@ export function getFaturamentoContext(
               motivo,
               deliveryDate: delivery.toISOString(),
             });
+            recordDryRun({ orderId: orderId as number, tipo: "mensal", motivo, at: Date.now() });
           }
           if (BILLING_STRICT_MODE) {
             ctx.podeEmitir = false;
