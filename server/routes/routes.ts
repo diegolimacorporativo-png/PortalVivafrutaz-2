@@ -51,7 +51,7 @@ import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
 import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
 import { runFaturamentoCron } from "../jobs/faturamento.cron";
-import { cronFaturamentoRuns } from "@shared/schema";
+import { cronFaturamentoRuns, cronAlertLogs } from "@shared/schema";
 import {
   getAlertRecipients,
   setAlertRecipients,
@@ -5134,14 +5134,30 @@ export async function registerRoutes(
       },
     );
 
-    // STEP 9.3F.3 — Auditoria de alertas disparados (memória, últimos 200).
+    // STEP 9.3F.3 — Auditoria de alertas disparados.
+    // STEP 9.3F.4 — Migrado de memória para banco (cron_alert_logs). Mantém o
+    // mesmo shape consumido por client/src/pages/admin/faturamento.tsx.
     app.get(
       '/api/cron/alerts/logs',
       requireAuthCore,
       requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
       async (_req: any, res) => {
         try {
-          return res.json(getAlertLogs());
+          const rows = await db
+            .select()
+            .from(cronAlertLogs)
+            .orderBy(desc(cronAlertLogs.createdAt))
+            .limit(50);
+          return res.json(
+            rows.map((log) => ({
+              at: log.createdAt,
+              severity: log.severity,
+              title: log.title,
+              message: log.message,
+              results: log.results,
+              rateLimited: log.rateLimited,
+            })),
+          );
         } catch (err) {
           console.error('[ALERT_LOGS_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao buscar logs de alertas' });

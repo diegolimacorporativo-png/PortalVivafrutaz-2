@@ -1656,3 +1656,19 @@ export const cronFaturamentoRuns = pgTable("cron_faturamento_runs", {
   triggeredByUserId: integer("triggered_by_user_id"), // nullable: schedule não tem user
 });
 export type CronFaturamentoRun = typeof cronFaturamentoRuns.$inferSelect;
+
+// ─── STEP 9.3F.4 — Persistência durável dos alertas operacionais ─────────────
+// Cada disparo (ou bloqueio por rate-limit) do emitAlert(...) grava uma linha
+// aqui para auditoria histórica. A store em memória continua existindo como
+// cache rápido — esta tabela é a fonte da verdade após restart.
+export const cronAlertLogs = pgTable("cron_alert_logs", {
+  id:          serial("id").primaryKey(),
+  createdAt:   timestamp("created_at").defaultNow().notNull(),
+  severity:    text("severity").notNull(),       // 'ALERT' | 'CRITICAL'
+  title:       text("title").notNull(),
+  message:     text("message").notNull(),
+  results:     jsonb("results").notNull(),       // Array<{ channel, target?, ok, reason? }>
+  rateLimited: boolean("rate_limited").notNull().default(false),
+  context:     jsonb("context"),                 // opcional: payload bruto do alerta
+});
+export type CronAlertLog = typeof cronAlertLogs.$inferSelect;

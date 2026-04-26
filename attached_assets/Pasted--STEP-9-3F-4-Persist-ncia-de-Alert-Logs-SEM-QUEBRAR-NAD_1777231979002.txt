@@ -1,0 +1,181 @@
+# 🚀 STEP 9.3F.4 — Persistência de Alert Logs (SEM QUEBRAR NADA)
+
+## 🎯 OBJETIVO
+Adicionar persistência em banco para os logs de alertas do cron sem alterar comportamento atual, mantendo:
+- memória como cache rápido
+- mesmo shape de resposta para o frontend
+- zero impacto no fluxo do cron
+
+---
+
+# 🧭 FASE 1 — DISCOVERY (NÃO ALTERAR NADA)
+
+1. Abrir:
+- server/services/alerts.service.ts
+- server/modules/nfe/alerts-log.store.ts
+- shared/schema.ts
+- server/routes/routes.ts
+
+2. Confirmar:
+- existem 2 chamadas de recordAlertLog(...) dentro de emitAlert
+- store em memória já funciona
+- rota /api/cron/alerts/logs usa getAlertLogs()
+
+👉 NÃO ALTERAR NADA NESSA FASE
+
+---
+
+# 🧱 FASE 2 — SCHEMA (ADITIVO, SEM QUEBRAR)
+
+## Arquivo: shared/schema.ts
+
+Adicionar nova tabela seguindo padrão de cron_faturamento_runs:
+
+ts export const cronAlertLogs = pgTable("cron_alert_logs", {   id: serial("id").primaryKey(),    createdAt: timestamp("created_at").defaultNow().notNull(),    severity: text("severity").notNull(),   title: text("title").notNull(),   message: text("message").notNull(),    results: jsonb("results").notNull(),    rateLimited: boolean("rate_limited").notNull().default(false),    context: jsonb("context"), }); 
+
+Adicionar tipo:
+
+ts export type CronAlertLog = typeof cronAlertLogs.$inferSelect; 
+
+---
+
+# 🗄️ FASE 3 — PERSISTÊNCIA (ISOLADA E SEGURA)
+
+## Arquivo: server/modules/nfe/alerts-log.store.ts
+
+👉 NÃO remover nada existente
+
+Adicionar função:
+
+ts import { db } from "../../database/db"; import { cronAlertLogs } from "@shared/schema";  export async function persistAlertLog(entry: AlertLog) {   try {     await db.insert(cronAlertLogs).values({       severity: entry.severity,       title: entry.title,       message: entry.message,       results: entry.results ?? [],       rateLimited: entry.rateLimited ?? false,       context: null,     });   } catch (err) {     console.error("[ALERT_PERSIST_ERROR]", err);   } } 
+
+---
+
+# ⚙️ FASE 4 — INTEGRAÇÃO NO SERVICE (SEM MEXER NA LÓGICA)
+
+## Arquivo: server/services/alerts.service.ts
+
+Importar:
+
+ts import { persistAlertLog } from "../modules/nfe/alerts-log.store"; 
+
+---
+
+## 📍 PONTO 1 — RATE LIMIT (linhas ~229)
+
+Local onde já existe:
+
+ts recordAlertLog(...) 
+
+Adicionar logo abaixo:
+
+ts persistAlertLog({   at: new Date().toISOString(),   severity,   title,   message,   results: [],   rateLimited: true, }); 
+
+---
+
+## 📍 PONTO 2 — FINAL DO ENVIO (linhas ~302)
+
+Após:
+
+ts recordAlertLog(...) 
+
+Adicionar:
+
+ts persistAlertLog({   at: new Date().toISOString(),   severity,   title,   message,   results,   rateLimited: false, }); 
+
+---
+
+# 🌐 FASE 5 — ROTA (MIGRAR MEMÓRIA → BANCO)
+
+## Arquivo: server/routes/routes.ts
+
+Localizar:
+
+ts GET /api/cron/alerts/logs 
+
+Substituir implementação por:
+
+ts import { desc } from "drizzle-orm"; import { cronAlertLogs } from "@shared/schema";  const logs = await db   .select()   .from(cronAlertLogs)   .orderBy(desc(cronAlertLogs.createdAt))   .limit(50);  return res.json(   logs.map((log) => ({     at: log.createdAt,     severity: log.severity,     title: log.title,     message: log.message,     results: log.results,     rateLimited: log.rateLimited,   })) ); 
+
+---
+
+# 🧪 FASE 6 — MIGRAÇÃO
+
+Executar:
+
+bash npm run db:push 
+
+---
+
+# ✅ FASE 7 — VALIDAÇÃO (OBRIGATÓRIO)
+
+## Testar:
+
+### 1. Rate limit
+- forçar múltiplos alerts
+- verificar:
+  - aparece no banco
+  - rateLimited = true
+
+---
+
+### 2. Envio normal
+- disparar alerta real
+- verificar:
+  - results[] preenchido
+  - rateLimited = false
+
+---
+
+### 3. API
+- acessar:
+/api/cron/alerts/logs
+
+Verificar:
+- formato idêntico ao anterior
+- frontend NÃO QUEBRA
+
+---
+
+### 4. UI
+- abrir faturamento.tsx
+- confirmar:
+  - logs aparecem normalmente
+  - polling continua funcionando
+
+---
+
+# 🛡️ REGRAS CRÍTICAS
+
+❌ NÃO alterar:
+- lógica do emitAlert
+- estrutura do AlertLog
+- frontend
+
+❌ NÃO remover:
+- store em memória
+
+❌ NÃO deixar persistência sem try/catch
+
+---
+
+# 🎯 RESULTADO FINAL
+
+Sistema terá:
+
+- memória (rápido)
+- banco (histórico confiável)
+- UI intacta
+- risco ZERO de quebra
+
+---
+
+# ✅ STATUS ESPERADO
+
+✔ Persistência funcionando  
+✔ Cron intacto  
+✔ UI sem alteração  
+✔ Logs duráveis no banco  
+✔ Pronto para escala  
+
+-

@@ -1,13 +1,15 @@
 /**
  * STEP 9.3F.3 — Store em memória dos alertas disparados.
- *
- * Mantém os últimos N (default 200) eventos do `emitAlert(...)` para auditoria
- * via dashboard. Sem persistência (volátil entre restarts) — a versão em
- * banco virá no STEP 9.3F.4.
+ * STEP 9.3F.4 — Adicionada persistência em banco (cron_alert_logs) sem
+ * alterar a store em memória. A função `persistAlertLog` roda em paralelo
+ * com `recordAlertLog` e nunca lança (try/catch interno).
  *
  * REGRA: este arquivo é só observabilidade. Não decide, não envia, não
  * influencia o fluxo do cron.
  */
+
+import { db } from "../../database/db";
+import { cronAlertLogs } from "@shared/schema";
 
 export type AlertLogChannelResult = {
   channel: "email" | "slack" | "whatsapp";
@@ -41,4 +43,24 @@ export function getAlertLogs(): AlertLog[] {
 /** Limpa o store (uso em testes ou ação admin futura). */
 export function clearAlertLogs(): void {
   logs.length = 0;
+}
+
+/**
+ * STEP 9.3F.4 — Persiste o alerta no banco (cron_alert_logs).
+ * Sempre dentro de try/catch: nunca derruba o cron por falha de I/O.
+ * O campo `at` da entry é ignorado — usamos `defaultNow()` no banco.
+ */
+export async function persistAlertLog(entry: AlertLog): Promise<void> {
+  try {
+    await db.insert(cronAlertLogs).values({
+      severity:    entry.severity,
+      title:       entry.title,
+      message:     entry.message,
+      results:     entry.results ?? [],
+      rateLimited: entry.rateLimited ?? false,
+      context:     null,
+    });
+  } catch (err) {
+    console.error("[ALERT_PERSIST_ERROR]", err);
+  }
 }

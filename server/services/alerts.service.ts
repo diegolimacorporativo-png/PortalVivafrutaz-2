@@ -20,7 +20,7 @@
 import { z } from "zod";
 import { storage } from "./storage";
 import { sendAdminBroadcast, mailerStatus } from "./mailer";
-import { recordAlertLog } from "../modules/nfe/alerts-log.store";
+import { recordAlertLog, persistAlertLog } from "../modules/nfe/alerts-log.store";
 
 const RECIPIENTS_KEY = "cron_alerts.recipients";
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
@@ -226,14 +226,17 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
   if (isRateLimited(key)) {
     console.warn("[ALERT_RATE_LIMIT]", { key, severity: input.severity });
     // STEP 9.3F.3 — registra mesmo quando bloqueado por rate-limit.
-    recordAlertLog({
+    const rateLimitedEntry = {
       at: Date.now(),
       severity: input.severity,
       title: input.title,
       message: input.message,
       results: [],
       rateLimited: true,
-    });
+    };
+    recordAlertLog(rateLimitedEntry);
+    // STEP 9.3F.4 — persistência durável (fire-and-forget seguro).
+    void persistAlertLog(rateLimitedEntry);
     return { rateLimited: true, attempted: 0, delivered: 0, results: [] };
   }
 
@@ -299,7 +302,7 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
   });
 
   // STEP 9.3F.3 — registra a execução completa para o dashboard de auditoria.
-  recordAlertLog({
+  const sentEntry = {
     at: Date.now(),
     severity: input.severity,
     title: input.title,
@@ -311,7 +314,10 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
       reason: r.reason,
     })),
     rateLimited: false,
-  });
+  };
+  recordAlertLog(sentEntry);
+  // STEP 9.3F.4 — persistência durável (fire-and-forget seguro).
+  void persistAlertLog(sentEntry);
 
   return {
     rateLimited: false,
