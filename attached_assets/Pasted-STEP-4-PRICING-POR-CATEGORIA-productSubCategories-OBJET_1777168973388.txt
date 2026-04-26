@@ -1,0 +1,213 @@
+STEP 4 — PRICING POR CATEGORIA (productSubCategories)
+
+OBJETIVO  
+Integrar preços por categoria (productSubCategories.price) no fluxo real de cálculo, usando o resolver já criado, sem quebrar comportamento existente, sem recalcular pedidos antigos e mantendo fallback total para basePrice.
+
+---
+
+REGRA DE NEGÓCIO FINAL
+
+Ordem de prioridade (já compatível com o resolver):
+
+1. contractPrice (futuro)
+2. subCategoryPrice ✅ (NOVO STEP)
+3. basePrice
+4. adminFee (aplicado por último)
+
+Fórmula final:
+
+finalPrice = sourcePrice * (1 + adminFee / 100)
+
+---
+
+STEP 4.1 — DISCOVERY (CONFIRMAR BASE)
+
+Confirmar existência da tabela:
+
+- productSubCategories
+  - id
+  - productId
+  - name (ou category)
+  - price
+
+Confirmar métodos no repository:
+
+- getSubCategoriesByProduct(productId)
+- getSubCategoryById(id)
+
+Se NÃO existir getSubCategoryById → criar (obrigatório para performance O(1)).
+
+---
+
+STEP 4.2 — REPOSITORY (READ-ONLY, SEM QUEBRA)
+
+Adicionar método seguro:
+
+ts async getSubCategoryById(id: number) {   return db     .select()     .from(productSubCategories)     .where(eq(productSubCategories.id, id))     .limit(1)     .then(r => r[0] ?? null); } 
+
+NÃO alterar métodos existentes  
+NÃO remover nada  
+NÃO alterar retornos  
+
+---
+
+STEP 4.3 — SERVICE (PREPARAÇÃO)
+
+Arquivo:
+server/modules/orders/orders.service.ts
+
+Identificar os 3 pontos já instrumentados:
+
+- createWithDelivery
+- replaceItems
+- substituteItem.replace
+
+---
+
+STEP 4.4 — INPUT NOVO (CRÍTICO)
+
+Hoje o item recebe:
+
+ts {   productId,   quantity,   unitPrice } 
+
+Adicionar suporte a:
+
+ts subCategoryId?: number 
+
+⚠️ IMPORTANTE:
+
+- Campo OPCIONAL
+- NÃO obrigatório
+- Se não vier → fallback automático
+
+---
+
+STEP 4.5 — RESOLUÇÃO DE PREÇO (INTEGRAÇÃO REAL)
+
+Dentro do bloco do feature flag:
+
+ts if (company?.useNewPricing === true) {   try { 
+
+Adicionar:
+
+ts let subCategoryPrice: number | null = null;  if (item.subCategoryId) {   const sub = await productRepository.getSubCategoryById(item.subCategoryId);   subCategoryPrice = sub?.price ?? null; } 
+
+Depois integrar no resolver:
+
+ts const resolved = resolveProductPrice({   basePrice: product.basePrice,   subCategoryPrice,   adminFee: company.adminFee }); 
+
+Aplicar:
+
+ts item.unitPrice = resolved; item.totalPrice = resolved * item.quantity; 
+
+---
+
+STEP 4.6 — PERFORMANCE (OBRIGATÓRIO)
+
+Evitar N queries por item:
+
+Criar cache local no método:
+
+ts const subCategoryCache = new Map<number, any>(); 
+
+Uso:
+
+ts if (item.subCategoryId) {   let sub = subCategoryCache.get(item.subCategoryId);    if (!sub) {     sub = await productRepository.getSubCategoryById(item.subCategoryId);     subCategoryCache.set(item.subCategoryId, sub);   }    subCategoryPrice = sub?.price ?? null; } 
+
+---
+
+STEP 4.7 — FALLBACK GARANTIDO
+
+Cenários:
+
+Caso	Comportamento
+sem subCategoryId	usa basePrice
+subCategoryId inválido	fallback basePrice
+subCategory.price null	fallback basePrice
+erro no repo	fallback automático (try/catch)
+
+NUNCA quebrar pedido  
+NUNCA lançar erro para cliente  
+
+---
+
+STEP 4.8 — LOG (OBSERVABILIDADE)
+
+Adicionar dentro do bloco:
+
+ts console.info("[pricing] category pricing applied", {   productId: item.productId,   subCategoryId: item.subCategoryId ?? null,   usedSubCategory: !!subCategoryPrice }); 
+
+Mantém padrão simples (sem reqId se não tiver disponível)
+
+---
+
+STEP 4.9 — VALIDAÇÃO
+
+Testar manual:
+
+1. Produto sem categoria  
+→ usa basePrice
+
+2. Produto com categoria (price diferente)  
+→ usa subCategory.price
+
+3. Categoria + adminFee  
+→ aplica markup
+
+4. Categoria inexistente  
+→ fallback basePrice
+
+5. Empresa sem flag  
+→ IGNORA tudo (comportamento atual intacto)
+
+---
+
+STEP 4.10 — GARANTIAS
+
+NÃO fazer:
+
+- NÃO recalcular pedidos antigos
+- NÃO alterar schema de orders
+- NÃO alterar controllers
+- NÃO alterar response
+- NÃO alterar basePrice
+- NÃO tocar em NFe
+
+---
+
+RESULTADO FINAL
+
+Sistema passa a suportar:
+
+- preço base
+- preço por categoria ✅
+- taxa administrativa por cliente ✅
+- fallback automático seguro ✅
+
+Pronto para:
+
+STEP 5 — contractScopes (preço por cliente)
+
+---
+
+RISCO FINAL
+
+LOW ✅
+
+Motivo:
+
+- alteração isolada no service
+- protegido por feature flag
+- fallback total garantido
+- zero impacto em dados existentes
+- zero mudança de contrato
+
+---
+
+PRÓXIMO PASSO
+
+Após validar em produção com 1 empresa:
+
+→ ativar flag gradualmente  
+→ monitorar logs  
+→ avançar para STEP 5 (pricing por cliente)
