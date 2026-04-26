@@ -1,0 +1,247 @@
+GOAL:
+Auditar TODAS as alterações recentes (logs, requestId, requestLogger, performance e módulos)
+para garantir que NÃO houve regressão, NÃO houve mudança de comportamento
+e que o sistema permanece consistente, seguro e estável.
+
+STRICT RULES:
+- NÃO alterar código
+- NÃO corrigir nada automaticamente
+- NÃO refatorar
+- APENAS analisar e reportar
+- Se encontrar risco → destacar claramente
+- Se houver dúvida → reportar como "UNCERTAIN", não assumir
+
+---
+
+STEP 1 — DISCOVERY (ESCOPO DA AUDITORIA)
+
+Mapear tudo que foi alterado recentemente:
+
+1. Middleware
+- server/middleware/requestId.ts
+- server/middleware/requestLogger.ts
+- server/app.ts (ordem dos middlewares)
+
+2. Controllers
+- server/modules/**/controllers/*.ts
+→ verificar padronização dos logs com requestId
+
+3. Error handler
+- server/core/errors/errorHandler.ts
+
+4. Performance changes
+- server/services/storage.ts (novos métodos)
+- repositories atualizados
+- services alterados (safraAlerts, substituteItem, etc.)
+
+5. Database (índices)
+- schema / drizzle / definição de índices
+
+---
+
+STEP 2 — REQUEST ID VALIDATION
+
+Verificar:
+
+- req.requestId está tipado corretamente (global augmentation)
+- sempre definido antes de qualquer controller
+- header X-Request-Id sempre presente na response
+
+Testar mentalmente:
+
+- request sem header → gera UUID
+- request com header → reutiliza valor
+
+---
+
+STEP 3 — REQUEST LOGGER VALIDATION
+
+Verificar:
+
+- middleware usa res.on('finish')
+- NÃO intercepta res.json/res.send
+- NÃO altera response
+
+Confirmar formato:
+
+IN:
+[reqId] --> METHOD PATH
+
+OUT:
+[reqId] <-- METHOD PATH STATUS Xms
+
+Verificar:
+
+- duration calculado corretamente
+- não há memory leak (listeners acumulando)
+
+---
+
+STEP 4 — MIDDLEWARE ORDER
+
+Validar em server/app.ts:
+
+ORDEM CORRETA:
+
+1. requestIdMiddleware
+2. requestLogger
+3. outros middlewares (json, cors, session, etc.)
+4. registerModules()
+5. registerRoutes()
+6. errorHandler
+
+Se ordem estiver diferente → FLAG
+
+---
+
+STEP 5 — CONTROLLER LOGS
+
+Verificar:
+
+- TODOS os console.warn seguem padrão:
+
+[${req.requestId}] [<domain>.controller] <method> failed
+
+- NÃO há mais logs antigos sem requestId
+- NÃO há catch sem log
+
+---
+
+STEP 6 — ERROR HANDLER
+
+Verificar:
+
+- log inclui requestId:
+
+[${req.requestId}] [errorHandler]
+
+- resposta ao cliente NÃO foi alterada
+
+---
+
+STEP 7 — PERFORMANCE SAFETY CHECK
+
+Verificar:
+
+- substituições feitas:
+
+getProducts().find → getProductById
+getInventorySettings().find → getInventorySettingById
+order loops → getOrderItemByProduct
+
+Confirmar:
+
+- nenhuma lógica foi alterada
+- apenas acesso a dados mudou
+- loops continuam com mesma ordem
+- response shape intacto
+
+---
+
+STEP 8 — INDEX VALIDATION
+
+Verificar:
+
+- índices criados:
+
+products(product_code)
+order_items(order_id, product_id)
+inventory_settings(product_id)
+
+Confirmar:
+
+- uso de IF NOT EXISTS (ou equivalente)
+- nenhum índice duplicado
+- PKs não alteradas
+
+---
+
+STEP 9 — RESPONSE CONTRACT
+
+CRÍTICO:
+
+Comparar endpoints antes vs depois:
+
+- status codes idênticos
+- mensagens idênticas
+- shape idêntico
+
+Verificar especialmente:
+
+- auth endpoints
+- products
+- logistics
+- inventory
+
+---
+
+STEP 10 — SIDE EFFECTS
+
+Verificar:
+
+- nenhum middleware altera req.body
+- nenhum middleware altera res.json
+- nenhum log interfere no fluxo
+
+---
+
+STEP 11 — TEST COVERAGE
+
+Verificar:
+
+- testes ainda passam
+- novos fluxos estão cobertos (logs não precisam de teste)
+- nenhum teste quebrado por mudança de comportamento
+
+---
+
+STEP 12 — RUNTIME CONSISTENCY
+
+Simular fluxo completo:
+
+Request → middleware → controller → service → response
+
+Confirmar:
+
+- requestId presente em TODAS as fases
+- logs correlacionados corretamente
+
+---
+
+STEP 13 — RED FLAGS
+
+Reportar se existir:
+
+- logs sem requestId
+- middleware fora de ordem
+- alteração de response
+- alteração de regra de negócio
+- risco de memory leak
+- listeners duplicados
+- regressão silenciosa
+
+---
+
+STEP 14 — FINAL REPORT
+
+Retornar:
+
+1. Status geral (SAFE / SAFE WITH WARNINGS / RISK)
+2. Lista de validações OK
+3. Lista de warnings (se houver)
+4. Lista de riscos (se houver)
+5. Confirmação de:
+   - zero mudança de comportamento
+   - zero mudança de response
+   - sistema estável
+
+---
+
+SUCCESS CRITERIA:
+
+✅ requestId consistente em todo fluxo  
+✅ logs padronizados  
+✅ nenhum impacto em endpoints  
+✅ performance otimizada sem regressão  
+✅ TypeScript limpo  
+✅ testes passando  
