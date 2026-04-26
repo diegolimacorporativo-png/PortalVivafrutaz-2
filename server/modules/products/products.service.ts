@@ -5,6 +5,8 @@ import type {
   ProductSubCategory,
   InsertProductSubCategory,
   User as SchemaUser,
+  Category,
+  InsertCategory,
 } from "@shared/schema";
 
 export interface SafraAlertOrder {
@@ -267,6 +269,22 @@ export class ProductService {
 
   async getActor(userId: number): Promise<SchemaUser | undefined> {
     return this.repo.findUser(userId);
+  }
+
+  async listCategories(): Promise<Category[]> {
+    return this.repo.findAllCategories();
+  }
+
+  async createCategory(data: InsertCategory): Promise<Category> {
+    return this.repo.createCategory(data);
+  }
+
+  async updateCategory(id: number, updates: Partial<InsertCategory>): Promise<Category> {
+    return this.repo.updateCategory(id, updates);
+  }
+
+  async deleteCategory(id: number): Promise<void> {
+    return this.repo.deleteCategory(id);
   }
 }
 

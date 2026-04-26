@@ -5,6 +5,7 @@ import { definition as financeModule } from "./finance";
 import { definition as inventoryModule } from "./inventory";
 import { definition as logisticsModule } from "./logistics";
 import { definition as ordersModule } from "./orders";
+import { definition as productsModule, categoriesDefinition as categoriesModule } from "./products";
 import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
 import { ordersRouterV2 } from "./orders/orders.routes.v2";
 
@@ -46,6 +47,7 @@ const MODULES: readonly ModuleDefinition[] = [
   inventoryModule,
   logisticsModule,
   ordersModule,
+  productsModule,
   usersModule,
   // 🔜 Append future modules here:
   // salesModule, purchasesModule,
@@ -60,6 +62,7 @@ const MODULES: readonly ModuleDefinition[] = [
  * endpoints retain the legacy non-envelope response shape.
  */
 const AUX_MODULES: readonly ModuleDefinition[] = [
+  categoriesModule,
   usersAdminModule,
 ];
 

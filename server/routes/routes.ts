@@ -1,7 +1,6 @@
 import type { Express, NextFunction, Request, Response } from "express";
 import type { Server } from "http";
 import { storage } from "../services/storage.ts";
-import { productController } from "../modules/products/products.controller";
 import { ordersController } from "../modules/orders/orders.controller";
 import { authController } from "../modules/auth/auth.controller";
 import { financeController } from "../modules/finance/finance.controller";
@@ -1034,20 +1033,9 @@ export async function registerRoutes(
   // Delegated to ordersController.export — owned by server/modules/orders.
   app.get('/api/orders/export', (req: Request, res: Response, next: NextFunction) => ordersController.export(req, res).catch(next));
 
-  // --- Safra Alerts: products out of season with active orders ---
-  app.get('/api/products/safra-alerts', (req, res) => productController.safraAlerts(req, res));
-
-  // --- Próximo código de produto disponível ---
-  app.get('/api/products/next-code', (req, res, next) => productController.nextCode(req, res, next));
-
-  // Verificar se um productCode já está em uso
-  app.get('/api/products/check-code', (req, res) => productController.checkCode(req, res));
-
-  // Verificar se existe produto com mesmo nome + código
-  app.get('/api/products/check-duplicate', (req, res) => productController.checkDuplicate(req, res));
-
-  // --- Alertas de variação de preço (via notas fiscais) ---
-  app.get('/api/products/price-alerts', (req, res) => productController.priceAlerts(req, res));
+  // /api/products/safra-alerts, /next-code, /check-code, /check-duplicate,
+  // /price-alerts → migrated to server/modules/products/products.routes.ts
+  // (mounted at /api/products by registerModules, BEFORE this legacy block).
 
   // --- Substitute/manage item in order (safra management) ---
   // Delegated to ordersController.substituteItem — owned by server/modules/orders.
@@ -1577,27 +1565,8 @@ export async function registerRoutes(
     }
   });
 
-  // Products (CRUD delegated to productController)
-  app.get(api.products.list.path, (req, res, next) => productController.list(req, res, next));
-  app.get('/api/products/:id', (req, res, next) => productController.getById(req, res, next));
-  app.post(api.products.create.path, (req, res, next) => productController.create(req, res, next));
-  app.put(api.products.update.path, (req, res, next) => productController.update(req, res, next));
-  app.delete(api.products.delete.path, (req, res, next) => productController.remove(req, res, next));
-
-  // Toggle out-of-season flag for a product
-  app.patch('/api/products/:id/out-of-season', (req, res) => productController.setOutOfSeason(req, res));
-
-  // ── Product Sub-Categories (múltiplas categorias com preços por produto) ──────
-  app.get('/api/products/:productId/sub-categories', (req, res) => productController.listSubCategories(req, res));
-
-  app.post('/api/products/:productId/sub-categories', (req, res) => productController.createSubCategory(req, res));
-
-  app.patch('/api/products/sub-categories/:id', (req, res) => productController.updateSubCategory(req, res));
-
-  app.delete('/api/products/sub-categories/:id', (req, res) => productController.deleteSubCategory(req, res));
-
-  // Excluir TODAS as subcategorias de um produto (usado para re-sincronizar ao editar)
-  app.delete('/api/products/:productId/sub-categories', (req, res) => productController.deleteAllSubCategoriesForProduct(req, res));
+  // Products CRUD + sub-categories → migrated to server/modules/products/
+  // (mounted at /api/products by registerModules, BEFORE this legacy block).
 
   // Product Prices
   app.get(api.productPrices.list.path, async (req, res) => {
@@ -2039,35 +2008,8 @@ export async function registerRoutes(
   app.put('/api/orders/:id/items', (req: Request, res: Response, next: NextFunction) => ordersController.replaceItems(req, res).catch(next));
 
   // Categories
-  app.get('/api/categories', async (req, res) => {
-    const cats = await storage.getCategories();
-    res.json(cats);
-  });
-  app.post('/api/categories', async (req, res) => {
-    try {
-      const { name, description, active } = req.body;
-      if (!name) return res.status(400).json({ message: "name required" });
-      const cat = await storage.createCategory({ name, description: description || null, active: active ?? true });
-      res.status(201).json(cat);
-    } catch (err: any) {
-      if (err.code === '23505') return res.status(409).json({ message: "Categoria já existe" });
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-  app.put('/api/categories/:id', async (req, res) => {
-    try {
-      const { name, description, active } = req.body;
-      const cat = await storage.updateCategory(Number(req.params.id), { name, description, active });
-      res.json(cat);
-    } catch (err: any) {
-      if (err.code === '23505') return res.status(409).json({ message: "Categoria já existe" });
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-  app.delete('/api/categories/:id', async (req, res) => {
-    await storage.deleteCategory(Number(req.params.id));
-    res.status(204).end();
-  });
+  // /api/categories CRUD → migrated to server/modules/products/categories.routes.ts
+  // (mounted at /api/categories by registerModules, BEFORE this legacy block).
 
   // Order Exceptions
   app.get('/api/order-exceptions', async (req, res) => {

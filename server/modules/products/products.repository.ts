@@ -8,6 +8,8 @@ import type {
   InsertProductSubCategory,
   InsertProduct,
   User as SchemaUser,
+  Category,
+  InsertCategory,
 } from "@shared/schema";
 import { storage } from "../../services/storage";
 import type { Product, CreateProductInput, UpdateProductInput } from "./products.types";
@@ -41,6 +43,10 @@ export interface IProductRepository {
   updateSubCategory(id: number, updates: Partial<InsertProductSubCategory>): Promise<ProductSubCategory>;
   deleteSubCategory(id: number): Promise<void>;
   deleteSubCategoriesByProductId(productId: number): Promise<void>;
+  findAllCategories(): Promise<Category[]>;
+  createCategory(data: InsertCategory): Promise<Category>;
+  updateCategory(id: number, updates: Partial<InsertCategory>): Promise<Category>;
+  deleteCategory(id: number): Promise<void>;
 }
 
 export class ProductRepository implements IProductRepository {
@@ -122,6 +128,22 @@ export class ProductRepository implements IProductRepository {
 
   async deleteSubCategoriesByProductId(productId: number): Promise<void> {
     return storage.deleteProductSubCategoriesByProductId(productId);
+  }
+
+  async findAllCategories(): Promise<Category[]> {
+    return storage.getCategories();
+  }
+
+  async createCategory(data: InsertCategory): Promise<Category> {
+    return storage.createCategory(data);
+  }
+
+  async updateCategory(id: number, updates: Partial<InsertCategory>): Promise<Category> {
+    return storage.updateCategory(id, updates);
+  }
+
+  async deleteCategory(id: number): Promise<void> {
+    return storage.deleteCategory(id);
   }
 }
 

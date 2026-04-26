@@ -299,6 +299,66 @@ export class ProductController {
       res.status(500).json({ message });
     }
   }
+
+  async listCategories(_req: Request, res: Response): Promise<void> {
+    const cats = await productService.listCategories();
+    res.json(cats);
+  }
+
+  async createCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, description, active } = req.body as {
+        name?: string;
+        description?: string | null;
+        active?: boolean;
+      };
+      if (!name) {
+        res.status(400).json({ message: "name required" });
+        return;
+      }
+      const cat = await productService.createCategory({
+        name,
+        description: description || null,
+        active: active ?? true,
+      });
+      res.status(201).json(cat);
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        res.status(409).json({ message: "Categoria já existe" });
+        return;
+      }
+      console.warn(`[${req.requestId}] [products.controller] createCategory failed`, err);
+      res.status(400).json({ message: "Bad request" });
+    }
+  }
+
+  async updateCategory(req: Request, res: Response): Promise<void> {
+    try {
+      const { name, description, active } = req.body as {
+        name?: string;
+        description?: string | null;
+        active?: boolean;
+      };
+      const cat = await productService.updateCategory(Number(req.params.id), {
+        name,
+        description,
+        active,
+      });
+      res.json(cat);
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        res.status(409).json({ message: "Categoria já existe" });
+        return;
+      }
+      console.warn(`[${req.requestId}] [products.controller] updateCategory failed`, err);
+      res.status(400).json({ message: "Bad request" });
+    }
+  }
+
+  async deleteCategory(req: Request, res: Response): Promise<void> {
+    await productService.deleteCategory(Number(req.params.id));
+    res.status(204).end();
+  }
 }
 
 export const productController = new ProductController();
