@@ -64,6 +64,11 @@ import { buildAnomalies, buildInsights } from "../services/alerts.intelligence";
 import { buildDigest } from "../services/alerts.digest";
 // STEP 9.3F.8 — exportação CSV (reusa buildDigest, sem nova lógica de cálculo).
 import { buildAlertsCsv } from "../services/alerts.export";
+// STEP 9.3F.11 — preferências de notificação por usuário (apenas estrutura).
+import {
+  getUserPreferences,
+  upsertUserPreference,
+} from "../services/alerts.preferences";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5355,6 +5360,59 @@ export async function registerRoutes(
         } catch (err) {
           console.error('[ALERT_EXPORT_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao exportar alertas' });
+        }
+      },
+    );
+
+    // STEP 9.3F.11 — Preferências de notificação por usuário.
+    // BASE DE CONTROLE: nenhum endpoint de envio consulta isto ainda.
+    // GET  /api/admin/notifications/preferences — lista as do usuário logado.
+    // POST /api/admin/notifications/preferences — upsert (userId, category).
+    const notificationPrefBodySchema = z.object({
+      category:    z.string().trim().min(1).max(40),
+      minSeverity: z.enum(['INFO', 'WARNING', 'ALERT', 'CRITICAL']),
+      enabled:     z.boolean(),
+    });
+
+    app.get(
+      '/api/admin/notifications/preferences',
+      requireAuthCore,
+      async (req: any, res) => {
+        try {
+          const userId = req.session?.userId as number | undefined;
+          if (!userId) {
+            return res.status(401).json({ error: 'Não autenticado' });
+          }
+          const data = await getUserPreferences(userId);
+          return res.json(data);
+        } catch (err) {
+          console.error('[NOTIFICATION_PREFS_GET_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao buscar preferências' });
+        }
+      },
+    );
+
+    app.post(
+      '/api/admin/notifications/preferences',
+      requireAuthCore,
+      async (req: any, res) => {
+        try {
+          const userId = req.session?.userId as number | undefined;
+          if (!userId) {
+            return res.status(401).json({ error: 'Não autenticado' });
+          }
+          const parsed = notificationPrefBodySchema.safeParse(req.body);
+          if (!parsed.success) {
+            return res.status(400).json({
+              error: 'Payload inválido',
+              issues: parsed.error.flatten(),
+            });
+          }
+          const row = await upsertUserPreference({ userId, ...parsed.data });
+          return res.json(row);
+        } catch (err) {
+          console.error('[NOTIFICATION_PREFS_POST_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao salvar preferência' });
         }
       },
     );

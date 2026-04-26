@@ -1,0 +1,167 @@
+# 🧠 STEP 9.3F.11 — Preferências por Usuário (BASE DE CONTROLE)
+
+## 🎯 OBJETIVO
+
+Criar a base para:
+
+- armazenar roles dos usuários
+- definir preferências de recebimento de alertas
+- preparar o sistema para usar recipientsRoles (STEP 9.3F.10)
+
+👉 SEM ainda enviar nada  
+👉 SEM alterar emitAlert  
+👉 SEM alterar lógica de alertas  
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO alterar emitAlert  
+❌ NÃO alterar emitAlertSmart  
+❌ NÃO alterar persistAlertLog  
+❌ NÃO alterar endpoints existentes  
+❌ NÃO integrar com envio ainda  
+
+✅ Apenas preparar estrutura
+
+---
+
+# 🧭 FASE 1 — DISCOVERY (NÃO ALTERAR)
+
+Confirmar:
+
+- existe sistema de usuários? (users table ou auth)
+- existe campo de role? (ex: ADMIN, MASTER, etc.)
+
+👉 Se já existir → reutilizar  
+👉 Se não existir → criar mínimo necessário
+
+---
+
+# 🧱 FASE 2 — SCHEMA (ADITIVO)
+
+## Arquivo: shared/schema.ts
+
+Criar tabela nova:
+
+ts export const userNotificationPreferences = pgTable("user_notification_preferences", {   id: serial("id").primaryKey(),    userId: integer("user_id")     .notNull()     .references(() => users.id, { onDelete: "cascade" }),    // categoria do alerta (TECH, FINANCE, etc.)   category: text("category").notNull(),    // nível mínimo que o usuário quer receber   minSeverity: text("min_severity").notNull().default("WARNING"),    // se está ativo ou não   enabled: boolean("enabled").notNull().default(true),    createdAt: timestamp("created_at").defaultNow(), }); 
+
+---
+
+## Índice (performance futura)
+
+ts index("user_notification_preferences_user_idx")   .on(userNotificationPreferences.userId); 
+
+---
+
+## Importante
+
+👉 NÃO remover nada existente  
+👉 NÃO alterar tabela users  
+👉 Apenas adicionar tabela nova  
+
+---
+
+# ⚙️ FASE 3 — SERVICE (LEITURA PURA)
+
+## Arquivo: server/services/alerts.preferences.ts (NOVO)
+
+ts import { db } from "../db"; import { userNotificationPreferences } from "@shared/schema"; import { eq } from "drizzle-orm";  export async function getUserPreferences(userId: number) {   return db     .select()     .from(userNotificationPreferences)     .where(eq(userNotificationPreferences.userId, userId)); } 
+
+---
+
+## Função helper (futura integração)
+
+ts export function isSeverityAllowed(   userMin: string,   alertSeverity: string ): boolean {   const order = ["INFO", "WARNING", "ALERT", "CRITICAL"];    return (     order.indexOf(alertSeverity) >= order.indexOf(userMin)   ); } 
+
+---
+
+# 🌐 FASE 4 — ENDPOINT (ADMIN)
+
+## Arquivo: server/routes/routes.ts
+
+### GET — listar preferências do usuário
+
+ts app.get(   "/api/admin/notifications/preferences",   requireAuthCore,   async (req, res) => {     const userId = req.user.id;      const data = await getUserPreferences(userId);      res.json(data);   } ); 
+
+---
+
+### POST — salvar/atualizar preferência
+
+ts app.post(   "/api/admin/notifications/preferences",   requireAuthCore,   async (req, res) => {     const userId = req.user.id;     const { category, minSeverity, enabled } = req.body;      await db.insert(userNotificationPreferences).values({       userId,       category,       minSeverity,       enabled,     });      res.json({ ok: true });   } ); 
+
+---
+
+# 🧪 FASE 5 — VALIDAÇÃO
+
+## Banco
+
+- tabela criada ✔  
+- inserção funcionando ✔  
+- múltiplas categorias ✔  
+
+---
+
+## Endpoint
+
+- GET retorna lista ✔  
+- POST salva ✔  
+- protegido por auth ✔  
+
+---
+
+## Regras
+
+- nenhum impacto nos alertas ✔  
+- nenhuma integração com envio ✔  
+- nenhuma alteração no fluxo existente ✔  
+
+---
+
+# 🧠 COMO ISSO SE CONECTA COM O 9.3F.10
+
+Hoje você tem:
+
+ts context.recipientsRoles = ["ADMIN", "DIRECTOR"] 
+
+Depois (não agora), o sistema vai:
+
+1. pegar usuários com essas roles  
+2. aplicar preferências  
+3. decidir quem realmente recebe  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ Base de usuários preparada  
+✔ Preferências por categoria  
+✔ Controle por severidade  
+✔ Pronto para canais (9.3F.12)  
+✔ Pronto para delivery layer  
+
+---
+
+# 🚀 STATUS
+
+Sistema evolui de:
+
+👉 “quem deveria receber”  
+para  
+👉 “quem quer receber”
+
+---
+
+# ⛔ IMPORTANTE
+
+👉 Ainda NÃO envia nada  
+👉 Ainda NÃO filtra envio  
+👉 Apenas estrutura  
+
+---
+
+# 🔜 PRÓXIMO STEP
+
+👉 STEP 9.3F.12 — Canais (email, WhatsApp, etc.)
+
+---

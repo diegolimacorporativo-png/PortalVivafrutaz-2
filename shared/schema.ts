@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, date, index, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, date, index, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1683,3 +1683,31 @@ export const cronAlertLogs = pgTable(
   }),
 );
 export type CronAlertLog = typeof cronAlertLogs.$inferSelect;
+
+// ─── STEP 9.3F.11 — Preferências de notificação por usuário ──────────────────
+// Cada linha = preferência de UM usuário para UMA categoria.
+// (userId, category) é único — usado para upsert idempotente.
+// Esta tabela é só ESTRUTURA: nenhum endpoint de envio a consulta ainda.
+export const userNotificationPreferences = pgTable(
+  "user_notification_preferences",
+  {
+    id:          serial("id").primaryKey(),
+    userId:      integer("user_id")
+                   .notNull()
+                   .references(() => users.id, { onDelete: "cascade" }),
+    category:    text("category").notNull(),                // ex: TECH, FINANCE, OPERATIONS
+    minSeverity: text("min_severity").notNull().default("WARNING"), // INFO|WARNING|ALERT|CRITICAL
+    enabled:     boolean("enabled").notNull().default(true),
+  },
+  (table) => ({
+    userIdx: index("user_notification_preferences_user_idx").on(table.userId),
+    userCategoryUnique: uniqueIndex("user_notification_preferences_user_category_uniq")
+      .on(table.userId, table.category),
+  }),
+);
+export const insertUserNotificationPreferenceSchema =
+  createInsertSchema(userNotificationPreferences).omit({ id: true });
+export type InsertUserNotificationPreference =
+  z.infer<typeof insertUserNotificationPreferenceSchema>;
+export type UserNotificationPreference =
+  typeof userNotificationPreferences.$inferSelect;
