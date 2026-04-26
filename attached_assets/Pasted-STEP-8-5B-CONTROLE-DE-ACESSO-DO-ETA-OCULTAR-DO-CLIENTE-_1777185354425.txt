@@ -1,0 +1,131 @@
+STEP 8.5B — CONTROLE DE ACESSO DO ETA (OCULTAR DO CLIENTE)
+
+OBJETIVO  
+Garantir que:
+
+✔ ETA completo (minutos, atraso, distância)  
+→ visível apenas para equipe interna  
+
+✔ Cliente final  
+→ NÃO vê atraso  
+→ NÃO vê minutos restantes  
+→ NÃO vê histórico de rota  
+
+👉 apenas status simples (ex: "Em rota", "Saiu para entrega")
+
+---
+
+🚫 NÃO alterar cálculo de ETA  
+🚫 NÃO alterar endpoint existente  
+🚫 NÃO criar nova tabela  
+👉 apenas controle de resposta  
+
+---
+
+## STEP 1 — IDENTIFICAR USUÁRIO
+
+No endpoint:
+
+server/modules/logistics/logistics.controller.ts
+
+Dentro do routeTracking:
+
+ts
+const user = req.user; // já existente no sistema
+const role = user?.role ?? null;
+const isInternal =
+  role === "ADMIN" ||
+  role === "MASTER" ||
+  role === "DIRECTOR" ||
+  role === "LOGISTICS" ||
+  role === "OPERATIONS_MANAGER";
+
+---
+
+## STEP 2 — FILTRAR RESPOSTA (CRÍTICO)
+
+ANTES de retornar o JSON:
+
+ts
+if (!isInternal) {
+  // 🔒 Cliente NÃO pode ver ETA detalhado
+
+  delete response.eta;
+
+  response.stops = response.stops?.map((s: any) => ({
+    ...s,
+    etaMinutes: undefined,
+    etaTime: undefined,
+    distanceKm: undefined,
+    legMinutes: undefined
+  }));
+
+  response.deliveries = response.deliveries?.map((d: any) => ({
+    ...d,
+    etaMinutes: undefined,
+    etaTime: undefined,
+    distanceKm: undefined
+  }));
+}
+
+---
+
+## STEP 3 — FRONTEND (CLIENTE)
+
+No cliente (/track ou página pública):
+
+🚫 NÃO usar:
+- etaMinutes  
+- etaTime  
+- distância  
+
+✔ Mostrar apenas:
+
+ts
+status:
+"pendente"   → "Pedido confirmado"
+"em_rota"    → "Saiu para entrega"
+"entregue"   → "Entregue"
+
+---
+
+## STEP 4 — FRONTEND INTERNO
+
+No painel admin / motorista:
+
+✔ mostrar tudo:
+- ETA por parada
+- tempo restante
+- distância
+- progresso da rota
+
+---
+
+## STEP 5 — REGRA DE NEGÓCIO
+
+Cliente:
+✔ vê progresso simples  
+✔ não vê atraso  
+✔ não consegue inferir problema logístico  
+
+Operação interna:
+✔ vê tudo em tempo real  
+✔ consegue agir rápido  
+
+---
+
+## RESULTADO
+
+ANTES:
+Cliente via ETA detalhado → pode reclamar / gerar pressão  
+
+DEPOIS:
+Cliente vê apenas status limpo  
+→ experiência controlada  
+→ operação protegida  
+
+---
+
+RISCO
+
+ZERO ✅ (apenas filtro de resposta)

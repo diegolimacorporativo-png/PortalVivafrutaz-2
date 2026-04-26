@@ -703,7 +703,41 @@ export class LogisticsController {
         };
       });
 
-      res.json({
+      // ── STEP 8.5B — gate ETA detail by role ─────────────────────────────
+      // Internal staff (logistics ops, admins, drivers' supervisors) see the
+      // full ETA / distance / leg breakdown. Customers, anonymous visitors
+      // and any other role get only "status simples" — no minutes, no
+      // distance, no ETA timestamps — so the operational reality cannot be
+      // reverse-engineered from the public tracking link.
+      //
+      // We deliberately avoid duplicating the role list: LOGISTICS_AUTH_ROLES
+      // is the canonical "internal logistics user" set already used by every
+      // other write endpoint in this controller. Customers (role "CLIENT")
+      // and unauthenticated requests both fall through to the redacted path.
+      const sessionUserId: number | undefined = (req as any).session?.userId;
+      let isInternal = false;
+      if (sessionUserId) {
+        try {
+          const actor = await (this.service as any).repo.getUser(sessionUserId);
+          if (actor && (LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
+            isInternal = true;
+          }
+        } catch (lookupErr) {
+          // Fail closed — if we can't confirm internal status, treat as customer.
+          console.warn(`[${(req as any).requestId}] [logistics.controller] routeTracking actor lookup failed`, lookupErr);
+        }
+      }
+
+      const stopsPublic = stopsOut.map((s) => {
+        const { distanceKm, legMinutes, etaMinutes, etaTime, ...rest } = s;
+        return rest;
+      });
+      const deliveriesPublic = deliveriesOut.map((d) => {
+        const { etaMinutes, etaTime, ...rest } = d;
+        return rest;
+      });
+
+      const payload: any = {
         route: {
           id: route.id,
           name: route.route_name,
@@ -719,11 +753,14 @@ export class LogisticsController {
               phone: route.driver_phone,
             }
           : null,
-        stops: stopsOut,
-        deliveries: deliveriesOut,
+        stops: isInternal ? stopsOut : stopsPublic,
+        deliveries: isInternal ? deliveriesOut : deliveriesPublic,
         driverPosition,
-        eta: etaSummary,
-      });
+        viewerScope: isInternal ? "internal" : "public",
+      };
+      if (isInternal) payload.eta = etaSummary;
+
+      res.json(payload);
     } catch (e: any) {
       console.warn(`[${(req as any).requestId}] [logistics.controller] routeTracking failed`, e);
       res.status(500).json({ error: e?.message || "Erro" });
