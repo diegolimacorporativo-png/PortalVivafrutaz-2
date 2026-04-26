@@ -6513,40 +6513,53 @@ export async function registerRoutes(
     checkWebhookIdempotency,
     async (req: any, res) => {
       try {
-        const { gateway, event, companyId, assinaturaId, valor, gatewayEventId } = req.body;
-        if (assinaturaId) {
-          const statusMap: Record<string, string> = {
-            payment_approved: 'pago',
-            payment_failed: 'falhou',
-            subscription_cancelled: 'estornado',
-            chargeback: 'estornado',
-            refund: 'estornado',
-          };
-          await storage.createBillingEvent({
-            companyId: companyId || null,
-            assinaturaId,
-            tipo: event || 'webhook',
-            valor: valor || null,
-            status: statusMap[event] || 'pendente',
-            gateway: gateway || null,
-            gatewayEventId: gatewayEventId || null,
-            payload: req.body,
-            descricao: `Webhook ${gateway}: ${event}`,
-          });
+        const { gateway, event, companyId, valor } = req.body;
+        const eventId = req.body?.gatewayEventId || req.body?.eventId || req.body?.id;
 
-          // Status transitions on the assinatura record
-          if (event === 'payment_approved') {
-            await storage.updateAssinatura(assinaturaId, { status: 'ativa' });
-          } else if (event === 'payment_failed') {
-            await storage.updateAssinatura(assinaturaId, { status: 'atrasada' });
-          } else if (event === 'subscription_cancelled') {
-            await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
-          } else if (event === 'chargeback') {
-            await storage.updateAssinatura(assinaturaId, { status: 'suspensa' });
-          } else if (event === 'refund') {
-            await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
-          }
+        // Validação essencial — não basta confiar só no HMAC.
+        if (!eventId || !companyId) {
+          return res.status(400).json({ error: 'Payload inválido' });
         }
+
+        const assinatura = await storage.getAssinaturaByCompany(Number(companyId));
+        if (!assinatura) {
+          return res.status(404).json({ error: 'Assinatura não encontrada' });
+        }
+
+        const assinaturaId = assinatura.id;
+        const statusMap: Record<string, string> = {
+          payment_approved: 'pago',
+          payment_failed: 'falhou',
+          subscription_cancelled: 'estornado',
+          chargeback: 'estornado',
+          refund: 'estornado',
+        };
+
+        await storage.createBillingEvent({
+          companyId: Number(companyId),
+          assinaturaId,
+          tipo: event || 'webhook',
+          valor: valor || null,
+          status: statusMap[event] || 'pendente',
+          gateway: gateway || null,
+          gatewayEventId: String(eventId),
+          payload: req.body,
+          descricao: `Webhook ${gateway}: ${event}`,
+        });
+
+        // Status transitions on the assinatura record
+        if (event === 'payment_approved') {
+          await storage.updateAssinatura(assinaturaId, { status: 'ativa' });
+        } else if (event === 'payment_failed') {
+          await storage.updateAssinatura(assinaturaId, { status: 'atrasada' });
+        } else if (event === 'subscription_cancelled') {
+          await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
+        } else if (event === 'chargeback') {
+          await storage.updateAssinatura(assinaturaId, { status: 'suspensa' });
+        } else if (event === 'refund') {
+          await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
+        }
+
         res.json({ received: true });
       } catch (err: any) {
         res.status(500).json({ message: err.message });

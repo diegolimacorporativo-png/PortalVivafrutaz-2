@@ -1,0 +1,221 @@
+STEP 9.1B — HARDENING FINAL (BYPASS + CACHE + WEBHOOK VALIDATION)
+
+OBJETIVO  
+Corrigir pontos críticos do billing já implementado:
+
+✔ evitar bypass indevido de admin  
+✔ reduzir carga do cálculo de uso (cache leve)  
+✔ validar payload do webhook (segurança real)  
+
+👉 SEM alterar schema  
+👉 SEM criar nova arquitetura  
+👉 apenas ajustes seguros  
+
+---
+
+🚫 NÃO criar tabela  
+🚫 NÃO alterar banco  
+🚫 NÃO refatorar sistema  
+👉 apenas patches localizados  
+
+---
+
+## STEP 0 — DESCOBERTA (OBRIGATÓRIO)
+
+ANTES de alterar:
+
+1. Localizar arquivos:
+
+- server/modules/billing/subscription.middleware.ts  
+- função computeUsageAndLimits (ou equivalente)  
+- POST /api/billing/webhook (routes.ts)  
+
+2. Confirmar:
+
+✔ onde ocorre bypass de admin  
+✔ onde uso é calculado  
+✔ como webhook lê eventId e companyId  
+
+👉 NÃO assumir nomes — usar os reais do código  
+
+---
+
+## STEP 1 — CORRIGIR BYPASS DE ADMIN
+
+Arquivo:
+server/modules/billing/subscription.middleware.ts
+
+---
+
+### OBJETIVO:
+Permitir bypass APENAS para chamadas internas controladas
+
+---
+
+### IMPLEMENTAÇÃO:
+
+Substituir:
+
+ts
+if (isInternalUser) {
+  return next();
+}
+
+Por:
+
+ts
+const isInternalCall = req.headers["x-internal-call"] === "true";
+
+if (isInternalUser && isInternalCall) {
+  return next();
+}
+
+---
+
+### REGRAS:
+
+✔ Admin NÃO bypassa automaticamente  
+✔ Apenas chamadas internas podem bypassar  
+✔ Compatível com sistema atual  
+
+---
+
+## STEP 2 — CACHE NO USO (PERFORMANCE)
+
+Arquivo:
+onde está computeUsageAndLimits
+
+---
+
+### OBJETIVO:
+Evitar múltiplos cálculos pesados por requisição
+
+---
+
+### IMPLEMENTAÇÃO:
+
+Adicionar no topo do arquivo:
+
+ts
+const usageCache = new Map();
+
+---
+
+Dentro da função:
+
+ts
+export async function computeUsageAndLimits(companyId) {
+  const cached = usageCache.get(companyId);
+
+  if (cached && Date.now() - cached.timestamp < 30000) {
+    return cached.data;
+  }
+
+  const data = await realComputation(companyId);
+
+  usageCache.set(companyId, {
+    data,
+    timestamp: Date.now(),
+  });
+
+  return data;
+}
+
+---
+
+### REGRAS:
+
+✔ TTL = 30 segundos  
+✔ NÃO alterar lógica de cálculo  
+✔ apenas cache em memória  
+
+---
+
+## STEP 3 — VALIDAR PAYLOAD DO WEBHOOK
+
+Arquivo:
+server/routes/routes.ts
+
+Endpoint:
+POST /api/billing/webhook  
+
+---
+
+### OBJETIVO:
+Garantir que payload é válido antes de processar
+
+---
+
+### IMPLEMENTAÇÃO:
+
+ANTES de qualquer processamento:
+
+ts
+if (!eventId || !companyId) {
+  return res.status(400).json({ error: "Payload inválido" });
+}
+
+const assinatura = await storage.getAssinaturaByCompany(companyId);
+
+if (!assinatura) {
+  return res.status(404).json({ error: "Assinatura não encontrada" });
+}
+
+---
+
+### REGRAS:
+
+✔ NÃO confiar só no HMAC  
+✔ validar dados essenciais  
+✔ impedir ativação indevida  
+
+---
+
+## STEP 4 — NÃO ALTERAR MAIS NADA
+
+🚫 NÃO mexer em:
+- schema  
+- billingEvents  
+- assinatura  
+- endpoints  
+- lógica de pagamento  
+
+---
+
+## STEP 5 — TESTES
+
+### 1. BYPASS
+
+✔ Admin sem header → deve bloquear  
+✔ Admin com x-internal-call=true → deve passar  
+
+---
+
+### 2. CACHE
+
+✔ duas chamadas seguidas → segunda não recalcula  
+✔ após 30s → recalcula  
+
+---
+
+### 3. WEBHOOK
+
+✔ sem eventId → 400  
+✔ sem companyId → 400  
+✔ empresa inexistente → 404  
+✔ payload válido → 200  
+
+---
+
+## RESULTADO
+
+✔ billing protegido  
+✔ sistema mais performático  
+✔ webhook seguro  
+✔ pronto para escalar  
+
+---
+
+RISCO
+
+ZERO ✅ (ajuste isolado, sem impacto estrutural)

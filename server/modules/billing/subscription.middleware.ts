@@ -19,14 +19,37 @@ const INACTIVE_STATUSES = new Set([
 
 export type LimitTipo = "pedidos" | "usuarios" | "motoristas" | "rotas";
 
+// Cache leve do uso/limites por empresa (TTL 30s). Reduz a carga do
+// computeUsageAndLimits que faz vários full-scans em cada checkPlanLimit.
+const USAGE_CACHE_TTL_MS = 30_000;
+const usageCache = new Map<number, { data: UsageAndLimits; timestamp: number }>();
+
+export interface UsageAndLimits {
+  uso: { usuarios: number; pedidosMes: number; motoristas: number; rotas: number };
+  limites: { usuarios: number; pedidos: number; motoristas: number; rotas: number };
+  plano: any;
+  assinatura: any;
+}
+
+export function invalidateUsageCache(companyId?: number): void {
+  if (typeof companyId === "number") usageCache.delete(companyId);
+  else usageCache.clear();
+}
+
 async function resolveCompanyId(req: any): Promise<{ companyId: number | null; bypass: boolean }> {
+  // Bypass de papéis privilegiados só vale quando a chamada vem de um caller
+  // interno controlado (worker, script, cron) que se identifica via header.
+  const isInternalCall = req.headers?.["x-internal-call"] === "true";
+
   if (req.session?.companyId) {
     return { companyId: Number(req.session.companyId), bypass: false };
   }
   if (req.session?.userId) {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return { companyId: null, bypass: false };
-    if (BYPASS_ROLES.has(actor.role)) return { companyId: null, bypass: true };
+    if (BYPASS_ROLES.has(actor.role) && isInternalCall) {
+      return { companyId: null, bypass: true };
+    }
     const cid = (actor as any).companyId;
     return { companyId: cid ? Number(cid) : null, bypass: false };
   }
@@ -61,7 +84,7 @@ export async function requireActiveSubscription(
   }
 }
 
-export async function computeUsageAndLimits(companyId: number) {
+async function realComputeUsageAndLimits(companyId: number): Promise<UsageAndLimits> {
   const [allAssinaturas, allPlanos, usuarios, pedidos, motoristas, rotas] =
     await Promise.all([
       storage.getAssinaturas(),
@@ -98,6 +121,16 @@ export async function computeUsageAndLimits(companyId: number) {
   };
 
   return { uso, limites, plano, assinatura };
+}
+
+export async function computeUsageAndLimits(companyId: number): Promise<UsageAndLimits> {
+  const cached = usageCache.get(companyId);
+  if (cached && Date.now() - cached.timestamp < USAGE_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  const data = await realComputeUsageAndLimits(companyId);
+  usageCache.set(companyId, { data, timestamp: Date.now() });
+  return data;
 }
 
 export function checkPlanLimit(tipo: LimitTipo) {
