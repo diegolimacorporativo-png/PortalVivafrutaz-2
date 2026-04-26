@@ -1,0 +1,201 @@
+GOAL:
+Adicionar rastreamento de requisições (requestId) e padronizar logs em todo o sistema
+para permitir debug, correlação de erros e análise em produção,
+SEM alterar comportamento, SEM alterar response (exceto header) e SEM quebrar endpoints.
+
+STRICT RULES:
+- NÃO alterar endpoints (paths, métodos)
+- NÃO alterar response body (shape, mensagens, status)
+- NÃO alterar lógica de negócio
+- NÃO alterar validações
+- NÃO alterar contratos de service/repository
+- NÃO remover logs existentes (apenas padronizar)
+- NÃO introduzir dependências externas (usar console.*)
+- NÃO alterar ordem de middlewares existentes (apenas inserir corretamente)
+- Se qualquer mudança afetar resposta → PARAR
+
+---
+
+STEP 1 — REQUEST ID MIDDLEWARE
+
+Criar:
+
+server/middlewares/requestId.ts
+
+Requisitos:
+
+- gerar requestId com:
+  crypto.randomUUID()
+
+- anexar:
+  req.requestId
+  res.setHeader('X-Request-Id', requestId)
+
+- garantir que SEMPRE exista (fallback se necessário)
+
+- tipar corretamente:
+
+declare global {
+  namespace Express {
+    interface Request {
+      requestId: string;
+    }
+  }
+}
+
+IMPORTANTE:
+- requestId NÃO pode ser opcional (evita logs quebrados)
+
+---
+
+STEP 2 — REGISTRAR MIDDLEWARE
+
+Em:
+
+server/app.ts
+
+Adicionar:
+
+app.use(requestIdMiddleware);
+
+POSIÇÃO OBRIGATÓRIA:
+
+ANTES de:
+- registerModules(app)
+- registerRoutes(app)
+
+ORDEM FINAL:
+
+app.use(requestIdMiddleware)
+app.use(...)
+registerModules(app)
+registerRoutes(app)
+
+---
+
+STEP 3 — PADRONIZAR LOGS (CONTROLLERS)
+
+Aplicar em:
+
+server/modules/**/controllers/*.ts
+
+Substituir logs:
+
+ANTES:
+console.warn('erro', err)
+
+DEPOIS:
+console.warn(
+  `[${req.requestId}] [<domain>.controller] <method> failed`,
+  err
+)
+
+REGRAS:
+- NÃO alterar mensagens HTTP retornadas
+- NÃO alterar status codes
+- NÃO remover try/catch
+- Apenas enriquecer log
+
+---
+
+STEP 4 — PADRONIZAR LOGS (SERVICES)
+
+Aplicar em:
+
+server/modules/**/services/*.ts
+
+Padrão:
+
+console.warn(
+  `[service] [<domain>] <method> issue`,
+  { error: err?.message }
+)
+
+REGRAS:
+- NÃO usar requestId (service não conhece req)
+- NÃO alterar lógica
+- NÃO adicionar try/catch novos sem necessidade
+
+---
+
+STEP 5 — ERROR HANDLER GLOBAL
+
+Localizar handler global (ex: server/middlewares/errorHandler.ts)
+
+Garantir log:
+
+console.error(
+  `[${req.requestId}] [errorHandler]`,
+  err
+)
+
+IMPORTANTE:
+- NÃO alterar formato de resposta
+- NÃO alterar status codes
+
+---
+
+STEP 6 — (OPCIONAL, SOMENTE SE REPETIÇÃO FOR ALTA)
+
+Criar helper:
+
+server/utils/logger.ts
+
+Exemplo:
+
+export function logWarn(req, scope, message, err) {
+  console.warn(`[${req.requestId}] [${scope}] ${message}`, err);
+}
+
+USAR APENAS SE reduzir duplicação
+(se não, manter console direto)
+
+---
+
+STEP 7 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm run check
+- npm run check:strict
+- npm test
+
+---
+
+STEP 8 — RUNTIME CHECK
+
+Fazer requisição:
+
+Verificar HEADER:
+
+X-Request-Id: <uuid>
+
+Verificar logs:
+
+[abc-123] [products.controller] create failed
+[abc-123] [orders.controller] update failed
+[abc-123] [errorHandler]
+
+---
+
+STEP 9 — REPORT
+
+Retornar:
+
+- arquivos criados
+- arquivos modificados
+- exemplo antes/depois dos logs
+- confirmação de ZERO mudança de comportamento
+- risco final (LOW obrigatório)
+
+---
+
+SUCCESS CRITERIA:
+
+✅ Cada request possui requestId único
+✅ Header X-Request-Id presente
+✅ Logs incluem requestId
+✅ Nenhuma alteração de response body
+✅ Nenhuma quebra de endpoint
+✅ TypeScript limpo

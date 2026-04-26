@@ -18,7 +18,7 @@ import { AppError } from "../../shared/errors/AppError";
  */
 export function errorHandler(
   err: unknown,
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ) {
@@ -53,7 +53,10 @@ export function errorHandler(
   const message = e?.message || "Erro interno do servidor";
 
   if (status >= 500) {
-    console.error("[errorHandler] unhandled error:", err);
+    // Same volume as before (5xx-only) but enriched with `req.requestId` so
+    // a single failed call can be correlated against the controller logs
+    // and the upstream client's bug report.
+    console.error(`[${req.requestId}] [errorHandler] unhandled error:`, err);
   }
 
   return res.status(status).json({

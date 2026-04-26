@@ -45,7 +45,7 @@ export class ProductController {
       const product = await productService.createProduct(input);
       res.status(201).json(product);
     } catch (err) {
-      console.warn('[products.controller] create failed', err);
+      console.warn(`[${req.requestId}] [products.controller] create failed`, err);
       res.status(400).json({ message: "Bad request" });
     }
   }
@@ -61,7 +61,7 @@ export class ProductController {
       const product = await productService.updateProduct(id, input);
       res.json(product);
     } catch (err) {
-      console.warn('[products.controller] update failed', err);
+      console.warn(`[${req.requestId}] [products.controller] update failed`, err);
       res.status(400).json({ message: "Bad request" });
     }
   }
@@ -89,12 +89,12 @@ export class ProductController {
     }
   }
 
-  async safraAlerts(_req: Request, res: Response): Promise<void> {
+  async safraAlerts(req: Request, res: Response): Promise<void> {
     try {
       const alerts = await productService.getSafraAlerts();
       res.json(alerts);
     } catch (err) {
-      console.warn('[products.controller] safraAlerts failed', err);
+      console.warn(`[${req.requestId}] [products.controller] safraAlerts failed`, err);
       res.status(500).json({ message: "Erro interno" });
     }
   }
@@ -110,7 +110,7 @@ export class ProductController {
       }
       res.json(result);
     } catch (e) {
-      console.warn('[products.controller] checkCode failed', e);
+      console.warn(`[${req.requestId}] [products.controller] checkCode failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -128,18 +128,18 @@ export class ProductController {
       }
       res.json(result);
     } catch (e) {
-      console.warn('[products.controller] checkDuplicate failed', e);
+      console.warn(`[${req.requestId}] [products.controller] checkDuplicate failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
   }
 
-  async priceAlerts(_req: Request, res: Response): Promise<void> {
+  async priceAlerts(req: Request, res: Response): Promise<void> {
     try {
       const alerts = await productService.getPriceAlerts();
       res.json(alerts);
     } catch (e) {
-      console.warn('[products.controller] priceAlerts failed', e);
+      console.warn(`[${req.requestId}] [products.controller] priceAlerts failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -162,7 +162,7 @@ export class ProductController {
       const product = await productService.toggleOutOfSeason(id, outOfSeason, userId, ip);
       res.json(product);
     } catch (err) {
-      console.warn('[products.controller] setOutOfSeason failed', err);
+      console.warn(`[${req.requestId}] [products.controller] setOutOfSeason failed`, err);
       res.status(500).json({ message: 'Erro interno' });
     }
   }
@@ -177,7 +177,7 @@ export class ProductController {
       const rows = await productService.listSubCategoriesForProduct(productId);
       res.json(rows);
     } catch (err) {
-      console.warn('[products.controller] listSubCategories failed', err);
+      console.warn(`[${req.requestId}] [products.controller] listSubCategories failed`, err);
       res.status(500).json({ message: 'Erro interno' });
     }
   }
@@ -211,7 +211,7 @@ export class ProductController {
       const row = await productService.addSubCategory(productId, { categoryName, price, active });
       res.status(201).json(row);
     } catch (e) {
-      console.warn('[products.controller] createSubCategory failed', e);
+      console.warn(`[${req.requestId}] [products.controller] createSubCategory failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -242,7 +242,7 @@ export class ProductController {
       const row = await productService.editSubCategory(id, { categoryName, price, active });
       res.json(row);
     } catch (e) {
-      console.warn('[products.controller] updateSubCategory failed', e);
+      console.warn(`[${req.requestId}] [products.controller] updateSubCategory failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -268,7 +268,7 @@ export class ProductController {
       await productService.removeSubCategory(id);
       res.json({ ok: true });
     } catch (e) {
-      console.warn('[products.controller] deleteSubCategory failed', e);
+      console.warn(`[${req.requestId}] [products.controller] deleteSubCategory failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }
@@ -294,7 +294,7 @@ export class ProductController {
       await productService.removeAllSubCategoriesForProduct(productId);
       res.json({ ok: true });
     } catch (e) {
-      console.warn('[products.controller] deleteAllSubCategoriesForProduct failed', e);
+      console.warn(`[${req.requestId}] [products.controller] deleteAllSubCategoriesForProduct failed`, e);
       const message = e instanceof Error ? e.message : String(e);
       res.status(500).json({ message });
     }

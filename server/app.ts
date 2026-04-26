@@ -4,6 +4,7 @@ import { registerModules, registerV1Modules, registerV2Modules } from "./modules
 import { registerRoutes } from "./routes/routes";
 import { errorHandler } from "./core/errors/errorHandler";
 import { createSessionMiddleware } from "./core/http/session";
+import { requestIdMiddleware } from "./middleware/requestId";
 
 /**
  * App factory.
@@ -27,6 +28,12 @@ export interface BuildAppResult {
 export async function buildApp(): Promise<BuildAppResult> {
   const app = express();
   const httpServer = createServer(app);
+
+  // Request-ID FIRST: every downstream middleware (parsers, security headers,
+  // request logger, session, modular routes, legacy routes, error handler)
+  // can rely on `req.requestId` being a non-empty string. Also sets the
+  // `X-Request-Id` response header so clients can include it in bug reports.
+  app.use(requestIdMiddleware);
 
   // Allow request handlers to read raw body when needed (webhooks, signatures).
   app.use(
