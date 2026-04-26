@@ -1,0 +1,147 @@
+STEP 9.3F.8 — APROVADO ✅
+
+Implementação está correta:
+
+- Reuso total de buildDigest (sem duplicação de lógica) ✔  
+- Nenhuma query nova ✔  
+- CSV consistente com dashboard ✔  
+- Endpoint protegido ✔  
+- UX de download correta ✔  
+
+---
+
+# ⚠️ DIRETRIZ IMPORTANTE
+
+NÃO expandir escopo agora.
+
+👉 NÃO implementar:
+- date-range picker  
+- novos formatos (xlsx, pdf, etc.)  
+- filtros adicionais  
+- otimizações fora do escopo  
+
+Isso vira STEP futuro.
+
+---
+
+# 🎯 PRÓXIMO PASSO — STEP 9.3F.9
+
+## OBJETIVO
+
+Introduzir alertas proativos (automatizados) baseados na inteligência já existente.
+
+👉 Sistema deixa de ser apenas reativo (dashboard)
+👉 Passa a agir sozinho em situações críticas
+
+---
+
+# 🧱 ESCOPO
+
+Criar um job interno que:
+
+- roda periodicamente (ex: a cada 10 minutos)
+- chama:
+  - buildInsights()
+- identifica insights CRITICAL
+- dispara alerta automaticamente via emitAlert
+
+---
+
+# ⚠️ REGRAS CRÍTICAS
+
+❌ NÃO alterar emitAlert  
+❌ NÃO alterar buildInsights  
+❌ NÃO criar nova tabela  
+❌ NÃO mudar endpoints existentes  
+❌ NÃO duplicar persistência  
+
+---
+
+# 🧠 COMPORTAMENTO
+
+Para cada insight:
+
+- level = "critical" → pode disparar alerta  
+- level = "warning" ou "info" → ignorar  
+
+Mensagem deve ser derivada do insight:
+
+Exemplo:
+"ALERTA AUTOMÁTICO: Canal email com baixa taxa de sucesso nas últimas 24h"
+
+---
+
+# 🛑 CONTROLE DE SPAM
+
+Antes de disparar:
+
+- reutilizar emitAlertSmart (OBRIGATÓRIO)
+
+👉 garante:
+- rate-limit existente
+- supressão inteligente
+- zero duplicação de lógica
+
+---
+
+# ⚙️ ARQUITETURA
+
+Novo arquivo:
+
+server/services/alerts.proactive.ts
+
+Função:
+
+runProactiveAlerts()
+
+Responsável por:
+- chamar buildInsights
+- filtrar critical
+- montar mensagem
+- chamar emitAlertSmart
+
+---
+
+# 🔁 EXECUÇÃO
+
+Integrar com scheduler existente (mesmo padrão do cron atual)
+
+- NÃO criar novo sistema de jobs
+- NÃO usar setInterval global fora do padrão
+
+---
+
+# 🧪 VALIDAÇÃO
+
+- Insight crítico → gera alerta automático ✔  
+- Insight warning → NÃO gera ✔  
+- Supressão funciona ✔  
+- Não duplica alertas ✔  
+- Logs aparecem corretamente ✔  
+
+---
+
+# 🚫 PROIBIDO
+
+Se você:
+- reprocessar dados manualmente  
+- criar nova lógica paralela  
+- ignorar emitAlertSmart  
+
+→ está ERRADO
+
+---
+
+# ✅ FORMA CORRETA
+
+1. Reusar buildInsights  
+2. Filtrar critical  
+3. Delegar para emitAlertSmart  
+4. Integrar no scheduler existente  
+
+---
+
+Após implementar:
+
+👉 NÃO avançar  
+👉 Me entregar validação comple

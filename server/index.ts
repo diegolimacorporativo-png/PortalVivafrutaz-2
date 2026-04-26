@@ -6,6 +6,8 @@ import { startOutboxWorker } from "./modules/orders/orders.outbox.worker";
 import { startAutoDispatchWorker } from "./modules/logistics/auto-dispatch.service";
 import { startBillingCron } from "./modules/billing/billing.cron";
 import { startFaturamentoCron } from "./jobs/faturamento.cron";
+// STEP 9.3F.9 — alertas proativos automatizados (reusa buildInsights + emitAlertSmart).
+import { startProactiveAlertsScheduler } from "./services/alerts.proactive";
 
 /**
  * Bootstrap.
@@ -60,6 +62,10 @@ export function log(message: string, source = "express") {
 
   // Faturamento cron — STEP 9.3C: emissão automática às 08:00 (controlada por AUTO_FATURAMENTO flag).
   startFaturamentoCron();
+
+  // STEP 9.3F.9 — alertas proativos: a cada 10min, dispara emitAlertSmart
+  // para insights CRITICAL retornados por buildInsights. Sem nova lógica.
+  startProactiveAlertsScheduler();
 
   // Memory monitor — useful in production to catch leaks early.
   setInterval(() => {
