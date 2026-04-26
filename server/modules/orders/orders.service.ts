@@ -551,6 +551,10 @@ export class OrdersService {
         // STEP 4 — per-call cache of subCategory rows to avoid N queries
         // when many items share the same subCategoryId.
         const subCategoryCache = new Map<number, any>();
+        // STEP 5 — per-call cache of contractScope rows keyed by
+        // `${companyId}-${productId}` to avoid N queries when the same
+        // product appears multiple times in the order.
+        const contractCache = new Map<string, any>();
         for (const it of (items || []) as any[]) {
           let product = productCache.get(it.productId);
           if (!product) {
@@ -585,10 +589,34 @@ export class OrdersService {
               subCategoryPrice = null;
             }
           }
+          // STEP 5 — resolve contractPrice (optional, highest priority).
+          // Fallback to subCategory/base on any miss or repo error.
+          let contractPrice: number | null = null;
+          try {
+            const cacheKey = `${companyId}-${it.productId}`;
+            let scope = contractCache.get(cacheKey);
+            if (scope === undefined) {
+              scope = await this.repo.getContractScope(companyId, it.productId);
+              contractCache.set(cacheKey, scope);
+            }
+            const rawCP = scope?.unitPrice;
+            if (rawCP != null) {
+              const n = Number(rawCP);
+              if (Number.isFinite(n)) contractPrice = n;
+            }
+          } catch (cErr) {
+            console.warn("[pricing] contract lookup failed — fallback subCategory/base", {
+              method: "createWithDelivery",
+              companyId,
+              productId: it.productId,
+              err: (cErr as Error)?.message,
+            });
+            contractPrice = null;
+          }
           const newUnit = resolveProductPrice({
             basePrice: Number(product.basePrice),
             subCategoryPrice,
-            contractPrice: null,    // FUTURE — STEP 5
+            contractPrice,
             adminFee,
           });
           if (!Number.isFinite(newUnit)) continue;
@@ -602,6 +630,13 @@ export class OrdersService {
             productId: it.productId,
             subCategoryId: it.subCategoryId ?? null,
             usedSubCategory: subCategoryPrice !== null,
+          });
+          console.info("[pricing] contract pricing applied", {
+            scope: "orders.service",
+            method: "createWithDelivery",
+            companyId,
+            productId: it.productId,
+            usedContract: contractPrice !== null,
           });
         }
         computedTotal = (items || []).reduce(
@@ -1184,6 +1219,8 @@ export class OrdersService {
           const productCache = new Map<number, any>();
           // STEP 4 — per-call cache of subCategory rows.
           const subCategoryCache = new Map<number, any>();
+          // STEP 5 — per-call cache of contractScope rows.
+          const contractCache = new Map<string, any>();
           for (const it of items as any[]) {
             let product = productCache.get(it.productId);
             if (!product) {
@@ -1218,10 +1255,37 @@ export class OrdersService {
                 subCategoryPrice = null;
               }
             }
+            // STEP 5 — resolve contractPrice (optional, highest priority).
+            let contractPrice: number | null = null;
+            try {
+              const cacheKey = `${observedCompanyId}-${it.productId}`;
+              let scope = contractCache.get(cacheKey);
+              if (scope === undefined) {
+                scope = await this.repo.getContractScope(
+                  observedCompanyId as number,
+                  it.productId,
+                );
+                contractCache.set(cacheKey, scope);
+              }
+              const rawCP = scope?.unitPrice;
+              if (rawCP != null) {
+                const n = Number(rawCP);
+                if (Number.isFinite(n)) contractPrice = n;
+              }
+            } catch (cErr) {
+              console.warn("[pricing] contract lookup failed — fallback subCategory/base", {
+                method: "replaceItems",
+                companyId: observedCompanyId,
+                productId: it.productId,
+                orderId: id,
+                err: (cErr as Error)?.message,
+              });
+              contractPrice = null;
+            }
             const newUnit = resolveProductPrice({
               basePrice: Number(product.basePrice),
               subCategoryPrice,
-              contractPrice: null,
+              contractPrice,
               adminFee,
             });
             if (!Number.isFinite(newUnit)) continue;
@@ -1235,6 +1299,13 @@ export class OrdersService {
               productId: it.productId,
               subCategoryId: it.subCategoryId ?? null,
               usedSubCategory: subCategoryPrice !== null,
+            });
+            console.info("[pricing] contract pricing applied", {
+              scope: "orders.service",
+              method: "replaceItems",
+              companyId: observedCompanyId,
+              productId: it.productId,
+              usedContract: contractPrice !== null,
             });
           }
           console.info("[pricing] new pricing ENABLED", {
@@ -1383,10 +1454,31 @@ export class OrdersService {
                 subCategoryPrice = null;
               }
             }
+            // STEP 5 — resolve contractPrice for the substitute product.
+            // Single-row lookup (one item path); no per-call cache needed.
+            let contractPrice: number | null = null;
+            try {
+              const scope = await this.repo.getContractScope(cId, newProductId);
+              const rawCP = scope?.unitPrice;
+              if (rawCP != null) {
+                const n = Number(rawCP);
+                if (Number.isFinite(n)) contractPrice = n;
+              }
+            } catch (cErr) {
+              console.warn("[pricing] contract lookup failed — fallback subCategory/base", {
+                method: "substituteItem.replace",
+                companyId: cId,
+                productId: newProductId,
+                orderId,
+                itemId,
+                err: (cErr as Error)?.message,
+              });
+              contractPrice = null;
+            }
             const newUnit = resolveProductPrice({
               basePrice: Number(newProduct.basePrice),
               subCategoryPrice,
-              contractPrice: null,
+              contractPrice,
               adminFee,
             });
             if (Number.isFinite(newUnit)) {
@@ -1400,6 +1492,13 @@ export class OrdersService {
                 productId: newProductId,
                 subCategoryId: subId ?? null,
                 usedSubCategory: subCategoryPrice !== null,
+              });
+              console.info("[pricing] contract pricing applied", {
+                scope: "orders.service",
+                method: "substituteItem.replace",
+                companyId: cId,
+                productId: newProductId,
+                usedContract: contractPrice !== null,
               });
               console.info("[pricing] new pricing ENABLED", {
                 scope: "orders.service",

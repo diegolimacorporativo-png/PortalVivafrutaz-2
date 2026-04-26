@@ -206,6 +206,17 @@ export class OrdersRepository {
     return storage.getProductSubCategoryById(id);
   }
 
+  /**
+   * STEP 5 — pricing por cliente (contract). Single-row lookup of a
+   * `contractScopes` row for the (companyId, productId) pair. Used by
+   * the pricing flow to resolve `contractPrice` (highest priority in
+   * the resolver). Returns null when no scope row exists for that
+   * customer/product (never throws).
+   */
+  getContractScope(companyId: number, productId: number) {
+    return storage.getContractScope(companyId, productId);
+  }
+
   getCompanyConfig() {
     return storage.getCompanyConfig();
   }

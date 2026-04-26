@@ -91,6 +91,7 @@ export interface IStorage {
 
   // Contract Scopes
   getContractScopes(companyId: number): Promise<ContractScope[]>;
+  getContractScope(companyId: number, productId: number): Promise<ContractScope | null>;
   createContractScope(scope: InsertContractScope): Promise<ContractScope>;
   updateContractScope(id: number, data: Partial<InsertContractScope>): Promise<ContractScope>;
   deleteContractScope(id: number): Promise<void>;
@@ -563,6 +564,20 @@ export class DatabaseStorage implements IStorage {
 
   async getContractScopes(companyId: number): Promise<ContractScope[]> {
     return await db.select().from(contractScopes).where(eq(contractScopes.companyId, companyId));
+  }
+
+  async getContractScope(companyId: number, productId: number): Promise<ContractScope | null> {
+    const rows = await db
+      .select()
+      .from(contractScopes)
+      .where(
+        and(
+          eq(contractScopes.companyId, companyId),
+          eq(contractScopes.productId, productId),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async createContractScope(scope: InsertContractScope): Promise<ContractScope> {

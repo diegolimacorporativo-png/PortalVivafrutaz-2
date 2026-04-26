@@ -1,0 +1,217 @@
+STEP 5 — CONTRACT PRICING (PREÇO POR CLIENTE)
+
+OBJETIVO  
+Integrar preços específicos por cliente (contractScopes.unitPrice) no fluxo de cálculo, respeitando prioridade máxima no resolver, sem quebrar comportamento existente e mantendo fallback total.
+
+---
+
+REGRA DE NEGÓCIO FINAL (COMPLETA)
+
+Ordem de prioridade:
+
+1. contractPrice ✅ (NOVO STEP — MAIOR PRIORIDADE)
+2. subCategoryPrice
+3. basePrice
+4. adminFee (aplicado por último)
+
+Fórmula final:
+
+finalPrice = sourcePrice * (1 + adminFee / 100)
+
+---
+
+STEP 5.1 — DISCOVERY (CONFIRMAR ESTRUTURA)
+
+Tabela existente:
+
+contractScopes
+
+Campos relevantes:
+
+- id
+- companyId (cliente)
+- productId
+- unitPrice
+- (opcional) subCategoryId ⚠️ (se existir, usar; se não, ignorar)
+
+---
+
+STEP 5.2 — REPOSITORY (READ-ONLY, PERFORMANCE)
+
+Criar método O(1):
+
+ts async getContractScope(companyId: number, productId: number) {   return db     .select()     .from(contractScopes)     .where(       and(         eq(contractScopes.companyId, companyId),         eq(contractScopes.productId, productId)       )     )     .limit(1)     .then(r => r[0] ?? null); } 
+
+⚠️ NÃO fazer filter em array  
+⚠️ NÃO usar getAll + find  
+⚠️ SEMPRE query direta
+
+---
+
+STEP 5.3 — CACHE POR REQUEST (OBRIGATÓRIO)
+
+No orders.service.ts:
+
+ts const contractCache = new Map<string, any>(); 
+
+Key:
+
+ts const key = `${company.id}-${item.productId}`; 
+
+---
+
+STEP 5.4 — INTEGRAÇÃO (3 PONTOS)
+
+Mesmos pontos do STEP 4:
+
+- createWithDelivery
+- replaceItems
+- substituteItem.replace
+
+---
+
+STEP 5.5 — RESOLUÇÃO DE CONTRACT PRICE
+
+Dentro do bloco:
+
+ts if (company?.useNewPricing === true) {   try { 
+
+Adicionar ANTES do resolver:
+
+ts let contractPrice: number | null = null;  const cacheKey = `${company.id}-${item.productId}`;  let scope = contractCache.get(cacheKey);  if (!scope) {   scope = await this.repo.getContractScope(company.id, item.productId);   contractCache.set(cacheKey, scope); }  if (scope?.unitPrice != null) {   contractPrice = scope.unitPrice; } 
+
+---
+
+STEP 5.6 — INTEGRAÇÃO COM RESOLVER
+
+Atualizar chamada:
+
+ts const resolved = resolveProductPrice({   basePrice: product.basePrice,   subCategoryPrice,   contractPrice,   adminFee: company.adminFee }); 
+
+---
+
+STEP 5.7 — APLICAÇÃO
+
+ts item.unitPrice = resolved; item.totalPrice = resolved * item.quantity; 
+
+---
+
+STEP 5.8 — PRIORIDADE GARANTIDA
+
+O resolver já faz:
+
+ts contract > subCategory > base 
+
+Então:
+
+Caso	Resultado
+contractPrice existe	IGNORA categoria e base
+contractPrice null	usa categoria
+categoria null	usa base
+
+---
+
+STEP 5.9 — FALLBACK TOTAL
+
+Cenários seguros:
+
+Caso	Comportamento
+scope não existe	fallback categoria/base
+scope sem unitPrice	fallback categoria/base
+erro no banco	fallback total
+company sem flag	ignora tudo
+
+NUNCA lançar erro  
+NUNCA quebrar pedido  
+
+---
+
+STEP 5.10 — LOG (OBSERVABILIDADE)
+
+Adicionar:
+
+ts console.info("[pricing] contract pricing applied", {   companyId: company.id,   productId: item.productId,   usedContract: !!contractPrice }); 
+
+---
+
+STEP 5.11 — VALIDAÇÃO
+
+Testes obrigatórios:
+
+1. Sem contractScope  
+→ usa categoria/base
+
+2. Com contractScope  
+→ usa contractPrice
+
+3. contract + adminFee  
+→ aplica markup
+
+4. contract + categoria  
+→ contract vence
+
+5. empresa sem flag  
+→ comportamento antigo
+
+---
+
+STEP 5.12 — GARANTIAS
+
+NÃO fazer:
+
+- NÃO alterar pedidos antigos
+- NÃO alterar schema de orders
+- NÃO alterar controllers
+- NÃO alterar responses
+- NÃO mexer em NFe
+- NÃO remover lógica anterior
+
+---
+
+RESULTADO FINAL
+
+Sistema passa a suportar:
+
+- basePrice ✅
+- categoria ✅
+- cliente específico (contract) ✅
+- taxa administrativa ✅
+- fallback automático seguro ✅
+
+---
+
+CENÁRIO REAL SUPORTADO
+
+Cliente A:
+→ maçã = 10,00
+
+Cliente B:
+→ maçã = 12,00 (contract)
+
+Cliente C:
+→ maçã higienizada = 14,00 (categoria)
+→ + taxa 10% = 15,40
+
+---
+
+RISCO FINAL
+
+LOW ✅
+
+Motivo:
+
+- isolado no service
+- protegido por feature flag
+- cache evita impacto de performance
+- fallback completo
+- sem alteração de contrato
+
+---
+
+PRÓXIMO PASSO
+
+STEP 6 — AUTOMAÇÃO DE REAJUSTE
+
+- atualização mensal de preços
+- recalcular categorias
+- impacto controlado por clien
