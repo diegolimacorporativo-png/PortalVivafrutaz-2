@@ -372,7 +372,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     queryFn: () => fetch(`/api/nfe?orderId=${order.id}`, { credentials: "include" }).then(r => r.ok ? r.json() : []),
   });
 
-  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(order.id);
+  const { allowed: canEmit, reason: blockReason, faturamento, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(order.id);
   const { canForceRelease, forceRelease, isPending: isReleasing } = useForceReleaseNfe(order.id);
   const [isShaking, setIsShaking] = useState(false);
 
@@ -769,7 +769,17 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                     Liberado
                   </span>
                 ) : (
-                  <span className="text-xs text-gray-400">Gera o XML e envia ao SEFAZ</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400">Gera o XML e envia ao SEFAZ</span>
+                    {faturamento?.label && (
+                      <span
+                        data-testid={`badge-faturamento-${order.id}`}
+                        className="text-[11px] font-medium text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded"
+                      >
+                        {faturamento.label}
+                      </span>
+                    )}
+                  </span>
                 )}
               </div>
             )}

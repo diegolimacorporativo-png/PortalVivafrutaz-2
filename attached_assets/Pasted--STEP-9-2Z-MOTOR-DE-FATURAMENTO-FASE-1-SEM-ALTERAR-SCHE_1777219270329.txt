@@ -1,0 +1,116 @@
+## STEP 9.2Z — MOTOR DE FATURAMENTO (FASE 1 — SEM ALTERAR SCHEMA)
+
+### OBJETIVO
+
+Criar uma camada inteligente que:
+
+- Decide QUANDO a NF pode ser emitida
+- Agrupa pedidos quando necessário
+- Respeita regras comerciais da empresa
+
+SEM alterar banco de dados.
+
+---
+
+## 🚫 REGRAS
+
+- NÃO alterar schema
+- NÃO criar tabela
+- NÃO quebrar fluxo atual
+- NÃO remover emissão manual
+- Apenas BLOQUEAR ou PERMITIR com inteligência
+
+---
+
+## 🧠 CONCEITO
+
+Criar função central:
+
+ts id="l2s1a9" getFaturamentoContext(company, order) 
+
+Que interpreta os campos existentes:
+
+- clientType
+- billingTerm
+- paymentDates
+- contractStartDate / contractEndDate
+
+---
+
+## STEP 1 — CRIAR ENGINE
+
+Arquivo:
+
+server/modules/nfe/faturamento.engine.ts
+
+ts id="e1x93k" export function getFaturamentoContext(company: any, order: any) {   const now = new Date();    const context = {     tipo: "imediato",     prazoDias: 0,     podeEmitir: true,     motivo: "",   };    // 🔹 INTERPRETAÇÃO DO TIPO DE CLIENTE   switch (company.clientType) {     case "semanal":       context.tipo = "semanal";       break;     case "mensal":       context.tipo = "mensal";       break;     case "contratual":       context.tipo = "contratual";       break;     default:       context.tipo = "imediato";   }    // 🔹 EXTRAIR PRAZO (billingTerm = "30 dias", "45 dias", etc)   if (company.billingTerm) {     const match = company.billingTerm.match(/(\d+)/);     if (match) {       context.prazoDias = Number(match[1]);     }   }    // 🔹 BLOQUEIO POR CONTRATO   if (company.contractEndDate && new Date(company.contractEndDate) < now) {     context.podeEmitir = false;     context.motivo = "Contrato expirado";     return context;   }    // 🔹 REGRAS POR TIPO    if (context.tipo === "semanal") {     const delivery = new Date(order.deliveryDate);     const diff = Math.floor(       (now.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24)     );      if (diff < 7) {       context.podeEmitir = false;       context.motivo = "Aguardando fechamento semanal";     }   }    if (context.tipo === "mensal") {     const delivery = new Date(order.deliveryDate);      if (       delivery.getMonth() === now.getMonth() &&       delivery.getFullYear() === now.getFullYear()     ) {       context.podeEmitir = false;       context.motivo = "Faturamento apenas no mês seguinte";     }   }    return context; } 
+
+---
+
+## STEP 2 — INTEGRAR NO GUARD
+
+Arquivo:
+
+server/modules/nfe/faturamento.guard.ts
+
+ts id="k29dls" import { getFaturamentoContext } from "./faturamento.engine"; 
+
+Dentro do canEmitNFe:
+
+ts id="p9x21c" const context = getFaturamentoContext(company, order);  if (!context.podeEmitir) {   return {     allowed: false,     reason: context.motivo,   }; } 
+
+---
+
+## STEP 3 — EXPOR CONTEXTO NO ENDPOINT
+
+Arquivo:
+
+GET /api/nfe/can-emit/:orderId
+
+ts id="9d82ls" return res.json({   orderId,   allowed: result.allowed,   reason: result.reason,   faturamento: context, // 🔥 NOVO }); 
+
+---
+
+## STEP 4 — UX (OPCIONAL AGORA, FORTE DEPOIS)
+
+Exibir no frontend:
+
+- "Faturamento semanal"
+- "Aguardando fechamento mensal"
+- "Prazo: 30 dias"
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ sistema não sabia quando faturar  
+❌ dependia 100% do admin  
+
+DEPOIS:
+✔ sistema entende regras básicas  
+✔ bloqueia emissão fora do ciclo  
+✔ prepara agrupamento futuro  
+
+---
+
+## O QUE AINDA NÃO FAZ (FASE 2)
+
+- Agrupar pedidos em uma única NF
+- Gerar NF automática por ciclo
+- Controlar fechamento por dia (ex: dia 25)
+- Calcular vencimento real (30/45/60 dias no financeiro)
+
+---
+
+## BENEFÍCIOS
+
+✔ resolve problema real que você descreveu  
+✔ zero mudança estrutural  
+✔ pronto pra evoluir  
+
+---
+
+## RISCO
+
+LOW ✅ (somente camada de decisão)

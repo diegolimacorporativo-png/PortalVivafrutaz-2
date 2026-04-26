@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+export type FaturamentoContext = {
+  tipo: "imediato" | "semanal" | "mensal" | "contratual" | "pontual";
+  prazoDias: number;
+  podeEmitir: boolean;
+  motivo: string;
+  label: string;
+};
+
 export type CanEmitNfeResponse = {
   orderId: number;
   allowed: boolean;
   reason?: string;
+  faturamento?: FaturamentoContext;
 };
 
 /**
@@ -58,6 +67,7 @@ export function useCanEmitNfe(orderId: number | null | undefined) {
   return {
     allowed,
     reason: query.data?.reason ?? "",
+    faturamento: query.data?.faturamento,
     isLoading: query.isLoading,
     isError: query.isError,
     refetch: query.refetch,
