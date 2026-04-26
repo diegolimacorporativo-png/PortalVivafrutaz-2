@@ -47,6 +47,7 @@ import {
   checkWebhookIdempotency,
 } from "../modules/billing/subscription.middleware";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
+import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5097,6 +5098,16 @@ export async function registerRoutes(
         const existing = await storage.getNfeEmissaoByOrderId(Number(orderId));
         if (existing && ['autorizada', 'enviada'].includes(existing.status)) {
           return res.status(400).json({ message: 'Este pedido já possui NF-e emitida', nfe: existing });
+        }
+
+        // STEP 9.2Y — Gate de faturamento (regras mínimas seguras)
+        const check = await canEmitNFe(Number(orderId));
+        if (!check.allowed) {
+          console.warn('[NFE_BLOCKED]', { orderId, reason: check.reason });
+          return res.status(400).json({
+            error: 'Faturamento bloqueado',
+            reason: check.reason,
+          });
         }
 
         const input = await buildNFeInput(Number(orderId));
