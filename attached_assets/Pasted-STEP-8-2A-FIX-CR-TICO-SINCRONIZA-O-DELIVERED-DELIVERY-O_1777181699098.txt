@@ -1,0 +1,142 @@
+STEP 8.2A — FIX CRÍTICO (SINCRONIZAÇÃO DELIVERED → DELIVERY)
+
+OBJETIVO  
+Corrigir inconsistência onde:
+
+✔ pedido vai para DELIVERED  
+❌ mas deliveries.status permanece "em_rota"  
+
+👉 garantir consistência entre pedido e entrega  
+
+---
+
+🚫 NÃO alterar schema  
+🚫 NÃO alterar workflow  
+🚫 NÃO alterar RBAC  
+🚫 NÃO alterar outbox/logs existentes  
+👉 apenas ajuste técnico idempotente  
+
+---
+
+## STEP 1 — LOCAL DO AJUSTE
+
+Arquivo:
+
+server/modules/orders/orders.transaction.ts  
+
+👉 dentro do fluxo de transition (mesmo bloco do SHIPPED)
+
+---
+
+## STEP 2 — NÃO TOCAR NO BLOCO EXISTENTE
+
+Manter exatamente como está:
+
+if (to === OrderStatus.SHIPPED) {
+  await tx.execute(sql    UPDATE deliveries     SET status = 'em_rota'     WHERE order_id = ${orderId}       AND status = 'pendente'  );
+}
+
+---
+
+## STEP 3 — ADICIONAR BLOCO PARA DELIVERED
+
+Logo abaixo do SHIPPED, inserir:
+
+if (to === OrderStatus.DELIVERED) {
+  try {
+    const result = await tx.execute(sql      UPDATE deliveries       SET status = 'entregue',           delivered_at = NOW(),           updated_at = NOW()       WHERE order_id = ${orderId}         AND status != 'entregue'       RETURNING id    );
+
+    const rows = Array.isArray(result)
+      ? result
+      : (result as any)?.rows ?? [];
+
+    if (rows.length > 0) {
+      try {
+        await createLog({
+          action: "DELIVERY_COMPLETED",
+          description: `Entrega concluída para pedido ${orderCode}`,
+          userId: user?.id ?? null,
+          userRole: user?.role ?? null,
+        });
+      } catch () {}
+    }
+  } catch () {
+    // nunca quebrar o fluxo principal
+  }
+}
+
+---
+
+## STEP 4 — REGRAS CRÍTICAS
+
+✔ IDPOTENTE  
+→ pode rodar mais de uma vez sem duplicar efeito  
+
+✔ NÃO sobrescreve estado final  
+→ só atualiza se ainda não estiver entregue  
+
+✔ FAIL-SAFE  
+→ erro aqui NÃO quebra transition  
+
+✔ PADRÃO EXISTENTE  
+→ igual ao SHIPPED  
+
+---
+
+## STEP 5 — NÃO ALTERAR MAIS NADA
+
+🚫 NÃO mexer em:
+- executeTransition  
+- workflow_events  
+- outbox worker  
+- logs existentes  
+- state machine  
+- RBAC  
+
+---
+
+## STEP 6 — TESTE REAL
+
+Executar:
+
+1. Criar pedido  
+2. Rodar até SHIPPED  
+3. Executar:
+
+POST /api/orders/:id/transition
+{
+  "to": "DELIVERED"
+}
+
+---
+
+## STEP 7 — VALIDAÇÃO
+
+Banco:
+
+✔ deliveries.status = 'entregue'  
+✔ delivered_at preenchido  
+
+API:
+
+✔ HTTP 200  
+
+Timeline:
+
+✔ WORKFLOW_TRANSITION (automático via outbox)  
+✔ DELIVERY_COMPLETED (novo log opcional)  
+
+---
+
+## RESULTADO
+
+✔ pedido e entrega sincronizados  
+✔ motorista finaliza corretamente  
+✔ dados consistentes  
+✔ pronto para tracking real  
+
+---
+
+## RISCO
+
+ZERO ✅ (ajuste isolado, idempotente, sem impacto estrutural)

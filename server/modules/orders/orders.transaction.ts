@@ -6,6 +6,7 @@ import {
   inventoryMovements,
   accountsReceivable,
   deliveries,
+  systemLogs,
   workflowEvents,
   type WorkflowEventPayload,
 } from "@shared/schema";
@@ -417,6 +418,49 @@ export async function executeWorkflowTransaction(
       );
 
       deliveryUpdated = updated.length > 0;
+    }
+
+    // ── Step 4d: DELIVERED — sync deliveries row to 'entregue' ──────────────
+    //
+    // Mirrors the SHIPPED block above. Without this, an order can move to
+    // DELIVERED while deliveries.status remains 'em_rota', breaking the
+    // driver-finalisation flow and any downstream tracking/reporting.
+    //
+    // Idempotent: only updates rows that are NOT already 'entregue', so
+    // re-running the transition is a no-op. Fail-safe: any error is
+    // swallowed so it can never abort the main state transition.
+    if (to === OrderStatus.DELIVERED) {
+      try {
+        const delivered = rowsOf<{ id: number }>(
+          await tx.execute(
+            sql`UPDATE deliveries
+                SET    status       = 'entregue',
+                       delivered_at = NOW(),
+                       updated_at   = NOW()
+                WHERE  order_id     = ${orderId}
+                  AND  status      != 'entregue'
+                RETURNING id`,
+          ),
+        );
+
+        if (delivered.length > 0) {
+          deliveryUpdated = true;
+          try {
+            await tx.insert(systemLogs).values({
+              action:      "DELIVERY_COMPLETED",
+              description: `Entrega concluída para pedido ${orderSnapshot.orderCode || `#${orderId}`}`,
+              userId:      actor?.id ?? null,
+              userEmail:   actor?.email ?? null,
+              userRole:    actor?.role ?? null,
+              level:       "INFO",
+            });
+          } catch {
+            // never break the main flow on log-write failure
+          }
+        }
+      } catch {
+        // never break the main flow on delivery-sync failure
+      }
     }
 
     // ── Step 5: Write outbox event (transactional reliability) ──────────────
