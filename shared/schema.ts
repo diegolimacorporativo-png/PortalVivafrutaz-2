@@ -146,7 +146,9 @@ export const products = pgTable("products", {
   categoryAvailability: text("category_availability").notNull().default("all"),
   // Lista de categorias permitidas quando categoryAvailability = 'specific'
   allowedCategories: jsonb("allowed_categories"),
-});
+}, (table) => ({
+  productCodeIdx: index("products_product_code_idx").on(table.productCode),
+}));
 
 export const productPrices = pgTable("product_prices", {
   id: serial("id").primaryKey(),
@@ -237,7 +239,9 @@ export const orderItems = pgTable("order_items", {
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   subCategoryId: integer("sub_category_id").references(() => productSubCategories.id),
   subCategoryName: text("sub_category_name"),
-});
+}, (table) => ({
+  orderProductIdx: index("order_items_order_product_idx").on(table.orderId, table.productId),
+}));
 
 export const systemSettings = pgTable("system_settings", {
   key: text("key").primaryKey(),
@@ -689,6 +693,7 @@ export const inventorySettings = pgTable("inventory_settings", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   tenantIdIdx: index("inventory_settings_empresa_id_idx").on(table.tenantId),
+  productIdIdx: index("inventory_settings_product_id_idx").on(table.productId),
 }));
 export const insertInventorySettingsSchema = createInsertSchema(inventorySettings).omit({ id: true, updatedAt: true });
 export type InventorySettings = typeof inventorySettings.$inferSelect;

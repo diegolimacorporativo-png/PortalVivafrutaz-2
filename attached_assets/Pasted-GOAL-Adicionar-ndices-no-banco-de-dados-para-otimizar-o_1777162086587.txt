@@ -1,0 +1,139 @@
+GOAL:
+Adicionar índices no banco de dados para otimizar os novos acessos diretos
+criados no STEP 2 (getById, lookups por código, order-product lookups),
+SEM alterar comportamento, SEM alterar queries existentes e SEM risco de regressão.
+
+STRICT RULES:
+- NÃO alterar nenhum endpoint
+- NÃO alterar nenhuma query existente
+- NÃO alterar ORM/schema existente (apenas adicionar índices)
+- NÃO alterar nomes de tabelas ou colunas
+- NÃO remover nada
+- NÃO alterar migrations antigas
+- NÃO alterar lógica de negócio
+- NÃO alterar retorno de dados
+- Se houver qualquer dúvida sobre nome de tabela/coluna → PARAR e reportar
+
+---
+
+STEP 1 — DISCOVERY (MAPEAR TABELAS REAIS)
+
+Localizar no projeto:
+
+- schema do banco (ex: @shared/schema, drizzle, prisma, etc.)
+- storage.ts (para ver quais tabelas estão sendo usadas)
+- repositories (para identificar nomes reais de campos)
+
+Mapear exatamente:
+
+1. products
+   - id
+   - productCode
+
+2. order_items (ou equivalente)
+   - order_id
+   - product_id
+
+3. inventory_settings
+   - product_id
+   - id
+
+⚠️ NÃO assumir nomes — confirmar no código
+
+---
+
+STEP 2 — DEFINIR ÍNDICES NECESSÁRIOS
+
+Criar índices APENAS para os padrões usados:
+
+1. PRODUCTS
+- index em (id) → se já não for PK
+- index em (productCode)
+
+2. ORDER ITEMS
+- índice composto em (order_id, product_id)
+
+3. INVENTORY SETTINGS
+- index em (product_id)
+
+---
+
+STEP 3 — IMPLEMENTAÇÃO (FORMA CORRETA)
+
+Se usar DRIZZLE:
+
+Criar migration nova:
+
+exemplo:
+
+CREATE INDEX IF NOT EXISTS idx_products_code
+ON products(product_code);
+
+CREATE INDEX IF NOT EXISTS idx_order_items_order_product
+ON order_items(order_id, product_id);
+
+CREATE INDEX IF NOT EXISTS idx_inventory_settings_product
+ON inventory_settings(product_id);
+
+---
+
+STEP 4 — SEGURANÇA
+
+Garantir:
+
+- usar IF NOT EXISTS
+- não duplicar índices existentes
+- não alterar PKs existentes
+- não criar índices redundantes
+
+---
+
+STEP 5 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm run check
+- npm test
+
+---
+
+STEP 6 — DB VALIDATION
+
+Confirmar:
+
+- queries continuam funcionando
+- nenhum erro de migration
+- nenhuma tabela alterada estruturalmente
+
+---
+
+STEP 7 — PERFORMANCE CHECK
+
+Confirmar que:
+
+- getProductById agora usa índice
+- findProductByCode usa índice
+- getOrderItemByProduct usa índice composto
+
+---
+
+STEP 8 — REPORT
+
+Retornar:
+
+- índices criados
+- tabelas afetadas
+- colunas indexadas
+- confirmação de não alteração de comportamento
+- risco final (LOW obrigatório)
+
+---
+
+SUCCESS CRITERIA:
+
+✅ ZERO mudança de comportamento
+✅ ZERO mudança de response
+✅ Índices criados corretamente
+✅ Nenhuma migration quebrada
+✅ Nenhum índice duplicado
