@@ -5103,6 +5103,46 @@ export async function registerRoutes(
       }
     });
 
+    // GET /api/nfe/eligible — STEP 9.3: lista pedidos prontos para emitir NF agora
+    app.get('/api/nfe/eligible', async (req: any, res) => {
+      try {
+        // Pre-filter: só candidatos que passam pelas regras básicas do guard,
+        // evitando chamar canEmitNFe em pedidos obviamente bloqueados.
+        const raw = await db.execute(sql`
+          SELECT o.id, o.company_id
+          FROM orders o
+          WHERE o.status != 'CANCELLED'
+            AND o.fiscal_status = 'nota_liberada'
+            AND o.delivery_date IS NOT NULL
+          LIMIT 500
+        `);
+
+        const candidates = (raw as any).rows as Array<{ id: number; company_id: number }>;
+
+        // Roda canEmitNFe em paralelo para todos os candidatos.
+        const results = await Promise.all(
+          candidates.map(async (row) => {
+            const check = await canEmitNFe(row.id);
+            if (!check.allowed) return null;
+            return {
+              orderId: row.id,
+              companyId: row.company_id,
+              faturamento: {
+                tipo: check.faturamento?.tipo,
+                prazoDias: check.faturamento?.prazoDias,
+              },
+            };
+          }),
+        );
+
+        const eligible = results.filter(Boolean);
+        return res.json(eligible);
+      } catch (error) {
+        console.error('[NFE_ELIGIBLE_ERROR]', error);
+        return res.status(500).json({ error: 'Erro ao listar pedidos elegíveis' });
+      }
+    });
+
     // GET /api/nfe/dry-run/metrics — STEP 9.2Z.1C/1D: métricas em memória dos bloqueios simulados
     app.get('/api/nfe/dry-run/metrics', (req: any, res) => {
       const base = getDryRunMetrics();
