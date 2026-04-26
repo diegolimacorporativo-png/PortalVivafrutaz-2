@@ -49,6 +49,8 @@ import {
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
+import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
+import { runFaturamentoCron } from "../jobs/faturamento.cron";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5041,6 +5043,33 @@ export async function registerRoutes(
       } catch (error) {
         console.error('[NFE_ELIGIBLE_ERROR]', error);
         return res.status(500).json({ error: 'Erro ao listar pedidos elegíveis' });
+      }
+    });
+
+    // GET /api/nfe/cron/status — STEP 9.3D: status em memória do cron de faturamento
+    app.get('/api/nfe/cron/status', (req: any, res) => {
+      try {
+        return res.json(getCronStatus());
+      } catch (error) {
+        console.error('[CRON_STATUS_ERROR]', error);
+        return res.status(500).json({ error: 'Erro ao obter status do cron' });
+      }
+    });
+
+    // POST /api/nfe/cron/run — STEP 9.3D: trigger manual do cron de faturamento
+    app.post('/api/nfe/cron/run', async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      // Evita execução concorrente: se já está rodando (cron diário ou outro trigger manual), recusa.
+      if (isCronRunning()) {
+        return res.status(409).json({ error: 'Cron já está em execução. Aguarde terminar.' });
+      }
+      try {
+        console.log('[CRON_MANUAL_TRIGGER] iniciado por userId=' + req.session.userId);
+        const result = await runFaturamentoCron('manual');
+        return res.json({ message: 'Cron executado manualmente', result });
+      } catch (error: any) {
+        console.error('[CRON_MANUAL_ERROR]', error);
+        return res.status(500).json({ error: 'Erro ao executar cron manual', message: error?.message });
       }
     });
 

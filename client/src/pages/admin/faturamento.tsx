@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useEmitirLoteNfe, type LoteResponse } from "@/hooks/use-emitir-lote-nfe";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,8 @@ import {
   Building2,
   Clock,
   SkipForward,
+  PlayCircle,
+  Activity,
 } from "lucide-react";
 
 type EligibleOrder = {
@@ -38,6 +40,34 @@ type EligibleOrder = {
     prazoDias: number;
   };
 };
+
+type CronStatus = {
+  lastRunAt: string | null;
+  lastFinishedAt: string | null;
+  lastTriggeredBy: "schedule" | "manual" | null;
+  running: boolean;
+  summary: {
+    total: number;
+    success: number;
+    blocked: number;
+    errors: number;
+  } | null;
+};
+
+function formatDateTime(iso: string | null): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
 
 const TIPO_BADGE: Record<string, string> = {
   semanal:    "bg-blue-100 text-blue-800",
@@ -61,6 +91,37 @@ export default function CentralFaturamento() {
 
   const { data: eligible = [], isLoading, refetch } = useQuery<EligibleOrder[]>({
     queryKey: ["/api/nfe/eligible"],
+  });
+
+  // STEP 9.3D — status do cron (poll a cada 10s; mais rápido enquanto rodando).
+  const { data: cronStatus } = useQuery<CronStatus>({
+    queryKey: ["/api/nfe/cron/status"],
+    refetchInterval: (query) => (query.state.data?.running ? 2000 : 10000),
+  });
+
+  const runCron = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/nfe/cron/run");
+      return res.json();
+    },
+    onSuccess: (data) => {
+      const summary = data?.result;
+      toast({
+        title: "Cron executado",
+        description: summary
+          ? `${summary.emitidas ?? 0} emitidas · ${summary.bloqueadas ?? 0} bloqueadas · ${summary.erros ?? 0} erros`
+          : "Execução concluída",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/nfe/cron/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nfe/eligible"] });
+    },
+    onError: (e: any) => {
+      toast({
+        title: "Erro ao executar cron",
+        description: e?.message ?? "Tente novamente.",
+        variant: "destructive",
+      });
+    },
   });
 
   const emitirLote = useEmitirLoteNfe();
@@ -122,6 +183,81 @@ export default function CentralFaturamento() {
           Atualizar
         </Button>
       </div>
+
+      {/* Cron Status — STEP 9.3D */}
+      <Card data-testid="card-cron-status">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Activity className="w-4 h-4 text-emerald-600" />
+              Cron de Faturamento
+              {cronStatus?.running ? (
+                <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100" data-testid="badge-cron-running">
+                  Rodando agora…
+                </Badge>
+              ) : (
+                <Badge variant="secondary" data-testid="badge-cron-idle">
+                  Em espera
+                </Badge>
+              )}
+            </CardTitle>
+            <Button
+              size="sm"
+              onClick={() => runCron.mutate()}
+              disabled={runCron.isPending || cronStatus?.running}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              data-testid="button-run-cron"
+            >
+              <PlayCircle className={`w-4 h-4 mr-2 ${runCron.isPending ? "animate-pulse" : ""}`} />
+              {runCron.isPending || cronStatus?.running ? "Executando…" : "Executar agora"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+            <div className="col-span-2 md:col-span-2">
+              <div className="text-xs text-gray-500 mb-1">Última execução</div>
+              <div className="font-medium text-gray-900" data-testid="text-cron-last-run">
+                {formatDateTime(cronStatus?.lastRunAt ?? null)}
+              </div>
+              {cronStatus?.lastTriggeredBy && (
+                <div className="text-xs text-gray-400 mt-0.5">
+                  Disparado por: {cronStatus.lastTriggeredBy === "manual" ? "manual" : "agendamento (08:00)"}
+                </div>
+              )}
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Total</div>
+              <div className="font-semibold text-gray-900" data-testid="text-cron-total">
+                {cronStatus?.summary?.total ?? "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Sucesso</div>
+              <div className="font-semibold text-green-700" data-testid="text-cron-success">
+                {cronStatus?.summary?.success ?? "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Bloqueados</div>
+              <div className="font-semibold text-orange-600" data-testid="text-cron-blocked">
+                {cronStatus?.summary?.blocked ?? "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Erros</div>
+              <div className="font-semibold text-red-600" data-testid="text-cron-errors">
+                {cronStatus?.summary?.errors ?? "—"}
+              </div>
+            </div>
+          </div>
+          {!cronStatus?.lastRunAt && (
+            <p className="text-xs text-gray-400 mt-3">
+              O cron ainda não rodou nesta sessão do servidor. Use "Executar agora" para disparar manualmente.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Lista de elegíveis */}
       <Card>

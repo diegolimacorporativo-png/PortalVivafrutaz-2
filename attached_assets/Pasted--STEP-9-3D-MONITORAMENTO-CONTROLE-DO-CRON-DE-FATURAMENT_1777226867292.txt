@@ -1,0 +1,131 @@
+## STEP 9.3D — MONITORAMENTO + CONTROLE DO CRON DE FATURAMENTO
+
+### OBJETIVO
+
+Criar camada de observabilidade e controle do cron sem alterar lógica existente:
+
+1. Saber quando o cron rodou  
+2. Saber o que aconteceu (emitidos, bloqueados, erros)  
+3. Poder rodar manualmente  
+4. Expor isso para frontend  
+
+---
+
+### 🚫 REGRAS (CRÍTICO)
+
+- NÃO alterar lógica do cron existente  
+- NÃO alterar canEmitNFe  
+- NÃO alterar engine  
+- NÃO alterar emissão  
+
+👉 Apenas OBSERVAR + CONTROLAR
+
+---
+
+## STEP 1 — STORE EM MEMÓRIA DO CRON
+
+Arquivo:
+server/modules/nfe/cron-status.store.ts
+
+ts type CronStatus = {   lastRunAt: Date | null;   running: boolean;   summary: {     total: number;     success: number;     blocked: number;     errors: number;   } | null; };  const status: CronStatus = {   lastRunAt: null,   running: false,   summary: null };  export function setCronRunning(running: boolean) {   status.running = running; }  export function setCronResult(summary: CronStatus["summary"]) {   status.lastRunAt = new Date();   status.summary = summary;   status.running = false; }  export function getCronStatus() {   return status; } 
+
+---
+
+## STEP 2 — INTEGRAR NO CRON (SEM MEXER NA LÓGICA)
+
+Arquivo:
+server/jobs/faturamento.cron.ts
+
+### NO INÍCIO DA EXECUÇÃO:
+
+ts import { setCronRunning, setCronResult } from "@/modules/nfe/cron-status.store";  setCronRunning(true); 
+
+---
+
+### NO FINAL DA EXECUÇÃO:
+
+(onde já existe o summary)
+
+ts setCronResult({   total,   success,   blocked,   errors }); 
+
+---
+
+## STEP 3 — ENDPOINT DE STATUS
+
+Arquivo:
+server/routes/routes.ts
+
+ts import { getCronStatus } from "@/modules/nfe/cron-status.store";  app.get("/api/nfe/cron/status", async (req, res) => {   try {     const status = getCronStatus();      return res.json(status);   } catch (error) {     console.error("[CRON_STATUS_ERROR]", error);      return res.status(500).json({       error: "Erro ao obter status do cron"     });   } }); 
+
+---
+
+## STEP 4 — TRIGGER MANUAL DO CRON
+
+Arquivo:
+server/routes/routes.ts
+
+ts import { runFaturamentoCron } from "@/jobs/faturamento.cron";  app.post("/api/nfe/cron/run", async (req, res) => {   try {     console.log("[CRON_MANUAL_TRIGGER] iniciado");      const result = await runFaturamentoCron();      return res.json({       message: "Cron executado manualmente",       result     });    } catch (error) {     console.error("[CRON_MANUAL_ERROR]", error);      return res.status(500).json({       error: "Erro ao executar cron manual"     });   } }); 
+
+---
+
+## STEP 5 — UI (OPCIONAL AGORA)
+
+Página:
+client/src/pages/admin/faturamento.tsx
+
+Adicionar:
+
+- status do cron
+- botão "Executar agora"
+
+ts GET /api/nfe/cron/status POST /api/nfe/cron/run 
+
+Mostrar:
+
+- Última execução
+- Rodando agora? (true/false)
+- Total / Sucesso / Bloqueados / Erros
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ Cron invisível  
+❌ Sem controle  
+❌ Sem histórico  
+
+DEPOIS:
+✅ Cron visível  
+✅ Status em tempo real  
+✅ Execução manual  
+✅ Base para dashboard  
+
+---
+
+## RISCO
+
+LOW ✅  
+(100% observação, zero impacto na lógica)
+
+---
+
+## PRÓXIMO STEP (9.3E)
+
+→ Persistência real (DB):
+
+- histórico de execuções
+- dashboard completo
+- alertas automáticos
+
+---
+
+## RESUMO SIMPLES
+
+Você saiu de:
+
+❌ "cron roda escondido"
+
+Para:
+
+✅ "cron monitorado e controlado"

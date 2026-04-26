@@ -18,6 +18,10 @@ import { storage } from "../services/storage";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
 import { AUTO_FATURAMENTO } from "../config/flags";
+import {
+  setCronRunning,
+  setCronResult,
+} from "../modules/nfe/cron-status.store";
 
 const CONCURRENCY_LIMIT = 5;
 
@@ -48,10 +52,16 @@ async function processInBatches<T>(
 
 // ── Lógica principal ─────────────────────────────────────────────────────────
 
-export async function runFaturamentoCron(): Promise<CronFaturamentoResult> {
+export async function runFaturamentoCron(
+  triggeredBy: "schedule" | "manual" = "schedule",
+): Promise<CronFaturamentoResult> {
   const executadoEm = new Date();
   const autoMode = AUTO_FATURAMENTO;
 
+  // STEP 9.3D — marca início (também grava lastRunAt + triggeredBy).
+  setCronRunning(true, triggeredBy);
+
+  try {
   if (!autoMode) {
     console.log("[CRON_FATURAMENTO_DESATIVADO] AUTO_FATURAMENTO=false — rodando em modo observação");
   }
@@ -70,6 +80,7 @@ export async function runFaturamentoCron(): Promise<CronFaturamentoResult> {
 
   if (candidates.length === 0) {
     console.log("[CRON_FATURAMENTO] Nenhum pedido candidato encontrado.");
+    setCronResult({ total: 0, success: 0, blocked: 0, errors: 0 });
     return { executadoEm, autoMode, total: 0, emitidas: 0, bloqueadas: 0, erros: 0, detalhes: [] };
   }
 
@@ -146,7 +157,20 @@ export async function runFaturamentoCron(): Promise<CronFaturamentoResult> {
     `[CRON_FATURAMENTO] concluído — emitidas=${emitidas} bloqueadas=${bloqueadas} erros=${erros} autoMode=${autoMode}`,
   );
 
+  // STEP 9.3D — grava resumo final (também marca running=false).
+  setCronResult({
+    total: candidates.length,
+    success: emitidas,
+    blocked: bloqueadas,
+    errors: erros,
+  });
+
   return { executadoEm, autoMode, total: candidates.length, emitidas, bloqueadas, erros, detalhes };
+  } catch (err) {
+    // STEP 9.3D — em caso de exceção fatal, registra resumo zerado e relança.
+    setCronResult({ total: 0, success: 0, blocked: 0, errors: 1 });
+    throw err;
+  }
 }
 
 // ── Scheduler ────────────────────────────────────────────────────────────────
