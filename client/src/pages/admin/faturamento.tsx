@@ -30,7 +30,23 @@ import {
   SkipForward,
   PlayCircle,
   Activity,
+  Mail,
+  MessageSquare,
+  Phone,
+  Plus,
+  Trash2,
+  Save,
+  BellRing,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 
 type EligibleOrder = {
   orderId: number;
@@ -63,6 +79,15 @@ type CronHistoryRow = {
   success: number;
   blocked: number;
   errors: number;
+};
+
+type AlertChannel = "email" | "slack" | "whatsapp";
+
+type AlertRecipient = {
+  channel: AlertChannel;
+  target: string;
+  enabled: boolean;
+  label?: string;
 };
 
 function formatDateTime(iso: string | null): string {
@@ -115,6 +140,51 @@ export default function CentralFaturamento() {
     queryKey: ["/api/nfe/cron/history"],
     refetchInterval: 15000,
   });
+
+  // STEP 9.3F.1 — destinatários de alerta (email / slack / whatsapp).
+  const { data: serverRecipients = [], isLoading: recipientsLoading } = useQuery<AlertRecipient[]>({
+    queryKey: ["/api/cron/alerts/recipients"],
+  });
+  const [recipients, setRecipients] = useState<AlertRecipient[] | null>(null);
+  const recipientsList = recipients ?? serverRecipients;
+  const recipientsDirty =
+    recipients !== null &&
+    JSON.stringify(recipients) !== JSON.stringify(serverRecipients);
+
+  const saveRecipients = useMutation({
+    mutationFn: async (list: AlertRecipient[]) => {
+      const res = await apiRequest("PUT", "/api/cron/alerts/recipients", list);
+      return (await res.json()) as AlertRecipient[];
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(["/api/cron/alerts/recipients"], saved);
+      setRecipients(null);
+      toast({ title: "Destinatários atualizados", description: `${saved.length} destinatário(s) salvos.` });
+    },
+    onError: (err: any) => {
+      toast({
+        variant: "destructive",
+        title: "Falha ao salvar",
+        description: err?.message ?? "Erro desconhecido",
+      });
+    },
+  });
+
+  function updateRecipient(idx: number, patch: Partial<AlertRecipient>) {
+    const base = recipients ?? serverRecipients;
+    const next = base.map((r, i) => (i === idx ? { ...r, ...patch } : r));
+    setRecipients(next);
+  }
+
+  function addRecipient() {
+    const base = recipients ?? serverRecipients;
+    setRecipients([...base, { channel: "email", target: "", enabled: true }]);
+  }
+
+  function removeRecipient(idx: number) {
+    const base = recipients ?? serverRecipients;
+    setRecipients(base.filter((_, i) => i !== idx));
+  }
 
   const runCron = useMutation({
     mutationFn: async () => {
@@ -352,6 +422,120 @@ export default function CentralFaturamento() {
                 </tbody>
               </table>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Destinatários de alerta — STEP 9.3F.1 */}
+      <Card data-testid="card-alert-recipients">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <BellRing className="w-4 h-4 text-pink-600" />
+              Destinatários de alerta do cron
+              {!recipientsLoading && (
+                <Badge variant="secondary" className="ml-1" data-testid="badge-recipients-count">
+                  {recipientsList.length}
+                </Badge>
+              )}
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addRecipient}
+                data-testid="button-add-recipient"
+              >
+                <Plus className="w-4 h-4 mr-1" />
+                Adicionar
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => saveRecipients.mutate(recipientsList)}
+                disabled={!recipientsDirty || saveRecipients.isPending}
+                data-testid="button-save-recipients"
+              >
+                <Save className="w-4 h-4 mr-1" />
+                {saveRecipients.isPending ? "Salvando..." : "Salvar"}
+              </Button>
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 mt-2">
+            Quem recebe os alertas <code className="text-[11px]">[CRON_ALERT]</code> e{" "}
+            <code className="text-[11px]">[CRON_CRITICAL]</code>. Limite anti-spam: 10 min entre envios. WhatsApp aparecerá nos logs como
+            pendente até a integração final (STEP 9.3F.2).
+          </p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {recipientsLoading ? (
+            <div className="p-4 space-y-2">
+              <Skeleton className="h-10 w-full rounded" />
+              <Skeleton className="h-10 w-full rounded" />
+            </div>
+          ) : recipientsList.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-gray-400 text-center">
+              Nenhum destinatário configurado. Clique em <strong>Adicionar</strong> para receber alertas por email, Slack ou WhatsApp.
+            </div>
+          ) : (
+            <ul className="divide-y divide-gray-100">
+              {recipientsList.map((r, idx) => {
+                const ChannelIcon = r.channel === "email" ? Mail : r.channel === "slack" ? MessageSquare : Phone;
+                const placeholder =
+                  r.channel === "email"
+                    ? "ops@empresa.com"
+                    : r.channel === "slack"
+                    ? "https://hooks.slack.com/services/..."
+                    : "+55 11 99999-9999";
+                return (
+                  <li
+                    key={idx}
+                    className="flex items-center gap-3 px-4 py-3 flex-wrap md:flex-nowrap"
+                    data-testid={`row-recipient-${idx}`}
+                  >
+                    <ChannelIcon className="w-4 h-4 text-gray-500 shrink-0" />
+                    <Select
+                      value={r.channel}
+                      onValueChange={(value) => updateRecipient(idx, { channel: value as AlertChannel })}
+                    >
+                      <SelectTrigger className="w-32" data-testid={`select-channel-${idx}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="slack">Slack</SelectItem>
+                        <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={r.target}
+                      onChange={(e) => updateRecipient(idx, { target: e.target.value })}
+                      placeholder={placeholder}
+                      className="flex-1 min-w-[180px]"
+                      data-testid={`input-target-${idx}`}
+                    />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Switch
+                        checked={r.enabled}
+                        onCheckedChange={(checked) => updateRecipient(idx, { enabled: checked })}
+                        data-testid={`switch-enabled-${idx}`}
+                      />
+                      <span className="text-xs text-gray-500 w-14">
+                        {r.enabled ? "Ativo" : "Pausado"}
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeRecipient(idx)}
+                      className="text-red-500 hover:text-red-700 shrink-0"
+                      data-testid={`button-remove-${idx}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>

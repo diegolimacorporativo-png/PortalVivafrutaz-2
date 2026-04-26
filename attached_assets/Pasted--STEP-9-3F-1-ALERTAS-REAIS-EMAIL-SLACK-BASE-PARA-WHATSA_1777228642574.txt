@@ -1,0 +1,237 @@
+## STEP 9.3F.1 — ALERTAS REAIS (EMAIL + SLACK + BASE PARA WHATSAPP)
+
+### 🎯 OBJETIVO
+
+Criar um sistema de alertas reais para o cron de faturamento que:
+
+- Reutiliza SMTP existente (mailer.ts)
+- Adiciona Slack via webhook
+- Prepara estrutura para WhatsApp (sem integrar ainda)
+- Permite múltiplos destinatários
+- Controlado por ADMIN / MASTER / DIRECTOR
+- NÃO altera lógica do cron, guard ou engine
+
+---
+
+## 🚫 REGRAS (CRÍTICO)
+
+- NÃO alterar:
+  - canEmitNFe
+  - faturamento.engine.ts
+  - faturamento.cron.ts (exceto adicionar chamada de alerta)
+  - rotas de emissão
+
+- NÃO criar lógica duplicada de envio de email
+- NÃO usar users.phone como destino de alerta
+- NÃO usar notification_settings
+
+👉 Tudo deve ser desacoplado e plugável
+
+---
+
+## STEP 1 — STORE DE DESTINATÁRIOS (SEM NOVA TABELA)
+
+Usar tabela existente: system_settings
+
+KEY:
+cron_alerts.recipients
+
+FORMATO (JSON):
+
+[
+  { "channel": "email", "target": "ops@empresa.com", "enabled": true },
+  { "channel": "slack", "target": "https://hooks.slack.com/...", "enabled": true },
+  { "channel": "whatsapp", "target": "+5511999999999", "enabled": false }
+]
+
+---
+
+## STEP 2 — CRIAR ALERT SERVICE
+
+Arquivo:
+server/services/alerts.service.ts
+
+FUNÇÃO PRINCIPAL:
+
+emitAlert({
+  severity: "ALERT" | "CRITICAL",
+  title: string,
+  message: string,
+  context?: any
+})
+
+---
+
+### IMPLEMENTAÇÃO
+
+1. Buscar destinatários via system_settings
+2. Filtrar enabled === true
+3. Para cada canal:
+
+EMAIL:
+- usar mailer.ts (sendMail)
+- assunto: [CRON ALERT] ou [CRON CRITICAL]
+
+SLACK:
+- POST webhook (fetch)
+- payload:
+{
+  text: "CRON ALERT\nErro detectado\njson\n{...}\n"
+}
+
+WHATSAPP:
+- NÃO implementar envio ainda
+- apenas deixar preparado (console.log "[WHATSAPP_PENDING]")
+
+---
+
+## STEP 3 — RATE LIMIT (ANTI-SPAM)
+
+No alerts.service:
+
+Criar cache em memória:
+
+const lastSent = new Map<string, number>();
+
+Chave:
+"cron:alert" ou "cron:critical"
+
+Regra:
+- bloquear envio se último envio < 10 minutos
+
+---
+
+## STEP 4 — INTEGRAR COM CRON
+
+Arquivo:
+server/jobs/faturamento.cron.ts
+
+ADICIONAR:
+
+import { emitAlert } from "@/services/alerts.service";
+
+---
+
+### ON ERROR:
+
+if (errors > 0) {
+  await emitAlert({
+    severity: "ALERT",
+    title: "Erros no cron de faturamento",
+    message: Foram detectados ${errors} erros,
+    context: { total, errors }
+  });
+}
+
+---
+
+### ON CRITICAL:
+
+if (success === 0 && total > 0) {
+  await emitAlert({
+    severity: "CRITICAL",
+    title: "Falha total no cron",
+    message: "Nenhuma NF foi emitida",
+    context: { total }
+  });
+}
+
+---
+
+## STEP 5 — ENDPOINT DE GERENCIAMENTO
+
+Arquivo:
+server/routes/routes.ts
+
+PROTEGER COM:
+
+requireAuth + requireRole(["MASTER","ADMIN","DIRECTOR"])
+
+---
+
+### GET
+
+/api/cron/alerts/recipients
+
+Retorna JSON atual
+
+---
+
+### PUT
+
+/api/cron/alerts/recipients
+
+Body:
+array completo (substitui)
+
+---
+
+## STEP 6 — UI (ADMIN)
+
+Arquivo:
+client/src/pages/admin/faturamento.tsx
+
+Adicionar seção:
+
+"Destinatários de alerta"
+
+Campos:
+
+- canal (email/slack/whatsapp)
+- destino (input)
+- toggle ativo/inativo
+
+Botão:
+Salvar
+
+---
+
+## STEP 7 — LOGS
+
+Adicionar:
+
+console.log("[ALERT_SENT]", { severity, targets })
+console.warn("[ALERT_RATE_LIMIT]", { key })
+
+---
+
+## RESULTADO FINAL
+
+ANTES:
+❌ alerta só no console
+
+DEPOIS:
+✅ email automático
+✅ slack automático
+✅ whatsapp preparado
+✅ múltiplos destinatários
+✅ controle por admin
+✅ sem alterar regras do sistema
+
+---
+
+## RISCO
+
+LOW ✅
+
+- apenas leitura de config
+- envio externo
+- desacoplado do core
+
+---
+
+## PRÓXIMO STEP (9.3F.2)
+
+→ Integrar WhatsApp REAL via API oficial
+
+---
+
+## RESUMO SIMPLES
+
+Você saiu de:
+
+❌ "cron que grita no console"
+
+Para:
+
+✅ "cron que avisa pessoas reais"

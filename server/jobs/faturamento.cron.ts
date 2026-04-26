@@ -23,6 +23,7 @@ import {
   setCronResult,
 } from "../modules/nfe/cron-status.store";
 import { cronFaturamentoRuns } from "@shared/schema";
+import { emitAlert } from "../services/alerts.service";
 
 const CONCURRENCY_LIMIT = 5;
 
@@ -78,12 +79,15 @@ async function persistCronRun(args: {
 }
 
 // STEP 9.3E — alertas baseados no resultado.
-function emitCronAlerts(args: {
+// STEP 9.3F.1 — também dispara emitAlert (email/slack/whatsapp) sem nunca
+// quebrar o cron por falha de envio.
+async function emitCronAlerts(args: {
   total: number;
   success: number;
+  blocked: number;
   errors: number;
   triggeredBy: "schedule" | "manual";
-}): void {
+}): Promise<void> {
   if (args.errors > 0) {
     console.error("[CRON_ALERT]", {
       message: "Erros no faturamento automático",
@@ -91,6 +95,22 @@ function emitCronAlerts(args: {
       errors: args.errors,
       triggeredBy: args.triggeredBy,
     });
+    try {
+      await emitAlert({
+        severity: "ALERT",
+        title: "Erros no cron de faturamento",
+        message: `Foram detectados ${args.errors} erro(s) em ${args.total} pedido(s) elegível(is).`,
+        context: {
+          total: args.total,
+          success: args.success,
+          blocked: args.blocked,
+          errors: args.errors,
+          triggeredBy: args.triggeredBy,
+        },
+      });
+    } catch (err) {
+      console.error("[ALERT_DISPATCH_ERROR]", err);
+    }
   }
   if (args.success === 0 && args.total > 0) {
     console.error("[CRON_CRITICAL]", {
@@ -98,6 +118,21 @@ function emitCronAlerts(args: {
       total: args.total,
       triggeredBy: args.triggeredBy,
     });
+    try {
+      await emitAlert({
+        severity: "CRITICAL",
+        title: "Falha total no cron de faturamento",
+        message: "Nenhuma NF foi emitida nesta execução, apesar de existirem pedidos elegíveis.",
+        context: {
+          total: args.total,
+          blocked: args.blocked,
+          errors: args.errors,
+          triggeredBy: args.triggeredBy,
+        },
+      });
+    } catch (err) {
+      console.error("[ALERT_DISPATCH_ERROR]", err);
+    }
   }
 }
 
@@ -232,7 +267,7 @@ export async function runFaturamentoCron(
     blocked: bloqueadas,
     errors: erros,
   });
-  emitCronAlerts({ total: candidates.length, success: emitidas, errors: erros, triggeredBy });
+  await emitCronAlerts({ total: candidates.length, success: emitidas, blocked: bloqueadas, errors: erros, triggeredBy });
 
   return { executadoEm, autoMode, total: candidates.length, emitidas, bloqueadas, erros, detalhes };
   } catch (err) {

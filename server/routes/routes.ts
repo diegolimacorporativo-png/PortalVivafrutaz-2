@@ -52,6 +52,11 @@ import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompan
 import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
 import { runFaturamentoCron } from "../jobs/faturamento.cron";
 import { cronFaturamentoRuns } from "@shared/schema";
+import {
+  getAlertRecipients,
+  setAlertRecipients,
+  alertRecipientsArraySchema,
+} from "../services/alerts.service";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5088,6 +5093,45 @@ export async function registerRoutes(
         return res.status(500).json({ error: 'Erro ao buscar histórico' });
       }
     });
+
+    // ── STEP 9.3F.1 — Destinatários de alerta do cron ─────────────────────
+    // Protegido: somente MASTER / ADMIN / DIRECTOR podem gerenciar.
+    app.get(
+      '/api/cron/alerts/recipients',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (_req: any, res) => {
+        try {
+          const list = await getAlertRecipients();
+          return res.json(list);
+        } catch (err) {
+          console.error('[ALERT_RECIPIENTS_GET_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao ler destinatários' });
+        }
+      },
+    );
+
+    app.put(
+      '/api/cron/alerts/recipients',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const parsed = alertRecipientsArraySchema.safeParse(req.body);
+          if (!parsed.success) {
+            return res.status(400).json({
+              error: 'Lista inválida',
+              details: parsed.error.flatten(),
+            });
+          }
+          const saved = await setAlertRecipients(parsed.data);
+          return res.json(saved);
+        } catch (err) {
+          console.error('[ALERT_RECIPIENTS_PUT_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao salvar destinatários' });
+        }
+      },
+    );
 
     // GET /api/nfe/dry-run/metrics — STEP 9.2Z.1C/1D: métricas em memória dos bloqueios simulados
     app.get('/api/nfe/dry-run/metrics', (req: any, res) => {
