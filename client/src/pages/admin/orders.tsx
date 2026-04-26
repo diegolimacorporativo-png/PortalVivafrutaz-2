@@ -370,7 +370,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     queryFn: () => fetch(`/api/nfe?orderId=${order.id}`, { credentials: "include" }).then(r => r.ok ? r.json() : []),
   });
 
-  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit } = useCanEmitNfe(order.id);
+  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(order.id);
 
   const emitirNfeMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/nfe/emitir", { orderId: order.id }),
@@ -714,6 +714,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
+                  id={`emit-btn-${order.id}`}
                   data-testid={`button-emitir-nfe-${order.id}`}
                   onClick={() => {
                     if (canEmit === false) {
@@ -729,7 +730,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                     checkingEmit
                   }
                   title={canEmit === false ? blockReason : "Emitir NF"}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  className={`flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 ${justUnlocked ? "unlock-highlight" : ""}`}
                 >
                   {emitirNfeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
                   {emitirNfeMutation.isPending ? "Gerando NF-e..." : "Emitir NF-e"}
@@ -741,6 +742,14 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
                     {blockReason}
+                  </span>
+                ) : justUnlocked ? (
+                  <span
+                    data-testid={`badge-nfe-unlocked-${order.id}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    Liberado
                   </span>
                 ) : (
                   <span className="text-xs text-gray-400">Gera o XML e envia ao SEFAZ</span>

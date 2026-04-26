@@ -314,7 +314,7 @@ function SelectedOrderEmitRow({
   onClear: () => void;
   toast: ReturnType<typeof useToast>["toast"];
 }) {
-  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit } = useCanEmitNfe(selectedOrderId);
+  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(selectedOrderId);
   const blocked = canEmit === false;
 
   return (
@@ -325,7 +325,7 @@ function SelectedOrderEmitRow({
           Pedido: <span className="font-mono">{selectedOrderCode}</span>
         </p>
         <p className="text-xs text-emerald-600">#{selectedOrderId}</p>
-        {blocked && (
+        {blocked ? (
           <span
             data-testid="badge-nfe-blocked"
             className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-600"
@@ -333,11 +333,20 @@ function SelectedOrderEmitRow({
             <AlertCircle className="w-3.5 h-3.5" />
             {blockReason}
           </span>
-        )}
+        ) : justUnlocked ? (
+          <span
+            data-testid="badge-nfe-unlocked"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Liberado
+          </span>
+        ) : null}
       </div>
       <div className="flex gap-2">
         <Button
           type="button"
+          id={`emit-btn-${selectedOrderId}`}
           data-testid="button-emitir-nfe"
           onClick={() => {
             if (blocked) {
@@ -348,7 +357,7 @@ function SelectedOrderEmitRow({
           }}
           disabled={emitirMutation.isPending || blocked || checkingEmit}
           title={blocked ? blockReason : "Gerar XML"}
-          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+          className={`bg-emerald-600 hover:bg-emerald-700 text-white ${justUnlocked ? "unlock-highlight" : ""}`}
         >
           {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
           Gerar XML

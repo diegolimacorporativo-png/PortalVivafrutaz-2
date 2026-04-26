@@ -126,7 +126,7 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
     queryKey: ['/api/nfe/diagnostics/training/patterns'],
   });
 
-  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit } = useCanEmitNfe(orderId);
+  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(orderId);
   const emitBlocked = canEmit === false;
 
   const resolveMutation = useMutation({
@@ -223,6 +223,7 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
               <Button
                 type="button"
                 size="sm"
+                id={`emit-btn-${orderId}`}
                 onClick={() => {
                   if (emitBlocked) {
                     toast({ title: 'Faturamento bloqueado', description: blockReason, variant: 'destructive' });
@@ -232,7 +233,7 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
                 }}
                 disabled={emitBlocked || checkingEmit}
                 title={emitBlocked ? blockReason : 'Emitir NF-e'}
-                className="h-8 text-xs"
+                className={`h-8 text-xs ${justUnlocked ? 'unlock-highlight' : ''}`}
                 data-testid="button-emitir-ready"
               >
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
@@ -250,6 +251,15 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
             >
               <XCircle className="w-3 h-3" />
               Faturamento bloqueado: {blockReason}
+            </span>
+          )}
+          {!emitBlocked && justUnlocked && (
+            <span
+              data-testid="badge-faturamento-unlocked"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-800 border border-green-200"
+            >
+              <CheckCircle2 className="w-3 h-3" />
+              Liberado para emissão
             </span>
           )}
           {resumo.criticos > 0 && (

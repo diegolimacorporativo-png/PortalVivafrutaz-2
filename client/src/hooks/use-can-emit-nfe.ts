@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 export type CanEmitNfeResponse = {
@@ -26,11 +27,33 @@ export function useCanEmitNfe(orderId: number | null | undefined) {
     enabled: !!orderId,
   });
 
+  const allowed = query.data?.allowed ?? null;
+
+  // Detect blocked → allowed transitions so the UI can flash a confirmation
+  // (button highlight + transient "✔ Liberado"). The flag auto-clears after
+  // 1.2s so callers don't need timer plumbing.
+  const wasBlockedRef = useRef(false);
+  const [justUnlocked, setJustUnlocked] = useState(false);
+
+  useEffect(() => {
+    if (allowed === false) {
+      wasBlockedRef.current = true;
+      return;
+    }
+    if (allowed === true && wasBlockedRef.current) {
+      wasBlockedRef.current = false;
+      setJustUnlocked(true);
+      const t = setTimeout(() => setJustUnlocked(false), 1200);
+      return () => clearTimeout(t);
+    }
+  }, [allowed]);
+
   return {
-    allowed: query.data?.allowed ?? null,
+    allowed,
     reason: query.data?.reason ?? "",
     isLoading: query.isLoading,
     isError: query.isError,
     refetch: query.refetch,
+    justUnlocked,
   };
 }

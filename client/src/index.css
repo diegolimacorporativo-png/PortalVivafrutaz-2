@@ -62,4 +62,14 @@
   .premium-shadow {
     @apply shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_8px_30px_rgb(0,0,0,0.08)] transition-shadow duration-300;
   }
+
+  .unlock-highlight {
+    animation: pulse-green 1.2s ease;
+  }
+}
+
+@keyframes pulse-green {
+  0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+  50%  { box-shadow: 0 0 12px 4px rgba(16, 185, 129, 0.7); }
+  100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
 }
