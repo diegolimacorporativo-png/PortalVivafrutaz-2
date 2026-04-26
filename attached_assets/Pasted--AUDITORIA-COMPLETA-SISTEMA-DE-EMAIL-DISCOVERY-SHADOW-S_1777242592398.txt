@@ -1,0 +1,163 @@
+# 🔍 AUDITORIA COMPLETA — SISTEMA DE EMAIL (DISCOVERY + SHADOW SEARCH)
+
+## 🎯 OBJETIVO
+
+Mapear TODA e QUALQUER estrutura de envio de email no sistema.
+
+👉 NÃO implementar nada  
+👉 NÃO alterar nada  
+👉 NÃO corrigir nada  
+
+✅ Apenas descobrir, mapear e avaliar  
+
+---
+
+# 🧠 IMPORTANTE
+
+Essa auditoria deve:
+
+- encontrar código oficial  
+- encontrar código antigo  
+- encontrar código escondido  
+- encontrar código não usado (dead code)  
+- encontrar qualquer envio indireto  
+
+👉 Inclusive fora do padrão atual do sistema
+
+---
+
+# 🧭 FASE 1 — DISCOVERY GLOBAL
+
+Buscar no projeto inteiro por:
+
+### 🔎 Palavras-chave
+
+- email
+- mail
+- smtp
+- nodemailer
+- resend
+- sendgrid
+- transporter
+- sendEmail
+- send_mail
+- mailer
+- gmail
+- outlook
+- ses
+- transport
+- message
+
+---
+
+# 🧱 FASE 2 — VARREDURA DE ARQUIVOS
+
+Analisar:
+
+- server/services/*
+- server/modules/*
+- server/utils/*
+- scripts/
+- jobs/
+- crons/
+- qualquer pasta legacy
+
+---
+
+# 🧪 FASE 3 — SHADOW CODE (FORA DO PADRÃO)
+
+Procurar especificamente:
+
+- funções não usadas
+- arquivos não importados
+- código comentado
+- integrações abandonadas
+- env vars não utilizadas
+- configs antigas de email
+
+👉 Isso é crítico
+
+---
+
+# ⚙️ FASE 4 — VARIÁVEIS DE AMBIENTE
+
+Mapear todas:
+
+- process.env.EMAIL
+- process.env.SMTP
+- process.env.MAIL
+
+Listar:
+
+- quais existem
+- quais são usadas
+- quais estão órfãs
+
+---
+
+# 📡 FASE 5 — FLUXO REAL
+
+Responder:
+
+- O sistema envia email hoje?
+- Em que ponto?
+- Quem dispara?
+- É usado em produção ou só mock?
+
+---
+
+# 🔗 FASE 6 — INTEGRAÇÃO
+
+Avaliar:
+
+- Dá pra reaproveitar?
+- Está alinhado com arquitetura atual?
+- Está acoplado errado?
+- Está seguro?
+
+---
+
+# 📊 FASE 7 — RELATÓRIO FINAL
+
+Formato obrigatório:
+
+json {   "exists": true/false,   "providersFound": [],   "files": [],   "functions": [],   "envVars": [],   "shadowCode": [],   "activelyUsed": true/false,   "canReuse": true/false,   "recommendation": "reuse | rebuild | hybrid",   "riskLevel": "low | medium | high" } 
+
+---
+
+# 🚫 PROIBIDO
+
+❌ Não corrigir código  
+❌ Não sugerir implementação ainda  
+❌ Não modificar nada  
+❌ Não sair do escopo de auditoria  
+
+---
+
+# 🎯 RESULTADO ESPERADO
+
+Você deve me dizer:
+
+👉 Se já existe email  
+👉 Se está sendo usado  
+👉 Se está abandonado  
+👉 Se deve reaproveitar ou ignorar  
+
+---
+
+# 🔜 PRÓXIMO PASSO
+
+Após essa auditoria:
+
+👉 STEP 9.3F.14 — Email real (com decisão correta)
+
+---
+
+## 🚀 EXECUTAR
+
+1. Fazer varredura completa  
+2. Identificar tudo (inclusive oculto)  
+3. Consolidar relatório  
+4. NÃO alterar nada  
+
+Sem exceções.
