@@ -1,0 +1,215 @@
+# 🧠 CONTEXTO DO SISTEMA — ALERTAS, CRON E ANALYTICS (OBRIGATÓRIO LER ANTES DE ALTERAR)
+
+## 🎯 OBJETIVO DESTE BLOCO
+Fornecer contexto completo do sistema atual para:
+
+- EVITAR duplicação de lógica  
+- EVITAR recriação de serviços já existentes  
+- GARANTIR uso correto da arquitetura atual  
+- PERMITIR evolução incremental segura  
+
+👉 Este sistema JÁ possui infraestrutura completa de alertas.
+
+---
+
+# 🧱 ARQUITETURA EXISTENTE (NÃO RECRIAR)
+
+## 1. 🔔 Alert Service (CORE DO SISTEMA)
+
+Arquivo:
+- server/services/alerts.service.ts
+
+Função principal:
+ts emitAlert(input) 
+
+### ✔ Já implementado:
+
+- envio multi-canal:
+  - email
+  - slack
+  - whatsapp
+
+- rate-limit:
+  - janela: 10 minutos
+  - chave baseada em severity
+
+- retorno estruturado:
+ts {   rateLimited: boolean,   attempted: number,   delivered: number,   results: [     {       channel: "email" | "slack" | "whatsapp",       target: string,       ok: boolean,       reason?: string     }   ] } 
+
+### ❌ REGRAS
+- NÃO alterar lógica do emitAlert
+- NÃO duplicar envio de alerta
+- NÃO criar novo sistema de notificação
+
+---
+
+## 2. 🧠 Store em Memória (CACHE)
+
+Arquivo:
+- server/modules/nfe/alerts-log.store.ts
+
+Funções:
+- recordAlertLog
+- getAlertLogs
+- clearAlertLogs
+
+### ✔ Características:
+- limite: 200 logs
+- uso: leitura rápida (UI)
+
+👉 funciona como cache (não persistente)
+
+---
+
+## 3. 💾 Persistência (BANCO)
+
+Tabela:
+- cron_alert_logs
+
+Campos:
+- id
+- created_at
+- severity
+- title
+- message
+- results (jsonb)
+- rate_limited (boolean)
+- context (jsonb opcional)
+
+### ✔ Já implementado:
+
+- persistência via:
+ts persistAlertLog(entry) 
+
+- chamada dentro do emitAlert (2 pontos):
+  - rate-limit
+  - envio normal
+
+- execução:
+ts void persistAlertLog(...) 
+
+👉 NÃO bloqueia o fluxo principal
+
+---
+
+## 4. ⚙️ Housekeeping (PRUNE AUTOMÁTICO)
+
+Função:
+ts pruneOldAlertLogs(days) 
+
+### ✔ Já existe:
+
+- remoção automática (90 dias padrão)
+- job com setInterval (24h)
+- proteção anti-duplicação:
+ts globalThis.__alertPruneStarted 
+
+---
+
+## 5. 🌐 ROTAS EXISTENTES
+
+### Logs (histórico)
+GET /api/cron/alerts/logs
+
+### Recipients
+GET /api/cron/alerts/recipients PUT /api/cron/alerts/recipients
+
+### Prune manual
+DELETE /api/cron/alerts/logs?days=N
+
+### Analytics (NOVO)
+GET /api/cron/alerts/analytics?days=N
+
+👉 Todas protegidas por:
+- requireAuthCore
+- requireRole (MASTER, ADMIN, DIRECTOR)
+
+---
+
+## 6. 📊 ANALYTICS (JÁ IMPLEMENTADO)
+
+Retorna:
+
+ts {   windowDays,   totals: { total, sent, rate_limited },   bySeverity: [],   byChannel: [],   topTitles: [] } 
+
+### ✔ Já cobre:
+
+- agregação por tempo
+- agrupamento por severidade
+- canais (jsonb)
+- títulos recorrentes
+
+---
+
+## 7. 🖥️ FRONTEND
+
+Arquivo:
+- client/src/pages/admin/faturamento.tsx
+
+### ✔ Já existe:
+
+- polling (12s–15s)
+- card de analytics
+- card de auditoria
+- seleção de janela (7 / 30 / 90 dias)
+
+---
+
+# ❗ REGRAS ABSOLUTAS
+
+❌ NÃO criar novo serviço de alertas  
+❌ NÃO duplicar persistência  
+❌ NÃO alterar emitAlert  
+❌ NÃO alterar formato das rotas existentes  
+❌ NÃO remover store em memória  
+
+---
+
+# 🧠 COMO EVOLUIR CORRETAMENTE
+
+Qualquer nova funcionalidade deve:
+
+✔ Reutilizar cron_alert_logs  
+✔ Reutilizar emitAlert  
+✔ Reutilizar persistAlertLog  
+✔ Ser ADITIVA (nunca substitutiva)  
+
+---
+
+# 🚀 ESTADO ATUAL DO SISTEMA
+
+✔ Alertas funcionando  
+✔ Persistência ativa  
+✔ Retenção controlada  
+✔ Analytics disponível  
+✔ UI funcional  
+
+👉 Sistema pronto para:
+
+- alertas inteligentes  
+- detecção de anomalia  
+- insights automáticos  
+
+---
+
+# ⚠️ IMPORTANTE
+
+Se algo já existir:
+
+👉 REUTILIZAR  
+👉 NÃO recriar  
+
+Se precisar adicionar:
+
+👉 FAZER EM PARALELO  
+👉 SEM impactar fluxo atual  
+
+---
+
+# 🎯 PRÓXIMO PASSO
+
+Implementar:
+
+👉 STEP 9.3F.6 — Alertas Inteligentes
+
+-
