@@ -75,6 +75,29 @@ const STATUS_LABEL: Record<string, string> = {
   DELIVERED: "Entregue",
 };
 
+// Operational (workflowStatus) badges — shown next to legacy status when set.
+const WF_BADGE: Record<string, string> = {
+  APPROVED:   "bg-blue-50 text-blue-700 border-blue-200",
+  PROCESSING: "bg-amber-50 text-amber-700 border-amber-200",
+  READY:      "bg-violet-50 text-violet-700 border-violet-200",
+  INVOICED:   "bg-cyan-50 text-cyan-700 border-cyan-200",
+  SHIPPED:    "bg-indigo-50 text-indigo-700 border-indigo-200",
+  DELIVERED:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+
+const WF_LABEL: Record<string, string> = {
+  CREATED:          "Criado",
+  PENDING_APPROVAL: "Aguardando Aprovação",
+  APPROVED:         "Aprovado",
+  PROCESSING:       "Em Separação",
+  READY:            "Pedido Pronto",
+  INVOICED:         "Faturado",
+  SHIPPED:          "Em Rota",
+  DELIVERED:        "Entregue",
+  REJECTED:         "Rejeitado",
+  CANCELLED:        "Cancelado",
+};
+
 // ─── Admin Note Modal ─────────────────────────────────────────
 function AdminNoteModal({
   order, onClose, onSave
@@ -767,7 +790,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
 
 // ─── Order Row ────────────────────────────────────────────────
 function OrderRow({
-  order, company, companyName, products, onNoteEdit, onEdit, onCancel, onRestore, onPatchNimbi, onApproveReopen, onDenyReopen, onBlingExport
+  order, company, companyName, products, onNoteEdit, onEdit, onCancel, onRestore, onPatchNimbi, onApproveReopen, onDenyReopen, onBlingExport, onTransition
 }: {
   order: Order;
   company: any;
@@ -781,6 +804,7 @@ function OrderRow({
   onApproveReopen: (order: Order) => void;
   onDenyReopen: (order: Order) => void;
   onBlingExport: (order: Order) => Promise<void>;
+  onTransition: (order: Order, to: string, label: string) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [nimbiDate, setNimbiDate] = useState(order.nimbiExpiration || '');
@@ -815,6 +839,15 @@ function OrderRow({
                 <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md ${STATUS_BADGE[order.status] || STATUS_BADGE.ACTIVE}`}>
                   {STATUS_LABEL[order.status] || order.status}
                 </span>
+                {order.workflowStatus && WF_BADGE[order.workflowStatus] && (
+                  <span
+                    data-testid={`badge-workflow-${order.id}`}
+                    className={`text-xs font-bold px-1.5 py-0.5 rounded-md border ${WF_BADGE[order.workflowStatus]}`}
+                    title={`Etapa operacional: ${WF_LABEL[order.workflowStatus] || order.workflowStatus}`}
+                  >
+                    {WF_LABEL[order.workflowStatus] || order.workflowStatus}
+                  </span>
+                )}
                 {order.fiscalStatus && (
                   <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md border ${FISCAL_BADGE[order.fiscalStatus] || "bg-gray-100 text-gray-600 border-gray-300"}`}>
                     {FISCAL_LABEL[order.fiscalStatus] || order.fiscalStatus}
@@ -890,6 +923,28 @@ function OrderRow({
               </>
             ) : !isCancelled ? (
               <>
+                {(() => {
+                  const wf = order.workflowStatus as string | undefined;
+                  const NEXT: Record<string, { to: string; label: string; cls: string }> = {
+                    APPROVED:   { to: "PROCESSING", label: "Iniciar Separação", cls: "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100" },
+                    PROCESSING: { to: "READY",      label: "Pedido Pronto",     cls: "bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100" },
+                    READY:      { to: "INVOICED",   label: "Faturar",           cls: "bg-cyan-50 text-cyan-700 border-cyan-300 hover:bg-cyan-100" },
+                    INVOICED:   { to: "SHIPPED",    label: "Saiu p/ Entrega",   cls: "bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100" },
+                    SHIPPED:    { to: "DELIVERED",  label: "Entregue",          cls: "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100" },
+                  };
+                  const step = wf ? NEXT[wf] : undefined;
+                  if (!step) return null;
+                  return (
+                    <button
+                      data-testid={`button-transition-${order.id}`}
+                      onClick={() => onTransition(order, step.to, step.label)}
+                      title={`Mover para: ${step.label}`}
+                      className={`px-2 py-1 text-xs font-bold rounded-lg border transition-colors ${step.cls}`}
+                    >
+                      {step.label}
+                    </button>
+                  );
+                })()}
                 <button
                   data-testid={`button-note-${order.id}`}
                   onClick={() => onNoteEdit(order)}
@@ -1638,6 +1693,25 @@ export default function OrdersPage() {
     } catch (e: any) { toast({ title: e.message || "Erro", variant: "destructive" }); }
   };
 
+  const transitionOrder = async (order: Order, to: string, label: string) => {
+    try {
+      const res = await fetch(`/api/orders/${order.id}/transition`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(normalizeError(d).message);
+      }
+      queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
+      toast({ title: `Pedido movido para: ${label}` });
+    } catch (e: any) {
+      toast({ title: e.message || "Erro ao atualizar etapa", variant: "destructive" });
+    }
+  };
+
   const saveItems = async (items: any[]) => {
     const res = await fetch(`/api/orders/${editOrder!.id}/items`, {
       method: 'PUT',
@@ -1849,6 +1923,7 @@ export default function OrdersPage() {
                       onApproveReopen={approveReopen}
                       onDenyReopen={denyReopen}
                       onBlingExport={blingExport}
+                      onTransition={transitionOrder}
                     />
                   );
                 })

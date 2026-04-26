@@ -1068,6 +1068,22 @@ export class OrdersService {
     if (!["CONFIRMED", "ACTIVE"].includes((data.order as any).status)) {
       throw new BadRequestError("Pedido não pode ser reaberto neste status.");
     }
+    // Operational guard: once the order has entered the logistics pipeline
+    // (PROCESSING / READY / INVOICED / SHIPPED / DELIVERED) the client can no
+    // longer request edits — separation has started in the warehouse.
+    const wfBlocked = new Set([
+      "PROCESSING",
+      "READY",
+      "INVOICED",
+      "SHIPPED",
+      "DELIVERED",
+    ]);
+    const wf = (data.order as any).workflowStatus as string | undefined;
+    if (wf && wfBlocked.has(wf)) {
+      throw new BadRequestError(
+        "Pedido já entrou em separação e não pode mais ser editado.",
+      );
+    }
     const updated = await this.repo.update(id, {
       status: "REOPEN_REQUESTED",
       reopenReason: String(reason).trim(),

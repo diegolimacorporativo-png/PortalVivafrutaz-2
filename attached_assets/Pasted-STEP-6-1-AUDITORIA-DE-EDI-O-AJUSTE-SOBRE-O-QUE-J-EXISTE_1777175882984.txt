@@ -1,0 +1,149 @@
+STEP 6.1 — AUDITORIA DE EDIÇÃO (AJUSTE SOBRE O QUE JÁ EXISTE)
+
+OBJETIVO  
+Analisar o sistema atual e:
+
+- identificar o que já existe sobre edição de pedidos  
+- validar se já há registro de motivo / logs  
+- ajustar inconsistências  
+- completar apenas o que faltar  
+
+🚫 NÃO recriar estrutura existente  
+🚫 NÃO duplicar tabelas  
+🚫 NÃO quebrar fluxo atual  
+
+---
+
+## STEP 1 — DESCOBERTA (OBRIGATÓRIO)
+
+Verificar:
+
+- existe tabela de log? (ex: order_logs, order_history, etc.)
+- existe campo de motivo? (reason, note, etc.)
+- existe registro de status?
+- existe tracking de usuário?
+
+Mapear claramente:
+
+✔ o que já cobre auditoria  
+✔ o que está incompleto  
+✔ onde os logs estão sendo gerados  
+
+---
+
+## STEP 2 — VALIDAÇÃO DO FLUXO
+
+Garantir que os eventos abaixo estão sendo registrados:
+
+1. Solicitação de alteração (cliente)
+2. Aprovação (admin)
+3. Atualização do pedido
+
+Se algum NÃO estiver sendo registrado:
+
+👉 adicionar log utilizando a estrutura existente (mesma tabela / mesmo padrão)
+
+---
+
+## STEP 3 — AJUSTES NECESSÁRIOS
+
+Se faltar informação:
+
+✔ adicionar campo (ex: reason)  
+✔ padronizar nome de campos inconsistentes  
+✔ garantir createdAt com default  
+
+🚫 NÃO criar nova tabela se já existir equivalente  
+
+---
+
+## STEP 4 — PADRONIZAÇÃO (CRÍTICO)
+
+Garantir ENUM lógico (mesmo que seja string):
+
+ts action: "REQUEST" | "APPROVE" | "UPDATE"; 
+
+✔ todos os logs devem usar esse padrão  
+✔ evitar valores livres ("editado", "ok", etc.)  
+
+---
+
+## STEP 5 — LOG NOS PONTOS CORRETOS
+
+Garantir que os logs existam exatamente nestes momentos:
+
+### Cliente solicita alteração
+ts action: "REQUEST" 
+
+---
+
+### Admin aprova edição
+ts action: "APPROVE" 
+
+---
+
+### Pedido atualizado
+ts action: "UPDATE" 
+
+✔ usar sempre o mesmo formato  
+✔ incluir userId quando possível  
+✔ incluir reason apenas no REQUEST  
+
+---
+
+## STEP 6 — RETENÇÃO (SIMPLES E SEGURA)
+
+Se já existe tabela de log:
+
+Implementar limpeza automática leve:
+
+ts await db.delete(logTable).where(   lt(logTable.createdAt, new Date(Date.now() - 120 * 24 * 60 * 60 * 1000)) ); 
+
+✔ 120 dias (~4 meses)  
+✔ sem scheduler complexo  
+
+Executar 1x por dia:
+
+ts setInterval(cleanupLogs, 24 * 60 * 60 * 1000); 
+
+---
+
+## STEP 7 — SEGURANÇA
+
+Garantir:
+
+✔ logs dentro de try/catch  
+✔ nunca quebrar fluxo principal  
+✔ falha de log NÃO impacta pedido  
+
+Exemplo:
+
+ts try {   // log } catch (e) {   console.warn("log failed", e); } 
+
+---
+
+## STEP 8 — TESTE REAL
+
+Validar:
+
+✔ cliente solicita → log criado  
+✔ admin aprova → log criado  
+✔ pedido editado → log criado  
+
+✔ logs antigos são removidos após retenção  
+
+---
+
+## RESULTADO
+
+✔ aproveita estrutura existente  
+✔ auditoria funcional  
+✔ sistema consistente  
+✔ sem duplicação  
+✔ sem impacto em performance  
+
+---
+
+RISCO
+
+LOW ✅

@@ -154,6 +154,8 @@ export const transitionBodySchema = z.object({
     "CREATED",
     "PENDING_APPROVAL",
     "APPROVED",
+    "PROCESSING",
+    "READY",
     "REJECTED",
     "INVOICED",
     "SHIPPED",

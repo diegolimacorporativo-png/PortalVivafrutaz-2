@@ -28,6 +28,16 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   PENDING: { label: "Pendente", color: "bg-yellow-100 text-yellow-700" },
 };
 
+// Operational pipeline labels (workflowStatus) — extra badge for the customer.
+const WF_LABELS: Record<string, { label: string; color: string }> = {
+  APPROVED:   { label: "Aprovado",      color: "bg-blue-50 text-blue-700 border border-blue-200" },
+  PROCESSING: { label: "Em Separação",  color: "bg-amber-50 text-amber-700 border border-amber-200" },
+  READY:      { label: "Pedido Pronto", color: "bg-violet-50 text-violet-700 border border-violet-200" },
+  INVOICED:   { label: "Faturado",      color: "bg-cyan-50 text-cyan-700 border border-cyan-200" },
+  SHIPPED:    { label: "Em Rota",       color: "bg-indigo-50 text-indigo-700 border border-indigo-200" },
+  DELIVERED:  { label: "Entregue",      color: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+};
+
 const MONTHS = [
   "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
@@ -468,6 +478,15 @@ export default function OrderHistoryPage() {
                       <div className="flex items-center flex-wrap gap-2 mb-1">
                         <h3 className="text-lg font-bold text-foreground font-mono">{order.orderCode || `#${String(order.id).padStart(4, '0')}`}</h3>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${status.color}`}>{status.label}</span>
+                        {(order as any).workflowStatus && WF_LABELS[(order as any).workflowStatus] && (
+                          <span
+                            data-testid={`badge-workflow-${order.id}`}
+                            className={`px-2 py-0.5 rounded-full text-xs font-bold ${WF_LABELS[(order as any).workflowStatus].color}`}
+                            title="Etapa operacional"
+                          >
+                            {WF_LABELS[(order as any).workflowStatus].label}
+                          </span>
+                        )}
                         {isLocked(order.status) && <Lock className="w-3.5 h-3.5 text-muted-foreground" />}
                         {order.status === 'OPEN_FOR_EDITING' && <Unlock className="w-3.5 h-3.5 text-yellow-600" />}
                       </div>

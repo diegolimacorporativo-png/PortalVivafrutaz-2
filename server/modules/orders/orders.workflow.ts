@@ -22,6 +22,8 @@ export const LEGACY_STATUS_MAP: Record<string, string> = {
   CREATED:          "ACTIVE",
   PENDING_APPROVAL: "ACTIVE",
   APPROVED:         "CONFIRMED",
+  PROCESSING:       "CONFIRMED",
+  READY:            "CONFIRMED",
   INVOICED:         "CONFIRMED",
   SHIPPED:          "CONFIRMED",
   DELIVERED:        "DELIVERED",
@@ -50,6 +52,8 @@ export const OrderStatus = {
   CREATED:          "CREATED",
   PENDING_APPROVAL: "PENDING_APPROVAL",
   APPROVED:         "APPROVED",
+  PROCESSING:       "PROCESSING",
+  READY:            "READY",
   REJECTED:         "REJECTED",
   INVOICED:         "INVOICED",
   SHIPPED:          "SHIPPED",
@@ -78,7 +82,11 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.CREATED]:          [OrderStatus.PENDING_APPROVAL, OrderStatus.CANCELLED],
   [OrderStatus.PENDING_APPROVAL]: [OrderStatus.APPROVED, OrderStatus.REJECTED, OrderStatus.CANCELLED],
-  [OrderStatus.APPROVED]:         [OrderStatus.INVOICED, OrderStatus.CANCELLED],
+  // APPROVED can either go straight to INVOICED (legacy fast path) or step
+  // through the operational pipeline PROCESSING → READY before invoicing.
+  [OrderStatus.APPROVED]:         [OrderStatus.PROCESSING, OrderStatus.INVOICED, OrderStatus.CANCELLED],
+  [OrderStatus.PROCESSING]:       [OrderStatus.READY, OrderStatus.CANCELLED],
+  [OrderStatus.READY]:            [OrderStatus.INVOICED, OrderStatus.CANCELLED],
   [OrderStatus.REJECTED]:         [],
   [OrderStatus.INVOICED]:         [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
   [OrderStatus.SHIPPED]:          [OrderStatus.DELIVERED],
@@ -94,6 +102,8 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
  */
 const TRANSITION_ROLES: Partial<Record<OrderStatus, readonly string[]>> = {
   [OrderStatus.APPROVED]:  ["MASTER", "ADMIN", "DIRECTOR", "FINANCEIRO", "OPERATIONS_MANAGER"],
+  [OrderStatus.PROCESSING]:["MASTER", "ADMIN", "DIRECTOR", "LOGISTICS", "OPERATIONS_MANAGER"],
+  [OrderStatus.READY]:     ["MASTER", "ADMIN", "DIRECTOR", "LOGISTICS", "OPERATIONS_MANAGER"],
   [OrderStatus.REJECTED]:  ["MASTER", "ADMIN", "DIRECTOR", "OPERATIONS_MANAGER"],
   [OrderStatus.INVOICED]:  ["MASTER", "ADMIN", "DIRECTOR", "FINANCEIRO"],
   [OrderStatus.SHIPPED]:   ["MASTER", "ADMIN", "DIRECTOR", "LOGISTICS", "OPERATIONS_MANAGER"],
