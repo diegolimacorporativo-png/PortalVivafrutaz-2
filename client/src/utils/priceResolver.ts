@@ -19,6 +19,15 @@ export interface ResolvePriceInput {
   contractPrice?: number | string | null;
   adminFee?: number | string | null;
   useNewPricing?: boolean;
+  /**
+   * Optional product-level mode that explicitly tells the resolver where
+   * the price comes from. When set, it short-circuits the normal
+   * priority chain (contract > subCategory > base):
+   *   - "base"     → use only basePrice
+   *   - "category" → use contractPrice ?? subCategoryPrice (never basePrice)
+   * If omitted, the legacy contract > subCategory > base priority is used.
+   */
+  pricingMode?: "base" | "category";
 }
 
 function toNum(v: unknown): number | null {
@@ -33,14 +42,25 @@ export function resolvePrice({
   contractPrice,
   adminFee,
   useNewPricing,
+  pricingMode,
 }: ResolvePriceInput): number {
   const contract = toNum(contractPrice);
   const sub = toNum(subCategoryPrice);
   const base = toNum(basePrice);
 
-  // Priority: contract > sub-category > base. 0 is a valid override —
-  // only null/undefined falls through to the next source.
-  let price: number = contract ?? sub ?? base ?? 0;
+  let price: number;
+  if (pricingMode === "base") {
+    // Explicitly base-only: ignore overrides entirely.
+    price = base ?? 0;
+  } else if (pricingMode === "category") {
+    // Explicitly category-priced: never fall back to basePrice, even
+    // if a stale value happens to exist on the row.
+    price = contract ?? sub ?? 0;
+  } else {
+    // Legacy / unspecified: contract > sub-category > base. 0 is a
+    // valid override — only null/undefined falls through.
+    price = contract ?? sub ?? base ?? 0;
+  }
 
   if (useNewPricing === true) {
     const fee = toNum(adminFee);

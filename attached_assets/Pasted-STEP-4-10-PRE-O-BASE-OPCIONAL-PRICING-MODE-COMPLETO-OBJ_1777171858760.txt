@@ -1,0 +1,206 @@
+STEP 4.10 — PREÇO BASE OPCIONAL + PRICING MODE COMPLETO
+
+OBJETIVO  
+Permitir que o produto seja cadastrado com:
+
+- OU preço base  
+- OU preço por categoria  
+
+Com controle explícito via pricingMode, sem conflito de dados.
+
+---
+
+STEP 1 — ADICIONAR PRICING MODE NO FRONTEND
+
+Arquivo:
+client/src/pages/admin/products.tsx
+
+Adicionar estado:
+
+ts
+const [pricingMode, setPricingMode] = useState<"base" | "category">("category");
+
+---
+
+STEP 2 — UI DE SELEÇÃO
+
+Adicionar acima da seção de preços:
+
+tsx
+<div className="flex gap-4 mb-4">
+  <label>
+    <input
+      type="radio"
+      value="category"
+      checked={pricingMode === "category"}
+      onChange={() => setPricingMode("category")}
+    />
+    Usar preço por categoria
+  </label>
+
+  <label>
+    <input
+      type="radio"
+      value="base"
+      checked={pricingMode === "base"}
+      onChange={() => setPricingMode("base")}
+    />
+    Usar preço base
+  </label>
+</div>
+
+---
+
+STEP 3 — LIMPEZA AUTOMÁTICA AO TROCAR MODO
+
+ts
+useEffect(() => {
+  if (pricingMode === "category") {
+    setBasePrice(null);
+  }
+
+  if (pricingMode === "base") {
+    setCategories([]);
+  }
+}, [pricingMode]);
+
+---
+
+STEP 4 — CAMPO BASE OPCIONAL
+
+Alterar schema (frontend validation):
+
+ANTES:
+ts
+basePrice: z.number()
+
+DEPOIS:
+ts
+basePrice: z.number().optional().nullable()
+
+---
+
+STEP 5 — REMOVER OBRIGATORIEDADE VISUAL
+
+Alterar label:
+
+ANTES:
+Preço Base Interno (R$) *
+
+DEPOIS:
+Preço Base Interno (R$)
+
+---
+
+STEP 6 — EXIBIÇÃO CONDICIONAL
+
+tsx
+{pricingMode === "base" && (
+  <Input
+    value={basePrice ?? ""}
+    onChange={(e) => setBasePrice(Number(e.target.value))}
+  />
+)}
+
+---
+
+STEP 7 — VALIDAÇÃO ANTES DO SAVE
+
+ts
+if (pricingMode === "base" && !basePrice) {
+  throw new Error("Preço base obrigatório");
+}
+
+if (pricingMode === "category" && categories.length === 0) {
+  throw new Error("Selecione ao menos uma categoria com preço");
+}
+
+---
+
+STEP 8 — ENVIAR PRICING MODE PARA O BACKEND
+
+ts
+await api.post("/api/products", {
+  ...data,
+  basePrice,
+  categories,
+  pricingMode
+});
+
+---
+
+STEP 9 — AJUSTAR RESOLVER (FRONTEND)
+
+Arquivo:
+client/src/utils/priceResolver.ts
+
+Atualizar função:
+
+ts
+export function resolvePrice({
+  basePrice,
+  subCategoryPrice,
+  contractPrice,
+  adminFee,
+  useNewPricing,
+  pricingMode
+}: any) {
+  let price = 0;
+
+  if (pricingMode === "base") {
+    price = basePrice ?? 0;
+  } else {
+    price = contractPrice ?? subCategoryPrice ?? 0;
+  }
+
+  if (useNewPricing && adminFee) {
+    price = price * (1 + adminFee / 100);
+  }
+
+  return Number(price.toFixed(2));
+}
+
+---
+
+STEP 10 — CARREGAR MODO AO EDITAR
+
+ts
+useEffect(() => {
+  if (product) {
+    setPricingMode(product.pricingMode || "category");
+  }
+}, [product]);
+
+---
+
+STEP 11 — NÃO ALTERAR BACKEND
+
+- não mudar rotas  
+- não mudar schema (por enquanto)  
+- backend aceita pricingMode mas não depende dele ainda  
+
+---
+
+STEP 12 — TESTES OBRIGATÓRIOS
+
+1. Criar produto só com base → salvar OK  
+2. Criar produto só com categoria → salvar OK  
+3. Criar sem nenhum → erro  
+4. Trocar modo → dados limpam corretamente  
+5. Editar produto → modo mantém correto  
+
+---
+
+RESULTADO
+
+✔ preço base opcional  
+✔ UX clara  
+✔ sem conflito de dados  
+✔ pronto para Excel  
+✔ compatível com resolver  
+
+---
+
+RISCO
+
+LOW

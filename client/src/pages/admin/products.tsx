@@ -41,6 +41,7 @@ function useCategories() {
 }
 
 type CategorySelection = { categoryName: string; price: string };
+type PricingMode = "base" | "category";
 
 const emptyForm = {
   name: "",
@@ -58,9 +59,22 @@ const emptyForm = {
   commercialUnit: "",
   productCode: "",
   categorySelections: [] as CategorySelection[],
+  pricingMode: "category" as PricingMode,
 };
 
 function productToForm(p: Product): typeof emptyForm {
+  // Infer the original mode from persisted data so editing keeps the
+  // chosen behaviour. The new `pricingMode` field is read first when the
+  // backend exposes it; otherwise we fall back to "base" only when a
+  // basePrice exists and assume "category" by default.
+  const persistedMode = (p as any).pricingMode as PricingMode | undefined;
+  const inferredMode: PricingMode =
+    persistedMode === "base" || persistedMode === "category"
+      ? persistedMode
+      : p.basePrice
+        ? "base"
+        : "category";
+
   return {
     name: p.name,
     unit: p.unit,
@@ -77,6 +91,7 @@ function productToForm(p: Product): typeof emptyForm {
     commercialUnit: (p as any).commercialUnit || "",
     productCode: (p as any).productCode || "",
     categorySelections: [],
+    pricingMode: inferredMode,
   };
 }
 
@@ -515,6 +530,23 @@ export default function ProductsPage() {
     }
   }, [editingProduct?.id, editingSubCats]);
 
+  // Quando o usuário troca o modo de precificação, limpamos o campo
+  // que NÃO se aplica ao novo modo. Isso evita que dados orfãos sejam
+  // enviados ao backend e mantém o formulário consistente com a UX.
+  useEffect(() => {
+    if (formData.pricingMode === "category") {
+      if (formData.basePrice !== "") {
+        setFormData(prev => ({ ...prev, basePrice: "" }));
+        setPriceError(false);
+      }
+    } else if (formData.pricingMode === "base") {
+      if (formData.categorySelections.length > 0) {
+        setFormData(prev => ({ ...prev, categorySelections: [] }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.pricingMode]);
+
   const openCreate = () => {
     setEditingProduct(null);
     setFormData(emptyForm);
@@ -573,25 +605,30 @@ export default function ProductsPage() {
     setCodeError(null);
     setDuplicateError(null);
 
-    // Validação: ao menos uma categoria selecionada
-    if (formData.categorySelections.length === 0) {
-      toast({ title: 'Selecione ao menos uma categoria', description: 'Escolha pelo menos uma categoria e informe o preço.', variant: 'destructive' });
-      return;
-    }
+    // Validações dependem do modo escolhido. Em "category", exigimos
+    // ao menos uma categoria com preço > 0; em "base", exigimos um
+    // preço base > 0. Nunca os dois — o useEffect já limpa o lado
+    // não-utilizado ao trocar de modo.
+    let priceNum = 0;
 
-    // Validação: todas as categorias selecionadas devem ter preço > 0
-    const missingPrice = formData.categorySelections.find(s => !s.price || Number(s.price) <= 0);
-    if (missingPrice) {
-      toast({ title: `Preço ausente em "${missingPrice.categoryName}"`, description: 'Informe o preço para todas as categorias selecionadas.', variant: 'destructive' });
-      return;
-    }
-
-    // Validação: preço base
-    const priceNum = Number(formData.basePrice);
-    if (!formData.basePrice || isNaN(priceNum) || priceNum <= 0) {
-      setPriceError(true);
-      toast({ title: 'Preço base obrigatório', description: 'Informe um preço base válido (maior que zero) antes de salvar.', variant: 'destructive' });
-      return;
+    if (formData.pricingMode === "category") {
+      if (formData.categorySelections.length === 0) {
+        toast({ title: 'Selecione ao menos uma categoria', description: 'Escolha pelo menos uma categoria e informe o preço.', variant: 'destructive' });
+        return;
+      }
+      const missingPrice = formData.categorySelections.find(s => !s.price || Number(s.price) <= 0);
+      if (missingPrice) {
+        toast({ title: `Preço ausente em "${missingPrice.categoryName}"`, description: 'Informe o preço para todas as categorias selecionadas.', variant: 'destructive' });
+        return;
+      }
+    } else {
+      // pricingMode === "base"
+      priceNum = Number(formData.basePrice);
+      if (!formData.basePrice || isNaN(priceNum) || priceNum <= 0) {
+        setPriceError(true);
+        toast({ title: 'Preço base obrigatório', description: 'Informe um preço base válido (maior que zero) antes de salvar.', variant: 'destructive' });
+        return;
+      }
     }
 
     // Trava de ID duplicado
@@ -619,15 +656,19 @@ export default function ProductsPage() {
       return;
     }
 
-    // Deriva `category` da primeira categoria selecionada
-    const primaryCategory = formData.categorySelections[0].categoryName;
+    // Deriva `category` da primeira categoria selecionada (ou usa um
+    // rótulo neutro quando o produto é precificado apenas pela base).
+    const primaryCategory =
+      formData.categorySelections[0]?.categoryName ?? "Geral";
 
     const payload: any = {
       name: formData.name,
       category: primaryCategory,
       unit: formData.unit,
       active: formData.active,
-      basePrice: String(priceNum),
+      // basePrice só vai ao backend quando o modo é "base"; em "category"
+      // enviamos null para deixar explícito que o produto não tem base.
+      basePrice: formData.pricingMode === "base" ? String(priceNum) : null,
       isIndustrialized: formData.isIndustrialized,
       isSeasonal: formData.isSeasonal,
       outOfSeason: formData.outOfSeason,
@@ -640,6 +681,9 @@ export default function ProductsPage() {
       productCode: formData.productCode || null,
       categoryAvailability: 'all',
       allowedCategories: null,
+      // Backend ignora por enquanto, mas já viaja no payload para que a
+      // próxima etapa (persistência) seja apenas adicionar a coluna.
+      pricingMode: formData.pricingMode,
     };
 
     try {
@@ -809,11 +853,16 @@ export default function ProductsPage() {
               // is intentionally NOT applied. We still route through the
               // resolver so override badges (Categoria / Contrato) appear
               // whenever those values are present on the product row.
+              const productPricingMode = (product as any).pricingMode as
+                | "base"
+                | "category"
+                | undefined;
               const resolved = resolvePrice({
                 basePrice: product.basePrice,
                 subCategoryPrice: (product as any).subCategoryPrice,
                 contractPrice: (product as any).contractPrice,
                 useNewPricing: false,
+                pricingMode: productPricingMode,
               });
               const source = priceSource({
                 basePrice: product.basePrice,
@@ -1052,57 +1101,108 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          {/* ── Categorias + Preços (da base central) ─────── */}
-          <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/20 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white">
-              <Tags className="w-4 h-4" />
-              <span className="text-sm font-bold">Categorias + Preços <span className="text-indigo-300">*</span></span>
-              <span className="ml-auto text-xs bg-white/20 px-2 py-0.5 rounded-full">
-                {formData.categorySelections.length} selecionada{formData.categorySelections.length !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <div className="p-4">
-              <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-3">
-                Selecione as categorias aplicáveis ao produto e informe o preço de cada uma. Categorias são gerenciadas na aba <strong>Categorias</strong>.
-              </p>
-              <ProductCategorySelector
-                dbCategories={categories}
-                selections={formData.categorySelections}
-                onChange={(sel) => set('categorySelections', sel)}
-              />
-              {formData.categorySelections.length === 0 && (
-                <p className="text-xs text-orange-600 mt-3 flex items-center gap-1 font-semibold">
-                  <AlertTriangle className="w-3 h-3" /> Selecione ao menos uma categoria com preço
-                </p>
-              )}
+          {/* ── Modo de Precificação ──────────────────────── */}
+          <div className="rounded-2xl border-2 border-border bg-muted/20 p-4">
+            <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-3">
+              Modo de Precificação
+            </p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <label
+                className={`flex-1 cursor-pointer flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${formData.pricingMode === 'category' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40' : 'border-border bg-background hover:border-indigo-300'}`}
+                data-testid="radio-pricing-mode-category"
+              >
+                <input
+                  type="radio"
+                  name="pricingMode"
+                  value="category"
+                  checked={formData.pricingMode === 'category'}
+                  onChange={() => set('pricingMode', 'category')}
+                  className="w-4 h-4 accent-indigo-600"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                    <Tags className="w-4 h-4 text-indigo-600" /> Preço por categoria
+                  </p>
+                  <p className="text-xs text-muted-foreground">Um preço por sub-categoria do produto.</p>
+                </div>
+              </label>
+              <label
+                className={`flex-1 cursor-pointer flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all ${formData.pricingMode === 'base' ? 'border-primary bg-primary/10' : 'border-border bg-background hover:border-primary/50'}`}
+                data-testid="radio-pricing-mode-base"
+              >
+                <input
+                  type="radio"
+                  name="pricingMode"
+                  value="base"
+                  checked={formData.pricingMode === 'base'}
+                  onChange={() => set('pricingMode', 'base')}
+                  className="w-4 h-4 accent-primary"
+                />
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                    <DollarSign className="w-4 h-4 text-primary" /> Preço base único
+                  </p>
+                  <p className="text-xs text-muted-foreground">Um único preço aplicado ao produto.</p>
+                </div>
+              </label>
             </div>
           </div>
 
+          {/* ── Categorias + Preços (da base central) ─────── */}
+          {formData.pricingMode === 'category' && (
+            <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-violet-50 dark:from-indigo-950/30 dark:to-violet-950/20 overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white">
+                <Tags className="w-4 h-4" />
+                <span className="text-sm font-bold">Categorias + Preços <span className="text-indigo-300">*</span></span>
+                <span className="ml-auto text-xs bg-white/20 px-2 py-0.5 rounded-full">
+                  {formData.categorySelections.length} selecionada{formData.categorySelections.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="p-4">
+                <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-3">
+                  Selecione as categorias aplicáveis ao produto e informe o preço de cada uma. Categorias são gerenciadas na aba <strong>Categorias</strong>.
+                </p>
+                <ProductCategorySelector
+                  dbCategories={categories}
+                  selections={formData.categorySelections}
+                  onChange={(sel) => set('categorySelections', sel)}
+                />
+                {formData.categorySelections.length === 0 && (
+                  <p className="text-xs text-orange-600 mt-3 flex items-center gap-1 font-semibold">
+                    <AlertTriangle className="w-3 h-3" /> Selecione ao menos uma categoria com preço
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Base Price */}
-          <div className={`p-4 rounded-xl border-2 ${priceError ? 'border-red-400 bg-red-50' : 'border-primary/20 bg-primary/5'}`}>
-            <label className={`flex items-center gap-2 text-sm font-bold mb-2 ${priceError ? 'text-red-600' : 'text-primary'}`}>
-              <DollarSign className="w-4 h-4" /> Preço Base Interno (R$) <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number" step="0.01" min="0"
-              value={formData.basePrice}
-              onChange={e => { set("basePrice", e.target.value); if (priceError) setPriceError(false); }}
-              placeholder="Ex: 5,90"
-              data-testid="input-product-price"
-              className={`w-full px-4 py-2.5 rounded-xl border-2 focus:outline-none text-lg font-bold ${priceError ? 'border-red-400 focus:border-red-500 bg-white' : 'border-border focus:border-primary'}`}
-            />
-            {priceError && (
-              <p className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-2">
-                <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                Preço obrigatório. Informe um valor maior que zero.
-              </p>
-            )}
-            {!priceError && (
-              <p className="text-xs text-muted-foreground mt-2">
-                Preço base interno. Preço final ao cliente = base × (1 + taxa admin / 100).
-              </p>
-            )}
-          </div>
+          {formData.pricingMode === 'base' && (
+            <div className={`p-4 rounded-xl border-2 ${priceError ? 'border-red-400 bg-red-50' : 'border-primary/20 bg-primary/5'}`}>
+              <label className={`flex items-center gap-2 text-sm font-bold mb-2 ${priceError ? 'text-red-600' : 'text-primary'}`}>
+                <DollarSign className="w-4 h-4" /> Preço Base Interno (R$) <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="number" step="0.01" min="0"
+                value={formData.basePrice}
+                onChange={e => { set("basePrice", e.target.value); if (priceError) setPriceError(false); }}
+                placeholder="Ex: 5,90"
+                data-testid="input-product-price"
+                className={`w-full px-4 py-2.5 rounded-xl border-2 focus:outline-none text-lg font-bold ${priceError ? 'border-red-400 focus:border-red-500 bg-white' : 'border-border focus:border-primary'}`}
+              />
+              {priceError && (
+                <p className="flex items-center gap-1.5 text-xs text-red-600 font-semibold mt-2">
+                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                  Preço obrigatório. Informe um valor maior que zero.
+                </p>
+              )}
+              {!priceError && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Preço base interno. Preço final ao cliente = base × (1 + taxa admin / 100).
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Status */}
           <div>
