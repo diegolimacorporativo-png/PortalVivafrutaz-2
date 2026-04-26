@@ -31,5 +31,6 @@ export function useCanEmitNfe(orderId: number | null | undefined) {
     reason: query.data?.reason ?? "",
     isLoading: query.isLoading,
     isError: query.isError,
+    refetch: query.refetch,
   };
 }

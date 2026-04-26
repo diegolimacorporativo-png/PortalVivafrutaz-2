@@ -1,0 +1,77 @@
+## STEP 9.2Y.3 — REFRESH AUTOMÁTICO DO GATE (REALTIME UX)
+
+### OBJETIVO
+
+Atualizar automaticamente o estado de emissão após mudanças como:
+
+- liberação do pedido (nota_liberada)
+- emissão de NF
+- alteração de status
+
+Sem precisar reload de página.
+
+---
+
+### 🚫 REGRAS
+
+- NÃO duplicar lógica
+- NÃO alterar backend
+- NÃO remover cache
+- Apenas melhorar reatividade
+
+---
+
+### STEP 1 — EXPOR REFETCH NO HOOK
+
+Arquivo:
+
+client/src/hooks/use-can-emit-nfe.ts
+
+ts id="k3p9q1" export function useCanEmitNfe(orderId?: number) {   const query = useQuery({     queryKey: ["can-emit-nfe", orderId],     queryFn: async () => {       const res = await fetch(`/api/nfe/can-emit/${orderId}`);       if (!res.ok) throw new Error("Erro ao validar emissão");       return res.json();     },     enabled: !!orderId   });    return {     allowed: query.data?.allowed ?? false,     reason: query.data?.reason ?? "",     isLoading: query.isLoading,     isError: query.isError,     refetch: query.refetch // 👈 NOVO   }; } 
+
+---
+
+### STEP 2 — REFRESH APÓS AÇÃO
+
+Onde existe emissão ou mudança de status:
+
+ts id="9x7m2v" const { refetch } = useCanEmitNfe(orderId);  async function handleEmit() {   try {     await emitirNF(orderId);      await refetch(); // 👈 atualiza gate imediatamente    } catch (err) {     console.error(err);   } } 
+
+---
+
+### STEP 3 — REFRESH APÓS LIBERAÇÃO DE PEDIDO
+
+Quando mudar status → nota_liberada:
+
+ts id="p8w4zn" await updateOrderStatus(orderId, "nota_liberada");  await refetch(); // 👈 botão libera na hora 
+
+---
+
+### STEP 4 — (OPCIONAL MELHOR) INVALIDATE GLOBAL
+
+Se estiver usando React Query client:
+
+ts id="z4v6dt" import { useQueryClient } from "@tanstack/react-query";  const queryClient = useQueryClient();  queryClient.invalidateQueries({   queryKey: ["can-emit-nfe", orderId] }); 
+
+👉 Isso garante atualização em TODOS os componentes da tela
+
+---
+
+### RESULTADO
+
+ANTES:
+❌ precisa atualizar página  
+❌ UX travada  
+❌ comportamento inconsistente  
+
+DEPOIS:
+✔ atualização instantânea  
+✔ botão libera automaticamente  
+✔ sistema parece "inteligente"  
+✔ pronto para escala  
+
+---
+
+### RISCO
+
+LOW ✅ (somente reatividade)

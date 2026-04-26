@@ -380,6 +380,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       toast({ title: "NF-e gerada com sucesso!", description: `Chave: ${(data.nfe?.chaveNFe || "").slice(0, 20)}...` });
       refetchNfes();
       globalQueryClient.invalidateQueries({ queryKey: ["/api/nfe"] });
+      globalQueryClient.invalidateQueries({ queryKey: ["/api/nfe/can-emit", order.id] });
     },
     onError: (e: any) => toast({ title: "Erro ao gerar NF-e", description: e.message, variant: "destructive" }),
   });
@@ -555,6 +556,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       if (!res.ok) throw new Error("Erro ao atualizar status fiscal");
       toast({ title: `Status fiscal atualizado: ${FISCAL_LABEL[fiscalStatus] || fiscalStatus}` });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nfe/can-emit", order.id] });
     } catch (e: any) {
       toast({ title: "Erro ao atualizar fiscal", description: e.message, variant: "destructive" });
     } finally {

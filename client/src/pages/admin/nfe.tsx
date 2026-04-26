@@ -386,6 +386,7 @@ export default function NfePage() {
       queryClient.invalidateQueries({ queryKey: ["/api/nfe"] });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/nfe/diagnostics", selectedOrderId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/nfe/can-emit", selectedOrderId] });
       setSelectedOrderId(null);
       setSelectedOrderCode("");
     },
