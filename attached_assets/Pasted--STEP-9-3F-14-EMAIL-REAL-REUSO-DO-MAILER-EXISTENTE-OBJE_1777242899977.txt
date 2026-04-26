@@ -1,0 +1,144 @@
+# 🚀 STEP 9.3F.14 — EMAIL REAL (REUSO DO MAILER EXISTENTE)
+
+## 🎯 OBJETIVO
+
+Ativar o envio real de email no sistema de alertas.
+
+👉 Substituir o mock atual do canal email  
+👉 Reutilizar EXCLUSIVAMENTE o mailer existente  
+👉 NÃO criar nova lógica de envio  
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO usar nodemailer direto  
+❌ NÃO criar transporter novo  
+❌ NÃO alterar emitAlert  
+❌ NÃO alterar emitAlertSmart  
+❌ NÃO alterar persistAlertLog  
+❌ NÃO alterar estrutura de results  
+
+---
+
+# 🧠 BASE (AUDITORIA JÁ CONFIRMOU)
+
+Sistema já possui:
+
+- server/services/mailer.ts (fonte oficial)
+- isMailerConfigured()
+- Funções de envio já implementadas
+- smtp_config no banco (DB-first)
+- fallback via env vars
+
+👉 USAR ISSO
+
+---
+
+# 🧭 FASE 1 — DISCOVERY LOCAL
+
+Confirmar dentro de alerts.delivery.ts:
+
+- onde está o mock atual de email
+- onde inserir envio real
+
+---
+
+# ⚙️ FASE 2 — GATING
+
+Antes de enviar:
+
+if (!isMailerConfigured()) {
+  return {
+    channel: "email",
+    success: false,
+    userId,
+    reason: "SMTP_NOT_CONFIGURED"
+  };
+}
+
+---
+
+# 📡 FASE 3 — ENVIO REAL (FORMA CORRETA)
+
+Para cada usuário aprovado:
+
+👉 enviar email INDIVIDUALMENTE
+
+Regras:
+
+- usar email do usuário (user.email)
+- usar title como subject
+- usar message como corpo
+
+⚠️ IMPORTANTE:
+
+❌ NÃO usar broadcast em massa  
+❌ NÃO enviar para múltiplos usuários juntos  
+❌ NÃO agrupar envios  
+
+👉 envio deve ser 1:1 (um usuário por chamada)
+
+---
+
+# 🧱 FASE 4 — CONTRATO
+
+Manter EXATAMENTE:
+
+{
+  channel: "email",
+  success: boolean,
+  userId: number
+}
+
+👉 SEM alterar shape  
+👉 SEM adicionar campos obrigatórios  
+
+---
+
+# 🧪 FASE 5 — VALIDAÇÃO
+
+- SMTP não configurado → success:false ✔  
+- SMTP configurado → email enviado ✔  
+- erro de envio → success:false ✔  
+- sistema não quebra ✔  
+
+---
+
+# 🚫 PROIBIDO
+
+❌ criar nova função de envio  
+❌ duplicar lógica do mailer  
+❌ mexer no scheduler  
+❌ corrigir shadow code agora  
+❌ envio em lote  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ Canal email real funcionando  
+✔ Envio por usuário (granular)  
+✔ Totalmente integrado ao sistema de alertas  
+✔ Sem regressão  
+✔ Reutilizando arquitetura existente  
+
+---
+
+# 🔜 NÃO AVANÇAR
+
+Após implementar:
+
+👉 PARAR  
+👉 AGUARDAR validação  
+
+---
+
+## EXECUTAR
+1. Substituir mock por envio real  
+2. Aplicar gating  
+3. Enviar 1:1 por usuário  
+4. Manter contrato intacto  
+5. Validar  
+
+Sem exceçõ

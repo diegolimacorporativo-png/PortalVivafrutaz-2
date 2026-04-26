@@ -54,7 +54,7 @@ async function createTransporter() {
   });
 }
 
-async function sendMail(to: string, subject: string, html: string) {
+export async function sendMail(to: string, subject: string, html: string) {
   if (!(await isConfigured())) {
     console.log(`[MAILER] Email não enviado (SMTP não configurado). Para: ${to} | Assunto: ${subject}`);
     return { sent: false, reason: "SMTP não configurado" };
