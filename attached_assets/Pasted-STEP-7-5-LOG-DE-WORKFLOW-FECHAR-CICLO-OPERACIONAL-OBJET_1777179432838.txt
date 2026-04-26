@@ -1,0 +1,122 @@
+STEP 7.5 — LOG DE WORKFLOW (FECHAR CICLO OPERACIONAL)
+
+OBJETIVO  
+Registrar na timeline TODAS as mudanças de status operacional:
+
+- PROCESSING  
+- READY  
+- INVOICED  
+- SHIPPED  
+- DELIVERED  
+
+✔ sem alterar schema  
+✔ sem criar tabela  
+✔ reutilizando system_logs  
+✔ sem quebrar fluxo  
+
+---
+
+🚫 NÃO alterar:
+- state machine  
+- regras de transição  
+- pricing  
+- endpoints  
+
+👉 apenas adicionar log
+
+---
+
+## STEP 1 — LOCALIZAR TRANSITION
+
+Arquivo:
+server/modules/orders/orders.service.ts
+
+Encontrar função:
+
+ts
+async transition(id, to, actor)
+ ---  ## STEP 2 — CAPTURAR STATUS ANTES  Antes da mudança: ts
+const from = order.workflowStatus;
+ ---  ## STEP 3 — APÓS TRANSIÇÃO → LOGAR  Depois que o status foi atualizado com sucesso: ts
+try {
+  await this.storage.createLog({
+    action: "WORKFLOW_TRANSITION",
+    description: Workflow alterado: ${from} → ${to} (${order.orderCode}),
+    userId: actor?.id || null,
+    userRole: actor?.role || null,
+    level: "INFO",
+  });
+} catch {
+  // log nunca pode quebrar fluxo
+}
+ ---  ## STEP 4 — NÃO DUPLICAR LOG  ⚠️ IMPORTANTE  Garantir que o log só acontece:  ✔ após sucesso da transição   ✔ NÃO dentro de validação   ✔ NÃO antes do update    ---  ## STEP 5 — FRONTEND (MAPEAR EVENTO)  Arquivo: client/src/components/OrderTimeline.tsx  Adicionar no ACTION_META: ts
+WORKFLOW_TRANSITION: {
+  label: "Atualização de Status",
+  icon: RefreshCw,
+  color: "text-orange-500",
+},
+ ---  ## STEP 6 — MELHORAR LABEL (OPCIONAL MAS RECOMENDADO)  Se quiser enriquecer: ts
+if (log.action === "WORKFLOW_TRANSITION") {
+  if (log.description.includes("PROCESSING")) label = "Em Separação";
+  if (log.description.includes("READY")) label = "Pedido Pronto";
+  if (log.description.includes("INVOICED")) label = "Faturado";
+  if (log.description.includes("SHIPPED")) label = "Em Rota";
+  if (log.description.includes("DELIVERED")) label = "Entregue";
+}
+```
+
+---
+
+## STEP 7 — TESTE REAL
+
+Fluxo:
+
+1. Criar pedido  
+2. Aprovar  
+3. Admin clicar:
+
+✔ Iniciar Separação  
+✔ Pedido Pronto  
+✔ Faturar  
+✔ Enviar  
+✔ Entregar  
+
+---
+
+## STEP 8 — VALIDAR TIMELINE
+
+Abrir pedido:
+
+✔ aparece sequência completa:
+
+- Pedido criado  
+- Em separação  
+- Pedido pronto  
+- Faturado  
+- Em rota  
+- Entregue  
+
+✔ ordem cronológica correta  
+
+---
+
+## STEP 9 — SEGURANÇA
+
+✔ log não pode quebrar sistema  
+✔ usar try/catch  
+✔ sem throw  
+
+---
+
+## RESULTADO
+
+✔ timeline completa  
+✔ rastreabilidade total  
+✔ auditoria operacional real  
+✔ padrão único  
+
+---
+
+RISCO
+
+LOW ✅
