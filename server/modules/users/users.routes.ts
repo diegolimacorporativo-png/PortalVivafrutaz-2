@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validate } from "../../shared/middlewares/validate";
 import { usersController } from "./users.controller";
+import { checkPlanLimit } from "../billing/subscription.middleware";
 import {
   createUserSchema,
   updateUserSchema,
@@ -39,6 +40,7 @@ router.get("/", asyncHandler(usersController.list));
 // ── Create ──────────────────────────────────────────────────────────────
 router.post(
   "/",
+  checkPlanLimit("usuarios"),
   validate(createUserSchema, "body"),
   asyncHandler(usersController.create),
 );

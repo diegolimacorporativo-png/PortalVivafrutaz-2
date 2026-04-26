@@ -1,0 +1,170 @@
+STEP 9.1 — HARDENING DO BILLING (SEM COBRANÇA REAL)
+
+OBJETIVO  
+Corrigir falhas críticas de segurança e controle SEM implementar gateway de pagamento.
+
+👉 NÃO cobrar ainda  
+👉 NÃO integrar Mercado Pago  
+👉 NÃO integrar Stripe  
+👉 apenas travar e preparar o sistema  
+
+---
+
+🚫 NÃO criar tabela  
+🚫 NÃO alterar schema  
+🚫 NÃO criar arquitetura nova  
+👉 apenas usar o que já existe  
+
+---
+
+## STEP 0 — DESCOBERTA (OBRIGATÓRIO)
+
+ANTES de qualquer código:
+
+1. Localizar:
+- /api/billing/webhook
+- /api/saas/uso/:empresaId
+- endpoints POST críticos:
+  - /api/orders
+  - /api/logistics/*
+  - emissão NF-e
+
+2. Identificar:
+✔ como assinatura é carregada  
+✔ como uso é calculado  
+
+👉 PROIBIDO duplicar lógica  
+
+---
+
+## STEP 1 — SEGURANÇA DO WEBHOOK (CRÍTICO)
+
+Arquivo:
+server/routes/routes.ts
+
+### Ajustar endpoint:
+
+POST /api/billing/webhook
+
+Adicionar:
+
+✔ validação de assinatura HMAC (mesmo que temporária)
+✔ rejeitar requisições sem header de assinatura
+
+Exemplo:
+
+ts const signature = req.headers["x-signature"];  if (!signature) {   return res.status(401).json({ error: "Assinatura inválida" }); } 
+
+👉 NÃO precisa integrar PSP ainda  
+👉 apenas bloquear chamadas abertas  
+
+---
+
+### Idempotência
+
+ANTES de criar billingEvent:
+
+ts const existing = await storage.getBillingEventByGatewayId(eventId); if (existing) return res.status(200).end(); 
+
+👉 usar gatewayEventId já existente  
+
+---
+
+## STEP 2 — MIDDLEWARE DE ASSINATURA ATIVA
+
+Criar:
+
+server/modules/billing/subscription.middleware.ts
+
+ts export async function requireActiveSubscription(req, res, next) {   const companyId = req.user?.companyId;    const assinatura = await storage.getAssinaturaByCompany(companyId);    if (!assinatura) {     return res.status(403).json({ error: "Empresa sem assinatura" });   }    if (["cancelada", "suspensa", "inadimplente"].includes(assinatura.status)) {     return res.status(403).json({ error: "Assinatura inativa" });   }    next(); } 
+
+---
+
+## STEP 3 — APLICAR NOS ENDPOINTS CRÍTICOS
+
+Aplicar middleware em:
+
+✔ POST /api/orders  
+✔ POST /api/logistics/*  
+✔ emissão NF-e  
+
+👉 NÃO aplicar em leitura (GET)  
+👉 NÃO quebrar fluxo atual  
+
+---
+
+## STEP 4 — MIDDLEWARE DE LIMITE (SEM DUPLICAR LÓGICA)
+
+Criar:
+
+checkPlanLimit(tipo)
+
+Mas:
+
+🚫 NÃO calcular uso manualmente  
+👉 reutilizar /api/saas/uso/:empresaId  
+
+Exemplo:
+
+ts if (uso.pedidosMes >= limites.limitePedidosMes) {   return res.status(403).json({ error: "Limite de pedidos atingido" }); } 
+
+---
+
+Aplicar em:
+
+✔ criação de pedidos  
+✔ criação de usuários  
+✔ criação de motoristas  
+✔ criação de rotas  
+
+---
+
+## STEP 5 — CRON (AUTOMAÇÃO INTERNA)
+
+Arquivo:
+server/index.ts
+
+Adicionar:
+
+ts import cron from "node-cron";  cron.schedule("0 2 * * *", async () => {   await checkBoletos(); }); 
+
+👉 usar função já existente  
+👉 NÃO criar nova  
+
+---
+
+## STEP 6 — COMPLETAR FLUXO DE STATUS
+
+No webhook:
+
+Adicionar:
+
+ts if (event === "payment_failed") {   status = "atrasada"; }  if (event === "chargeback") {   status = "suspensa"; } 
+
+👉 usar updateAssinatura existente  
+
+---
+
+## STEP 7 — NÃO FAZER AGORA
+
+🚫 Mercado Pago  
+🚫 Stripe  
+🚫 checkout  
+🚫 linkPagamento real  
+🚫 cobrança automática  
+
+---
+
+## RESULTADO
+
+✔ sistema protegido contra abuso  
+✔ assinatura controla acesso  
+✔ limites começam a valer  
+✔ webhook não é vulnerável  
+✔ base pronta para cobrança futura  
+
+---
+
+RISCO
+
+LOW ✅ (sem impacto estrutural)

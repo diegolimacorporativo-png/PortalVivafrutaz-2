@@ -40,6 +40,13 @@ import { AIDeveloper } from "../services/aiDeveloper.ts";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import {
+  requireActiveSubscription,
+  checkPlanLimit,
+  validateWebhookSignature,
+  checkWebhookIdempotency,
+} from "../modules/billing/subscription.middleware";
+import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -1716,7 +1723,7 @@ export async function registerRoutes(
   // In-memory duplicate protection (companyId+day → timestamp)
   const recentOrders = new Map<string, number>();
 
-  app.post(api.orders.create.path, async (req, res) => {
+  app.post(api.orders.create.path, requireActiveSubscription, checkPlanLimit('pedidos'), async (req, res) => {
     try {
       const { order, items } = req.body;
       if (!order || !items) return res.status(400).json({ message: "Missing order or items" });
@@ -5080,7 +5087,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/emitir — gerar XML + criar registro
-    app.post('/api/nfe/emitir', async (req: any, res) => {
+    app.post('/api/nfe/emitir', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       try {
         const { orderId } = req.body;
@@ -6499,38 +6506,53 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // ─── Billing: Webhook (público) ───────────────────────────────────────────────
-  app.post('/api/billing/webhook', async (req: any, res) => {
-    try {
-      const { gateway, event, companyId, assinaturaId, valor, gatewayEventId } = req.body;
-      if (assinaturaId) {
-        const statusMap: Record<string, string> = {
-          payment_approved: 'pago',
-          payment_failed: 'falhou',
-          subscription_cancelled: 'estornado',
-        };
-        await storage.createBillingEvent({
-          companyId: companyId || null,
-          assinaturaId,
-          tipo: event || 'webhook',
-          valor: valor || null,
-          status: statusMap[event] || 'pendente',
-          gateway: gateway || null,
-          gatewayEventId: gatewayEventId || null,
-          payload: req.body,
-          descricao: `Webhook ${gateway}: ${event}`,
-        });
-        if (event === 'payment_approved' && assinaturaId) {
-          await storage.updateAssinatura(assinaturaId, { status: 'ativa' });
-        } else if (event === 'subscription_cancelled' && assinaturaId) {
-          await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
+  // ─── Billing: Webhook (público, mas com HMAC + idempotência) ──────────────────
+  app.post(
+    '/api/billing/webhook',
+    validateWebhookSignature,
+    checkWebhookIdempotency,
+    async (req: any, res) => {
+      try {
+        const { gateway, event, companyId, assinaturaId, valor, gatewayEventId } = req.body;
+        if (assinaturaId) {
+          const statusMap: Record<string, string> = {
+            payment_approved: 'pago',
+            payment_failed: 'falhou',
+            subscription_cancelled: 'estornado',
+            chargeback: 'estornado',
+            refund: 'estornado',
+          };
+          await storage.createBillingEvent({
+            companyId: companyId || null,
+            assinaturaId,
+            tipo: event || 'webhook',
+            valor: valor || null,
+            status: statusMap[event] || 'pendente',
+            gateway: gateway || null,
+            gatewayEventId: gatewayEventId || null,
+            payload: req.body,
+            descricao: `Webhook ${gateway}: ${event}`,
+          });
+
+          // Status transitions on the assinatura record
+          if (event === 'payment_approved') {
+            await storage.updateAssinatura(assinaturaId, { status: 'ativa' });
+          } else if (event === 'payment_failed') {
+            await storage.updateAssinatura(assinaturaId, { status: 'atrasada' });
+          } else if (event === 'subscription_cancelled') {
+            await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
+          } else if (event === 'chargeback') {
+            await storage.updateAssinatura(assinaturaId, { status: 'suspensa' });
+          } else if (event === 'refund') {
+            await storage.updateAssinatura(assinaturaId, { status: 'cancelada' });
+          }
         }
+        res.json({ received: true });
+      } catch (err: any) {
+        res.status(500).json({ message: err.message });
       }
-      res.json({ received: true });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
+    },
+  );
 
   // ─── Geo Service — CEP Lookup ────────────────────────────────────────────────
   app.get('/api/geo/cep/:cep', async (req: any, res) => {
@@ -7413,29 +7435,8 @@ export async function registerRoutes(
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
-      const now = new Date();
-      const allAssinaturas = await storage.getAssinaturas();
-      const planos = await storage.getPlanos();
-      const planFree = planos.find(p => p.tipoPlano === 'free' && p.ativo) || planos.find(p => parseFloat(p.preco) === 0 && p.ativo);
-
-      let atrasadas = 0, downgrades = 0;
-      const erros: string[] = [];
-
-      for (const a of allAssinaturas) {
-        if (a.status === 'ativa' || a.status === 'trial') {
-          if (a.dataVencimento && new Date(a.dataVencimento) < now) {
-            await storage.updateAssinatura(a.id, { status: 'atrasada' });
-            atrasadas++;
-            if (planFree) {
-              await storage.updateAssinatura(a.id, { planoId: planFree.id, status: 'inadimplente' });
-              downgrades++;
-              erros.push(`Empresa ${a.companyId} movida para plano free por inadimplência`);
-            }
-          }
-        }
-      }
-
-      res.json({ atrasadas, downgrades, detalhes: erros, executadoEm: now });
+      const result = await checkBoletosVencidos();
+      res.json(result);
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 

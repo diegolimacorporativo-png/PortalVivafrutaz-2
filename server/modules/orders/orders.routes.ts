@@ -4,6 +4,10 @@ import { validate } from "../../shared/middlewares/validate";
 import { tenantContext } from "../../middleware/tenant";
 import { ordersController } from "./orders.controller";
 import {
+  requireActiveSubscription,
+  checkPlanLimit,
+} from "../billing/subscription.middleware";
+import {
   bulkDeleteBodySchema,
   createDanfeLogBodySchema,
   createOrderBodySchema,
@@ -108,12 +112,16 @@ router.get(
 // ── POSTs (literals BEFORE /:id) ───────────────────────────────────────
 router.post(
   "/",
+  requireActiveSubscription,
+  checkPlanLimit("pedidos"),
   validate(createOrderBodySchema, "body"),
   asyncHandler(ordersController.create),
 );
 
 router.post(
   "/create-with-delivery",
+  requireActiveSubscription,
+  checkPlanLimit("pedidos"),
   validate(createWithDeliveryBodySchema, "body"),
   asyncHandler(ordersController.createWithDelivery),
 );

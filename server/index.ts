@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { getUser } from "./controllers/userController";
 import { startOutboxWorker } from "./modules/orders/orders.outbox.worker";
 import { startAutoDispatchWorker } from "./modules/logistics/auto-dispatch.service";
+import { startBillingCron } from "./modules/billing/billing.cron";
 
 /**
  * Bootstrap.
@@ -52,6 +53,9 @@ export function log(message: string, source = "express") {
   // Auto-dispatch worker — periodically attaches pending deliveries to the
   // cheapest existing route via the shared `suggestInsertion` optimiser.
   startAutoDispatchWorker();
+
+  // Billing cron — daily check for overdue invoices and downgrade to free.
+  startBillingCron();
 
   // Memory monitor — useful in production to catch leaks early.
   setInterval(() => {

@@ -409,6 +409,7 @@ export interface IStorage {
 
   // SaaS — Billing Events
   getBillingEvents(filters?: { companyId?: number; status?: string }): Promise<BillingEvent[]>;
+  getBillingEventByGatewayId(gatewayEventId: string): Promise<BillingEvent | undefined>;
   createBillingEvent(data: InsertBillingEvent): Promise<BillingEvent>;
   updateBillingEvent(id: number, data: Partial<InsertBillingEvent>): Promise<BillingEvent>;
 
@@ -2204,6 +2205,14 @@ export class DatabaseStorage implements IStorage {
     if (filters?.companyId) conds.push(eq(billingEvents.companyId, filters.companyId));
     if (filters?.status) conds.push(eq(billingEvents.status, filters.status));
     return db.select().from(billingEvents).where(conds.length ? and(...conds) : undefined).orderBy(desc(billingEvents.createdAt));
+  }
+  async getBillingEventByGatewayId(gatewayEventId: string): Promise<BillingEvent | undefined> {
+    const [r] = await db
+      .select()
+      .from(billingEvents)
+      .where(eq(billingEvents.gatewayEventId, gatewayEventId))
+      .limit(1);
+    return r;
   }
   async createBillingEvent(data: InsertBillingEvent): Promise<BillingEvent> {
     const [r] = await db.insert(billingEvents).values(data).returning();

@@ -14,26 +14,48 @@
  */
 import { Router } from "express";
 import { logisticsController } from "./logistics.controller";
+import {
+  requireActiveSubscription,
+  checkPlanLimit,
+} from "../billing/subscription.middleware";
 
 const router = Router();
 
 // ── Drivers ────────────────────────────────────────────────────────────
 router.get("/drivers", logisticsController.listDrivers);
-router.post("/drivers", logisticsController.createDriver);
+router.post(
+  "/drivers",
+  requireActiveSubscription,
+  checkPlanLimit("motoristas"),
+  logisticsController.createDriver,
+);
 router.patch("/drivers/:id", logisticsController.updateDriver);
 router.delete("/drivers/:id", logisticsController.deleteDriver);
 
 // ── Vehicles ───────────────────────────────────────────────────────────
 router.get("/vehicles", logisticsController.listVehicles);
-router.post("/vehicles", logisticsController.createVehicle);
+router.post(
+  "/vehicles",
+  requireActiveSubscription,
+  logisticsController.createVehicle,
+);
 router.patch("/vehicles/:id", logisticsController.updateVehicle);
 router.delete("/vehicles/:id", logisticsController.deleteVehicle);
 
 // ── Routes (static FIRST, dynamic LAST) ────────────────────────────────
 router.get("/routes", logisticsController.listRoutes);
-router.post("/routes", logisticsController.createRoute);
+router.post(
+  "/routes",
+  requireActiveSubscription,
+  checkPlanLimit("rotas"),
+  logisticsController.createRoute,
+);
 router.get("/routes/:routeId/stops", logisticsController.listRouteStops);
-router.post("/routes/:routeId/stops", logisticsController.createRouteStop);
+router.post(
+  "/routes/:routeId/stops",
+  requireActiveSubscription,
+  logisticsController.createRouteStop,
+);
 router.patch(
   "/routes/:routeId/stops/:stopId",
   logisticsController.updateRouteStop,
@@ -47,7 +69,11 @@ router.delete("/routes/:id", logisticsController.deleteRoute);
 
 // ── Maintenance ────────────────────────────────────────────────────────
 router.get("/maintenance", logisticsController.listMaintenance);
-router.post("/maintenance", logisticsController.createMaintenance);
+router.post(
+  "/maintenance",
+  requireActiveSubscription,
+  logisticsController.createMaintenance,
+);
 router.patch("/maintenance/:id", logisticsController.updateMaintenance);
 router.delete("/maintenance/:id", logisticsController.deleteMaintenance);
 
