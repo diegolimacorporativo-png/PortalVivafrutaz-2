@@ -25,6 +25,13 @@ export function useCanEmitNfe(orderId: number | null | undefined) {
       return res.json();
     },
     enabled: !!orderId,
+    // Cross-tab / cross-admin sync without sockets:
+    //   - while blocked → re-check every 5s (lightweight, ~1 req per tab)
+    //   - once allowed → stop polling (zero ongoing cost)
+    //   - on tab focus → refetch immediately (catches changes made in another tab)
+    refetchInterval: (q) => (q.state.data?.allowed ? false : 5000),
+    refetchOnWindowFocus: true,
+    staleTime: 3000,
   });
 
   const allowed = query.data?.allowed ?? null;
