@@ -1,0 +1,173 @@
+/**
+ * STEP 9.3C — Cron Inteligente de Faturamento.
+ *
+ * Roda todo dia às 08:00 e emite automaticamente as NF-es dos pedidos
+ * elegíveis — passando pelo guard (canEmitNFe) antes de qualquer emissão.
+ *
+ * CONTROLADO POR FLAG:
+ *   AUTO_FATURAMENTO = false  → modo observação: loga o que SERIA emitido
+ *   AUTO_FATURAMENTO = true   → emite de fato
+ *
+ * NUNCA emite fora do guard. NUNCA altera schema. NUNCA duplica lógica.
+ */
+
+import cron from "node-cron";
+import { db } from "../database/db";
+import { sql } from "drizzle-orm";
+import { storage } from "../services/storage";
+import { canEmitNFe } from "../modules/nfe/faturamento.guard";
+import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
+import { AUTO_FATURAMENTO } from "../config/flags";
+
+const CONCURRENCY_LIMIT = 5;
+
+export type CronFaturamentoResult = {
+  executadoEm: Date;
+  autoMode: boolean;
+  total: number;
+  emitidas: number;
+  bloqueadas: number;
+  erros: number;
+  detalhes: Array<{ orderId: number; status: string; reason?: string }>;
+};
+
+// ── Processa em batches para não sobrecarregar o banco ───────────────────────
+
+async function processInBatches<T>(
+  items: T[],
+  handler: (item: T) => Promise<any>,
+): Promise<any[]> {
+  const results: any[] = [];
+  for (let i = 0; i < items.length; i += CONCURRENCY_LIMIT) {
+    const batch = items.slice(i, i + CONCURRENCY_LIMIT);
+    const batchResults = await Promise.all(batch.map(handler));
+    results.push(...batchResults);
+  }
+  return results;
+}
+
+// ── Lógica principal ─────────────────────────────────────────────────────────
+
+export async function runFaturamentoCron(): Promise<CronFaturamentoResult> {
+  const executadoEm = new Date();
+  const autoMode = AUTO_FATURAMENTO;
+
+  if (!autoMode) {
+    console.log("[CRON_FATURAMENTO_DESATIVADO] AUTO_FATURAMENTO=false — rodando em modo observação");
+  }
+
+  // 1. Pre-filtro de candidatos (mesma lógica do GET /api/nfe/eligible)
+  const raw = await db.execute(sql`
+    SELECT o.id, o.company_id
+    FROM orders o
+    WHERE o.status != 'CANCELLED'
+      AND o.fiscal_status = 'nota_liberada'
+      AND o.delivery_date IS NOT NULL
+    LIMIT 500
+  `);
+
+  const candidates = (raw as any).rows as Array<{ id: number; company_id: number }>;
+
+  if (candidates.length === 0) {
+    console.log("[CRON_FATURAMENTO] Nenhum pedido candidato encontrado.");
+    return { executadoEm, autoMode, total: 0, emitidas: 0, bloqueadas: 0, erros: 0, detalhes: [] };
+  }
+
+  console.log(`[CRON_FATURAMENTO] ${candidates.length} candidatos encontrados. autoMode=${autoMode}`);
+
+  // 2. Processar em batches de CONCURRENCY_LIMIT
+  const detalhes = await processInBatches(candidates, async (row) => {
+    const orderId = row.id;
+    try {
+      // Guard — nunca emite sem passar aqui
+      const check = await canEmitNFe(orderId);
+
+      if (!check.allowed) {
+        console.log(`[CRON_FATURAMENTO_DRY] pedido #${orderId} bloqueado: ${check.reason}`);
+        return { orderId, status: "blocked", reason: check.reason };
+      }
+
+      // Modo observação: loga mas não emite
+      if (!autoMode) {
+        console.log(`[CRON_FATURAMENTO_DRY] pedido #${orderId} SERIA emitido (tipo=${check.faturamento?.tipo})`);
+        return { orderId, status: "would_emit", reason: `tipo=${check.faturamento?.tipo}` };
+      }
+
+      // Modo automático: emite de fato
+      const existing = await storage.getNfeEmissaoByOrderId(orderId);
+      if (existing && ["autorizada", "enviada"].includes(existing.status)) {
+        return { orderId, status: "skipped", reason: "NF-e já emitida" };
+      }
+
+      const { gerarNFeXML } = await import("../services/nfe/nfeGenerator.ts");
+      const { validarNFeInput } = await import("../services/nfe/nfeValidator.ts");
+
+      const input = await buildNFeInput(orderId);
+      const erros = validarNFeInput(input);
+      if (erros.length > 0) {
+        return { orderId, status: "error", reason: `Dados incompletos: ${erros.join(", ")}` };
+      }
+
+      const numero = await storage.getNextNfeNumero();
+      const gerada = await gerarNFeXML(input, numero);
+
+      await storage.createNfeEmissao({
+        orderId,
+        numero: gerada.numero,
+        serie: gerada.serie,
+        chaveNFe: gerada.chaveNFe,
+        status: "gerada",
+        xmlGerado: gerada.xmlGerado,
+        dataEmissao: gerada.dataEmissao,
+        ambienteFiscal: input.tpAmb === "1" ? "producao" : "homologacao",
+      });
+
+      await storage.updateOrder(orderId, { fiscalStatus: "nota_emitida" });
+      await storage.createLog({
+        action: "NF-E_CRON_GERADA",
+        description: `NF-e nº ${numero} gerada automaticamente pelo cron para pedido #${orderId}.`,
+        level: "INFO",
+        userId: null as any,
+      });
+
+      console.log(`[CRON_FATURAMENTO] pedido #${orderId} emitido (NF nº ${numero})`);
+      return { orderId, status: "success" };
+    } catch (e: any) {
+      console.error(`[CRON_FATURAMENTO_ERROR] pedido #${orderId}:`, e.message);
+      return { orderId, status: "error", reason: e.message };
+    }
+  });
+
+  const emitidas = detalhes.filter((d) => d.status === "success").length;
+  const bloqueadas = detalhes.filter((d) => ["blocked", "would_emit"].includes(d.status)).length;
+  const erros = detalhes.filter((d) => d.status === "error").length;
+
+  console.log(
+    `[CRON_FATURAMENTO] concluído — emitidas=${emitidas} bloqueadas=${bloqueadas} erros=${erros} autoMode=${autoMode}`,
+  );
+
+  return { executadoEm, autoMode, total: candidates.length, emitidas, bloqueadas, erros, detalhes };
+}
+
+// ── Scheduler ────────────────────────────────────────────────────────────────
+
+let cronStarted = false;
+
+export function startFaturamentoCron(): void {
+  if (cronStarted) return;
+  cronStarted = true;
+
+  // Roda todo dia às 08:00
+  cron.schedule("0 8 * * *", async () => {
+    try {
+      const result = await runFaturamentoCron();
+      console.log(
+        `[CRON_FATURAMENTO] executado em ${result.executadoEm.toISOString()} — emitidas=${result.emitidas} bloqueadas=${result.bloqueadas} erros=${result.erros}`,
+      );
+    } catch (err: any) {
+      console.error("[CRON_FATURAMENTO] erro fatal:", err.message);
+    }
+  });
+
+  console.log(`[CRON_FATURAMENTO] agendado para 08:00 diário — AUTO_FATURAMENTO=${AUTO_FATURAMENTO}`);
+}

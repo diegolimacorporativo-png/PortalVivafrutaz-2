@@ -5,6 +5,7 @@ import { getUser } from "./controllers/userController";
 import { startOutboxWorker } from "./modules/orders/orders.outbox.worker";
 import { startAutoDispatchWorker } from "./modules/logistics/auto-dispatch.service";
 import { startBillingCron } from "./modules/billing/billing.cron";
+import { startFaturamentoCron } from "./jobs/faturamento.cron";
 
 /**
  * Bootstrap.
@@ -56,6 +57,9 @@ export function log(message: string, source = "express") {
 
   // Billing cron — daily check for overdue invoices and downgrade to free.
   startBillingCron();
+
+  // Faturamento cron — STEP 9.3C: emissão automática às 08:00 (controlada por AUTO_FATURAMENTO flag).
+  startFaturamentoCron();
 
   // Memory monitor — useful in production to catch leaks early.
   setInterval(() => {

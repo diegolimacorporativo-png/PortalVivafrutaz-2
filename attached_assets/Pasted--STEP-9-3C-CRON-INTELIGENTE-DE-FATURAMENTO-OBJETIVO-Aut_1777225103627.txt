@@ -1,0 +1,99 @@
+## STEP 9.3C — CRON INTELIGENTE DE FATURAMENTO
+
+### OBJETIVO
+
+Automatizar emissão de NF-e com base em:
+
+- pedidos elegíveis
+- regras do guard (canEmitNFe)
+- ciclos de faturamento
+
+SEM remover controle manual.
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar schema
+- NÃO duplicar lógica
+- NÃO emitir fora do guard
+- NÃO rodar automático sem log
+
+---
+
+### STEP 1 — CRIAR JOB DE FATURAMENTO
+
+Arquivo:
+server/jobs/faturamento.cron.ts
+
+ts import { db } from "@/db"; import { sql } from "drizzle-orm"; import { canEmitNFe } from "@/modules/nfe/faturamento.guard";  const CONCURRENCY_LIMIT = 5;  async function processInBatches<T>(   items: T[],   handler: (item: T) => Promise<any> ) {   const results: any[] = [];    for (let i = 0; i < items.length; i += CONCURRENCY_LIMIT) {     const batch = items.slice(i, i + CONCURRENCY_LIMIT);      const batchResults = await Promise.all(       batch.map((item) => handler(item))     );      results.push(...batchResults);   }    return results; }  export async function runFaturamentoCron() {   console.log("[CRON_FATURAMENTO_START]");    try {     const result = await db.execute(sql`       SELECT id       FROM orders       WHERE status != 'CANCELLED'         AND fiscal_status = 'nota_liberada'         AND delivery_date IS NOT NULL       LIMIT 500     `);      const orderIds = result.rows.map((r: any) => r.id);      const results = await processInBatches(orderIds, async (orderId: number) => {       try {         const check = await canEmitNFe(orderId);          if (!check.allowed) {           return { orderId, status: "blocked", reason: check.reason };         }          // chama o endpoint existente         const res = await fetch(           `${process.env.BASE_URL}/api/nfe/emitir`,           {             method: "POST",             headers: { "Content-Type": "application/json" },             body: JSON.stringify({ orderId })           }         );          if (!res.ok) {           return { orderId, status: "error" };         }          return { orderId, status: "success" };        } catch {         return { orderId, status: "error" };       }     });      console.log("[CRON_FATURAMENTO_RESULT]", {       total: results.length,       success: results.filter(r => r.status === "success").length,       blocked: results.filter(r => r.status === "blocked").length,       errors: results.filter(r => r.status === "error").length     });    } catch (error) {     console.error("[CRON_FATURAMENTO_ERROR]", error);   } } 
+
+---
+
+### STEP 2 — AGENDAR CRON
+
+Arquivo:
+server/index.ts (ou server.ts)
+
+ts import cron from "node-cron"; import { runFaturamentoCron } from "@/jobs/faturamento.cron";  // roda todo dia às 08:00 cron.schedule("0 8 * * *", async () => {   await runFaturamentoCron(); }); 
+
+---
+
+### STEP 3 — CONTROLE POR FLAG (OBRIGATÓRIO)
+
+Arquivo:
+server/config/flags.ts
+
+ts export const AUTO_FATURAMENTO = false; 
+
+---
+
+### STEP 4 — PROTEGER EXECUÇÃO
+
+No cron:
+
+ts import { AUTO_FATURAMENTO } from "@/config/flags";  if (!AUTO_FATURAMENTO) {   console.log("[CRON_FATURAMENTO_DESATIVADO]");   return; } 
+
+---
+
+### RESULTADO
+
+ANTES:
+❌ emissão manual  
+❌ dependência de humano  
+
+DEPOIS:
+✔ emissão automática controlada  
+✔ respeita regras existentes  
+✔ log completo  
+✔ pode desligar a qualquer momento  
+
+---
+
+### SEGURANÇA
+
+✔ usa canEmitNFe  
+✔ usa endpoint oficial  
+✔ não cria lógica paralela  
+
+---
+
+### ROLLOUT SEGURO
+
+1. Rodar com flag OFF  
+2. Ativar logs  
+3. Validar comportamento  
+4. Ativar flag  
+
+---
+
+### RISCO
+
+LOW–MEDIUM ⚠️  
+(depende de ativar a flag)
+
+---
+
+### PRÓXIMO PASSO (9.3D)
+
+→ Agrupamento por ciclo (1 NF mensal consolidada)
