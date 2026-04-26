@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import type { Product } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
+import { resolvePrice, formatPriceOrDash, priceSource } from "@/utils/priceResolver";
 
 const UNITS = [
   { value: "kg", label: "Quilograma (kg)" },
@@ -803,18 +804,56 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {product.basePrice ? (
-              <div className="mt-3 flex items-center gap-1.5 px-4 py-2 bg-primary/10 rounded-xl">
-                <DollarSign className="w-4 h-4 text-primary" />
-                <span className="text-sm font-bold text-primary">
-                  R$ {Number(product.basePrice).toFixed(2)} <span className="font-normal text-primary/70">(base)</span>
-                </span>
-              </div>
-            ) : (
-              <div className="mt-3 px-4 py-2 bg-orange-50 rounded-xl border border-orange-200">
-                <p className="text-xs font-bold text-orange-600">Preço base não definido</p>
-              </div>
-            )}
+            {(() => {
+              // Admin price view — no per-company context here, so adminFee
+              // is intentionally NOT applied. We still route through the
+              // resolver so override badges (Categoria / Contrato) appear
+              // whenever those values are present on the product row.
+              const resolved = resolvePrice({
+                basePrice: product.basePrice,
+                subCategoryPrice: (product as any).subCategoryPrice,
+                contractPrice: (product as any).contractPrice,
+                useNewPricing: false,
+              });
+              const source = priceSource({
+                basePrice: product.basePrice,
+                subCategoryPrice: (product as any).subCategoryPrice,
+                contractPrice: (product as any).contractPrice,
+              });
+              const sourceLabel =
+                source === "contract" ? "contrato" : source === "subcategory" ? "categoria" : "base";
+
+              if (!product.basePrice && resolved === 0) {
+                return (
+                  <div className="mt-3 px-4 py-2 bg-orange-50 rounded-xl border border-orange-200" data-testid={`price-missing-${product.id}`}>
+                    <p className="text-xs font-bold text-orange-600">Preço base não definido</p>
+                  </div>
+                );
+              }
+              return (
+                <div className="mt-3 flex flex-col items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 px-4 py-2 bg-primary/10 rounded-xl">
+                    <DollarSign className="w-4 h-4 text-primary" />
+                    <span className="text-sm font-bold text-primary" data-testid={`text-price-${product.id}`}>
+                      {formatPriceOrDash(resolved)}{" "}
+                      <span className="font-normal text-primary/70">({sourceLabel})</span>
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1 justify-center">
+                    {(product as any).subCategoryPrice != null && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700" data-testid={`badge-subcategory-${product.id}`}>
+                        Categoria
+                      </span>
+                    )}
+                    {(product as any).contractPrice != null && (
+                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-purple-100 text-purple-700" data-testid={`badge-contract-${product.id}`}>
+                        Contrato
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="flex flex-wrap gap-1.5 justify-center mt-3">
               <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${product.active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>

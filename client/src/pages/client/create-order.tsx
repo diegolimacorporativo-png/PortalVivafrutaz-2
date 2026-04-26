@@ -12,6 +12,7 @@ import {
   Minus, Plus, Trash2, FileText, Clock, PartyPopper, X, Search, AlertTriangle, Lock, RefreshCcw,
   Wrench, FlaskConical, SendHorizonal
 } from "lucide-react";
+import { resolvePrice } from "@/utils/priceResolver";
 
 const DAY_OPTIONS = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira"];
 
@@ -187,7 +188,6 @@ export default function CreateOrderPage() {
 
   const availableProducts = useMemo(() => {
     if (!products || !company) return [];
-    const adminFee = Number(company.adminFee || 0);
     return products
       .filter(p => {
         if (!p || !p.active) return false;
@@ -200,9 +200,16 @@ export default function CreateOrderPage() {
         return true;
       })
       .map(product => {
-        const base = Number(product.basePrice);
-        const finalPrice = base * (1 + adminFee / 100);
-        const price = Math.round(finalPrice * 100) / 100;
+        // Centralised resolver — respects subCategoryPrice / contractPrice
+        // when present and applies adminFee only when the company has the
+        // useNewPricing flag enabled (adminFee is never shown to the customer).
+        const price = resolvePrice({
+          basePrice: product.basePrice,
+          subCategoryPrice: (product as any).subCategoryPrice,
+          contractPrice: (product as any).contractPrice,
+          adminFee: company.adminFee,
+          useNewPricing: (company as any).useNewPricing === true,
+        });
         return { ...product, price };
       })
       .filter(p => p.price > 0); // final safety net

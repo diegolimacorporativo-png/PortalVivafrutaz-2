@@ -1,0 +1,126 @@
+STEP 4 — FRONTEND PRICING DISPLAY (VISUAL REAL)
+
+OBJETIVO  
+Exibir corretamente os preços no frontend, respeitando:
+
+- basePrice opcional  
+- subCategoryPrice (quando existir)  
+- contractPrice (quando existir)  
+- adminFee (somente para empresas com flag ativa)  
+
+SEM expor adminFee ao cliente.
+
+---
+
+STEP 4.1 — CRIAR FUNÇÃO DE RESOLUÇÃO NO FRONT
+
+Arquivo:
+client/src/utils/priceResolver.ts
+
+ts export function resolvePrice({   basePrice,   subCategoryPrice,   contractPrice,   adminFee,   useNewPricing }: {   basePrice?: number | null;   subCategoryPrice?: number | null;   contractPrice?: number | null;   adminFee?: number | null;   useNewPricing?: boolean; }) {   let price =     contractPrice ??     subCategoryPrice ??     basePrice ??     0;    if (useNewPricing && adminFee) {     price = price * (1 + adminFee / 100);   }    return Number(price.toFixed(2)); } 
+
+---
+
+STEP 4.2 — USAR NA LISTA DE PRODUTOS (ADMIN)
+
+Arquivo:
+client/src/pages/admin/products.tsx
+
+Substituir exibição de preço:
+
+ts const price = resolvePrice({   basePrice: product.basePrice,   subCategoryPrice: product.subCategoryPrice,   contractPrice: product.contractPrice,   adminFee: company?.adminFee,   useNewPricing: company?.useNewPricing === true }); 
+
+Renderizar:
+
+tsx <td>R$ {price.toFixed(2)}</td> 
+
+---
+
+STEP 4.3 — CLIENTE (PORTAL DO CLIENTE)
+
+Arquivo:
+client/src/pages/client/create-order.tsx
+
+Substituir cálculo:
+
+ts const price = resolvePrice({   basePrice: product.basePrice,   subCategoryPrice: selectedSubCategory?.price,   contractPrice: product.contractPrice,   adminFee: company?.adminFee,   useNewPricing: company?.useNewPricing === true }); 
+
+Subtotal:
+
+ts const subtotal = quantity * price; 
+
+---
+
+STEP 4.4 — NÃO EXPOR ADMIN FEE
+
+NUNCA renderizar:
+
+ts company.adminFee 
+
+Somente usar internamente no cálculo.
+
+---
+
+STEP 4.5 — EXIBIÇÃO INTELIGENTE (ADMIN)
+
+Mostrar:
+
+tsx {product.subCategoryPrice && <span>Categoria</span>} {product.contractPrice && <span>Contrato</span>} 
+
+---
+
+STEP 4.6 — FALLBACK VISUAL
+
+Se não houver preço:
+
+tsx {price === 0 ? "—" : `R$ ${price.toFixed(2)}`} 
+
+---
+
+STEP 4.7 — TESTES VISUAIS (OBRIGATÓRIO)
+
+1. Empresa SEM flag  
+→ preço igual ao base  
+
+2. Empresa COM flag + adminFee  
+→ preço maior  
+
+3. Produto com subcategoria  
+→ usa subCategoryPrice  
+
+4. Produto com contrato  
+→ usa contractPrice  
+
+5. Sem basePrice  
+→ não quebra  
+
+---
+
+STEP 4.8 — NÃO ALTERAR BACKEND
+
+- não mudar endpoints  
+- não mudar schema  
+- não recalcular no servidor  
+
+---
+
+RESULTADO ESPERADO
+
+✔ preço correto na tela  
+✔ cliente vê valor final (sem taxa visível)  
+✔ admin entende origem do preço  
+✔ sistema consistente com backend  
+
+---
+
+RISCO
+
+LOW ✅
+
+---
+
+PRÓXIMO PASSO
+
+Após validar visual:
+
+STEP 7 — IMPORTAÇÃO VIA EXCEL

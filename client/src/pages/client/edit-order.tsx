@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Redirect } from "wouter";
 import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lock } from "lucide-react";
 import { api } from "@shared/routes";
+import { resolvePrice } from "@/utils/priceResolver";
 
 function fmtBRL(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -41,13 +42,17 @@ export default function EditOrderPage() {
 
   const availableProducts = useMemo(() => {
     if (!products || !company) return [];
-    const adminFee = Number(company.adminFee || 0);
     return products
       .filter(p => p.active && p.basePrice)
       .map(product => {
-        const base = Number(product.basePrice);
-        const finalPrice = base * (1 + adminFee / 100);
-        return { ...product, price: Math.round(finalPrice * 100) / 100 };
+        const price = resolvePrice({
+          basePrice: product.basePrice,
+          subCategoryPrice: (product as any).subCategoryPrice,
+          contractPrice: (product as any).contractPrice,
+          adminFee: company.adminFee,
+          useNewPricing: (company as any).useNewPricing === true,
+        });
+        return { ...product, price };
       });
   }, [products, company]);
 
