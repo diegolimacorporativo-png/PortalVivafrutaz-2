@@ -1,0 +1,111 @@
+STEP 8.5 — ETA AUTOMÁTICO (TEMPO DE CHEGADA POR CLIENTE)
+
+OBJETIVO  
+Calcular e exibir:
+
+✔ tempo estimado até cada parada  
+✔ tempo total da rota  
+✔ cliente vê “chega em X minutos”  
+
+👉 baseado na rota real + posição do motorista  
+
+---
+
+🚫 NÃO criar tabela  
+🚫 NÃO criar engine nova de rota  
+👉 usar route_stops + GPS + distância existente  
+
+---
+
+## STEP 0 — BASE (JÁ EXISTE)
+
+✔ route_stops (ordem da rota)  
+✔ driver_gps_positions (posição atual)  
+✔ routeOptimizer (cálculo de distância)  
+
+👉 vamos só calcular ETA em cima disso  
+
+---
+
+## STEP 1 — FUNÇÃO DE DISTÂNCIA
+
+Reutilizar (se já existir):
+
+ts function distanceKm(a, b) {   const R = 6371;   const dLat = (b.lat - a.lat) * Math.PI / 180;   const dLon = (b.lng - a.lng) * Math.PI / 180;    const lat1 = a.lat * Math.PI / 180;   const lat2 = b.lat * Math.PI / 180;    const x = dLon * Math.cos((lat1 + lat2) / 2);   const y = dLat;    return Math.sqrt(x * x + y * y) * R; } 
+
+---
+
+## STEP 2 — FUNÇÃO DE ETA
+
+Arquivo:
+server/modules/logistics/eta.service.ts
+
+---
+
+### IMPLEMENTAÇÃO
+
+ts const AVG_SPEED_KMH = 40; // ajustar conforme cidade  export function calculateETA(stops, driverPosition) {   if (!stops.length) return [];    let current = driverPosition || stops[0];   let cumulativeTime = 0;    return stops.map((stop, index) => {     const dist = distanceKm(current, stop);     const timeHours = dist / AVG_SPEED_KMH;     const timeMinutes = timeHours * 60;      cumulativeTime += timeMinutes;      current = stop;      return {       ...stop,       etaMinutes: Math.round(cumulativeTime),       etaAt: new Date(Date.now() + cumulativeTime * 60000)     };   }); } 
+
+---
+
+## STEP 3 — INTEGRAR NO TRACKING
+
+No endpoint do STEP 8.4:
+
+ts import { calculateETA } from "./eta.service"; 
+
+Adicionar:
+
+ts const stopsWithETA = calculateETA(   stopsResult.rows,   gpsResult.rows?.[0] ); 
+
+Retornar:
+
+ts return res.json({   routeId: route.id,   driver: gpsResult.rows?.[0] ?? null,   stops: stopsWithETA }); 
+
+---
+
+## STEP 4 — FRONTEND
+
+Exibir ETA:
+
+tsx {data.stops.map((s, i) => (   <div key={i}>     Parada {i + 1} — chega em {s.etaMinutes} min   </div> ))} 
+
+---
+
+## STEP 5 — RESULTADO
+
+CLIENTE:
+✔ “Seu pedido chega em 12 min”
+
+MOTORISTA:
+✔ sabe sequência + tempo
+
+ADMIN:
+✔ visão completa da rota
+
+---
+
+## MELHORIAS FUTURAS
+
+- velocidade dinâmica (trânsito)
+- API externa (Google Maps)
+- delay por parada (ex: 3 min por entrega)
+- recalcular ETA a cada movimento
+
+---
+
+## RESULTADO FINAL
+
+ANTES:
+→ cliente sem previsão  
+
+DEPOIS:
+→ cliente sabe quando chega  
+→ operação previsível  
+→ experiência profissional  
+
+---
+
+RISCO
+
+LOW ✅ (somente cálculo em memória)

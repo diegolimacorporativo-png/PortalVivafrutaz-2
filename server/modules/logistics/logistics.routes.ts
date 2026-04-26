@@ -65,4 +65,7 @@ router.get("/best-driver", logisticsController.bestDriver);
 router.post("/route-insertion", logisticsController.routeInsertion);
 router.get("/smart-route-plan", logisticsController.smartRoutePlan);
 
+// ── Real-time tracking aggregator (admin / driver / customer share) ────
+router.get("/track/:routeId", logisticsController.routeTracking);
+
 export const logisticsRouter = router;

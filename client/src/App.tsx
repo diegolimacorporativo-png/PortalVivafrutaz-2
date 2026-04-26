@@ -71,6 +71,7 @@ import AdminAiDeveloper from "@/pages/admin/ai-developer";
 import AdminLogisticsIntelligence from "@/pages/admin/logistics-intelligence";
 import AdminDriverPanel from "@/pages/admin/driver-panel";
 import TrackDelivery from "@/pages/track";
+import DriverMap from "@/pages/driver-map";
 import AdminNotificationSettings from "@/pages/admin/notification-settings";
 import AdminScopeSimulations from "@/pages/admin/scope-simulations";
 import SaasDashboard from "@/pages/admin/saas-dashboard";
@@ -399,6 +400,9 @@ function Router() {
       </Route>
       <Route path="/track/:id">
         {() => <TrackDelivery />}
+      </Route>
+      <Route path="/driver-map/:routeId">
+        {() => <DriverMap />}
       </Route>
       <Route path="/test-clara">
         {() => <TestClaraPage />}

@@ -34,12 +34,19 @@
  * standardized log makes the failure visible in production.
  */
 import type { Request, Response } from "express";
+import { sql } from "drizzle-orm";
+import { db } from "../../database/db";
 import { LogisticsService, logisticsService } from "./logistics.service";
 import {
   LOGISTICS_ADMIN_ROLES,
   LOGISTICS_AUTH_ROLES,
   type ActorRef,
 } from "./logistics.types";
+
+/** Drizzle's `db.execute` returns either { rows } or an array depending on driver. */
+function rowsOf<T = any>(r: any): T[] {
+  return Array.isArray(r) ? r : (r?.rows ?? []);
+}
 
 export class LogisticsController {
   constructor(
@@ -521,6 +528,147 @@ export class LogisticsController {
         return res.status(400).json({ message: e.message });
       }
       res.status(500).json({ message: e.message });
+    }
+  };
+
+  // ── ROUTE TRACKING (no auth — admin / driver / customer share this) ───
+  /**
+   * GET /api/logistics/track/:routeId — read-only aggregator that joins:
+   *   • logistics_routes  → route header + driver assignment
+   *   • logistics_drivers → driver name/phone (LEFT JOIN, may be null)
+   *   • route_stops       → ordered sequence (by ordem_parada)
+   *   • deliveries        → status overlay per stop (route_position order)
+   *   • driver_gps_positions → latest GPS ping for the assigned driver
+   *
+   * No new tables, no new schema. Public endpoint by design — the same URL
+   * is consumed by the admin map, the driver app, and the customer tracking
+   * page. See STEP 8.4 spec: "✔ cliente usa delivery.route_id; chama mesmo
+   * endpoint".
+   */
+  routeTracking = async (req: Request, res: Response) => {
+    try {
+      const routeId = Number(req.params.routeId);
+      if (!Number.isFinite(routeId) || routeId <= 0) {
+        return res.status(400).json({ error: "Invalid routeId" });
+      }
+
+      // 1. Route header + driver (LEFT JOIN — route may have no driver yet)
+      const routeRows = rowsOf<any>(await db.execute(sql`
+        SELECT lr.id,
+               lr.driver_id,
+               lr.vehicle_id,
+               lr.status,
+               lr.delivery_date,
+               lr.name           AS route_name,
+               ld.name           AS driver_name,
+               ld.phone          AS driver_phone
+        FROM logistics_routes lr
+        LEFT JOIN logistics_drivers ld ON ld.id = lr.driver_id
+        WHERE lr.id = ${routeId}
+        LIMIT 1
+      `));
+      const route = routeRows[0];
+      if (!route) return res.status(404).json({ error: "Route not found" });
+
+      // 2. Stops in route order
+      const stops = rowsOf<any>(await db.execute(sql`
+        SELECT id, route_id, cep, endereco, numero, cidade, estado,
+               latitude, longitude, ordem_parada, company_id,
+               janela_inicio, janela_fim, tempo_estimado_min
+        FROM route_stops
+        WHERE route_id = ${routeId}
+        ORDER BY ordem_parada ASC, id ASC
+      `));
+
+      // 3. Deliveries on this route — adds order/status/company name overlay
+      const deliveries = rowsOf<any>(await db.execute(sql`
+        SELECT d.id,
+               d.order_id,
+               d.company_id,
+               d.status,
+               d.route_position,
+               d.latitude,
+               d.longitude,
+               d.scheduled_date,
+               d.delivered_at,
+               c.company_name AS company_name
+        FROM deliveries d
+        LEFT JOIN companies c ON c.id = d.company_id
+        WHERE d.route_id = ${routeId}
+        ORDER BY d.route_position ASC NULLS LAST, d.id ASC
+      `));
+
+      // 4. Latest GPS ping (only if driver assigned)
+      let driverPosition: any = null;
+      if (route.driver_id) {
+        const gpsRows = rowsOf<any>(await db.execute(sql`
+          SELECT latitude, longitude, accuracy, speed, heading, recorded_at
+          FROM driver_gps_positions
+          WHERE driver_id = ${route.driver_id}
+          ORDER BY recorded_at DESC
+          LIMIT 1
+        `));
+        const g = gpsRows[0];
+        if (g) {
+          driverPosition = {
+            lat: g.latitude,
+            lng: g.longitude,
+            accuracy: g.accuracy,
+            speed: g.speed,
+            heading: g.heading,
+            updatedAt: g.recorded_at,
+          };
+        }
+      }
+
+      res.json({
+        route: {
+          id: route.id,
+          name: route.route_name,
+          status: route.status,
+          deliveryDate: route.delivery_date,
+          driverId: route.driver_id,
+          vehicleId: route.vehicle_id,
+        },
+        driver: route.driver_id
+          ? {
+              id: route.driver_id,
+              name: route.driver_name,
+              phone: route.driver_phone,
+            }
+          : null,
+        stops: stops.map((s) => ({
+          id: s.id,
+          ordem: s.ordem_parada,
+          companyId: s.company_id,
+          cep: s.cep,
+          endereco: s.endereco,
+          numero: s.numero,
+          cidade: s.cidade,
+          estado: s.estado,
+          latitude: s.latitude,
+          longitude: s.longitude,
+          janelaInicio: s.janela_inicio,
+          janelaFim: s.janela_fim,
+          tempoEstimadoMin: s.tempo_estimado_min,
+        })),
+        deliveries: deliveries.map((d) => ({
+          id: d.id,
+          orderId: d.order_id,
+          companyId: d.company_id,
+          companyName: d.company_name,
+          status: d.status,
+          routePosition: d.route_position,
+          latitude: d.latitude,
+          longitude: d.longitude,
+          scheduledDate: d.scheduled_date,
+          deliveredAt: d.delivered_at,
+        })),
+        driverPosition,
+      });
+    } catch (e: any) {
+      console.warn(`[${(req as any).requestId}] [logistics.controller] routeTracking failed`, e);
+      res.status(500).json({ error: e?.message || "Erro" });
     }
   };
 

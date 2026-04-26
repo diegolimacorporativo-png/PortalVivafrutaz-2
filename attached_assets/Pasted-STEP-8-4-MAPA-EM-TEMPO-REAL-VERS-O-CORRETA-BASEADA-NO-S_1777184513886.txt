@@ -1,0 +1,131 @@
+STEP 8.4 — MAPA EM TEMPO REAL (VERSÃO CORRETA BASEADA NO SISTEMA EXISTENTE)
+
+OBJETIVO  
+Mostrar em tempo real:
+
+✔ motorista no mapa  
+✔ rota (sequência de entregas)  
+✔ cliente acompanhando entrega  
+
+👉 SEM criar nova arquitetura  
+
+---
+
+🚫 NÃO criar tabela  
+🚫 NÃO recriar GPS  
+🚫 NÃO duplicar lógica  
+👉 apenas consumir dados existentes  
+
+---
+
+## STEP 0 — DESCOBERTA (OBRIGATÓRIO)
+
+Confirmar uso de:
+
+✔ driver_gps_positions → posição atual  
+✔ logistics_routes → rota  
+✔ route_stops → sequência  
+✔ deliveries → vínculo com pedido  
+
+👉 NÃO criar nada novo  
+
+---
+
+## STEP 1 — ENDPOINT DE TRACKING (AGREGADOR)
+
+Arquivo:
+
+server/modules/logistics/logistics.controller.ts
+
+---
+
+### IMPLEMENTAÇÃO
+
+ts id="track1" export async function getRouteTracking(req, res) {   try {     const { routeId } = req.params;      // 1. rota + motorista     const routeResult = await db.execute(sql`       SELECT id, driver_id       FROM logistics_routes       WHERE id = ${routeId}     `);      const route = routeResult.rows?.[0];     if (!route) return res.status(404).json({ error: "Route not found" });      // 2. stops (rota ordenada)     const stopsResult = await db.execute(sql`       SELECT delivery_id, sequence, latitude, longitude       FROM route_stops       WHERE route_id = ${routeId}       ORDER BY sequence ASC     `);      // 3. última posição do motorista     const gpsResult = await db.execute(sql`       SELECT latitude, longitude, created_at       FROM driver_gps_positions       WHERE driver_id = ${route.driver_id}       ORDER BY created_at DESC       LIMIT 1     `);      return res.json({       route,       stops: stopsResult.rows ?? [],       driver: gpsResult.rows?.[0] ?? null     });    } catch (err) {     console.error("TRACKING_ERROR", err);     res.status(500).json({ error: "tracking_failed" });   } } 
+
+---
+
+## STEP 2 — FRONTEND (MAPA)
+
+Arquivo:
+
+client/src/pages/driver-map.tsx
+
+---
+
+### INSTALAR MAPA
+
+bash id="mapa-lib" npm install react-leaflet leaflet 
+
+---
+
+### IMPLEMENTAÇÃO
+
+tsx id="mapa-ui" import { MapContainer, TileLayer, Marker, Polyline } from "react-leaflet"; import { useEffect, useState } from "react";  export default function DriverMap({ routeId }) {   const [data, setData] = useState(null);    useEffect(() => {     const interval = setInterval(async () => {       const res = await fetch(`/api/logistics/track/${routeId}`);       const json = await res.json();       setData(json);     }, 5000);      return () => clearInterval(interval);   }, [routeId]);    if (!data || !data.stops.length) return null;    const stops = data.stops.map(s => [s.latitude, s.longitude]);   const driver = data.driver     ? [data.driver.latitude, data.driver.longitude]     : null;    return (     <MapContainer center={stops[0]} zoom={12} style={{ height: "100vh" }}>       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />        {/* rota */}       <Polyline positions={stops} />        {/* paradas */}       {stops.map((pos, i) => (         <Marker key={i} position={pos} />       ))}        {/* motorista */}       {driver && <Marker position={driver} />}     </MapContainer>   ); } 
+
+---
+
+## STEP 3 — MOTORISTA (GPS)
+
+Garantir que JÁ EXISTE:
+
+ts id="gps-send" setInterval(() => {   navigator.geolocation.getCurrentPosition((pos) => {     fetch("/api/driver/gps", {       method: "POST",       body: JSON.stringify({         latitude: pos.coords.latitude,         longitude: pos.coords.longitude       })     });   }); }, 5000); 
+
+---
+
+## STEP 4 — CLIENTE (TRACKING)
+
+Regra:
+
+✔ cliente usa delivery.route_id  
+✔ chama mesmo endpoint  
+
+ts id="client-track" GET /api/logistics/track/:routeId 
+
+---
+
+## STEP 5 — RESULTADO
+
+ADMIN:
+✔ vê todas rotas  
+✔ monitora motoristas  
+
+MOTORISTA:
+✔ vê rota  
+✔ navega  
+
+CLIENTE:
+✔ acompanha entrega  
+
+---
+
+## UX FINAL
+
+ANTES:
+pedido → sem visibilidade  
+
+DEPOIS:
+pedido → em rota → mapa em tempo real  
+
+---
+
+## MELHORIAS FUTURAS
+
+- WebSocket (sem polling)
+- ETA por parada
+- status por stop (entregue / pendente)
+- navegação integrada (Google Maps)
+
+---
+
+## RESULTADO FINAL
+
+✔ sistema com tracking real  
+✔ experiência tipo iFood  
+✔ logística transparente  
+
+---
+
+RISCO
+
+LOW ✅ (somente leitura + frontend)
