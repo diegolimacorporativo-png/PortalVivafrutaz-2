@@ -1,0 +1,186 @@
+# 🔀 STEP 9.3F.10 — Roteamento Inteligente (Core + Categoria)
+
+## 🎯 OBJETIVO
+Controlar quem recebe cada alerta sem alterar a arquitetura atual.
+
+👉 Separar:
+- Grupo CORE (sempre recebe tudo)
+- Grupos por categoria (recebem apenas o que importa)
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO alterar emitAlert  
+❌ NÃO alterar emitAlertSmart  
+❌ NÃO alterar buildInsights  
+❌ NÃO criar nova tabela  
+❌ NÃO mudar endpoints existentes  
+❌ NÃO duplicar persistência  
+
+---
+
+# 🧠 CONCEITO
+
+## 🔒 CORE (fixo — SEMPRE recebe)
+- DIRECTOR  
+- ADMIN  
+- MASTER  
+- DEV  
+
+👉 Recebem TODOS os alertas
+
+---
+
+## ⚙️ CATEGORIA (opcional)
+Baseado em:
+
+ts context.category 
+
+Exemplos:
+- FINANCE
+- TECH
+- OPERATIONS
+
+---
+
+# 🧱 ARQUITETURA
+
+## Novo arquivo:
+server/services/alerts.routing.ts
+
+---
+
+## Estrutura:
+
+ts export const CORE_ROLES = ["DIRECTOR", "ADMIN", "MASTER", "DEV"];  export const CATEGORY_ROUTING = {   FINANCE: ["FINANCE"],   TECH: ["DEV", "ADMIN"],   OPERATIONS: ["ADMIN"], }; 
+
+---
+
+## Função principal:
+
+ts resolveRecipients(input) 
+
+Responsável por:
+
+1. Iniciar com CORE_ROLES  
+2. Ler input.context?.category  
+3. Se existir:
+   - adicionar roles da categoria  
+4. Remover duplicados  
+5. Retornar lista final de roles  
+
+---
+
+# 🔌 INTEGRAÇÃO
+
+## Onde aplicar:
+
+👉 SOMENTE dentro do fluxo de envio
+
+### No emitAlertSmart (SEM alterar lógica interna)
+
+ANTES de enviar:
+
+- chamar resolveRecipients()
+- passar resultado como:
+
+ts recipientsRoles: [...] 
+
+---
+
+# ⚠️ IMPORTANTE
+
+👉 NÃO mudar funcionamento interno do emitAlertSmart  
+👉 NÃO alterar persistAlertLog  
+👉 NÃO alterar estrutura do alerta  
+
+Apenas enriquecer o payload
+
+---
+
+# 🧾 FORMATO FINAL
+
+ts emitAlertSmart({   severity,   title,   message,   context: {     ...,     category: "FINANCE"   },   recipientsRoles: ["DIRECTOR", "ADMIN", "DEV", "MASTER", "FINANCE"] }); 
+
+---
+
+# 🧪 VALIDAÇÃO
+
+## 1. CORE
+
+✔ Todo alerta contém:
+- DIRECTOR
+- ADMIN
+- MASTER
+- DEV
+
+---
+
+## 2. Categoria
+
+Ex:
+
+category = FINANCE
+
+✔ adiciona:
+- FINANCE
+
+---
+
+## 3. Sem categoria
+
+✔ apenas CORE
+
+---
+
+## 4. Sem duplicação
+
+✔ roles únicas (Set)
+
+---
+
+## 5. Compatibilidade
+
+✔ emitAlert continua igual  
+✔ analytics intacto  
+✔ insights intacto  
+✔ proactive intacto  
+
+---
+
+# 🚫 PROIBIDO
+
+Se você:
+
+- mover lógica para dentro do emitAlert  
+- criar tabela de usuários  
+- criar sistema de permissão complexo  
+- alterar persistência  
+
+👉 ESTÁ ERRADO
+
+---
+
+# ✅ RESULTADO FINAL
+
+✔ Diretoria sempre informada  
+✔ Times recebem apenas o que importa  
+✔ Zero spam desnecessário  
+✔ Estrutura pronta para futura configuração dinâmica  
+
+---
+
+# 🚀 IMPORTANTE
+
+Após implementar:
+
+👉 NÃO expandir  
+👉 NÃO otimizar  
+👉 NÃO adicionar UI  
+
+Retornar apenas:
+
+- status
+- validação
+- confirmação de não regress

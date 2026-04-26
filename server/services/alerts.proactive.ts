@@ -24,6 +24,8 @@
 
 import { buildInsights, type InsightEntry } from "./alerts.intelligence";
 import { emitAlertSmart, type SmartEmitResult } from "./alerts.smart";
+// STEP 9.3F.10 — roteamento (apenas deriva roles; não envia, não persiste).
+import { resolveRecipients } from "./alerts.routing";
 
 // ── Configuração ─────────────────────────────────────────────────────────────
 
@@ -51,17 +53,37 @@ export type ProactiveDispatchSummary = {
 
 // ── Helpers internos ─────────────────────────────────────────────────────────
 
-/** Converte um InsightEntry em payload para emitAlertSmart. */
+/**
+ * Deriva a categoria de roteamento a partir do insight.
+ * Hoje todos os insights existentes (channel:*, recurring_title:*, anomaly:*)
+ * são técnicos/observabilidade — categoria padrão "TECH". Mantido como
+ * função para facilitar evolução sem mexer no payload builder.
+ */
+function categoryForInsight(_insight: InsightEntry): string {
+  return "TECH";
+}
+
+/** Converte um InsightEntry em payload para emitAlertSmart, já com roteamento. */
 function buildAlertPayload(insight: InsightEntry) {
+  const category = categoryForInsight(insight);
+  const baseContext = {
+    source: "proactive_v1",
+    insightId: insight.id,
+    windowHours: PROACTIVE_WINDOW_HOURS,
+    category,
+    ...insight.metric,
+  };
+  // STEP 9.3F.10 — resolve roles ANTES de enviar; apenas enriquece o payload
+  // (auditoria + futura entrega dirigida). Não altera comportamento de envio.
+  const recipientsRoles = resolveRecipients({ context: baseContext });
+
   return {
     severity: "CRITICAL" as const,
     title:    `ALERTA AUTOMÁTICO: ${insight.title}`,
     message:  insight.detail,
     context: {
-      source: "proactive_v1",
-      insightId: insight.id,
-      windowHours: PROACTIVE_WINDOW_HOURS,
-      ...insight.metric,
+      ...baseContext,
+      recipientsRoles,
     },
     // Chave estável por insight para que o rate-limit do emitAlert não
     // confunda alertas distintos do mesmo tick.
