@@ -1,0 +1,162 @@
+STEP 5 — CRIAÇÃO DE PEDIDO (FLUXO REAL COMPLETO)
+
+OBJETIVO  
+Garantir que o cliente consegue:
+
+- selecionar produtos  
+- calcular preço corretamente  
+- enviar pedido  
+- salvar no backend  
+- aparecer no admin  
+
+🚫 NÃO alterar schema  
+🚫 NÃO criar nova lógica de pricing  
+🚫 NÃO mexer no resolver  
+
+---
+
+## STEP 5.1 — GARANTIR CÁLCULO CORRETO NO FRONT
+
+Arquivo:
+client/src/pages/client/create-order.tsx
+
+ts const price = resolvePrice({   basePrice: product.basePrice,   subCategoryPrice: selectedSubCategory?.price,   contractPrice: product.contractPrice,   adminFee: company?.adminFee,   useNewPricing: company?.useNewPricing === true,   pricingMode: product.pricingMode, });  const subtotal = quantity * price; 
+
+---
+
+## STEP 5.2 — MONTAR ITEMS CORRETAMENTE
+
+Antes de enviar o pedido:
+
+ts const items = cart.map((item) => ({   productId: item.productId,   quantity: item.quantity,   unitPrice: item.price,   totalPrice: item.quantity * item.price,   subCategoryId: item.subCategoryId || null, })); 
+
+---
+
+## STEP 5.3 — MONTAR PAYLOAD FINAL
+
+ts const payload = {   items, }; 
+
+---
+
+## STEP 5.4 — ENVIAR PARA API
+
+ts const res = await fetch("/api/v1/orders", {   method: "POST",   headers: {     "Content-Type": "application/json",   },   credentials: "include",   body: JSON.stringify(payload), });  const data = await res.json();  console.log("PEDIDO RESPONSE:", data); 
+
+---
+
+## STEP 5.5 — TRATAMENTO DE ERRO
+
+ts if (!res.ok) {   console.error("Erro ao criar pedido:", data);   alert("Erro ao criar pedido");   return; } 
+
+---
+
+## STEP 5.6 — SUCESSO
+
+ts alert("Pedido criado com sucesso");  setCart([]); 
+
+---
+
+## STEP 5.7 — TESTE REAL (OBRIGATÓRIO)
+
+### TESTE 1 — PRODUTO SIMPLES
+✔ selecionar produto  
+✔ definir quantidade  
+✔ criar pedido  
+
+→ deve funcionar  
+
+---
+
+### TESTE 2 — COM CATEGORIA
+✔ trocar subcategoria  
+
+→ preço muda corretamente  
+
+---
+
+### TESTE 3 — COM FLAG
+
+Empresa com:
+useNewPricing = true  
+adminFee = 10  
+
+→ preço deve subir  
+
+---
+
+### TESTE 4 — SEM FLAG
+
+→ preço NÃO muda  
+
+---
+
+## STEP 5.8 — VALIDAR NO ADMIN
+
+Ir na tela de pedidos:
+
+✔ pedido aparece  
+✔ itens corretos  
+✔ total correto  
+
+---
+
+## STEP 5.9 — VALIDAR NO BANCO
+
+Tabela order_items:
+
+✔ unitPrice correto  
+✔ totalPrice correto  
+
+Tabela orders:
+
+✔ totalValue correto  
+
+---
+
+## STEP 5.10 — EDGE CASES
+
+✔ produto sem base  
+✔ produto só categoria  
+✔ quantidade alta  
+✔ múltiplos itens  
+
+→ sistema NÃO pode quebrar  
+
+---
+
+## STEP 5.11 — SEGURANÇA
+
+Confirmar:
+
+🚫 NÃO enviar:
+- adminFee
+- lógica de cálculo
+
+✔ backend continua sendo fonte final  
+
+---
+
+## RESULTADO ESPERADO
+
+✔ pedido criado com sucesso  
+✔ valores corretos  
+✔ aparece no admin  
+✔ fluxo completo funcionando  
+
+---
+
+## SE DER ERRO
+
+Me enviar:
+
+- console.log("PEDIDO RESPONSE:", data)
+- erro da requisição (Network)
+- print da tela
+
+---
+
+PRÓXIMO PASSO
+
+Após validar:
+
+👉 STEP 6 — EDIÇÃO DE PEDIDO (UX REAL)

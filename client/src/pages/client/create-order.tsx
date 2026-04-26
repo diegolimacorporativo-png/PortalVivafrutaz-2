@@ -191,8 +191,6 @@ export default function CreateOrderPage() {
     return products
       .filter(p => {
         if (!p || !p.active) return false;
-        const base = Number(p.basePrice);
-        if (!p.basePrice || isNaN(base) || base <= 0) return false;
         const days = (p as any).availableDays;
         if (days && Array.isArray(days) && days.length > 0 && selectedDay) {
           if (!days.includes(selectedDay)) return false;
@@ -209,10 +207,11 @@ export default function CreateOrderPage() {
           contractPrice: (product as any).contractPrice,
           adminFee: company.adminFee,
           useNewPricing: (company as any).useNewPricing === true,
+          pricingMode: (product as any).pricingMode,
         });
         return { ...product, price };
       })
-      .filter(p => p.price > 0); // final safety net
+      .filter(p => p.price > 0); // final safety net: only hide if NO source produced a price
   }, [products, company, selectedDay]);
 
   const categories = useMemo(() => {
