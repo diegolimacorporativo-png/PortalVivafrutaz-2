@@ -343,6 +343,41 @@ export default function CentralFaturamento() {
     refetchInterval: 30000,
   });
 
+  // STEP 9.3F.8 — exportação CSV reusando a mesma janela do digest.
+  const [exporting, setExporting] = useState(false);
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const res = await fetch(
+        `/api/cron/alerts/export?windowHours=${intelParams.windowHours}&format=csv`,
+        { credentials: "include" },
+      );
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      const blob = await res.blob();
+      // Tenta extrair filename do header; fallback amigável.
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = /filename="?([^";]+)"?/i.exec(cd);
+      const filename = m?.[1] ?? `alerts-${intelParams.windowHours}h.csv`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast({ title: "CSV exportado", description: filename });
+    } catch (err) {
+      toast({
+        title: "Falha ao exportar",
+        description: String((err as Error).message ?? err),
+        variant: "destructive",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const { data: insightsData, isLoading: insightsLoading } = useQuery<InsightReport>({
     queryKey: ["/api/cron/alerts/insights", intelParams.windowHours],
     queryFn: async () => {
@@ -720,7 +755,18 @@ export default function CentralFaturamento() {
                 Janela: {intelWindow}
               </Badge>
             </CardTitle>
-            <span className="text-xs text-gray-400">Atualiza a cada 30s</span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportCsv}
+                disabled={exporting || digestLoading}
+                data-testid="button-export-digest-csv"
+              >
+                {exporting ? "Exportando..." : "Exportar CSV"}
+              </Button>
+              <span className="text-xs text-gray-400">Atualiza a cada 30s</span>
+            </div>
           </div>
           <p className="text-xs text-gray-500 mt-1">
             Composição automática a partir dos insights, anomalias e métricas já calculados.

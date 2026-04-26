@@ -1,0 +1,130 @@
+STEP 9.3F.7 está APROVADO e validado.
+
+Agora seguimos para o próximo passo, mantendo o MESMO padrão:
+
+- aditivo  
+- isolado  
+- sem alterar comportamento existente  
+- sem refatoração  
+
+---
+
+# 🎯 PRÓXIMO PASSO — STEP 9.3F.8 (EXPORTAÇÃO DE DADOS)
+
+## OBJETIVO
+
+Permitir que administradores exportem os dados de alertas para uso externo (Excel / análise offline), reutilizando 100% do que já existe.
+
+👉 NÃO criar nova lógica de cálculo  
+👉 NÃO recalcular métricas  
+👉 NÃO acessar dados fora de cron_alert_logs  
+
+---
+
+# 📊 ESCOPO
+
+Criar exportação baseada nos dados já prontos de:
+
+- /api/cron/alerts/analytics  
+- /api/cron/alerts/insights  
+- /api/cron/alerts/digest  
+
+---
+
+# 🧱 BACKEND
+
+## Novo endpoint
+
+GET /api/cron/alerts/export?windowHours=24&format=csv
+
+### Regras
+
+- Auth obrigatório (mesmo padrão dos outros)
+- Reutilizar:
+  - buildDigest()
+  - buildInsights()
+  - buildAnomalies()
+  - endpoint analytics (ou mesma query interna)
+
+### Formato CSV
+
+Colunas:
+
+timestamp_export
+window_hours
+
+total
+sent
+rate_limited
+suppressed
+
+top_channel
+top_title
+
+insight_level
+insight_title
+
+anomaly_dimension
+anomaly_level
+
+---
+
+# ⚠️ REGRAS CRÍTICAS
+
+❌ NÃO criar nova query pesada  
+❌ NÃO duplicar lógica do analytics  
+❌ NÃO alterar endpoints existentes  
+❌ NÃO criar nova tabela  
+❌ NÃO mexer em emitAlert  
+
+---
+
+# 🧠 FRONTEND
+
+## No card "Resumo inteligente"
+
+Adicionar botão:
+
+[ Exportar CSV ]
+
+### Comportamento
+
+- chama /api/cron/alerts/export
+- baixa arquivo automaticamente
+- usa mesmo windowHours do card
+
+---
+
+# 🧪 VALIDAÇÃO
+
+- CSV baixa corretamente
+- dados batem com o dashboard
+- sem erro de auth (401 ok)
+- sem impacto nos endpoints existentes
+
+---
+
+# 🚫 PROIBIDO
+
+Se você:
+- recriar métricas
+- mudar estrutura de dados
+- otimizar coisas fora do escopo
+
+→ está ERRADO
+
+---
+
+# ✅ FORMA CORRETA
+
+1. Reusar dados existentes  
+2. Converter para CSV  
+3. Expor endpoint  
+4. Conectar botão  
+
+---
+
+Após implementar:
+
+👉 NÃO avance para próximo step  
+👉 Me entregue validação completa primeiro

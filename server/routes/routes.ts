@@ -62,6 +62,8 @@ import { getAlertLogs, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store
 import { buildAnomalies, buildInsights } from "../services/alerts.intelligence";
 // STEP 9.3F.7 — digest automático (composição das funções existentes).
 import { buildDigest } from "../services/alerts.digest";
+// STEP 9.3F.8 — exportação CSV (reusa buildDigest, sem nova lógica de cálculo).
+import { buildAlertsCsv } from "../services/alerts.export";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5321,6 +5323,38 @@ export async function registerRoutes(
         } catch (err) {
           console.error('[ALERT_DIGEST_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao gerar digest de alertas' });
+        }
+      },
+    );
+
+    // STEP 9.3F.8 — Exportação CSV dos dados de alertas (reusa buildDigest).
+    // GET /api/cron/alerts/export?windowHours=24&format=csv
+    // format=csv é o único suportado por enquanto (default=csv).
+    app.get(
+      '/api/cron/alerts/export',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const windowHours = Number(req.query.windowHours ?? 24);
+          const format = String(req.query.format ?? 'csv').toLowerCase();
+          if (format !== 'csv') {
+            return res.status(400).json({ error: `Formato não suportado: ${format}` });
+          }
+          const out = await buildAlertsCsv({
+            windowHours: Number.isFinite(windowHours) ? windowHours : 24,
+          });
+          res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${out.filename}"`,
+          );
+          res.setHeader('Cache-Control', 'no-store');
+          // BOM para abrir corretamente no Excel pt-BR (UTF-8).
+          return res.send('\uFEFF' + out.csv);
+        } catch (err) {
+          console.error('[ALERT_EXPORT_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao exportar alertas' });
         }
       },
     );
