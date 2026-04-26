@@ -60,6 +60,8 @@ import {
 import { getAlertLogs, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
 // STEP 9.3F.6 — inteligência sobre cron_alert_logs (puramente leitura).
 import { buildAnomalies, buildInsights } from "../services/alerts.intelligence";
+// STEP 9.3F.7 — digest automático (composição das funções existentes).
+import { buildDigest } from "../services/alerts.digest";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5298,6 +5300,27 @@ export async function registerRoutes(
         } catch (err) {
           console.error('[ALERT_INSIGHTS_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao calcular insights de alertas' });
+        }
+      },
+    );
+
+    // STEP 9.3F.7 — Digest automático (resumo inteligente em linguagem natural).
+    // GET /api/cron/alerts/digest?windowHours=24
+    // Reusa buildInsights + buildAnomalies + queries leves de summary/highlights.
+    app.get(
+      '/api/cron/alerts/digest',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const windowHours = Number(req.query.windowHours ?? 24);
+          const report = await buildDigest({
+            windowHours: Number.isFinite(windowHours) ? windowHours : 24,
+          });
+          return res.json(report);
+        } catch (err) {
+          console.error('[ALERT_DIGEST_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao gerar digest de alertas' });
         }
       },
     );

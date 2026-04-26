@@ -135,6 +135,25 @@ type InsightReport = {
   insights: InsightEntry[];
 };
 
+// STEP 9.3F.7 — digest automático (resumo inteligente).
+type DigestReport = {
+  windowHours: number;
+  generatedAt: string;
+  summary: {
+    total: number;
+    sent: number;
+    rate_limited: number;
+    suppressed: number;
+  };
+  insights: InsightEntry[];
+  anomalies: AnomalyEntry[];
+  highlights: {
+    topChannel: string | null;
+    topTitle: string | null;
+  };
+  message: string;
+};
+
 // STEP 9.3F.5 — analytics dos alertas persistidos (já normalizados como number).
 type AlertAnalytics = {
   days: number;
@@ -307,6 +326,19 @@ export default function CentralFaturamento() {
       );
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       return (await res.json()) as AnomalyReport;
+    },
+    refetchInterval: 30000,
+  });
+
+  // STEP 9.3F.7 — digest com resumo, KPIs e mensagem em linguagem natural.
+  const { data: digest, isLoading: digestLoading } = useQuery<DigestReport>({
+    queryKey: ["/api/cron/alerts/digest", intelParams.windowHours],
+    queryFn: async () => {
+      const res = await fetch(`/api/cron/alerts/digest?windowHours=${intelParams.windowHours}`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+      return (await res.json()) as DigestReport;
     },
     refetchInterval: 30000,
   });
@@ -673,6 +705,98 @@ export default function CentralFaturamento() {
                 );
               })}
             </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Resumo Inteligente — STEP 9.3F.7 */}
+      <Card data-testid="card-alert-digest">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <BellRing className="w-4 h-4 text-emerald-600" />
+              Resumo inteligente
+              <Badge variant="secondary" className="ml-1" data-testid="badge-digest-window">
+                Janela: {intelWindow}
+              </Badge>
+            </CardTitle>
+            <span className="text-xs text-gray-400">Atualiza a cada 30s</span>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">
+            Composição automática a partir dos insights, anomalias e métricas já calculados.
+          </p>
+        </CardHeader>
+        <CardContent>
+          {digestLoading && !digest ? (
+            <div className="space-y-3">
+              <Skeleton className="h-12 rounded" />
+              <div className="grid grid-cols-4 gap-2">
+                <Skeleton className="h-16 rounded" />
+                <Skeleton className="h-16 rounded" />
+                <Skeleton className="h-16 rounded" />
+                <Skeleton className="h-16 rounded" />
+              </div>
+            </div>
+          ) : !digest ? (
+            <div className="px-2 py-6 text-sm text-gray-400 text-center" data-testid="text-digest-empty">
+              Sem dados para gerar resumo.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Mensagem em linguagem natural */}
+              <div
+                className="rounded border bg-emerald-50/50 px-3 py-3 text-sm text-emerald-900"
+                data-testid="text-digest-message"
+              >
+                {digest.message}
+              </div>
+
+              {/* KPIs */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <div className="rounded border bg-gray-50 px-3 py-2" data-testid="card-digest-total">
+                  <div className="text-[11px] text-gray-500">Total</div>
+                  <div className="text-xl font-semibold text-gray-800">{digest.summary.total}</div>
+                </div>
+                <div className="rounded border bg-green-50 px-3 py-2" data-testid="card-digest-sent">
+                  <div className="text-[11px] text-green-700">Enviados</div>
+                  <div className="text-xl font-semibold text-green-800">{digest.summary.sent}</div>
+                </div>
+                <div className="rounded border bg-amber-50 px-3 py-2" data-testid="card-digest-rate-limited">
+                  <div className="text-[11px] text-amber-700">Rate-limited</div>
+                  <div className="text-xl font-semibold text-amber-800">{digest.summary.rate_limited}</div>
+                </div>
+                <div className="rounded border bg-purple-50 px-3 py-2" data-testid="card-digest-suppressed">
+                  <div className="text-[11px] text-purple-700">Suprimidos</div>
+                  <div className="text-xl font-semibold text-purple-800">{digest.summary.suppressed}</div>
+                </div>
+              </div>
+
+              {/* Destaques */}
+              {(digest.highlights.topChannel || digest.highlights.topTitle) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                  {digest.highlights.topTitle && (
+                    <div
+                      className="flex items-center gap-2 rounded border px-3 py-2"
+                      data-testid="text-digest-top-title"
+                    >
+                      <span className="text-gray-500 shrink-0">Título mais recorrente:</span>
+                      <span className="font-medium text-gray-800 truncate">{digest.highlights.topTitle}</span>
+                    </div>
+                  )}
+                  {digest.highlights.topChannel && (
+                    <div
+                      className="flex items-center gap-2 rounded border px-3 py-2"
+                      data-testid="text-digest-top-channel"
+                    >
+                      <span className="text-gray-500 shrink-0">Canal em destaque:</span>
+                      <Badge variant="secondary" className="capitalize">
+                        {digest.highlights.topChannel}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
