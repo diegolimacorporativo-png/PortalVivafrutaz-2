@@ -1,0 +1,164 @@
+## STEP 9.3E — HISTÓRICO PERSISTENTE + ALERTAS DO CRON (VERSÃO FINAL AJUSTADA)
+
+### OBJETIVO
+
+- Persistir execuções do cron no banco  
+- Criar base de auditoria real  
+- Permitir análise histórica  
+- Preparar alertas externos (STEP 9.3F)  
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar lógica do cron  
+- NÃO alterar guard  
+- NÃO alterar engine  
+- NÃO alterar emissão  
+
+👉 Apenas observabilidade + persistência
+
+---
+
+## STEP 1 — SCHEMA
+
+Arquivo:
+server/db/schema.ts
+
+ts import { pgTable, serial, timestamp, text, integer } from "drizzle-orm/pg-core";  export const cron_faturamento_runs = pgTable("cron_faturamento_runs", {   id: serial("id").primaryKey(),    executedAt: timestamp("executed_at").defaultNow().notNull(),    triggeredBy: text("triggered_by").notNull(), // 'schedule' | 'manual'   triggeredByUserId: integer("triggered_by_user_id"),    total: integer("total").notNull(),   success: integer("success").notNull(),   blocked: integer("blocked").notNull(),   errors: integer("errors").notNull() }); 
+
+👉 depois rodar:
+npm run db:push
+
+---
+
+## STEP 2 — PERSISTÊNCIA SEGURA
+
+Arquivo:
+server/jobs/faturamento.cron.ts
+
+ts import { db } from "@/db"; import { cron_faturamento_runs } from "@/db/schema";  async function persistCronRun(data: {   triggeredBy: "schedule" | "manual";   triggeredByUserId?: number | null;   total: number;   success: number;   blocked: number;   errors: number; }) {   try {     await db.insert(cron_faturamento_runs).values({       ...data,       triggeredByUserId: data.triggeredByUserId ?? null     });   } catch (err) {     console.error("[CRON_HISTORY_PERSIST_ERROR]", err);   } } 
+
+---
+
+## STEP 3 — INTEGRAR NO CRON
+
+👉 adicionar nos 3 pontos de saída:
+
+### 1. Execução normal
+
+ts await persistCronRun({   triggeredBy,   triggeredByUserId,   total,   success,   blocked,   errors }); 
+
+---
+
+### 2. Zero candidatos
+
+ts await persistCronRun({   triggeredBy,   triggeredByUserId,   total: 0,   success: 0,   blocked: 0,   errors: 0 }); 
+
+---
+
+### 3. Erro fatal
+
+ts catch (err) {   console.error("[CRON_FATAL_ERROR]", err);    await persistCronRun({     triggeredBy,     triggeredByUserId,     total: 0,     success: 0,     blocked: 0,     errors: 1   }); } 
+
+---
+
+## STEP 4 — ALERTAS INTERNOS
+
+Ainda no cron:
+
+ts if (errors > 0) {   console.error("[CRON_ALERT]", {     total,     success,     blocked,     errors   }); }  if (success === 0 && total > 0) {   console.error("[CRON_CRITICAL]", {     total,     blocked,     errors   }); } 
+
+---
+
+## STEP 5 — ENDPOINT DE HISTÓRICO
+
+Arquivo:
+server/routes/routes.ts
+
+ts import { desc } from "drizzle-orm"; import { cron_faturamento_runs } from "@/db/schema";  app.get("/api/nfe/cron/history", async (req, res) => {   try {     const rows = await db       .select()       .from(cron_faturamento_runs)       .orderBy(desc(cron_faturamento_runs.executedAt))       .limit(50);      return res.json(rows);    } catch (error) {     console.error("[CRON_HISTORY_ERROR]", error);      return res.status(500).json({       error: "Erro ao buscar histórico"     });   } }); 
+
+---
+
+## STEP 6 — UI (HISTÓRICO)
+
+Arquivo:
+client/src/pages/admin/faturamento.tsx
+
+Consumir:
+
+ts GET /api/nfe/cron/history 
+
+---
+
+### Exibir tabela:
+
+- 📅 Data (executedAt)
+- 🔁 Tipo (manual / automático)
+- 📦 Total
+- ✅ Sucesso
+- ⛔ Bloqueados
+- ❌ Erros
+
+---
+
+### UX recomendado:
+
+- Linha vermelha → errors > 0  
+- Linha amarela → blocked > 0  
+- Badge azul → manual  
+- Badge cinza → automático  
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ Cron invisível  
+❌ Sem histórico  
+❌ Sem controle  
+
+---
+
+DEPOIS:
+
+✅ Histórico persistente  
+✅ Auditoria real  
+✅ Base para dashboard  
+✅ Base para alertas externos  
+✅ Segurança operacional  
+
+---
+
+## RISCO
+
+LOW ✅  
+(só leitura + insert isolado)
+
+---
+
+## PRÓXIMO PASSO (9.3F)
+
+→ ALERTAS REAIS:
+
+- WhatsApp (ideal)
+- Slack
+- Email
+
+Triggers:
+
+- errors > 0  
+- success = 0  
+- volume anormal  
+
+---
+
+## RESUMO
+
+Você saiu de:
+
+❌ "cron roda e ninguém sabe"
+
+Para:
+
+✅ "cron monitorado, auditado e controlado"
