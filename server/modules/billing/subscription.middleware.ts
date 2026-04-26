@@ -1,6 +1,13 @@
 import type { Request, Response, NextFunction } from "express";
 import crypto from "crypto";
 import { storage } from "../../services/storage";
+import {
+  getCachedUsage,
+  setCachedUsage,
+  invalidateUsageCache,
+} from "./usage-cache";
+
+export { invalidateUsageCache };
 
 const BYPASS_ROLES = new Set([
   "MASTER",
@@ -19,21 +26,11 @@ const INACTIVE_STATUSES = new Set([
 
 export type LimitTipo = "pedidos" | "usuarios" | "motoristas" | "rotas";
 
-// Cache leve do uso/limites por empresa (TTL 30s). Reduz a carga do
-// computeUsageAndLimits que faz vários full-scans em cada checkPlanLimit.
-const USAGE_CACHE_TTL_MS = 30_000;
-const usageCache = new Map<number, { data: UsageAndLimits; timestamp: number }>();
-
 export interface UsageAndLimits {
   uso: { usuarios: number; pedidosMes: number; motoristas: number; rotas: number };
   limites: { usuarios: number; pedidos: number; motoristas: number; rotas: number };
   plano: any;
   assinatura: any;
-}
-
-export function invalidateUsageCache(companyId?: number): void {
-  if (typeof companyId === "number") usageCache.delete(companyId);
-  else usageCache.clear();
 }
 
 async function resolveCompanyId(req: any): Promise<{ companyId: number | null; bypass: boolean }> {
@@ -124,12 +121,10 @@ async function realComputeUsageAndLimits(companyId: number): Promise<UsageAndLim
 }
 
 export async function computeUsageAndLimits(companyId: number): Promise<UsageAndLimits> {
-  const cached = usageCache.get(companyId);
-  if (cached && Date.now() - cached.timestamp < USAGE_CACHE_TTL_MS) {
-    return cached.data;
-  }
+  const cached = getCachedUsage<UsageAndLimits>(companyId);
+  if (cached) return cached;
   const data = await realComputeUsageAndLimits(companyId);
-  usageCache.set(companyId, { data, timestamp: Date.now() });
+  setCachedUsage(companyId, data);
   return data;
 }
 

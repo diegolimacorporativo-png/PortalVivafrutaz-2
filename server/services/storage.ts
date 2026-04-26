@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "../database/db";
 import { cache } from "./cache.js";
+import { invalidateUsageCache } from "../modules/billing/usage-cache";
 import {
   tenantWhere,
   tenantAnd,
@@ -510,6 +511,7 @@ export class DatabaseStorage implements IStorage {
     const hashedPassword = user.password ? await bcrypt.hash(user.password, 10) : undefined;
     const toInsert = { ...user, password: hashedPassword ?? user.password };
     const [newUser] = await db.insert(users).values(toInsert).returning();
+    if (newUser?.empresaId) invalidateUsageCache(newUser.empresaId);
     return newUser;
   }
 
@@ -997,6 +999,9 @@ export class DatabaseStorage implements IStorage {
       }
 
       return updatedOrder;
+    }).then((result) => {
+      if (result?.companyId) invalidateUsageCache(result.companyId);
+      return result;
     });
   }
 
@@ -1319,6 +1324,7 @@ export class DatabaseStorage implements IStorage {
   }
   async createDriver(data: Partial<LogisticsDriver>): Promise<LogisticsDriver> {
     const [d] = await db.insert(logisticsDrivers).values(data as any).returning();
+    if ((d as any)?.empresaId) invalidateUsageCache((d as any).empresaId);
     return d;
   }
   async updateDriver(id: number, data: Partial<LogisticsDriver>): Promise<LogisticsDriver> {
@@ -1351,6 +1357,7 @@ export class DatabaseStorage implements IStorage {
   }
   async createRoute(data: Partial<LogisticsRoute>): Promise<LogisticsRoute> {
     const [r] = await db.insert(logisticsRoutes).values(data as any).returning();
+    if ((r as any)?.empresaId) invalidateUsageCache((r as any).empresaId);
     return r;
   }
   async updateRoute(id: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute> {
