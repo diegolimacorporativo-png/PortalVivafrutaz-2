@@ -45,8 +45,34 @@ import { NotFoundError, BadRequestError } from "../shared/errors/AppError";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
-export type BillingType = "STANDARD" | "CONTRACT";
+// STEP FISCAL 2 — enum estendido. "CONTRACT" (legado da FASE 1) é aceito como
+// alias de leitura/escrita e mapeado para "CONTRACT_OPEN" via normalizeBillingType.
+export type BillingType =
+  | "STANDARD"
+  | "CONTRACT_OPEN"
+  | "CONTRACT_AVERAGE";
+export type LegacyBillingType = BillingType | "CONTRACT";
 export type DraftStatus = "draft" | "finalized";
+
+const VALID_BILLING_TYPES: ReadonlySet<string> = new Set([
+  "STANDARD",
+  "CONTRACT_OPEN",
+  "CONTRACT_AVERAGE",
+  "CONTRACT", // legado — convertido para CONTRACT_OPEN
+]);
+
+/**
+ * STEP FISCAL 2 — Normaliza qualquer valor recebido (incluindo o legado
+ * "CONTRACT" da FASE 1) para o enum atual. Retorna `null` quando o valor
+ * for inválido. Não lança — quem chama decide a política de erro.
+ */
+export function normalizeBillingType(raw: unknown): BillingType | null {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim().toUpperCase();
+  if (!VALID_BILLING_TYPES.has(v)) return null;
+  if (v === "CONTRACT") return "CONTRACT_OPEN";
+  return v as BillingType;
+}
 
 export interface DraftItem {
   productId?: number | null;
@@ -68,14 +94,16 @@ export interface DraftTotals {
 
 export interface CreateDraftOpts {
   orderId: number;
-  billingType?: BillingType;
+  billingType?: LegacyBillingType;
+  useGroupedItems?: boolean;
 }
 
 export interface UpdateDraftPayload {
   items?: DraftItem[];
   totals?: Partial<DraftTotals>;
   status?: DraftStatus;
-  billingType?: BillingType;
+  billingType?: LegacyBillingType;
+  useGroupedItems?: boolean;
 }
 
 // ── Helpers (puros) ──────────────────────────────────────────────────────────
@@ -142,13 +170,14 @@ function orderItemToDraftItem(
  */
 export async function createDraftFromOrder(opts: CreateDraftOpts): Promise<NfDraft> {
   const { orderId } = opts;
-  const billingType: BillingType = opts.billingType || "STANDARD";
+  const billingType: BillingType =
+    normalizeBillingType(opts.billingType) || "STANDARD";
 
   if (!orderId || !Number.isInteger(orderId) || orderId <= 0) {
     throw new BadRequestError(`orderId inválido: ${orderId}`);
   }
-  if (billingType !== "STANDARD" && billingType !== "CONTRACT") {
-    throw new BadRequestError(`billingType inválido: ${billingType}`);
+  if (opts.billingType && !normalizeBillingType(opts.billingType)) {
+    throw new BadRequestError(`billingType inválido: ${opts.billingType}`);
   }
 
   const orderData = await storage.getOrder(orderId);
@@ -171,24 +200,17 @@ export async function createDraftFromOrder(opts: CreateDraftOpts): Promise<NfDra
     // defensivo: se o lookup falhar, mantém fallback "5102"
   }
 
-  let items: DraftItem[] = [];
-  if (billingType === "STANDARD") {
-    let productMap = new Map<number, any>();
-    try {
-      const allProducts: any[] = (await storage.getProducts()) || [];
-      productMap = new Map(allProducts.map((p) => [p.id, p]));
-    } catch {
-      productMap = new Map();
-    }
-    items = orderItems.map((it) =>
-      orderItemToDraftItem(it, productMap, {
-        ncm: "08039000",
-        cfop: defaultCfop,
-        unit: "KG",
-      }),
-    );
-  }
-  // CONTRACT → items = []
+  // STEP FISCAL 2 — delegação por estratégia. O builder é a fonte única
+  // de itens; este service apenas persiste/edita. Para CONTRACT_AVERAGE,
+  // o builder consulta contractScopes e tira snapshot de averageCost.
+  const { buildDraftItemsByStrategy } = await import("./nf.draft.builder");
+  const items: DraftItem[] = await buildDraftItemsByStrategy({
+    billingType,
+    orderRow,
+    orderItems,
+    companyId,
+    defaults: { ncm: "08039000", cfop: defaultCfop, unit: "KG" },
+  });
 
   const totals = computeTotals(items);
 
@@ -197,6 +219,7 @@ export async function createDraftFromOrder(opts: CreateDraftOpts): Promise<NfDra
     companyId,
     billingType,
     status: "draft",
+    useGroupedItems: opts.useGroupedItems === true,
     items: items as unknown as InsertNfDraft["items"],
     totals: totals as unknown as InsertNfDraft["totals"],
   };
@@ -289,11 +312,15 @@ export async function updateDraft(
     }
     patch.status = payload.status;
   }
-  if (payload.billingType) {
-    if (payload.billingType !== "STANDARD" && payload.billingType !== "CONTRACT") {
+  if (payload.billingType !== undefined) {
+    const normalized = normalizeBillingType(payload.billingType);
+    if (!normalized) {
       throw new BadRequestError(`billingType inválido: ${payload.billingType}`);
     }
-    patch.billingType = payload.billingType;
+    patch.billingType = normalized;
+  }
+  if (payload.useGroupedItems !== undefined) {
+    patch.useGroupedItems = payload.useGroupedItems === true;
   }
 
   const safe = stripTenantFields(patch);

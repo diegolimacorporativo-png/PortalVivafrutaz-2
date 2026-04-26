@@ -69,6 +69,15 @@ export const companies = pgTable("companies", {
   billingTerm: text("billing_term"),
   billingType: text("billing_type"),
   billingFormat: text("billing_format"),
+  // STEP FISCAL 2 — modelo fiscal de faturamento, independente do método
+  // de pagamento acima (boleto/pix/depósito). Default STANDARD garante
+  // zero regressão para empresas legadas. Valores: STANDARD | CONTRACT_OPEN
+  // | CONTRACT_AVERAGE.
+  billingModel: text("billing_model").default("STANDARD").notNull(),
+  // STEP FISCAL 2 — feature flag por empresa: quando true, buildNFeInput
+  // procura automaticamente um nf_draft do pedido. Default false: mantém
+  // comportamento legado (NF copia order_items diretamente).
+  useFiscalDraft: boolean("use_fiscal_draft").default(false).notNull(),
   paymentDates: text("payment_dates"),
   financialNotes: text("financial_notes"),
   // Dados fiscais do cliente (destinatário NF-e)
@@ -1093,8 +1102,14 @@ export const nfDrafts = pgTable("nf_drafts", {
   tenantId: integer("empresa_id").references(() => companies.id),
   orderId: integer("order_id").references(() => orders.id),
   companyId: integer("company_id").references(() => companies.id).notNull(),
-  billingType: text("billing_type").notNull().default("STANDARD"), // STANDARD | CONTRACT
+  // STEP FISCAL 2 — enum estendido: STANDARD | CONTRACT_OPEN | CONTRACT_AVERAGE.
+  // Valores legados "CONTRACT" são lidos pelo service como CONTRACT_OPEN.
+  billingType: text("billing_type").notNull().default("STANDARD"),
   status: text("status").notNull().default("draft"),               // draft | finalized
+  // STEP FISCAL 2 — agrupamento de itens. Quando true, a NF gerada do draft
+  // consolida todos os itens em uma única linha (ex.: "Frutas in natura").
+  // Quando false, cada item vai como linha separada na NF.
+  useGroupedItems: boolean("use_grouped_items").notNull().default(false),
   items: jsonb("items").notNull().default([]),
   totals: jsonb("totals").notNull().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),

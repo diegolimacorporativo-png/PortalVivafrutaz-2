@@ -33,7 +33,14 @@ export const draftTotalsSchema = z
   })
   .partial();
 
-export const billingTypeSchema = z.enum(["STANDARD", "CONTRACT"]);
+// STEP FISCAL 2 — enum estendido. "CONTRACT" continua aceito como alias
+// legado e é normalizado para "CONTRACT_OPEN" no service.
+export const billingTypeSchema = z.enum([
+  "STANDARD",
+  "CONTRACT_OPEN",
+  "CONTRACT_AVERAGE",
+  "CONTRACT",
+]);
 export const draftStatusSchema = z.enum(["draft", "finalized"]);
 
 // POST /api/fiscal/drafts
@@ -43,6 +50,7 @@ export const createDraftSchema = z.object({
     .transform((v) => Number(v))
     .refine((n) => Number.isInteger(n) && n > 0, "orderId inválido"),
   billingType: billingTypeSchema.optional(),
+  useGroupedItems: z.boolean().optional(),
 });
 
 // PUT /api/fiscal/drafts/:id
@@ -52,14 +60,19 @@ export const updateDraftSchema = z
     totals: draftTotalsSchema.optional(),
     status: draftStatusSchema.optional(),
     billingType: billingTypeSchema.optional(),
+    useGroupedItems: z.boolean().optional(),
   })
   .refine(
     (v) =>
       v.items !== undefined ||
       v.totals !== undefined ||
       v.status !== undefined ||
-      v.billingType !== undefined,
-    { message: "Payload vazio: informe items, totals, status ou billingType." },
+      v.billingType !== undefined ||
+      v.useGroupedItems !== undefined,
+    {
+      message:
+        "Payload vazio: informe items, totals, status, billingType ou useGroupedItems.",
+    },
   );
 
 export const idParamSchema = z.object({

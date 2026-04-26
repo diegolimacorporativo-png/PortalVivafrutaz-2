@@ -1,0 +1,181 @@
+"}
+# 🚀 STEP FISCAL 2 — CONEXÃO DRAFT → NF (SEM REGRESSÃO)
+
+## 🎯 OBJETIVO
+
+Conectar o sistema de rascunho fiscal (nf_drafts) com a geração de NF (buildNFeInput), permitindo suportar:
+
+- STANDARD (pedido normal)
+- CONTRACT_OPEN (manual)
+- CONTRACT_AVERAGE (custo médio)
+
+SEM quebrar o fluxo atual.
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO alterar lógica atual de pedidos  
+❌ NÃO alterar cálculo de totalValue  
+❌ NÃO remover comportamento atual do buildNFeInput  
+❌ NÃO integrar com SEFAZ  
+❌ NÃO quebrar emissão atual  
+
+---
+
+# 🧱 FASE 1 — AJUSTE DE EMPRESA (SEM BREAK)
+
+## Criar NOVO campo:
+
+Tabela: companies
+
+billingModel:
+- STANDARD
+- CONTRACT_OPEN
+- CONTRACT_AVERAGE
+
+Default: STANDARD
+
+---
+
+## ⚠️ IMPORTANTE
+
+NÃO alterar billingType existente (boleto/pix/etc)
+
+---
+
+# 🧱 FASE 2 — EVOLUÇÃO DO nf_drafts
+
+## Alterar enum:
+
+billingType:
+- STANDARD
+- CONTRACT_OPEN
+- CONTRACT_AVERAGE
+
+Mapear valor antigo:
+- CONTRACT → CONTRACT_OPEN
+
+---
+
+## Adicionar campo:
+
+useGroupedItems: boolean  
+default: false
+
+---
+
+# 🧱 FASE 3 — BUILDER POR ESTRATÉGIA
+
+Criar:
+
+server/services/nf.draft.builder.ts
+
+---
+
+## Funções obrigatórias:
+
+### 1. buildStandardDraft(order)
+
+- copia order_items
+- comportamento atual
+
+---
+
+### 2. buildOpenDraft()
+
+- inicia vazio
+- edição manual total
+
+---
+
+### 3. buildAverageDraft(companyId)
+
+- buscar contractScopes
+- usar averageCost
+- montar itens
+
+⚠️ OBRIGATÓRIO:
+- copiar valores para o draft (snapshot)
+- NÃO depender de contractScopes depois
+
+---
+
+# 🧱 FASE 4 — CONEXÃO COM buildNFeInput
+
+Modificar:
+
+server/modules/nfe/nfe-input.builder.ts
+
+---
+
+## NOVO COMPORTAMENTO:
+
+buildNFeInput({ orderId, draftId? })
+
+---
+
+## LÓGICA:
+
+IF draftId existe:
+
+→ usar draft.items (PRIORIDADE TOTAL)
+
+ELSE IF company.useFiscalDraft = true:
+
+→ buscar draft automaticamente (se existir)
+
+ELSE:
+
+→ usar order (comportamento atual)
+
+---
+
+# 🧱 FASE 5 — FEATURE FLAG
+
+Criar em companies:
+
+useFiscalDraft: boolean  
+default: false
+
+---
+
+# 🧪 FASE 6 — VALIDAÇÃO
+
+✔ STANDARD continua igual  
+✔ emissão antiga intacta  
+✔ draft só usado quando ativado  
+✔ draftId sempre tem prioridade  
+✔ nenhum endpoint quebra  
+✔ nenhum cálculo alterado  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ Sistema suporta TODOS os modelos de faturamento  
+✔ NF respeita contrato  
+✔ custo médio funcional  
+✔ sem regressão  
+✔ base segura para evolução fiscal  
+
+---
+
+# 🔜 NÃO AVANÇAR
+
+Após implementar:
+
+👉 PARAR  
+👉 AGUARDAR validação  
+
+---
+
+## EXECUTAR
+
+1. Criar billingModel  
+2. Evoluir nf_drafts  
+3. Criar builder por estratégia  
+4. Conectar com buildNFeInput  
+5. Aplicar feature flag  
+
+Sem exc

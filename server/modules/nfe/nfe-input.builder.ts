@@ -1,11 +1,20 @@
 /**
  * STEP 9.3C — Serviço de construção do NFeInput.
+ * STEP FISCAL 2 — passou a aceitar `draftId` opcional. Quando informado,
+ * os `produtos` da NF vêm de `nf_drafts.items` (prioridade total). Caso
+ * contrário, mantém o comportamento legado: copia `order_items`.
  *
- * Extração da função `buildNFeInput` (antes inline em routes.ts) para que
- * o cron de faturamento possa reutilizá-la sem duplicar lógica.
- * A lógica interna está 100% preservada.
+ * Regras explícitas (sem regressão):
+ *   - assinatura legada `buildNFeInput(orderId)` continua válida.
+ *   - assinatura nova `buildNFeInput({ orderId, draftId? })` ativa a camada
+ *     fiscal. Se `draftId` vier, lê desse draft. Se não, e a empresa tiver
+ *     `useFiscalDraft = true`, busca o draft mais recente do pedido. Caso
+ *     nenhum draft seja resolvido, cai no comportamento legado.
  */
 
+import { and, desc, eq } from "drizzle-orm";
+import { db } from "../../database/db";
+import { nfDrafts } from "@shared/schema";
 import { storage } from "../../services/storage";
 
 // ── Helper: busca código IBGE via ViaCEP ─────────────────────────────────────
@@ -51,7 +60,72 @@ export async function fetchIbgeCode(cep: string, cityName?: string): Promise<str
 
 // ── buildNFeInput ─────────────────────────────────────────────────────────────
 
-export async function buildNFeInput(orderId: number) {
+export interface BuildNFeInputOpts {
+  orderId: number;
+  draftId?: number;
+}
+
+/**
+ * STEP FISCAL 2 — resolve qual fonte de itens usar:
+ *   1. `draftId` explícito → lê esse draft (PRIORIDADE TOTAL).
+ *   2. `company.useFiscalDraft = true` → busca o draft mais recente do pedido.
+ *   3. Caso nenhum draft seja resolvido → retorna `null` (comportamento legado).
+ *
+ * Não lança em caso de "draft não encontrado" para `draftId`: validamos antes
+ * para dar mensagem clara. Para a busca automática (caso 2), tratamos a
+ * ausência como "sem draft" e seguimos legado, sem falhar.
+ */
+async function resolveDraftItems(args: {
+  orderId: number;
+  draftId?: number;
+  company: any;
+}): Promise<any[] | null> {
+  const { orderId, draftId, company } = args;
+
+  if (draftId) {
+    if (!Number.isInteger(draftId) || draftId <= 0) {
+      throw new Error(`draftId inválido: ${draftId}`);
+    }
+    const [row] = await db
+      .select()
+      .from(nfDrafts)
+      .where(eq(nfDrafts.id, draftId));
+    if (!row) throw new Error(`Rascunho de NF #${draftId} não encontrado`);
+    if (row.orderId !== orderId) {
+      throw new Error(
+        `Rascunho #${draftId} não pertence ao pedido #${orderId}`,
+      );
+    }
+    return Array.isArray(row.items) ? (row.items as any[]) : [];
+  }
+
+  if (company?.useFiscalDraft === true) {
+    try {
+      const [latest] = await db
+        .select()
+        .from(nfDrafts)
+        .where(eq(nfDrafts.orderId, orderId))
+        .orderBy(desc(nfDrafts.createdAt))
+        .limit(1);
+      if (latest && Array.isArray(latest.items)) {
+        return latest.items as any[];
+      }
+    } catch {
+      // sem draft: cai no fluxo legado
+    }
+  }
+
+  return null;
+}
+
+export async function buildNFeInput(
+  arg: number | BuildNFeInputOpts,
+) {
+  // Compatibilidade: aceita tanto o número (assinatura legada) quanto o objeto.
+  const opts: BuildNFeInputOpts =
+    typeof arg === "number" ? { orderId: arg } : arg || ({} as any);
+  const { orderId, draftId } = opts;
+
   if (!orderId || isNaN(orderId) || orderId <= 0)
     throw new Error(`orderId inválido: ${orderId}`);
 
@@ -108,9 +182,19 @@ export async function buildNFeInput(orderId: number) {
   const defaultCfop =
     (company as any).defaultCfop || config.defaultCfop || "5102";
 
-  const produtos = orderData.items.map((item: any, idx: number) => ({
+  // STEP FISCAL 2 — fonte dos itens: draft (se houver) ou order_items (legado).
+  // O resolver respeita: draftId explícito > company.useFiscalDraft > legacy.
+  const draftItems = await resolveDraftItems({ orderId, draftId, company });
+  const sourceItems: any[] =
+    draftItems !== null ? draftItems : orderData.items;
+
+  const produtos = sourceItems.map((item: any, idx: number) => ({
     cProd: String(item.productId || idx + 1).padStart(6, "0"),
-    xProd: item.name || item.productName || "Produto",
+    xProd:
+      item.description ||
+      item.name ||
+      item.productName ||
+      "Produto",
     ncm: item.ncm || "08039000",
     cfop: item.cfop || defaultCfop,
     uCom: item.unit || "KG",
