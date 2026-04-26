@@ -1,0 +1,181 @@
+STEP 7.2 — CONTROLE DE ROTA / ENTREGA (MOTORISTA + VEÍCULO)
+
+OBJETIVO  
+Controlar a entrega dos pedidos:
+
+- agrupar pedidos em rotas  
+- atribuir motorista  
+- acompanhar status de entrega  
+- manter compatibilidade com sistema atual  
+
+🚫 NÃO quebrar pedidos existentes  
+🚫 NÃO alterar pricing  
+🚫 NÃO alterar fluxo atual  
+
+---
+
+## STEP 1 — DESCOBERTA (OBRIGATÓRIO)
+
+Verificar:
+
+- se já existe campo de entrega no pedido (ex: deliveryDate)
+- se existe usuário com papel de motorista
+- se já existe algo de logística no schema
+
+---
+
+## STEP 2 — CRIAR ENTIDADE DE ROTA
+
+Arquivo:
+shared/schema.ts
+
+ts id="1k9q7x" deliveryRoutes: pgTable("delivery_routes", {   id: serial("id").primaryKey(),    name: text("name"), // Ex: "Rota Zona Sul - Manhã"   date: date("date").notNull(),    driverId: integer("driver_id"), // usuário motorista   vehicle: text("vehicle"),    status: text("status").default("PLANNED"), // PLANNED | IN_PROGRESS | DONE    createdAt: timestamp("created_at").defaultNow(), }); 
+
+---
+
+## STEP 3 — LINKAR PEDIDO À ROTA
+
+ts id="7n2rqp" routeId: integer("route_id"), deliveryOrder: integer("delivery_order"), // ordem na rota 
+
+✔ opcional  
+✔ não quebra pedidos antigos  
+
+---
+
+## STEP 4 — ENDPOINTS BACKEND
+
+### Criar rota
+
+POST /api/routes
+
+ts id="q9z8em" { name, date, driverId, vehicle } 
+
+---
+
+### Atribuir pedidos à rota
+
+POST /api/routes/:id/assign
+
+ts id="u2m1ka" { orderIds: number[] } 
+
+---
+
+### Atualizar status da rota
+
+POST /api/routes/:id/start  
+POST /api/routes/:id/finish  
+
+---
+
+## STEP 5 — STATUS DA ENTREGA
+
+Usar o que já existe:
+
+✔ SHIPPED → saiu para entrega  
+✔ DELIVERED → entregue  
+
+Adicionar opcional:
+
+ts id="c4d2fw" FAILED_DELIVERY 
+
+---
+
+## STEP 6 — RBAC (IMPORTANTE)
+
+Permitir:
+
+✔ MASTER  
+✔ DIRECTOR  
+✔ LOGISTICS  
+✔ WAREHOUSE  
+
+Motorista:
+
+✔ apenas visualizar rota  
+✔ marcar entregue  
+
+---
+
+## STEP 7 — ADMIN (TELA DE ROTAS)
+
+Arquivo:
+client/src/pages/admin/routes.tsx
+
+Funcionalidades:
+
+✔ criar rota  
+✔ selecionar motorista  
+✔ adicionar pedidos  
+✔ ordenar entregas  
+✔ iniciar rota  
+✔ finalizar rota  
+
+---
+
+## STEP 8 — MOTORISTA (VISÃO SIMPLES)
+
+Tela:
+
+client/src/pages/driver/route.tsx
+
+Mostrar:
+
+✔ lista de pedidos da rota  
+✔ endereço  
+✔ botão "Entregue"  
+
+---
+
+## STEP 9 — AÇÃO DO MOTORISTA
+
+ts id="p4e9sk" POST /api/orders/:id/delivered 
+
+✔ atualiza status → DELIVERED  
+✔ registra horário  
+
+---
+
+## STEP 10 — ORDEM DE ENTREGA
+
+Permitir ordenar:
+
+✔ drag and drop (opcional)  
+✔ ou campo deliveryOrder  
+
+---
+
+## STEP 11 — TESTE REAL
+
+### ADMIN
+
+✔ cria rota  
+✔ adiciona pedidos  
+✔ inicia rota  
+
+---
+
+### MOTORISTA
+
+✔ vê rota  
+✔ marca entrega  
+
+---
+
+### CLIENTE
+
+✔ vê status atualizado  
+
+---
+
+## RESULTADO
+
+✔ controle de entrega real  
+✔ rastreabilidade  
+✔ operação organizada  
+✔ base para escala  
+
+---
+
+RISCO
+
+LOW ✅

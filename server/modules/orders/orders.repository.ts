@@ -252,6 +252,10 @@ export class OrdersRepository {
     return storage.createLog(log);
   }
 
+  getLogsByOrderCode(orderCode: string) {
+    return storage.getLogsByOrderCode(orderCode);
+  }
+
   getDeliveryByOrder(orderId: number) {
     return storage.getDeliveryByOrder(orderId);
   }

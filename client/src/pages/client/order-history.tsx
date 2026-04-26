@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Link } from "wouter";
 import { api } from "@shared/routes";
+import { OrderTimeline } from "@/components/OrderTimeline";
 
 const SIXTY_DAYS_AGO = subDays(new Date(), 60);
 
@@ -200,6 +201,17 @@ function OrderDetailModal({ order, onClose, onReopen }: {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Timeline / audit trail */}
+        <div>
+          <h3 className="text-sm font-bold text-foreground mb-2 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary" />
+            Histórico do Pedido
+          </h3>
+          <div className="rounded-xl border border-border/50 bg-muted/10 px-3 py-2">
+            <OrderTimeline orderId={order.id} />
+          </div>
         </div>
 
         {/* Actions */}

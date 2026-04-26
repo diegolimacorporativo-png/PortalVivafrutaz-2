@@ -94,6 +94,12 @@ router.get(
 );
 
 router.get(
+  "/:id/timeline",
+  validate(idParamSchema, "params"),
+  asyncHandler(ordersController.timeline),
+);
+
+router.get(
   "/:id/export-erp",
   validate(idParamSchema, "params"),
   asyncHandler(ordersController.exportErp),

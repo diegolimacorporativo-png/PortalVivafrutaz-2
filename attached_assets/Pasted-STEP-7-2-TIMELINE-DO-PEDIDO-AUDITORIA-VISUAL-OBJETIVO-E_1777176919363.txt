@@ -1,0 +1,124 @@
+STEP 7.2 — TIMELINE DO PEDIDO (AUDITORIA VISUAL)
+
+OBJETIVO  
+Exibir no frontend uma timeline completa do pedido baseada nos logs existentes:
+
+- status operacional  
+- ações (REQUEST, APPROVE, UPDATE, SKIP, etc.)  
+- data/hora  
+- quem fez  
+
+---
+
+🚫 NÃO criar nova tabela  
+🚫 NÃO alterar schema  
+🚫 NÃO duplicar lógica  
+
+👉 usar logs já existentes (order_logs / order_history)
+
+---
+
+## STEP 1 — CRIAR ENDPOINT (SE NÃO EXISTIR)
+
+Arquivo:
+server/modules/orders/orders.routes.ts
+
+Adicionar:
+
+ts router.get("/:id/timeline", requireAuth, async (req, res) => {   try {     const logs = await orderService.getOrderLogs(req.params.id);      res.json(logs);   } catch (e) {     res.status(500).json({ error: "Erro ao carregar timeline" });   } }); 
+
+---
+
+## STEP 2 — SERVICE (REAPROVEITAR)
+
+Arquivo:
+orders.service.ts
+
+Se já existir algo como getOrderLogs → usar
+
+Se não:
+
+ts async getOrderLogs(orderId: string) {   return db     .select()     .from(orderLogs)     .where(eq(orderLogs.orderId, orderId))     .orderBy(desc(orderLogs.createdAt)); } 
+
+---
+
+## STEP 3 — FRONTEND (CLIENTE)
+
+Arquivo:
+client/src/pages/client/order-history.tsx
+
+Adicionar fetch:
+
+ts const fetchTimeline = async (orderId) => {   const res = await fetch(`/api/v1/orders/${orderId}/timeline`, {     credentials: "include",   });    const data = await res.json();   return data; }; 
+
+---
+
+## STEP 4 — COMPONENTE TIMELINE
+
+Criar:
+
+client/src/components/OrderTimeline.tsx
+
+tsx export function OrderTimeline({ logs }) {   return (     <div className="timeline">       {logs.map((log) => (         <div key={log.id} className="timeline-item">           <div className="timeline-dot" />            <div>             <strong>{formatAction(log.action)}</strong>             <p>{formatDate(log.createdAt)}</p>           </div>         </div>       ))}     </div>   ); } 
+
+---
+
+## STEP 5 — FORMATAR AÇÕES
+
+Criar helper:
+
+ts function formatAction(action: string) {   switch (action) {     case "REQUEST":       return "Solicitação de alteração";     case "APPROVE":       return "Aprovado pelo admin";     case "UPDATE":       return "Pedido atualizado";     case "SKIP_TO_INVOICED":       return "Faturado diretamente (admin)";     case "PROCESSING":       return "Em separação";     case "READY":       return "Pedido pronto";     case "INVOICED":       return "Faturado";     case "SHIPPED":       return "Saiu para entrega";     case "DELIVERED":       return "Entregue";     default:       return action;   } } 
+
+---
+
+## STEP 6 — INTEGRAR NA UI
+
+Dentro do modal/detalhe do pedido:
+
+tsx {selectedOrder && (   <OrderTimeline logs={timelineData} /> )} 
+
+---
+
+## STEP 7 — VISUAL (OPCIONAL MAS RECOMENDADO)
+
+CSS simples:
+
+css .timeline {   border-left: 2px solid #eee;   padding-left: 10px; }  .timeline-item {   margin-bottom: 12px;   position: relative; }  .timeline-dot {   width: 8px;   height: 8px;   background: #4CAF50;   border-radius: 50%;   position: absolute;   left: -14px;   top: 6px; } 
+
+---
+
+## STEP 8 — SEGURANÇA
+
+✔ cliente só vê pedidos dele  
+✔ não expor dados sensíveis  
+✔ logs são somente leitura  
+
+---
+
+## STEP 9 — TESTE
+
+1. Criar pedido  
+2. Solicitar alteração  
+3. Admin aprovar  
+4. Pedido avançar status  
+
+Validar:
+
+✔ tudo aparece na timeline  
+✔ ordem cronológica correta  
+✔ labels corretas  
+
+---
+
+## RESULTADO
+
+✔ cliente acompanha tudo  
+✔ transparência total  
+✔ auditoria visual  
+✔ padrão nível ERP  
+
+---
+
+RISCO
+
+LOW ✅

@@ -220,6 +220,7 @@ export interface IStorage {
 
   // System Logs
   createLog(log: { action: string; description: string; userId?: number; companyId?: number; userEmail?: string; userRole?: string; ip?: string; level?: string }): Promise<void>;
+  getLogsByOrderCode(orderCode: string): Promise<SystemLog[]>;
   getLogs(limit?: number): Promise<SystemLog[]>;
   getSecurityLogs(limit?: number): Promise<SystemLog[]>;
   clearLogs(): Promise<void>;
@@ -1179,6 +1180,17 @@ export class DatabaseStorage implements IStorage {
 
   async getLogs(limit = 200): Promise<SystemLog[]> {
     return db.select().from(systemLogs).orderBy(desc(systemLogs.createdAt)).limit(limit);
+  }
+
+  async getLogsByOrderCode(orderCode: string): Promise<SystemLog[]> {
+    if (!orderCode) return [];
+    // Match `Pedido VFR-0001`, `Pedido #123 (VFR-0001)`, or any description
+    // that contains the orderCode token. Case-insensitive for safety.
+    return db
+      .select()
+      .from(systemLogs)
+      .where(sql`${systemLogs.description} ILIKE ${"%" + orderCode + "%"}`)
+      .orderBy(systemLogs.createdAt);
   }
 
   async getSecurityLogs(limit = 300): Promise<SystemLog[]> {

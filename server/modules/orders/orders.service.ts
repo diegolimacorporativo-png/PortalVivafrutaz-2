@@ -1155,6 +1155,44 @@ export class OrdersService {
     return updated;
   }
 
+  /**
+   * STEP 7.2 — Order timeline. Returns the audit log for a single order in
+   * chronological order. Reuses the existing `system_logs` table (no new
+   * tables, no schema changes). Logs are matched via `description ILIKE
+   * '%orderCode%'` since every order-related log embeds the orderCode.
+   *
+   * Tenancy: clients only see logs for orders belonging to their company.
+   * Internal staff (any non-CLIENT role) can see all order timelines.
+   */
+  async getOrderTimeline(id: number, actor: ActorContext) {
+    if (!actor.userId) throw new UnauthorizedError();
+    const data = await this.repo.get(id);
+    if (!data) throw new NotFoundError("Pedido não encontrado");
+
+    const orderRow: any = data.order;
+
+    // Tenant guard: clients can only see their own company's orders.
+    // Staff roles (handled via actor.companyId being absent OR explicit role)
+    // bypass the company check.
+    if (actor.companyId && orderRow.companyId !== actor.companyId) {
+      throw new ForbiddenError("Sem permissão");
+    }
+
+    const orderCode = orderRow.orderCode || `#${orderRow.id}`;
+    const logs = await this.repo.getLogsByOrderCode(orderCode);
+
+    // Strip sensitive fields (ip, userEmail) for client consumption while
+    // keeping the action / description / userRole / timestamp visible.
+    return logs.map((log: any) => ({
+      id:          log.id,
+      action:      log.action,
+      description: log.description,
+      userRole:    log.userRole,
+      level:       log.level,
+      createdAt:   log.createdAt,
+    }));
+  }
+
   async finalizeEdit(
     id: number,
     items: any[] | undefined,

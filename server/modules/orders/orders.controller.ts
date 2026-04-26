@@ -121,6 +121,12 @@ export class OrdersController {
     return ok(res, await this.service.denyReopen(id, this.actor(req)));
   };
 
+  /** GET /api/orders/:id/timeline */
+  timeline = async (req: Request, res: Response) => {
+    const id = Number((req.params as any).id);
+    return ok(res, await this.service.getOrderTimeline(id, this.actor(req)));
+  };
+
   /** POST /api/orders/:id/finalize-edit */
   finalizeEdit = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
