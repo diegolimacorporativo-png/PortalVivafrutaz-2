@@ -1,0 +1,129 @@
+## STEP 9.3F.2 — ALERTAS REAIS (EMAIL FIRST + HARDENING)
+
+### 🎯 OBJETIVO
+
+Fortalecer o sistema de alertas do cron garantindo:
+
+- envio 100% confiável por e-mail
+- validação real de SMTP antes de uso
+- fallback seguro
+- melhoria de logs
+- base pronta para WhatsApp futuro (sem implementar agora)
+
+---
+
+### 🚫 REGRAS (CRÍTICO)
+
+- NÃO alterar lógica do cron  
+- NÃO alterar guard  
+- NÃO alterar engine  
+- NÃO alterar emissão NF-e  
+
+👉 Apenas melhorar o sistema de alertas já criado
+
+---
+
+## STEP 1 — VALIDAR SMTP ANTES DE ENVIAR
+
+Arquivo:
+server/services/alerts.service.ts
+
+ANTES de qualquer envio de email:
+
+ts import { getSmtpConfig } from "@/services/mailer";  async function isSmtpReady() {   try {     const config = await getSmtpConfig();      return Boolean(       config?.host &&       config?.port &&       config?.user &&       config?.pass &&       config?.from     );   } catch {     return false;   } } 
+
+---
+
+### USAR NA FUNÇÃO emitAlert:
+
+ts if (emails.length > 0) {   const smtpReady = await isSmtpReady();    if (!smtpReady) {     console.warn("[ALERT_SMTP_NOT_CONFIGURED]");   } else {     await sendAdminBroadcast({       toEmails: emails,       subject: title,       message     });   } } 
+
+---
+
+## STEP 2 — MELHORAR FORMATO DO EMAIL
+
+Ainda no alerts.service.ts:
+
+ts function formatEmailMessage({   severity,   title,   message,   context }) {   return ` 🚨 ALERTA DE FATURAMENTO (${severity})  ${title}  ${message}  ----------------------------- DETALHES: Total: ${context.total} Sucesso: ${context.success} Bloqueados: ${context.blocked} Erros: ${context.errors}  Data: ${new Date().toLocaleString("pt-BR")} Sistema: VivaFrutaz ERP -----------------------------   `; } 
+
+---
+
+### USAR:
+
+ts const formattedMessage = formatEmailMessage({   severity,   title,   message,   context }); 
+
+---
+
+## STEP 3 — LOGS MAIS CLAROS
+
+Adicionar logs estruturados:
+
+ts console.log("[ALERT_EMAIL_SENT]", {   severity,   totalRecipients: emails.length });  console.warn("[ALERT_SMTP_NOT_CONFIGURED]");  console.warn("[ALERT_NO_RECIPIENTS]"); 
+
+---
+
+## STEP 4 — VALIDAR DESTINATÁRIOS
+
+ANTES de enviar:
+
+ts if (emails.length === 0) {   console.warn("[ALERT_NO_RECIPIENTS]");   return; } 
+
+---
+
+## STEP 5 — PREPARAR WHATSAPP (SEM IMPLEMENTAR)
+
+Adicionar apenas placeholder organizado:
+
+ts async function sendWhatsAppAlert() {   console.warn("[WHATSAPP_NOT_IMPLEMENTED]"); } 
+
+---
+
+## STEP 6 — RATE LIMIT (JÁ EXISTE, MANTER)
+
+Confirmar que existe:
+
+- janela de 10 minutos  
+- chave por tipo: cron:alert / cron:critical  
+
+👉 NÃO alterar
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ Alertas básicos  
+❌ Dependência cega do SMTP  
+❌ Sem validação  
+
+DEPOIS:
+✅ Email confiável  
+✅ SMTP validado antes do envio  
+✅ Logs claros  
+✅ Mensagem estruturada  
+✅ Sistema preparado para crescer  
+
+---
+
+## RISCO
+
+LOW ✅  
+(somente melhoria de robustez)
+
+---
+
+## PRÓXIMO PASSO (9.3F.3)
+
+→ Dashboard de alertas + leitura no painel admin
+
+---
+
+## RESUMO SIMPLES
+
+Você saiu de:
+
+❌ "manda e reza"
+
+Para:
+
+✅ "valida, envia e monitora com segurança"
