@@ -1,0 +1,189 @@
+# 🧠 STEP 9.3F.13 — Integração Completa (Roteamento + Preferências + Canais)
+
+## 🎯 OBJETIVO
+
+Conectar todas as camadas já criadas:
+
+- recipientsRoles (9.3F.10)
+- userNotificationPreferences (9.3F.11)
+- delivery layer (9.3F.12)
+
+👉 Resultado final:
+
+O sistema passa a decidir:
+
+✔ quem DEVE receber  
+✔ quem QUER receber  
+✔ e enviar via canais  
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO alterar emitAlert (lógica core)  
+❌ NÃO alterar emitAlertSmart  
+❌ NÃO alterar persistAlertLog  
+❌ NÃO mudar retorno (results)  
+❌ NÃO quebrar analytics  
+
+✅ Apenas integrar dentro do delivery layer
+
+---
+
+# 🧱 ARQUITETURA
+
+Arquivo principal:
+
+👉 server/services/alerts.delivery.ts
+
+👉 Toda lógica nova acontece aqui  
+👉 emitAlert continua igual  
+
+---
+
+# 🧭 FASE 1 — DISCOVERY
+
+Confirmar:
+
+- userNotificationPreferences existe  
+- getUserPreferences funciona  
+- context.recipientsRoles existe  
+
+👉 NÃO alterar nada disso
+
+---
+
+# ⚙️ FASE 2 — BUSCAR USUÁRIOS POR ROLE
+
+Criar função:
+
+ts async function getUsersByRoles(roles: string[]) {   return db     .select()     .from(users)     .where(inArray(users.role, roles)); } 
+
+⚠️ Reutilizar tabela users existente  
+⚠️ NÃO criar nova tabela  
+
+---
+
+# ⚙️ FASE 3 — APLICAR PREFERÊNCIAS
+
+Para cada usuário:
+
+1. Buscar preferências:
+ts const prefs = await getUserPreferences(user.id); 
+
+2. Verificar:
+
+- enabled === true  
+- category compatível  
+- isSeverityAllowed(user.minSeverity, alert.severity)
+
+3. Se NÃO passar → ignorar usuário  
+
+---
+
+# ⚙️ FASE 4 — FILTRO FINAL
+
+Gerar lista final:
+
+ts finalRecipients = usuários filtrados 
+
+👉 Se vazio:
+- NÃO quebra sistema
+- apenas não envia
+
+---
+
+# 📡 FASE 5 — ENVIO POR CANAL
+
+Dentro de deliverAlert:
+
+Para cada usuário aprovado:
+
+ts results.push({   channel: "email",   success: true,   userId: user.id }); 
+
+👉 Pode manter mock por enquanto  
+👉 NÃO integrar API real ainda  
+
+---
+
+# 🧠 FASE 6 — CONTEXTO
+
+Adicionar no log:
+
+ts context: {   ...context,   resolvedUsers: finalRecipients.length } 
+
+👉 Apenas informativo  
+👉 NÃO alterar persistência existente  
+
+---
+
+# 📊 FASE 7 — COMPATIBILIDADE
+
+Garantir:
+
+✔ results continua existindo  
+✔ analytics continua funcionando  
+✔ persistAlertLog continua igual  
+✔ nada quebra no dashboard  
+
+---
+
+# 🧪 FASE 8 — VALIDAÇÃO
+
+Testar mentalmente:
+
+✔ Usuário ADMIN recebe tudo  
+✔ Usuário FINANCE recebe apenas FINANCE  
+✔ Usuário com enabled=false não recebe  
+✔ Usuário com minSeverity=CRITICAL ignora WARNING  
+✔ Sem usuários → não quebra  
+
+---
+
+# 🚫 PROIBIDO
+
+❌ Buscar usuários fora da tabela existente  
+❌ Ignorar preferences  
+❌ Enviar para todos indiscriminadamente  
+❌ Mudar emitAlert  
+❌ Criar lógica duplicada fora do delivery  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+Sistema agora é:
+
+👉 Inteligente  
+👉 Controlado  
+👉 Personalizado  
+👉 Escalável  
+
+---
+
+# 🔥 EVOLUÇÃO FINAL
+
+Antes:
+→ “dispara alerta”
+
+Agora:
+→ “decide quem realmente deve receber e entrega”
+
+---
+
+# 🔜 PRÓXIMO (FUTURO)
+
+👉 STEP 9.3F.14 — Integração real (SMTP / WhatsApp API)
+
+---
+
+## 🚀 EXECUTAR
+
+Seguir padrão:
+
+1. Discovery  
+2. Implementação isolada  
+3. Integração no delivery  
+4. Validação  
+
+Sem regres
