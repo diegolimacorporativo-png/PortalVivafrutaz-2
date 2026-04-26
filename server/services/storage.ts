@@ -139,6 +139,7 @@ export interface IStorage {
 
   // Product Sub-Categories (múltiplas categorias por produto com preços distintos)
   getProductSubCategoriesByProductId(productId: number): Promise<ProductSubCategory[]>;
+  getProductSubCategoryById(id: number): Promise<ProductSubCategory | null>;
   createProductSubCategory(data: InsertProductSubCategory): Promise<ProductSubCategory>;
   updateProductSubCategory(id: number, updates: Partial<InsertProductSubCategory>): Promise<ProductSubCategory>;
   deleteProductSubCategory(id: number): Promise<void>;
@@ -718,6 +719,15 @@ export class DatabaseStorage implements IStorage {
 
   async getProductSubCategoriesByProductId(productId: number): Promise<ProductSubCategory[]> {
     return await db.select().from(productSubCategories).where(eq(productSubCategories.productId, productId));
+  }
+
+  async getProductSubCategoryById(id: number): Promise<ProductSubCategory | null> {
+    const rows = await db
+      .select()
+      .from(productSubCategories)
+      .where(eq(productSubCategories.id, id))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async createProductSubCategory(data: InsertProductSubCategory): Promise<ProductSubCategory> {

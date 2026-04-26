@@ -196,6 +196,16 @@ export class OrdersRepository {
     return storage.getProductById(id);
   }
 
+  /**
+   * STEP 4 — pricing por categoria. Single-row lookup of a product
+   * sub-category by id. Used by the pricing flow to resolve
+   * `subCategoryPrice` when an order item carries `subCategoryId`.
+   * Returns null when the row does not exist (never throws).
+   */
+  getProductSubCategoryById(id: number) {
+    return storage.getProductSubCategoryById(id);
+  }
+
   getCompanyConfig() {
     return storage.getCompanyConfig();
   }

@@ -548,6 +548,9 @@ export class OrdersService {
             ? Number(company.adminFee)
             : 0;
         const productCache = new Map<number, any>();
+        // STEP 4 — per-call cache of subCategory rows to avoid N queries
+        // when many items share the same subCategoryId.
+        const subCategoryCache = new Map<number, any>();
         for (const it of (items || []) as any[]) {
           let product = productCache.get(it.productId);
           if (!product) {
@@ -555,10 +558,37 @@ export class OrdersService {
             if (product) productCache.set(it.productId, product);
           }
           if (!product) continue;
+          // STEP 4 — resolve subCategoryPrice (optional). Fallback to
+          // basePrice on any miss, invalid id, null price, or repo error.
+          let subCategoryPrice: number | null = null;
+          if (it.subCategoryId != null) {
+            try {
+              let sub = subCategoryCache.get(Number(it.subCategoryId));
+              if (sub === undefined) {
+                sub = await this.repo.getProductSubCategoryById(
+                  Number(it.subCategoryId),
+                );
+                subCategoryCache.set(Number(it.subCategoryId), sub);
+              }
+              const raw = sub?.price;
+              if (raw != null) {
+                const n = Number(raw);
+                if (Number.isFinite(n)) subCategoryPrice = n;
+              }
+            } catch (subErr) {
+              console.warn("[pricing] subCategory lookup failed — fallback basePrice", {
+                method: "createWithDelivery",
+                productId: it.productId,
+                subCategoryId: it.subCategoryId,
+                err: (subErr as Error)?.message,
+              });
+              subCategoryPrice = null;
+            }
+          }
           const newUnit = resolveProductPrice({
             basePrice: Number(product.basePrice),
-            subCategoryPrice: null, // FUTURE — STEP 4
-            contractPrice: null,    // FUTURE — STEP 4
+            subCategoryPrice,
+            contractPrice: null,    // FUTURE — STEP 5
             adminFee,
           });
           if (!Number.isFinite(newUnit)) continue;
@@ -566,6 +596,13 @@ export class OrdersService {
           it.totalPrice = String(
             (newUnit * Number(it.quantity || 0)).toFixed(2),
           );
+          console.info("[pricing] category pricing applied", {
+            scope: "orders.service",
+            method: "createWithDelivery",
+            productId: it.productId,
+            subCategoryId: it.subCategoryId ?? null,
+            usedSubCategory: subCategoryPrice !== null,
+          });
         }
         computedTotal = (items || []).reduce(
           (s: number, i: any) => s + Number(i.totalPrice || 0),
@@ -1145,6 +1182,8 @@ export class OrdersService {
               ? Number(company.adminFee)
               : 0;
           const productCache = new Map<number, any>();
+          // STEP 4 — per-call cache of subCategory rows.
+          const subCategoryCache = new Map<number, any>();
           for (const it of items as any[]) {
             let product = productCache.get(it.productId);
             if (!product) {
@@ -1152,9 +1191,36 @@ export class OrdersService {
               if (product) productCache.set(it.productId, product);
             }
             if (!product) continue;
+            // STEP 4 — resolve subCategoryPrice (optional, with fallback).
+            let subCategoryPrice: number | null = null;
+            if (it.subCategoryId != null) {
+              try {
+                let sub = subCategoryCache.get(Number(it.subCategoryId));
+                if (sub === undefined) {
+                  sub = await this.repo.getProductSubCategoryById(
+                    Number(it.subCategoryId),
+                  );
+                  subCategoryCache.set(Number(it.subCategoryId), sub);
+                }
+                const raw = sub?.price;
+                if (raw != null) {
+                  const n = Number(raw);
+                  if (Number.isFinite(n)) subCategoryPrice = n;
+                }
+              } catch (subErr) {
+                console.warn("[pricing] subCategory lookup failed — fallback basePrice", {
+                  method: "replaceItems",
+                  productId: it.productId,
+                  subCategoryId: it.subCategoryId,
+                  orderId: id,
+                  err: (subErr as Error)?.message,
+                });
+                subCategoryPrice = null;
+              }
+            }
             const newUnit = resolveProductPrice({
               basePrice: Number(product.basePrice),
-              subCategoryPrice: null,
+              subCategoryPrice,
               contractPrice: null,
               adminFee,
             });
@@ -1163,6 +1229,13 @@ export class OrdersService {
             it.totalPrice = String(
               (newUnit * Number(it.quantity || 0)).toFixed(2),
             );
+            console.info("[pricing] category pricing applied", {
+              scope: "orders.service",
+              method: "replaceItems",
+              productId: it.productId,
+              subCategoryId: it.subCategoryId ?? null,
+              usedSubCategory: subCategoryPrice !== null,
+            });
           }
           console.info("[pricing] new pricing ENABLED", {
             scope: "orders.service",
@@ -1280,9 +1353,39 @@ export class OrdersService {
               company.adminFee != null && company.adminFee !== ""
                 ? Number(company.adminFee)
                 : 0;
+            // STEP 4 — resolve subCategoryPrice (optional, with fallback).
+            // The replaced item carries the subCategoryId from the original
+            // line; if the user picked a substitute that is bound to a
+            // different sub-category, the upstream flow updates `target`
+            // accordingly. Cache is local because this is a single item.
+            let subCategoryPrice: number | null = null;
+            const subId = (newItems[targetIdx] as any)?.subCategoryId
+              ?? (target as any)?.subCategoryId;
+            if (subId != null) {
+              try {
+                const sub = await this.repo.getProductSubCategoryById(
+                  Number(subId),
+                );
+                const raw = sub?.price;
+                if (raw != null) {
+                  const n = Number(raw);
+                  if (Number.isFinite(n)) subCategoryPrice = n;
+                }
+              } catch (subErr) {
+                console.warn("[pricing] subCategory lookup failed — fallback basePrice", {
+                  method: "substituteItem.replace",
+                  productId: newProductId,
+                  subCategoryId: subId,
+                  orderId,
+                  itemId,
+                  err: (subErr as Error)?.message,
+                });
+                subCategoryPrice = null;
+              }
+            }
             const newUnit = resolveProductPrice({
               basePrice: Number(newProduct.basePrice),
-              subCategoryPrice: null,
+              subCategoryPrice,
               contractPrice: null,
               adminFee,
             });
@@ -1291,6 +1394,13 @@ export class OrdersService {
               newItems[targetIdx].totalPrice = String(
                 (newUnit * Number(target.quantity || 0)).toFixed(2),
               );
+              console.info("[pricing] category pricing applied", {
+                scope: "orders.service",
+                method: "substituteItem.replace",
+                productId: newProductId,
+                subCategoryId: subId ?? null,
+                usedSubCategory: subCategoryPrice !== null,
+              });
               console.info("[pricing] new pricing ENABLED", {
                 scope: "orders.service",
                 method: "substituteItem.replace",
