@@ -1,4 +1,4 @@
-import { BILLING_STRICT_MODE } from "../../config/flags";
+import { BILLING_STRICT_MODE, BILLING_DRY_RUN } from "../../config/flags";
 
 /**
  * STEP 9.2Z — Motor de Faturamento (Fase 1, sem alterar schema).
@@ -135,16 +135,19 @@ export function getFaturamentoContext(
     }
   }
 
-  // ── 4. STEP 9.2Z.1 — Bloqueio progressivo por ciclo ───────────────
-  // Só dispara quando `BILLING_STRICT_MODE` for ligado. Enquanto a flag
-  // estiver `false`, o comportamento é exatamente o de Fase 1 (apenas
-  // informativo). Quando ligada, bloqueia emissão antes do fechamento
-  // do ciclo. O admin sempre pode passar por cima usando "Liberar agora"
+  // ── 4. STEP 9.2Z.1 / 9.2Z.1B — Bloqueio progressivo por ciclo ─────
+  // A avaliação roda sempre que houver delivery_date e a flag dry-run OU
+  // strict estiver ligada. Comportamento por flag:
+  //   STRICT=false, DRY=false  → no-op (Fase 1, apenas informativo).
+  //   STRICT=false, DRY=true   → simula: loga [NFE_DRY_RUN_BLOCK], NÃO bloqueia.
+  //   STRICT=true,  DRY=*      → bloqueia de fato (motivo aparece na UI).
+  // O admin sempre pode passar por cima usando "Liberar agora"
   // (force-release), que zera o `fiscal_status` para `nota_liberada`.
-  if (BILLING_STRICT_MODE) {
+  if (BILLING_STRICT_MODE || BILLING_DRY_RUN) {
     const deliveryRaw = pick(order, "delivery_date", "deliveryDate");
     if (deliveryRaw) {
       const delivery = startOfDay(new Date(deliveryRaw as any));
+      const orderId = pick(order, "id");
 
       // Semanal: só pode emitir 7 dias após a entrega (fechamento da semana).
       if (ctx.tipo === "semanal") {
@@ -152,21 +155,44 @@ export function getFaturamentoContext(
           (now.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24),
         );
         if (diffDias < 7) {
-          ctx.podeEmitir = false;
-          ctx.motivo = "Aguardando fechamento semanal";
-          return ctx;
+          const motivo = "Aguardando fechamento semanal";
+          if (BILLING_DRY_RUN) {
+            console.warn("[NFE_DRY_RUN_BLOCK]", {
+              orderId,
+              tipo: "semanal",
+              motivo,
+              deliveryDate: delivery.toISOString(),
+              diffDias,
+            });
+          }
+          if (BILLING_STRICT_MODE) {
+            ctx.podeEmitir = false;
+            ctx.motivo = motivo;
+            return ctx;
+          }
         }
       }
 
       // Mensal: entregas do mês corrente só faturam no mês seguinte.
       if (ctx.tipo === "mensal") {
-        if (
+        const sameMonth =
           delivery.getMonth() === now.getMonth() &&
-          delivery.getFullYear() === now.getFullYear()
-        ) {
-          ctx.podeEmitir = false;
-          ctx.motivo = "Faturamento apenas no mês seguinte";
-          return ctx;
+          delivery.getFullYear() === now.getFullYear();
+        if (sameMonth) {
+          const motivo = "Faturamento apenas no mês seguinte";
+          if (BILLING_DRY_RUN) {
+            console.warn("[NFE_DRY_RUN_BLOCK]", {
+              orderId,
+              tipo: "mensal",
+              motivo,
+              deliveryDate: delivery.toISOString(),
+            });
+          }
+          if (BILLING_STRICT_MODE) {
+            ctx.podeEmitir = false;
+            ctx.motivo = motivo;
+            return ctx;
+          }
         }
       }
     }

@@ -20,3 +20,16 @@
  */
 
 export const BILLING_STRICT_MODE = false;
+
+/**
+ * STEP 9.2Z.1B — Modo dry-run para o bloqueio de ciclo.
+ *
+ * Quando `true`, a engine roda toda a lógica de bloqueio por ciclo (semanal /
+ * mensal) e LOGA `[NFE_DRY_RUN_BLOCK]` para cada pedido que SERIA bloqueado,
+ * mas NÃO bloqueia de fato — apenas observa. Combine com
+ * `BILLING_STRICT_MODE = false` por 24–72h, leia os logs, e só então
+ * decida se vale ligar `BILLING_STRICT_MODE = true`.
+ *
+ * Custo: 1 console.warn por pedido elegível, sem efeito colateral.
+ */
+export const BILLING_DRY_RUN = true;

@@ -1,0 +1,84 @@
+13"}
+## STEP 9.2Z.1B — DRY-RUN DE BLOQUEIO (SEM IMPACTO)
+
+### OBJETIVO
+
+Simular o bloqueio de faturamento por ciclo  
+SEM realmente bloquear
+
+---
+
+## 🚫 REGRAS
+
+- NÃO alterar schema
+- NÃO bloquear emissão
+- Apenas LOGAR o que SERIA bloqueado
+
+---
+
+## STEP 1 — NOVA FLAG
+
+server/config/flags.ts
+
+ts export const BILLING_STRICT_MODE = false; export const BILLING_DRY_RUN = true; 
+
+---
+
+## STEP 2 — AJUSTAR ENGINE
+
+faturamento.engine.ts
+
+ts import { BILLING_STRICT_MODE, BILLING_DRY_RUN } from "@/config/flags"; 
+
+---
+
+## STEP 3 — SIMULAÇÃO
+
+### 🔹 SEMANAL
+
+ts if (context.tipo === "semanal") {   const delivery = new Date(order.deliveryDate);   const diff = Math.floor(     (now.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24)   );    if (diff < 7) {     if (BILLING_STRICT_MODE) {       context.podeEmitir = false;       context.motivo = "Aguardando fechamento semanal";     }      if (BILLING_DRY_RUN) {       console.warn("[NFE_DRY_RUN_BLOCK]", {         orderId: order.id,         tipo: "semanal",         motivo: "Aguardando fechamento semanal",       });     }   } } 
+
+---
+
+### 🔹 MENSAL
+
+ts if (context.tipo === "mensal") {   const delivery = new Date(order.deliveryDate);    const sameMonth =     delivery.getMonth() === now.getMonth() &&     delivery.getFullYear() === now.getFullYear();    if (sameMonth) {     if (BILLING_STRICT_MODE) {       context.podeEmitir = false;       context.motivo = "Faturamento apenas no mês seguinte";     }      if (BILLING_DRY_RUN) {       console.warn("[NFE_DRY_RUN_BLOCK]", {         orderId: order.id,         tipo: "mensal",         motivo: "Faturamento apenas no mês seguinte",       });     }   } } 
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ você não sabe impacto  
+
+DEPOIS:
+✔ você vê TODOS os casos que seriam bloqueados  
+✔ sem afetar operação  
+
+---
+
+## COMO USAR
+
+1. Ativar:
+ts BILLING_DRY_RUN = true BILLING_STRICT_MODE = false 
+
+2. Rodar 24–72h
+
+3. Analisar logs:
+[NFE_DRY_RUN_BLOCK]
+
+4. Decidir rollout real
+
+---
+
+## BENEFÍCIOS
+
+✔ zero risco  
+✔ visão real do negócio  
+✔ base para decisão  
+
+---
+
+## RISCO
+
+ZE
