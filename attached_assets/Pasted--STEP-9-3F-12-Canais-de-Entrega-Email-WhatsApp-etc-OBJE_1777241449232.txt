@@ -1,0 +1,156 @@
+# 🧠 STEP 9.3F.12 — Canais de Entrega (Email / WhatsApp / etc.)
+
+## 🎯 OBJETIVO
+
+Adicionar suporte a canais de entrega de alertas:
+
+- Email
+- WhatsApp (estrutura pronta, mesmo que mockado)
+  
+👉 SEM alterar emitAlert  
+👉 SEM alterar emitAlertSmart  
+👉 SEM mudar fluxo atual  
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO alterar emitAlert  
+❌ NÃO alterar emitAlertSmart  
+❌ NÃO alterar persistAlertLog  
+❌ NÃO alterar lógica de inteligência  
+❌ NÃO quebrar fluxo atual  
+
+✅ Apenas adicionar camada de entrega (delivery layer)
+
+---
+
+# 🧱 ARQUITETURA
+
+Criar um novo serviço:
+
+server/services/alerts.delivery.ts
+
+Responsável por:
+
+- receber payload do alerta
+- decidir canais
+- executar envio (ou mock)
+
+---
+
+# 🧭 FASE 1 — DISCOVERY
+
+Verificar:
+
+- onde emitAlert finaliza o envio hoje
+- como os "results" são montados
+
+👉 NÃO alterar isso  
+👉 Apenas observar
+
+---
+
+# ⚙️ FASE 2 — SERVICE (NOVO)
+
+Criar função principal:
+
+ts export async function deliverAlert(input: {   title: string;   message: string;   severity: string;   context?: Record<string, unknown>; }) {   // inicial (mock)   return [     { channel: "email", success: true },     { channel: "whatsapp", success: true },   ]; } 
+
+---
+
+# 🔌 FASE 3 — INTEGRAÇÃO (CONTROLADA)
+
+IMPORTANTE:
+
+👉 NÃO substituir lógica existente  
+👉 NÃO remover envio atual  
+
+Apenas:
+
+- plugar deliverAlert onde os canais já são processados
+- ou, se não existir ponto claro:
+  👉 chamar dentro de emitAlert SEM alterar comportamento existente
+
+⚠️ Se necessário:
+- usar fallback seguro (try/catch)
+- nunca quebrar o fluxo principal
+
+---
+
+# 🧠 FASE 4 — PREPARAÇÃO PARA FUTURO
+
+Dentro do delivery:
+
+- ler context.recipientsRoles (do STEP 9.3F.10)
+- preparar estrutura para filtrar usuários (STEP 9.3F.11)
+
+MAS:
+
+❌ NÃO implementar filtro ainda  
+❌ NÃO buscar usuários ainda  
+
+👉 Apenas deixar pronto
+
+---
+
+# 📊 FASE 5 — RESULTS
+
+Garantir que retorno siga padrão já existente:
+
+ts results: [   { channel: "email", success: true },   { channel: "whatsapp", success: true } ] 
+
+👉 Isso já é usado em analytics
+
+---
+
+# 🧪 FASE 6 — VALIDAÇÃO
+
+✔ Nenhum erro de TypeScript  
+✔ Alertas continuam funcionando  
+✔ results continua sendo preenchido  
+✔ persistAlertLog continua intacto  
+✔ sistema não quebra se delivery falhar  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+Sistema evolui para:
+
+👉 Inteligência  
+👉 Roteamento  
+👉 Preferências  
+👉 + Canais de entrega  
+
+---
+
+# 🚫 PROIBIDO
+
+Se você:
+
+- alterar emitAlert diretamente (lógica core)
+- mudar persistência
+- criar nova tabela
+- quebrar analytics
+
+→ está ERRADO
+
+---
+
+# 🔜 PRÓXIMO PASSO
+
+👉 STEP 9.3F.13 — Integração completa (roteamento + preferências + canais)
+
+---
+
+## 🚀 EXECUTAR
+
+Seguir padrão:
+
+1. Discovery  
+2. Implementação isolada  
+3. Integração segura  
+4. Validação completa  
+
+Sem regressão

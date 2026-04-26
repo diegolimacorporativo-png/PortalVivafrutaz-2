@@ -21,6 +21,9 @@ import { z } from "zod";
 import { storage } from "./storage";
 import { sendAdminBroadcast, mailerStatus } from "./mailer";
 import { recordAlertLog, persistAlertLog, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
+// STEP 9.3F.12 — camada de entrega aditiva (mock por enquanto).
+// Plugada de forma fire-and-forget: NUNCA bloqueia, NUNCA altera `results`.
+import { deliverAlert } from "./alerts.delivery";
 
 const RECIPIENTS_KEY = "cron_alerts.recipients";
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
@@ -333,6 +336,23 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
   recordAlertLog(sentEntry);
   // STEP 9.3F.4 — persistência durável (fire-and-forget seguro).
   void persistAlertLog(sentEntry);
+
+  // STEP 9.3F.12 — Camada de entrega adicional (Email / WhatsApp / etc.).
+  // Plugada de forma 100% aditiva: fire-and-forget, try/catch interno,
+  // SEM alterar `results`, SEM alterar `persistAlertLog`, SEM bloquear o
+  // retorno. Falha aqui jamais quebra o fluxo principal de alertas.
+  try {
+    void deliverAlert({
+      title: input.title,
+      message: input.message,
+      severity: input.severity,
+      context: input.context,
+    }).catch((err) => {
+      console.error("[ALERT_DELIVERY_ERROR]", err);
+    });
+  } catch (err) {
+    console.error("[ALERT_DELIVERY_DISPATCH_ERROR]", err);
+  }
 
   return {
     rateLimited: false,
