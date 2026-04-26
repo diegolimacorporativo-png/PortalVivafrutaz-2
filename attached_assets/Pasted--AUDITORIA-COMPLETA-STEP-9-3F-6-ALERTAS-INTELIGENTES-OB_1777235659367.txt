@@ -1,0 +1,167 @@
+# 🔍 AUDITORIA COMPLETA — STEP 9.3F.6 (ALERTAS INTELIGENTES)
+
+## 🎯 OBJETIVO
+Validar se a implementação de alertas inteligentes está:
+
+- correta tecnicamente  
+- consistente com o spec  
+- segura (sem efeitos colaterais)  
+- confiável em dados reais  
+
+👉 NÃO implementar nada  
+👉 APENAS analisar, validar e reportar  
+
+---
+
+# 🧭 FASE 1 — DISCOVERY
+
+Mapear:
+
+- alerts.service.ts (emitAlert)
+- alerts.smart.ts (wrapper)
+- alerts.intelligence.ts
+- alerts-log.store.ts
+- shared/schema.ts
+- routes.ts (endpoints novos)
+- faturamento.tsx (UI)
+
+Confirmar:
+
+✔ emitAlert NÃO foi alterado  
+✔ wrapper está isolado  
+✔ persistAlertLog continua sendo única persistência  
+
+---
+
+# 🧪 FASE 2 — VALIDAÇÃO DE SUPRESSÃO
+
+Verificar:
+
+1. Query usada:
+- conta por title
+- janela 24h
+- filtro suppressed = false
+
+2. Comportamento:
+
+- 7 eventos → envia normalmente  
+- 8 eventos → ainda envia  
+- 9º evento → suprimido  
+
+3. Persistência:
+
+json {   "suppressed": true,   "rate_limited": false,   "results": [] } 
+
+✔ Confirmar que NÃO mistura com rate_limit  
+
+---
+
+# 📊 FASE 3 — ANOMALIAS
+
+Validar:
+
+- cálculo baseline correto  
+- exclusão da janela atual  
+- delta % correto  
+
+Testar:
+
+- aumento de 50% → warning  
+- aumento de 100% → critical  
+
+Confirmar:
+
+✔ baseline mínimo respeitado  
+✔ nenhuma divisão por zero  
+
+---
+
+# 📊 FASE 4 — INSIGHTS
+
+Validar regras:
+
+- R1 → spike total  
+- R2 → spike por severidade  
+- R3 → taxa de sucesso canal  
+- R4 → título recorrente  
+- R5 → taxa de supressão  
+
+Confirmar:
+
+✔ não há duplicidade de insights  
+✔ mensagens fazem sentido  
+✔ números estão coerentes  
+
+---
+
+# 🧠 FASE 5 — CONSISTÊNCIA DE DADOS
+
+Verificar:
+
+- analytics vs insights (mesmos números base)
+- logs vs insights
+- suppressed não distorce métricas
+
+---
+
+# ⚙️ FASE 6 — PERFORMANCE
+
+Analisar:
+
+- queries com jsonb_array_elements
+- múltiplas agregações
+- possíveis gargalos
+
+👉 NÃO otimizar ainda, apenas apontar risco
+
+---
+
+# 🖥️ FASE 7 — UI
+
+Validar:
+
+- card de insights aparece corretamente  
+- estado vazio (“Sistema saudável”)  
+- badge "Suprimido" aparece corretamente  
+- polling funcionando  
+
+---
+
+# 🔐 FASE 8 — SEGURANÇA
+
+Confirmar:
+
+- endpoints protegidos  
+- roles aplicadas corretamente  
+
+---
+
+# 🧾 FASE 9 — RELATÓRIO FINAL
+
+Gerar:
+
+## ✅ O que está correto
+## ⚠️ Pontos de atenção
+## ❌ Problemas encontrados (se houver)
+## 🧠 Sugestões de melhoria (SEM implementar)
+
+---
+
+# 🚫 REGRAS
+
+❌ NÃO alterar código  
+❌ NÃO refatorar  
+❌ NÃO otimizar  
+❌ NÃO implementar melhorias  
+
+👉 Apenas auditoria
+
+---
+
+# 🎯 RESULTADO ESPERADO
+
+Sistema validado para:
+
+👉 avançar com segurança para STEP 9.3F.7
+
+-
