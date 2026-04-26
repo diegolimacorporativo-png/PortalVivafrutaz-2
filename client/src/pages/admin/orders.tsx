@@ -370,6 +370,8 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     queryFn: () => fetch(`/api/nfe?orderId=${order.id}`, { credentials: "include" }).then(r => r.ok ? r.json() : []),
   });
 
+  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit } = useCanEmitNfe(order.id);
+
   const emitirNfeMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/nfe/emitir", { orderId: order.id }),
     onSuccess: async (res) => {
@@ -707,18 +709,40 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                 </a>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
                   data-testid={`button-emitir-nfe-${order.id}`}
-                  onClick={() => emitirNfeMutation.mutate()}
-                  disabled={emitirNfeMutation.isPending || order.status === "CANCELLED"}
+                  onClick={() => {
+                    if (canEmit === false) {
+                      toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
+                      return;
+                    }
+                    emitirNfeMutation.mutate();
+                  }}
+                  disabled={
+                    emitirNfeMutation.isPending ||
+                    order.status === "CANCELLED" ||
+                    canEmit === false ||
+                    checkingEmit
+                  }
+                  title={canEmit === false ? blockReason : "Emitir NF"}
                   className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50"
                 >
                   {emitirNfeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
                   {emitirNfeMutation.isPending ? "Gerando NF-e..." : "Emitir NF-e"}
                 </button>
-                <span className="text-xs text-gray-400">Gera o XML e envia ao SEFAZ</span>
+                {canEmit === false ? (
+                  <span
+                    data-testid={`badge-nfe-blocked-${order.id}`}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"
+                  >
+                    <AlertCircle className="w-3.5 h-3.5" />
+                    {blockReason}
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">Gera o XML e envia ao SEFAZ</span>
+                )}
               </div>
             )}
           </div>

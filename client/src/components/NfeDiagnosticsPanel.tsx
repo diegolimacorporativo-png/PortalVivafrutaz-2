@@ -10,6 +10,7 @@ import {
   Building2, User, FileText, MapPin
 } from 'lucide-react';
 import { useLocation } from 'wouter';
+import { useCanEmitNfe } from '@/hooks/use-can-emit-nfe';
 
 interface DiagnosticError {
   campo: string;
@@ -125,6 +126,9 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
     queryKey: ['/api/nfe/diagnostics/training/patterns'],
   });
 
+  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit } = useCanEmitNfe(orderId);
+  const emitBlocked = canEmit === false;
+
   const resolveMutation = useMutation({
     mutationFn: (id: number) => apiRequest('PATCH', `/api/nfe/diagnostics/training/${id}/resolve`, {}),
     onSuccess: () => {
@@ -216,7 +220,21 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
               <RefreshCw className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             </Button>
             {allClear && onEmitirClick && (
-              <Button type="button" size="sm" onClick={onEmitirClick} className="h-8 text-xs" data-testid="button-emitir-ready">
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (emitBlocked) {
+                    toast({ title: 'Faturamento bloqueado', description: blockReason, variant: 'destructive' });
+                    return;
+                  }
+                  onEmitirClick();
+                }}
+                disabled={emitBlocked || checkingEmit}
+                title={emitBlocked ? blockReason : 'Emitir NF-e'}
+                className="h-8 text-xs"
+                data-testid="button-emitir-ready"
+              >
                 <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
                 Emitir NF-e
               </Button>
@@ -225,6 +243,15 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
         </div>
 
         <div className="flex gap-2 mt-3 flex-wrap">
+          {emitBlocked && (
+            <span
+              data-testid="badge-faturamento-blocked"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-800 border border-red-200"
+            >
+              <XCircle className="w-3 h-3" />
+              Faturamento bloqueado: {blockReason}
+            </span>
+          )}
           {resumo.criticos > 0 && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-800 border border-red-200">
               <XCircle className="w-3 h-3" />{resumo.criticos} Crítico(s)

@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NfeDiagnosticsPanel from "@/components/NfeDiagnosticsPanel";
+import { useCanEmitNfe } from "@/hooks/use-can-emit-nfe";
 import {
   FileText, Send, Download, XCircle, RefreshCw, CheckCircle2, Clock,
   AlertCircle, Info, ReceiptText, ArrowLeft, Search, Package, Building2,
@@ -300,6 +301,66 @@ function TutorialInteligente() {
   );
 }
 
+function SelectedOrderEmitRow({
+  selectedOrderId,
+  selectedOrderCode,
+  emitirMutation,
+  onClear,
+  toast,
+}: {
+  selectedOrderId: number;
+  selectedOrderCode: string;
+  emitirMutation: any;
+  onClear: () => void;
+  toast: ReturnType<typeof useToast>["toast"];
+}) {
+  const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit } = useCanEmitNfe(selectedOrderId);
+  const blocked = canEmit === false;
+
+  return (
+    <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 flex-wrap">
+      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+      <div className="flex-1 min-w-[140px]">
+        <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+          Pedido: <span className="font-mono">{selectedOrderCode}</span>
+        </p>
+        <p className="text-xs text-emerald-600">#{selectedOrderId}</p>
+        {blocked && (
+          <span
+            data-testid="badge-nfe-blocked"
+            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-600"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            {blockReason}
+          </span>
+        )}
+      </div>
+      <div className="flex gap-2">
+        <Button
+          type="button"
+          data-testid="button-emitir-nfe"
+          onClick={() => {
+            if (blocked) {
+              toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
+              return;
+            }
+            emitirMutation.mutate(selectedOrderId);
+          }}
+          disabled={emitirMutation.isPending || blocked || checkingEmit}
+          title={blocked ? blockReason : "Gerar XML"}
+          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+        >
+          {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+          Gerar XML
+        </Button>
+        <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+          <XCircle className="w-4 h-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function NfePage() {
   const { toast } = useToast();
   const [statusFiltro, setStatusFiltro] = useState("todos");
@@ -447,30 +508,13 @@ export default function NfePage() {
             />
 
             {selectedOrderId && (
-              <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-                    Pedido: <span className="font-mono">{selectedOrderCode}</span>
-                  </p>
-                  <p className="text-xs text-emerald-600">#{selectedOrderId}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    type="button"
-                    data-testid="button-emitir-nfe"
-                    onClick={() => emitirMutation.mutate(selectedOrderId)}
-                    disabled={emitirMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                  >
-                    {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-                    Gerar XML
-                  </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => { setSelectedOrderId(null); setSelectedOrderCode(""); }}>
-                    <XCircle className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+              <SelectedOrderEmitRow
+                selectedOrderId={selectedOrderId}
+                selectedOrderCode={selectedOrderCode}
+                emitirMutation={emitirMutation}
+                onClear={() => { setSelectedOrderId(null); setSelectedOrderCode(""); }}
+                toast={toast}
+              />
             )}
             <p className="text-xs text-gray-400">
               Selecione um pedido acima. O diagnóstico fiscal valida automaticamente os dados antes da emissão.
