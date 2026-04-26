@@ -1,0 +1,101 @@
+## STEP 9.2Y.7 — QUICK ACTION "LIBERAR PARA NF-e" (CONTROLADO)
+
+### OBJETIVO
+
+Permitir que o admin libere o pedido diretamente da UI:
+
+❌ bloqueado → clique → ✔ liberar → botão destrava
+
+Sem quebrar fluxo e com controle de permissão.
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar schema
+- NÃO liberar automaticamente
+- NÃO remover validações existentes
+- Só permitir para perfis autorizados
+- Sempre logar ação
+
+---
+
+### STEP 1 — BACKEND (REUTILIZAR ROTA EXISTENTE)
+
+Reutilizar endpoint já existente de update:
+
+PATCH /api/orders/:id
+
+Payload:
+
+json {   "fiscalStatus": "nota_liberada" } 
+
+👉 NÃO criar endpoint novo
+
+---
+
+### STEP 2 — PERMISSÃO
+
+Antes de permitir ação no frontend:
+
+ts id="permcheck" const canForceRelease =   user.role === "ADMIN" ||   user.role === "MASTER" ||   user.role === "DIRECTOR"; 
+
+---
+
+### STEP 3 — BOTÃO NO BADGE
+
+Onde aparece:
+
+"Faturamento bloqueado: <reason>"
+
+Adicionar:
+
+tsx id="btnrelease" {!allowed && canForceRelease && (   <button     onClick={handleForceRelease}     className="ml-2 text-xs text-blue-600 underline"   >     Liberar agora   </button> )} 
+
+---
+
+### STEP 4 — MUTATION
+
+ts id="mutrelease" const releaseMutation = useMutation({   mutationFn: async () => {     await fetch(`/api/orders/${orderId}`, {       method: "PATCH",       headers: { "Content-Type": "application/json" },       body: JSON.stringify({         fiscalStatus: "nota_liberada",       }),     });   },    onSuccess: () => {     queryClient.invalidateQueries({       queryKey: ["can-emit-nfe", orderId],     });      toast({       title: "Pedido liberado",       description: "Agora é possível emitir a NF-e",     });   }, }); 
+
+---
+
+### STEP 5 — HANDLER
+
+ts id="hdlrelease" function handleForceRelease() {   releaseMutation.mutate(); } 
+
+---
+
+### STEP 6 — LOG (BACKEND)
+
+No endpoint PATCH /orders/:id:
+
+ts id="logrelease" console.warn("[ORDER_FORCE_RELEASE]", {   orderId,   userId: req.user?.id,   action: "nota_liberada", }); 
+
+---
+
+### RESULTADO
+
+ANTES:
+❌ usuário precisa navegar  
+❌ fluxo quebrado  
+❌ lento  
+
+DEPOIS:
+✔ ação direta  
+✔ feedback imediato  
+✔ desbloqueio automático (via polling já implementado)  
+
+---
+
+### SEGURANÇA
+
+✔ restrito por role  
+✔ logado no servidor  
+✔ não bypassa validações  
+
+---
+
+### RISCO
+
+LOW → MÉDIO ⚠️ (ação manual crítica, mas controlada)

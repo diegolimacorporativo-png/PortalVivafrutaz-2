@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useCanEmitNfe } from '@/hooks/use-can-emit-nfe';
+import { useForceReleaseNfe } from '@/hooks/use-force-release-nfe';
 
 interface DiagnosticError {
   campo: string;
@@ -127,6 +128,7 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
   });
 
   const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(orderId);
+  const { canForceRelease, forceRelease, isPending: isReleasing } = useForceReleaseNfe(orderId);
   const emitBlocked = canEmit === false;
   const [isShaking, setIsShaking] = useState(false);
 
@@ -255,6 +257,17 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
             >
               <XCircle className="w-3 h-3" />
               Faturamento bloqueado: {blockReason}
+              {canForceRelease && (
+                <button
+                  type="button"
+                  onClick={forceRelease}
+                  disabled={isReleasing}
+                  data-testid="button-force-release-diag"
+                  className="ml-1 text-[10px] text-blue-700 underline hover:text-blue-800 disabled:opacity-50"
+                >
+                  {isReleasing ? "Liberando..." : "Liberar agora"}
+                </button>
+              )}
             </span>
           )}
           {!emitBlocked && justUnlocked && (

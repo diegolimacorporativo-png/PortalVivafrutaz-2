@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NfeDiagnosticsPanel from "@/components/NfeDiagnosticsPanel";
 import { useCanEmitNfe } from "@/hooks/use-can-emit-nfe";
+import { useForceReleaseNfe } from "@/hooks/use-force-release-nfe";
 import {
   FileText, Send, Download, XCircle, RefreshCw, CheckCircle2, Clock,
   AlertCircle, Info, ReceiptText, ArrowLeft, Search, Package, Building2,
@@ -315,6 +316,7 @@ function SelectedOrderEmitRow({
   toast: ReturnType<typeof useToast>["toast"];
 }) {
   const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(selectedOrderId);
+  const { canForceRelease, forceRelease, isPending: isReleasing } = useForceReleaseNfe(selectedOrderId);
   const blocked = canEmit === false;
   const [isShaking, setIsShaking] = useState(false);
 
@@ -333,6 +335,17 @@ function SelectedOrderEmitRow({
           >
             <AlertCircle className="w-3.5 h-3.5" />
             {blockReason}
+            {canForceRelease && (
+              <button
+                type="button"
+                onClick={forceRelease}
+                disabled={isReleasing}
+                data-testid="button-force-release"
+                className="ml-2 text-xs text-blue-600 underline hover:text-blue-700 disabled:opacity-50"
+              >
+                {isReleasing ? "Liberando..." : "Liberar agora"}
+              </button>
+            )}
           </span>
         ) : justUnlocked ? (
           <span

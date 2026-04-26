@@ -170,6 +170,19 @@ export class OrdersController {
   /** PATCH /api/orders/:id/fiscal */
   updateFiscal = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // STEP 9.2Y.7 — audit any "Liberar agora" force-release coming from the
+    // admin quick-action. Triggered by `?force=1` so the normal fiscal-update
+    // flow is untouched and only the explicit override is logged here.
+    if (req.query.force === "1" && (req.body as any)?.fiscalStatus === "nota_liberada") {
+      const a = this.actor(req);
+      console.warn("[ORDER_FORCE_RELEASE]", {
+        orderId: id,
+        userId: a.userId,
+        ip: a.ip,
+        action: "nota_liberada",
+        at: new Date().toISOString(),
+      });
+    }
     return ok(
       res,
       await this.service.updateFiscal(id, req.body || {}, this.actor(req)),

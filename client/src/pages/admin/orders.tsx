@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { api } from "@shared/routes";
 import { downloadDanfe, openDanfe, exportToExcel, exportToXML, type DanfeData } from "@/lib/danfe-generator";
+import { useCanEmitNfe } from "@/hooks/use-can-emit-nfe";
+import { useForceReleaseNfe } from "@/hooks/use-force-release-nfe";
 
 const FISCAL_LABEL: Record<string, string> = {
   nota_pendente: "Nota Pendente",
@@ -371,6 +373,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   });
 
   const { allowed: canEmit, reason: blockReason, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(order.id);
+  const { canForceRelease, forceRelease, isPending: isReleasing } = useForceReleaseNfe(order.id);
   const [isShaking, setIsShaking] = useState(false);
 
   const emitirNfeMutation = useMutation({
@@ -745,6 +748,17 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                   >
                     <AlertCircle className="w-3.5 h-3.5" />
                     {blockReason}
+                    {canForceRelease && (
+                      <button
+                        type="button"
+                        onClick={forceRelease}
+                        disabled={isReleasing}
+                        data-testid={`button-force-release-${order.id}`}
+                        className="ml-2 text-xs text-blue-600 underline hover:text-blue-700 disabled:opacity-50"
+                      >
+                        {isReleasing ? "Liberando..." : "Liberar agora"}
+                      </button>
+                    )}
                   </span>
                 ) : justUnlocked ? (
                   <span
