@@ -1,0 +1,96 @@
+## STEP 9.2Z.1 — BLOQUEIO PROGRESSIVO DE CICLO (SEM QUEBRAR PRODUÇÃO)
+
+### OBJETIVO
+
+Ativar bloqueio REAL de faturamento por ciclo (semanal/mensal),
+sem quebrar fluxo atual.
+
+---
+
+## 🚫 REGRAS
+
+- NÃO alterar schema
+- NÃO bloquear todo mundo de uma vez
+- NÃO remover override manual (Liberar agora)
+- Implementar com FEATURE FLAG
+
+---
+
+## STEP 1 — FEATURE FLAG
+
+Arquivo:
+
+server/config/flags.ts
+
+ts export const BILLING_STRICT_MODE = false; 
+
+---
+
+## STEP 2 — ATUALIZAR ENGINE
+
+Arquivo:
+
+faturamento.engine.ts
+
+Adicionar:
+
+ts import { BILLING_STRICT_MODE } from "@/config/flags"; 
+
+---
+
+### 🔹 BLOQUEIO SEMANAL
+
+ts if (context.tipo === "semanal" && BILLING_STRICT_MODE) {   const delivery = new Date(order.deliveryDate);   const diff = Math.floor(     (now.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24)   );    if (diff < 7) {     context.podeEmitir = false;     context.motivo = "Aguardando fechamento semanal";   } } 
+
+---
+
+### 🔹 BLOQUEIO MENSAL
+
+ts if (context.tipo === "mensal" && BILLING_STRICT_MODE) {   const delivery = new Date(order.deliveryDate);    if (     delivery.getMonth() === now.getMonth() &&     delivery.getFullYear() === now.getFullYear()   ) {     context.podeEmitir = false;     context.motivo = "Faturamento apenas no mês seguinte";   } } 
+
+---
+
+## STEP 3 — LOG DE BLOQUEIO
+
+Dentro do guard:
+
+ts if (!context.podeEmitir) {   console.warn("[NFE_BLOCKED_BY_CYCLE]", {     orderId,     tipo: context.tipo,     motivo: context.motivo,   });    return {     allowed: false,     reason: context.motivo,     faturamento: context,   }; } 
+
+---
+
+## STEP 4 — ROLLOUT CONTROLADO
+
+Fase 1:
+ts BILLING_STRICT_MODE = false 
+→ apenas informativo (estado atual)
+
+Fase 2:
+ts BILLING_STRICT_MODE = true 
+→ bloqueio real ativado
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ sistema só informava  
+❌ não controlava  
+
+DEPOIS:
+✔ sistema passa a controlar  
+✔ com rollout seguro  
+✔ sem quebrar produção  
+
+---
+
+## SEGURANÇA
+
+✔ pode desligar instantaneamente  
+✔ override manual ainda funciona  
+✔ logs de rastreio  
+
+---
+
+## RISCO
+
+LOW → CONTROLADO ✅

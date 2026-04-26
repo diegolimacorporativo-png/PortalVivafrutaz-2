@@ -92,8 +92,14 @@ export async function canEmitNFe(orderId: number): Promise<CanEmitNFeResult> {
     };
   }
 
-  // Engine pode bloquear por regras comerciais (ex: contrato expirado).
+  // Engine pode bloquear por regras comerciais (ex: contrato expirado,
+  // ou — quando BILLING_STRICT_MODE estiver ligado — bloqueio por ciclo).
   if (!faturamento.podeEmitir) {
+    console.warn("[NFE_BLOCKED_BY_CYCLE]", {
+      orderId,
+      tipo: faturamento.tipo,
+      motivo: faturamento.motivo,
+    });
     return {
       allowed: false,
       reason: faturamento.motivo,

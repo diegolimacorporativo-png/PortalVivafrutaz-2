@@ -1,3 +1,5 @@
+import { BILLING_STRICT_MODE } from "../../config/flags";
+
 /**
  * STEP 9.2Z — Motor de Faturamento (Fase 1, sem alterar schema).
  *
@@ -133,10 +135,42 @@ export function getFaturamentoContext(
     }
   }
 
-  // ── 4. Fase 1: classificação semanal/mensal NÃO bloqueia ──────────
-  // O agrupamento por ciclo entra em Fase 2. Por ora, só anotamos o tipo
-  // para a UI poder informar "aguardando fechamento mensal" como dica,
-  // sem impedir emissão manual.
+  // ── 4. STEP 9.2Z.1 — Bloqueio progressivo por ciclo ───────────────
+  // Só dispara quando `BILLING_STRICT_MODE` for ligado. Enquanto a flag
+  // estiver `false`, o comportamento é exatamente o de Fase 1 (apenas
+  // informativo). Quando ligada, bloqueia emissão antes do fechamento
+  // do ciclo. O admin sempre pode passar por cima usando "Liberar agora"
+  // (force-release), que zera o `fiscal_status` para `nota_liberada`.
+  if (BILLING_STRICT_MODE) {
+    const deliveryRaw = pick(order, "delivery_date", "deliveryDate");
+    if (deliveryRaw) {
+      const delivery = startOfDay(new Date(deliveryRaw as any));
+
+      // Semanal: só pode emitir 7 dias após a entrega (fechamento da semana).
+      if (ctx.tipo === "semanal") {
+        const diffDias = Math.floor(
+          (now.getTime() - delivery.getTime()) / (1000 * 60 * 60 * 24),
+        );
+        if (diffDias < 7) {
+          ctx.podeEmitir = false;
+          ctx.motivo = "Aguardando fechamento semanal";
+          return ctx;
+        }
+      }
+
+      // Mensal: entregas do mês corrente só faturam no mês seguinte.
+      if (ctx.tipo === "mensal") {
+        if (
+          delivery.getMonth() === now.getMonth() &&
+          delivery.getFullYear() === now.getFullYear()
+        ) {
+          ctx.podeEmitir = false;
+          ctx.motivo = "Faturamento apenas no mês seguinte";
+          return ctx;
+        }
+      }
+    }
+  }
 
   return ctx;
 }
