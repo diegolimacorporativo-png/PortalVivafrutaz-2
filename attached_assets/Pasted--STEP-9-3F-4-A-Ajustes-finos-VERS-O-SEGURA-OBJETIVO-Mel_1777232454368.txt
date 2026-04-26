@@ -1,0 +1,121 @@
+# 🔧 STEP 9.3F.4.A — Ajustes finos (VERSÃO SEGURA)
+
+## 🎯 OBJETIVO
+- Melhorar performance (índice)
+- Controlar crescimento da tabela (prune automático)
+- Permitir limpeza manual segura
+- Evitar duplicação de jobs
+- ZERO impacto no cron e frontend
+
+---
+
+# 🧭 FASE 1 — DISCOVERY (NÃO ALTERAR)
+
+Confirmar:
+
+- shared/schema.ts → cron_alert_logs com createdAt  
+- rota GET /api/cron/alerts/logs usando orderBy(desc(createdAt))  
+
+👉 NÃO ALTERAR NADA AQUI
+
+---
+
+# 🧱 FASE 2 — ÍNDICE (PERFORMANCE)
+
+## Arquivo: shared/schema.ts
+
+ts import { index } from "drizzle-orm/pg-core";  export const cronAlertLogs = pgTable(   "cron_alert_logs",   {     id: serial("id").primaryKey(),     createdAt: timestamp("created_at").defaultNow().notNull(),     severity: text("severity").notNull(),     title: text("title").notNull(),     message: text("message").notNull(),     results: jsonb("results").notNull(),     rateLimited: boolean("rate_limited").notNull().default(false),     context: jsonb("context"),   },   (table) => ({     createdAtIdx: index("idx_cron_alert_logs_created_at").on(table.createdAt),   }) ); 
+
+---
+
+# 🗄️ FASE 3 — PRUNE (COM LOG MELHORADO)
+
+## Arquivo: server/modules/nfe/alerts-log.store.ts
+
+ts import { lt } from "drizzle-orm";  export async function pruneOldAlertLogs(days = 90) {   try {     const cutoff = new Date();     cutoff.setDate(cutoff.getDate() - days);      const result = await db       .delete(cronAlertLogs)       .where(lt(cronAlertLogs.createdAt, cutoff));      console.log("[ALERT_LOGS_PRUNED]", {       days,       deleted: result.rowCount ?? "unknown",     });   } catch (err) {     console.error("[ALERT_PRUNE_ERROR]", err);   } } 
+
+---
+
+# ⚙️ FASE 4 — JOB AUTOMÁTICO (ANTI-DUPLICAÇÃO)
+
+## Arquivo: server/services/alerts.service.ts
+
+ts import { pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";  if (!(global as any).__alertPruneStarted) {   (global as any).__alertPruneStarted = true;    setInterval(() => {     pruneOldAlertLogs(90);   }, 24 * 60 * 60 * 1000); } 
+
+👉 evita múltiplos intervals em restart / multi-instância
+
+---
+
+# 🌐 FASE 5 — ENDPOINT ADMIN (SEGURO)
+
+## Arquivo: server/routes/routes.ts
+
+ts app.delete(   "/api/cron/alerts/logs",   requireAuthCore,   requireRole(["MASTER", "ADMIN", "DIRECTOR"]),   async (req, res) => {     try {       const rawDays = Number(req.query.days ?? 90);        // proteção contra wipe acidental       const days = Math.max(1, rawDays);        await pruneOldAlertLogs(days);        return res.json({ ok: true, prunedOlderThanDays: days });     } catch (err) {       console.error("[ALERT_PRUNE_ENDPOINT_ERROR]", err);       return res.status(500).json({ ok: false });     }   } ); 
+
+---
+
+# 🧪 FASE 6 — MIGRAÇÃO
+
+bash npm run db:push 
+
+---
+
+# ✅ FASE 7 — VALIDAÇÃO
+
+## 1. Índice
+- confirmar: idx_cron_alert_logs_created_at
+
+---
+
+## 2. Endpoint
+bash DELETE /api/cron/alerts/logs?days=1 
+
+👉 NÃO usar days=0 em produção
+
+---
+
+## 3. Logs
+Verificar:
+
+[ALERT_LOGS_PRUNED] { days, deleted }
+
+---
+
+## 4. UI
+- faturamento.tsx continua normal
+- sem erro
+- polling ok
+
+---
+
+## 5. Job
+- rodar prune manualmente
+- garantir que não duplica execução
+
+---
+
+# 🛡️ REGRAS CRÍTICAS
+
+❌ NÃO mexer em emitAlert  
+❌ NÃO remover memória  
+❌ NÃO alterar resposta da API  
+❌ NÃO rodar múltiplos intervals  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ Índice aplicado  
+✔ Tabela controlada  
+✔ Endpoint seguro  
+✔ Job sem duplicação  
+✔ Logs auditáveis  
+✔ Sistema pronto pra escala  
+
+---
+
+# 🚀 STATUS
+
+Pronto para:
+👉 STEP 9.3F.5 (Analytics / Dashboard)
+-

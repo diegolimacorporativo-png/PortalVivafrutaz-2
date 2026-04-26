@@ -8,6 +8,7 @@
  * influencia o fluxo do cron.
  */
 
+import { lt } from "drizzle-orm";
 import { db } from "../../database/db";
 import { cronAlertLogs } from "@shared/schema";
 
@@ -62,5 +63,29 @@ export async function persistAlertLog(entry: AlertLog): Promise<void> {
     });
   } catch (err) {
     console.error("[ALERT_PERSIST_ERROR]", err);
+  }
+}
+
+/**
+ * STEP 9.3F.4.A — Remove logs mais antigos que `days` dias.
+ * Sempre dentro de try/catch: falha aqui não pode quebrar nada.
+ * Usado tanto pelo job diário quanto pelo endpoint admin DELETE.
+ */
+export async function pruneOldAlertLogs(days = 90): Promise<void> {
+  try {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+
+    const result = await db
+      .delete(cronAlertLogs)
+      .where(lt(cronAlertLogs.createdAt, cutoff));
+
+    console.log("[ALERT_LOGS_PRUNED]", {
+      days,
+      deleted: (result as any)?.rowCount ?? "unknown",
+      cutoff: cutoff.toISOString(),
+    });
+  } catch (err) {
+    console.error("[ALERT_PRUNE_ERROR]", err);
   }
 }

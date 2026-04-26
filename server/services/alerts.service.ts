@@ -20,10 +20,25 @@
 import { z } from "zod";
 import { storage } from "./storage";
 import { sendAdminBroadcast, mailerStatus } from "./mailer";
-import { recordAlertLog, persistAlertLog } from "../modules/nfe/alerts-log.store";
+import { recordAlertLog, persistAlertLog, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
 
 const RECIPIENTS_KEY = "cron_alerts.recipients";
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
+
+// STEP 9.3F.4.A — Job diário de prune dos logs persistidos.
+// Guard global evita múltiplos intervals em hot-reload (tsx) ou multi-instância.
+const ALERT_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
+const ALERT_PRUNE_DAYS = 90;
+if (!(globalThis as any).__alertPruneStarted) {
+  (globalThis as any).__alertPruneStarted = true;
+  setInterval(() => {
+    void pruneOldAlertLogs(ALERT_PRUNE_DAYS);
+  }, ALERT_PRUNE_INTERVAL_MS);
+  console.log("[ALERT_PRUNE_SCHEDULED]", {
+    everyMs: ALERT_PRUNE_INTERVAL_MS,
+    keepDays: ALERT_PRUNE_DAYS,
+  });
+}
 
 export const alertChannelSchema = z.enum(["email", "slack", "whatsapp"]);
 export type AlertChannel = z.infer<typeof alertChannelSchema>;

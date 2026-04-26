@@ -1661,14 +1661,21 @@ export type CronFaturamentoRun = typeof cronFaturamentoRuns.$inferSelect;
 // Cada disparo (ou bloqueio por rate-limit) do emitAlert(...) grava uma linha
 // aqui para auditoria histórica. A store em memória continua existindo como
 // cache rápido — esta tabela é a fonte da verdade após restart.
-export const cronAlertLogs = pgTable("cron_alert_logs", {
-  id:          serial("id").primaryKey(),
-  createdAt:   timestamp("created_at").defaultNow().notNull(),
-  severity:    text("severity").notNull(),       // 'ALERT' | 'CRITICAL'
-  title:       text("title").notNull(),
-  message:     text("message").notNull(),
-  results:     jsonb("results").notNull(),       // Array<{ channel, target?, ok, reason? }>
-  rateLimited: boolean("rate_limited").notNull().default(false),
-  context:     jsonb("context"),                 // opcional: payload bruto do alerta
-});
+export const cronAlertLogs = pgTable(
+  "cron_alert_logs",
+  {
+    id:          serial("id").primaryKey(),
+    createdAt:   timestamp("created_at").defaultNow().notNull(),
+    severity:    text("severity").notNull(),       // 'ALERT' | 'CRITICAL'
+    title:       text("title").notNull(),
+    message:     text("message").notNull(),
+    results:     jsonb("results").notNull(),       // Array<{ channel, target?, ok, reason? }>
+    rateLimited: boolean("rate_limited").notNull().default(false),
+    context:     jsonb("context"),                 // opcional: payload bruto do alerta
+  },
+  // STEP 9.3F.4.A — índice em created_at para acelerar orderBy/desc + prune por janela.
+  (table) => ({
+    createdAtIdx: index("cron_alert_logs_created_at_idx").on(table.createdAt),
+  }),
+);
 export type CronAlertLog = typeof cronAlertLogs.$inferSelect;

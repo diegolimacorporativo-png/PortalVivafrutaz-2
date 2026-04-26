@@ -57,7 +57,7 @@ import {
   setAlertRecipients,
   alertRecipientsArraySchema,
 } from "../services/alerts.service";
-import { getAlertLogs } from "../modules/nfe/alerts-log.store";
+import { getAlertLogs, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5161,6 +5161,26 @@ export async function registerRoutes(
         } catch (err) {
           console.error('[ALERT_LOGS_ERROR]', err);
           return res.status(500).json({ error: 'Erro ao buscar logs de alertas' });
+        }
+      },
+    );
+
+    // STEP 9.3F.4.A — Prune manual dos logs antigos (admin only).
+    // DELETE /api/cron/alerts/logs?days=90  → remove tudo com createdAt < hoje - days.
+    // Mínimo de 1 dia para evitar wipe acidental da tabela inteira.
+    app.delete(
+      '/api/cron/alerts/logs',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      async (req: any, res) => {
+        try {
+          const rawDays = Number(req.query.days ?? 90);
+          const days = Math.max(1, Number.isFinite(rawDays) ? rawDays : 90);
+          await pruneOldAlertLogs(days);
+          return res.json({ ok: true, prunedOlderThanDays: days });
+        } catch (err) {
+          console.error('[ALERT_PRUNE_ENDPOINT_ERROR]', err);
+          return res.status(500).json({ error: 'Erro ao limpar logs de alertas' });
         }
       },
     );
