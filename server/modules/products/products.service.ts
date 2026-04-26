@@ -8,6 +8,15 @@ import type {
   Category,
   InsertCategory,
 } from "@shared/schema";
+// Price Resolver — imported for future activation only. Do NOT call it
+// from any persisted-write path yet. See utils/priceResolver.ts.
+// FUTURE:
+//   - enableCategoryPricing flag
+//   - enableAdminMarkup flag
+//   - enableContractOverride flag
+import { resolveProductPrice, logPriceDivergence } from "./utils/priceResolver";
+void resolveProductPrice;
+void logPriceDivergence;
 
 export interface SafraAlertOrder {
   orderId: number;

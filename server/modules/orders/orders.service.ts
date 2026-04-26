@@ -21,6 +21,19 @@ import {
   sendOrderStatusChanged,
   sendAdminNewOrder,
 } from "../../services/mailer";
+// Price Resolver — imported for future activation only. Currently used
+// only for opportunistic divergence logging via logPriceDivergence; no
+// persisted value depends on it. See products/utils/priceResolver.ts.
+// FUTURE:
+//   - enableCategoryPricing flag
+//   - enableAdminMarkup flag
+//   - enableContractOverride flag
+import {
+  resolveProductPrice,
+  logPriceDivergence,
+} from "../products/utils/priceResolver";
+void resolveProductPrice;
+void logPriceDivergence;
 
 /**
  * Module-local 60-second duplicate-submission window.

@@ -1,0 +1,180 @@
+GOAL:
+Criar um mecanismo central de resolução de preço (Price Resolver) que determine,
+de forma determinística e padronizada, o preço final de um produto considerando:
+
+- basePrice
+- subCategory price
+- priceGroup (taxa administrativa)
+- contractScope (preço específico por cliente)
+
+SEM alterar comportamento atual (apenas centralizar lógica existente)
+SEM alterar response
+SEM quebrar endpoints
+
+---
+
+STRICT RULES:
+
+- NÃO alterar endpoints (paths, métodos)
+- NÃO alterar response body
+- NÃO alterar contratos de service/controller
+- NÃO alterar schema
+- NÃO recalcular pedidos existentes
+- NÃO aplicar lógica retroativa
+- NÃO remover lógica atual ainda (apenas encapsular)
+- Se houver dúvida → manter comportamento atual
+
+---
+
+STEP 3.5 — PRICE RESOLVER (CORE)
+
+Criar:
+
+server/modules/products/utils/priceResolver.ts
+
+---
+
+FUNÇÃO PRINCIPAL:
+
+export function resolveProductPrice(params: {
+  basePrice: number;
+  subCategoryPrice?: number | null;
+  priceGroupMarkup?: number | null; // ex: 12 (%)
+  contractPrice?: number | null;
+}): number
+
+---
+
+REGRA DE PRIORIDADE (OBRIGATÓRIA):
+
+1️⃣ contractPrice (MAIOR prioridade)
+2️⃣ subCategoryPrice
+3️⃣ basePrice
+
+Após escolher o preço base:
+
+4️⃣ aplicar priceGroupMarkup (se existir)
+
+---
+
+IMPLEMENTAÇÃO:
+
+export function resolveProductPrice({
+  basePrice,
+  subCategoryPrice,
+  priceGroupMarkup,
+  contractPrice,
+}: {
+  basePrice: number;
+  subCategoryPrice?: number | null;
+  priceGroupMarkup?: number | null;
+  contractPrice?: number | null;
+}): number {
+  let price = basePrice;
+
+  if (contractPrice != null) {
+    price = contractPrice;
+  } else if (subCategoryPrice != null) {
+    price = subCategoryPrice;
+  }
+
+  if (priceGroupMarkup != null) {
+    price = price * (1 + priceGroupMarkup / 100);
+  }
+
+  return Number(price.toFixed(2));
+}
+
+---
+
+STEP 3.6 — SAFE INTEGRATION (READ-ONLY USAGE)
+
+IMPORTAR o resolver em:
+
+- products.service.ts
+- orders.service.ts
+
+⚠️ MAS NÃO substituir lógica ainda
+
+Apenas:
+
+- usar para logs comparativos
+- ou preparar para uso futuro
+
+Exemplo:
+
+const resolved = resolveProductPrice({...});
+const legacy = existingPrice;
+
+if (resolved !== legacy) {
+  console.warn('[priceResolver] divergence', {
+    resolved,
+    legacy,
+  });
+}
+
+---
+
+STEP 3.7 — FUTURE FLAGS (NÃO IMPLEMENTAR AINDA)
+
+Planejar (apenas comentário no código):
+
+// FUTURE:
+// - enableCategoryPricing flag
+// - enableAdminMarkup flag
+// - enableContractOverride flag
+
+---
+
+STEP 3.8 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm run test
+
+---
+
+STEP 3.9 — RUNTIME CHECK
+
+Testar manualmente:
+
+Cenário 1:
+basePrice = 10
+→ resultado: 10
+
+Cenário 2:
+subCategoryPrice = 12
+→ resultado: 12
+
+Cenário 3:
+contractPrice = 15
+→ resultado: 15
+
+Cenário 4:
+basePrice = 10 + markup 10%
+→ resultado: 11
+
+Cenário 5:
+subCategoryPrice = 12 + markup 10%
+→ resultado: 13.20
+
+---
+
+STEP 3.10 — REPORT
+
+Retornar:
+
+- arquivo criado
+- locais onde foi importado
+- logs de divergência (se houver)
+- confirmação de zero impacto em endpoints
+
+---
+
+SUCCESS CRITERIA:
+
+✅ Resolver implementado
+✅ Nenhuma mudança de comportamento
+✅ Nenhum endpoint afetado
+✅ Pronto para futura ativação
