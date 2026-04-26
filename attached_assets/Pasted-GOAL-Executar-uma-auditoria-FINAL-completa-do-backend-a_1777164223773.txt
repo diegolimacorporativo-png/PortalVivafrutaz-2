@@ -1,0 +1,201 @@
+GOAL:
+Executar uma auditoria FINAL completa do backend após todas as migrações,
+garantindo que o sistema está 100% estável, consistente e seguro
+ANTES de iniciar mudanças de regra de negócio (ex: pricing, produtos, fiscal).
+
+---
+
+STRICT RULES:
+- NÃO alterar código (audit-only)
+- NÃO corrigir nada automaticamente
+- NÃO refatorar
+- NÃO otimizar
+- APENAS analisar e reportar
+- Se encontrar risco crítico → destacar como CRITICAL
+- Separar claramente: OK / WARNING / CRITICAL
+
+---
+
+STEP 1 — ROUTE CONSISTENCY
+
+Verificar:
+
+- Nenhum endpoint duplicado entre:
+  - registerModules()
+  - registerRoutes()
+
+- Confirmar:
+  - módulos montados ANTES do legacy router
+  - nenhuma rota legacy ainda ativa quando deveria estar migrada
+
+Reportar:
+- rotas shadowed
+- rotas ainda inline indevidamente
+- conflitos de path/method
+
+---
+
+STEP 2 — MODULE INTEGRITY
+
+Para cada domínio em:
+
+server/modules/*
+
+Validar:
+
+- controller → service → repository chain completa
+- nenhum controller com lógica de negócio pesada
+- nenhum service acessando diretamente req/res
+- nenhum repository com lógica de negócio
+
+Reportar:
+- violações de camada
+
+---
+
+STEP 3 — ERROR HANDLING
+
+Validar:
+
+- todos controllers:
+  - OU usam asyncHandler
+  - OU possuem try/catch com resposta controlada
+
+- nenhum:
+  - unhandled promise
+  - missing .catch(next)
+
+- errorHandler:
+  - recebe todos os erros
+  - usa req.requestId
+  - mantém response shape
+
+---
+
+STEP 4 — LOGGING & TRACEABILITY
+
+Validar:
+
+- todos logs críticos incluem:
+  - req.requestId
+  - scope correto (domain.controller)
+
+- requestLogger:
+  - logs IN e OUT corretamente
+  - calcula duration correto
+
+- express logger:
+  - inclui requestId
+  - preserva body
+
+- não existem logs silenciosos
+
+---
+
+STEP 5 — PERFORMANCE
+
+Verificar:
+
+- nenhum padrão restante:
+  - getProducts().find(...)
+  - getOrders().filter(...)
+  - loops com await desnecessário
+
+- todos acessos críticos usam:
+  - getById
+  - lookups diretos
+
+---
+
+STEP 6 — DATABASE & INDEXES
+
+Validar:
+
+- índices existentes:
+  - products(product_code)
+  - order_items(order_id, product_id)
+  - inventory_settings(product_id)
+
+- nenhum índice duplicado
+- PKs intactas
+- schema consistente com uso
+
+---
+
+STEP 7 — RESPONSE CONTRACT
+
+Testar endpoints críticos:
+
+- /api/products
+- /api/products/:id
+- /api/orders/export
+- /api/inventory/settings
+
+Validar:
+
+- status codes idênticos ao esperado
+- response shape consistente
+- mensagens não alteradas
+
+---
+
+STEP 8 — SECURITY & SAFETY
+
+Verificar:
+
+- requestId sanitização
+- nenhuma exposição de erro interno
+- nenhuma mutação indevida de req/res
+- nenhum middleware quebrando fluxo
+
+---
+
+STEP 9 — TEST COVERAGE
+
+Validar:
+
+- testes existentes passam
+- nenhuma regressão
+- cobertura mínima dos fluxos críticos
+
+---
+
+STEP 10 — DEAD CODE & CLEANUP
+
+Identificar:
+
+- funções não utilizadas
+- helpers órfãos
+- imports não usados
+- rotas legacy totalmente mortas
+
+---
+
+STEP 11 — FINAL REPORT
+
+Gerar relatório com:
+
+1. STATUS GERAL:
+   - SAFE / WARNING / CRITICAL
+
+2. RESUMO:
+   - total de verificações feitas
+   - total OK
+   - total WARNINGS
+   - total CRITICAL
+
+3. LISTA DETALHADA:
+   - OK
+   - WARNINGS (explicados)
+   - CRITICAL (se houver)
+
+4. RISCO FINAL:
+   - LOW / MEDIUM / HIGH
+
+---
+
+SUCCESS CRITERIA:
+
+✅ Nenhuma regressão detectada
+✅ Nenhuma quebra de contrato
+✅ Sistema pronto para próxima fase (business logic)
