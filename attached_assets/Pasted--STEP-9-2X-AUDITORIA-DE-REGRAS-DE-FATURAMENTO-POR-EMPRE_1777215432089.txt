@@ -1,0 +1,160 @@
+## STEP 9.2X — AUDITORIA DE REGRAS DE FATURAMENTO POR EMPRESA (READ-ONLY)
+
+### CONTEXTO
+
+O sistema já possui:
+
+- módulo de empresas
+- módulo de pedidos (orders)
+- módulo de NF-e
+
+Existe a necessidade de controlar QUANDO uma NF pode ser emitida, baseado em regras como:
+
+- faturamento diário
+- faturamento semanal
+- faturamento mensal
+- mês subsequente
+- prazos (30 / 45 / 60 dias)
+
+---
+
+### 🚫 REGRAS CRÍTICAS
+
+- NÃO implementar nada
+- NÃO alterar código
+- NÃO criar campos novos
+- NÃO sugerir arquitetura nova
+
+👉 APENAS AUDITORIA COMPLETA (READ-ONLY)
+
+---
+
+### 🎯 OBJETIVO
+
+Mapear 100% do que já existe no sistema relacionado a:
+
+- regras de faturamento por empresa
+- prazos
+- ciclos
+- condições comerciais
+
+Para evitar emissão incorreta de NF-e.
+
+---
+
+### STEP 0 — DESCOBERTA OBRIGATÓRIA
+
+Buscar nos arquivos:
+
+- shared/schema.ts  
+- server/modules/companies/*  
+- server/services/storage.ts  
+- server/routes/*  
+
+Procurar por palavras-chave:
+
+- faturamento
+- billing
+- ciclo
+- prazo
+- vencimento
+- fechamento
+- pagamento
+- dias
+- prazoDias
+- tipoFaturamento
+- billingCycle
+- dueDate
+- paymentTerms
+- contrato
+- condição
+
+---
+
+### STEP 1 — MAPEAR SCHEMA
+
+Identificar se já existem campos como:
+
+- tipo de faturamento (diário, semanal, mensal)
+- dia de fechamento
+- prazo em dias (ex: 30, 45, 60)
+- data de vencimento
+- regra de emissão de nota
+
+Para cada campo encontrado, retornar:
+
+- nome da tabela
+- nome do campo
+- tipo
+- descrição do uso (se houver)
+
+---
+
+### STEP 2 — MAPEAR USO REAL
+
+Verificar se esses campos são utilizados em:
+
+- criação de pedidos
+- emissão de NF-e
+- geração de faturas
+- cálculo de vencimento
+
+👉 Mostrar exatamente ONDE são usados (arquivo + linha)
+
+---
+
+### STEP 3 — FLUXO ATUAL
+
+Descrever o fluxo atual:
+
+Pedido → ??? → NF-e
+
+Responder:
+
+- NF-e é emitida imediatamente?
+- Existe validação de prazo?
+- Existe bloqueio por regra da empresa?
+- Existe conceito de “pedido ainda não faturável”?
+
+---
+
+### STEP 4 — GAPS CRÍTICOS
+
+Identificar:
+
+- onde o sistema pode emitir NF no momento errado
+- onde não respeita prazo de faturamento
+- onde ignora regra por empresa
+- onde existe risco financeiro ou fiscal
+
+---
+
+### STEP 5 — CLASSIFICAÇÃO
+
+Classificar o sistema:
+
+- 🟢 preparado
+- 🟡 parcial
+- 🔴 inexistente
+
+---
+
+### STEP 6 — OUTPUT FINAL
+
+Gerar relatório com:
+
+1. O que já existe (completo)
+2. O que existe parcialmente
+3. O que NÃO existe (gaps reais)
+4. Riscos de emissão incorreta de NF-e
+5. Se já é possível controlar faturamento por empresa HOJE (sim/não + justificativa)
+
+---
+
+### ⚠️ IMPORTANTE
+
+- NÃO sugerir implementação ainda
+- NÃO propor código
+- NÃO modificar nada
+
+👉 Apenas diagnóstico completo para basear o próximo STEP
