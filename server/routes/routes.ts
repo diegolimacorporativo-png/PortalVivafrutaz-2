@@ -51,6 +51,7 @@ import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
 import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
 import { runFaturamentoCron } from "../jobs/faturamento.cron";
+import { cronFaturamentoRuns } from "@shared/schema";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5065,11 +5066,26 @@ export async function registerRoutes(
       }
       try {
         console.log('[CRON_MANUAL_TRIGGER] iniciado por userId=' + req.session.userId);
-        const result = await runFaturamentoCron('manual');
+        const result = await runFaturamentoCron('manual', Number(req.session.userId));
         return res.json({ message: 'Cron executado manualmente', result });
       } catch (error: any) {
         console.error('[CRON_MANUAL_ERROR]', error);
         return res.status(500).json({ error: 'Erro ao executar cron manual', message: error?.message });
+      }
+    });
+
+    // GET /api/nfe/cron/history — STEP 9.3E: últimas 50 execuções do cron de faturamento
+    app.get('/api/nfe/cron/history', async (req: any, res) => {
+      try {
+        const rows = await db
+          .select()
+          .from(cronFaturamentoRuns)
+          .orderBy(desc(cronFaturamentoRuns.executedAt))
+          .limit(50);
+        return res.json(rows);
+      } catch (error) {
+        console.error('[CRON_HISTORY_ERROR]', error);
+        return res.status(500).json({ error: 'Erro ao buscar histórico' });
       }
     });
 

@@ -22,6 +22,7 @@ import {
   setCronRunning,
   setCronResult,
 } from "../modules/nfe/cron-status.store";
+import { cronFaturamentoRuns } from "@shared/schema";
 
 const CONCURRENCY_LIMIT = 5;
 
@@ -52,8 +53,57 @@ async function processInBatches<T>(
 
 // ── Lógica principal ─────────────────────────────────────────────────────────
 
+// STEP 9.3E — registra a execução no histórico persistente.
+// Mantém um try/catch local para nunca derrubar o cron se o INSERT falhar.
+async function persistCronRun(args: {
+  triggeredBy: "schedule" | "manual";
+  triggeredByUserId: number | null;
+  total: number;
+  success: number;
+  blocked: number;
+  errors: number;
+}): Promise<void> {
+  try {
+    await db.insert(cronFaturamentoRuns).values({
+      triggeredBy: args.triggeredBy,
+      triggeredByUserId: args.triggeredByUserId ?? null,
+      total: args.total,
+      success: args.success,
+      blocked: args.blocked,
+      errors: args.errors,
+    });
+  } catch (e: any) {
+    console.error("[CRON_HISTORY_PERSIST_ERROR]", e?.message ?? e);
+  }
+}
+
+// STEP 9.3E — alertas baseados no resultado.
+function emitCronAlerts(args: {
+  total: number;
+  success: number;
+  errors: number;
+  triggeredBy: "schedule" | "manual";
+}): void {
+  if (args.errors > 0) {
+    console.error("[CRON_ALERT]", {
+      message: "Erros no faturamento automático",
+      total: args.total,
+      errors: args.errors,
+      triggeredBy: args.triggeredBy,
+    });
+  }
+  if (args.success === 0 && args.total > 0) {
+    console.error("[CRON_CRITICAL]", {
+      message: "Nenhuma NF emitida",
+      total: args.total,
+      triggeredBy: args.triggeredBy,
+    });
+  }
+}
+
 export async function runFaturamentoCron(
   triggeredBy: "schedule" | "manual" = "schedule",
+  triggeredByUserId: number | null = null,
 ): Promise<CronFaturamentoResult> {
   const executadoEm = new Date();
   const autoMode = AUTO_FATURAMENTO;
@@ -81,6 +131,14 @@ export async function runFaturamentoCron(
   if (candidates.length === 0) {
     console.log("[CRON_FATURAMENTO] Nenhum pedido candidato encontrado.");
     setCronResult({ total: 0, success: 0, blocked: 0, errors: 0 });
+    await persistCronRun({
+      triggeredBy,
+      triggeredByUserId,
+      total: 0,
+      success: 0,
+      blocked: 0,
+      errors: 0,
+    });
     return { executadoEm, autoMode, total: 0, emitidas: 0, bloqueadas: 0, erros: 0, detalhes: [] };
   }
 
@@ -165,10 +223,34 @@ export async function runFaturamentoCron(
     errors: erros,
   });
 
+  // STEP 9.3E — histórico persistente + alertas.
+  await persistCronRun({
+    triggeredBy,
+    triggeredByUserId,
+    total: candidates.length,
+    success: emitidas,
+    blocked: bloqueadas,
+    errors: erros,
+  });
+  emitCronAlerts({ total: candidates.length, success: emitidas, errors: erros, triggeredBy });
+
   return { executadoEm, autoMode, total: candidates.length, emitidas, bloqueadas, erros, detalhes };
   } catch (err) {
     // STEP 9.3D — em caso de exceção fatal, registra resumo zerado e relança.
     setCronResult({ total: 0, success: 0, blocked: 0, errors: 1 });
+    await persistCronRun({
+      triggeredBy,
+      triggeredByUserId,
+      total: 0,
+      success: 0,
+      blocked: 0,
+      errors: 1,
+    });
+    console.error("[CRON_CRITICAL]", {
+      message: "Execução abortada por exceção",
+      triggeredBy,
+      error: (err as any)?.message,
+    });
     throw err;
   }
 }

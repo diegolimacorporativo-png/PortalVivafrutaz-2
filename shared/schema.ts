@@ -1641,3 +1641,18 @@ export interface WorkflowEventPayload {
     deliveryUpdated?:        boolean;
   };
 }
+
+// ─── STEP 9.3E — Histórico persistente do Cron de Faturamento ────────────────
+// Cada execução do cron de faturamento (agendada às 08:00 ou disparada manualmente)
+// grava uma linha aqui com o resumo. Sem PII; apenas contadores agregados.
+export const cronFaturamentoRuns = pgTable("cron_faturamento_runs", {
+  id:           serial("id").primaryKey(),
+  executedAt:   timestamp("executed_at").defaultNow().notNull(),
+  triggeredBy:  text("triggered_by").notNull(),  // 'schedule' | 'manual'
+  total:        integer("total").notNull().default(0),
+  success:      integer("success").notNull().default(0),
+  blocked:      integer("blocked").notNull().default(0),
+  errors:       integer("errors").notNull().default(0),
+  triggeredByUserId: integer("triggered_by_user_id"), // nullable: schedule não tem user
+});
+export type CronFaturamentoRun = typeof cronFaturamentoRuns.$inferSelect;

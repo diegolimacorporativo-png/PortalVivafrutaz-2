@@ -54,6 +54,17 @@ type CronStatus = {
   } | null;
 };
 
+type CronHistoryRow = {
+  id: number;
+  executedAt: string;
+  triggeredBy: "schedule" | "manual";
+  triggeredByUserId: number | null;
+  total: number;
+  success: number;
+  blocked: number;
+  errors: number;
+};
+
 function formatDateTime(iso: string | null): string {
   if (!iso) return "—";
   try {
@@ -97,6 +108,12 @@ export default function CentralFaturamento() {
   const { data: cronStatus } = useQuery<CronStatus>({
     queryKey: ["/api/nfe/cron/status"],
     refetchInterval: (query) => (query.state.data?.running ? 2000 : 10000),
+  });
+
+  // STEP 9.3E — histórico persistente das últimas execuções.
+  const { data: cronHistory = [], isLoading: historyLoading } = useQuery<CronHistoryRow[]>({
+    queryKey: ["/api/nfe/cron/history"],
+    refetchInterval: 15000,
   });
 
   const runCron = useMutation({
@@ -255,6 +272,86 @@ export default function CentralFaturamento() {
             <p className="text-xs text-gray-400 mt-3">
               O cron ainda não rodou nesta sessão do servidor. Use "Executar agora" para disparar manualmente.
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Histórico de execuções — STEP 9.3E */}
+      <Card data-testid="card-cron-history">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold flex items-center gap-2">
+            <Clock className="w-4 h-4 text-emerald-600" />
+            Histórico do cron
+            {!historyLoading && (
+              <Badge variant="secondary" className="ml-1" data-testid="badge-history-count">
+                {cronHistory.length}
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {historyLoading ? (
+            <div className="p-4 space-y-2">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-10 w-full rounded" />
+              ))}
+            </div>
+          ) : cronHistory.length === 0 ? (
+            <div className="px-4 py-6 text-sm text-gray-400 text-center">
+              Nenhuma execução registrada ainda. As próximas execuções (agendadas ou manuais) aparecerão aqui.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                  <tr>
+                    <th className="text-left px-4 py-2 font-medium">Quando</th>
+                    <th className="text-left px-4 py-2 font-medium">Disparo</th>
+                    <th className="text-right px-4 py-2 font-medium">Total</th>
+                    <th className="text-right px-4 py-2 font-medium">Sucesso</th>
+                    <th className="text-right px-4 py-2 font-medium">Bloq.</th>
+                    <th className="text-right px-4 py-2 font-medium">Erros</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {cronHistory.map((run) => {
+                    const hasErrors = run.errors > 0;
+                    const allFailed = run.success === 0 && run.total > 0;
+                    return (
+                      <tr
+                        key={run.id}
+                        className={`hover:bg-gray-50 ${allFailed ? "bg-red-50/40" : hasErrors ? "bg-amber-50/40" : ""}`}
+                        data-testid={`row-history-${run.id}`}
+                      >
+                        <td className="px-4 py-2 text-gray-700">{formatDateTime(run.executedAt)}</td>
+                        <td className="px-4 py-2">
+                          <Badge
+                            variant="secondary"
+                            className={
+                              run.triggeredBy === "manual"
+                                ? "bg-blue-100 text-blue-800 hover:bg-blue-100"
+                                : "bg-gray-100 text-gray-700 hover:bg-gray-100"
+                            }
+                          >
+                            {run.triggeredBy === "manual" ? "manual" : "agendado"}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-gray-900" data-testid={`text-history-total-${run.id}`}>
+                          {run.total}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-green-700" data-testid={`text-history-success-${run.id}`}>
+                          {run.success}
+                        </td>
+                        <td className="px-4 py-2 text-right font-medium text-orange-600">{run.blocked}</td>
+                        <td className={`px-4 py-2 text-right font-medium ${hasErrors ? "text-red-600" : "text-gray-400"}`} data-testid={`text-history-errors-${run.id}`}>
+                          {run.errors}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>

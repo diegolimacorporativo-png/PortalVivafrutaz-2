@@ -1,0 +1,130 @@
+## STEP 9.3E — HISTÓRICO PERSISTENTE + ALERTAS DO CRON
+
+### OBJETIVO
+
+Evoluir o cron de:
+
+👉 memória temporária (9.3D)
+
+Para:
+
+👉 histórico persistente + análise + alertas
+
+---
+
+### 🚫 REGRAS
+
+- NÃO alterar lógica do cron  
+- NÃO alterar guard  
+- NÃO alterar engine  
+- NÃO alterar emissão  
+
+👉 Apenas REGISTRAR + ANALISAR
+
+---
+
+## STEP 1 — CRIAR TABELA DE HISTÓRICO
+
+Arquivo:
+server/db/schema.ts
+
+ts export const cron_faturamento_runs = pgTable("cron_faturamento_runs", {   id: serial("id").primaryKey(),    executedAt: timestamp("executed_at").defaultNow(),    triggeredBy: text("triggered_by"), // 'schedule' | 'manual'    total: integer("total"),   success: integer("success"),   blocked: integer("blocked"),   errors: integer("errors") }); 
+
+---
+
+## STEP 2 — SALVAR EXECUÇÃO NO FINAL DO CRON
+
+Arquivo:
+server/jobs/faturamento.cron.ts
+
+ts import { db } from "@/db"; import { cron_faturamento_runs } from "@/db/schema";  await db.insert(cron_faturamento_runs).values({   triggeredBy,   total,   success,   blocked,   errors }); 
+
+👉 Colocar junto do setCronResult(...)
+
+---
+
+## STEP 3 — ENDPOINT DE HISTÓRICO
+
+Arquivo:
+server/routes/routes.ts
+
+ts app.get("/api/nfe/cron/history", async (req, res) => {   try {     const rows = await db.select()       .from(cron_faturamento_runs)       .orderBy(desc(cron_faturamento_runs.executedAt))       .limit(50);      return res.json(rows);    } catch (error) {     console.error("[CRON_HISTORY_ERROR]", error);      return res.status(500).json({       error: "Erro ao buscar histórico"     });   } }); 
+
+---
+
+## STEP 4 — ALERTA AUTOMÁTICO
+
+Arquivo:
+server/jobs/faturamento.cron.ts
+
+ts if (errors > 0) {   console.error("[CRON_ALERT]", {     message: "Erros no faturamento automático",     total,     errors   }); } 
+
+---
+
+## STEP 5 — ALERTA CRÍTICO (OPCIONAL)
+
+👉 Quando TUDO falha:
+
+ts if (success === 0 && total > 0) {   console.error("[CRON_CRITICAL]", {     message: "Nenhuma NF emitida",     total   }); } 
+
+---
+
+## STEP 6 — UI (HISTÓRICO)
+
+Página:
+client/src/pages/admin/faturamento.tsx
+
+Adicionar:
+
+ts GET /api/nfe/cron/history 
+
+Mostrar:
+
+- lista das últimas execuções
+- data
+- quem executou
+- resumo (total / sucesso / erro)
+
+---
+
+## RESULTADO
+
+ANTES:
+❌ só estado atual  
+❌ perde tudo no restart  
+
+DEPOIS:
+✅ histórico persistente  
+✅ análise de execução  
+✅ base para dashboard  
+✅ base para alertas reais  
+
+---
+
+## RISCO
+
+LOW ✅  
+(só grava dados, não interfere em nada)
+
+---
+
+## PRÓXIMO STEP (9.3F)
+
+→ ALERTAS REAIS:
+
+- Slack / WhatsApp / Email
+- quando errors > 0
+- quando success = 0
+- quando volume cai drasticamente
+
+---
+
+## RESUMO SIMPLES
+
+Você saiu de:
+
+❌ "cron roda e some"
+
+Para:
+
+✅ "cron auditável e analisável"
