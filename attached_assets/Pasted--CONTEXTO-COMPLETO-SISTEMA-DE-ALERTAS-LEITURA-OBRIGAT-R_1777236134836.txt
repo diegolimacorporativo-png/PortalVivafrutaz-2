@@ -1,0 +1,144 @@
+# 🧠 CONTEXTO COMPLETO — SISTEMA DE ALERTAS (LEITURA OBRIGATÓRIA)
+
+## 🎯 OBJETIVO
+Você NÃO deve recriar nada.
+
+Você deve:
+- entender profundamente o sistema existente
+- respeitar a arquitetura atual (já madura)
+- evoluir apenas de forma aditiva, isolada e segura
+- seguir o padrão rigoroso dos steps 9.3F.x
+
+---
+
+# 🧱 MATURIDADE ATUAL DO SISTEMA
+
+O sistema já está em nível avançado de observabilidade:
+
+👉 Logs → Persistência → Analytics → Inteligência
+
+Isso NÃO é um sistema inicial.
+
+---
+
+# 🧩 ARQUITETURA ATUAL (BASE CRÍTICA)
+
+## 🔒 Regra mais importante
+emitAlert é intocável (contrato estável de produção)
+
+## 📦 Persistência
+- Tabela: cron_alert_logs
+- Fonte única da verdade
+- Escrita centralizada: persistAlertLog()
+- Store em memória continua (cache rápido)
+
+## ⚙️ Controle e Performance
+- Índice em created_at
+- Prune automático (90 dias)
+- Endpoint admin DELETE
+- Proteção contra duplicação de job
+
+## 📊 Analytics (estável)
+Endpoint:
+- /api/cron/alerts/analytics
+
+Inclui:
+- totals (total, sent, rate_limited)
+- bySeverity
+- byChannel
+- topTitles
+
+## 🧠 Inteligência (camada avançada)
+
+### Componentes
+- emitAlertSmart (wrapper)
+- alerts.intelligence.ts (leitura pura)
+- persistAlertLog (única escrita)
+
+### Capacidades
+- Anomalias (baseline vs atual)
+- Insights (R1–R5)
+- Supressão inteligente (8 eventos / 24h)
+
+---
+
+# ⚠️ PRINCÍPIOS DE SISTEMAS DE ALERTA (OBRIGATÓRIO RESPEITAR)
+
+Você está trabalhando em um sistema que já segue boas práticas de produção:
+
+- Alertas devem ser acionáveis (actionable)  
+- Evitar ruído (alert fatigue)  
+- Baseado em comportamento real do sistema  
+- Evolução baseada em histórico  
+
+👉 Sistemas ruins geram ruído  
+👉 Sistemas bons geram decisão  
+
+---
+
+# 🚫 REGRAS ABSOLUTAS
+
+❌ NÃO alterar emitAlert  
+❌ NÃO criar nova persistência  
+❌ NÃO mudar contratos de API  
+❌ NÃO alterar lógica existente  
+❌ NÃO acoplar inteligência com envio  
+❌ NÃO quebrar compatibilidade  
+
+---
+
+# ⚠️ LIMITAÇÕES CONHECIDAS (MANTER)
+
+1. Analytics ≠ Insights (diferença intencional)
+2. Janelas diferentes (design atual)
+3. R4 não detecta títulos novos (aceito)
+4. R5 inclui rate_limited (aceito)
+5. JSONB pode ser custoso (não piorar)
+
+---
+
+# 🎯 MISSÃO DO PRÓXIMO STEP
+
+Você deve implementar:
+
+👉 STEP 9.3F.7
+
+Mas seguindo:
+
+---
+
+# 🧠 FORMA CORRETA DE TRABALHO
+
+1. Discovery completo (ler tudo antes)
+2. Validar impacto (zero regressão)
+3. Implementar isolado
+4. Reutilizar tudo que já existe
+5. Não reinventar lógica
+
+---
+
+# 🚨 REGRA FINAL
+
+Se você:
+- sugerir refatoração ampla
+- alterar arquitetura existente
+- recriar funcionalidades já existentes
+
+👉 você está ERRADO
+
+---
+
+# 📌 CONTEXTO REAL
+
+Esse sistema já resolve:
+
+- persistência confiável
+- análise histórica
+- detecção de anomalias
+- redução de ruído (supressão)
+
+👉 Agora estamos entrando em nível de produto SaaS
+
+Sua função:
+👉 adicionar inteligência incremental
+👉 NÃO reconstruir o siste
