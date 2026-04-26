@@ -1,0 +1,55 @@
+STEP 8.3 — AUTO DISPATCH (VERSÃO CORRETA FINAL)
+
+OBJETIVO  
+Usar o optimizer REAL para inserir deliveries em rotas existentes automaticamente.
+
+---
+
+🚫 NÃO criar rota sempre  
+🚫 NÃO recriar optimizer  
+👉 USAR suggestInsertion  
+
+---
+
+## STEP 2 — IMPLEMENTAÇÃO CORRETA
+
+ts import { db } from "@/db"; import { sql } from "drizzle-orm"; import { suggestInsertion } from "@/services/logistics/routeOptimizer";  export async function autoDispatchReadyOrders() {   try {     const result = await db.execute(sql`       SELECT d.id, d.order_id, o.company_id, o.delivery_date,              c.latitude, c.longitude       FROM deliveries d       JOIN orders o ON o.id = d.order_id       JOIN companies c ON c.id = o.company_id       WHERE d.status = 'pendente'         AND o.workflow_status = 'READY'         AND d.route_id IS NULL     `);      const deliveries = result.rows ?? [];     if (!deliveries.length) return;      for (const d of deliveries) {        // 🔴 segurança de coordenadas       if (!d.latitude || !d.longitude) continue;        // 1. carregar rotas existentes do dia       const routesResult = await db.execute(sql`         SELECT id, driver_id         FROM logistics_routes         WHERE DATE(created_at) = DATE(${d.delivery_date})       `);        const routes = routesResult.rows ?? [];        // 2. tentar encaixe inteligente       const suggestion = await suggestInsertion(         { lat: d.latitude, lng: d.longitude },         routes       );        let routeId = suggestion?.routeId;        // 3. fallback → criar rota nova       if (!routeId) {         const newRoute = await db.execute(sql`           INSERT INTO logistics_routes (name, status, created_at)           VALUES (${`AUTO-${Date.now()}`}, 'planned', NOW())           RETURNING id         `);          routeId = newRoute.rows?.[0]?.id;         if (!routeId) continue;       }        // 4. inserir stop (com proteção)       await db.execute(sql`         INSERT INTO route_stops (route_id, delivery_id, sequence, latitude, longitude)         SELECT ${routeId}, ${d.id}, ${suggestion?.position ?? 0}, ${d.latitude}, ${d.longitude}         WHERE NOT EXISTS (           SELECT 1 FROM route_stops WHERE delivery_id = ${d.id}         )       `);        // 5. vincular delivery (idempotente)       await db.execute(sql`         UPDATE deliveries         SET route_id = ${routeId}         WHERE id = ${d.id}           AND route_id IS NULL       `);     }    } catch (err) {     console.error("AUTO_DISPATCH_ERROR", err);   } } 
+
+---
+
+## 🔥 DIFERENÇA DO SEU vs CORRETO
+
+| Seu | Correto |
+|-----|--------|
+| Cria rota sempre | Reutiliza rota |
+| Ignora suggestInsertion | Usa corretamente |
+| Cria lista de stops | Insere incremental |
+| Pode duplicar | Protegido com NOT EXISTS |
+
+---
+
+## RESULTADO REAL
+
+ANTES:
+READY → cria rota → bagunça escala  
+
+DEPOIS:
+READY → encaixa em rota existente  
+→ otimização real  
+→ distribuição inteligente  
+
+---
+
+## NÍVEL DO SISTEMA AGORA
+
+Isso aqui vira:
+
+✔ roteirização dinâmica  
+✔ balanceamento automático  
+✔ crescimento escalável  
+
+---
+
+RISCO
+
+LOW ✅ (agora correto de verdade)
