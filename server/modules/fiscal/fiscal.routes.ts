@@ -1,0 +1,58 @@
+import { Router } from "express";
+import { asyncHandler } from "../../core/http/asyncHandler";
+import { requireAuth } from "../../core/http/requireAuth";
+import { withTenantScope } from "../../middleware/tenant";
+import { validateRequest } from "../../core/validation/validateRequest";
+import { fiscalController } from "./fiscal.controller";
+import {
+  createDraftSchema,
+  updateDraftSchema,
+  idParamSchema,
+  orderIdParamSchema,
+} from "./fiscal.validation";
+
+/**
+ * Fiscal router — STEP FISCAL 1 (NF Draft Engine, isolado).
+ *
+ * Mounted at /api/fiscal (canonical) and /api/v1/fiscal (alias).
+ *
+ * Não substitui nem modifica nenhum endpoint existente:
+ *   - /api/nfe              → emissões reais (intacto)
+ *   - /api/nf-manual        → NF manual (intacto)
+ *   - /api/fiscal-invoices  → OCR de NF de entrada (intacto)
+ *
+ * Toda rota exige autenticação + tenant scope (igual ao finance).
+ */
+const router = Router();
+router.use(requireAuth, withTenantScope);
+
+// GET /api/fiscal/drafts/:orderId  → lista drafts de um pedido
+router.get(
+  "/drafts/:orderId",
+  validateRequest(orderIdParamSchema, "params"),
+  asyncHandler(fiscalController.listByOrder),
+);
+
+// GET /api/fiscal/drafts/id/:id    → utilitário para leitura por id de draft
+router.get(
+  "/drafts/id/:id",
+  validateRequest(idParamSchema, "params"),
+  asyncHandler(fiscalController.getById),
+);
+
+// POST /api/fiscal/drafts          → cria draft a partir de orderId
+router.post(
+  "/drafts",
+  validateRequest(createDraftSchema),
+  asyncHandler(fiscalController.create),
+);
+
+// PUT /api/fiscal/drafts/:id       → edição total (items/totals/status)
+router.put(
+  "/drafts/:id",
+  validateRequest(idParamSchema, "params"),
+  validateRequest(updateDraftSchema),
+  asyncHandler(fiscalController.update),
+);
+
+export const fiscalRouter = router;

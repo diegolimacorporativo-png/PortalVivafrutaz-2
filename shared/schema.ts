@@ -1083,6 +1083,35 @@ export const insertNfManualSchema = createInsertSchema(nfManual).omit({ id: true
 export type NfManual = typeof nfManual.$inferSelect;
 export type InsertNfManual = z.infer<typeof insertNfManualSchema>;
 
+// ─── NF Drafts (STEP FISCAL 1 — camada editável isolada) ────────────────────
+// Tabela 100% aditiva. Não substitui orders/order_items/nfe_emissoes/nf_manual.
+// Contém uma "nota em rascunho" totalmente editável (itens + totais) antes
+// da emissão real. items/totals usam JSONB para permitir evolução do shape
+// fiscal (NCM, CFOP, desconto, frete) sem novas migrações.
+export const nfDrafts = pgTable("nf_drafts", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("empresa_id").references(() => companies.id),
+  orderId: integer("order_id").references(() => orders.id),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  billingType: text("billing_type").notNull().default("STANDARD"), // STANDARD | CONTRACT
+  status: text("status").notNull().default("draft"),               // draft | finalized
+  items: jsonb("items").notNull().default([]),
+  totals: jsonb("totals").notNull().default({}),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  tenantIdx: index("nf_drafts_empresa_id_idx").on(table.tenantId),
+  orderIdIdx: index("nf_drafts_order_id_idx").on(table.orderId),
+  companyIdIdx: index("nf_drafts_company_id_idx").on(table.companyId),
+}));
+export const insertNfDraftSchema = createInsertSchema(nfDrafts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type NfDraft = typeof nfDrafts.$inferSelect;
+export type InsertNfDraft = z.infer<typeof insertNfDraftSchema>;
+
 // ─── Contas Bancárias ───────────────────────────────────────────────────────
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),

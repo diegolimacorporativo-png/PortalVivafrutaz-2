@@ -1,0 +1,160 @@
+# 🧾 STEP FISCAL 1 — NF DRAFT ENGINE (ISOLADO E SEGURO)
+
+## 🎯 OBJETIVO
+
+Criar uma camada de NF editável (draft) separada dos pedidos.
+
+👉 NÃO alterar orders  
+👉 NÃO alterar order_items  
+👉 NÃO alterar financeiro atual  
+
+---
+
+# ⚠️ REGRAS ABSOLUTAS
+
+❌ NÃO mexer em cálculo de pedidos  
+❌ NÃO centralizar lógica agora  
+❌ NÃO refatorar arquitetura existente  
+❌ NÃO alterar endpoints existentes  
+
+✅ Apenas adicionar nova camada fiscal  
+
+---
+
+# 🧭 FASE 1 — DISCOVERY (OBRIGATÓRIO)
+
+Mapear:
+
+- buildNFeInput(orderId)
+- tabela nfe_emissoes
+- tabela nf_manual
+- qualquer lógica fiscal existente
+
+Responder:
+
+- como a NF é gerada hoje?
+- quais dados vêm do pedido?
+- onde ocorre transformação?
+
+👉 NÃO alterar nada
+
+---
+
+# 🧱 FASE 2 — SCHEMA (ADITIVO)
+
+Criar nova tabela:
+
+nf_drafts
+
+Campos mínimos:
+
+- id
+- orderId (FK)
+- companyId
+- billingType ("STANDARD" | "CONTRACT")
+- status ("draft" | "finalized")
+- items (JSONB)
+- totals (JSONB)
+- createdAt
+
+---
+
+# 🧠 ESTRUTURA DOS ITEMS (JSON)
+
+Cada item deve suportar:
+
+- description
+- quantity (decimal permitido)
+- unitPrice
+- totalPrice
+- NCM
+- CFOP
+- unidade (kg, un, etc.)
+
+---
+
+# 🧠 ESTRUTURA DOS TOTALS
+
+- totalProducts
+- totalNF
+- totalDiscount
+- totalFreight
+
+---
+
+# ⚙️ FASE 3 — SERVICE (NOVO)
+
+Arquivo:
+server/services/nf.draft.ts
+
+Funções:
+
+1. createDraftFromOrder(orderId)
+
+Se STANDARD:
+→ copiar itens do pedido
+
+Se CONTRACT:
+→ gerar vazio ou usar itens configurados
+
+---
+
+2. updateDraft(id, payload)
+
+→ permite edição total (itens e valores)
+
+---
+
+3. getDraft(id)
+
+→ leitura
+
+---
+
+# 🌐 FASE 4 — ENDPOINTS
+
+Criar:
+
+GET /api/fiscal/drafts/:orderId  
+POST /api/fiscal/drafts  
+PUT /api/fiscal/drafts/:id  
+
+👉 protegidos com auth
+
+---
+
+# 🧪 FASE 5 — VALIDAÇÃO
+
+- draft criado ✔  
+- edição funcionando ✔  
+- não altera pedidos ✔  
+- não altera financeiro ✔  
+
+---
+
+# 🎯 RESULTADO FINAL
+
+✔ camada fiscal isolada  
+✔ suporte a cliente contratual  
+✔ base para NF-e real  
+✔ zero regressão  
+
+---
+
+# 🔜 NÃO FAZER AGORA
+
+❌ emissão SEFAZ  
+❌ cálculo centralizado  
+❌ refator financeiro  
+
+---
+
+# 🚀 EXECUTAR
+
+1. discovery completo  
+2. criar tabela  
+3. criar service  
+4. criar endpoints  
+5. validar  
+
+Sem exceçõe
