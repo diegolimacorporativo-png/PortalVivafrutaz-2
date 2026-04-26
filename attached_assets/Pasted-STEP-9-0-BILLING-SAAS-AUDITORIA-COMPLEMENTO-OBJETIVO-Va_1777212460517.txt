@@ -1,0 +1,171 @@
+STEP 9.0 — BILLING / SAAS (AUDITORIA + COMPLEMENTO)
+
+OBJETIVO  
+Validar e completar o sistema de cobrança existente.
+
+✔ identificar o que já existe  
+✔ evitar duplicação  
+✔ fechar gaps reais  
+✔ preparar para cobrança real  
+
+👉 NÃO criar sistema novo  
+
+---
+
+🚫 PROIBIDO
+- criar billing do zero  
+- criar tabelas sem necessidade  
+- duplicar lógica existente  
+- alterar fluxo financeiro atual  
+
+---
+
+## STEP 0 — DESCOBERTA OBRIGATÓRIA
+
+ANTES de qualquer código, buscar no projeto:
+
+### 🔎 Buscar por:
+- subscription
+- plan
+- billing
+- stripe
+- mercado_pago
+- payment
+- invoice
+- checkout
+- webhook
+
+---
+
+## STEP 1 — MAPEAR ESTRUTURA EXISTENTE
+
+Identificar:
+
+✔ existe tabela de planos?  
+✔ existe tabela de assinaturas?  
+✔ existe campo tipo:
+  - planId
+  - subscriptionId
+  - isActive
+  - trialEndsAt  
+
+✔ existe integração com:
+  - Mercado Pago?
+  - Stripe?
+
+✔ existe webhook handler?
+
+---
+
+## STEP 2 — CLASSIFICAR
+
+Separar em 3 grupos:
+
+### 🟢 COMPLETO
+Funciona e não precisa mexer
+
+### 🟡 PARCIAL
+Existe mas está incompleto
+
+### 🔴 GAP REAL
+Não existe e precisa criar
+
+---
+
+## STEP 3 — VERIFICAR CONTROLE DE ACESSO (CRÍTICO)
+
+Buscar:
+
+✔ existe middleware tipo:
+- requireActiveSubscription?
+- checkPlanLimit?
+
+✔ existe validação antes de:
+- criar pedidos?
+- usar logística?
+- usar tracking?
+
+👉 Se NÃO existir → GAP
+
+---
+
+## STEP 4 — VERIFICAR LIMITES DE USO
+
+Buscar no código:
+
+✔ limite de pedidos
+✔ limite de usuários
+✔ limite de entregas
+✔ limite de rotas
+
+👉 Se não houver enforcement → GAP
+
+---
+
+## STEP 5 — VERIFICAR COBRANÇA REAL
+
+✔ existe checkout funcional?
+✔ existe criação de pagamento?
+✔ existe retorno (webhook)?
+
+👉 Fluxo ideal:
+
+checkout → pagamento → webhook → ativar plano
+
+Se faltar parte → marcar como PARCIAL
+
+---
+
+## STEP 6 — WEBHOOK (PONTO MAIS CRÍTICO)
+
+Buscar:
+
+✔ endpoint tipo:
+POST /webhook
+
+✔ valida:
+- pagamento aprovado?
+- atualiza assinatura?
+
+👉 Se não atualizar sistema → GAP CRÍTICO
+
+---
+
+## STEP 7 — NÃO IMPLEMENTAR AINDA
+
+🚫 NÃO corrigir ainda  
+🚫 NÃO criar código novo ainda  
+
+👉 APENAS AUDITORIA
+
+---
+
+## STEP 8 — RELATÓRIO FINAL (OBRIGATÓRIO)
+
+Responder:
+
+### ✔ O que já existe
+### ⚠️ O que está parcial
+### ❌ O que falta
+
+---
+
+## RESULTADO ESPERADO
+
+Você terá:
+
+✔ visão real do sistema SaaS  
+✔ zero duplicação  
+✔ plano claro de implementação  
+
+---
+
+## PRÓXIMO PASSO
+
+STEP 9.1 — IMPLEMENTAR APENAS OS GAPS REAIS
+
+---
+
+RISCO
+
+ZERO ✅ (somente leitura/análise)
