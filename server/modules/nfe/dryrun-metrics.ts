@@ -1,5 +1,5 @@
 /**
- * STEP 9.2Z.1C / 9.2Z.1D — Agregador de Dry-Run (sem banco, sem UI).
+ * STEP 9.2Z.1C / 9.2Z.1D / 9.2Z.1E — Agregador de Dry-Run (sem banco, sem UI).
  *
  * Captura em memória os eventos que SERIAM bloqueados pelo faturamento,
  * enquanto BILLING_DRY_RUN=true e BILLING_STRICT_MODE=false.
@@ -53,6 +53,45 @@ export function getDryRunMetrics() {
 
 export function getTopCompanies(limit = 5) {
   return Object.entries(metrics.byCompany)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([companyId, count]) => ({
+      companyId: Number(companyId),
+      count,
+    }));
+}
+
+// ── STEP 9.2Z.1E — Métricas por janela de tempo ───────────────────────────
+
+function filterByWindow(ms: number): DryRunEvent[] {
+  const now = Date.now();
+  return metrics.events.filter((e) => now - e.at <= ms);
+}
+
+export function getDryRunMetricsWindow(hours = 24) {
+  const windowMs = hours * 60 * 60 * 1000;
+  const events = filterByWindow(windowMs);
+
+  const byTipo: Record<string, number> = {};
+  const byCompany: Record<number, number> = {};
+
+  for (const e of events) {
+    byTipo[e.tipo] = (byTipo[e.tipo] || 0) + 1;
+    byCompany[e.companyId] = (byCompany[e.companyId] || 0) + 1;
+  }
+
+  return {
+    total: events.length,
+    byTipo,
+    byCompany,
+    events,
+  };
+}
+
+export function getTopCompaniesWindow(hours = 24, limit = 5) {
+  const data = getDryRunMetricsWindow(hours);
+
+  return Object.entries(data.byCompany)
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([companyId, count]) => ({

@@ -48,7 +48,7 @@ import {
 } from "../modules/billing/subscription.middleware";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
-import { getDryRunMetrics, getTopCompanies } from "../modules/nfe/dryrun-metrics";
+import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
@@ -5109,6 +5109,17 @@ export async function registerRoutes(
       return res.json({
         ...base,
         topCompanies: getTopCompanies(),
+      });
+    });
+
+    // GET /api/nfe/dry-run/metrics/window — STEP 9.2Z.1E: métricas filtradas por janela de tempo
+    // Query: ?hours=24 (default 24h)
+    app.get('/api/nfe/dry-run/metrics/window', (req: any, res) => {
+      const hours = Number(req.query.hours || 24);
+      const base = getDryRunMetricsWindow(hours);
+      return res.json({
+        ...base,
+        topCompanies: getTopCompaniesWindow(hours),
       });
     });
 
