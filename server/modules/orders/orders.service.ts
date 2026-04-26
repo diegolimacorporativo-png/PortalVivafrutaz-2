@@ -492,6 +492,47 @@ export class OrdersService {
       (s: number, i: any) => s + Number(i.totalPrice || 0),
       0,
     );
+
+    // Pre-fetch company so we can both create the delivery row below AND
+    // feed the read-only Price Resolver divergence check. This is the same
+    // query that already happens further down — moved a few lines up so we
+    // do NOT add an extra round-trip.
+    const company: any = await this.repo.getCompany(companyId);
+
+    // ── Read-only divergence observation (no behavior change) ──
+    // Compare the legacy unit price (already saved by the caller) against
+    // what the new resolver would compute given the data already in scope.
+    // Failures are swallowed — this MUST never affect the request flow.
+    try {
+      const markup =
+        company && company.adminFee != null && company.adminFee !== ""
+          ? Number(company.adminFee)
+          : null;
+      for (const it of items || []) {
+        const legacy = Number(it.unitPrice);
+        if (!Number.isFinite(legacy)) continue;
+        const resolved = resolveProductPrice({
+          basePrice: legacy,
+          subCategoryPrice: null,
+          priceGroupMarkup: Number.isFinite(markup as number) ? (markup as number) : null,
+          contractPrice: null,
+        });
+        logPriceDivergence(
+          {
+            scope: "orders.service",
+            method: "createWithDelivery",
+            productId: it.productId,
+            companyId,
+          },
+          legacy,
+          resolved,
+          { quantity: it.quantity },
+        );
+      }
+    } catch (e) {
+      console.warn("[priceResolver] observer error (createWithDelivery)", e);
+    }
+
     const order = await this.repo.create(
       {
         companyId,
@@ -505,8 +546,6 @@ export class OrdersService {
       } as any,
       items || [],
     );
-
-    const company: any = await this.repo.getCompany(companyId);
     const delivery = await this.repo.createDelivery({
       orderId: order.id,
       companyId,
@@ -997,6 +1036,49 @@ export class OrdersService {
 
   async replaceItems(id: number, items: any[]): Promise<OrderDetail> {
     if (!Array.isArray(items)) throw new BadRequestError("items required");
+
+    // ── Read-only divergence observation (no behavior change) ──
+    // We need companyId to fetch the admin-fee markup; the order detail is
+    // ALREADY fetched right after the write below — we simply read it once
+    // upfront for the observer. The actual write/read order is preserved
+    // (updateItems → get → return), so no contract changes.
+    let observedMarkup: number | null = null;
+    let observedCompanyId: number | null = null;
+    try {
+      const detail = await this.repo.get(id);
+      observedCompanyId = (detail?.order as any)?.companyId ?? null;
+      if (observedCompanyId != null) {
+        const company: any = await this.repo.getCompany(observedCompanyId);
+        if (company && company.adminFee != null && company.adminFee !== "") {
+          const m = Number(company.adminFee);
+          observedMarkup = Number.isFinite(m) ? m : null;
+        }
+      }
+      for (const it of items as any[]) {
+        const legacy = Number(it.unitPrice);
+        if (!Number.isFinite(legacy)) continue;
+        const resolved = resolveProductPrice({
+          basePrice: legacy,
+          subCategoryPrice: null,
+          priceGroupMarkup: observedMarkup,
+          contractPrice: null,
+        });
+        logPriceDivergence(
+          {
+            scope: "orders.service",
+            method: "replaceItems",
+            productId: it.productId,
+            companyId: observedCompanyId,
+          },
+          legacy,
+          resolved,
+          { quantity: it.quantity, orderId: id },
+        );
+      }
+    } catch (e) {
+      console.warn("[priceResolver] observer error (replaceItems)", e);
+    }
+
     await this.repo.updateItems(id, items as any);
     const result = await this.repo.get(id);
     if (!result) throw new NotFoundError("Pedido não encontrado");
@@ -1049,6 +1131,43 @@ export class OrdersService {
         Number(newItems[targetIdx].unitPrice) * Number(target.quantity),
       );
       description = `Produto substituído no pedido ${(detail.order as any).orderCode} (safra encerrada)`;
+
+      // ── Read-only divergence observation (no behavior change) ──
+      // newProduct is already fetched above. We additionally read the
+      // company's adminFee for the markup observation; failures are
+      // swallowed so this NEVER affects the substitution flow.
+      try {
+        const companyId = (detail.order as any)?.companyId ?? null;
+        let markup: number | null = null;
+        if (companyId != null) {
+          const company: any = await this.repo.getCompany(companyId);
+          if (company && company.adminFee != null && company.adminFee !== "") {
+            const m = Number(company.adminFee);
+            markup = Number.isFinite(m) ? m : null;
+          }
+        }
+        const legacy = Number(newItems[targetIdx].unitPrice);
+        const baseFromProduct = Number(newProduct.basePrice);
+        const resolved = resolveProductPrice({
+          basePrice: Number.isFinite(baseFromProduct) ? baseFromProduct : legacy,
+          subCategoryPrice: null,
+          priceGroupMarkup: markup,
+          contractPrice: null,
+        });
+        logPriceDivergence(
+          {
+            scope: "orders.service",
+            method: "substituteItem.replace",
+            productId: newProductId,
+            companyId,
+          },
+          legacy,
+          resolved,
+          { quantity: target.quantity, orderId, itemId },
+        );
+      } catch (e) {
+        console.warn("[priceResolver] observer error (substituteItem.replace)", e);
+      }
     } else if (action === "discount" && discountPct !== undefined) {
       const pct = Number(discountPct);
       const newUnit = Number(target.unitPrice) * (1 - pct / 100);

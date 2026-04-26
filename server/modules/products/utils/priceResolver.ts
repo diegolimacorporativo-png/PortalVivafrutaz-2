@@ -55,22 +55,60 @@ export function resolveProductPrice({
 }
 
 /**
+ * Context for a divergence-log event.
+ * `requestId` is optional and will be rendered as a `[<reqId>]` prefix
+ * to match the rest of the application's log format.
+ */
+export interface PriceDivergenceContext {
+  scope: string;                // e.g. "orders.service"
+  method: string;               // e.g. "createWithDelivery"
+  productId?: number | null;
+  companyId?: number | null;
+  requestId?: string | null;
+}
+
+/**
  * Helper for divergence logging during the read-only rollout phase.
  * Emits a console.warn ONLY when the resolver disagrees with the legacy
- * value already computed by the caller. Does not throw, does not mutate.
+ * value already computed by the caller. Never throws, never mutates.
+ *
+ * Output format:
+ *   [<reqId>] [priceResolver] divergence detected {
+ *     scope, method, legacy, resolved, productId, companyId, ...meta
+ *   }
+ *
+ * Accepts either the structured context object (preferred) or a plain
+ * string for backwards compatibility with very early callers.
  */
 export function logPriceDivergence(
-  context: string,
+  context: PriceDivergenceContext | string,
   legacy: number,
   resolved: number,
   meta?: Record<string, unknown>,
 ): void {
-  if (Number.isFinite(legacy) && Number.isFinite(resolved) && legacy !== resolved) {
-    console.warn("[priceResolver] divergence", {
-      context,
+  try {
+    if (
+      !Number.isFinite(legacy) ||
+      !Number.isFinite(resolved) ||
+      legacy === resolved
+    ) {
+      return;
+    }
+    const ctx: PriceDivergenceContext =
+      typeof context === "string"
+        ? { scope: context, method: "" }
+        : context;
+    const prefix = ctx.requestId ? `[${ctx.requestId}] ` : "";
+    console.warn(`${prefix}[priceResolver] divergence detected`, {
+      scope: ctx.scope,
+      method: ctx.method,
       legacy,
       resolved,
+      productId: ctx.productId ?? undefined,
+      companyId: ctx.companyId ?? undefined,
       ...meta,
     });
+  } catch {
+    // logger must NEVER affect the request flow
   }
 }

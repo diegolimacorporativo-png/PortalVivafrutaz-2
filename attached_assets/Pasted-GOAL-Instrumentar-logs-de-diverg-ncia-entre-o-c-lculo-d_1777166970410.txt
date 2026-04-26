@@ -1,0 +1,167 @@
+GOAL:
+Instrumentar logs de divergência entre o cálculo de preço atual (legado) e o novo
+Price Resolver, SEM alterar qualquer valor persistido, SEM alterar response
+e SEM impactar comportamento.
+
+Objetivo: coletar evidência real antes de ativar o novo modelo de pricing.
+
+---
+
+STRICT RULES:
+
+- NÃO alterar valores salvos (orderItems, orders, etc.)
+- NÃO substituir cálculo atual
+- NÃO alterar response
+- NÃO alterar fluxo de execução
+- NÃO lançar erro em divergência
+- NÃO bloquear request
+- Apenas LOGAR quando houver diferença
+- Se houver qualquer risco → PARAR
+
+---
+
+STEP 3.6.1 — IDENTIFICAR PONTOS DE CÁLCULO
+
+Localizar em:
+
+server/modules/orders/orders.service.ts
+
+Pontos obrigatórios:
+
+1. createWithDelivery
+2. replaceItems (ou substituteItem)
+3. discount / recalculation flows (se existir)
+
+⚠️ NÃO alterar lógica existente — apenas observar
+
+---
+
+STEP 3.6.2 — IMPORTAR RESOLVER
+
+No topo do arquivo:
+
+import {
+  resolveProductPrice,
+  logPriceDivergence
+} from '../products/utils/priceResolver';
+
+---
+
+STEP 3.6.3 — CAPTURAR DADOS DO CONTEXTO
+
+Antes de salvar item (onde unitPrice é definido), capturar:
+
+const legacyPrice = Number(item.unitPrice);
+
+---
+
+STEP 3.6.4 — CALCULAR PREÇO NOVO (READ-ONLY)
+
+const resolved = resolveProductPrice({
+  basePrice: Number(product.basePrice),
+
+  subCategoryPrice: item.subCategoryId
+    ? await repo.getSubCategoryPrice(item.subCategoryId)
+    : null,
+
+  priceGroupMarkup: company?.adminFeePercent ?? null,
+
+  contractPrice: contractScope?.unitPrice ?? null,
+});
+
+⚠️ Usar mesmas fontes de dados do cálculo atual  
+⚠️ NÃO fazer queries extras desnecessárias  
+⚠️ NÃO mudar ordem do fluxo  
+
+---
+
+STEP 3.6.5 — LOGAR DIVERGÊNCIA
+
+logPriceDivergence(
+  {
+    scope: 'orders.service',
+    method: 'createWithDelivery',
+    productId: item.productId,
+    companyId: company?.id,
+  },
+  legacyPrice,
+  resolved,
+  {
+    quantity: item.quantity,
+  }
+);
+
+---
+
+STEP 3.6.6 — REGRAS DO LOGGER
+
+O logPriceDivergence deve:
+
+- logar SOMENTE se houver diferença
+- usar console.warn
+- incluir requestId se disponível (se vier do contexto)
+- NUNCA lançar erro
+- NUNCA alterar fluxo
+
+Formato esperado:
+
+[<reqId>] [priceResolver] divergence detected {
+  legacy: 10,
+  resolved: 11,
+  productId: 1,
+  companyId: 5
+}
+
+---
+
+STEP 3.6.7 — APLICAR NOS 3 PONTOS
+
+Replicar o mesmo padrão em:
+
+- createWithDelivery
+- replaceItems / substituteItem
+- qualquer recalculo de preço existente
+
+⚠️ manter nomes de métodos corretos no log (para rastreio)
+
+---
+
+STEP 3.6.8 — VALIDATION
+
+Executar:
+
+- npx tsc --noEmit
+- npm test
+
+---
+
+STEP 3.6.9 — RUNTIME CHECK
+
+Criar pedidos reais e verificar logs:
+
+Cenários esperados:
+
+- mesmo preço → nenhum log
+- preço diferente → log aparece
+
+---
+
+STEP 3.6.10 — REPORT
+
+Retornar:
+
+- quantos pontos foram instrumentados
+- exemplos de logs (se houver)
+- confirmação de:
+  - zero alteração de comportamento
+  - zero alteração de response
+  - zero impacto em pedidos
+
+---
+
+SUCCESS CRITERIA:
+
+✅ Nenhum valor alterado
+✅ Logs só aparecem quando há divergência
+✅ Sistema continua idêntico ao atual
+✅ Preparado para ativação segura do novo pri
