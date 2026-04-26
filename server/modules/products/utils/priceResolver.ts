@@ -4,15 +4,19 @@
  * Goal: provide a SINGLE place that decides the final unit price of a
  * product given the four sources of truth that exist in the schema:
  *
- *   1. products.basePrice              (catalog default)
+ *   1. products.basePrice              (catalog default, fallback)
  *   2. productSubCategories.price      (variant override, e.g. "higienizado")
- *   3. priceGroups (taxa administrativa) → markup % applied on top
- *   4. contractScopes.unitPrice        (per-customer contractual override)
+ *   3. contractScopes.unitPrice        (per-customer contractual override)
+ *   4. companies.adminFee              (% applied on top of the chosen price)
  *
- * Priority (highest wins):
+ * Priority for the SOURCE price (highest wins):
  *   contractPrice  >  subCategoryPrice  >  basePrice
  * Then (always last):
- *   apply priceGroupMarkup (%) on the chosen price.
+ *   apply adminFee (%) on the chosen source.
+ *
+ * Final formula:
+ *   resolvedPrice = sourcePrice * (1 + adminFee / 100)
+ *   (rounded to 2 decimals)
  *
  * IMPORTANT — current rollout phase:
  * This module is intentionally NOT wired into any code path that mutates
@@ -22,36 +26,68 @@
  *
  * FUTURE:
  *   - enableCategoryPricing flag    (toggles subCategoryPrice priority)
- *   - enableAdminMarkup flag        (toggles priceGroupMarkup application)
+ *   - enableAdminMarkup flag        (toggles adminFee application)
  *   - enableContractOverride flag   (toggles contractPrice priority)
+ *
+ * Properties:
+ *   - pure function (no I/O, no DB, no clock)
+ *   - deterministic
+ *   - safe with NaN / Infinity / null / undefined
+ *   - 0 is treated as a VALID override price (only null/undefined skip it)
  */
 
 export interface ResolveProductPriceParams {
+  /** Catalog default price for the product. Required. */
   basePrice: number;
+  /** Variant price (e.g. "higienizado"). 0 is a valid override. */
   subCategoryPrice?: number | null;
-  priceGroupMarkup?: number | null;
+  /** Per-customer contractual override. 0 is a valid override. */
   contractPrice?: number | null;
+  /** Customer-level administrative fee, in percent (e.g. 10 = +10%). */
+  adminFee?: number | null;
+  /**
+   * @deprecated Use `adminFee`. Kept ONLY as a backwards-compatible alias
+   * for callers instrumented in earlier rollout steps. New code MUST use
+   * `adminFee` to align with the `companies.adminFee` schema column.
+   */
+  priceGroupMarkup?: number | null;
 }
 
-export function resolveProductPrice({
-  basePrice,
-  subCategoryPrice,
-  priceGroupMarkup,
-  contractPrice,
-}: ResolveProductPriceParams): number {
-  let price = basePrice;
+export function resolveProductPrice(input: ResolveProductPriceParams): number {
+  const { basePrice, subCategoryPrice, contractPrice } = input;
+  // Accept either `adminFee` (canonical) or `priceGroupMarkup` (legacy alias).
+  const adminFeeRaw =
+    input.adminFee != null ? input.adminFee : input.priceGroupMarkup;
 
+  // STEP 1 — pick the source price.
+  // Priority: contractPrice > subCategoryPrice > basePrice.
+  // Note: 0 is a VALID override; only null / undefined are skipped.
+  let sourcePrice: number = basePrice;
   if (contractPrice != null) {
-    price = contractPrice;
+    sourcePrice = contractPrice;
   } else if (subCategoryPrice != null) {
-    price = subCategoryPrice;
+    sourcePrice = subCategoryPrice;
   }
 
-  if (priceGroupMarkup != null) {
-    price = price * (1 + priceGroupMarkup / 100);
+  // STEP 2 — defensive validation of the chosen source.
+  if (!Number.isFinite(sourcePrice)) {
+    return 0;
   }
 
-  return Number(price.toFixed(2));
+  // STEP 3 — apply the admin fee.
+  // null / undefined / NaN / Infinity → treated as 0 (no markup).
+  const fee =
+    adminFeeRaw != null && Number.isFinite(adminFeeRaw)
+      ? Number(adminFeeRaw)
+      : 0;
+
+  const final = sourcePrice * (1 + fee / 100);
+
+  // STEP 4 — final safety net + 2-decimal rounding.
+  if (!Number.isFinite(final)) {
+    return Number(sourcePrice.toFixed(2));
+  }
+  return Number(final.toFixed(2));
 }
 
 /**
@@ -72,7 +108,7 @@ export interface PriceDivergenceContext {
  * Emits a console.warn ONLY when the resolver disagrees with the legacy
  * value already computed by the caller. Never throws, never mutates.
  *
- * Output format:
+ * Output format (preserved across rollout steps for grep stability):
  *   [<reqId>] [priceResolver] divergence detected {
  *     scope, method, legacy, resolved, productId, companyId, ...meta
  *   }

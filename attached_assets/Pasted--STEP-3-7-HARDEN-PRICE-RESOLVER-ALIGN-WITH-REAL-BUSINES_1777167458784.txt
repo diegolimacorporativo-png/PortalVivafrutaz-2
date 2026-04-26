@@ -1,0 +1,156 @@
+### STEP 3.7 — HARDEN PRICE RESOLVER (ALIGN WITH REAL BUSINESS RULES)
+
+#### CONTEXT
+O sistema já possui um priceResolver implementado e instrumentado (STEP 3.5 e 3.6), porém ele ainda não representa corretamente a regra real de negócio:
+
+- Produtos possuem:
+  - basePrice
+  - categorias com preço próprio (ex: higienizado, embalado)
+- Clientes (companies) podem ter:
+  - adminFee (%) → aplicado sobre o preço final
+- NÃO existe markup fixo por categoria → preço da categoria é definido manualmente
+- Resolver atual não considera corretamente:
+  - prioridade real de categorias
+  - separação clara entre "origem do preço" e "aplicação da taxa"
+
+---
+
+### OBJECTIVE
+
+Corrigir o priceResolver para refletir EXATAMENTE a regra de negócio real, mantendo:
+
+- ZERO impacto em produção (ainda em modo observação)
+- ZERO alteração em endpoints
+- compatibilidade total com logs de divergência já instrumentados
+
+---
+
+### BUSINESS RULE (FONTE DA VERDADE)
+
+A resolução de preço deve seguir EXATAMENTE esta ordem:
+
+1. contractPrice (se existir) 2. subCategoryPrice (se produto estiver em categoria específica) 3. basePrice (fallback)
+
+Após definir o preço base:
+
+4. aplicar adminFee (%) da company (SE existir)
+
+---
+
+### EXPECTED FINAL FORMULA
+
+resolvedPrice = sourcePrice * (1 + adminFee/100)
+
+Onde:
+
+- sourcePrice ∈ {contractPrice, subCategoryPrice, basePrice}
+- adminFee pode ser null/undefined → tratar como 0
+
+---
+
+### IMPLEMENTATION RULES
+
+#### 1. REFATORAR resolveProductPrice
+
+Arquivo:
+server/modules/products/utils/priceResolver.ts
+
+Garantir:
+
+- função pura
+- sem acesso a banco
+- sem efeitos colaterais
+- determinística
+
+---
+
+### FINAL FUNCTION (EXPECTED)
+
+ts type ResolvePriceInput = {   basePrice: number;   subCategoryPrice?: number | null;   contractPrice?: number | null;   adminFee?: number | null; };  export function resolveProductPrice(input: ResolvePriceInput): number {   const {     basePrice,     subCategoryPrice,     contractPrice,     adminFee,   } = input;    // STEP 1 — escolher fonte   let sourcePrice = basePrice;    if (contractPrice != null) {     sourcePrice = contractPrice;   } else if (subCategoryPrice != null) {     sourcePrice = subCategoryPrice;   }    // STEP 2 — aplicar taxa administrativa   const fee = adminFee ?? 0;   const finalPrice = sourcePrice * (1 + fee / 100);    // STEP 3 — normalização   if (!Number.isFinite(finalPrice)) return sourcePrice;    return Number(finalPrice.toFixed(2)); } 
+
+---
+
+### 2. NÃO ALTERAR (IMPORTANTE)
+
+🚫 NÃO modificar:
+
+- orders.service.ts lógica existente
+- products.service.ts lógica existente
+- banco de dados
+- controllers
+- endpoints
+
+Resolver continua somente observacional
+
+---
+
+### 3. AJUSTAR logPriceDivergence (se necessário)
+
+Garantir que o log continue funcionando com:
+
+ts {   scope,   method,   productId,   companyId,   legacy,   resolved } 
+
+Sem alterar formato atual (para não quebrar grep/logs)
+
+---
+
+### 4. EDGE CASES (OBRIGATÓRIO)
+
+Tratar corretamente:
+
+- adminFee = null → 0
+- subCategoryPrice = 0 → válido (não ignorar!)
+- contractPrice = 0 → válido
+- NaN / Infinity → fallback seguro
+- arredondamento sempre em 2 casas
+
+---
+
+### 5. VALIDATION
+
+Executar:
+
+npx tsc --noEmit npm run test:unit
+
+Testar manualmente:
+
+| Caso | Input | Esperado |
+|------|------|----------|
+| base only | 10 | 10 |
+| base + fee 10% | 10 | 11 |
+| subCategory 12 | → 12 |
+| subCategory 12 + fee 10% | → 13.20 |
+| contract 15 | → 15 |
+| contract 15 + fee 10% | → 16.50 |
+
+---
+
+### SUCCESS CRITERIA
+
+✅ Resolver reflete exatamente a regra real  
+✅ Nenhuma mudança de comportamento no sistema  
+✅ Logs continuam funcionando  
+✅ Nenhum endpoint afetado  
+✅ TypeScript + testes OK  
+
+---
+
+### RESULT
+
+Sistema pronto para:
+
+➡️ STEP 3.8 — ativação controlada (feature flag)  
+➡️ STEP 4 — implementação real de pricing (categorias + cliente)
+
+---
+
+### IMPORTANT NOTE
+
+Se houver QUALQUER dúvida entre:
+
+- comportamento atual
+- nova regra
+
+👉 manter comportamento atual e logar divergência
+
+NUNCA alterar escrita real de pedidos nesta etapa
