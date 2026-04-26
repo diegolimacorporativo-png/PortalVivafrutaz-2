@@ -1,0 +1,102 @@
+STEP 7.4 — EXPANSÃO DA TIMELINE (AUDITORIA COMPLETA)
+
+OBJETIVO  
+Expandir a timeline utilizando a estrutura já existente (system_logs), adicionando novos eventos relevantes de pedido.
+
+---
+
+🚫 NÃO criar nova tabela  
+🚫 NÃO alterar schema  
+🚫 NÃO duplicar lógica  
+👉 apenas adicionar novos logs nos pontos corretos  
+
+---
+
+## STEP 1 — IDENTIFICAR PONTOS EXISTENTES
+
+Localizar no backend:
+
+- exclusão de pedido  
+- atualização fiscal  
+- substituição de itens  
+
+Arquivos prováveis:
+
+server/modules/orders/orders.service.ts  
+
+---
+
+## STEP 2 — ADICIONAR LOG: ORDER_DELETED
+
+No fluxo de exclusão de pedido:
+
+ts id="log01" await logEvent({   action: "ORDER_DELETED",   description: `Pedido excluído: ${order.orderCode}`,   userId: actor.id, }); 
+
+---
+
+## STEP 3 — ADICIONAR LOG: ORDER_FISCAL_UPDATED
+
+No ponto onde dados fiscais são atualizados:
+
+ts id="log02" await logEvent({   action: "ORDER_FISCAL_UPDATED",   description: `Fiscal atualizado: ${order.orderCode}`,   userId: actor.id, }); 
+
+---
+
+## STEP 4 — ADICIONAR LOG: ORDER_ITEMS_REPLACED
+
+Quando itens do pedido são alterados (edição final):
+
+ts id="log03" await logEvent({   action: "ORDER_ITEMS_REPLACED",   description: `Itens atualizados: ${order.orderCode}`,   userId: actor.id, }); 
+
+---
+
+## STEP 5 — GARANTIR PADRÃO
+
+Seguir padrão existente:
+
+✔ action em CAPS  
+✔ description com orderCode  
+✔ userId obrigatório  
+
+🚫 NÃO usar strings soltas  
+🚫 NÃO mudar estrutura de log  
+
+---
+
+## STEP 6 — FRONTEND (SEM QUEBRAR)
+
+Arquivo:
+
+client/src/components/OrderTimeline.tsx  
+
+Adicionar mapping:
+
+ts id="map01" ORDER_DELETED: "Pedido excluído", ORDER_FISCAL_UPDATED: "Atualização fiscal", ORDER_ITEMS_REPLACED: "Itens atualizados", 
+
+---
+
+## STEP 7 — TESTE
+
+Executar:
+
+✔ editar pedido → aparece ORDER_ITEMS_REPLACED  
+✔ atualizar fiscal → aparece ORDER_FISCAL_UPDATED  
+✔ excluir pedido → aparece ORDER_DELETED  
+
+✔ todos aparecem na timeline  
+✔ ordem cronológica correta  
+
+---
+
+## RESULTADO
+
+✔ auditoria completa  
+✔ rastreabilidade real  
+✔ timeline robusta  
+✔ sem impacto estrutural  
+
+---
+
+RISCO
+
+LOW ✅ (apenas logs adicionais)

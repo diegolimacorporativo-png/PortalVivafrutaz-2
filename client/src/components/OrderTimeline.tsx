@@ -40,6 +40,8 @@ const ACTION_META: Record<
   WORKFLOW_TRANSITION:     { label: "Mudança de Etapa",         icon: CheckCircle2,  color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
   ORDER_DELETED:           { label: "Pedido Excluído",          icon: XCircle,       color: "text-red-600 bg-red-50 border-red-200" },
   BULK_ORDER_DELETE:       { label: "Exclusão em Lote",         icon: XCircle,       color: "text-red-600 bg-red-50 border-red-200" },
+  ORDER_FISCAL_UPDATED:    { label: "Atualização Fiscal",       icon: FileText,      color: "text-cyan-600 bg-cyan-50 border-cyan-200" },
+  ORDER_ITEMS_REPLACED:    { label: "Itens Atualizados",        icon: Edit3,         color: "text-blue-600 bg-blue-50 border-blue-200" },
   SAFRA_SUBSTITUTION:      { label: "Substituição de Safra",    icon: PackageOpen,   color: "text-violet-600 bg-violet-50 border-violet-200" },
   ERP_BLING_EXPORT:        { label: "Exportação Bling",         icon: Send,          color: "text-cyan-600 bg-cyan-50 border-cyan-200" },
 };

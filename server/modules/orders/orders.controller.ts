@@ -139,7 +139,7 @@ export class OrdersController {
   replaceItems = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
     const { items } = req.body as { items: any[] };
-    return ok(res, await this.service.replaceItems(id, items));
+    return ok(res, await this.service.replaceItems(id, items, this.actor(req)));
   };
 
   /** POST /api/orders/:id/substitute-item */

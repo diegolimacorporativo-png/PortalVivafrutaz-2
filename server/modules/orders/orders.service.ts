@@ -1228,7 +1228,7 @@ export class OrdersService {
   // ║ ITEMS                                                            ║
   // ╚══════════════════════════════════════════════════════════════════╝
 
-  async replaceItems(id: number, items: any[]): Promise<OrderDetail> {
+  async replaceItems(id: number, items: any[], actor?: ActorContext): Promise<OrderDetail> {
     if (!Array.isArray(items)) throw new BadRequestError("items required");
 
     // ── Read-only divergence observation (no behavior change) ──
@@ -1394,6 +1394,21 @@ export class OrdersService {
     await this.repo.updateItems(id, items as any);
     const result = await this.repo.get(id);
     if (!result) throw new NotFoundError("Pedido não encontrado");
+    try {
+      const orderRow: any = result.order;
+      const orderCode = orderRow?.orderCode || `#${id}`;
+      await this.repo.createLog({
+        action: "ORDER_ITEMS_REPLACED",
+        description: `Itens atualizados: ${orderCode} (${items.length} item${items.length === 1 ? "" : "s"})`,
+        companyId: orderRow?.companyId,
+        userId: actor?.userId,
+        userEmail: (actor as any)?.email,
+        userRole: (actor as any)?.role || (actor?.companyId ? "CLIENT" : null),
+        level: "INFO",
+      });
+    } catch {
+      /* swallow per legacy */
+    }
     return result;
   }
 
@@ -1665,12 +1680,31 @@ export class OrdersService {
     body: { fiscalStatus?: string; preNotaNumber?: string | null },
     actor: ActorContext,
   ): Promise<Order> {
-    await this.requireRole(actor, FISCAL_ROLES, "Sem permissão");
+    const user = await this.requireRole(actor, FISCAL_ROLES, "Sem permissão");
     const updates: any = {};
     if (body.fiscalStatus) updates.fiscalStatus = body.fiscalStatus;
     if (body.preNotaNumber !== undefined)
       updates.preNotaNumber = body.preNotaNumber;
-    return this.repo.update(id, updates);
+    const updated = await this.repo.update(id, updates);
+    try {
+      const orderCode = (updated as any)?.orderCode || `#${id}`;
+      const parts: string[] = [];
+      if (body.fiscalStatus) parts.push(`status=${body.fiscalStatus}`);
+      if (body.preNotaNumber !== undefined)
+        parts.push(`preNota=${body.preNotaNumber ?? "null"}`);
+      await this.repo.createLog({
+        action: "ORDER_FISCAL_UPDATED",
+        description: `Fiscal atualizado: ${orderCode}${parts.length ? ` (${parts.join(", ")})` : ""}`,
+        companyId: (updated as any)?.companyId,
+        userId: user.id,
+        userEmail: user.email,
+        userRole: user.role,
+        level: "INFO",
+      });
+    } catch {
+      /* swallow per legacy */
+    }
+    return updated;
   }
 
   async generatePrenota(
