@@ -1,0 +1,138 @@
+STEP 6 — EDIÇÃO DE PEDIDO CONTROLADA (COM APROVAÇÃO)
+
+OBJETIVO  
+Garantir que:
+
+- cliente NÃO edita pedido livremente  
+- cliente solicita alteração  
+- admin libera edição  
+- só depois disso o cliente pode alterar  
+
+🚫 NÃO alterar lógica de pricing  
+🚫 NÃO mexer no resolver  
+🚫 NÃO quebrar fluxo atual  
+
+---
+
+## STEP 6.1 — REGRA PRINCIPAL
+
+Pedido tem estados:
+
+- "OPEN" → pode editar  
+- "LOCKED" → não pode editar (padrão após envio)  
+
+---
+
+## STEP 6.2 — FRONT (CLIENTE)
+
+Arquivo:
+client/src/pages/client/edit-order.tsx
+
+Bloquear edição:
+
+ts const canEdit = order.status === "OPEN"; 
+
+---
+
+## STEP 6.3 — BLOQUEAR UI
+
+tsx {!canEdit && (   <div className="alert">     Pedido bloqueado para edição. Solicite alteração.   </div> )} 
+
+Desabilitar inputs:
+
+tsx <input disabled={!canEdit} /> <button disabled={!canEdit}>Salvar</button> 
+
+---
+
+## STEP 6.4 — BOTÃO SOLICITAR ALTERAÇÃO
+
+tsx <button onClick={requestEdit}>   Solicitar alteração </button> 
+
+---
+
+## STEP 6.5 — REQUEST PARA BACKEND
+
+ts await fetch(`/api/v1/orders/${order.id}/request-edit`, {   method: "POST",   credentials: "include", }); 
+
+✔ não altera pedido  
+✔ só sinaliza  
+
+---
+
+## STEP 6.6 — ADMIN (PAINEL)
+
+Arquivo:
+client/src/pages/admin/orders.tsx
+
+Mostrar pedidos com solicitação:
+
+tsx {order.requestEdit && (   <button onClick={() => approveEdit(order.id)}>     Liberar edição   </button> )} 
+
+---
+
+## STEP 6.7 — LIBERAR EDIÇÃO
+
+ts await fetch(`/api/v1/orders/${order.id}/approve-edit`, {   method: "POST",   credentials: "include", }); 
+
+---
+
+## STEP 6.8 — BACKEND (MÍNIMO NECESSÁRIO)
+
+Adicionar campos:
+
+- requestEdit: boolean
+- status: "OPEN" | "LOCKED"
+
+---
+
+## STEP 6.9 — REGRAS
+
+✔ ao criar pedido → status = "LOCKED"  
+✔ ao solicitar → requestEdit = true  
+✔ ao aprovar → status = "OPEN"  
+
+---
+
+## STEP 6.10 — TESTE REAL
+
+### CLIENTE
+✔ cria pedido  
+✔ tenta editar → bloqueado  
+
+✔ clica "solicitar alteração"  
+
+---
+
+### ADMIN
+✔ vê pedido com solicitação  
+✔ clica "liberar edição"  
+
+---
+
+### CLIENTE
+✔ volta ao pedido  
+✔ consegue editar  
+
+---
+
+## STEP 6.11 — SEGURANÇA
+
+🚫 cliente nunca edita direto  
+🚫 backend continua validando  
+
+✔ controle total do admin  
+
+---
+
+## RESULTADO
+
+✔ fluxo profissional  
+✔ controle operacional  
+✔ evita erro de pedido  
+✔ pronto para escala  
+
+---
+
+PRÓXIMO PASSO
+
+👉 STEP 7 — LOGÍSTICA (ENTREGA + STATUS + ROTEIRIZAÇÃO)
