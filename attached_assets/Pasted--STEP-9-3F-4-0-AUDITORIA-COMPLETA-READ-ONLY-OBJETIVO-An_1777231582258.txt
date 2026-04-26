@@ -1,0 +1,168 @@
+## STEP 9.3F.4.0 — AUDITORIA COMPLETA (READ-ONLY)
+
+### 🎯 OBJETIVO
+
+Analisar o sistema atual antes de implementar a persistência de alertas (9.3F.4), garantindo:
+
+- zero duplicação  
+- zero quebra de lógica existente  
+- reaproveitamento máximo do que já existe  
+
+---
+
+### 🚫 REGRAS CRÍTICAS
+
+- NÃO alterar nenhum arquivo  
+- NÃO criar arquivos  
+- NÃO sugerir refatorações ainda  
+- NÃO implementar nada  
+
+👉 Apenas ler e reportar
+
+---
+
+## STEP 1 — LOCALIZAR ALERT SYSTEM
+
+Verificar:
+
+- server/services/alerts.service.ts
+- Confirmar existência de:
+  - emitAlert(...)
+  - estrutura de results[]
+  - rate-limit
+  - logs ([ALERT_*])
+
+Retornar:
+
+json {   "emitAlertExiste": true,   "temResults": true,   "temRateLimit": true,   "estruturaResults": "ex: [{ channel, ok, reason? }]" } 
+
+---
+
+## STEP 2 — VERIFICAR STORE EM MEMÓRIA (9.3F.3)
+
+Arquivo:
+
+- server/modules/nfe/alerts-log.store.ts
+
+Confirmar:
+
+- recordAlertLog
+- getAlertLogs
+- limite de memória (ex: 200)
+
+Retornar:
+
+json {   "storeExiste": true,   "limite": 200,   "temRateLimitedFlag": true } 
+
+---
+
+## STEP 3 — VERIFICAR BANCO (DRIZZLE)
+
+Arquivo:
+
+- shared/schema.ts
+
+Verificar:
+
+- se já existe tabela de alertas  
+- padrão de outras tabelas (ex: cron_faturamento_runs)
+
+Retornar:
+
+json {   "tabelaAlertExiste": false,   "padraoTabelas": "snake_case",   "usaTimestampDefaultNow": true } 
+
+---
+
+## STEP 4 — VERIFICAR DB ACCESS
+
+Confirmar:
+
+- onde db é importado no backend
+- padrão correto de import (IMPORTANTE)
+
+Exemplo esperado:
+
+ts import { db } from "../db"; import { schema } from "../../shared/schema"; 
+
+Retornar:
+
+json {   "dbImportPath": "...",   "schemaImportPath": "...",   "padraoCorreto": true } 
+
+---
+
+## STEP 5 — VERIFICAR ROTAS EXISTENTES
+
+Arquivo:
+
+- server/routes/routes.ts
+
+Confirmar existência de:
+
+- /api/nfe/cron/history
+- /api/nfe/cron/status
+- /api/cron/alerts/logs
+
+Verificar padrão de:
+
+- requireAuth
+- requireRole
+
+Retornar:
+
+json {   "temCronHistory": true,   "temCronStatus": true,   "temAlertLogs": true,   "rotasProtegidas": true } 
+
+---
+
+## STEP 6 — VERIFICAR UI
+
+Arquivo:
+
+- client/src/pages/admin/faturamento.tsx
+
+Confirmar:
+
+- card de cron
+- card de histórico
+- card de alertas (9.3F.3)
+
+Retornar:
+
+json {   "temCronUI": true,   "temHistoryUI": true,   "temAlertsUI": true } 
+
+---
+
+## STEP 7 — DECISÃO TÉCNICA
+
+Com base na auditoria, responder:
+
+json {   "prontoParaPersistencia": true,   "risco": "LOW | MEDIUM | HIGH",   "melhorEstrategia": "inserir persistAlertLog no final do emitAlert",   "necessitaRefatoracao": false } 
+
+---
+
+## 📌 IMPORTANTE
+
+Você NÃO está implementando ainda.
+
+👉 Apenas validando se o sistema está pronto para o STEP 9.3F.4
+
+---
+
+## ✅ RESULTADO ESPERADO
+
+Um relatório completo confirmando:
+
+- onde integrar  
+- como integrar  
+- se há risco  
+
+---
+
+## 🧠 RESUMO SIMPLES
+
+Você vai sair de:
+
+❌ "acho que dá pra implementar"
+
+Para:
+
+✅ "sei exatamente onde encaixar sem quebrar nada"
