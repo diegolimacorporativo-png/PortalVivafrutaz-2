@@ -1,0 +1,76 @@
+STEP 8.3 — AUTO DISPATCH (VERSÃO FINAL SEGURA)
+
+OBJETIVO  
+Automatizar rotas usando EXATAMENTE o que já existe no sistema.
+
+---
+
+🚫 NÃO criar optimizer  
+🚫 NÃO assumir assinatura de função  
+🚫 NÃO inventar estrutura  
+👉 OBRIGATÓRIO reutilizar services existentes  
+
+---
+
+## STEP 0 — DESCOBERTA (OBRIGATÓRIO)
+
+ANTES de implementar, o agent deve:
+
+1. Localizar no código:
+
+- routeOptimizer  
+- suggest-route  
+- smart-route-plan  
+
+2. Identificar:
+
+✔ qual função REAL deve ser usada  
+✔ formato de entrada  
+✔ formato de saída  
+
+👉 PROIBIDO assumir routeOptimizer(group)  
+
+---
+
+## STEP 1 — ORQUESTRADOR
+
+Arquivo:
+
+server/modules/logistics/auto-dispatch.service.ts
+
+---
+
+## STEP 2 — IMPLEMENTAÇÃO
+
+ts import { db } from "@/db"; import { sql } from "drizzle-orm";  // IMPORTAR o service REAL identificado no STEP 0 // Exemplo: // import { suggestRoute } from "@/modules/logistics/suggest-route.service";  export async function autoDispatchReadyOrders() {   try {     const result = await db.execute(sql`       SELECT d.id, d.order_id, o.company_id, o.delivery_date,              c.latitude, c.longitude       FROM deliveries d       JOIN orders o ON o.id = d.order_id       JOIN companies c ON c.id = o.company_id       WHERE d.status = 'pendente'         AND o.workflow_status = 'READY'         AND d.route_id IS NULL     `);      const deliveries = result.rows ?? [];     if (deliveries.length === 0) return;      // Agrupar por janela     const groups = deliveries.reduce((acc: any, d: any) => {       const key = d.delivery_date;       acc[key] = acc[key] || [];       acc[key].push(d);       return acc;     }, {});      for (const group of Object.values(groups)) {        // 🔥 USAR optimizer REAL encontrado no STEP 0       const optimized = await EXISTING_ROUTE_SERVICE(group);        if (!optimized || optimized.length === 0) continue;        // Criar rota       const routeResult = await db.execute(sql`         INSERT INTO logistics_routes (name, status, company_ids, created_at)         VALUES (${`AUTO-${Date.now()}`}, 'planned', ${group.map((d: any) => d.company_id)}, NOW())         RETURNING id       `);        const routeId = routeResult.rows?.[0]?.id;       if (!routeId) continue;        // Criar stops       for (let i = 0; i < optimized.length; i++) {         const stop = optimized[i];          await db.execute(sql`           INSERT INTO route_stops (route_id, delivery_id, sequence, latitude, longitude)           VALUES (${routeId}, ${stop.id}, ${i}, ${stop.latitude}, ${stop.longitude})         `);       }        // Motorista disponível       const driverResult = await db.execute(sql`         SELECT id         FROM logistics_drivers         WHERE is_active = true         ORDER BY last_assigned_at NULLS FIRST         LIMIT 1       `);        const driver = driverResult.rows?.[0];        if (driver) {         await db.execute(sql`           UPDATE logistics_routes           SET driver_id = ${driver.id}, updated_at = NOW()           WHERE id = ${routeId}         `);       }        // Atualizar deliveries (SAFE)       const ids = group.map((d: any) => d.id);        await db.execute(sql`         UPDATE deliveries         SET route_id = ${routeId}         WHERE id IN (${sql.join(ids.map(id => sql`${id}`), sql`,`)})       `);     }    } catch (err) {     console.error("AUTO_DISPATCH_ERROR", err);   } } 
+
+---
+
+## STEP 3 — DISPARO
+
+### Background
+
+ts setInterval(() => {   autoDispatchReadyOrders(); }, 10000); 
+
+---
+
+## STEP 4 — GARANTIAS
+
+✔ Não duplica lógica  
+✔ Não quebra optimizer  
+✔ Compatível com drizzle  
+✔ Idempotente (route_id NULL evita reprocesso)  
+
+---
+
+## RESULTADO
+
+READY → rota automática  
+→ motorista recebe  
+→ sistema roda sozinho  
+
+---
+
+RISCO
+
+LOW ✅ (agora realmente seguro)

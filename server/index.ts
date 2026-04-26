@@ -3,6 +3,7 @@ import { buildApp } from "./app";
 import { serveStatic } from "./static";
 import { getUser } from "./controllers/userController";
 import { startOutboxWorker } from "./modules/orders/orders.outbox.worker";
+import { startAutoDispatchWorker } from "./modules/logistics/auto-dispatch.service";
 
 /**
  * Bootstrap.
@@ -47,6 +48,10 @@ export function log(message: string, source = "express") {
   // Workflow event outbox worker — processes side-effects asynchronously
   // (push notifications, audit logs) with retry semantics.
   startOutboxWorker();
+
+  // Auto-dispatch worker — periodically attaches pending deliveries to the
+  // cheapest existing route via the shared `suggestInsertion` optimiser.
+  startAutoDispatchWorker();
 
   // Memory monitor — useful in production to catch leaks early.
   setInterval(() => {
