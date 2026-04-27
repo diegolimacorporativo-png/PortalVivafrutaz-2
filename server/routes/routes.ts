@@ -5072,6 +5072,133 @@ export async function registerRoutes(
       }
     });
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // FASE NF.4.4 — Endpoint de pré-validação (PRE-FLIGHT)
+    // ─────────────────────────────────────────────────────────────────────────
+    // GET /api/nfe/preflight/:orderId
+    //
+    // Executa o pipeline NF-e em modo "dry-run":
+    //   1. valida tenant (FASE 3)
+    //   2. roda buildNFeInput (FASE NF.4.2 — fail-fast em dados fiscais)
+    //   3. roda validarNFeInput (validação Zod-like)
+    //   4. roda gerarNFeXML com nNF sentinela (XML é descartado)
+    //
+    // Garantias:
+    //   - NÃO persiste em nfe_emissoes
+    //   - NÃO atualiza orders.fiscal_status
+    //   - NÃO chama SEFAZ
+    //   - NÃO altera buildNFeInput / gerarNFeXML / transmissão
+    //   - Erros traduzidos via translateNFeError (FASE NF.4.3)
+    //
+    // Sempre devolve HTTP 200 com { status: 'ok' | 'error' } no payload,
+    // exceto em violações de tenant/auth (que mantêm os status 401/403/404).
+    app.get('/api/nfe/preflight/:orderId', async (req: any, res) => {
+      if (!req.session?.userId) {
+        return res.status(401).json({ message: 'Não autenticado' });
+      }
+
+      const orderId = Number(req.params.orderId);
+      if (!orderId || !Number.isFinite(orderId) || orderId <= 0) {
+        return res.status(400).json({ message: 'orderId inválido' });
+      }
+
+      // FASE 3 — multi-tenant. Mesmo guard de /api/nfe/emitir.
+      try {
+        await validateOrderTenant(orderId);
+      } catch (e: any) {
+        if (e instanceof AppError) {
+          return res.status(e.status).json({ message: e.message });
+        }
+        throw e;
+      }
+
+      // Imports dinâmicos: mesmo padrão do /api/nfe/emitir (linhas 5031-5033 e 5631).
+      const { buildNFeInput } = await import('../modules/nfe/nfe-input.builder');
+      const { gerarNFeXML } = await import('../services/nfe/nfeGenerator.ts');
+      const { validarNFeInput } = await import('../services/nfe/nfeValidator.ts');
+      const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
+
+      try {
+        const input = await buildNFeInput(orderId);
+        const validation = validarNFeInput(input);
+
+        // gerarNFeXML exige numero > 0 (NFE_XML_INVALID_NUMBER se !Number.isFinite
+        // ou <= 0). Usamos um sentinela (999999999, max nNF de 9 dígitos) — o XML
+        // resultante é descartado sem ser persistido nem assinado.
+        const PREVIEW_NUMERO = 999999999;
+        const xml = await gerarNFeXML(input, PREVIEW_NUMERO);
+
+        // Cálculo dos totais para preview (mesma fórmula do nfeGenerator linhas 154-158).
+        // O builder atual não popula valorFrete/Seguro/Desconto — gerarNFeXML aplica
+        // `|| 0`, então vNF = vProd na prática. Mantemos o acesso defensivo (cast)
+        // para o dia em que o builder começar a propagá-los.
+        const inp = input as any;
+        const vProd = input.produtos.reduce((s, p) => s + p.vProd, 0);
+        const vFrete = Number(inp.valorFrete) || 0;
+        const vSeg = Number(inp.valorSeguro) || 0;
+        const vDesc = Number(inp.valorDesconto) || 0;
+        const vNF = vProd + vFrete + vSeg - vDesc;
+
+        // validarNFeInput devolve erros Zod-like que o pipeline de emissão
+        // transformaria em 422 — aqui devolvemos como `errors` para o admin
+        // corrigir antes de clicar em "Emitir".
+        if (validation.length > 0) {
+          console.warn('[NFE_PREFLIGHT]', {
+            requestId: getRequestIdForLog(),
+            orderId,
+            status: 'error',
+            code: 'NFE_VALIDATION_FAILED',
+            errors: validation.length,
+          });
+          return res.status(200).json({
+            status: 'error',
+            errors: validation.map((v) => ({
+              code: 'NFE_VALIDATION_FAILED',
+              message: `${v.campo}: ${v.mensagem}`,
+            })),
+            alerts: [],
+            preview: {
+              total: Number(vNF.toFixed(2)),
+              itens: input.produtos.length,
+            },
+          });
+        }
+
+        console.info('[NFE_PREFLIGHT]', {
+          requestId: getRequestIdForLog(),
+          orderId,
+          status: 'ok',
+          totalItens: input.produtos.length,
+          valorTotal: Number(vNF.toFixed(2)),
+          xmlSize: xml.xmlGerado.length,
+        });
+
+        return res.json({
+          status: 'ok',
+          errors: [],
+          alerts: [],
+          preview: {
+            total: Number(vNF.toFixed(2)),
+            itens: input.produtos.length,
+          },
+        });
+      } catch (e: any) {
+        const parsed = translateNFeError(e);
+        console.warn('[NFE_PREFLIGHT]', {
+          requestId: getRequestIdForLog(),
+          orderId,
+          status: 'error',
+          code: parsed.code,
+          rawMessage: e?.message,
+        });
+        return res.status(200).json({
+          status: 'error',
+          errors: [parsed],
+          alerts: [],
+        });
+      }
+    });
+
     // GET /api/nfe/eligible — STEP 9.3: lista pedidos prontos para emitir NF agora
     app.get('/api/nfe/eligible', async (req: any, res) => {
       try {
