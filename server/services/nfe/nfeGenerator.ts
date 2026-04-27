@@ -179,6 +179,12 @@ export async function gerarNFeXML(
     // da tag <ICMSSN...>. O nome da tag usa o valor bruto; o conteúdo do <CSOSN>
     // continua escapado para defesa em profundidade.
     const rawCsosn = p.csosn || '102';
+    // HOTFIX CSOSN VALIDATION: bloqueia valores fora do padrão SEFAZ (3 dígitos).
+    // Garante que o nome da tag <ICMSSN${rawCsosn}> seja sempre válido e
+    // evita XML quebrado por letras, símbolos ou strings vazias.
+    if (!/^\d{3}$/.test(rawCsosn)) {
+      throw new Error('NFE_INVALID_CSOSN');
+    }
     const csosn = escapeXml(rawCsosn);
     const icmsXml = crt === '1' || crt === '2'
       ? `<ICMS><ICMSSN${rawCsosn}><orig>0</orig><CSOSN>${csosn}</CSOSN></ICMSSN${rawCsosn}></ICMS>`

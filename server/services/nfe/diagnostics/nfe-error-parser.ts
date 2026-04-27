@@ -277,6 +277,10 @@ const NFE_USER_MESSAGES: Record<string, string> = {
   NFE_XML_INVALID_STRUCTURE: 'XML da nota fiscal foi gerado em formato inválido.',
   NFE_XML_CORRUPTED: 'XML da nota fiscal foi gerado corrompido. Tente novamente.',
   NFE_XML_CORRUPTED_CONTENT: 'XML da nota contém valores inválidos. Revise os dados do pedido.',
+
+  // FASE NF.5.1 — fail-fast de regime tributário e CSOSN.
+  NFE_INVALID_CRT: 'Regime tributário inválido. Verifique a configuração da empresa.',
+  NFE_INVALID_CSOSN: 'CSOSN inválido. Verifique a tributação do produto.',
 };
 
 const NFE_GENERIC_MESSAGE =

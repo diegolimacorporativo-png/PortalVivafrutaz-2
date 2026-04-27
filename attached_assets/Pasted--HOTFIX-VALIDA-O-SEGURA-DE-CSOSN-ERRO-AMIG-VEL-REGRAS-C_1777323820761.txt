@@ -1,0 +1,137 @@
+🎯 HOTFIX — VALIDAÇÃO SEGURA DE CSOSN + ERRO AMIGÁVEL
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar fluxo existente  
+3. NÃO alterar assinatura de funções  
+4. NÃO alterar cálculo de impostos  
+5. NÃO tocar em outros comportamentos  
+6. Apenas adicionar validação + mensagem  
+
+👉 Ajuste defensivo (fail-fast)
+
+---
+
+🧠 OBJETIVO
+
+Evitar geração de XML inválido quando CSOSN vier com valor incorreto
+
++ garantir mensagem amigável no frontend
+
+---
+
+📦 ESCOPO
+
+Arquivos:
+
+- server/services/nfe/nfeGenerator.ts  
+- server/services/nfe/diagnostics/nfe-error-parser.ts  
+
+---
+
+## 🛠️ ETAPA 1 — VALIDAR CSOSN (CRÍTICO)
+
+📍 Arquivo: nfeGenerator.ts
+
+---
+
+### ✏️ ALTERAÇÃO
+
+ANTES de usar o CSOSN:
+
+ts const rawCsosn = p.csosn || '102'; 
+
+---
+
+### ✅ ADICIONAR
+
+ts if (!/^\d{3}$/.test(rawCsosn)) {   throw new Error('NFE_INVALID_CSOSN'); } 
+
+---
+
+### 🔒 BLOQUEIA
+
+- valores com letras
+- valores com símbolos
+- valores fora do padrão SEFAZ
+
+---
+
+### 📌 RESULTADO
+
+✔ Garante nome de tag válido  
+✔ Evita XML quebrado  
+✔ Mantém comportamento atual para valores corretos  
+
+---
+
+## 🛠️ ETAPA 2 — ERRO AMIGÁVEL
+
+📍 Arquivo: nfe-error-parser.ts
+
+---
+
+### ➕ ADICIONAR NO MAPA
+
+ts NFE_INVALID_CSOSN: "CSOSN inválido. Verifique a tributação do produto." 
+
+---
+
+### (OPCIONAL — RECOMENDADO)
+
+Se ainda não existir, adicionar também:
+
+ts NFE_INVALID_CRT: "Regime tributário inválido. Verifique a configuração da empresa." 
+
+---
+
+## 📊 VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+1. CSOSN válido (102, 103, 400...)  
+   → continua funcionando  
+
+2. CSOSN inválido ("10A", "1", "", null estranho)  
+   → lança NFE_INVALID_CSOSN  
+
+3. XML gerado  
+   → sempre com tag válida  
+
+4. Frontend  
+   → recebe mensagem amigável  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Zero impacto no banco  
+✔ Zero impacto na SEFAZ  
+✔ Zero impacto nos endpoints  
+✔ Zero regressão no Simples Nacional  
+✔ Apenas bloqueio de input inválido  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- XML 100% seguro estruturalmente  
+- CSOSN validado corretamente  
+- Mensagens claras para o usuário  
+- Pipeline mais robusto  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. trecho adicionado  
+2. testes executados  
+3. confirmação de zero regressão  
+4. confirmação que Simples continua funcionando  
+
+-
