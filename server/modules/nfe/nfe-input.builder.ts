@@ -319,6 +319,13 @@ export async function buildNFeInput(
       vUnCom: Number(item.unitPrice ?? item.finalPrice ?? 0),
       vProd: Number(item.totalPrice ?? 0),
       csosn: safeStr(item.csosn, "102"),
+      // FASE NF.6.2 — CST por item (Lucro Presumido / Lucro Real, CRT=3).
+      // Default '00' preserva backward-compat: se o draft/billing item não
+      // trouxer cst, o XML continua sendo idêntico ao gerado antes da NF.6.2.
+      // No Simples Nacional (CRT=1/2), o generator IGNORA este campo e segue
+      // usando csosn — comportamento garantido pelo branch da NF.5.1/NF.6 em
+      // server/services/nfe/nfeGenerator.ts (linhas 206-208).
+      cst: (item as any).cst || "00",
     };
   });
 

@@ -1,0 +1,187 @@
+🎯 FASE NF.6.2 — CST POR ITEM (LUCRO PRESUMIDO - CRT 3)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar estrutura de resposta dos endpoints  
+2. NÃO alterar assinatura de gerarNFeXML  
+3. NÃO alterar assinatura de buildNFeInput  
+4. NÃO alterar cálculo de impostos (manter 0.00)  
+5. NÃO alterar lógica de CSOSN  
+6. NÃO criar tabelas  
+7. NÃO rodar db:push  
+8. NÃO mexer no nfeGenerator.ts  
+
+👉 Apenas adicionar CST no builder
+
+---
+
+🧠 OBJETIVO
+
+Permitir que cada item da NF-e carregue um CST quando:
+
+👉 CRT = 3 (Lucro Presumido / Lucro Real)
+
+Sem impactar:
+
+- Simples Nacional (CRT 1/2)
+- XML atual
+- Fluxo existente
+
+---
+
+📦 ESCOPO
+
+Arquivo único:
+
+server/modules/nfe/nfe-input.builder.ts
+
+---
+
+## 🛠️ ETAPA 1 — ADICIONAR CST NO ITEM
+
+📍 Localizar onde os itens são montados (NFeProduto)
+
+Exemplo atual:
+
+items.push({
+  cProd: ...,
+  xProd: ...,
+  ncm: ...,
+  cfop: ...,
+  uCom: ...,
+  qCom: ...,
+  vUnCom: ...,
+  vProd: ...,
+});
+
+---
+
+👉 ADICIONAR APENAS ESTA LINHA:
+
+cst: (item as any).cst || '00',
+
+---
+
+📌 Resultado esperado:
+
+items.push({
+  cProd: ...,
+  xProd: ...,
+  ncm: ...,
+  cfop: ...,
+  uCom: ...,
+  qCom: ...,
+  vUnCom: ...,
+  vProd: ...,
+
+  // NOVO — FASE NF.6.2
+  cst: (item as any).cst || '00',
+});
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO remover nada existente  
+- NÃO alterar csosn  
+- NÃO alterar ordem dos campos  
+- NÃO alterar nomes  
+
+---
+
+## 🛠️ ETAPA 2 — COMPATIBILIDADE
+
+👉 NÃO FAZER NADA NO GENERATOR
+
+O comportamento correto já existe:
+
+- CRT 1/2 → usa CSOSN  
+- CRT 3 → usa CST  
+
+👉 O generator já ignora CST no Simples Nacional
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+---
+
+1️⃣ CRT = 3 + sem CST
+
+Esperado:
+
+<ICMS00>
+  <CST>00</CST>
+</ICMS00>
+
+---
+
+2️⃣ CRT = 3 + item.cst = '20'
+
+Esperado:
+
+<ICMS20>
+  <CST>20</CST>
+</ICMS20>
+
+---
+
+3️⃣ CRT = 3 + item.cst = '60'
+
+Esperado:
+
+<ICMS60>
+  <CST>60</CST>
+</ICMS60>
+
+---
+
+4️⃣ CRT = 1 (Simples Nacional)
+
+Mesmo com cst no item:
+
+👉 Deve continuar:
+
+<ICMSSN102>
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Zero alteração em banco  
+✔ Zero alteração em endpoints  
+✔ Zero alteração em cálculo  
+✔ Zero alteração na SEFAZ  
+✔ Compatível com NF.1 → NF.6  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- CST disponível por item
+- Preparação completa para Lucro Presumido
+- Base pronta para ICMS futuro
+- Zero regressão
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Trecho exato adicionado  
+2. Confirmação que CST chegou no XML  
+3. Confirmação de zero regressão  
+4. Confirmação que Simples Nacional não foi afetado  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO implementar cálculo de ICMS  
+👉 NÃO criar regra automática  
+👉 NÃO mexer no g
