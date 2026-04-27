@@ -1,0 +1,196 @@
+🎯 FASE NF.5.1 — AJUSTES FISCAIS CRÍTICOS (SEM REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar estrutura de resposta dos endpoints  
+2. NÃO alterar buildNFeInput assinatura  
+3. NÃO alterar gerarNFeXML assinatura  
+4. NÃO alterar transmissão SEFAZ  
+5. NÃO criar tabelas  
+6. NÃO rodar db:push  
+7. NÃO alterar lógica de cálculo de impostos  
+8. NÃO quebrar fluxo atual de Simples Nacional  
+
+👉 Apenas ajustes internos controlados
+
+---
+
+🧠 OBJETIVO
+
+Corrigir inconsistências fiscais identificadas na auditoria NF.5:
+
+1. Usar regime tributário por cliente (override)
+2. Tornar CSOSN realmente dinâmico no XML
+3. Validar CRT corretamente (sem fallback silencioso)
+
+---
+
+📦 ESCOPO CONTROLADO
+
+Arquivos permitidos:
+
+- server/modules/nfe/nfe-input.builder.ts  
+- server/services/nfe/nfeGenerator.ts  
+- server/services/nfe/nfeValidator.ts  
+
+---
+
+## 🛠️ ETAPA 1 — USAR OVERRIDE POR CLIENTE (CRÍTICO)
+
+📍 Arquivo: nfe-input.builder.ts
+
+Hoje:
+usa apenas:
+config.regimeTributario
+
+---
+
+👉 ALTERAR para:
+
+Prioridade:
+
+1. companies.regimeTributario (cliente do pedido)
+2. fallback → config.regimeTributario
+
+---
+
+Exemplo:
+
+const regime =
+  company?.regimeTributario ||
+  config?.regimeTributario;
+
+---
+
+Depois mapear para CRT:
+
+const crt =
+  regime === "simples_nacional"
+    ? "1"
+    : regime === "mei"
+      ? "2"
+      : "3";
+
+---
+
+⚠️ NÃO remover lógica existente  
+⚠️ Apenas ajustar origem do regime  
+
+---
+
+## 🛠️ ETAPA 2 — CSOSN REALMENTE DINÂMICO
+
+📍 Arquivo: nfeGenerator.ts
+
+🚨 PROBLEMA ATUAL:
+Sempre usa:
+
+<ICMSSN102>
+
+Mesmo quando CSOSN ≠ 102
+
+---
+
+👉 CORRIGIR:
+
+Gerar tag dinamicamente:
+
+<ICMSSN${csosn}>
+
+---
+
+Exemplo CORRETO:
+
+const csosn = p.csosn || "102";
+
+const icmsXml = (crt === '1' || crt === '2')
+  ? <ICMS><ICMSSN${csosn}>         <orig>0</orig>         <CSOSN>${csosn}</CSOSN>      </ICMSSN${csosn}></ICMS>
+  : <ICMS><ICMS00>         <orig>0</orig>         <CST>00</CST>         <modBC>3</modBC>         <vBC>${toMoney(p.vProd)}</vBC>         <pICMS>0.00</pICMS>         <vICMS>0.00</vICMS>      </ICMS00></ICMS>;
+
+---
+
+⚠️ NÃO alterar branch de CRT  
+⚠️ NÃO mexer no CST ainda  
+
+---
+
+## 🛠️ ETAPA 3 — VALIDAR CRT (SEM FALLBACK SILENCIOSO)
+
+📍 Arquivo: nfeValidator.ts
+
+---
+
+Adicionar validação:
+
+if (!['1','2','3'].includes(input.emitente.crt)) {
+  throw new Error("NFE_INVALID_CRT");
+}
+
+---
+
+👉 Impede fallback silencioso no generator
+
+---
+
+## 🛠️ ETAPA 4 — ERRO AMIGÁVEL (OPCIONAL)
+
+📍 nfe-error-parser.ts
+
+Adicionar:
+
+NFE_INVALID_CRT:
+"Regime tributário inválido. Verifique a configuração da empresa."
+
+---
+
+📊 VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+1. Cliente com override → respeitado  
+2. Sem override → usa config global  
+3. CSOSN diferente de 102 → tag correta no XML  
+4. CRT inválido → erro NFE_INVALID_CRT  
+5. Fluxo atual (Simples 102) → continua funcionando  
+
+---
+
+🔒 GARANTIAS
+
+✔ Sem alteração de schema  
+✔ Sem impacto em banco  
+✔ Sem impacto em endpoints  
+✔ Sem impacto na SEFAZ  
+✔ Compatível com tudo já implementado (NF.1 → NF.4.4)
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Multi-regime preparado (base)
+- CSOSN correto no XML
+- CRT consistente
+- Zero regressão
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Trechos alterados por arquivo  
+2. Testes executados  
+3. Confirmação de zero regressão  
+4. Confirmação que Simples Nacional continua funcionando  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO avançar para ICMS real ainda  
+👉 NÃO implementar CST completo  
+👉 NÃO alterar cálculos  
+
+Isso será feito em ou

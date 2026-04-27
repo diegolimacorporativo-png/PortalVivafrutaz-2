@@ -215,10 +215,17 @@ export async function buildNFeInput(
   const company = await storage.getCompany((orderData.order as any).companyId);
   if (!company) throw new Error("Cliente não encontrado");
 
+  // FASE NF.5.1 — ETAPA 1: regime tributário com override por cliente.
+  // Prioridade: companies.regimeTributario → fallback config.regimeTributario.
+  // Mantém mesma semântica de mapeamento para CRT (simples_nacional=1, mei=2, demais=3).
+  const regime =
+    (company as any)?.regimeTributario ||
+    config?.regimeTributario;
+
   const crt =
-    config.regimeTributario === "simples_nacional"
+    regime === "simples_nacional"
       ? "1"
-      : config.regimeTributario === "mei"
+      : regime === "mei"
         ? "2"
         : "3";
 

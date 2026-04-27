@@ -92,6 +92,18 @@ export interface NFeInput {
   orderCode?: string;
 }
 
+/**
+ * FASE NF.5.1 — ETAPA 3: validação CRT sem fallback silencioso.
+ * O generator antes mascarava CRT ausente/inválido com `|| '1'`, escolhendo
+ * Simples Nacional por engano. Aqui falhamos rápido com NFE_INVALID_CRT
+ * (aceito apenas '1', '2' ou '3', conforme manual SEFAZ).
+ */
+export function validarCRT(input: NFeInput): void {
+  if (!['1', '2', '3'].includes(input.emitente.crt)) {
+    throw new Error('NFE_INVALID_CRT');
+  }
+}
+
 export function validarNFeInput(input: NFeInput): NFeValidationError[] {
   const erros: NFeValidationError[] = [];
 
