@@ -1052,7 +1052,11 @@ export const nfeEmissoes = pgTable("nfe_emissoes", {
   danfePath: text("danfe_path"),
   motivoCancelamento: text("motivo_cancelamento"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+},
+(t) => ({
+  serieNumeroUnique: uniqueIndex("idx_nfe_serie_numero_unique")
+    .on(t.serie, t.numero),
+}));
 export const insertNfeEmissaoSchema = createInsertSchema(nfeEmissoes).omit({ id: true, createdAt: true });
 export type NfeEmissao = typeof nfeEmissoes.$inferSelect;
 export type InsertNfeEmissao = z.infer<typeof insertNfeEmissaoSchema>;
