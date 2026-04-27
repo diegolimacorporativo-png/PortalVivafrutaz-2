@@ -1,0 +1,138 @@
+🎯 CONTEXTO — INICIALIZAÇÃO PARA CONTINUIDADE DO PROJETO (FASE 11)
+
+Você está assumindo um sistema SaaS multi-tenant de faturamento e emissão de NF-e.
+
+⚠️ Este NÃO é um projeto novo.
+⚠️ Este sistema já passou por múltiplas fases controladas de migração e já está em produção estável.
+
+---
+
+🧠 ESTADO ATUAL DO SISTEMA
+
+O sistema já possui:
+
+✅ Proteção multi-tenant completa (leitura e escrita)  
+→ validateOrderTenant + isolamento via repository  
+
+✅ Motor de faturamento desacoplado  
+→ billing.service (resolveBillingItems)  
+
+✅ buildNFeInput estável e crítico  
+→ NÃO pode ser alterado  
+
+✅ Endpoints protegidos contra vazamento entre empresas  
+
+✅ Logging de segurança completo (FASE 9)  
+→ [SECURITY] presente em TODOS os caminhos de leitura  
+
+✅ Validação HTTP real (FASE 7 e FASE 10)  
+→ leitura e escrita testadas com isolamento total  
+
+📌 STATUS ATUAL:
+SISTEMA SEGURO E ESTÁVEL PARA PRODUÇÃO
+
+---
+
+⚠️ REGRAS CRÍTICAS (OBRIGATÓRIO RESPEITAR)
+
+1. NÃO remover código existente  
+2. NÃO alterar comportamento atual  
+3. NÃO refatorar sem instrução explícita  
+4. NÃO alterar endpoints existentes  
+5. NÃO alterar buildNFeInput  
+6. NÃO alterar storage.ts  
+7. NÃO alterar estrutura de resposta da API  
+8. NÃO quebrar compatibilidade  
+9. NÃO mover arquivos  
+10. NÃO alterar fluxo de execução  
+
+👉 Qualquer violação acima é erro grave
+
+---
+
+⚙️ PADRÃO DE TRABALHO
+
+Você deve SEMPRE:
+
+1. Analisar antes de agir  
+2. Explicar o que entendeu  
+3. Identificar riscos  
+4. Propor abordagem mínima  
+5. Aguardar confirmação antes de implementar  
+
+---
+
+📦 ARQUITETURA ATUAL
+
+- tenantGuard.ts → segurança multi-tenant
+- billing.service.ts → motor de faturamento
+- nfe-input.builder.ts → construção NF-e (CRÍTICO)
+- routes.ts → endpoints legacy
+- modules/orders/* → router modular principal
+- faturamento.cron.ts → automação
+
+---
+
+📌 PONTO IMPORTANTE (APRENDIDO NAS FASES ANTERIORES)
+
+- Existem rotas legacy que NÃO são executadas
+- O caminho real pode estar no router modular
+- Logs devem ser aplicados no ponto REAL de execução
+
+---
+
+🎯 OBJETIVO ATUAL
+
+Estamos iniciando a:
+
+FASE 11 — (NÃO IMPLEMENTAR AINDA)
+
+👉 Nesta etapa você NÃO deve codar ainda
+
+---
+
+📌 SUA TAREFA AGORA
+
+Apenas:
+
+1. Ler o código do projeto  
+2. Confirmar entendimento da arquitetura  
+3. Confirmar como o multi-tenant está sendo aplicado  
+4. Identificar possíveis gaps restantes (se houver)  
+5. Confirmar que entendeu as regras  
+
+---
+
+🚫 PROIBIDO NESTA ETAPA
+
+- implementar código  
+- sugerir refatoração  
+- alterar arquivos  
+- propor melhorias fora de escopo  
+
+---
+
+✅ RESPOSTA ESPERADA
+
+Responder com:
+
+1. Resumo do entendimento do sistema  
+2. Como o multi-tenant está protegido (leitura + escrita)  
+3. Pontos críticos que exigem cuidado  
+4. Se existe algum risco atual  
+5. Confirmação de que está pronto para a FASE 11  
+
+---
+
+⚠️ IMPORTANTE
+
+Se não tiver certeza de algo:
+
+👉 NÃO inventar  
+👉 Declarar dúvida claramente  
+
+---
+
+🎯 OBJETIVO FINAL
+
+Garantir que você ENTENDE o sistema antes de qualquer alteração fu
