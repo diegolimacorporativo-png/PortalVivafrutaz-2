@@ -1,0 +1,130 @@
+🎯 OBJETIVO: FASE 9 — COBERTURA DE LOG NO ROUTER MODULAR (SEM QUEBRAR NADA)
+
+Adicionar logging de segurança no caminho REAL de GET /api/orders/:id, garantindo observabilidade completa sem alterar comportamento.
+
+---
+
+🧠 CONTEXTO
+
+- FASE 8 adicionou logs no routes.ts (legacy)
+- Porém o endpoint /api/orders/:id é atendido pelo router modular:
+
+server/modules/orders/orders.routes.ts  
+→ orders.controller.ts  
+→ orders.service.ts  
+
+👉 O log atual NÃO é executado
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar status code (404 continua 404)
+2. NÃO alterar resposta da API
+3. NÃO alterar lógica de negócio
+4. NÃO alterar repository
+5. NÃO alterar tenantContext
+6. NÃO alterar fluxo de execução
+7. NÃO alterar contratos de função
+8. NÃO mover arquivos
+9. NÃO refatorar
+
+👉 Apenas adicionar log
+
+---
+
+📦 TAREFA
+
+---
+
+1. LOCAL EXATO DA ALTERAÇÃO
+
+Arquivo:
+server/modules/orders/orders.controller.ts
+
+Função:
+ordersController.get
+
+---
+
+2. IDENTIFICAR PONTO
+
+Localizar trecho onde:
+
+- o pedido é buscado
+- e NÃO é encontrado (retorno 404)
+
+---
+
+3. ADICIONAR LOG
+
+ANTES de retornar o 404, adicionar:
+
+ts console.warn(   `[SECURITY] Possible cross-tenant access (404) | orderId=${req.params.id}` ); 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO chamar validateOrderTenant
+- NÃO alterar lógica de busca
+- NÃO alterar if existente
+- NÃO alterar retorno
+- NÃO adicionar try/catch novo
+
+👉 Apenas inserir o log
+
+---
+
+4. PADRÃO DE LOG
+
+Manter consistência:
+
+[SECURITY] <descrição> | orderId=X
+
+---
+
+📊 RESULTADO ESPERADO
+
+Após implementação:
+
+| Caminho | Log |
+|--------|-----|
+| tenant mismatch (validateOrderTenant) | ✅ |
+| missing tenant context | ✅ |
+| 404 no legacy route | ✅ |
+| 404 no router modular | ✅ (novo) |
+
+---
+
+🧪 VALIDAÇÃO
+
+Rodar novamente:
+
+scripts/test-tenant-http-security.ts
+
+Esperado:
+
+- Todos cenários continuam passando
+- Logs [SECURITY] presentes em TODOS os caminhos
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+Se houver qualquer risco de alterar comportamento:
+
+👉 PARAR e perguntar antes de implementar
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. ponto exato onde foi adicionado
+2. trecho de código
+3. resultado do teste
+4. confirmação:
+
+OBSERVABILIDADE TOTAL ATINGIDA
