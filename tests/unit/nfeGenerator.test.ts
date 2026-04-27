@@ -151,16 +151,16 @@ describe("gerarNFeXML — ETAPAS 4 + 5 (CSOSN dinâmico e validado)", () => {
 });
 
 describe("gerarNFeXML — FASE NF.6 (CST dinâmico no regime normal)", () => {
-  test("CRT '3' sem cst (default '00') gera <ICMS00>...<CST>00</CST> — backward compat", async () => {
+  test("CRT '3' sem cst (default '00') gera <ICMS00>...<CST>00</CST> — estrutura legada + cálculo NF.7.2", async () => {
     const out = await gerarNFeXML(makeInput({ crt: "3" }), 200);
     assert.match(
       out.xmlGerado,
       /<ICMS00><orig>0<\/orig><CST>00<\/CST><modBC>3<\/modBC>/,
     );
     assert.match(out.xmlGerado, /<\/ICMS00>/);
-    // calculation preserved (ETAPA 4)
-    assert.match(out.xmlGerado, /<pICMS>0\.00<\/pICMS>/);
-    assert.match(out.xmlGerado, /<vICMS>0\.00<\/vICMS>/);
+    // FASE NF.7.2 — alíquota fixa 18% sobre vBC=50 → vICMS=9.00
+    assert.match(out.xmlGerado, /<pICMS>18\.00<\/pICMS>/);
+    assert.match(out.xmlGerado, /<vICMS>9\.00<\/vICMS>/);
   });
 
   test("CRT '3' + cst '20' gera <ICMS20>...<CST>20</CST></ICMS20>", async () => {
@@ -173,9 +173,9 @@ describe("gerarNFeXML — FASE NF.6 (CST dinâmico no regime normal)", () => {
       !/<ICMS00>/.test(out.xmlGerado),
       "não deve cair na tag fixa antiga <ICMS00>",
     );
-    // cálculo segue zerado (ETAPA 4)
-    assert.match(out.xmlGerado, /<pICMS>0\.00<\/pICMS>/);
-    assert.match(out.xmlGerado, /<vICMS>0\.00<\/vICMS>/);
+    // FASE NF.7.2 — cálculo aplicado também no CST 20 (vBC=50 → vICMS=9.00)
+    assert.match(out.xmlGerado, /<pICMS>18\.00<\/pICMS>/);
+    assert.match(out.xmlGerado, /<vICMS>9\.00<\/vICMS>/);
     assert.match(out.xmlGerado, /<modBC>3<\/modBC>/);
   });
 

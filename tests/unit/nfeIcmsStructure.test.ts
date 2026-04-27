@@ -82,27 +82,30 @@ function extractIcmsBlock(xml: string, tag: string): string {
 }
 
 describe("NF.7.1 — estrutura ICMS por CST (CRT='3')", () => {
-  test("TESTE 1 — CST '00' gera estrutura completa", async () => {
+  test("TESTE 1 — CST '00' gera estrutura completa (NF.7.2: pICMS=18, vICMS=vBC*0.18)", async () => {
     const out = await gerarNFeXML(makeInput({ crt: "3", cst: "00" }), 700);
     const block = extractIcmsBlock(out.xmlGerado, "ICMS00");
     assert.ok(block.length > 0, "deve conter <ICMS00>...</ICMS00>");
     assert.match(block, /<modBC>3<\/modBC>/);
     assert.match(block, /<vBC>50\.00<\/vBC>/);
-    assert.match(block, /<pICMS>0\.00<\/pICMS>/);
-    assert.match(block, /<vICMS>0\.00<\/vICMS>/);
+    // NF.7.2 — alíquota fixa 18% sobre vBC=50 → vICMS=9.00
+    assert.match(block, /<pICMS>18\.00<\/pICMS>/);
+    assert.match(block, /<vICMS>9\.00<\/vICMS>/);
     // pRedBC não pertence ao CST 00
     assert.ok(!/<pRedBC>/.test(block), "CST 00 não deve emitir <pRedBC>");
   });
 
-  test("TESTE 2 — CST '20' inclui <pRedBC> + base", async () => {
+  test("TESTE 2 — CST '20' inclui <pRedBC> + base (NF.7.2: cálculo aplicado)", async () => {
     const out = await gerarNFeXML(makeInput({ crt: "3", cst: "20" }), 701);
     const block = extractIcmsBlock(out.xmlGerado, "ICMS20");
     assert.ok(block.length > 0, "deve conter <ICMS20>...</ICMS20>");
     assert.match(block, /<modBC>3<\/modBC>/);
     assert.match(block, /<vBC>50\.00<\/vBC>/);
+    // pRedBC continua 0.00 (NF.7.x cuidará da redução real)
     assert.match(block, /<pRedBC>0\.00<\/pRedBC>/);
-    assert.match(block, /<pICMS>0\.00<\/pICMS>/);
-    assert.match(block, /<vICMS>0\.00<\/vICMS>/);
+    // NF.7.2 — cálculo é aplicado no CST 20 também
+    assert.match(block, /<pICMS>18\.00<\/pICMS>/);
+    assert.match(block, /<vICMS>9\.00<\/vICMS>/);
     // não deve cair na tag fixa antiga
     assert.ok(!/<ICMS00>/.test(out.xmlGerado), "não deve emitir <ICMS00>");
   });
@@ -166,7 +169,7 @@ describe("NF.7.1 — Simples Nacional ignora CST", () => {
 });
 
 describe("NF.7.1 — backward compat (default sem CST)", () => {
-  test("TESTE 6 — CRT '3' sem cst cai em <ICMS00> (legado preservado)", async () => {
+  test("TESTE 6 — CRT '3' sem cst cai em <ICMS00> com cálculo NF.7.2 aplicado", async () => {
     const out = await gerarNFeXML(makeInput({ crt: "3" }), 705);
     const block = extractIcmsBlock(out.xmlGerado, "ICMS00");
     assert.ok(block.length > 0, "deve conter <ICMS00>...</ICMS00>");
@@ -174,8 +177,9 @@ describe("NF.7.1 — backward compat (default sem CST)", () => {
     assert.match(block, /<CST>00<\/CST>/);
     assert.match(block, /<modBC>3<\/modBC>/);
     assert.match(block, /<vBC>50\.00<\/vBC>/);
-    assert.match(block, /<pICMS>0\.00<\/pICMS>/);
-    assert.match(block, /<vICMS>0\.00<\/vICMS>/);
+    // NF.7.2 — alíquota fixa 18% sobre vBC=50 → vICMS=9.00
+    assert.match(block, /<pICMS>18\.00<\/pICMS>/);
+    assert.match(block, /<vICMS>9\.00<\/vICMS>/);
     // pRedBC não vaza para o default
     assert.ok(!/<pRedBC>/.test(block), "default não deve emitir <pRedBC>");
   });

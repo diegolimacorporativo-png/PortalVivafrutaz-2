@@ -1,0 +1,150 @@
+8421"}
+🎯 FASE NF.7.2 — CÁLCULO REAL DE ICMS (BASE INICIAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura XML (NF.7.1 deve continuar intacta)  
+2. NÃO alterar CST  
+3. NÃO alterar CSOSN  
+4. NÃO quebrar Simples Nacional  
+5. NÃO criar regras fiscais complexas ainda  
+
+---
+
+🧠 OBJETIVO
+
+Começar cálculo real de ICMS para:
+
+👉 CRT = 3 (Lucro Real / Presumido)
+
+---
+
+## 🛠️ ETAPA 1 — BASE DE CÁLCULO
+
+Arquivo:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+Hoje:
+
+ts <vBC>${toMoney(p.vProd)}</vBC> 
+
+---
+
+👉 Manter:
+
+ts const vBC = p.vProd; 
+
+---
+
+## 🛠️ ETAPA 2 — ALÍQUOTA SIMPLES (FIXA)
+
+Adicionar:
+
+ts const pICMS = 18; // padrão inicial (SP exemplo) 
+
+---
+
+## 🛠️ ETAPA 3 — VALOR DO ICMS
+
+ts const vICMS = (vBC * pICMS) / 100; 
+
+---
+
+## 🛠️ ETAPA 4 — INJETAR NO XML
+
+Substituir:
+
+xml <pICMS>0.00</pICMS> <vICMS>0.00</vICMS> 
+
+---
+
+Por:
+
+xml <pICMS>${toMoney(pICMS)}</pICMS> <vICMS>${toMoney(vICMS)}</vICMS> 
+
+---
+
+## 🛠️ ETAPA 5 — NÃO AFETAR OUTROS CST
+
+---
+
+### ❗ CST 40 / 41 / 50 / 60
+
+👉 CONTINUAR SEM cálculo  
+👉 NÃO adicionar pICMS ou vICMS  
+
+---
+
+### ❗ CST 20
+
+👉 aplicar cálculo normalmente  
+👉 manter <pRedBC> (mesmo 0.00 por enquanto)
+
+---
+
+## 🛠️ ETAPA 6 — BLOQUEAR SIMPLES NACIONAL
+
+---
+
+Se:
+
+ts crt === '1' || crt === '2' 
+
+👉 NÃO calcular nada  
+👉 manter comportamento atual  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+Cenário	Resultado esperado
+
+CRT=3 + CST 00	vICMS calculado corretamente
+CRT=3 + CST 20	vICMS calculado + pRedBC presente
+CRT=3 + CST 40	sem ICMS
+CRT=1 (Simples)	nada muda
+
+---
+
+## 🔒 GARANTIAS
+
+✔ cálculo inicial funcionando  
+✔ XML continua válido  
+✔ pronto para evolução (alíquotas por estado depois)  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- ICMS começa a ser calculado  
+- sistema evolui para fiscal real  
+- base pronta para regras avançadas  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trecho de cálculo adicionado  
+2. Exemplo com valor calculado  
+3. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 usar valor fixo (18%) por enquanto  
+👉 NÃO implementar regra por estado ainda  
+👉 NÃO mexer em ST ainda  
+
+---
+
+Essa é a base d

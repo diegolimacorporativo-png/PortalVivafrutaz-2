@@ -200,16 +200,28 @@ export async function gerarNFeXML(
     }
     const cstSafe = escapeXml(rawCst);
 
-    // FASE NF.7.1 — estrutura de ICMS por CST (sem cálculo: valores seguem 0.00).
-    // - default ('00' e demais não mapeados): preserva XML legado byte-a-byte.
+    // FASE NF.7.1 — estrutura de ICMS por CST.
+    // - default ('00' e demais não mapeados): estrutura completa com base/imposto.
     // - '20' (redução de base): adiciona <pRedBC>0.00</pRedBC>.
     // - '40' / '41' / '50' (isento/não tributado): apenas <orig> + <CST>.
     // - '60' (ICMS ST): estrutura mínima (NF.7.x cuidará de vBCST/vICMSST reais).
+    //
+    // FASE NF.7.2 — cálculo real de ICMS (CRT=3 apenas):
+    // - vBC = p.vProd (sem redução por enquanto);
+    // - pICMS = 18% (alíquota fixa inicial — base para regra por UF na NF.7.x);
+    // - vICMS = vBC * pICMS / 100.
+    // CST 40/41/50/60 NÃO recebem cálculo (estrutura mínima preservada).
+    // CRT 1/2 (Simples Nacional) usa o branch <ICMSSN…> abaixo e icmsContent
+    // é descartado — comportamento de Simples 100% preservado.
     // ⚠ Sem função separada e sem refatorar o bloco — apenas o switch local.
+    const vBC = Number(p.vProd) || 0;
+    const pICMS = 18; // alíquota fixa inicial (NF.7.x: regra por UF/CFOP/produto)
+    const vICMS = (vBC * pICMS) / 100;
+
     let icmsContent: string;
     switch (rawCst) {
       case '20':
-        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pRedBC>0.00</pRedBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS>`;
+        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(vBC)}</vBC><pRedBC>0.00</pRedBC><pICMS>${toMoney(pICMS)}</pICMS><vICMS>${toMoney(vICMS)}</vICMS>`;
         break;
       case '40':
       case '41':
@@ -218,7 +230,7 @@ export async function gerarNFeXML(
         icmsContent = `<orig>0</orig><CST>${cstSafe}</CST>`;
         break;
       default:
-        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS>`;
+        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(vBC)}</vBC><pICMS>${toMoney(pICMS)}</pICMS><vICMS>${toMoney(vICMS)}</vICMS>`;
         break;
     }
 
