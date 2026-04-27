@@ -1,0 +1,163 @@
+🎯 FASE 6.1 — TESTES DE SEGURANÇA MULTI-TENANT
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar código de produção  
+2. NÃO modificar endpoints  
+3. NÃO alterar lógica existente  
+4. NÃO tocar em storage.ts  
+5. NÃO alterar validateOrderTenant  
+6. NÃO alterar safeGetOrder  
+
+👉 Apenas CRIAR testes automatizados
+
+---
+
+🧠 OBJETIVO
+
+Garantir que a proteção multi-tenant NUNCA seja quebrada
+
+👉 Transformar segurança em regra automática
+
+---
+
+📦 ESCOPO
+
+Criar novo arquivo:
+
+tests/unit/tenantGuard.test.ts
+
+---
+
+## 🛠️ ETAPA 1 — SETUP BASE
+
+Importar:
+
+- validateOrderTenant  
+- safeGetOrder (se necessário)  
+- AppError / ForbiddenError / NotFoundError  
+
+Mockar:
+
+- storage.getOrder  
+- contexto de tenant (AsyncLocalStorage / requireTenantId)
+
+---
+
+## 🛠️ ETAPA 2 — CENÁRIOS OBRIGATÓRIOS
+
+---
+
+### ✅ TESTE 1 — MESMO TENANT (SUCESSO)
+
+Cenário:
+
+- tenantId = 1  
+- order.companyId = 1  
+
+Esperado:
+
+- NÃO lançar erro  
+- resolve normalmente  
+
+---
+
+### ❌ TESTE 2 — TENANT DIFERENTE (BLOQUEIO)
+
+Cenário:
+
+- tenantId = 1  
+- order.companyId = 2  
+
+Esperado:
+
+- lançar ForbiddenError  
+- status = 403  
+
+---
+
+### ❌ TESTE 3 — PEDIDO NÃO EXISTE
+
+Cenário:
+
+- storage.getOrder retorna null  
+
+Esperado:
+
+- lançar NotFoundError  
+- status = 404  
+
+---
+
+### 🔒 TESTE 4 — LOG DE SEGURANÇA
+
+Espionar console.warn ou logger
+
+Cenário:
+
+- tenant mismatch  
+
+Esperado:
+
+- log contém:
+
+"[SECURITY]"
+"Tenant mismatch"
+
+---
+
+## 🛠️ ETAPA 3 — SAFE GET (SE USADO)
+
+Se safeGetOrder for usado internamente:
+
+Criar teste garantindo:
+
+- ele também bloqueia tenant diferente  
+- mantém comportamento igual  
+
+---
+
+## 🛠️ ETAPA 4 — NÃO REGRESSÃO
+
+Garantir:
+
+- erro continua sendo AppError  
+- status HTTP preservado  
+- mensagens não quebram  
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ Segurança multi-tenant coberta por testes  
+✔ Proteção automática contra regressão  
+✔ Nenhuma alteração no sistema existente  
+
+---
+
+🔒 IMPACTO
+
+ANTES:
+Segurança dependia do dev lembrar
+
+DEPOIS:
+Segurança garantida por teste
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Arquivo criado  
+2. Casos implementados  
+3. Resultado dos testes  
+4. Confirmação de zero impacto no sistema  
+
+---
+
+🎯 MISSÃO
+
+Transformar segurança em regra permanente do siste
