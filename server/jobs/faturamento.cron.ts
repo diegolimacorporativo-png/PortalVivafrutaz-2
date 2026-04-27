@@ -185,6 +185,21 @@ export async function runFaturamentoCron(
   const detalhes = await processInBatches(candidates, async (row) => {
     const orderId = row.id;
     try {
+      // FASE 3 — sanity check: cron não tem contexto de tenant, então
+      // não usamos validateOrderTenant aqui. Apenas garantimos que o row
+      // veio com company_id (qualquer ausência é um sinal de corrupção
+      // upstream e bloqueia a emissão por segurança).
+      if (!row.company_id) {
+        console.error(
+          `[SECURITY] Order sem companyId no cron: orderId=${orderId}`,
+        );
+        return {
+          orderId,
+          status: "error",
+          reason: "Order sem companyId (sanity check)",
+        };
+      }
+
       // Guard — nunca emite sem passar aqui
       const check = await canEmitNFe(orderId);
 

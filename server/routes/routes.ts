@@ -48,6 +48,8 @@ import {
 } from "../modules/billing/subscription.middleware";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
+// FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
+import { validateOrderTenant } from "../core/security/tenantGuard";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
 import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
 import { runFaturamentoCron } from "../jobs/faturamento.cron";
@@ -5480,6 +5482,9 @@ export async function registerRoutes(
           });
         }
 
+        // FASE 3 — bloqueia emissão de NF para pedido de outro tenant.
+        await validateOrderTenant(Number(orderId));
+
         const input = await buildNFeInput(Number(orderId));
         const erros = validarNFeInput(input);
         if (erros.length > 0) return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
@@ -5530,6 +5535,9 @@ export async function registerRoutes(
               if (!check.allowed) {
                 return { orderId, status: 'blocked', reason: check.reason };
               }
+
+              // FASE 3 — valida tenant também na emissão em lote (cada item).
+              await validateOrderTenant(Number(orderId));
 
               const input = await buildNFeInput(Number(orderId));
               const erros = validarNFeInput(input);
@@ -5651,6 +5659,9 @@ export async function registerRoutes(
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
+
+        // FASE 3 — antes de usar nfe.orderId, garante que pertence ao tenant.
+        if (nfe.orderId) await validateOrderTenant(nfe.orderId);
 
         const input = nfe.orderId ? await buildNFeInput(nfe.orderId) : null;
         if (!input) return res.status(400).json({ message: 'Não é possível gerar DANFE sem dados do pedido' });
