@@ -1,0 +1,200 @@
+🎯 FASE NF.7.1.1 — TESTES DE ESTRUTURA ICMS POR CST (TRAVAR XML)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código de produção  
+2. NÃO alterar generator  
+3. NÃO alterar builder  
+4. NÃO alterar lógica existente  
+5. NÃO alterar endpoints  
+
+👉 Apenas criar testes unitários
+
+---
+
+🧠 OBJETIVO
+
+Garantir que o XML de ICMS:
+
+- nunca quebre  
+- nunca mude estrutura por acidente  
+- continue válido para SEFAZ  
+
+---
+
+📦 ARQUIVO
+
+Criar:
+
+tests/unit/nfeIcmsStructure.test.ts
+
+---
+
+## 🛠️ ETAPA 1 — SETUP BASE
+
+Importar:
+
+- gerarNFeXML
+- função helper de mock de input (usar padrão já existente nos testes)
+
+---
+
+## 🛠️ ETAPA 2 — TESTES POR CST
+
+---
+
+### 🟢 TESTE 1 — CST 00
+
+Input:
+
+cst = "00", crt = "3"
+
+---
+
+Validar:
+
+✔ contém <ICMS00>  
+✔ contém <modBC>  
+✔ contém <vBC>  
+✔ contém <pICMS>  
+✔ contém <vICMS>  
+
+---
+
+### 🟡 TESTE 2 — CST 20
+
+Input:
+
+cst = "20", crt = "3"
+
+---
+
+Validar:
+
+✔ contém <ICMS20>  
+✔ contém <pRedBC>  
+✔ contém <modBC>  
+
+---
+
+### 🔴 TESTE 3 — CST 40
+
+Input:
+
+cst = "40", crt = "3"
+
+---
+
+Validar:
+
+✔ contém <ICMS40>  
+❌ NÃO contém <modBC>  
+❌ NÃO contém <vBC>  
+❌ NÃO contém <pICMS>  
+
+---
+
+### 🔵 TESTE 4 — CST 60
+
+Input:
+
+cst = "60", crt = "3"
+
+---
+
+Validar:
+
+✔ contém <ICMS60>  
+❌ NÃO contém <vBC>  
+❌ NÃO contém <pICMS>  
+
+---
+
+## 🛠️ ETAPA 3 — TESTE SIMPLES NACIONAL
+
+---
+
+### 🌿 TESTE 5 — CRT = 1 (Simples)
+
+Input:
+
+crt = "1"
+csosn = "102"
+cst = "20" (mesmo assim)
+
+---
+
+Validar:
+
+✔ contém <ICMSSN102>  
+✔ contém <CSOSN>102</CSOSN>  
+❌ NÃO contém <ICMS20>  
+❌ NÃO contém <ICMS00>  
+
+---
+
+## 🛠️ ETAPA 4 — TESTE DE REGRESSÃO
+
+---
+
+### 🧪 TESTE 6 — DEFAULT (sem CST)
+
+Input:
+
+sem cst, crt = "3"
+
+---
+
+Validar:
+
+✔ contém <ICMS00>  
+✔ mantém comportamento legado  
+
+---
+
+## 🛠️ ETAPA 5 — EXECUÇÃO
+
+Rodar:
+
+npm run test:unit
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+✔ todos os testes passam  
+✔ nenhuma falha  
+✔ XML travado contra regressão  
+
+---
+
+## 🔒 GARANTIA
+
+Depois disso:
+
+- ninguém quebra XML sem teste falhar  
+- SEFAZ não quebra em produção  
+- NF.7.2 pode ser implementada com segurança  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado  
+2. Número de testes  
+3. Resultado (pass/fail)  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO alterar lógica  
+👉 NÃO refatorar  
+👉 NÃO otimizar  
+
+👉 Apenas travar comportamento a
