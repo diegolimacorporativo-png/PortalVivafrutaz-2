@@ -1,0 +1,117 @@
+🎯 OBJETIVO: FASE 4 — TROCA CONTROLADA DO MOTOR DE FATURAMENTO
+
+Substituir a lógica interna de faturamento dentro do buildNFeInput para usar o novo billing.service, sem quebrar comportamento.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar assinatura de buildNFeInput
+2. NÃO alterar endpoints
+3. NÃO remover código antigo
+4. NÃO alterar comportamento final
+5. NÃO alterar estrutura de retorno
+
+👉 Apenas substituir internamente de forma controlada
+
+---
+
+🧠 CONTEXTO
+
+- resolveBillingItems já foi validado (100% equivalente)
+- resolveDraftItems + applyItemGrouping ainda existem
+- buildNFeInput ainda usa a lógica antiga
+
+---
+
+📦 TAREFAS
+
+---
+
+1. IMPORTAR NOVO SERVICE
+
+No arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+Adicionar:
+
+import { resolveBillingItems } from "../billing/billing.service";
+
+---
+
+2. SUBSTITUIR LÓGICA INTERNA
+
+Localizar bloco atual:
+
+const resolved = await resolveDraftItems({ orderId, draftId, company });
+
+let sourceItems: any[];
+
+if (resolved !== null) {
+  sourceItems = resolved.useGroupedItems
+    ? applyItemGrouping(resolved.items, "08039000", defaultCfop, "KG")
+    : resolved.items;
+} else {
+  sourceItems = orderData.items;
+}
+
+---
+
+Substituir por:
+
+// FASE 4: usando billing.service (equivalência já validada)
+// lógica antiga mantida para rollback futuro
+
+const { items: sourceItems } = await resolveBillingItems(orderId, draftId);
+
+---
+
+3. NÃO ALTERAR MAIS NADA
+
+⚠️ IMPORTANTE:
+
+- NÃO mexer no restante da função
+- NÃO alterar como produtos são montados
+- NÃO alterar IBGE lookup
+- NÃO alterar validações
+- NÃO alterar cálculos
+
+---
+
+4. MANTER CÓDIGO ANTIGO
+
+- resolveDraftItems permanece no arquivo
+- applyItemGrouping permanece no arquivo
+
+(NÃO remover, apenas deixar de usar)
+
+---
+
+📊 RESULTADO ESPERADO
+
+- buildNFeInput funcionando exatamente igual
+- agora usando billing.service internamente
+- zero diferença no output
+- sistema continua estável
+
+---
+
+🧪 VALIDAÇÃO
+
+Rodar:
+
+npx tsx scripts/test-billing-equivalence.ts
+
+Esperado:
+
+EQUIVALENCE OK ✅
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. trecho substituído
+2. resultado do teste
+3. status do sistema (app rodando, sem erros

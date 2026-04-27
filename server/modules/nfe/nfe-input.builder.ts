@@ -16,6 +16,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../database/db";
 import { nfDrafts } from "@shared/schema";
 import { storage } from "../../services/storage";
+// FASE 4 — novo motor de faturamento (equivalência 100% validada
+// em scripts/test-billing-equivalence.ts antes da troca).
+import { resolveBillingItems } from "../billing/billing.service";
 
 // ── Helper: busca código IBGE via ViaCEP ─────────────────────────────────────
 
@@ -230,18 +233,9 @@ export async function buildNFeInput(
   const defaultCfop =
     (company as any).defaultCfop || config.defaultCfop || "5102";
 
-  // STEP FISCAL 2 — fonte dos itens: draft (se houver) ou order_items (legado).
-  // O resolver respeita: draftId explícito > company.useFiscalDraft > legacy.
-  // Quando o draft marca useGroupedItems=true, consolidamos numa única linha.
-  const resolved = await resolveDraftItems({ orderId, draftId, company });
-  let sourceItems: any[];
-  if (resolved !== null) {
-    sourceItems = resolved.useGroupedItems
-      ? applyItemGrouping(resolved.items, "08039000", defaultCfop, "KG")
-      : resolved.items;
-  } else {
-    sourceItems = orderData.items;
-  }
+  // FASE 4: usando billing.service (equivalência já validada)
+  // lógica antiga mantida para rollback futuro
+  const { items: sourceItems } = await resolveBillingItems(orderId, draftId);
 
   const produtos = sourceItems.map((item: any, idx: number) => ({
     cProd: String(item.productId || idx + 1).padStart(6, "0"),
