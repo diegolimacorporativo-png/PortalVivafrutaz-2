@@ -1,0 +1,187 @@
+🎯 FASE NF.2.1 — HARDENING FINAL (ZERO BUG SILENCIOSO)
+
+---
+
+📌 OBJETIVO
+
+Eliminar riscos residuais no gerarNFeXML
+
+👉 SEM alterar fluxo  
+👉 SEM alterar assinatura  
+👉 SEM mudar comportamento de sucesso  
+👉 Apenas impedir inconsistência silenciosa  
+
+---
+
+🧠 CONTEXTO
+
+FASE NF.2 já implementou:
+
+- validações de entrada ✅
+- proteção contra NaN ✅
+- sanitização XML ✅
+
+⚠️ Ainda existem riscos leves:
+
+- xmlSafe pode esconder dado inválido  
+- vProd fallback pode mascarar erro  
+- validação de XML é superficial  
+- campos obrigatórios podem passar vazios pós-sanitização  
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar estrutura do XML  
+- NÃO alterar retorno da função  
+- NÃO alterar ordem de execução  
+- NÃO mexer em gerarChaveNFe  
+- NÃO alterar integração com storage  
+- NÃO alterar fluxo de erro existente  
+
+👉 Apenas reforçar validação
+
+---
+
+# 🛠️ AJUSTE 1 — BLOQUEAR STRING VAZIA PÓS-SANITIZAÇÃO
+
+Após aplicar xmlSafe, validar campos obrigatórios novamente:
+
+Obrigatórios:
+
+- natOp
+- emitente.xNome
+- destinatario.xNome
+- produto.xProd
+
+Se qualquer um for "" (string vazia):
+
+ts throw new Error("NFE_XML_EMPTY_REQUIRED_FIELD");
+
+👉 Isso impede xmlSafe de mascarar erro real
+
+---
+
+# 🛠️ AJUSTE 2 — REMOVER FALLBACK SILENCIOSO DE vProd
+
+Atualmente:
+
+ts vProd = inválido → 0
+
+Alterar lógica:
+
+👉 NÃO permitir vProd = 0 silencioso
+
+ANTES de montar XML:
+
+ts
+if (!Number.isFinite(vProd) || vProd <= 0) {
+  throw new Error("NFE_XML_INVALID_VPROD");
+}
+
+👉 Mantém coerência com validação anterior
+
+---
+
+# 🛠️ AJUSTE 3 — VALIDAÇÃO DE XML MAIS SEGURA
+
+Substituir:
+
+ts xml.includes("<NFe")
+
+Por:
+
+ts
+if (
+  typeof xml !== "string" ||
+  !xml.includes("<NFe") ||
+  !xml.includes("</NFe>") ||
+  xml.length < 100
+) {
+  throw new Error("NFE_XML_INVALID_STRUCTURE");
+}
+
+👉 Continua leve, mas evita XML truncado
+
+---
+
+# 🛠️ AJUSTE 4 — NORMALIZAÇÃO FINAL DE STRINGS
+
+Antes de inserir no XML:
+
+ts value.replace(/\s+/g, " ").trim()
+
+👉 Garantir:
+
+- sem espaços duplicados  
+- sem quebra de layout  
+
+⚠️ NÃO remover acentos  
+⚠️ NÃO alterar conteúdo fiscal  
+
+---
+
+# 🛠️ AJUSTE 5 — PROTEÇÃO EXTRA EM PRODUTOS
+
+Para cada produto:
+
+Validar:
+
+- xProd não vazio após xmlSafe  
+- tamanho mínimo > 2 caracteres  
+
+ts
+if (!xProd || xProd.length < 2) {
+  throw new Error("NFE_XML_INVALID_PRODUCT_NAME");
+}
+
+---
+
+# 🛠️ AJUSTE 6 — LOG DE ERRO MAIS CLARO
+
+Antes de lançar erro, adicionar:
+
+ts
+console.error("[NFE_XML_ERROR]", {
+  orderId,
+  numero,
+  error: "NFE_XML_INVALID_*"
+});
+
+👉 NÃO logar dados sensíveis
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- nenhum campo obrigatório vazio no XML  
+- nenhum valor numérico inválido passa  
+- XML nunca sai truncado  
+- zero erro silencioso  
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 FASE NF.3 — envio SEFAZ / mock controlado  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Ajustes aplicados  
+2. Pontos protegidos  
+3. Exemplos de erro bloqueado  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO alterar comportamento de sucesso  
+👉 NÃO refatorar código  
+👉 NÃO otimizar fluxo  
+
+👉 Apenas blinda
