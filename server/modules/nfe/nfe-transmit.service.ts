@@ -88,10 +88,11 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
     throw new Error('NFE_INVALID_STATE_TRANSITION');
   }
   await storage.updateNfeEmissao(nfe.id, { status: 'enviando' });
-  console.log('[NFE_STATUS_TRANSITION]', {
+  console.info('[NFE_STATUS_TRANSITION]', {
     nfeId: nfe.id,
     from: 'gerada',
     to: 'enviando',
+    attempt: 1,
   });
 
   // ETAPA 8 — retry controlado (3 tentativas, sem retry em erro de validação).
@@ -116,12 +117,16 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
         // FASE NF.3.1 — recuperação: marcar "erro" só após esgotar tentativas,
         // sem sobrescrever um eventual "autorizada" definido por outro caminho.
         try {
-          const cur = await storage.getNfeEmissao(nfe.id);
-          if (cur && cur.status !== 'autorizada') {
+          const latest = await storage.getNfeEmissao(nfe.id);
+          if (latest?.status === 'autorizada') {
+            console.warn('[NFE_ERROR_ABORTED_ALREADY_AUTHORIZED]', {
+              nfeId: nfe.id,
+            });
+          } else {
             await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
             console.warn('[NFE_STATUS_TRANSITION]', {
               nfeId: nfe.id,
-              from: cur.status,
+              from: 'enviando',
               to: 'erro',
             });
           }
