@@ -1,0 +1,165 @@
+🎯 OBJETIVO: EXTRAIR MAPA COMPLETO E PROFUNDO DO SISTEMA (SEM ALTERAR NADA)
+
+Você deve analisar TODO o código do projeto e gerar um mapeamento técnico completo da arquitetura atual.
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO modificar nenhum arquivo
+2. NÃO criar novos arquivos
+3. NÃO instalar dependências
+4. NÃO executar scripts
+5. NÃO refatorar código
+6. NÃO sugerir melhorias ainda
+
+👉 Seu papel é SOMENTE: LER, RASTREAR E DOCUMENTAR
+
+---
+
+⚠️ REGRA DE PROFUNDIDADE (OBRIGATÓRIO)
+
+- NÃO responder de forma genérica
+- NÃO resumir demais
+- SEMPRE citar:
+  - arquivos reais
+  - funções reais
+  - fluxo real de chamadas
+
+👉 Se não souber algo, diga explicitamente “não encontrado no código”
+
+---
+
+📦 1. ESTRUTURA REAL DO PROJETO
+
+Liste a estrutura REAL (não exemplo), incluindo:
+
+- pastas principais
+- módulos
+- arquivos críticos
+
+---
+
+🧩 2. FLUXO REAL DE EXECUÇÃO
+
+Explique com base no código:
+
+1. Arquivo de entrada (ex: server.ts, app.ts)
+2. Como o servidor é inicializado
+3. Como as rotas são registradas
+4. Fluxo completo de uma requisição:
+
+Exemplo esperado:
+rota X → controller Y → função Z → banco
+
+---
+
+🔐 3. AUTENTICAÇÃO (DETALHADO)
+
+Descrever com base no código:
+
+- Onde está configurado o passport
+- Como funciona o login (funções envolvidas)
+- Onde bcrypt é usado
+- Como a sessão é criada
+- Onde a sessão é armazenada
+- Como o usuário é recuperado em cada request
+
+---
+
+🏢 4. MULTI-TENANT (CRÍTICO)
+
+Verificar no código:
+
+- Existe campo company_id? Em quais tabelas?
+- Como o backend identifica a empresa do usuário?
+- Existe middleware de isolamento?
+- Existe risco de acessar dados de outra empresa?
+
+---
+
+💰 5. FATURAMENTO E NF (ANÁLISE PROFUNDA)
+
+Mapear com EXATIDÃO:
+
+📍 Arquivo onde está:
+- buildNFeInput
+
+📍 Dentro dessa função:
+- Onde trata STANDARD
+- Onde trata CONTRACT_OPEN
+- Onde trata CONTRACT_AVERAGE
+- Onde usa draft
+- Onde usa order_items
+- Onde aplica agrupamento (useGroupedItems)
+
+📍 Explicar o fluxo:
+
+order → ??? → buildNFeInput → saída
+
+📍 Identificar:
+- Quem chama buildNFeInput
+- Em quais arquivos ela é usada
+
+---
+
+🗄️ 6. BANCO DE DADOS (BASEADO NO CÓDIGO)
+
+Listar:
+
+- Tabelas principais (orders, users, companies, drafts, etc.)
+- Campos importantes:
+  - company_id
+  - billingModel
+  - useFiscalDraft
+  - useGroupedItems
+
+- Relações entre tabelas
+
+---
+
+⚙️ 7. EXECUÇÃO NO REPLIT
+
+Descrever:
+
+- Arquivo de entrada do projeto
+- Script usado (npm run dev / start)
+- Porta utilizada
+- Variáveis de ambiente usadas:
+  - SESSION_SECRET
+  - DATABASE_URL
+  - outras
+
+---
+
+🚨 8. PONTOS DE ATENÇÃO (SEM SUGERIR SOLUÇÃO)
+
+Apenas LISTAR:
+
+- locais onde a lógica está concentrada demais
+- funções muito grandes
+- mistura de responsabilidades
+- possíveis riscos de inconsistência
+
+❗ NÃO corrigir, apenas apontar
+
+---
+
+📊 FORMATO FINAL (OBRIGATÓRIO)
+
+Gerar um relatório com:
+
+1. Estrutura do projeto (real)
+2. Fluxo do sistema (detalhado)
+3. Autenticação
+4. Multi-tenant
+5. Faturamento/NF (profundo)
+6. Banco de dados
+7. Execução
+8. Pontos de atenção
+
+---
+
+✅ RESULTADO ESPERADO
+
+Um diagnóstico técnico completo, rastreável e detalhado o suficiente para permitir uma futura refatoração segura sem quebrar regras de faturament
