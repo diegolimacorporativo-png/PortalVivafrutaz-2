@@ -1,0 +1,220 @@
+🎯 FASE 17 — DEFINIÇÃO SEGURA DE IDEMPOTÊNCIA (GAP 2)
+
+---
+
+📌 OBJETIVO
+
+Eliminar duplicação de NFe por reprocessamento de pedidos
+
+👉 SEM implementar ainda  
+👉 SEM alterar código ainda  
+👉 DEFINIR regra EXATA antes de tocar no sistema  
+
+---
+
+🧠 CONTEXTO
+
+Problema identificado:
+
+❌ O cron cria nova NFe mesmo quando já existe uma em estado intermediário:
+
+- gerada  
+- assinada  
+
+👉 Resultado: duplicação de NFe para o mesmo pedido
+
+---
+
+🎯 OBJETIVO TÉCNICO
+
+Garantir que:
+
+👉 UM pedido tenha NO MÁXIMO uma NFe ativa
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar lógica ainda  
+- NÃO implementar código  
+- NÃO assumir comportamento  
+- NÃO quebrar fluxo atual  
+- NÃO bloquear reemissão legítima  
+
+---
+
+📦 SUA TAREFA
+
+---
+
+1. MAPEAR TODOS OS STATUS DE NFe
+
+Fonte:
+
+nfe_emissoes.status
+
+Listar TODOS encontrados no código:
+
+Exemplo:
+
+- gerada  
+- assinada  
+- enviada  
+- autorizada  
+- rejeitada  
+- cancelada  
+
+👉 Confirmar com arquivo + linha
+
+---
+
+2. CLASSIFICAR STATUS POR TIPO
+
+Separar em:
+
+---
+
+🔴 ATIVOS (bloqueiam nova emissão)
+
+👉 NFe ainda válida / em andamento
+
+---
+
+🟢 FINAIS (permitem nova emissão)
+
+👉 NFe encerrada corretamente
+
+---
+
+⚫ ERRO (avaliar comportamento)
+
+👉 Pode permitir reprocessamento?
+
+---
+
+⚠️ IMPORTANTE
+
+NÃO inventar — classificar baseado no comportamento real
+
+---
+
+3. DEFINIR REGRA DE BLOQUEIO
+
+Responder claramente:
+
+👉 Quando o cron DEVE pular um pedido?
+
+Formato:
+
+"Se existir NFe com status X, Y, Z → NÃO emitir nova"
+
+---
+
+4. DEFINIR REGRA DE REPROCESSAMENTO
+
+Responder:
+
+👉 Quando o cron PODE tentar novamente?
+
+Exemplo esperado:
+
+- cancelada → pode emitir nova  
+- rejeitada → depende  
+- erro → depende  
+
+---
+
+5. IDENTIFICAR EDGE CASES
+
+Responder:
+
+👉 Situações perigosas:
+
+- NFe gerada mas nunca enviada  
+- NFe assinada e travada  
+- NFe rejeitada pelo SEFAZ  
+- NFe cancelada  
+
+👉 Para cada uma:
+
+- deve bloquear?  
+- deve permitir?  
+
+---
+
+6. VALIDAR COMPATIBILIDADE COM SISTEMA ATUAL
+
+Responder:
+
+👉 Essa regra quebra algo?
+
+Verificar:
+
+- endpoints existentes (/emitir, /enviar)
+- fluxo manual
+- workflow de pedidos
+
+---
+
+7. DEFINIR REGRA FINAL (FORMATO CLARO)
+
+Responder com:
+
+---
+
+REGRA DE IDEMPOTÊNCIA:
+
+Um pedido NÃO pode gerar nova NFe se existir NFe com status:
+
+[lista]
+
+Um pedido PODE gerar nova NFe se:
+
+[lista]
+
+---
+
+8. RISCOS DA REGRA
+
+Responder:
+
+👉 O que pode dar errado mesmo com essa regra?
+
+---
+
+🚫 PROIBIDO
+
+- escrever código  
+- alterar arquivos  
+- sugerir implementação ainda  
+
+---
+
+✅ OBJETIVO FINAL
+
+Ter uma regra 100% segura antes de implementar
+
+👉 evitar duplicação  
+👉 evitar travamento de pedido  
+👉 manter fluxo atual funcionando  
+
+---
+
+⚠️ IMPORTANTE
+
+Se houver dúvida:
+
+👉 NÃO assumir  
+👉 declarar dúvida  
+
+---
+
+🚀 PRÓXIMO PASSO
+
+Após validação:
+
+→ FASE 18 (implementação segura controlada)
+
+---
+
+Aguardando definição completa da regr
