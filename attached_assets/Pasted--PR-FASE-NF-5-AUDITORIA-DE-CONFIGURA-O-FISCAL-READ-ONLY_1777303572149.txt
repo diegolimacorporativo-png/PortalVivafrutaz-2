@@ -1,0 +1,160 @@
+🎯 PRÉ-FASE NF.5 — AUDITORIA DE CONFIGURAÇÃO FISCAL (READ-ONLY)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar nenhum código  
+2. NÃO criar arquivos  
+3. NÃO refatorar  
+4. NÃO corrigir nada  
+5. NÃO aplicar melhorias  
+6. Apenas analisar e reportar  
+
+👉 Qualquer dúvida → REPORTAR, não assumir
+
+---
+
+🧠 OBJETIVO
+
+Mapear exatamente como o sistema já trata regras fiscais antes da NF.5
+
+👉 Evitar duplicação ou conflito de lógica
+
+---
+
+📦 ESCOPO DA ANÁLISE
+
+---
+
+1. CONFIGURAÇÃO DE EMPRESA / FISCAL
+
+Localizar onde ficam:
+
+- CRT (regime tributário)
+- company fiscal config
+- tabela companies / settings
+
+Responder:
+
+- Onde o CRT está salvo?
+- Quais valores possíveis? (1, 2, 3 ou outros)
+- Existe campo de regime (Simples, Lucro Presumido, etc.)?
+- Existe default?
+
+---
+
+2. USO DO CRT NO SISTEMA
+
+Buscar no código:
+
+- Onde o CRT é usado?
+- Principalmente em:
+  - buildNFeInput
+  - gerarNFeXML
+  - nfeGenerator
+
+Responder:
+
+- CRT está sendo respeitado corretamente?
+- Existe branch crt === '1' || '2' e crt === '3'?
+- Existe lógica para regime normal (CST) ou só Simples (CSOSN)?
+
+---
+
+3. PRODUTOS — DADOS FISCAIS
+
+Verificar:
+
+- Produto tem NCM? ✔️ já sabemos que sim
+- Produto tem:
+  - csosn?
+  - cfop?
+  - tipo tributação?
+  - categoria (fruta, bebida, etc.)?
+
+Responder:
+
+- Existe campo fiscal no produto?
+- Ou tudo vem “genérico”?
+
+---
+
+4. CFOP
+
+Verificar:
+
+- De onde vem o CFOP?
+- Existe:
+  - defaultCfop?
+  - cfop por produto?
+  - cfop por operação?
+
+---
+
+5. ICMS / TRIBUTOS
+
+Verificar:
+
+- Existe qualquer cálculo de ICMS?
+- Existe:
+  - base de cálculo?
+  - alíquota?
+  - valor?
+
+Ou está tudo zerado / simplificado?
+
+---
+
+6. CSOSN / CST
+
+Verificar:
+
+- CSOSN é:
+  - fixo?
+  - dinâmico?
+  - vindo do produto?
+- Existe suporte a CST (regime normal)?
+
+---
+
+7. CONFLITOS POTENCIAIS
+
+Identificar:
+
+- Lugares onde:
+  - regra pode estar duplicada
+  - default pode sobrescrever produto
+  - lógica pode estar inconsistente
+
+---
+
+📊 FORMATO DA RESPOSTA
+
+Responder com:
+
+1. Onde está a configuração fiscal (arquivo + estrutura)  
+2. Como o CRT está sendo usado hoje  
+3. Como os produtos tratam dados fiscais  
+4. Como CFOP é definido  
+5. Como ICMS está (ou não) implementado  
+6. Se o sistema está preparado para:
+   - Simples Nacional
+   - Lucro Presumido  
+7. Riscos encontrados  
+8. O que já está correto  
+9. O que NÃO deve ser alterado na NF.5  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO sugerir código ainda  
+👉 NÃO implementar nada  
+👉 Apenas diagnóstico técnico completo  
+
+---
+
+✅ FINAL
+
+Responder com auditoria detalhada + conclusão se o sistema já suporta múltiplos regimes ou nã
