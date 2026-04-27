@@ -1,0 +1,214 @@
+🎯 FASE NF.2 — HARDENING DO gerarNFeXML (ZERO RISCO)
+
+---
+
+📌 OBJETIVO
+
+Blindar a função gerarNFeXML
+
+👉 Garantir XML válido  
+👉 Evitar rejeições fiscais básicas  
+👉 Evitar crash por dados inválidos  
+👉 SEM alterar fluxo atual  
+
+---
+
+🧠 CONTEXTO
+
+- Função já existe:
+  server/services/nfe/nfeGenerator.ts
+
+- Recebe:
+  NFeInput + numero
+
+- Já é usada após:
+  buildNFeInput (FASE NF.1 já hardened)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar assinatura da função  
+- NÃO alterar retorno  
+- NÃO mudar estrutura do XML  
+- NÃO alterar numeração  
+- NÃO alterar integração com storage  
+- NÃO adicionar dependência externa  
+
+👉 Apenas validação + proteção
+
+---
+
+# 🛠️ ETAPA 1 — VALIDAÇÃO DE ENTRADA (ANTES DE TUDO)
+
+ANTES de gerar o XML:
+
+Validar:
+
+- input.emitente.cnpj
+- input.destinatario.xNome
+- input.produtos.length > 0
+- numero válido
+
+---
+
+Validações:
+
+ts
+if (!input.emitente?.cnpj?.trim()) throw new Error("NFE_XML_MISSING_EMITENTE");
+if (!input.destinatario?.xNome?.trim()) throw new Error("NFE_XML_MISSING_DESTINATARIO");
+if (!Array.isArray(input.produtos) || input.produtos.length === 0) throw new Error("NFE_XML_NO_ITEMS");
+if (!Number.isFinite(numero)) throw new Error("NFE_XML_INVALID_NUMBER");
+
+---
+
+# 🛠️ ETAPA 2 — VALIDAÇÃO DOS PRODUTOS
+
+ANTES de montar XML:
+
+Para cada produto:
+
+- qCom deve ser number > 0
+- vUnCom deve ser number > 0
+- vProd deve ser number > 0
+
+ts
+for (const p of input.produtos) {
+  if (!Number.isFinite(p.qCom) || p.qCom <= 0) throw new Error("NFE_XML_INVALID_QCOM");
+  if (!Number.isFinite(p.vUnCom) || p.vUnCom <= 0) throw new Error("NFE_XML_INVALID_VUNCOM");
+  if (!Number.isFinite(p.vProd) || p.vProd <= 0) throw new Error("NFE_XML_INVALID_VPROD");
+}
+
+---
+
+# 🛠️ ETAPA 3 — SANITIZAÇÃO DE STRINGS
+
+Criar helper interno:
+
+ts
+const xmlSafe = (v: any) =>
+  String(v ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[<>&]/g, "");
+
+---
+
+👉 Aplicar em TODOS campos string usados no XML:
+
+- nomes
+- logradouro
+- cidade
+- bairro
+- natOp
+- produtos.xProd
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO remover acentos  
+👉 NÃO alterar conteúdo fiscal  
+👉 Apenas evitar quebra de XML  
+
+---
+
+# 🛠️ ETAPA 4 — NORMALIZAÇÃO NUMÉRICA
+
+Garantir:
+
+ts
+const toMoney = (v: number) =>
+  Number.isFinite(v) ? v.toFixed(2) : "0.00";
+
+---
+
+👉 Aplicar em:
+
+- vProd
+- vUnCom
+- totais
+
+---
+
+# 🛠️ ETAPA 5 — VALIDAÇÃO FINAL DO XML
+
+Após gerar string XML:
+
+ts
+if (!xml || typeof xml !== "string") {
+  throw new Error("NFE_XML_EMPTY");
+}
+
+if (!xml.includes("<NFe")) {
+  throw new Error("NFE_XML_INVALID_STRUCTURE");
+}
+
+---
+
+# 🛠️ ETAPA 6 — LOG ESTRUTURADO
+
+Adicionar:
+
+[NFE_XML_GENERATED]
+
+Campos:
+
+- requestId
+- orderId
+- numero
+- totalProdutos
+- valorTotal
+
+---
+
+❌ NÃO logar XML completo  
+❌ NÃO logar dados sensíveis  
+
+---
+
+# 🛠️ ETAPA 7 — NÃO ALTERAR ISSO
+
+🚫 NÃO alterar:
+
+- buildNFeInput
+- ordem do fluxo
+- storage.createNfeEmissao
+- geração da chave
+- assinatura do XML (se existir)
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- XML sempre válido estruturalmente  
+- sem crash por NaN ou undefined  
+- sem quebra por caracteres inválidos  
+- pronto para envio SEFAZ  
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 FASE NF.3 — envio SEFAZ (mock + integração)
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Validações adicionadas  
+2. Campos protegidos  
+3. Exemplo de XML gerado (resumido)  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO recriar função  
+👉 NÃO alterar fluxo  
+👉 NÃO alterar retorno  
+
+👉 Apena

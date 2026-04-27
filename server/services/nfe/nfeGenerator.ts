@@ -53,8 +53,12 @@ function gerarChaveNFe(params: {
 }
 
 function fmtValor(v: number, dec = 2): string {
-  return v.toFixed(dec);
+  return Number.isFinite(v) ? v.toFixed(dec) : '0.00';
 }
+
+// FASE NF.2 — ETAPA 4: formata valor monetário com proteção contra NaN/Infinity
+const toMoney = (v: number): string =>
+  Number.isFinite(v) ? v.toFixed(2) : '0.00';
 
 function sanitizeXml(s: string): string {
   return String(s || '')
@@ -65,6 +69,15 @@ function sanitizeXml(s: string): string {
     .replace(/'/g, '&apos;')
     .slice(0, 160);
 }
+
+// FASE NF.2 — ETAPA 3: pré-normalização de strings antes do sanitizeXml.
+// Remove caracteres que quebram estrutura XML, colapsa espaços, faz trim.
+// NÃO remove acentos. NÃO altera conteúdo fiscal.
+const xmlSafe = (v: any): string =>
+  String(v ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .replace(/[<>&]/g, '');
 
 export interface NFeGerada {
   chaveNFe: string;
@@ -78,6 +91,12 @@ export async function gerarNFeXML(
   input: NFeInput,
   numero: number
 ): Promise<NFeGerada> {
+  // FASE NF.2 — ETAPA 1: validação de entrada antes de qualquer processamento
+  if (!input.emitente?.cnpj?.trim()) throw new Error('NFE_XML_MISSING_EMITENTE');
+  if (!input.destinatario?.xNome?.trim()) throw new Error('NFE_XML_MISSING_DESTINATARIO');
+  if (!Array.isArray(input.produtos) || input.produtos.length === 0) throw new Error('NFE_XML_NO_ITEMS');
+  if (!Number.isFinite(numero) || numero <= 0) throw new Error('NFE_XML_INVALID_NUMBER');
+
   const now = new Date();
   const tzOffset = '-03:00';
   const pad2 = (n: number) => pad(n, 2);
@@ -106,14 +125,22 @@ export async function gerarNFeXML(
   const vDesc = input.valorDesconto || 0;
   const vNF = vProd + vFrete + vSeg - vDesc;
 
+  // FASE NF.2 — ETAPA 2: validação dos produtos antes de montar o XML
+  for (const p of input.produtos) {
+    if (!Number.isFinite(p.qCom) || p.qCom <= 0) throw new Error('NFE_XML_INVALID_QCOM');
+    if (!Number.isFinite(p.vUnCom) || p.vUnCom <= 0) throw new Error('NFE_XML_INVALID_VUNCOM');
+    if (!Number.isFinite(p.vProd) || p.vProd <= 0) throw new Error('NFE_XML_INVALID_VPROD');
+  }
+
   // Gerar itens
+  // FASE NF.2 — ETAPA 3/4: xmlSafe aplicado em xProd; toMoney em valores monetários
   const itenXml = input.produtos.map((p, idx) => {
     const ncm = p.ncm.replace(/\D/g, '').slice(0, 8).padEnd(8, '0');
     const icmsXml = crt === '1' || crt === '2'
       ? `<ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>`
-      : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${fmtValor(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
+      : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
 
-    return `<det nItem="${idx + 1}"><prod><cProd>${sanitizeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${sanitizeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${sanitizeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${fmtValor(p.vProd)}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${sanitizeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
+    return `<det nItem="${idx + 1}"><prod><cProd>${sanitizeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${sanitizeXml(xmlSafe(p.xProd))}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${sanitizeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${toMoney(p.vProd)}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${sanitizeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
   }).join('');
 
   const cnpjDest = input.destinatario.cnpj?.replace(/\D/g, '') || '';
@@ -124,10 +151,11 @@ export async function gerarNFeXML(
 
   const idDestOp = uf === ufDest ? '1' : '2'; // 1=operação interna 2=interestadual
 
-  const natOp = sanitizeXml(input.natOp || 'Venda de mercadoria adquirida');
-  const xNomeEmit = sanitizeXml(input.emitente.xNome);
-  const xFantEmit = sanitizeXml(input.emitente.xFant || input.emitente.xNome);
-  const xNomeDest = sanitizeXml(input.destinatario.xNome);
+  // FASE NF.2 — ETAPA 3: xmlSafe pré-normaliza antes do sanitizeXml
+  const natOp = sanitizeXml(xmlSafe(input.natOp || 'Venda de mercadoria adquirida'));
+  const xNomeEmit = sanitizeXml(xmlSafe(input.emitente.xNome));
+  const xFantEmit = sanitizeXml(xmlSafe(input.emitente.xFant || input.emitente.xNome));
+  const xNomeDest = sanitizeXml(xmlSafe(input.destinatario.xNome));
   const ieDest = input.destinatario.ie ? `<IE>${sanitizeXml(input.destinatario.ie)}</IE>` : '<indIEDest>9</indIEDest>';
   const emailDest = input.destinatario.email ? `<email>${sanitizeXml(input.destinatario.email)}</email>` : '';
 
@@ -136,6 +164,21 @@ export async function gerarNFeXML(
     : '';
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${serie}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${sanitizeXml(input.emitente.logradouro)}</xLgr><nro>${sanitizeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${sanitizeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${sanitizeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${sanitizeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${sanitizeXml(input.destinatario.logradouro)}</xLgr><nro>${sanitizeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${sanitizeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${sanitizeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${fmtValor(vProd)}</vProd><vFrete>${fmtValor(vFrete)}</vFrete><vSeg>${fmtValor(vSeg)}</vSeg><vDesc>${fmtValor(vDesc)}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${fmtValor(vNF)}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${fmtValor(vNF)}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
+
+  // FASE NF.2 — ETAPA 5: validação estrutural do XML gerado
+  if (!xml || typeof xml !== 'string') throw new Error('NFE_XML_EMPTY');
+  if (!xml.includes('<NFe')) throw new Error('NFE_XML_INVALID_STRUCTURE');
+
+  // FASE NF.2 — ETAPA 6: log estruturado (sem dados sensíveis, sem XML completo)
+  const valorTotal = Number(
+    input.produtos.reduce((t, p) => t + p.vProd, 0).toFixed(2),
+  );
+  console.log('[NFE_XML_GENERATED]', {
+    orderId: input.orderId,
+    numero,
+    totalProdutos: input.produtos.length,
+    valorTotal,
+  });
 
   return {
     chaveNFe,
