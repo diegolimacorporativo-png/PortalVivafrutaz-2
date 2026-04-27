@@ -200,9 +200,31 @@ export async function gerarNFeXML(
     }
     const cstSafe = escapeXml(rawCst);
 
+    // FASE NF.7.1 — estrutura de ICMS por CST (sem cálculo: valores seguem 0.00).
+    // - default ('00' e demais não mapeados): preserva XML legado byte-a-byte.
+    // - '20' (redução de base): adiciona <pRedBC>0.00</pRedBC>.
+    // - '40' / '41' / '50' (isento/não tributado): apenas <orig> + <CST>.
+    // - '60' (ICMS ST): estrutura mínima (NF.7.x cuidará de vBCST/vICMSST reais).
+    // ⚠ Sem função separada e sem refatorar o bloco — apenas o switch local.
+    let icmsContent: string;
+    switch (rawCst) {
+      case '20':
+        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pRedBC>0.00</pRedBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS>`;
+        break;
+      case '40':
+      case '41':
+      case '50':
+      case '60':
+        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST>`;
+        break;
+      default:
+        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS>`;
+        break;
+    }
+
     const icmsXml = crt === '1' || crt === '2'
       ? `<ICMS><ICMSSN${rawCsosn}><orig>0</orig><CSOSN>${csosn}</CSOSN></ICMSSN${rawCsosn}></ICMS>`
-      : `<ICMS><ICMS${rawCst}><orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS${rawCst}></ICMS>`;
+      : `<ICMS><ICMS${rawCst}>${icmsContent}</ICMS${rawCst}></ICMS>`;
 
     return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd, 'item.vProd')}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
   }).join('');

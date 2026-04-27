@@ -1,0 +1,147 @@
+🎯 FASE NF.7.1 — ESTRUTURA DE ICMS POR CST (SEM CÁLCULO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar cálculo de imposto (continuar 0.00)  
+2. NÃO alterar endpoints  
+3. NÃO alterar builder  
+4. NÃO alterar fluxo de CST  
+5. NÃO quebrar XML atual  
+
+---
+
+🧠 OBJETIVO
+
+Adaptar o XML de ICMS conforme o CST:
+
+👉 cada CST deve gerar estrutura correta  
+👉 mesmo com valores zerados  
+
+---
+
+## 🛠️ ETAPA 1 — AJUSTAR BLOCO ICMS
+
+Arquivo:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+Hoje (simplificado):
+
+ts <ICMS${rawCst}>   <orig>0</orig>   <CST>${cst}</CST>   <modBC>3</modBC>   <vBC>${vProd}</vBC>   <pICMS>0.00</pICMS>   <vICMS>0.00</vICMS> </ICMS${rawCst}> 
+
+---
+
+## 🛠️ ETAPA 2 — DIFERENCIAR POR CST
+
+---
+
+### 🟢 CST 00 (tributado integral)
+
+Manter:
+
+xml <modBC>3</modBC> <vBC>...</vBC> <pICMS>0.00</pICMS> <vICMS>0.00</vICMS> 
+
+---
+
+### 🟡 CST 20 (redução base)
+
+Adicionar:
+
+xml <pRedBC>0.00</pRedBC> 
+
+---
+
+### 🔴 CST 40 / 41 / 50 (isento / não tributado)
+
+👉 NÃO deve ter:
+
+- modBC
+- vBC
+- pICMS
+- vICMS
+
+---
+
+Ficar assim:
+
+xml <ICMS40>   <orig>0</orig>   <CST>40</CST> </ICMS40> 
+
+---
+
+### 🔵 CST 60 (ICMS ST)
+
+Manter simples por enquanto:
+
+xml <ICMS60>   <orig>0</orig>   <CST>60</CST> </ICMS60> 
+
+---
+
+## 🛠️ ETAPA 3 — IMPLEMENTAÇÃO
+
+👉 Criar switch baseado em rawCst
+
+Exemplo:
+
+ts switch (rawCst) {   case '00':   case '20':   case '40':   case '60': } 
+
+---
+
+⚠️ NÃO criar função separada  
+⚠️ NÃO refatorar tudo  
+👉 apenas ajustar bloco existente
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+CST	Resultado esperado
+
+00	estrutura completa com base e imposto
+20	inclui <pRedBC>
+40	sem base nem imposto
+60	estrutura mínima
+
+---
+
+## 🔒 GARANTIAS
+
+✔ XML continua válido  
+✔ nenhum impacto em cálculo  
+✔ nenhum impacto em SEFAZ atual  
+✔ pronto para cálculo real futuro  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- XML fiscal mais correto  
+- base pronta para ICMS real  
+- zero regressão  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Switch implementado  
+2. Exemplos de XML por CST  
+3. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO calcular imposto ainda  
+👉 NÃO mexer em valores  
+👉 Apenas estrutura  
+
+---
+
+Isso prepara o sistema para NF.7.2 (cálculo
