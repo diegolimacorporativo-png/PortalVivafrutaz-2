@@ -1,0 +1,170 @@
+🎯 OBJETIVO: FASE 12 — CORRELAÇÃO DE EVENTOS DE SEGURANÇA (AUDITORIA REAL)
+
+---
+
+🧠 CONTEXTO
+
+O sistema já possui:
+
+- segurança multi-tenant validada ✅  
+- bloqueio de leitura e escrita ✅  
+- logging completo em todos os caminhos ✅  
+- logs padronizados ([SECURITY] TYPE | orderId | details) ✅  
+
+---
+
+📌 PROBLEMA ATUAL
+
+Os logs existem, mas são eventos isolados.
+
+👉 Hoje NÃO é possível:
+
+- correlacionar ações de um mesmo usuário
+- rastrear uma sequência de tentativas maliciosas
+- identificar padrões de ataque
+- auditar um fluxo completo
+
+---
+
+🎯 OBJETIVO DA FASE
+
+Adicionar um identificador de correlação (requestId) em TODOS os logs de segurança
+
+👉 SEM alterar comportamento do sistema
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar fluxo de execução  
+3. NÃO alterar status HTTP  
+4. NÃO alterar resposta da API  
+5. NÃO alterar contratos  
+6. NÃO alterar tenantContext  
+7. NÃO alterar AsyncLocalStorage existente  
+8. NÃO refatorar código  
+
+👉 Apenas enriquecer logs
+
+---
+
+📦 TAREFA
+
+---
+
+1. GERAR requestId POR REQUISIÇÃO
+
+Arquivo:
+server/middleware/requestContext.ts (criar se não existir)
+
+Implementar:
+
+- gerar requestId único por request (uuid ou timestamp+random)
+- armazenar em AsyncLocalStorage (mesma abordagem do tenantContext)
+
+---
+
+2. INTEGRAR COM CONTEXTO ATUAL
+
+Sem quebrar o tenantContext:
+
+- requestId deve coexistir com tenantId
+- NÃO substituir nem alterar o contexto existente
+- apenas estender
+
+---
+
+3. EXPOR requestId GLOBALMENTE
+
+Criar helper:
+
+server/core/context/requestContext.ts
+
+Função:
+
+getRequestId(): string | undefined
+
+---
+
+4. INJETAR NO LOG DE SEGURANÇA
+
+Atualizar TODOS os logs [SECURITY]:
+
+ANTES:
+[SECURITY] TYPE | orderId=10 | details=...
+
+DEPOIS:
+[SECURITY] TYPE | requestId=abc123 | orderId=10 | details=...
+
+---
+
+⚠️ IMPORTANTE
+
+- Se requestId não existir → NÃO quebrar (usar fallback)
+- NÃO alterar mensagens existentes (apenas adicionar campo)
+
+---
+
+5. APLICAR NOS MESMOS PONTOS DA FASE 11
+
+Arquivos:
+
+- tenantGuard.ts  
+- routes.ts  
+- orders.service.ts  
+
+---
+
+📊 RESULTADO ESPERADO
+
+Agora cada evento terá:
+
+[SECURITY] TYPE | requestId=XYZ | orderId=10 | details=...
+
+👉 Permitindo:
+
+- rastrear sequência completa de ações
+- agrupar logs por requisição
+- preparar auditoria avançada
+
+---
+
+🧪 VALIDAÇÃO
+
+Rodar novamente:
+
+- scripts/test-tenant-http-security.ts  
+- scripts/test-tenant-write-security.ts  
+
+Esperado:
+
+- todos testes continuam passando  
+- logs agora incluem requestId  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. arquivos criados/alterados  
+2. exemplo real de log com requestId  
+3. resultado dos testes  
+4. confirmação:
+
+CORRELAÇÃO DE SEGURANÇA ATIVA ✅
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+Se houver qualquer risco de interferir com AsyncLocalStorage existente:
+
+👉 PARAR e perguntar antes de implementar
+
+---
+
+🚀 OBJETIVO REAL DA FASE
+
+Transformar logs em trilha auditável complet
