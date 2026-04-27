@@ -1,0 +1,166 @@
+🎯 CONTEXTO GERAL — LEITURA OBRIGATÓRIA (ANTES DE QUALQUER AÇÃO)
+
+Você está assumindo um sistema SaaS multi-tenant de faturamento e emissão de NF-e.
+
+⚠️ ESTE NÃO É UM PROJETO INICIAL  
+⚠️ ESTE NÃO É UM PROTÓTIPO  
+⚠️ ESTE É UM SISTEMA JÁ VALIDADO E SENSÍVEL (FISCAL + SEGURANÇA)
+
+---
+
+🧠 ESTADO ATUAL DO SISTEMA
+
+O sistema já passou por 12 fases controladas.
+
+### ✅ SEGURANÇA
+- Isolamento multi-tenant completo (leitura e escrita)
+- Nenhum vazamento de dados
+- Proteção via tenantContext + repository + guards
+
+---
+
+### ✅ LOGGING DE SEGURANÇA
+- Logs implementados em TODOS os caminhos críticos
+- Padronização aplicada:
+
+[SECURITY] TYPE | requestId=XYZ | orderId=123 | details=...
+
+Tipos existentes:
+- TENANT_MISMATCH
+- MISSING_TENANT
+- CROSS_TENANT_404
+
+---
+
+### ✅ CORRELAÇÃO DE EVENTOS
+- requestId único por requisição
+- propagado via AsyncLocalStorage (paralelo ao tenantContext)
+- logs correlacionados ponta a ponta
+
+---
+
+### ✅ ARQUITETURA
+- Router REAL está em: server/modules/*
+- routes.ts é parcialmente legacy (nem tudo executa)
+- NÃO assumir que legacy está ativo
+
+---
+
+### ✅ FATURAMENTO
+- billing.service.ts existe (desacoplado)
+- buildNFeInput é CRÍTICO e NÃO pode ser alterado
+
+---
+
+### ✅ TESTES
+Scripts existentes:
+
+- scripts/test-tenant-http-security.ts
+- scripts/test-tenant-write-security.ts
+
+👉 Ambos DEVEM continuar passando SEMPRE
+
+---
+
+⚠️ GAPS CONHECIDOS (INTENCIONAIS)
+
+- Logs de escrita (PATCH/DELETE/items) ainda NÃO implementados
+- tenantGuard não é exercitado em todos cenários
+- cron ainda não possui requestId completo
+
+👉 NÃO corrigir isso sem instrução explícita
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIAS)
+
+Você NÃO pode:
+
+1. Alterar lógica de negócio  
+2. Alterar fluxo de execução  
+3. Alterar status HTTP  
+4. Alterar resposta da API  
+5. Alterar tenantContext  
+6. Alterar buildNFeInput  
+7. Alterar storage.ts  
+8. Refatorar sem autorização  
+9. Mover arquivos  
+10. Criar abstrações desnecessárias  
+
+👉 Este sistema já está em produção lógica
+
+---
+
+🧠 FORMA DE TRABALHO (OBRIGATÓRIA)
+
+ANTES de qualquer implementação:
+
+1. Ler o código relevante  
+2. Explicar o entendimento  
+3. Mapear exatamente onde será alterado  
+4. Identificar riscos  
+5. Propor abordagem mínima  
+6. AGUARDAR aprovação  
+
+👉 Se houver dúvida: NÃO inventar  
+
+---
+
+📌 SUA TAREFA AGORA (SEM IMPLEMENTAR)
+
+Responda:
+
+---
+
+1. Explique com suas palavras:
+
+- como o multi-tenant é protegido  
+- onde o requestId é gerado e como ele propaga  
+- onde os logs de segurança estão hoje  
+
+---
+
+2. Confirme:
+
+- por que routes.ts pode não ser executado  
+- onde está o caminho REAL de /api/orders/:id  
+
+---
+
+3. Estado atual:
+
+Responda objetivamente:
+
+- sistema está seguro? (sim/não)  
+- observabilidade está completa? (sim/parcial)  
+- existe risco atual? (qual?)  
+
+---
+
+4. Confirme que entendeu as regras:
+
+- NÃO implementar nada agora  
+- apenas análise  
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+Se você não tiver certeza de algo:
+
+👉 Declare dúvida  
+👉 NÃO invente  
+
+---
+
+✅ OBJETIVO
+
+Garantir que você ENTENDE o sistema antes da próxima fase
+
+---
+
+🚀 PRÓXIMO PASSO
+
+Após validação do entendimento:
+
+Você receberá a **FASE 13 — LOGS DE SEGURANÇA EM OPERAÇÕES DE ESCRI
