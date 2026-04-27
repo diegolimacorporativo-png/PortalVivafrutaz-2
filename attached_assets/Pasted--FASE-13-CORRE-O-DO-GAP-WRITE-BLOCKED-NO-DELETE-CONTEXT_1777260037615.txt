@@ -1,0 +1,156 @@
+🎯 FASE 13 — CORREÇÃO DO GAP (WRITE_BLOCKED NO DELETE)
+
+---
+
+📌 CONTEXTO
+
+Já existe logging de escrita via:
+
+- assertOwned → cobre PATCH e PUT items ✅  
+
+Mas foi identificado um GAP:
+
+❌ DELETE cross-tenant NÃO gera log
+
+---
+
+🧠 CAUSA RAIZ
+
+No fluxo de DELETE:
+
+service.remove → chama repo.get(id)
+
+E repo.get:
+
+- retorna undefined em caso de cross-tenant (mascara por segurança)
+
+Resultado:
+
+- service interpreta como "não encontrado"
+- lança 404
+- ❌ NÃO chega em repo.remove → assertOwned
+- ❌ NÃO gera WRITE_BLOCKED
+
+---
+
+🎯 OBJETIVO
+
+Garantir que DELETE cross-tenant também gere:
+
+[SECURITY] WRITE_BLOCKED | requestId=... | orderId=... | details=...
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar tenantContext  
+- NÃO alterar fluxo principal  
+- NÃO alterar status HTTP  
+- NÃO alterar resposta da API  
+- NÃO mover validação  
+- NÃO criar lógica paralela  
+- NÃO criar nova query  
+- NÃO alterar repository  
+- NÃO usar try/catch  
+
+👉 Apenas enriquecer o fluxo existente
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+1. ARQUIVO
+
+server/modules/orders/orders.service.ts
+
+---
+
+2. LOCAL EXATO
+
+Dentro de:
+
+OrdersService.remove
+
+Trecho atual:
+
+ts const data = await this.repo.get(id); if (!data) throw new NotFoundError("Pedido não encontrado"); 
+
+---
+
+3. ALTERAÇÃO
+
+ANTES:
+
+ts const data = await this.repo.get(id); if (!data) throw new NotFoundError("Pedido não encontrado"); 
+
+DEPOIS:
+
+ts const data = await this.repo.get(id); if (!data) {   console.warn(     `[SECURITY] WRITE_BLOCKED | requestId=${getRequestIdForLog()} | orderId=${id} | details=write blocked tenant=${currentTenantId() ?? "unknown"} orderCompanyId=unknown`,   );   throw new NotFoundError("Pedido não encontrado"); } 
+
+---
+
+4. IMPORTS NECESSÁRIOS
+
+Adicionar no topo do arquivo:
+
+ts import { getRequestIdForLog } from "../../core/context/requestContext"; import { currentTenantId } from "../../core/tenant/context"; 
+
+---
+
+📊 RESULTADO ESPERADO
+
+Agora:
+
+- PATCH → WRITE_BLOCKED ✅  
+- PUT items → WRITE_BLOCKED ✅  
+- DELETE → WRITE_BLOCKED ✅  
+
+---
+
+🧪 VALIDAÇÃO OBRIGATÓRIA
+
+Rodar:
+
+- scripts/test-tenant-http-security.ts  
+- scripts/test-tenant-write-security.ts  
+
+---
+
+📌 VALIDAR NOS LOGS
+
+Confirmar presença de:
+
+[SECURITY] WRITE_BLOCKED | requestId=... | orderId=... | details=...
+
+👉 para DELETE cross-tenant
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. arquivo alterado  
+2. trecho final do service.remove  
+3. resultado dos testes  
+4. confirmação:
+
+WRITE_BLOCKED COBRE 100% DAS ESCRITAS ✅
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO mexer em assertOwned  
+- NÃO mexer em repo.get  
+- NÃO alterar fluxo existente  
+
+👉 Apenas adicionar log no ponto correto
+
+---
+
+🚀 OBJETIVO FINAL
+
+Fechar o GAP e garantir auditoria completa de escrita

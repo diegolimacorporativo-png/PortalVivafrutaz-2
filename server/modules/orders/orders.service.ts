@@ -8,6 +8,7 @@ import {
 } from "../../shared/errors/AppError";
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
+import { currentTenantId } from "../../core/tenant/context";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {
   OrderStatus,
@@ -1009,7 +1010,12 @@ export class OrdersService {
   ): Promise<{ success: true }> {
     const user = await this.requireRole(actor, DELETE_ROLES, "Sem permissão para excluir pedidos");
     const data = await this.repo.get(id);
-    if (!data) throw new NotFoundError("Pedido não encontrado");
+    if (!data) {
+      console.warn(
+        `[SECURITY] WRITE_BLOCKED | requestId=${getRequestIdForLog()} | orderId=${id} | details=write blocked tenant=${currentTenantId() ?? "unknown"} orderCompanyId=unknown`,
+      );
+      throw new NotFoundError("Pedido não encontrado");
+    }
     const isFiscal = ["nota_emitida", "nota_exportada"].includes(
       (data.order as any).fiscalStatus || "",
     );
