@@ -1,0 +1,240 @@
+# 🧪 STEP TEST — VALIDAÇÃO COMPLETA DO FISCAL (DRAFT → NF)
+
+## 🎯 OBJETIVO
+
+Validar na prática se o STEP FISCAL 2 está funcionando corretamente para TODOS os cenários:
+
+- STANDARD
+- CONTRACT_OPEN
+- CONTRACT_AVERAGE
+
+---
+
+# ⚠️ REGRAS
+
+❌ NÃO alterar dados reais  
+❌ NÃO usar usuários existentes  
+❌ NÃO alterar contratos reais  
+❌ NÃO quebrar fluxo atual  
+
+✔ Criar dados isolados de teste  
+✔ Tudo deve ser rastreável  
+
+---
+
+# 🧱 FASE 1 — CRIAR USUÁRIOS DE TESTE
+
+Criar 3 usuários seguindo padrão obrigatório:
+
+Formato:
+<nome>@vivafrutas.com
+
+---
+
+## Usuários:
+
+1. fiscal.standard@vivafrutas.com  
+2. fiscal.open@vivafrutas.com  
+3. fiscal.average@vivafrutas.com  
+
+Senha padrão:
+123456
+
+---
+
+## IMPORTANTE
+
+✔ Retornar no final:
+- email
+- id
+- companyId vinculado
+
+---
+
+# 🧱 FASE 2 — CRIAR EMPRESAS
+
+Criar 3 empresas separadas:
+
+---
+
+## Empresa 1 — STANDARD
+
+billingModel = STANDARD  
+useFiscalDraft = false  
+
+---
+
+## Empresa 2 — CONTRACT_OPEN
+
+billingModel = CONTRACT_OPEN  
+useFiscalDraft = true  
+
+---
+
+## Empresa 3 — CONTRACT_AVERAGE
+
+billingModel = CONTRACT_AVERAGE  
+useFiscalDraft = true  
+
+---
+
+✔ Vincular cada usuário a sua empresa
+
+---
+
+# 🧱 FASE 3 — CRIAR PEDIDOS (STANDARD)
+
+Para empresa STANDARD:
+
+- criar pedido com 2 itens
+- garantir totalValue correto
+- NÃO usar draft
+
+---
+
+# 🧱 FASE 4 — TESTE CONTRACT_OPEN
+
+Para empresa CONTRACT_OPEN:
+
+1. Criar pedido base (pode ser simples)
+2. Criar draft:
+   POST /api/fiscal/drafts
+
+3. Editar draft:
+   - adicionar itens manualmente
+   - alterar preços
+   - garantir totals
+
+4. Gerar NF via buildNFeInput
+
+✔ Validar:
+- NF usa draft
+- NÃO usa order_items
+
+---
+
+# 🧱 FASE 5 — TESTE CONTRACT_AVERAGE
+
+Para empresa CONTRACT_AVERAGE:
+
+1. Criar contractScopes com:
+   - 2 produtos
+   - averageCost definido
+
+2. Criar draft (builder automático)
+
+3. Alterar contractScopes depois
+
+4. Gerar NF
+
+✔ Validar:
+- valores NÃO mudam (snapshot)
+- usa averageCost
+- não usa preço do pedido
+
+---
+
+# 🧱 FASE 6 — TESTE useGroupedItems
+
+Para CONTRACT_AVERAGE:
+
+1. Atualizar draft:
+   useGroupedItems = true
+
+✔ Esperado:
+
+- apenas 1 item na NF:
+  "Frutas in natura"
+
+- qCom = 1  
+- vProd = total  
+- vUnCom = total  
+
+---
+
+# 🧱 FASE 7 — TESTE FEATURE FLAG
+
+Para CONTRACT_OPEN:
+
+- remover draftId manual
+- usar apenas company.useFiscalDraft = true
+
+✔ Esperado:
+
+- sistema busca draft automaticamente
+
+---
+
+# 🧱 FASE 8 — TESTE LEGADO (CRÍTICO)
+
+Para STANDARD:
+
+- chamar buildNFeInput sem draft
+
+✔ Esperado:
+
+- comportamento idêntico ao sistema antigo
+
+---
+
+# 🧪 FASE 9 — RELATÓRIO FINAL (OBRIGATÓRIO)
+
+Retornar JSON completo:
+
+{
+  "users": [...],
+  "companies": [...],
+  "orders": [...],
+  "drafts": [...],
+  "tests": {
+    "standard_ok": true,
+    "contract_open_ok": true,
+    "contract_average_ok": true,
+    "grouped_items_ok": true,
+    "feature_flag_ok": true,
+    "legacy_ok": true
+  },
+  "errors": [],
+  "observations": []
+}
+
+---
+
+# 🚨 VALIDAÇÕES CRÍTICAS
+
+✔ draft sobrescreve pedido  
+✔ snapshot funciona  
+✔ agrupamento funciona  
+✔ flag funciona  
+✔ legado não quebrou  
+
+---
+
+# 🚫 SE ALGUM TESTE FALHAR
+
+Retornar:
+
+- qual fase falhou
+- motivo
+- dados envolvidos
+
+---
+
+# 🎯 RESULTADO FINAL
+
+Confirmar:
+
+✔ Sistema pronto para produção fiscal  
+OU  
+❌ Ainda precisa ajustes (detalhar)
+
+---
+
+## EXECUTAR
+
+1. Criar dados de teste  
+2. Executar todos os cenários  
+3. Validar comportamento  
+4. Gerar relatório completo  
+
+Sem exceções

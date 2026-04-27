@@ -75,11 +75,16 @@ export interface BuildNFeInputOpts {
  * para dar mensagem clara. Para a busca automática (caso 2), tratamos a
  * ausência como "sem draft" e seguimos legado, sem falhar.
  */
+interface ResolvedDraft {
+  items: any[];
+  useGroupedItems: boolean;
+}
+
 async function resolveDraftItems(args: {
   orderId: number;
   draftId?: number;
   company: any;
-}): Promise<any[] | null> {
+}): Promise<ResolvedDraft | null> {
   const { orderId, draftId, company } = args;
 
   if (draftId) {
@@ -96,7 +101,10 @@ async function resolveDraftItems(args: {
         `Rascunho #${draftId} não pertence ao pedido #${orderId}`,
       );
     }
-    return Array.isArray(row.items) ? (row.items as any[]) : [];
+    return {
+      items: Array.isArray(row.items) ? (row.items as any[]) : [],
+      useGroupedItems: row.useGroupedItems === true,
+    };
   }
 
   if (company?.useFiscalDraft === true) {
@@ -108,7 +116,10 @@ async function resolveDraftItems(args: {
         .orderBy(desc(nfDrafts.createdAt))
         .limit(1);
       if (latest && Array.isArray(latest.items)) {
-        return latest.items as any[];
+        return {
+          items: latest.items as any[],
+          useGroupedItems: latest.useGroupedItems === true,
+        };
       }
     } catch {
       // sem draft: cai no fluxo legado
@@ -116,6 +127,43 @@ async function resolveDraftItems(args: {
   }
 
   return null;
+}
+
+/**
+ * STEP FISCAL 2 — agrupamento opcional de itens.
+ * Quando o draft marca `useGroupedItems = true`, todos os produtos viram
+ * 1 única linha "Frutas in natura" com qCom=1 e vUnCom=vProd=soma.
+ * Mantém NCM/CFOP do primeiro item ou cai nos defaults da empresa/config.
+ */
+function applyItemGrouping(
+  items: any[],
+  fallbackNcm: string,
+  fallbackCfop: string,
+  fallbackUnit: string,
+): any[] {
+  if (!items.length) return items;
+  const total = items.reduce((acc, it) => {
+    const v =
+      it.totalPrice != null
+        ? Number(it.totalPrice)
+        : Number(it.quantity || 0) * Number(it.unitPrice || 0);
+    return acc + (Number.isFinite(v) ? v : 0);
+  }, 0);
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const vTotal = round2(total);
+  const first = items[0] || {};
+  return [
+    {
+      productId: null,
+      description: "Frutas in natura",
+      quantity: 1,
+      unit: first.unit || fallbackUnit,
+      unitPrice: vTotal,
+      totalPrice: vTotal,
+      ncm: first.ncm || fallbackNcm,
+      cfop: first.cfop || fallbackCfop,
+    },
+  ];
 }
 
 export async function buildNFeInput(
@@ -184,9 +232,16 @@ export async function buildNFeInput(
 
   // STEP FISCAL 2 — fonte dos itens: draft (se houver) ou order_items (legado).
   // O resolver respeita: draftId explícito > company.useFiscalDraft > legacy.
-  const draftItems = await resolveDraftItems({ orderId, draftId, company });
-  const sourceItems: any[] =
-    draftItems !== null ? draftItems : orderData.items;
+  // Quando o draft marca useGroupedItems=true, consolidamos numa única linha.
+  const resolved = await resolveDraftItems({ orderId, draftId, company });
+  let sourceItems: any[];
+  if (resolved !== null) {
+    sourceItems = resolved.useGroupedItems
+      ? applyItemGrouping(resolved.items, "08039000", defaultCfop, "KG")
+      : resolved.items;
+  } else {
+    sourceItems = orderData.items;
+  }
 
   const produtos = sourceItems.map((item: any, idx: number) => ({
     cProd: String(item.productId || idx + 1).padStart(6, "0"),
