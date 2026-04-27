@@ -10,6 +10,7 @@ import {
   stripTenantFields,
 } from "../../core/tenant/scope";
 import { currentTenantId, requireTenantId } from "../../core/tenant/context";
+import { getRequestIdForLog } from "../../core/context/requestContext";
 import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import {
   executeWorkflowTransaction,
@@ -175,6 +176,9 @@ export class OrdersRepository {
       .from(orders)
       .where(eq(orders.id, id));
     if (!row || row.companyId !== tenantId) {
+      console.warn(
+        `[SECURITY] WRITE_BLOCKED | requestId=${getRequestIdForLog()} | orderId=${id} | details=write blocked tenant=${tenantId} orderCompanyId=${row?.companyId ?? "not_found"}`,
+      );
       throw new NotFoundError("Pedido não encontrado");
     }
   }
