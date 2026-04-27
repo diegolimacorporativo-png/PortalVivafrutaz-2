@@ -1,0 +1,168 @@
+🎯 FASE NF.7.4 — ICMS POR UF (VERSÃO SEGURA E INCREMENTAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML
+2. NÃO alterar CST
+3. NÃO alterar CSOSN
+4. NÃO alterar cálculo fora da função getAliquotaICMS
+5. NÃO quebrar Simples Nacional
+6. NÃO usar banco
+7. NÃO criar regra complexa ainda
+
+👉 Apenas evoluir a função getAliquotaICMS
+
+---
+
+🧠 OBJETIVO
+
+Diferenciar:
+
+- operação interna (mesma UF)
+- operação interestadual (UF diferente)
+
+---
+
+## 🛠️ ETAPA 1 — ATUALIZAR ASSINATURA
+
+Arquivo:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+Alterar função:
+
+ts function getAliquotaICMS(): number 
+
+Para:
+
+ts function getAliquotaICMS(ufOrigem?: string, ufDestino?: string): number 
+
+---
+
+## 🛠️ ETAPA 2 — IMPLEMENTAR REGRA SIMPLES
+
+Substituir conteúdo da função por:
+
+ts function getAliquotaICMS(ufOrigem?: string, ufDestino?: string): number {   // fallback seguro (mantém comportamento atual)   if (!ufOrigem || !ufDestino) {     return 18;   }    // mesma UF → operação interna   if (ufOrigem === ufDestino) {     return 18;   }    // UF diferente → interestadual (simplificado)   return 12; } 
+
+---
+
+## 🛠️ ETAPA 3 — PASSAR PARÂMETROS
+
+📍 Dentro de gerarNFeXML
+
+Localizar onde pICMS é definido:
+
+ts const pICMS = getAliquotaICMS(); 
+
+---
+
+Substituir por:
+
+ts const pICMS = getAliquotaICMS(   (input as any).emit?.UF,   (input as any).dest?.UF ); 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO alterar estrutura de input
+- NÃO validar campos aqui
+- usar acesso seguro (?.)
+
+---
+
+## 🛠️ ETAPA 4 — NÃO MEXER MAIS NADA
+
+👉 NÃO alterar cálculo de vICMS
+👉 NÃO alterar CST
+👉 NÃO alterar switch
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Mesmo estado
+
+emit.UF = "SP"
+dest.UF = "SP"
+
+Resultado:
+
+✔ pICMS = 18
+✔ vICMS = correto
+
+---
+
+### 2️⃣ Estados diferentes
+
+emit.UF = "SP"
+dest.UF = "MG"
+
+Resultado:
+
+✔ pICMS = 12
+✔ vICMS = proporcional
+
+---
+
+### 3️⃣ Sem UF (fallback)
+
+Resultado:
+
+✔ pICMS = 18
+
+---
+
+### 4️⃣ Simples Nacional
+
+Resultado:
+
+✔ comportamento intacto (ignora ICMS)
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão
+✔ XML intacto
+✔ base pronta para regras reais
+✔ sistema já responde à operação
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts const pICMS = getAliquotaICMS(); 
+
+Depois:
+
+ts const pICMS = getAliquotaICMS(emit.UF, dest.UF); 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Função atualizada
+2. Linha alterada no generator
+3. Resultado dos testes
+4. Confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO implementar regra 7% ainda
+👉 NÃO implementar 4% importados
+👉 NÃO usar NCM ainda
+
+👉 isso vem na.  Próxima fase 

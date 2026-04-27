@@ -62,11 +62,24 @@ const toMoney = (v: number): string =>
   Number.isFinite(v) ? v.toFixed(2) : '0.00';
 
 // FASE NF.7.3 — alíquota de ICMS encapsulada num único ponto.
-// Hoje devolve 18% fixo (mesma alíquota da NF.7.2). Mantida sem parâmetros
-// de propósito — a evolução para regra por UF/produto/CFOP entra nas
-// próximas fases sem precisar mexer no call site dentro de gerarNFeXML.
-function getAliquotaICMS(): number {
-  return 18; // valor padrão inicial
+// FASE NF.7.4 — diferenciação simples interna (mesma UF) × interestadual:
+//   • sem UF (qualquer um dos dois ausente) → 18% (fallback seguro = NF.7.3);
+//   • mesma UF (interna)                    → 18%;
+//   • UFs diferentes (interestadual)        → 12% (simplificado).
+// ⚠ Sem regra por NCM, sem 7%, sem 4% importados — vem nas próximas fases.
+function getAliquotaICMS(ufOrigem?: string, ufDestino?: string): number {
+  // fallback seguro (mantém comportamento atual)
+  if (!ufOrigem || !ufDestino) {
+    return 18;
+  }
+
+  // mesma UF → operação interna
+  if (ufOrigem === ufDestino) {
+    return 18;
+  }
+
+  // UF diferente → interestadual (simplificado)
+  return 12;
 }
 
 function sanitizeXml(s: string): string {
@@ -224,11 +237,16 @@ export async function gerarNFeXML(
     // ⚠ Sem função separada e sem refatorar o bloco — apenas o switch local.
     //
     // FASE NF.7.3 — alíquota encapsulada em getAliquotaICMS() (ponto único
-    // de mudança futura). Sem parâmetros / sem estado / sem banco ainda —
-    // a evolução (regra por UF, produto, CFOP) entra em fases seguintes
-    // sem precisar tocar neste call site.
+    // de mudança futura).
+    // FASE NF.7.4 — passamos as UFs de emitente e destinatário (já normalizadas
+    // em uppercase no closure desta função, linhas 167/176) para diferenciar
+    // operação interna × interestadual. Acesso seguro via `?.` mantém o
+    // fallback 18% se algo vier ausente. Estrutura de input NÃO foi alterada.
     const vBC = Number(p.vProd) || 0;
-    const pICMS = getAliquotaICMS();
+    const pICMS = getAliquotaICMS(
+      (input as any).emitente?.uf,
+      (input as any).destinatario?.uf,
+    );
     const vICMS = (vBC * pICMS) / 100;
 
     let icmsContent: string;
