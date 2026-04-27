@@ -1,0 +1,217 @@
+🎯 FASE 15 — MAPEAMENTO COMPLETO DO FLUXO DE FATURAMENTO (END-TO-END)
+
+---
+
+📌 OBJETIVO
+
+Mapear EXATAMENTE o fluxo real de faturamento do sistema:
+
+👉 Do pedido até o estado final após tentativa de emissão
+
+⚠️ SEM implementar  
+⚠️ SEM alterar código  
+⚠️ APENAS leitura e análise
+
+---
+
+🧠 CONTEXTO
+
+O sistema já possui:
+
+- pedidos (orders)
+- cron de faturamento
+- validações fiscais (NF-e)
+- logs estruturados
+- segurança multi-tenant
+
+👉 Agora precisamos garantir que o fluxo é:
+
+✔ completo  
+✔ determinístico  
+✔ rastreável  
+✔ recuperável  
+
+---
+
+📦 SUA TAREFA
+
+---
+
+1. IDENTIFICAR PONTO DE ENTRADA DO FLUXO
+
+Responder com evidência:
+
+- Qual função inicia o faturamento?
+- Arquivo + linha
+
+Exemplo esperado:
+
+server/jobs/faturamento.cron.ts:XX → runFaturamentoCron()
+
+---
+
+2. MAPEAR FLUXO COMPLETO (PASSO A PASSO)
+
+Para UM pedido, mostrar:
+
+cron → função → service → helper → repository
+
+👉 Incluir:
+
+- nomes das funções
+- arquivos
+- ordem de execução
+
+---
+
+3. IDENTIFICAR CRITÉRIO DE SELEÇÃO
+
+Responder:
+
+👉 Como o sistema decide quais pedidos faturar?
+
+- query usada
+- filtros (status, data, flags, etc)
+- arquivo + linha
+
+---
+
+4. IDENTIFICAR VALIDAÇÃO DE ELEGIBILIDADE
+
+Responder:
+
+👉 Onde o sistema decide se o pedido pode ser faturado?
+
+Exemplo:
+
+- canEmitNFe()
+- outra função similar
+
+Mostrar:
+
+- arquivo + linha
+- regras aplicadas
+
+---
+
+5. IDENTIFICAR CHAMADA DE EMISSÃO
+
+Responder:
+
+👉 Onde ocorre a tentativa de emissão da NF?
+
+- função chamada
+- arquivo + linha
+
+---
+
+6. IDENTIFICAR PERSISTÊNCIA DO RESULTADO
+
+Responder:
+
+👉 Onde o sistema salva:
+
+- sucesso
+- erro
+- status do pedido
+
+Mostrar:
+
+- repository/método
+- campos alterados
+
+---
+
+7. IDENTIFICAR ESTADOS DO PEDIDO
+
+Listar TODOS os status possíveis encontrados no código:
+
+Exemplo:
+
+- criado
+- confirmado
+- faturado
+- erro_faturamento
+- etc
+
+👉 NÃO inventar — extrair do código
+
+---
+
+8. IDENTIFICAR TRATAMENTO DE ERRO
+
+Responder:
+
+👉 O que acontece quando falha?
+
+- retry existe? (sim/não)
+- erro fica salvo? (onde?)
+- pedido trava? (sim/não)
+
+---
+
+9. VALIDAR IDEMPOTÊNCIA DO CRON
+
+Responder:
+
+👉 Se o cron rodar 2x:
+
+- duplica faturamento? (sim/não)
+- reprocessa? (sim/não)
+- ignora corretamente? (sim/não)
+
+Explicar com base no código
+
+---
+
+10. IDENTIFICAR GAPS
+
+Listar problemas REAIS encontrados:
+
+Exemplos:
+
+- pedido sem status claro
+- falta de retry
+- risco de duplicação
+- falta de lock
+- inconsistência de dados
+
+👉 Apenas com base em evidência
+
+---
+
+🚫 PROIBIDO
+
+- implementar qualquer coisa
+- sugerir refactor ainda
+- inventar comportamento
+- assumir fluxo sem evidência
+
+---
+
+✅ FORMATO DA RESPOSTA
+
+Responder organizado em:
+
+1. Entrada do fluxo  
+2. Fluxo completo  
+3. Critério de seleção  
+4. Validação  
+5. Emissão  
+6. Persistência  
+7. Estados  
+8. Erros  
+9. Idempotência  
+10. Gaps  
+
+---
+
+🎯 OBJETIVO FINAL
+
+Ter um raio-x REAL do sistema antes de qualquer mudança
+
+👉 Sem isso, qualquer melhoria é risco
+
+---
+
+Aguardando análise complet
