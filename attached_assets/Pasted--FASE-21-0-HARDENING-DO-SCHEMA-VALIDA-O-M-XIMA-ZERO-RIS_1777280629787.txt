@@ -1,0 +1,280 @@
+🎯 FASE 21.0 — HARDENING DO SCHEMA (VALIDAÇÃO MÁXIMA + ZERO RISCO)
+
+---
+
+📌 OBJETIVO
+
+Corrigir inconsistências estruturais da tabela nfe_emissoes
+
+👉 SEM quebrar ambiente  
+👉 SEM assumir estado do banco  
+👉 COM validação obrigatória antes de QUALQUER alteração  
+👉 Preparar base para FASE 21 (constraint final)
+
+---
+
+🧠 CONTEXTO
+
+- FASE 18 ✅ Idempotência  
+- FASE 19 ✅ Observabilidade  
+- FASE 20 ✅ Concorrência  
+
+Problemas identificados:
+
+1. order_id permite NULL  
+2. status é TEXT livre  
+3. Divergência entre código e schema  
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+- NÃO alterar lógica de emissão  
+- NÃO alterar guards  
+- NÃO alterar locks  
+- NÃO executar DDL sem validação explícita  
+- NÃO assumir schema = public  
+- NÃO continuar automaticamente após descoberta  
+- NÃO corrigir dados automaticamente  
+- NÃO rodar migration se houver inconsistência  
+
+👉 Se houver dúvida → PARAR e reportar  
+
+---
+
+# 🧭 ETAPA 1 — DESCOBERTA (OBRIGATÓRIA)
+
+👉 NÃO ALTERAR NADA  
+👉 APENAS EXECUTAR E REPORTAR  
+
+---
+
+### 1. Descobrir schema da tabela
+
+sql
+SELECT schemaname
+FROM pg_tables
+WHERE tablename = 'nfe_emissoes'
+ORDER BY schemaname;
+
+---
+
+### 2. Validação de existência
+
+- Se 0 linhas → ❌ PARAR (tabela não existe)
+- Se >1 linha → ❌ PARAR (ambiguidade crítica)
+- Se 1 linha → usar como <SCHEMA_AQUI>
+
+---
+
+### 3. Estrutura da tabela
+
+sql
+SELECT column_name, is_nullable, data_type
+FROM information_schema.columns
+WHERE table_name = 'nfe_emissoes'
+AND table_schema = '<SCHEMA_AQUI>';
+
+---
+
+### 4. Contagem de registros
+
+sql
+SELECT COUNT() AS total_rows
+FROM <SCHEMA_AQUI>.nfe_emissoes;
+
+---
+
+### 5. NULL em order_id
+
+sql
+SELECT COUNT() AS total_null
+FROM <SCHEMA_AQUI>.nfe_emissoes
+WHERE order_id IS NULL;
+
+---
+
+### 6. Status reais (com contagem)
+
+sql
+SELECT status, COUNT(*) AS total
+FROM <SCHEMA_AQUI>.nfe_emissoes
+GROUP BY status;
+
+---
+
+### 7. Constraints existentes
+
+sql
+SELECT conname, pg_get_constraintdef(c.oid)
+FROM pg_constraint c
+JOIN pg_class t ON c.conrelid = t.oid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE t.relname = 'nfe_emissoes'
+AND n.nspname = '<SCHEMA_AQUI>';
+
+---
+
+# ❗ PARADA OBRIGATÓRIA
+
+Responder EXATAMENTE com:
+
+1. Schema encontrado  
+2. Total de registros  
+3. order_id é nullable?  
+4. Quantidade de NULL  
+5. Lista de status + contagem  
+6. Constraints existentes  
+
+❌ NÃO prosseguir automaticamente  
+❌ AGUARDAR confirmação humana  
+
+---
+
+# 🧠 ETAPA 2 — DECISÃO (MANUAL)
+
+---
+
+## LISTA OFICIAL DE STATUS VÁLIDOS
+
+- gerada  
+- assinada  
+- enviada  
+- autorizada  
+- rejeitada  
+- erro  
+- cancelada  
+- denegada  
+
+---
+
+## REGRAS DE BLOQUEIO
+
+### 🚫 BLOQUEAR NOT NULL se:
+- total_null > 0  
+
+---
+
+### 🚫 BLOQUEAR CHECK se:
+- existir QUALQUER status fora da lista oficial  
+
+---
+
+### ⚠️ OBSERVAÇÃO IMPORTANTE
+
+- Se tabela estiver vazia (total_rows = 0) → seguro aplicar tudo  
+- Se houver dados → validação obrigatória acima  
+
+---
+
+# 🛠️ ETAPA 3 — IMPLEMENTAÇÃO (SOMENTE COM OK HUMANO)
+
+---
+
+## 3.1 Ajuste no schema (código)
+
+Arquivo: shared/schema.ts
+
+ts
+orderId: integer("order_id").notNull()
+
+---
+
+## 3.2 Padronização de status
+
+Criar:
+
+server/modules/nfe/nfe-status.ts
+
+ts
+export const NFE_STATUS = [
+  "gerada",
+  "assinada",
+  "enviada",
+  "autorizada",
+  "rejeitada",
+  "erro",
+  "cancelada",
+  "denegada",
+] as const;
+
+---
+
+## 3.3 Alinhamento no código
+
+- NÃO alterar lógica  
+- NÃO alterar fluxo  
+- Apenas substituir strings divergentes  
+
+---
+
+## 3.4 Aplicar NOT NULL (CONDICIONAL)
+
+👉 Executar SOMENTE se total_null = 0
+
+sql
+ALTER TABLE <SCHEMA_AQUI>.nfe_emissoes
+ALTER COLUMN order_id SET NOT NULL;
+
+---
+
+## 3.5 CHECK CONSTRAINT (SEGURA)
+
+👉 Executar SOMENTE se TODOS status forem válidos
+
+PASSO 1:
+
+sql
+ALTER TABLE <SCHEMA_AQUI>.nfe_emissoes
+ADD CONSTRAINT check_nfe_status
+CHECK (status IN (
+  'gerada','assinada','enviada','autorizada',
+  'rejeitada','erro','cancelada','denegada'
+)) NOT VALID;
+
+PASSO 2:
+
+sql
+ALTER TABLE <SCHEMA_AQUI>.nfe_emissoes
+VALIDATE CONSTRAINT check_nfe_status;
+
+---
+
+# 📊 VALIDAÇÃO FINAL
+
+Testar:
+
+- INSERT sem order_id → deve falhar  
+- INSERT com status inválido → deve falhar  
+- Emissão normal → deve permanecer intacta  
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 FASE 21 — UNIQUE INDEX (última linha de defesa)
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Resultado da descoberta  
+2. O que foi aplicado  
+3. O que foi bloqueado  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE (FINAL)
+
+- NÃO executar automaticamente  
+- NÃO pular descoberta  
+- NÃO assumir estado do banco  
+- NÃO aplicar DDL com dúvida  
+
+👉 Segurança > velocidade  
+👉 Zero risco > qualquer pressa  
+
+-
