@@ -61,6 +61,14 @@ function fmtValor(v: number, dec = 2): string {
 const toMoney = (v: number): string =>
   Number.isFinite(v) ? v.toFixed(2) : '0.00';
 
+// FASE NF.7.3 — alíquota de ICMS encapsulada num único ponto.
+// Hoje devolve 18% fixo (mesma alíquota da NF.7.2). Mantida sem parâmetros
+// de propósito — a evolução para regra por UF/produto/CFOP entra nas
+// próximas fases sem precisar mexer no call site dentro de gerarNFeXML.
+function getAliquotaICMS(): number {
+  return 18; // valor padrão inicial
+}
+
 function sanitizeXml(s: string): string {
   return String(s || '')
     .replace(/&/g, '&amp;')
@@ -214,8 +222,13 @@ export async function gerarNFeXML(
     // CRT 1/2 (Simples Nacional) usa o branch <ICMSSN…> abaixo e icmsContent
     // é descartado — comportamento de Simples 100% preservado.
     // ⚠ Sem função separada e sem refatorar o bloco — apenas o switch local.
+    //
+    // FASE NF.7.3 — alíquota encapsulada em getAliquotaICMS() (ponto único
+    // de mudança futura). Sem parâmetros / sem estado / sem banco ainda —
+    // a evolução (regra por UF, produto, CFOP) entra em fases seguintes
+    // sem precisar tocar neste call site.
     const vBC = Number(p.vProd) || 0;
-    const pICMS = 18; // alíquota fixa inicial (NF.7.x: regra por UF/CFOP/produto)
+    const pICMS = getAliquotaICMS();
     const vICMS = (vBC * pICMS) / 100;
 
     let icmsContent: string;
