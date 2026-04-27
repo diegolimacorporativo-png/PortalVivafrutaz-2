@@ -28,9 +28,11 @@ export const draftItemSchema = z.object({
   // ao builder (NF.6.2) e ao generator (NF.6) → XML cairia no default '00'.
   // - .nullable() aceita `null` (mesmo padrão de ncm/cfop);
   // - .optional() preserva backward-compat (drafts antigos sem cst seguem ok);
-  // - SEM regex/enum: validação fiscal estrita é responsabilidade do generator
-  //   (`/^\d{2}$/` em nfeGenerator.ts:201, fail-fast `NFE_INVALID_CST`).
-  cst: z.string().nullable().optional(),
+  // - FASE NF.6.5: hardening leve com /^\d{2}$/ para barrar lixo
+  //   ("ABC", "<script>", etc) já no draft, sem afetar fluxo válido.
+  //   Validação fiscal estrita continua no generator
+  //   (mesmo regex em nfeGenerator.ts:201, fail-fast `NFE_INVALID_CST`).
+  cst: z.string().regex(/^\d{2}$/).nullable().optional(),
 });
 
 export const draftTotalsSchema = z
