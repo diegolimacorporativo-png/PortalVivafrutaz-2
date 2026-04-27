@@ -174,12 +174,14 @@ export async function gerarNFeXML(
   const itenXml = input.produtos.map((p, idx) => {
     const ncm = p.ncm.replace(/\D/g, '').slice(0, 8).padEnd(8, '0');
     // FASE NF.5.1 — ETAPA 2: CSOSN realmente dinâmico no XML.
-    // Antes: tag fixa <ICMSSN102> mesmo quando p.csosn era diferente.
-    // Agora: tanto a tag de abertura/fechamento quanto o conteúdo <CSOSN>
-    // refletem o valor recebido (default '102' quando ausente).
-    const csosn = escapeXml(p.csosn || '102');
+    // HOTFIX CSOSN: separar valor bruto (nome da tag) do valor escapado (conteúdo).
+    // escapeXml pode introduzir caracteres (&amp;, &apos;) que quebrariam o nome
+    // da tag <ICMSSN...>. O nome da tag usa o valor bruto; o conteúdo do <CSOSN>
+    // continua escapado para defesa em profundidade.
+    const rawCsosn = p.csosn || '102';
+    const csosn = escapeXml(rawCsosn);
     const icmsXml = crt === '1' || crt === '2'
-      ? `<ICMS><ICMSSN${csosn}><orig>0</orig><CSOSN>${csosn}</CSOSN></ICMSSN${csosn}></ICMS>`
+      ? `<ICMS><ICMSSN${rawCsosn}><orig>0</orig><CSOSN>${csosn}</CSOSN></ICMSSN${rawCsosn}></ICMS>`
       : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
 
     return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd, 'item.vProd')}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
