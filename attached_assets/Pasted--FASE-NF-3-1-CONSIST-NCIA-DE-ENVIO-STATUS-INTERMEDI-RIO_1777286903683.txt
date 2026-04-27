@@ -1,0 +1,138 @@
+🎯 FASE NF.3.1 — CONSISTÊNCIA DE ENVIO (STATUS INTERMEDIÁRIO)
+
+---
+
+📌 OBJETIVO
+
+Adicionar estado intermediário "enviando" no fluxo de transmissão de NF-e
+
+👉 SEM alterar fluxo existente  
+👉 SEM quebrar NF.3  
+👉 SEM alterar estrutura de retorno  
+
+---
+
+🧠 CONTEXTO
+
+Atualmente:
+
+- status vai direto de "gerada" → "autorizada"
+
+Problema:
+
+- ausência de estado intermediário
+- inconsistência em caso de falha entre envio e retorno
+- dificulta observabilidade
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar assinatura de funções
+- NÃO alterar fluxo principal
+- NÃO alterar retorno do endpoint
+- NÃO mexer em outros módulos
+
+👉 atuar APENAS em:
+server/modules/nfe/nfe-transmit.service.ts
+
+---
+
+# 🛠️ IMPLEMENTAÇÃO
+
+---
+
+## 1. ATUALIZAR STATUS PARA "enviando"
+
+ANTES de chamar qualquer integração SEFAZ (mock ou real):
+
+Adicionar:
+
+await storage.updateNfeEmissao(nfeId, {
+  status: "enviando"
+});
+
+👉 deve acontecer após validações iniciais  
+👉 e antes do retry loop
+
+---
+
+## 2. PROTEGER CONTRA CORRIDA
+
+Após definir "enviando":
+
+Revalidar:
+
+if (nfe.status !== "gerada") {
+  console.warn("[NFE_SEND_ABORTED_STATE]", { nfeId, currentStatus: nfe.status });
+  throw new Error("NFE_INVALID_STATE_TRANSITION");
+}
+
+---
+
+## 3. GARANTIR RECUPERAÇÃO EM ERRO
+
+Dentro do catch do retry:
+
+Se TODAS tentativas falharem:
+
+Atualizar status para:
+
+await storage.updateNfeEmissao(nfeId, {
+  status: "erro"
+});
+
+👉 somente após esgotar tentativas  
+👉 não sobrescrever se já virou "autorizada"
+
+---
+
+## 4. LOG ESTRUTURADO
+
+Adicionar:
+
+[NFE_STATUS_TRANSITION]
+
+{
+  nfeId,
+  from: "gerada",
+  to: "enviando"
+}
+
+---
+
+## 5. NÃO ALTERAR
+
+🚫 NÃO alterar:
+
+- lógica de retry
+- lógica de autorização
+- update final (autorizada/rejeitada)
+- validações existentes
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Fluxo passa a ser:
+
+gerada → enviando → autorizada | rejeitada | erro
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Ponto exato onde status foi inserido  
+2. Logs adicionados  
+3. Confirmação de não alteração do fluxo  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 mudança deve ser mínima  
+👉 sem refatoração  
+👉 sem alterar comportamento externo

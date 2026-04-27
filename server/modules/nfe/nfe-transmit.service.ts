@@ -76,6 +76,24 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
     mode: 'mock',
   });
 
+  // FASE NF.3.1 — estado intermediário "enviando" (proteção de corrida +
+  // observabilidade). Atua APÓS as validações iniciais e ANTES do retry loop.
+  // Não altera fluxo, assinaturas ou retorno externo.
+  const preTransition = await storage.getNfeEmissao(nfe.id);
+  if (!preTransition || preTransition.status !== 'gerada') {
+    console.warn('[NFE_SEND_ABORTED_STATE]', {
+      nfeId: nfe.id,
+      currentStatus: preTransition?.status,
+    });
+    throw new Error('NFE_INVALID_STATE_TRANSITION');
+  }
+  await storage.updateNfeEmissao(nfe.id, { status: 'enviando' });
+  console.log('[NFE_STATUS_TRANSITION]', {
+    nfeId: nfe.id,
+    from: 'gerada',
+    to: 'enviando',
+  });
+
   // ETAPA 8 — retry controlado (3 tentativas, sem retry em erro de validação).
   let lastErr: unknown = null;
   let response: SefazResponse | null = null;
@@ -94,7 +112,27 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
         attempt,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (attempt === MAX_ATTEMPTS) throw err;
+      if (attempt === MAX_ATTEMPTS) {
+        // FASE NF.3.1 — recuperação: marcar "erro" só após esgotar tentativas,
+        // sem sobrescrever um eventual "autorizada" definido por outro caminho.
+        try {
+          const cur = await storage.getNfeEmissao(nfe.id);
+          if (cur && cur.status !== 'autorizada') {
+            await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
+            console.warn('[NFE_STATUS_TRANSITION]', {
+              nfeId: nfe.id,
+              from: cur.status,
+              to: 'erro',
+            });
+          }
+        } catch (recoverErr) {
+          console.error('[NFE_STATUS_RECOVER_FAIL]', {
+            nfeId: nfe.id,
+            error: recoverErr instanceof Error ? recoverErr.message : String(recoverErr),
+          });
+        }
+        throw err;
+      }
     }
   }
 
