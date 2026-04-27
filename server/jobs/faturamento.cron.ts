@@ -17,8 +17,9 @@ import { db } from "../database/db";
 import { sql } from "drizzle-orm";
 import { storage } from "../services/storage";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
+import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
 import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
-import { AUTO_FATURAMENTO } from "../config/flags";
+import { AUTO_FATURAMENTO, ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import {
   setCronRunning,
   setCronResult,
@@ -214,6 +215,28 @@ export async function runFaturamentoCron(
         };
       }
 
+      // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
+      // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
+      // dry-run (flag false) apenas loga; em modo ativo, bloqueia a emissão.
+      const idem = await hasBlockingNFe(orderId);
+      if (idem.blocked) {
+        if (ENABLE_NFE_IDEMPOTENCY_GUARD) {
+          console.warn(
+            `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+          );
+          return {
+            orderId,
+            status: "blocked",
+            reason: `Pedido já possui NF-e em status bloqueante: ${idem.blockingStatus}`,
+          };
+        } else {
+          console.warn(
+            `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+          );
+          // segue o fluxo — só observa
+        }
+      }
+
       // Guard — nunca emite sem passar aqui
       const check = await canEmitNFe(orderId);
 
@@ -229,10 +252,9 @@ export async function runFaturamentoCron(
       }
 
       // Modo automático: emite de fato
-      const existing = await storage.getNfeEmissaoByOrderId(orderId);
-      if (existing && ["autorizada", "enviada"].includes(existing.status)) {
-        return { orderId, status: "skipped", reason: "NF-e já emitida" };
-      }
+      // (FASE 18 — checagem antiga `getNfeEmissaoByOrderId + ['autorizada','enviada']`
+      // removida; substituída pelo `hasBlockingNFe` acima, que cobre EXISTÊNCIA
+      // sobre todo o histórico, sem ORDER BY DESC LIMIT 1.)
 
       const { gerarNFeXML } = await import("../services/nfe/nfeGenerator.ts");
       const { validarNFeInput } = await import("../services/nfe/nfeValidator.ts");

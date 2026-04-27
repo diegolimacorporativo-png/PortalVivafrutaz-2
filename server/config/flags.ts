@@ -50,3 +50,28 @@ export const BILLING_DRY_RUN = true;
  * da Central de Faturamento continua funcionando independente desta flag.
  */
 export const AUTO_FATURAMENTO = false;
+
+/**
+ * FASE 18 — Guard de idempotência de NF-e (GAP 2 — duplicação sequencial).
+ *
+ * Quando true, BLOQUEIA emissão de nova NF-e para pedidos com qualquer
+ * NF-e em status: gerada, assinada, enviada, autorizada, rejeitada, erro.
+ *
+ * Quando false (DEFAULT), roda em modo DRY-RUN: NÃO bloqueia, mas LOGA
+ * `[NFE_IDEMPOTENCY_DRY_RUN]` para cada pedido que SERIA bloqueado. Isso
+ * permite validar a regra em produção antes de ativar o bloqueio real.
+ *
+ * KILL SWITCH (sem redeploy):
+ *   1. Definir ENABLE_NFE_IDEMPOTENCY_GUARD=false nas env vars.
+ *   2. Reiniciar o workflow.
+ *   3. Comportamento volta para dry-run instantaneamente.
+ *
+ * Para ativar:
+ *   1. Definir ENABLE_NFE_IDEMPOTENCY_GUARD=true nas env vars.
+ *   2. Reiniciar o workflow.
+ *
+ * Escopo: resolve apenas duplicação SEQUENCIAL (GAP 2).
+ * NÃO resolve concorrência (GAP 1 e GAP 7).
+ */
+export const ENABLE_NFE_IDEMPOTENCY_GUARD =
+  process.env.ENABLE_NFE_IDEMPOTENCY_GUARD === "true";

@@ -48,6 +48,9 @@ import {
 } from "../modules/billing/subscription.middleware";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
+import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
+import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
+import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
 import { validateOrderTenant } from "../core/security/tenantGuard";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
@@ -5486,10 +5489,28 @@ export async function registerRoutes(
         const { orderId } = req.body;
         if (!orderId) return res.status(400).json({ message: 'orderId obrigatório' });
 
-        // Check if already has NF-e
-        const existing = await storage.getNfeEmissaoByOrderId(Number(orderId));
-        if (existing && ['autorizada', 'enviada'].includes(existing.status)) {
-          return res.status(400).json({ message: 'Este pedido já possui NF-e emitida', nfe: existing });
+        // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
+        // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
+        // dry-run (flag false) apenas loga; em modo ativo, bloqueia.
+        // (Substitui a antiga checagem `getNfeEmissaoByOrderId + ['autorizada','enviada']`
+        // que dependia de ORDER BY DESC LIMIT 1.)
+        const idem = await hasBlockingNFe(Number(orderId));
+        if (idem.blocked) {
+          if (ENABLE_NFE_IDEMPOTENCY_GUARD) {
+            console.warn(
+              `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=emitir | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+            );
+            return res.status(409).json({
+              message: 'Pedido já possui NF-e em status bloqueante',
+              blockingStatus: idem.blockingStatus,
+              blockingNfeId: idem.blockingNfeId,
+            });
+          } else {
+            console.warn(
+              `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=emitir | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+            );
+            // segue o fluxo — só observa
+          }
         }
 
         // STEP 9.2Y — Gate de faturamento (regras mínimas seguras)
@@ -5544,10 +5565,26 @@ export async function registerRoutes(
         const results = await Promise.all(
           orderIds.map(async (orderId: number) => {
             try {
-              // Verificar NF-e já emitida
-              const existing = await storage.getNfeEmissaoByOrderId(Number(orderId));
-              if (existing && ['autorizada', 'enviada'].includes(existing.status)) {
-                return { orderId, status: 'skipped', reason: 'NF-e já emitida' };
+              // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
+              // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Mesmo
+              // comportamento do /api/nfe/emitir e do cron — função única.
+              const idem = await hasBlockingNFe(Number(orderId));
+              if (idem.blocked) {
+                if (ENABLE_NFE_IDEMPOTENCY_GUARD) {
+                  console.warn(
+                    `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=emitir-lote | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+                  );
+                  return {
+                    orderId,
+                    status: 'blocked',
+                    reason: `Pedido já possui NF-e em status bloqueante: ${idem.blockingStatus}`,
+                  };
+                } else {
+                  console.warn(
+                    `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=emitir-lote | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+                  );
+                  // segue o fluxo — só observa
+                }
               }
 
               // Guard — mesma regra do /api/nfe/emitir, sem duplicar
