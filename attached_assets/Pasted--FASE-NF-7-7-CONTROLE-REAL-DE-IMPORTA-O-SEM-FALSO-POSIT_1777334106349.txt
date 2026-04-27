@@ -1,0 +1,149 @@
+🎯 FASE NF.7.7 — CONTROLE REAL DE IMPORTAÇÃO (SEM FALSO POSITIVO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar CST  
+3. NÃO alterar CSOSN  
+4. NÃO alterar cálculo fora de getAliquotaICMS  
+5. NÃO usar banco  
+6. NÃO criar tabela  
+7. NÃO quebrar fluxo atual  
+8. NÃO depender de lista externa gigante  
+
+👉 Apenas evoluir isProdutoImportado
+
+---
+
+🧠 OBJETIVO
+
+Eliminar falsos positivos e permitir controle real:
+
+👉 prioridade:
+1. flag manual (item/importado)
+2. fallback por NCM (heurístico melhorado)
+
+---
+
+## 🛠️ ETAPA 1 — PRIORIDADE POR ITEM
+
+Permitir:
+
+ts (item as any).importado === true 
+
+---
+
+Atualizar helper:
+
+ts function isProdutoImportado(   ncm?: string,   item?: any ): boolean {   // 1. PRIORIDADE TOTAL: flag manual   if (item?.importado === true) {     return true;   }    if (!ncm) return false;    const code = ncm.trim();    // 2. evitar lixo   if (code.length < 4) return false;    // 3. heurística melhorada (capítulos comuns de importação)   const prefix = code.substring(0, 2);    const IMPORTADOS_COMUNS = new Set([     "84", // máquinas     "85", // eletrônicos     "87", // veículos     "90", // instrumentos   ]);    return IMPORTADOS_COMUNS.has(prefix); } 
+
+---
+
+## 🛠️ ETAPA 2 — ATUALIZAR CHAMADA
+
+Dentro de getAliquotaICMS:
+
+ts if (isProdutoImportado(ncm, item)) {   return 4; } 
+
+---
+
+## 🛠️ ETAPA 3 — PASSAR ITEM
+
+Atualizar call site:
+
+ts const pICMS = getAliquotaICMS(   (input as any).emitente?.uf,   (input as any).destinatario?.uf,   p.ncm,   p ); 
+
+---
+
+Atualizar assinatura:
+
+ts function getAliquotaICMS(   ufOrigem?: string,   ufDestino?: string,   ncm?: string,   item?: any ): number 
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+---
+
+### 1️⃣ Flag manual
+
+item.importado = true
+
+✔ pICMS = 4 (sempre)
+
+---
+
+### 2️⃣ Produto eletrônico
+
+ncm = "85044010"
+
+✔ pICMS = 4
+
+---
+
+### 3️⃣ Fruta / alimento
+
+ncm = "08039000"
+
+✔ NÃO aplicar 4%  
+✔ segue regra UF
+
+---
+
+### 4️⃣ NCM inválido
+
+ncm = "1" ou ""
+
+✔ ignorado → regra UF
+
+---
+
+### 5️⃣ Simples Nacional
+
+✔ ignorado (sem impacto)
+
+---
+
+## 🔒 GARANTIAS
+
+✔ remove falso positivo  
+✔ permite override manual  
+✔ não depende de banco  
+✔ não quebra fluxo atual  
+✔ preparado para futuro (produto.cst + origem)  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts "20000000" → 4% ❌ (errado) 
+
+Depois:
+
+ts "20000000" → regra UF ✔ "85000000" → 4% ✔ item.importado=true → 4% ✔ 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Helper atualizado  
+2. Assinatura da função  
+3. Linha alterada no generator  
+4. Resultado dos testes  
+5. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO usar banco ainda  
+👉 NÃO usar tabela TIPI ainda  
+👉 NÃO automatizar por produto ainda  
+
+👉 isso vem na

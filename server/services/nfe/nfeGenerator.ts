@@ -70,14 +70,41 @@ const UFS_7 = new Set([
   "RN","RO","RR","SE","TO",
 ]);
 
-// FASE NF.7.6 — heurística simplificada de produto importado.
-// ⚠ De propósito simples: NCM iniciado em "1" ou "2". Sem tabela TIPI,
-// sem API externa, sem cálculo de conteúdo de importação (%). Será evoluída
-// nas próximas fases — qualquer refino de regra entra aqui, sem mexer no
-// generator nem no call site.
-function isProdutoImportado(ncm?: string): boolean {
+// FASE NF.7.6 — heurística inicial (NCM começa em "1"/"2") — gerava falso
+// positivo para frutas/sucos (cap. 08/20).
+// FASE NF.7.7 — controle real de importação:
+//   1) PRIORIDADE ABSOLUTA: flag manual `item.importado === true`
+//      (override do operador / cadastro de produto, no futuro);
+//   2) Fallback heurístico por capítulo NCM (2 primeiros dígitos)
+//      restrito a capítulos tipicamente importados (84/85/87/88/89/90).
+// Capítulos 08 (frutas) e 20 (sucos/preparações de hortaliças e frutas)
+// — domínio principal do app — saem da regra e seguem alíquota por UF.
+// ⚠ Sem TIPI, sem API externa, sem cálculo de conteúdo de importação (%).
+const NCM_CAPITULOS_IMPORTADOS_COMUNS = new Set([
+  "84", // máquinas mecânicas
+  "85", // máquinas elétricas / eletrônicos
+  "87", // veículos
+  "88", // aeronaves
+  "89", // embarcações
+  "90", // instrumentos óticos / médicos / precisão
+]);
+
+function isProdutoImportado(ncm?: string, item?: any): boolean {
+  // 1. PRIORIDADE TOTAL: flag manual no item
+  if (item?.importado === true) {
+    return true;
+  }
+
   if (!ncm) return false;
-  return ncm.startsWith("1") || ncm.startsWith("2");
+
+  const code = String(ncm).trim();
+
+  // 2. evitar lixo / NCM inválido
+  if (code.length < 4) return false;
+
+  // 3. heurística por capítulo (2 primeiros dígitos)
+  const capitulo = code.substring(0, 2);
+  return NCM_CAPITULOS_IMPORTADOS_COMUNS.has(capitulo);
 }
 
 // FASE NF.7.3 — alíquota de ICMS encapsulada num único ponto.
@@ -99,6 +126,7 @@ function getAliquotaICMS(
   ufOrigem?: string,
   ufDestino?: string,
   ncm?: string,
+  item?: any,
 ): number {
   // 1. fallback seguro
   if (!ufOrigem || !ufDestino) {
@@ -106,7 +134,8 @@ function getAliquotaICMS(
   }
 
   // 2. regra de importado (PRIORIDADE MÁXIMA — vem antes da lógica de UF)
-  if (isProdutoImportado(ncm)) {
+  //    NF.7.7: agora considera flag manual `item.importado` E heurística NCM.
+  if (isProdutoImportado(ncm, item)) {
     return 4;
   }
 
@@ -290,11 +319,13 @@ export async function gerarNFeXML(
     // fallback 18% se algo vier ausente. Estrutura de input NÃO foi alterada.
     const vBC = Number(p.vProd) || 0;
     // FASE NF.7.6 — NCM passado como 3º argumento para detecção de importado.
-    // Acesso seguro `p.ncm` mantém o fallback (sem NCM → segue regra de UF).
+    // FASE NF.7.7 — item completo (`p`) passado como 4º argumento para
+    // permitir override manual via `p.importado === true` (cadastro/operador).
     const pICMS = getAliquotaICMS(
       (input as any).emitente?.uf,
       (input as any).destinatario?.uf,
       p.ncm,
+      p,
     );
     const vICMS = (vBC * pICMS) / 100;
 
