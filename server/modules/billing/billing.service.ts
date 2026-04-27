@@ -142,6 +142,7 @@ function applyItemGroupingInternal(
       totalPrice: vTotal,
       ncm: first.ncm || fallbackNcm,
       cfop: first.cfop || fallbackCfop,
+      cst: (first as any).cst || '00',
     },
   ];
 }
