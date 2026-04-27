@@ -1,0 +1,167 @@
+🎯 OBJETIVO: FASE 11 — PADRONIZAÇÃO DO LOG DE SEGURANÇA (SEM ALTERAR COMPORTAMENTO)
+
+---
+
+🧠 CONTEXTO
+
+O sistema já possui segurança multi-tenant completa e validada:
+
+- leitura protegida
+- escrita protegida
+- endpoints testados via HTTP real
+- logs de segurança implementados (FASE 8 e FASE 9)
+
+---
+
+📌 SITUAÇÃO ATUAL
+
+Hoje existem múltiplos padrões de log:
+
+- [SECURITY] Tenant mismatch ...
+- [SECURITY] Missing tenant context ...
+- [SECURITY] Possible cross-tenant access (404) ...
+
+👉 Problema:
+Os logs NÃO seguem um padrão único consistente
+
+---
+
+🎯 OBJETIVO DA FASE
+
+Padronizar TODOS os logs de segurança para um formato único e consistente
+
+👉 SEM alterar comportamento do sistema
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar fluxo de execução  
+3. NÃO alterar status HTTP  
+4. NÃO alterar resposta da API  
+5. NÃO remover logs existentes  
+6. NÃO alterar validações  
+7. NÃO alterar tenantGuard (lógica)  
+8. NÃO alterar endpoints  
+
+👉 Apenas ajustar FORMATO de log
+
+---
+
+📦 TAREFA
+
+---
+
+1. PADRÃO DEFINIDO (OBRIGATÓRIO)
+
+Todos os logs devem seguir exatamente:
+
+[SECURITY] <tipo> | orderId=<id> | details=<info>
+
+---
+
+2. TIPOS DE LOG
+
+Padronizar os seguintes tipos:
+
+| Caso atual | Novo tipo |
+|----------|--------|
+| Tenant mismatch | TENANT_MISMATCH |
+| Missing tenant context | MISSING_TENANT |
+| Possible cross-tenant access (404) | CROSS_TENANT_404 |
+
+---
+
+3. COMPATIBILIDADE OBRIGATÓRIA
+
+⚠️ IMPORTANTE
+
+Manter as palavras-chave antigas dentro de details= quando existirem.
+
+Exemplo:
+
+ANTES:
+[SECURITY] Tenant mismatch for orderId=10 tenant=2 owner=5
+
+DEPOIS:
+[SECURITY] TENANT_MISMATCH | orderId=10 | details=Tenant mismatch tenant=2 owner=5
+
+👉 Isso garante:
+- compatibilidade com logs antigos
+- testes existentes continuam funcionando
+- rastreabilidade histórica preservada
+
+---
+
+4. LOCAIS A AJUSTAR
+
+Buscar e ajustar SOMENTE formatação de:
+
+- tenantGuard.ts  
+- routes.ts (logs da FASE 8)  
+- orders.service.ts (FASE 9)  
+
+---
+
+5. EXEMPLOS
+
+ANTES:
+[SECURITY] Missing tenant context on protected route | orderId=12
+
+DEPOIS:
+[SECURITY] MISSING_TENANT | orderId=12 | details=Missing tenant context on protected route
+
+---
+
+ANTES:
+[SECURITY] Possible cross-tenant access (404) for orderId=2
+
+DEPOIS:
+[SECURITY] CROSS_TENANT_404 | orderId=2 | details=Possible cross-tenant access (404)
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO remover informações existentes  
+- NÃO simplificar mensagens  
+- apenas reorganizar dentro de details=  
+
+---
+
+🧪 VALIDAÇÃO
+
+Rodar novamente:
+
+scripts/test-tenant-http-security.ts  
+scripts/test-tenant-write-security.ts  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Todos os testes continuam passando  
+- Logs aparecem padronizados  
+- Nenhuma regressão  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. arquivos alterados  
+2. exemplos antes/depois  
+3. resultado dos testes  
+4. confirmação:
+
+PADRONIZAÇÃO DE LOG CONCLUÍDA ✅
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+Se houver qualquer risco de alterar comportamento:
+
+👉 PARAR e perguntar antes de implemen
