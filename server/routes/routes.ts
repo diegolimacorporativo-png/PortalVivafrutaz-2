@@ -55,6 +55,12 @@ import {
   getMetrics as getNfeIdemMetrics,
   resetMetrics as resetNfeIdemMetrics,
 } from "../modules/nfe/nfe-idempotency.metrics";
+import {
+  acquireOrderLock,
+  releaseOrderLock,
+  type OrderLockHandle,
+} from "../modules/nfe/nfe-concurrency.lock";
+import { requireTenantId } from "../core/tenant/context";
 import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
@@ -5522,9 +5528,26 @@ export async function registerRoutes(
     // POST /api/nfe/emitir — gerar XML + criar registro
     app.post('/api/nfe/emitir', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      let lock: OrderLockHandle | null = null;
       try {
         const { orderId } = req.body;
         if (!orderId) return res.status(400).json({ message: 'orderId obrigatório' });
+
+        // FASE 20 — Lock de concorrência (GAP 1, GAP 7). SEMPRE ANTES de
+        // qualquer validação ou escrita. Granular por (tenantId, orderId).
+        const tenantId = requireTenantId();
+        lock = await acquireOrderLock(tenantId, Number(orderId));
+        if (!lock) {
+          console.warn(
+            `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=emitir | tenantId=${tenantId} | orderId=${orderId}`,
+          );
+          return res.status(409).json({
+            message: 'Pedido já está em processamento',
+          });
+        }
+        console.log(
+          `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=emitir | tenantId=${tenantId} | orderId=${orderId}`,
+        );
 
         // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
         // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
@@ -5591,7 +5614,19 @@ export async function registerRoutes(
         await storage.createLog({ action: 'NF-E_GERADA', description: `NF-e nº ${numero} gerada para pedido #${orderId}. Chave: ${gerada.chaveNFe}`, level: 'INFO', userId: req.session.userId });
 
         res.status(201).json({ success: true, nfe, mensagem: 'XML NF-e gerado. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.' });
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+      } catch (e: any) {
+        res.status(500).json({ message: e.message });
+      } finally {
+        // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
+        if (lock) {
+          const tenantIdLog = lock.tenantId;
+          const orderIdLog = lock.orderId;
+          await releaseOrderLock(lock);
+          console.log(
+            `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=emitir | tenantId=${tenantIdLog} | orderId=${orderIdLog}`,
+          );
+        }
+      }
     });
 
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
@@ -5603,9 +5638,32 @@ export async function registerRoutes(
           return res.status(400).json({ error: 'Lista de pedidos inválida' });
         }
 
+        // FASE 20 — tenantId é obtido UMA vez por request (não por item). Lock
+        // continua granular por (tenantId, orderId) — pedidos diferentes do
+        // mesmo tenant não bloqueiam um ao outro.
+        const tenantIdLote = requireTenantId();
+
         const results = await Promise.all(
           orderIds.map(async (orderId: number) => {
+            let lockItem: OrderLockHandle | null = null;
             try {
+              // FASE 20 — Lock de concorrência (GAP 1, GAP 7). SEMPRE ANTES
+              // de qualquer validação ou escrita, dentro do item do lote.
+              lockItem = await acquireOrderLock(tenantIdLote, Number(orderId));
+              if (!lockItem) {
+                console.warn(
+                  `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=emitir-lote | tenantId=${tenantIdLote} | orderId=${orderId}`,
+                );
+                return {
+                  orderId,
+                  status: 'skipped',
+                  reason: 'Pedido já está em processamento por outra execução',
+                };
+              }
+              console.log(
+                `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=emitir-lote | tenantId=${tenantIdLote} | orderId=${orderId}`,
+              );
+
               // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
               // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Mesmo
               // comportamento do /api/nfe/emitir e do cron — função única.
@@ -5667,6 +5725,14 @@ export async function registerRoutes(
               return { orderId, status: 'success', nfe };
             } catch (e: any) {
               return { orderId, status: 'error', reason: e.message };
+            } finally {
+              // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
+              if (lockItem) {
+                await releaseOrderLock(lockItem);
+                console.log(
+                  `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=emitir-lote | tenantId=${tenantIdLote} | orderId=${orderId}`,
+                );
+              }
             }
           }),
         );

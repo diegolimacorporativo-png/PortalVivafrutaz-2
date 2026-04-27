@@ -1,0 +1,284 @@
+🎯 FASE 20 — PROTEÇÃO CONTRA CONCORRÊNCIA (LOCK POR ORDER ID)
+
+---
+
+📌 OBJETIVO
+
+Eliminar duplicação de NFe causada por execução simultânea (race condition)
+
+👉 Resolver GAP 1 e GAP 7  
+👉 Garantir que apenas UMA emissão ocorra por pedido ao mesmo tempo  
+
+---
+
+🧠 CONTEXTO
+
+- FASE 18 já protege duplicação sequencial (idempotência)  
+- FASE 19 já fornece observabilidade  
+- Problema restante:
+
+❌ Duas execuções simultâneas ainda podem gerar duplicação  
+
+Exemplo:
+
+- Cron inicia emissão  
+- API manual dispara ao mesmo tempo  
+- Ambas passam pelo EXISTS  
+- Ambas criam NFe  
+
+---
+
+🎯 OBJETIVO TÉCNICO
+
+Garantir exclusividade de execução por:
+
+👉 orderId  
+
+Durante o processo de emissão  
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar lógica de emissão  
+- NÃO alterar canEmitNFe  
+- NÃO alterar idempotência (FASE 18)  
+- NÃO usar Redis ou infra externa  
+- NÃO criar migration nesta fase  
+- NÃO quebrar multi-tenant  
+- NÃO bloquear outros pedidos  
+
+👉 Lock deve ser granular por orderId  
+
+---
+
+📦 ESTRATÉGIA
+
+Implementar LOCK NO BANCO (PostgreSQL)
+
+Usando:
+
+👉 pg_try_advisory_lock
+
+---
+
+📌 DECISÃO (AJUSTE CRÍTICO)
+
+Usar:
+
+👉 pg_try_advisory_lock(tenantId, orderId)  
+👉 pg_advisory_unlock(tenantId, orderId)  
+
+Motivo:
+
+- Evita colisão entre tenants (CRÍTICO em multi-tenant)
+- Usa namespace natural (tenantId + orderId)
+- Não precisa hash
+- Não precisa migration
+
+⚠️ NÃO usar:
+
+- pg_try_advisory_lock(orderId) sozinho ❌ (pode colidir entre tenants)
+- hash(orderId) ❌
+- ORDER BY / LIMIT para concorrência ❌
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+1. CRIAR MÓDULO DE LOCK
+
+Arquivo novo:
+
+server/modules/nfe/nfe-concurrency.lock.ts  
+
+Funções:
+
+- acquireOrderLock(tenantId: number, orderId: number): Promise<boolean>  
+- releaseOrderLock(tenantId: number, orderId: number): Promise<void>  
+
+Implementação:
+
+- usar pg_try_advisory_lock(tenantId, orderId)
+- retornar true se lock adquirido
+- retornar false se já estiver em uso
+
+---
+
+2. PADRÃO DE USO (OBRIGATÓRIO)
+
+let locked = false
+
+try {
+  locked = await acquireOrderLock(tenantId, orderId)
+
+  if (!locked) {
+    // concorrência detectada
+    return
+  }
+
+  executar emissão
+
+} finally {
+  if (locked) {
+    await releaseOrderLock(tenantId, orderId)
+  }
+}
+
+👉 release SOMENTE se lock foi adquirido  
+👉 evita unlock indevido  
+
+---
+
+3. APLICAR NOS 3 PONTOS
+
+---
+
+📍 server/jobs/faturamento.cron.ts  
+
+ANTES de:
+
+- hasBlockingNFe  
+- canEmitNFe  
+
+Adicionar:
+
+await acquireOrderLock(tenantId, orderId)
+
+---
+
+📍 POST /api/nfe/emitir  
+
+ANTES de:
+
+- hasBlockingNFe  
+- canEmitNFe  
+
+---
+
+📍 POST /api/nfe/emitir-lote  
+
+Dentro do loop de cada pedido  
+
+---
+
+4. COMPORTAMENTO EM CASO DE LOCK
+
+Se acquire retornar false:
+
+👉 NÃO esperar  
+👉 NÃO retry automático  
+
+Retornar:
+
+cron:
+  status: "skipped_lock"  
+
+API:
+  HTTP 409  
+  mensagem: "Pedido já está em processamento"  
+
+---
+
+5. LOGS DE CONCORRÊNCIA
+
+Adicionar logs estruturados:
+
+[NFE_CONCURRENCY_LOCK_ACQUIRED]  
+[NFE_CONCURRENCY_LOCK_SKIPPED]  
+[NFE_CONCURRENCY_LOCK_RELEASED]  
+
+Campos obrigatórios:
+
+- requestId  
+- tenantId  
+- orderId  
+- source (cron, emitir, emitir-lote)  
+
+---
+
+6. ORDEM CORRETA (CRÍTICO)
+
+Fluxo final obrigatório:
+
+1. acquire lock  
+2. hasBlockingNFe  
+3. canEmitNFe  
+4. gerar NFe  
+5. salvar  
+6. release lock  
+
+👉 Lock SEMPRE antes de qualquer validação  
+
+---
+
+7. GARANTIAS
+
+- 1 execução por (tenantId + orderId) por vez  
+- concorrência eliminada  
+- sem impacto em outros pedidos  
+- sem alteração de lógica existente  
+- sem necessidade de Redis  
+- sem migration  
+
+---
+
+📊 VALIDAÇÃO
+
+Testar:
+
+1. 2 requests simultâneos mesmo orderId  
+   → apenas 1 executa  
+   → outro retorna 409  
+
+2. Cron + API simultâneo  
+   → apenas 1 executa  
+
+3. Requests com orderId diferentes  
+   → executam em paralelo  
+
+4. Mesmo orderId em tenants diferentes  
+   → NÃO bloqueia (isolamento correto)  
+
+---
+
+📈 RESULTADO ESPERADO
+
+- Zero duplicação por concorrência  
+- Sistema consistente sob carga  
+- Logs claros de lock  
+- Multi-tenant seguro  
+
+---
+
+🚀 PRÓXIMO PASSO
+
+FASE 21 (recomendado):
+
+👉 Constraint no banco (última linha de defesa)  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Arquivos criados  
+2. Pontos onde lock foi aplicado  
+3. Exemplo de logs  
+4. Confirmação de zero impacto no fluxo  
+
+---
+
+⚠️ IMPORTANTE
+
+Esta fase complementa a FASE 18  
+
+👉 Agora sistema fica protegido contra:
+
+- duplicação sequencial  
+- duplicação simultânea  
+
+--

@@ -22,6 +22,11 @@ import {
   incrementBlocked as incNfeIdemBlocked,
   incrementDryRun as incNfeIdemDryRun,
 } from "../modules/nfe/nfe-idempotency.metrics";
+import {
+  acquireOrderLock,
+  releaseOrderLock,
+  type OrderLockHandle,
+} from "../modules/nfe/nfe-concurrency.lock";
 import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
 import { AUTO_FATURAMENTO, ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import {
@@ -202,6 +207,7 @@ export async function runFaturamentoCron(
   // 2. Processar em batches de CONCURRENCY_LIMIT
   const detalhes = await processInBatches(candidates, async (row) => {
     const orderId = row.id;
+    let lock: OrderLockHandle | null = null;
     try {
       // FASE 3 — sanity check: cron não tem contexto de tenant, então
       // não usamos validateOrderTenant aqui. Apenas garantimos que o row
@@ -218,6 +224,24 @@ export async function runFaturamentoCron(
           reason: "Order sem companyId (sanity check)",
         };
       }
+
+      // FASE 20 — Lock de concorrência (GAP 1, GAP 7). SEMPRE ANTES de
+      // qualquer validação ou escrita. Granular por (tenantId, orderId).
+      const tenantId = row.company_id;
+      lock = await acquireOrderLock(tenantId, orderId);
+      if (!lock) {
+        console.warn(
+          `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
+        );
+        return {
+          orderId,
+          status: "skipped_lock",
+          reason: "Pedido já está em processamento por outra execução",
+        };
+      }
+      console.log(
+        `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
+      );
 
       // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
       // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
@@ -300,6 +324,15 @@ export async function runFaturamentoCron(
     } catch (e: any) {
       console.error(`[CRON_FATURAMENTO_ERROR] pedido #${orderId}:`, e.message);
       return { orderId, status: "error", reason: e.message };
+    } finally {
+      // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
+      if (lock) {
+        const tenantId = lock.tenantId;
+        await releaseOrderLock(lock);
+        console.log(
+          `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
+        );
+      }
     }
   });
 
