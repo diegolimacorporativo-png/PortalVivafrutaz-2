@@ -64,7 +64,7 @@ import { requireTenantId } from "../core/tenant/context";
 import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
-import { validateOrderTenant } from "../core/security/tenantGuard";
+import { validateOrderTenant, safeGetOrder } from "../core/security/tenantGuard";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
 import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
 import { runFaturamentoCron } from "../jobs/faturamento.cron";
@@ -3375,7 +3375,18 @@ export async function registerRoutes(
     if (!orderId || !type) return res.status(400).json({ message: 'orderId e type são obrigatórios' });
 
     try {
-      const orderData = await storage.getOrder(orderId);
+      // FASE 6 — leitura tenant-safe: orderId vem de req.body (input externo).
+      // safeGetOrder valida tenant internamente; convertemos AppError em status
+      // HTTP correto (403/404/401) sem alterar o shape de sucesso.
+      let orderData;
+      try {
+        orderData = await safeGetOrder(Number(orderId));
+      } catch (e: any) {
+        if (e instanceof AppError) {
+          return res.status(e.status).json({ message: e.message });
+        }
+        throw e;
+      }
       if (!orderData || !orderData.order) return res.status(404).json({ message: 'Pedido não encontrado' });
       const order = orderData.order;
       const company = await storage.getCompany(order.companyId);
