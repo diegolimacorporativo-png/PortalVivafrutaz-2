@@ -1,0 +1,206 @@
+🎯 FASE 21 — UNIQUE INDEX (ÚLTIMA LINHA DE DEFESA)
+
+---
+
+📌 OBJETIVO
+
+Impedir duplicidade de emissão de NF-e no banco
+
+👉 Garantir que uma NF não seja criada mais de uma vez para o mesmo contexto  
+👉 SEM quebrar fluxo atual  
+👉 SEM assumir regra errada  
+👉 COM validação obrigatória antes de aplicar  
+
+---
+
+🧠 CONTEXTO
+
+- FASE 21.0 concluída (NOT NULL + CHECK aplicados)
+- Sistema já possui:
+  - idempotência (FASE 18)
+  - concorrência (FASE 20)
+  - lock por pedido
+- Banco ainda NÃO possui UNIQUE constraint
+
+👉 Falta apenas proteção no nível do banco
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO assumir qual UNIQUE aplicar
+- NÃO aplicar constraint sem validar duplicidade
+- NÃO quebrar histórico de NFs
+- NÃO aplicar UNIQUE se houver conflito
+- NÃO alterar lógica de emissão
+
+👉 Se houver dúvida → PARAR
+
+---
+
+# 🧭 ETAPA 1 — DESCOBERTA (OBRIGATÓRIA)
+
+---
+
+### 1. Confirmar tabela
+
+sql
+SELECT schemaname
+FROM pg_tables
+WHERE tablename = 'nfe_emissoes';
+
+---
+
+### 2. Ver duplicidade por order_id
+
+sql
+SELECT order_id, COUNT() as total
+FROM public.nfe_emissoes
+GROUP BY order_id
+HAVING COUNT() > 1;
+
+---
+
+### 3. Ver duplicidade por numero
+
+sql
+SELECT numero, COUNT() as total
+FROM public.nfe_emissoes
+GROUP BY numero
+HAVING COUNT() > 1;
+
+---
+
+### 4. Ver duplicidade combinada
+
+sql
+SELECT order_id, numero, COUNT() as total
+FROM public.nfe_emissoes
+GROUP BY order_id, numero
+HAVING COUNT() > 1;
+
+---
+
+### 5. Contagem total
+
+sql
+SELECT COUNT(*) FROM public.nfe_emissoes;
+
+---
+
+# ❗ PARADA OBRIGATÓRIA
+
+Responder com:
+
+1. Existe duplicidade por order_id?  
+2. Existe duplicidade por numero?  
+3. Existe duplicidade combinada?  
+4. Total de registros  
+
+❌ NÃO aplicar constraint ainda  
+❌ AGUARDAR decisão  
+
+---
+
+# 🧠 ETAPA 2 — DECISÃO (MANUAL)
+
+---
+
+## POSSÍVEIS ESTRATÉGIAS
+
+### 🔒 OPÇÃO A — UMA NF POR PEDIDO
+
+sql
+UNIQUE(order_id)
+
+👉 usar se:
+- cada pedido gera apenas uma NF
+
+---
+
+### 🔒 OPÇÃO B — NF única por número
+
+sql
+UNIQUE(numero)
+
+👉 usar se:
+- número deve ser global único
+
+---
+
+### 🔒 OPÇÃO C — combinação segura
+
+sql
+UNIQUE(order_id, numero)
+
+👉 mais flexível e seguro
+
+---
+
+⚠️ NÃO escolher automaticamente  
+⚠️ aguardar confirmação  
+
+---
+
+# 🛠️ ETAPA 3 — IMPLEMENTAÇÃO (COM VALIDAÇÃO)
+
+---
+
+## 3.1 Criar índice UNIQUE
+
+Exemplo (NÃO executar sem decisão):
+
+sql
+CREATE UNIQUE INDEX CONCURRENTLY idx_nfe_unique
+ON public.nfe_emissoes (order_id, numero);
+
+---
+
+## 3.2 Validar funcionamento
+
+Testar:
+
+- inserir duplicado → deve falhar  
+- inserir válido → deve funcionar  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- banco impede duplicidade
+- sistema continua funcionando
+- zero impacto no fluxo NF
+
+---
+
+# 🚀 RESULTADO FINAL
+
+Sistema com proteção completa:
+
+- lógica (FASE 18)
+- lock (FASE 20)
+- validação (NF.1/NF.2)
+- envio seguro (NF.3)
+- schema protegido (FASE 21.0)
+- UNIQUE no banco (FASE 21)
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Resultado da descoberta  
+2. Estratégia escolhida  
+3. Índice aplicado  
+4. Testes realizados  
+5. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+👉 UNIQUE errado = quebra produção  
+👉 VALIDAR antes de aplicar  
+
+👉 Essa é a última camada de segurança
