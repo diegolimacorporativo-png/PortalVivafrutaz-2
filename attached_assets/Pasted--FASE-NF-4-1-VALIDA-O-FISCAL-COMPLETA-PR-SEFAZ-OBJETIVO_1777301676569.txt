@@ -1,0 +1,210 @@
+🎯 FASE NF.4.1 — VALIDAÇÃO FISCAL COMPLETA (PRÉ-SEFAZ)
+
+---
+
+📌 OBJETIVO
+
+Validar se o XML gerado está fiscalmente correto antes de integrar com SEFAZ
+
+👉 NÃO gerar XML novo  
+👉 NÃO alterar fluxo  
+👉 NÃO refatorar  
+
+👉 Apenas VALIDAR consistência dos dados
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar buildNFeInput  
+- NÃO alterar gerarNFeXML  
+- NÃO alterar transmissão  
+- NÃO corrigir automaticamente  
+
+👉 Apenas analisar e reportar inconsistências
+
+---
+
+🧠 CONTEXTO
+
+- NF.4 (tributação) já implementada  
+- XML já está sendo gerado  
+- Sistema pronto para validação final  
+
+---
+
+# 🛠️ ETAPA 1 — VALIDAR TOTAIS
+
+Verificar:
+
+- Soma de todos vProd dos itens = total da NF (vNF)
+- vNF deve ser igual a:
+  vProd + vFrete + vSeg - vDesc
+
+Se divergente:
+
+❌ ERRO: TOTAL_MISMATCH
+
+---
+
+# 🛠️ ETAPA 2 — VALIDAR ITENS
+
+Para cada produto:
+
+- qCom > 0
+- vUnCom > 0
+- vProd = qCom * vUnCom (2 casas)
+
+Se inválido:
+
+❌ ERRO: ITEM_INVALID
+
+---
+
+# 🛠️ ETAPA 3 — VALIDAR ICMS (SIMPLES NACIONAL)
+
+Verificar:
+
+- CRT = 1
+- CSOSN presente (ex: 102, 400)
+- NÃO deve existir campos de ICMS incompatíveis (ex: CST com CRT=1)
+
+Se inválido:
+
+❌ ERRO: ICMS_INVALID
+
+---
+
+# 🛠️ ETAPA 4 — VALIDAR CFOP
+
+Verificar coerência básica:
+
+- 5102 → venda dentro do estado  
+- 6102 → venda fora do estado  
+
+Se inconsistência detectada:
+
+⚠️ ALERTA: CFOP_POSSIBLY_INVALID
+
+(NÃO bloquear — apenas alertar)
+
+---
+
+# 🛠️ ETAPA 5 — VALIDAR CAMPOS OBRIGATÓRIOS
+
+Emitente:
+
+- CNPJ
+- xNome
+- endereço completo
+
+Destinatário:
+
+- xNome
+- município
+- UF
+
+Produtos:
+
+- xProd
+- NCM
+- CFOP
+
+Se faltar:
+
+❌ ERRO: MISSING_REQUIRED_FIELD
+
+---
+
+# 🛠️ ETAPA 6 — VALIDAR ESTRUTURA DO XML
+
+Verificar:
+
+- contém <NFe>
+- contém <infNFe>
+- contém <det>
+- contém <total>
+
+Se inválido:
+
+❌ ERRO: XML_STRUCTURE_INVALID
+
+---
+
+# 🛠️ ETAPA 7 — DETECTAR DADOS INVÁLIDOS
+
+Procurar no XML:
+
+- "NaN"
+- "undefined"
+- valores vazios em tags críticas
+
+Se encontrado:
+
+❌ ERRO: INVALID_CONTENT
+
+---
+
+# 🛠️ ETAPA 8 — RESULTADO FINAL
+
+Gerar resumo:
+
+- totalItens
+- valorTotal
+- quantidade de erros
+- quantidade de alertas
+
+---
+
+# 📊 CLASSIFICAÇÃO FINAL
+
+- ✅ APROVADO → nenhum erro crítico
+- ⚠️ APROVADO COM ALERTAS → apenas CFOP ou warnings
+- ❌ REPROVADO → qualquer erro crítico
+
+---
+
+# 📊 OUTPUT ESPERADO
+
+Exemplo:
+
+VALIDAÇÃO NF-e:
+
+Status: ❌ REPROVADO
+
+Erros:
+- TOTAL_MISMATCH
+- ICMS_INVALID
+
+Alertas:
+- CFOP_POSSIBLY_INVALID
+
+Resumo:
+- Itens: 3
+- Total: 487.50
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO corrigir dados
+- NÃO alterar XML
+- NÃO chamar SEFAZ
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Status (APROVADO / ALERTA / REPROVADO)
+2. Lista de erros
+3. Lista de alertas
+4. Resumo geral
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Isso simula validação pré-SEFAZ  
+👉 Se passar aqui, alta chance de passar na SEF
