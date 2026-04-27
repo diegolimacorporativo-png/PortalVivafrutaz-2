@@ -123,7 +123,12 @@ export class OrdersService {
 
   async get(id: number): Promise<OrderDetail> {
     const detail = await this.repo.get(id);
-    if (!detail) throw new NotFoundError("Pedido não encontrado");
+    if (!detail) {
+      console.warn(
+        `[SECURITY] Possible cross-tenant access (404) for orderId=${id}`,
+      );
+      throw new NotFoundError("Pedido não encontrado");
+    }
     return detail;
   }
 
