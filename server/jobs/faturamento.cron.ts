@@ -12,6 +12,7 @@
  */
 
 import cron from "node-cron";
+import { randomUUID } from "crypto";
 import { db } from "../database/db";
 import { sql } from "drizzle-orm";
 import { storage } from "../services/storage";
@@ -23,6 +24,13 @@ import {
   setCronResult,
 } from "../modules/nfe/cron-status.store";
 import { cronFaturamentoRuns } from "@shared/schema";
+// FASE 14 — correlação fora do HTTP: wrap do cron com requestContext (ALS).
+// Reutiliza a infra da FASE 12 (server/core/context/requestContext.ts) sem
+// alterar nenhum comportamento da execução.
+import {
+  runWithRequestContext,
+  getRequestIdForLog,
+} from "../core/context/requestContext";
 // STEP 9.3F.6 — migrado de emitAlert → emitAlertSmart (camada de auto-supressão).
 // O emitAlert continua existindo e intocado; só este cron chama o wrapper.
 import { emitAlertSmart } from "../services/alerts.smart";
@@ -142,6 +150,11 @@ export async function runFaturamentoCron(
   triggeredBy: "schedule" | "manual" = "schedule",
   triggeredByUserId: number | null = null,
 ): Promise<CronFaturamentoResult> {
+  // FASE 14 — gera requestId próprio do cron e propaga via ALS.
+  // Prefixo `cron-` permite distinguir de requests HTTP nos logs.
+  const requestId = `cron-${randomUUID()}`;
+
+  return runWithRequestContext(requestId, async () => {
   const executadoEm = new Date();
   const autoMode = AUTO_FATURAMENTO;
 
@@ -190,8 +203,9 @@ export async function runFaturamentoCron(
       // veio com company_id (qualquer ausência é um sinal de corrupção
       // upstream e bloqueia a emissão por segurança).
       if (!row.company_id) {
+        // FASE 14 — log padronizado [SECURITY] com requestId do cron.
         console.error(
-          `[SECURITY] Order sem companyId no cron: orderId=${orderId}`,
+          `[SECURITY] CRON_INCONSISTENCY | requestId=${getRequestIdForLog()} | orderId=${orderId} | details=order sem companyId`,
         );
         return {
           orderId,
@@ -305,6 +319,7 @@ export async function runFaturamentoCron(
     });
     throw err;
   }
+  });
 }
 
 // ── Scheduler ────────────────────────────────────────────────────────────────
