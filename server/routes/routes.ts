@@ -5757,6 +5757,48 @@ export async function registerRoutes(
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
         if (!nfe.xmlGerado) return res.status(400).json({ message: 'XML não gerado. Emita a NF-e primeiro.' });
 
+        // FASE 3 — bloqueia transmissão de NF de outro tenant antes de qualquer ação.
+        if (nfe.orderId) await validateOrderTenant(nfe.orderId);
+
+        // FASE NF.3 — modo controlado (mock por padrão; production usa o handler legado abaixo).
+        const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
+        if (sefazMode !== 'production') {
+          const { transmitirNFe } = await import('../modules/nfe/nfe-transmit.service.ts');
+          try {
+            const result = await transmitirNFe(nfe.id);
+            await storage.createLog({
+              action: 'NF-E_ENVIADA',
+              description: `NF-e #${nfe.id} transmitida em modo ${result.mode}. Status: ${result.status} (${result.cStat}) - ${result.xMotivo}`,
+              level: result.status === 'autorizada' ? 'INFO' : 'WARN',
+              userId: req.session.userId,
+            });
+            return res.json({
+              success: result.status === 'autorizada',
+              retorno: {
+                status: result.status,
+                cStat: result.cStat,
+                xMotivo: result.xMotivo,
+                protocolo: result.protocolo,
+              },
+              mode: result.mode,
+              attempts: result.attempts,
+              nfe: await storage.getNfeEmissao(nfe.id),
+            });
+          } catch (err: any) {
+            const code = err?.message ?? 'NFE_SEND_UNKNOWN_ERROR';
+            if (code === 'NFE_ALREADY_SENT') {
+              return res.status(409).json({ message: 'NF-e já enviada/autorizada — reenvio bloqueado.', code });
+            }
+            if (code === 'NFE_NOT_FOUND') {
+              return res.status(404).json({ message: 'NF-e não encontrada', code });
+            }
+            if (code === 'NFE_XML_MISSING') {
+              return res.status(400).json({ message: 'XML não gerado. Emita a NF-e primeiro.', code });
+            }
+            return res.status(500).json({ message: code, code });
+          }
+        }
+
         const certPath = process.env.CERT_PATH;
         const certPwd = process.env.CERT_PASSWORD;
         let xmlParaEnviar = nfe.xmlGerado;

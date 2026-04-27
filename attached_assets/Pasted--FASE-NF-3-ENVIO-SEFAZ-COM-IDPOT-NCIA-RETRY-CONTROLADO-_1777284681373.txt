@@ -1,0 +1,238 @@
+🎯 FASE NF.3 — ENVIO SEFAZ (COM IDPOTÊNCIA + RETRY CONTROLADO)
+
+---
+
+📌 OBJETIVO
+
+Implementar envio da NF-e para SEFAZ (ou mock controlado)
+
+👉 SEM quebrar fluxo atual  
+👉 SEM duplicar envio  
+👉 SEM perder controle de status  
+👉 COM retry seguro  
+
+---
+
+🧠 CONTEXTO
+
+- XML já gerado com segurança (NF.2.2) ✅
+- idempotência já existe (FASE 18) ✅
+- lock concorrência já existe (FASE 20) ✅
+
+Status atuais:
+
+- gerada
+- enviada
+- autorizada
+- rejeitada
+- erro
+- cancelada
+- denegada
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar geração de XML  
+- NÃO alterar builder  
+- NÃO alterar guards existentes  
+- NÃO alterar estrutura da tabela  
+- NÃO reenviar NF já enviada/autorizada  
+- NÃO criar múltiplas NF para o mesmo pedido  
+
+👉 Apenas implementar envio controlado
+
+---
+
+# 🧭 ETAPA 1 — CRIAR SERVICE DE ENVIO
+
+Arquivo:
+
+server/modules/nfe/nfe-transmit.service.ts
+
+---
+
+Função principal:
+
+ts
+export async function transmitirNFe(nfeId: number)
+
+---
+
+# 🛠️ ETAPA 2 — CARREGAR NF COM SEGURANÇA
+
+Buscar:
+
+- nfe_emissao
+- orderId
+- xmlGerado
+- status atual
+
+---
+
+# 🚫 ETAPA 3 — BLOQUEIO DE REENVIO
+
+ANTES de qualquer envio:
+
+ts
+if (["enviada", "autorizada"].includes(nfe.status)) {
+  throw new Error("NFE_ALREADY_SENT");
+}
+
+---
+
+# 🧠 ETAPA 4 — DEFINIR MODO (MOCK vs REAL)
+
+Criar flag:
+
+.env
+
+NFE_SEFAZ_MODE=mock
+# futuro: production
+
+---
+
+ts
+const isMock = process.env.NFE_SEFAZ_MODE !== "production";
+
+---
+
+# 🧪 ETAPA 5 — MOCK DE ENVIO (OBRIGATÓRIO AGORA)
+
+Simular resposta SEFAZ:
+
+ts
+const mockResponse = {
+  status: "autorizada",
+  protocolo: "123456789",
+  cStat: "100",
+  xMotivo: "Autorizado o uso da NF-e"
+};
+
+---
+
+# 🛠️ ETAPA 6 — ATUALIZAR BANCO
+
+Após envio:
+
+ts
+await storage.updateNfeEmissao(nfeId, {
+  status: mockResponse.status,
+  protocolo: mockResponse.protocolo,
+  cStat: mockResponse.cStat,
+  xMotivo: mockResponse.xMotivo,
+  dataAutorizacao: new Date()
+});
+
+---
+
+# 🧾 ETAPA 7 — ATUALIZAR PEDIDO
+
+Se autorizada:
+
+ts
+await storage.updateOrder(orderId, {
+  fiscalStatus: "nota_emitida"
+});
+
+---
+
+# 🔁 ETAPA 8 — RETRY CONTROLADO
+
+Criar retry simples:
+
+ts
+for (let attempt = 1; attempt <= 3; attempt++) {
+  try {
+    // envio
+    break;
+  } catch (err) {
+    if (attempt === 3) throw err;
+  }
+}
+
+---
+
+⚠️ NÃO usar retry infinito  
+⚠️ NÃO retry em erro de validação  
+
+---
+
+# 🧱 ETAPA 9 — LOGS ESTRUTURADOS
+
+Adicionar logs:
+
+[NFE_SEND_START]
+[NFE_SEND_SUCCESS]
+[NFE_SEND_ERROR]
+
+Campos:
+
+- nfeId
+- orderId
+- attempt
+- statusFinal
+
+❌ NÃO logar XML completo  
+
+---
+
+# 🌐 ETAPA 10 — ENDPOINT
+
+Criar:
+
+POST /api/nfe/:id/enviar
+
+Fluxo:
+
+1. validateOrderTenant
+2. transmitirNFe(nfeId)
+
+---
+
+# 🔒 ETAPA 11 — PROTEÇÃO EXTRA
+
+ANTES de atualizar status:
+
+Verificar novamente:
+
+ts
+if (["autorizada"].includes(nfe.status)) return;
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- NF enviada 1 única vez  
+- Sem duplicidade  
+- Status controlado  
+- Retry seguro  
+- Pronto para integração real  
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 Integração real SEFAZ (certificado A1)
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Arquivos criados  
+2. Endpoint funcionando  
+3. Logs implementados  
+4. Confirmação de zero duplicidade  
+5. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO conectar SEFAZ real ainda  
+👉 NÃO alterar fluxo atual  
+👉 NÃO permitir reenvio indevido  
+
+👉 Segurança > veloci
