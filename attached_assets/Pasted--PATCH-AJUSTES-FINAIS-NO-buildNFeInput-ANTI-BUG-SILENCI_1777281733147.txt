@@ -1,0 +1,132 @@
+🎯 PATCH — AJUSTES FINAIS NO buildNFeInput (ANTI-BUG SILENCIOSO)
+
+---
+
+📌 OBJETIVO
+
+Eliminar 2 riscos silenciosos:
+
+1. fallback mascarando erro crítico  
+2. Number() gerando NaN sem validação  
+
+👉 SEM alterar fluxo  
+👉 SEM alterar assinatura  
+👉 SEM regressão  
+
+---
+
+🚫 REGRAS
+
+- NÃO alterar lógica existente  
+- NÃO mudar estrutura do retorno  
+- NÃO mexer em outras funções  
+- NÃO alterar logs  
+- NÃO alterar guards  
+
+👉 Apenas correção pontual
+
+---
+
+# 🛠️ AJUSTE 1 — VALIDAR ANTES DO FALLBACK
+
+---
+
+## ❌ PROBLEMA ATUAL
+
+Campos obrigatórios podem estar usando:
+
+ts safeStr(value) 
+
+👉 Isso mascara ausência de dado
+
+---
+
+## ✅ CORREÇÃO
+
+Validar valor ORIGINAL antes de qualquer normalização:
+
+ts const rawCnpj = emitente?.cnpj;  if (!rawCnpj || !rawCnpj.trim()) {   criticalErrors.push("MISSING_EMITENTE_CNPJ"); }  const cnpj = rawCnpj?.trim(); 
+
+---
+
+👉 Regra:
+
+- validar primeiro  
+- normalizar depois  
+- fallback só em campo opcional  
+
+---
+
+# 🛠️ AJUSTE 2 — PROTEGER CONTRA NaN
+
+---
+
+## ❌ PROBLEMA ATUAL
+
+ts const qCom = Number(item.qCom); 
+
+👉 pode gerar NaN silencioso
+
+---
+
+## ✅ CORREÇÃO SEGURA
+
+ts const qCom = Number(item.qCom); const vUnCom = Number(item.vUnCom);  if (!Number.isFinite(qCom) || qCom <= 0) {   itemErrors.push("INVALID_QCOM"); }  if (!Number.isFinite(vUnCom) || vUnCom <= 0) {   itemErrors.push("INVALID_VUNCOM"); } 
+
+---
+
+# 🛠️ AJUSTE 3 — vProd SEGURO
+
+---
+
+Garantir cálculo apenas com valores válidos:
+
+ts const vProd =   Number.isFinite(qCom) && Number.isFinite(vUnCom)     ? Number((qCom * vUnCom).toFixed(2))     : 0; 
+
+---
+
+👉 evita:
+
+- NaN no XML  
+- quebra futura na geração  
+
+---
+
+# 🛠️ AJUSTE 4 — NÃO MEXER NISSO
+
+---
+
+🚫 NÃO alterar:
+
+- estrutura de retorno  
+- nome das variáveis  
+- logs existentes  
+- fluxo de erro  
+- throw atual  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- zero NaN  
+- zero dado mascarado  
+- validação mais confiável  
+- comportamento idêntico  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Ajustes aplicados  
+2. Trecho atualizado (qCom/vUnCom/vProd)  
+3. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 mudança pequena  
+👉 impacto grande  
+👉 base pronta para NF

@@ -278,28 +278,37 @@ export async function buildNFeInput(
   }));
 
   // ETAPA 2 — normalização: garante qCom/vUnCom numéricos e recalcula vProd
+  // PATCH NF.1 — vProd só é calculado quando ambos os operandos são finitos,
+  // evitando NaN silencioso no XML.
   const normalizedProdutos = rawProdutos.map((item) => {
     const qCom = Number(item.qCom);
     const vUnCom = Number(item.vUnCom);
+    const vProd =
+      Number.isFinite(qCom) && Number.isFinite(vUnCom)
+        ? Number((qCom * vUnCom).toFixed(2))
+        : 0;
     return {
       ...item,
       qCom,
       vUnCom,
-      vProd: Number((qCom * vUnCom).toFixed(2)),
+      vProd,
     };
   });
 
   // ETAPA 3 — validação estruturada
+  // PATCH NF.1 — valida valores originais (antes do safeStr) para evitar
+  // que fallbacks mascarem ausência de dado crítico.
   const criticalErrors: string[] = [];
   const itemErrors: string[] = [];
 
-  if (!emitente.cnpj) criticalErrors.push("MISSING_EMITENTE_CNPJ");
-  if (!destinatario.xNome) criticalErrors.push("MISSING_DESTINATARIO");
+  if (!config.cnpj?.trim()) criticalErrors.push("MISSING_EMITENTE_CNPJ");
+  if (!company.companyName?.trim()) criticalErrors.push("MISSING_DESTINATARIO");
   if (!normalizedProdutos.length) criticalErrors.push("NO_ITEMS");
 
+  // PATCH NF.1 — usa Number.isFinite para detectar NaN explicitamente
   for (const item of normalizedProdutos) {
-    if (!item.qCom || item.qCom <= 0) itemErrors.push("INVALID_QCOM");
-    if (!item.vUnCom || item.vUnCom <= 0) itemErrors.push("INVALID_VUNCOM");
+    if (!Number.isFinite(item.qCom) || item.qCom <= 0) itemErrors.push("INVALID_QCOM");
+    if (!Number.isFinite(item.vUnCom) || item.vUnCom <= 0) itemErrors.push("INVALID_VUNCOM");
   }
 
   // ETAPA 4 — fail controlado: lança erro único com log detalhado
