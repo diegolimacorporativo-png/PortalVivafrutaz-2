@@ -56,6 +56,10 @@ const emptyForm = {
   availableDays: [] as string[],
   ncm: "",
   cfop: "",
+  // FASE NF.6.3 — ETAPA 2: CST por item (Lucro Presumido / Lucro Real, CRT=3).
+  // Vazio ("") = "padrão (00)". Validação fiscal estrita é do generator
+  // (server/services/nfe/nfeGenerator.ts:201, regex /^\d{2}$/).
+  cst: "",
   commercialUnit: "",
   productCode: "",
   categorySelections: [] as CategorySelection[],
@@ -91,6 +95,8 @@ function productToForm(p: Product): typeof emptyForm {
     availableDays: Array.isArray((p as any).availableDays) ? (p as any).availableDays as string[] : [],
     ncm: (p as any).ncm || "",
     cfop: (p as any).cfop || "",
+    // FASE NF.6.3 — leitura de cst persistido no produto (passthrough).
+    cst: (p as any).cst || "",
     commercialUnit: (p as any).commercialUnit || "",
     productCode: (p as any).productCode || "",
     categorySelections: [],
@@ -747,6 +753,12 @@ export default function ProductsPage() {
       availableDays: formData.availableDays.length > 0 ? formData.availableDays : null,
       ncm: formData.ncm || null,
       cfop: formData.cfop || null,
+      // FASE NF.6.3 — ETAPA 3: cst enviado no payload do produto.
+      // O backend de produtos (sem coluna products.cst hoje) ignora silenciosamente,
+      // mas o contrato fica preparado para quando o campo for adicionado ao schema
+      // em uma fase futura. O caminho que JÁ funciona end-to-end é o draft:
+      // PUT /api/fiscal/drafts/:id com items[].cst → builder NF.6.2 → XML NF.6.
+      cst: formData.cst || null,
       commercialUnit: formData.commercialUnit || null,
       productCode: formData.productCode || null,
       categoryAvailability: 'all',
@@ -1166,9 +1178,31 @@ export default function ProductsPage() {
               <div>
                 <label className="block text-xs font-semibold text-violet-700 mb-1">CFOP</label>
                 <input value={formData.cfop} onChange={e => set("cfop", e.target.value)}
+                  data-testid="input-product-cfop"
                   className="w-full px-3 py-2 rounded-lg border-2 border-violet-200 focus:border-violet-400 outline-none text-sm"
                   placeholder="ex: 5102" />
                 <p className="text-xs text-muted-foreground mt-0.5">Código Fiscal de Operações</p>
+              </div>
+              {/* FASE NF.6.3 — ETAPA 2: select de CST (ICMS).
+                  Vazio = "padrão (00)". Aplicável a CRT=3 (Lucro Presumido / Real).
+                  Em Simples Nacional (CRT=1/2) o generator IGNORA este campo
+                  (branch CSOSN intacto desde NF.5.1) — sem necessidade de
+                  condicional na UI, conforme ETAPA 5 da spec. */}
+              <div>
+                <label className="block text-xs font-semibold text-violet-700 mb-1">CST (ICMS)</label>
+                <select
+                  value={formData.cst}
+                  onChange={e => set("cst", e.target.value)}
+                  data-testid="select-product-cst"
+                  className="w-full px-3 py-2 rounded-lg border-2 border-violet-200 focus:border-violet-400 outline-none text-sm bg-white"
+                >
+                  <option value="">Padrão (00)</option>
+                  <option value="00">00 — Tributada integralmente</option>
+                  <option value="20">20 — Com redução de BC</option>
+                  <option value="40">40 — Isenta</option>
+                  <option value="60">60 — ICMS cobrado anteriormente por ST</option>
+                </select>
+                <p className="text-xs text-muted-foreground mt-0.5">Lucro Presumido/Real. Ignorado no Simples Nacional.</p>
               </div>
               <div>
                 <label className="block text-xs font-semibold text-violet-700 mb-1">Unid. Comercial</label>

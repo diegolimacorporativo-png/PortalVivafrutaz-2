@@ -1,0 +1,193 @@
+🎯 FASE NF.6.3 — PERMITIR CST NO FRONTEND / DRAFT (SEM REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar estrutura de resposta dos endpoints  
+2. NÃO alterar gerarNFeXML  
+3. NÃO alterar buildNFeInput assinatura  
+4. NÃO alterar cálculo de impostos  
+5. NÃO alterar lógica de CSOSN  
+6. NÃO criar tabelas  
+7. NÃO rodar db:push  
+8. NÃO quebrar fluxo atual de faturamento  
+
+👉 Apenas permitir que CST seja informado no draft/manual
+
+---
+
+🧠 OBJETIVO
+
+Permitir que o usuário informe o CST por item no fluxo de faturamento (draft/NF-e), garantindo:
+
+- Compatível com CRT = 3 (Lucro Presumido / Real)
+- Ignorado automaticamente no Simples Nacional (CRT 1/2)
+- Sem impacto no comportamento atual
+
+---
+
+📦 ESCOPO CONTROLADO
+
+Frontend:
+- Formulário de itens (faturamento / NF-e / draft)
+
+Backend:
+- Entrada de itens (payload do draft / billing)
+
+⚠️ NÃO alterar:
+- nfeGenerator.ts  
+- nfe-input.builder.ts (já preparado na NF.6.2)
+
+---
+
+## 🛠️ ETAPA 1 — BACKEND: PERMITIR CAMPO CST
+
+📍 Onde os itens são recebidos (ex: billing, draft, order items)
+
+👉 GARANTIR que o campo seja aceito:
+
+ts cst?: string; 
+
+---
+
+👉 NÃO validar fortemente aqui  
+👉 NÃO obrigar preenchimento  
+👉 NÃO alterar fluxo existente  
+
+👉 Apenas garantir que não seja removido nem filtrado
+
+---
+
+## 🛠️ ETAPA 2 — FRONTEND: ADICIONAR CAMPO CST
+
+📍 Formulário de item (faturamento / NF)
+
+Adicionar campo:
+
+Label:
+CST (ICMS)
+
+---
+
+👉 Implementação simples (SELECT recomendado):
+
+html <select name="cst">   <option value="">Padrão (00)</option>   <option value="00">00</option>   <option value="20">20</option>   <option value="40">40</option>   <option value="60">60</option> </select> 
+
+---
+
+👉 OU input simples:
+
+html <input type="text" name="cst" placeholder="Ex: 00, 20, 60" /> 
+
+---
+
+⚠️ NÃO bloquear edição  
+⚠️ NÃO validar regra fiscal no frontend  
+
+---
+
+## 🛠️ ETAPA 3 — ENVIO DO CST
+
+Garantir que no submit:
+
+ts item.cst → enviado no payload 
+
+---
+
+👉 NÃO alterar estrutura existente  
+👉 Apenas adicionar o campo no objeto
+
+---
+
+## 🛠️ ETAPA 4 — BACKWARD COMPAT
+
+Se o frontend NÃO enviar CST:
+
+👉 sistema continua funcionando:
+
+ts cst = '00' 
+
+(garantido pela NF.6.2 no builder)
+
+---
+
+## 🛠️ ETAPA 5 — NÃO INTERFERIR NO SIMPLES
+
+🚫 NÃO adicionar condicionais no frontend
+
+Controle já existe no backend:
+
+- CRT 1/2 → usa CSOSN (ignora CST)
+- CRT 3 → usa CST
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+---
+
+1️⃣ Sem CST
+
+xml <ICMS00>   <CST>00</CST> </ICMS00> 
+
+---
+
+2️⃣ CST = "20"
+
+xml <ICMS20>   <CST>20</CST> </ICMS20> 
+
+---
+
+3️⃣ CST = "60"
+
+xml <ICMS60>   <CST>60</CST> </ICMS60> 
+
+---
+
+4️⃣ Empresa Simples Nacional (CRT 1)
+
+Mesmo com CST enviado:
+
+xml <ICMSSN102> 
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhum impacto no banco  
+✔ Nenhum impacto nos endpoints  
+✔ Nenhum impacto na SEFAZ  
+✔ Nenhum impacto no cálculo  
+✔ Compatível com NF.1 → NF.6.2  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Usuário consegue definir CST manualmente  
+- Sistema preparado para ICMS real (fase futura)  
+- Fluxo continua estável  
+- Zero regressão  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Onde o campo CST foi adicionado (frontend + backend)  
+2. Exemplo de payload com CST  
+3. Confirmação que CST chega no XML  
+4. Confirmação de zero regressão  
+5. Confirmação que Simples Nacional não foi afetado  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO automatizar CST  
+👉 NÃO validar regra fiscal  
+👉 NÃO mexer no cálculo  
+
+Isso será feito na próxima fase (NF.7 — ICMS real)

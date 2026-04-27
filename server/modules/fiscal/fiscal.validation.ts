@@ -22,6 +22,15 @@ export const draftItemSchema = z.object({
   totalPrice: numberLike,
   ncm: z.string().nullable().optional(),
   cfop: z.string().nullable().optional(),
+  // FASE NF.6.3 — ETAPA 1: CST por item aceito no draft.
+  // Sem esta linha, Zod (`z.object`) STRIPA o campo silenciosamente no PUT
+  // /api/fiscal/drafts/:id, e o `cst` enviado pelo frontend nunca chegaria
+  // ao builder (NF.6.2) e ao generator (NF.6) → XML cairia no default '00'.
+  // - .nullable() aceita `null` (mesmo padrão de ncm/cfop);
+  // - .optional() preserva backward-compat (drafts antigos sem cst seguem ok);
+  // - SEM regex/enum: validação fiscal estrita é responsabilidade do generator
+  //   (`/^\d{2}$/` em nfeGenerator.ts:201, fail-fast `NFE_INVALID_CST`).
+  cst: z.string().nullable().optional(),
 });
 
 export const draftTotalsSchema = z
