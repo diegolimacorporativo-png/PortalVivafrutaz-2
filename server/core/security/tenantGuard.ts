@@ -22,7 +22,7 @@
  *   - pedido de outro tenant    → ForbiddenError + log [SECURITY]
  *
  * Log de segurança padronizado:
- *   [SECURITY] Tenant mismatch for orderId {orderId} | tenant={tenantId} | orderCompanyId={companyId}
+ *   [SECURITY] TENANT_MISMATCH | orderId={orderId} | details=Tenant mismatch tenant={tenantId} orderCompanyId={companyId}
  *
  * IMPORTANTE: este arquivo não é importado por nenhum outro módulo
  * neste momento. Ele existe apenas como camada de proteção pronta
@@ -86,7 +86,7 @@ function logSecurityMismatch(params: {
 }): void {
   const { orderId, tenantId, orderCompanyId } = params;
   console.error(
-    `[SECURITY] Tenant mismatch for orderId ${orderId} | tenant=${tenantId} | orderCompanyId=${orderCompanyId ?? "unknown"}`,
+    `[SECURITY] TENANT_MISMATCH | orderId=${orderId} | details=Tenant mismatch tenant=${tenantId} orderCompanyId=${orderCompanyId ?? "unknown"}`,
   );
 }
 

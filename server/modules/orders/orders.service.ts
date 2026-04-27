@@ -125,7 +125,7 @@ export class OrdersService {
     const detail = await this.repo.get(id);
     if (!detail) {
       console.warn(
-        `[SECURITY] Possible cross-tenant access (404) for orderId=${id}`,
+        `[SECURITY] CROSS_TENANT_404 | orderId=${id} | details=Possible cross-tenant access (404)`,
       );
       throw new NotFoundError("Pedido não encontrado");
     }
