@@ -1,0 +1,138 @@
+🎯 FASE 6 — PROTEÇÃO DE LEITURA (MULTI-TENANT HARDENING)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar estrutura de resposta  
+3. NÃO remover código  
+4. NÃO alterar storage.ts  
+5. NÃO alterar regras de negócio  
+6. NÃO quebrar endpoints existentes  
+
+👉 Apenas ADICIONAR validação de tenant antes da leitura
+
+---
+
+🧠 OBJETIVO
+
+Bloquear completamente acesso a dados de outro tenant
+
+👉 Evitar vazamento de pedidos, NF-e e dados sensíveis
+
+---
+
+📦 ESCOPO
+
+Arquivo principal:
+
+- server/routes/routes.ts
+
+---
+
+## 🛠️ ETAPA 1 — PROTEGER GET /api/orders/:id
+
+ANTES de qualquer acesso ao pedido:
+
+Adicionar:
+
+await validateOrderTenant(Number(req.params.id));
+
+---
+
+## 🛠️ ETAPA 2 — PROTEGER GET /api/nfe/order/:orderId/info
+
+ANTES de buscar qualquer dado:
+
+await validateOrderTenant(Number(orderId));
+
+---
+
+## 🛠️ ETAPA 3 — PROTEGER OUTROS ENDPOINTS DE LEITURA
+
+🔍 Buscar no routes.ts:
+
+- storage.getOrder(...)
+- storage.getOrders(...)
+- qualquer endpoint que leia pedidos/NF-e
+
+---
+
+👉 Para cada endpoint que usa orderId:
+
+Adicionar no início:
+
+await validateOrderTenant(Number(orderId));
+
+---
+
+## 🛠️ ETAPA 4 — USAR SAFE GET (OPCIONAL MAIS SEGURO)
+
+Onde existir:
+
+storage.getOrder(orderId)
+
+👉 Substituir por:
+
+safeGetOrder(orderId)
+
+⚠️ IMPORTANTE:
+- NÃO alterar retorno
+- NÃO alterar estrutura
+- safeGetOrder já deve validar tenant internamente
+
+---
+
+## 🛠️ ETAPA 5 — LOG DE SEGURANÇA
+
+Garantir que erros de tenant continuam gerando:
+
+[SECURITY] Tenant mismatch
+
+---
+
+📊 VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+1. Pedido do próprio tenant → funciona normal  
+2. Pedido de outro tenant → bloqueado (403/404)  
+3. Endpoint continua retornando igual (sem quebra)  
+4. Nenhum dado sensível é exposto  
+
+---
+
+🔒 RESULTADO ESPERADO
+
+✔ Zero vazamento entre empresas  
+✔ Todos endpoints protegidos  
+✔ Mesmo comportamento funcional  
+✔ Segurança equivalente a SaaS real  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO criar nova lógica  
+👉 NÃO refatorar sistema  
+👉 NÃO alterar validações existentes  
+
+Apenas proteção de acesso
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Lista de endpoints protegidos  
+2. Trechos adicionados  
+3. Confirmação de zero regressão  
+4. Confirmação de proteção multi-tenant total  
+
+---
+
+🎯 MISSÃO
+
+Transformar sistema de funcional → seguro para produção

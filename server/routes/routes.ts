@@ -2719,7 +2719,20 @@ export async function registerRoutes(
 
   // ─── DANFE Records ───────────────────────────────────────────
   // Delegated to ordersController.listDanfeLogs — owned by server/modules/orders.
-  app.get('/api/orders/:id/danfe-logs', (req: Request, res: Response, next: NextFunction) => ordersController.listDanfeLogs(req, res).catch(next));
+  // FASE 6 — multi-tenant hardening: valida tenant ANTES de delegar para o
+  // controller. Mantém exatamente o mesmo payload de sucesso; apenas adiciona
+  // a barreira de leitura cruzada (403/404 vindos de validateOrderTenant).
+  app.get('/api/orders/:id/danfe-logs', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await validateOrderTenant(Number((req.params as any).id));
+    } catch (e: any) {
+      if (e instanceof AppError) {
+        return res.status(e.status).json({ message: e.message });
+      }
+      return next(e);
+    }
+    return ordersController.listDanfeLogs(req, res).catch(next);
+  });
 
   // Delegated to ordersController.createDanfeLog — owned by server/modules/orders.
   app.post('/api/orders/:id/danfe-log', (req: Request, res: Response, next: NextFunction) => ordersController.createDanfeLog(req, res).catch(next));
@@ -2738,7 +2751,19 @@ export async function registerRoutes(
   app.post('/api/orders/:id/bling-export', (req: Request, res: Response, next: NextFunction) => ordersController.blingExport(req, res).catch(next));
 
   // Delegated to ordersController.exportErp — owned by server/modules/orders.
-  app.get('/api/orders/:id/export-erp', (req: Request, res: Response, next: NextFunction) => ordersController.exportErp(req, res).catch(next));
+  // FASE 6 — multi-tenant hardening: bloqueia export cruzado entre tenants
+  // antes de delegar. Contrato de resposta inalterado em sucesso.
+  app.get('/api/orders/:id/export-erp', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await validateOrderTenant(Number((req.params as any).id));
+    } catch (e: any) {
+      if (e instanceof AppError) {
+        return res.status(e.status).json({ message: e.message });
+      }
+      return next(e);
+    }
+    return ordersController.exportErp(req, res).catch(next);
+  });
 
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
   // SECURITY: Cross-tenant by design (executive overview spans all empresas).
@@ -5053,6 +5078,18 @@ export async function registerRoutes(
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
+        // FASE 6 — multi-tenant hardening: NF-e carrega orderId; valida tenant
+        // antes de retornar o registro. Mesmo padrão de /api/nfe/:id/danfe.
+        if (nfe.orderId) {
+          try {
+            await validateOrderTenant(nfe.orderId);
+          } catch (e: any) {
+            if (e instanceof AppError) {
+              return res.status(e.status).json({ message: e.message });
+            }
+            throw e;
+          }
+        }
         res.json(nfe);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
@@ -5063,6 +5100,17 @@ export async function registerRoutes(
         const orderId = Number(req.params.orderId);
         if (!orderId) {
           return res.status(400).json({ error: 'orderId inválido' });
+        }
+        // FASE 6 — multi-tenant hardening: bloqueia consulta de elegibilidade
+        // de pedido pertencente a outro tenant. Mantém shape de resposta em
+        // sucesso; em mismatch devolve 401/403/404 conforme o AppError.
+        try {
+          await validateOrderTenant(orderId);
+        } catch (e: any) {
+          if (e instanceof AppError) {
+            return res.status(e.status).json({ error: e.message });
+          }
+          throw e;
         }
         const result = await canEmitNFe(orderId);
         return res.json({ orderId, ...result });
@@ -6068,6 +6116,18 @@ export async function registerRoutes(
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
+        // FASE 6 — multi-tenant hardening: bloqueia download de XML de NF-e
+        // pertencente a outro tenant. Mesmo padrão de /api/nfe/:id/danfe.
+        if (nfe.orderId) {
+          try {
+            await validateOrderTenant(nfe.orderId);
+          } catch (e: any) {
+            if (e instanceof AppError) {
+              return res.status(e.status).json({ message: e.message });
+            }
+            throw e;
+          }
+        }
         const xml = nfe.xmlAutorizado || nfe.xmlGerado;
         if (!xml) return res.status(404).json({ message: 'XML não disponível' });
         res.setHeader('Content-Type', 'application/xml');
