@@ -1,0 +1,133 @@
+🎯 CONTEXTO GLOBAL — SISTEMA NFe (OBRIGATÓRIO LER ANTES DE QUALQUER ALTERAÇÃO)
+
+---
+
+📌 ESTADO ATUAL DO SISTEMA
+
+Este sistema já possui um fluxo completo de NF-e em produção lógica com as seguintes fases implementadas:
+
+- FASE 18 → Idempotência (nfe-idempotency.guard)
+- FASE 19 → Observabilidade (logs estruturados)
+- FASE 20 → Concorrência (lock por orderId)
+
+---
+
+📦 FLUXO ATUAL (NÃO ALTERAR)
+
+1. acquireOrderLock
+2. hasBlockingNFe
+3. canEmitNFe
+4. validateOrderTenant
+5. buildNFeInput
+6. validarNFeInput
+7. getNextNfeNumero
+8. gerarNFeXML
+9. createNfeEmissao
+10. updateOrder
+11. logs
+12. releaseLock
+
+---
+
+📌 HARDENING JÁ APLICADO
+
+### buildNFeInput (NF.1)
+- sanitização completa
+- validações críticas
+- normalização numérica
+- zero undefined/null
+
+### gerarNFeXML (NF.2 / NF.2.1 / NF.2.2)
+- escapeXml seguro
+- safeNumber fail-fast
+- validação estrutural XML
+- bloqueio de NaN / undefined
+- logs estruturados
+- zero fallback silencioso
+
+### envio SEFAZ (NF.3)
+- retry controlado (máx 3)
+- idempotência por status
+- re-check antes de update (race condition)
+- mock + produção separados por env
+- logs seguros (sem XML)
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+- NÃO alterar fluxo de emissão
+- NÃO alterar assinatura de funções existentes
+- NÃO remover código
+- NÃO refatorar arquivos inteiros
+- NÃO mover responsabilidades entre módulos
+- NÃO alterar guards (FASE 18/20)
+- NÃO alterar estrutura de retorno
+
+👉 QUALQUER alteração deve ser:
+- pontual
+- mínima
+- isolada
+
+---
+
+⚠️ PADRÃO DE DESENVOLVIMENTO
+
+Antes de alterar:
+
+1. LER o arquivo completo
+2. IDENTIFICAR exatamente onde intervir
+3. NÃO assumir comportamento
+4. NÃO recriar lógica existente
+
+---
+
+❌ PROIBIDO
+
+- “melhorar arquitetura”
+- “refatorar para clean code”
+- “otimizar performance”
+- “reorganizar módulos”
+
+👉 isso quebra o sistema
+
+---
+
+✅ PERMITIDO
+
+- validações adicionais
+- proteção contra edge cases
+- logs estruturados
+- consistência de dados
+
+---
+
+📌 IMPORTANTE
+
+Este sistema está em fase de HARDENING, não de construção.
+
+👉 O objetivo NÃO é criar  
+👉 O objetivo é PROTEGER o que já funciona
+
+---
+
+🧠 MODO DE EXECUÇÃO
+
+Trabalhar sempre em modo:
+
+→ cirúrgico  
+→ incremental  
+→ sem impacto  
+
+---
+
+# ❗ REGRA FINAL
+
+Se houver dúvida:
+
+👉 NÃO IMPLEMENTAR  
+👉 REPORTAR primeiro  
+
+---
+
+Aguarde instrução da próxima fase antes de alterar qualquer coisa
