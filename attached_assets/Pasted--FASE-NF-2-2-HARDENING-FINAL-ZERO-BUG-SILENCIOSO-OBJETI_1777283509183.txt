@@ -1,0 +1,137 @@
+🎯 FASE NF.2.2 — HARDENING FINAL (ZERO BUG SILENCIOSO)
+
+---
+
+📌 OBJETIVO
+
+Eliminar os últimos pontos de risco no gerarNFeXML
+
+👉 ZERO fallback silencioso  
+👉 ZERO XML potencialmente inválido  
+👉 ZERO mascaramento de erro crítico  
+
+---
+
+🧠 CONTEXTO
+
+- FASE NF.1 ✅
+- FASE NF.2 ✅
+- FASE NF.2.1 ✅
+
+👉 Sistema já está funcional  
+👉 Agora é blindagem TOTAL antes da integração externa  
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar fluxo
+- NÃO alterar assinatura da função
+- NÃO alterar estrutura do XML
+- NÃO alterar ordem de execução
+- NÃO alterar precisão fiscal (qCom/vUnCom)
+
+👉 Apenas endurecer validação
+
+---
+
+# 🛠️ IMPLEMENTAÇÃO FINAL
+
+---
+
+## ETAPA 1 — CORRIGIR escapeXml COMPLETO
+
+Atualizar função:
+
+ts function escapeXml(value: any): string {   if (value === null || value === undefined) return "";    return String(value)     .replace(/&/g, "&amp;")     .replace(/</g, "&lt;")     .replace(/>/g, "&gt;")     .replace(/"/g, "&quot;")     .replace(/'/g, "&apos;") // 🔴 NOVO (CRÍTICO)     .trim()     .replace(/\s+/g, " "); } 
+
+---
+
+## ETAPA 2 — PROIBIR fallback silencioso em números
+
+ANTES:
+
+ts return Number.isFinite(Number(value))   ? Number(value).toFixed(2)   : "0.00"; 
+
+---
+
+### DEPOIS (CRÍTICO)
+
+ts function safeNumber(value: any, context: string, decimals = 2): string {   const num = Number(value);    if (!Number.isFinite(num)) {     console.error("[NFE_XML_INVALID_NUMBER]", {       context,       value,     });      throw new Error("NFE_XML_INVALID_NUMBER");   }    return num.toFixed(decimals); } 
+
+👉 NÃO mascarar erro  
+👉 ERRO deve quebrar o fluxo
+
+---
+
+## ETAPA 3 — APLICAR safeNumber COM CONTEXTO
+
+Exemplo:
+
+ts safeNumber(item.vProd, "item.vProd") safeNumber(total.vNF, "total.vNF") safeNumber(item.qCom, "item.qCom", 4) safeNumber(item.vUnCom, "item.vUnCom", 10) 
+
+---
+
+## ETAPA 4 — BLOQUEAR STRINGS VAZIAS EM CAMPOS OBRIGATÓRIOS
+
+Antes de gerar XML:
+
+ts if (!input.emitente.xNome?.trim()) {   throw new Error("NFE_XML_EMPTY_EMITENTE_NOME"); }  if (!input.destinatario.xNome?.trim()) {   throw new Error("NFE_XML_EMPTY_DESTINATARIO"); } 
+
+---
+
+## ETAPA 5 — VALIDAÇÃO ESTRUTURAL MAIS FORTE
+
+Substituir validação simples por:
+
+ts if (   typeof xml !== "string" ||   !xml.startsWith("<?xml") ||   !xml.includes("<NFe") ||   !xml.includes("</NFe>") ) {   throw new Error("NFE_XML_CORRUPTED"); } 
+
+---
+
+## ETAPA 6 — DETECÇÃO DE DADOS SUSPEITOS
+
+Adicionar verificação:
+
+ts if (xml.includes("NaN") || xml.includes("undefined")) {   console.error("[NFE_XML_CORRUPTED_CONTENT]", {     orderId: input.orderId,   });    throw new Error("NFE_XML_CORRUPTED_CONTENT"); } 
+
+---
+
+## ETAPA 7 — LOG FINAL SEGURO
+
+ts console.log("[NFE_XML_FINAL_OK]", {   orderId: input.orderId,   numero,   totalProdutos: input.produtos.length }); 
+
+---
+
+# 📊 RESULTADO FINAL
+
+- XML nunca aceita número inválido
+- XML nunca contém NaN/undefined
+- XML nunca quebra por caractere especial
+- Nenhum erro fica escondido
+- Sistema falha de forma explícita (fail-fast)
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 FASE NF.3 — envio SEFAZ
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. O que foi endurecido
+2. Onde erros agora são lançados
+3. Confirmação de zero fallback silencioso
+4. Confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+👉 Aqui NÃO é mais tolerante  
+👉 Aqui é FAIL-FAST TOTAL  
+
+👉 Melhor quebrar agora do que emitir NF inválid

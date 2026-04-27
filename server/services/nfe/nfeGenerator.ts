@@ -79,9 +79,10 @@ const xmlSafe = (v: any): string =>
     .replace(/\s+/g, ' ')
     .replace(/[<>&]/g, '');
 
-// FASE NF.2.1 — função única de escape XML (hardening defensivo).
-// Trata null/undefined, escapa todos os caracteres reservados de XML,
-// faz trim e colapsa espaços. NÃO remove sanitizeXml/xmlSafe (compat).
+// FASE NF.2.1 → NF.2.2 — função única de escape XML (hardening defensivo).
+// Trata null/undefined, escapa TODOS os 5 caracteres reservados de XML
+// (incluindo apóstrofo, crítico para atributos com aspas simples), faz trim
+// e colapsa espaços. NÃO remove sanitizeXml/xmlSafe (compat).
 function escapeXml(value: any): string {
   if (value === null || value === undefined) return '';
   return String(value)
@@ -89,16 +90,21 @@ function escapeXml(value: any): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;') // FASE NF.2.2 — apóstrofo (CRÍTICO)
     .trim()
     .replace(/\s+/g, ' ');
 }
 
-// FASE NF.2.1 — proteção numérica final contra NaN/Infinity escapando para o XML.
-// Aceita parâmetro opcional de decimais para preservar precisão fiscal de
-// campos como qCom (4) e vUnCom (10) — default 2 (vProd, totais).
-function safeNumber(value: any, decimals = 2): string {
-  const n = Number(value);
-  return Number.isFinite(n) ? n.toFixed(decimals) : (0).toFixed(decimals);
+// FASE NF.2.2 — proteção numérica FAIL-FAST. NÃO mascara mais com '0.00'.
+// Lança NFE_XML_INVALID_NUMBER com contexto para diagnosticar a origem.
+// Aceita decimais para preservar precisão fiscal (qCom=4, vUnCom=10).
+function safeNumber(value: any, context: string, decimals = 2): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) {
+    console.error('[NFE_XML_INVALID_NUMBER]', { context, value });
+    throw new Error('NFE_XML_INVALID_NUMBER');
+  }
+  return num.toFixed(decimals);
 }
 
 export interface NFeGerada {
@@ -118,6 +124,10 @@ export async function gerarNFeXML(
   if (!input.destinatario?.xNome?.trim()) throw new Error('NFE_XML_MISSING_DESTINATARIO');
   if (!Array.isArray(input.produtos) || input.produtos.length === 0) throw new Error('NFE_XML_NO_ITEMS');
   if (!Number.isFinite(numero) || numero <= 0) throw new Error('NFE_XML_INVALID_NUMBER');
+
+  // FASE NF.2.2 — ETAPA 4: bloqueio explícito de strings vazias em campos obrigatórios.
+  if (!input.emitente.xNome?.trim()) throw new Error('NFE_XML_EMPTY_EMITENTE_NOME');
+  if (!input.destinatario.xNome?.trim()) throw new Error('NFE_XML_EMPTY_DESTINATARIO');
 
   const now = new Date();
   const tzOffset = '-03:00';
@@ -162,7 +172,7 @@ export async function gerarNFeXML(
       ? `<ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>`
       : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
 
-    return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd)}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
+    return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd, 'item.vProd')}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
   }).join('');
 
   const cnpjDest = input.destinatario.cnpj?.replace(/\D/g, '') || '';
@@ -195,16 +205,31 @@ export async function gerarNFeXML(
     ? `<infAdic><infCpl>${escapeXml(infCplRaw)}</infCpl></infAdic>`
     : '';
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${serie}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${escapeXml(input.emitente.logradouro)}</xLgr><nro>${escapeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${escapeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${escapeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${escapeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${escapeXml(input.destinatario.logradouro)}</xLgr><nro>${escapeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${escapeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${escapeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${safeNumber(vProd)}</vProd><vFrete>${safeNumber(vFrete)}</vFrete><vSeg>${safeNumber(vSeg)}</vSeg><vDesc>${safeNumber(vDesc)}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${safeNumber(vNF)}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${safeNumber(vNF)}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${serie}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${escapeXml(input.emitente.logradouro)}</xLgr><nro>${escapeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${escapeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${escapeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${escapeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${escapeXml(input.destinatario.logradouro)}</xLgr><nro>${escapeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${escapeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${escapeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${safeNumber(vProd, 'total.vProd')}</vProd><vFrete>${safeNumber(vFrete, 'total.vFrete')}</vFrete><vSeg>${safeNumber(vSeg, 'total.vSeg')}</vSeg><vDesc>${safeNumber(vDesc, 'total.vDesc')}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${safeNumber(vNF, 'total.vNF')}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${safeNumber(vNF, 'pag.vPag')}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
 
   // FASE NF.2 — ETAPA 5: validação estrutural do XML gerado
   if (!xml || typeof xml !== 'string') throw new Error('NFE_XML_EMPTY');
   if (!xml.includes('<NFe')) throw new Error('NFE_XML_INVALID_STRUCTURE');
 
-  // FASE NF.2.1 — ETAPA 5: validação estrutural reforçada — exige tag de
-  // abertura E de fechamento. Detecta truncamento/corrupção silenciosa.
-  if (!xml.includes('<NFe') || !xml.includes('</NFe>')) {
+  // FASE NF.2.2 — ETAPA 5: validação estrutural FINAL (fail-fast).
+  // Exige preâmbulo XML, tag NFe de abertura e fechamento — qualquer truncamento
+  // ou montagem corrompida quebra o fluxo aqui.
+  if (
+    typeof xml !== 'string' ||
+    !xml.startsWith('<?xml') ||
+    !xml.includes('<NFe') ||
+    !xml.includes('</NFe>')
+  ) {
     throw new Error('NFE_XML_CORRUPTED');
+  }
+
+  // FASE NF.2.2 — ETAPA 6: detecção de conteúdo suspeito (NaN/undefined
+  // que escaparam por interpolação acidental). Falha explícita.
+  if (xml.includes('NaN') || xml.includes('undefined')) {
+    console.error('[NFE_XML_CORRUPTED_CONTENT]', {
+      orderId: input.orderId,
+    });
+    throw new Error('NFE_XML_CORRUPTED_CONTENT');
   }
 
   // FASE NF.2 — ETAPA 6: log estruturado (sem dados sensíveis, sem XML completo)
@@ -220,6 +245,13 @@ export async function gerarNFeXML(
 
   // FASE NF.2.1 — ETAPA 6: log adicional do hardening defensivo (sem dados sensíveis).
   console.log('[NFE_XML_SAFE]', {
+    orderId: input.orderId,
+    numero,
+    totalProdutos: input.produtos.length,
+  });
+
+  // FASE NF.2.2 — ETAPA 7: log final (passou em TODAS as validações).
+  console.log('[NFE_XML_FINAL_OK]', {
     orderId: input.orderId,
     numero,
     totalProdutos: input.produtos.length,
