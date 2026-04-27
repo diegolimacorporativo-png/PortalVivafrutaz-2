@@ -281,6 +281,8 @@ const NFE_USER_MESSAGES: Record<string, string> = {
   // FASE NF.5.1 — fail-fast de regime tributário e CSOSN.
   NFE_INVALID_CRT: 'Regime tributário inválido. Verifique a configuração da empresa.',
   NFE_INVALID_CSOSN: 'CSOSN inválido. Verifique a tributação do produto.',
+  // FASE NF.6 — fail-fast de CST do ICMS no regime normal (CRT=3).
+  NFE_INVALID_CST: 'CST inválido. Verifique a tributação do produto.',
 };
 
 const NFE_GENERIC_MESSAGE =

@@ -74,6 +74,10 @@ export interface NFeProduto {
   qTrib?: number;
   vUnTrib?: number;
   csosn?: string;
+  // FASE NF.6 — CST do ICMS para regime normal (CRT=3). Opcional: quando
+  // ausente, gerarNFeXML usa default '00' preservando o comportamento atual.
+  // Não afeta Simples Nacional (CRT=1/2), que segue usando csosn.
+  cst?: string;
 }
 
 export interface NFeInput {

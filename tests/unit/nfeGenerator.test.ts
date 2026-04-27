@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import { gerarNFeXML } from "../../server/services/nfe/nfeGenerator";
 import type { NFeInput } from "../../server/services/nfe/nfeValidator";
 
-function makeInput(opts: { crt?: any; csosn?: any } = {}): NFeInput {
+function makeInput(opts: { crt?: any; csosn?: any; cst?: any } = {}): NFeInput {
   // ATENÇÃO: usamos `'crt' in opts ? opts.crt : '1'` (não `??`) para preservar
   // explicitamente o valor `undefined` quando o teste o passa intencionalmente.
   // `opts.crt ?? '1'` colapsaria undefined em '1', mascarando o cenário de fail-fast.
@@ -63,6 +63,10 @@ function makeInput(opts: { crt?: any; csosn?: any } = {}): NFeInput {
         vUnCom: 5,
         vProd: 50,
         csosn: opts.csosn,
+        // FASE NF.6 — `cst` opcional. Só é setado quando o teste passa
+        // explicitamente (mesma lógica do `crt`: usar `in` para preservar
+        // `undefined` proposital, e não cair em default).
+        ...("cst" in opts ? { cst: opts.cst } : {}),
       },
     ],
     natOp: "Venda de mercadoria adquirida",
@@ -143,6 +147,87 @@ describe("gerarNFeXML — ETAPAS 4 + 5 (CSOSN dinâmico e validado)", () => {
       "CRT 3 deve usar <ICMS00>, não <ICMSSN>",
     );
     assert.match(out.xmlGerado, /<ICMS00>/);
+  });
+});
+
+describe("gerarNFeXML — FASE NF.6 (CST dinâmico no regime normal)", () => {
+  test("CRT '3' sem cst (default '00') gera <ICMS00>...<CST>00</CST> — backward compat", async () => {
+    const out = await gerarNFeXML(makeInput({ crt: "3" }), 200);
+    assert.match(
+      out.xmlGerado,
+      /<ICMS00><orig>0<\/orig><CST>00<\/CST><modBC>3<\/modBC>/,
+    );
+    assert.match(out.xmlGerado, /<\/ICMS00>/);
+    // calculation preserved (ETAPA 4)
+    assert.match(out.xmlGerado, /<pICMS>0\.00<\/pICMS>/);
+    assert.match(out.xmlGerado, /<vICMS>0\.00<\/vICMS>/);
+  });
+
+  test("CRT '3' + cst '20' gera <ICMS20>...<CST>20</CST></ICMS20>", async () => {
+    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "20" }), 201);
+    assert.match(out.xmlGerado, /<ICMS20>/);
+    assert.match(out.xmlGerado, /<CST>20<\/CST>/);
+    assert.match(out.xmlGerado, /<\/ICMS20>/);
+    // tag fixa antiga não pode aparecer
+    assert.ok(
+      !/<ICMS00>/.test(out.xmlGerado),
+      "não deve cair na tag fixa antiga <ICMS00>",
+    );
+    // cálculo segue zerado (ETAPA 4)
+    assert.match(out.xmlGerado, /<pICMS>0\.00<\/pICMS>/);
+    assert.match(out.xmlGerado, /<vICMS>0\.00<\/vICMS>/);
+    assert.match(out.xmlGerado, /<modBC>3<\/modBC>/);
+  });
+
+  test("CRT '3' + cst '60' (ICMS ST) gera <ICMS60>...<CST>60</CST>", async () => {
+    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "60" }), 202);
+    assert.match(out.xmlGerado, /<ICMS60><orig>0<\/orig><CST>60<\/CST>/);
+    assert.match(out.xmlGerado, /<\/ICMS60>/);
+  });
+
+  test("CRT '3' + cst inválido 'A1' lança NFE_INVALID_CST", async () => {
+    await assert.rejects(
+      () => gerarNFeXML(makeInput({ crt: "3", cst: "A1" }), 203),
+      /NFE_INVALID_CST/,
+    );
+  });
+
+  test("CRT '3' + cst '1' (curto) lança NFE_INVALID_CST", async () => {
+    await assert.rejects(
+      () => gerarNFeXML(makeInput({ crt: "3", cst: "1" }), 204),
+      /NFE_INVALID_CST/,
+    );
+  });
+
+  test("CRT '3' + cst '' (vazio) cai no default '00' (compat — || '00')", async () => {
+    // String vazia é falsy → `p.cst || '00'` resolve em '00'.
+    // Decisão consciente: garante backward-compat para callers legados que
+    // possam passar string vazia em vez de undefined.
+    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "" }), 205);
+    assert.match(out.xmlGerado, /<ICMS00>/);
+    assert.match(out.xmlGerado, /<CST>00<\/CST>/);
+  });
+
+  test("CRT '3' + cst '<xml>' lança NFE_INVALID_CST (não aceita injection)", async () => {
+    await assert.rejects(
+      () => gerarNFeXML(makeInput({ crt: "3", cst: "<xml>" }), 206),
+      /NFE_INVALID_CST/,
+    );
+  });
+
+  test("Simples Nacional (CRT='1') ignora cst — ainda gera <ICMSSN>", async () => {
+    // cst só é usado no branch CRT=3. No Simples Nacional, mesmo que venha,
+    // o XML segue usando csosn — garantia de zero impacto na NF.5.1.
+    const out = await gerarNFeXML(
+      makeInput({ crt: "1", csosn: "102", cst: "20" }),
+      207,
+    );
+    assert.match(out.xmlGerado, /<ICMSSN102>/);
+    assert.match(out.xmlGerado, /<CSOSN>102<\/CSOSN>/);
+    assert.ok(
+      !/<ICMS20>/.test(out.xmlGerado),
+      "Simples Nacional NÃO deve gerar tag <ICMS{cst}>",
+    );
   });
 });
 

@@ -186,9 +186,23 @@ export async function gerarNFeXML(
       throw new Error('NFE_INVALID_CSOSN');
     }
     const csosn = escapeXml(rawCsosn);
+
+    // FASE NF.6 — ETAPA 1/2/3: CST dinâmico para regime normal (CRT=3).
+    // - default '00' preserva 100% do XML legado quando p.cst não vem do builder
+    //   (ETAPA 6 — backward compatibility);
+    // - regex /^\d{2}$/ bloqueia valores fora do padrão SEFAZ (ex.: 'A1', '1', '');
+    //   alinhado ao mesmo fail-fast da NF.5.1 para CSOSN.
+    // - cálculo NÃO muda (ETAPA 4): pICMS/vICMS = 0.00, modBC=3, vBC=p.vProd —
+    //   apenas a TAG passa de fixa <ICMS00> para <ICMS${cst}>.
+    const rawCst = (p as any).cst || '00';
+    if (!/^\d{2}$/.test(rawCst)) {
+      throw new Error('NFE_INVALID_CST');
+    }
+    const cstSafe = escapeXml(rawCst);
+
     const icmsXml = crt === '1' || crt === '2'
       ? `<ICMS><ICMSSN${rawCsosn}><orig>0</orig><CSOSN>${csosn}</CSOSN></ICMSSN${rawCsosn}></ICMS>`
-      : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
+      : `<ICMS><ICMS${rawCst}><orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS${rawCst}></ICMS>`;
 
     return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd, 'item.vProd')}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
   }).join('');

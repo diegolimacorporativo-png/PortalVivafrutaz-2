@@ -1,0 +1,154 @@
+🎯 FASE NF.6 — ESTRUTURA FISCAL AVANÇADA (ICMS / CST BASE)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar cálculo de impostos  
+2. NÃO implementar ICMS real ainda  
+3. NÃO alterar assinatura de gerarNFeXML  
+4. NÃO alterar buildNFeInput  
+5. NÃO alterar transmissão SEFAZ  
+6. NÃO quebrar fluxo atual do Simples Nacional  
+7. NÃO alterar estrutura de resposta dos endpoints  
+
+👉 Apenas evoluir a estrutura fiscal do XML
+
+---
+
+🧠 OBJETIVO
+
+Preparar o sistema para suportar:
+
+- CST (regime normal)
+- Estrutura correta de ICMS
+- Expansão futura (ICMS real, ST, etc.)
+
+SEM quebrar o que já funciona hoje
+
+---
+
+📦 ESCOPO
+
+Arquivo principal:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+## 🛠️ ETAPA 1 — SUPORTE A CST DINÂMICO
+
+📍 Problema atual:
+
+Sempre usa:
+
+<CST>00</CST>
+
+---
+
+👉 Ajustar para:
+
+ts const cst = p.cst || '00'; 
+
+---
+
+## 🛠️ ETAPA 2 — VALIDAR CST
+
+Antes de usar:
+
+ts if (!/^\d{2}$/.test(cst)) {   throw new Error('NFE_INVALID_CST'); } 
+
+---
+
+## 🛠️ ETAPA 3 — ESTRUTURA DINÂMICA DO ICMS (CRT = 3)
+
+Substituir bloco fixo por:
+
+ts const icmsXml =   crt === '1' || crt === '2'     ? `<ICMS><ICMSSN${rawCsosn}>...</ICMSSN${rawCsosn}></ICMS>`     : `<ICMS><ICMS${cst}>         <orig>0</orig>         <CST>${cst}</CST>         <modBC>3</modBC>         <vBC>${toMoney(p.vProd)}</vBC>         <pICMS>0.00</pICMS>         <vICMS>0.00</vICMS>       </ICMS${cst}></ICMS>`; 
+
+---
+
+## 🛠️ ETAPA 4 — NÃO ALTERAR CÁLCULO
+
+⚠️ IMPORTANTE:
+
+- pICMS continua 0.00  
+- vICMS continua 0.00  
+- modBC permanece 3  
+
+👉 Apenas estrutura, não lógica fiscal
+
+---
+
+## 🛠️ ETAPA 5 — ERROR PARSER
+
+📍 Arquivo:
+nfe-error-parser.ts
+
+Adicionar:
+
+ts NFE_INVALID_CST: 'CST inválido. Verifique a tributação do produto.', 
+
+---
+
+## 🛠️ ETAPA 6 — BACKWARD COMPATIBILITY
+
+Garantir:
+
+ts const cst = p.cst || '00'; 
+
+👉 Se não vier CST → continua funcionando igual hoje
+
+---
+
+📊 VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+1. Simples Nacional (CRT=1)
+→ continua usando CSOSN ✔
+
+2. CRT=3 + CST=00
+→ gera <ICMS00> ✔
+
+3. CRT=3 + CST=20
+→ gera <ICMS20> ✔
+
+4. CST inválido ("A1", "1", "")
+→ erro NFE_INVALID_CST ✔
+
+---
+
+🔒 GARANTIAS
+
+✔ Nenhuma mudança no banco  
+✔ Nenhuma mudança nos endpoints  
+✔ Nenhuma mudança na SEFAZ  
+✔ Compatível com NF.1 → NF.5.2  
+✔ Zero regressão  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Sistema pronto para CST real  
+- Estrutura ICMS correta  
+- Base pronta para ICMS futuro  
+- Simples Nacional intacto  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Trechos alterados  
+2. Testes executados  
+3. Confirmação de zero regressão  
+4. Confirmação de compatibilidade com Simples Nacional  
+
+---
+
+🎯 MISSÃO
+
+Preparar o motor fiscal para evolução sem quebrar o sistema

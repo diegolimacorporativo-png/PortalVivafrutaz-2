@@ -29,6 +29,15 @@ describe("translateNFeError — códigos NF.5.1", () => {
     );
   });
 
+  test("NFE_INVALID_CST devolve mensagem amigável (FASE NF.6)", () => {
+    const out = translateNFeError(new Error("NFE_INVALID_CST"));
+    assert.equal(out.code, "NFE_INVALID_CST");
+    assert.equal(
+      out.message,
+      "CST inválido. Verifique a tributação do produto.",
+    );
+  });
+
   test("aceita string crua além de Error", () => {
     const out = translateNFeError("NFE_INVALID_CSOSN");
     assert.equal(out.code, "NFE_INVALID_CSOSN");
