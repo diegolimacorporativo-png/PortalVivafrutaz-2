@@ -1,4 +1,5 @@
-import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, date, index, uniqueIndex, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, numeric, jsonb, date, index, uniqueIndex, check, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -1056,6 +1057,18 @@ export const nfeEmissoes = pgTable("nfe_emissoes", {
 (t) => ({
   serieNumeroUnique: uniqueIndex("idx_nfe_serie_numero_unique")
     .on(t.serie, t.numero),
+  checkStatus: check("check_nfe_status",
+    sql`status IN (
+      'gerada',
+      'assinada',
+      'enviada',
+      'autorizada',
+      'rejeitada',
+      'erro',
+      'cancelada',
+      'denegada'
+    )`
+  ),
 }));
 export const insertNfeEmissaoSchema = createInsertSchema(nfeEmissoes).omit({ id: true, createdAt: true });
 export type NfeEmissao = typeof nfeEmissoes.$inferSelect;

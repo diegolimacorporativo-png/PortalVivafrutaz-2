@@ -1,0 +1,136 @@
+🎯 AJUSTE FINAL — ESPELHAR CHECK DE STATUS NO DRIZZLE (SEM ALTERAR FLUXO)
+
+---
+
+📌 OBJETIVO
+
+Refletir no código (Drizzle) o CHECK constraint já existente no banco:
+
+👉 check_nfe_status (status IN (...))
+
+⚠️ IMPORTANTE:
+- NÃO criar constraint nova
+- NÃO rodar SQL
+- NÃO alterar comportamento
+- NÃO quebrar nada existente
+
+👉 Apenas alinhar o schema.ts para evitar drift e erros futuros
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar estrutura da tabela
+- NÃO alterar nomes de colunas
+- NÃO recriar índice
+- NÃO rodar db:push
+- NÃO alterar fluxo de emissão NF
+- NÃO alterar tipagem já usada nos serviços
+
+👉 Alteração deve ser ADITIVA e SEGURA
+
+---
+
+🧠 CONTEXTO
+
+Já existe no banco:
+
+CHECK (status IN (
+  'gerada',
+  'assinada',
+  'enviada',
+  'autorizada',
+  'rejeitada',
+  'erro',
+  'cancelada',
+  'denegada'
+))
+
+Já existe no código:
+
+server/modules/nfe/nfe-status.ts → NFE_STATUS
+
+👉 Mas o schema.ts ainda NÃO reflete isso
+
+---
+
+# 🛠️ IMPLEMENTAÇÃO
+
+Arquivo:
+shared/schema.ts
+
+---
+
+## ETAPA 1 — IMPORT
+
+Adicionar (se ainda não existir):
+
+ts import { check, sql } from "drizzle-orm"; 
+
+---
+
+## ETAPA 2 — ADICIONAR CHECK NO pgTable
+
+Dentro da definição de nfeEmissoes:
+
+LOCAL:
+segundo argumento do pgTable (onde já existe o uniqueIndex)
+
+---
+
+Adicionar:
+
+ts check("check_nfe_status",   sql`status IN (     'gerada',     'assinada',     'enviada',     'autorizada',     'rejeitada',     'erro',     'cancelada',     'denegada'   )` ), 
+
+---
+
+## RESULTADO ESPERADO (TRECHO FINAL)
+
+ts (t) => ({   serieNumeroUnique: uniqueIndex("idx_nfe_serie_numero_unique")     .on(t.serie, t.numero),    checkStatus: check("check_nfe_status",     sql`status IN (       'gerada',       'assinada',       'enviada',       'autorizada',       'rejeitada',       'erro',       'cancelada',       'denegada'     )`   ), }) 
+
+---
+
+# 📊 VALIDAÇÃO
+
+Executar:
+
+- TypeScript → deve compilar sem erros
+- NÃO rodar db:push
+- NÃO gerar migration
+- Aplicação deve subir normalmente
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO converter para enum agora
+- NÃO mudar tipo da coluna status
+- NÃO alterar serviços NF
+- NÃO mexer em buildNFeInput ou gerarNFeXML
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- Schema alinhado com banco
+- Zero drift futuro
+- Validação antecipada no código
+- Nenhuma alteração de comportamento
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Trecho final do schema.ts
+2. Confirmação de zero impacto
+3. Confirmação de prevenção de drift
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Isso NÃO cria constraint  
+👉 Apenas documenta o que já existe no banco  
+👉 Alteração 100% segu
