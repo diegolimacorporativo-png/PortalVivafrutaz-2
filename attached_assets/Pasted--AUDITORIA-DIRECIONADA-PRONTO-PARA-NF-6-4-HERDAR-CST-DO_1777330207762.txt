@@ -1,0 +1,198 @@
+🎯 AUDITORIA DIRECIONADA — PRONTO PARA NF.6.4 (HERDAR CST DO PRODUTO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código  
+2. NÃO implementar nada ainda  
+3. NÃO corrigir nada  
+4. NÃO rodar migração  
+
+👉 Apenas validar se o sistema está pronto para NF.6.4
+
+---
+
+🧠 OBJETIVO
+
+Confirmar se já existe suporte completo para:
+
+👉 item.cst → builder → XML  
+👉 e identificar onde injetar product.cst → item.cst
+
+---
+
+## 🛠️ ETAPA 1 — VALIDAR BUILDER (NF.6.2)
+
+Arquivo:
+
+server/modules/nfe/nfe-input.builder.ts
+
+---
+
+Verificar se existe:
+
+ts cst: (item as any).cst || "00" 
+
+---
+
+Se SIM:
+
+✔ builder preparado para CST
+
+Se NÃO:
+
+❌ NF.6.2 não aplicado corretamente
+
+---
+
+## 🛠️ ETAPA 2 — VALIDAR GENERATOR (NF.6)
+
+Arquivo:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+Verificar:
+
+1. Uso de:
+
+ts const rawCst = (p as any).cst || '00'; 
+
+2. Validação:
+
+ts /^\d{2}$/ 
+
+3. Tag dinâmica:
+
+ts <ICMS${rawCst}> 
+
+---
+
+Se tudo existir:
+
+✔ CST chega no XML corretamente
+
+---
+
+## 🛠️ ETAPA 3 — VALIDAR DRAFT (NF.6.3)
+
+Arquivo:
+
+server/modules/fiscal/fiscal.validation.ts
+
+---
+
+Verificar se existe:
+
+ts cst: z.string().nullable().optional() 
+
+---
+
+Se SIM:
+
+✔ frontend consegue enviar CST
+
+---
+
+## 🛠️ ETAPA 4 — LOCALIZAR RESOLVE DE ITENS
+
+Procurar função:
+
+- resolveBillingItems
+OU
+- qualquer função que transforma:
+  product → item de pedido
+
+---
+
+Objetivo:
+
+👉 encontrar onde o item é montado
+
+---
+
+Exemplo esperado:
+
+ts return {   productId: ...,   description: ...,   quantity: ...,   price: ... } 
+
+---
+
+Se encontrar:
+
+✔ ponto ideal para NF.6.4
+
+Se NÃO encontrar:
+
+⚠️ indicar qual função faz esse papel
+
+---
+
+## 🛠️ ETAPA 5 — VALIDAR PRODUCT STRUCTURE
+
+Verificar se o objeto product:
+
+- existe no fluxo de pedido
+- é acessível no resolveBillingItems
+
+---
+
+Verificar se algo como existe:
+
+ts product.ncm product.cfop 
+
+---
+
+Se SIM:
+
+✔ seguro usar (product as any).cst
+
+---
+
+## 🛠️ ETAPA 6 — RISCO DE REGRESSÃO
+
+Confirmar:
+
+- item continua sendo objeto simples
+- não há validação rígida bloqueando campo extra
+- não há tipagem fechada impedindo cst
+
+---
+
+Se tudo OK:
+
+✔ risco zero de quebra
+
+---
+
+📊 RESULTADO ESPERADO
+
+Sistema pronto para NF.6.4 quando:
+
+✔ builder já usa cst  
+✔ generator já usa cst  
+✔ draft aceita cst  
+✔ existe função de resolve de itens  
+✔ product disponível no fluxo  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Builder preparado? (SIM/NÃO)  
+2. Generator preparado? (SIM/NÃO)  
+3. Draft aceita CST? (SIM/NÃO)  
+4. Onde está resolveBillingItems (arquivo + trecho)  
+5. product está acessível? (SIM/NÃO)  
+6. Risco de regressão (BAIXO/MÉDIO/ALTO)  
+7. Pode implementar NF.6.4 com segurança? (SIM/NÃO)  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO implementar ainda  
+👉 Apenas confirmar pront
