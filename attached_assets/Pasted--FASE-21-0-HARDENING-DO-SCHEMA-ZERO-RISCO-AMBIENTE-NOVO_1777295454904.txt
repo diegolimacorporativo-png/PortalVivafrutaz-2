@@ -1,0 +1,281 @@
+🎯 FASE 21.0 — HARDENING DO SCHEMA (ZERO RISCO + AMBIENTE NOVO)
+
+---
+
+📌 OBJETIVO
+
+Preparar e corrigir a estrutura da tabela nfe_emissoes
+
+👉 SEM assumir que o banco está conectado  
+👉 SEM assumir que as tabelas existem  
+👉 SEM executar alterações sem validação  
+👉 Compatível com ambiente novo (Replit / cloud / sem .env)
+
+---
+
+🧠 CONTEXTO
+
+- Sistema já passou pelas fases NF.1, NF.2, NF.3
+- Multi-tenant já protegido (FASE 6 concluída)
+- Possível cenário atual:
+  - banco NÃO conectado
+  - migrations NÃO executadas
+  - tabela pode NÃO existir
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+- NÃO executar DDL automaticamente
+- NÃO assumir schema = public
+- NÃO assumir que tabela existe
+- NÃO rodar db:push sem confirmação
+- NÃO corrigir dados automaticamente
+- NÃO seguir após descoberta sem autorização
+
+👉 Se qualquer dúvida → PARAR e reportar
+
+---
+
+# 🧭 ETAPA 0 — DETECÇÃO DE AMBIENTE
+
+ANTES DE QUALQUER SQL:
+
+Verificar:
+
+- Existe DATABASE_URL?
+- Conexão com banco está ativa?
+- db:push já foi executado?
+
+---
+
+## RESPOSTA OBRIGATÓRIA
+
+Informar:
+
+1. Banco conectado? (SIM / NÃO)  
+2. Tipo de banco (se souber)  
+3. Tabelas existem? (SIM / NÃO / NÃO VERIFICADO)
+
+❌ NÃO seguir sem isso
+
+---
+
+# 🧭 ETAPA 1 — DESCOBERTA (SOMENTE SE BANCO EXISTIR)
+
+👉 Executar APENAS se conexão estiver OK
+
+---
+
+### 1. Descobrir schema
+
+sql
+SELECT schemaname
+FROM pg_tables
+WHERE tablename = 'nfe_emissoes'
+ORDER BY schemaname;
+
+---
+
+### 2. Validação obrigatória
+
+- 0 linhas → ❌ PARAR (tabela não existe)
+- >1 linha → ❌ PARAR (ambiguidade)
+- 1 linha → usar como <SCHEMA_AQUI>
+
+---
+
+### 3. Estrutura
+
+sql
+SELECT column_name, is_nullable, data_type
+FROM information_schema.columns
+WHERE table_name = 'nfe_emissoes'
+AND table_schema = '<SCHEMA_AQUI>';
+
+---
+
+### 4. Total de registros
+
+sql
+SELECT COUNT() AS total_rows
+FROM <SCHEMA_AQUI>.nfe_emissoes;
+
+---
+
+### 5. NULL em order_id
+
+sql
+SELECT COUNT() AS total_null
+FROM <SCHEMA_AQUI>.nfe_emissoes
+WHERE order_id IS NULL;
+
+---
+
+### 6. Status existentes
+
+sql
+SELECT status, COUNT(*) AS total
+FROM <SCHEMA_AQUI>.nfe_emissoes
+GROUP BY status;
+
+---
+
+### 7. Constraints
+
+sql
+SELECT conname, pg_get_constraintdef(c.oid)
+FROM pg_constraint c
+JOIN pg_class t ON c.conrelid = t.oid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE t.relname = 'nfe_emissoes'
+AND n.nspname = '<SCHEMA_AQUI>';
+
+---
+
+# ❗ PARADA OBRIGATÓRIA
+
+Responder EXATAMENTE com:
+
+1. Schema encontrado  
+2. Total de registros  
+3. order_id é nullable?  
+4. Quantidade de NULL  
+5. Lista de status + contagem  
+6. Constraints existentes  
+
+❌ NÃO continuar automaticamente  
+❌ AGUARDAR confirmação  
+
+---
+
+# 🧠 ETAPA 2 — DECISÃO (MANUAL)
+
+---
+
+## LISTA OFICIAL DE STATUS
+
+- gerada  
+- assinada  
+- enviada  
+- autorizada  
+- rejeitada  
+- erro  
+- cancelada  
+- denegada  
+
+---
+
+## REGRAS
+
+### 🚫 NÃO aplicar NOT NULL se:
+- total_null > 0  
+
+---
+
+### 🚫 NÃO aplicar CHECK se:
+- existir status fora da lista  
+
+---
+
+### ✅ SE tabela vazia:
+- aplicar tudo com segurança
+
+---
+
+# 🛠️ ETAPA 3 — IMPLEMENTAÇÃO (SÓ COM OK HUMANO)
+
+---
+
+## 3.1 Código (Drizzle)
+
+Arquivo: shared/schema.ts
+
+ts
+orderId: integer("order_id").notNull()
+
+---
+
+## 3.2 Status padronizado
+
+Criar:
+
+server/modules/nfe/nfe-status.ts
+
+ts
+export const NFE_STATUS = [
+  "gerada",
+  "assinada",
+  "enviada",
+  "autorizada",
+  "rejeitada",
+  "erro",
+  "cancelada",
+  "denegada",
+] as const;
+
+---
+
+## 3.3 NOT NULL (condicional)
+
+sql
+ALTER TABLE <SCHEMA_AQUI>.nfe_emissoes
+ALTER COLUMN order_id SET NOT NULL;
+
+---
+
+## 3.4 CHECK CONSTRAINT (seguro)
+
+PASSO 1:
+
+sql
+ALTER TABLE <SCHEMA_AQUI>.nfe_emissoes
+ADD CONSTRAINT check_nfe_status
+CHECK (status IN (
+  'gerada','assinada','enviada','autorizada',
+  'rejeitada','erro','cancelada','denegada'
+)) NOT VALID;
+
+PASSO 2:
+
+sql
+ALTER TABLE <SCHEMA_AQUI>.nfe_emissoes
+VALIDATE CONSTRAINT check_nfe_status;
+
+---
+
+# 📊 VALIDAÇÃO FINAL
+
+Testar:
+
+- INSERT sem order_id → falhar  
+- INSERT com status inválido → falhar  
+- Fluxo NF completo → intacto  
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 FASE 21 — UNIQUE INDEX
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Resultado da descoberta  
+2. O que foi aplicado  
+3. O que foi bloqueado  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+👉 ambiente novo pode NÃO ter banco  
+👉 pode precisar rodar db:push ANTES  
+👉 NÃO fazer isso sem confirmação  
+
+👉 Segurança > velocidade  
+👉 Zero risco > qualquer pressa
