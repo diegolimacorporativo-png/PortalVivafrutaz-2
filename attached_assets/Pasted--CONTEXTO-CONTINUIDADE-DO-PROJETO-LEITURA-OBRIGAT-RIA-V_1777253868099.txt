@@ -1,0 +1,115 @@
+🎯 CONTEXTO — CONTINUIDADE DO PROJETO (LEITURA OBRIGATÓRIA)
+
+Você está assumindo um sistema SaaS multi-tenant de faturamento e emissão de NF-e.
+
+O sistema já passou por 8 fases controladas de migração.
+
+👉 NÃO é um sistema em construção inicial  
+👉 É um sistema já validado e sensível (fiscal + multi-tenant)
+
+---
+
+🧠 ESTADO ATUAL (CRÍTICO)
+
+- Proteção multi-tenant ativa (leitura e escrita)
+- Motor de faturamento desacoplado (billing.service)
+- buildNFeInput estável e NÃO pode ser alterado
+- Endpoints protegidos contra vazamento entre empresas
+- Testes completos já aprovados (FASE 5)
+- Validação HTTP real já executada (FASE 7)
+- Logging de segurança adicionado (FASE 8)
+
+---
+
+⚠️ PONTO IMPORTANTE (VOCÊ PRECISA ENTENDER)
+
+A FASE 8 adicionou logs de segurança, porém:
+
+❗ Existe um GAP conhecido:
+
+O endpoint GET /api/orders/:id (caminho real via router modular)
+NÃO está gerando log de segurança.
+
+👉 O log foi adicionado no trecho legacy (routes.ts),
+mas esse caminho NÃO é executado no fluxo atual.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO implementar nada
+3. NÃO refatorar nada
+4. NÃO sugerir melhorias ainda
+5. NÃO tocar em nenhum arquivo
+
+👉 Esta etapa é SOMENTE de entendimento
+
+---
+
+🧠 SUA TAREFA AGORA
+
+Você deve apenas analisar e responder:
+
+---
+
+1. CONFIRMAR ENTENDIMENTO DO GAP
+
+Explique com suas palavras:
+
+- Por que o log em /api/orders/:id não está sendo executado
+- Qual é o caminho real que atende esse endpoint
+- Por que isso gera ausência de log
+
+---
+
+2. CONFIRMAR DECISÃO DE ESCOPO
+
+Deixe claro que:
+
+- o problema foi identificado
+- NÃO será corrigido agora
+- será tratado em fase futura
+
+---
+
+3. VALIDAR O RESTANTE DO SISTEMA
+
+Confirmar que:
+
+- demais endpoints (fiscal-data, diagnostics) estão logando corretamente
+- validateOrderTenant continua cobrindo mismatch
+- não há vazamento de dados
+
+---
+
+4. ESTADO FINAL
+
+Responder com:
+
+- sistema seguro (sim/não)
+- observabilidade completa (sim/parcial)
+- risco atual (se houver)
+
+---
+
+⚠️ IMPORTANTE
+
+Se você não tiver certeza de algo:
+
+👉 NÃO invente  
+👉 Declare dúvida claramente
+
+---
+
+🚫 PROIBIDO
+
+- escrever código
+- sugerir implementação
+- propor refatoração
+
+---
+
+✅ OBJETIVO
+
+Garantir que você ENTENDE o sistema antes de qualquer alteração futura
