@@ -57,11 +57,14 @@ export async function fetchIbgeCode(cep: string, cityName?: string): Promise<str
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  return (
-    IBGE_FALLBACK[cityKey] ||
-    IBGE_FALLBACK[(cityName || "").toLowerCase()] ||
-    "3550308"
-  );
+  // FASE NF.4.2 — ETAPA 4: sem fallback fixo "3550308". Falhar explicitamente
+  // evita que município errado contamine a NF-e (SEFAZ rejeita por divergência UF×cMun).
+  const codigo =
+    IBGE_FALLBACK[cityKey] || IBGE_FALLBACK[(cityName || "").toLowerCase()];
+  if (!codigo) {
+    throw new Error("NFE_INVALID_IBGE_CODE");
+  }
+  return codigo;
 }
 
 // ── FASE NF.1 — Helpers de sanitização ───────────────────────────────────────
@@ -219,23 +222,30 @@ export async function buildNFeInput(
         ? "2"
         : "3";
 
+  // FASE NF.4.2 — ETAPA 5: emitente sem placeholder. Falha-rápido ANTES de
+  // chamar fetchIbgeCode, evitando ruído de IBGE quando o cadastro está incompleto.
+  if (!config.companyName?.trim()) throw new Error("NFE_MISSING_COMPANY_NAME");
+  if (!config.address?.trim()) throw new Error("NFE_MISSING_EMITENTE_ADDRESS");
+  if (!config.stateRegistration?.trim()) throw new Error("NFE_MISSING_EMITENTE_IE");
+
   const [emitIbge, destIbge] = await Promise.all([
     fetchIbgeCode(config.cep || "", config.city || ""),
     fetchIbgeCode(company.addressZip || "", company.addressCity || ""),
   ]);
 
-  // ETAPA 5 — campos do emitente com safeStr (obrigatórios) e safeOptional (opcionais)
+  // ETAPA 5 — campos do emitente. FASE NF.4.2: sem fallbacks "VivaFrutaz" / "0" /
+  // "Rua não configurada" — campos obrigatórios já foram validados acima.
   const emitente = {
     cnpj: safeStr(config.cnpj),
-    xNome: safeStr(config.companyName, "VivaFrutaz"),
-    xFant: safeOptional(config.fantasyName) ?? safeStr(config.companyName, "VivaFrutaz"),
-    ie: safeStr(config.stateRegistration, "0"),
+    xNome: safeStr(config.companyName),
+    xFant: safeOptional(config.fantasyName) ?? safeStr(config.companyName),
+    ie: safeStr(config.stateRegistration),
     crt,
-    logradouro: safeStr(config.address, "Rua não configurada"),
+    logradouro: safeStr(config.address),
     numero: safeStr(config.addressNumber, "S/N"),
     bairro: safeStr(config.neighborhood, "Centro"),
     xMun: safeStr(config.city, "São Paulo"),
-    cMun: safeStr(emitIbge, "3550308"),
+    cMun: safeStr(emitIbge),
     uf: safeStr(config.state, "SP"),
     cep: safeStr((config.cep || "00000000").replace(/\D/g, "").padEnd(8, "0"), "00000000"),
     fone: safeStr(config.phone),
@@ -250,32 +260,60 @@ export async function buildNFeInput(
     numero: safeStr(company.addressNumber, "S/N"),
     bairro: safeStr(company.addressNeighborhood, "Centro"),
     xMun: safeStr(company.addressCity, "São Paulo"),
-    cMun: safeStr((company as any).addressIbge || destIbge, "3550308"),
+    cMun: safeStr((company as any).addressIbge || destIbge),
     uf: safeStr(company.addressState, "SP"),
     cep: safeStr((company.addressZip || "00000000").replace(/\D/g, "").padEnd(8, "0"), "00000000"),
   };
 
+  // FASE NF.4.2 — ETAPA 1: CFOP automático por UF (5102 interno × 6102 interestadual).
+  // Mantém prioridade do defaultCfop explícito (company > config). Só usa o fallback
+  // inteligente quando não há CFOP configurado, e loga quando isso acontece.
+  const emitUF = safeStr(config.state);
+  const destUF = safeStr(company.addressState);
+  const isSameUF = !!(emitUF && destUF && emitUF === destUF);
+  const explicitDefaultCfop =
+    (company as any).defaultCfop || config.defaultCfop;
   const defaultCfop =
-    (company as any).defaultCfop || config.defaultCfop || "5102";
+    explicitDefaultCfop || (isSameUF ? "5102" : "6102");
+
+  if (!explicitDefaultCfop) {
+    // FASE NF.4.2 — ETAPA 6: log estruturado de fallback inteligente.
+    console.warn("[NFE_FISCAL_ALERT]", {
+      orderId,
+      issue: "CFOP_AUTO_ADJUSTED",
+      emitUF,
+      destUF,
+      chosenCfop: defaultCfop,
+    });
+  }
 
   // FASE 4: usando billing.service (equivalência já validada)
   // lógica antiga mantida para rollback futuro
   const { items: sourceItems } = await resolveBillingItems(orderId, draftId);
 
   // ETAPA 2 — normalização sem mutação: recalcula vProd a partir de qCom × vUnCom
-  const rawProdutos = sourceItems.map((item: any, idx: number) => ({
-    cProd: String(item.productId || idx + 1).padStart(6, "0"),
-    xProd: safeStr(
-      item.description || item.name || item.productName,
-      "Produto",
-    ),
-    ncm: safeStr(item.ncm, "08039000"),
-    cfop: safeStr(item.cfop, defaultCfop),
-    uCom: safeStr(item.unit, "KG"),
-    qCom: Number(item.quantity ?? 1),
-    vUnCom: Number(item.unitPrice ?? item.finalPrice ?? 0),
-    vProd: Number(item.totalPrice ?? 0),
-  }));
+  // FASE NF.4.2 — ETAPA 3: NCM obrigatório (sem fallback "08039000" de banana).
+  // FASE NF.4.2 — ETAPA 2: CSOSN dinâmico por item (default 102 quando não vier no draft).
+  const rawProdutos = sourceItems.map((item: any, idx: number) => {
+    const ncmRaw = (item.ncm ?? "").toString().trim();
+    if (!ncmRaw) {
+      throw new Error("NFE_MISSING_NCM");
+    }
+    return {
+      cProd: String(item.productId || idx + 1).padStart(6, "0"),
+      xProd: safeStr(
+        item.description || item.name || item.productName,
+        "Produto",
+      ),
+      ncm: ncmRaw,
+      cfop: safeStr(item.cfop, defaultCfop),
+      uCom: safeStr(item.unit, "KG"),
+      qCom: Number(item.quantity ?? 1),
+      vUnCom: Number(item.unitPrice ?? item.finalPrice ?? 0),
+      vProd: Number(item.totalPrice ?? 0),
+      csosn: safeStr(item.csosn, "102"),
+    };
+  });
 
   // ETAPA 2 — normalização: garante qCom/vUnCom numéricos e recalcula vProd
   // PATCH NF.1 — vProd só é calculado quando ambos os operandos são finitos,

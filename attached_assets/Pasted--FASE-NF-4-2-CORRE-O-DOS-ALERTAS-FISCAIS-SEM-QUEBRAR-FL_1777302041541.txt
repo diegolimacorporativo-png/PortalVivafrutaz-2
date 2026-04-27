@@ -1,0 +1,212 @@
+🎯 FASE NF.4.2 — CORREÇÃO DOS ALERTAS FISCAIS (SEM QUEBRAR FLUXO)
+
+---
+
+📌 OBJETIVO
+
+Eliminar os alertas identificados na NF.4.1:
+
+- CFOP incorreto por UF
+- CSOSN fixo (102)
+- NCM com fallback inválido
+- Código IBGE incorreto
+- Emitente com dados placeholder
+
+👉 SEM alterar fluxo existente  
+👉 SEM refatorar arquitetura  
+👉 SEM quebrar NF.1 / NF.2 / NF.3  
+
+👉 Apenas HARDENING de dados fiscais
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar assinatura de funções
+- NÃO alterar gerarNFeXML estruturalmente
+- NÃO alterar buildNFeInput fluxo principal
+- NÃO mexer em transmissão SEFAZ
+- NÃO criar novas tabelas
+
+👉 Apenas validação + lógica condicional leve
+
+---
+
+# 🛠️ ETAPA 1 — CFOP AUTOMÁTICO POR UF
+
+Arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+Substituir lógica atual de CFOP fixo:
+
+ANTES:
+ts
+const cfop = safeStr(config.defaultCfop, "5102");
+
+DEPOIS:
+ts
+const emitUF = safeStr(config.state);
+const destUF = safeStr(company.state);
+
+const isSameUF = emitUF && destUF && emitUF === destUF;
+
+const cfop = safeStr(
+  config.defaultCfop,
+  isSameUF ? "5102" : "6102"
+);
+
+👉 NÃO remover defaultCfop  
+👉 Apenas adicionar fallback inteligente
+
+---
+
+# 🛠️ ETAPA 2 — CSOSN DINÂMICO
+
+Arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+Adicionar no produto:
+
+ts
+const csosn = safeStr(item.csosn, "102");
+
+Incluir no retorno do produto:
+
+ts
+csosn,
+
+Arquivo:
+server/modules/nfe/nfeGenerator.ts
+
+Substituir:
+
+ts
+<CSOSN>102</CSOSN>
+
+POR:
+
+ts
+<CSOSN>${escapeXml(produto.csosn || "102")}</CSOSN>
+
+👉 NÃO alterar CRT logic  
+👉 Apenas tornar CSOSN dinâmico
+
+---
+
+# 🛠️ ETAPA 3 — NCM OBRIGATÓRIO (SEM FALLBACK FAKE)
+
+Arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+ANTES:
+ts
+const ncm = safeStr(item.ncm, "08039000");
+
+DEPOIS:
+ts
+if (!item.ncm || !item.ncm.trim()) {
+  throw new Error("NFE_MISSING_NCM");
+}
+const ncm = item.ncm.trim();
+
+👉 remover fallback fake  
+👉 falhar explicitamente
+
+---
+
+# 🛠️ ETAPA 4 — IBGE SEM FALLBACK FIXO
+
+Arquivo:
+função fetchIbgeCode
+
+ANTES:
+fallback "3550308"
+
+DEPOIS:
+ts
+if (!codigo) {
+  throw new Error("NFE_INVALID_IBGE_CODE");
+}
+
+👉 NÃO usar fallback fixo  
+👉 evitar município errado
+
+---
+
+# 🛠️ ETAPA 5 — EMITENTE SEM PLACEHOLDER
+
+Arquivo:
+nfe-input.builder.ts
+
+ANTES:
+ts
+safeStr(config.companyName, "VivaFrutaz")
+
+DEPOIS:
+ts
+if (!config.companyName?.trim()) {
+  throw new Error("NFE_MISSING_COMPANY_NAME");
+}
+
+Aplicar mesma lógica para:
+
+- endereço
+- IE (se obrigatório)
+
+👉 remover placeholders silenciosos
+
+---
+
+# 🛠️ ETAPA 6 — LOG ESTRUTURADO
+
+Adicionar logs:
+
+ts
+console.warn("[NFE_FISCAL_ALERT]", {
+  orderId,
+  issue: "CFOP_AUTO_ADJUSTED",
+  emitUF,
+  destUF
+});
+
+(para casos de fallback inteligente)
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+⚠️ XML válido mas fiscalmente arriscado
+
+Depois:
+✅ XML fiscalmente consistente  
+✅ sem fallback incorreto  
+✅ sem dados fake  
+✅ pronto para SEFAZ  
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO alterar estrutura do XML
+- NÃO mexer em assinatura de funções
+- NÃO criar enums novos
+- NÃO refatorar módulos
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Pontos corrigidos
+2. Trechos alterados
+3. Novos erros lançados
+4. Confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Agora qualquer erro fiscal quebra ANTES da SEFAZ  
+👉 Isso é desejado (fail-fast co

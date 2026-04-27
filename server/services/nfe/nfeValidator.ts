@@ -73,6 +73,7 @@ export interface NFeProduto {
   uTrib?: string;
   qTrib?: number;
   vUnTrib?: number;
+  csosn?: string;
 }
 
 export interface NFeInput {

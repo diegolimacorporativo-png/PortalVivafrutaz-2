@@ -169,7 +169,7 @@ export async function gerarNFeXML(
   const itenXml = input.produtos.map((p, idx) => {
     const ncm = p.ncm.replace(/\D/g, '').slice(0, 8).padEnd(8, '0');
     const icmsXml = crt === '1' || crt === '2'
-      ? `<ICMS><ICMSSN102><orig>0</orig><CSOSN>102</CSOSN></ICMSSN102></ICMS>`
+      ? `<ICMS><ICMSSN102><orig>0</orig><CSOSN>${escapeXml(p.csosn || '102')}</CSOSN></ICMSSN102></ICMS>`
       : `<ICMS><ICMS00><orig>0</orig><CST>00</CST><modBC>3</modBC><vBC>${toMoney(p.vProd)}</vBC><pICMS>0.00</pICMS><vICMS>0.00</vICMS></ICMS00></ICMS>`;
 
     return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd, 'item.vProd')}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
