@@ -1,0 +1,121 @@
+🎯 OBJETIVO: FASE 1 — PROTEÇÃO DO SISTEMA (SEM QUEBRAR NADA)
+
+Implementar camada de proteção para evitar vazamento de dados entre empresas (multi-tenant), sem alterar comportamento atual.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO remover código existente
+2. NÃO alterar comportamento atual
+3. NÃO modificar funções existentes diretamente
+4. NÃO alterar endpoints atuais
+5. NÃO alterar buildNFeInput
+6. NÃO alterar routes.ts
+7. NÃO alterar storage.ts
+
+👉 Apenas ADICIONAR proteção em paralelo
+
+---
+
+🧠 CONTEXTO
+
+- storage.getOrder NÃO é tenant-scoped
+- buildNFeInput depende de confiança no caller
+- sistema usa AsyncLocalStorage para tenant (requireTenantId)
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CRIAR FUNÇÃO SEGURA
+
+Criar nova função:
+
+safeGetOrder(orderId: number)
+
+Regras:
+
+- Deve buscar o pedido usando:
+  - tenantWhere OU validação manual com company_id / empresa_id
+- Deve comparar:
+  order.companyId OU order.empresaId === requireTenantId()
+- Se não pertencer:
+  - logar erro de segurança
+  - lançar erro (Forbidden / Unauthorized)
+
+---
+
+2. CRIAR VALIDAÇÃO ANTES DO FATURAMENTO
+
+Criar função:
+
+validateOrderTenant(orderId: number)
+
+Regras:
+
+- Deve usar requireTenantId()
+- Deve consultar o pedido (pode usar storage.getOrder)
+- Deve validar se pertence ao tenant atual
+- Se não pertencer:
+  - logar tentativa de acesso cruzado
+  - lançar erro
+
+---
+
+3. LOG DE SEGURANÇA
+
+Implementar log padronizado:
+
+[SECURITY] Tenant mismatch for orderId {orderId} | tenant={tenantId}
+
+Opcional:
+- incluir companyId do pedido encontrado
+
+---
+
+4. ORGANIZAÇÃO
+
+Criar arquivo novo, por exemplo:
+
+server/core/security/tenantGuard.ts
+
+Colocar as duas funções nele:
+
+- safeGetOrder
+- validateOrderTenant
+
+---
+
+5. NÃO INTEGRAR AINDA
+
+⚠️ IMPORTANTE:
+
+- NÃO substituir getOrder
+- NÃO alterar quem chama getOrder
+- NÃO alterar buildNFeInput
+- NÃO alterar rotas
+
+👉 Apenas preparar a camada para uso futuro
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Função safeGetOrder implementada
+- Função validateOrderTenant implementada
+- Logs de segurança funcionando
+- Nenhuma mudança no comportamento atual
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Arquivo criado (caminho completo)
+2. Código completo das funções
+3. Explicação de como elas funcionam
+4. Onde poderão ser usadas futuramente (sem aplicar ainda)
