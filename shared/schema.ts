@@ -1036,11 +1036,11 @@ export type InsertFinancialTransaction = z.infer<typeof insertFinancialTransacti
 // ─── NF-e Emissões ─────────────────────────────────────────────────────────
 export const nfeEmissoes = pgTable("nfe_emissoes", {
   id: serial("id").primaryKey(),
-  orderId: integer("order_id").references(() => orders.id),
+  orderId: integer("order_id").references(() => orders.id).notNull(),
   numero: text("numero").notNull(),
   serie: text("serie").default("001").notNull(),
   chaveNFe: text("chave_nfe"),
-  status: text("status").default("gerada").notNull(), // gerada | assinada | enviada | autorizada | rejeitada | cancelada
+  status: text("status").default("gerada").notNull(), // gerada | assinada | enviada | autorizada | rejeitada | erro | cancelada | denegada
   xmlGerado: text("xml_gerado"),
   xmlAutorizado: text("xml_autorizado"),
   protocolo: text("protocolo"),
