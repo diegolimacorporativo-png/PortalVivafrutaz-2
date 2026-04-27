@@ -7,6 +7,7 @@ import { registerRoutes } from "./routes/routes";
 import { errorHandler } from "./core/errors/errorHandler";
 import { createSessionMiddleware } from "./core/http/session";
 import { requestIdMiddleware } from "./middleware/requestId";
+import { requestContextMiddleware } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 
 /**
@@ -37,6 +38,12 @@ export async function buildApp(): Promise<BuildAppResult> {
   // can rely on `req.requestId` being a non-empty string. Also sets the
   // `X-Request-Id` response header so clients can include it in bug reports.
   app.use(requestIdMiddleware);
+
+  // FASE 12 — Bridge `req.requestId` para AsyncLocalStorage de
+  // request context. Permite que services/guards (sem acesso a `req`)
+  // emitam logs `[SECURITY]` correlacionados via `getRequestId()`.
+  // Pattern oficial Node: este store é independente do tenantContext.
+  app.use(requestContextMiddleware);
 
   // Entry/exit logger SECOND: depends on `req.requestId` being set, must run
   // before any router so the "incoming" line is emitted as early as possible

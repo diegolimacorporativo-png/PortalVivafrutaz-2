@@ -1757,7 +1757,7 @@ export async function registerRoutes(
       // FASE 8 — observabilidade: registra possível tentativa cross-tenant
       // que cai no caminho 404. Apenas log; status e body permanecem iguais.
       console.warn(
-        `[SECURITY] CROSS_TENANT_404 | orderId=${orderId} | details=Possible cross-tenant access (404)`,
+        `[SECURITY] CROSS_TENANT_404 | requestId=${req.requestId ?? "unknown"} | orderId=${orderId} | details=Possible cross-tenant access (404)`,
       );
       return res.status(404).json({ message: "Not found" });
     }
@@ -5803,7 +5803,7 @@ export async function registerRoutes(
         // status 500 e body permanecem inalterados.
         if (e?.message?.includes("Tenant context ausente")) {
           console.warn(
-            `[SECURITY] MISSING_TENANT | orderId=${req.params.orderId} | details=Missing tenant context on protected route`,
+            `[SECURITY] MISSING_TENANT | requestId=${req.requestId ?? "unknown"} | orderId=${req.params.orderId} | details=Missing tenant context on protected route`,
           );
         }
         res.status(500).json({ message: e.message });
@@ -5827,7 +5827,7 @@ export async function registerRoutes(
         // status 500 e body permanecem inalterados.
         if (e?.message?.includes("Tenant context ausente")) {
           console.warn(
-            `[SECURITY] MISSING_TENANT | orderId=${req.params.orderId} | details=Missing tenant context on protected route`,
+            `[SECURITY] MISSING_TENANT | requestId=${req.requestId ?? "unknown"} | orderId=${req.params.orderId} | details=Missing tenant context on protected route`,
           );
         }
         res.status(500).json({ message: e.message });

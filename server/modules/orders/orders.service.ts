@@ -7,6 +7,7 @@ import {
   UnauthorizedError,
 } from "../../shared/errors/AppError";
 import { ordersRepository, OrdersRepository } from "./orders.repository";
+import { getRequestIdForLog } from "../../core/context/requestContext";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {
   OrderStatus,
@@ -125,7 +126,7 @@ export class OrdersService {
     const detail = await this.repo.get(id);
     if (!detail) {
       console.warn(
-        `[SECURITY] CROSS_TENANT_404 | orderId=${id} | details=Possible cross-tenant access (404)`,
+        `[SECURITY] CROSS_TENANT_404 | requestId=${getRequestIdForLog()} | orderId=${id} | details=Possible cross-tenant access (404)`,
       );
       throw new NotFoundError("Pedido não encontrado");
     }
