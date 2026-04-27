@@ -1,0 +1,139 @@
+🎯 CONTEXTO OBRIGATÓRIO — LEITURA ANTES DE QUALQUER AÇÃO
+
+Você está assumindo um sistema SaaS multi-tenant em produção lógica.
+
+⚠️ NÃO É PROJETO NOVO  
+⚠️ NÃO É PROTÓTIPO  
+⚠️ NÃO INVENTAR ESTRUTURA  
+
+---
+
+🧠 ESTADO ATUAL
+
+O sistema já possui:
+
+### ✅ MULTI-TENANT
+- Isolamento via AsyncLocalStorage (tenantContext)
+- requireTenantId aplicado em repository
+- fail-closed ativo
+
+---
+
+### ✅ SEGURANÇA
+
+Logs existentes:
+
+[SECURITY] CROSS_TENANT_404  
+[SECURITY] TENANT_MISMATCH  
+[SECURITY] WRITE_BLOCKED  
+
+- PATCH / PUT / DELETE protegidos
+- WRITE_BLOCKED implementado corretamente
+
+---
+
+### ✅ REQUEST ID (HTTP)
+
+- requestIdMiddleware gera UUID por request
+- requestLogger correlaciona entrada/saída
+- logs HTTP possuem requestId
+
+---
+
+### ⚠️ GAP ATUAL
+
+- NÃO existe correlação fora do HTTP
+- NÃO existe requestContext (ALS de requestId)
+- NÃO existe cron de faturamento
+- NÃO existe server/jobs/
+
+---
+
+🎯 OBJETIVO DA PRÓXIMA FASE
+
+Criar infraestrutura base para correlação fora do HTTP
+
+👉 APENAS infraestrutura  
+👉 SEM integração ainda  
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+Você NÃO pode:
+
+- Alterar lógica de negócio  
+- Alterar fluxo existente  
+- Alterar tenantContext  
+- Alterar services/repository/controllers  
+- Criar cron novo  
+- Integrar com workers  
+- Criar logs novos ainda  
+- Refatorar código existente  
+
+👉 Apenas criar módulo isolado
+
+---
+
+🧠 FORMA DE TRABALHO
+
+ANTES de implementar:
+
+1. Confirmar que entendeu o contexto  
+2. Confirmar que NÃO existe requestContext hoje  
+3. Confirmar que a ação será isolada  
+
+🚫 PROIBIDO IMPLEMENTAR NESTE PASSO
+
+---
+
+📌 SUA TAREFA AGORA
+
+Responder:
+
+---
+
+1. Confirmar:
+
+- existe requestContext hoje? (sim/não)
+- existe cron de faturamento? (sim/não)
+- existe correlação fora do HTTP? (sim/não)
+
+---
+
+2. Explicar:
+
+Por que NÃO podemos aplicar FASE 14 diretamente
+
+---
+
+3. Confirmar abordagem:
+
+Vamos criar APENAS:
+
+server/core/context/requestContext.ts
+
+Sem integração com o restante do sistema
+
+---
+
+4. Confirmar regras:
+
+- nenhuma lógica será alterada
+- nenhum fluxo será alterado
+- nenhum comportamento será alterado
+
+---
+
+⚠️ IMPORTANTE
+
+Se tiver dúvida:
+
+👉 NÃO inventar  
+👉 Declarar dúvida  
+
+---
+
+🚀 PRÓXIMO PASSO
+
+Aguardar instrução para implement
