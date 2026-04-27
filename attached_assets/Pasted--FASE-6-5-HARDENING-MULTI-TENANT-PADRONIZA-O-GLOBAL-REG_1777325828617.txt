@@ -1,0 +1,139 @@
+🎯 FASE 6.5 — HARDENING MULTI-TENANT (PADRONIZAÇÃO GLOBAL)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar lógica existente dos endpoints  
+2. NÃO alterar estrutura de resposta  
+3. NÃO remover validateOrderTenant  
+4. NÃO alterar safeGetOrder  
+5. NÃO alterar storage.ts  
+6. NÃO quebrar endpoints existentes  
+7. NÃO alterar fluxo de autenticação  
+
+👉 Apenas CRIAR camada de proteção reutilizável
+
+---
+
+🧠 OBJETIVO
+
+Eliminar dependência de erro humano
+
+👉 Garantir que TODO endpoint sensível use proteção multi-tenant automaticamente
+
+---
+
+📦 ESCOPO
+
+Criar utilitário:
+
+server/middleware/tenantGuardWrapper.ts
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR WRAPPER
+
+Criar função:
+
+withTenantGuard(handler)
+
+---
+
+### IMPLEMENTAÇÃO BASE
+
+ts export function withTenantGuard(handler: Function) {   return async (req: any, res: any, next: any) => {     try {        const orderId =         Number(req.params?.id) ||         Number(req.params?.orderId);        if (orderId) {         await validateOrderTenant(orderId);       }        return handler(req, res, next);      } catch (e: any) {       if (e instanceof AppError) {         return res.status(e.status).json({ message: e.message });       }       return next(e);     }   }; } 
+
+---
+
+## 🛠️ ETAPA 2 — USO CONTROLADO (NÃO MASSIVO)
+
+⚠️ NÃO sair substituindo tudo automaticamente
+
+Aplicar apenas em 2 endpoints como prova:
+
+---
+
+### EXEMPLO 1
+
+ANTES:
+
+ts app.get('/api/orders/:id/export-erp', async (req, res, next) => {   try {     await validateOrderTenant(Number(req.params.id));   } catch (e) { ... }   return controller(req,res); }); 
+
+DEPOIS:
+
+ts app.get(   '/api/orders/:id/export-erp',   withTenantGuard(async (req, res, next) => {     return controller(req,res);   }) ); 
+
+---
+
+### EXEMPLO 2
+
+ts app.get(   '/api/orders/:id/danfe-logs',   withTenantGuard(async (req, res, next) => {     return ordersController.listDanfeLogs(req, res);   }) ); 
+
+---
+
+## 🛠️ ETAPA 3 — NÃO DUPLICAR VALIDAÇÃO
+
+Se já existir:
+
+await validateOrderTenant(...)
+
+👉 REMOVER APENAS essa linha dentro do endpoint  
+👉 NÃO alterar mais nada
+
+---
+
+## 🛠️ ETAPA 4 — LOG (OPCIONAL)
+
+Adicionar dentro do wrapper:
+
+console.debug("[TENANT_GUARD_WRAPPER]", {
+  path: req.path,
+  orderId
+});
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ Menos repetição de código  
+✔ Segurança padronizada  
+✔ Mesmo comportamento atual  
+✔ Nenhuma regressão  
+
+---
+
+🔒 IMPACTO
+
+ANTES:
+Proteção dependia de cada endpoint
+
+DEPOIS:
+Proteção vira padrão reutilizável
+
+---
+
+🧪 VALIDAÇÃO
+
+Rodar testes existentes:
+
+npm run test:unit
+
+✔ Todos devem continuar passando  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Arquivo criado  
+2. Endpoints ajustados (2 exemplos)  
+3. Confirmação de zero regressão  
+4. Confirmação de compatibilidade com FASE 6  
+
+---
+
+🎯 MISSÃO
+
+Preparar o sistema para crescer sem risco hum

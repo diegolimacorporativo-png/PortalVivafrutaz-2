@@ -65,6 +65,10 @@ import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
 import { validateOrderTenant, safeGetOrder } from "../core/security/tenantGuard";
+// FASE 6.5 — wrapper reutilizável que envelopa validateOrderTenant + tradução
+// AppError→HTTP. Adoção controlada (rota a rota); coexiste com chamadas
+// diretas de validateOrderTenant herdadas da FASE 6.
+import { withTenantGuard } from "../middleware/tenantGuardWrapper";
 import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
 import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
 import { runFaturamentoCron } from "../jobs/faturamento.cron";
@@ -2719,20 +2723,16 @@ export async function registerRoutes(
 
   // ─── DANFE Records ───────────────────────────────────────────
   // Delegated to ordersController.listDanfeLogs — owned by server/modules/orders.
-  // FASE 6 — multi-tenant hardening: valida tenant ANTES de delegar para o
-  // controller. Mantém exatamente o mesmo payload de sucesso; apenas adiciona
-  // a barreira de leitura cruzada (403/404 vindos de validateOrderTenant).
-  app.get('/api/orders/:id/danfe-logs', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await validateOrderTenant(Number((req.params as any).id));
-    } catch (e: any) {
-      if (e instanceof AppError) {
-        return res.status(e.status).json({ message: e.message });
-      }
-      return next(e);
-    }
-    return ordersController.listDanfeLogs(req, res).catch(next);
-  });
+  // FASE 6.5 — passou a usar `withTenantGuard` (server/middleware/tenantGuardWrapper.ts).
+  // Comportamento idêntico ao boilerplate da FASE 6: valida tenant antes de
+  // chamar o controller; em mismatch devolve {message} com o status do AppError;
+  // em sucesso o payload do controller permanece inalterado.
+  app.get(
+    '/api/orders/:id/danfe-logs',
+    withTenantGuard((req: Request, res: Response, next: NextFunction) =>
+      ordersController.listDanfeLogs(req, res).catch(next),
+    ),
+  );
 
   // Delegated to ordersController.createDanfeLog — owned by server/modules/orders.
   app.post('/api/orders/:id/danfe-log', (req: Request, res: Response, next: NextFunction) => ordersController.createDanfeLog(req, res).catch(next));
@@ -2751,19 +2751,14 @@ export async function registerRoutes(
   app.post('/api/orders/:id/bling-export', (req: Request, res: Response, next: NextFunction) => ordersController.blingExport(req, res).catch(next));
 
   // Delegated to ordersController.exportErp — owned by server/modules/orders.
-  // FASE 6 — multi-tenant hardening: bloqueia export cruzado entre tenants
-  // antes de delegar. Contrato de resposta inalterado em sucesso.
-  app.get('/api/orders/:id/export-erp', async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await validateOrderTenant(Number((req.params as any).id));
-    } catch (e: any) {
-      if (e instanceof AppError) {
-        return res.status(e.status).json({ message: e.message });
-      }
-      return next(e);
-    }
-    return ordersController.exportErp(req, res).catch(next);
-  });
+  // FASE 6.5 — passou a usar `withTenantGuard`. Mesma proteção da FASE 6,
+  // mesma resposta em sucesso, menos boilerplate.
+  app.get(
+    '/api/orders/:id/export-erp',
+    withTenantGuard((req: Request, res: Response, next: NextFunction) =>
+      ordersController.exportErp(req, res).catch(next),
+    ),
+  );
 
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
   // SECURITY: Cross-tenant by design (executive overview spans all empresas).
