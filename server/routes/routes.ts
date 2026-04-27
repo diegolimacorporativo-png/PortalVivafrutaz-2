@@ -5626,7 +5626,19 @@ export async function registerRoutes(
 
         res.status(201).json({ success: true, nfe, mensagem: 'XML NF-e gerado. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.' });
       } catch (e: any) {
-        res.status(500).json({ message: e.message });
+        // FASE NF.4.3 — tradução de erro fiscal para mensagem amigável.
+        // Mantém status 500 (rule 4) e preserva o erro técnico no log.
+        const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
+        const parsed = translateNFeError(e);
+        console.error('[NFE_EMIT_FAILED]', {
+          requestId: getRequestIdForLog(),
+          source: 'emitir',
+          orderId: req.body?.orderId,
+          code: parsed.code,
+          rawMessage: e?.message,
+          stack: e?.stack,
+        });
+        res.status(500).json({ error: parsed.code, message: parsed.message });
       } finally {
         // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
         if (lock) {
@@ -5735,7 +5747,19 @@ export async function registerRoutes(
 
               return { orderId, status: 'success', nfe };
             } catch (e: any) {
-              return { orderId, status: 'error', reason: e.message };
+              // FASE NF.4.3 — tradução de erro fiscal por item do lote.
+              // Preserva código técnico no log e devolve mensagem amigável.
+              const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
+              const parsed = translateNFeError(e);
+              console.error('[NFE_EMIT_FAILED]', {
+                requestId: getRequestIdForLog(),
+                source: 'emitir-lote',
+                orderId,
+                code: parsed.code,
+                rawMessage: e?.message,
+                stack: e?.stack,
+              });
+              return { orderId, status: 'error', error: parsed.code, reason: parsed.message };
             } finally {
               // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
               if (lockItem) {

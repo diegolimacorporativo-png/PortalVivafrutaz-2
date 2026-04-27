@@ -242,3 +242,64 @@ export function parseNFeErrors(erros: Array<{ campo: string; mensagem: string } 
     return parseNFeError(codigo, campo ? `${campo}: ${e.mensagem}` : e.mensagem);
   });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FASE NF.4.3 — TRADUÇÃO DE ERROS FISCAIS (UX)
+// ─────────────────────────────────────────────────────────────────────────────
+// Wrapper user-facing: recebe um Error/code cru lançado pelo pipeline NF
+// (FASES NF.1 / NF.2 / NF.4.2) e devolve { code, message } em português,
+// pronto para resposta HTTP. NÃO substitui parseNFeError() acima — esse
+// continua sendo usado pelo diagnóstico interno (FIELD_MAP).
+//
+// Mapeamento curado dos erros lançados pelo builder e pelo generator.
+// Códigos não mapeados caem na mensagem genérica.
+
+const NFE_USER_MESSAGES: Record<string, string> = {
+  // FASE NF.4.2 — fail-fast do builder
+  NFE_MISSING_NCM: 'Produto sem NCM cadastrado. Cadastre o NCM antes de emitir a nota.',
+  NFE_MISSING_COMPANY_NAME: 'Nome da empresa não configurado. Verifique o cadastro fiscal.',
+  NFE_MISSING_EMITENTE_ADDRESS: 'Endereço da empresa não configurado.',
+  NFE_MISSING_EMITENTE_IE: 'Inscrição estadual da empresa não informada.',
+  NFE_INVALID_IBGE_CODE: 'Cidade inválida ou não encontrada na base do IBGE.',
+  NFE_BUILD_VALIDATION_FAILED: 'Dados fiscais incompletos no pedido. Revise produtos e cadastro do cliente.',
+
+  // FASE NF.2 — fail-fast do gerador de XML
+  NFE_XML_MISSING_EMITENTE: 'CNPJ da empresa emitente não configurado.',
+  NFE_XML_MISSING_DESTINATARIO: 'Razão social do destinatário não preenchida.',
+  NFE_XML_NO_ITEMS: 'Pedido sem itens para faturar.',
+  NFE_XML_EMPTY_EMITENTE_NOME: 'Razão social da empresa emitente não preenchida.',
+  NFE_XML_EMPTY_DESTINATARIO: 'Razão social do destinatário não preenchida.',
+  NFE_XML_INVALID_QCOM: 'Quantidade inválida em um dos produtos do pedido.',
+  NFE_XML_INVALID_VUNCOM: 'Valor unitário inválido em um dos produtos do pedido.',
+  NFE_XML_INVALID_VPROD: 'Valor total inválido em um dos produtos do pedido.',
+  NFE_XML_INVALID_NUMBER: 'Valor numérico inválido encontrado durante a geração da nota.',
+  NFE_XML_EMPTY: 'Falha interna ao gerar o XML da nota fiscal.',
+  NFE_XML_INVALID_STRUCTURE: 'XML da nota fiscal foi gerado em formato inválido.',
+  NFE_XML_CORRUPTED: 'XML da nota fiscal foi gerado corrompido. Tente novamente.',
+  NFE_XML_CORRUPTED_CONTENT: 'XML da nota contém valores inválidos. Revise os dados do pedido.',
+};
+
+const NFE_GENERIC_MESSAGE =
+  'Erro ao gerar nota fiscal. Verifique os dados e tente novamente.';
+
+/**
+ * Recebe qualquer Error / código / string e devolve uma resposta amigável
+ * para o usuário final. Nunca lança. Não toca em logs nem em stack trace.
+ *
+ * Convenção: quando o código não é reconhecido, retorna code='NFE_UNKNOWN_ERROR'
+ * com a mensagem genérica — o código original continua disponível no log
+ * técnico do chamador (que NÃO é alterado por esta função).
+ */
+export function translateNFeError(error: any): { code: string; message: string } {
+  const raw = String(error?.message ?? error?.code ?? error ?? '').trim();
+  const direct = NFE_USER_MESSAGES[raw];
+  if (direct) {
+    return { code: raw, message: direct };
+  }
+  // Tenta extrair um código no formato NFE_* mesmo quando vier prefixado/sufixado.
+  const match = raw.match(/NFE_[A-Z0-9_]+/);
+  if (match && NFE_USER_MESSAGES[match[0]]) {
+    return { code: match[0], message: NFE_USER_MESSAGES[match[0]] };
+  }
+  return { code: 'NFE_UNKNOWN_ERROR', message: NFE_GENERIC_MESSAGE };
+}
