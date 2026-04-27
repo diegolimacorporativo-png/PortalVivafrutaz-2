@@ -49,6 +49,12 @@ import {
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
+import {
+  incrementBlocked as incNfeIdemBlocked,
+  incrementDryRun as incNfeIdemDryRun,
+  getMetrics as getNfeIdemMetrics,
+  resetMetrics as resetNfeIdemMetrics,
+} from "../modules/nfe/nfe-idempotency.metrics";
 import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
@@ -5482,6 +5488,37 @@ export async function registerRoutes(
       });
     });
 
+    // FASE 19 — Observabilidade do guard de idempotência (FASE 18).
+    // Endpoint admin: contadores agregados in-memory, sem dados sensíveis.
+    // Mesmo padrão de proteção dos endpoints admin de cron/alerts.
+    app.get(
+      '/api/nfe/idempotency/metrics',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      (_req: any, res) => {
+        return res.json({
+          enabled: ENABLE_NFE_IDEMPOTENCY_GUARD,
+          mode: ENABLE_NFE_IDEMPOTENCY_GUARD ? 'enforce' : 'dry-run',
+          ...getNfeIdemMetrics(),
+        });
+      },
+    );
+
+    // FASE 19 — Reset controlado dos contadores in-memory.
+    // Útil para isolar janelas de observação. Não toca em DB.
+    app.post(
+      '/api/nfe/idempotency/reset',
+      requireAuthCore,
+      requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
+      (req: any, res) => {
+        resetNfeIdemMetrics();
+        console.warn(
+          `[NFE_IDEMPOTENCY_METRICS_RESET] requestId=${getRequestIdForLog()} | userId=${req.session?.userId ?? 'unknown'}`,
+        );
+        return res.json({ ok: true, ...getNfeIdemMetrics() });
+      },
+    );
+
     // POST /api/nfe/emitir — gerar XML + criar registro
     app.post('/api/nfe/emitir', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
@@ -5500,6 +5537,8 @@ export async function registerRoutes(
             console.warn(
               `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=emitir | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
             );
+            // FASE 19 — métrica agregada (sem dados sensíveis).
+            incNfeIdemBlocked(idem.blockingStatus ?? 'unknown', 'emitir');
             return res.status(409).json({
               message: 'Pedido já possui NF-e em status bloqueante',
               blockingStatus: idem.blockingStatus,
@@ -5509,6 +5548,8 @@ export async function registerRoutes(
             console.warn(
               `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=emitir | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
             );
+            // FASE 19 — métrica agregada (sem dados sensíveis).
+            incNfeIdemDryRun(idem.blockingStatus ?? 'unknown', 'emitir');
             // segue o fluxo — só observa
           }
         }
@@ -5574,6 +5615,8 @@ export async function registerRoutes(
                   console.warn(
                     `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=emitir-lote | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
                   );
+                  // FASE 19 — métrica agregada (sem dados sensíveis).
+                  incNfeIdemBlocked(idem.blockingStatus ?? 'unknown', 'emitir-lote');
                   return {
                     orderId,
                     status: 'blocked',
@@ -5583,6 +5626,8 @@ export async function registerRoutes(
                   console.warn(
                     `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=emitir-lote | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
                   );
+                  // FASE 19 — métrica agregada (sem dados sensíveis).
+                  incNfeIdemDryRun(idem.blockingStatus ?? 'unknown', 'emitir-lote');
                   // segue o fluxo — só observa
                 }
               }

@@ -1,0 +1,252 @@
+🎯 FASE 19 — OBSERVABILIDADE DA IDEMPOTÊNCIA (MONITORAMENTO CONTROLADO)
+
+---
+
+📌 OBJETIVO
+
+Adicionar visibilidade completa sobre a regra de idempotência implementada na FASE 18
+
+👉 SEM alterar comportamento de emissão  
+👉 SEM alterar lógica existente  
+👉 SEM impactar performance crítica  
+
+---
+
+🧠 CONTEXTO
+
+- Guard de idempotência já implementado (FASE 18)
+- Feature flag ativa em modo DRY-RUN por padrão
+- Logs já existentes:
+
+  - [NFE_IDEMPOTENCY_BLOCKED]
+  - [NFE_IDEMPOTENCY_DRY_RUN]
+
+❗ Problema atual:
+
+👉 Logs estão soltos (difícil análise)  
+👉 Sem métricas agregadas  
+👉 Sem visibilidade operacional  
+
+---
+
+🎯 OBJETIVO TÉCNICO
+
+Permitir responder em tempo real:
+
+- Quantos pedidos seriam bloqueados?
+- Quais status mais causam bloqueio?
+- Origem das tentativas (cron vs API)
+- Segurança para ativar a flag
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar fluxo de emissão  
+- NÃO alterar regras da FASE 18  
+- NÃO mover o guard  
+- NÃO alterar canEmitNFe  
+- NÃO criar migrations  
+- NÃO usar banco de dados novo  
+- NÃO persistir métricas em DB  
+- NÃO armazenar dados sensíveis (requestId, payloads, etc)  
+- NÃO armazenar listas de eventos  
+
+👉 Apenas leitura + memória + contadores + logs  
+
+⚠️ IMPORTANTE:
+
+- Implementação DEVE usar apenas contadores agregados  
+- NÃO pode crescer indefinidamente em memória  
+- NÃO pode gerar memory leak  
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+1. CRIAR COLETOR DE MÉTRICAS (IN-MEMORY)
+
+Arquivo novo:
+
+server/modules/nfe/nfe-idempotency.metrics.ts
+
+Estrutura:
+
+- contador total:
+  - blocked
+  - dryRun
+
+- agrupamento por:
+  - status (gerada, assinada, etc)
+  - source (cron, emitir, emitir-lote)
+
+Exemplo:
+
+{
+  blocked: number,
+  dryRun: number,
+  byStatus: Record<string, number>,
+  bySource: Record<string, number>
+}
+
+---
+
+2. FUNÇÕES DO MÓDULO
+
+Criar funções:
+
+- incrementBlocked(status, source)
+- incrementDryRun(status, source)
+- getMetrics()
+- resetMetrics() (opcional, para debug)
+
+⚠️ Tudo em memória (variável global controlada)
+
+⚠️ IMPORTANTE:
+
+- Apenas incrementar números
+- NÃO guardar histórico
+- NÃO guardar listas
+- NÃO guardar objetos por requisição
+
+---
+
+3. INTEGRAR COM LOGS EXISTENTES
+
+Nos pontos onde já existe:
+
+[NFE_IDEMPOTENCY_BLOCKED]  
+[NFE_IDEMPOTENCY_DRY_RUN]
+
+Adicionar chamada:
+
+- incrementBlocked(...) quando bloqueado  
+- incrementDryRun(...) quando dry-run  
+
+👉 NÃO remover logs existentes  
+👉 NÃO alterar formato dos logs  
+
+---
+
+4. IDENTIFICAR SOURCE
+
+Padronizar origem:
+
+- "cron"
+- "emitir"
+- "emitir-lote"
+
+👉 passar como argumento para métricas
+
+---
+
+5. CRIAR ENDPOINT ADMIN
+
+Endpoint novo:
+
+GET /api/nfe/idempotency/metrics
+
+Resposta:
+
+{
+  blocked: number,
+  dryRun: number,
+  byStatus: {
+    gerada: number,
+    assinada: number,
+    enviada: number,
+    autorizada: number,
+    rejeitada: number,
+    erro: number
+  },
+  bySource: {
+    cron: number,
+    emitir: number,
+    emitir-lote: number
+  }
+}
+
+---
+
+6. SEGURANÇA DO ENDPOINT
+
+Reutilizar padrão já existente:
+
+👉 mesmo nível de proteção de endpoints admin  
+
+Se não houver padrão claro:
+
+👉 exigir autenticação + tenant válido  
+
+---
+
+7. (OPCIONAL) RESET CONTROLADO
+
+Endpoint opcional:
+
+POST /api/nfe/idempotency/reset
+
+👉 limpa métricas em memória  
+
+⚠️ apenas se já existir padrão admin seguro  
+
+---
+
+📊 VALIDAÇÃO
+
+Testar cenários:
+
+1. Pedido com NFe gerada  
+   → deve gerar DRY_RUN  
+   → contador dryRun++  
+
+2. Pedido sem NFe  
+   → não altera métricas  
+
+3. Executar via cron e via API  
+   → source deve ser separado corretamente  
+
+4. Verificar crescimento de memória  
+   → não deve crescer com volume de requisições  
+
+---
+
+📈 RESULTADO ESPERADO
+
+- Métricas acessíveis via endpoint  
+- Logs continuam intactos  
+- Nenhuma mudança no comportamento do sistema  
+- Sem crescimento de memória  
+- Visibilidade total antes de ativar flag  
+
+---
+
+🚀 PRÓXIMO PASSO
+
+Após validação:
+
+👉 Ativar:
+
+ENABLE_NFE_IDEMPOTENCY_GUARD=true  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Arquivos criados  
+2. Pontos onde métricas foram integradas  
+3. Exemplo de retorno do endpoint  
+4. Confirmação de zero impacto no fluxo  
+5. Confirmação de ausência de memory leak  
+
+---
+
+⚠️ IMPORTANTE
+
+Esta fase NÃO altera comportamento  
+
+👉 Apenas OBSERVA o sistema

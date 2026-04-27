@@ -18,6 +18,10 @@ import { sql } from "drizzle-orm";
 import { storage } from "../services/storage";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
+import {
+  incrementBlocked as incNfeIdemBlocked,
+  incrementDryRun as incNfeIdemDryRun,
+} from "../modules/nfe/nfe-idempotency.metrics";
 import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
 import { AUTO_FATURAMENTO, ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import {
@@ -224,6 +228,8 @@ export async function runFaturamentoCron(
           console.warn(
             `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
           );
+          // FASE 19 — métrica agregada (sem dados sensíveis).
+          incNfeIdemBlocked(idem.blockingStatus ?? "unknown", "cron");
           return {
             orderId,
             status: "blocked",
@@ -233,6 +239,8 @@ export async function runFaturamentoCron(
           console.warn(
             `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
           );
+          // FASE 19 — métrica agregada (sem dados sensíveis).
+          incNfeIdemDryRun(idem.blockingStatus ?? "unknown", "cron");
           // segue o fluxo — só observa
         }
       }
