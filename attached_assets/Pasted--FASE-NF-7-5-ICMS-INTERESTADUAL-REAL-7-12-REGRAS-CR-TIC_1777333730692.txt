@@ -1,0 +1,148 @@
+🎯 FASE NF.7.5 — ICMS INTERESTADUAL REAL (7% / 12%)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar CST  
+3. NÃO alterar CSOSN  
+4. NÃO alterar cálculo fora da função getAliquotaICMS  
+5. NÃO quebrar Simples Nacional  
+6. NÃO usar banco  
+7. NÃO mexer em builder, billing ou endpoints  
+
+👉 Apenas evoluir a função getAliquotaICMS
+
+---
+
+🧠 OBJETIVO
+
+Refinar regra interestadual:
+
+- 18% → operação interna (mesma UF)  
+- 12% → interestadual padrão  
+- 7% → quando destino for:
+  - Norte
+  - Nordeste
+  - Centro-Oeste
+  - Espírito Santo (ES)
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR LISTA DE UFs (REGIÕES 7%)
+
+Arquivo:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+Adicionar acima da função:
+
+ts const UFS_7 = new Set([   "AC","AL","AM","AP","BA","CE","DF","ES",   "GO","MA","MT","MS","PA","PB","PE","PI",   "RN","RO","RR","SE","TO" ]); 
+
+---
+
+## 🛠️ ETAPA 2 — ATUALIZAR FUNÇÃO
+
+Substituir getAliquotaICMS por:
+
+ts function getAliquotaICMS(ufOrigem?: string, ufDestino?: string): number {   // fallback seguro   if (!ufOrigem || !ufDestino) {     return 18;   }    // normalização defensiva   const origem = ufOrigem.toUpperCase();   const destino = ufDestino.toUpperCase();    // operação interna   if (origem === destino) {     return 18;   }    // interestadual com regra de 7%   if (UFS_7.has(destino)) {     return 7;   }    // demais casos interestaduais   return 12; } 
+
+---
+
+## 🛠️ ETAPA 3 — NÃO ALTERAR CALL SITE
+
+👉 Manter exatamente:
+
+ts const pICMS = getAliquotaICMS(   (input as any).emitente?.uf,   (input as any).destinatario?.uf, ); 
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+---
+
+### 1️⃣ SP → SP
+
+✔ pICMS = 18
+
+---
+
+### 2️⃣ SP → MG
+
+✔ pICMS = 12
+
+---
+
+### 3️⃣ SP → BA (Nordeste)
+
+✔ pICMS = 7
+
+---
+
+### 4️⃣ SP → DF (Centro-Oeste)
+
+✔ pICMS = 7
+
+---
+
+### 5️⃣ SP → ES
+
+✔ pICMS = 7
+
+---
+
+### 6️⃣ Sem UF
+
+✔ pICMS = 18 (fallback)
+
+---
+
+### 7️⃣ Simples Nacional
+
+✔ continua ignorando ICMS
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ XML intacto  
+✔ cálculo só mudou dentro da função  
+✔ CST continua mandando na estrutura  
+✔ pronto para DIFAL e regras futuras  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts SP → BA = 12% 
+
+Depois:
+
+ts SP → BA = 7% 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Função atualizada  
+2. Lista de UFs criada  
+3. Resultado dos testes  
+4. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO implementar 4% (importados) ainda  
+👉 NÃO usar NCM ainda  
+👉 NÃO mexer em cálculo de ST  
+
+👉 isso vem na próxi

@@ -61,24 +61,44 @@ function fmtValor(v: number, dec = 2): string {
 const toMoney = (v: number): string =>
   Number.isFinite(v) ? v.toFixed(2) : '0.00';
 
+// FASE NF.7.5 — UFs cujo destino aplica alíquota interestadual de 7%
+// (Norte + Nordeste + Centro-Oeste + Espírito Santo, conforme convênio ICMS).
+// Set imutável de propósito — qualquer mudança regulatória passa por aqui.
+const UFS_7 = new Set([
+  "AC","AL","AM","AP","BA","CE","DF","ES",
+  "GO","MA","MT","MS","PA","PB","PE","PI",
+  "RN","RO","RR","SE","TO",
+]);
+
 // FASE NF.7.3 — alíquota de ICMS encapsulada num único ponto.
-// FASE NF.7.4 — diferenciação simples interna (mesma UF) × interestadual:
-//   • sem UF (qualquer um dos dois ausente) → 18% (fallback seguro = NF.7.3);
+// FASE NF.7.4 — diferenciação interna (mesma UF) × interestadual.
+// FASE NF.7.5 — interestadual real:
+//   • sem UF (qualquer um dos dois ausente) → 18% (fallback seguro);
 //   • mesma UF (interna)                    → 18%;
-//   • UFs diferentes (interestadual)        → 12% (simplificado).
-// ⚠ Sem regra por NCM, sem 7%, sem 4% importados — vem nas próximas fases.
+//   • destino em UFS_7 (N/NE/CO + ES)       → 7%;
+//   • demais interestaduais (SE/S exceto ES)→ 12%.
+// ⚠ Sem 4% para importados, sem regra por NCM, sem ST — vem nas próximas fases.
 function getAliquotaICMS(ufOrigem?: string, ufDestino?: string): number {
-  // fallback seguro (mantém comportamento atual)
+  // fallback seguro
   if (!ufOrigem || !ufDestino) {
     return 18;
   }
 
-  // mesma UF → operação interna
-  if (ufOrigem === ufDestino) {
+  // normalização defensiva
+  const origem = ufOrigem.toUpperCase();
+  const destino = ufDestino.toUpperCase();
+
+  // operação interna
+  if (origem === destino) {
     return 18;
   }
 
-  // UF diferente → interestadual (simplificado)
+  // interestadual com regra de 7%
+  if (UFS_7.has(destino)) {
+    return 7;
+  }
+
+  // demais casos interestaduais
   return 12;
 }
 
