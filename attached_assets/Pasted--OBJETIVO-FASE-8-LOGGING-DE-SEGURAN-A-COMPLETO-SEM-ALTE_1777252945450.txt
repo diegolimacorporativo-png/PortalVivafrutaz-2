@@ -1,0 +1,153 @@
+🎯 OBJETIVO: FASE 8 — LOGGING DE SEGURANÇA COMPLETO (SEM ALTERAR COMPORTAMENTO)
+
+Adicionar logs de segurança para cobrir TODOS os caminhos onde hoje não há registro de tentativa de acesso cross-tenant.
+
+---
+
+🧠 CONTEXTO
+
+O sistema já possui proteção multi-tenant funcional:
+
+- validateOrderTenant → já loga [SECURITY] Tenant mismatch
+- Endpoints bloqueiam acesso corretamente (sem vazamento)
+
+⚠️ Problema atual:
+Nem todos os caminhos geram log:
+
+1. /api/orders/:id → retorna 404 direto (sem log)
+2. /api/nfe/fiscal-data/:orderId → pode falhar sem tenant context (sem log)
+3. /api/nfe/diagnostics/:orderId → mesmo problema
+
+👉 Resultado: tentativas maliciosas não ficam 100% auditáveis
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar status code (404 continua 404, 500 continua 500)
+2. NÃO alterar resposta da API
+3. NÃO alterar lógica existente
+4. NÃO alterar fluxo de execução
+5. NÃO alterar buildNFeInput
+6. NÃO alterar storage.ts
+7. NÃO substituir validateOrderTenant
+8. NÃO alterar endpoints
+
+👉 Apenas ADICIONAR logs
+
+---
+
+📦 TAREFAS
+
+---
+
+1. LOG EM /api/orders/:id (CAMINHO 404)
+
+Arquivo:
+server/routes/routes.ts
+
+Local:
+endpoint GET /api/orders/:id
+
+ANTES de retornar:
+
+return res.status(404)...
+
+Adicionar:
+
+console.warn(
+  [SECURITY] Possible cross-tenant access (404) for orderId=${orderId}
+);
+
+⚠️ IMPORTANTE:
+- NÃO chamar validateOrderTenant aqui
+- NÃO mudar para 403
+- manter comportamento atual
+
+---
+
+2. LOG EM ERRO DE TENANT AUSENTE
+
+Arquivo:
+server/routes/routes.ts
+
+Endpoints:
+
+- GET /api/nfe/fiscal-data/:orderId
+- GET /api/nfe/diagnostics/:orderId
+
+---
+
+Dentro do catch existente, adicionar:
+
+if (e.message?.includes("Tenant context ausente")) {
+  console.warn(
+    [SECURITY] Missing tenant context on protected route | orderId=${orderId}
+  );
+}
+
+⚠️ NÃO alterar throw ou retorno
+
+---
+
+3. PADRONIZAÇÃO DE LOG
+
+Garantir padrão consistente:
+
+[SECURITY] <descrição> | orderId=X
+
+---
+
+4. NÃO CRIAR NOVOS MIDDLEWARES
+
+- NÃO criar interceptor global
+- NÃO refatorar rotas
+- NÃO mover lógica
+
+👉 tudo deve ser local e explícito
+
+---
+
+📊 RESULTADO ESPERADO
+
+Após implementação:
+
+| Cenário | Log |
+|--------|-----|
+| validateOrderTenant mismatch | ✅ já existe |
+| 404 (orders endpoint) | ✅ novo |
+| tenant ausente | ✅ novo |
+
+---
+
+🧪 VALIDAÇÃO
+
+Rodar novamente:
+
+scripts/test-tenant-http-security.ts
+
+Esperado:
+
+- Todos cenários continuam passando
+- Agora com presença de logs [SECURITY]
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. pontos onde logs foram adicionados
+2. código adicionado
+3. resultado do teste atualizado
+4. confirmação:
+
+OBSERVABILIDADE DE SEGURANÇA COMPLETA ✅
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+Se houver qualquer risco de alterar comportamento:
+
+👉 PARAR e perguntar antes de impleme

@@ -1753,7 +1753,14 @@ export async function registerRoutes(
       throw e;
     }
     const data = await storage.getOrder(orderId);
-    if (!data) return res.status(404).json({ message: "Not found" });
+    if (!data) {
+      // FASE 8 — observabilidade: registra possível tentativa cross-tenant
+      // que cai no caminho 404. Apenas log; status e body permanecem iguais.
+      console.warn(
+        `[SECURITY] Possible cross-tenant access (404) for orderId=${orderId}`,
+      );
+      return res.status(404).json({ message: "Not found" });
+    }
     res.json(data);
   });
 
@@ -5790,7 +5797,17 @@ export async function registerRoutes(
           completudeEmissora: Math.round(checkEmissora.filter(c => c.ok).length / checkEmissora.length * 100),
           completudeDestinatario: Math.round(checkDestinatario.filter(c => c.ok).length / checkDestinatario.length * 100),
         });
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+      } catch (e: any) {
+        // FASE 8 — observabilidade: detecta ausência de tenant context numa
+        // rota protegida (não há tenantContext middleware aqui). Apenas log;
+        // status 500 e body permanecem inalterados.
+        if (e?.message?.includes("Tenant context ausente")) {
+          console.warn(
+            `[SECURITY] Missing tenant context on protected route | orderId=${req.params.orderId}`,
+          );
+        }
+        res.status(500).json({ message: e.message });
+      }
     });
 
     // ── NF-e Diagnóstico Fiscal ──────────────────────────────────────────────
@@ -5804,7 +5821,17 @@ export async function registerRoutes(
         const { validateNFeBeforeSend } = await import('../services/nfe/diagnostics/nfe-validator.ts');
         const result = await validateNFeBeforeSend(Number(req.params.orderId));
         res.json(result);
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+      } catch (e: any) {
+        // FASE 8 — observabilidade: detecta ausência de tenant context numa
+        // rota protegida (não há tenantContext middleware aqui). Apenas log;
+        // status 500 e body permanecem inalterados.
+        if (e?.message?.includes("Tenant context ausente")) {
+          console.warn(
+            `[SECURITY] Missing tenant context on protected route | orderId=${req.params.orderId}`,
+          );
+        }
+        res.status(500).json({ message: e.message });
+      }
     });
 
     // POST /api/nfe/diagnostics/log-error — registrar erro + solução no training
