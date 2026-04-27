@@ -1,0 +1,174 @@
+🎯 OBJETIVO: FASE 10 — VALIDAÇÃO HTTP DE SEGURANÇA (WRITE PATHS)
+
+Validar que endpoints de ESCRITA também NÃO permitem operações entre tenants via requisições HTTP reais.
+
+---
+
+🧠 CONTEXTO
+
+- Leitura já está protegida e validada (FASE 6 e 7)
+- Observabilidade completa (FASE 9)
+- Sistema está estável em produção
+
+⚠️ Agora precisamos garantir que operações de ESCRITA também estejam seguras
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código de produção
+2. NÃO alterar rotas
+3. NÃO alterar middlewares
+4. NÃO criar endpoints novos
+5. NÃO alterar services
+6. NÃO alterar repository
+7. NÃO alterar lógica de negócio
+
+👉 Apenas TESTAR
+
+---
+
+📦 TAREFA
+
+Criar script:
+
+scripts/test-tenant-write-security.ts
+
+---
+
+🧪 CENÁRIOS OBRIGATÓRIOS
+
+---
+
+1. UPDATE válido (empresa A → pedido A)
+
+PATCH /api/orders/:id
+
+Esperado:
+- status 200 (ou 204 dependendo do endpoint)
+- alteração aplicada corretamente
+
+---
+
+2. ATAQUE CROSS-TENANT (UPDATE)
+
+empresa A tentando alterar pedido da empresa B
+
+PATCH /api/orders/:id
+
+Esperado:
+- status 403, 404 ou 401
+- NENHUMA alteração aplicada
+- dados permanecem intactos
+
+---
+
+3. DELETE válido (empresa A → pedido A)
+
+DELETE /api/orders/:id
+
+Esperado:
+- sucesso (200/204)
+- registro removido (ou marcado como deletado)
+
+---
+
+4. ATAQUE CROSS-TENANT (DELETE)
+
+empresa A tentando deletar pedido da empresa B
+
+Esperado:
+- bloqueado (403/404/401)
+- registro NÃO removido
+
+---
+
+5. MODIFICAÇÃO DE ITENS (se existir endpoint)
+
+Exemplo:
+PATCH /api/orders/:id/items
+
+Validar:
+- alteração válida funciona
+- cross-tenant bloqueado
+
+---
+
+6. LOG DE SEGURANÇA
+
+Validar presença de:
+
+[SECURITY]
+
+👉 Pode ser:
+- Tenant mismatch
+- Possible cross-tenant access
+- Missing tenant context
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Escrita válida funciona normalmente
+- Cross-tenant bloqueado em 100% dos casos
+- Nenhuma alteração indevida no banco
+- Logs de segurança presentes
+
+---
+
+⚠️ IMPORTANTE
+
+- Usar dados efêmeros (prefixo SEC-TEST-WRITE-)
+- Garantir cleanup no final
+- NÃO poluir dados reais
+
+---
+
+🧠 PADRÃO DO SCRIPT
+
+- criar 2 tenants
+- criar pedidos para cada um
+- autenticar separadamente
+- executar requisições HTTP reais
+- validar respostas
+- validar integridade dos dados após tentativa de ataque
+
+---
+
+🚫 PROIBIDO
+
+- testar via service direto
+- acessar banco sem passar pelo endpoint (exceto validação final)
+- mockar comportamento
+
+👉 teste deve ser REAL (HTTP)
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. código do script
+2. resultado da execução
+3. confirmação:
+
+SEGURANÇA DE ESCRITA VALIDADA ✅  
+ou  
+FALHA CRÍTICA DETECTADA ❌
+
+---
+
+⚠️ IMPORTANTE FINAL
+
+Se algum endpoint permitir alteração cross-tenant:
+
+👉 PARAR  
+👉 reportar exatamente o cenário  
+👉 NÃO tentar corrigir  
+
+---
+
+🎯 OBJETIVO FINAL
+
+Garantir que o sistema está seguro tanto em LEITURA quanto em ESCRI
