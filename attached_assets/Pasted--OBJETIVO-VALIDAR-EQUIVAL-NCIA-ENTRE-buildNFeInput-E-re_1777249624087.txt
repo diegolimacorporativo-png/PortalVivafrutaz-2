@@ -1,0 +1,136 @@
+🎯 OBJETIVO: VALIDAR EQUIVALÊNCIA ENTRE buildNFeInput E resolveBillingItems
+
+Criar um script de teste que compare o comportamento atual com o novo service de faturamento, garantindo que não existe nenhuma diferença.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO modificar código existente
+2. NÃO alterar buildNFeInput
+3. NÃO alterar billing.service.ts
+4. NÃO alterar endpoints
+5. NÃO integrar nada ainda
+
+👉 Apenas testar
+
+---
+
+📦 TAREFA
+
+Criar arquivo:
+
+scripts/test-billing-equivalence.ts
+
+---
+
+🧠 CENÁRIOS OBRIGATÓRIOS
+
+Testar os 4 cenários:
+
+1. STANDARD
+- pedido com múltiplos itens
+- sem draft
+
+2. CONTRACT_OPEN
+- draft manual com valores diferentes do pedido
+
+3. CONTRACT_AVERAGE
+- snapshot baseado em contract_scopes
+- alterar scopes depois e validar que NF não muda
+
+4. useGroupedItems = true
+- validar que agrupamento gera:
+  - 1 item
+  - descrição "Frutas in natura"
+  - vTotal correto
+
+---
+
+🔍 COMO COMPARAR (CRÍTICO)
+
+Para cada cenário:
+
+A) Resultado atual:
+const nfe = await buildNFeInput(orderId)
+
+Extrair:
+const itemsA = nfe.produtos || nfe.items || nfe.det
+
+(BUSCAR ONDE ESTÃO OS ITENS NO OUTPUT REAL)
+
+---
+
+B) Resultado novo:
+const { items: itemsB } = await resolveBillingItems(orderId)
+
+---
+
+⚠️ NORMALIZAÇÃO (OBRIGATÓRIO)
+
+Antes de comparar, transformar ambos para o mesmo formato:
+
+{
+  description,
+  quantity,
+  unitPrice,
+  totalPrice
+}
+
+---
+
+🔍 VALIDAÇÃO
+
+Comparar item a item:
+
+- mesma quantidade de itens
+- mesma description
+- mesma quantity
+- mesmo unitPrice
+- mesmo totalPrice
+
+---
+
+⚠️ REGRAS
+
+- qualquer diferença → lançar erro
+- log detalhado com:
+  - cenário
+  - item A vs item B
+- arredondar valores numéricos para 2 casas (evitar erro float)
+
+---
+
+📊 OUTPUT
+
+Se tudo ok:
+EQUIVALENCE OK ✅
+
+Se erro:
+EQUIVALENCE FAILED ❌
++ detalhes da divergência
+
+---
+
+🧪 EXTRA (IMPORTANTE)
+
+Rodar o teste 2x:
+
+1. antes de alterar contract_scopes
+2. depois de alterar
+
+👉 CONTRACT_AVERAGE NÃO pode mudar
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. código completo do script
+2. logs da execução
+3. confirmação final:
+
+- ✅ equivalente 100%
+OU
+- ❌ divergências encontradas (lista
