@@ -1,0 +1,153 @@
+🎯 FASE NF.5.2 — TESTES AUTOMATIZADOS (HARDENING + SEGURANÇA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código de produção  
+2. NÃO alterar lógica existente  
+3. NÃO refatorar arquivos atuais  
+4. NÃO mexer em endpoints  
+5. NÃO mexer em buildNFeInput / gerarNFeXML  
+6. NÃO alterar comportamento  
+
+👉 Apenas adicionar testes
+
+---
+
+🧠 OBJETIVO
+
+Garantir que tudo implementado até a FASE NF.5.1 nunca quebre:
+
+✔ CRT válido  
+✔ CSOSN válido  
+✔ CSOSN dinâmico no XML  
+✔ Override por cliente  
+✔ Fail-fast funcionando  
+
+---
+
+📦 ESCOPO
+
+Criar testes unitários para:
+
+- nfe-input.builder.ts  
+- nfeGenerator.ts  
+- nfeValidator.ts  
+- nfe-error-parser.ts  
+
+---
+
+## 🛠️ ETAPA 1 — TESTES DE CRT
+
+Arquivo: nfeValidator.test.ts
+
+Cobrir:
+
+✔ crt = "1" → OK  
+✔ crt = "2" → OK  
+✔ crt = "3" → OK  
+❌ crt = undefined → erro NFE_INVALID_CRT  
+❌ crt = "0" → erro  
+❌ crt = "abc" → erro  
+
+---
+
+## 🛠️ ETAPA 2 — TESTES DE CSOSN
+
+Arquivo: nfeGenerator.test.ts
+
+Cobrir:
+
+✔ csosn = "102" → OK  
+✔ csosn = "300" → OK  
+
+❌ csosn = "1" → erro  
+❌ csosn = "10A" → erro  
+❌ csosn = "<xml>" → erro  
+
+Esperado:
+
+throw new Error("NFE_INVALID_CSOSN")
+
+---
+
+## 🛠️ ETAPA 3 — TESTE DO XML GERADO
+
+Validar string do XML:
+
+✔ Deve conter:
+<ICMSSN102> quando csosn = 102  
+<ICMSSN300> quando csosn = 300  
+
+❌ NÃO deve conter sempre ICMSSN102 fixo  
+
+---
+
+## 🛠️ ETAPA 4 — TESTE DE OVERRIDE POR CLIENTE
+
+Mockar:
+
+company.regimeTributario = "lucro_presumido"  
+config.regimeTributario = "simples_nacional"
+
+Esperado:
+
+✔ CRT = "3"
+
+E o contrário:
+
+company = null  
+config = simples  
+
+✔ CRT = "1"
+
+---
+
+## 🛠️ ETAPA 5 — TESTE DO ERROR PARSER
+
+Arquivo: nfe-error-parser.test.ts
+
+✔ NFE_INVALID_CRT → mensagem amigável  
+✔ NFE_INVALID_CSOSN → mensagem amigável  
+✔ erro desconhecido → fallback padrão  
+
+---
+
+## 🛠️ ETAPA 6 — TESTE DE NÃO REGRESSÃO
+
+Simular cenário completo:
+
+✔ simples_nacional + csosn "102"
+
+Esperado:
+
+✔ NÃO lançar erro  
+✔ XML válido  
+✔ comportamento igual ao atual  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Cobertura das regras críticas da NF.5.1  
+- Garantia de estabilidade futura  
+- Base segura para NF.6 (ICMS real)  
+
+---
+
+🔒 IMPORTANTE
+
+👉 Esses testes são obrigatórios antes de avançar fiscal  
+👉 Se quebrar aqui, IA NÃO pode continuar NF.6  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Arquivos de teste criados  
+2. Casos cobertos  
+3. Resultado dos testes (pass/fail)  
+4. Confirmação de zero impacto no sist
