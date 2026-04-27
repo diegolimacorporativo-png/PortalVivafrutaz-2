@@ -1,0 +1,142 @@
+🎯 FASE 6 — PROTEÇÃO DE LEITURA (MULTI-TENANT)
+
+---
+
+📌 OBJETIVO
+
+Bloquear vazamento de dados entre empresas (tenants) nos endpoints de leitura
+
+👉 SEM alterar lógica existente  
+👉 SEM alterar estrutura de resposta  
+👉 SEM quebrar fluxo atual  
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar lógica de negócio
+- NÃO alterar retorno dos endpoints
+- NÃO remover código
+- NÃO alterar storage.ts
+- NÃO alterar guards existentes
+
+👉 Apenas adicionar validação ANTES da leitura
+
+---
+
+🧠 CONTEXTO
+
+- validateOrderTenant(orderId) já existe
+- safeGetOrder(orderId) já existe
+- proteção já aplicada em emissão
+- leitura ainda está vulnerável
+
+---
+
+# 🛠️ ETAPA 1 — PROTEGER GET /api/orders/:id
+
+Arquivo:
+server/routes/routes.ts
+
+---
+
+## 🔹 AÇÃO
+
+ANTES de qualquer acesso ao pedido:
+
+Adicionar:
+
+await validateOrderTenant(Number(req.params.id));
+
+---
+
+## 🔹 POSIÇÃO EXATA
+
+👉 IMEDIATAMENTE após obter o ID  
+👉 ANTES de qualquer chamada:
+
+- storage.getOrder
+- safeGetOrder
+- qualquer acesso ao pedido
+
+---
+
+# 🛠️ ETAPA 2 — PROTEGER GET /api/nfe/order/:orderId/info
+
+Arquivo:
+server/routes/routes.ts
+
+---
+
+## 🔹 AÇÃO
+
+ANTES de buscar qualquer dado:
+
+await validateOrderTenant(Number(orderId));
+
+---
+
+## 🔹 IMPORTANTE
+
+👉 Mesmo que já exista validação parcial  
+👉 garantir que esta chamada esteja no topo do fluxo
+
+---
+
+# 🛠️ ETAPA 3 — (OPCIONAL SEGURO)
+
+Onde existir:
+
+storage.getOrder(orderId)
+
+👉 Substituir por:
+
+safeGetOrder(orderId)
+
+---
+
+⚠️ REGRAS
+
+- NÃO alterar retorno do endpoint
+- NÃO alterar tratamento de erro existente
+- NÃO mudar estrutura de dados
+
+---
+
+# 🛠️ ETAPA 4 — LOG DE SEGURANÇA
+
+Garantir que validações inválidas continuem gerando:
+
+[SECURITY] Tenant mismatch
+
+👉 NÃO alterar formato do log existente
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- acesso a pedido de outro tenant → BLOQUEADO
+- nenhum dado vazado
+- endpoints continuam funcionando normalmente
+- zero impacto para usuários válidos
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. endpoints protegidos
+2. código adicionado (trechos exatos)
+3. confirmação de zero regressão
+4. confirmação de bloqueio entre tenants
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO mover código  
+👉 NÃO refatorar  
+👉 NÃO otimizar  
+
+👉 apenas PROTEGER lei
