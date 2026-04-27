@@ -4,6 +4,9 @@
  * os `produtos` da NF vêm de `nf_drafts.items` (prioridade total). Caso
  * contrário, mantém o comportamento legado: copia `order_items`.
  *
+ * FASE NF.1 — Hardening: sanitização, normalização e validação estruturada
+ * aplicadas DENTRO do builder, sem alterar assinatura nem fluxo externo.
+ *
  * Regras explícitas (sem regressão):
  *   - assinatura legada `buildNFeInput(orderId)` continua válida.
  *   - assinatura nova `buildNFeInput({ orderId, draftId? })` ativa a camada
@@ -59,6 +62,26 @@ export async function fetchIbgeCode(cep: string, cityName?: string): Promise<str
     IBGE_FALLBACK[(cityName || "").toLowerCase()] ||
     "3550308"
   );
+}
+
+// ── FASE NF.1 — Helpers de sanitização ───────────────────────────────────────
+
+/**
+ * Normaliza campo obrigatório: trim, colapsa espaços múltiplos, aplica fallback
+ * quando o valor for ausente ou vazio. Nunca retorna undefined.
+ */
+function safeStr(v: any, fallback = ""): string {
+  const s = (v != null ? String(v) : "").trim().replace(/\s{2,}/g, " ");
+  return s || fallback;
+}
+
+/**
+ * ETAPA 1 — Para campos opcionais: retorna undefined quando ausente/vazio,
+ * string limpa quando presente. Nunca força string vazia onde undefined é válido.
+ */
+function safeOptional(v: any): string | undefined {
+  const s = (v != null ? String(v) : "").trim().replace(/\s{2,}/g, " ");
+  return s || undefined;
 }
 
 // ── buildNFeInput ─────────────────────────────────────────────────────────────
@@ -201,33 +224,35 @@ export async function buildNFeInput(
     fetchIbgeCode(company.addressZip || "", company.addressCity || ""),
   ]);
 
+  // ETAPA 5 — campos do emitente com safeStr (obrigatórios) e safeOptional (opcionais)
   const emitente = {
-    cnpj: config.cnpj || "",
-    xNome: config.companyName || "VivaFrutaz",
-    xFant: config.fantasyName || config.companyName,
-    ie: config.stateRegistration || "0",
+    cnpj: safeStr(config.cnpj),
+    xNome: safeStr(config.companyName, "VivaFrutaz"),
+    xFant: safeOptional(config.fantasyName) ?? safeStr(config.companyName, "VivaFrutaz"),
+    ie: safeStr(config.stateRegistration, "0"),
     crt,
-    logradouro: config.address || "Rua não configurada",
-    numero: config.addressNumber || "S/N",
-    bairro: config.neighborhood || "Centro",
-    xMun: config.city || "São Paulo",
-    cMun: emitIbge,
-    uf: config.state || "SP",
-    cep: (config.cep || "00000000").replace(/\D/g, "").padEnd(8, "0"),
-    fone: config.phone || "",
+    logradouro: safeStr(config.address, "Rua não configurada"),
+    numero: safeStr(config.addressNumber, "S/N"),
+    bairro: safeStr(config.neighborhood, "Centro"),
+    xMun: safeStr(config.city, "São Paulo"),
+    cMun: safeStr(emitIbge, "3550308"),
+    uf: safeStr(config.state, "SP"),
+    cep: safeStr((config.cep || "00000000").replace(/\D/g, "").padEnd(8, "0"), "00000000"),
+    fone: safeStr(config.phone),
   };
 
+  // ETAPA 5 — campos do destinatário com safeStr/safeOptional
   const destinatario = {
-    cnpj: company.cnpj?.replace(/\D/g, "") ? company.cnpj : undefined,
-    xNome: company.companyName,
-    ie: company.stateRegistration || undefined,
-    logradouro: company.addressStreet || "Endereço não informado",
-    numero: company.addressNumber || "S/N",
-    bairro: company.addressNeighborhood || "Centro",
-    xMun: company.addressCity || "São Paulo",
-    cMun: (company as any).addressIbge || destIbge,
-    uf: company.addressState || "SP",
-    cep: (company.addressZip || "00000000").replace(/\D/g, "").padEnd(8, "0"),
+    cnpj: safeOptional(company.cnpj?.replace(/\D/g, "") ? company.cnpj : undefined),
+    xNome: safeStr(company.companyName),
+    ie: safeOptional(company.stateRegistration),
+    logradouro: safeStr(company.addressStreet, "Endereço não informado"),
+    numero: safeStr(company.addressNumber, "S/N"),
+    bairro: safeStr(company.addressNeighborhood, "Centro"),
+    xMun: safeStr(company.addressCity, "São Paulo"),
+    cMun: safeStr((company as any).addressIbge || destIbge, "3550308"),
+    uf: safeStr(company.addressState, "SP"),
+    cep: safeStr((company.addressZip || "00000000").replace(/\D/g, "").padEnd(8, "0"), "00000000"),
   };
 
   const defaultCfop =
@@ -237,31 +262,76 @@ export async function buildNFeInput(
   // lógica antiga mantida para rollback futuro
   const { items: sourceItems } = await resolveBillingItems(orderId, draftId);
 
-  const produtos = sourceItems.map((item: any, idx: number) => ({
+  // ETAPA 2 — normalização sem mutação: recalcula vProd a partir de qCom × vUnCom
+  const rawProdutos = sourceItems.map((item: any, idx: number) => ({
     cProd: String(item.productId || idx + 1).padStart(6, "0"),
-    xProd:
-      item.description ||
-      item.name ||
-      item.productName ||
+    xProd: safeStr(
+      item.description || item.name || item.productName,
       "Produto",
-    ncm: item.ncm || "08039000",
-    cfop: item.cfop || defaultCfop,
-    uCom: item.unit || "KG",
-    qCom: parseFloat(item.quantity || 1),
-    vUnCom: parseFloat(item.unitPrice || item.finalPrice || 0),
-    vProd: parseFloat(item.totalPrice || 0),
+    ),
+    ncm: safeStr(item.ncm, "08039000"),
+    cfop: safeStr(item.cfop, defaultCfop),
+    uCom: safeStr(item.unit, "KG"),
+    qCom: Number(item.quantity ?? 1),
+    vUnCom: Number(item.unitPrice ?? item.finalPrice ?? 0),
+    vProd: Number(item.totalPrice ?? 0),
   }));
 
+  // ETAPA 2 — normalização: garante qCom/vUnCom numéricos e recalcula vProd
+  const normalizedProdutos = rawProdutos.map((item) => {
+    const qCom = Number(item.qCom);
+    const vUnCom = Number(item.vUnCom);
+    return {
+      ...item,
+      qCom,
+      vUnCom,
+      vProd: Number((qCom * vUnCom).toFixed(2)),
+    };
+  });
+
+  // ETAPA 3 — validação estruturada
+  const criticalErrors: string[] = [];
+  const itemErrors: string[] = [];
+
+  if (!emitente.cnpj) criticalErrors.push("MISSING_EMITENTE_CNPJ");
+  if (!destinatario.xNome) criticalErrors.push("MISSING_DESTINATARIO");
+  if (!normalizedProdutos.length) criticalErrors.push("NO_ITEMS");
+
+  for (const item of normalizedProdutos) {
+    if (!item.qCom || item.qCom <= 0) itemErrors.push("INVALID_QCOM");
+    if (!item.vUnCom || item.vUnCom <= 0) itemErrors.push("INVALID_VUNCOM");
+  }
+
+  // ETAPA 4 — fail controlado: lança erro único com log detalhado
+  if (criticalErrors.length || itemErrors.length) {
+    console.error("[NFE_BUILD_INVALID]", {
+      orderId,
+      criticalErrors,
+      itemErrors,
+    });
+    throw new Error("NFE_BUILD_VALIDATION_FAILED");
+  }
+
+  // ETAPA 6 — log estruturado compatível com HTTP e cron (sem global)
+  console.log("[NFE_BUILD_INPUT]", {
+    orderId,
+    totalItens: normalizedProdutos.length,
+    valorTotal: Number(
+      normalizedProdutos.reduce((t, p) => t + p.vProd, 0).toFixed(2),
+    ),
+  });
+
+  // ETAPA 7 — retorno consistente: usa normalizedProdutos, sem campos undefined desnecessários
   return {
     emitente,
     destinatario,
-    produtos,
-    natOp: config.defaultNatureza || "Venda de mercadoria adquirida",
+    produtos: normalizedProdutos,
+    natOp: safeStr(config.defaultNatureza, "Venda de mercadoria adquirida"),
     tpAmb: (config.ambienteFiscal === "producao" ? "1" : "2") as "1" | "2",
     orderId,
-    orderCode: (orderData.order as any).orderCode,
+    orderCode: safeOptional((orderData.order as any).orderCode),
     informacoesAdicionais: config.informacoesAdicionais
-      ? `${config.informacoesAdicionais}\nPedido: ${(orderData.order as any).orderCode || `#${orderId}`}`
-      : `Pedido: ${(orderData.order as any).orderCode || `#${orderId}`}`,
+      ? `${safeStr(config.informacoesAdicionais)}\nPedido: ${safeStr((orderData.order as any).orderCode, `#${orderId}`)}`
+      : `Pedido: ${safeStr((orderData.order as any).orderCode, `#${orderId}`)}`,
   };
 }

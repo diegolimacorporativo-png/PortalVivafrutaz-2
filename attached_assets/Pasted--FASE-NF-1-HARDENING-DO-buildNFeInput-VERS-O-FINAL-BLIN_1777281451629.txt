@@ -1,0 +1,119 @@
+🎯 FASE NF.1 — HARDENING DO buildNFeInput (VERSÃO FINAL BLINDADA)
+
+---
+
+📌 OBJETIVO
+
+Fortalecer buildNFeInput com segurança total
+
+👉 SEM quebrar fluxo  
+👉 SEM impactar cron/lote  
+👉 SEM side effects  
+👉 SEM dependência de global  
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO alterar assinatura  
+- NÃO alterar fluxo  
+- NÃO controlar execução externa  
+- NÃO usar global  
+- NÃO mutar objetos de entrada  
+
+---
+
+# 🛠️ ETAPA 1 — SANITIZAÇÃO SEGURA
+
+ts const safeOptional = (v: any, fallback = "") => v ?? fallback; 
+
+👉 apenas campos opcionais
+
+---
+
+# 🛠️ ETAPA 2 — NORMALIZAÇÃO SEM MUTAÇÃO
+
+ts const normalizedProdutos = (produtos || []).map((item) => {   const qCom = Number(item.qCom);   const vUnCom = Number(item.vUnCom);    return {     ...item,     qCom,     vUnCom,     vProd: Number((qCom * vUnCom).toFixed(2)),   }; }); 
+
+---
+
+# 🛠️ ETAPA 3 — VALIDAÇÃO ESTRUTURADA
+
+ts const criticalErrors: string[] = []; const itemErrors: string[] = [];  if (!emitente?.cnpj) criticalErrors.push("MISSING_EMITENTE_CNPJ"); if (!destinatario?.xNome) criticalErrors.push("MISSING_DESTINATARIO"); if (!normalizedProdutos.length) criticalErrors.push("NO_ITEMS");  for (const item of normalizedProdutos) {   if (!item.qCom || item.qCom <= 0) itemErrors.push("INVALID_QCOM");   if (!item.vUnCom || item.vUnCom <= 0) itemErrors.push("INVALID_VUNCOM"); } 
+
+---
+
+# 🛠️ ETAPA 4 — FAIL CONTROLADO (SEM QUEBRAR ARQUITETURA)
+
+ts if (criticalErrors.length || itemErrors.length) {   console.error("[NFE_BUILD_INVALID]", {     orderId,     criticalErrors,     itemErrors,   });    throw new Error("NFE_BUILD_VALIDATION_FAILED"); } 
+
+👉 erro único  
+👉 log detalhado  
+👉 tratamento continua fora (endpoint/cron)
+
+---
+
+# 🛠️ ETAPA 5 — NORMALIZAÇÃO DE STRING
+
+Aplicar:
+
+- trim()
+- remover undefined
+- evitar múltiplos espaços
+
+---
+
+# 🛠️ ETAPA 6 — LOG COMPATÍVEL COM SISTEMA
+
+ts console.log("[NFE_BUILD_INPUT]", {   orderId,   totalItens: normalizedProdutos.length,   valorTotal: normalizedProdutos.reduce((t, p) => t + p.vProd, 0), }); 
+
+👉 sem global  
+👉 compatível com HTTP e cron  
+
+---
+
+# 🛠️ ETAPA 7 — RETORNO CONSISTENTE
+
+Garantir:
+
+- uso de normalizedProdutos
+- nenhum campo undefined
+- estrutura fixa mantida
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- dados consistentes
+- validação clara
+- sem efeitos colaterais
+- compatível com lote e cron
+- pronto para XML
+
+---
+
+# 🚀 PRÓXIMO PASSO
+
+👉 FASE NF.2 — geração de XML confiável
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Validações aplicadas
+2. Campos normalizados
+3. Exemplo de output
+4. Confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 builder valida, não controla fluxo  
+👉 erro sobe, mas não decide comportamento  
+👉 zero dependência externa  
+👉 zero mutação  
+
+👉 padrão pronto para
