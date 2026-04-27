@@ -1,0 +1,167 @@
+🎯 FASE 16 — PRIORIZAÇÃO ESTRATÉGICA DOS GAPS (RISCO × IMPACTO)
+
+---
+
+📌 CONTEXTO (OBRIGATÓRIO)
+
+Você JÁ realizou a FASE 15 e possui evidência concreta dos gaps:
+
+- duplicação de NFe
+- race condition em número da NFe
+- falta de idempotência
+- ausência de persistência de erro
+- concorrência fraca no cron
+- retry descontrolado
+
+⚠️ NÃO inventar novos problemas  
+⚠️ NÃO repetir teoria  
+⚠️ USAR APENAS o que foi comprovado na FASE 15  
+
+---
+
+🎯 OBJETIVO
+
+Definir PRIORIDADE REAL de correção com base em:
+
+- risco
+- impacto
+- frequência
+- custo de correção
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+- NÃO implementar solução  
+- NÃO escrever código  
+- NÃO propor refactor ainda  
+- NÃO inventar comportamento  
+- NÃO criar novos gaps  
+- NÃO responder genérico  
+
+👉 TODA resposta deve estar ancorada em evidência da FASE 15  
+
+---
+
+📦 TAREFA
+
+---
+
+1. CLASSIFICAR CADA GAP
+
+Para cada gap identificado na FASE 15:
+
+Formato obrigatório:
+
+GAP: <descrição exata>
+
+- Impacto: (ALTO / MÉDIO / BAIXO)
+- Frequência: (ALTA / MÉDIA / BAIXA)
+- Risco financeiro: (SIM / NÃO)
+- Risco operacional: (SIM / NÃO)
+- Complexidade de correção: (ALTA / MÉDIA / BAIXA)
+
+---
+
+2. TOP 3 CRÍTICOS
+
+Responder:
+
+👉 Quais são os 3 gaps mais perigosos HOJE?
+
+Justificar com base em:
+
+- risco de prejuízo
+- risco de duplicação
+- risco de inconsistência
+- comportamento sob escala
+
+---
+
+3. DEPENDÊNCIAS
+
+Responder:
+
+👉 Existe relação entre os gaps?
+
+Exemplo esperado:
+
+- idempotência depende de controle de concorrência
+- retry depende de persistência de erro
+
+---
+
+4. ORDEM DE EXECUÇÃO
+
+Definir:
+
+1º → ...  
+2º → ...  
+3º → ...  
+
+👉 Justificar cada posição com base em risco real
+
+---
+
+5. RISCO DE MUDANÇA
+
+Responder:
+
+👉 Qual gap é mais perigoso de corrigir?
+
+👉 Qual pode quebrar faturamento atual?
+
+---
+
+6. QUICK WINS
+
+Responder:
+
+👉 Existe algum gap com:
+
+- alto impacto
+- baixa complexidade
+
+---
+
+7. ALERTAS CRÍTICOS
+
+Listar explicitamente:
+
+👉 quais correções podem:
+
+- gerar duplicação de NFe
+- afetar clientes
+- alterar faturamento
+
+---
+
+🚨 IMPORTANTE
+
+Se faltar evidência:
+
+👉 NÃO assumir  
+👉 NÃO inventar  
+👉 declarar explicitamente  
+
+---
+
+✅ FORMATO FINAL
+
+1. Classificação dos gaps  
+2. Top 3 críticos  
+3. Dependências  
+4. Ordem de execução  
+5. Riscos de mudança  
+6. Quick wins  
+7. Alertas  
+
+---
+
+🎯 OBJETIVO FINAL
+
+Criar um plano seguro antes de qualquer alteração no sistema
+
+---
+
+Aguardando análise baseada EXCLUSIVAMENTE na FASE
