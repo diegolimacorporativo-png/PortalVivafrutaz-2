@@ -73,7 +73,7 @@ import {
 } from "../services/alerts.preferences";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
-import { NotFoundError, BadRequestError, ConflictError } from "../shared/errors/AppError";
+import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, AppError } from "../shared/errors/AppError";
 
 const claraIA = new AIDeveloper();
 
@@ -1739,7 +1739,20 @@ export async function registerRoutes(
   });
 
   app.get(api.orders.get.path, async (req, res) => {
-    const data = await storage.getOrder(Number(req.params.id));
+    const orderId = Number(req.params.id);
+    // FASE 6 — bloqueia leitura de pedido de outro tenant.
+    // Usa o mesmo guard das rotas fiscais (FASE 3); converte AppError
+    // em status HTTP correto (403/404/401) sem alterar o shape do
+    // sucesso (`storage.getOrder` continua sendo a fonte de dados).
+    try {
+      await validateOrderTenant(orderId);
+    } catch (e: any) {
+      if (e instanceof AppError) {
+        return res.status(e.status).json({ message: e.message });
+      }
+      throw e;
+    }
+    const data = await storage.getOrder(orderId);
     if (!data) return res.status(404).json({ message: "Not found" });
     res.json(data);
   });
@@ -5709,6 +5722,8 @@ export async function registerRoutes(
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       try {
         const orderId = Number(req.params.orderId);
+        // FASE 6 — bloqueia leitura de fiscal-data de pedido de outro tenant.
+        await validateOrderTenant(orderId);
         const order = await storage.getOrder(orderId);
         if (!order) return res.status(404).json({ message: 'Pedido não encontrado' });
         const [company, config] = await Promise.all([
@@ -5783,6 +5798,9 @@ export async function registerRoutes(
     app.get('/api/nfe/diagnostics/:orderId', async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       try {
+        // FASE 6 — diagnóstico de NF-e expõe dados sensíveis do pedido;
+        // bloqueia se for de outro tenant.
+        await validateOrderTenant(Number(req.params.orderId));
         const { validateNFeBeforeSend } = await import('../services/nfe/diagnostics/nfe-validator.ts');
         const result = await validateNFeBeforeSend(Number(req.params.orderId));
         res.json(result);
