@@ -70,35 +70,61 @@ const UFS_7 = new Set([
   "RN","RO","RR","SE","TO",
 ]);
 
+// FASE NF.7.6 — heurística simplificada de produto importado.
+// ⚠ De propósito simples: NCM iniciado em "1" ou "2". Sem tabela TIPI,
+// sem API externa, sem cálculo de conteúdo de importação (%). Será evoluída
+// nas próximas fases — qualquer refino de regra entra aqui, sem mexer no
+// generator nem no call site.
+function isProdutoImportado(ncm?: string): boolean {
+  if (!ncm) return false;
+  return ncm.startsWith("1") || ncm.startsWith("2");
+}
+
 // FASE NF.7.3 — alíquota de ICMS encapsulada num único ponto.
 // FASE NF.7.4 — diferenciação interna (mesma UF) × interestadual.
-// FASE NF.7.5 — interestadual real:
-//   • sem UF (qualquer um dos dois ausente) → 18% (fallback seguro);
-//   • mesma UF (interna)                    → 18%;
-//   • destino em UFS_7 (N/NE/CO + ES)       → 7%;
-//   • demais interestaduais (SE/S exceto ES)→ 12%.
-// ⚠ Sem 4% para importados, sem regra por NCM, sem ST — vem nas próximas fases.
-function getAliquotaICMS(ufOrigem?: string, ufDestino?: string): number {
-  // fallback seguro
+// FASE NF.7.5 — interestadual real (7% N/NE/CO+ES, 12% SE/S exceto ES).
+// FASE NF.7.6 — alíquota especial de 4% para produtos importados (Resolução
+// 13/2012 do Senado Federal, simplificada). Tem PRIORIDADE sobre a regra de UF
+// — produto importado paga 4% mesmo em operação interna ou para UF do bloco 7%.
+//
+// Ordem das regras:
+//   1. fallback seguro (UF origem ou destino ausente) → 18%
+//   2. produto importado                             → 4%   ← PRIORIDADE
+//   3. mesma UF (interna)                            → 18%
+//   4. destino em UFS_7 (N/NE/CO + ES)               → 7%
+//   5. demais interestaduais (SE/S exceto ES)        → 12%
+//
+// ⚠ Sem ST, sem DIFAL — vem nas próximas fases.
+function getAliquotaICMS(
+  ufOrigem?: string,
+  ufDestino?: string,
+  ncm?: string,
+): number {
+  // 1. fallback seguro
   if (!ufOrigem || !ufDestino) {
     return 18;
+  }
+
+  // 2. regra de importado (PRIORIDADE MÁXIMA — vem antes da lógica de UF)
+  if (isProdutoImportado(ncm)) {
+    return 4;
   }
 
   // normalização defensiva
   const origem = ufOrigem.toUpperCase();
   const destino = ufDestino.toUpperCase();
 
-  // operação interna
+  // 3. operação interna
   if (origem === destino) {
     return 18;
   }
 
-  // interestadual com regra de 7%
+  // 4. interestadual com regra de 7%
   if (UFS_7.has(destino)) {
     return 7;
   }
 
-  // demais casos interestaduais
+  // 5. demais casos interestaduais
   return 12;
 }
 
@@ -263,9 +289,12 @@ export async function gerarNFeXML(
     // operação interna × interestadual. Acesso seguro via `?.` mantém o
     // fallback 18% se algo vier ausente. Estrutura de input NÃO foi alterada.
     const vBC = Number(p.vProd) || 0;
+    // FASE NF.7.6 — NCM passado como 3º argumento para detecção de importado.
+    // Acesso seguro `p.ncm` mantém o fallback (sem NCM → segue regra de UF).
     const pICMS = getAliquotaICMS(
       (input as any).emitente?.uf,
       (input as any).destinatario?.uf,
+      p.ncm,
     );
     const vICMS = (vBC * pICMS) / 100;
 

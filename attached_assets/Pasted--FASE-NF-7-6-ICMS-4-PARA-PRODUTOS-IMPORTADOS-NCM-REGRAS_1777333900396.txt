@@ -1,0 +1,164 @@
+🎯 FASE NF.7.6 — ICMS 4% PARA PRODUTOS IMPORTADOS (NCM)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar CST  
+3. NÃO alterar CSOSN  
+4. NÃO alterar cálculo fora de getAliquotaICMS  
+5. NÃO quebrar Simples Nacional  
+6. NÃO usar banco  
+7. NÃO criar tabela  
+8. NÃO alterar builder  
+
+👉 Apenas evoluir getAliquotaICMS
+
+---
+
+🧠 OBJETIVO
+
+Aplicar regra:
+
+👉 ICMS = 4% quando produto for importado
+
+Base legal (simplificada):
+- Produtos importados ou com conteúdo de importação > 40%
+
+---
+
+## 🛠️ ETAPA 1 — RECEBER NCM NA FUNÇÃO
+
+Alterar assinatura:
+
+ts function getAliquotaICMS(   ufOrigem?: string,   ufDestino?: string,   ncm?: string ): number 
+
+---
+
+## 🛠️ ETAPA 2 — DETECTAR IMPORTADO (REGRA SIMPLES)
+
+👉 NÃO usar tabela  
+👉 NÃO usar API externa  
+
+Criar helper simples:
+
+ts function isProdutoImportado(ncm?: string): boolean {   if (!ncm) return false;    // regra simplificada (ajustável depois)   return ncm.startsWith("1") || ncm.startsWith("2"); } 
+
+⚠️ Simples de propósito — vamos evoluir depois
+
+---
+
+## 🛠️ ETAPA 3 — PRIORIDADE DA REGRA 4%
+
+Dentro de getAliquotaICMS:
+
+ts // regra de importado (PRIORIDADE MÁXIMA) if (isProdutoImportado(ncm)) {   return 4; } 
+
+👉 Deve vir ANTES da lógica de UF
+
+---
+
+## 🛠️ ETAPA 4 — MANTER RESTO IGUAL
+
+Ordem final:
+
+1. fallback → 18  
+2. importado → 4  
+3. mesma UF → 18  
+4. destino UFS_7 → 7  
+5. resto → 12  
+
+---
+
+## 🛠️ ETAPA 5 — ATUALIZAR CALL SITE
+
+Dentro do generator:
+
+ts const pICMS = getAliquotaICMS(   (input as any).emitente?.uf,   (input as any).destinatario?.uf,   p.ncm ); 
+
+---
+
+⚠️ NÃO alterar mais nada
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+---
+
+### 1️⃣ Produto nacional
+
+ncm = "08039000"
+
+✔ segue regra UF (7 / 12 / 18)
+
+---
+
+### 2️⃣ Produto importado
+
+ncm = "10000000"
+
+✔ pICMS = 4 (independente da UF)
+
+---
+
+### 3️⃣ Importado + mesma UF
+
+✔ continua 4%
+
+---
+
+### 4️⃣ Sem NCM
+
+✔ segue regra normal (fallback seguro)
+
+---
+
+### 5️⃣ Simples Nacional
+
+✔ ignora ICMS (sem impacto)
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ regra isolada  
+✔ fácil de evoluir depois  
+✔ nenhuma dependência externa  
+✔ não altera estrutura  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts SP → BA = 7% 
+
+Depois:
+
+ts SP → BA + produto importado = 4% 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Função atualizada  
+2. Helper criado  
+3. Linha alterada no generator  
+4. Resultado dos testes  
+5. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO validar NCM ainda  
+👉 NÃO usar tabela de exceção  
+👉 NÃO implementar conteúdo de importação (%)  
+
+👉 is
