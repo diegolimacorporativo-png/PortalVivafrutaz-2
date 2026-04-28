@@ -6562,6 +6562,48 @@ export async function registerRoutes(
         res.json({ success: true });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
+
+    // FASE BANCO.1 — POST /api/bank/remessa/itau
+    // Geração de arquivo CNAB 240 de remessa para o Banco Itaú a partir de
+    // IDs de accounts_receivable. Aditivo: apenas LÊ AR via repo existente
+    // e devolve text/plain. Não altera status, schema ou módulo financeiro.
+    app.post('/api/bank/remessa/itau', async (req: any, res) => {
+      if (!requireAuth(req, res)) return;
+      try {
+        const { ids } = req.body ?? {};
+        if (!Array.isArray(ids) || ids.length === 0) {
+          return res.status(400).json({ message: 'Informe um array "ids" com pelo menos um ID de AR.' });
+        }
+        const arIds = ids.map((v: any) => Number(v)).filter((n: number) => Number.isFinite(n) && n > 0);
+        if (arIds.length === 0) {
+          return res.status(400).json({ message: 'Nenhum ID válido em "ids".' });
+        }
+
+        const { gerarRemessaItau } = await import('../modules/banking/itau/remessa.service');
+        const config = await storage.getCompanyConfig().catch(() => null);
+        const ctx = {
+          cnpjCedente: (config as any)?.cnpj?.replace(/\D/g, '') || '00000000000000',
+          nomeCedente: (config as any)?.companyName || 'EMPRESA',
+          agencia: '0000',
+          conta: '000000000000',
+          dacConta: '0',
+          nsa: 1,
+          carteira: '109',
+        };
+
+        const result = await gerarRemessaItau(arIds, ctx);
+
+        const filename = `remessa-itau-${Date.now()}.rem`;
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('X-CNAB-Total-Titulos', String(result.totalTitulos));
+        res.setHeader('X-CNAB-Ignorados-Pagos', String(result.ignoradosPagos));
+        return res.status(200).send(result.conteudo);
+      } catch (e: any) {
+        console.error('[CNAB] erro ao gerar remessa Itaú', e);
+        return res.status(500).json({ message: e.message });
+      }
+    });
   }
 
   // ─── AI Developer Routes ─────────────────────────────────────────────────

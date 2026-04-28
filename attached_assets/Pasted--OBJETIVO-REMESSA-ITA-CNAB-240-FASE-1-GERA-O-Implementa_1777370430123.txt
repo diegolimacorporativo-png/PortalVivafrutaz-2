@@ -1,0 +1,159 @@
+🎯 OBJETIVO: REMESSA ITAÚ CNAB 240 — FASE 1 (GERAÇÃO)
+
+Implementar geração de arquivo CNAB 240 para envio de cobrança ao banco Itaú.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente (FIN.1 → FIN.5)
+2. NÃO alterar accounts_receivable existente
+3. NÃO remover PIX
+4. NÃO alterar endpoints atuais
+5. NÃO mexer em financeService existente
+6. NÃO alterar schema existente (apenas leitura)
+
+👉 Tudo deve ser ADITIVO
+
+---
+
+🧠 CONTEXTO
+
+- Já existe accounts_receivable
+- Já existe valor, vencimento, descrição
+- Já existe companyId
+- Sistema já controla pagamento
+
+👉 Vamos apenas EXPORTAR esses dados no formato CNAB 240
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CRIAR MÓDULO ITAÚ
+
+server/modules/banking/itau/
+
+Arquivos:
+
+- cnab240.generator.ts
+- remessa.service.ts
+
+---
+
+2. FUNÇÃO DE GERAÇÃO CNAB
+
+Arquivo:
+cnab240.generator.ts
+
+Criar função:
+
+export function generateItauCnab240(remessas: any[]): string
+
+Responsabilidade:
+
+- montar arquivo texto CNAB 240
+- usar \n como separador de linhas
+
+---
+
+3. ESTRUTURA DO ARQUIVO (SIMPLIFICADA)
+
+Implementar:
+
+HEADER DO ARQUIVO
+HEADER DO LOTE
+SEGMENTO P (dados do título)
+SEGMENTO Q (dados do sacado)
+TRAILER DO LOTE
+TRAILER DO ARQUIVO
+
+---
+
+4. MAPEAMENTO DOS CAMPOS
+
+Usar accounts_receivable:
+
+valor → valor do título  
+dataVencimento → vencimento  
+descricao → número do documento  
+orderId → identificação interna  
+
+Sacado (mock inicial se necessário):
+
+nome: "CLIENTE"
+documento: "00000000000"
+
+👉 (fase 1 pode usar dados mockados para sacado)
+
+---
+
+5. SERVICE DE REMESSA
+
+Arquivo:
+remessa.service.ts
+
+Criar:
+
+export async function gerarRemessaItau(arIds: number[]): Promise<string>
+
+Fluxo:
+
+- buscar AR pelo repo existente
+- filtrar status != pago
+- montar array
+- chamar generateItauCnab240
+- retornar string
+
+---
+
+6. ENDPOINT
+
+Adicionar em routes.ts:
+
+POST /api/bank/remessa/itau
+
+Body:
+
+{
+  "ids": [1,2,3]
+}
+
+Resposta:
+
+Content-Type: text/plain
+
+retornar arquivo CNAB
+
+---
+
+7. LOG
+
+Adicionar:
+
+console.log("[CNAB] Remessa Itaú gerada", {
+  totalTitulos: remessas.length
+})
+
+---
+
+📊 RESULTADO ESPERADO
+
+- arquivo CNAB gerado corretamente
+- possível baixar e subir no Itaú
+- nenhuma alteração no fluxo atual
+- zero regressão
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. arquivos criados
+2. função de geração
+3. endpoint
+4. exemplo de CNAB gerado
+5. confirmação de zero regressão
