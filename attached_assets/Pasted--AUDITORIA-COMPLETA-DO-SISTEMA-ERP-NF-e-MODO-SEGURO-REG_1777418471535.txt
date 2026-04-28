@@ -1,0 +1,235 @@
+🎯 AUDITORIA COMPLETA DO SISTEMA — ERP + NF-e (MODO SEGURO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO corrigir nada ainda
+3. NÃO remover nada
+4. NÃO refatorar
+5. NÃO sugerir mudanças automáticas
+
+👉 APENAS ANALISAR E REPORTAR
+
+---
+
+🧠 OBJETIVO
+
+Mapear 100% do sistema:
+
+- o que existe
+- o que está funcionando
+- o que está parcialmente implementado
+- o que está quebrado
+- o que está duplicado
+- o que está inconsistente
+
+---
+
+# 🔍 ETAPA 1 — MAPEAMENTO DE MÓDULOS
+
+Listar todos os módulos:
+
+- auth
+- orders
+- nfe
+- finance
+- queue
+- storage
+- logs
+
+Para cada módulo informar:
+
+- arquivos principais
+- responsabilidades
+- dependências
+
+---
+
+# 🔍 ETAPA 2 — ROTAS (BACKEND)
+
+Listar TODAS as rotas:
+
+Formato:
+
+- método + endpoint
+- arquivo
+- se está protegida (auth / tenant)
+- se está sendo usada no frontend
+
+Marcar:
+
+✅ funcionando  
+⚠️ parcial  
+❌ quebrada  
+🧟 não usada  
+
+---
+
+# 🔍 ETAPA 3 — FLUXO NF-e (CRÍTICO)
+
+Auditar pipeline completo:
+
+1. criação
+2. geração XML
+3. envio
+4. retry
+5. circuit breaker
+6. fila
+7. worker
+8. persistência
+9. histórico
+
+Para cada etapa:
+
+- onde acontece
+- se está ativo
+- se está sendo usado de verdade
+- possíveis riscos
+
+---
+
+# 🔍 ETAPA 4 — MULTI-TENANT
+
+Verificar:
+
+- uso de requireTenantId
+- uso de validateOrderTenant
+- queries com companyId
+
+Apontar:
+
+❌ pontos de vazamento  
+⚠️ pontos não protegidos  
+
+---
+
+# 🔍 ETAPA 5 — BANCO / STORAGE
+
+- tabelas usadas
+- colunas críticas (nfe_emissoes, orders)
+- uso de storage.ts
+
+Verificar:
+
+- inconsistência de dados
+- campos não utilizados
+- duplicação de persistência
+
+---
+
+# 🔍 ETAPA 6 — FILA / WORKER
+
+Verificar:
+
+- fila está ativa?
+- worker está rodando?
+- fallback funcionando?
+- persistência após envio?
+
+---
+
+# 🔍 ETAPA 7 — FRONTEND
+
+Mapear páginas:
+
+- /admin/finance
+- /admin/orders
+- outras
+
+Verificar:
+
+- chamadas de API
+- dados exibidos vs backend
+- botões sem ação
+- erros visuais
+
+---
+
+# 🔍 ETAPA 8 — LOGS E OBSERVABILIDADE
+
+Verificar:
+
+- uso de requestId
+- logs críticos existentes
+- pontos sem log
+
+---
+
+# 🔍 ETAPA 9 — DESCOBERTAS (MUITO IMPORTANTE)
+
+Listar tudo que NÃO estava explícito, mas foi identificado:
+
+- comportamentos implícitos
+- decisões de arquitetura não documentadas
+- fluxos escondidos
+- dependências indiretas
+- lógica “espalhada” em múltiplos arquivos
+
+👉 Aqui é onde surgem os maiores riscos reais
+
+---
+
+# 🔍 ETAPA 10 — ARQUITETURA FORA DO PADRÃO
+
+Identificar pontos como:
+
+- lógica de negócio dentro de routes
+- duplicação entre service e controller
+- ausência de camadas claras
+- acoplamento forte entre módulos
+- dependência circular
+- código crítico fora de services
+
+Classificar:
+
+🔴 grave  
+🟡 médio  
+🟢 leve  
+
+---
+
+# 🔍 ETAPA 11 — PROBLEMAS
+
+Listar:
+
+### 🔴 CRÍTICOS
+(quebram sistema ou geram risco fiscal)
+
+### 🟡 MÉDIOS
+(impactam operação)
+
+### 🟢 BAIXOS
+(melhoria/limpeza)
+
+---
+
+# 🔍 ETAPA 12 — DUPLICAÇÕES
+
+Identificar:
+
+- funções repetidas
+- lógica duplicada
+- caminhos paralelos perigosos
+
+---
+
+# 📊 SAÍDA OBRIGATÓRIA
+
+Responder com:
+
+1. mapa completo do sistema
+2. lista de rotas
+3. status do pipeline NF-e
+4. descobertas importantes
+5. arquitetura fora do padrão
+6. problemas classificados (🔴🟡🟢)
+7. duplicações encontradas
+8. riscos de produção
+
+---
+
+⚠️ NÃO CORRIGIR NADA AINDA
+
+👉 próxima fase será correção guiada por prioridad
