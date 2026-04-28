@@ -6021,6 +6021,169 @@ export async function registerRoutes(
       }
     });
 
+    // FASE FISCAL 8.1 — POST /api/nfe/:orderId/corrigir-reenviar
+    //
+    // Reemissão SEMI-AUTOMÁTICA: além das mesmas garantias do /reenviar
+    // (tenant, lock, status terminal, gate de faturamento, fechamento), esta
+    // rota consulta o `nfeErrorHandler` para classificar o `cStat` da última
+    // NF-e rejeitada e SÓ aceita disparar a reemissão quando a sugestão for
+    // {RECALCULAR, REEMITIR}. Erros classificados como VALIDAR_XML ou MANUAL
+    // exigem intervenção do operador e devolvem 422 com a mensagem oficial.
+    //
+    // IMPORTANTE — o endpoint NÃO recalcula impostos, NÃO altera o pedido,
+    // NÃO altera CFOP/NCM/CST. Ele apenas reaproveita o pipeline existente
+    // (`buildNFeInput → validarNFeInput → gerarNFeXML → createNfeEmissao`),
+    // que lê o estado ATUAL do pedido. A premissa é que o operador já
+    // corrigiu o pedido antes de clicar.
+    app.post('/api/nfe/:orderId/corrigir-reenviar', requireActiveSubscription, async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      let lock: OrderLockHandle | null = null;
+      const orderIdRaw = req.params?.orderId;
+      const orderId = Number(orderIdRaw);
+      if (!Number.isFinite(orderId) || orderId <= 0) {
+        return res.status(400).json({ message: 'orderId inválido' });
+      }
+      try {
+        const tenantId = requireTenantId();
+        lock = await acquireOrderLock(tenantId, orderId);
+        if (!lock) {
+          console.warn(
+            `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=corrigir-reenviar | tenantId=${tenantId} | orderId=${orderId}`,
+          );
+          return res.status(409).json({ message: 'Pedido já está em processamento' });
+        }
+        console.log(
+          `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=corrigir-reenviar | tenantId=${tenantId} | orderId=${orderId}`,
+        );
+
+        await validateOrderTenant(orderId);
+
+        const ultima = await storage.getNfeEmissaoByOrderId(orderId);
+        if (!ultima) {
+          return res.status(404).json({
+            message: 'Nenhuma NF-e prévia encontrada. Use /api/nfe/emitir para emitir a primeira.',
+          });
+        }
+        const ultimoStatus = (ultima as any)?.status;
+        const ultimoCStat = (ultima as any)?.cStat ?? '';
+        const reemissivel = new Set(['rejeitada', 'erro']);
+        if (!reemissivel.has(String(ultimoStatus))) {
+          console.warn(
+            `[NFE_CORRIGIR_BLOCKED] requestId=${getRequestIdForLog()} | orderId=${orderId} | currentStatus=${ultimoStatus}`,
+          );
+          return res.status(409).json({
+            message: 'NF-e não pode ser corrigida (status atual não é rejeitada nem erro).',
+            currentStatus: ultimoStatus,
+          });
+        }
+
+        // FASE FISCAL 8.1 — classifica o cStat e SÓ avança se a sugestão
+        // for acionável automaticamente. Demais casos: 422 com a mensagem
+        // do handler para o operador agir manualmente.
+        const { getCorrecaoSugerida } = await import('../services/nfe/nfeErrorHandler');
+        const sugestao = getCorrecaoSugerida(ultimoCStat);
+        const acionavel = sugestao.tipo === 'RECALCULAR' || sugestao.tipo === 'REEMITIR';
+        if (!acionavel) {
+          console.warn(
+            `[NFE_CORRIGIR_NAO_ACIONAVEL] requestId=${getRequestIdForLog()} | orderId=${orderId} | cStat=${ultimoCStat} | tipo=${sugestao.tipo}`,
+          );
+          return res.status(422).json({
+            message: sugestao.mensagem,
+            tipo: sugestao.tipo,
+            cStat: ultimoCStat,
+          });
+        }
+
+        const check = await canEmitNFe(orderId);
+        if (!check.allowed) {
+          console.warn('[NFE_CORRIGIR_BLOCKED_BY_GATE]', { orderId, reason: check.reason });
+          return res.status(400).json({ error: 'Faturamento bloqueado', reason: check.reason });
+        }
+
+        try {
+          const orderRow = await storage.getOrder(orderId);
+          const ord: any = (orderRow as any)?.order ?? orderRow;
+          if (ord?.companyId && ord?.createdAt) {
+            const created = ord.createdAt instanceof Date ? ord.createdAt : new Date(ord.createdAt);
+            if (!isNaN(created.getTime())) {
+              const { isPeriodClosed } = await import('../services/fiscal/fiscal-closure.service');
+              const closed = await isPeriodClosed(Number(ord.companyId), created);
+              if (closed) {
+                console.warn(
+                  `[SECURITY] PERIODO_FECHADO | requestId=${getRequestIdForLog()} | source=nfe-corrigir-reenviar | companyId=${ord.companyId} | year=${created.getFullYear()} | month=${created.getMonth() + 1}`,
+                );
+                return res.status(403).json({ message: 'PERIODO_FECHADO' });
+              }
+            }
+          }
+        } catch (closeErr: any) {
+          console.error('[NFE_PERIOD_CLOSURE_CHECK_ERROR]', closeErr?.message);
+        }
+
+        // Reaproveita exatamente o pipeline do /emitir e do /reenviar.
+        const input = await buildNFeInput(orderId);
+        const erros = validarNFeInput(input);
+        if (erros.length > 0) {
+          return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
+        }
+
+        const numero = await storage.getNextNfeNumero();
+        const gerada = await gerarNFeXML(input, numero);
+
+        const nfe = await storage.createNfeEmissao({
+          orderId,
+          numero: gerada.numero,
+          serie: gerada.serie,
+          chaveNFe: gerada.chaveNFe,
+          status: 'gerada',
+          xmlGerado: gerada.xmlGerado,
+          dataEmissao: gerada.dataEmissao,
+          ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+        });
+
+        await storage.updateOrder(orderId, { fiscalStatus: 'nota_emitida' });
+
+        await storage.createLog({
+          action: 'NF-E_CORRIGIDA_REENVIADA',
+          description: `NF-e nº ${numero} reemitida (correção semi-automática tipo=${sugestao.tipo}, cStat=${ultimoCStat}) para pedido #${orderId}. Substitui NF #${(ultima as any)?.id} status=${ultimoStatus}. Chave: ${gerada.chaveNFe}`,
+          level: 'INFO',
+          userId: req.session.userId,
+        });
+
+        res.status(201).json({
+          success: true,
+          nfe,
+          previousNfeId: (ultima as any)?.id,
+          previousStatus: ultimoStatus,
+          previousCStat: ultimoCStat,
+          correcao: sugestao,
+          mensagem: 'NF-e corrigida e reemitida. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.',
+        });
+      } catch (e: any) {
+        const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
+        const parsed = translateNFeError(e);
+        console.error('[NFE_CORRIGIR_REENVIAR_FAILED]', {
+          requestId: getRequestIdForLog(),
+          source: 'corrigir-reenviar',
+          orderId,
+          code: parsed.code,
+          rawMessage: e?.message,
+          stack: e?.stack,
+        });
+        const status = (e?.statusCode && Number.isInteger(e.statusCode)) ? e.statusCode : 500;
+        res.status(status).json({ error: parsed.code, message: parsed.message });
+      } finally {
+        if (lock) {
+          const tenantIdLog = lock.tenantId;
+          const orderIdLog = lock.orderId;
+          await releaseOrderLock(lock);
+          console.log(
+            `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=corrigir-reenviar | tenantId=${tenantIdLog} | orderId=${orderIdLog}`,
+          );
+        }
+      }
+    });
+
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
     app.post('/api/nfe/emitir-lote', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });

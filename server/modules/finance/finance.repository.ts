@@ -18,6 +18,10 @@ import {
 import { requireTenantId } from "../../core/tenant/context";
 import { storage } from "../../services/storage";
 import { NotFoundError } from "../../shared/errors/AppError";
+// FASE FISCAL 8.1 — sugestão de correção é injetada na linha de motivos
+// de rejeição diretamente pelo repository, conforme spec. Mantém o service
+// como pass-through e centraliza a regra (cStat → ação) em um único lugar.
+import { getCorrecaoSugerida, type CorrecaoSugerida } from "../../services/nfe/nfeErrorHandler";
 import type {
   AccountReceivable,
   InsertAccountReceivable,
@@ -686,6 +690,10 @@ export class FinanceRepository {
       xMotivo: string;
       total: number;
       orderId: number;
+      // FASE FISCAL 8.1 — sugestão estruturada (tipo + mensagem). O `tipo`
+      // é o discriminador que controla a visibilidade do botão "Corrigir e
+      // Reenviar" no frontend e o aceite do endpoint /corrigir-reenviar.
+      sugestao: CorrecaoSugerida;
     }[]
   > {
     const rows = await db
@@ -712,13 +720,20 @@ export class FinanceRepository {
       );
 
     return rows
-      .map((r) => ({
-        status: r.status ?? 'N/D',
-        orderId: r.orderId,
-        cStat: r.cStat ?? '',
-        xMotivo: r.xMotivo ?? '',
-        total: Number(r.total) || 0,
-      }))
+      .map((r) => {
+        const cStat = r.cStat ?? '';
+        // FASE FISCAL 8.1 — `sugestao` é injetada aqui para que o consumidor
+        // (HTTP, CLI, jobs) receba SEMPRE a mesma classificação. Pura, sem IO.
+        const sugestao = getCorrecaoSugerida(cStat);
+        return {
+          status: r.status ?? 'N/D',
+          orderId: r.orderId,
+          cStat,
+          xMotivo: r.xMotivo ?? '',
+          total: Number(r.total) || 0,
+          sugestao,
+        };
+      })
       .sort((a, b) => b.total - a.total);
   }
 }

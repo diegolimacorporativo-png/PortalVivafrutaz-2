@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus, CheckCircle2,
   Clock, XCircle, Copy, Check, ChevronDown, ChevronUp, Wallet, CreditCard,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt, ExternalLink
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt, ExternalLink, Wand2
 } from 'lucide-react';
 import { ImportarRetornoCnab } from '@/components/banking/ImportarRetornoCnab';
 
@@ -393,6 +393,58 @@ function ReenviarNfeButton({ orderId }: { orderId: number }) {
   );
 }
 
+// FASE FISCAL 8.1 — botão de correção semi-automática.
+//
+// Aparece SÓ quando o `nfeErrorHandler` classificou o cStat da última NF-e
+// rejeitada como `RECALCULAR` ou `REEMITIR` (códigos 533 e 539). Para
+// `VALIDAR_XML` (215) ou `MANUAL` (110 / desconhecidos) o botão fica oculto
+// e o operador deve usar "Abrir Pedido" + "Reenviar NF-e" no fluxo padrão.
+//
+// Reaproveita exatamente o pipeline de emissão do backend — não há cálculo
+// novo no cliente.
+function CorrigirReenviarButton({
+  orderId,
+  tipo,
+}: {
+  orderId: number;
+  tipo: 'RECALCULAR' | 'REEMITIR';
+}) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => apiRequest('POST', `/api/nfe/${orderId}/corrigir-reenviar`),
+    onSuccess: () => {
+      toast({
+        title: 'NF-e corrigida e reemitida',
+        description: `Correção aplicada (${tipo}) ao pedido #${orderId}.`,
+      });
+      qc.invalidateQueries({ queryKey: ['/api/finance/nfe/motivos-rejeicao'] });
+      qc.invalidateQueries({ queryKey: ['/api/finance/nfe/resumo-por-status'] });
+      qc.invalidateQueries({ queryKey: ['/api/finance/nfe/resumo-por-uf'] });
+    },
+    onError: (e: any) => {
+      toast({
+        title: 'Falha na correção',
+        description: e?.message ?? 'Não foi possível aplicar a correção semi-automática.',
+        variant: 'destructive',
+      });
+    },
+  });
+  return (
+    <button
+      type="button"
+      onClick={() => mutation.mutate()}
+      disabled={mutation.isPending}
+      data-testid={`button-corrigir-reenviar-${orderId}`}
+      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 text-white text-xs font-semibold hover:bg-amber-600 transition-colors disabled:opacity-50"
+      title={`Correção semi-automática (${tipo}) e reemissão da NF-e`}
+    >
+      <Wand2 className={`w-3.5 h-3.5 ${mutation.isPending ? 'animate-pulse' : ''}`} />
+      {mutation.isPending ? 'Corrigindo...' : 'Corrigir e Reenviar'}
+    </button>
+  );
+}
+
 export default function FinancePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -435,9 +487,12 @@ export default function FinancePage() {
     queryKey: ['/api/finance/nfe/motivos-rejeicao'],
     refetchInterval: 60000,
   });
+  // FASE FISCAL 8.1 — sugestao agora é estruturada ({tipo, mensagem}) e
+  // controla a visibilidade do botão "Corrigir e Reenviar".
   type NfeMotivo = {
     status: string; cStat: string; xMotivo: string;
-    total: number; orderId: number; sugestao: string;
+    total: number; orderId: number;
+    sugestao: { tipo: 'RECALCULAR' | 'VALIDAR_XML' | 'REEMITIR' | 'MANUAL'; mensagem: string };
   };
   const nfeMotivos: NfeMotivo[] = Array.isArray(nfeMotivosRaw)
     ? (nfeMotivosRaw as NfeMotivo[])
@@ -703,10 +758,16 @@ export default function FinancePage() {
                     {m.xMotivo || 'Motivo não informado pela SEFAZ.'}
                   </p>
                   <p
-                    className="mt-1 text-[11px] text-amber-800 dark:text-amber-300"
+                    className="mt-1 text-[11px] text-amber-800 dark:text-amber-300 flex items-center gap-1.5 flex-wrap"
                     data-testid={`text-nfe-sugestao-${m.orderId}`}
                   >
-                    💡 {m.sugestao}
+                    <span
+                      className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-200/60 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200"
+                      data-testid={`badge-sugestao-tipo-${m.orderId}`}
+                    >
+                      {m.sugestao?.tipo ?? 'MANUAL'}
+                    </span>
+                    <span>💡 {m.sugestao?.mensagem ?? 'Revisar pedido manualmente.'}</span>
                   </p>
                 </div>
                 <div className="shrink-0 flex flex-col gap-1.5">
@@ -720,6 +781,11 @@ export default function FinancePage() {
                     <ExternalLink className="w-3.5 h-3.5" />
                     Abrir Pedido
                   </button>
+                  {/* FASE FISCAL 8.1 — botão semi-automático aparece SÓ quando o
+                      tipo da sugestão é acionável (RECALCULAR/REEMITIR). */}
+                  {(m.sugestao?.tipo === 'RECALCULAR' || m.sugestao?.tipo === 'REEMITIR') && (
+                    <CorrigirReenviarButton orderId={m.orderId} tipo={m.sugestao.tipo} />
+                  )}
                   <ReenviarNfeButton orderId={m.orderId} />
                 </div>
               </div>

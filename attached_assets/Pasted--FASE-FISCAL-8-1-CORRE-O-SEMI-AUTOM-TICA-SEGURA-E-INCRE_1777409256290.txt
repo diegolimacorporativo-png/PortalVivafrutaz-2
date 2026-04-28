@@ -1,0 +1,204 @@
+🎯 FASE FISCAL 8.1 — CORREÇÃO SEMI-AUTOMÁTICA (SEGURA E INCREMENTAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML
+2. NÃO alterar cálculo fora do fluxo existente
+3. NÃO alterar getAliquotaICMS
+4. NÃO remover nenhuma validação existente
+5. NÃO quebrar multi-tenant
+6. NÃO alterar schema do banco
+7. NÃO automatizar tudo — apenas SUGERIR correção
+
+👉 Apenas detectar erro + sugerir ação + permitir reprocesso seguro
+
+---
+
+🧠 OBJETIVO
+
+Quando uma NF-e for rejeitada:
+
+- identificar o motivo (cStat)
+- sugerir correção clara
+- permitir botão "Corrigir e Reenviar"
+
+---
+
+📦 ESCOPO
+
+Trabalhar apenas com erros comuns:
+
+- 533 → Total ICMS diferente dos itens
+- 215 → Falha schema XML
+- 539 → Duplicidade de NF-e
+- 110 → Uso indevido
+
+👉 NÃO implementar todos os códigos ainda
+
+---
+
+## 🛠️ ETAPA 1 — MAPA DE CORREÇÃO
+
+📍 Arquivo:
+server/services/nfe/nfeErrorHandler.ts (criar se não existir)
+
+---
+
+Criar função:
+
+ts export function getCorrecaoSugerida(cStat?: string) {   switch (cStat) {     case '533':       return {         tipo: 'RECALCULAR',         mensagem: 'Diferença no total de ICMS. Recalcular valores da nota.',       };      case '215':       return {         tipo: 'VALIDAR_XML',         mensagem: 'Erro de schema. Verificar estrutura da nota.',       };      case '539':       return {         tipo: 'REEMITIR',         mensagem: 'Duplicidade detectada. Gerar nova NF-e.',       };      case '110':       return {         tipo: 'AGUARDAR',         mensagem: 'Uso indevido. Aguardar antes de reenviar.',       };      default:       return {         tipo: 'MANUAL',         mensagem: 'Verificar dados do pedido manualmente.',       };   } } 
+
+---
+
+## 🛠️ ETAPA 2 — INJETAR NA QUERY DE REJEIÇÃO
+
+📍 Arquivo:
+finance.repository.ts
+
+---
+
+NÃO alterar SQL.
+
+Apenas no .map():
+
+ts import { getCorrecaoSugerida } from '@/services/nfe/nfeErrorHandler';  ...  return rows.map((r) => {   const sugestao = getCorrecaoSugerida(r.cStat);    return {     status: r.status ?? 'N/D',     cStat: r.cStat ?? '',     xMotivo: r.xMotivo ?? '',     total: Number(r.total) || 0,     orderId: r.orderId,     sugestao,   }; }); 
+
+---
+
+## 🛠️ ETAPA 3 — BOTÃO INTELIGENTE
+
+📍 Arquivo:
+finance.tsx
+
+---
+
+Adicionar lógica:
+
+ts const podeAutoCorrigir =   item.sugestao?.tipo === 'RECALCULAR' ||   item.sugestao?.tipo === 'REEMITIR'; 
+
+---
+
+Botão:
+
+tsx {podeAutoCorrigir && (   <Button     variant="secondary"     onClick={() => corrigirEReenviar(item.orderId)}   >     Corrigir e Reenviar   </Button> )} 
+
+---
+
+## 🛠️ ETAPA 4 — ENDPOINT SEGURO
+
+📍 server/routes/routes.ts
+
+---
+
+Criar:
+
+POST /api/nfe/:orderId/corrigir-reenviar
+
+---
+
+Lógica:
+
+ts // 1. validar tenant await validateOrderTenant(orderId);  // 2. buscar última NF-e const ultima = await storage.getNfeByOrder(orderId);  // 3. validar status if (!['rejeitada', 'erro'].includes(ultima.status)) {   return res.status(409).json({ error: 'NF-e não pode ser corrigida' }); }  // 4. identificar correção const sugestao = getCorrecaoSugerida(ultima.cStat);  // 5. aplicar ação segura if (sugestao.tipo === 'RECALCULAR') {   // reaproveita fluxo atual }  if (sugestao.tipo === 'REEMITIR') {   // apenas chama reenvio existente } 
+
+---
+
+## 🛠️ ETAPA 5 — NÃO INVENTAR LÓGICA
+
+👉 IMPORTANTE
+
+- NÃO criar novos cálculos
+- NÃO alterar pedido automaticamente
+- NÃO alterar NCM / CFOP / CST
+
+👉 Apenas:
+
+✔ reaproveitar fluxo existente  
+✔ disparar nova emissão  
+✔ manter segurança atual  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ cStat 533
+
+Resultado:
+
+✔ botão aparece  
+✔ reprocessa  
+✔ nova NF criada  
+
+---
+
+### 2️⃣ cStat 539
+
+Resultado:
+
+✔ botão aparece  
+✔ nova NF gerada  
+
+---
+
+### 3️⃣ cStat 110
+
+Resultado:
+
+✔ botão NÃO aparece  
+
+---
+
+### 4️⃣ Outros erros
+
+Resultado:
+
+✔ fallback manual  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero alteração estrutural  
+✔ zero impacto no XML  
+✔ zero impacto no cálculo  
+✔ multi-tenant protegido  
+✔ nenhuma automação perigosa  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+- usuário vê erro
+- resolve manualmente
+
+Depois:
+
+- sistema sugere correção
+- botão inteligente aparece
+- reenvio seguro em 1 clique
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Função criada (nfeErrorHandler)
+2. Query ajustada
+3. Endpoint criado
+4. Botão funcionando
+5. Confirmação de zero regressão
+
+---
+
+🔥 IMPACTO
+
+👉 Sistema começa a “pensar” junto com o usuário  
+👉 Reduz erro operacional  
+👉 Acelera faturamento  
+👉 Base pronta pra automação tot
