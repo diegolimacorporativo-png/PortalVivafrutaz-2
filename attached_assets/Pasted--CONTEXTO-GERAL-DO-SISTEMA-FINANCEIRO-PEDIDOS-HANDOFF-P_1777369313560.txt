@@ -1,0 +1,231 @@
+🎯 CONTEXTO GERAL DO SISTEMA — FINANCEIRO + PEDIDOS (HANDOFF PARA NOVO AGENT)
+
+Este projeto já possui um fluxo financeiro parcialmente implementado e integrado ao módulo de pedidos.
+
+👉 NÃO começar do zero  
+👉 NÃO reimplementar lógica existente  
+👉 NÃO refatorar sem instrução explícita  
+
+Objetivo deste contexto: permitir continuidade segura das próximas fases (FIN.6+)
+
+---
+
+🧠 ARQUITETURA ATUAL (RESUMO)
+
+Sistema ERP com:
+
+- Pedidos (orders)
+- Contas a receber (accounts_receivable)
+- Contas a pagar (accounts_payable)
+- Conciliação bancária
+- Integração Itaú
+- Geração de PIX (payload estático)
+- UI administrativa completa
+
+---
+
+📦 FLUXO ATUAL (IMPORTANTE)
+
+Pedido → Conta a Receber → Pagamento → Pedido atualizado
+
+---
+
+✅ FASES JÁ IMPLEMENTADAS
+
+---
+
+🔹 FIN.1 — GERAÇÃO AUTOMÁTICA DE AR
+
+✔ Já EXISTE (não implementar novamente)
+
+Locais:
+
+- orders.service.ts → seedAccountReceivableOnConfirm
+- orders.transaction.ts → Step INVOICED
+
+Regras:
+
+- 1 AR por pedido (idempotente)
+- valor = soma dos itens
+- vencimento = hoje + 30 dias
+- formaPagamento = "pix"
+- pixPayload gerado automaticamente
+
+---
+
+🔹 FIN.2 — PEDIDO SABE SE FOI PAGO
+
+✔ IMPLEMENTADO
+
+OrdersService:
+
+- isOrderPaid(orderId)
+- getPaymentProjection(orderId)
+
+Exposição nos endpoints:
+
+- GET /api/orders
+- GET /api/orders/:id
+
+Campos adicionados (dinâmicos, não persistidos):
+
+- isPaid: boolean
+- paidAt: Date | null
+
+⚠️ Fail-safe: erro financeiro NÃO quebra pedidos
+
+---
+
+🔹 FIN.3 — PAGAMENTO PROPAGA PARA PEDIDO
+
+✔ IMPLEMENTADO
+
+FinanceService.payAccountReceivable:
+
+- chama handleOrderPayment()
+- gera log [FIN.3]
+
+Não altera workflow do pedido — apenas observabilidade
+
+---
+
+🔹 FIN.3.5 — CONCILIAÇÃO UNIFICADA
+
+✔ IMPLEMENTADO
+
+ANTES:
+storage.payAccountReceivable (bypass)
+
+DEPOIS:
+financeService.payAccountReceivable
+
+✔ Agora:
+- conciliação dispara FIN.3
+- gera financial_transaction
+- mantém consistência
+
+---
+
+🔹 FIN.4 — UI MOSTRA PAGAMENTO
+
+✔ IMPLEMENTADO
+
+Arquivo:
+client/src/pages/admin/orders.tsx
+
+- Badge "✓ Pago" na lista
+- Bloco verde no detalhe expandido
+
+Baseado em:
+order.isPaid (FIN.2)
+
+---
+
+🔹 FIN.5 — FILTRO DE PAGAMENTO
+
+✔ IMPLEMENTADO
+
+- Chips:
+  - Todos
+  - Pagos
+  - Pendentes
+
+- Filtro client-side
+- Contadores absolutos
+
+---
+
+📊 ESTADO ATUAL DO SISTEMA
+
+✔ Pedido gera cobrança automaticamente  
+✔ Pagamento atualiza estado do pedido  
+✔ UI mostra status  
+✔ Operador consegue filtrar  
+
+❗ MAS ainda falta:
+
+- ação de cobrança direta (PIX / boleto)
+- automação de recebimento (webhook)
+- integração com gateway de pagamento
+
+---
+
+⚠️ LIMITAÇÕES ATUAIS
+
+1. PIX é estático (copia e cola)
+2. Não há confirmação automática de pagamento
+3. Boleto não está implementado
+4. Pedido não armazena forma de pagamento escolhida
+5. Dependência do ERP estar online para operação manual
+
+---
+
+🚫 REGRAS GLOBAIS (NÃO QUEBRAR)
+
+- NÃO alterar schema
+- NÃO duplicar lógica existente
+- NÃO refatorar módulos grandes
+- NÃO remover código existente
+- NÃO alterar endpoints atuais
+
+👉 Apenas evoluções incrementais
+
+---
+
+🎯 PRÓXIMA FASE
+
+FIN.6 — AÇÃO DE COBRANÇA NO PEDIDO
+
+Objetivo:
+
+Permitir que o operador cobre diretamente do pedido
+
+Direção:
+
+Substituir conceito de "Receber (PIX)" por:
+
+💸 Cobrar
+   ├── PIX
+   ├── Boleto (futuro)
+   └── Transferência
+
+---
+
+📌 DIRETRIZ IMPORTANTE
+
+PIX NÃO é obrigatório — é apenas o primeiro método implementado
+
+Sistema deve evoluir para cobrança multi-método
+
+---
+
+🧩 EXPECTATIVA DO AGENT
+
+Antes de implementar qualquer coisa:
+
+1. Ler este contexto completo
+2. NÃO assumir ausência de funcionalidade
+3. VALIDAR uso de funções já existentes
+4. Trabalhar sempre de forma ADITIVA
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Confirmação de entendimento do fluxo FIN.1 → FIN.5
+2. Pontos de atenção identificados
+3. Plano para implementar FIN.6 sem quebrar o sistema
+
+---
+
+🚨 IMPORTANTE
+
+Qualquer tentativa de:
+
+- recriar AR
+- mudar lógica de pagamento
+- alterar fluxo existente
+
+será considerada regressão
