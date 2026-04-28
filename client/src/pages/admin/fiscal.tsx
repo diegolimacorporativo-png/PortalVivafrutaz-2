@@ -682,6 +682,17 @@ function IcmsSummarySection() {
     setIsClosed(false);
   }, [startDate, endDate]);
 
+  // FASE NF.7.9.9 — Badge persistente de mês fechado.
+  // Consulta read-only ao endpoint NF.7.9.8 (GET /api/fiscal/closures),
+  // já tenant-scoped pelo middleware. Sem mudança de backend, sem nova
+  // lógica de datas (reaproveita `periodToClose` definido logo abaixo)
+  // e sem substituir o badge existente — apenas evolui a fonte de
+  // verdade combinando-a por OR com o estado de sessão `isClosed`.
+  const { data: closuresData } = useQuery<{ success: boolean; data: Array<{ year: number; month: number; closedAt: string }> }>({
+    queryKey: ['/api/fiscal/closures'],
+    staleTime: 60_000,
+  });
+
   // FASE NF.7.9.2 — mutação para fechar o mês fiscal selecionado.
   // Lê o ano/mês do filtro de "Data inicial" (preferência) ou "Data
   // final" como fallback. Sem filtro definido → botão fica desabilitado
@@ -702,6 +713,10 @@ function IcmsSummarySection() {
       // valores, mas mantemos a invalidação para futuras camadas que
       // queiram exibir o status "fechado" no card).
       queryClient.invalidateQueries({ queryKey: ['/api/fiscal/icms-summary'] });
+      // FASE NF.7.9.9 — invalida a lista de meses fechados para que o
+      // badge persistente reflita o novo fechamento imediatamente, sem
+      // depender de reload e sem alterar a chamada existente acima.
+      queryClient.invalidateQueries({ queryKey: ['/api/fiscal/closures'] });
     },
     onError: (err: any) => {
       toast({
@@ -720,6 +735,24 @@ function IcmsSummarySection() {
     if (!m) return null;
     return { year: Number(m[1]), month: Number(m[2]) };
   }, [startDate, endDate]);
+
+  // FASE NF.7.9.9 — derivação persistente de "mês fechado".
+  // Reaproveita `periodToClose` (mesma lógica de datas, sem duplicar)
+  // e cruza com a lista de fechamentos retornada pelo backend. Se o
+  // período do filtro corresponde a um item em `closuresData.data`,
+  // o badge deve aparecer mesmo após reload.
+  const isClosedPersisted = useMemo(() => {
+    if (!periodToClose) return false;
+    const list = closuresData?.data ?? [];
+    return list.some(
+      (c) => c.year === periodToClose.year && c.month === periodToClose.month,
+    );
+  }, [periodToClose, closuresData]);
+
+  // Estado efetivo: combina sessão (NF.7.9.4) com persistente (NF.7.9.9)
+  // por OR. Mantém o comportamento anterior intacto e só adiciona a
+  // capacidade de sobreviver ao reload.
+  const isClosedEffective = isClosed || isClosedPersisted;
 
   const { data, isLoading, isError } = useQuery<IcmsSummary>({
     queryKey: ['/api/fiscal/icms-summary', startDate, endDate],
@@ -784,8 +817,11 @@ function IcmsSummarySection() {
           Resumo ICMS — Importados (4%) vs Normal (7/12/18%)
           {/* FASE NF.7.9.4 — Badge "Fechado" (UI only).
               Aparece somente após closeMutation.onSuccess na sessão
-              atual; reseta quando o usuário muda o período. */}
-          {isClosed && (
+              atual; reseta quando o usuário muda o período.
+              FASE NF.7.9.9 — passou a usar `isClosedEffective` (sessão
+              OR persistente via /api/fiscal/closures), o que mantém o
+              comportamento anterior e adiciona persistência após reload. */}
+          {isClosedEffective && (
             <span
               data-testid="badge-icms-closed"
               className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-md bg-red-100 text-red-700 border border-red-300"
@@ -953,7 +989,7 @@ function IcmsSummarySection() {
             filtro; pede confirmação antes para evitar fechamento acidental. */}
         <button
           type="button"
-          disabled={!periodToClose || closeMutation.isPending || isClosed}
+          disabled={!periodToClose || closeMutation.isPending || isClosedEffective}
           onClick={() => {
             if (!periodToClose) return;
             const label = `${String(periodToClose.month).padStart(2, '0')}/${periodToClose.year}`;
