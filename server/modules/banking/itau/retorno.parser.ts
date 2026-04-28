@@ -44,6 +44,31 @@ export interface RetornoItauItem {
   isPago: boolean;
   /** Linha original (debug). */
   rawLine: string;
+  /**
+   * FASE 6.2 — Segmento U (juros / multa / desconto) em centavos como número.
+   * Vem 0 quando o título não tinha Segmento U pareado, ou quando o Itaú
+   * enviou os campos zerados. Não há diferença semântica entre os dois.
+   */
+  jurosCentavos: number;
+  multaCentavos: number;
+  descontoCentavos: number;
+}
+
+/**
+ * FASE 6.2 — dados extraídos de um Segmento U.
+ *
+ * O Segmento U vem SEMPRE pareado com um Segmento T do mesmo título
+ * (mesmo `nossoNumero`). Ele transporta os valores acessórios da
+ * liquidação: juros, multa e descontos/abatimentos.
+ *
+ * Em FASE 6.2 esses dados são apenas extraídos e propagados em memória
+ * (parser → service → repository signature). A persistência separada
+ * fica para FASE 6.3.
+ */
+interface SegmentoUData {
+  jurosCentavos: number;
+  multaCentavos: number;
+  descontoCentavos: number;
 }
 
 const OCORRENCIAS_LIQUIDACAO = new Set(["06", "17"]);
@@ -71,12 +96,52 @@ export function parseItauRetornoCnab240(content: string): RetornoItauItem[] {
   const linhas = content.split(/\r?\n/);
   const itens: RetornoItauItem[] = [];
 
+  // FASE 6.2 — primeiro passe: indexa Segmentos U por `nossoNumero`.
+  // Vínculo T↔U é por `nossoNumero` (chave do título no banco). Fazemos
+  // duas passadas para manter o parsing de T 100% intacto e adicionar U
+  // de forma puramente aditiva. Custo: O(N) — uma varredura extra.
+  const segmentoUMap = new Map<string, SegmentoUData>();
+  for (const linha of linhas) {
+    if (!linha || linha.length < 240) continue;
+    if (linha.charAt(7) !== "3") continue;
+    if (linha.charAt(13) !== "U") continue;
+
+    try {
+      // Posições conforme manual Itaú CNAB 240 (Segmento U):
+      //   18-32  → juros / encargos     (15 dígitos, centavos)
+      //   33-47  → desconto concedido   (15 dígitos, centavos)
+      //   48-62  → abatimento concedido (15 dígitos, centavos)
+      //   78-92  → multa (raramente usada — fallback)
+      // Mantemos a mesma filosofia do T: extrair sem validar profundamente.
+      // O `nossoNumero` está em posição diferente do T (38-57, 20 chars),
+      // mas ambos passam por `.trim()`, então a chave do Map bate.
+      const nossoNumero = linha.substring(37, 57).trim();
+      const jurosCentavos = Number(linha.substring(17, 32)) || 0;
+      const descontoCentavos = Number(linha.substring(32, 47)) || 0;
+      const abatimentoCentavos = Number(linha.substring(47, 62)) || 0;
+      const multaCentavos = Number(linha.substring(77, 92)) || 0;
+
+      segmentoUMap.set(nossoNumero, {
+        jurosCentavos,
+        multaCentavos,
+        // Tratamos abatimento como desconto para esta fase — ambos reduzem
+        // o valor recebido e não há campo separado downstream.
+        descontoCentavos: descontoCentavos + abatimentoCentavos,
+      });
+    } catch {
+      // Fail-safe: U corrompido não bloqueia o T correspondente — o
+      // título cai no `?? 0` na hora do enrich.
+      continue;
+    }
+  }
+
+  // Segundo passe: percorre Segmentos T (lógica original preservada) e
+  // enriquece com U via lookup no Map.
   for (const linha of linhas) {
     if (!linha || linha.length < 240) continue;
     // Tipo de registro precisa ser "3" (registro de detalhe).
     if (linha.charAt(7) !== "3") continue;
-    // Apenas Segmento T — Segmento U traz juros/multa/abatimento e fica
-    // fora do escopo desta fase.
+    // Apenas Segmento T nesta passada — U já foi consumido acima.
     if (linha.charAt(13) !== "T") continue;
 
     try {
@@ -95,6 +160,9 @@ export function parseItauRetornoCnab240(content: string): RetornoItauItem[] {
       const dataPagamento = linha.substring(136, 144);
       const orderId = extractOrderIdFromDocumento(numeroDocumento);
 
+      // FASE 6.2 — enrich com U pareado (default 0 quando ausente).
+      const u = segmentoUMap.get(nossoNumero);
+
       itens.push({
         codigoOcorrencia,
         nossoNumero,
@@ -104,6 +172,9 @@ export function parseItauRetornoCnab240(content: string): RetornoItauItem[] {
         orderId,
         isPago: OCORRENCIAS_LIQUIDACAO.has(codigoOcorrencia),
         rawLine: linha,
+        jurosCentavos: u?.jurosCentavos ?? 0,
+        multaCentavos: u?.multaCentavos ?? 0,
+        descontoCentavos: u?.descontoCentavos ?? 0,
       });
     } catch {
       // Fail-safe: linha corrompida não interrompe o parse.

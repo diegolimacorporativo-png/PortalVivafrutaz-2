@@ -128,8 +128,15 @@ export async function processarRetornoItau(
         Number.isFinite(parsedCentavos) && parsedCentavos > 0
           ? parsedCentavos
           : null;
+      // FASE 6.2 — propaga também juros / multa / desconto extraídos do
+      // Segmento U pareado pelo parser. Em FASE 6.2 esses valores chegam
+      // até a assinatura do repository mas ainda NÃO são persistidos —
+      // a quebra contábil separada virá em FASE 6.3.
       await financeService.payAccountReceivable(ar.id, userId, {
         valorPagoCentavos,
+        jurosCentavos: item.jurosCentavos,
+        multaCentavos: item.multaCentavos,
+        descontoCentavos: item.descontoCentavos,
       });
       baixasRealizadas += 1;
 

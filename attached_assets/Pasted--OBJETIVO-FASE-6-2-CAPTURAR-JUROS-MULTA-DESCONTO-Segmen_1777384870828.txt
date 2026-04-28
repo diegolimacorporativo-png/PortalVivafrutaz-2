@@ -1,0 +1,198 @@
+🎯 OBJETIVO: FASE 6.2 — CAPTURAR JUROS/MULTA/DESCONTO (Segmento U)
+
+Adicionar suporte ao Segmento U do CNAB 240 (Itaú), vinculando com o Segmento T e propagando os valores como metadados de pagamento — sem alterar schema.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema
+2. NÃO alterar lógica existente de baixa
+3. NÃO remover código
+4. NÃO alterar estrutura de retorno do endpoint
+5. NÃO quebrar parser atual (Segmento T continua funcionando)
+6. Apenas ADICIONAR parsing + PROPAGAR dados
+
+---
+
+🧠 CONTEXTO
+
+- Já usamos valorPagoCentavos (FASE 6.1) ✅  
+- Segmento U contém:
+  - juros
+  - multa
+  - desconto/abatimento
+- Hoje: completamente ignorado ❌  
+- Objetivo: capturar e anexar ao fluxo (sem persistência ainda)
+
+---
+
+# 🔎 PRÉ-AUDITORIA (READ-ONLY)
+
+📍 server/modules/banking/itau/retorno.parser.ts
+
+Verificar:
+- loop de linhas CNAB (240 chars)
+- já existe filtro de:
+  - linha.charAt(7) === "3"
+  - linha.charAt(13) === "T"
+
+👉 confirmar que:
+- Segmento U NÃO é tratado
+- existe comentário mencionando U (já visto)
+
+---
+
+# 📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. PARSER — SUPORTE AO SEGMENTO U
+
+📍 retorno.parser.ts
+
+---
+
+### 📌 ESTRATÉGIA
+
+- manter parsing de T intacto
+- criar um mapa temporário:
+  ts id="mapu01"   const segmentoUMap = new Map<string, SegmentoUData>();   
+- chave: nossoNumero (ou mesmo identificador usado no T)
+
+---
+
+### 📌 DETECTAR SEGMENTO U
+
+Adicionar dentro do loop:
+
+ts id="segUdet" if (linha.charAt(13) === "U") { 
+
+---
+
+### 📌 EXTRAIR CAMPOS (Itaú CNAB 240 padrão)
+
+ts id="segUext" const nossoNumero = linha.substring(37, 57).trim();  const jurosCentavos = Number(linha.substring(17, 32)) || 0; const multaCentavos = Number(linha.substring(32, 47)) || 0; const descontoCentavos = Number(linha.substring(47, 62)) || 0;  segmentoUMap.set(nossoNumero, {   jurosCentavos,   multaCentavos,   descontoCentavos, }); 
+
+⚠️ NÃO validar profundamente — manter simples (mesma filosofia do T)
+
+---
+
+### 📌 ENRIQUECER SEGMENTO T
+
+No ponto onde cria o RetornoItauItem:
+
+ts id="segTenrich" const u = segmentoUMap.get(nossoNumero);  return {   ...itemOriginal,   jurosCentavos: u?.jurosCentavos ?? 0,   multaCentavos: u?.multaCentavos ?? 0,   descontoCentavos: u?.descontoCentavos ?? 0, }; 
+
+---
+
+📌 IMPORTANTE
+
+- NÃO remover nada do item existente
+- Apenas adicionar campos novos (additive)
+
+---
+
+## 🔴 2. SERVICE — PROPAGAR METADADOS
+
+📍 retorno.service.ts
+
+---
+
+### ❌ ANTES
+
+ts id="svcAntes" await financeService.payAccountReceivable(ar.id, userId, {   valorPagoCentavos: item.valorPagoCentavos, }); 
+
+---
+
+### ✅ DEPOIS
+
+ts id="svcDepois" await financeService.payAccountReceivable(ar.id, userId, {   valorPagoCentavos: item.valorPagoCentavos,   jurosCentavos: item.jurosCentavos,   multaCentavos: item.multaCentavos,   descontoCentavos: item.descontoCentavos, }); 
+
+---
+
+## 🔴 3. FINANCE SERVICE — ESTENDER INTERFACE
+
+📍 finance.service.ts
+
+---
+
+### ALTERAR TIPO
+
+ts id="svcType" paymentDetails?: {   valorPagoCentavos?: number | null;   jurosCentavos?: number;   multaCentavos?: number;   descontoCentavos?: number; } 
+
+---
+
+### PASS THROUGH
+
+ts id="svcPass" return this.repo.payAccountReceivable(id, paymentDetails); 
+
+(sem lógica nova)
+
+---
+
+## 🔴 4. REPOSITORY — PREPARAR (SEM USAR AINDA)
+
+📍 finance.repository.ts
+
+---
+
+### ESTENDER ASSINATURA
+
+ts id="repoSig" paymentDetails?: {   valorPagoCentavos?: number | null;   jurosCentavos?: number;   multaCentavos?: number;   descontoCentavos?: number; } 
+
+---
+
+### ❗ NÃO USAR AINDA
+
+👉 NÃO alterar o INSERT  
+👉 NÃO persistir juros/multa/desconto ainda  
+
+(Apenas deixar pronto para FASE 6.3)
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+| Campo | Antes | Depois |
+|------|------|--------|
+| valorPago | ✅ | ✅ |
+| juros | ❌ | ✅ (em memória) |
+| multa | ❌ | ✅ (em memória) |
+| desconto | ❌ | ✅ (em memória) |
+
+---
+
+# 🧪 TESTE MANUAL
+
+1. Subir CNAB com juros/multa
+2. Adicionar log temporário no service:
+
+ts id="logtest" console.log({   valor: item.valorPagoCentavos,   juros: item.jurosCentavos,   multa: item.multaCentavos,   desconto: item.descontoCentavos, }); 
+
+✅ Deve imprimir valores corretos
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO criar colunas novas
+- NÃO alterar financial_transactions
+- NÃO mudar response do endpoint
+- NÃO mudar regras de baixa
+- NÃO mexer em tenant
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. arquivos alterados
+2. pontos onde Segmento U foi integrado
+3. confirmação de vínculo T + U funcionando
+4. confirmação de zero regressão
+
+---
+
+🔥 IMPACTO: BASE PRONTA PARA CONTABILIDADE REAL (FASE 6.3)

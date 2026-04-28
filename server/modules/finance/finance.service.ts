@@ -115,6 +115,12 @@ export class FinanceService {
     userId: number,
     paymentDetails?: {
       valorPagoCentavos?: number | null;
+      // FASE 6.2 — metadados do Segmento U (CNAB Itaú). Atualmente apenas
+      // trafegam pela assinatura; a persistência separada (linhas dedicadas
+      // em financial_transactions ou colunas próprias) virá em FASE 6.3.
+      jurosCentavos?: number;
+      multaCentavos?: number;
+      descontoCentavos?: number;
     },
   ): Promise<AccountReceivable> {
     // FASE 6.1 — `paymentDetails` é opcional para preservar 100% da

@@ -115,6 +115,13 @@ export class FinanceRepository {
     id: number,
     paymentDetails?: {
       valorPagoCentavos?: number | null;
+      // FASE 6.2 — assinatura preparada para receber juros / multa /
+      // desconto vindos do Segmento U do CNAB Itaú. NÃO são usados
+      // ainda — a quebra contábil dedicada (lançamentos separados ou
+      // colunas próprias) entra na FASE 6.3.
+      jurosCentavos?: number;
+      multaCentavos?: number;
+      descontoCentavos?: number;
     },
   ): Promise<AccountReceivable> {
     return db.transaction(async (tx) => {
