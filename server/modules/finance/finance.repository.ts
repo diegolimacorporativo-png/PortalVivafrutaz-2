@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, lte, not, sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import {
   accountsReceivable,
@@ -312,10 +312,29 @@ export class FinanceRepository {
   }
 
   // ── Cashflow ───────────────────────────────────────────────────────────
+  /**
+   * FASE 6.4 — Predicado que identifica linhas acessórias do CNAB
+   * (juros / multa / desconto) criadas pela FASE 6.3. Essas linhas
+   * existem APENAS para classificação contábil; o valor de caixa real
+   * já está embutido no lançamento principal `Recebimento: ...`.
+   *
+   * Aplicar `not(isLinhaAcessoriaCNAB())` em qualquer SUM ou listagem
+   * agregada de fluxo de caixa evita dupla contagem. Consultas por
+   * `referenciaId` (detalhe de um título) NÃO devem usar este filtro:
+   * o usuário precisa ver principal + acessórios juntos.
+   *
+   * O parêntese externo é intencional — protege o `OR` quando o helper
+   * é envolvido por `not(...)`, garantindo `NOT (a OR b OR c)` em vez
+   * de `NOT a OR b OR c` independente do dialeto.
+   */
+  private isLinhaAcessoriaCNAB() {
+    return sql`(${financialTransactions.descricao} LIKE '[JUROS_CNAB]%' OR ${financialTransactions.descricao} LIKE '[MULTA_CNAB]%' OR ${financialTransactions.descricao} LIKE '[DESCONTO_CNAB]%')`;
+  }
+
   listFinancialTransactions(
     filter: CashflowFilter,
   ): Promise<FinancialTransaction[]> {
-    const conds = [];
+    const conds = [not(this.isLinhaAcessoriaCNAB())];
     if (filter.from) conds.push(gte(financialTransactions.data, filter.from));
     if (filter.to) conds.push(lte(financialTransactions.data, filter.to));
     return db
@@ -386,6 +405,8 @@ export class FinanceRepository {
         ),
       );
 
+    // FASE 6.4 — exclui linhas acessórias do CNAB para evitar dupla
+    // contagem nos cards de Entradas/Saídas do dashboard.
     const [entradas] = await db
       .select({ sum: sumExpr })
       .from(financialTransactions)
@@ -394,6 +415,7 @@ export class FinanceRepository {
           financialTransactions,
           eq(financialTransactions.tipo, "entrada"),
           gte(financialTransactions.data, monthStart),
+          not(this.isLinhaAcessoriaCNAB()),
         ),
       );
 
@@ -405,6 +427,7 @@ export class FinanceRepository {
           financialTransactions,
           eq(financialTransactions.tipo, "saida"),
           gte(financialTransactions.data, monthStart),
+          not(this.isLinhaAcessoriaCNAB()),
         ),
       );
 
