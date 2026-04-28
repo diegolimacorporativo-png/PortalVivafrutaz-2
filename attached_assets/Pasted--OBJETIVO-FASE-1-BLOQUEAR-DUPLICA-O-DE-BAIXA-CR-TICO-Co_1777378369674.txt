@@ -1,0 +1,133 @@
+🎯 OBJETIVO: FASE 1 — BLOQUEAR DUPLICAÇÃO DE BAIXA (CRÍTICO)
+
+Corrigir o bug onde payAccountReceivable permite múltiplos lançamentos financeiros para o mesmo título.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente além do necessário
+2. NÃO remover código
+3. NÃO alterar estrutura de retorno
+4. NÃO alterar fluxo do FinanceService
+5. NÃO alterar hooks (FIN.3)
+6. NÃO alterar schema
+7. NÃO mexer em outros módulos
+
+👉 Apenas tornar a operação idempotente e segura
+
+---
+
+🧠 PROBLEMA
+
+Hoje o código permite:
+
+- pagar o mesmo AR duas vezes
+- gerar múltiplos financial_transactions
+- isso ocorre até SEM concorrência (duplo clique)
+
+Causa:
+
+sql UPDATE accounts_receivable SET status = 'pago' WHERE id = ? 
+
+❌ Não verifica status atual
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+📍 Arquivo:
+server/modules/finance/finance.repository.ts
+
+📍 Método:
+payAccountReceivable
+
+---
+
+### 1. ALTERAR WHERE DO UPDATE
+
+Substituir o UPDATE atual por:
+
+ts .where(and(   eq(accountsReceivable.id, id),   tenantWhere(accountsReceivable),   eq(accountsReceivable.status, "pendente") )) 
+
+---
+
+### 2. TRATAR CASO SEM ROW
+
+Após o .returning():
+
+ts if (!row) {   throw new Error("ACCOUNT_RECEIVABLE_ALREADY_PAID"); } 
+
+⚠️ NÃO usar NotFoundError  
+⚠️ NÃO alterar mensagem existente em outros fluxos  
+
+👉 erro novo, específico
+
+---
+
+### 3. NÃO ALTERAR MAIS NADA
+
+- NÃO mexer no insert de financial_transactions
+- NÃO mexer no hook FIN.3
+- NÃO mexer no service
+- NÃO mexer no controller
+- NÃO adicionar SELECT FOR UPDATE (por enquanto)
+
+---
+
+📊 RESULTADO ESPERADO
+
+Cenário 1:
+- 1ª chamada → paga normalmente ✅
+- 2ª chamada → erro "ACCOUNT_RECEIVABLE_ALREADY_PAID" ✅
+- apenas 1 transaction criada ✅
+
+Cenário 2 (duplo clique):
+- backend impede duplicação ✅
+
+---
+
+🧪 TESTE MANUAL (OBRIGATÓRIO)
+
+1. Criar um pedido → gerar AR
+2. Chamar endpoint:
+   PATCH /api/finance/accounts-receivable/:id/pay
+
+3. Repetir a mesma chamada:
+
+Esperado:
+
+- primeira: 200 OK
+- segunda: erro
+
+4. Verificar DB:
+
+sql SELECT * FROM financial_transactions WHERE referencia_id = <AR_ID> 
+
+Esperado:
+
+👉 apenas 1 registro
+
+---
+
+🛑 NÃO IMPLEMENTAR AINDA
+
+- SELECT FOR UPDATE
+- mudanças em CNAB
+- mudanças em retorno.service
+- mudanças em tenant
+- mudanças em UI
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. trecho alterado (antes/depois)
+2. confirmação de que duplicação foi bloqueada
+3. confirmação de zero regressão
+
+---
+
+🔥 PRIORIDADE: CRÍTICA (EXECUTAR ANTES DE QUALQUER OUTRA FASE

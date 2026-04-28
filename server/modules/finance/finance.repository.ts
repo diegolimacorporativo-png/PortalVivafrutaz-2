@@ -115,13 +115,15 @@ export class FinanceRepository {
         .update(accountsReceivable)
         .set({ status: "pago", pagoEm: new Date() })
         .where(
-          and(eq(accountsReceivable.id, id), tenantWhere(accountsReceivable)),
+          and(
+            eq(accountsReceivable.id, id),
+            tenantWhere(accountsReceivable),
+            eq(accountsReceivable.status, "pendente"),
+          ),
         )
         .returning();
       if (!row) {
-        throw new NotFoundError(
-          `Conta a receber #${id} não encontrada no tenant atual.`,
-        );
+        throw new Error("ACCOUNT_RECEIVABLE_ALREADY_PAID");
       }
       const today = new Date().toISOString().substring(0, 10);
       await tx.insert(financialTransactions).values(
