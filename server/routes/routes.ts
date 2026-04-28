@@ -5860,6 +5860,167 @@ export async function registerRoutes(
       }
     });
 
+    // FASE FISCAL 8.0 — POST /api/nfe/:orderId/reenviar — reemissão manual controlada.
+    //
+    // Caso de uso: a NF-e do pedido foi rejeitada (status `rejeitada`/`erro`/
+    // `denegada`), o operador corrigiu o pedido e quer reenviar SEM precisar
+    // passar pelo fluxo padrão (`/api/nfe/emitir`) — que é bloqueado pelo
+    // guard de idempotência justamente por já existir uma NF-e prévia para o
+    // pedido.
+    //
+    // Garantias preservadas (NÃO removidas — fluxo manual, não automação):
+    //   • Tenant scope (validateOrderTenant) — multi-tenant seguro.
+    //   • Lock de concorrência (acquireOrderLock) — evita corrida com `emitir`.
+    //   • Gate de faturamento (canEmitNFe) — mesmas regras de elegibilidade.
+    //   • Fechamento mensal (PERIODO_FECHADO) — mesma checagem.
+    //   • Validação fiscal (validarNFeInput) — não pula validação de input.
+    //   • Sessão obrigatória (requireActiveSubscription + req.session.userId).
+    //
+    // Diferença ÚNICA em relação a `/api/nfe/emitir`:
+    //   • Pula `hasBlockingNFe` quando a NF-e mais recente está em status
+    //     terminal de falha. Se a última NF-e está `autorizada`/`enviada`/
+    //     `gerada`/`assinada`, a reemissão é REJEITADA (409) — não é o caso
+    //     de uso desta rota.
+    app.post('/api/nfe/:orderId/reenviar', requireActiveSubscription, async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      let lock: OrderLockHandle | null = null;
+      const orderIdRaw = req.params?.orderId;
+      const orderId = Number(orderIdRaw);
+      if (!Number.isFinite(orderId) || orderId <= 0) {
+        return res.status(400).json({ message: 'orderId inválido' });
+      }
+      try {
+        // FASE 20 — Lock antes de qualquer leitura/escrita.
+        const tenantId = requireTenantId();
+        lock = await acquireOrderLock(tenantId, orderId);
+        if (!lock) {
+          console.warn(
+            `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=reenviar | tenantId=${tenantId} | orderId=${orderId}`,
+          );
+          return res.status(409).json({ message: 'Pedido já está em processamento' });
+        }
+        console.log(
+          `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=reenviar | tenantId=${tenantId} | orderId=${orderId}`,
+        );
+
+        // Tenant scope ANTES de qualquer leitura — bloqueia cross-tenant.
+        await validateOrderTenant(orderId);
+
+        // FASE FISCAL 8.0 — gate específico de reemissão: a NF-e mais
+        // recente do pedido PRECISA estar em status terminal de falha.
+        // Caso contrário, devolve 409 e instrui o operador a usar o fluxo
+        // padrão (/emitir) ou cancelar a NF autorizada antes.
+        // `getNfeEmissaoByOrderId` já devolve a NF-e mais recente (ORDER BY
+        // createdAt DESC LIMIT 1 — ver server/services/storage.ts). Reutilizar
+        // o método existente evita duplicar SQL aqui.
+        const ultima = await storage.getNfeEmissaoByOrderId(orderId);
+        const ultimoStatus = (ultima as any)?.status;
+        const reemissivel = new Set(['rejeitada', 'erro', 'denegada']);
+        if (!ultima) {
+          return res.status(404).json({
+            message: 'Nenhuma NF-e prévia encontrada para este pedido. Use /api/nfe/emitir para emitir a primeira.',
+          });
+        }
+        if (!reemissivel.has(String(ultimoStatus))) {
+          console.warn(
+            `[NFE_REENVIAR_BLOCKED] requestId=${getRequestIdForLog()} | orderId=${orderId} | currentStatus=${ultimoStatus}`,
+          );
+          return res.status(409).json({
+            message: 'Reemissão só é permitida quando a NF-e está rejeitada, com erro ou denegada.',
+            currentStatus: ultimoStatus,
+          });
+        }
+
+        // STEP 9.2Y — gate de faturamento idêntico ao /emitir.
+        const check = await canEmitNFe(orderId);
+        if (!check.allowed) {
+          console.warn('[NFE_REENVIAR_BLOCKED_BY_GATE]', { orderId, reason: check.reason });
+          return res.status(400).json({ error: 'Faturamento bloqueado', reason: check.reason });
+        }
+
+        // FASE NF.7.9.2 — guard de fechamento mensal (mesma lógica do /emitir).
+        try {
+          const orderRow = await storage.getOrder(orderId);
+          const ord: any = (orderRow as any)?.order ?? orderRow;
+          if (ord?.companyId && ord?.createdAt) {
+            const created = ord.createdAt instanceof Date ? ord.createdAt : new Date(ord.createdAt);
+            if (!isNaN(created.getTime())) {
+              const { isPeriodClosed } = await import('../services/fiscal/fiscal-closure.service');
+              const closed = await isPeriodClosed(Number(ord.companyId), created);
+              if (closed) {
+                console.warn(
+                  `[SECURITY] PERIODO_FECHADO | requestId=${getRequestIdForLog()} | source=nfe-reenviar | companyId=${ord.companyId} | year=${created.getFullYear()} | month=${created.getMonth() + 1}`,
+                );
+                return res.status(403).json({ message: 'PERIODO_FECHADO' });
+              }
+            }
+          }
+        } catch (closeErr: any) {
+          console.error('[NFE_PERIOD_CLOSURE_CHECK_ERROR]', closeErr?.message);
+        }
+
+        // Build → validate → generate XML → persist (mesma sequência do /emitir).
+        const input = await buildNFeInput(orderId);
+        const erros = validarNFeInput(input);
+        if (erros.length > 0) {
+          return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
+        }
+
+        const numero = await storage.getNextNfeNumero();
+        const gerada = await gerarNFeXML(input, numero);
+
+        const nfe = await storage.createNfeEmissao({
+          orderId,
+          numero: gerada.numero,
+          serie: gerada.serie,
+          chaveNFe: gerada.chaveNFe,
+          status: 'gerada',
+          xmlGerado: gerada.xmlGerado,
+          dataEmissao: gerada.dataEmissao,
+          ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+        });
+
+        await storage.updateOrder(orderId, { fiscalStatus: 'nota_emitida' });
+
+        await storage.createLog({
+          action: 'NF-E_REENVIADA',
+          description: `NF-e nº ${numero} reemitida para pedido #${orderId} (substitui NF #${(ultima as any)?.id} status=${ultimoStatus}). Chave: ${gerada.chaveNFe}`,
+          level: 'INFO',
+          userId: req.session.userId,
+        });
+
+        res.status(201).json({
+          success: true,
+          nfe,
+          previousNfeId: (ultima as any)?.id,
+          previousStatus: ultimoStatus,
+          mensagem: 'NF-e reemitida. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.',
+        });
+      } catch (e: any) {
+        const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
+        const parsed = translateNFeError(e);
+        console.error('[NFE_REENVIAR_FAILED]', {
+          requestId: getRequestIdForLog(),
+          source: 'reenviar',
+          orderId,
+          code: parsed.code,
+          rawMessage: e?.message,
+          stack: e?.stack,
+        });
+        const status = (e?.statusCode && Number.isInteger(e.statusCode)) ? e.statusCode : 500;
+        res.status(status).json({ error: parsed.code, message: parsed.message });
+      } finally {
+        if (lock) {
+          const tenantIdLog = lock.tenantId;
+          const orderIdLog = lock.orderId;
+          await releaseOrderLock(lock);
+          console.log(
+            `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=reenviar | tenantId=${tenantIdLog} | orderId=${orderIdLog}`,
+          );
+        }
+      }
+    });
+
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
     app.post('/api/nfe/emitir-lote', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });

@@ -1,0 +1,129 @@
+🎯 OBJETIVO: FASE FISCAL 8.0 — REEMISSÃO RÁPIDA (MANUAL CONTROLADA)
+
+Permitir reemitir NF-e rejeitada diretamente pelo sistema.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO automatizar correção  
+2. NÃO alterar cálculo fiscal  
+3. NÃO alterar XML automaticamente  
+4. NÃO alterar schema  
+5. NÃO remover validações  
+
+👉 Apenas permitir reenvio manual
+
+---
+
+🧠 CONTEXTO
+
+- NF já foi gerada  
+- Pode ter sido rejeitada  
+- Usuário corrigiu o pedido  
+
+👉 Agora precisa reenviar rápido
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. ENDPOINT DE REEMISSÃO
+
+📍 server/modules/nfe/nfe.controller.ts
+
+Adicionar:
+
+ts id="7dx1ra" export async function reenviarNFe(req, res) {   const orderId = Number(req.params.orderId);    await validateOrderTenant(orderId);    const nfe = await nfeService.reemitir(orderId);    return ok(res, nfe); } 
+
+---
+
+## 🔴 2. SERVICE
+
+📍 nfe.service.ts
+
+ts id="k2u9px" async reemitir(orderId: number) {   const order = await safeGetOrder(orderId);    if (!order) {     throw new Error("Pedido não encontrado");   }    return emitirNFeParaPedido(orderId); } 
+
+---
+
+## 🔴 3. ROUTE
+
+📍 routes.ts
+
+ts id="9m1h2f" router.post("/api/nfe/:orderId/reenviar", reenviarNFe); 
+
+---
+
+## 🔴 4. FRONTEND — BOTÃO
+
+📍 finance.tsx (card de rejeição)
+
+Adicionar:
+
+tsx id="c3k9sx" <button   onClick={async () => {     await fetch(`/api/nfe/${m.orderId}/reenviar`, {       method: "POST"     });   }} >   🔄 Reenviar NF-e </button> 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+Cenário:
+
+- NF rejeitada  
+- Usuário corrige pedido  
+
+Ação:
+
+✔ clicar “Reenviar NF-e”
+
+Resultado:
+
+✔ nova tentativa de envio  
+✔ status atualizado  
+✔ erro resolvido ou novo motivo exibido  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Sem mudança de cálculo  
+✔ Sem automação perigosa  
+✔ Fluxo manual controlado  
+✔ Multi-tenant seguro  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ usuário trava no erro  
+❌ precisa suporte  
+
+Depois:
+
+✔ corrige  
+✔ reenviar  
+✔ resolve sozinho  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoint criado  
+2. service implementado  
+3. botão funcionando  
+4. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ sistema começa a operar sozinho  
+✔ menos suporte  
+✔ mais escala

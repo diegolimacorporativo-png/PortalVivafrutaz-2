@@ -350,6 +350,49 @@ function APForm({ onSuccess }: { onSuccess: () => void }) {
   );
 }
 
+// FASE FISCAL 8.0 — botão de reemissão manual controlada.
+//
+// Encapsulado em componente próprio para isolar o `useMutation` (cache
+// invalidation, estado de loading, toast) sem inflar o componente pai. O
+// fluxo é estritamente manual: clicar dispara `POST /api/nfe/:orderId/reenviar`
+// e, em sucesso, atualiza o card de motivos e o resumo por status.
+function ReenviarNfeButton({ orderId }: { orderId: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => apiRequest('POST', `/api/nfe/${orderId}/reenviar`),
+    onSuccess: () => {
+      toast({
+        title: 'NF-e reemitida',
+        description: `Nova tentativa enviada para o pedido #${orderId}.`,
+      });
+      qc.invalidateQueries({ queryKey: ['/api/finance/nfe/motivos-rejeicao'] });
+      qc.invalidateQueries({ queryKey: ['/api/finance/nfe/resumo-por-status'] });
+      qc.invalidateQueries({ queryKey: ['/api/finance/nfe/resumo-por-uf'] });
+    },
+    onError: (e: any) => {
+      toast({
+        title: 'Falha ao reemitir',
+        description: e?.message ?? 'Erro desconhecido — verifique o pedido e tente novamente.',
+        variant: 'destructive',
+      });
+    },
+  });
+  return (
+    <button
+      type="button"
+      onClick={() => mutation.mutate()}
+      disabled={mutation.isPending}
+      data-testid={`button-reenviar-nfe-${orderId}`}
+      className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-red-300 bg-white dark:bg-red-950/40 text-red-700 dark:text-red-300 text-xs font-semibold hover:bg-red-50 dark:hover:bg-red-900/40 transition-colors disabled:opacity-50"
+      title="Reenviar NF-e ao SEFAZ"
+    >
+      <RefreshCw className={`w-3.5 h-3.5 ${mutation.isPending ? 'animate-spin' : ''}`} />
+      {mutation.isPending ? 'Reenviando...' : 'Reenviar NF-e'}
+    </button>
+  );
+}
+
 export default function FinancePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -666,16 +709,19 @@ export default function FinancePage() {
                     💡 {m.sugestao}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigate(`/admin/orders?orderId=${m.orderId}`)}
-                  data-testid={`button-abrir-pedido-${m.orderId}`}
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
-                  title={`Abrir pedido #${m.orderId} para corrigir`}
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Abrir Pedido
-                </button>
+                <div className="shrink-0 flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => navigate(`/admin/orders?orderId=${m.orderId}`)}
+                    data-testid={`button-abrir-pedido-${m.orderId}`}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
+                    title={`Abrir pedido #${m.orderId} para corrigir`}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Abrir Pedido
+                  </button>
+                  <ReenviarNfeButton orderId={m.orderId} />
+                </div>
               </div>
             ))}
           </div>
