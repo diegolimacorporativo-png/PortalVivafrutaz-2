@@ -1,0 +1,261 @@
+🎯 FASE 1 — SEGURANÇA E MULTI-TENANT (CORREÇÃO CRÍTICA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO alterar response dos endpoints  
+4. NÃO alterar schema  
+5. NÃO mexer no fluxo NF-e  
+6. Apenas ADICIONAR proteção  
+
+---
+
+# 🧠 OBJETIVO
+
+- Fechar endpoints expostos  
+- Eliminar vazamento entre tenants  
+- Garantir isolamento por empresa  
+
+---
+
+# 🛠️ ETAPA 1 — PROTEGER /api/clara/* (CRÍTICO)
+
+📍 Arquivo:
+server/routes/routes.ts
+
+---
+
+🔍 Localizar TODOS os endpoints:
+
+/api/clara/*
+
+Exemplo:
+ts app.post('/api/clara/fix-bug', ...) app.post('/api/clara/generate-module', ...) app.post('/api/clara/run-test', ...) 
+
+---
+
+✅ ADICIONAR requireAuth + requireAdmin (OU equivalente existente)
+
+ANTES:
+ts app.post('/api/clara/fix-bug', async (req, res) => { 
+
+DEPOIS:
+ts app.post('/api/clara/fix-bug', requireAuth, requireAdmin, async (req, res) => { 
+
+---
+
+⚠️ SE NÃO EXISTIR requireAdmin
+
+Criar middleware simples:
+
+📍 server/middleware/requireAdmin.ts
+
+ts export function requireAdmin(req, res, next) {   if (!req.user || req.user.role !== 'admin') {     return res.status(403).json({ error: 'Acesso negado' });   }   next(); } 
+
+---
+
+# 🛠️ ETAPA 2 — PROTEGER ROTAS ADMIN SOLTAS
+
+📍 routes.ts
+
+---
+
+🔍 Encontrar:
+
+ts /api/admin/audit /api/admin/mailer-status /api/admin/system-sync 
+
+---
+
+✅ ADICIONAR:
+
+ts requireAuth, requireAdmin 
+
+---
+
+# 🛠️ ETAPA 3 — BLOQUEAR VAZAMENTO EM getFinancialDashboard
+
+📍 Arquivo:
+server/services/storage.ts
+
+---
+
+🔍 Localizar função:
+
+ts getFinancialDashboard(...) 
+
+---
+
+⚠️ PROBLEMA:
+não filtra por empresa
+
+---
+
+✅ ADICIONAR NO INÍCIO DA FUNÇÃO:
+
+ts const tenantId = requireTenantId(); 
+
+---
+
+🔍 Depois, garantir filtro:
+
+ANTES:
+ts SELECT * FROM financial_transactions 
+
+DEPOIS:
+ts SELECT * FROM financial_transactions WHERE empresa_id = tenantId 
+
+---
+
+⚠️ NÃO remover query existente  
+⚠️ Apenas adicionar filtro
+
+---
+
+# 🛠️ ETAPA 4 — PROTEGER listCnabImportHistory
+
+📍 storage.ts
+
+---
+
+🔍 Localizar:
+
+ts listCnabImportHistory(...) 
+
+---
+
+✅ ADICAR:
+
+ts const tenantId = requireTenantId(); 
+
+---
+
+E garantir:
+
+ts WHERE empresa_id = tenantId 
+
+---
+
+# 🛠️ ETAPA 5 — FORÇAR TENANT EM getOrders
+
+📍 storage.ts
+
+---
+
+🔍 Localizar:
+
+ts getOrders(empresaId?) 
+
+---
+
+⚠️ PROBLEMA:
+retorna tudo se não passar empresaId
+
+---
+
+✅ ADICAR SAFE GUARD:
+
+ts const tenantId = requireTenantId(); const empresa = empresaId || tenantId; 
+
+---
+
+E garantir uso de:
+
+ts WHERE empresa_id = empresa 
+
+---
+
+# 🛠️ ETAPA 6 — PROTEGER ROUTERS SEM TENANT
+
+📍 inventory.routes.ts  
+📍 logistics.routes.ts  
+
+---
+
+SE NÃO EXISTIR middleware global:
+
+---
+
+✅ ADICIONAR no router:
+
+ts router.use(requireAuth); 
+
+E se existir:
+
+ts router.use(withTenantScope); 
+
+---
+
+⚠️ NÃO remover validações internas existentes  
+👉 isso é camada extra de proteção
+
+---
+
+# 🧪 VALIDAÇÃO
+
+---
+
+## 1️⃣ Clara bloqueado
+
+Sem token:
+
+→ 401 ou 403  
+
+---
+
+## 2️⃣ Admin protegido
+
+Endpoints admin:
+
+→ exigem usuário admin  
+
+---
+
+## 3️⃣ Dashboard financeiro
+
+Cada empresa vê apenas seus dados  
+
+---
+
+## 4️⃣ CNAB
+
+Histórico isolado por tenant  
+
+---
+
+## 5️⃣ Orders
+
+Nunca retorna dados de outro tenant  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero alteração de contrato  
+✔ zero alteração de schema  
+✔ zero impacto em NF-e  
+✔ compatível com tudo já implementado  
+✔ apenas proteção adicional  
+
+---
+
+# 📊 RESULTADO
+
+Sistema agora:
+
+- sem vazamento entre empresas  
+- sem endpoints críticos expostos  
+- pronto para próxima camada  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Endpoints protegidos  
+2. Funções corrigidas (storage)  
+3. Middlewares adicionados  
+4. Confirmação

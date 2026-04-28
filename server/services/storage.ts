@@ -8,6 +8,7 @@ import {
   withTenant,
   stripTenantFields,
 } from "../core/tenant/scope";
+import { requireTenantId, currentTenantId } from "../core/tenant/context";
 import {
   users, priceGroups, companies, categories, products, productPrices, productSubCategories, orderWindows, orderExceptions, orders, orderItems, systemSettings, passwordResetRequests, specialOrderRequests, systemLogs, testOrders, tasks, clientIncidents, incidentMessages, internalIncidents, logisticsDrivers, logisticsVehicles, logisticsRoutes, logisticsMaintenance, companyQuotations, contractScopes, danfeRecords, companyConfig, companySettings, announcements, wasteControl, purchasePlanStatus, inventorySettings, inventoryEntries, inventoryMovements, inventoryPhysicalCounts, fiscalInvoices, emailSchedules, emailLogs, aboutUs, smtpConfig, claraTraining, pushSubscriptions, notificationSettings, contractAdjustments, scopeSimulations, accountsReceivable, accountsPayable, financialTransactions,
   type AccountReceivable, type InsertAccountReceivable,
@@ -822,9 +823,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrders(empresaId?: number): Promise<Order[]> {
+    // FASE 1 — Safe-guard tenant: se o caller não passa empresaId explícito,
+    // tenta deduzir do TenantContext em escopo (sessão de empresa ou admin
+    // pinned). Se não houver contexto (ex.: admin cross-tenant legítimo),
+    // mantém o comportamento original de retornar tudo, preservando os 25+
+    // call-sites em rotas administrativas que agregam entre empresas.
+    const empresa = empresaId ?? currentTenantId();
     const query = db.select().from(orders).orderBy(desc(orders.orderDate));
-    if (empresaId) {
-      query.where(eq(orders.companyId, empresaId));
+    if (empresa != null) {
+      query.where(eq(orders.companyId, empresa));
     }
     return await query;
   }
@@ -1942,14 +1949,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * @deprecated ⚠️ NÃO USAR
-   * Método não aplica tenant filtering — listará histórico de TODAS as empresas.
-   * Endereçado pela FASE 5 (criar wrapper tenant-safe).
+   * @deprecated ⚠️ NÃO USAR DIRETAMENTE
+   * Use `financeRepository.listCnabImportHistory` (FASE 5) que já aplica
+   * `tenantWhere(cnabImportHistory)`. Mantido apenas por compat de IStorage.
+   *
+   * FASE 1 — defense-in-depth: bloqueia chamada sem TenantContext.
+   * Filtra por `companyId` (única coluna tenant-ish da tabela; o `empresa_id`
+   * não existe — vide schema). Registros legados sem companyId são excluídos
+   * intencionalmente para isolar empresas.
    */
   async listCnabImportHistory(limit = 20): Promise<CnabImportHistory[]> {
+    const tenantId = requireTenantId();
     return db
       .select()
       .from(cnabImportHistory)
+      .where(eq(cnabImportHistory.companyId, tenantId))
       .orderBy(desc(cnabImportHistory.createdAt))
       .limit(limit);
   }
@@ -1972,6 +1986,11 @@ export class DatabaseStorage implements IStorage {
     pagoMes: number;
     balanceMes: number;
   }> {
+    // FASE 1 — bloqueia vazamento entre tenants. Todas as 6 queries abaixo
+    // agora exigem tenant pinned e adicionam `WHERE empresa_id = tenantId`
+    // (coluna mapeada como `tenantId` em accountsReceivable / accountsPayable
+    // / financialTransactions). Estrutura/tipo de retorno preservados.
+    const tenantId = requireTenantId();
     const today = new Date().toISOString().split('T')[0];
     const now = new Date();
     const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
@@ -1979,32 +1998,32 @@ export class DatabaseStorage implements IStorage {
     const [arTotal] = await db
       .select({ sum: sql<string>`coalesce(sum(valor::numeric), 0)` })
       .from(accountsReceivable)
-      .where(eq(accountsReceivable.status, 'pendente'));
+      .where(and(eq(accountsReceivable.status, 'pendente'), eq(accountsReceivable.tenantId, tenantId)));
 
     const [apTotal] = await db
       .select({ sum: sql<string>`coalesce(sum(valor::numeric), 0)` })
       .from(accountsPayable)
-      .where(eq(accountsPayable.status, 'pendente'));
+      .where(and(eq(accountsPayable.status, 'pendente'), eq(accountsPayable.tenantId, tenantId)));
 
     const [arVencidos] = await db
       .select({ sum: sql<string>`coalesce(sum(valor::numeric), 0)` })
       .from(accountsReceivable)
-      .where(and(eq(accountsReceivable.status, 'pendente'), lte(accountsReceivable.dataVencimento, today)));
+      .where(and(eq(accountsReceivable.status, 'pendente'), lte(accountsReceivable.dataVencimento, today), eq(accountsReceivable.tenantId, tenantId)));
 
     const [apVencidos] = await db
       .select({ sum: sql<string>`coalesce(sum(valor::numeric), 0)` })
       .from(accountsPayable)
-      .where(and(eq(accountsPayable.status, 'pendente'), lte(accountsPayable.dataVencimento, today)));
+      .where(and(eq(accountsPayable.status, 'pendente'), lte(accountsPayable.dataVencimento, today), eq(accountsPayable.tenantId, tenantId)));
 
     const [entradas] = await db
       .select({ sum: sql<string>`coalesce(sum(valor::numeric), 0)` })
       .from(financialTransactions)
-      .where(and(eq(financialTransactions.tipo, 'entrada'), gte(financialTransactions.data, monthStart)));
+      .where(and(eq(financialTransactions.tipo, 'entrada'), gte(financialTransactions.data, monthStart), eq(financialTransactions.tenantId, tenantId)));
 
     const [saidas] = await db
       .select({ sum: sql<string>`coalesce(sum(valor::numeric), 0)` })
       .from(financialTransactions)
-      .where(and(eq(financialTransactions.tipo, 'saida'), gte(financialTransactions.data, monthStart)));
+      .where(and(eq(financialTransactions.tipo, 'saida'), gte(financialTransactions.data, monthStart), eq(financialTransactions.tenantId, tenantId)));
 
     const recebidoMes = parseFloat(entradas.sum);
     const pagoMes = parseFloat(saidas.sum);

@@ -143,7 +143,9 @@ export async function registerRoutes(
   });
 
   // --- Clara IA Routes ---
-  app.post('/api/clara/chat', async (req: any, res) => {
+  // FASE 1 — Defesa-em-camadas: exige sessão admin (MASTER/ADMIN/DEVELOPER).
+  // Endpoints exec código/treinam IA — não devem ser públicos.
+  app.post('/api/clara/chat', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req: any, res) => {
     try {
       const { message } = req.body;
       const currentUser = req.session?.userId ? await storage.getUser(req.session.userId) : null;
@@ -155,7 +157,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/clara/learn', async (req, res) => {
+  app.post('/api/clara/learn', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const { prompt, context, expectedOutput } = req.body;
       const result = await claraIA.learnFromPrompt({ prompt, context, expectedOutput });
@@ -165,7 +167,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/clara/fix-bug', async (req, res) => {
+  app.post('/api/clara/fix-bug', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const { errorMessage } = req.body;
       const suggestion = await claraIA.fixBug(errorMessage);
@@ -175,7 +177,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/clara/generate-module', async (req, res) => {
+  app.post('/api/clara/generate-module', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const { name, description } = req.body;
       const code = await claraIA.generateModule(name, description);
@@ -185,7 +187,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/clara/run-test', async (req, res) => {
+  app.post('/api/clara/run-test', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const { testName } = req.body;
       const result = await claraIA.runTest(testName);
@@ -195,7 +197,7 @@ export async function registerRoutes(
     }
   });
 
-  app.post('/api/clara/iterative-learn', async (req, res) => {
+  app.post('/api/clara/iterative-learn', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const { newPrompt } = req.body;
       const result = await claraIA.iterativeLearn(newPrompt);
@@ -205,7 +207,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/clara/recall/:key', async (req, res) => {
+  app.get('/api/clara/recall/:key', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const knowledge = await claraIA.recallKnowledge(req.params.key);
       res.json({ knowledge });
@@ -318,12 +320,14 @@ export async function registerRoutes(
   });
 
   // --- Mailer status ---
-  app.get('/api/admin/mailer-status', (req, res) => {
+  // FASE 1 — exige sessão admin para evitar exposição de SMTP host/user.
+  app.get('/api/admin/mailer-status', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), (req, res) => {
     res.json(mailerStatus());
   });
 
   // --- System Audit API ---
-  app.get('/api/admin/audit', async (req, res) => {
+  // FASE 1 — exige sessão admin (auditoria revela usuários, empresas e logs).
+  app.get('/api/admin/audit', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
     try {
       const issues: Array<{ severity: string; category: string; message: string }> = [];
       const summary = { totalUsers: 0, activeUsers: 0, totalCompanies: 0, activeCompanies: 0, errors: 0, loginFails: 0 };
@@ -865,7 +869,8 @@ export async function registerRoutes(
   });
 
   // --- System Sync API ---
-  app.post('/api/admin/system-sync', async (req, res) => {
+  // FASE 1 — proteção redundante (controller já checa role; manter ambas).
+  app.post('/api/admin/system-sync', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
     try {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
@@ -991,7 +996,7 @@ export async function registerRoutes(
   });
 
   // ─── CLARA SMART EXPORT ──────────────────────────────────────────────
-  app.get('/api/clara/export', async (req, res) => {
+  app.get('/api/clara/export', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
     try {
       const userId = (req.session as any)?.userId;
       if (!userId) return res.status(401).json({ message: 'Não autenticado' });

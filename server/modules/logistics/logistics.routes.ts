@@ -12,14 +12,25 @@
  * Express will match the most specific route first regardless of order, but
  * keeping the file readable matters for the next maintainer.
  */
-import { Router } from "express";
+import { Router, type Request, type Response, type NextFunction } from "express";
 import { logisticsController } from "./logistics.controller";
 import {
   requireActiveSubscription,
   checkPlanLimit,
 } from "../billing/subscription.middleware";
+import { tenantContext } from "../../middleware/tenant";
 
 const router = Router();
+
+// FASE 1 — defesa em camadas. Instala TenantContext (AsyncLocalStorage)
+// quando há sessão, sem alterar respostas existentes: se a sessão estiver
+// ausente, cai direto nos controllers (que respondem com as mensagens
+// legadas "Não autenticado"/"Não autorizado" exatamente como antes).
+router.use((req: Request, res: Response, next: NextFunction) => {
+  const session = (req as any).session;
+  if (!session?.userId && !session?.companyId) return next();
+  return tenantContext(req, res, next);
+});
 
 // ── Drivers ────────────────────────────────────────────────────────────
 router.get("/drivers", logisticsController.listDrivers);
