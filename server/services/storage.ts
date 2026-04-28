@@ -73,10 +73,15 @@ import {
   sanitaryQuestions, type SanitaryQuestion, type InsertSanitaryQuestion,
   sanitaryEvaluations, type SanitaryEvaluation, type InsertSanitaryEvaluation,
   sanitaryEvaluationItems, type SanitaryEvaluationItem, type InsertSanitaryEvaluationItem,
+  cnabImportHistory, type CnabImportHistory, type InsertCnabImportHistory,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
 
 export interface IStorage {
+  // BANCO.5 — CNAB import history (auditoria de uploads de retorno)
+  createCnabImportHistory(data: InsertCnabImportHistory): Promise<CnabImportHistory>;
+  listCnabImportHistory(limit?: number): Promise<CnabImportHistory[]>;
+
   // Auth & Users
   getUserByEmail(email: string): Promise<User | undefined>;
   getUser(id: number): Promise<User | undefined>;
@@ -1914,6 +1919,20 @@ export class DatabaseStorage implements IStorage {
   async getAccountReceivableByOrderId(orderId: number): Promise<AccountReceivable | undefined> {
     const [r] = await db.select().from(accountsReceivable).where(eq(accountsReceivable.orderId, orderId));
     return r;
+  }
+
+  // BANCO.5 — Histórico de importações de retorno CNAB
+  async createCnabImportHistory(data: InsertCnabImportHistory): Promise<CnabImportHistory> {
+    const [r] = await db.insert(cnabImportHistory).values(data).returning();
+    return r;
+  }
+
+  async listCnabImportHistory(limit = 20): Promise<CnabImportHistory[]> {
+    return db
+      .select()
+      .from(cnabImportHistory)
+      .orderBy(desc(cnabImportHistory.createdAt))
+      .limit(limit);
   }
 
   async getFinancialDashboard(): Promise<{

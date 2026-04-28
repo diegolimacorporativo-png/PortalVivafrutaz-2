@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Upload, Loader2, FileCheck2 } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Upload, Loader2, FileCheck2, History } from "lucide-react";
 
 /**
  * BANCO.4 — Upload de arquivo CNAB 240 de retorno (Itaú)
@@ -20,11 +21,25 @@ interface RetornoResult {
   message?: string;
 }
 
+interface HistoricoItem {
+  id: number;
+  fileName: string;
+  baixasRealizadas: number;
+  erros: number;
+  createdAt: string;
+}
+
 export function ImportarRetornoCnab() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RetornoResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  // BANCO.5 — histórico de uploads (últimos 20)
+  const { data: historico = [], isLoading: histLoading } = useQuery<HistoricoItem[]>({
+    queryKey: ["/api/bank/retorno/historico"],
+  });
 
   async function handleUpload() {
     if (!file) return;
@@ -47,12 +62,27 @@ export function ImportarRetornoCnab() {
         setErrorMsg(data?.message || `Erro HTTP ${res.status}`);
       } else {
         setResult(data);
+        queryClient.invalidateQueries({ queryKey: ["/api/bank/retorno/historico"] });
       }
     } catch (err: any) {
       console.error("[CNAB] erro upload", err);
       setErrorMsg(err?.message || "Falha ao enviar arquivo");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function fmtDate(s: string) {
+    try {
+      return new Date(s).toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return s;
     }
   }
 
@@ -154,6 +184,85 @@ export function ImportarRetornoCnab() {
           </p>
         </div>
       )}
+
+      {/* BANCO.5 — histórico de importações */}
+      <div className="mt-6" data-testid="section-cnab-historico">
+        <div className="flex items-center gap-2 mb-2">
+          <History className="w-3.5 h-3.5 text-muted-foreground" />
+          <h4 className="text-sm font-semibold text-muted-foreground">
+            Importações recentes
+          </h4>
+        </div>
+        {histLoading ? (
+          <p className="text-xs text-muted-foreground">Carregando histórico...</p>
+        ) : historico.length === 0 ? (
+          <p
+            className="text-xs text-muted-foreground"
+            data-testid="text-cnab-historico-vazio"
+          >
+            Nenhuma importação registrada ainda.
+          </p>
+        ) : (
+          <div className="rounded-md border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50">
+                <tr>
+                  <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                    Arquivo
+                  </th>
+                  <th className="text-left px-3 py-2 font-semibold text-muted-foreground">
+                    Data
+                  </th>
+                  <th className="text-right px-3 py-2 font-semibold text-muted-foreground">
+                    Baixas
+                  </th>
+                  <th className="text-right px-3 py-2 font-semibold text-muted-foreground">
+                    Erros
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {historico.map((h) => (
+                  <tr
+                    key={h.id}
+                    className="hover:bg-muted/30"
+                    data-testid={`row-cnab-historico-${h.id}`}
+                  >
+                    <td
+                      className="px-3 py-2 font-mono truncate max-w-[260px]"
+                      data-testid={`text-cnab-historico-filename-${h.id}`}
+                    >
+                      {h.fileName}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-muted-foreground"
+                      data-testid={`text-cnab-historico-date-${h.id}`}
+                    >
+                      {fmtDate(h.createdAt)}
+                    </td>
+                    <td
+                      className="px-3 py-2 text-right font-semibold text-green-700 dark:text-green-400"
+                      data-testid={`text-cnab-historico-baixas-${h.id}`}
+                    >
+                      {h.baixasRealizadas}
+                    </td>
+                    <td
+                      className={`px-3 py-2 text-right font-semibold ${
+                        h.erros > 0
+                          ? "text-red-700 dark:text-red-400"
+                          : "text-muted-foreground"
+                      }`}
+                      data-testid={`text-cnab-historico-erros-${h.id}`}
+                    >
+                      {h.erros}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

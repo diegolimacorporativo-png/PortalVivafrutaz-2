@@ -6618,10 +6618,27 @@ export async function registerRoutes(
         }
         const content = req.file.buffer.toString('utf-8');
         const { processarRetornoItau } = await import('../modules/banking/itau/retorno.service');
-        const result = await processarRetornoItau(content, req.session.userId);
+        const result = await processarRetornoItau(content, req.session.userId, {
+          fileName: req.file.originalname,
+          companyId: req.session.companyId ?? null,
+        });
         return res.status(200).json(result);
       } catch (e: any) {
         console.error('[CNAB] erro ao processar retorno Itaú', e);
+        return res.status(500).json({ message: e.message });
+      }
+    });
+
+    // FASE BANCO.5 — GET /api/bank/retorno/historico
+    // Lista os últimos 20 uploads de retorno CNAB (auditoria operacional).
+    // Apenas leitura; não dispara nenhuma baixa.
+    app.get('/api/bank/retorno/historico', async (req: any, res) => {
+      if (!requireAuth(req, res)) return;
+      try {
+        const items = await storage.listCnabImportHistory(20);
+        return res.status(200).json(items);
+      } catch (e: any) {
+        console.error('[CNAB] erro ao listar histórico de retornos', e);
         return res.status(500).json({ message: e.message });
       }
     });

@@ -35,9 +35,17 @@ export interface ProcessarRetornoResult {
   erros: number;
 }
 
+export interface ProcessarRetornoOptions {
+  /** Nome do arquivo enviado pelo operador (para auditoria — BANCO.5). */
+  fileName?: string;
+  /** companyId opcional para escopo do histórico (BANCO.5). */
+  companyId?: number | null;
+}
+
 export async function processarRetornoItau(
   content: string,
   userId: number,
+  opts: ProcessarRetornoOptions = {},
 ): Promise<ProcessarRetornoResult> {
   const itens = parseItauRetornoCnab240(content);
 
@@ -96,6 +104,7 @@ export async function processarRetornoItau(
   }
 
   console.log("[CNAB] Retorno Itaú processado", {
+    fileName: opts.fileName,
     totalProcessados: itens.length,
     pagosIdentificados,
     baixasRealizadas,
@@ -103,6 +112,26 @@ export async function processarRetornoItau(
     jaPagas,
     erros,
   });
+
+  // BANCO.5 — registra auditoria do upload. Falha aqui NUNCA quebra o
+  // fluxo principal: a baixa já foi feita acima e é o que importa para
+  // o operador.
+  try {
+    await storage.createCnabImportHistory({
+      fileName: opts.fileName ?? "retorno.ret",
+      totalProcessados: itens.length,
+      pagosIdentificados,
+      baixasRealizadas,
+      jaPagas,
+      naoEncontrados,
+      erros,
+      companyId: opts.companyId ?? null,
+    });
+  } catch (err) {
+    console.warn("[CNAB] falha ao registrar histórico de importação (não crítico)", {
+      err: (err as Error)?.message,
+    });
+  }
 
   return {
     success: true,

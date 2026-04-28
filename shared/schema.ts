@@ -1801,3 +1801,31 @@ export const insertFiscalClosureSchema = createInsertSchema(fiscalClosures).omit
 });
 export type InsertFiscalClosure = z.infer<typeof insertFiscalClosureSchema>;
 export type FiscalClosure = typeof fiscalClosures.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BANCO.5 — Histórico de importações de retorno CNAB (Itaú)
+//
+// Tabela puramente aditiva: registra cada upload processado pelo endpoint
+// POST /api/bank/retorno/itau (BANCO.3). Não interfere em nenhuma rotina
+// existente; apenas guarda metadata + contadores devolvidos pelo serviço
+// para fins de auditoria operacional. companyId é opcional porque o
+// fluxo financeiro atual ainda não escopa AR por tenant.
+// ─────────────────────────────────────────────────────────────────────────────
+export const cnabImportHistory = pgTable("cnab_import_history", {
+  id: serial("id").primaryKey(),
+  fileName: text("file_name").notNull(),
+  totalProcessados: integer("total_processados").notNull().default(0),
+  pagosIdentificados: integer("pagos_identificados").notNull().default(0),
+  baixasRealizadas: integer("baixas_realizadas").notNull().default(0),
+  jaPagas: integer("ja_pagas").notNull().default(0),
+  naoEncontrados: integer("nao_encontrados").notNull().default(0),
+  erros: integer("erros").notNull().default(0),
+  companyId: integer("company_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertCnabImportHistorySchema = createInsertSchema(cnabImportHistory).omit({
+  id: true,
+  createdAt: true,
+});
+export type InsertCnabImportHistory = z.infer<typeof insertCnabImportHistorySchema>;
+export type CnabImportHistory = typeof cnabImportHistory.$inferSelect;
