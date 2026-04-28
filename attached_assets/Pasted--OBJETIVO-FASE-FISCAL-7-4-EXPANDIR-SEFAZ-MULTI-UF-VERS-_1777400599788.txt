@@ -1,0 +1,131 @@
+🎯 OBJETIVO: FASE FISCAL 7.4 — EXPANDIR SEFAZ MULTI-UF (VERSÃO SEGURA)
+
+Adicionar suporte a múltiplas UFs sem quebrar o que já funciona (SP + fallback).
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO remover SP existente  
+2. NÃO remover fallback default (GO/SVRS)  
+3. NÃO alterar lógica de envio  
+4. NÃO alterar XML  
+5. NÃO tentar cobrir todos estados de uma vez  
+
+👉 Apenas adicionar UFs de forma incremental
+
+---
+
+🧠 CONTEXTO
+
+Hoje:
+
+✔ SP funcionando (homologação + produção)  
+✔ fallback (GO) funcionando  
+❌ Outras UFs ainda não mapeadas  
+
+👉 Sistema já é multi-UF, só falta expandir o mapa
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. EXPANDIR MAPA DE URLS
+
+📍 server/services/nfe/nfeSender.ts
+
+---
+
+Localizar:
+
+ts const SEFAZ_URL = { 
+
+---
+
+Adicionar APENAS estas UFs (inicial seguro):
+
+ts id="multiuf01" MG: {   homologacao: "https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4",   producao: "https://nfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4", }, RJ: {   homologacao: "https://homologacao.nfe.fazenda.rj.gov.br/ws/NFeAutorizacao4",   producao: "https://nfe.fazenda.rj.gov.br/ws/NFeAutorizacao4", }, RS: {   homologacao: "https://nfe-homologacao.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx",   producao: "https://nfe.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx", }, PR: {   homologacao: "https://homologacao.nfe.sefa.pr.gov.br/nfe/NFeAutorizacao4",   producao: "https://nfe.sefa.pr.gov.br/nfe/NFeAutorizacao4", }, SC: {   homologacao: "https://hom.sef.sc.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx",   producao: "https://nfe.sef.sc.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx", }, 
+
+---
+
+## 🔴 2. NÃO ALTERAR FALLBACK
+
+Manter exatamente:
+
+ts id="multiuf02" default: {   homologacao: "https://hom.sefaz.go.gov.br/nfe/services/NfeAutorizacao4",   producao: "https://nfe.sefaz.go.gov.br/nfe/services/NfeAutorizacao4", } 
+
+👉 Isso cobre estados não mapeados (SVRS/SVAN)
+
+---
+
+## 🔴 3. LOG DE MONITORAMENTO
+
+Adicionar (se ainda não existir):
+
+ts id="multiuf03" if (!SEFAZ_URL[ufFinal]) {   console.warn('[NFE_SEFAZ_FALLBACK_UF]', {     uf: ufFinal,     usando: 'default (GO)'   }); } 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Emitente SP
+
+✔ continua funcionando igual  
+
+---
+
+### 2️⃣ Emitente MG
+
+✔ usa URL MG automaticamente  
+
+---
+
+### 3️⃣ Emitente não mapeado (ex: BA)
+
+✔ usa fallback GO  
+✔ loga warning  
+
+---
+
+## 🚫 NÃO FAZER
+
+- NÃO adicionar todos os estados  
+- NÃO mudar estrutura do objeto  
+- NÃO mexer no getSefazUrl  
+- NÃO remover fallback  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ Multi-UF parcial  
+
+Depois:
+
+✔ Multi-UF funcional para principais estados  
+✔ fallback cobre o resto  
+✔ sistema escalável  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. UFs adicionadas  
+2. confirmação de fallback ativo  
+3. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ Sistema pronto para múltiplos estados  
+✔ Base para expansão nacional  
+✔ Sem risco operacion

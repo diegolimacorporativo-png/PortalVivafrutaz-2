@@ -13,10 +13,32 @@ export interface NFeRetornoSEFAZ {
 }
 
 // SEFAZ URLs por UF (webservice NFeAutorizacao 4.00)
+// FASE NF.7.4 — expansão multi-UF incremental. SP + default mantidos intactos.
+// Estados não mapeados continuam caindo no `default` (GO/SVRS-like).
 const SEFAZ_URL: Record<string, { homologacao: string; producao: string }> = {
   SP: {
     homologacao: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
     producao: 'https://nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
+  },
+  MG: {
+    homologacao: 'https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4',
+    producao: 'https://nfe.fazenda.mg.gov.br/nfe2/services/NFeAutorizacao4',
+  },
+  RJ: {
+    homologacao: 'https://homologacao.nfe.fazenda.rj.gov.br/ws/NFeAutorizacao4',
+    producao: 'https://nfe.fazenda.rj.gov.br/ws/NFeAutorizacao4',
+  },
+  RS: {
+    homologacao: 'https://nfe-homologacao.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx',
+    producao: 'https://nfe.sefazrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx',
+  },
+  PR: {
+    homologacao: 'https://homologacao.nfe.sefa.pr.gov.br/nfe/NFeAutorizacao4',
+    producao: 'https://nfe.sefa.pr.gov.br/nfe/NFeAutorizacao4',
+  },
+  SC: {
+    homologacao: 'https://homologacao.nfe.svrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx',
+    producao: 'https://nfe.svrs.rs.gov.br/ws/NfeAutorizacao/NFeAutorizacao4.asmx',
   },
   default: {
     homologacao: 'https://hom.sefaz.go.gov.br/nfe/services/NfeAutorizacao4',
@@ -135,6 +157,16 @@ export async function enviarNFeSEFAZ(
       ufParametro: uf,
       ufXml,
       decisao: `usando UF do XML (${ufXml})`,
+    });
+  }
+
+  // FASE NF.7.4 — log de monitoramento quando a UF cai no fallback `default`.
+  // Útil para detectar emitentes em estados ainda não mapeados em SEFAZ_URL
+  // e priorizar a próxima leva de URLs oficiais.
+  if (!SEFAZ_URL[ufFinal]) {
+    console.warn('[NFE_SEFAZ_FALLBACK_UF]', {
+      uf: ufFinal,
+      usando: 'default (GO)',
     });
   }
 
