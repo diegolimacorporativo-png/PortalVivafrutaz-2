@@ -1,0 +1,167 @@
+🎯 OBJETIVO: FASE FISCAL 7.3 — DETECTAR UF DO XML (REMOVER HARDCODE)
+
+Eliminar dependência de UF fixa ("SP") no envio e usar a UF real do emitente direto do XML.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar XML  
+2. NÃO alterar builder  
+3. NÃO alterar generator  
+4. NÃO alterar assinatura do método  
+5. NÃO remover fallback existente  
+
+👉 Apenas substituir UF hardcoded por leitura do XML
+
+---
+
+🧠 CONTEXTO
+
+Hoje:
+
+❌ Algumas rotas ainda usam UF fixa ("SP")  
+❌ Sistema não está preparado para multi-UF  
+✔ XML já contém UF correta (<UF>)  
+
+👉 O XML já tem a verdade — só precisamos usar
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. CRIAR FUNÇÃO DE EXTRAÇÃO
+
+📍 server/services/nfe/nfeSender.ts
+
+---
+
+Adicionar:
+
+ts function detectarUfFromXml(xml: string): string | null {   const match = xml.match(/<emit>[\s\S]*?<UF>([A-Z]{2})<\/UF>/);   return match ? match[1] : null; } 
+
+---
+
+## 🔴 2. USAR UF DO XML
+
+Localizar onde a UF é definida (ex: parâmetro da função):
+
+---
+
+### ❌ ANTES
+
+ts const uf = "SP"; 
+
+ou
+
+ts enviarNFeSEFAZ(xml, "SP", ambiente); 
+
+---
+
+### ✅ DEPOIS
+
+ts const ufXml = detectarUfFromXml(xmlAssinado); const ufFinal = ufXml ?? uf; 
+
+---
+
+## 🔴 3. USAR NO RESOLVE DA URL
+
+ts const url = getSefazUrl(ufFinal, ambienteFinal); 
+
+---
+
+## 🔴 4. LOG DE SEGURANÇA (IMPORTANTE)
+
+ts if (ufXml && ufXml !== uf) {   console.warn('[NFE_SEFAZ_UF_DIVERGENTE]', {     ufParametro: uf,     ufXml,     decisao: `usando UF do XML (${ufXml})`,   }); } 
+
+---
+
+## 🔴 5. FALLBACK OBRIGATÓRIO
+
+Se XML falhar:
+
+ts const ufFinal = ufXml ?? uf ?? "SP"; 
+
+👉 garante compatibilidade total
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ XML com UF SP
+
+Resultado:
+
+✔ usa SP normalmente  
+
+---
+
+### 2️⃣ XML com UF MG
+
+Resultado:
+
+✔ usa MG automaticamente  
+
+---
+
+### 3️⃣ XML sem UF (erro raro)
+
+Resultado:
+
+✔ fallback para parâmetro  
+✔ sistema não quebra  
+
+---
+
+### 4️⃣ Divergência XML vs parâmetro
+
+Resultado:
+
+✔ XML vence  
+✔ log de warning gerado  
+
+---
+
+## 🚫 NÃO FAZER
+
+- NÃO alterar builder  
+- NÃO alterar XML  
+- NÃO remover parâmetro da função  
+- NÃO quebrar chamadas existentes  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ UF fixa ou dependente de rota  
+
+Depois:
+
+✔ UF dinâmica por XML  
+✔ pronto para multi-empresa / multi-estado  
+✔ sem hardcode  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. função detectarUfFromXml criada  
+2. trecho onde substituiu UF  
+3. confirmação de fallback funcionando  
+4. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ Remove hardcode crítico  
+✔ Prepara multi-UF real  
+✔ Zero risco estrut

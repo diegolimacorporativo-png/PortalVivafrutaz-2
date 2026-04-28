@@ -43,6 +43,18 @@ function detectarAmbienteFromXml(xml: string): '1' | '2' | null {
 }
 
 /**
+ * FASE NF.7.3 — leitura da UF do EMITENTE direto do XML assinado.
+ * Olha apenas dentro do bloco <emit>...</emit> para evitar pegar a UF do
+ * destinatário por engano. O XML é a fonte da verdade — a URL do webservice
+ * SEFAZ é por estado do EMITENTE. Retorna null quando o bloco não existir
+ * ou não contiver <UF> reconhecível (2 letras maiúsculas).
+ */
+function detectarUfFromXml(xml: string): string | null {
+  const match = xml.match(/<emit>[\s\S]*?<UF>\s*([A-Z]{2})\s*<\/UF>/);
+  return match ? match[1] : null;
+}
+
+/**
  * FASE NF.7.2 — resposta MOCK padronizada nesta camada.
  * Mantém o fallback seguro mesmo se a rota legada for chamada
  * com NFE_SEFAZ_MODE=mock (preserva o comportamento atual).
@@ -111,13 +123,28 @@ export async function enviarNFeSEFAZ(
     });
   }
 
-  // FASE NF.7.2 — resolução estrita da URL por UF + ambiente.
-  const url = getSefazUrl(uf, ambienteFinal);
+  // FASE NF.7.3 — reconciliação da UF do EMITENTE: o XML é a fonte da verdade.
+  // Permite multi-UF sem mudar a assinatura da função nem os callers atuais.
+  // Fallback triplo garante zero regressão: XML → parâmetro → "SP".
+  const ufXml = detectarUfFromXml(xmlAssinado);
+  // Usa `||` (não `??`) para tratar também string vazia como ausência:
+  // garante o fallback "SP" mesmo se o caller passar `uf=""`.
+  const ufFinal = (ufXml || uf || 'SP').toUpperCase();
+  if (ufXml && uf && ufXml.toUpperCase() !== uf.toUpperCase()) {
+    console.warn('[NFE_SEFAZ_UF_DIVERGENTE]', {
+      ufParametro: uf,
+      ufXml,
+      decisao: `usando UF do XML (${ufXml})`,
+    });
+  }
+
+  // FASE NF.7.2/7.3 — resolução estrita da URL por UF + ambiente.
+  const url = getSefazUrl(ufFinal, ambienteFinal);
   if (!url) {
-    throw new Error(`SEFAZ não configurada para UF: ${uf}`);
+    throw new Error(`SEFAZ não configurada para UF: ${ufFinal}`);
   }
   console.info('[NFE_SEFAZ_DISPATCH]', {
-    uf: uf.toUpperCase(),
+    uf: ufFinal,
     ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
     url,
   });
