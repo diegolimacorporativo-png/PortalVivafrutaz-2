@@ -1,0 +1,194 @@
+🎯 OBJETIVO: AUDITORIA COMPLETA — MÓDULO FISCAL + ESTADO REAL DO SISTEMA
+
+Mapear EXATAMENTE o que já existe no sistema antes de criar novas features (NF.7.9.4+), evitando duplicação, retrabalho ou inconsistência.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO modificar código
+2. NÃO refatorar
+3. NÃO sugerir melhorias ainda
+4. NÃO criar arquivos
+5. NÃO executar migrations
+6. NÃO alterar endpoints
+
+👉 Apenas LER e REPORTAR
+
+---
+
+🧠 ESCOPO DA AUDITORIA
+
+Cobrir completamente:
+
+1. BACKEND (fiscal + NFe + orders)
+2. FRONTEND (admin fiscal)
+3. BANCO (schema relevante)
+4. SEGURANÇA (multi-tenant + guards)
+5. EXPORTAÇÕES existentes
+6. UI já implementada
+
+---
+
+📦 TAREFAS
+
+---
+
+1️⃣ MAPEAR ENDPOINTS FISCAIS
+
+Listar todos:
+
+- /api/fiscal/*
+- /api/nfe/*
+- /api/orders/:id (GET protegido)
+
+Para cada um informar:
+
+- rota
+- método
+- arquivo
+- se usa tenant guard
+- finalidade
+
+---
+
+2️⃣ VALIDAR RESUMO ICMS
+
+Verificar:
+
+- getIcmsSummary existe?
+- aceita startDate / endDate?
+- usa XML como fonte?
+- buckets:
+  - importado (4%)
+  - normal (7/12/18%)
+
+Confirmar:
+
+- estrutura do retorno
+- campos disponíveis
+
+---
+
+3️⃣ VALIDAR EXPORTAÇÕES
+
+Verificar se existem:
+
+- CSV (confirmado)
+- XLSX ❓ (procurar)
+- qualquer outro formato
+
+Para cada:
+
+- endpoint
+- formato
+- reutiliza service ou não
+
+---
+
+4️⃣ VALIDAR FECHAMENTO DE PERÍODO
+
+Confirmar:
+
+- tabela fiscal_closures
+- service:
+  - isPeriodClosed
+  - closePeriod
+- guards aplicados em:
+  - orders.update
+  - orders.remove
+  - nfe.emit
+
+Verificar:
+
+- log [SECURITY] PERIODO_FECHADO
+- comportamento fail-open
+
+---
+
+5️⃣ VALIDAR MULTI-TENANT
+
+Confirmar presença de:
+
+- validateOrderTenant
+- withTenantScope
+- proteção em:
+  - GET /api/orders/:id
+  - endpoints NFe
+  - fiscal summary
+
+---
+
+6️⃣ MAPEAR FRONTEND FISCAL
+
+Arquivo:
+client/src/pages/admin/fiscal.tsx
+
+Listar o que JÁ existe:
+
+- cards resumo ICMS
+- filtro de período
+- botão "Fechar mês"
+- botão "Exportar CSV"
+- loading / error states
+
+---
+
+7️⃣ VERIFICAR UI DE PRODUTOS (IMPORTADO)
+
+Arquivo:
+client/src/pages/admin/products.tsx
+
+Confirmar:
+
+- checkbox "Produto importado"
+- badge na listagem
+- filtro "Apenas importados"
+
+---
+
+8️⃣ BANCO DE DADOS
+
+Confirmar existência de:
+
+- products.importado
+- fiscal_closures
+- nfe_emissoes (XML armazenado)
+
+---
+
+9️⃣ DETECTAR LACUNAS (SEM INVENTAR)
+
+Listar APENAS o que NÃO existe ainda:
+
+Exemplo esperado:
+
+- XLSX export ❌
+- indicador visual de mês fechado ❌
+- atalhos de período ❌
+
+👉 NÃO sugerir nada além disso
+
+---
+
+📊 FORMATO DA RESPOSTA
+
+Responder estruturado:
+
+1. Endpoints existentes
+2. Funcionalidades confirmadas
+3. Segurança validada
+4. UI existente
+5. Banco confirmado
+6. Exportações existentes
+7. Lacunas reais (sem invenção)
+
+---
+
+✅ FINAL
+
+Encerrar com:
+
+✔ Sistema atual consolidado
+✔ Zero inconsistências encontradas OU listar problemas reais
+✔ Lista objetiva do que
