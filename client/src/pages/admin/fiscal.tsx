@@ -1016,6 +1016,38 @@ function IcmsSummarySection() {
         </button>
       </div>
 
+      {/* FASE NF.7.9.11 — Lista de meses fechados (UI only).
+          Read-only. Reaproveita o mesmo `closuresData` da NF.7.9.9
+          (sem nova chamada HTTP). Sem dados → não renderiza nada,
+          preservando o layout original quando ainda não há fechamento. */}
+      {closuresData?.data && closuresData.data.length > 0 && (
+        <div
+          className="mt-3 mb-4 p-3 border border-red-200 rounded-lg bg-red-50"
+          data-testid="icms-closed-periods-list"
+        >
+          <div className="text-xs font-semibold text-red-700 mb-2 flex items-center gap-1">
+            <Lock className="w-3 h-3" />
+            Meses fechados
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {closuresData.data.map((c) => {
+              const label = `${String(c.month).padStart(2, '0')}/${c.year}`;
+              return (
+                <span
+                  key={`${c.year}-${c.month}`}
+                  className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-red-300 text-red-700 bg-white"
+                  data-testid={`badge-closed-${c.year}-${c.month}`}
+                  title={`Fechado em ${new Date(c.closedAt).toLocaleDateString('pt-BR')}`}
+                >
+                  <Lock className="w-3 h-3" />
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="text-sm text-muted-foreground p-4">Calculando resumo de ICMS...</div>
       ) : isError ? (
