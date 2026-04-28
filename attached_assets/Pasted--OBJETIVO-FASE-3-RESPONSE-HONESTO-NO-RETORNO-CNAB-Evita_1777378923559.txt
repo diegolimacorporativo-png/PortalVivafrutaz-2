@@ -1,0 +1,122 @@
+🎯 OBJETIVO: FASE 3 — RESPONSE HONESTO NO RETORNO CNAB
+
+Evitar que o endpoint retorne success: true quando houve falha no processamento.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de processamento
+2. NÃO alterar parser
+3. NÃO alterar fluxo de baixa
+4. NÃO alterar schema
+5. NÃO alterar contadores existentes
+6. NÃO remover campos do response
+
+👉 Apenas corrigir o significado de success
+
+---
+
+🧠 PROBLEMA
+
+Hoje o endpoint pode retornar:
+
+json {   "success": true,   "baixasRealizadas": 0,   "erros": 5 } 
+
+❌ Isso engana o operador
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+## 📍 Arquivo 1:
+server/modules/banking/itau/retorno.service.ts
+
+---
+
+### 1. AJUSTAR SUCCESS
+
+📍 No retorno final do método:
+
+ANTES:
+
+ts return {   success: true,   totalProcessados,   pagosIdentificados,   baixasRealizadas,   naoEncontrados,   jaPagas,   erros }; 
+
+---
+
+DEPOIS:
+
+ts const success = erros === 0;  const partial =   pagosIdentificados > 0 &&   (baixasRealizadas < pagosIdentificados || erros > 0);  return {   success,   partial,   totalProcessados,   pagosIdentificados,   baixasRealizadas,   naoEncontrados,   jaPagas,   erros }; 
+
+---
+
+## 📍 Arquivo 2:
+server/routes/routes.ts
+
+Endpoint:
+POST /api/bank/retorno/itau
+
+---
+
+### 2. NÃO ALTERAR HTTP STATUS
+
+👉 Sempre retornar 200 OK
+
+❌ NÃO usar 207  
+❌ NÃO mudar status code  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+### Caso 1 — tudo ok
+
+json {   "success": true,   "partial": false } 
+
+---
+
+### Caso 2 — parcial
+
+json {   "success": false,   "partial": true } 
+
+---
+
+### Caso 3 — falha total
+
+json {   "success": false,   "partial": false } 
+
+---
+
+## 🧪 TESTE MANUAL
+
+Upload CNAB com erros:
+
+ANTES:
+json success: true ❌ 
+
+DEPOIS:
+json success: false ✅ partial: true ✅ 
+
+---
+
+## 🚫 NÃO FAZER
+
+- NÃO alterar lógica de baixa
+- NÃO alterar contadores
+- NÃO mexer em tenant
+- NÃO mexer em storage
+- NÃO mexer em UI (ainda)
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho alterado
+2. exemplos de resposta (3 cenários)
+3. confirmação de zero regressão
+
+---
+
+🔥 PRIORIDADE: CRÍTICA (TRANSPARÊNCIA OPERACIONAL)

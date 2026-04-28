@@ -169,8 +169,14 @@ export async function processarRetornoItau(
     });
   }
 
+  const success = erros === 0;
+  const partial =
+    pagosIdentificados > 0 &&
+    (baixasRealizadas < pagosIdentificados || erros > 0);
+
   return {
-    success: true,
+    success,
+    partial,
     totalProcessados: itens.length,
     pagosIdentificados,
     baixasRealizadas,
