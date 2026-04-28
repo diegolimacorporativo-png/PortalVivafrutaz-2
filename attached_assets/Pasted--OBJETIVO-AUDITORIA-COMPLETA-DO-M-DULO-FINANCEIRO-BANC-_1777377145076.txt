@@ -1,0 +1,292 @@
+🎯 OBJETIVO: AUDITORIA COMPLETA DO MÓDULO FINANCEIRO + BANCÁRIO
+
+Validar implementação REAL (não teórica) de todo o fluxo financeiro:
+
+- Contas a Receber (AR)
+- Contas a Pagar (AP)
+- Integração com pedidos
+- Conciliação bancária
+- Remessa CNAB (Itaú)
+- Retorno CNAB (baixa automática)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO refatorar nada
+3. NÃO corrigir nada ainda
+4. NÃO criar arquivos
+5. NÃO assumir comportamento — validar no código real
+
+👉 Apenas AUDITORIA
+
+---
+
+🧠 O QUE VALIDAR (POR CAMADAS)
+
+---
+
+## 1. CONTAS A RECEBER (AR)
+
+Verificar:
+
+- Existe criação automática ao confirmar pedido
+  - localizar: seedAccountReceivableOnConfirm
+- Existe vínculo com orderId
+- Campos presentes:
+  - valor
+  - dataVencimento
+  - status
+  - pixPayload
+
+Validar:
+
+- Idempotência (não duplica AR)
+- Fluxo completo: criar → pagar → refletir no pedido
+
+---
+
+## 2. CONTAS A PAGAR (AP)
+
+Verificar:
+
+- Existe método payAccountPayable
+- Existe fluxo completo:
+  - criação
+  - pagamento
+- Ver se está sendo usado ou apenas stub
+
+---
+
+## 3. MOTOR DE PAGAMENTO
+
+Validar:
+
+- Existe FinanceService.payAccountReceivable
+- Confirmar que:
+  - esse é o ÚNICO ponto que altera status para "pago"
+- Verificar se:
+  - conciliação bancária usa esse método
+  - não existe bypass direto em storage
+
+---
+
+## 4. INTEGRAÇÃO COM PEDIDO
+
+Validar:
+
+- Pedido expõe:
+  - isPaid
+  - paidAt
+
+Localizar:
+
+- isOrderPaid
+- getPaymentProjection
+
+Confirmar:
+
+- Nenhum campo foi adicionado no schema
+- É projeção dinâmica (não persistida)
+
+---
+
+## 5. UI (ORDERS)
+
+Verificar:
+
+Arquivo:
+client/src/pages/admin/orders.tsx
+
+Confirmar:
+
+- Badge "✓ Pago"
+- Filtro:
+  - Todos
+  - Pagos
+  - Pendentes
+- Uso de:
+  (order as any).isPaid
+
+---
+
+## 6. PIX
+
+Validar:
+
+- Existe endpoint:
+  GET /api/finance/pix/:id
+
+Confirmar:
+
+- pixPayload vem do backend
+- NÃO existe processamento automático de pagamento (sem webhook)
+
+---
+
+## 7. REMESSA BANCÁRIA (CNAB 240 ITAÚ)
+
+Validar:
+
+Arquivo:
+server/modules/banking/itau/cnab240.generator.ts
+
+Confirmar:
+
+- Linhas com 240 caracteres
+- Estrutura:
+  - Header arquivo (0)
+  - Header lote (1)
+  - Segmento P
+  - Segmento Q
+  - Trailer lote (5)
+  - Trailer arquivo (9)
+
+Verificar mapeamento:
+
+- valor
+- dataVencimento
+- descricao
+- orderId
+
+---
+
+## 8. ENDPOINT DE REMESSA
+
+Validar:
+
+POST /api/bank/remessa/itau
+
+Confirmar:
+
+- Recebe array de IDs
+- Retorna arquivo .rem
+- Headers:
+  Content-Disposition attachment
+
+---
+
+## 9. RETORNO CNAB
+
+Validar:
+
+Arquivo:
+retorno.parser.ts
+
+Confirmar:
+
+- Lê Segmento T
+- Captura:
+  - ocorrência (06, 17)
+  - nosso número / documento
+  - valor
+  - data
+
+Confirmar:
+
+- Extrai orderId via "PED-{id}"
+
+---
+
+## 10. PROCESSAMENTO DO RETORNO
+
+Validar:
+
+Arquivo:
+retorno.service.ts
+
+Confirmar:
+
+- Usa financeService.payAccountReceivable
+- NÃO altera direto no storage
+
+Validar contadores:
+
+- totalProcessados
+- pagosIdentificados
+- baixasRealizadas
+- jaPagas
+- naoEncontrados
+- erros
+
+---
+
+## 11. ENDPOINT DE RETORNO
+
+Validar:
+
+POST /api/bank/retorno/itau
+
+Confirmar:
+
+- Recebe multipart/form-data
+- Campo: file
+- Usa uploadInMemory
+- Retorna JSON com contadores
+
+---
+
+## 12. HISTÓRICO DE IMPORTAÇÃO
+
+Validar:
+
+Tabela:
+cnab_import_history
+
+Confirmar:
+
+- file_name
+- total_processados
+- baixas_realizadas
+- erros
+- created_at
+
+Endpoint:
+
+GET /api/bank/retorno/historico
+
+---
+
+## 13. MULTI-TENANT
+
+Validar:
+
+- AR respeita tenant
+- Orders respeita tenant
+- Nenhum endpoint vaza dados
+
+---
+
+🚨 PONTOS CRÍTICOS A IDENTIFICAR
+
+O agent DEVE responder:
+
+1. Existe risco de duplicar baixa via CNAB?
+2. Existe algum bypass de pagamento fora do FinanceService?
+3. AP está realmente funcional ou incompleto?
+4. Existe algum endpoint sem proteção multi-tenant?
+5. CNAB está 100% aderente ao padrão Itaú ou apenas aproximado?
+
+---
+
+📊 FORMATO DA RESPOSTA
+
+Responder com:
+
+1. ✔ O que está correto
+2. ⚠ O que está parcial
+3. ❌ O que está errado
+4. 🚨 Riscos reais de produção
+5. 📈 Nível do sistema (simples / intermediário / avançado / enterprise)
+
+---
+
+🎯 RESULTADO ESPERADO
+
+- Auditoria REAL baseada no código
+- Sem suposições
+- Sem elogios genéricos
+- Foco em risco e maturidade
+
+---
