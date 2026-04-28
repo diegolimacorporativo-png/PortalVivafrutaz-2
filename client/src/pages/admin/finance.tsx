@@ -29,6 +29,11 @@ type Dashboard = {
   totalReceivable: number; totalPayable: number; vencidosAR: number; vencidosAP: number;
   recebidoMes: number; pagoMes: number; balanceMes: number;
 };
+// FASE 6.6 — payload do GET /api/finance/accounts-receivable/:id/breakdown
+type Breakdown = {
+  principal: number; juros: number; multa: number; desconto: number;
+  totalRecebido: number; totalLiquido: number;
+};
 
 function fmt(v: number | string) {
   return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -56,6 +61,105 @@ const CATEGORIA_LABELS: Record<string, string> = {
 const PAYMENT_LABELS: Record<string, string> = {
   pix: 'PIX', boleto: 'Boleto', transferencia: 'Transferência', dinheiro: 'Dinheiro',
 };
+
+/**
+ * FASE 6.6 — indicador inline minúsculo. Roda só para AR `pago`. React Query
+ * deduplica automaticamente o request entre indicador + modal (mesma queryKey).
+ * Mostra texto somente quando há diferença real (silenciosamente vazio para
+ * pagamentos manuais sem juros/multa/desconto).
+ */
+function BreakdownIndicator({ arId }: { arId: number }) {
+  const { data } = useQuery<Breakdown>({
+    queryKey: ['/api/finance/accounts-receivable', arId, 'breakdown'],
+    queryFn: () =>
+      fetch(`/api/finance/accounts-receivable/${arId}/breakdown`, { credentials: 'include' }).then(r => r.json()),
+  });
+  if (!data) return null;
+  if (data.totalLiquido === data.principal) return null;
+  const tem = data.totalLiquido > data.principal;
+  return (
+    <span
+      className="text-[10px] text-muted-foreground ml-1"
+      data-testid={`text-breakdown-indicator-${arId}`}
+    >
+      {tem ? '(+ encargos)' : '(- desconto)'}
+    </span>
+  );
+}
+
+/**
+ * FASE 6.6 — modal de composição. Reutiliza a mesma queryKey do indicador,
+ * então quando o usuário abre o modal os dados já estão em cache (instantâneo).
+ */
+function BreakdownModal({ ar, onClose }: { ar: AR; onClose: () => void }) {
+  const { data, isLoading, error } = useQuery<Breakdown>({
+    queryKey: ['/api/finance/accounts-receivable', ar.id, 'breakdown'],
+    queryFn: () =>
+      fetch(`/api/finance/accounts-receivable/${ar.id}/breakdown`, { credentials: 'include' }).then(r => r.json()),
+  });
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+      data-testid="modal-breakdown"
+    >
+      <div
+        className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl max-w-md w-full p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold">Composição do pagamento</h3>
+            <p className="text-xs text-muted-foreground">{ar.descricao}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            data-testid="button-close-breakdown"
+            className="text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <XCircle className="w-5 h-5" />
+          </button>
+        </div>
+        {isLoading && (
+          <div className="text-center py-6 text-sm text-muted-foreground">Carregando…</div>
+        )}
+        {error && (
+          <div className="text-center py-6 text-sm text-red-600">Erro ao carregar composição.</div>
+        )}
+        {data && (
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between" data-testid="text-breakdown-principal">
+              <span className="text-muted-foreground">Principal</span>
+              <span className="font-medium">{fmt(data.principal)}</span>
+            </div>
+            <div className="flex justify-between" data-testid="text-breakdown-juros">
+              <span className="text-muted-foreground">Juros</span>
+              <span className="font-medium text-green-700 dark:text-green-400">{fmt(data.juros)}</span>
+            </div>
+            <div className="flex justify-between" data-testid="text-breakdown-multa">
+              <span className="text-muted-foreground">Multa</span>
+              <span className="font-medium text-green-700 dark:text-green-400">{fmt(data.multa)}</span>
+            </div>
+            <div className="flex justify-between" data-testid="text-breakdown-desconto">
+              <span className="text-muted-foreground">Desconto</span>
+              <span className="font-medium text-red-600">{fmt(data.desconto)}</span>
+            </div>
+            <hr className="my-3 border-muted" />
+            <div className="flex justify-between" data-testid="text-breakdown-totalrecebido">
+              <span className="text-muted-foreground">Total recebido (bruto)</span>
+              <span className="font-semibold">{fmt(data.totalRecebido)}</span>
+            </div>
+            <div className="flex justify-between" data-testid="text-breakdown-totalliquido">
+              <span className="text-muted-foreground">Total líquido</span>
+              <span className="font-semibold text-green-700 dark:text-green-400">{fmt(data.totalLiquido)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function PixModal({ ar, onClose }: { ar: AR; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
@@ -250,6 +354,8 @@ export default function FinancePage() {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<'ar' | 'ap' | 'cashflow'>('ar');
   const [pixModal, setPixModal] = useState<AR | null>(null);
+  // FASE 6.6 — controle do modal de composição de pagamento.
+  const [breakdownModal, setBreakdownModal] = useState<AR | null>(null);
   const [filterAR, setFilterAR] = useState('todos');
   const [filterAP, setFilterAP] = useState('todos');
   const [cfFrom, setCfFrom] = useState('');
@@ -316,6 +422,7 @@ export default function FinancePage() {
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
       {pixModal && <PixModal ar={pixModal} onClose={() => setPixModal(null)} />}
+      {breakdownModal && <BreakdownModal ar={breakdownModal} onClose={() => setBreakdownModal(null)} />}
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -410,7 +517,10 @@ export default function FinancePage() {
                             <p className="font-medium">{ar.descricao}</p>
                             {ar.orderId && <p className="text-xs text-muted-foreground">Pedido #{ar.orderId}</p>}
                           </td>
-                          <td className="px-4 py-3 font-semibold text-green-700 dark:text-green-400">{fmt(ar.valor)}</td>
+                          <td className="px-4 py-3 font-semibold text-green-700 dark:text-green-400">
+                            {fmt(ar.valor)}
+                            {ar.status === 'pago' && <BreakdownIndicator arId={ar.id} />}
+                          </td>
                           <td className="px-4 py-3">
                             <p className={vencido ? 'text-red-600 font-semibold' : ''}>{fmtDate(ar.dataVencimento)}</p>
                             {ar.pagoEm && <p className="text-xs text-muted-foreground">Pago: {fmtDate(ar.pagoEm)}</p>}
@@ -453,6 +563,16 @@ export default function FinancePage() {
                                   className="px-2 py-1 rounded-lg bg-gray-100 hover:bg-red-100 text-gray-500 hover:text-red-600 text-xs font-semibold transition-colors"
                                 >
                                   ✕
+                                </button>
+                              )}
+                              {ar.status === 'pago' && (
+                                <button
+                                  type="button"
+                                  onClick={() => setBreakdownModal(ar)}
+                                  data-testid={`button-breakdown-ar-${ar.id}`}
+                                  className="px-2 py-1 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold transition-colors"
+                                >
+                                  Composição
                                 </button>
                               )}
                             </div>
