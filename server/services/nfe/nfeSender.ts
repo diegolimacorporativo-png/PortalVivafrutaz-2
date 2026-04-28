@@ -29,6 +29,34 @@ function getSefazUrl(uf: string, ambiente: '1' | '2'): string {
   return ambiente === '1' ? urls.producao : urls.homologacao;
 }
 
+/**
+ * FASE NF.7.2 — leitura defensiva do tpAmb a partir do XML assinado.
+ * O XML é a fonte da verdade (já assinado); se o caller passar um ambiente
+ * divergente, prevalece o que está no XML para evitar enviar para o ambiente
+ * errado (ex.: XML tpAmb=2 indo para URL de produção).
+ * Retorna null quando o XML não traz <tpAmb> reconhecível.
+ */
+function detectarAmbienteFromXml(xml: string): '1' | '2' | null {
+  const m = xml.match(/<tpAmb>\s*([12])\s*<\/tpAmb>/);
+  if (!m) return null;
+  return m[1] === '1' ? '1' : '2';
+}
+
+/**
+ * FASE NF.7.2 — resposta MOCK padronizada nesta camada.
+ * Mantém o fallback seguro mesmo se a rota legada for chamada
+ * com NFE_SEFAZ_MODE=mock (preserva o comportamento atual).
+ */
+function mockResponse(): NFeRetornoSEFAZ {
+  return {
+    status: 'autorizada',
+    cStat: '100',
+    xMotivo: 'Autorizado o uso da NF-e [MOCK]',
+    protocolo: `MOCK-${Date.now()}`,
+    dataAutorizacao: new Date().toISOString(),
+  };
+}
+
 function buildSoap(xmlNFe: string, idLote: string): string {
   return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Header><nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><cUF>35</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap12:Header><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><enviNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${xmlNFe}</enviNFe></nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 }
@@ -62,7 +90,38 @@ export async function enviarNFeSEFAZ(
   certPem?: string,
   certKey?: string
 ): Promise<NFeRetornoSEFAZ> {
-  const url = getSefazUrl(uf, ambiente);
+  // FASE NF.7.2 — fallback MOCK preservado nesta camada.
+  // Quando NFE_SEFAZ_MODE=mock, NÃO chama SEFAZ real, retorna autorização
+  // simulada. Mantém o comportamento atual mesmo se chamado pela rota legada.
+  const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
+  if (sefazMode === 'mock') {
+    console.info('[NFE_SEFAZ_MOCK]', { uf, ambienteRequest: ambiente });
+    return mockResponse();
+  }
+
+  // FASE NF.7.2 — reconciliação de ambiente: o XML é a fonte da verdade
+  // (já assinado). Se vier divergente do parâmetro, usa o do XML e loga.
+  const ambienteXml = detectarAmbienteFromXml(xmlAssinado);
+  const ambienteFinal: '1' | '2' = ambienteXml ?? ambiente;
+  if (ambienteXml && ambienteXml !== ambiente) {
+    console.warn('[NFE_SEFAZ_AMBIENTE_DIVERGENTE]', {
+      ambienteParametro: ambiente,
+      ambienteXml,
+      decisao: `usando tpAmb do XML (${ambienteFinal})`,
+    });
+  }
+
+  // FASE NF.7.2 — resolução estrita da URL por UF + ambiente.
+  const url = getSefazUrl(uf, ambienteFinal);
+  if (!url) {
+    throw new Error(`SEFAZ não configurada para UF: ${uf}`);
+  }
+  console.info('[NFE_SEFAZ_DISPATCH]', {
+    uf: uf.toUpperCase(),
+    ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
+    url,
+  });
+
   const idLote = String(Date.now()).slice(-15);
   const soap = buildSoap(xmlAssinado, idLote);
 
