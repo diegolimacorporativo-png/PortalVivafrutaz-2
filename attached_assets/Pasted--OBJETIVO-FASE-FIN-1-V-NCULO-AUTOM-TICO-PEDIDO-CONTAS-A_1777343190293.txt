@@ -1,0 +1,201 @@
+🎯 OBJETIVO: FASE FIN.1 — VÍNCULO AUTOMÁTICO PEDIDO → CONTAS A RECEBER (AR)
+
+Criar geração automática de contas a receber a partir de pedidos, sem alterar lógica existente e sem quebrar fluxo financeiro atual.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO refatorar código existente  
+2. NÃO remover rotas legacy  
+3. NÃO alterar comportamento atual do FinanceService  
+4. NÃO alterar estrutura de resposta de endpoints  
+5. NÃO tocar em storage.ts  
+6. NÃO alterar frontend nesta fase  
+
+👉 Apenas ADICIONAR automação segura e isolada
+
+---
+
+🧠 CONTEXTO (já existe)
+
+✔ Tabela accounts_receivable com campo orderId  
+✔ FinanceService.createAccountReceivable já funcional (com PIX)  
+✔ OrdersService controla criação/fluxo de pedidos  
+✔ Conciliação bancária já marca AR como paga  
+❌ NÃO existe criação automática de AR a partir de pedido  
+❌ Pedido NÃO sabe se foi pago  
+
+---
+
+⚠️ PROBLEMA
+
+Hoje:
+- Pedido é criado/aprovado
+- MAS nenhuma conta a receber é gerada automaticamente
+
+Resultado:
+- Financeiro manual
+- Alto risco de erro
+- Sem rastreabilidade Order → Pagamento
+
+---
+
+📦 ESCOPO FIN.1
+
+👉 Criar AR automaticamente quando pedido atingir estado válido
+
+SEM alterar o fluxo atual manual
+
+---
+
+1️⃣ AUDITORIA (OBRIGATÓRIA — READ ONLY)
+
+Antes de implementar, o agent deve:
+
+- Localizar onde o pedido é considerado “confirmado” ou “válido para faturamento”
+  (ex: APPROVED, CONFIRMED, INVOICED)
+
+Buscar em:
+- server/modules/orders/orders.service.ts
+- server/modules/orders/orders.workflow.ts (se existir)
+
+Identificar:
+👉 ponto EXATO após validação e antes/after persistência final
+
+---
+
+2️⃣ DECISÃO
+
+Criar função ADITIVA:
+
+createReceivableFromOrder(orderId)
+
+Local:
+👉 server/modules/finance/finance.service.ts
+
+Motivo:
+✔ reutiliza lógica existente (PIX, validação, logs)
+✔ evita duplicação
+✔ mantém padrão do sistema
+
+---
+
+3️⃣ IMPLEMENTAÇÃO
+
+---
+
+3.1 NOVO MÉTODO (FinanceService)
+
+createReceivableFromOrder(orderId: number)
+
+Passos internos:
+
+1. Buscar pedido (repo existente)
+2. Validar:
+   - existe
+   - possui companyId
+   - possui valor total (totalValue ou equivalente)
+
+3. Verificar se já existe AR vinculada:
+   SELECT * FROM accounts_receivable WHERE orderId = ?
+
+👉 Se já existir → NÃO criar (idempotente)
+
+4. Criar AR usando método já existente:
+
+this.createAccountReceivable({
+  descricao: Pedido #${order.id},
+  valor: order.totalValue,
+  dataEmissao: hoje,
+  dataVencimento: (definir regra simples: hoje + 7 dias),
+  formaPagamento: "pix",
+  orderId: order.id
+})
+
+⚠️ NÃO duplicar lógica de PIX → deixar FinanceService cuidar
+
+---
+
+3.2 INTEGRAÇÃO COM ORDERS
+
+No ponto identificado na auditoria:
+
+Adicionar APENAS:
+
+await financeService.createReceivableFromOrder(order.id);
+
+✔ após validações
+✔ após garantir que pedido é válido
+✔ sem alterar retorno do método
+
+---
+
+3.3 LOG (IMPORTANTE)
+
+Adicionar log:
+
+console.log("[FINANCE] AR_CREATED_FROM_ORDER", {
+  orderId: order.id,
+  companyId: order.companyId
+});
+
+---
+
+4️⃣ CUIDADOS CRÍTICOS
+
+✔ NÃO quebrar fluxo manual (POST /accounts-receivable continua funcionando)
+
+✔ NÃO alterar pedidos existentes
+
+✔ NÃO criar AR duplicada (idempotência obrigatória)
+
+✔ NÃO depender de frontend
+
+✔ NÃO alterar banco
+
+---
+
+5️⃣ RESULTADO ESPERADO
+
+Cenário	Resultado
+
+Criar pedido válido	AR criada automaticamente ✔  
+Criar pedido já com AR	NÃO duplica ✔  
+Fluxo manual financeiro	continua funcionando ✔  
+Conciliação bancária	continua funcionando ✔  
+Frontend atual	sem impacto ✔  
+
+---
+
+6️⃣ VALIDAÇÃO FINAL
+
+Responder com:
+
+1. Ponto exato onde foi integrado no OrdersService  
+2. Código do método createReceivableFromOrder  
+3. Trecho onde foi chamado  
+4. Garantia de idempotência  
+5. Confirmação de zero regressão  
+
+---
+
+📌 IMPORTANTE
+
+Essa fase NÃO resolve:
+
+❌ paymentStatus no pedido  
+❌ integração visual no frontend  
+❌ importação bancária  
+
+👉 Isso será FIN.2, FIN.3...
+
+---
+
+✅ FINAL
+
+Se implementado corretamente:
+
+- Pedido passa a gerar financeiro automaticamente  
+- Sistema vira ERP real (não só operacional)  
+- Base pronta para conciliação automática com
