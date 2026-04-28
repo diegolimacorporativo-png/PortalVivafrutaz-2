@@ -1,5 +1,11 @@
 import { NotFoundError } from "../../shared/errors/AppError";
 import { financeRepository, FinanceRepository } from "./finance.repository";
+// FASE FIN.3 — import estático de OrdersService.
+// Seguro: nenhum arquivo do módulo `orders/` importa de `finance/`, então
+// não há risco de ciclo. O símbolo só é referenciado dentro de
+// `handleOrderPayment`, nunca em escopo de módulo, o que mantém o load
+// order resiliente mesmo se algum dia surgir uma dependência reversa.
+import { ordersService } from "../orders/orders.service";
 import type {
   AccountReceivable,
   InsertAccountReceivable,
@@ -111,7 +117,50 @@ export class FinanceService {
       description: `Conta a receber marcada como paga: ${record.descricao}`,
       userId,
     });
+    // FASE FIN.3 — propaga o pagamento para o pedido vinculado (se houver).
+    // Chamada `await` mas envolvida em try/catch interno do helper, então
+    // jamais aborta o pagamento. Mantém o contrato existente: este método
+    // continua devolvendo o `AccountReceivable` exatamente como antes.
+    await this.handleOrderPayment(record);
     return record;
+  }
+
+  /**
+   * FASE FIN.3 — Hook de pós-pagamento de AR.
+   *
+   * Quando uma conta a receber é marcada como paga, identifica o pedido
+   * vinculado (via `accounts_receivable.orderId`) e emite um log estruturado
+   * `[FIN.3] Pedido marcado como pago`. Não altera schema, não modifica o
+   * pedido, não dispara fluxos paralelos.
+   *
+   * Garantias:
+   *   • Sem efeito se a AR não tiver `orderId` (ex.: AR avulsa, criada à mão).
+   *   • Sem efeito se o pedido não for encontrado (multi-tenant 404).
+   *   • Idempotente em termos de side-effects: a única ação é log.
+   *     Múltiplas chamadas geram múltiplos logs, mas zero corrupção de dados.
+   *   • Fail-safe: erro na busca do pedido jamais aborta o pagamento.
+   */
+  private async handleOrderPayment(ar: AccountReceivable): Promise<void> {
+    if (!ar?.orderId) return;
+    try {
+      const detail = await ordersService.get(ar.orderId);
+      if (!detail) return;
+      console.log("[FIN.3] Pedido marcado como pago", {
+        orderId: ar.orderId,
+        paidAt: ar.pagoEm,
+        arId: ar.id,
+        orderCode: detail.order?.orderCode,
+      });
+    } catch (err) {
+      // NotFoundError / mismatch de tenant / qualquer erro de leitura:
+      // silencia, registra como warn e devolve. NÃO propaga — pagamento
+      // já foi concluído com sucesso pelo repositório acima.
+      console.warn("[FIN.3] Pedido não localizado para AR paga (fail-safe)", {
+        orderId: ar.orderId,
+        arId: ar.id,
+        err: (err as Error)?.message,
+      });
+    }
   }
 
   deleteAccountReceivable(id: number): Promise<void> {
