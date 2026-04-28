@@ -9,6 +9,8 @@ import {
 import { getIcmsSummary } from "../../services/nfe/icms-summary.service";
 // FASE NF.7.9.2 — fechamento mensal fiscal (TRAVAR PERÍODO).
 import { closePeriod } from "../../services/fiscal/fiscal-closure.service";
+// FASE NF.7.9.8 — listagem read-only de meses fiscais já fechados.
+import { listClosedPeriods } from "../../services/fiscal/fiscal-closure.query";
 
 /**
  * Fiscal module controller — thin HTTP layer over services/nf.draft.ts.
@@ -196,5 +198,19 @@ export const fiscalController = {
     }
     await closePeriod(empresaId, y, m);
     return res.json({ success: true, year: y, month: m });
+  },
+
+  // FASE NF.7.9.8 — GET /api/fiscal/closures
+  // Lista os meses fiscais já fechados para o tenant atual. Read-only,
+  // multi-tenant isolado (empresaId vem do withTenantScope). Mesmo padrão
+  // de envelope { success, data } do projeto. Sem cache, sem paginação,
+  // sem reopen — apenas exposição da tabela `fiscal_closures`.
+  async listClosures(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | undefined;
+    if (!empresaId) {
+      return res.status(400).json({ error: "tenant_required" });
+    }
+    const data = await listClosedPeriods(empresaId);
+    return res.json({ success: true, data });
   },
 };

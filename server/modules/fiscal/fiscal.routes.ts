@@ -86,4 +86,13 @@ router.post(
   asyncHandler(fiscalController.closePeriod),
 );
 
+// FASE NF.7.9.8 — GET /api/fiscal/closures
+// Lista os meses fiscais já fechados para o tenant logado. Read-only,
+// herda requireAuth + withTenantScope. Aditivo — base para o badge
+// persistente do frontend (próxima fase).
+router.get(
+  "/closures",
+  asyncHandler(fiscalController.listClosures),
+);
+
 export const fiscalRouter = router;

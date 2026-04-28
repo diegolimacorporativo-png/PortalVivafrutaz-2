@@ -1,0 +1,132 @@
+🎯 OBJETIVO: FASE NF.7.9.8 — LISTAGEM DE MESES FECHADOS (BACKEND + BASE PARA UI)
+
+Criar endpoint para listar períodos já fechados (fiscal_closures), sem alterar comportamento atual.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO refatorar arquivos existentes  
+4. NÃO alterar endpoints já existentes  
+5. NÃO alterar schema (já existe fiscal_closures)  
+6. Apenas ADIÇÃO de código  
+7. Reaproveitar db + schema existentes  
+
+---
+
+🧠 CONTEXTO
+
+- Tabela fiscal_closures já existe
+- closePeriod já insere registros
+- isPeriodClosed já faz leitura (EXISTS)
+- NÃO existe endpoint para listar períodos fechados
+- Frontend NF.7.9.4 usa estado de sessão (não persistente)
+
+👉 Esta fase cria a BASE para persistência real no frontend
+
+---
+
+📦 TAREFAS
+
+---
+
+1️⃣ CRIAR SERVICE (READ-ONLY)
+
+Arquivo (NOVO):
+server/services/fiscal/fiscal-closure.query.ts
+
+Adicionar:
+
+ts import { db } from "@/db"; import { fiscalClosures } from "@/shared/schema"; import { eq, desc } from "drizzle-orm";  export async function listClosedPeriods(companyId: number) {   if (!Number.isInteger(companyId) || companyId <= 0) return [];    const rows = await db     .select({       year: fiscalClosures.year,       month: fiscalClosures.month,       closedAt: fiscalClosures.closedAt,     })     .from(fiscalClosures)     .where(eq(fiscalClosures.companyId, companyId))     .orderBy(desc(fiscalClosures.year), desc(fiscalClosures.month));    return rows; } 
+
+✔ Read-only  
+✔ Sem lógica nova  
+✔ Mesmo padrão do projeto  
+✔ Fail-safe (company inválida → [])
+
+---
+
+2️⃣ CRIAR ENDPOINT
+
+Arquivo:
+server/modules/fiscal/fiscal.routes.ts
+
+Adicionar rota:
+
+ts router.get(   "/closures",   asyncHandler(fiscalController.listClosures), ); 
+
+✔ Mesma proteção:
+- requireAuth
+- withTenantScope
+
+---
+
+3️⃣ CONTROLLER
+
+Arquivo:
+server/modules/fiscal/fiscal.controller.ts
+
+Adicionar método:
+
+ts import { listClosedPeriods } from "@/services/fiscal/fiscal-closure.query";  async listClosures(req: Request, res: Response) {   const empresaId = (req as any).empresaId as number | undefined;    if (!empresaId) {     return res.status(400).json({ error: "tenant_required" });   }    const data = await listClosedPeriods(empresaId);    return res.json({     success: true,     data,   }); } 
+
+---
+
+4️⃣ FORMATO DE RESPOSTA
+
+json {   "success": true,   "data": [     { "year": 2026, "month": 4, "closedAt": "2026-04-27T21:10:00Z" },     { "year": 2026, "month": 3, "closedAt": "2026-04-10T18:00:00Z" }   ] } 
+
+✔ Compatível com frontend futuro  
+✔ Não altera padrão { success, data }
+
+---
+
+5️⃣ (IMPORTANTE) NÃO FAZER AINDA
+
+❌ NÃO integrar no frontend  
+❌ NÃO alterar badge atual (NF.7.9.4)  
+❌ NÃO criar cache  
+❌ NÃO criar reopenPeriod  
+❌ NÃO validar duplicidade  
+
+👉 Esta fase é apenas EXPOSIÇÃO DE DADOS
+
+---
+
+6️⃣ TESTES MANUAIS
+
+GET /api/fiscal/closures
+
+Cenário	Resultado esperado
+Sem tenant	400 tenant_required
+Sem fechamentos	{ success: true, data: [] }
+Com fechamentos	Lista ordenada desc (mais recente primeiro)
+Multi-tenant isolado	Só retorna dados da empresa logada
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ Backend passa a expor meses fechados  
+✔ Nenhum comportamento existente alterado  
+✔ Base pronta para UI persistente  
+✔ Zero impacto no fluxo atual  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. arquivo criado  
+2. endpoint criado  
+3. código adicionado  
+4. confirmação de zero regressão  
+
+---
+
+🚀 PRÓXIMA FASE (não implementar agora)
+
+NF.7.9.9 — Badge persistente (usando
