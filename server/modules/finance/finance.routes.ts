@@ -62,6 +62,14 @@ router.delete(
   validateRequest(idParamSchema, "params"),
   asyncHandler(financeController.deleteAccountReceivable),
 );
+// FASE 6.5 — breakdown de pagamento (principal + juros + multa + desconto).
+// Read-only, mesma cadeia de auth + tenant scope; idParamSchema reusa a
+// validação numérica das outras rotas de :id.
+router.get(
+  "/accounts-receivable/:id/breakdown",
+  validateRequest(idParamSchema, "params"),
+  asyncHandler(financeController.getReceivableBreakdown),
+);
 
 // ── Accounts Payable ─────────────────────────────────────────────────────
 router.get(

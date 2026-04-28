@@ -58,6 +58,12 @@ export class FinanceController {
     return ok(res, await this.service.getPixForReceivable(id));
   };
 
+  // FASE 6.5 — handler thin: id já validado pela validação de rota.
+  getReceivableBreakdown = async (req: Request, res: Response) => {
+    const id = Number((req.params as any).id);
+    return ok(res, await this.service.getReceivableBreakdown(id));
+  };
+
   // ── Accounts Payable ───────────────────────────────────────────────────
   listAccountsPayable = async (req: Request, res: Response) => {
     return ok(res, await this.service.listAccountsPayable(req.query as any));

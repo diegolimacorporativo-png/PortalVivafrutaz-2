@@ -1,0 +1,89 @@
+🎯 OBJETIVO: FASE 6.5 — BREAKDOWN DE PAGAMENTO (AR)
+
+Exibir composição completa de um pagamento (principal + juros + multa + desconto).
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema
+2. NÃO alterar inserts existentes
+3. NÃO alterar lógica de pagamento
+4. Apenas LEITURA e AGREGAÇÃO
+
+---
+
+🧠 CONTEXTO
+
+FASE 6.3 criou múltiplas linhas por pagamento:
+
+- principal
+- juros
+- multa
+- desconto
+
+FASE 6.4 removeu essas linhas do fluxo principal
+
+👉 agora precisamos expor isso de forma estruturada
+
+---
+
+# 📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. CRIAR MÉTODO NO REPOSITORY
+
+📍 finance.repository.ts
+
+---
+
+ts async getReceivableBreakdown(id: number) {   const rows = await db     .select()     .from(financialTransactions)     .where(       and(         eq(financialTransactions.referenciaId, id),         eq(financialTransactions.referenciaTipo, "receivable"),         tenantWhere(financialTransactions)       )     );    let principal = 0;   let juros = 0;   let multa = 0;   let desconto = 0;    for (const row of rows) {     const valor = Number(row.valor);      if (row.descricao?.startsWith("[JUROS_CNAB]")) {       juros += valor;     } else if (row.descricao?.startsWith("[MULTA_CNAB]")) {       multa += valor;     } else if (row.descricao?.startsWith("[DESCONTO_CNAB]")) {       desconto += valor;     } else {       principal += valor;     }   }    return {     principal,     juros,     multa,     desconto,     totalRecebido: principal,     totalLiquido: principal + juros + multa - desconto,   }; } 
+
+---
+
+## 🔴 2. CRIAR ENDPOINT
+
+📍 routes.ts
+
+---
+
+ts app.get('/api/finance/receivables/:id/breakdown', tenantContext, async (req, res) => {   if (!requireAuth(req, res)) return;    try {     const id = Number(req.params.id);      const data = await financeRepository.getReceivableBreakdown(id);      res.status(200).json(data);   } catch (err) {     console.error('[BREAKDOWN_ERROR]', err);     res.status(500).json({ message: 'Erro ao obter breakdown' });   } }); 
+
+---
+
+# 📊 RESPONSE ESPERADO
+
+json {   "principal": 1000,   "juros": 30,   "multa": 20,   "desconto": 0,   "totalRecebido": 1050,   "totalLiquido": 1050 } 
+
+---
+
+# 🧪 TESTE
+
+1. Processar CNAB com juros/multa/desconto
+2. Chamar endpoint
+
+bash GET /api/finance/receivables/123/breakdown 
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO alterar financial_transactions
+- NÃO recalcular valores no banco
+- NÃO mudar comportamento do sistema
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. método criado
+2. endpoint criado
+3. exemplo de resposta real
+4. confirmação de zero regressão
+
+---
+
+🔥 IMPACTO: TRANSPARÊNCIA TOTAL PARA O USUÁRIO

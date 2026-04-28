@@ -194,6 +194,16 @@ export class FinanceService {
     };
   }
 
+  /**
+   * FASE 6.5 — pass-through puro. O service não tem regra de negócio aqui:
+   * a decomposição é determinada pelos prefixos de `descricao` que a FASE
+   * 6.3 grava e pelos totais que a FASE 6.1 inscreve. Qualquer agregação
+   * adicional (ex: status do título, parcelas) deve entrar em outra fase.
+   */
+  async getReceivableBreakdown(id: number) {
+    return this.repo.getReceivableBreakdown(id);
+  }
+
   // ── Accounts Payable ───────────────────────────────────────────────────
   listAccountsPayable(filter: AccountsPayableFilter): Promise<AccountPayable[]> {
     return this.repo.listAccountsPayable(filter);

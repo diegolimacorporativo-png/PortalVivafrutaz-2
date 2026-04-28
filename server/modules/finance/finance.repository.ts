@@ -311,6 +311,88 @@ export class FinanceRepository {
       .where(and(eq(accountsPayable.id, id), tenantWhere(accountsPayable)));
   }
 
+  /**
+   * FASE 6.5 — Decompõe um título recebível em principal + juros + multa +
+   * desconto + totais, lendo APENAS a tabela `financial_transactions` (zero
+   * mutação, zero recálculo de banco).
+   *
+   * Como funciona:
+   *   • Lê todas as linhas com `referenciaTipo='receivable'` e
+   *     `referenciaId=id` no tenant atual (intencional: NÃO usa o filtro
+   *     `isLinhaAcessoriaCNAB` da FASE 6.4 — aqui o detalhe completo é
+   *     justamente o ponto).
+   *   • Classifica cada linha pelo prefixo da `descricao` gravado pela
+   *     FASE 6.3 ([JUROS_CNAB] / [MULTA_CNAB] / [DESCONTO_CNAB]); o resto
+   *     é tratado como linha principal de recebimento.
+   *   • Reconstrói o "principal nominal" subtraindo juros/multa e somando
+   *     desconto: a FASE 6.1 grava `principalLine = valorPago` (= nominal
+   *     + juros + multa - desconto na fórmula CNAB padrão), então
+   *     `nominal = principalLine - juros - multa + desconto`. Quando não
+   *     há linhas acessórias (fluxo manual / pré-FASE 6.3), o cálculo
+   *     colapsa em `principal = principalLine`, totais batendo com o que
+   *     já existia — backward-compat total.
+   *
+   * Tenant-safe: o `tenantAnd` enforça empresaId, igual a todas as demais
+   * leituras. AR de outro tenant retorna { principal: 0, ... } sem 404
+   * para evitar enumeração cross-tenant — quem chama checa ele mesmo se
+   * o título existe via `getAccountReceivable(id)` se quiser distinguir.
+   */
+  async getReceivableBreakdown(id: number): Promise<{
+    principal: number;
+    juros: number;
+    multa: number;
+    desconto: number;
+    totalRecebido: number;
+    totalLiquido: number;
+  }> {
+    const rows = await db
+      .select()
+      .from(financialTransactions)
+      .where(
+        tenantAnd(
+          financialTransactions,
+          eq(financialTransactions.referenciaId, id),
+          eq(financialTransactions.referenciaTipo, "receivable"),
+        ),
+      );
+
+    let principalLine = 0;
+    let juros = 0;
+    let multa = 0;
+    let desconto = 0;
+
+    for (const row of rows) {
+      const valor = Number(row.valor);
+      if (!Number.isFinite(valor)) continue;
+      const desc = row.descricao ?? "";
+      if (desc.startsWith("[JUROS_CNAB]")) {
+        juros += valor;
+      } else if (desc.startsWith("[MULTA_CNAB]")) {
+        multa += valor;
+      } else if (desc.startsWith("[DESCONTO_CNAB]")) {
+        desconto += valor;
+      } else {
+        principalLine += valor;
+      }
+    }
+
+    const principal = principalLine - juros - multa + desconto;
+    const totalRecebido = principal + juros + multa;
+    const totalLiquido = totalRecebido - desconto;
+
+    // Arredondamento para 2 casas blinda contra ruído de ponto flutuante
+    // (ex: 30 + 20 = 50.00000001 quando vindo de cents/100 múltiplos).
+    const round2 = (n: number) => Math.round(n * 100) / 100;
+    return {
+      principal: round2(principal),
+      juros: round2(juros),
+      multa: round2(multa),
+      desconto: round2(desconto),
+      totalRecebido: round2(totalRecebido),
+      totalLiquido: round2(totalLiquido),
+    };
+  }
+
   // ── Cashflow ───────────────────────────────────────────────────────────
   /**
    * FASE 6.4 — Predicado que identifica linhas acessórias do CNAB
