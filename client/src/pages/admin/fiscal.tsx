@@ -1032,15 +1032,31 @@ function IcmsSummarySection() {
           <div className="flex flex-wrap gap-2">
             {closuresData.data.map((c) => {
               const label = `${String(c.month).padStart(2, '0')}/${c.year}`;
+              // FASE NF.7.9.12 — destaque do período atualmente filtrado.
+              // Reaproveita `periodToClose` (mesma derivação YYYY-MM já
+              // usada pelo botão "Fechar mês") sem duplicar lógica de
+              // datas. Sem filtro / filtro em mês aberto → null/false.
+              const isSelected = Boolean(
+                periodToClose &&
+                  c.year === periodToClose.year &&
+                  c.month === periodToClose.month,
+              );
               return (
                 <span
                   key={`${c.year}-${c.month}`}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-red-300 text-red-700 bg-white"
+                  className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border ${
+                    isSelected
+                      ? 'bg-red-600 text-white border-red-700'
+                      : 'bg-white text-red-700 border-red-300'
+                  }`}
                   data-testid={`badge-closed-${c.year}-${c.month}`}
                   title={`Fechado em ${new Date(c.closedAt).toLocaleDateString('pt-BR')}`}
                 >
                   <Lock className="w-3 h-3" />
                   {label}
+                  {isSelected && (
+                    <span className="ml-1 text-[9px] font-bold">ATUAL</span>
+                  )}
                 </span>
               );
             })}

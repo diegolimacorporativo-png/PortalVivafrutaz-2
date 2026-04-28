@@ -1,0 +1,138 @@
+🎯 FASE NF.7.9.12 — DESTAQUE DO PERÍODO SELECIONADO (UX)
+
+---
+
+🚨 OBJETIVO
+
+Destacar visualmente, na lista de meses fechados, qual período está atualmente selecionado no filtro.
+
+👉 Usa periodToClose (já existente)  
+👉 Usa closuresData (já existente)  
+👉 ZERO backend  
+👉 ZERO nova query  
+
+---
+
+📋 REGRAS
+
+1. NÃO alterar backend  
+2. NÃO alterar endpoints  
+3. NÃO refatorar componente  
+4. NÃO duplicar lógica de data  
+5. Apenas melhoria visual (UI)  
+6. Reaproveitar periodToClose (linha ~716)  
+
+---
+
+🧠 AUDITORIA
+
+Já existe:
+
+const periodToClose = ... // { year, month } | null  
+const { data: closuresData } = useQuery(['/api/fiscal/closures'])
+
+Lista renderizada:
+
+closuresData.data.map((c) => ...)
+
+---
+
+🛠️ IMPLEMENTAÇÃO
+
+📍 LOCAL
+
+Mesmo bloco da NF.7.9.11 (lista de meses fechados)
+
+---
+
+📦 CÓDIGO ADICIONADO
+
+Dentro do .map():
+
+const isSelected =
+  periodToClose &&
+  c.year === periodToClose.year &&
+  c.month === periodToClose.month;
+
+---
+
+ALTERAR o <span> existente para:
+
+<span
+  key={${c.year}-${c.month}}
+  className={px-2 py-1 text-[10px] font-semibold rounded-md border     ${isSelected       ? 'bg-red-600 text-white border-red-700'       : 'bg-white text-red-700 border-red-300'     }}
+  data-testid={badge-closed-${c.year}-${c.month}}
+  title={Fechado em ${new Date(c.closedAt).toLocaleDateString()}}
+>
+  🔒 {String(c.month).padStart(2, '0')}/{c.year}
+</span>
+
+---
+
+(OPCIONAL — RECOMENDADO)
+
+Adicionar label visual:
+
+{isSelected && (
+  <span className="ml-1 text-[9px] font-bold">ATUAL</span>
+)}
+
+---
+
+🎨 RESULTADO VISUAL
+
+Antes:
+
+[ 🔒 03/2026 ] [ 🔒 04/2026 ] [ 🔒 05/2026 ]
+
+Depois:
+
+[ 🔒 03/2026 ] [ 🔒 04/2026 (ATUAL) ] [ 🔒 05/2026 ]
+
+ou com destaque forte:
+
+[ 🔒 04/2026 ]  ← fundo vermelho, texto branco
+
+---
+
+📊 COMPORTAMENTO
+
+Cenário	Resultado
+Sem filtro selecionado	Nenhum destaque ✔
+Filtro em mês aberto	Nenhum destaque ✔
+Filtro em mês fechado	Destaque aparece ✔
+Troca de período	Destaque muda automaticamente ✔
+Reload	Persistente (deriva do filtro + closuresData) ✔
+
+---
+
+🛡️ ZERO REGRESSÃO
+
+✔ Backend: intocado  
+✔ Queries: nenhuma nova  
+✔ closuresData: reutilizado  
+✔ periodToClose: reutilizado  
+✔ Lista NF.7.9.11: intacta (apenas estilização)  
+✔ Badge do topo (NF.7.9.9): intacto  
+✔ Botões: intactos  
+✔ Filtros: intactos  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. trecho exato alterado no map  
+2. confirmação visual (antes/depois)  
+3. confirmação de zero regressão  
+
+---
+
+🚀 IMPACTO
+
+Isso elimina dúvida do usuário:
+
+👉 "Esse mês que estou vendo já está fechado?"
+
+Resposta visual imediata.
