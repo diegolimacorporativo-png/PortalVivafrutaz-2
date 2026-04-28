@@ -35,12 +35,18 @@ router.use(requireAuth, withTenantScope);
 // ── Dashboard ────────────────────────────────────────────────────────────
 router.get("/dashboard", asyncHandler(financeController.getDashboard));
 
-// ── NF-e Monitoring (FASE NF.7.5) ────────────────────────────────────────
+// ── NF-e Monitoring (FASE NF.7.5/7.6) ────────────────────────────────────
 // Read-only: count of issued NF-e grouped by emitter UF (extracted from XML).
 // Useful for prioritizing the next batch of SEFAZ webservice URLs to map.
 router.get(
   "/nfe/resumo-por-uf",
   asyncHandler(financeController.getNfeResumoPorUF),
+);
+// Read-only: count of issued NF-e grouped by fiscal status (gerada,
+// autorizada, rejeitada, etc.) for pipeline diagnostics.
+router.get(
+  "/nfe/resumo-por-status",
+  asyncHandler(financeController.getNfeResumoPorStatus),
 );
 
 // ── Accounts Receivable ──────────────────────────────────────────────────

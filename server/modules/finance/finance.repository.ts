@@ -639,6 +639,34 @@ export class FinanceRepository {
       }))
       .sort((a, b) => b.total - a.total);
   }
+
+  // FASE NF.7.5/7.6 — resumo de NF-e agrupadas pelo status fiscal atual.
+  //
+  // Apenas leitura. Usa o `status` que a própria emissão já grava em
+  // `nfe_emissoes.status` (gerada | assinada | enviada | autorizada |
+  // rejeitada | erro | cancelada | denegada — definidos em shared/schema.ts
+  // L1066-1077). Não criamos novos status nem mudamos os existentes.
+  //
+  // Tenant scope via JOIN com `orders.companyId`, idêntico ao
+  // getNfeResumoPorUF (nfe_emissoes não tem companyId próprio).
+  async getNfeResumoPorStatus(): Promise<{ status: string; total: number }[]> {
+    const rows = await db
+      .select({
+        status: nfeEmissoes.status,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(nfeEmissoes)
+      .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))
+      .where(eq(orders.companyId, requireTenantId()))
+      .groupBy(nfeEmissoes.status);
+
+    return rows
+      .map((r) => ({
+        status: r.status ?? 'N/D',
+        total: Number(r.total) || 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }
 }
 
 export const financeRepository = new FinanceRepository();

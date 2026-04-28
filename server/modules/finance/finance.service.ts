@@ -73,6 +73,11 @@ export class FinanceService {
     return this.repo.getNfeResumoPorUF();
   }
 
+  // FASE NF.7.6 — pass-through; status já é coluna nativa de nfe_emissoes.
+  getNfeResumoPorStatus() {
+    return this.repo.getNfeResumoPorStatus();
+  }
+
   // ── Accounts Receivable ────────────────────────────────────────────────
   listAccountsReceivable(filter: AccountsReceivableFilter): Promise<AccountReceivable[]> {
     return this.repo.listAccountsReceivable(filter);

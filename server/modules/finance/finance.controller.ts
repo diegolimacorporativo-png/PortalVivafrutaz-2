@@ -31,6 +31,11 @@ export class FinanceController {
     return ok(res, await this.service.getNfeResumoPorUF());
   };
 
+  // FASE NF.7.6 — handler thin: leitura pura agrupada por status fiscal.
+  getNfeResumoPorStatus = async (_req: Request, res: Response) => {
+    return ok(res, await this.service.getNfeResumoPorStatus());
+  };
+
   // ── Accounts Receivable ────────────────────────────────────────────────
   listAccountsReceivable = async (req: Request, res: Response) => {
     return ok(res, await this.service.listAccountsReceivable(req.query as any));

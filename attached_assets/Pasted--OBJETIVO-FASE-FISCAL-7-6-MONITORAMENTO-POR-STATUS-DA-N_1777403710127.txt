@@ -1,0 +1,143 @@
+🎯 OBJETIVO: FASE FISCAL 7.6 — MONITORAMENTO POR STATUS DA NF-e
+
+Criar visão consolidada dos status das NF-e já existentes no sistema.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema  
+2. NÃO alterar emissão  
+3. NÃO alterar envio SEFAZ  
+4. NÃO criar novos status  
+5. NÃO mudar nomes existentes  
+
+👉 Apenas leitura e agregação
+
+---
+
+🧠 CONTEXTO
+
+- Tabela nfe_emissoes já possui campo status
+- Sistema já salva status (gerada, enviada, autorizada, rejeitada, etc.)
+- Hoje NÃO existe visão consolidada desses status
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. QUERY NO REPOSITORY
+
+📍 server/modules/finance/finance.repository.ts
+
+Adicionar:
+
+ts async getNfeResumoPorStatus(): Promise<   { status: string; total: number }[] > {   const rows = await db     .select({       status: nfeEmissoes.status,       total: sql<number>`count(*)::int`,     })     .from(nfeEmissoes)     .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))     .where(eq(orders.companyId, requireTenantId()))     .groupBy(nfeEmissoes.status);    return rows.map((r) => ({     status: r.status ?? "N/D",     total: Number(r.total) || 0,   })); } 
+
+---
+
+## 🔴 2. SERVICE (PASS-THROUGH)
+
+📍 server/modules/finance/finance.service.ts
+
+ts async getNfeResumoPorStatus() {   return this.repo.getNfeResumoPorStatus(); } 
+
+---
+
+## 🔴 3. CONTROLLER
+
+📍 server/modules/finance/finance.controller.ts
+
+ts async getNfeResumoPorStatus(req, res) {   const data = await this.service.getNfeResumoPorStatus();   res.json(data); } 
+
+---
+
+## 🔴 4. ROTA
+
+📍 server/modules/finance/finance.routes.ts
+
+ts router.get(   "/nfe/resumo-por-status",   requireAuth,   asyncHandler(controller.getNfeResumoPorStatus) ); 
+
+---
+
+## 🔴 5. FRONTEND
+
+📍 client/src/pages/admin/finance.tsx
+
+---
+
+### Query
+
+ts const { data: nfeStatus = [] } = useQuery({   queryKey: ["/api/finance/nfe/resumo-por-status"], }); 
+
+---
+
+### Card (logo abaixo do de UF)
+
+tsx <Card data-testid="card-nfe-status">   <CardHeader>Status das NF-e</CardHeader>   <CardContent>     {nfeStatus.length === 0 ? (       <div>Nenhuma NF-e encontrada</div>     ) : (       nfeStatus.map((s) => (         <div key={s.status}>           {s.status}: {s.total}         </div>       ))     )}   </CardContent> </Card> 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Com dados
+
+json [   { "status": "autorizada", "total": 15 },   { "status": "rejeitada", "total": 2 },   { "status": "pendente", "total": 3 } ] 
+
+---
+
+### 2️⃣ Sem dados
+
+json [] 
+
+✔ UI mostra: "Nenhuma NF-e encontrada"
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhuma escrita no banco  
+✔ Nenhuma mudança em emissão  
+✔ Nenhuma mudança no envio  
+✔ Nenhuma mudança em status existentes  
+✔ Totalmente multi-tenant seguro  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ Sem visibilidade de erros  
+❌ Não sabe se NF foi autorizada  
+
+Depois:
+
+✔ Quantas NF-e autorizadas  
+✔ Quantas rejeitadas  
+✔ Quantas pendentes  
+✔ Diagnóstico rápido de problemas  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. query criada  
+2. endpoint funcionando  
+3. tela exibindo status  
+4. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ Controle total do pipeline fiscal  
+✔ Identificação rápida de falhas  
+✔ Base para alertas automáticos  
+✔ Pronto para produção real

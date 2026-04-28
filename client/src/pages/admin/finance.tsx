@@ -375,6 +375,16 @@ export default function FinancePage() {
     : Array.isArray((nfeUfRaw as any)?.data)
       ? ((nfeUfRaw as any).data)
       : [];
+  // FASE NF.7.6 — resumo de NF-e por status fiscal (read-only).
+  const { data: nfeStatusRaw, isLoading: nfeStatusLoading } = useQuery<unknown>({
+    queryKey: ['/api/finance/nfe/resumo-por-status'],
+    refetchInterval: 60000,
+  });
+  const nfeStatusList: { status: string; total: number }[] = Array.isArray(nfeStatusRaw)
+    ? (nfeStatusRaw as any)
+    : Array.isArray((nfeStatusRaw as any)?.data)
+      ? ((nfeStatusRaw as any).data)
+      : [];
   const { data: arRaw, isLoading: arLoading, refetch: refetchAR } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-receivable', filterAR],
     queryFn: () => fetch(`/api/finance/accounts-receivable?status=${filterAR}`, { credentials: 'include' }).then(r => r.json()),
@@ -518,6 +528,58 @@ export default function FinancePage() {
         {nfeUfList.some((u) => u.usaFallback) && (
           <p className="mt-3 text-[11px] text-amber-700 dark:text-amber-400">
             UFs em âmbar usam o webservice de fallback (GO/SVRS). Mapear o webservice próprio dessas UFs aumenta a confiabilidade da transmissão.
+          </p>
+        )}
+      </div>
+
+      {/* FASE NF.7.6 — Monitoramento de NF-e por status fiscal */}
+      <div className="rounded-2xl border bg-card p-4" data-testid="card-nfe-status">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-blue-600" />
+            <h3 className="text-sm font-bold text-foreground">Status das NF-e</h3>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {nfeStatusList.length > 0 && `${nfeStatusList.reduce((s, x) => s + x.total, 0)} notas no total`}
+          </span>
+        </div>
+        {nfeStatusLoading ? (
+          <div className="text-center py-4 text-muted-foreground text-xs">Carregando...</div>
+        ) : nfeStatusList.length === 0 ? (
+          <div className="text-center py-4 text-muted-foreground text-xs" data-testid="text-nfe-status-empty">Nenhuma NF-e encontrada</div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {nfeStatusList.map((s) => {
+              const ok = s.status === 'autorizada';
+              const warn = s.status === 'pendente' || s.status === 'gerada' || s.status === 'assinada' || s.status === 'enviada';
+              const bad = s.status === 'rejeitada' || s.status === 'erro' || s.status === 'denegada';
+              const grey = s.status === 'cancelada' || s.status === 'N/D';
+              const tone = ok
+                ? 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                : bad
+                  ? 'border-red-300 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
+                  : warn
+                    ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
+                    : grey
+                      ? 'border-muted bg-muted/40 text-muted-foreground'
+                      : 'border-muted bg-muted/40 text-muted-foreground';
+              return (
+                <div
+                  key={s.status}
+                  data-testid={`nfe-status-${s.status}`}
+                  className={`rounded-xl border px-3 py-2 ${tone}`}
+                  title={`${s.total} NF-e com status "${s.status}"`}
+                >
+                  <span className="block text-[11px] font-bold uppercase tracking-wide opacity-80">{s.status}</span>
+                  <p className="text-base font-bold">{s.total}</p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {nfeStatusList.some((s) => s.status === 'rejeitada' || s.status === 'erro' || s.status === 'denegada') && (
+          <p className="mt-3 text-[11px] text-red-700 dark:text-red-400">
+            Há NF-e com falha de transmissão. Acesse a tela Fiscal para revisar o motivo (xMotivo) e reprocessar.
           </p>
         )}
       </div>
