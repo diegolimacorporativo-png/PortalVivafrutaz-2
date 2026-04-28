@@ -143,6 +143,11 @@ function applyItemGroupingInternal(
       ncm: first.ncm || fallbackNcm,
       cfop: first.cfop || fallbackCfop,
       cst: (first as any).cst || '00',
+      // FASE NF.7.8 — preserva flag de importado através do agrupamento.
+      // Critério: se QUALQUER item agrupado for importado, o item consolidado
+      // herda true (lado seguro fiscalmente — evita esconder importação).
+      // Comparação === true evita falso positivo de strings/numbers truthy.
+      importado: items.some((it: any) => it?.importado === true),
     },
   ];
 }

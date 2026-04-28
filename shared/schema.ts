@@ -151,6 +151,12 @@ export const products = pgTable("products", {
   ncm: text("ncm"), // Nomenclatura Comum do Mercosul, ex: "08039000"
   cfop: text("cfop"), // Código Fiscal de Operações, ex: "5102"
   commercialUnit: text("commercial_unit"), // Unidade comercial para NF, ex: "KG"
+  // FASE NF.7.8 — flag fiscal de produto importado.
+  // Quando true → ICMS calculado a 4% (Resolução 13/2012 do Senado), com
+  // PRIORIDADE sobre regra de UF. Default false garante zero quebra para
+  // todo o catálogo nacional. Sem .notNull() de propósito — campo opcional
+  // no insertProductSchema (admite payloads antigos sem este campo).
+  importado: boolean("importado").default(false),
   // Curiosidade educativa do produto
   curiosity: text("curiosity"),
   // Safra: indica se o produto está atualmente fora de safra/indisponível

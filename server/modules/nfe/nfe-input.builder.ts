@@ -326,6 +326,11 @@ export async function buildNFeInput(
       // usando csosn — comportamento garantido pelo branch da NF.5.1/NF.6 em
       // server/services/nfe/nfeGenerator.ts (linhas 206-208).
       cst: (item as any).cst || "00",
+      // FASE NF.7.8 — propaga flag de produto importado.
+      // Origem: products.importado (cadastro) → resolveBillingItems → aqui.
+      // Comparação === true evita falso positivo de "true"/1/"yes"/etc.
+      // Default false: produto antigo sem o campo segue regra normal de UF.
+      importado: (item as any).importado === true,
     };
   });
 

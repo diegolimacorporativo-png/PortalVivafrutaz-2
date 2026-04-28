@@ -1,0 +1,180 @@
+🎯 FASE NF.7.8 — ORIGEM DO PRODUTO (PERSISTÊNCIA SEGURA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar CST  
+3. NÃO alterar CSOSN  
+4. NÃO alterar cálculo fora de getAliquotaICMS  
+5. NÃO quebrar fluxo atual  
+6. NÃO obrigar campo novo  
+7. NÃO quebrar produtos existentes  
+8. NÃO alterar endpoints de resposta  
+
+👉 Apenas adicionar suporte opcional a produto.importado
+
+---
+
+🧠 OBJETIVO
+
+Permitir que o produto tenha:
+
+ts importado: boolean 
+
+E que isso flua automaticamente para:
+
+ts item.importado → getAliquotaICMS → ICMS 4% 
+
+---
+
+## 🛠️ ETAPA 1 — SCHEMA (DRIZZLE)
+
+Arquivo:
+
+shared/schema.ts
+
+---
+
+Adicionar na tabela products:
+
+ts importado: boolean("importado").default(false), 
+
+---
+
+⚠️ IMPORTANTE
+
+- default(false) garante zero quebra
+- NÃO tornar obrigatório
+
+---
+
+## 🛠️ ETAPA 2 — BACKEND (CREATE/UPDATE PRODUCT)
+
+Garantir que:
+
+ts importado?: boolean 
+
+seja aceito no payload
+
+---
+
+👉 NÃO validar fortemente  
+👉 apenas permitir passar
+
+---
+
+## 🛠️ ETAPA 3 — PROPAGAR PARA ITEM
+
+📍 Onde o item é montado (resolveBillingItems ou similar)
+
+Adicionar:
+
+ts importado: (product as any).importado || false, 
+
+---
+
+⚠️ NÃO remover nada existente  
+⚠️ apenas adicionar campo
+
+---
+
+## 🛠️ ETAPA 4 — COMPATIBILIDADE COM DRAFT
+
+Se vier manualmente:
+
+ts item.importado = true 
+
+👉 prioridade continua sendo do item (NF.7.7)
+
+---
+
+## 🛠️ ETAPA 5 — NÃO MEXER NO GENERATOR
+
+👉 getAliquotaICMS já suporta item.importado  
+👉 não alterar nada lá
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+---
+
+### 1️⃣ Produto não importado
+
+ts importado = false 
+
+✔ segue regra UF (18/12/7)
+
+---
+
+### 2️⃣ Produto importado
+
+ts importado = true 
+
+✔ pICMS = 4
+
+---
+
+### 3️⃣ Override manual
+
+ts item.importado = true product.importado = false 
+
+✔ pICMS = 4 (prioridade do item)
+
+---
+
+### 4️⃣ Produto antigo (sem campo)
+
+✔ tratado como false  
+✔ zero regressão
+
+---
+
+### 5️⃣ Simples Nacional
+
+✔ sem impacto
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero quebra de dados antigos  
+✔ compatível com NF.7.7  
+✔ permite controle real pelo cadastro  
+✔ fallback continua funcionando  
+✔ pronto para origem completa (0,1,2,3…)  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts produto → sem controle real 
+
+Depois:
+
+ts produto.importado = true → item.importado = true → ICMS = 4% 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Campo adicionado no schema  
+2. Onde importado foi aceito no backend  
+3. Onde foi propagado para item  
+4. Resultado dos testes  
+5. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO implementar origem completa ainda (0,1,2,3…)  
+👉 NÃO mexer em CST baseado nisso ainda  
+
+👉 isso v
