@@ -123,8 +123,73 @@ export class OrdersService {
   // ║ READS                                                            ║
   // ╚══════════════════════════════════════════════════════════════════╝
 
-  list(filter: OrdersListFilter = {}): Promise<Order[]> {
-    return this.repo.list(filter);
+  // ── FASE FIN.2 — Helpers de projeção de pagamento (somente leitura) ──
+  // Não mexe em nenhum fluxo financeiro nem em schema. Apenas deriva do AR
+  // já existente vinculado pelo `accounts_receivable.orderId`.
+  //
+  // Contrato fail-safe: qualquer erro/AR ausente retorna
+  // `{ isPaid: false, paidAt: null }` — assim a leitura de pedidos jamais
+  // quebra por causa do módulo financeiro.
+
+  /**
+   * FASE FIN.2 — Helper público. Retorna `true` somente quando existe AR
+   * vinculada ao pedido e seu status é exatamente `"pago"`.
+   *
+   * Garantias:
+   *   - Nunca lança erro (try/catch interno).
+   *   - Não altera estado, não dispara efeitos colaterais.
+   *   - Reusa `repo.getAccountReceivableByOrderId` (idempotente, multi-tenant).
+   */
+  async isOrderPaid(orderId: number): Promise<boolean> {
+    try {
+      const ar = await this.repo.getAccountReceivableByOrderId(orderId);
+      return Boolean(ar && ar.status === "pago");
+    } catch (err) {
+      console.warn("[FIN.2] isOrderPaid falhou (fail-safe → false)", {
+        orderId,
+        err: (err as Error)?.message,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * FASE FIN.2 — Helper privado. Retorna a projeção completa
+   * `{ isPaid, paidAt }` derivada do AR vinculado. Usado para enriquecer
+   * o response de `get()` / `list()` / `listByCompany()` sem alterar o
+   * schema de `orders`.
+   */
+  private async getPaymentProjection(
+    orderId: number,
+  ): Promise<{ isPaid: boolean; paidAt: Date | null }> {
+    try {
+      const ar = await this.repo.getAccountReceivableByOrderId(orderId);
+      if (!ar) return { isPaid: false, paidAt: null };
+      const isPaid = ar.status === "pago";
+      // `pagoEm` é `timestamp` no Drizzle → vem como Date | null. Defensivo
+      // para o caso de o driver entregar string em algum cenário legado.
+      const raw = (ar as any).pagoEm;
+      const paidAt =
+        raw instanceof Date ? raw : raw ? new Date(raw) : null;
+      return { isPaid, paidAt };
+    } catch (err) {
+      console.warn("[FIN.2] getPaymentProjection falhou (fail-safe)", {
+        orderId,
+        err: (err as Error)?.message,
+      });
+      return { isPaid: false, paidAt: null };
+    }
+  }
+
+  async list(filter: OrdersListFilter = {}): Promise<Order[]> {
+    const orders = await this.repo.list(filter);
+    // FASE FIN.2 — enriquece cada pedido com a projeção de pagamento.
+    // Promise.all paraleliza as N consultas. Fail-safe → nunca quebra
+    // a listagem, no pior caso devolve `isPaid:false, paidAt:null`.
+    const projections = await Promise.all(
+      (orders as any[]).map((o) => this.getPaymentProjection(o.id)),
+    );
+    return (orders as any[]).map((o, i) => ({ ...o, ...projections[i] }));
   }
 
   async get(id: number): Promise<OrderDetail> {
@@ -135,11 +200,19 @@ export class OrdersService {
       );
       throw new NotFoundError("Pedido não encontrado");
     }
-    return detail;
+    // FASE FIN.2 — projeção aditiva. Mantém `.order` e `.items` intactos
+    // (compat 100% com o frontend legado) e expõe `isPaid` + `paidAt` no
+    // mesmo nível para consumo direto.
+    const projection = await this.getPaymentProjection(id);
+    return { ...detail, ...projection };
   }
 
-  listByCompany(companyId: number): Promise<Order[]> {
-    return this.repo.listByCompany(companyId);
+  async listByCompany(companyId: number): Promise<Order[]> {
+    const orders = await this.repo.listByCompany(companyId);
+    const projections = await Promise.all(
+      (orders as any[]).map((o) => this.getPaymentProjection(o.id)),
+    );
+    return (orders as any[]).map((o, i) => ({ ...o, ...projections[i] }));
   }
 
   async listReopenRequests(actor: ActorContext): Promise<Order[]> {
