@@ -1837,6 +1837,10 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
 
+  /**
+   * @deprecated ⚠️ NÃO USAR
+   * Use financeService.payAccountReceivable (tenant-safe + idempotência + hook FIN.3)
+   */
   async payAccountReceivable(id: number): Promise<AccountReceivable> {
     const [r] = await db
       .update(accountsReceivable)
@@ -1882,6 +1886,10 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
 
+  /**
+   * @deprecated ⚠️ NÃO USAR
+   * Use financeService.payAccountPayable (tenant-safe + regras)
+   */
   async payAccountPayable(id: number): Promise<AccountPayable> {
     const [r] = await db
       .update(accountsPayable)
@@ -1918,6 +1926,10 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
 
+  /**
+   * @deprecated ⚠️ NÃO USAR
+   * Use financeRepository.getAccountReceivableByOrderId (tenant-safe)
+   */
   async getAccountReceivableByOrderId(orderId: number): Promise<AccountReceivable | undefined> {
     const [r] = await db.select().from(accountsReceivable).where(eq(accountsReceivable.orderId, orderId));
     return r;
@@ -1929,6 +1941,11 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
 
+  /**
+   * @deprecated ⚠️ NÃO USAR
+   * Método não aplica tenant filtering — listará histórico de TODAS as empresas.
+   * Endereçado pela FASE 5 (criar wrapper tenant-safe).
+   */
   async listCnabImportHistory(limit = 20): Promise<CnabImportHistory[]> {
     return db
       .select()

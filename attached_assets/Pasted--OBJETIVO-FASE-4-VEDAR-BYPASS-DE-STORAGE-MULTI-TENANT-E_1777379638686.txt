@@ -1,0 +1,181 @@
+🎯 OBJETIVO: FASE 4 — VEDAR BYPASS DE STORAGE (MULTI-TENANT)
+
+Eliminar acessos diretos via storage.* que ignoram tenant e forçar uso do fluxo seguro via financeService / financeRepository.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de negócio
+2. NÃO alterar estrutura de resposta
+3. NÃO alterar schema
+4. NÃO remover métodos do storage
+5. NÃO alterar comportamento funcional (apenas segurança)
+6. Alterações mínimas e localizadas
+
+---
+
+🧠 PROBLEMA
+
+Alguns métodos em storage.ts ignoram tenant e ainda estão sendo usados:
+
+- storage.getAccountReceivableByOrderId ❌ (usado no CNAB)
+- storage.payAccountPayable ❌ (usado na conciliação)
+- outros métodos continuam expostos ❌ (risco futuro)
+
+👉 Isso permite bypass de segurança mesmo após FASE 2.
+
+---
+
+# 📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. CORRIGIR LOOKUP NO CNAB (R7)
+
+📍 Arquivo:
+server/modules/banking/itau/retorno.service.ts
+
+---
+
+### ❌ ANTES
+
+ts id="a1" const ar = await storage.getAccountReceivableByOrderId(orderId); 
+
+---
+
+### ✅ DEPOIS
+
+ts id="a2" const ar = await financeRepository.getAccountReceivableByOrderId(orderId); 
+
+---
+
+📌 Requisito:
+- Se não existir esse método no repository, criar wrapper simples usando tenantWhere
+- NÃO mudar retorno
+- NÃO mudar fluxo
+
+---
+
+## 🔴 2. CORRIGIR PAGAMENTO DE AP NA CONCILIAÇÃO (R6)
+
+📍 Arquivo:
+server/routes/routes.ts
+
+Endpoint:
+POST /api/bank/reconciliar/confirmar
+
+---
+
+### ❌ ANTES
+
+ts id="b1" await storage.payAccountPayable(itemId); 
+
+---
+
+### ✅ DEPOIS
+
+ts id="b2" await financeService.payAccountPayable(itemId, req.session.userId); 
+
+---
+
+📌 Regras:
+- manter assinatura do endpoint
+- manter response igual
+- apenas trocar o caminho de execução
+
+---
+
+## 🟡 3. MARCAR STORAGE COMO DEPRECATED (R9)
+
+📍 Arquivo:
+server/services/storage.ts
+
+---
+
+### ADICIONAR JSDoc (SEM REMOVER FUNÇÃO)
+
+#### Método 1
+
+ts id="c1" /**  * @deprecated ⚠️ NÃO USAR  * Use financeRepository.getAccountReceivableByOrderId (tenant-safe)  */ async getAccountReceivableByOrderId(orderId: number) { 
+
+---
+
+#### Método 2
+
+ts id="c2" /**  * @deprecated ⚠️ NÃO USAR  * Use financeService.payAccountPayable (tenant-safe + regras)  */ async payAccountPayable(id: number) { 
+
+---
+
+#### Método 3
+
+ts id="c3" /**  * @deprecated ⚠️ NÃO USAR  * Método não aplica tenant filtering  */ async listCnabImportHistory(limit: number) { 
+
+---
+
+#### Método 4 (se existir)
+
+ts id="c4" /**  * @deprecated ⚠️ NÃO USAR  * Use financeService.payAccountReceivable  */ async payAccountReceivable(id: number) { 
+
+---
+
+📌 IMPORTANTE:
+- NÃO remover métodos
+- NÃO alterar implementação interna
+- apenas sinalizar risco para futuro
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+| Item | Antes | Depois |
+|------|------|--------|
+| CNAB lookup | ❌ unscoped | ✅ tenant-safe |
+| Pagamento AP | ❌ bypass | ✅ via service |
+| storage uso futuro | ❌ risco silencioso | ✅ avisado |
+| segurança multi-tenant | ❌ parcial | ✅ consistente |
+
+---
+
+# 🧪 TESTE MANUAL
+
+### TESTE 1 — CNAB
+- Upload retorno com múltiplos tenants
+- Esperado: apenas AR do tenant atual afetadas
+
+---
+
+### TESTE 2 — CONCILIAÇÃO AP
+- POST /api/bank/reconciliar/confirmar tipo='ap'
+- Esperado: pagamento funcionando normalmente
+- + respeitando tenant
+
+---
+
+### TESTE 3 — REGRESSÃO
+- Nenhuma mudança de response
+- Nenhuma quebra de endpoint
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO mexer em schema
+- NÃO alterar storage internamente
+- NÃO refatorar módulos
+- NÃO mexer em outros endpoints
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. arquivos alterados
+2. linhas modificadas
+3. confirmação de que não há mais bypass ativo
+4. confirmação de zero regressão
+
+---
+
+🔥 IMPACTO: ALTO (SEGURANÇA + ISOLAMENTO ENTRE EMPRES

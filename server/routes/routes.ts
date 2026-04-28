@@ -6557,7 +6557,7 @@ export async function registerRoutes(
             req.session.userId,
           );
         } else {
-          await storage.payAccountPayable(Number(itemId));
+          await financeService.payAccountPayable(Number(itemId), req.session.userId);
         }
         res.json({ success: true });
       } catch (e: any) { res.status(500).json({ message: e.message }); }

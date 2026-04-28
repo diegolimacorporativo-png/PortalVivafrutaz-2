@@ -24,6 +24,7 @@
 import crypto from "crypto";
 import { storage } from "../../../services/storage";
 import { financeService } from "../../finance/finance.service";
+import { financeRepository } from "../../finance/finance.repository";
 import { parseItauRetornoCnab240 } from "./retorno.parser";
 
 export interface ProcessarRetornoResult {
@@ -104,7 +105,7 @@ export async function processarRetornoItau(
         continue;
       }
 
-      const ar = await storage.getAccountReceivableByOrderId(item.orderId);
+      const ar = await financeRepository.getAccountReceivableByOrderId(item.orderId);
       if (!ar) {
         naoEncontrados += 1;
         console.warn("[CNAB] AR não encontrada", { orderId: item.orderId });

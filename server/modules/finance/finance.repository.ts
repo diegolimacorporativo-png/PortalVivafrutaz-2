@@ -371,6 +371,26 @@ export class FinanceRepository {
     } as any);
   }
 
+  // FASE 4 (R7) — wrapper tenant-safe usado pelo CNAB de retorno do Itaú.
+  // Substitui `storage.getAccountReceivableByOrderId` (que não filtra por
+  // empresa). Aqui aplicamos `tenantWhere` para garantir que o lookup só
+  // enxergue AR do tenant em escopo (resolvido pelo middleware tenantContext).
+  async getAccountReceivableByOrderId(
+    orderId: number,
+  ): Promise<AccountReceivable | undefined> {
+    const [row] = await db
+      .select()
+      .from(accountsReceivable)
+      .where(
+        and(
+          eq(accountsReceivable.orderId, orderId),
+          tenantWhere(accountsReceivable),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
   // Cross-cutting: company config is per-tenant; the underlying storage method
   // already filters by the company in scope (or returns the global default).
   getCompanyConfig() {
