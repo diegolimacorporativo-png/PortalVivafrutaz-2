@@ -2,6 +2,14 @@ import type { NextFunction, Request, Response } from "express";
 import { ordersService, OrdersService, ActorContext } from "./orders.service";
 import { ok, created, noContent } from "../../shared/utils/apiResponse";
 import type { OrderStatus } from "./orders.workflow";
+// FASE 6 — guard de tenant para leitura de pedido por id. Bloqueia
+// vazamento entre empresas em GET /api/orders/:id. NÃO substitui o
+// service.get(id) — apenas valida ANTES de chamar a leitura. Em mismatch
+// de tenant lança ForbiddenError + log [SECURITY] TENANT_MISMATCH;
+// em pedido inexistente lança NotFoundError. Ambos são AppError, então
+// o errorHandler central traduz para o status correto sem que o controller
+// precise tocar no shape da resposta.
+import { validateOrderTenant } from "../../core/security/tenantGuard";
 
 /**
  * OrdersController — thin HTTP adapter.
@@ -50,6 +58,13 @@ export class OrdersController {
   /** GET /api/orders/:id */
   get = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // FASE 6 — multi-tenant hardening: valida que o pedido pertence ao
+    // tenant ativo ANTES de chamar service.get. Se for de outro tenant
+    // → ForbiddenError + log [SECURITY] TENANT_MISMATCH (já emitido
+    // dentro de safeGetOrder). Se não existir → NotFoundError. Em ambos
+    // os casos o asyncHandler encaminha para o errorHandler central, que
+    // mapeia AppError → status correto, sem alterar o shape da resposta.
+    await validateOrderTenant(id);
     return ok(res, await this.service.get(id));
   };
 
