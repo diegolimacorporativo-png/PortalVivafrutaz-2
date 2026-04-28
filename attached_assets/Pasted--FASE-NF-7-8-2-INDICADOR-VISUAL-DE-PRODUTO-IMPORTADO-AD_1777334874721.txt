@@ -1,0 +1,104 @@
+🎯 FASE NF.7.8.2 — INDICADOR VISUAL DE PRODUTO IMPORTADO (ADMIN LIST)
+
+Adicionar identificação visual na listagem de produtos para indicar quais itens estão com a flag importado = true.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar endpoints  
+3. NÃO alterar payloads  
+4. NÃO alterar queries  
+5. NÃO remover nada  
+
+👉 Apenas adicionar UI visual (não funcional)
+
+---
+
+🧠 CONTEXTO
+
+- Campo products.importado já existe (NF.7.8)
+- Checkbox já implementado no form (NF.7.8.1)
+- Backend já usa corretamente para ICMS 4%
+
+👉 Falta visibilidade no grid/listagem
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1. LOCALIZAR LISTAGEM DE PRODUTOS
+
+Arquivo provável:
+
+client/src/pages/admin/products.tsx
+
+👉 Encontrar tabela/grid onde produtos são listados
+
+Exemplo:
+
+products.map((p) => ( ... ))
+
+---
+
+## 2. ADICIONAR BADGE VISUAL
+
+Dentro da linha do produto (row/card), adicionar:
+
+{p.importado === true && (   <span     data-testid="badge-product-importado"     className="ml-2 inline-flex items-center rounded-md bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700"   >     Importado   </span> )}
+
+---
+
+## 3. POSICIONAMENTO
+
+👉 Colocar ao lado do nome do produto
+
+Exemplo:
+
+<div className="flex items-center">   <span>{p.name}</span>    {p.importado === true && (BADGE)} </div>
+
+✔ Não quebrar layout  
+✔ Não mover colunas existentes  
+✔ Não alterar ordenação  
+
+---
+
+## 4. ACESSIBILIDADE E TESTE
+
+✔ Manter data-testid="badge-product-importado"  
+✔ Não depender de cor para significado (texto obrigatório)
+
+---
+
+## 5. COMPORTAMENTO ESPERADO
+
+Cenário	Resultado
+Produto importado = true	Badge visível
+Produto importado = false/undefined	Sem badge
+Produtos antigos	Sem badge (default false)
+Após editar produto	Badge aparece/desaparece corretamente
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ Operador identifica rapidamente produtos importados  
+✔ Nenhuma mudança no backend  
+✔ Nenhum impacto em performance  
+✔ Nenhuma regressão visual  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Local onde o badge foi inserido  
+2. Trecho de código adicionado  
+3. Confirmação de zero regressão  
+4. Screenshot ou descrição do layout final  
+
+---

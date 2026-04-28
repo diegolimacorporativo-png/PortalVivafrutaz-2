@@ -949,7 +949,23 @@ export default function ProductsPage() {
                 #{(product as any).productCode}
               </span>
             )}
-            <h3 className="text-lg font-bold text-foreground">{product.name}</h3>
+            {/* FASE NF.7.8.2 — indicador visual de produto importado.
+                Posicionado ao lado do nome (spec ETAPA 3). Texto explícito
+                ("Importado") garante acessibilidade — não depende só de cor.
+                Comparação === true evita falso positivo de truthy values
+                (string "true", number 1, etc.) em payloads degenerados. */}
+            <div className="flex items-center justify-center gap-2 flex-wrap">
+              <h3 className="text-lg font-bold text-foreground">{product.name}</h3>
+              {(product as any).importado === true && (
+                <span
+                  data-testid={`badge-product-importado-${product.id}`}
+                  className="inline-flex items-center rounded-md bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700"
+                  title="Produto importado — ICMS calculado a 4%"
+                >
+                  Importado
+                </span>
+              )}
+            </div>
             <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mt-1">{product.category}</p>
 
             {(product as any).observation && (
