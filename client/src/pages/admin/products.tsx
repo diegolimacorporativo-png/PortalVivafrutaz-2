@@ -521,6 +521,9 @@ export default function ProductsPage() {
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("ALL");
   const [filterStatus, setFilterStatus] = useState("ALL");
+  // FASE NF.7.8.3 — toggle "Apenas importados". Estado local apenas;
+  // não toca query/endpoint. Default false = lista completa preservada.
+  const [onlyImportados, setOnlyImportados] = useState(false);
   const [priceError, setPriceError] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
@@ -830,9 +833,13 @@ export default function ProductsPage() {
       const matchSearch = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
       const matchCat = filterCat === 'ALL' || p.category === filterCat;
       const matchStatus = filterStatus === 'ALL' || (filterStatus === 'ACTIVE' ? p.active : !p.active);
-      return matchSearch && matchCat && matchStatus;
+      // FASE NF.7.8.3 — filtro aditivo "Apenas importados".
+      // Comparação === true evita falso positivo de truthy values e
+      // mantém o filtro 100% inerte quando o toggle está desligado.
+      const matchImportado = !onlyImportados || (p as any).importado === true;
+      return matchSearch && matchCat && matchStatus && matchImportado;
     });
-  }, [products, search, filterCat, filterStatus]);
+  }, [products, search, filterCat, filterStatus, onlyImportados]);
 
   return (
     <Layout>
@@ -878,6 +885,21 @@ export default function ProductsPage() {
             {s === 'ALL' ? 'Todos' : s === 'ACTIVE' ? 'Ativos' : 'Inativos'}
           </button>
         ))}
+        {/* FASE NF.7.8.3 — Toggle "Apenas importados".
+            Aditivo aos filtros de categoria/status/busca (AND lógico no
+            useMemo acima). Paleta laranja casa com o badge da listagem
+            (NF.7.8.2) para reforço visual: filtro ON = todos os cards
+            visíveis terão o badge "Importado". */}
+        <button
+          type="button"
+          onClick={() => setOnlyImportados(v => !v)}
+          data-testid="filter-only-importados"
+          aria-pressed={onlyImportados}
+          title="Mostrar apenas produtos com a flag de importado (ICMS 4%)"
+          className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${onlyImportados ? 'bg-orange-100 text-orange-700 border-orange-300' : 'border-border text-muted-foreground hover:border-orange-300'}`}
+        >
+          Apenas importados
+        </button>
         <span className="text-xs text-muted-foreground font-medium">{filtered.length} produto{filtered.length !== 1 ? 's' : ''}</span>
       </div>
 

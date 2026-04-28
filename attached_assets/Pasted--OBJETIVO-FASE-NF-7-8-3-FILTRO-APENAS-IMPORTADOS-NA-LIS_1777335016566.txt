@@ -1,0 +1,131 @@
+🎯 OBJETIVO: FASE NF.7.8.3 — FILTRO “APENAS IMPORTADOS” NA LISTAGEM
+
+Adicionar um filtro rápido na tela de produtos para visualizar somente itens com importado === true.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO alterar endpoints  
+4. NÃO alterar queries backend  
+5. NÃO alterar estrutura de resposta  
+6. NÃO quebrar filtros atuais (categoria / status)
+
+👉 Apenas adicionar filtro visual no frontend
+
+---
+
+🧠 CONTEXTO
+
+- Campo product.importado já existe (NF.7.8)
+- Badge visual já existe (NF.7.8.2)
+- Lista usa filtered.map(...)
+- Já existem filtros (categoria / status)
+
+---
+
+## 🛠️ ETAPA 1 — ESTADO DO FILTRO
+
+Arquivo:
+client/src/pages/admin/products.tsx
+
+Adicionar no useState dos filtros:
+
+const [onlyImportados, setOnlyImportados] = useState(false);
+
+---
+
+## 🛠️ ETAPA 2 — UI DO FILTRO
+
+Adicionar botão ao lado dos filtros existentes (categoria/status):
+
+<button
+  type="button"
+  onClick={() => setOnlyImportados((v) => !v)}
+  data-testid="filter-only-importados"
+  className={px-3 py-1 rounded-md text-sm font-medium border ${     onlyImportados       ? "bg-orange-100 text-orange-700 border-orange-300"       : "bg-white text-muted-foreground border-gray-200"   }}
+>
+  Apenas importados
+</button>
+
+✔ Visual consistente com badge laranja  
+✔ Toggle simples (on/off)  
+✔ Não interfere nos outros filtros  
+
+---
+
+## 🛠️ ETAPA 3 — APLICAR FILTRO
+
+Localizar onde filtered é calculado.
+
+Exemplo típico:
+
+const filtered = products.filter((p) => {
+  // filtros existentes...
+});
+
+---
+
+Adicionar ao final da lógica:
+
+if (onlyImportados && (p as any).importado !== true) {
+  return false;
+}
+
+✔ Comparação === true evita falso positivo  
+✔ Não altera comportamento quando desligado  
+
+---
+
+## 🛠️ ETAPA 4 — ZERO IMPACTO NOS OUTROS FILTROS
+
+Garantir que:
+
+- categoria continua funcionando
+- status continua funcionando
+- busca continua funcionando (se houver)
+
+👉 O filtro deve ser ADITIVO (AND), nunca substituir os outros
+
+---
+
+## 🛠️ ETAPA 5 — UX
+
+Comportamento esperado:
+
+Estado	Resultado
+OFF	lista normal (todos produtos)
+ON	mostra apenas produtos importados
+ON + categoria	apenas importados daquela categoria
+ON + status	apenas importados com aquele status
+
+---
+
+## 🛠️ ETAPA 6 — DATA-TESTID
+
+Garantir:
+
+data-testid="filter-only-importados"
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ Filtro rápido funcional  
+✔ Integra com filtros existentes  
+✔ Nenhum impacto no backend  
+✔ Nenhuma regressão visual  
+✔ Performance mantida (filter em memória)
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. onde o estado foi criado  
+2. onde o botão foi inserido  
+3. trecho do filtro atualizado  
+4. confirmação de zero regressão
