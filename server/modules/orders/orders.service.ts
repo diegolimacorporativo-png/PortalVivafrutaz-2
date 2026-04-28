@@ -1124,6 +1124,10 @@ export class OrdersService {
         "Pedido já entrou em separação e não pode mais ser editado.",
       );
     }
+    // FASE NF.7.9.10 — bloqueio de reabertura em mês fechado.
+    // Reaproveita assertPeriodOpen (mesmo helper de update/remove/replace-items).
+    // Em mês fechado: log [SECURITY] PERIODO_FECHADO + 403 ForbiddenError.
+    await this.assertPeriodOpen(id, "reopen-request");
     const updated = await this.repo.update(id, {
       status: "REOPEN_REQUESTED",
       reopenReason: String(reason).trim(),
@@ -1148,6 +1152,9 @@ export class OrdersService {
         "Pedido não está em solicitação de alteração.",
       );
     }
+    // FASE NF.7.9.10 — bloqueio de aprovação de reabertura em mês fechado.
+    // Mesma proteção de update/remove/replace-items: 403 PERIODO_FECHADO.
+    await this.assertPeriodOpen(id, "reopen-approve");
     const updated = await this.repo.update(id, { status: "OPEN_FOR_EDITING" });
     await this.repo.createLog({
       action: "ORDER_REOPEN_APPROVED",
@@ -1167,6 +1174,9 @@ export class OrdersService {
         "Pedido não está em solicitação de alteração.",
       );
     }
+    // FASE NF.7.9.10 — bloqueio de negação de reabertura em mês fechado.
+    // Mesma proteção de update/remove/replace-items: 403 PERIODO_FECHADO.
+    await this.assertPeriodOpen(id, "reopen-deny");
     const updated = await this.repo.update(id, {
       status: "CONFIRMED",
       reopenReason: null,
