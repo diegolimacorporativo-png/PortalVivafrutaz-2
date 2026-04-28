@@ -161,6 +161,63 @@ export class FinanceRepository {
           referenciaId: id,
         }),
       );
+
+      // FASE 6.3 — quebra contábil de juros / multa / desconto vindos do
+      // Segmento U do CNAB (FASE 6.2). Inserts ADITIVOS, todos dentro da
+      // mesma `tx` para preservar atomicidade com o lançamento principal:
+      // se qualquer um falhar, a baixa inteira é revertida.
+      //
+      // Convenções respeitando o schema atual (`NÃO alterar schema`):
+      //   • A tabela só tem `tipo` ∈ {entrada, saida}; usamos `entrada`
+      //     para juros/multa (receita acessória) e `saida` para desconto
+      //     (redução de receita).
+      //   • Não há coluna `categoria` — codificamos a classe contábil
+      //     no prefixo da `descricao` ([JUROS_CNAB], [MULTA_CNAB],
+      //     [DESCONTO_CNAB]) para permitir filtragem futura sem migração.
+      //   • Mesma `referenciaId` (= id da AR) e `referenciaTipo` para
+      //     manter rastreabilidade até o título.
+      const juros = paymentDetails?.jurosCentavos ?? 0;
+      if (juros > 0) {
+        await tx.insert(financialTransactions).values(
+          withTenant({
+            tipo: "entrada",
+            valor: juros / 100,
+            descricao: `[JUROS_CNAB] Juros recebidos: ${row.descricao}`,
+            data: today,
+            referenciaTipo: "receivable",
+            referenciaId: id,
+          }),
+        );
+      }
+
+      const multa = paymentDetails?.multaCentavos ?? 0;
+      if (multa > 0) {
+        await tx.insert(financialTransactions).values(
+          withTenant({
+            tipo: "entrada",
+            valor: multa / 100,
+            descricao: `[MULTA_CNAB] Multa recebida: ${row.descricao}`,
+            data: today,
+            referenciaTipo: "receivable",
+            referenciaId: id,
+          }),
+        );
+      }
+
+      const desconto = paymentDetails?.descontoCentavos ?? 0;
+      if (desconto > 0) {
+        await tx.insert(financialTransactions).values(
+          withTenant({
+            tipo: "saida",
+            valor: desconto / 100,
+            descricao: `[DESCONTO_CNAB] Desconto concedido: ${row.descricao}`,
+            data: today,
+            referenciaTipo: "receivable",
+            referenciaId: id,
+          }),
+        );
+      }
+
       return row;
     });
   }

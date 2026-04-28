@@ -1,0 +1,130 @@
+🎯 OBJETIVO: FASE 6.3 — REGISTRAR JUROS/MULTA/DESCONTO COMO LINHAS ADICIONAIS
+
+Persistir os valores do Segmento U (já capturados na FASE 6.2) como transações financeiras separadas, mantendo o valor principal como valorPago.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema
+2. NÃO alterar lógica existente
+3. NÃO remover código
+4. NÃO alterar linha principal (valorPago já implementado)
+5. NÃO duplicar valor
+6. Apenas ADICIONAR inserts condicionais
+
+---
+
+🧠 CONTEXTO
+
+- FASE 6.1 → valorPago já está correto ✅  
+- FASE 6.2 → juros/multa/desconto já chegam no repository ✅  
+- FALTA → persistir isso corretamente
+
+---
+
+# 📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. LOCAL
+
+📍 server/modules/finance/finance.repository.ts  
+📍 método: payAccountReceivable(...)
+
+---
+
+## 🔎 ENCONTRAR
+
+Bloco:
+
+ts await tx.insert(financialTransactions).values({   ... }); 
+
+👉 (linha principal — NÃO ALTERAR)
+
+---
+
+## 🔴 2. ADICIONAR LOGO APÓS O INSERT PRINCIPAL
+
+ts id="jurosInsert" const juros = paymentDetails?.jurosCentavos ?? 0; if (juros > 0) {   await tx.insert(financialTransactions).values(     withTenant({       tipo: "credito",       categoria: "juros_recebidos",       valor: juros / 100,       referencia_tipo: "receivable",       referencia_id: id,       descricao: "Juros de pagamento CNAB",     })   ); } 
+
+---
+
+## 🔴 3. MULTA
+
+ts id="multaInsert" const multa = paymentDetails?.multaCentavos ?? 0; if (multa > 0) {   await tx.insert(financialTransactions).values(     withTenant({       tipo: "credito",       categoria: "multa_recebida",       valor: multa / 100,       referencia_tipo: "receivable",       referencia_id: id,       descricao: "Multa de pagamento CNAB",     })   ); } 
+
+---
+
+## 🔴 4. DESCONTO
+
+ts id="descontoInsert" const desconto = paymentDetails?.descontoCentavos ?? 0; if (desconto > 0) {   await tx.insert(financialTransactions).values(     withTenant({       tipo: "debito",       categoria: "desconto_concedido",       valor: desconto / 100,       referencia_tipo: "receivable",       referencia_id: id,       descricao: "Desconto concedido CNAB",     })   ); } 
+
+---
+
+📌 IMPORTANTE
+
+- usar withTenant(...) igual ao principal
+- usar mesma referencia_id
+- manter dentro da MESMA transação
+- NÃO mover nada do código existente
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Para um pagamento:
+
+| Tipo | Valor |
+|------|------|
+| Recebimento | 1050 |
+| Juros | +30 |
+| Multa | +20 |
+| Desconto | 0 |
+
+👉 3 registros no banco
+
+---
+
+# 🧪 TESTE MANUAL
+
+sql SELECT tipo, categoria, valor  FROM financial_transactions  WHERE referencia_id = <AR_ID>; 
+
+---
+
+## Esperado:
+
+text credito  recebimento           1050 credito  juros_recebidos       30 credito  multa_recebida        20 
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO alterar linha principal
+- NÃO recalcular valor
+- NÃO mexer no parser
+- NÃO mexer no service
+- NÃO criar colunas novas
+- NÃO alterar schema
+
+---
+
+# ⚠️ REGRA DE OURO
+
+👉 valor principal já inclui juros/multa
+
+👉 essas linhas são apenas classificação contábil
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. linhas adicionadas
+2. confirmação de inserts condicionais
+3. confirmação de zero regressão
+
+---
+
+🔥 IMPACTO: DRE CORRETO + BASE CONTÁBIL PROFISSIONAL
