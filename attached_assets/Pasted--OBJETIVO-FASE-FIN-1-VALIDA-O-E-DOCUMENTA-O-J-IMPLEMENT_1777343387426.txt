@@ -1,0 +1,130 @@
+🎯 OBJETIVO: FASE FIN.1 — VALIDAÇÃO E DOCUMENTAÇÃO (JÁ IMPLEMENTADO)
+
+Confirmar e documentar a geração automática de contas a receber a partir de pedidos.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO criar funções
+3. NÃO refatorar
+4. NÃO mover lógica existente
+5. Apenas AUDITORIA + DOCUMENTAÇÃO
+
+---
+
+🧠 CONTEXTO
+
+Durante auditoria foi identificado que:
+
+✔ A criação automática de AR JÁ existe  
+✔ Implementada em DOIS pontos do sistema  
+✔ Já possui idempotência  
+✔ Já gera PIX  
+✔ Já está em produção  
+
+---
+
+📦 TAREFAS
+
+---
+
+1️⃣ MAPEAR PONTOS DE CRIAÇÃO
+
+Listar exatamente:
+
+A) OrdersService.update → status === "CONFIRMED"  
+- linha exata  
+- método: seedAccountReceivableOnConfirm  
+
+B) orders.transaction.ts → transição para INVOICED  
+- bloco transacional  
+- lógica de criação via tx.insert  
+
+---
+
+2️⃣ VALIDAR IDMPOTÊNCIA
+
+Confirmar que ambos usam:
+
+getAccountReceivableByOrderId  
+ou equivalente via SELECT
+
+Resultado esperado:
+
+✔ nunca cria duplicado  
+✔ seguro para múltiplos disparos  
+
+---
+
+3️⃣ VALIDAR REGRAS DE NEGÓCIO
+
+Confirmar:
+
+✔ valor vem dos itens do pedido  
+✔ vencimento = hoje + 30 dias  
+✔ formaPagamento = "pix"  
+✔ pixPayload gerado via CNPJ  
+
+---
+
+4️⃣ IDENTIFICAR RISCO
+
+Documentar claramente:
+
+⚠️ Existe duplicação de lógica entre:
+
+- OrdersService
+- Transaction workflow
+
+⚠️ NÃO corrigir nesta fase
+
+---
+
+5️⃣ LOG DE CONFIRMAÇÃO
+
+Adicionar (APENAS LOG, sem alterar fluxo):
+
+console.log("[FIN.1] AR auto-gerado via pedido", {
+  orderId,
+  source: "CONFIRMED" | "INVOICED"
+});
+
+👉 sem alterar comportamento
+
+---
+
+📊 RESULTADO ESPERADO
+
+- FIN.1 marcado como ✔ IMPLEMENTADO
+- Nenhuma alteração de comportamento
+- Sistema documentado corretamente
+- Risco identificado para fase futura
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. Pontos exatos de criação de AR  
+2. Trechos de código encontrados  
+3. Confirmação de idempotência  
+4. Regra de vencimento atual  
+5. Risco documentado  
+6. Confirmação de zero alteração no sistema  
+
+---
+
+📌 IMPORTANTE
+
+NÃO implementar nada novo  
+NÃO criar createReceivableFromOrder  
+NÃO duplicar lógica  
+
+---
+
+🚀 PRÓXIMA FASE
+
+FIN.2 — Pedido saber que foi pago automatic

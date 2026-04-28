@@ -1001,6 +1001,14 @@ export class OrdersService {
       formaPagamento: "pix",
       pixPayload,
     });
+    // FASE FIN.1 — Log de confirmação (aditivo, sem alteração de fluxo).
+    // Marca explicitamente que este AR foi gerado pela automação ligada ao
+    // status === "CONFIRMED" do pedido. Útil para auditoria + observabilidade.
+    console.log("[FIN.1] AR auto-gerado via pedido", {
+      orderId: id,
+      companyId: oa.companyId,
+      source: "CONFIRMED",
+    });
   }
 
   // ╔══════════════════════════════════════════════════════════════════╗

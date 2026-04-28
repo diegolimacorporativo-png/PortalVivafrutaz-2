@@ -399,6 +399,17 @@ export async function executeWorkflowTransaction(
           });
 
           arCreated = true;
+
+          // FASE FIN.1 — Log de confirmação (aditivo, sem alteração de fluxo).
+          // Marca explicitamente que este AR foi gerado pela automação ligada
+          // à transição → INVOICED do pedido (via executeWorkflowTransaction).
+          // Roda DENTRO da transação; se houver ROLLBACK, o log fica mas o
+          // INSERT é desfeito — comportamento aceitável para observabilidade.
+          console.log("[FIN.1] AR auto-gerado via pedido", {
+            orderId,
+            companyId: orderSnapshot.companyId,
+            source: "INVOICED",
+          });
         }
       }
     }
