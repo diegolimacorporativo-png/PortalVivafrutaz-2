@@ -1,0 +1,201 @@
+🎯 OBJETIVO: BANCO.3 — LEITURA DE RETORNO CNAB 240 (ITAÚ) + BAIXA AUTOMÁTICA
+
+Implementar leitura de arquivo CNAB 240 de retorno do Itaú e marcar automaticamente as contas a receber como pagas.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar FIN.1 → FIN.5
+2. NÃO alterar lógica de pagamento existente
+3. NÃO alterar schema existente
+4. NÃO duplicar lógica de baixa financeira
+5. NÃO chamar storage diretamente
+
+👉 SEMPRE usar: financeService.payAccountReceivable()
+
+---
+
+🧠 CONTEXTO
+
+- Já existe accounts_receivable
+- Já existe payAccountReceivable()
+- Já existe fluxo de propagação (FIN.3)
+- Já existe conciliação unificada (FIN.3.5)
+
+👉 Objetivo: automatizar a baixa via retorno bancário
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CRIAR MÓDULO DE RETORNO
+
+server/modules/banking/itau/
+
+Arquivo novo:
+
+retorno.parser.ts
+
+---
+
+2. FUNÇÃO DE PARSE
+
+Criar:
+
+export function parseItauRetornoCnab240(content: string): any[]
+
+Responsabilidade:
+
+- dividir arquivo por linhas
+- considerar apenas registros tipo "3"
+- filtrar apenas Segmento T
+
+---
+
+3. IDENTIFICAR PAGAMENTO
+
+Para cada linha Segmento T:
+
+Extrair:
+
+- nossoNumero (posições 37–57)
+- valorPago (posições 77–91)
+- dataPagamento (posições 137–144)
+- codigoOcorrencia (posições 15–17)
+
+---
+
+4. FILTRO DE PAGAMENTO
+
+Considerar como pago quando:
+
+codigoOcorrencia === "06"  // liquidação
+
+---
+
+5. VÍNCULO COM AR
+
+Como não temos nossoNumero persistido ainda:
+
+👉 usar fallback TEMPORÁRIO:
+
+- extrair número do documento (posição 58–72)
+- esse campo contém "PED-{orderId}"
+
+Fazer:
+
+const orderId = extractFromDocumento()
+
+Depois:
+
+buscar AR via:
+
+repo.getAccountReceivableByOrderId(orderId)
+
+---
+
+6. BAIXA AUTOMÁTICA
+
+Para cada AR encontrada:
+
+await financeService.payAccountReceivable(ar.id, userId)
+
+⚠️ IMPORTANTE:
+- NÃO duplicar se já estiver pago
+- checar ar.status antes
+
+---
+
+7. SERVICE
+
+Criar:
+
+retorno.service.ts
+
+Função:
+
+export async function processarRetornoItau(
+  content: string,
+  userId: number
+)
+
+Fluxo:
+
+- parse
+- iterar registros pagos
+- localizar AR
+- chamar financeService.payAccountReceivable
+- contar sucessos/falhas
+
+---
+
+8. ENDPOINT
+
+Adicionar:
+
+POST /api/bank/retorno/itau
+
+Body:
+
+multipart/form-data (arquivo .ret)
+
+---
+
+9. RESPONSE
+
+{
+  success: true,
+  totalProcessados: number,
+  pagosIdentificados: number,
+  baixasRealizadas: number,
+  naoEncontrados: number
+}
+
+---
+
+10. LOGS
+
+Adicionar:
+
+[CNAB] Retorno Itaú processado
+[CNAB] AR baixada automaticamente
+[CNAB] AR não encontrada
+
+---
+
+11. FAIL-SAFE
+
+- erro em uma linha NÃO pode parar processamento
+- usar try/catch por item
+
+---
+
+📊 RESULTADO ESPERADO
+
+- upload de arquivo .ret
+- sistema identifica pagamentos automaticamente
+- AR marcadas como pagas
+- FIN.3 dispara automaticamente
+- pedido refletido como pago (FIN.2)
+
+---
+
+⚠️ LIMITAÇÃO CONHECIDA (FASE ATUAL)
+
+- vínculo via orderId (temporário)
+- será substituído por nossoNumero em fase futura
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. parser implementado
+2. service criado
+3. endpoint funcionando
+4. exemplo de retorno processado
+5. confirmação de zero regressão

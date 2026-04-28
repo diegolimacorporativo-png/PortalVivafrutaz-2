@@ -6604,6 +6604,27 @@ export async function registerRoutes(
         return res.status(500).json({ message: e.message });
       }
     });
+
+    // FASE BANCO.3 — POST /api/bank/retorno/itau
+    // Recebe arquivo .ret (multipart/form-data, campo "file"), parseia o
+    // CNAB 240 de retorno do Itaú e dispara baixa automática nas AR
+    // identificadas via financeService.payAccountReceivable (mesma rota
+    // da conciliação manual — FIN.3.5). Fail-safe por item.
+    app.post('/api/bank/retorno/itau', uploadInMemory.single('file'), async (req: any, res) => {
+      if (!requireAuth(req, res)) return;
+      try {
+        if (!req.file?.buffer) {
+          return res.status(400).json({ message: 'Arquivo de retorno (.ret) ausente. Envie como multipart/form-data com campo "file".' });
+        }
+        const content = req.file.buffer.toString('utf-8');
+        const { processarRetornoItau } = await import('../modules/banking/itau/retorno.service');
+        const result = await processarRetornoItau(content, req.session.userId);
+        return res.status(200).json(result);
+      } catch (e: any) {
+        console.error('[CNAB] erro ao processar retorno Itaú', e);
+        return res.status(500).json({ message: e.message });
+      }
+    });
   }
 
   // ─── AI Developer Routes ─────────────────────────────────────────────────
