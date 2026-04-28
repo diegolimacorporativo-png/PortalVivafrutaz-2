@@ -1,0 +1,153 @@
+"}
+🎯 FASE FISCAL 9.0 — AUTO-CORREÇÃO REAL (ICMS)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar CST / CSOSN  
+3. NÃO alterar schema  
+4. NÃO alterar assinatura digital  
+5. NÃO alterar endpoints existentes  
+6. NÃO recalcular fora do fluxo oficial  
+
+👉 Apenas corrigir dados ANTES de gerar o XML
+
+---
+
+🧠 OBJETIVO
+
+Permitir que o sistema:
+
+✔ corrija automaticamente erros comuns  
+✔ evite rejeição repetida  
+✔ reduza ação manual  
+
+---
+
+## 📦 ESCOPO (VERSÃO SEGURA)
+
+Implementar apenas para:
+
+👉 cStat 533 — Total ICMS difere do somatório dos itens
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR FUNÇÃO DE CORREÇÃO
+
+Arquivo:
+
+server/services/nfe/nfeAutoCorrect.ts
+
+---
+
+Criar:
+
+ts export function corrigirTotaisICMS(itens: any[]) {   let totalvBC = 0;   let totalvICMS = 0;    for (const item of itens) {     const vBC = Number(item.vBC) || 0;     const vICMS = Number(item.vICMS) || 0;      totalvBC += vBC;     totalvICMS += vICMS;   }    return {     vBC: totalvBC,     vICMS: totalvICMS,   }; } 
+
+---
+
+## 🛠️ ETAPA 2 — INTEGRAR NO FLUXO DE REEMISSÃO
+
+Arquivo:
+
+server/routes/routes.ts
+
+---
+
+Dentro do endpoint:
+
+POST /api/nfe/:orderId/corrigir-reenviar
+
+---
+
+ANTES de gerar o XML:
+
+ts if (tipo === 'RECALCULAR') {   const totaisCorrigidos = corrigirTotaisICMS(input.produtos);    input.total = {     ...input.total,     vBC: totaisCorrigidos.vBC,     vICMS: totaisCorrigidos.vICMS,   }; } 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO alterar itens
+- NÃO recalcular pICMS
+- NÃO mexer em CST
+
+👉 Apenas garantir consistência do total
+
+---
+
+## 🛠️ ETAPA 3 — LOG DE CORREÇÃO
+
+Adicionar:
+
+ts console.warn('[NFE_AUTO_CORRECAO_ICMS]', {   orderId,   vBC: input.total.vBC,   vICMS: input.total.vICMS, }); 
+
+---
+
+## 🛠️ ETAPA 4 — NÃO MEXER MAIS NADA
+
+👉 NÃO alterar gerarNFeXML  
+👉 NÃO alterar validações existentes  
+👉 NÃO alterar fluxo normal  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Caso com erro (533)
+
+Antes:
+- vBC total errado
+- vICMS total errado
+
+Depois:
+
+✔ total corrigido automaticamente  
+✔ XML consistente  
+✔ rejeição eliminada  
+
+---
+
+### 2️⃣ Caso normal
+
+✔ comportamento idêntico  
+✔ zero alteração  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ correção isolada  
+✔ lógica fiscal intacta  
+✔ compatível com Simples Nacional  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ rejeição repetida  
+❌ intervenção manual  
+
+Depois:
+
+✔ sistema corrige sozinho  
+✔ emissão passa na SEFAZ  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado  
+2. Trecho integrado no endpoint  
+3. Log funcionando  
+4. Teste validado  
+5. Confirmação de zero r

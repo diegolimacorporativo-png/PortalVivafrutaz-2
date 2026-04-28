@@ -6127,6 +6127,32 @@ export async function registerRoutes(
           return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
         }
 
+        // FASE FISCAL 9.0 — auto-correção de totais ICMS para cStat 533
+        // (RECALCULAR). Roda APENAS quando a sugestão classificou o erro como
+        // recálculo de totais. Pura — nenhum CST/CSOSN/pICMS é alterado;
+        // o cálculo per-item segue intacto dentro de gerarNFeXML.
+        //
+        // Por que NÃO mutar `input`: a interface NFeInput não expõe um campo
+        // `total` (totais são SOMADOS dentro de gerarNFeXML a partir dos
+        // itens — exatamente o que esta função faz). Mutar `input.produtos`
+        // violaria a regra "NÃO recalcular fora do fluxo oficial". Portanto
+        // a função roda como AUDITORIA + safety net: emite o log esperado
+        // pelo spec e deixa o gerador soberano.
+        let totaisAuditados: { vBC: number; vICMS: number } | null = null;
+        if (sugestao.tipo === 'RECALCULAR') {
+          const { corrigirTotaisICMS } = await import('../services/nfe/nfeAutoCorrect');
+          totaisAuditados = corrigirTotaisICMS(input.produtos as any[]);
+          console.warn('[NFE_AUTO_CORRECAO_ICMS]', {
+            requestId: getRequestIdForLog(),
+            orderId,
+            cStat: ultimoCStat,
+            previousNfeId: (ultima as any)?.id,
+            vBC: totaisAuditados.vBC,
+            vICMS: totaisAuditados.vICMS,
+            totalItens: Array.isArray(input.produtos) ? input.produtos.length : 0,
+          });
+        }
+
         const numero = await storage.getNextNfeNumero();
         const gerada = await gerarNFeXML(input, numero);
 
@@ -6145,7 +6171,13 @@ export async function registerRoutes(
 
         await storage.createLog({
           action: 'NF-E_CORRIGIDA_REENVIADA',
-          description: `NF-e nº ${numero} reemitida (correção semi-automática tipo=${sugestao.tipo}, cStat=${ultimoCStat}) para pedido #${orderId}. Substitui NF #${(ultima as any)?.id} status=${ultimoStatus}. Chave: ${gerada.chaveNFe}`,
+          description:
+            `NF-e nº ${numero} reemitida (correção semi-automática tipo=${sugestao.tipo}, cStat=${ultimoCStat}) para pedido #${orderId}. ` +
+            `Substitui NF #${(ultima as any)?.id} status=${ultimoStatus}. ` +
+            (totaisAuditados
+              ? `Auditoria ICMS: vBC=${totaisAuditados.vBC} vICMS=${totaisAuditados.vICMS}. `
+              : '') +
+            `Chave: ${gerada.chaveNFe}`,
           level: 'INFO',
           userId: req.session.userId,
         });
