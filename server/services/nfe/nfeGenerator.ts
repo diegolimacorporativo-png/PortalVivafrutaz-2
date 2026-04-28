@@ -265,6 +265,14 @@ export async function gerarNFeXML(
     if (!Number.isFinite(p.vProd) || p.vProd <= 0) throw new Error('NFE_XML_INVALID_VPROD');
   }
 
+  // FASE NF.7.1 — acumuladores de ICMS no <ICMSTot>.
+  // Somente somam quando o item REALMENTE emite vBC/vICMS no XML
+  // (CRT=3 + CST que carrega base/imposto). Simples Nacional (CRT=1/2) e
+  // CSTs sem cálculo (40/41/50/60) NÃO somam → permanecem 0.00, exatamente
+  // como a SEFAZ exige (sem regressão para fluxo Simples).
+  let totalvBC = 0;
+  let totalvICMS = 0;
+
   // Gerar itens
   // FASE NF.2 — ETAPA 3/4: xmlSafe aplicado em xProd; toMoney em valores monetários
   const itenXml = input.produtos.map((p, idx) => {
@@ -329,6 +337,19 @@ export async function gerarNFeXML(
     );
     const vICMS = (vBC * pICMS) / 100;
 
+    // FASE NF.7.1 — soma para o <ICMSTot> APENAS quando o item realmente
+    // emite vBC/vICMS no XML. Espelha exatamente o switch abaixo:
+    //   - CRT 1/2 (Simples) → ICMSSN, sem vBC/vICMS no item → NÃO soma.
+    //   - CRT 3 + CST 40/41/50/60 → estrutura mínima, sem vBC/vICMS → NÃO soma.
+    //   - CRT 3 + demais (00, 20, default) → soma.
+    // Garante que somatório do total = somatório dos itens (regra SEFAZ).
+    const itemEmiteIcms =
+      crt === '3' && !['40', '41', '50', '60'].includes(rawCst);
+    if (itemEmiteIcms) {
+      if (Number.isFinite(vBC)) totalvBC += vBC;
+      if (Number.isFinite(vICMS)) totalvICMS += vICMS;
+    }
+
     let icmsContent: string;
     switch (rawCst) {
       case '20':
@@ -382,7 +403,7 @@ export async function gerarNFeXML(
     ? `<infAdic><infCpl>${escapeXml(infCplRaw)}</infCpl></infAdic>`
     : '';
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${serie}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${escapeXml(input.emitente.logradouro)}</xLgr><nro>${escapeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${escapeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${escapeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${escapeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${escapeXml(input.destinatario.logradouro)}</xLgr><nro>${escapeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${escapeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${escapeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>0.00</vBC><vICMS>0.00</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${safeNumber(vProd, 'total.vProd')}</vProd><vFrete>${safeNumber(vFrete, 'total.vFrete')}</vFrete><vSeg>${safeNumber(vSeg, 'total.vSeg')}</vSeg><vDesc>${safeNumber(vDesc, 'total.vDesc')}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${safeNumber(vNF, 'total.vNF')}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${safeNumber(vNF, 'pag.vPag')}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${serie}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${escapeXml(input.emitente.logradouro)}</xLgr><nro>${escapeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${escapeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${escapeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${escapeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${escapeXml(input.destinatario.logradouro)}</xLgr><nro>${escapeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${escapeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${escapeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>${totalvBC.toFixed(2)}</vBC><vICMS>${totalvICMS.toFixed(2)}</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${safeNumber(vProd, 'total.vProd')}</vProd><vFrete>${safeNumber(vFrete, 'total.vFrete')}</vFrete><vSeg>${safeNumber(vSeg, 'total.vSeg')}</vSeg><vDesc>${safeNumber(vDesc, 'total.vDesc')}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${safeNumber(vNF, 'total.vNF')}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${safeNumber(vNF, 'pag.vPag')}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
 
   // FASE NF.2 — ETAPA 5: validação estrutural do XML gerado
   if (!xml || typeof xml !== 'string') throw new Error('NFE_XML_EMPTY');
