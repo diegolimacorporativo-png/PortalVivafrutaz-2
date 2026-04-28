@@ -1,0 +1,142 @@
+🎯 OBJETIVO: FIN.5 — FILTRO DE PAGAMENTO NA LISTA DE PEDIDOS
+
+Adicionar filtros visuais (chips) para permitir ao usuário filtrar pedidos por status financeiro:
+
+- Pagos
+- Pendentes
+- Todos (default)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO alterar endpoints
+3. NÃO alterar schema
+4. NÃO alterar queries existentes
+5. NÃO refatorar componentes
+6. NÃO alterar tipagem global (@shared/schema)
+
+👉 Apenas lógica de filtro no frontend
+
+---
+
+🧠 CONTEXTO
+
+- order.isPaid já vem do backend (FIN.2)
+- badge "✓ Pago" já existe (FIN.4)
+- lista de pedidos já renderiza corretamente
+- React Query já fornece os dados
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CRIAR ESTADO DE FILTRO
+
+Arquivo:
+client/src/pages/admin/orders.tsx
+
+Adicionar no topo do componente:
+
+const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending">("all");
+
+---
+
+2. ADICIONAR CHIPS DE FILTRO
+
+Local:
+Acima da tabela de pedidos (onde já existem filtros, se houver)
+
+Adicionar:
+
+<div className="flex gap-2 mb-3">
+  <button
+    onClick={() => setPaymentFilter("all")}
+    className={paymentFilter === "all" ? "chip-active" : "chip"}
+  >
+    Todos
+  </button>
+
+  <button
+    onClick={() => setPaymentFilter("paid")}
+    className={paymentFilter === "paid" ? "chip-active" : "chip"}
+  >
+    Pagos
+  </button>
+
+  <button
+    onClick={() => setPaymentFilter("pending")}
+    className={paymentFilter === "pending" ? "chip-active" : "chip"}
+  >
+    Pendentes
+  </button>
+</div>
+
+⚠️ Reutilizar estilos existentes (não criar sistema novo)
+
+---
+
+3. APLICAR FILTRO NA LISTAGEM
+
+Local:
+Antes do .map() dos pedidos
+
+Substituir:
+
+orders.map(...)
+
+por:
+
+orders
+  .filter((order) => {
+    const isPaid = (order as any).isPaid;
+
+    if (paymentFilter === "paid") return isPaid === true;
+    if (paymentFilter === "pending") return !isPaid;
+
+    return true;
+  })
+  .map(...)
+
+---
+
+4. COMPORTAMENTO
+
+Cenário	Resultado
+"default"	Todos os pedidos aparecem
+"Pagos"	Só pedidos com isPaid === true
+"Pendentes"	Só pedidos com isPaid === false
+Troca de filtro	instantânea (client-side)
+Sem reload	✔
+Sem nova API	✔
+
+---
+
+5. UX (OPCIONAL MAS RECOMENDADO)
+
+Adicionar contador:
+
+Pagos (3)
+Pendentes (7)
+
+---
+
+📊 RESULTADO ESPERADO
+
+- operador consegue ver rapidamente quem pagou
+- operador consegue focar só em cobrança
+- zero impacto no backend
+- zero risco de regressão
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. local exato da inserção
+2. código adicionado
+3. confirmação de zero regressão

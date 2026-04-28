@@ -1707,6 +1707,10 @@ export default function OrdersPage() {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterFiscal, setFilterFiscal] = useState("ALL");
+  // FASE FIN.5 — filtro client-side por status financeiro (deriva de
+  // `order.isPaid` exposto no FIN.2). 100% no frontend: nenhum endpoint
+  // novo, nenhuma query nova, nenhuma mudança de cache.
+  const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending">("all");
   const [noteOrder, setNoteOrder] = useState<Order | null>(null);
   const [editOrder, setEditOrder] = useState<Order | null>(null);
   const [cancelOrder, setCancelOrder] = useState<Order | null>(null);
@@ -1723,8 +1727,24 @@ export default function OrdersPage() {
     const matchFiscal = filterFiscal === 'ALL' ||
       (filterFiscal === 'nota_pendente' && !o.fiscalStatus) ||
       o.fiscalStatus === filterFiscal;
-    return matchSearch && matchStatus && matchFiscal;
+    // FASE FIN.5 — predicate aditivo de pagamento.
+    // `isPaid` é exposto pelo backend (FIN.2) como boolean opcional;
+    // pendente = qualquer coisa que não seja `true` (inclui ausência).
+    const isPaid = (o as any).isPaid === true;
+    const matchPayment =
+      paymentFilter === 'all' ||
+      (paymentFilter === 'paid' && isPaid) ||
+      (paymentFilter === 'pending' && !isPaid);
+    return matchSearch && matchStatus && matchFiscal && matchPayment;
   });
+
+  // FASE FIN.5 — contadores informativos para os chips de pagamento.
+  // Calculados sobre TODOS os pedidos retornados pelo backend (não respeitam
+  // os outros filtros, intencionalmente — funcionam como contador absoluto
+  // de carteira). Aditivo, sem refatorar nada.
+  const paidCount = orders?.filter(o => (o as any).isPaid === true).length ?? 0;
+  const pendingCount = (orders?.length ?? 0) - paidCount;
+  const totalCount = orders?.length ?? 0;
 
   const patchOrder = async (id: number, updates: any) => {
     const res = await fetch(`/api/orders/${id}`, {
@@ -1991,6 +2011,38 @@ export default function OrdersPage() {
                 <option key={k} value={k}>{v}</option>
               ))}
             </select>
+            {/* FASE FIN.5 — chips de filtro por status financeiro.
+                Reutilizam o mesmo padrão visual dos chips de `filterStatus`
+                logo acima (px-3 py-2 rounded-xl text-xs font-bold border-2),
+                com cor verde quando ativos para reforçar a semântica
+                financeira. Filtragem 100% client-side sobre `order.isPaid`
+                (FIN.2). Os contadores são absolutos (toda a carteira). */}
+            <div className="w-px h-6 bg-border mx-1" />
+            {([
+              { key: 'all',     label: 'Todos',     count: totalCount   },
+              { key: 'paid',    label: 'Pagos',     count: paidCount    },
+              { key: 'pending', label: 'Pendentes', count: pendingCount },
+            ] as const).map(opt => {
+              const active = paymentFilter === opt.key;
+              const activeColor =
+                opt.key === 'paid'    ? 'bg-green-600 text-white border-green-600' :
+                opt.key === 'pending' ? 'bg-amber-500 text-white border-amber-500' :
+                                        'bg-primary text-white border-primary';
+              return (
+                <button
+                  key={opt.key}
+                  onClick={() => setPaymentFilter(opt.key)}
+                  data-testid={`chip-payment-${opt.key}`}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${
+                    active
+                      ? activeColor
+                      : 'border-border text-muted-foreground hover:border-primary/50'
+                  }`}
+                >
+                  {opt.label} ({opt.count})
+                </button>
+              );
+            })}
           </div>
         </div>
 
