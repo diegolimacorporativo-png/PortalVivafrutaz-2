@@ -1,0 +1,181 @@
+🎯 OBJETIVO: BANCO.4 — UI PARA IMPORTAR RETORNO CNAB (ITAÚ)
+
+Permitir que o operador envie o arquivo de retorno (.ret) do banco e visualize o resultado do processamento.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO criar endpoint novo
+3. NÃO alterar schema
+4. NÃO refatorar páginas existentes
+5. NÃO alterar lógica de pagamento (FinanceService)
+
+👉 Apenas UI consumindo endpoint existente
+
+---
+
+🧠 CONTEXTO
+
+- Endpoint já implementado:
+  POST /api/bank/retorno/itau
+
+- Recebe multipart/form-data com campo "file"
+
+- Resposta:
+
+{
+  success: true,
+  totalProcessados,
+  pagosIdentificados,
+  baixasRealizadas,
+  naoEncontrados,
+  jaPagas,
+  erros
+}
+
+- Backend já faz:
+  ✔ parse CNAB 240
+  ✔ identifica pagamentos
+  ✔ baixa automática via FinanceService
+  ✔ idempotência garantida
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CRIAR COMPONENTE DE UPLOAD
+
+Arquivo novo:
+
+client/src/components/banking/ImportarRetornoCnab.tsx
+
+---
+
+2. UI DO COMPONENTE
+
+Renderizar:
+
+- título: "Importar retorno bancário (Itaú)"
+- input type="file" (accept=".ret,.txt")
+- botão "Processar retorno"
+- área de resultado (inicialmente vazia)
+
+---
+
+3. ESTADO
+
+const [file, setFile] = useState<File | null>(null);
+const [loading, setLoading] = useState(false);
+const [result, setResult] = useState<any | null>(null);
+
+---
+
+4. HANDLER DE ENVIO
+
+async function handleUpload() {
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/bank/retorno/itau", {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json();
+    setResult(data);
+  } catch (err) {
+    console.error("[CNAB] erro upload", err);
+  } finally {
+    setLoading(false);
+  }
+}
+
+---
+
+5. BOTÃO
+
+<button
+  onClick={handleUpload}
+  disabled={!file || loading}
+  className="px-4 py-2 rounded-md bg-primary text-white"
+>
+  {loading ? "Processando..." : "Processar retorno"}
+</button>
+
+---
+
+6. EXIBIR RESULTADO
+
+Renderizar após processamento:
+
+{result && (
+  <div className="mt-4 p-4 border rounded-md bg-muted">
+    <p>Total processados: {result.totalProcessados}</p>
+    <p>Pagos identificados: {result.pagosIdentificados}</p>
+    <p>Baixas realizadas: {result.baixasRealizadas}</p>
+    <p>Já estavam pagos: {result.jaPagas}</p>
+    <p>Não encontrados: {result.naoEncontrados}</p>
+    <p>Erros: {result.erros}</p>
+  </div>
+)}
+
+---
+
+7. LOCAL DE USO
+
+Inserir componente em:
+
+client/src/pages/admin/finance.tsx
+
+👉 abaixo da lista de contas a receber
+
+---
+
+8. UX IMPORTANTE
+
+- Aceitar apenas 1 arquivo
+- Não precisa drag-and-drop
+- Não precisa preview do arquivo
+- Simples e direto (fluxo operacional)
+
+---
+
+📊 RESULTADO ESPERADO
+
+- operador baixa arquivo .ret no Itaú
+- faz upload no sistema
+- sistema processa automaticamente
+- contas são baixadas sem ação manual
+- operador vê resumo instantâneo
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. caminho do componente criado
+2. onde foi inserido
+3. print mental do fluxo funcionando
+4. confirmação de zero regressão
+
+---
+
+⚠️ NÃO INVENTAR FEATURES
+
+Nada de:
+- dashboard
+- gráficos
+- filtros novos
+- refatoração de finance.tsx
+
+👉 foco TOTAL: upload + resultado

@@ -8,6 +8,7 @@ import {
   Clock, XCircle, Copy, Check, ChevronDown, ChevronUp, Wallet, CreditCard,
   ArrowUpCircle, ArrowDownCircle, RefreshCw
 } from 'lucide-react';
+import { ImportarRetornoCnab } from '@/components/banking/ImportarRetornoCnab';
 
 type AR = {
   id: number; companyId: number | null; orderId: number | null;
@@ -464,6 +465,9 @@ export default function FinancePage() {
               </div>
             </div>
           )}
+
+          {/* BANCO.4 — Importar retorno bancário (consome /api/bank/retorno/itau) */}
+          <ImportarRetornoCnab />
         </div>
       )}
 
