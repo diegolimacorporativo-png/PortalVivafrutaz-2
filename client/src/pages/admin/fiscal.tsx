@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { ContextualTip } from '@/components/ContextualTip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -672,6 +672,16 @@ function IcmsSummarySection() {
   const [endDate, setEndDate] = useState<string>('');
   const { toast } = useToast();
 
+  // FASE NF.7.9.4 — Indicador visual de "mês fechado" (UI only).
+  // Heurística de SESSÃO: marca como fechado quando o usuário aciona
+  // closeMutation com sucesso para o período atualmente filtrado.
+  // Reseta sempre que o filtro muda. Não persiste após reload — limitação
+  // aceita nesta fase (poderá ser resolvida com GET /fiscal/closures).
+  const [isClosed, setIsClosed] = useState(false);
+  useEffect(() => {
+    setIsClosed(false);
+  }, [startDate, endDate]);
+
   // FASE NF.7.9.2 — mutação para fechar o mês fiscal selecionado.
   // Lê o ano/mês do filtro de "Data inicial" (preferência) ou "Data
   // final" como fallback. Sem filtro definido → botão fica desabilitado
@@ -686,6 +696,8 @@ function IcmsSummarySection() {
         title: 'Mês fechado',
         description: `Período ${String(vars.month).padStart(2, '0')}/${vars.year} consolidado. Mutações nesse mês ficam bloqueadas.`,
       });
+      // FASE NF.7.9.4 — flag de sessão para o badge visual.
+      setIsClosed(true);
       // Refetch do summary (a tabela `fiscal_closures` não muda os
       // valores, mas mantemos a invalidação para futuras camadas que
       // queiram exibir o status "fechado" no card).
@@ -741,6 +753,19 @@ function IcmsSummarySection() {
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
           <Receipt className="w-4 h-4 text-primary" />
           Resumo ICMS — Importados (4%) vs Normal (7/12/18%)
+          {/* FASE NF.7.9.4 — Badge "Fechado" (UI only).
+              Aparece somente após closeMutation.onSuccess na sessão
+              atual; reseta quando o usuário muda o período. */}
+          {isClosed && (
+            <span
+              data-testid="badge-icms-closed"
+              className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-md bg-red-100 text-red-700 border border-red-300"
+              title="Período fechado — alterações bloqueadas"
+            >
+              <Lock className="w-3 h-3" />
+              Fechado
+            </span>
+          )}
         </div>
         {meta && (
           <span className="text-xs text-muted-foreground" data-testid="text-icms-meta">
@@ -836,7 +861,7 @@ function IcmsSummarySection() {
             filtro; pede confirmação antes para evitar fechamento acidental. */}
         <button
           type="button"
-          disabled={!periodToClose || closeMutation.isPending}
+          disabled={!periodToClose || closeMutation.isPending || isClosed}
           onClick={() => {
             if (!periodToClose) return;
             const label = `${String(periodToClose.month).padStart(2, '0')}/${periodToClose.year}`;

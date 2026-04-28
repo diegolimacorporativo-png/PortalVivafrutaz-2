@@ -1,0 +1,181 @@
+🎯 OBJETIVO: FASE NF.7.9.4 — INDICADOR DE MÊS FECHADO (UI ONLY)
+
+Mostrar visualmente quando o período selecionado no "Resumo ICMS" já está fechado (fiscal_closures), sem alterar backend, schema ou regras.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO criar endpoint novo
+3. NÃO alterar schema
+4. NÃO alterar lógica de cálculo ICMS
+5. NÃO alterar fluxo existente
+6. NÃO refatorar componente
+7. NÃO remover código
+
+👉 Apenas adicionar leitura leve + indicador visual
+
+---
+
+🧠 CONTEXTO
+
+- Já existe:
+  ✔ POST /api/fiscal/close-period
+  ✔ tabela fiscal_closures
+  ✔ bloqueio PERIODO_FECHADO funcionando
+
+- NÃO existe:
+  ❌ forma de SABER na UI se o mês está fechado
+
+➡️ Hoje o usuário só descobre quando toma 403
+
+---
+
+📦 ESTRATÉGIA
+
+Como NÃO podemos criar endpoint:
+
+👉 vamos inferir estado usando tentativa controlada
+
+✔ Se fechar novamente o mesmo período → backend aceita (sem unique)
+✔ Então NÃO dá erro
+
+❌ Portanto: precisamos de leitura real
+
+👉 SOLUÇÃO CORRETA (SEM BACKEND NOVO):
+
+Criar query leve usando o próprio /icms-summary
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+1. DETECTAR PERÍODO ATIVO
+
+Dentro de IcmsSummarySection:
+
+const hasFilter = Boolean(startDate || endDate);
+
+Criar:
+
+const periodKey = startDate && endDate
+  ? ${startDate}-${endDate}
+  : null;
+
+---
+
+2. ESTADO LOCAL
+
+Adicionar:
+
+const [isClosed, setIsClosed] = useState(false);
+
+---
+
+3. DETECÇÃO VIA HEURÍSTICA (SEM BACKEND)
+
+Regra simples e segura:
+
+👉 Se o usuário já clicou em "Fechar mês"
+→ considerar como fechado na sessão
+
+Implementar:
+
+useEffect(() => {
+  setIsClosed(false);
+}, [startDate, endDate]);
+
+E no sucesso do closeMutation:
+
+onSuccess: () => {
+  setIsClosed(true);
+  ...
+}
+
+---
+
+⚠️ IMPORTANTE
+
+Isso é indicador de sessão, não persistente
+👉 suficiente para UX sem backend
+
+---
+
+4. BADGE VISUAL
+
+Adicionar ao lado do título:
+
+📋 Resumo ICMS — ...
+
+Inserir:
+
+{isClosed && (
+  <span
+    data-testid="badge-icms-closed"
+    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-bold rounded-md bg-red-100 text-red-700 border border-red-300"
+    title="Período fechado — alterações bloqueadas"
+  >
+    🔒 Fechado
+  </span>
+)}
+
+---
+
+5. POSIÇÃO
+
+✔ mesma linha do título
+✔ antes ou depois do contador de NF-es
+
+---
+
+6. (OPCIONAL UX)
+
+Desabilitar botão "Fechar mês" quando já fechado:
+
+disabled={isClosed || closeMutation.isPending}
+
+---
+
+📊 RESULTADO ESPERADO
+
+Cenário	Resultado
+Usuário abre tela	sem badge
+Usuário filtra período	sem badge
+Usuário clica "Fechar mês"	badge 🔒 aparece imediatamente
+Usuário muda período	badge some
+Usuário tenta mutar pedido backend bloqueia (já existente)
+
+---
+
+🛡️ IMPACTO
+
+✔ ZERO impacto backend  
+✔ ZERO risco de regressão  
+✔ melhora UX fiscal imediata  
+✔ evita erro humano  
+
+---
+
+⚠️ LIMITAÇÃO (ACEITA)
+
+Badge não persiste após reload
+
+✔ aceitável nesta fase  
+✔ pode ser resolvido futuramente com GET /fiscal/closures
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. onde o estado foi criado
+2. trecho do badge
+3. confirmação de zero regressão
+
+---
+
+🚀 NÃO IMPLEMENTAR NADA ALÉM DI
