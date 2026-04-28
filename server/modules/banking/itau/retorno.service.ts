@@ -171,7 +171,7 @@ export async function processarRetornoItau(
 
   const success = erros === 0;
   const partial =
-    pagosIdentificados > 0 &&
+    baixasRealizadas > 0 &&
     (baixasRealizadas < pagosIdentificados || erros > 0);
 
   return {
