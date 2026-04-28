@@ -55,4 +55,12 @@ router.put(
   asyncHandler(fiscalController.update),
 );
 
+// FASE NF.7.9 — GET /api/fiscal/icms-summary
+// Endpoint NOVO, 100% aditivo. Não toca os 4 endpoints de drafts acima.
+// Mesmo middleware (requireAuth + withTenantScope) → tenant scope herdado.
+router.get(
+  "/icms-summary",
+  asyncHandler(fiscalController.icmsSummary),
+);
+
 export const fiscalRouter = router;

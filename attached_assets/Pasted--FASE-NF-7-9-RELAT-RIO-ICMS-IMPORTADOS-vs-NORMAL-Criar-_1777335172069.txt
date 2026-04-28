@@ -1,0 +1,198 @@
+🎯 FASE NF.7.9 — RELATÓRIO ICMS (IMPORTADOS vs NORMAL)
+
+Criar seção no relatório fiscal para separar ICMS de produtos importados (4%) vs ICMS normal (7/12/18).
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente de cálculo  
+2. NÃO modificar geração de XML  
+3. NÃO alterar endpoints atuais  
+4. NÃO alterar estrutura de banco existente  
+5. NÃO quebrar relatórios já existentes  
+
+👉 Apenas ADICIONAR camada de agregação e visualização
+
+---
+
+🧠 OBJETIVO
+
+Permitir auditoria fiscal clara:
+
+- ICMS 4% (importados)
+- ICMS normal (por UF)
+
+---
+
+## 🛠️ ETAPA 1 — LOCALIZAR FONTE DE DADOS
+
+Arquivo provável:
+
+server/modules/fiscal/ OU server/routes/fiscal.routes.ts
+
+Identificar:
+
+- endpoint de relatório fiscal (ex: /api/fiscal/report)
+OU
+- função que agrega NF-es emitidas
+
+---
+
+## 🛠️ ETAPA 2 — CRIAR AGREGAÇÃO (BACKEND)
+
+Criar função nova (NÃO alterar existente):
+
+ex:
+
+getIcmsSummaryByType(nfes)
+
+---
+
+Lógica:
+
+Para cada item da NF:
+
+Separar:
+
+if (item.importado === true OR alíquota == 4)
+→ grupo IMPORTADO
+
+else
+→ grupo NORMAL
+
+---
+
+Calcular:
+
+IMPORTADO:
+- totalNFs
+- totalProdutos
+- totalBaseCalculo (vBC)
+- totalICMS (vICMS)
+
+NORMAL:
+- totalNFs
+- totalProdutos
+- totalBaseCalculo
+- totalICMS
+
+---
+
+Retorno esperado:
+
+{
+  importado: {
+    totalNFs: number,
+    totalBase: number,
+    totalICMS: number
+  },
+  normal: {
+    totalNFs: number,
+    totalBase: number,
+    totalICMS: number
+  }
+}
+
+---
+
+## 🛠️ ETAPA 3 — NÃO ALTERAR ENDPOINT EXISTENTE
+
+👉 Criar novo endpoint:
+
+GET /api/fiscal/icms-summary
+
+---
+
+Regras:
+
+- reutilizar mesma fonte de dados do relatório atual
+- NÃO duplicar query desnecessária
+- NÃO mudar retorno antigo
+
+---
+
+## 🛠️ ETAPA 4 — FRONTEND
+
+Arquivo:
+
+client/src/pages/admin/fiscal.tsx (ou equivalente)
+
+---
+
+Adicionar NOVA SEÇÃO:
+
+"Resumo ICMS"
+
+---
+
+Exibir:
+
+🟠 ICMS Importados (4%)
+- Base total
+- ICMS total
+- Quantidade de NF
+
+🔵 ICMS Normal
+- Base total
+- ICMS total
+- Quantidade de NF
+
+---
+
+## 🛠️ ETAPA 5 — VISUAL
+
+Sugestão:
+
+- usar cards (mesmo padrão do dashboard)
+- cor laranja → importado
+- cor azul → normal
+
+---
+
+## 🛠️ ETAPA 6 — SEGURANÇA
+
+Garantir:
+
+- usa mesmo tenant do usuário
+- não mistura dados entre empresas
+
+(se já existe middleware → reaproveitar)
+
+---
+
+## 🛠️ ETAPA 7 — ZERO REGRESSÃO
+
+Confirmar:
+
+- XML continua igual
+- cálculos continuam iguais
+- testes continuam passando
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ visão clara do ICMS 4% separado  
+✔ auditoria pronta para SPED Fiscal  
+✔ nenhuma quebra no sistema  
+✔ compatível com multi-tenant  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoint criado  
+2. função de agregação  
+3. trecho do frontend  
+4. confirmação de zero regressão  
+
+---
+
+⚠️ NÃO OTIMIZAR AINDA  
+⚠️ NÃO CRIAR MIGRATIONS  
+⚠️ NÃO MEXER NO GERADOR DE NFE  
+
+👉 Apenas camada de leitura e

@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Receipt, Search, Filter, Calendar, Building2, Download, Eye,
   CheckCircle2, Clock, XCircle, Send, ChevronDown, ChevronRight, RefreshCw,
-  TrendingUp, Package
+  TrendingUp, Package, Globe, Landmark
 } from 'lucide-react';
 import { downloadDanfe, openDanfe, type DanfeData } from '@/lib/danfe-generator';
 
@@ -335,6 +335,11 @@ export default function FiscalManagement() {
         ))}
       </div>
 
+      {/* FASE NF.7.9 — Resumo ICMS (Importados 4% vs Normal 7/12/18%).
+          Seção 100% aditiva. Não substitui nem desloca os stats acima.
+          Lê de GET /api/fiscal/icms-summary (endpoint novo, tenant-scoped). */}
+      <IcmsSummarySection />
+
       {/* Filters */}
       <div className="bg-card border border-border/50 rounded-2xl p-4 space-y-3">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground mb-1">
@@ -629,6 +634,149 @@ export default function FiscalManagement() {
         <TrendingUp className="w-3.5 h-3.5 inline mr-1" />
         Total geral visível: <strong>{fmt(stats.totalValue)}</strong> em {stats.total} pedidos
       </div>
+    </div>
+  );
+}
+
+/**
+ * FASE NF.7.9 — Resumo ICMS (Importados 4% × Normal 7/12/18%).
+ *
+ * Componente isolado, read-only. Lê de GET /api/fiscal/icms-summary.
+ * Tenant scope é garantido pelo middleware do servidor — o front não
+ * envia empresaId. Mostra dois cards (laranja = importado, azul =
+ * normal) seguindo o padrão visual já estabelecido em produtos
+ * (NF.7.8.2/NF.7.8.3).
+ */
+type IcmsBucket = {
+  totalNFs: number;
+  totalItens: number;
+  totalBase: number;
+  totalICMS: number;
+};
+type IcmsSummary = {
+  importado: IcmsBucket;
+  normal: IcmsBucket;
+  meta: {
+    nfsConsideradas: number;
+    nfsIgnoradas: number;
+    statusConsiderados: string[];
+  };
+};
+
+function IcmsSummarySection() {
+  const { data, isLoading, isError } = useQuery<IcmsSummary>({
+    queryKey: ['/api/fiscal/icms-summary'],
+  });
+
+  const importado = data?.importado;
+  const normal = data?.normal;
+  const meta = data?.meta;
+
+  return (
+    <div
+      className="bg-card border border-border/50 rounded-2xl p-4"
+      data-testid="section-icms-summary"
+    >
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <Receipt className="w-4 h-4 text-primary" />
+          Resumo ICMS — Importados (4%) vs Normal (7/12/18%)
+        </div>
+        {meta && (
+          <span className="text-xs text-muted-foreground" data-testid="text-icms-meta">
+            {meta.nfsConsideradas} NF-e(s) consideradas
+            {meta.nfsIgnoradas > 0 && ` · ${meta.nfsIgnoradas} ignorada(s)`}
+          </span>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground p-4">Calculando resumo de ICMS...</div>
+      ) : isError ? (
+        <div className="text-sm text-red-600 p-4">
+          Não foi possível carregar o resumo de ICMS no momento.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Card Importados — laranja, alinhado ao badge "Importado" do catálogo */}
+          <div
+            className="rounded-xl border-2 border-orange-200 bg-orange-50 p-4"
+            data-testid="card-icms-importado"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Globe className="w-4 h-4 text-orange-700" />
+              <span className="text-sm font-bold text-orange-800">
+                ICMS Importados (4%)
+              </span>
+            </div>
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-orange-700/80">NF-e(s)</dt>
+                <dd className="font-bold text-orange-900" data-testid="text-icms-importado-nfs">
+                  {importado?.totalNFs ?? 0}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-orange-700/80">Itens</dt>
+                <dd className="font-bold text-orange-900" data-testid="text-icms-importado-itens">
+                  {importado?.totalItens ?? 0}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-orange-700/80">Base de cálculo</dt>
+                <dd className="font-bold text-orange-900" data-testid="text-icms-importado-base">
+                  {fmt(importado?.totalBase ?? 0)}
+                </dd>
+              </div>
+              <div className="flex justify-between border-t border-orange-200 pt-1 mt-1">
+                <dt className="text-orange-700">ICMS total</dt>
+                <dd className="font-extrabold text-orange-900" data-testid="text-icms-importado-icms">
+                  {fmt(importado?.totalICMS ?? 0)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+
+          {/* Card Normal — azul, padrão "interno" */}
+          <div
+            className="rounded-xl border-2 border-blue-200 bg-blue-50 p-4"
+            data-testid="card-icms-normal"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <Landmark className="w-4 h-4 text-blue-700" />
+              <span className="text-sm font-bold text-blue-800">
+                ICMS Normal (7/12/18%)
+              </span>
+            </div>
+            <dl className="space-y-1 text-sm">
+              <div className="flex justify-between">
+                <dt className="text-blue-700/80">NF-e(s)</dt>
+                <dd className="font-bold text-blue-900" data-testid="text-icms-normal-nfs">
+                  {normal?.totalNFs ?? 0}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-blue-700/80">Itens</dt>
+                <dd className="font-bold text-blue-900" data-testid="text-icms-normal-itens">
+                  {normal?.totalItens ?? 0}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-blue-700/80">Base de cálculo</dt>
+                <dd className="font-bold text-blue-900" data-testid="text-icms-normal-base">
+                  {fmt(normal?.totalBase ?? 0)}
+                </dd>
+              </div>
+              <div className="flex justify-between border-t border-blue-200 pt-1 mt-1">
+                <dt className="text-blue-700">ICMS total</dt>
+                <dd className="font-extrabold text-blue-900" data-testid="text-icms-normal-icms">
+                  {fmt(normal?.totalICMS ?? 0)}
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

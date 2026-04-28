@@ -5,6 +5,8 @@ import {
   listDraftsByOrder,
   updateDraft,
 } from "../../services/nf.draft";
+// FASE NF.7.9 — agregação read-only de ICMS importado vs normal.
+import { getIcmsSummary } from "../../services/nfe/icms-summary.service";
 
 /**
  * Fiscal module controller — thin HTTP layer over services/nf.draft.ts.
@@ -42,5 +44,19 @@ export const fiscalController = {
     const { id } = req.params as unknown as { id: number };
     const draft = await updateDraft(id, req.body as any);
     res.json(draft);
+  },
+
+  // FASE NF.7.9 — GET /api/fiscal/icms-summary
+  // Retorna a separação ICMS Importados (4%) vs ICMS Normal (7/12/18%).
+  // Tenant scope obrigatório (withTenantScope no router já preenche
+  // req.empresaId). Sem mutação. Sem alteração no XML/cálculo. É só
+  // leitura agregada das NF-es já emitidas.
+  async icmsSummary(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | undefined;
+    if (!empresaId) {
+      return res.status(400).json({ error: "tenant_required" });
+    }
+    const summary = await getIcmsSummary(empresaId);
+    res.json(summary);
   },
 };
