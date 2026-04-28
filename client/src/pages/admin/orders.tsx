@@ -932,6 +932,24 @@ function OrderRow({
                     {ERP_STATUS_LABEL[order.erpExportStatus] || order.erpExportStatus}
                   </span>
                 )}
+                {/* FASE FIN.4 — badge "Pago" derivado da projeção exposta no FIN.2.
+                    Cast `as any` local: o tipo `Order` do `@shared/schema` permanece
+                    intocado (regra: NÃO alterar tipagem existente). O backend já
+                    sempre devolve `isPaid` e `paidAt` em GET /api/orders e
+                    GET /api/orders/:id (FIN.2 — fail-safe → false/null). */}
+                {(order as any).isPaid && (
+                  <span
+                    className="inline-flex items-center gap-1 text-xs font-bold px-1.5 py-0.5 rounded-md bg-green-100 text-green-800 border border-green-300"
+                    data-testid={`badge-paid-${order.id}`}
+                    title={
+                      (order as any).paidAt
+                        ? `Pago em ${new Date((order as any).paidAt).toLocaleDateString('pt-BR')}`
+                        : "Pago"
+                    }
+                  >
+                    ✓ Pago
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1062,6 +1080,22 @@ function OrderRow({
         <tr>
           <td colSpan={8} className="px-5 py-0 bg-muted/10 border-b border-border/50">
             <div className="py-4 space-y-3">
+              {/* FASE FIN.4 — confirmação visual de pagamento na expansão.
+                  Renderiza apenas quando o backend (FIN.2) reportou `isPaid:true`.
+                  Não substitui nenhum bloco existente — aparece como cabeçalho
+                  informativo logo no topo do detalhe expandido. */}
+              {(order as any).isPaid && (
+                <div
+                  className="flex items-center gap-2 p-3 bg-green-50 rounded-xl border border-green-200"
+                  data-testid={`status-paid-${order.id}`}
+                >
+                  <span className="text-sm text-green-700 font-bold">
+                    ✓ Pago em {(order as any).paidAt
+                      ? new Date((order as any).paidAt).toLocaleDateString('pt-BR')
+                      : "-"}
+                  </span>
+                </div>
+              )}
               {/* Bling Export — data de exportação manual + status automático */}
               <div className="space-y-2">
                 <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-xl border border-orange-100">

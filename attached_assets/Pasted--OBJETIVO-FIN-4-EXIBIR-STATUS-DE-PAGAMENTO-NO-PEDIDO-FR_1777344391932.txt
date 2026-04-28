@@ -1,0 +1,134 @@
+🎯 OBJETIVO: FIN.4 — EXIBIR STATUS DE PAGAMENTO NO PEDIDO (FRONTEND)
+
+Exibir visualmente no frontend quando um pedido já foi pago, utilizando os campos isPaid e paidAt adicionados no FIN.2.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO alterar endpoints
+3. NÃO alterar lógica existente
+4. NÃO remover código
+5. NÃO refatorar componentes
+6. Apenas adicionar renderização visual
+
+---
+
+🧠 CONTEXTO
+
+- FIN.2 já expõe no backend:
+  - isPaid: boolean
+  - paidAt: Date | null
+
+- Esses campos já estão disponíveis em:
+  - GET /api/orders
+  - GET /api/orders/:id
+
+- Nenhum consumo frontend foi feito ainda
+
+---
+
+📦 TAREFAS
+
+---
+
+1️⃣ LOCALIZAR EXIBIÇÃO DE PEDIDOS
+
+Arquivo principal:
+
+client/src/pages/admin/orders.tsx
+
+Encontrar:
+
+- Card/lista de pedidos
+- Ou tabela/grid onde cada pedido é renderizado
+
+---
+
+2️⃣ ADICIONAR BADGE VISUAL "PAGO"
+
+Dentro do componente que renderiza cada pedido:
+
+Adicionar condicional:
+
+{order.isPaid && (
+  <span
+    className="inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded-md bg-green-100 text-green-800 border border-green-300"
+    data-testid={badge-paid-${order.id}}
+    title={
+      order.paidAt
+        ? Pago em ${new Date(order.paidAt).toLocaleDateString('pt-BR')}
+        : "Pago"
+    }
+  >
+    ✓ Pago
+  </span>
+)}
+
+---
+
+3️⃣ (OPCIONAL MELHOR UX)
+
+Se já existir badge de status (CONFIRMED, SHIPPED, etc):
+
+👉 Colocar o badge "Pago" ao lado (não substituir)
+
+---
+
+4️⃣ (DETALHE DO PEDIDO)
+
+Se existir tela de detalhe:
+
+client/src/pages/admin/order-detail.tsx (ou equivalente)
+
+Adicionar:
+
+{order.isPaid && (
+  <div className="mt-2 text-sm text-green-700 font-medium">
+    ✓ Pago em {order.paidAt ? new Date(order.paidAt).toLocaleDateString('pt-BR') : "-"}
+  </div>
+)}
+
+---
+
+5️⃣ NÃO FAZER
+
+❌ Não criar hooks novos  
+❌ Não alterar React Query  
+❌ Não mexer em fetch  
+❌ Não alterar tipagem existente  
+❌ Não mudar layout estrutural  
+
+---
+
+📊 RESULTADO ESPERADO
+
+- Pedido pago mostra badge verde "✓ Pago"
+- Tooltip mostra data do pagamento
+- Pedido não pago permanece igual
+- Nenhuma quebra visual
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. locais onde o badge foi inserido
+2. trecho exato de código adicionado
+3. confirmação de zero regressão
+
+---
+
+🔥 IMPORTANTE
+
+Essa fase é 100% visual, aproveitando tudo que já foi construído no FIN.1 → FIN.3.5.
+
+Sem risco. Sem backend. Só percepção de valor pro usuário.
+
+---
+
+🚀 PRÓXIMO PASSO (NÃO IMPLEMENTAR AINDA)
+
+FIN.5 — Filtro "Pagos / Pendentes" na listagem de
