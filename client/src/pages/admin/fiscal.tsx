@@ -744,6 +744,35 @@ function IcmsSummarySection() {
   const meta = data?.meta;
   const hasFilter = Boolean(startDate || endDate);
 
+  // FASE NF.7.9.6 — Helpers inline para atalhos de período (UX).
+  // Apenas formatação/cálculo de datas no fuso local; NÃO tocam queryFn,
+  // endpoint nem lógica de filtro existente — só populam os mesmos
+  // setStartDate/setEndDate, e o useQuery refaz a chamada via queryKey.
+  function formatDate(d: Date): string {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  function getCurrentMonthRange() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return { start: formatDate(start), end: formatDate(end) };
+  }
+  function getLastMonthRange() {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    return { start: formatDate(start), end: formatDate(end) };
+  }
+  function getLast90Days() {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(now.getDate() - 90);
+    return { start: formatDate(start), end: formatDate(now) };
+  }
+
   return (
     <div
       className="bg-card border border-border/50 rounded-2xl p-4"
@@ -786,6 +815,47 @@ function IcmsSummarySection() {
         <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground mr-1">
           <Calendar className="w-3.5 h-3.5" />
           Período
+        </div>
+        {/* FASE NF.7.9.6 — Atalhos de período (UX).
+            Apenas setam startDate/endDate; o useQuery refaz a chamada
+            via queryKey. Não substituem os inputs — complementam. */}
+        <div className="flex gap-2 flex-wrap" data-testid="period-shortcuts">
+          <button
+            type="button"
+            data-testid="btn-period-current-month"
+            onClick={() => {
+              const r = getCurrentMonthRange();
+              setStartDate(r.start);
+              setEndDate(r.end);
+            }}
+            className="px-2 py-1 text-[10px] font-semibold border border-border rounded-md text-muted-foreground hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            Mês atual
+          </button>
+          <button
+            type="button"
+            data-testid="btn-period-last-month"
+            onClick={() => {
+              const r = getLastMonthRange();
+              setStartDate(r.start);
+              setEndDate(r.end);
+            }}
+            className="px-2 py-1 text-[10px] font-semibold border border-border rounded-md text-muted-foreground hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            Mês passado
+          </button>
+          <button
+            type="button"
+            data-testid="btn-period-90-days"
+            onClick={() => {
+              const r = getLast90Days();
+              setStartDate(r.start);
+              setEndDate(r.end);
+            }}
+            className="px-2 py-1 text-[10px] font-semibold border border-border rounded-md text-muted-foreground hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            90 dias
+          </button>
         </div>
         <div className="flex flex-col">
           <label className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">

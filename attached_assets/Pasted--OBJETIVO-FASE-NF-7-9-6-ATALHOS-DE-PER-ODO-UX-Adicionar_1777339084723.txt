@@ -1,0 +1,167 @@
+🎯 OBJETIVO: FASE NF.7.9.6 — ATALHOS DE PERÍODO (UX)
+
+Adicionar botões rápidos para seleção de período no Resumo ICMS, sem alterar backend nem lógica existente.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO alterar endpoint
+3. NÃO alterar getIcmsSummary
+4. NÃO alterar queryFn
+5. NÃO refatorar componente
+6. NÃO remover inputs de data
+7. NÃO alterar lógica de filtro atual
+
+👉 Apenas adicionar atalhos que SETAM startDate e endDate
+
+---
+
+🧠 CONTEXTO
+
+Já existe:
+
+✔ inputs type="date" (startDate / endDate)  
+✔ query baseada nesses valores  
+✔ refetch automático via queryKey  
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1. HELPERS DE DATA (INLINE)
+
+Dentro de IcmsSummarySection, acima do return:
+
+function formatDate(d: Date): string {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return ${yyyy}-${mm}-${dd};
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  return { start: formatDate(start), end: formatDate(end) };
+}
+
+function getLastMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0);
+  return { start: formatDate(start), end: formatDate(end) };
+}
+
+function getLast90Days() {
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(now.getDate() - 90);
+  return { start: formatDate(start), end: formatDate(now) };
+}
+
+---
+
+## 2. BOTÕES DE ATALHO
+
+Inserir dentro da mesma div do filtro de período
+(logo após o título "Período", antes dos inputs)
+
+<div className="flex gap-2 flex-wrap">
+  <button
+    type="button"
+    data-testid="btn-period-current-month"
+    onClick={() => {
+      const r = getCurrentMonthRange();
+      setStartDate(r.start);
+      setEndDate(r.end);
+    }}
+    className="px-2 py-1 text-[10px] font-semibold border rounded-md hover:border-blue-300"
+  >
+    Mês atual
+  </button>
+
+  <button
+    type="button"
+    data-testid="btn-period-last-month"
+    onClick={() => {
+      const r = getLastMonthRange();
+      setStartDate(r.start);
+      setEndDate(r.end);
+    }}
+    className="px-2 py-1 text-[10px] font-semibold border rounded-md hover:border-blue-300"
+  >
+    Mês passado
+  </button>
+
+  <button
+    type="button"
+    data-testid="btn-period-90-days"
+    onClick={() => {
+      const r = getLast90Days();
+      setStartDate(r.start);
+      setEndDate(r.end);
+    }}
+    className="px-2 py-1 text-[10px] font-semibold border rounded-md hover:border-blue-300"
+  >
+    90 dias
+  </button>
+</div>
+
+---
+
+## 3. COMPORTAMENTO
+
+Ação	Resultado
+Clique em "Mês atual"	setStartDate + setEndDate → refetch automático
+Clique em "Mês passado"	mesma coisa
+Clique em "90 dias"	mesma coisa
+Alterar manualmente input	sobrescreve normalmente
+
+✔ zero lógica nova  
+✔ reaproveita tudo que já existe  
+
+---
+
+## 4. UX
+
+- Botões pequenos (text-[10px])
+- Não quebram layout (flex-wrap)
+- Não substituem inputs (complementam)
+
+---
+
+📊 RESULTADO ESPERADO
+
+Cenário	Resultado
+Usuário quer ver mês atual	1 clique
+Usuário quer fechar mês passado	1 clique
+Usuário quer análise rápida	90 dias instantâneo
+Query atualiza sozinha	useQuery já resolve
+
+---
+
+🛡️ IMPACTO
+
+✔ ZERO backend  
+✔ ZERO risco  
+✔ ZERO mudança em cálculo  
+✔ melhora MUITO usabilidade  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. onde os helpers foram criados  
+2. onde os botões foram inseridos  
+3. confirmação de zero regressão  
+
+---
+
+🚀 NÃO INVENTAR NADA ALÉM DISSO
