@@ -1,0 +1,119 @@
+🎯 OBJETIVO: PRÉ-AUDITORIA — CONTEXTO PARA FASE 6 (CNAB RETORNO)
+
+Preparar o agent para entender o fluxo atual antes de modificar qualquer lógica financeira.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO criar arquivos
+3. NÃO corrigir nada ainda
+4. NÃO refatorar
+5. Apenas LER e RESPONDER
+
+👉 Essa etapa é obrigatória antes da FASE 6
+
+---
+
+🧠 CONTEXTO
+
+Sistema já possui:
+
+- FASE 1 → bloqueio de duplicação de AR
+- FASE 2 → tenantContext em /api/bank/*
+- FASE 3 → response honesto no retorno CNAB
+- FASE 4 → remoção de bypass storage
+- FASE 5 → histórico CNAB isolado
+
+✔ Sistema está seguro  
+❌ Mas ainda NÃO está financeiramente correto
+
+---
+
+📦 TAREFAS (LEITURA OBRIGATÓRIA)
+
+---
+
+## 1. LOCALIZAR PARSER DE RETORNO CNAB
+
+Arquivo esperado:
+
+server/modules/banking/itau/retorno.parser.ts
+
+Responder:
+
+- Como o sistema identifica linhas do CNAB?
+- Qual posição define o tipo de segmento?
+- O código filtra apenas Segmento T?
+- Existe qualquer menção a Segmento U?
+
+---
+
+## 2. LOCALIZAR SERVICE DE PROCESSAMENTO
+
+Arquivo:
+
+server/modules/banking/itau/retorno.service.ts
+
+Responder:
+
+- Onde ocorre o loop de processamento dos itens?
+- Qual método é chamado para baixar o título?
+- Qual valor está sendo usado no pagamento? (campo exato)
+- Existe algum uso de juros/multa/desconto?
+
+---
+
+## 3. VERIFICAR REPOSITORY FINANCEIRO
+
+Arquivo:
+
+server/modules/finance/finance.repository.ts
+
+Responder:
+
+- No método payAccountReceivable:
+  - Qual valor é usado em financial_transactions?
+  - Esse valor vem do AR original ou do CNAB?
+
+---
+
+## 4. CONFIRMAR FLUXO COMPLETO
+
+Descrever passo a passo:
+
+1. Upload do arquivo CNAB
+2. Parser transforma em itens
+3. Service percorre itens
+4. Identifica AR
+5. Executa baixa
+6. Registra transação financeira
+
+👉 Confirmar se em algum ponto o valor real pago é considerado
+
+---
+
+## 🚨 VALIDAÇÃO FINAL (OBRIGATÓRIA)
+
+Responder claramente:
+
+❓ O sistema hoje usa valor do título ou valor pago real do banco?
+
+---
+
+## 📊 FORMATO DA RESPOSTA
+
+Responder exatamente:
+
+1. Parser análise
+2. Service análise
+3. Repository análise
+4. Fluxo completo
+5. Conclusão (valor real vs valor nominal)
+
+---
+
+🛑 NÃO IMPLEMENTAR NADA AINDA
+
+A FASE 6 só será executada após esta validação.
