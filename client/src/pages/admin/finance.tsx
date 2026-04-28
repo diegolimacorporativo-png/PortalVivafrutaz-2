@@ -365,6 +365,16 @@ export default function FinancePage() {
     queryKey: ['/api/finance/dashboard'],
     refetchInterval: 60000,
   });
+  // FASE NF.7.5 — resumo de NF-e por UF do emitente (read-only).
+  const { data: nfeUfRaw, isLoading: nfeUfLoading } = useQuery<unknown>({
+    queryKey: ['/api/finance/nfe/resumo-por-uf'],
+    refetchInterval: 60000,
+  });
+  const nfeUfList: { uf: string; total: number; usaFallback: boolean }[] = Array.isArray(nfeUfRaw)
+    ? (nfeUfRaw as any)
+    : Array.isArray((nfeUfRaw as any)?.data)
+      ? ((nfeUfRaw as any).data)
+      : [];
   const { data: arRaw, isLoading: arLoading, refetch: refetchAR } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-receivable', filterAR],
     queryFn: () => fetch(`/api/finance/accounts-receivable?status=${filterAR}`, { credentials: 'include' }).then(r => r.json()),
@@ -463,6 +473,54 @@ export default function FinancePage() {
           </span>
         </div>
       )}
+
+      {/* FASE NF.7.5 — Monitoramento de NF-e por UF do emitente */}
+      <div className="rounded-2xl border bg-card p-4" data-testid="card-nfe-resumo-uf">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Receipt className="w-4 h-4 text-purple-600" />
+            <h3 className="text-sm font-bold text-foreground">Emissão de NF-e por UF</h3>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {nfeUfList.length > 0 && `${nfeUfList.reduce((s, u) => s + u.total, 0)} notas no total`}
+          </span>
+        </div>
+        {nfeUfLoading ? (
+          <div className="text-center py-4 text-muted-foreground text-xs">Carregando...</div>
+        ) : nfeUfList.length === 0 ? (
+          <div className="text-center py-4 text-muted-foreground text-xs">Nenhuma NF-e emitida ainda nesta empresa.</div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+            {nfeUfList.map((u) => (
+              <div
+                key={u.uf}
+                data-testid={`nfe-uf-${u.uf.toLowerCase()}`}
+                className={`rounded-xl border px-3 py-2 ${
+                  u.usaFallback
+                    ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20'
+                    : 'border-emerald-200 bg-emerald-50 dark:bg-emerald-900/20'
+                }`}
+                title={u.usaFallback ? 'UF não mapeada — usando fallback (GO/SVRS)' : 'UF com webservice próprio mapeado'}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-foreground">{u.uf}</span>
+                  {u.usaFallback && (
+                    <span className="text-[10px] uppercase font-semibold text-amber-700 dark:text-amber-400">fallback</span>
+                  )}
+                </div>
+                <p className={`text-base font-bold ${u.usaFallback ? 'text-amber-700 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400'}`}>
+                  {u.total}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+        {nfeUfList.some((u) => u.usaFallback) && (
+          <p className="mt-3 text-[11px] text-amber-700 dark:text-amber-400">
+            UFs em âmbar usam o webservice de fallback (GO/SVRS). Mapear o webservice próprio dessas UFs aumenta a confiabilidade da transmissão.
+          </p>
+        )}
+      </div>
 
       {/* Tabs */}
       <div className="flex gap-1 bg-muted p-1 rounded-xl w-fit">

@@ -68,6 +68,11 @@ export class FinanceService {
     return this.repo.getDashboard();
   }
 
+  // FASE NF.7.5 — pass-through; toda a inteligência fica no repository.
+  getNfeResumoPorUF() {
+    return this.repo.getNfeResumoPorUF();
+  }
+
   // ── Accounts Receivable ────────────────────────────────────────────────
   listAccountsReceivable(filter: AccountsReceivableFilter): Promise<AccountReceivable[]> {
     return this.repo.listAccountsReceivable(filter);

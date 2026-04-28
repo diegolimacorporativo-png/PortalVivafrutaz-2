@@ -35,6 +35,14 @@ router.use(requireAuth, withTenantScope);
 // ── Dashboard ────────────────────────────────────────────────────────────
 router.get("/dashboard", asyncHandler(financeController.getDashboard));
 
+// ── NF-e Monitoring (FASE NF.7.5) ────────────────────────────────────────
+// Read-only: count of issued NF-e grouped by emitter UF (extracted from XML).
+// Useful for prioritizing the next batch of SEFAZ webservice URLs to map.
+router.get(
+  "/nfe/resumo-por-uf",
+  asyncHandler(financeController.getNfeResumoPorUF),
+);
+
 // ── Accounts Receivable ──────────────────────────────────────────────────
 router.get(
   "/accounts-receivable",

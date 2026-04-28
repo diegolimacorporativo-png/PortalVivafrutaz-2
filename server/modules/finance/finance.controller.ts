@@ -26,6 +26,11 @@ export class FinanceController {
     return ok(res, await this.service.getDashboard());
   };
 
+  // FASE NF.7.5 — handler thin: leitura pura, sem efeitos colaterais.
+  getNfeResumoPorUF = async (_req: Request, res: Response) => {
+    return ok(res, await this.service.getNfeResumoPorUF());
+  };
+
   // ── Accounts Receivable ────────────────────────────────────────────────
   listAccountsReceivable = async (req: Request, res: Response) => {
     return ok(res, await this.service.listAccountsReceivable(req.query as any));

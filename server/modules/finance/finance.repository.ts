@@ -6,6 +6,8 @@ import {
   financialTransactions,
   systemLogs,
   cnabImportHistory,
+  nfeEmissoes,
+  orders,
 } from "@shared/schema";
 import {
   tenantWhere,
@@ -595,6 +597,47 @@ export class FinanceRepository {
   // already filters by the company in scope (or returns the global default).
   getCompanyConfig() {
     return storage.getCompanyConfig();
+  }
+
+  // FASE NF.7.5 — resumo de NF-e emitidas por UF do EMITENTE.
+  //
+  // A tabela `nfe_emissoes` NÃO tem coluna UF (regra do spec: não alterar
+  // schema). A UF é extraída por regex direto do XML, mesma fonte da verdade
+  // que o `nfeSender.ts` usa para resolver a URL do webservice. Preferimos
+  // `xml_autorizado` (XML final retornado pela SEFAZ) e caímos para
+  // `xml_gerado` quando a NF ainda não foi autorizada.
+  //
+  // Tenant scope: `nfe_emissoes` não tem `companyId` próprio — fazemos JOIN
+  // com `orders` (que tem) e filtramos pelo tenant em escopo. Isolamento total
+  // entre empresas, sem mudar nenhum schema.
+  //
+  // O `usaFallback` indica se a UF cai na lista de estados ainda não mapeados
+  // em `SEFAZ_URL` (BA, PE, GO, etc.) — espelha o `[NFE_SEFAZ_FALLBACK_UF]`.
+  async getNfeResumoPorUF(): Promise<
+    { uf: string; total: number; usaFallback: boolean }[]
+  > {
+    const ufsMapeadas = new Set(['SP', 'MG', 'RJ', 'RS', 'PR', 'SC']);
+
+    const rows = await db
+      .select({
+        uf: sql<string | null>`COALESCE(
+          substring(${nfeEmissoes.xmlAutorizado} FROM '<emit>[\\s\\S]*?<UF>([A-Z]{2})</UF>'),
+          substring(${nfeEmissoes.xmlGerado}     FROM '<emit>[\\s\\S]*?<UF>([A-Z]{2})</UF>')
+        )`,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(nfeEmissoes)
+      .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))
+      .where(eq(orders.companyId, requireTenantId()))
+      .groupBy(sql`1`);
+
+    return rows
+      .map((r) => ({
+        uf: (r.uf ?? 'N/D').toUpperCase(),
+        total: Number(r.total) || 0,
+        usaFallback: !ufsMapeadas.has((r.uf ?? '').toUpperCase()),
+      }))
+      .sort((a, b) => b.total - a.total);
   }
 }
 

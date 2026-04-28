@@ -1,0 +1,144 @@
+🎯 OBJETIVO: FASE FISCAL 7.5 — MONITORAMENTO DE EMISSÃO POR UF
+
+Criar visão simples no admin para acompanhar emissão de NF-e por estado e detectar uso de fallback.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar emissão  
+2. NÃO alterar envio SEFAZ  
+3. NÃO alterar XML  
+4. NÃO alterar lógica existente  
+5. NÃO criar dependência externa  
+
+👉 Apenas leitura + visualização
+
+---
+
+🧠 CONTEXTO
+
+Hoje o sistema:
+
+✔ Já emite NF-e multi-UF  
+✔ Já possui log de fallback  
+❌ Não mostra isso na interface  
+
+👉 Resultado: sem visibilidade operacional
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. CRIAR QUERY DE RESUMO
+
+📍 server/modules/finance/finance.repository.ts (ou nfe.repository se existir)
+
+---
+
+Criar método:
+
+ts async getNfeResumoPorUF(): Promise<   { uf: string; total: number }[] > {   return db     .select({       uf: nfe.emitUF,       total: sql<number>`count(*)`     })     .from(nfe)     .groupBy(nfe.emitUF); } 
+
+---
+
+## 🔴 2. CRIAR ENDPOINT
+
+📍 server/modules/finance/finance.controller.ts
+
+---
+
+ts async getNfeResumoPorUF(req, res) {   const data = await this.service.getNfeResumoPorUF();   res.json(data); } 
+
+---
+
+📍 server/modules/finance/finance.routes.ts
+
+ts router.get(   "/nfe/resumo-por-uf",   requireAuth,   asyncHandler(controller.getNfeResumoPorUF) ); 
+
+---
+
+## 🔴 3. (OPCIONAL FORTE) CONTAR FALLBACK
+
+Se você já grava logs ou pode marcar:
+
+ts fallback: descricao LIKE '%FALLBACK_UF%' 
+
+ou adicionar flag futura:
+
+ts usouFallback: boolean 
+
+---
+
+## 🔴 4. FRONTEND
+
+📍 client/src/pages/admin/finance.tsx
+
+---
+
+Adicionar seção simples:
+
+tsx <Card>   <CardHeader>Emissão por UF</CardHeader>   <CardContent>     {data.map((uf) => (       <div key={uf.uf}>         {uf.uf}: {uf.total}       </div>     ))}   </CardContent> </Card> 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Emitir NF SP + MG + BA
+
+Resultado esperado:
+
+SP: 10 MG: 5 BA: 3
+
+---
+
+### 2️⃣ BA (fallback)
+
+✔ aparece normalmente  
+✔ pode ser identificado depois  
+
+---
+
+## 🚫 NÃO FAZER
+
+- NÃO alterar schema agora  
+- NÃO mexer no envio  
+- NÃO criar tabela nova  
+- NÃO mudar fluxo de emissão  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ Sem visibilidade  
+
+Depois:
+
+✔ Quantidade por UF visível  
+✔ Base para decisões fiscais  
+✔ Identificação de expansão  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoint criado  
+2. query implementada  
+3. tela exibindo dados  
+4. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ Controle operacional real  
+✔ Prioridade de expansão por dados  
+✔ Preparação para escala nacional
