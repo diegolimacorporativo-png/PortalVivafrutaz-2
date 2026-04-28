@@ -800,6 +800,37 @@ function IcmsSummarySection() {
           </button>
         )}
 
+        {/* FASE NF.7.9.3 — Botão "Exportar CSV".
+            Usa o mesmo filtro de período já aplicado ao resumo. Sem
+            filtro → exporta histórico inteiro. Sem dados → CSV com
+            zeros (servidor já trata). Não dispara mutação — só GET. */}
+        <button
+          type="button"
+          onClick={() => {
+            const params = new URLSearchParams();
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+            const qs = params.toString();
+            const url = qs
+              ? `/api/fiscal/icms-summary/export?${qs}`
+              : '/api/fiscal/icms-summary/export';
+            // Anchor download — preserva o filename do header
+            // Content-Disposition do servidor.
+            const a = document.createElement('a');
+            a.href = url;
+            a.rel = 'noopener';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          }}
+          data-testid="button-icms-export-csv"
+          title="Exportar resumo ICMS em CSV (uso contábil)"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+        >
+          <Download className="w-3.5 h-3.5" />
+          Exportar CSV
+        </button>
+
         {/* FASE NF.7.9.2 — Botão "Fechar mês". Trava mutações em pedidos
             do mês selecionado. Habilita só quando há período válido no
             filtro; pede confirmação antes para evitar fechamento acidental. */}

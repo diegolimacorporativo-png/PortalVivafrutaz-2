@@ -75,6 +75,45 @@ export const fiscalController = {
     res.json(summary);
   },
 
+  // FASE NF.7.9.3 — GET /api/fiscal/icms-summary/export
+  // Exporta o mesmo resumo do endpoint icmsSummary em CSV (uso contábil).
+  // Reutiliza o service getIcmsSummary — NÃO duplica lógica nem altera o
+  // payload do endpoint JSON existente. Aceita os mesmos filtros opcionais
+  // (?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD). Sem dados → CSV com zeros.
+  async icmsSummaryExport(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | undefined;
+    if (!empresaId) {
+      return res.status(400).json({ error: "tenant_required" });
+    }
+    const { startDate, endDate } = req.query as {
+      startDate?: string;
+      endDate?: string;
+    };
+    const summary = await getIcmsSummary(
+      empresaId,
+      typeof startDate === "string" ? startDate : undefined,
+      typeof endDate === "string" ? endDate : undefined,
+    );
+
+    // Formata número como "0.00" (ponto decimal — padrão CSV/contábil
+    // internacional, importável direto no Excel/LibreOffice/SPED).
+    const n = (v: number) => (Number.isFinite(v) ? v : 0).toFixed(2);
+
+    const lines: string[] = [
+      "Tipo,NF-es,Itens,Base ICMS,Valor ICMS",
+      `Importado,${summary.importado.totalNFs},${summary.importado.totalItens},${n(summary.importado.totalBase)},${n(summary.importado.totalICMS)}`,
+      `Normal,${summary.normal.totalNFs},${summary.normal.totalItens},${n(summary.normal.totalBase)},${n(summary.normal.totalICMS)}`,
+    ];
+    const csv = lines.join("\r\n") + "\r\n";
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="icms-summary.csv"',
+    );
+    return res.send(csv);
+  },
+
   // FASE NF.7.9.2 — POST /api/fiscal/close-period
   // Fecha um mês fiscal para o tenant atual. Roda DEPOIS de
   // requireAuth + withTenantScope (router monta na linha 27). Body:
