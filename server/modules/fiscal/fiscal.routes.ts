@@ -71,6 +71,14 @@ router.get(
   asyncHandler(fiscalController.icmsSummaryExport),
 );
 
+// FASE NF.7.9.5 — GET /api/fiscal/icms-summary/export-xlsx
+// Exporta o resumo ICMS em XLSX (Excel nativo). Mesmos filtros do
+// endpoint JSON e do CSV. Aditivo — não altera nenhum endpoint anterior.
+router.get(
+  "/icms-summary/export-xlsx",
+  asyncHandler(fiscalController.icmsSummaryExportXlsx),
+);
+
 // FASE NF.7.9.2 — POST /api/fiscal/close-period
 // Fecha um mês fiscal para o tenant atual. Aditivo, não toca o resto.
 router.post(

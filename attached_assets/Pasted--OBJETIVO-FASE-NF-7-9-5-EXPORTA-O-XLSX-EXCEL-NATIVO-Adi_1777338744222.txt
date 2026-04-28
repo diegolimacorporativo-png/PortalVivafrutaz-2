@@ -1,0 +1,189 @@
+🎯 OBJETIVO: FASE NF.7.9.5 — EXPORTAÇÃO XLSX (EXCEL NATIVO)
+
+Adicionar exportação em Excel (.xlsx) para o resumo de ICMS, reutilizando 100% da lógica existente do CSV e do service getIcmsSummary.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar getIcmsSummary
+2. NÃO duplicar lógica de cálculo
+3. NÃO alterar endpoint existente CSV
+4. NÃO alterar schema
+5. NÃO refatorar controller existente
+6. NÃO instalar nova lib (xlsx já existe no projeto)
+7. NÃO alterar estrutura de retorno JSON
+
+👉 Apenas adicionar NOVO endpoint + botão
+
+---
+
+🧠 CONTEXTO
+
+Já existe:
+
+✔ GET /api/fiscal/icms-summary  
+✔ GET /api/fiscal/icms-summary/export (CSV)  
+✔ lib "xlsx" já instalada e usada em outro endpoint  
+✔ frontend já tem botão "Exportar CSV"
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1. CRIAR NOVO ENDPOINT
+
+Rota:
+
+GET /api/fiscal/icms-summary/export-xlsx
+
+Arquivo:
+server/modules/fiscal/fiscal.routes.ts
+
+Adicionar:
+
+router.get("/icms-summary/export-xlsx", asyncHandler(fiscalController.icmsSummaryExportXlsx));
+
+---
+
+## 2. CONTROLLER
+
+Arquivo:
+server/modules/fiscal/fiscal.controller.ts
+
+Adicionar método:
+
+async icmsSummaryExportXlsx(req: Request, res: Response) {
+  const empresaId = (req as any).empresaId as number | undefined;
+  if (!empresaId) return res.status(400).json({ error: "tenant_required" });
+
+  const { startDate, endDate } = req.query as {
+    startDate?: string;
+    endDate?: string;
+  };
+
+  const summary = await getIcmsSummary(
+    empresaId,
+    typeof startDate === "string" ? startDate : undefined,
+    typeof endDate === "string" ? endDate : undefined,
+  );
+
+  const XLSX = require("xlsx");
+
+  const data = [
+    ["Tipo", "NF-es", "Itens", "Base ICMS", "Valor ICMS"],
+    [
+      "Importado",
+      summary.importado.totalNFs,
+      summary.importado.totalItens,
+      summary.importado.totalBase,
+      summary.importado.totalICMS,
+    ],
+    [
+      "Normal",
+      summary.normal.totalNFs,
+      summary.normal.totalItens,
+      summary.normal.totalBase,
+      summary.normal.totalICMS,
+    ],
+  ];
+
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Resumo ICMS");
+
+  const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+  res.setHeader(
+    "Content-Disposition",
+    'attachment; filename="icms-summary.xlsx"'
+  );
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+
+  res.send(buffer);
+}
+
+---
+
+## 3. FRONTEND — BOTÃO
+
+Arquivo:
+client/src/pages/admin/fiscal.tsx
+
+Local:
+mesma toolbar do:
+- Exportar CSV
+- Fechar mês
+
+Adicionar botão:
+
+<a
+  data-testid="button-icms-export-xlsx"
+  href={/api/fiscal/icms-summary/export-xlsx${startDate || endDate ? ?${new URLSearchParams({
+    ...(startDate && { startDate }),
+    ...(endDate && { endDate }),
+  }).toString()} : ''}}
+  className="px-3 py-2 rounded-xl text-xs font-bold border-2 border-border text-muted-foreground hover:border-blue-300"
+>
+  Exportar Excel
+</a>
+
+---
+
+## 4. UX (ALINHAMENTO VISUAL)
+
+Opcional (recomendado):
+
+- usar ícone 📊 ou FileSpreadsheet (lucide)
+- hover azul (diferente do CSV)
+
+---
+
+📊 RESULTADO ESPERADO
+
+Ação	Resultado
+Clique em "Exportar Excel"	download automático do arquivo .xlsx
+Com filtro ativo	export respeita período
+Sem dados	planilha com zeros
+Abrir no Excel	colunas organizadas corretamente
+
+---
+
+🛡️ IMPACTO
+
+✔ ZERO impacto backend existente  
+✔ ZERO alteração de lógica  
+✔ reutiliza getIcmsSummary  
+✔ multi-tenant preservado  
+✔ compatível com Excel real (não CSV disfarçado)  
+
+---
+
+📁 FORMATO FINAL
+
+Planilha:
+
+| Tipo      | NF-es | Itens | Base ICMS | Valor ICMS |
+|-----------|------|-------|----------|------------|
+| Importado | 12   | 28    | 5430.00  | 217.20     |
+| Normal    | 87   | 412   | 84210.50 | 14926.99   |
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. endpoint criado
+2. método controller
+3. botão frontend
+4. confirmação de zero regressão
+
+---
+
+🚀 NÃO INVENTAR NADA ALÉM DISSO

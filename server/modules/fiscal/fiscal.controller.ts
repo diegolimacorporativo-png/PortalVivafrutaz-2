@@ -114,6 +114,66 @@ export const fiscalController = {
     return res.send(csv);
   },
 
+  // FASE NF.7.9.5 — GET /api/fiscal/icms-summary/export-xlsx
+  // Exporta o mesmo resumo do endpoint icmsSummary em XLSX (Excel nativo).
+  // Reutiliza o service getIcmsSummary — NÃO duplica lógica nem altera o
+  // payload do endpoint JSON existente nem o CSV. Aceita os mesmos filtros
+  // opcionais (?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD). Sem dados →
+  // planilha com zeros. Usa `await import("xlsx")` (mesmo padrão dos
+  // outros consumidores em server/routes/routes.ts:994 e :3487 — projeto
+  // é ESM, `require` não funciona).
+  async icmsSummaryExportXlsx(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | undefined;
+    if (!empresaId) {
+      return res.status(400).json({ error: "tenant_required" });
+    }
+    const { startDate, endDate } = req.query as {
+      startDate?: string;
+      endDate?: string;
+    };
+    const summary = await getIcmsSummary(
+      empresaId,
+      typeof startDate === "string" ? startDate : undefined,
+      typeof endDate === "string" ? endDate : undefined,
+    );
+
+    const XLSX = await import("xlsx");
+
+    const data = [
+      ["Tipo", "NF-es", "Itens", "Base ICMS", "Valor ICMS"],
+      [
+        "Importado",
+        summary.importado.totalNFs,
+        summary.importado.totalItens,
+        summary.importado.totalBase,
+        summary.importado.totalICMS,
+      ],
+      [
+        "Normal",
+        summary.normal.totalNFs,
+        summary.normal.totalItens,
+        summary.normal.totalBase,
+        summary.normal.totalICMS,
+      ],
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resumo ICMS");
+
+    const buffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="icms-summary.xlsx"',
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    return res.send(buffer);
+  },
+
   // FASE NF.7.9.2 — POST /api/fiscal/close-period
   // Fecha um mês fiscal para o tenant atual. Roda DEPOIS de
   // requireAuth + withTenantScope (router monta na linha 27). Body:

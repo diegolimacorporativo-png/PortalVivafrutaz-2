@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   Receipt, Search, Filter, Calendar, Building2, Download, Eye,
   CheckCircle2, Clock, XCircle, Send, ChevronDown, ChevronRight, RefreshCw,
-  TrendingUp, Package, Globe, Landmark, Lock
+  TrendingUp, Package, Globe, Landmark, Lock, FileSpreadsheet
 } from 'lucide-react';
 import { downloadDanfe, openDanfe, type DanfeData } from '@/lib/danfe-generator';
 
@@ -855,6 +855,28 @@ function IcmsSummarySection() {
           <Download className="w-3.5 h-3.5" />
           Exportar CSV
         </button>
+
+        {/* FASE NF.7.9.5 — Botão "Exportar Excel".
+            Mesmo filtro de período do CSV; sem filtro → histórico inteiro.
+            Endpoint dedicado /export-xlsx (Excel nativo, não CSV disfarçado).
+            Tom azul para diferenciar do verde do CSV. */}
+        <a
+          href={(() => {
+            const params = new URLSearchParams();
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+            const qs = params.toString();
+            return qs
+              ? `/api/fiscal/icms-summary/export-xlsx?${qs}`
+              : '/api/fiscal/icms-summary/export-xlsx';
+          })()}
+          data-testid="button-icms-export-xlsx"
+          title="Exportar resumo ICMS em Excel (.xlsx)"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+        >
+          <FileSpreadsheet className="w-3.5 h-3.5" />
+          Exportar Excel
+        </a>
 
         {/* FASE NF.7.9.2 — Botão "Fechar mês". Trava mutações em pedidos
             do mês selecionado. Habilita só quando há período válido no
