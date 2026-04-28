@@ -1,0 +1,171 @@
+🎯 OBJETIVO: CONTINUAR DESENVOLVIMENTO — SISTEMA FISCAL MULTI-TENANT (FASE PÓS NF.7.9.2)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO refatorar código existente
+2. NÃO alterar estrutura de resposta de endpoints
+3. NÃO alterar nfeGenerator.ts
+4. NÃO alterar cálculo de ICMS
+5. NÃO alterar schema existente (exceto novas adições)
+6. NÃO remover código existente
+7. NÃO alterar fluxo de emissão NF-e
+8. NÃO alterar multi-tenant guards existentes
+
+👉 Apenas ADICIONAR funcionalidades novas
+
+---
+
+🧠 ESTADO ATUAL DO SISTEMA
+
+### ✅ ICMS
+- cálculo completo implementado
+- regras:
+  - 18% interno
+  - 12% interestadual
+  - 7% N/NE/CO + ES
+  - 4% importados (prioridade máxima)
+- lógica centralizada em:
+  server/services/nfe/nfeGenerator.ts
+
+---
+
+### ✅ IMPORTAÇÃO
+- campo products.importado
+- propagação:
+  products → billing → builder → generator
+- override via item.importado === true
+
+---
+
+### ✅ MULTI-TENANT
+- leitura protegida com validateOrderTenant
+- escrita protegida por tenantContext
+- logs:
+  [SECURITY] TENANT_MISMATCH
+
+---
+
+### ✅ FECHAMENTO MENSAL (NF.7.9.2)
+- tabela: fiscal_closures
+- service: isPeriodClosed / closePeriod
+- endpoint: POST /api/fiscal/close-period
+- guards ativos em:
+  - update order
+  - delete order
+  - emitir NF
+
+- erro:
+  403 PERIODO_FECHADO
+
+---
+
+### ✅ RELATÓRIO
+- endpoint: /api/fiscal/icms-summary
+- suporta filtro por período (startDate, endDate)
+- separa:
+  - ICMS 4% (importado)
+  - ICMS normal
+
+---
+
+📦 ARQUITETURA (NÃO ALTERAR)
+
+Fluxo fiscal:
+
+orders → billing.service → nfe-input.builder → nfeGenerator → XML
+
+👉 Qualquer mudança deve respeitar esse fluxo
+
+---
+
+📦 PRÓXIMA TAREFA
+
+FASE: NF.7.9.3 — EXPORTAÇÃO CSV DO RESUMO ICMS
+
+---
+
+🎯 OBJETIVO
+
+Permitir exportar o resumo ICMS (importado vs normal) em CSV para uso contábil.
+
+---
+
+📦 TAREFAS
+
+1. CRIAR NOVO ENDPOINT
+
+GET /api/fiscal/icms-summary/export
+
+Query params:
+- startDate (opcional)
+- endDate (opcional)
+
+---
+
+2. REUTILIZAR SERVICE EXISTENTE
+
+Chamar:
+getIcmsSummary(empresaId, startDate, endDate)
+
+👉 NÃO duplicar lógica
+
+---
+
+3. GERAR CSV
+
+Formato:
+
+Tipo,NF-es,Itens,Base ICMS,Valor ICMS
+Importado,12,28,5430.00,217.20
+Normal,87,412,84210.50,14926.99
+
+---
+
+4. HEADERS
+
+Content-Type: text/csv
+Content-Disposition: attachment; filename="icms-summary.csv"
+
+---
+
+5. FRONTEND
+
+Arquivo:
+client/src/pages/admin/fiscal.tsx
+
+Adicionar botão:
+
+"Exportar CSV"
+
+→ usa mesmo filtro de período atual
+
+---
+
+6. COMPORTAMENTO
+
+- sem filtro → exporta tudo
+- com filtro → exporta período
+- sem dados → CSV com zeros
+- NÃO quebrar UI atual
+
+---
+
+📊 RESULTADO ESPERADO
+
+- contador pode exportar relatório
+- pronto para Excel
+- compatível com fechamento mensal
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. endpoint criado
+2. exemplo de CSV gerado
+3. confirmação de zero regressão
+
+---
