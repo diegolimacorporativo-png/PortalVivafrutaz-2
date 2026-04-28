@@ -1,0 +1,133 @@
+🎯 OBJETIVO: FIN.3.5 — UNIFICAR CAMINHO DE PAGAMENTO (CONCILIAÇÃO → FINANCE SERVICE)
+
+Garantir que pagamentos feitos via conciliação bancária também passem pelo FinanceService.payAccountReceivable, disparando o hook FIN.3.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de conciliação existente
+2. NÃO remover código existente
+3. NÃO alterar estrutura de resposta dos endpoints
+4. NÃO alterar schema
+5. NÃO alterar comportamento do storage.ts
+6. NÃO quebrar fluxo atual de reconciliação
+
+👉 Apenas redirecionar o ponto de pagamento
+
+---
+
+🧠 CONTEXTO
+
+- FIN.3 já implementado em:
+  FinanceService.payAccountReceivable()
+
+- Problema atual:
+  Conciliação usa:
+  storage.payAccountReceivable(id)
+
+- Isso bypassa:
+  ❌ handleOrderPayment (FIN.3)
+  ❌ logs [FIN.3]
+
+---
+
+📦 TAREFA
+
+---
+
+1️⃣ LOCALIZAR PONTO DE PAGAMENTO NA CONCILIAÇÃO
+
+Arquivo:
+server/routes/routes.ts
+
+Buscar por:
+"/api/bank/reconciliar/confirmar"
+
+Identificar trecho onde ocorre:
+
+await storage.payAccountReceivable(...)
+
+---
+
+2️⃣ SUBSTITUIR CHAMADA (ADITIVO, SEM REMOVER)
+
+ANTES:
+await storage.payAccountReceivable(id);
+
+DEPOIS:
+await financeService.payAccountReceivable(id, req.user.id);
+
+---
+
+⚠️ IMPORTANTE
+
+- Manter TODA lógica anterior intacta
+- Apenas trocar a função chamada
+- Garantir que req.user.id já esteja disponível (mesmo padrão usado em /api/finance)
+
+---
+
+3️⃣ IMPORT NECESSÁRIO
+
+Adicionar no topo do arquivo (se não existir):
+
+import { financeService } from "../modules/finance/finance.service";
+
+---
+
+4️⃣ LOG DE VALIDAÇÃO
+
+Garantir que após conciliação apareça:
+
+[FIN.3] Pedido marcado como pago
+
+---
+
+📊 RESULTADO ESPERADO
+
+Cenário	Resultado
+Pagamento manual via /api/finance	✅ já funciona
+Pagamento via conciliação bancária	✅ agora também dispara FIN.3
+Logs consistentes	✅ unificados
+Ordem marcada como paga (via projeção FIN.2)	✅ consistente em todos os caminhos
+
+---
+
+🧪 VALIDAÇÃO
+
+Testar:
+
+1. Conciliar uma transação bancária vinculada a AR
+2. Confirmar reconciliação
+3. Ver logs:
+
+[FIN.3] Pedido marcado como pago
+
+4. Consultar:
+
+GET /api/orders/:id
+
+→ deve retornar:
+"isPaid": true
+
+---
+
+📊 CONFIRMAÇÃO FINAL (OBRIGATÓRIA)
+
+Responder com:
+
+1. linha onde foi feita a substituição
+2. trecho antigo vs novo
+3. confirmação que nenhum outro fluxo foi alterado
+4. confirmação de zero regressão
+
+---
+
+✅ FINAL
+
+Resultado esperado:
+
+- 1 único caminho de pagamento (centralizado)
+- FIN.3 funcionando 100% (manual + conciliação)
+- Nenhum impacto co

@@ -4,6 +4,12 @@ import { storage } from "../services/storage.ts";
 import { ordersController } from "../modules/orders/orders.controller";
 import { authController } from "../modules/auth/auth.controller";
 import { financeController } from "../modules/finance/finance.controller";
+// FASE FIN.3.5 — singleton de FinanceService para unificar o caminho de
+// pagamento de AR. Usado na rota legacy `/api/bank/reconciliar/confirmar`
+// para que a conciliação bancária dispare o hook FIN.3
+// (`handleOrderPayment`) — antes ela usava `storage.payAccountReceivable`
+// direto e bypassava o módulo financeiro.
+import { financeService } from "../modules/finance/finance.service";
 import { logisticsController } from "../modules/logistics/logistics.controller";
 import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { companySettingsService } from "../services/companySettingsService.ts";
@@ -6538,8 +6544,21 @@ export async function registerRoutes(
           contaPayableId: tipo === 'ap' ? Number(itemId) : undefined,
         });
         // Mark AR/AP as paid
-        if (tipo === 'ar') await storage.payAccountReceivable(Number(itemId));
-        else await storage.payAccountPayable(Number(itemId));
+        // FASE FIN.3.5 — AR agora roteia pelo FinanceService para que o
+        // hook `handleOrderPayment` (FIN.3) seja disparado também aqui na
+        // conciliação bancária. Internamente, FinanceService delega ao
+        // mesmo `storage.payAccountReceivable`, então o efeito de banco é
+        // idêntico ao caminho anterior — adicionalmente, gera o log de
+        // auditoria FINANCE_AR_PAY e o log [FIN.3] do pedido vinculado.
+        // AP permanece intacto: não é escopo do FIN.3.
+        if (tipo === 'ar') {
+          await financeService.payAccountReceivable(
+            Number(itemId),
+            req.session.userId,
+          );
+        } else {
+          await storage.payAccountPayable(Number(itemId));
+        }
         res.json({ success: true });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
