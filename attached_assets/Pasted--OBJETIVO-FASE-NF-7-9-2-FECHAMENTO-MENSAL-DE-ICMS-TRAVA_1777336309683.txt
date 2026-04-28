@@ -1,0 +1,184 @@
+🎯 OBJETIVO: FASE NF.7.9.2 — FECHAMENTO MENSAL DE ICMS (TRAVAR PERÍODO)
+
+Adicionar mecanismo de fechamento mensal fiscal para impedir alteração retroativa de NF-es já consolidadas.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente de ICMS
+2. NÃO alterar geração de XML
+3. NÃO alterar endpoints atuais
+4. NÃO alterar estrutura de resposta
+5. NÃO tocar em nfeGenerator.ts
+6. NÃO alterar comportamento atual se não houver fechamento
+
+👉 Apenas BLOQUEAR operações quando período estiver fechado
+
+---
+
+🧠 CONTEXTO
+
+- Já existe agregação: /api/fiscal/icms-summary
+- Já existe filtro por período (NF.7.9.1)
+- Ainda NÃO existe conceito de “mês fechado”
+
+Problema atual:
+→ usuário pode alterar pedidos antigos e mudar ICMS já apurado
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CRIAR TABELA DE FECHAMENTO
+
+Arquivo: shared/schema.ts
+
+Adicionar:
+
+export const fiscalClosures = pgTable("fiscal_closures", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  closedAt: timestamp("closed_at").defaultNow(),
+});
+
+✔ Sem unique constraint por enquanto (evitar migration complexa)
+✔ Estrutura simples e segura
+
+---
+
+2. CRIAR SERVICE
+
+Arquivo novo:
+server/services/fiscal/fiscal-closure.service.ts
+
+Funções:
+
+export async function isPeriodClosed(
+  companyId: number,
+  date: Date
+): Promise<boolean>
+
+export async function closePeriod(
+  companyId: number,
+  year: number,
+  month: number
+): Promise<void>
+
+Regras:
+
+- isPeriodClosed:
+  → verifica se existe registro com mesmo companyId + year + month
+
+- closePeriod:
+  → insere novo registro
+  → NÃO validar duplicidade (fase futura)
+
+---
+
+3. BLOQUEAR ALTERAÇÕES
+
+Aplicar antes de qualquer mutação crítica:
+
+Locais:
+
+- orders update
+- orders delete
+- emissão de NF (se aplicável)
+
+Regra:
+
+const isClosed = await isPeriodClosed(empresaId, order.createdAt);
+
+if (isClosed) {
+  throw new ForbiddenError("PERIODO_FECHADO");
+}
+
+✔ NÃO alterar fluxo — apenas adicionar guard
+
+---
+
+4. ENDPOINT PARA FECHAR MÊS
+
+Arquivo:
+server/modules/fiscal/fiscal.routes.ts
+
+Adicionar:
+
+POST /api/fiscal/close-period
+
+Body:
+
+{
+  "year": 2026,
+  "month": 10
+}
+
+Controller:
+
+- pegar empresaId
+- chamar closePeriod
+- retornar { success: true }
+
+---
+
+5. FRONTEND — BOTÃO DE FECHAMENTO
+
+Arquivo:
+client/src/pages/admin/fiscal.tsx
+
+Dentro da seção de resumo ICMS:
+
+Adicionar botão:
+
+"Fechar mês"
+
+Comportamento:
+
+- usa mês selecionado no filtro
+- chama POST /api/fiscal/close-period
+- após sucesso → refetch summary
+
+---
+
+6. COMPORTAMENTO ESPERADO
+
+Cenário	Resultado
+Mês não fechado	funciona normal
+Mês fechado	update/delete bloqueado (403)
+Nova NF em mês fechado	bloqueada
+Relatórios continuam funcionando	✔
+
+---
+
+7. LOG DE SEGURANÇA
+
+Quando bloquear:
+
+[SECURITY] PERIODO_FECHADO | companyId=X | year=Y | month=Z
+
+---
+
+📊 RESULTADO FINAL
+
+- mês fiscal pode ser fechado
+- dados históricos protegidos
+- ICMS não pode ser alterado retroativamente
+- compatível com SPED / contabilidade real
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. tabela criada
+2. endpoints criados
+3. pontos bloqueados
+4. confirmação de zero regressão
+
+---

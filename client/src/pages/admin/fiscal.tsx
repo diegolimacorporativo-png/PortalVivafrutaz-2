@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { ContextualTip } from '@/components/ContextualTip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { normalizeList, normalizeOne } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import {
   Receipt, Search, Filter, Calendar, Building2, Download, Eye,
   CheckCircle2, Clock, XCircle, Send, ChevronDown, ChevronRight, RefreshCw,
-  TrendingUp, Package, Globe, Landmark
+  TrendingUp, Package, Globe, Landmark, Lock
 } from 'lucide-react';
 import { downloadDanfe, openDanfe, type DanfeData } from '@/lib/danfe-generator';
 
@@ -670,6 +670,44 @@ function IcmsSummarySection() {
   // automaticamente quando as datas mudam (parte do queryKey).
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
+  const { toast } = useToast();
+
+  // FASE NF.7.9.2 — mutação para fechar o mês fiscal selecionado.
+  // Lê o ano/mês do filtro de "Data inicial" (preferência) ou "Data
+  // final" como fallback. Sem filtro definido → botão fica desabilitado
+  // (ver UI abaixo) para evitar fechamento acidental.
+  const closeMutation = useMutation({
+    mutationFn: async ({ year, month }: { year: number; month: number }) => {
+      const res = await apiRequest('POST', '/api/fiscal/close-period', { year, month });
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      toast({
+        title: 'Mês fechado',
+        description: `Período ${String(vars.month).padStart(2, '0')}/${vars.year} consolidado. Mutações nesse mês ficam bloqueadas.`,
+      });
+      // Refetch do summary (a tabela `fiscal_closures` não muda os
+      // valores, mas mantemos a invalidação para futuras camadas que
+      // queiram exibir o status "fechado" no card).
+      queryClient.invalidateQueries({ queryKey: ['/api/fiscal/icms-summary'] });
+    },
+    onError: (err: any) => {
+      toast({
+        title: 'Falha ao fechar período',
+        description: err?.message || 'Erro desconhecido',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Deriva year/month do filtro. "YYYY-MM-DD" → year, month (1-12).
+  const periodToClose = useMemo(() => {
+    const src = startDate || endDate;
+    if (!src) return null;
+    const m = /^(\d{4})-(\d{2})-\d{2}$/.exec(src);
+    if (!m) return null;
+    return { year: Number(m[1]), month: Number(m[2]) };
+  }, [startDate, endDate]);
 
   const { data, isLoading, isError } = useQuery<IcmsSummary>({
     queryKey: ['/api/fiscal/icms-summary', startDate, endDate],
@@ -761,6 +799,37 @@ function IcmsSummarySection() {
             Limpar filtro
           </button>
         )}
+
+        {/* FASE NF.7.9.2 — Botão "Fechar mês". Trava mutações em pedidos
+            do mês selecionado. Habilita só quando há período válido no
+            filtro; pede confirmação antes para evitar fechamento acidental. */}
+        <button
+          type="button"
+          disabled={!periodToClose || closeMutation.isPending}
+          onClick={() => {
+            if (!periodToClose) return;
+            const label = `${String(periodToClose.month).padStart(2, '0')}/${periodToClose.year}`;
+            const ok = window.confirm(
+              `Fechar definitivamente o mês ${label}?\n\nApós o fechamento, atualizações/exclusões em pedidos desse mês e novas emissões de NF-e nesse período serão BLOQUEADAS (HTTP 403 PERIODO_FECHADO).`,
+            );
+            if (!ok) return;
+            closeMutation.mutate(periodToClose);
+          }}
+          data-testid="button-icms-close-period"
+          title={
+            periodToClose
+              ? `Fechar mês ${String(periodToClose.month).padStart(2, '0')}/${periodToClose.year}`
+              : 'Selecione uma data inicial ou final para escolher o mês'
+          }
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-red-300 text-red-700 bg-red-50 hover:bg-red-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-red-50"
+        >
+          <Lock className="w-3.5 h-3.5" />
+          {closeMutation.isPending
+            ? 'Fechando...'
+            : periodToClose
+              ? `Fechar mês ${String(periodToClose.month).padStart(2, '0')}/${periodToClose.year}`
+              : 'Fechar mês'}
+        </button>
       </div>
 
       {isLoading ? (

@@ -63,4 +63,11 @@ router.get(
   asyncHandler(fiscalController.icmsSummary),
 );
 
+// FASE NF.7.9.2 — POST /api/fiscal/close-period
+// Fecha um mês fiscal para o tenant atual. Aditivo, não toca o resto.
+router.post(
+  "/close-period",
+  asyncHandler(fiscalController.closePeriod),
+);
+
 export const fiscalRouter = router;

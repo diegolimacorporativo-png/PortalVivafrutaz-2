@@ -5771,6 +5771,37 @@ export async function registerRoutes(
         // FASE 3 — bloqueia emissão de NF para pedido de outro tenant.
         await validateOrderTenant(Number(orderId));
 
+        // FASE NF.7.9.2 — guard de fechamento mensal. Recusa emitir NF
+        // para pedido cujo `createdAt` cai num mês já fechado para a
+        // empresa. Roda DEPOIS do tenant guard (ordem importa: nunca
+        // expor o tenantId real para chamador errado). Em mês aberto
+        // (default), segue normal.
+        try {
+          const orderRow = await storage.getOrder(Number(orderId));
+          const ord: any = (orderRow as any)?.order ?? orderRow;
+          if (ord?.companyId && ord?.createdAt) {
+            const created = ord.createdAt instanceof Date
+              ? ord.createdAt
+              : new Date(ord.createdAt);
+            if (!isNaN(created.getTime())) {
+              const { isPeriodClosed } = await import(
+                "../services/fiscal/fiscal-closure.service"
+              );
+              const closed = await isPeriodClosed(Number(ord.companyId), created);
+              if (closed) {
+                console.warn(
+                  `[SECURITY] PERIODO_FECHADO | requestId=${getRequestIdForLog()} | source=nfe-emitir | companyId=${ord.companyId} | year=${created.getFullYear()} | month=${created.getMonth() + 1}`,
+                );
+                return res.status(403).json({ message: "PERIODO_FECHADO" });
+              }
+            }
+          }
+        } catch (closeErr: any) {
+          // Falha aberta: se a checagem em si quebrar, não bloqueamos a
+          // emissão (evita indisponibilidade fiscal por falha do guard).
+          console.error("[NFE_PERIOD_CLOSURE_CHECK_ERROR]", closeErr?.message);
+        }
+
         const input = await buildNFeInput(Number(orderId));
         const erros = validarNFeInput(input);
         if (erros.length > 0) return res.status(422).json({ message: 'Dados fiscais incompletos', erros });

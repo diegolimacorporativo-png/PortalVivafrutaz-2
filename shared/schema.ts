@@ -1778,3 +1778,26 @@ export type InsertUserNotificationPreference =
   z.infer<typeof insertUserNotificationPreferenceSchema>;
 export type UserNotificationPreference =
   typeof userNotificationPreferences.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FASE NF.7.9.2 — Fechamento mensal fiscal (TRAVAR PERÍODO).
+//
+// Mecanismo aditivo — bloqueia mutações em períodos já consolidados (SPED,
+// contabilidade fechada). Sem unique constraint nesta fase para evitar
+// migration complexa; duplicidade é tolerada (isPeriodClosed faz EXISTS,
+// não count). Comportamento atual permanece intacto se a tabela estiver
+// vazia para o tenant.
+// ─────────────────────────────────────────────────────────────────────────────
+export const fiscalClosures = pgTable("fiscal_closures", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").notNull(),
+  year: integer("year").notNull(),
+  month: integer("month").notNull(),
+  closedAt: timestamp("closed_at").defaultNow(),
+});
+export const insertFiscalClosureSchema = createInsertSchema(fiscalClosures).omit({
+  id: true,
+  closedAt: true,
+});
+export type InsertFiscalClosure = z.infer<typeof insertFiscalClosureSchema>;
+export type FiscalClosure = typeof fiscalClosures.$inferSelect;

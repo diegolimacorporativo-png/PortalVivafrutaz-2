@@ -9,6 +9,10 @@ import {
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { currentTenantId } from "../../core/tenant/context";
+// FASE NF.7.9.2 — guard de fechamento mensal. Bloqueia mutação em pedido
+// cujo `createdAt` cai num mês já consolidado para a empresa. NÃO altera
+// qualquer caminho de leitura nem a ausência de fechamento (default = aberto).
+import { isPeriodClosed } from "../../services/fiscal/fiscal-closure.service";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {
   OrderStatus,
@@ -707,6 +711,12 @@ export class OrdersService {
     id: number,
     body: { status?: string; adminNote?: string; nimbiExpiration?: string | null; [k: string]: any },
   ): Promise<Order> {
+    // FASE NF.7.9.2 — guard de fechamento mensal. Roda ANTES de qualquer
+    // escrita. Se o pedido caiu num mês já fechado para a empresa, recusa
+    // com 403. Se o pedido não existir / não tiver createdAt / não houver
+    // tenant no contexto, segue normal (default = aberto, fail-open).
+    await this.assertPeriodOpen(id, "update");
+
     const { status, adminNote, nimbiExpiration } = body;
     const updates: any = {};
     if (status !== undefined) updates.status = status;
@@ -1016,6 +1026,10 @@ export class OrdersService {
       );
       throw new NotFoundError("Pedido não encontrado");
     }
+    // FASE NF.7.9.2 — guard de fechamento mensal. Aproveita o `data` já
+    // lido (evita SELECT extra). Se o pedido foi criado em mês fechado
+    // para a empresa, recusa com 403 e log [SECURITY] PERIODO_FECHADO.
+    await this.assertPeriodOpenForOrder(data.order as any, "remove");
     const isFiscal = ["nota_emitida", "nota_exportada"].includes(
       (data.order as any).fiscalStatus || "",
     );
@@ -1892,6 +1906,54 @@ export class OrdersService {
       throw new ForbiddenError(forbiddenMsg);
     }
     return user;
+  }
+
+  // ╔══════════════════════════════════════════════════════════════════╗
+  // ║ FASE NF.7.9.2 — Helpers de fechamento mensal fiscal              ║
+  // ╚══════════════════════════════════════════════════════════════════╝
+  /**
+   * Variante por id — busca o pedido pelo repo e delega à variante por
+   * objeto. Usada em update() onde ainda não temos o pedido carregado.
+   * Se o pedido não existir, segue normal (NotFoundError será emitido
+   * mais à frente pelo repo, mantendo o fluxo de erro preexistente).
+   */
+  private async assertPeriodOpen(orderId: number, source: string): Promise<void> {
+    const data = await this.repo.get(orderId);
+    if (!data) return;
+    return this.assertPeriodOpenForOrder(data.order as any, source);
+  }
+
+  /**
+   * Variante por objeto — recebe um pedido já lido e valida se o mês
+   * de `createdAt` está aberto para o tenant. Em mês fechado:
+   *   - log [SECURITY] PERIODO_FECHADO | companyId=X | year=Y | month=Z
+   *   - lança ForbiddenError("PERIODO_FECHADO") → 403 via errorHandler.
+   *
+   * Falha aberta (default = aberto) se faltar `companyId`, `createdAt`,
+   * ou tenant no contexto — preserva 100% o comportamento atual quando
+   * a tabela `fiscal_closures` não tem registros para a empresa.
+   */
+  private async assertPeriodOpenForOrder(
+    order: { companyId?: number | null; createdAt?: Date | string | null },
+    source: string,
+  ): Promise<void> {
+    const companyId = Number(order?.companyId ?? 0);
+    if (!Number.isInteger(companyId) || companyId <= 0) return;
+
+    const raw = order?.createdAt;
+    const createdAt =
+      raw instanceof Date ? raw : raw ? new Date(raw as any) : null;
+    if (!createdAt || isNaN(createdAt.getTime())) return;
+
+    const closed = await isPeriodClosed(companyId, createdAt);
+    if (!closed) return;
+
+    const year = createdAt.getFullYear();
+    const month = createdAt.getMonth() + 1;
+    console.warn(
+      `[SECURITY] PERIODO_FECHADO | requestId=${getRequestIdForLog()} | source=${source} | companyId=${companyId} | year=${year} | month=${month}`,
+    );
+    throw new ForbiddenError("PERIODO_FECHADO");
   }
 }
 

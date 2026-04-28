@@ -7,6 +7,8 @@ import {
 } from "../../services/nf.draft";
 // FASE NF.7.9 — agregação read-only de ICMS importado vs normal.
 import { getIcmsSummary } from "../../services/nfe/icms-summary.service";
+// FASE NF.7.9.2 — fechamento mensal fiscal (TRAVAR PERÍODO).
+import { closePeriod } from "../../services/fiscal/fiscal-closure.service";
 
 /**
  * Fiscal module controller — thin HTTP layer over services/nf.draft.ts.
@@ -71,5 +73,29 @@ export const fiscalController = {
       typeof endDate === "string" ? endDate : undefined,
     );
     res.json(summary);
+  },
+
+  // FASE NF.7.9.2 — POST /api/fiscal/close-period
+  // Fecha um mês fiscal para o tenant atual. Roda DEPOIS de
+  // requireAuth + withTenantScope (router monta na linha 27). Body:
+  //   { year: number, month: number }
+  // Resposta: { success: true, year, month }
+  // NÃO valida duplicidade (spec — fase futura).
+  async closePeriod(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | undefined;
+    if (!empresaId) {
+      return res.status(400).json({ error: "tenant_required" });
+    }
+    const { year, month } = (req.body ?? {}) as { year?: number; month?: number };
+    const y = Number(year);
+    const m = Number(month);
+    if (!Number.isInteger(y) || y < 2000 || y > 9999) {
+      return res.status(400).json({ error: "year inválido" });
+    }
+    if (!Number.isInteger(m) || m < 1 || m > 12) {
+      return res.status(400).json({ error: "month inválido (1-12)" });
+    }
+    await closePeriod(empresaId, y, m);
+    return res.json({ success: true, year: y, month: m });
   },
 };
