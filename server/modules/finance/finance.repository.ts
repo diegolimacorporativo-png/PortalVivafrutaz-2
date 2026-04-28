@@ -142,7 +142,7 @@ export class FinanceRepository {
       const cents = paymentDetails?.valorPagoCentavos;
       const valorLancamento =
         typeof cents === "number" && Number.isFinite(cents) && cents > 0
-          ? (cents / 100).toFixed(2)
+          ? cents / 100
           : row.valor;
       await tx.insert(financialTransactions).values(
         withTenant({
