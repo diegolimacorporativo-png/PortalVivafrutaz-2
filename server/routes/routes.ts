@@ -10,6 +10,7 @@ import { financeController } from "../modules/finance/finance.controller";
 // (`handleOrderPayment`) — antes ela usava `storage.payAccountReceivable`
 // direto e bypassava o módulo financeiro.
 import { financeService } from "../modules/finance/finance.service";
+import { financeRepository } from "../modules/finance/finance.repository";
 import { logisticsController } from "../modules/logistics/logistics.controller";
 import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { companySettingsService } from "../services/companySettingsService.ts";
@@ -6635,7 +6636,7 @@ export async function registerRoutes(
     app.get('/api/bank/retorno/historico', tenantContext, async (req: any, res) => {
       if (!requireAuth(req, res)) return;
       try {
-        const items = await storage.listCnabImportHistory(20);
+        const items = await financeRepository.listCnabImportHistory(20);
         return res.status(200).json(items);
       } catch (e: any) {
         console.error('[CNAB] erro ao listar histórico de retornos', e);

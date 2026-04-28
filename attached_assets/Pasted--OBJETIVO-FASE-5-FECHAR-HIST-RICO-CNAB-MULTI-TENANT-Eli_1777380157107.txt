@@ -1,0 +1,152 @@
+🎯 OBJETIVO: FASE 5 — FECHAR HISTÓRICO CNAB (MULTI-TENANT)
+
+Eliminar vazamento cross-tenant no endpoint:
+
+GET /api/bank/retorno/historico
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura de resposta
+2. NÃO alterar schema
+3. NÃO remover método do storage
+4. NÃO alterar comportamento funcional além do filtro de tenant
+5. Alteração mínima (wrapper + 1 swap)
+6. NÃO quebrar compatibilidade
+
+---
+
+🧠 PROBLEMA
+
+Hoje:
+
+ts storage.listCnabImportHistory(limit) 
+
+❌ Retorna histórico de TODAS as empresas  
+❌ Endpoint já tem tenantContext, mas storage ignora  
+❌ Vazamento real entre tenants
+
+---
+
+# 📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. CRIAR WRAPPER TENANT-SAFE
+
+📍 Arquivo:
+server/modules/finance/finance.repository.ts
+
+---
+
+### ➕ ADICIONAR MÉTODO
+
+ts id="f5a1" // FASE 5 — wrapper tenant-safe para histórico CNAB async listCnabImportHistory(limit = 20) {   return db     .select()     .from(cnabImportHistory)     .where(tenantWhere(cnabImportHistory))     .orderBy(desc(cnabImportHistory.createdAt))     .limit(limit); } 
+
+---
+
+📌 Regras:
+- usar tenantWhere(cnabImportHistory)
+- manter mesma estrutura de retorno do storage
+- NÃO adicionar campos
+- NÃO alterar tipos
+
+---
+
+## 🔴 2. TROCAR CHAMADA NO ENDPOINT
+
+📍 Arquivo:
+server/routes/routes.ts
+
+Endpoint:
+GET /api/bank/retorno/historico
+
+---
+
+### ❌ ANTES
+
+ts id="f5b1" const history = await storage.listCnabImportHistory(20); 
+
+---
+
+### ✅ DEPOIS
+
+ts id="f5b2" const history = await financeRepository.listCnabImportHistory(20); 
+
+---
+
+📌 Regras:
+- NÃO alterar response
+- NÃO alterar estrutura do endpoint
+- apenas trocar origem dos dados
+
+---
+
+## 🟡 3. (JÁ EXISTE) — MANTER @deprecated
+
+📍 storage.ts já contém:
+
+ts /**  * @deprecated ⚠️ NÃO USAR  * Método não aplica tenant filtering  */ 
+
+✔ Nenhuma ação adicional necessária
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+| Item | Antes | Depois |
+|------|------|--------|
+| Histórico CNAB | ❌ todos tenants | ✅ apenas tenant atual |
+| Vazamento de dados | ❌ sim | ✅ não |
+| Endpoint | funcionando | funcionando |
+| Response | igual | igual |
+
+---
+
+# 🧪 TESTE MANUAL
+
+### TESTE 1 — ISOLAMENTO
+
+Empresa A:
+- faz upload CNAB
+
+Empresa B:
+- GET /api/bank/retorno/historico
+
+ANTES:
+❌ vê histórico da A
+
+DEPOIS:
+✅ NÃO vê nada da A
+
+---
+
+### TESTE 2 — REGRESSÃO
+
+Mesmo tenant:
+- histórico continua listando normalmente
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO mexer no storage internamente
+- NÃO alterar schema
+- NÃO alterar estrutura JSON
+- NÃO refatorar módulo
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. arquivos alterados
+2. linhas modificadas
+3. confirmação de isolamento entre tenants
+4. confirmação de zero regressão
+
+---
+
+🔥 IMPACTO: CRÍTICO (FECHA ÚLTIMO VAZAMENTO DE DADOS)

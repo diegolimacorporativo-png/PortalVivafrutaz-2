@@ -5,6 +5,7 @@ import {
   accountsPayable,
   financialTransactions,
   systemLogs,
+  cnabImportHistory,
 } from "@shared/schema";
 import {
   tenantWhere,
@@ -27,6 +28,7 @@ import type {
   CashflowFilter,
   FinancialDashboard,
 } from "./finance.types";
+import type { CnabImportHistory } from "@shared/schema";
 
 /**
  * FinanceRepository — multi-tenant data access.
@@ -389,6 +391,19 @@ export class FinanceRepository {
       )
       .limit(1);
     return row;
+  }
+
+  // FASE 5 — wrapper tenant-safe para histórico CNAB.
+  // Substitui `storage.listCnabImportHistory` (que não filtra por empresa).
+  // Mantém estrutura/tipo de retorno idênticos para preservar o response do
+  // endpoint GET /api/bank/retorno/historico.
+  async listCnabImportHistory(limit = 20): Promise<CnabImportHistory[]> {
+    return db
+      .select()
+      .from(cnabImportHistory)
+      .where(tenantWhere(cnabImportHistory))
+      .orderBy(desc(cnabImportHistory.createdAt))
+      .limit(limit);
   }
 
   // Cross-cutting: company config is per-tenant; the underlying storage method
