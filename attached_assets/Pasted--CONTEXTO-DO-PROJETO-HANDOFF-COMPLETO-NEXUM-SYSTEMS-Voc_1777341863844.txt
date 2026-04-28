@@ -1,0 +1,169 @@
+🎯 CONTEXTO DO PROJETO — HANDOFF COMPLETO (NEXUM SYSTEMS)
+
+Você está assumindo um sistema ERP fiscal multi-tenant em estágio avançado (quase produção).
+
+---
+
+🧠 REGRAS OBRIGATÓRIAS (NÃO NEGOCIÁVEIS)
+
+1. ❌ NÃO refatorar código existente  
+2. ❌ NÃO remover código  
+3. ❌ NÃO alterar lógica existente  
+4. ❌ NÃO alterar estrutura de resposta dos endpoints  
+5. ❌ NÃO alterar schema existente  
+6. ❌ NÃO mexer em storage.ts  
+7. ✅ Apenas mudanças ADITIVAS  
+8. ✅ Sempre reaproveitar services existentes  
+9. ✅ Sempre rodar auditoria READ-ONLY antes de implementar  
+10. ✅ Seguir padrão: auditoria → decisão → código → validação  
+
+---
+
+🏗️ ARQUITETURA ATUAL (RESUMO REAL)
+
+- Backend: Node + Express + TypeScript
+- ORM: Drizzle
+- Banco: PostgreSQL
+- Frontend: React + Vite
+- Multi-tenant: via withTenantScope + validateOrderTenant
+- Segurança: logs [SECURITY] padronizados
+- Padrão de resposta: { success: true, data }
+
+---
+
+🛡️ SEGURANÇA (JÁ IMPLEMENTADA)
+
+✔ FASE 6 — Proteção multi-tenant completa  
+✔ validateOrderTenant aplicado em todos endpoints críticos  
+✔ safeGetOrder disponível  
+✔ Logs:
+- TENANT_MISMATCH
+- CROSS_TENANT_404
+- PERIODO_FECHADO
+
+---
+
+📊 MÓDULO FISCAL — STATUS ATUAL
+
+✔ Resumo ICMS (JSON)  
+✔ Export CSV  
+✔ Export XLSX  
+✔ Fechamento mensal (fiscal_closures)  
+✔ Bloqueio de mutações (update/delete/emit/replace-items)  
+✔ UI com:
+- filtro de período
+- atalhos (mês atual, passado, 90 dias)
+- botão fechar mês
+- exportações
+- badge de sessão (não persistente)
+
+---
+
+📦 ÚLTIMA FASE IMPLEMENTADA
+
+✅ NF.7.9.8 — LISTAGEM DE MESES FECHADOS
+
+Endpoint criado:
+
+GET /api/fiscal/closures
+
+Retorno:
+
+{
+  "success": true,
+  "data": [
+    { "year": 2026, "month": 4, "closedAt": "..." }
+  ]
+}
+
+✔ Multi-tenant seguro  
+✔ Read-only  
+✔ Ordenado DESC  
+✔ Sem impacto no sistema atual  
+
+---
+
+⚠️ ESTADO ATUAL IMPORTANTE
+
+O frontend AINDA NÃO usa esse endpoint.
+
+Hoje o badge "Fechado" é:
+👉 baseado em estado de sessão (não persistente)
+
+---
+
+🎯 PRÓXIMA FASE
+
+👉 NF.7.9.9 — BADGE PERSISTENTE DE MÊS FECHADO
+
+OBJETIVO:
+
+Substituir lógica atual de sessão por leitura real do backend (/closures)
+
+---
+
+📋 REGRAS DA PRÓXIMA FASE
+
+✔ NÃO remover o badge atual  
+✔ NÃO quebrar comportamento atual  
+✔ Apenas EVOLUIR o estado  
+✔ Usar React Query  
+✔ NÃO criar lógica duplicada de datas  
+✔ NÃO alterar backend  
+
+---
+
+🧪 O QUE DEVE SER FEITO (RESUMO)
+
+1. Consumir GET /api/fiscal/closures
+2. Derivar se período atual está fechado
+3. Mostrar badge 🔒 Fechado de forma persistente
+4. Manter compatibilidade com:
+   - filtros
+   - atalhos de período
+   - botão "Fechar mês"
+5. Zero impacto nos endpoints
+
+---
+
+📊 CRITÉRIO DE SUCESSO
+
+✔ Badge aparece após reload  
+✔ Badge respeita filtro de período  
+✔ Nenhuma regressão  
+✔ Nenhuma mudança no backend  
+✔ UX consistente  
+
+---
+
+🚫 NÃO FAZER
+
+❌ Não criar novo endpoint  
+❌ Não alterar /closures  
+❌ Não mexer no closePeriod  
+❌ Não refatorar IcmsSummarySection  
+
+---
+
+✅ FORMATO DE RESPOSTA ESPERADO
+
+1. Auditoria (frontend atual)  
+2. Decisão técnica  
+3. Código adicionado  
+4. Confirmação de zero regressão  
+
+---
+
+🚀 MISSÃO
+
+Continuar a evolução do sistema mantendo:
+
+- estabilidade
+- segurança
+- previsibilidade
+
+Sem comportamento inesperado.
+
+---
+
+Comece pela auditoria
