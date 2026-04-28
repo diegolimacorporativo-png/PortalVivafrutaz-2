@@ -51,12 +51,25 @@ export const fiscalController = {
   // Tenant scope obrigatório (withTenantScope no router já preenche
   // req.empresaId). Sem mutação. Sem alteração no XML/cálculo. É só
   // leitura agregada das NF-es já emitidas.
+  //
+  // FASE NF.7.9.1 — agora aceita filtros opcionais ?startDate=YYYY-MM-DD
+  // e ?endDate=YYYY-MM-DD. Validação estrita fica para fase futura
+  // (spec ETAPA 3) — strings inválidas são silenciosamente ignoradas
+  // pelo service (parseStartOfDay/parseEndOfDay retornam null).
   async icmsSummary(req: Request, res: Response) {
     const empresaId = (req as any).empresaId as number | undefined;
     if (!empresaId) {
       return res.status(400).json({ error: "tenant_required" });
     }
-    const summary = await getIcmsSummary(empresaId);
+    const { startDate, endDate } = req.query as {
+      startDate?: string;
+      endDate?: string;
+    };
+    const summary = await getIcmsSummary(
+      empresaId,
+      typeof startDate === "string" ? startDate : undefined,
+      typeof endDate === "string" ? endDate : undefined,
+    );
     res.json(summary);
   },
 };

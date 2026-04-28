@@ -664,13 +664,35 @@ type IcmsSummary = {
 };
 
 function IcmsSummarySection() {
+  // FASE NF.7.9.1 — filtros opcionais de período. Estado local
+  // (encapsulado nesta seção). Default vazio = histórico completo,
+  // mantendo o comportamento da NF.7.9. React Query refaz a chamada
+  // automaticamente quando as datas mudam (parte do queryKey).
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+
   const { data, isLoading, isError } = useQuery<IcmsSummary>({
-    queryKey: ['/api/fiscal/icms-summary'],
+    queryKey: ['/api/fiscal/icms-summary', startDate, endDate],
+    // queryFn customizada porque o default faz queryKey.join("/") —
+    // aqui precisamos enviar as datas como query string opcional.
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (startDate) params.set('startDate', startDate);
+      if (endDate) params.set('endDate', endDate);
+      const qs = params.toString();
+      const url = qs
+        ? `/api/fiscal/icms-summary?${qs}`
+        : '/api/fiscal/icms-summary';
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    },
   });
 
   const importado = data?.importado;
   const normal = data?.normal;
   const meta = data?.meta;
+  const hasFilter = Boolean(startDate || endDate);
 
   return (
     <div
@@ -687,6 +709,57 @@ function IcmsSummarySection() {
             {meta.nfsConsideradas} NF-e(s) consideradas
             {meta.nfsIgnoradas > 0 && ` · ${meta.nfsIgnoradas} ignorada(s)`}
           </span>
+        )}
+      </div>
+
+      {/* FASE NF.7.9.1 — Filtro de período (opcional).
+          Default vazio = histórico completo. onChange dispara refetch
+          automaticamente via queryKey. Botão "Limpar" só aparece quando
+          há algum filtro ativo. */}
+      <div
+        className="flex items-end flex-wrap gap-3 mb-4 pb-3 border-b border-border/50"
+        data-testid="filter-icms-period"
+      >
+        <div className="flex items-center gap-1 text-xs font-semibold text-muted-foreground mr-1">
+          <Calendar className="w-3.5 h-3.5" />
+          Período
+        </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+            Data inicial
+          </label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            data-testid="input-icms-start-date"
+            className="px-2 py-1.5 text-sm rounded-lg border border-border focus:border-primary outline-none bg-background"
+          />
+        </div>
+        <div className="flex flex-col">
+          <label className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+            Data final
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            data-testid="input-icms-end-date"
+            className="px-2 py-1.5 text-sm rounded-lg border border-border focus:border-primary outline-none bg-background"
+          />
+        </div>
+        {hasFilter && (
+          <button
+            type="button"
+            onClick={() => {
+              setStartDate('');
+              setEndDate('');
+            }}
+            data-testid="button-icms-clear-filter"
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:bg-muted transition-colors"
+          >
+            Limpar filtro
+          </button>
         )}
       </div>
 

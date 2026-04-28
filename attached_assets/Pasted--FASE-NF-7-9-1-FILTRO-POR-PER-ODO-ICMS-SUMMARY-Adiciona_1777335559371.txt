@@ -1,0 +1,177 @@
+🎯 FASE NF.7.9.1 — FILTRO POR PERÍODO (ICMS SUMMARY)
+
+Adicionar filtro de data ao endpoint /api/fiscal/icms-summary e refletir no frontend.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de agregação existente  
+2. NÃO alterar cálculo de ICMS  
+3. NÃO alterar estrutura de retorno  
+4. NÃO quebrar comportamento atual (sem filtro = histórico completo)  
+5. NÃO alterar outras rotas fiscais  
+
+👉 Apenas adicionar filtro opcional
+
+---
+
+## 🧠 OBJETIVO
+
+Permitir consultas como:
+
+- "ICMS de outubro/2026"
+- "ICMS do último mês"
+- "ICMS de um intervalo customizado"
+
+---
+
+## 🛠️ ETAPA 1 — BACKEND (QUERY PARAMS)
+
+Endpoint existente:
+
+GET /api/fiscal/icms-summary
+
+---
+
+Adicionar leitura opcional:
+
+req.query.startDate  
+req.query.endDate  
+
+Formato esperado:
+
+YYYY-MM-DD
+
+---
+
+## 🛠️ ETAPA 2 — SERVICE
+
+Arquivo:
+server/services/nfe/icms-summary.service.ts
+
+---
+
+Atualizar função:
+
+getIcmsSummary(empresaId, startDate?, endDate?)
+
+---
+
+Adicionar filtro na query SQL:
+
+AND nfe.created_at >= :startDate
+AND nfe.created_at <= :endDate
+
+---
+
+Regras:
+
+- Se ambos ausentes → comportamento atual (sem filtro)
+- Se apenas startDate → filtra de startDate em diante
+- Se apenas endDate → filtra até endDate
+- NÃO quebrar query existente
+
+---
+
+## 🛠️ ETAPA 3 — CONTROLLER
+
+Arquivo:
+server/modules/fiscal/fiscal.controller.ts
+
+---
+
+Alterar chamada:
+
+const { startDate, endDate } = req.query;
+
+const summary = await getIcmsSummary(
+  empresaId,
+  startDate as string | undefined,
+  endDate as string | undefined
+);
+
+---
+
+⚠️ NÃO validar formato ainda (fase futura)
+⚠️ Apenas passar string
+
+---
+
+## 🛠️ ETAPA 4 — FRONTEND
+
+Arquivo:
+client/src/pages/admin/fiscal.tsx
+
+---
+
+Adicionar acima do "Resumo ICMS":
+
+📅 Filtro de período
+
+Campos:
+
+- Data inicial (input type="date")
+- Data final (input type="date")
+
+---
+
+## 🛠️ ETAPA 5 — QUERY REACT
+
+Atualizar useQuery:
+
+queryKey:
+['/api/fiscal/icms-summary', startDate, endDate]
+
+request:
+
+/api/fiscal/icms-summary?startDate=...&endDate=...
+
+---
+
+## 🛠️ ETAPA 6 — UX
+
+Regras:
+
+- default vazio → histórico completo
+- alterar data → refetch automático
+- botão "Limpar filtro" (opcional simples)
+
+---
+
+## 🛠️ ETAPA 7 — ZERO REGRESSÃO
+
+Confirmar:
+
+- sem filtro → mesmos números da NF.7.9
+- frontend sem crash
+- endpoint continua funcionando sem query params
+- testes continuam passando
+
+---
+
+📊 RESULTADO ESPERADO
+
+✔ apuração mensal possível  
+✔ base pronta para SPED  
+✔ zero impacto no sistema atual  
+✔ filtro opcional e seguro  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. alteração no endpoint  
+2. ajuste na query/service  
+3. trecho frontend (inputs + query)  
+4. confirmação de zero regressão  
+
+---
+
+⚠️ NÃO OTIMIZAR AINDA  
+⚠️ NÃO CRIAR INDEX NO BANCO AINDA  
+⚠️ NÃO VALIDAR DATAS AINDA  
+
+👉 apenas funcionali

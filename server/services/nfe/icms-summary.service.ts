@@ -19,7 +19,7 @@
  */
 import { db } from "../../database/db";
 import { nfeEmissoes, orders } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, gte, lte, type SQL } from "drizzle-orm";
 
 export type IcmsBucket = {
   totalNFs: number;
@@ -113,8 +113,19 @@ function isImportadoByAliquota(pICMS: number): boolean {
  * @param empresaId — id da empresa (orders.companyId). OBRIGATÓRIO:
  *                   sem isso a função não consulta nada (proteção contra
  *                   chamada cross-tenant acidental).
+ * @param startDate — FASE NF.7.9.1 — filtro opcional. Quando presente,
+ *                   inclui apenas NF-es com createdAt >= startDate.
+ *                   Formato esperado: "YYYY-MM-DD" (interpretado como
+ *                   00:00:00 desse dia). Se inválido/vazio é ignorado.
+ * @param endDate   — FASE NF.7.9.1 — filtro opcional. Quando presente,
+ *                   inclui apenas NF-es com createdAt <= endDate
+ *                   (23:59:59.999 desse dia para englobar o dia inteiro).
  */
-export async function getIcmsSummary(empresaId: number): Promise<IcmsSummary> {
+export async function getIcmsSummary(
+  empresaId: number,
+  startDate?: string,
+  endDate?: string,
+): Promise<IcmsSummary> {
   const summary: IcmsSummary = {
     importado: emptyBucket(),
     normal: emptyBucket(),
@@ -129,8 +140,27 @@ export async function getIcmsSummary(empresaId: number): Promise<IcmsSummary> {
     return summary;
   }
 
+  // FASE NF.7.9.1 — montagem condicional de filtros de data.
+  // - sem datas → comportamento da NF.7.9 (histórico completo) preservado
+  // - apenas startDate → de startDate em diante
+  // - apenas endDate → até o fim de endDate
+  // - ambos → janela fechada
+  // Datas inválidas (NaN) são silenciosamente ignoradas por enquanto
+  // (validação estrita fica para fase futura, conforme spec ETAPA 3).
+  const conditions: SQL[] = [
+    eq(orders.companyId, empresaId),
+    inArray(nfeEmissoes.status, STATUS_VALIDOS as unknown as string[]),
+  ];
+  const start = parseStartOfDay(startDate);
+  if (start) conditions.push(gte(nfeEmissoes.createdAt, start));
+  const end = parseEndOfDay(endDate);
+  if (end) conditions.push(lte(nfeEmissoes.createdAt, end));
+
   // SELECT … FROM nfe_emissoes JOIN orders ON orders.id = nfe.order_id
-  // WHERE orders.company_id = :empresaId AND nfe.status IN (…)
+  // WHERE orders.company_id = :empresaId
+  //   AND nfe.status IN (…)
+  //   [AND nfe.created_at >= :startDate]
+  //   [AND nfe.created_at <= :endDate]
   const rows = await db
     .select({
       nfeId: nfeEmissoes.id,
@@ -140,12 +170,7 @@ export async function getIcmsSummary(empresaId: number): Promise<IcmsSummary> {
     })
     .from(nfeEmissoes)
     .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))
-    .where(
-      and(
-        eq(orders.companyId, empresaId),
-        inArray(nfeEmissoes.status, STATUS_VALIDOS as unknown as string[]),
-      ),
-    );
+    .where(and(...conditions));
 
   for (const row of rows) {
     const xml = row.xmlAutorizado || row.xmlGerado || "";
@@ -188,4 +213,34 @@ export async function getIcmsSummary(empresaId: number): Promise<IcmsSummary> {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/**
+ * FASE NF.7.9.1 — parsers de data tolerantes.
+ *
+ * Aceitam "YYYY-MM-DD" (formato esperado da spec). Strings vazias,
+ * undefined, formato inválido ou datas inválidas → retornam null
+ * (filtro é descartado e a query roda sem aquela condição).
+ *
+ * Os horários são fixados:
+ *   - parseStartOfDay → 00:00:00.000 do dia
+ *   - parseEndOfDay   → 23:59:59.999 do dia (inclusivo)
+ *
+ * Isso garante que filtrar "2026-10-01..2026-10-31" cubra o mês
+ * inteiro, sem perder NFs emitidas no último minuto do dia 31.
+ */
+function parseStartOfDay(s?: string): Date | null {
+  if (!s || typeof s !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 0, 0, 0, 0);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function parseEndOfDay(s?: string): Date | null {
+  if (!s || typeof s !== "string") return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s.trim());
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59, 999);
+  return isNaN(d.getTime()) ? null : d;
 }
