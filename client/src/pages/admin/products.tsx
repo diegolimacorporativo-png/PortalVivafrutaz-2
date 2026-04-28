@@ -62,6 +62,11 @@ const emptyForm = {
   cst: "",
   commercialUnit: "",
   productCode: "",
+  // FASE NF.7.8.1 — flag fiscal de produto importado.
+  // Default false: catálogo nacional inteiro mantém comportamento atual.
+  // Quando true → ICMS 4% (Resolução 13/2012), com prioridade sobre regra
+  // de UF. Não interfere em CST/CSOSN nem em XML — somente alíquota.
+  importado: false,
   categorySelections: [] as CategorySelection[],
   pricingMode: "category" as PricingMode,
   // Imagem do produto. Pode ser uma URL externa (https://...) ou um
@@ -99,6 +104,10 @@ function productToForm(p: Product): typeof emptyForm {
     cst: (p as any).cst || "",
     commercialUnit: (p as any).commercialUnit || "",
     productCode: (p as any).productCode || "",
+    // FASE NF.7.8.1 — leitura defensiva da flag importado.
+    // Comparação === true evita falso positivo de "true"/1/etc. e o `||` final
+    // garante false para produtos antigos sem o campo (compatível com NF.7.8).
+    importado: (p as any).importado === true,
     categorySelections: [],
     pricingMode: inferredMode,
     imageUrl: (p as any).imageUrl ?? null,
@@ -761,6 +770,10 @@ export default function ProductsPage() {
       cst: formData.cst || null,
       commercialUnit: formData.commercialUnit || null,
       productCode: formData.productCode || null,
+      // FASE NF.7.8.1 — flag de produto importado.
+      // Persistida na coluna products.importado (NF.7.8). Coerção === true
+      // garante que strings/numbers truthy não disparem ICMS 4% por engano.
+      importado: formData.importado === true,
       categoryAvailability: 'all',
       allowedCategories: null,
       // Backend ignora por enquanto, mas já viaja no payload para que a
@@ -1211,6 +1224,37 @@ export default function ProductsPage() {
                   placeholder="ex: KG, UN, CX" />
                 <p className="text-xs text-muted-foreground mt-0.5">Para NF-e</p>
               </div>
+            </div>
+
+            {/* FASE NF.7.8.1 — Checkbox Produto Importado.
+                Quando marcado, o item gera ICMS a 4% (Resolução 13/2012 do
+                Senado), com prioridade sobre regra de UF. Não esconder por
+                CRT — em Simples Nacional o cálculo já é ignorado pelo
+                generator (branch CSOSN intocado). NÃO inferir por NCM
+                aqui — controle continua manual e explícito. */}
+            <div className="mt-3 pt-3 border-t border-violet-200">
+              <label
+                className="flex items-start gap-2 cursor-pointer"
+                data-testid="label-product-importado"
+              >
+                <input
+                  type="checkbox"
+                  checked={formData.importado}
+                  onChange={(e) => set("importado", e.target.checked)}
+                  data-testid="checkbox-product-importado"
+                  className="mt-0.5 h-4 w-4 rounded border-violet-300 text-violet-600 focus:ring-violet-500"
+                />
+                <div className="flex-1">
+                  <span className="text-sm font-semibold text-violet-800">
+                    Produto importado (ICMS 4%)
+                  </span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Marque apenas se o produto for importado ou possuir
+                    conteúdo de importação relevante. Aplica alíquota de 4%
+                    independentemente do estado de destino.
+                  </p>
+                </div>
+              </label>
             </div>
           </div>
 

@@ -1,0 +1,151 @@
+🎯 FASE NF.7.8.1 — CHECKBOX "PRODUTO IMPORTADO" (FRONTEND)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar endpoints  
+2. NÃO alterar payload existente (apenas incluir campo)  
+3. NÃO quebrar formulário atual  
+4. NÃO tornar campo obrigatório  
+5. NÃO esconder campo por CRT  
+6. NÃO alterar lógica de cálculo  
+
+👉 Apenas expor o campo importado no frontend
+
+---
+
+🧠 OBJETIVO
+
+Permitir que o operador marque:
+
+👉 Produto é importado (ICMS 4%)
+
+---
+
+## 🛠️ ETAPA 1 — FORM STATE
+
+Arquivo:
+
+client/src/pages/admin/products.tsx
+
+---
+
+Adicionar no form:
+
+ts importado: false, 
+
+---
+
+## 🛠️ ETAPA 2 — LOAD DO PRODUTO
+
+Ao editar:
+
+ts importado: (p as any).importado || false, 
+
+---
+
+## 🛠️ ETAPA 3 — INPUT UI
+
+Adicionar no bloco fiscal (mesmo lugar de NCM/CFOP):
+
+tsx <label className="flex items-center gap-2">   <input     type="checkbox"     checked={formData.importado}     onChange={(e) =>       setFormData({ ...formData, importado: e.target.checked })     }   />   Produto importado (ICMS 4%) </label> 
+
+---
+
+## 🛠️ ETAPA 4 — ENVIO NO PAYLOAD
+
+No save:
+
+ts importado: formData.importado, 
+
+---
+
+⚠️ NÃO remover nada existente
+
+---
+
+## 🛠️ ETAPA 5 — UX (IMPORTANTE)
+
+Adicionar texto de ajuda:
+
+👉 "Marque apenas se o produto for importado ou possuir conteúdo de importação relevante"
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Produto normal
+
+checkbox OFF
+
+✔ segue 18/12/7
+
+---
+
+### 2️⃣ Produto importado
+
+checkbox ON
+
+✔ ICMS = 4%
+
+---
+
+### 3️⃣ Editar produto
+
+✔ valor mantém corretamente
+
+---
+
+### 4️⃣ Produto antigo
+
+✔ aparece desmarcado (false)
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero impacto em backend  
+✔ zero impacto em XML  
+✔ zero impacto em cálculo  
+✔ compatível com NF.7.8  
+✔ operador ganha controle real  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ operador não controla origem  
+❌ risco de erro fiscal  
+
+Depois:
+
+✔ controle direto no cadastro  
+✔ cálculo automático correto  
+✔ menos erro humano  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Onde foi adicionado no form  
+2. Trecho do checkbox  
+3. Payload enviado  
+4. Confirmação de funcionamento  
+5. Confirmação de zero regressão  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO automatizar isso ainda  
+👉 NÃO esconder campo  
+👉 NÃO inferir por NCM no frontend  
+
+👉 isso continua send
