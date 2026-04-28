@@ -1,0 +1,175 @@
+🎯 FASE 3 — SEFAZ PRODUÇÃO REAL (IMPLEMENTAÇÃO SEGURA E INCREMENTAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar gerarNFeXML  
+2. NÃO alterar estrutura do XML  
+3. NÃO remover código existente  
+4. NÃO quebrar modo mock  
+5. NÃO alterar contratos de retorno  
+6. Apenas ADICIONAR suporte real de transmissão
+
+---
+
+🧠 OBJETIVO
+
+Substituir o envio mock por integração real com SEFAZ, mantendo:
+
+- fallback seguro
+- retry (Fase 10)
+- circuit breaker (Fase 11)
+- fila (Fase 12)
+
+---
+
+# 🛠️ ETAPA 1 — VARIÁVEIS DE AMBIENTE
+
+Adicionar:
+
+env NFE_SEFAZ_MODE=production NFE_CERT_PATH=/certs/certificado.pfx NFE_CERT_PASSWORD=senha_certificado NFE_UF=SP NFE_AMBIENTE=1 
+
+---
+
+# 🛠️ ETAPA 2 — INSTALAR DEPENDÊNCIAS
+
+bash npm install soap xml-crypto axios https 
+
+---
+
+# 🛠️ ETAPA 3 — CARREGAR CERTIFICADO A1
+
+📍 server/services/nfe/nfeCert.ts
+
+ts import fs from 'fs';  export function getCertificado() {   return {     pfx: fs.readFileSync(process.env.NFE_CERT_PATH!),     passphrase: process.env.NFE_CERT_PASSWORD!,   }; } 
+
+---
+
+# 🛠️ ETAPA 4 — ASSINATURA DO XML
+
+📍 server/services/nfe/nfeSigner.ts
+
+ts import { SignedXml } from 'xml-crypto';  export function assinarXML(xml: string): string {   const sig = new SignedXml();    sig.addReference(     "//*[local-name(.)='infNFe']",     ['http://www.w3.org/2000/09/xmldsig#enveloped-signature']   );    sig.signingKey = process.env.NFE_CERT_PATH;    sig.computeSignature(xml);    return sig.getSignedXml(); } 
+
+---
+
+# 🛠️ ETAPA 5 — ENVELOPE SOAP
+
+📍 server/services/nfe/nfeSoap.ts
+
+ts export function montarEnvelope(xml: string): string {   return `   <soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope">     <soap:Body>       <nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4">         ${xml}       </nfeDadosMsg>     </soap:Body>   </soap:Envelope>`; } 
+
+---
+
+# 🛠️ ETAPA 6 — URL POR UF
+
+📍 server/services/nfe/nfeUrl.ts
+
+ts export function getSefazUrl(uf: string, ambiente: number): string {   if (ambiente === 2) {     return 'https://homologacao.sefaz.sp.gov.br/ws/NFeAutorizacao4.asmx';   }    return 'https://nfe.fazenda.sp.gov.br/ws/NFeAutorizacao4.asmx'; } 
+
+---
+
+# 🛠️ ETAPA 7 — ENVIO REAL
+
+📍 server/services/nfe/nfeSender.ts
+
+🔍 LOCALIZAR:
+
+ts if (mode !== 'production') { 
+
+---
+
+🔁 SUBSTITUIR APENAS O BLOCO production:
+
+ts if (mode === 'production') {   const { getCertificado } = await import('./nfeCert');   const { assinarXML } = await import('./nfeSigner');   const { montarEnvelope } = await import('./nfeSoap');   const { getSefazUrl } = await import('./nfeUrl');    const cert = getCertificado();    const xmlAssinado = assinarXML(xml);   const envelope = montarEnvelope(xmlAssinado);   const url = getSefazUrl(uf, tpAmb);    const response = await axios.post(url, envelope, {     httpsAgent: new (require('https').Agent)(cert),     headers: {       'Content-Type': 'application/soap+xml',     },     timeout: 30000,   });    return parseSefazResponse(response.data); } 
+
+---
+
+# 🛠️ ETAPA 8 — NÃO MEXER NO RESTO
+
+👉 NÃO alterar:
+
+- retryComBackoff  
+- circuit breaker  
+- parseSefazResponse  
+- logs existentes  
+
+---
+
+# 🧪 VALIDAÇÃO
+
+---
+
+## 1️⃣ Homologação
+
+env NFE_AMBIENTE=2 
+
+Resultado esperado:
+
+✔ NF-e autorizada  
+✔ cStat = 100  
+✔ XML retornado  
+
+---
+
+## 2️⃣ Produção
+
+env NFE_AMBIENTE=1 
+
+Resultado:
+
+✔ envio real  
+✔ protocolo recebido  
+
+---
+
+## 3️⃣ Certificado inválido
+
+Resultado:
+
+✔ erro controlado  
+✔ retry aplicado  
+
+---
+
+## 4️⃣ SEFAZ fora
+
+Resultado:
+
+✔ retry (Fase 10)  
+✔ circuit breaker (Fase 11)  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero alteração no XML  
+✔ zero alteração no schema  
+✔ mock continua funcionando  
+✔ retry preservado  
+✔ breaker preservado  
+✔ fila preservada  
+✔ multi-tenant intacto  
+
+---
+
+# 📊 RESULTADO FINAL
+
+Sistema agora:
+
+- emite NF-e REAL
+- suporta homologação e produção
+- resiliente a falhas SEFAZ
+- pronto para uso comercial
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivos criados  
+2. Trecho alterado no sender  
+3. Teste em homologação  
+4. Confirmação de emissão real

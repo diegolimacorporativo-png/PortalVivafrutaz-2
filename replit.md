@@ -103,8 +103,19 @@ Preferred communication style: Simple, everyday language.
 - `qrcode`: QR code generation.
 - `xlsx`: Excel file handling.
 - `pdfkit`, `node-forge`, `xml-crypto`: Server-side PDF generation and NF-e digital signature.
-- `axios`: HTTP client for external APIs (e.g., Itaú Bank).
+- `axios`: HTTP client for external APIs (e.g., Itaú Bank, SEFAZ NFeAutorizacao4).
 - `nanoid`, `uuid`: Unique ID generators.
 
 ### Fonts
 - Plus Jakarta Sans and Outfit via Google Fonts CDN.
+
+### NF-e SEFAZ Transmission (FASE 3)
+- **Mock vs Production switch**: `NFE_SEFAZ_MODE=mock` (default) keeps the simulated authorization; `NFE_SEFAZ_MODE=production` triggers real SEFAZ POST.
+- **Sender** (`server/services/nfe/nfeSender.ts`): existing multi-UF dispatcher (SP/MG/RJ/RS/PR/SC + GO default), reconciles UF/ambiente from the signed XML, builds the SOAP 1.2 envelope, and POSTs via `axios` with mTLS `https.Agent`. FASE 3 added an env-driven cert auto-loader: when the caller does not pass `certPem`/`certKey` and `NFE_CERT_PATH` (or `NFE_CERT_BASE64`) is set, it loads the A1 certificate via `nfeCert.getCertificado()` automatically — legacy callers (e.g. `routes.ts:6458` invoking `enviarNFeSEFAZ(xml, uf, tpAmb)`) start transmitting to real SEFAZ with no signature change.
+- **Helpers added in FASE 3** (additive only, no existing code removed):
+  - `nfeCert.ts` — reads PFX from `NFE_CERT_PATH` (file) or `NFE_CERT_BASE64` (Replit Secrets-friendly), with `CERT_PATH`/`CERT_PASSWORD` as legacy aliases. Returns `{ pfx, passphrase, certPem, keyPem, source }`.
+  - `nfeSigner.ts` — env-driven thin wrapper around `nfeSignature.assinarXML` (the real PFX/XMLDSig implementation lives there; this file just removes the need to plumb cert path/senha through every caller).
+  - `nfeSoap.ts` — exports `montarEnvelope(xml)` for callers that need the bare SOAP envelope outside the sender.
+  - `nfeUrl.ts` — exports `getSefazUrl(uf, ambiente)` and `ufsSuportadas()` mirroring the multi-UF map in the sender.
+- **Required env vars for production**: `NFE_SEFAZ_MODE=production`, `NFE_CERT_PATH` (or `NFE_CERT_BASE64`), `NFE_CERT_PASSWORD`. Optional: `NFE_UF`, `NFE_AMBIENTE` (the sender prefers values detected from the signed XML).
+- **Guarantees preserved**: `gerarNFeXML` and the XML structure are untouched; mock mode is unchanged; no return contract changed; multi-tenant scoping intact.

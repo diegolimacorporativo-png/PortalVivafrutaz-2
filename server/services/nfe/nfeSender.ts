@@ -184,8 +184,29 @@ export async function enviarNFeSEFAZ(
   const idLote = String(Date.now()).slice(-15);
   const soap = buildSoap(xmlAssinado, idLote);
 
-  const httpsAgent = certPem && certKey
-    ? new (require('https').Agent)({ cert: certPem, key: certKey, rejectUnauthorized: false })
+  // FASE 3 — Auto-carregar o certificado A1 a partir do env quando o caller
+  // não fornece (certPem/certKey). Permite que rotas legadas (ex.:
+  // routes.ts:6458 que invoca `enviarNFeSEFAZ(xml, uf, tpAmb)`) passem a
+  // transmitir para a SEFAZ real assim que NFE_CERT_PATH/NFE_CERT_PASSWORD
+  // forem configuradas, SEM mudar a assinatura da função nem nenhum caller.
+  // Se o env não estiver configurado, mantém o comportamento atual: tenta
+  // POST sem mTLS (a SEFAZ recusará — comportamento inalterado).
+  let pem = certPem;
+  let key = certKey;
+  if ((!pem || !key) && (process.env.NFE_CERT_PATH || process.env.NFE_CERT_BASE64 || process.env.CERT_PATH)) {
+    try {
+      const { getCertificado } = await import('./nfeCert');
+      const bundle = getCertificado();
+      pem = bundle.certPem;
+      key = bundle.keyPem;
+      console.info('[NFE_SEFAZ_CERT_FROM_ENV]', { source: bundle.source });
+    } catch (e: any) {
+      console.warn('[NFE_SEFAZ_CERT_LOAD_FAIL]', { error: e?.message });
+    }
+  }
+
+  const httpsAgent = pem && key
+    ? new (require('https').Agent)({ cert: pem, key, rejectUnauthorized: false })
     : undefined;
 
   const response = await axios.post(url, soap, {
