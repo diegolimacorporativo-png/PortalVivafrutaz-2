@@ -1,0 +1,130 @@
+🎯 OBJETIVO: FASE 6.1 — CORRIGIR BYPASS DE PERÍODO FECHADO (replaceItems)
+
+Garantir que a rota PUT /api/orders/:id/items respeite o bloqueio de período fechado (PERIODO_FECHADO), assim como já acontece em PATCH (update) e DELETE (remove).
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente
+2. NÃO remover código
+3. NÃO alterar estrutura de resposta
+4. NÃO criar novos helpers
+5. NÃO alterar schema ou banco
+6. NÃO tocar em nfeGenerator, billing ou frontend
+7. NÃO refatorar o método — apenas adicionar o guard
+
+👉 Apenas adicionar validação antes da mutação
+
+---
+
+🧠 CONTEXTO
+
+- Já existe helper:
+  assertPeriodOpenForOrder(order, source)
+
+- Já está sendo usado em:
+  ✔ update (PATCH /orders/:id)
+  ✔ remove (DELETE /orders/:id)
+
+- Problema atual:
+  ❌ replaceItems (PUT /orders/:id/items) NÃO usa esse guard
+
+➡️ Isso permite alterar pedidos de mês fechado (BUG CRÍTICO)
+
+---
+
+📦 TAREFA
+
+---
+
+1. LOCALIZAR MÉTODO
+
+Arquivo:
+server/modules/orders/orders.service.ts
+
+Encontrar método responsável por:
+
+PUT /api/orders/:id/items
+
+(nome comum: replaceItems, updateItems, setItems, etc.)
+
+---
+
+2. ADICIONAR GUARD
+
+ANTES de qualquer alteração nos itens (ANTES de delete/insert/update):
+
+Adicionar:
+
+await this.assertPeriodOpenForOrder(order, "replace-items");
+
+---
+
+⚠️ IMPORTANTE
+
+- Reutilizar o objeto order já carregado no método
+- NÃO fazer nova query no banco
+- NÃO mover código existente
+- NÃO alterar ordem de execução existente além do guard
+
+---
+
+3. POSIÇÃO CORRETA (CRÍTICO)
+
+O guard deve ficar:
+
+✔ Depois que o pedido foi carregado
+✔ Antes de qualquer mutação de itens
+
+Exemplo:
+
+const data = await this.getOrderWithItems(id);
+
+// 🔒 FASE 6.1 — BLOQUEIO DE PERÍODO FECHADO
+await this.assertPeriodOpenForOrder(data.order, "replace-items");
+
+// lógica existente continua intacta...
+
+---
+
+4. LOG DE SEGURANÇA
+
+Garantir que, ao bloquear:
+
+- seja disparado:
+[SECURITY] PERIODO_FECHADO
+
+✔ já é feito dentro do helper — NÃO duplicar log
+
+---
+
+📊 RESULTADO ESPERADO
+
+Cenário	Resultado
+Pedido de mês ABERTO	update de itens funciona normalmente
+Pedido de mês FECHADO	403 Forbidden + PERIODO_FECHADO
+Sem order / inválido	comportamento atual preservado
+Sem companyId / createdAt	fail-open (não quebra fluxo)
+
+---
+
+🛡️ IMPACTO DE SEGURANÇA
+
+✔ Fecha bypass crítico de alteração pós-fechamento  
+✔ Garante integridade contábil  
+✔ Mantém consistência com SPED / apuração mensal  
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. nome do método alterado
+2. trecho de código onde o guard foi inserido
+3. confirmação de zero regressão
+
+---
+
+⚠️ NÃO FAZER MAIS NADA ALÉM DI

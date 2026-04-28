@@ -1257,6 +1257,16 @@ export class OrdersService {
   async replaceItems(id: number, items: any[], actor?: ActorContext): Promise<OrderDetail> {
     if (!Array.isArray(items)) throw new BadRequestError("items required");
 
+    // 🔒 FASE 6.1 — BLOQUEIO DE PERÍODO FECHADO (replace-items).
+    // Mesmo padrão de update() (linha 718) e remove() (linha 1032). Se o
+    // pedido pertence a um mês já consolidado em fiscal_closures para a
+    // empresa, recusa com 403 ForbiddenError("PERIODO_FECHADO") e log
+    // [SECURITY] PERIODO_FECHADO (emitido dentro do helper — não duplicar).
+    // Fail-open quando id não existe / sem companyId / sem createdAt
+    // (assertPeriodOpenForOrder retorna sem efeito), preservando 100% o
+    // comportamento atual fora do mês fechado.
+    await this.assertPeriodOpen(id, "replace-items");
+
     // ── Read-only divergence observation (no behavior change) ──
     // We need companyId to fetch the admin-fee markup; the order detail is
     // ALREADY fetched right after the write below — we simply read it once
