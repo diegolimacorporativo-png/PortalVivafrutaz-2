@@ -1,0 +1,172 @@
+🎯 OBJETIVO: FASE 6.1 — PROPAGAR VALOR REAL DO CNAB (Segmento T)
+
+Corrigir divergência financeira usando valorPagoCentavos já extraído no parser.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar parser
+2. NÃO alterar schema
+3. NÃO remover lógica existente
+4. NÃO alterar estrutura de resposta
+5. Apenas PROPAGAR valor
+6. Fallback obrigatório (compatibilidade total)
+
+---
+
+🧠 CONTEXTO
+
+- parser já fornece: item.valorPagoCentavos
+- service atual ignora esse valor
+- repository usa row.valor (valor do título)
+
+👉 objetivo: usar valorPagoCentavos quando existir
+
+---
+
+# 📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. SERVICE (CNAB) — PASSAR VALOR
+
+📍 server/modules/banking/itau/retorno.service.ts
+
+---
+
+### ❌ ANTES
+
+ts await financeService.payAccountReceivable(ar.id, userId); 
+
+---
+
+### ✅ DEPOIS
+
+ts await financeService.payAccountReceivable(ar.id, userId, {   valorPagoCentavos: item.valorPagoCentavos, }); 
+
+---
+
+## 🔴 2. FINANCE SERVICE — EXTENDER ASSINATURA
+
+📍 server/modules/finance/finance.service.ts
+
+---
+
+### ALTERAR MÉTODO (SEM QUEBRAR COMPATIBILIDADE)
+
+ts async payAccountReceivable(   id: number,   userId: number,   paymentDetails?: {     valorPagoCentavos?: number | null;   } ) 
+
+---
+
+### 🔁 REPASSAR PARA REPOSITORY
+
+ts return this.repo.payAccountReceivable(id, paymentDetails); 
+
+---
+
+📌 IMPORTANTE:
+- NÃO remover parâmetros existentes
+- NÃO alterar lógica interna do service
+- NÃO mexer em hooks (FIN.3 etc.)
+
+---
+
+## 🔴 3. REPOSITORY — USAR VALOR REAL
+
+📍 server/modules/finance/finance.repository.ts
+
+---
+
+### ALTERAR ASSINATURA
+
+ts async payAccountReceivable(   id: number,   paymentDetails?: {     valorPagoCentavos?: number | null;   } ) 
+
+---
+
+### 🔁 ALTERAR APENAS O INSERT (CRÍTICO)
+
+📍 dentro da transação (bloco do financial_transactions)
+
+---
+
+### ❌ ANTES
+
+ts valor: row.valor, 
+
+---
+
+### ✅ DEPOIS
+
+ts valor: paymentDetails?.valorPagoCentavos ?? row.valor, 
+
+---
+
+📌 REGRA ABSOLUTA:
+- NÃO tocar no UPDATE
+- NÃO alterar lógica de status
+- NÃO alterar tenantWhere
+- NÃO alterar ordem da transação
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+| Cenário | Antes | Depois |
+|--------|------|--------|
+| Pagamento normal | 1000 | 1000 |
+| Com juros | 1000 | 1050 ✅ |
+| Com desconto | 1000 | 950 ✅ |
+
+---
+
+# 🧪 TESTE MANUAL
+
+1. Processar um CNAB com valor diferente do título
+
+2. Executar:
+
+sql SELECT valor  FROM financial_transactions  WHERE referencia_id = <AR_ID>; 
+
+---
+
+✅ Esperado:
+- valor = valorPagoCentavos (quando existir)
+- valor = row.valor (fallback)
+
+---
+
+# 🔍 TESTE DE REGRESSÃO
+
+1. Criar AR manual
+2. Pagar via fluxo normal (sem CNAB)
+
+✅ Esperado:
+- continua usando row.valor
+- nenhum erro
+
+---
+
+# 🚫 NÃO FAZER
+
+- NÃO mexer no parser
+- NÃO implementar Segmento U
+- NÃO alterar schema
+- NÃO alterar endpoints
+- NÃO alterar response
+- NÃO refatorar método
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. arquivos alterados
+2. linhas modificadas
+3. confirmação do fallback funcionando
+4. confirmação de zero regressão
+
+---
+
+🔥 IMPACTO: CORREÇÃO FINANCEIRA REAL COM RISCO MÍNIMO

@@ -111,7 +111,12 @@ export class FinanceRepository {
     return row;
   }
 
-  async payAccountReceivable(id: number): Promise<AccountReceivable> {
+  async payAccountReceivable(
+    id: number,
+    paymentDetails?: {
+      valorPagoCentavos?: number | null;
+    },
+  ): Promise<AccountReceivable> {
     return db.transaction(async (tx) => {
       const [row] = await tx
         .update(accountsReceivable)
@@ -128,10 +133,21 @@ export class FinanceRepository {
         throw new Error("ACCOUNT_RECEIVABLE_ALREADY_PAID");
       }
       const today = new Date().toISOString().substring(0, 10);
+      // FASE 6.1 — quando o caller informa o valor real liquidado pelo banco
+      // (em centavos, vindo do Segmento T do CNAB 240), convertemos para
+      // reais no formato numeric(12,2) e usamos no lançamento financeiro.
+      // Caso contrário, fallback para o valor nominal do título — preserva
+      // 100% do comportamento anterior para todo fluxo não-CNAB (conciliação
+      // manual, baixa via UI, AR avulsa, etc.).
+      const cents = paymentDetails?.valorPagoCentavos;
+      const valorLancamento =
+        typeof cents === "number" && Number.isFinite(cents) && cents > 0
+          ? (cents / 100).toFixed(2)
+          : row.valor;
       await tx.insert(financialTransactions).values(
         withTenant({
           tipo: "entrada",
-          valor: row.valor,
+          valor: valorLancamento,
           descricao: `Recebimento: ${row.descricao}`,
           data: today,
           referenciaTipo: "receivable",

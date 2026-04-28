@@ -110,8 +110,18 @@ export class FinanceService {
     return this.repo.updateAccountReceivable(id, data);
   }
 
-  async payAccountReceivable(id: number, userId: number): Promise<AccountReceivable> {
-    const record = await this.repo.payAccountReceivable(id);
+  async payAccountReceivable(
+    id: number,
+    userId: number,
+    paymentDetails?: {
+      valorPagoCentavos?: number | null;
+    },
+  ): Promise<AccountReceivable> {
+    // FASE 6.1 — `paymentDetails` é opcional para preservar 100% da
+    // compatibilidade com chamadores existentes (conciliação manual,
+    // controllers, testes). Quando ausente, o repository usa o valor
+    // nominal do título exatamente como antes.
+    const record = await this.repo.payAccountReceivable(id, paymentDetails);
     await this.repo.log({
       action: "FINANCE_AR_PAY",
       description: `Conta a receber marcada como paga: ${record.descricao}`,

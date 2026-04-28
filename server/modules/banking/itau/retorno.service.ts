@@ -119,7 +119,18 @@ export async function processarRetornoItau(
 
       // Caminho ÚNICO de baixa — dispara FIN.3 e mantém a paridade total
       // com a conciliação manual (FIN.3.5).
-      await financeService.payAccountReceivable(ar.id, userId);
+      // FASE 6.1 — propaga o valor real liquidado pelo banco (Segmento T,
+      // posições 77-91 do CNAB 240). O parser devolve string em centavos;
+      // convertemos para inteiro aqui. Quando inválido (NaN/zero), passamos
+      // `null` e o repository cai no fallback do valor nominal do título.
+      const parsedCentavos = parseInt(item.valorPagoCentavos, 10);
+      const valorPagoCentavos =
+        Number.isFinite(parsedCentavos) && parsedCentavos > 0
+          ? parsedCentavos
+          : null;
+      await financeService.payAccountReceivable(ar.id, userId, {
+        valorPagoCentavos,
+      });
       baixasRealizadas += 1;
 
       console.log("[CNAB] AR baixada automaticamente", {
