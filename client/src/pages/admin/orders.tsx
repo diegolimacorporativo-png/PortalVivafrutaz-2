@@ -23,6 +23,8 @@ import {
   ReceiptText, ExternalLink
 } from "lucide-react";
 import { api } from "@shared/routes";
+// NF.7.9.7 — feedback amigável para erro 403 PERIODO_FECHADO (aditivo).
+import { handleIfPeriodoFechado } from "@/lib/periodo-fechado";
 import { downloadDanfe, openDanfe, exportToExcel, exportToXML, type DanfeData } from "@/lib/danfe-generator";
 import { useCanEmitNfe } from "@/hooks/use-can-emit-nfe";
 import { useForceReleaseNfe } from "@/hooks/use-force-release-nfe";
@@ -386,7 +388,11 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       globalQueryClient.invalidateQueries({ queryKey: ["/api/nfe"] });
       globalQueryClient.invalidateQueries({ queryKey: ["/api/nfe/can-emit", order.id] });
     },
-    onError: (e: any) => toast({ title: "Erro ao gerar NF-e", description: e.message, variant: "destructive" }),
+    onError: (e: any) => {
+      // NF.7.9.7 — intercepta PERIODO_FECHADO antes do toast genérico.
+      if (handleIfPeriodoFechado(e, toast)) return;
+      toast({ title: "Erro ao gerar NF-e", description: e.message, variant: "destructive" });
+    },
   });
 
   const { data: danfeLogs, refetch: refetchLogs } = useQuery({
@@ -562,6 +568,8 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/nfe/can-emit", order.id] });
     } catch (e: any) {
+      // NF.7.9.7 — intercepta PERIODO_FECHADO antes do toast genérico.
+      if (handleIfPeriodoFechado(e, toast)) return;
       toast({ title: "Erro ao atualizar fiscal", description: e.message, variant: "destructive" });
     } finally {
       setUpdatingFiscal(false);
@@ -1481,6 +1489,8 @@ function DeleteHistoryModal({ orders, companies, onClose, onDeleted }: {
         return;
       }
       if (!res.ok) {
+        // NF.7.9.7 — intercepta PERIODO_FECHADO antes do toast genérico.
+        if (handleIfPeriodoFechado(err, toast)) return;
         toast({ title: err.message || 'Erro ao excluir pedidos', variant: 'destructive' });
         return;
       }
@@ -1770,6 +1780,8 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
       toast({ title: `Pedido movido para: ${label}` });
     } catch (e: any) {
+      // NF.7.9.7 — intercepta PERIODO_FECHADO antes do toast genérico.
+      if (handleIfPeriodoFechado(e, toast)) return;
       toast({ title: e.message || "Erro ao atualizar etapa", variant: "destructive" });
     }
   };

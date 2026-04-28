@@ -13,6 +13,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NfeDiagnosticsPanel from "@/components/NfeDiagnosticsPanel";
+// NF.7.9.7 — feedback amigável para erro 403 PERIODO_FECHADO (aditivo).
+import { handleIfPeriodoFechado } from "@/lib/periodo-fechado";
 import { useCanEmitNfe } from "@/hooks/use-can-emit-nfe";
 import { useForceReleaseNfe } from "@/hooks/use-force-release-nfe";
 import {
@@ -417,6 +419,10 @@ export default function NfePage() {
       setSelectedOrderCode("");
     },
     onError: async (e: any) => {
+      // NF.7.9.7 — intercepta PERIODO_FECHADO antes do toast genérico e
+      // antes do log de diagnóstico (não é erro de validação fiscal, é
+      // bloqueio de período fechado).
+      if (handleIfPeriodoFechado(e, toast)) return;
       toast({ title: "Erro ao gerar NF-e", description: e.message, variant: "destructive" });
       // Registrar erros de validação no treinamento
       if (selectedOrderId) {
