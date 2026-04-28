@@ -1,0 +1,211 @@
+🎯 AUDITORIA COMPLETA — FINANCEIRO (ANTES DO FIN.1)
+
+Objetivo: descobrir TUDO que já existe relacionado a financeiro para evitar duplicação e implementação errada.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO criar arquivos
+3. NÃO executar migrations
+4. NÃO sugerir melhorias ainda
+5. NÃO assumir nada — apenas confirmar com base no código
+
+👉 Apenas leitura (read-only audit)
+
+---
+
+🧠 ESCOPO DA BUSCA
+
+Procurar no projeto inteiro (backend + frontend + schema):
+
+---
+
+🔍 1. BANCO DE DADOS
+
+Verificar se já existem tabelas como:
+
+- accounts_receivable
+- receivable
+- financial
+- payments
+- invoices (não fiscal)
+- billing tables adicionais
+
+Para cada tabela encontrada:
+
+- nome
+- campos
+- relacionamento com orders
+- se usa companyId (multi-tenant)
+
+---
+
+🔍 2. SERVICES / LÓGICA
+
+Buscar por:
+
+- createReceivable
+- createPayment
+- markAsPaid
+- financialService
+- billingService (além do que já conhecemos)
+- qualquer lógica que envolva:
+  - valor
+  - pagamento
+  - cobrança
+  - vencimento
+
+---
+
+🔍 3. ENDPOINTS
+
+Procurar rotas contendo:
+
+- /finance
+- /payment
+- /receivable
+- /billing
+- /cash
+- /transactions
+
+Para cada endpoint:
+
+- método
+- rota
+- arquivo
+- o que faz
+
+---
+
+🔍 4. INTEGRAÇÕES / BANCO / EXTRATO
+
+Buscar por:
+
+- OFX
+- CSV import
+- bank
+- statement
+- reconciliation
+- conciliation
+
+---
+
+🔍 5. FRONTEND
+
+Verificar se já existem telas ou componentes:
+
+- financeiro
+- pagamentos
+- contas
+- dashboard financeiro
+
+Arquivos:
+
+client/src/pages/*
+client/src/components/*
+
+---
+
+🔍 6. RELAÇÃO COM PEDIDOS
+
+Verificar:
+
+- orders já possuem campo de pagamento?
+- orders têm status financeiro?
+- existe algo como:
+  - paid
+  - paidAt
+  - paymentStatus
+
+---
+
+🔍 7. DUPLICIDADE / CONFLITOS
+
+Identificar:
+
+- lógica financeira espalhada
+- duplicação de cálculo de valor
+- múltiplas fontes de “verdade” financeira
+
+---
+
+📊 FORMATO DA RESPOSTA
+
+Responder EXATAMENTE assim:
+
+---
+
+1️⃣ TABELAS EXISTENTES
+
+- nome:
+- campos:
+- uso atual:
+
+---
+
+2️⃣ SERVICES ENCONTRADOS
+
+- arquivo:
+- função:
+- o que faz:
+
+---
+
+3️⃣ ENDPOINTS
+
+- método:
+- rota:
+- descrição:
+
+---
+
+4️⃣ FRONTEND
+
+- arquivo:
+- funcionalidade:
+
+---
+
+5️⃣ RELAÇÃO COM ORDERS
+
+(descrever claramente)
+
+---
+
+6️⃣ O QUE JÁ EXISTE (RESUMO)
+
+✔ ...
+
+---
+
+7️⃣ O QUE FALTA PARA FIN.1
+
+❌ ...
+
+---
+
+8️⃣ RISCOS
+
+⚠️ duplicidade
+⚠️ conflito
+⚠️ lógica perigosa
+
+---
+
+🚨 IMPORTANTE
+
+👉 NÃO inventar nada  
+👉 NÃO supor  
+👉 tudo deve vir do código real  
+
+---
+
+✅ FINAL
+
+Concluir com:
+
+"Pronto para implementar FIN.1 com segurança"  
+OU  
+"Necessário ajuste ant
