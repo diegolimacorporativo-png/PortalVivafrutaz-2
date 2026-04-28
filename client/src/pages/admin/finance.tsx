@@ -6,7 +6,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus, CheckCircle2,
   Clock, XCircle, Copy, Check, ChevronDown, ChevronUp, Wallet, CreditCard,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt
 } from 'lucide-react';
 import { ImportarRetornoCnab } from '@/components/banking/ImportarRetornoCnab';
 
