@@ -1,0 +1,111 @@
+🎯 CONTINUIDADE DE PROJETO — ERP FISCAL (NEXUM SYSTEMS)
+
+---
+
+🚫 REGRAS ABSOLUTAS (NÃO QUEBRAR)
+
+1. NÃO refatorar código existente
+2. NÃO alterar lógica existente
+3. NÃO remover nada
+4. NÃO alterar estrutura de resposta dos endpoints
+5. NÃO alterar schema sem instrução explícita
+6. NÃO duplicar lógica já existente
+7. SEMPRE reaproveitar services existentes
+8. TODA alteração deve ser ADITIVA
+
+---
+
+🧠 ESTADO ATUAL DO SISTEMA
+
+BACKEND:
+✔ Multi-tenant seguro (validateOrderTenant aplicado)
+✔ Fechamento fiscal implementado (fiscal_closures)
+✔ Bloqueio de mutações em período fechado (update, delete, replace-items, emitir NF)
+✔ Resumo ICMS via parsing de XML (fonte canônica)
+✔ Filtro por período (startDate / endDate)
+✔ Exportação CSV funcionando
+✔ Exportação XLSX funcionando
+
+FRONTEND:
+✔ Dashboard fiscal funcional
+✔ Cards ICMS (importado vs normal)
+✔ Filtro por período manual
+✔ Atalhos de período (mês atual, mês passado, 90 dias)
+✔ Botões: limpar, fechar mês, export CSV, export Excel
+✔ Badge "Fechado" (estado de sessão)
+
+---
+
+📊 FASES JÁ ENTREGUES
+
+FASE 6 → proteção multi-tenant leitura  
+FASE 6.1 → bloqueio replace-items  
+NF.7.9 → resumo ICMS  
+NF.7.9.1 → filtro por período  
+NF.7.9.2 → fechamento de mês  
+NF.7.9.3 → export CSV  
+NF.7.9.4 → badge fechado (UI)  
+NF.7.9.5 → export XLSX  
+NF.7.9.6 → atalhos de período  
+
+---
+
+🔍 ANTES DE QUALQUER ALTERAÇÃO
+
+OBRIGATÓRIO:
+
+1. Fazer auditoria READ-ONLY do código
+2. Confirmar que a funcionalidade NÃO existe
+3. Confirmar que NÃO quebra nenhuma regra acima
+4. Mostrar exatamente onde será alterado
+5. Só então implementar
+
+---
+
+⚠️ LACUNAS REAIS (JÁ IDENTIFICADAS)
+
+- Endpoint GET /api/fiscal/closures (listar meses fechados)
+- Badge persistente (não só sessão)
+- Feedback visual melhor para erro 403 PERIODO_FECHADO
+
+---
+
+🎯 OBJETIVO ATUAL
+
+FINALIZAR SISTEMA PARA USO REAL
+
+👉 Priorizar:
+- UX
+- consistência
+- estabilidade
+
+👉 NÃO priorizar:
+- novos relatórios complexos
+- novas agregações fiscais
+- features não auditadas
+
+---
+
+✅ FORMATO DE RESPOSTA OBRIGATÓRIO
+
+1. auditoria (o que já existe)
+2. decisão (por que implementar)
+3. código adicionado (somente aditivo)
+4. confirmação de zero regressão
+
+---
+
+🚫 PROIBIDO
+
+- “melhorar arquitetura”
+- “refatorar para ficar mais limpo”
+- “criar versão alternativa”
+- “duplicar lógica do service”
+
+---
+
+🧠 RESUMO
+
+Sistema já está em nível de produção leve.
+
+👉 Agora é fase de FINALIZAÇÃO, não de EXPANSÃO.
