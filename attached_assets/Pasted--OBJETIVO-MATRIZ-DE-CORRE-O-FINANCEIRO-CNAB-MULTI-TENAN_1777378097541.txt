@@ -1,0 +1,119 @@
+🎯 OBJETIVO: MATRIZ DE CORREÇÃO — FINANCEIRO + CNAB + MULTI-TENANT
+
+Gerar plano de correção priorizado baseado na auditoria validada.
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO sugerir refatoração genérica
+3. NÃO reescrever módulos
+4. NÃO executar migrations
+5. NÃO propor melhorias fora do escopo identificado
+
+👉 Apenas ANALISAR e PLANEJAR correções seguras
+
+---
+
+🧠 CONTEXTO CONFIRMADO (NÃO REVALIDAR)
+
+- /api/bank/* sem tenant context
+- retorno CNAB responde success: true mesmo falhando
+- payAccountReceivable permite duplicação (sem status check no WHERE)
+- Segmento U ignorado → divergência financeira
+- storage.* unscoped ainda acessível
+- histórico CNAB vazando cross-tenant
+- remessa Itaú com dados hardcoded (NSA, DAC, carteira, etc.)
+
+---
+
+📦 TAREFAS
+
+---
+
+1. CLASSIFICAR RISCOS
+
+Para cada problema abaixo, classificar:
+
+- Severidade: CRÍTICO | ALTO | MÉDIO
+- Impacto: financeiro | segurança | operação
+- Tipo: bug | arquitetura | conformidade
+
+Lista:
+
+- retorno CNAB falso sucesso
+- duplicação de financial_transactions
+- divergência de valor (sem Segmento U)
+- endpoints /api/bank/* sem tenant
+- vazamento histórico CNAB
+- storage unscoped (AR e AP)
+- CNAB inválido para Itaú (NSA, DAC, etc.)
+
+---
+
+2. DEFINIR ORDEM DE CORREÇÃO (OBRIGATÓRIO)
+
+Criar ordem EXATA de implementação, respeitando dependências reais.
+
+Formato:
+
+FASE X — nome curto
+- motivo
+- risco mitigado
+- dependência (se houver)
+
+⚠️ IMPORTANTE:
+- considerar efeito cascata
+- evitar quebrar FIN.1–FIN.5
+- evitar regressão em CNAB já implementado
+
+---
+
+3. DEFINIR TIPO DE CORREÇÃO
+
+Para cada item, indicar:
+
+- HOTFIX (seguro imediato)
+- HARDENING (reforço estrutural)
+- COMPLIANCE (adequação bancária)
+
+---
+
+4. DEFINIR ESTRATÉGIA SEGURA
+
+Para cada correção, explicar:
+
+- onde aplicar (arquivo/módulo)
+- abordagem mínima (sem reescrever fluxo)
+- risco de regressão (baixo/médio/alto)
+
+---
+
+5. IDENTIFICAR DEPENDÊNCIAS CRÍTICAS
+
+Exemplo esperado:
+
+- tenant middleware deve vir ANTES de corrigir CNAB retorno
+- fix do payAccountReceivable antes de qualquer automação
+- etc
+
+---
+
+6. RESULTADO FINAL
+
+Gerar:
+
+- roadmap completo numerado
+- pronto para execução em fases
+- sem código ainda (apenas plano técnico)
+
+---
+
+✅ FINAL
+
+Responder com:
+
+1. tabela de riscos classificada
+2. roadmap em fases
+3. estratégia por item
+4. dependências críticas
+5. confirmação de zero alteração no sistema atual
