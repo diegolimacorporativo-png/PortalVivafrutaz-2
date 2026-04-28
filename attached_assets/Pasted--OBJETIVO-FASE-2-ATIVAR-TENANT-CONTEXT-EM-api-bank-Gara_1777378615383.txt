@@ -1,0 +1,236 @@
+🎯 OBJETIVO: FASE 2 — ATIVAR TENANT CONTEXT EM /api/bank/*
+
+Garantir que todos os endpoints bancários executem dentro do contexto de tenant (AsyncLocalStorage), eliminando:
+
+- erros "Tenant context ausente"
+- vazamento cross-tenant
+- comportamento inconsistente (200 falso / 500 / 401)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica interna dos endpoints
+2. NÃO alterar services, repositories ou schema
+3. NÃO remover código
+4. NÃO alterar response
+5. NÃO mexer em outros módulos
+6. NÃO criar middleware global em app.ts
+
+👉 Apenas adicionar middleware de tenant nas rotas
+
+---
+
+🧠 CONTEXTO
+
+Hoje:
+
+- /api/finance/* → usa withTenantScope ✅
+- /api/bank/* → NÃO usa ❌
+
+Consequências atuais:
+
+- remessa → 401 (quebrado)
+- retorno → success:true com 0 baixas (falso positivo)
+- histórico → vaza dados de outras empresas
+- conciliação → comportamento inconsistente
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+📍 Arquivo:
+server/routes/routes.ts
+
+📍 Bloco:
+Rotas que começam com /api/bank/
+
+---
+
+## 🔥 IMPORTANTE
+
+👉 IMPORTAR middleware no topo do arquivo (se ainda não existir):
+
+ts id="m5k2zq" import { tenantContext } from "@/middleware/tenant"; 
+
+---
+
+## 🧩 PADRÃO DE APLICAÇÃO
+
+### ANTES
+
+ts id="a1" app.post('/api/bank/retorno/itau', requireAuth, async (req, res) => { 
+
+### DEPOIS
+
+ts id="a2" app.post('/api/bank/retorno/itau', requireAuth, tenantContext, async (req, res) => { 
+
+👉 tenantContext sempre DEPOIS do requireAuth
+
+---
+
+## 📍 ENDPOINTS A ALTERAR (MAPEADOS)
+
+### 1. REMESSA ITAÚ
+
+🔧 Linha ~6570
+
+ts id="b1" app.post('/api/bank/remessa/itau', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 2. RETORNO ITAÚ
+
+🔧 Linha ~6613
+
+ts id="b2" app.post('/api/bank/retorno/itau', requireAuth, tenantContext, uploadInMemory.single('file'), async (req, res) => { 
+
+⚠️ manter uploadInMemory na mesma posição
+
+---
+
+### 3. HISTÓRICO DE RETORNO
+
+🔧 Linha ~6635
+
+ts id="b3" app.get('/api/bank/retorno/historico', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 4. CONCILIAÇÃO — LISTAR
+
+🔧 Linha ~6510
+
+ts id="b4" app.get('/api/bank/reconciliar', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 5. CONCILIAÇÃO — CONFIRMAR
+
+🔧 Linha ~6536
+
+ts id="b5" app.post('/api/bank/reconciliar/confirmar', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 6. CONTAS BANCÁRIAS
+
+🔧 Linha ~6400
+
+ts id="b6" app.get('/api/bank/accounts', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 7. TRANSAÇÕES BANCÁRIAS
+
+🔧 Linha ~6450
+
+ts id="b7" app.get('/api/bank/transactions', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 8. CRIAR CONTA BANCÁRIA (se existir)
+
+ts id="b8" app.post('/api/bank/accounts', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+### 9. ATUALIZAR CONTA BANCÁRIA (se existir)
+
+ts id="b9" app.patch('/api/bank/accounts/:id', requireAuth, tenantContext, async (req, res) => { 
+
+---
+
+## ⚠️ ORDEM CORRETA DOS MIDDLEWARES
+
+Sempre:
+
+ts id="ordem" requireAuth → tenantContext → outros middlewares → handler 
+
+Exemplo correto:
+
+ts requireAuth, tenantContext, uploadInMemory.single('file'), async (...) 
+
+---
+
+## 🧪 TESTE MANUAL (OBRIGATÓRIO)
+
+### TESTE 1 — RETORNO CNAB
+
+1. Login empresa A
+2. Upload arquivo CNAB
+
+ANTES:
+- baixasRealizadas: 0 ❌
+
+DEPOIS:
+- baixasRealizadas > 0 ✅
+
+---
+
+### TESTE 2 — HISTÓRICO
+
+1. Empresa A faz import
+2. Empresa B acessa histórico
+
+ANTES:
+- vê dados da empresa A ❌
+
+DEPOIS:
+- NÃO vê dados da A ✅
+
+---
+
+### TESTE 3 — REMESSA
+
+ANTES:
+- 401 Tenant context ausente ❌
+
+DEPOIS:
+- download do arquivo .rem ✅
+
+---
+
+### TESTE 4 — CONCILIAÇÃO
+
+ANTES:
+- erro 500 ou comportamento inconsistente ❌
+
+DEPOIS:
+- pagamento funciona normalmente ✅
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- tenantContext ativo em 100% dos endpoints bancários
+- requireTenantId() funcionando corretamente
+- CNAB retorno passa a baixar de verdade
+- remessa deixa de quebrar
+- histórico deixa de vazar dados
+
+---
+
+## 🛑 NÃO FAZER
+
+- NÃO mover middleware para app.ts
+- NÃO refatorar rotas
+- NÃO alterar services
+- NÃO mexer em storage
+- NÃO alterar responses
+- NÃO mexer em schema
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. lista de endpoints alterados
+2. trecho de código atualizado
+3. confirmação de que tenantContext está ativo
+4. confirmação de zero regressão
+
+---
+
+🔥 PRIORIDADE: CRÍTICA (LIBERA TODO MÓDULO BANCÁRIO
