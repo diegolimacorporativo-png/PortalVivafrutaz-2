@@ -1,0 +1,147 @@
+🎯 OBJETIVO: FASE FISCAL 7.9 — AÇÃO RÁPIDA (ABRIR PEDIDO / CORRIGIR ERRO)
+
+Permitir que o usuário vá direto da rejeição da NF-e para a tela do pedido relacionado.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema  
+2. NÃO alterar emissão NF-e  
+3. NÃO alterar cálculo fiscal  
+4. NÃO automatizar correção ainda  
+5. NÃO alterar endpoints existentes  
+
+👉 Apenas navegação inteligente (UX funcional)
+
+---
+
+🧠 CONTEXTO
+
+- Já temos:
+  ✔ status  
+  ✔ cStat  
+  ✔ xMotivo  
+  ✔ sugestão  
+
+👉 Falta:
+
+Ir do erro → direto para o pedido que precisa correção
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. ENRIQUECER QUERY
+
+📍 server/modules/finance/finance.repository.ts
+
+Alterar query de motivos:
+
+ts async getNfeMotivosRejeicao(): Promise<   {     status: string;     cStat: string;     xMotivo: string;     total: number;     orderId: number;   }[] > {   const rows = await db     .select({       status: nfeEmissoes.status,       orderId: nfeEmissoes.orderId,       cStat: sql<string | null>`substring(         ${nfeEmissoes.xmlAutorizado} FROM '<cStat>(\\d+)</cStat>'       )`,       xMotivo: sql<string | null>`substring(         ${nfeEmissoes.xmlAutorizado} FROM '<xMotivo>([^<]+)</xMotivo>'       )`,       total: sql<number>`count(*)::int`,     })     .from(nfeEmissoes)     .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))     .where(eq(orders.companyId, requireTenantId()))     .groupBy(sql`1,2,3,4`);      return rows.map((r) => ({     status: r.status ?? "N/D",     orderId: r.orderId,     cStat: r.cStat ?? "N/D",     xMotivo: r.xMotivo ?? "Sem descrição",     total: Number(r.total) || 0,   })); } 
+
+---
+
+## 🔴 2. SERVICE
+
+📍 finance.service.ts
+
+Manter igual (já passa dados)
+
+---
+
+## 🔴 3. FRONTEND — BOTÃO DE AÇÃO
+
+📍 client/src/pages/admin/finance.tsx
+
+---
+
+### Importar navegação
+
+ts import { useNavigate } from "react-router-dom"; 
+
+---
+
+### Dentro do componente
+
+ts const navigate = useNavigate(); 
+
+---
+
+### Atualizar card de motivos
+
+tsx <Card data-testid="card-nfe-motivos">   <CardHeader>Motivos de rejeição</CardHeader>   <CardContent>     {nfeMotivos.length === 0 ? (       <div>Nenhuma rejeição encontrada</div>     ) : (       nfeMotivos.map((m, i) => (         <div key={i} style={{ marginBottom: 12 }}>                      <div>             <strong>{m.cStat}</strong> - {m.xMotivo}           </div>            <div style={{ fontSize: 12, color: "#b45309" }}>             💡 {m.sugestao}           </div>            {/* 🔥 BOTÃO DE AÇÃO */}           <button             style={{               marginTop: 6,               fontSize: 12,               color: "#2563eb",               cursor: "pointer",               background: "none",               border: "none"             }}             onClick={() => navigate(`/admin/orders/${m.orderId}`)}           >             🔎 Abrir pedido           </button>          </div>       ))     )}   </CardContent> </Card> 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### Cenário
+
+NF rejeitada:
+
+json {   "orderId": 123,   "cStat": "533",   "xMotivo": "Total do ICMS difere do somatório dos itens" } 
+
+---
+
+### Resultado
+
+✔ Botão aparece  
+✔ Clique leva para:
+
+/admin/orders/123
+
+✔ Usuário corrige pedido direto
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Sem alteração no banco  
+✔ Sem alteração no XML  
+✔ Sem alteração no envio  
+✔ Apenas navegação  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ Usuário vê erro  
+❌ Não sabe onde corrigir  
+
+Depois:
+
+✔ Clique → abre pedido  
+✔ Correção rápida  
+✔ Fluxo contínuo  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. query atualizada  
+2. botão funcionando  
+3. navegação validada  
+4. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ Tempo de correção cai drasticamente  
+✔ UX profissional  
+✔ Fluxo fiscal fluido  
+
+---
+
+👉 Isso prepara terreno para:
+
+FASE 8.0 — correção assistida (semi-automática)

@@ -20,6 +20,39 @@ import type {
 } from "./finance.types";
 
 /**
+ * FASE FISCAL 7.9 — sugestão acionável a partir do `cStat` SEFAZ.
+ *
+ * Mapeia os códigos de rejeição mais frequentes em uma instrução curta que
+ * orienta o operador no pedido (não na NF-e). A lista é deliberadamente
+ * pequena: cobre os erros recorrentes de cadastro/cálculo. Códigos
+ * desconhecidos caem no fallback genérico que devolve o próprio xMotivo.
+ *
+ * Pura, sem IO — segura para chamar em loops e testes unitários.
+ */
+function sugerirCorrecaoNfe(cStat: string, xMotivo: string): string {
+  const fallback = xMotivo
+    ? `Revisar pedido conforme retorno da SEFAZ: "${xMotivo}".`
+    : 'Revisar pedido conforme retorno da SEFAZ e reemitir a NF-e.';
+  if (!cStat) return fallback;
+  const mapa: Record<string, string> = {
+    '204': 'Duplicidade de NF-e: confira o número/série e cancele a duplicada antes de reemitir.',
+    '215': 'Falha de schema XML: revise dados do destinatário e itens do pedido (campos obrigatórios).',
+    '226': 'UF do emitente diverge do código IBGE: confira o cadastro da empresa emissora.',
+    '233': 'Município do destinatário inválido: corrija o endereço do cliente no pedido.',
+    '236': 'Chave de acesso inválida: gere nova numeração e reemita.',
+    '301': 'IE do destinatário não habilitada na UF: peça a IE atualizada do cliente.',
+    '402': 'CFOP incompatível com a operação: revise CFOP dos itens do pedido.',
+    '503': 'Numeração da NF-e inutilizada anteriormente: pule para o próximo número da série.',
+    '533': 'Total do ICMS difere do somatório dos itens: recalcule impostos do pedido e reemita.',
+    '539': 'Duplicidade de NF-e com mesma chave: cancele a anterior ou reemita com nova numeração.',
+    '610': 'Total do IPI difere do somatório dos itens: revise alíquotas dos produtos.',
+    '630': 'Alíquota de ICMS-ST incorreta: revise tributação dos itens.',
+    '999': 'Erro não catalogado pela SEFAZ: reenvie a NF-e em alguns minutos; se persistir, contate o suporte fiscal.',
+  };
+  return mapa[cStat] ?? fallback;
+}
+
+/**
  * BR-Code (PIX) static payload generator — pure function, no IO.
  * Extracted from the legacy `routes.ts` so it can be unit tested and reused.
  */
@@ -76,6 +109,20 @@ export class FinanceService {
   // FASE NF.7.6 — pass-through; status já é coluna nativa de nfe_emissoes.
   getNfeResumoPorStatus() {
     return this.repo.getNfeResumoPorStatus();
+  }
+
+  // FASE FISCAL 7.9 — motivos de rejeição enriquecidos com sugestão de correção.
+  //
+  // Mantém o repository puro (apenas leitura agregada) e aplica aqui a regra
+  // de negócio simples de mapear cada `cStat` da SEFAZ para uma instrução
+  // acionável que ajuda o operador a corrigir o pedido. Nenhum efeito
+  // colateral, nenhuma chamada externa — pura derivação determinística.
+  async getNfeMotivosRejeicao() {
+    const rows = await this.repo.getNfeMotivosRejeicao();
+    return rows.map((r) => ({
+      ...r,
+      sugestao: sugerirCorrecaoNfe(r.cStat, r.xMotivo),
+    }));
   }
 
   // ── Accounts Receivable ────────────────────────────────────────────────

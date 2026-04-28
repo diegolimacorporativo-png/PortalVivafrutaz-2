@@ -48,6 +48,13 @@ router.get(
   "/nfe/resumo-por-status",
   asyncHandler(financeController.getNfeResumoPorStatus),
 );
+// FASE FISCAL 7.9 — read-only: motivos de rejeição (cStat/xMotivo) com
+// `orderId` e sugestão de correção, para o card de "Ação Rápida" abrir o
+// pedido relacionado direto da tela de finanças.
+router.get(
+  "/nfe/motivos-rejeicao",
+  asyncHandler(financeController.getNfeMotivosRejeicao),
+);
 
 // ── Accounts Receivable ──────────────────────────────────────────────────
 router.get(

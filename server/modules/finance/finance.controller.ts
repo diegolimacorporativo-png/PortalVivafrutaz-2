@@ -36,6 +36,11 @@ export class FinanceController {
     return ok(res, await this.service.getNfeResumoPorStatus());
   };
 
+  // FASE FISCAL 7.9 — handler thin: motivos de rejeição com vínculo ao pedido.
+  getNfeMotivosRejeicao = async (_req: Request, res: Response) => {
+    return ok(res, await this.service.getNfeMotivosRejeicao());
+  };
+
   // ── Accounts Receivable ────────────────────────────────────────────────
   listAccountsReceivable = async (req: Request, res: Response) => {
     return ok(res, await this.service.listAccountsReceivable(req.query as any));

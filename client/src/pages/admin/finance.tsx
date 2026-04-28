@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
 import { normalizeList } from '@/lib/normalizeResponse';
@@ -6,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus, CheckCircle2,
   Clock, XCircle, Copy, Check, ChevronDown, ChevronUp, Wallet, CreditCard,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt, ExternalLink
 } from 'lucide-react';
 import { ImportarRetornoCnab } from '@/components/banking/ImportarRetornoCnab';
 
@@ -352,6 +353,7 @@ function APForm({ onSuccess }: { onSuccess: () => void }) {
 export default function FinancePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   const [tab, setTab] = useState<'ar' | 'ap' | 'cashflow'>('ar');
   const [pixModal, setPixModal] = useState<AR | null>(null);
   // FASE 6.6 — controle do modal de composição de pagamento.
@@ -384,6 +386,20 @@ export default function FinancePage() {
     ? (nfeStatusRaw as any)
     : Array.isArray((nfeStatusRaw as any)?.data)
       ? ((nfeStatusRaw as any).data)
+      : [];
+  // FASE FISCAL 7.9 — motivos de rejeição com vínculo ao pedido (ação rápida).
+  const { data: nfeMotivosRaw, isLoading: nfeMotivosLoading } = useQuery<unknown>({
+    queryKey: ['/api/finance/nfe/motivos-rejeicao'],
+    refetchInterval: 60000,
+  });
+  type NfeMotivo = {
+    status: string; cStat: string; xMotivo: string;
+    total: number; orderId: number; sugestao: string;
+  };
+  const nfeMotivos: NfeMotivo[] = Array.isArray(nfeMotivosRaw)
+    ? (nfeMotivosRaw as NfeMotivo[])
+    : Array.isArray((nfeMotivosRaw as any)?.data)
+      ? ((nfeMotivosRaw as any).data as NfeMotivo[])
       : [];
   const { data: arRaw, isLoading: arLoading, refetch: refetchAR } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-receivable', filterAR],
@@ -581,6 +597,88 @@ export default function FinancePage() {
           <p className="mt-3 text-[11px] text-red-700 dark:text-red-400">
             Há NF-e com falha de transmissão. Acesse a tela Fiscal para revisar o motivo (xMotivo) e reprocessar.
           </p>
+        )}
+      </div>
+
+      {/* FASE FISCAL 7.9 — Motivos de rejeição com ação rápida (abrir pedido) */}
+      <div className="rounded-2xl border bg-card p-4" data-testid="card-nfe-motivos">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-600" />
+            <h3 className="text-sm font-bold text-foreground">Motivos de rejeição</h3>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            {nfeMotivos.length > 0 && `${nfeMotivos.length} ${nfeMotivos.length === 1 ? 'pedido' : 'pedidos'} para corrigir`}
+          </span>
+        </div>
+        {nfeMotivosLoading ? (
+          <div className="text-center py-4 text-muted-foreground text-xs">Carregando...</div>
+        ) : nfeMotivos.length === 0 ? (
+          <div
+            className="text-center py-4 text-muted-foreground text-xs"
+            data-testid="text-nfe-motivos-empty"
+          >
+            Nenhuma rejeição encontrada
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {nfeMotivos.map((m, i) => (
+              <div
+                key={`${m.orderId}-${m.cStat}-${i}`}
+                data-testid={`row-nfe-motivo-${m.orderId}-${m.cStat || 'na'}`}
+                className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-900/40 p-3 flex items-start justify-between gap-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span
+                      className="text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-md bg-red-200/60 text-red-800 dark:bg-red-900/40 dark:text-red-300"
+                      data-testid={`badge-nfe-status-${m.orderId}`}
+                    >
+                      {m.status}
+                    </span>
+                    {m.cStat && (
+                      <span
+                        className="text-[11px] font-bold text-red-800 dark:text-red-300"
+                        data-testid={`text-nfe-cstat-${m.orderId}`}
+                      >
+                        cStat {m.cStat}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-muted-foreground">
+                      Pedido #{m.orderId}
+                    </span>
+                    {m.total > 1 && (
+                      <span className="text-[10px] text-muted-foreground">
+                        ({m.total}× tentativas)
+                      </span>
+                    )}
+                  </div>
+                  <p
+                    className="mt-1 text-xs text-foreground break-words"
+                    data-testid={`text-nfe-xmotivo-${m.orderId}`}
+                  >
+                    {m.xMotivo || 'Motivo não informado pela SEFAZ.'}
+                  </p>
+                  <p
+                    className="mt-1 text-[11px] text-amber-800 dark:text-amber-300"
+                    data-testid={`text-nfe-sugestao-${m.orderId}`}
+                  >
+                    💡 {m.sugestao}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigate(`/admin/orders?orderId=${m.orderId}`)}
+                  data-testid={`button-abrir-pedido-${m.orderId}`}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-600 text-white text-xs font-semibold hover:bg-red-700 transition-colors"
+                  title={`Abrir pedido #${m.orderId} para corrigir`}
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Abrir Pedido
+                </button>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, not, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, not, sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import {
   accountsReceivable,
@@ -663,6 +663,60 @@ export class FinanceRepository {
     return rows
       .map((r) => ({
         status: r.status ?? 'N/D',
+        total: Number(r.total) || 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+  }
+
+  // FASE FISCAL 7.9 — motivos de rejeição agrupados com vínculo ao pedido.
+  //
+  // Read-only. Lê apenas NF-e em status terminal de falha
+  // (rejeitada | erro | denegada) e devolve a tripla (status, cStat, xMotivo)
+  // já correlacionada ao `orderId` que originou a NF. O agrupamento por
+  // (orderId, status, cStat, xMotivo) garante que múltiplas tentativas de
+  // emissão para o mesmo pedido com a mesma rejeição se condensem em uma
+  // única linha (campo `total`), evitando ruído visual no card.
+  //
+  // Tenant scope idêntico ao getNfeResumoPorStatus: JOIN com `orders` e
+  // filtro por `companyId` em escopo. Sem alteração no schema.
+  async getNfeMotivosRejeicao(): Promise<
+    {
+      status: string;
+      cStat: string;
+      xMotivo: string;
+      total: number;
+      orderId: number;
+    }[]
+  > {
+    const rows = await db
+      .select({
+        status: nfeEmissoes.status,
+        orderId: nfeEmissoes.orderId,
+        cStat: nfeEmissoes.cStat,
+        xMotivo: nfeEmissoes.xMotivo,
+        total: sql<number>`count(*)::int`,
+      })
+      .from(nfeEmissoes)
+      .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))
+      .where(
+        and(
+          eq(orders.companyId, requireTenantId()),
+          inArray(nfeEmissoes.status, ['rejeitada', 'erro', 'denegada']),
+        ),
+      )
+      .groupBy(
+        nfeEmissoes.status,
+        nfeEmissoes.orderId,
+        nfeEmissoes.cStat,
+        nfeEmissoes.xMotivo,
+      );
+
+    return rows
+      .map((r) => ({
+        status: r.status ?? 'N/D',
+        orderId: r.orderId,
+        cStat: r.cStat ?? '',
+        xMotivo: r.xMotivo ?? '',
         total: Number(r.total) || 0,
       }))
       .sort((a, b) => b.total - a.total);
