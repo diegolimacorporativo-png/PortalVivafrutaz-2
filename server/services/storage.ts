@@ -81,6 +81,8 @@ export interface IStorage {
   // BANCO.5 — CNAB import history (auditoria de uploads de retorno)
   createCnabImportHistory(data: InsertCnabImportHistory): Promise<CnabImportHistory>;
   listCnabImportHistory(limit?: number): Promise<CnabImportHistory[]>;
+  // BANCO.6 — bloqueio de reimportação (hash SHA-256 do conteúdo do .ret)
+  findCnabByHash(hash: string): Promise<CnabImportHistory | undefined>;
 
   // Auth & Users
   getUserByEmail(email: string): Promise<User | undefined>;
@@ -1933,6 +1935,15 @@ export class DatabaseStorage implements IStorage {
       .from(cnabImportHistory)
       .orderBy(desc(cnabImportHistory.createdAt))
       .limit(limit);
+  }
+
+  async findCnabByHash(hash: string): Promise<CnabImportHistory | undefined> {
+    const [r] = await db
+      .select()
+      .from(cnabImportHistory)
+      .where(eq(cnabImportHistory.fileHash, hash))
+      .limit(1);
+    return r;
   }
 
   async getFinancialDashboard(): Promise<{

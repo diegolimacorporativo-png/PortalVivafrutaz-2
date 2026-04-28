@@ -1814,6 +1814,10 @@ export type FiscalClosure = typeof fiscalClosures.$inferSelect;
 export const cnabImportHistory = pgTable("cnab_import_history", {
   id: serial("id").primaryKey(),
   fileName: text("file_name").notNull(),
+  // BANCO.6 — hash SHA-256 do conteúdo do arquivo. UNIQUE bloqueia
+  // reprocessamento exato do mesmo .ret. Nullable apenas para coexistir
+  // com registros legados pré-BANCO.6 (não é populado neles).
+  fileHash: text("file_hash").unique(),
   totalProcessados: integer("total_processados").notNull().default(0),
   pagosIdentificados: integer("pagos_identificados").notNull().default(0),
   baixasRealizadas: integer("baixas_realizadas").notNull().default(0),

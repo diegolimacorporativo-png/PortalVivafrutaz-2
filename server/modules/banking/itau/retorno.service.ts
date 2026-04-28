@@ -21,12 +21,17 @@
  *   • Fail-safe por item: erro em uma linha NUNCA interrompe o lote.
  */
 
+import crypto from "crypto";
 import { storage } from "../../../services/storage";
 import { financeService } from "../../finance/finance.service";
 import { parseItauRetornoCnab240 } from "./retorno.parser";
 
 export interface ProcessarRetornoResult {
-  success: true;
+  success: boolean;
+  /** Mensagem opcional — populada quando `success: false` (BANCO.6). */
+  message?: string;
+  /** Hash SHA-256 do arquivo já existente (apenas em duplicidade). */
+  duplicateOf?: { id: number; fileName: string; createdAt: Date };
   totalProcessados: number;
   pagosIdentificados: number;
   baixasRealizadas: number;
@@ -47,6 +52,36 @@ export async function processarRetornoItau(
   userId: number,
   opts: ProcessarRetornoOptions = {},
 ): Promise<ProcessarRetornoResult> {
+  // BANCO.6 — verifica se este arquivo (byte-a-byte) já foi processado.
+  // Hash determinístico SHA-256 do conteúdo bruto. Se já existe, abortamos
+  // ANTES de qualquer parse ou chamada ao FinanceService — garantia de
+  // não gerar baixa duplicada.
+  const fileHash = crypto.createHash("sha256").update(content).digest("hex");
+  const exists = await storage.findCnabByHash(fileHash);
+  if (exists) {
+    console.warn("[CNAB] Arquivo duplicado ignorado", {
+      fileName: opts.fileName,
+      hash: fileHash,
+      previousImportId: exists.id,
+      previousFileName: exists.fileName,
+    });
+    return {
+      success: false,
+      message: "Arquivo já foi importado anteriormente",
+      duplicateOf: {
+        id: exists.id,
+        fileName: exists.fileName,
+        createdAt: exists.createdAt,
+      },
+      totalProcessados: 0,
+      pagosIdentificados: 0,
+      baixasRealizadas: 0,
+      naoEncontrados: 0,
+      jaPagas: 0,
+      erros: 0,
+    };
+  }
+
   const itens = parseItauRetornoCnab240(content);
 
   let pagosIdentificados = 0;
@@ -119,6 +154,7 @@ export async function processarRetornoItau(
   try {
     await storage.createCnabImportHistory({
       fileName: opts.fileName ?? "retorno.ret",
+      fileHash,
       totalProcessados: itens.length,
       pagosIdentificados,
       baixasRealizadas,

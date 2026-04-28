@@ -19,6 +19,7 @@ interface RetornoResult {
   naoEncontrados?: number;
   erros?: number;
   message?: string;
+  duplicateOf?: { id: number; fileName: string; createdAt: string };
 }
 
 interface HistoricoItem {
@@ -60,6 +61,13 @@ export function ImportarRetornoCnab() {
       const data = await res.json();
       if (!res.ok) {
         setErrorMsg(data?.message || `Erro HTTP ${res.status}`);
+      } else if (data?.success === false) {
+        // BANCO.6 — duplicidade: backend devolve 200 + success:false
+        const dup = data?.duplicateOf;
+        const dupMsg = dup
+          ? `${data.message} (arquivo "${dup.fileName}" — importado em ${new Date(dup.createdAt).toLocaleString("pt-BR")})`
+          : data.message || "Arquivo já foi importado anteriormente";
+        setErrorMsg(dupMsg);
       } else {
         setResult(data);
         queryClient.invalidateQueries({ queryKey: ["/api/bank/retorno/historico"] });
