@@ -736,6 +736,56 @@ export class FinanceRepository {
       })
       .sort((a, b) => b.total - a.total);
   }
+
+  // FASE FISCAL 8.2 — histórico de tentativas de NF-e por pedido (READ-ONLY).
+  //
+  // Lê todas as emissões (qualquer status) vinculadas ao pedido, ordenadas
+  // da mais recente para a mais antiga. Permite ao operador auditar a
+  // sequência completa de tentativas: ex. tentativa 1 = rejeitada (533),
+  // tentativa 2 = rejeitada (215), tentativa 3 = autorizada.
+  //
+  // Tenant scope OBRIGATÓRIO: JOIN com `orders` + filtro por `companyId` em
+  // escopo. Sem isso, qualquer tenant poderia inspecionar histórico de NF-e
+  // de outros tenants apenas adivinhando o orderId. NÃO altera schema, NÃO
+  // altera nada da lógica de emissão — apenas SELECT.
+  async getNfeHistoricoPorPedido(orderId: number): Promise<
+    {
+      id: number;
+      status: string;
+      cStat: string;
+      xMotivo: string;
+      numero: string | null;
+      createdAt: Date | null;
+    }[]
+  > {
+    const rows = await db
+      .select({
+        id: nfeEmissoes.id,
+        status: nfeEmissoes.status,
+        cStat: nfeEmissoes.cStat,
+        xMotivo: nfeEmissoes.xMotivo,
+        numero: nfeEmissoes.numero,
+        createdAt: nfeEmissoes.createdAt,
+      })
+      .from(nfeEmissoes)
+      .innerJoin(orders, eq(orders.id, nfeEmissoes.orderId))
+      .where(
+        and(
+          eq(orders.companyId, requireTenantId()),
+          eq(nfeEmissoes.orderId, orderId),
+        ),
+      )
+      .orderBy(desc(nfeEmissoes.createdAt));
+
+    return rows.map((r) => ({
+      id: r.id,
+      status: r.status ?? 'N/D',
+      cStat: r.cStat ?? '',
+      xMotivo: r.xMotivo ?? '',
+      numero: r.numero ?? null,
+      createdAt: r.createdAt ?? null,
+    }));
+  }
 }
 
 export const financeRepository = new FinanceRepository();

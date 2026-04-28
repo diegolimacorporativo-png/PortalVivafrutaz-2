@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import {
   DollarSign, TrendingUp, TrendingDown, AlertTriangle, Plus, CheckCircle2,
   Clock, XCircle, Copy, Check, ChevronDown, ChevronUp, Wallet, CreditCard,
-  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt, ExternalLink, Wand2
+  ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt, ExternalLink, Wand2, History
 } from 'lucide-react';
 import { ImportarRetornoCnab } from '@/components/banking/ImportarRetornoCnab';
 
@@ -445,10 +445,146 @@ function CorrigirReenviarButton({
   );
 }
 
+// FASE FISCAL 8.2 — painel inline de histórico de tentativas de NF-e.
+//
+// Read-only. Carrega `GET /api/nfe/:orderId/historico` SOMENTE quando
+// expandido (lazy via `enabled`), assim o card principal não dispara N+1
+// queries quando há muitos pedidos rejeitados. Tenant scope é garantido
+// no backend (JOIN orders + companyId no repository).
+function NfeHistoricoPanel({ orderId, open }: { orderId: number; open: boolean }) {
+  const { data, isLoading, error } = useQuery<{
+    orderId: number;
+    total: number;
+    tentativas: {
+      id: number;
+      status: string;
+      cStat: string;
+      xMotivo: string;
+      numero: string | null;
+      createdAt: string | null;
+    }[];
+  }>({
+    queryKey: ['/api/nfe', orderId, 'historico'],
+    enabled: open,
+  });
+  if (!open) return null;
+  if (isLoading) {
+    return (
+      <div
+        className="mt-2 text-[11px] text-muted-foreground"
+        data-testid={`text-historico-loading-${orderId}`}
+      >
+        Carregando histórico...
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div
+        className="mt-2 text-[11px] text-red-600 dark:text-red-400"
+        data-testid={`text-historico-error-${orderId}`}
+      >
+        Falha ao carregar histórico de NF-e.
+      </div>
+    );
+  }
+  const tentativas = data?.tentativas ?? [];
+  if (tentativas.length === 0) {
+    return (
+      <div
+        className="mt-2 text-[11px] text-muted-foreground"
+        data-testid={`text-historico-empty-${orderId}`}
+      >
+        Nenhuma tentativa registrada para este pedido.
+      </div>
+    );
+  }
+  // Mapa de status → cor para tornar a auditoria escaneável de relance.
+  const statusClass: Record<string, string> = {
+    autorizada: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300',
+    enviada: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
+    assinada: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300',
+    gerada: 'bg-slate-100 text-slate-800 dark:bg-slate-800/60 dark:text-slate-300',
+    rejeitada: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+    erro: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+    denegada: 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300',
+    cancelada: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-800/60 dark:text-zinc-300',
+  };
+  const fmt = (iso: string | null) => {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return isNaN(d.getTime())
+      ? '—'
+      : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+  return (
+    <div
+      className="mt-2 rounded-lg border border-red-200/70 dark:border-red-900/50 bg-white/60 dark:bg-black/20 p-2"
+      data-testid={`panel-historico-${orderId}`}
+    >
+      <div className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1">
+        Histórico de tentativas ({tentativas.length})
+      </div>
+      <ol className="space-y-1">
+        {tentativas.map((t, idx) => {
+          const ordinal = tentativas.length - idx;
+          return (
+            <li
+              key={t.id}
+              data-testid={`row-historico-${orderId}-${t.id}`}
+              className="flex items-start gap-2 text-[11px]"
+            >
+              <span className="font-mono text-muted-foreground shrink-0 w-7 text-right">
+                #{ordinal}
+              </span>
+              <span className="font-mono text-muted-foreground shrink-0 w-28">
+                {fmt(t.createdAt)}
+              </span>
+              <span
+                className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase ${statusClass[t.status] ?? 'bg-muted text-foreground'}`}
+                data-testid={`badge-historico-status-${t.id}`}
+              >
+                {t.status}
+              </span>
+              {t.cStat && (
+                <span className="shrink-0 text-muted-foreground font-mono">
+                  cStat {t.cStat}
+                </span>
+              )}
+              {t.numero && (
+                <span className="shrink-0 text-muted-foreground">
+                  nº {t.numero}
+                </span>
+              )}
+              <span
+                className="text-foreground/80 break-words min-w-0"
+                data-testid={`text-historico-motivo-${t.id}`}
+              >
+                {t.xMotivo || '—'}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
+  );
+}
+
 export default function FinancePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
+  // FASE FISCAL 8.2 — controla qual card de rejeição tem o painel de
+  // histórico expandido. Mantemos um Set para permitir múltiplos abertos.
+  const [historicoAberto, setHistoricoAberto] = useState<Set<number>>(new Set());
+  const toggleHistorico = (orderId: number) => {
+    setHistoricoAberto((prev) => {
+      const next = new Set(prev);
+      if (next.has(orderId)) next.delete(orderId);
+      else next.add(orderId);
+      return next;
+    });
+  };
   const [tab, setTab] = useState<'ar' | 'ap' | 'cashflow'>('ar');
   const [pixModal, setPixModal] = useState<AR | null>(null);
   // FASE 6.6 — controle do modal de composição de pagamento.
@@ -721,8 +857,10 @@ export default function FinancePage() {
         ) : (
           <div className="space-y-2">
             {nfeMotivos.map((m, i) => (
+              // FASE FISCAL 8.2 — wrapper para acomodar card + painel inline
+              // de histórico no mesmo nó iterado.
+              <div key={`${m.orderId}-${m.cStat}-${i}`}>
               <div
-                key={`${m.orderId}-${m.cStat}-${i}`}
                 data-testid={`row-nfe-motivo-${m.orderId}-${m.cStat || 'na'}`}
                 className="rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-900/40 p-3 flex items-start justify-between gap-3"
               >
@@ -787,7 +925,22 @@ export default function FinancePage() {
                     <CorrigirReenviarButton orderId={m.orderId} tipo={m.sugestao.tipo} />
                   )}
                   <ReenviarNfeButton orderId={m.orderId} />
+                  {/* FASE FISCAL 8.2 — toggle do painel de histórico (read-only). */}
+                  <button
+                    type="button"
+                    onClick={() => toggleHistorico(m.orderId)}
+                    aria-expanded={historicoAberto.has(m.orderId)}
+                    data-testid={`button-ver-historico-${m.orderId}`}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                    title="Ver histórico de tentativas de NF-e"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    {historicoAberto.has(m.orderId) ? 'Ocultar histórico' : 'Ver histórico'}
+                  </button>
                 </div>
+              </div>
+              {/* FASE FISCAL 8.2 — painel inline de auditoria das tentativas. */}
+              <NfeHistoricoPanel orderId={m.orderId} open={historicoAberto.has(m.orderId)} />
               </div>
             ))}
           </div>

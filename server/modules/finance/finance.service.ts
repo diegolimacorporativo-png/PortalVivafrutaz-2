@@ -90,6 +90,12 @@ export class FinanceService {
     return this.repo.getNfeMotivosRejeicao();
   }
 
+  // FASE FISCAL 8.2 — pass-through read-only. Tenant scope é aplicado no
+  // repository (JOIN orders + companyId).
+  getNfeHistoricoPorPedido(orderId: number) {
+    return this.repo.getNfeHistoricoPorPedido(orderId);
+  }
+
   // ── Accounts Receivable ────────────────────────────────────────────────
   listAccountsReceivable(filter: AccountsReceivableFilter): Promise<AccountReceivable[]> {
     return this.repo.listAccountsReceivable(filter);

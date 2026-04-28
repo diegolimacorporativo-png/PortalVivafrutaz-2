@@ -6184,6 +6184,35 @@ export async function registerRoutes(
       }
     });
 
+    // FASE FISCAL 8.2 — GET /api/nfe/:orderId/historico
+    //
+    // Endpoint READ-ONLY. Devolve a sequência completa de tentativas de
+    // emissão (qualquer status) vinculadas ao pedido, ordenadas da mais
+    // recente para a mais antiga, para auditoria visual no card de
+    // rejeições. Tenant scope é aplicado no repository (JOIN orders +
+    // companyId), então tentar inspecionar pedido de outro tenant devolve
+    // lista vazia. NÃO altera nada do fluxo fiscal — apenas SELECT.
+    app.get('/api/nfe/:orderId/historico', requireActiveSubscription, async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      const orderIdRaw = req.params?.orderId;
+      const orderId = Number(orderIdRaw);
+      if (!Number.isFinite(orderId) || orderId <= 0) {
+        return res.status(400).json({ message: 'orderId inválido' });
+      }
+      try {
+        const { financeService } = await import('../modules/finance/finance.service');
+        const historico = await financeService.getNfeHistoricoPorPedido(orderId);
+        res.json({ orderId, total: historico.length, tentativas: historico });
+      } catch (e: any) {
+        console.error('[NFE_HISTORICO_FAILED]', {
+          requestId: getRequestIdForLog(),
+          orderId,
+          message: e?.message,
+        });
+        res.status(500).json({ error: 'Falha ao carregar histórico de NF-e' });
+      }
+    });
+
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
     app.post('/api/nfe/emitir-lote', requireActiveSubscription, async (req: any, res) => {
       if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
