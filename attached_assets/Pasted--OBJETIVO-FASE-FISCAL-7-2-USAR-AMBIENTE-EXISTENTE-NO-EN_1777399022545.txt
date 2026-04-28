@@ -1,0 +1,152 @@
+🎯 OBJETIVO: FASE FISCAL 7.2 — USAR AMBIENTE EXISTENTE NO ENVIO (SEM QUEBRAR NADA)
+
+Conectar o ambiente já existente (tpAmb) ao envio real da SEFAZ.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO criar nova variável de ambiente  
+2. NÃO alterar XML  
+3. NÃO remover MOCK  
+4. NÃO alterar assinatura digital  
+5. NÃO duplicar lógica  
+6. NÃO alterar retorno da API  
+
+👉 Apenas usar o tpAmb que já existe
+
+---
+
+🧠 CONTEXTO
+
+Hoje o sistema:
+
+✔ Já define ambiente no XML (tpAmb)  
+❌ NÃO usa isso no envio  
+❌ Pode estar enviando sempre para mesma URL  
+
+👉 Resultado: ambiente ignorado
+
+---
+
+📦 IMPLEMENTAÇÃO
+
+---
+
+## 🔴 1. LER AMBIENTE DO XML
+
+📍 Arquivo:
+
+server/services/nfe/nfeSender.ts
+
+---
+
+Dentro da função de envio:
+
+ts const ambiente = input.ide.tpAmb === "1"   ? "producao"   : "homologacao"; 
+
+---
+
+## 🔴 2. DEFINIR URL DINÂMICA
+
+Adicionar:
+
+ts const SEFAZ_URLS = {   producao: {     SP: "https://nfe.fazenda.sp.gov.br/ws/NFeAutorizacao4.asmx",   },   homologacao: {     SP: "https://homologacao.nfe.fazenda.sp.gov.br/ws/NFeAutorizacao4.asmx",   } }; 
+
+---
+
+## 🔴 3. RESOLVER URL
+
+ts const uf = input.emit.UF || "SP";  const url = SEFAZ_URLS[ambiente][uf];  if (!url) {   throw new Error(`SEFAZ não configurada para UF: ${uf}`); } 
+
+---
+
+## 🔴 4. MANTER MOCK
+
+ts if (process.env.NFE_SEFAZ_MODE === "mock") {   return mockResponse(); } 
+
+---
+
+## 🔴 5. USAR URL NO ENVIO
+
+Substituir URL fixa por:
+
+ts const response = await axios.post(url, xmlAssinado, {   headers: {     "Content-Type": "application/soap+xml; charset=utf-8"   },   timeout: 15000 }); 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ XML com homologação
+
+xml <tpAmb>2</tpAmb> 
+
+Resultado:
+
+✔ envia para ambiente de teste  
+
+---
+
+### 2️⃣ XML com produção
+
+xml <tpAmb>1</tpAmb> 
+
+Resultado:
+
+✔ envia para produção  
+
+---
+
+### 3️⃣ MOCK ativo
+
+env NFE_SEFAZ_MODE=mock 
+
+Resultado:
+
+✔ continua mock  
+✔ sem impacto  
+
+---
+
+## 🚫 NÃO FAZER
+
+- NÃO criar novo campo de ambiente  
+- NÃO alterar builder  
+- NÃO alterar generator  
+- NÃO mexer no XML  
+- NÃO remover fallback  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ Ambiente ignorado  
+
+Depois:
+
+✔ Ambiente respeitado automaticamente  
+✔ URL correta usada  
+✔ MOCK preservado  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho onde leu tpAmb  
+2. trecho da URL dinâmica  
+3. confirmação de MOCK funcionando  
+4. confirmação de zero regressão  
+
+---
+
+🔥 IMPACTO
+
+✔ Corrige envio real  
+✔ Zero duplicação  
+✔ Zero risco estrutur
