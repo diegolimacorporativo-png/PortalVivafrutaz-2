@@ -1,0 +1,208 @@
+🎯 OBJETIVO: META-AUDITORIA DO MÓDULO FINANCEIRO + BANCÁRIO
+
+Validar se a auditoria anterior está correta, incompleta ou equivocada, com base EXCLUSIVA no código real.
+
+👉 Este NÃO é um prompt de implementação  
+👉 Este NÃO é um prompt de refatoração  
+
+👉 É uma auditoria crítica da auditoria existente
+
+---
+
+🧠 CONTEXTO
+
+Uma auditoria anterior concluiu que:
+
+- AR está sólido
+- AP é básico
+- CNAB está apenas aproximado
+- Multi-tenant no módulo bancário está quebrado
+- Existe risco de race condition na baixa
+- Existe risco de vazamento cross-tenant via storage
+- Endpoints /api/bank/* podem estar quebrados por falta de tenant context
+
+👉 Seu papel é VALIDAR ou REFUTAR isso
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO assumir comportamento
+3. NÃO confiar na auditoria anterior
+4. NÃO ignorar inconsistências
+5. NÃO responder superficialmente
+
+👉 Tudo deve ser validado no código
+
+---
+
+## 🔍 O QUE VOCÊ DEVE FAZER
+
+---
+
+### 1. VALIDAR MULTI-TENANT EM /api/bank/*
+
+Verificar:
+
+- Esses endpoints usam:
+  - withTenantScope?
+  - tenantContext?
+  - requireTenantId?
+
+Endpoints:
+
+- /api/bank/remessa/itau
+- /api/bank/retorno/itau
+- /api/bank/retorno/historico
+- /api/bank/reconciliar/confirmar
+
+Responder:
+
+👉 Eles realmente quebram em runtime?
+👉 Ou existe algum middleware global que resolve tenant silenciosamente?
+
+---
+
+### 2. VALIDAR RISCO DE RACE CONDITION NA BAIXA
+
+Verificar:
+
+- financeRepository.payAccountReceivable
+- Existe:
+  - SELECT FOR UPDATE?
+  - lock otimista?
+  - verificação transacional forte?
+
+Responder:
+
+👉 Duas requisições simultâneas podem gerar dupla baixa?
+👉 financial_transactions pode duplicar?
+
+---
+
+### 3. VALIDAR STORAGE COMO BYPASS
+
+Verificar:
+
+- storage.payAccountReceivable
+- storage.getAccountReceivableByOrderId
+
+Responder:
+
+👉 Eles são realmente usados em algum lugar ativo?
+👉 Existe risco real ou apenas teórico?
+
+---
+
+### 4. VALIDAR CNAB ITAÚ
+
+Arquivo:
+
+server/modules/banking/itau/cnab240.generator.ts
+
+Verificar:
+
+- NSA é persistido ou fixo?
+- DAC é calculado ou fixo?
+- CNPJ está com tamanho correto?
+- Sacado obrigatório está sendo respeitado?
+
+Responder:
+
+👉 Arquivo é aceito pelo Itaú real?
+👉 Ou apenas estruturalmente válido?
+
+---
+
+### 5. VALIDAR RETORNO CNAB
+
+Verificar:
+
+- Parser usa apenas Segmento T?
+- Ignora Segmento U?
+
+Responder:
+
+👉 Isso pode gerar divergência financeira?
+👉 Juros/multa estão sendo ignorados?
+
+---
+
+### 6. VALIDAR VAZAMENTO CROSS-TENANT
+
+Verificar:
+
+- storage.getAccountReceivableByOrderId
+- storage.listCnabImportHistory
+
+Responder:
+
+👉 Existe vazamento de dados?
+👉 Ou existe algum filtro indireto?
+
+---
+
+### 7. VALIDAR ENDPOINTS BANCÁRIOS
+
+Simular mentalmente execução:
+
+POST /api/bank/remessa/itau  
+POST /api/bank/retorno/itau  
+
+Responder:
+
+👉 Funcionam em produção?
+👉 Ou falham por falta de tenant context?
+
+---
+
+## 📊 FORMATO DA RESPOSTA
+
+Responder com:
+
+---
+
+### ✔ CONFIRMADO (auditoria correta)
+
+(lista objetiva)
+
+---
+
+### ⚠ PARCIAL / DEPENDE
+
+(lista objetiva)
+
+---
+
+### ❌ INCORRETO (auditoria exagerou ou errou)
+
+(lista objetiva)
+
+---
+
+### 🚨 RISCOS REAIS (validados no código)
+
+(top 5 riscos)
+
+---
+
+### 🧠 VEREDITO FINAL
+
+Escolher um:
+
+- Auditoria 100% correta
+- Auditoria majoritariamente correta
+- Auditoria parcialmente correta
+- Auditoria incorreta
+
+---
+
+🎯 RESULTADO ESPERADO
+
+- Confirmação técnica REAL
+- Identificação de possíveis erros da auditoria
+- Zero achismo
+- Foco em comportamento de runtime
+
+---
