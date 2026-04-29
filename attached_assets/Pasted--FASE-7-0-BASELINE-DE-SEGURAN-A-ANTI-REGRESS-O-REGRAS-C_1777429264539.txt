@@ -1,0 +1,227 @@
+🎯 FASE 7.0 — BASELINE DE SEGURANÇA (ANTI-REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código  
+2. NÃO refatorar  
+3. NÃO mover arquivos  
+4. NÃO otimizar nada  
+5. NÃO corrigir nada  
+
+👉 Apenas OBSERVAR e REGISTRAR comportamento atual
+
+---
+
+🧠 OBJETIVO
+
+Criar um “snapshot” do sistema atual para garantir que:
+
+✔ nenhuma mudança futura quebre comportamento  
+✔ respostas HTTP permaneçam idênticas  
+✔ segurança continue intacta  
+
+👉 isso será nossa rede de proteção para a FASE 7.x
+
+---
+
+# 📊 ETAPA 1 — SELEÇÃO DOS ENDPOINTS
+
+Mapear e testar pelo menos:
+
+### 🔥 CRÍTICOS (obrigatórios)
+
+- POST /api/auth/login  
+- GET /api/orders/:id  
+- GET /api/orders/:id/timeline  
+- GET /api/orders/:id/danfe-logs  
+- GET /api/nfe/:orderId/historico  
+- GET /api/nfe/preflight/:orderId  
+- GET /api/nfe/fiscal-data/:orderId  
+
+---
+
+### 🛡️ SEGURANÇA
+
+- GET /api/admin/security/tenant-mismatch-events  
+- POST /api/admin/security/unblock  
+- GET /api/admin/certificates/audit  
+- POST /api/admin/certificates/migrate-legacy  
+
+---
+
+### 🧠 ADMIN / CORE
+
+- GET /api/admin/audit  
+- GET /api/admin/intelligence  
+- POST /api/admin/system-sync  
+
+---
+
+👉 Se existirem endpoints equivalentes, usar os reais do projeto
+
+---
+
+# 📦 ETAPA 2 — CAPTURA DE RESPOSTA
+
+Para cada endpoint:
+
+Salvar exatamente:
+
+json {   "endpoint": "",   "method": "",   "status": 200,   "response": {},   "keys": [],   "responseTimeMs": 0 } 
+
+---
+
+📌 IMPORTANTE
+
+- NÃO mascarar dados
+- NÃO alterar resposta
+- NÃO remover campos
+
+👉 capturar exatamente como vem
+
+---
+
+# 🔁 ETAPA 3 — CENÁRIOS
+
+Testar cada endpoint em:
+
+---
+
+### 1️⃣ SUCESSO
+
+✔ usuário válido  
+✔ tenant correto  
+
+---
+
+### 2️⃣ SEM AUTH
+
+✔ sem cookie/token  
+
+Esperado:
+- 401
+
+---
+
+### 3️⃣ CROSS-TENANT
+
+✔ usuário de outra empresa  
+
+Esperado:
+- 403  
+- log [SECURITY] TENANT_MISMATCH  
+
+---
+
+### 4️⃣ NOT FOUND
+
+✔ ID inexistente  
+
+Esperado:
+- 404  
+
+---
+
+# ⏱️ ETAPA 4 — PERFORMANCE BASELINE
+
+Registrar:
+
+- tempo médio por endpoint
+- tempo máximo observado
+
+Formato:
+
+json {   "endpoint": "/api/orders/1",   "avgMs": 45,   "maxMs": 120 } 
+
+---
+
+# 🔐 ETAPA 5 — VALIDAÇÃO DE SEGURANÇA
+
+Confirmar:
+
+✔ nenhum endpoint retorna:
+- certPassword  
+- certBase64  
+- tenantId indevido  
+- dados de outra empresa  
+
+✔ logs continuam emitindo:
+- [SECURITY] TENANT_MISMATCH  
+- [SECURITY_ALERT] (quando aplicável)
+
+---
+
+# 📁 ETAPA 6 — OUTPUT FINAL
+
+Gerar arquivo:
+
+baseline.json
+
+Com:
+
+json {   "endpoints": [...],   "performance": [...],   "security": {     "tenantIsolation": true,     "noSensitiveLeak": true   } } 
+
+---
+
+# 🚨 VALIDAÇÃO FINAL
+
+Confirmar:
+
+✔ todos endpoints respondem  
+✔ nenhum erro inesperado  
+✔ comportamento consistente  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+---
+
+## 📊 TOTAL TESTADO
+
+- endpoints: X  
+- cenários: X  
+
+---
+
+## ⚠️ PROBLEMAS ENCONTRADOS
+
+(se houver)
+
+---
+
+## 🔐 SEGURANÇA
+
+- OK / FALHAS  
+
+---
+
+## ⚡ PERFORMANCE
+
+- média geral  
+- endpoint mais lento  
+
+---
+
+## 🚀 STATUS
+
+- BASELINE CRIADO COM SUCESSO  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Esse baseline será usado para:
+
+- FASE 7.1 (limpeza leve)
+- FASE 7.2 (migração por módulos)
+
+👉 SEM esse passo, qualquer refatoração é risco de quebrar o sistema
+
+---
+
+🚀 EXEC
