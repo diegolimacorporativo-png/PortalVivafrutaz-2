@@ -1,0 +1,149 @@
+🔒 COMPLEMENTO CRÍTICO — FASE 7.2 (OBRIGATÓRIO)
+
+---
+
+🚨 1️⃣ REGRA DE OURO — LOGIN É ÁREA CRÍTICA
+
+👉 O login NÃO é apenas autenticação
+
+Ele contém:
+
+- antifraude (contador de tentativas)
+- lockout
+- criação de sessão
+- possível auditoria/log
+- validações específicas de empresa
+
+⚠️ QUALQUER divergência aqui = falha de segurança
+
+---
+
+🚨 2️⃣ PROIBIDO ALTERAR ORDEM DE EXECUÇÃO
+
+O fluxo deve permanecer EXATAMENTE igual:
+
+1. validar input  
+2. buscar usuário  
+3. validar senha  
+4. aplicar antifraude  
+5. criar sessão  
+6. responder  
+
+❌ NÃO inverter etapas  
+❌ NÃO antecipar return  
+❌ NÃO mover validação  
+
+---
+
+🚨 3️⃣ CONTROLLER DEVE SER 100% EQUIVALENTE
+
+Antes de usar:
+
+👉 VALIDAR que authController.login contém:
+
+✔ mesma lógica do handler inline  
+✔ mesmas mensagens de erro  
+✔ mesmo formato de resposta  
+✔ mesmo comportamento de antifraude  
+
+---
+
+❌ SE NÃO FOR IGUAL:
+
+👉 ABORTAR FASE  
+👉 NÃO substituir handler  
+
+---
+
+🚨 4️⃣ PROIBIDO "AJUSTAR" PARA BATER
+
+Se o diff falhar:
+
+❌ NÃO corrigir controller  
+❌ NÃO ajustar resposta  
+❌ NÃO “alinhar comportamento”  
+
+👉 Isso vira outra fase (não esta)
+
+---
+
+🚨 5️⃣ VALIDAÇÃO DE COOKIE (CRÍTICO)
+
+Comparar:
+
+- Set-Cookie presente  
+- HttpOnly  
+- SameSite  
+- Path  
+
+✔ deve ser idêntico
+
+---
+
+🚨 6️⃣ VALIDAÇÃO DE ANTIFRAUDE
+
+Testar:
+
+- senha errada 3x  
+- contador incrementando  
+- mensagem (1/3 tentativas)  
+
+✔ deve permanecer idêntico
+
+---
+
+🚨 7️⃣ VALIDAÇÃO DE SESSÃO
+
+Após login:
+
+- GET /api/auth/me deve retornar usuário  
+- sessão deve persistir  
+
+---
+
+🚨 8️⃣ LOGS DE SEGURANÇA
+
+Garantir que:
+
+- logs continuam sendo emitidos  
+- nenhum log foi removido  
+
+---
+
+🚨 9️⃣ ZERO ALTERAÇÃO EM:
+
+❌ validateOrderTenant  
+❌ safeGetOrder  
+❌ tenantGuard  
+❌ security.blocker  
+❌ storage.ts  
+
+---
+
+🚨 🔟 REGRA FINAL
+
+Se existir QUALQUER dúvida:
+
+👉 NÃO ALTERAR  
+👉 NÃO OTIMIZAR  
+👉 NÃO REFAZER  
+
+---
+
+✔ Esta fase NÃO é melhoria  
+✔ Esta fase NÃO é refatoração  
+✔ Esta fase é apenas SUBSTITUIÇÃO SEGURA
+
+---
+
+🔥 DEFINIÇÃO DE SUCESSO
+
+✔ diff = 100% idêntico  
+✔ login funcionando  
+✔ antifraude intacto  
+✔ sessão intacta  
+✔ zero regressão  
+
+---
+
+Se NÃO atingir is

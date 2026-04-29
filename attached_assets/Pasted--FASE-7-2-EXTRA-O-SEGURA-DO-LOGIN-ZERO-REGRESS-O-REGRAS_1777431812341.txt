@@ -1,0 +1,167 @@
+🎯 FASE 7.2 — EXTRAÇÃO SEGURA DO LOGIN (ZERO REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica do login  
+2. NÃO alterar resposta HTTP  
+3. NÃO alterar status codes  
+4. NÃO alterar cookies/sessão  
+5. NÃO alterar antifraude  
+6. NÃO remover código original antes da validação  
+7. NÃO seguir sem baseline  
+
+---
+
+🧠 CONTEXTO
+
+Existe duplicação:
+
+- handler inline em:
+  server/routes/routes.ts
+
+- controller já existente:
+  authController.login
+
+👉 objetivo: eliminar duplicação SEM mudar comportamento
+
+---
+
+# 🎯 OBJETIVO
+
+Substituir o handler inline por:
+
+authController.login
+
+---
+
+# 📦 ETAPA 1 — IDENTIFICAR HANDLER
+
+Localizar em routes.ts:
+
+POST /api/auth/login
+
+---
+
+# 📦 ETAPA 2 — WRAPPER (SEM REMOVER NADA)
+
+ANTES de substituir:
+
+Criar wrapper temporário:
+
+ts // manter req/res intactos return authController.login(req, res); 
+
+---
+
+⚠️ NÃO remover código antigo ainda
+
+---
+
+# 📦 ETAPA 3 — EXECUTAR TESTES (OBRIGATÓRIO)
+
+Usar:
+
+audit/baseline.json
+
+Rodar todos os cenários:
+
+---
+
+### 🔐 AUTH
+
+- login success
+- invalid password
+- user not found
+- empty body
+
+---
+
+### 🔁 SESSION
+
+- auth/me success
+- auth/me no auth
+- logout
+
+---
+
+# 📊 ETAPA 4 — DIFF OBRIGATÓRIO
+
+Comparar:
+
+ANTES (baseline) vs DEPOIS
+
+Validar:
+
+✔ mesmas keys  
+✔ mesmos valores  
+✔ mesmos status  
+✔ mesmos headers  
+✔ mesmo cookie  
+✔ mesmo tempo aproximado  
+
+---
+
+⚠️ EXCEÇÃO
+
+✔ campo password NÃO deve existir
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# 📦 ETAPA 5 — REMOÇÃO CONTROLADA
+
+SOMENTE se 100% igual:
+
+👉 remover handler inline antigo
+
+---
+
+# 🔐 ETAPA 6 — VALIDAÇÃO FINAL
+
+Confirmar:
+
+✔ login continua funcionando  
+✔ sessão criada corretamente  
+✔ antifraude ativo  
+✔ contador de tentativas funcionando  
+✔ logs de segurança intactos  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+2 implementações
+
+Depois:
+1 implementação (controller)
+
+✔ comportamento idêntico  
+✔ código mais limpo  
+✔ zero regressão  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. diff (antes vs depois)  
+2. cenários testados  
+3. confirmação de equivalência  
+4. confirmação de zero regressão  
+5. confirmação de segurança intacta  
+
+---
+
+🚀 EXECUTA
