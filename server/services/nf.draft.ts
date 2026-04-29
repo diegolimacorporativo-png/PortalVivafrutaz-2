@@ -123,39 +123,6 @@ function computeTotals(items: DraftItem[], overrides?: Partial<DraftTotals>): Dr
   return { totalProducts, totalDiscount, totalFreight, totalNF };
 }
 
-/**
- * Converte uma row de order_items (numeric vem como string) em DraftItem com
- * defaults fiscais aplicados. Usa apenas dados já persistidos — nenhuma
- * chamada a orders.service ou ao priceResolver.
- */
-function orderItemToDraftItem(
-  item: any,
-  productMap: Map<number, any>,
-  defaults: { ncm: string; cfop: string; unit: string },
-): DraftItem {
-  const product = item.productId != null ? productMap.get(item.productId) : null;
-  const description =
-    item.productName ||
-    product?.name ||
-    `Produto #${item.productId ?? ""}`.trim() ||
-    "Produto";
-
-  const quantity  = Number(item.quantity || 0);
-  const unitPrice = Number(item.unitPrice || 0);
-  const totalPriceRaw = item.totalPrice != null ? Number(item.totalPrice) : quantity * unitPrice;
-
-  return {
-    productId: item.productId ?? null,
-    description,
-    quantity:  Number.isFinite(quantity) ? quantity : 0,
-    unit:      product?.unit || defaults.unit,
-    unitPrice: round2(Number.isFinite(unitPrice) ? unitPrice : 0),
-    totalPrice: round2(Number.isFinite(totalPriceRaw) ? totalPriceRaw : 0),
-    ncm:  product?.ncm  || defaults.ncm,
-    cfop: defaults.cfop,
-  };
-}
-
 // ── Service functions ────────────────────────────────────────────────────────
 
 /**

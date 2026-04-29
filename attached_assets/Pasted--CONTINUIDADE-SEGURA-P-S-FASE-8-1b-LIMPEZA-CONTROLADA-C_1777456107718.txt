@@ -1,0 +1,181 @@
+🎯 CONTINUIDADE SEGURA — PÓS FASE 8.1b (LIMPEZA CONTROLADA)
+
+---
+
+🧠 CONTEXTO (LEIA COM ATENÇÃO)
+
+O sistema já passou por:
+
+✔ FASE 7.x — limpeza de handlers duplicados (zero regressão)  
+✔ FASE 6 — proteção multi-tenant validada  
+✔ FASE 8.1 + 8.1b — consolidação de faturamento  
+
+---
+
+## ✅ ESTADO ATUAL VALIDADO
+
+✔ resolveBillingItems = fonte única de itens  
+✔ buildNFeInput usa APENAS resolveBillingItems  
+✔ equivalência fiscal comprovada (itens/totais 100% iguais)  
+✔ baseline 20/20 PASS  
+✔ zero regressão confirmada  
+✔ runner isolado executado com cleanup total  
+
+---
+
+## 🚨 REGRA ABSOLUTA
+
+👉 NÃO ASSUMIR NADA  
+👉 NÃO INFERIR NADA  
+👉 NÃO LIMPAR FORA DO ESPECIFICADO  
+
+Se houver dúvida:
+
+❌ PARAR  
+❌ REPORTAR  
+❌ NÃO EXECUTAR  
+
+---
+
+# 🎯 OBJETIVO DESTA FASE
+
+FASE 8.1c — LIMPEZA CONTROLADA (SAFE CLEANUP)
+
+---
+
+## 🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica  
+2. NÃO alterar comportamento  
+3. NÃO alterar XML  
+4. NÃO alterar fluxo de faturamento  
+5. NÃO alterar retorno de endpoints  
+6. NÃO tocar em cron, engine ou builder  
+7. NÃO remover nada sem prova de não uso  
+
+---
+
+# 📦 ESCOPO PERMITIDO (APENAS ISSO)
+
+---
+
+## 1️⃣ REMOVER DEAD CODE CONFIRMADO
+
+Arquivo:
+
+server/services/nf.draft.ts
+
+---
+
+Remover:
+
+function orderItemToDraftItem(...) { ... }
+
+---
+
+🧠 PROVA
+
+- função NÃO é usada em lugar nenhum
+- substituída por buildStandardDraft
+- já validado em auditoria anterior
+
+---
+
+## 2️⃣ (OPCIONAL) LIMPEZA DE DADOS ÓRFÃOS
+
+SOMENTE SE AUTORIZADO:
+
+Remover produtos:
+
+- "Maçã EQ Test"
+- "Banana EQ Test"
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO remover outros dados
+- NÃO usar delete amplo
+- filtrar EXATAMENTE por nome
+
+---
+
+## 🚫 NÃO FAZER
+
+❌ NÃO remover resolveDraftItemsInternal  
+❌ NÃO remover applyItemGroupingInternal  
+❌ NÃO mexer em billing.service  
+❌ NÃO mexer em nfe-input.builder  
+❌ NÃO mexer em schema  
+❌ NÃO mexer em cron  
+❌ NÃO mexer em flags  
+
+---
+
+# 📦 ETAPA OBRIGATÓRIA — VALIDAÇÃO
+
+Após qualquer remoção:
+
+Rodar:
+
+audit/baseline.json
+
+---
+
+## VALIDAR
+
+✔ mesmos status  
+✔ mesmas respostas  
+✔ mesmas keys  
+✔ zero diff  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR  
+❌ NÃO continuar  
+❌ NÃO corrigir  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ código morto presente  
+❌ dados de teste antigos no banco  
+
+Depois:
+
+✔ código limpo  
+✔ banco limpo (se autorizado)  
+✔ comportamento idêntico  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. código removido  
+2. arquivos afetados  
+3. resultado do baseline  
+4. confirmação de zero regressão  
+5. confirmação de segurança intacta  
+
+---
+
+🚀 EXECUTAR SOMENTE ISSO
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO iniciar FASE 8.2  
+👉 NÃO refatorar mais nada  
+👉 NÃO otimizar nada  
+
+👉 próxima fase será definida de
