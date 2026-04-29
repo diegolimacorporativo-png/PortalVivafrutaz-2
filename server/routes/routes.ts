@@ -5058,6 +5058,102 @@ export async function registerRoutes(
 
   app.get('/api/finance/pix/:id', (req: Request, res: Response, next: NextFunction) => financeController.getPixForReceivable(req, res).catch(next));
 
+  // ─── Company Certificates (NF-e A1) — FASE 3.2 ────────────────────────
+  // Endpoints CRUD do certificado A1 por empresa (multi-tenant). Usados pela
+  // UI de configuração fiscal e consumidos automaticamente pelo `nfeSender`
+  // via `nfeCertDynamic.getCertificadoDinamico()` durante a transmissão.
+  // Auth: tenantContext + requireTenant (sessão de admin OU sessão de
+  // empresa pinada). NÃO retorna `certBase64` nem `certPassword` em GET.
+  {
+    const { companyCertificateRepository } = await import(
+      '../modules/companies/companyCertificate.repository.ts'
+    );
+    const { requireTenantId } = await import('../core/tenant/context');
+
+    // POST /api/company/certificate — upload (cria ou substitui)
+    app.post(
+      '/api/company/certificate',
+      tenantContext,
+      requireTenant,
+      async (req: any, res, next) => {
+        try {
+          const tenantId = requireTenantId();
+          const { certBase64, password } = req.body ?? {};
+          if (typeof certBase64 !== 'string' || certBase64.length === 0) {
+            return res
+              .status(400)
+              .json({ success: false, error: { message: 'certBase64 é obrigatório', code: 'BAD_REQUEST' } });
+          }
+          if (typeof password !== 'string' || password.length === 0) {
+            return res
+              .status(400)
+              .json({ success: false, error: { message: 'password é obrigatório', code: 'BAD_REQUEST' } });
+          }
+          const saved = await companyCertificateRepository.upsert({
+            companyId: tenantId,
+            certBase64,
+            certPassword: password,
+          });
+          return res.json({
+            success: true,
+            data: {
+              id: saved.id,
+              companyId: saved.companyId,
+              createdAt: saved.createdAt,
+              updatedAt: saved.updatedAt,
+            },
+          });
+        } catch (err) {
+          next(err);
+        }
+      },
+    );
+
+    // GET /api/company/certificate — status (sem expor cert/senha)
+    app.get(
+      '/api/company/certificate',
+      tenantContext,
+      requireTenant,
+      async (_req, res, next) => {
+        try {
+          const tenantId = requireTenantId();
+          const row = await companyCertificateRepository.getByCompanyId(tenantId);
+          if (!row) {
+            return res.json({ success: true, data: { configured: false } });
+          }
+          return res.json({
+            success: true,
+            data: {
+              configured: true,
+              id: row.id,
+              companyId: row.companyId,
+              createdAt: row.createdAt,
+              updatedAt: row.updatedAt,
+            },
+          });
+        } catch (err) {
+          next(err);
+        }
+      },
+    );
+
+    // DELETE /api/company/certificate — remove o cert da empresa
+    app.delete(
+      '/api/company/certificate',
+      tenantContext,
+      requireTenant,
+      async (_req, res, next) => {
+        try {
+          const tenantId = requireTenantId();
+          const removed = await companyCertificateRepository.deleteByCompanyId(tenantId);
+          return res.json({ success: true, data: { removed } });
+        } catch (err) {
+          next(err);
+        }
+      },
+    );
+  }
+
   // ─── NF-e Routes ─────────────────────────────────────────────────────────
   {
     const { gerarNFeXML } = await import('../services/nfe/nfeGenerator.ts');

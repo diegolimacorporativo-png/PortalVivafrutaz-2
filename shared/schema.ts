@@ -478,10 +478,33 @@ export const companyQuotations = pgTable("company_quotations", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ─── Company Certificates (NF-e A1) — FASE 3.2 ────────────────
+// Certificado digital A1 por empresa (multi-tenant). 1:1 com `companies`.
+// O `cert_password` está em texto plano nesta fase — criptografia at-rest
+// vem na FASE 3.3. NÃO logar este campo, NÃO retornar em GET.
+export const companyCertificates = pgTable("company_certificates", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id")
+    .notNull()
+    .unique()
+    .references(() => companies.id, { onDelete: "cascade" }),
+  certBase64: text("cert_base64").notNull(),
+  certPassword: text("cert_password").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
 // ─── Insert Schemas ───────────────────────────────────────────
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertPriceGroupSchema = createInsertSchema(priceGroups).omit({ id: true });
 export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true });
+export const insertCompanyCertificateSchema = createInsertSchema(companyCertificates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type InsertCompanyCertificate = z.infer<typeof insertCompanyCertificateSchema>;
+export type CompanyCertificate = typeof companyCertificates.$inferSelect;
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const insertProductSchema = createInsertSchema(products).omit({ id: true });
 export const insertProductPriceSchema = createInsertSchema(productPrices).omit({ id: true });

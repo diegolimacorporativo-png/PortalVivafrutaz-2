@@ -20,6 +20,13 @@
 import fs from 'fs';
 import * as forge from 'node-forge';
 
+export type CertSource =
+  | 'NFE_CERT_PATH'
+  | 'NFE_CERT_BASE64'
+  | 'CERT_PATH'
+  | 'database'
+  | 'manual';
+
 export interface CertificadoBundle {
   /** PFX bruto (Buffer). Pode ser passado direto a `https.Agent({ pfx, passphrase })`. */
   pfx: Buffer;
@@ -30,14 +37,50 @@ export interface CertificadoBundle {
   /** Chave privada em formato PEM (PKCS#8). */
   keyPem: string;
   /** Origem da configuração — útil para logs sem vazar segredo. */
-  source: 'NFE_CERT_PATH' | 'NFE_CERT_BASE64' | 'CERT_PATH';
+  source: CertSource;
 }
 
 /**
- * Lê o PFX de uma das variáveis de ambiente suportadas e converte para PEM.
- * Lança erro descritivo (sem expor a senha) se a configuração for inválida.
+ * Opções para a versão "direta" de `getCertificado` — passa o PFX já em mãos
+ * (vindo do DB, de um upload, etc.) sem tocar no env. Usado pela FASE 3.2
+ * para carregar certs por empresa.
  */
-export function getCertificado(): CertificadoBundle {
+export interface CertificadoDirectInput {
+  pfxBuffer: Buffer;
+  password: string;
+  /** Rótulo de origem para logs (default: 'manual'). */
+  source?: Exclude<CertSource, 'NFE_CERT_PATH' | 'NFE_CERT_BASE64' | 'CERT_PATH'>;
+}
+
+/**
+ * Sobrecarga 1: lê o cert do AMBIENTE (env vars) — fluxo FASE 3.
+ * Sobrecarga 2: aceita um PFX já carregado (Buffer + senha) — fluxo FASE 3.2.
+ *
+ * Ambas convertem PKCS#12 → par PEM via `pfxParaPem`. Lança erro descritivo
+ * (sem expor a senha) se a configuração / PFX for inválido.
+ */
+export function getCertificado(): CertificadoBundle;
+export function getCertificado(input: CertificadoDirectInput): CertificadoBundle;
+export function getCertificado(input?: CertificadoDirectInput): CertificadoBundle {
+  // Modo direto (FASE 3.2): PFX já foi carregado pelo caller.
+  if (input) {
+    if (!Buffer.isBuffer(input.pfxBuffer) || input.pfxBuffer.length === 0) {
+      throw new Error('pfxBuffer ausente ou vazio.');
+    }
+    if (!input.password) {
+      throw new Error('password ausente.');
+    }
+    const { certPem, keyPem } = pfxParaPem(input.pfxBuffer, input.password);
+    return {
+      pfx: input.pfxBuffer,
+      passphrase: input.password,
+      certPem,
+      keyPem,
+      source: input.source ?? 'manual',
+    };
+  }
+
+  // Modo env (FASE 3 — preservado intacto).
   const passphrase =
     process.env.NFE_CERT_PASSWORD ?? process.env.CERT_PASSWORD ?? '';
   if (!passphrase) {
@@ -51,7 +94,7 @@ export function getCertificado(): CertificadoBundle {
   const legacyPath = process.env.CERT_PATH;
 
   let pfx: Buffer;
-  let source: CertificadoBundle['source'];
+  let source: CertSource;
   if (nfePath && fs.existsSync(nfePath)) {
     pfx = fs.readFileSync(nfePath);
     source = 'NFE_CERT_PATH';

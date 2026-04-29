@@ -1,0 +1,107 @@
+🎯 FASE 3.2 — CERTIFICADO DINÂMICO (BANCO → RUNTIME)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO remover leitura via ENV  
+2. NÃO alterar assinatura do enviarNFeSEFAZ  
+3. NÃO alterar fluxo NF-e existente  
+4. NÃO alterar schema existente (apenas adicionar)  
+5. fallback ENV deve continuar funcionando  
+
+---
+
+🧠 OBJETIVO
+
+Permitir:
+
+- upload do certificado pelo sistema  
+- salvar por empresa (multi-tenant)  
+- uso automático na emissão NF-e  
+
+---
+
+# 🛠️ ETAPA 1 — CRIAR TABELA
+
+sql CREATE TABLE company_certificates (   id SERIAL PRIMARY KEY,   company_id INTEGER NOT NULL,   cert_base64 TEXT NOT NULL,   cert_password TEXT NOT NULL,   created_at TIMESTAMP DEFAULT NOW(),   updated_at TIMESTAMP DEFAULT NOW() ); 
+
+---
+
+# 🛠️ ETAPA 2 — REPOSITORY
+
+📍 server/modules/companies/companyCertificate.repository.ts
+
+ts import { db } from '@/db'; import { eq } from 'drizzle-orm';  export async function getCompanyCertificate(companyId: number) {   return db.query.company_certificates.findFirst({     where: eq(company_certificates.company_id, companyId),   }); }  export async function saveCompanyCertificate(data: {   companyId: number;   certBase64: string;   certPassword: string; }) {   const existing = await getCompanyCertificate(data.companyId);    if (existing) {     return db       .update(company_certificates)       .set({         cert_base64: data.certBase64,         cert_password: data.certPassword,         updated_at: new Date(),       })       .where(eq(company_certificates.company_id, data.companyId));   }    return db.insert(company_certificates).values({     company_id: data.companyId,     cert_base64: data.certBase64,     cert_password: data.certPassword,   }); } 
+
+---
+
+# 🛠️ ETAPA 3 — ENDPOINT DE UPLOAD
+
+📍 server/routes/routes.ts
+
+ts app.post('/api/company/certificate', requireAuth, async (req, res) => {   const companyId = requireTenantId();    const { certBase64, password } = req.body;    if (!certBase64 || !password) {     return res.status(400).json({       error: 'Certificado e senha são obrigatórios',     });   }    await saveCompanyCertificate({     companyId,     certBase64,     certPassword: password,   });    res.json({ success: true }); }); 
+
+---
+
+# 🛠️ ETAPA 4 — LOADER DINÂMICO
+
+📍 server/services/nfe/nfeCertDynamic.ts
+
+ts import { getCompanyCertificate } from '@/modules/companies/companyCertificate.repository'; import { requireTenantId } from '@/core/tenant/context';  export async function getCertificadoDinamico() {   const tenantId = requireTenantId();    const cert = await getCompanyCertificate(tenantId);    if (!cert) return null;    return {     pfx: Buffer.from(cert.cert_base64, 'base64'),     passphrase: cert.cert_password,     source: 'database',   }; } 
+
+---
+
+# 🛠️ ETAPA 5 — INTEGRAR NO nfeSender
+
+📍 server/services/nfe/nfeSender.ts
+
+Adicionar ANTES do bloco ENV:
+
+ts // FASE 3.2 — carregar certificado do banco if (!certPem && !certKey) {   try {     const { getCertificadoDinamico } = await import('./nfeCertDynamic');     const dynamic = await getCertificadoDinamico();      if (dynamic) {       const { getCertificado } = await import('./nfeCert');        const bundle = getCertificado({         pfxBuffer: dynamic.pfx,         password: dynamic.passphrase,       });        certPem = bundle.certPem;       certKey = bundle.keyPem;        console.info('[NFE_CERT_FROM_DB]');     }   } catch (err: any) {     console.warn('[NFE_CERT_DB_FAIL]', err.message);   } } 
+
+---
+
+# 🔁 PRIORIDADE FINAL DE CERTIFICADO
+
+1. Certificado passado manualmente (se existir)  
+2. Certificado do banco (FASE 3.2)  
+3. Certificado do ENV (FASE 3)  
+
+---
+
+# 🧪 TESTE
+
+1. Fazer POST /api/company/certificate  
+2. Emitir NF normalmente  
+3. Ver log:
+
+[NFE_CERT_FROM_DB]
+
+---
+
+# 🔒 OBSERVAÇÃO
+
+👉 Senha ainda está em texto plano  
+👉 criptografia vem na próxima fase (3.3)
+
+---
+
+# 📊 RESULTADO
+
+✔ multi-tenant real  
+✔ certificado por empresa  
+✔ fallback ENV mantido  
+✔ zero regressão  
+✔ pronto para SaaS  
+
+---
+
+## ✅ FINAL
+
+1. Tabela criada  
+2. Repository criado  
+3. Endpoint criado  
+4. Loader dinâmico criado  
+5. Integração no sender feita  
+6. Sistema usando certificado por empres

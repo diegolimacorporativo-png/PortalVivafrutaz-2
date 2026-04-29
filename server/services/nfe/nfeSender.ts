@@ -184,15 +184,38 @@ export async function enviarNFeSEFAZ(
   const idLote = String(Date.now()).slice(-15);
   const soap = buildSoap(xmlAssinado, idLote);
 
-  // FASE 3 — Auto-carregar o certificado A1 a partir do env quando o caller
-  // não fornece (certPem/certKey). Permite que rotas legadas (ex.:
-  // routes.ts:6458 que invoca `enviarNFeSEFAZ(xml, uf, tpAmb)`) passem a
-  // transmitir para a SEFAZ real assim que NFE_CERT_PATH/NFE_CERT_PASSWORD
-  // forem configuradas, SEM mudar a assinatura da função nem nenhum caller.
-  // Se o env não estiver configurado, mantém o comportamento atual: tenta
+  // FASE 3 / FASE 3.2 — cadeia de resolução do certificado A1, em ordem:
+  //   1. Manual: certPem/certKey passados pelo caller (mantém comportamento legado).
+  //   2. Banco (FASE 3.2): tabela `company_certificates` para o tenant ativo
+  //      (resolvido via AsyncLocalStorage). Multi-tenant real.
+  //   3. Env (FASE 3): NFE_CERT_PATH / NFE_CERT_BASE64 / CERT_PATH (legacy).
+  // Se nenhuma das três fontes resolver, mantém o comportamento atual: tenta
   // POST sem mTLS (a SEFAZ recusará — comportamento inalterado).
   let pem = certPem;
   let key = certKey;
+
+  // 2. Cert do banco (per-tenant)
+  if (!pem || !key) {
+    try {
+      const { getCertificadoDinamico } = await import('./nfeCertDynamic');
+      const dynamic = await getCertificadoDinamico();
+      if (dynamic) {
+        const { getCertificado } = await import('./nfeCert');
+        const bundle = getCertificado({
+          pfxBuffer: dynamic.pfx,
+          password: dynamic.passphrase,
+          source: 'database',
+        });
+        pem = bundle.certPem;
+        key = bundle.keyPem;
+        console.info('[NFE_CERT_FROM_DB]', { tenantId: dynamic.tenantId });
+      }
+    } catch (e: any) {
+      console.warn('[NFE_CERT_DB_LOAD_FAIL]', { error: e?.message });
+    }
+  }
+
+  // 3. Cert do env (fallback)
   if ((!pem || !key) && (process.env.NFE_CERT_PATH || process.env.NFE_CERT_BASE64 || process.env.CERT_PATH)) {
     try {
       const { getCertificado } = await import('./nfeCert');
