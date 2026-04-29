@@ -1,0 +1,275 @@
+🎯 FASE 7.3 — REMOÇÃO SEGURA DE HANDLERS AUTH (ME / LOGOUT)
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+1. NÃO alterar lógica  
+2. NÃO alterar resposta HTTP  
+3. NÃO alterar status codes  
+4. NÃO alterar cookies/sessão  
+5. NÃO alterar antifraude  
+6. NÃO alterar ordem de registro de rotas  
+7. NÃO remover código sem prova de que é código morto  
+8. NÃO seguir sem baseline válido  
+9. NÃO “assumir” comportamento — PROVAR com evidência  
+10. Se houver QUALQUER dúvida → PARAR
+
+---
+
+🧠 CONTEXTO
+
+Após FASE 7.2:
+
+✔ authController.login já é o handler ativo  
+✔ handler inline de login foi removido com 0 regressão  
+
+Agora precisamos validar:
+
+- GET /api/auth/me  
+- POST /api/auth/logout  
+
+👉 verificar se também são código morto
+
+---
+
+# 🎯 OBJETIVO
+
+Remover handlers inline de:
+
+- /api/auth/me  
+- /api/auth/logout  
+
+👉 SOMENTE se forem comprovadamente NÃO utilizados
+
+---
+
+# 📦 ETAPA 1 — VERIFICAÇÃO CRÍTICA (OBRIGATÓRIA)
+
+Investigar ordem de registro em:
+
+server/app.ts
+
+Confirmar:
+
+1. registerModules(app) vem ANTES de registerRoutes(app)
+2. auth.routes.ts registra:
+   - GET /api/auth/me
+   - POST /api/auth/logout
+
+👉 Se NÃO confirmar isso:
+
+❌ ABORTAR imediatamente
+
+---
+
+# 📦 ETAPA 2 — PROVA DE HANDLER ATIVO
+
+Usar baseline:
+
+audit/baseline.json
+
+Validar:
+
+---
+
+### 🔍 /api/auth/me
+
+Comparar resposta real vs código inline:
+
+✔ Estrutura do JSON  
+✔ Campos retornados  
+✔ ausência de password  
+✔ headers  
+✔ cookie  
+
+---
+
+### 🔍 /api/auth/logout
+
+Validar:
+
+✔ status code  
+✔ comportamento com e sem auth  
+✔ resposta (message ou success)  
+✔ sessão realmente destruída  
+
+---
+
+👉 Se comportamento bater com controller:
+
+✔ inline = código morto
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER divergência:
+
+❌ NÃO remover  
+❌ NÃO ajustar  
+❌ PARAR e reportar diferenças  
+
+---
+
+# 📦 ETAPA 3 — REMOÇÃO SEGURA
+
+Somente se 100% comprovado:
+
+👉 remover blocos inline de:
+
+routes.ts
+
+- GET /api/auth/me  
+- POST /api/auth/logout  
+
+---
+
+⚠️ NÃO criar wrapper  
+⚠️ NÃO redirecionar  
+⚠️ NÃO alterar controller  
+
+👉 apenas remover código morto
+
+---
+
+# 📦 ETAPA 4 — VALIDAÇÃO COMPLETA (OBRIGATÓRIA)
+
+Reexecutar TODOS cenários do baseline:
+
+---
+
+### AUTH
+
+- login success  
+- invalid password  
+- user not found  
+- empty body  
+
+---
+
+### SESSION
+
+- auth/me success  
+- auth/me no auth  
+- logout success  
+- logout no auth  
+
+---
+
+### CORE (já existentes)
+
+- orders  
+- nfe  
+- admin/security  
+
+---
+
+# 📊 ETAPA 5 — DIFF OBRIGATÓRIO
+
+Comparar com:
+
+audit/baseline.json
+
+Validar:
+
+✔ mesmas keys  
+✔ mesmos valores  
+✔ mesmos status  
+✔ mesmos headers  
+✔ mesmo cookie  
+✔ mesma estrutura JSON  
+
+---
+
+⚠️ PERMITIDO:
+
+- diferença em tempo (ms)  
+- timestamps dinâmicos  
+
+---
+
+🚫 NÃO PERMITIDO:
+
+- mudança de campo  
+- mudança de nome  
+- mudança de estrutura  
+- mudança de status  
+
+---
+
+# 🔐 ETAPA 6 — VALIDAÇÃO DE SEGURANÇA
+
+Confirmar:
+
+✔ password NÃO aparece  
+✔ sessão continua HttpOnly  
+✔ SameSite mantido  
+✔ antifraude intacto  
+✔ tenantGuard intacto  
+✔ validateOrderTenant intacto  
+✔ safeGetOrder intacto  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+3 handlers (login, me, logout)
+
+Depois:
+apenas controller modular
+
+✔ código limpo  
+✔ zero duplicação  
+✔ zero regressão  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+---
+
+## 1. handlers removidos
+
+(quais endpoints)
+
+---
+
+## 2. prova de que eram código morto
+
+(ordem de registro + evidência do baseline)
+
+---
+
+## 3. cenários testados
+
+(lista completa)
+
+---
+
+## 4. diff
+
+(deve ser ZERO)
+
+---
+
+## 5. confirmação de zero regressão
+
+---
+
+## 6. confirmação de segurança intacta
+
+---
+
+🚨 REGRA FINAL
+
+Se NÃO conseguir provar com 100% de certeza:
+
+👉 NÃO REMOVER
+
+---
+
+🚀 EXECU

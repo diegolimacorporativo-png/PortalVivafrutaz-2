@@ -1191,35 +1191,12 @@ export async function registerRoutes(
   // confirmação por baseline (audit/baseline.json) de que o controller
   // já produzia exatamente as respostas auditadas.
 
-  app.get(api.auth.me.path, async (req, res) => {
-    try {
-      const session = req.session as any;
-      if (session.userType === 'admin' && session.userId) {
-        const user = await storage.getUser(session.userId);
-        if (user) {
-          // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
-          const { password: _pw, ...userSafe } = user as Record<string, unknown> & { password?: unknown };
-          return res.json({ user: userSafe });
-        }
-      } else if (session.userType === 'company' && session.companyId) {
-        const company = await storage.getCompany(session.companyId);
-        if (company) {
-          // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
-          const { password: _pw, ...companySafe } = company as Record<string, unknown> & { password?: unknown };
-          return res.json({ company: companySafe });
-        }
-      }
-      return res.status(401).json({ message: "Not authenticated" });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  app.post(api.auth.logout.path, (req, res) => {
-    req.session.destroy((err) => {
-      res.json({ message: "Logged out successfully" });
-    });
-  });
+  // ── GET /api/auth/me e POST /api/auth/logout removidos na FASE 7.3 ────
+  // Mesmo motivo do login (FASE 7.2): ambos os endpoints são servidos
+  // pelo módulo `auth` (auth.routes.ts → authController.me / .logout),
+  // registrado em app.ts ANTES deste router. Os blocos inline aqui nunca
+  // eram alcançados (ordem de mount: registerModules → registerRoutes).
+  // Remoção feita após confirmação por baseline (audit/baseline.json).
 
   // ─── Security: Unlock company account ─────────────────────────
   app.post('/api/admin/companies/:id/unlock', async (req, res) => {
