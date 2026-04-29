@@ -1856,3 +1856,28 @@ export const insertCnabImportHistorySchema = createInsertSchema(cnabImportHistor
 });
 export type InsertCnabImportHistory = z.infer<typeof insertCnabImportHistorySchema>;
 export type CnabImportHistory = typeof cnabImportHistory.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FASE 6.2 — Persistência de eventos de tenant mismatch (auditoria real)
+//
+// Tabela puramente aditiva. Cada vez que `validateOrderTenant` detecta
+// uma tentativa de acesso cruzado entre tenants, um registro é gravado
+// aqui em paralelo ao log `[SECURITY] TENANT_MISMATCH`. O log original
+// continua existindo — esta tabela é apenas a base persistente para o
+// endpoint admin de auditoria (FASE 6.1).
+//
+// Todos os campos são opcionais (exceto id/createdAt) para garantir que
+// uma falha de coleta de contexto (ex.: req ausente) nunca bloqueie a
+// gravação do evento — auditoria fail-open por design.
+// ─────────────────────────────────────────────────────────────────────────────
+export const tenantMismatchEvents = pgTable("tenant_mismatch_events", {
+  id: serial("id").primaryKey(),
+  tenantId: integer("tenant_id"),
+  orderId: integer("order_id"),
+  userId: integer("user_id"),
+  email: text("email"),
+  path: text("path"),
+  method: text("method"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type TenantMismatchEvent = typeof tenantMismatchEvents.$inferSelect;

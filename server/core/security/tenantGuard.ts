@@ -36,6 +36,8 @@ import {
   ForbiddenError,
   NotFoundError,
 } from "../../shared/errors/AppError";
+// FASE 6.2 — persistência de eventos (fail-open, não bloqueia o throw).
+import { logTenantMismatchEvent } from "../../modules/security/security.repository";
 
 // ── Tipos auxiliares ─────────────────────────────────────────────────────────
 
@@ -125,6 +127,14 @@ export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
       orderId,
       tenantId,
       orderCompanyId: orderTenantId,
+    });
+    // FASE 6.2 — persiste o evento (fail-open: nunca bloqueia o throw abaixo).
+    // Sem acesso a `req` aqui: usa fallback "unknown" para path/method.
+    await logTenantMismatchEvent({
+      tenantId,
+      orderId,
+      path: "unknown",
+      method: "unknown",
     });
     throw new ForbiddenError(
       `Acesso negado ao pedido #${orderId}: pertence a outro tenant.`,

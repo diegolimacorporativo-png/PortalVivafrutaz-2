@@ -1,0 +1,134 @@
+🎯 FASE 6.2 — PERSISTIR TENANT_MISMATCH (AUDITORIA REAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover logs atuais  
+3. NÃO alterar validateOrderTenant  
+4. NÃO alterar storage.ts  
+5. NÃO alterar respostas de endpoints  
+6. Apenas ADICIONAR persistência
+
+---
+
+🧠 OBJETIVO
+
+Hoje:
+👉 [SECURITY] TENANT_MISMATCH só aparece no log
+
+Depois:
+👉 Evento salvo no banco + disponível para auditoria real
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR TABELA
+
+📍 Arquivo: shared/schema.ts
+
+Adicionar:
+
+ts export const tenantMismatchEvents = pgTable("tenant_mismatch_events", {   id: serial("id").primaryKey(),    tenantId: integer("tenant_id"),   orderId: integer("order_id"),    userId: integer("user_id"),   email: text("email"),    path: text("path"),   method: text("method"),    createdAt: timestamp("created_at").defaultNow(), }); 
+
+---
+
+## 🛠️ ETAPA 2 — REPOSITORY
+
+📍 Criar arquivo:
+server/modules/security/security.repository.ts
+
+ts import { db } from "@/db"; import { tenantMismatchEvents } from "@shared/schema";  export async function logTenantMismatchEvent(data: {   tenantId?: number;   orderId?: number;   userId?: number;   email?: string;   path?: string;   method?: string; }) {   try {     await db.insert(tenantMismatchEvents).values({       tenantId: data.tenantId ?? null,       orderId: data.orderId ?? null,       userId: data.userId ?? null,       email: data.email ?? null,       path: data.path ?? null,       method: data.method ?? null,     });   } catch (e) {     console.error("[SECURITY_EVENT_LOG_FAIL]", e);   } } 
+
+---
+
+## 🛠️ ETAPA 3 — HOOK NO validateOrderTenant
+
+📍 Arquivo: onde validateOrderTenant está definido
+
+👉 NÃO alterar lógica — apenas adicionar
+
+Logo antes do throw de tenant mismatch:
+
+ts import { logTenantMismatchEvent } from "@/modules/security/security.repository"; 
+
+E dentro do bloco de erro:
+
+ts await logTenantMismatchEvent({   tenantId,   orderId,   userId: (actor as any)?.id,   email: (actor as any)?.email,   path: req?.path,   method: req?.method, }); 
+
+---
+
+⚠ IMPORTANTE
+
+Se NÃO tiver acesso a req/actor:
+
+👉 pode usar fallback seguro:
+
+ts path: "unknown", method: "unknown", 
+
+---
+
+## 🛠️ ETAPA 4 — ATUALIZAR ENDPOINT 6.1
+
+📍 server/modules/security/security.repository.ts
+
+Substituir placeholder por:
+
+ts import { db } from "@/db"; import { tenantMismatchEvents } from "@shared/schema"; import { sql } from "drizzle-orm";  export async function getTenantMismatchEvents(days: number) {   const result = await db     .select({       orderId: tenantMismatchEvents.orderId,       count: sql<number>`count(*)`,     })     .from(tenantMismatchEvents)     .where(       sql`${tenantMismatchEvents.createdAt} >= now() - interval '${days} days'`     )     .groupBy(tenantMismatchEvents.orderId);    const total = result.reduce((acc, r) => acc + Number(r.count), 0);    const byOrder: Record<string, number> = {};   result.forEach(r => {     byOrder[String(r.orderId ?? "unknown")] = Number(r.count);   });    return {     total,     byOrder,     windowDays: days,   }; } 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+1️⃣ Forçar erro cross-tenant  
+👉 acessar pedido de outra empresa
+
+2️⃣ Verificar log:
+[SECURITY] TENANT_MISMATCH
+
+3️⃣ Verificar banco:
+👉 deve existir registro em tenant_mismatch_events
+
+4️⃣ Chamar endpoint:
+
+GET /api/admin/security/tenant-mismatch-events
+
+Resultado esperado:
+
+json id="8fdb80" {   "success": true,   "data": {     "total": 1,     "byOrder": {       "5": 1     },     "windowDays": 7   } } 
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhuma lógica alterada  
+✔ Nenhum endpoint quebrado  
+✔ Log original mantido  
+✔ Apenas ADD de persistência  
+✔ Falha de log NÃO quebra sistema  
+✔ Multi-tenant preservado  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ Sem rastreabilidade real
+
+Depois:
+✔ Histórico de tentativas  
+✔ Auditoria real  
+✔ Base para antifraude  
+✔ Base para alertas  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Tabela criada  
+2. Hook aplicado  
+3. Evento persistido testado  
+4. Endpoint retornando dados reais  
+5. Confirmação de zero regre
