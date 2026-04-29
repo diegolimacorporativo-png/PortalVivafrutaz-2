@@ -1,0 +1,148 @@
+🎯 FASE 3.3 — CRIPTOGRAFIA DO CERTIFICADO (AES-256-GCM)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do banco  
+2. NÃO alterar fluxo NF-e  
+3. NÃO alterar assinatura de funções existentes  
+4. NÃO quebrar certificados já salvos  
+5. fallback deve continuar funcionando  
+
+---
+
+🧠 OBJETIVO
+
+Proteger o cert_password armazenado no banco:
+
+- criptografar ao salvar  
+- descriptografar ao usar  
+- impedir leitura em texto plano  
+
+---
+
+# 🔐 ETAPA 1 — CRIAR CHAVE DE CRIPTO
+
+📍 Adicionar nas ENV / Secrets:
+
+env id="envkey01" NFE_CERT_SECRET=uma_chave_super_segura_32_bytes 
+
+👉 mínimo 32 caracteres
+
+---
+
+# 🛠️ ETAPA 2 — CRIAR UTIL DE CRIPTO
+
+📍 server/utils/crypto.ts
+
+ts id="crypto01" import crypto from 'crypto';  const ALGORITHM = 'aes-256-gcm';  function getKey() {   const secret = process.env.NFE_CERT_SECRET;   if (!secret) {     throw new Error('NFE_CERT_SECRET não configurada');   }    return crypto.createHash('sha256').update(secret).digest(); }  export function encrypt(text: string): string {   const iv = crypto.randomBytes(12);   const cipher = crypto.createCipheriv(ALGORITHM, getKey(), iv);    const encrypted = Buffer.concat([     cipher.update(text, 'utf8'),     cipher.final(),   ]);    const tag = cipher.getAuthTag();    return Buffer.concat([iv, tag, encrypted]).toString('base64'); }  export function decrypt(payload: string): string {   const buffer = Buffer.from(payload, 'base64');    const iv = buffer.subarray(0, 12);   const tag = buffer.subarray(12, 28);   const encrypted = buffer.subarray(28);    const decipher = crypto.createDecipheriv(ALGORITHM, getKey(), iv);   decipher.setAuthTag(tag);    const decrypted = Buffer.concat([     decipher.update(encrypted),     decipher.final(),   ]);    return decrypted.toString('utf8'); } 
+
+---
+
+# 🛠️ ETAPA 3 — CRIPTOGRAFAR AO SALVAR
+
+📍 server/modules/companies/companyCertificate.repository.ts
+
+---
+
+🔍 Importar:
+
+ts id="crypto02" import { encrypt } from '@/utils/crypto'; 
+
+---
+
+🔍 Alterar no save/upsert:
+
+ts id="crypto03" cert_password: encrypt(data.certPassword), 
+
+---
+
+# 🛠️ ETAPA 4 — DESCRIPTOGRAFAR AO LER
+
+📍 server/services/nfe/nfeCertDynamic.ts
+
+---
+
+🔍 Importar:
+
+ts id="crypto04" import { decrypt } from '@/utils/crypto'; 
+
+---
+
+🔍 Alterar:
+
+ts id="crypto05" passphrase: decrypt(cert.cert_password), 
+
+---
+
+# 🛠️ ETAPA 5 — BACKWARD COMPATIBILITY
+
+⚠️ IMPORTANTE (não quebrar dados antigos)
+
+Substituir por:
+
+ts id="crypto06" let passphrase = cert.cert_password;  try {   passphrase = decrypt(cert.cert_password); } catch {   // fallback: senha antiga em texto plano } 
+
+---
+
+# 🧪 TESTE
+
+---
+
+## 1️⃣ Salvar certificado
+
+Banco deve conter:
+
+txt id="crypto07" cert_password = "asdh82h... (base64 criptografado)" 
+
+---
+
+## 2️⃣ Emitir NF
+
+Esperado:
+
+txt id="crypto08" [NFE_CERT_FROM_DB] 
+
+✔ sem erro de senha  
+✔ certificado funcionando  
+
+---
+
+## 3️⃣ Certificado antigo (sem criptografia)
+
+✔ ainda funciona  
+✔ sem quebra  
+
+---
+
+# 🔒 SEGURANÇA GARANTIDA
+
+✔ senha nunca mais fica em texto plano  
+✔ proteção contra vazamento de banco  
+✔ compatível com multi-tenant  
+✔ compatível com FASE 3.2  
+✔ pronto para produção  
+
+---
+
+# 📊 RESULTADO
+
+Agora você tem:
+
+✔ certificado por empresa  
+✔ criptografado  
+✔ seguro em banco  
+✔ compatível com fallback ENV  
+✔ sem regressão  
+
+---
+
+## ✅ FINAL
+
+1. Chave criada (ENV)  
+2. Util crypto criado  
+3. Repository atualizado  
+4. Loader atualizado  
+5. Compatibilidade mantida  
+6. Sistema

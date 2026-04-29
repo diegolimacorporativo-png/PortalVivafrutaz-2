@@ -17,10 +17,16 @@ import { eq } from "drizzle-orm";
 import { db } from "../../database/db";
 import { companyCertificates } from "@shared/schema";
 import type { CompanyCertificate } from "@shared/schema";
+import { encrypt } from "../../utils/crypto";
 
 export interface SaveCompanyCertificateInput {
   companyId: number;
   certBase64: string;
+  /**
+   * Senha em TEXTO PLANO. O repository é responsável por cifrar via
+   * `encrypt()` antes de gravar — callers NÃO devem cifrar manualmente,
+   * para evitar dupla criptografia.
+   */
   certPassword: string;
 }
 
@@ -35,13 +41,17 @@ export class CompanyCertificateRepository {
   }
 
   async upsert(input: SaveCompanyCertificateInput): Promise<CompanyCertificate> {
+    // FASE 3.3 — sempre cifra antes de gravar (formato `enc:v1:<base64>`).
+    // O loader (`nfeCertDynamic`) decifra na leitura. Registros legados em
+    // texto plano (pré-FASE 3.3) continuam lendo via `decryptOrPassthrough`.
+    const encryptedPassword = encrypt(input.certPassword);
     const existing = await this.getByCompanyId(input.companyId);
     if (existing) {
       const [updated] = await db
         .update(companyCertificates)
         .set({
           certBase64: input.certBase64,
-          certPassword: input.certPassword,
+          certPassword: encryptedPassword,
           updatedAt: new Date(),
         })
         .where(eq(companyCertificates.companyId, input.companyId))
@@ -53,7 +63,7 @@ export class CompanyCertificateRepository {
       .values({
         companyId: input.companyId,
         certBase64: input.certBase64,
-        certPassword: input.certPassword,
+        certPassword: encryptedPassword,
       })
       .returning();
     return created;
