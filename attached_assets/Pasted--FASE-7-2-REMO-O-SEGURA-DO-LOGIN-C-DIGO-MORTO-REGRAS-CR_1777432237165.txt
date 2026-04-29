@@ -1,0 +1,169 @@
+🎯 FASE 7.2 — REMOÇÃO SEGURA DO LOGIN (CÓDIGO MORTO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de login  
+2. NÃO alterar response HTTP  
+3. NÃO alterar status codes  
+4. NÃO alterar cookies/sessão  
+5. NÃO alterar antifraude  
+6. NÃO criar wrapper  
+7. NÃO refatorar nada além do necessário  
+8. NÃO continuar sem baseline  
+
+---
+
+🧠 CONTEXTO CRÍTICO (OBRIGATÓRIO ENTENDER)
+
+- O endpoint POST /api/auth/login já está sendo servido por:
+  → authController.login (módulo)
+
+- O handler inline em:
+  → server/routes/routes.ts
+
+👉 NÃO está sendo executado (código morto devido à ordem de registro)
+
+👉 O baseline atual já reflete o comportamento do controller
+
+---
+
+🎯 OBJETIVO
+
+Remover COMPLETAMENTE o handler inline morto de login  
+SEM alterar qualquer comportamento do sistema
+
+---
+
+# 📦 ETAPA 1 — IDENTIFICAR
+
+Localizar em:
+
+server/routes/routes.ts
+
+Bloco:
+
+app.post('/api/auth/login', ...)
+
+(aprox. linhas 1185–1339)
+
+---
+
+# 📦 ETAPA 2 — REMOVER (SEM SUBSTITUIR)
+
+❌ NÃO criar wrapper  
+❌ NÃO redirecionar  
+❌ NÃO duplicar chamada  
+
+👉 Apenas DELETAR o bloco inteiro
+
+---
+
+# 📦 ETAPA 3 — NÃO MEXER EM MAIS NADA
+
+❌ NÃO tocar em:
+
+- authController
+- auth.service
+- antifraude
+- sessão
+- qualquer outro endpoint
+
+---
+
+# 📦 ETAPA 4 — EXECUTAR BASELINE
+
+Usar:
+
+audit/baseline.json
+
+Rodar TODOS os cenários:
+
+---
+
+### 🔐 AUTH
+
+- login success  
+- invalid password  
+- user not found  
+- empty body  
+
+---
+
+### 🔁 SESSION
+
+- auth/me success  
+- auth/me no auth  
+- logout  
+
+---
+
+# 📊 ETAPA 5 — DIFF OBRIGATÓRIO
+
+Comparar:
+
+ANTES (baseline) vs DEPOIS
+
+Validar:
+
+✔ mesmas keys  
+✔ mesmos valores  
+✔ mesmos status  
+✔ mesmos headers  
+✔ mesmo cookie  
+✔ mesmo comportamento  
+
+---
+
+🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# 🔐 VALIDAÇÃO FINAL
+
+Confirmar:
+
+✔ login continua funcionando  
+✔ sessão criada corretamente  
+✔ antifraude ativo  
+✔ contador de tentativas funcionando  
+✔ nenhum vazamento de password  
+✔ logs intactos  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+- 2 implementações (1 ativa + 1 morta)
+
+Depois:
+- 1 implementação (controller)
+
+✔ comportamento idêntico  
+✔ zero regressão  
+✔ código mais seguro  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. confirmação de remoção do handler  
+2. cenários executados  
+3. diff (antes vs depois)  
+4. confirmação de equivalência total  
+5. confirmação de zero regressão  
+6. confirmação de segurança intacta  
+
+---
+
+🚀 EXECUTAR
