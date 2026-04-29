@@ -1,0 +1,194 @@
+🎯 HANDOFF — CONTEXTO COMPLETO + REGRAS ABSOLUTAS (NÃO QUEBRAR O SISTEMA)
+
+---
+
+🚨 LEIA ANTES DE QUALQUER AÇÃO
+
+Você está entrando em um sistema já em produção lógica, com múltiplas fases concluídas.
+
+👉 Seu papel NÃO é refatorar  
+👉 Seu papel NÃO é otimizar  
+👉 Seu papel NÃO é “melhorar código”  
+
+👉 Seu papel é: executar fases cirúrgicas com ZERO regressão
+
+---
+
+# 🧠 ESTADO ATUAL DO SISTEMA
+
+---
+
+## ✅ SEGURANÇA (FASE 6)
+
+✔ Multi-tenant protegido  
+✔ validateOrderTenant aplicado corretamente  
+✔ safeGetOrder ativo  
+✔ Nenhum vazamento de dados  
+
+---
+
+## ✅ AUTH (FASE 7.1 → 7.3)
+
+✔ password removido das respostas  
+✔ login centralizado no controller  
+✔ handlers inline removidos  
+✔ antifraude funcionando (tentativas / bloqueio)  
+✔ sessão intacta (cookie HttpOnly)
+
+---
+
+## ✅ LIMPEZA DE ROTAS (FASE 7.4)
+
+✔ 65 handlers inline removidos  
+✔ routes.ts limpo  
+✔ módulos são única fonte de rotas  
+✔ zero regressão confirmada via baseline  
+
+---
+
+## ✅ BASELINE (CRÍTICO)
+
+📁 Caminho oficial:
+
+audit/baseline.json
+
+👉 ESTE ARQUIVO É A VERDADE DO SISTEMA
+
+REGRAS:
+
+✔ SEMPRE usar baseline antes/depois  
+✔ NUNCA alterar sem comparar  
+✔ NUNCA regenerar sem autorização  
+
+---
+
+## ✅ FATURAMENTO (FASE 8.0 → 8.1)
+
+✔ Sistema já existia (engine, guard, cron, UI)  
+✔ NÃO estamos criando do zero  
+
+✔ Criado:
+
+server/modules/billing/billing.resolver.ts
+
+✔ Integrado em:
+
+billing.service.ts
+
+---
+
+## ⚠️ PROBLEMA ATUAL (CRÍTICO)
+
+Existe DUPLICAÇÃO:
+
+❌ nfe-input.builder.ts  
+- resolveDraftItems  
+- applyItemGrouping  
+- lógica própria  
+
+✅ billing.service.ts  
+- resolveBillingItems (fonte correta)
+
+👉 Isso gera inconsistência entre:
+
+- emissão manual  
+- emissão por cron  
+
+---
+
+# 🎯 PRÓXIMA FASE
+
+## FASE 8.1b — CONSOLIDAÇÃO
+
+Objetivo:
+
+👉 Fazer TODA NF usar:
+
+resolveBillingItems(orderId, draftId)
+
+---
+
+# 🚫 REGRAS ABSOLUTAS
+
+1. NÃO alterar XML  
+2. NÃO alterar campos fiscais  
+3. NÃO alterar estrutura de items  
+4. NÃO alterar endpoints  
+5. NÃO alterar comportamento  
+6. NÃO remover código antes de validar  
+7. NÃO seguir sem baseline  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR  
+❌ NÃO corrigir  
+❌ NÃO continuar  
+
+---
+
+# ⚠️ REGRA CRÍTICA DE SHAPE
+
+Antes de substituir:
+
+Comparar:
+
+- items do builder atual  
+- items do resolveBillingItems  
+
+Se diferente:
+
+❌ ABORTAR  
+❌ NÃO adaptar  
+
+---
+
+# 📦 O QUE VOCÊ DEVE FAZER
+
+1. Localizar uso atual no builder  
+2. Substituir por resolveBillingItems  
+3. Validar baseline  
+4. Testar cenários  
+5. Só depois considerar limpeza  
+
+---
+
+# 📊 O QUE VOCÊ NÃO DEVE FAZER
+
+❌ Não refatorar  
+❌ Não “melhorar” código  
+❌ Não mover arquivos  
+❌ Não mexer em cron  
+❌ Não mexer em engine  
+❌ Não mexer em flags  
+❌ Não criar nova lógica  
+
+---
+
+# 🔐 GARANTIA ESPERADA
+
+✔ ZERO regressão  
+✔ XML idêntico  
+✔ mesmos valores  
+✔ comportamento idêntico  
+
+---
+
+# ✅ FINAL ESPERADO
+
+Responder com:
+
+1. ponto exato alterado no builder  
+2. resultado do baseline  
+3. confirmação de XML idêntico  
+4. confirmação de zero regressão  
+5. confirmação de unificação  
+
+---
+
+🚀 SE NÃO TIVER CERTEZA → NÃO EXECUTAR
+
+---
