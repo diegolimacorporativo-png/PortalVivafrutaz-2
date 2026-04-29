@@ -1,0 +1,163 @@
+🎯 AJUSTE DE BASELINE PARA VERSIONAMENTO (GITHUB SAFE)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica do sistema  
+2. NÃO alterar endpoints  
+3. NÃO alterar respostas  
+4. NÃO regenerar baseline  
+5. NÃO modificar conteúdo do baseline  
+
+👉 Apenas mover e organizar para versionamento seguro
+
+---
+
+🧠 CONTEXTO
+
+Baseline atual existe em:
+
+.local/audit/baseline.json
+
+Problema:
+
+- pasta .local/ é ignorada pelo Git
+- baseline não está sendo versionado
+- novos agents não conseguem validar regressão
+
+---
+
+🎯 OBJETIVO
+
+Tornar o baseline persistente no repositório Git:
+
+✔ acessível por qualquer agent  
+✔ fora de .local  
+✔ sem risco de vazar dados sensíveis  
+✔ mantendo integridade total  
+
+---
+
+# 📦 TAREFAS
+
+---
+
+## 1️⃣ CRIAR NOVA PASTA VERSIONADA
+
+Criar:
+
+audit/
+
+---
+
+## 2️⃣ MOVER BASELINE
+
+Mover arquivo:
+
+.local/audit/baseline.json
+
+→ para:
+
+audit/baseline.json
+
+---
+
+## 3️⃣ VALIDAR INTEGRIDADE
+
+Confirmar:
+
+✔ arquivo NÃO foi alterado  
+✔ tamanho permanece igual  
+✔ conteúdo idêntico (byte a byte)  
+
+---
+
+## 4️⃣ GARANTIR SEGURANÇA
+
+Verificar no arquivo:
+
+❌ NÃO contém:
+- password  
+- certBase64  
+- certPassword  
+- tokens  
+- cookies  
+
+✔ Se encontrar → PARAR e reportar  
+
+---
+
+## 5️⃣ AJUSTAR REFERÊNCIA NO PROJETO
+
+Onde houver uso de baseline (scripts/prompts):
+
+Substituir:
+
+.local/audit/baseline.json
+
+→
+
+audit/baseline.json
+
+---
+
+## 6️⃣ NÃO MEXER NO .gitignore (POR ENQUANTO)
+
+👉 Não remover .local/ do ignore  
+👉 Não adicionar regras novas  
+
+---
+
+## 7️⃣ PREPARAR PARA COMMIT
+
+Executar:
+
+git add audit/baseline.json
+
+---
+
+# 🧪 VALIDAÇÃO FINAL
+
+Confirmar:
+
+✔ baseline acessível no novo caminho  
+✔ nenhum erro no projeto  
+✔ nenhum arquivo inesperado incluído  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ baseline perdido entre agents  
+
+Depois:
+
+✔ baseline persistente no Git  
+✔ pronto para diff em fases futuras  
+✔ base sólida para FASE 7.2  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. caminho antigo vs novo  
+2. confirmação de integridade (igualdade)  
+3. verificação de segurança  
+4. status pronto para commit  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO criar novo baseline  
+👉 NÃO alterar conteúdo  
+👉 NÃO otimizar nada  
+
+👉 apenas mover com segurança
+
+--

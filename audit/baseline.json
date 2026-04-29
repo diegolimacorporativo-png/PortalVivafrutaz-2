@@ -1,0 +1,369 @@
+{
+  "generatedAt": "2026-04-29T02:50:37.030Z",
+  "scenarios": [
+    {
+      "scenario": "auth.login.success.admin",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status": 200,
+      "response": {
+        "user": {
+          "id": 2,
+          "empresaId": null,
+          "name": "Master VivaFrutaz",
+          "email": "master@vivafrutaz.com",
+          "role": "MASTER",
+          "active": true,
+          "tabPermissions": null,
+          "testMode": false,
+          "permissions": null,
+          "loginAttempts": 0,
+          "isLocked": false,
+          "lastLoginAttempt": "2026-04-29T02:50:37.130Z"
+        }
+      },
+      "keys": [
+        "user"
+      ],
+      "responseTimeMs": 113
+    },
+    {
+      "scenario": "auth.login.invalid_password",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status": 401,
+      "response": {
+        "message": "Usuário ou senha incorretos. (1/3 tentativas)"
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 104
+    },
+    {
+      "scenario": "auth.login.user_not_found",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status": 401,
+      "response": {
+        "message": "Usuário ou senha incorretos."
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 10
+    },
+    {
+      "scenario": "auth.login.empty_body",
+      "endpoint": "/api/auth/login",
+      "method": "POST",
+      "status": 400,
+      "response": {
+        "message": "Usuário ou senha incorretos."
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 10
+    },
+    {
+      "scenario": "auth.me.success",
+      "endpoint": "/api/auth/me",
+      "method": "GET",
+      "status": 200,
+      "response": {
+        "user": {
+          "id": 2,
+          "empresaId": null,
+          "name": "Master VivaFrutaz",
+          "email": "master@vivafrutaz.com",
+          "role": "MASTER",
+          "active": true,
+          "tabPermissions": null,
+          "testMode": false,
+          "permissions": null,
+          "loginAttempts": 1,
+          "isLocked": false,
+          "lastLoginAttempt": "2026-04-29T02:50:37.239Z"
+        }
+      },
+      "keys": [
+        "user"
+      ],
+      "responseTimeMs": 7
+    },
+    {
+      "scenario": "auth.me.no_auth",
+      "endpoint": "/api/auth/me",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "message": "Not authenticated"
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 4
+    },
+    {
+      "scenario": "orders.get.no_auth",
+      "endpoint": "/api/orders/999999",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "success": false,
+        "error": {
+          "message": "Não autenticado",
+          "code": "UNAUTHORIZED"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 11
+    },
+    {
+      "scenario": "orders.get.not_found",
+      "endpoint": "/api/orders/999999",
+      "method": "GET",
+      "status": 403,
+      "response": {
+        "success": false,
+        "error": {
+          "message": "Operação requer um tenant alvo. Admins devem informar ?empresaId=N",
+          "code": "FORBIDDEN"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 10
+    },
+    {
+      "scenario": "orders.danfe_logs.no_auth",
+      "endpoint": "/api/orders/999999/danfe-logs",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "success": false,
+        "error": {
+          "message": "Não autenticado",
+          "code": "UNAUTHORIZED"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "orders.danfe_logs.not_found",
+      "endpoint": "/api/orders/999999/danfe-logs",
+      "method": "GET",
+      "status": 403,
+      "response": {
+        "success": false,
+        "error": {
+          "message": "Operação requer um tenant alvo. Admins devem informar ?empresaId=N",
+          "code": "FORBIDDEN"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 9
+    },
+    {
+      "scenario": "nfe.historico.no_auth",
+      "endpoint": "/api/nfe/999999/historico",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "error": "Não autenticado"
+      },
+      "keys": [
+        "error"
+      ],
+      "responseTimeMs": 4
+    },
+    {
+      "scenario": "nfe.historico.not_found",
+      "endpoint": "/api/nfe/999999/historico",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "error": "Não autenticado"
+      },
+      "keys": [
+        "error"
+      ],
+      "responseTimeMs": 5
+    },
+    {
+      "scenario": "nfe.preflight.no_auth",
+      "endpoint": "/api/nfe/preflight/999999",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "message": "Não autenticado"
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "nfe.preflight.not_found",
+      "endpoint": "/api/nfe/preflight/999999",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "message": "Tenant context ausente — esta operação exige autenticação tenant-scoped"
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "admin.security.tenant_mismatch.no_auth",
+      "endpoint": "/api/admin/security/tenant-mismatch-events",
+      "method": "GET",
+      "status": 401,
+      "response": {
+        "success": false,
+        "error": {
+          "message": "Não autenticado",
+          "code": "UNAUTHORIZED"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "admin.security.tenant_mismatch.success",
+      "endpoint": "/api/admin/security/tenant-mismatch-events",
+      "method": "GET",
+      "status": 200,
+      "response": {
+        "success": true,
+        "data": {
+          "total": 0,
+          "byOrder": {},
+          "byUser": {},
+          "byPath": {},
+          "topUsers": [],
+          "topPaths": [],
+          "suspiciousUsers": [],
+          "windowDays": 7
+        }
+      },
+      "keys": [
+        "success",
+        "data"
+      ],
+      "responseTimeMs": 23
+    },
+    {
+      "scenario": "admin.security.unblock.no_auth",
+      "endpoint": "/api/admin/security/unblock",
+      "method": "POST",
+      "status": 401,
+      "response": {
+        "success": false,
+        "error": {
+          "message": "Não autenticado",
+          "code": "UNAUTHORIZED"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "admin.security.unblock.success",
+      "endpoint": "/api/admin/security/unblock",
+      "method": "POST",
+      "status": 400,
+      "response": {
+        "success": false,
+        "error": {
+          "code": "EMAIL_REQUIRED",
+          "message": "Email é obrigatório"
+        }
+      },
+      "keys": [
+        "success",
+        "error"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "auth.logout.success",
+      "endpoint": "/api/auth/logout",
+      "method": "POST",
+      "status": 200,
+      "response": {
+        "message": "Logged out successfully"
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 3
+    },
+    {
+      "scenario": "auth.logout.no_auth",
+      "endpoint": "/api/auth/logout",
+      "method": "POST",
+      "status": 200,
+      "response": {
+        "message": "Logged out successfully"
+      },
+      "keys": [
+        "message"
+      ],
+      "responseTimeMs": 6
+    }
+  ],
+  "notes": {
+    "description": "Baseline regenerado em FASE 7.0a — substitui qualquer baseline anterior.",
+    "source": "captured against running dev server (localhost:5000) post-FASE-7.1",
+    "credentialsUsed": {
+      "email": "master@vivafrutaz.com",
+      "type": "admin"
+    },
+    "scenariosNotCaptured": [
+      {
+        "reason": "no second-tenant user/order is seeded in the dev DB; cross-tenant 403 cannot be reproduced without seeding a second tenant",
+        "affectedScenarios": [
+          "orders.get.cross_tenant",
+          "orders.danfe_logs.cross_tenant",
+          "nfe.historico.cross_tenant",
+          "nfe.preflight.cross_tenant"
+        ]
+      },
+      {
+        "reason": "no orders exist in the dev DB; success-path responses for /api/orders/:id, /danfe-logs, /nfe/:id/historico, /nfe/preflight/:id cannot be captured. 'not_found' captures the current observed behaviour (the system returns 403 with security-by-obscurity for non-existent orders, and 401 for nfe routes that gate on subscription before tenant check).",
+        "affectedScenarios": [
+          "orders.get.success",
+          "orders.danfe_logs.success",
+          "nfe.historico.success",
+          "nfe.preflight.success"
+        ]
+      }
+    ],
+    "securityChecks": {
+      "passwordFieldLeakDetected": false,
+      "sessionCookiePresentOnLogin": true
+    }
+  }
+}
