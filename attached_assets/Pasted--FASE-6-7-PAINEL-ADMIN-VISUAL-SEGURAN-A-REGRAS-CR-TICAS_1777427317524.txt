@@ -1,0 +1,123 @@
+🎯 FASE 6.7 — PAINEL ADMIN VISUAL (SEGURANÇA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend  
+2. NÃO alterar endpoints  
+3. NÃO alterar lógica de segurança  
+4. Apenas criar UI  
+5. Somente leitura  
+
+---
+
+🧠 OBJETIVO
+
+Criar uma tela admin para visualizar:
+
+👉 ataques  
+👉 usuários suspeitos  
+👉 endpoints mais acessados  
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR PÁGINA
+
+📍 frontend/src/pages/admin/SecurityAudit.tsx
+
+---
+
+## 🛠️ ETAPA 2 — FETCH DOS DADOS
+
+tsx id="fetch" useEffect(() => {   fetch("/api/admin/security/tenant-mismatch-events")     .then(res => res.json())     .then(data => setData(data.data)); }, []); 
+
+---
+
+## 🛠️ ETAPA 3 — CARDS DE RESUMO
+
+Mostrar:
+
+- Total de tentativas
+- Usuários suspeitos
+- Janela (dias)
+
+---
+
+## 🛠️ ETAPA 4 — TABELA TOP USERS
+
+tsx id="top_users" data.topUsers.map(([email, count]) => (   <tr key={email}>     <td>{email}</td>     <td>{count}</td>     <td>       {data.suspiciousUsers.some(u => u.email === email)         ? "🔴 BLOQUEADO"         : "🟢 OK"}     </td>   </tr> )); 
+
+---
+
+## 🛠️ ETAPA 5 — TABELA ENDPOINTS
+
+tsx id="paths" Object.entries(data.byPath).map(([path, count]) => (   <tr key={path}>     <td>{path}</td>     <td>{count}</td>   </tr> )); 
+
+---
+
+## 🛠️ ETAPA 6 — (OPCIONAL) GRÁFICO
+
+Usar Chart.js:
+
+- tentativas por usuário
+- tentativas por endpoint
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Abrir página admin
+
+👉 deve carregar dados reais
+
+---
+
+### 2️⃣ Verificar:
+
+✔ total correto  
+✔ usuários listados  
+✔ bloqueados destacados  
+✔ endpoints aparecendo  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhuma lógica alterada  
+✔ Apenas leitura  
+✔ Sem impacto no backend  
+✔ Seguro  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ Tudo escondido em logs  
+
+Agora:
+✔ Visão completa  
+✔ Controle manual futuro  
+✔ Interface profissional  
+
+---
+
+## 🚀 PRÓXIMA FASE
+
+👉 Botão de desbloqueio manual  
+👉 Bloqueio persistente  
+👉 Alertas por email  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. tela criada  
+2. dados renderizados  
+3. bloqueados destacados  
+4. confirmação de zero regressã

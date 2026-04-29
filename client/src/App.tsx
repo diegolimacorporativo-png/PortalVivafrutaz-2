@@ -43,6 +43,7 @@ import AdminMasterControl from "@/pages/admin/master-control";
 import AdminSupportConfig from "@/pages/admin/support-config";
 import AdminAnnouncements from "@/pages/admin/announcements";
 import AdminSystemHealth from "@/pages/admin/system-health";
+import AdminSecurityAudit from "@/pages/admin/security-audit";
 
 import AdminTasks from "@/pages/admin/tasks";
 import AdminClientIncidents from "@/pages/admin/client-incidents";
@@ -287,6 +288,9 @@ function Router() {
       </Route>
       <Route path="/admin/system-health">
         {() => <ProtectedRoute component={AdminSystemHealth} role="admin" allowedRoles={['ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="system-health" />}
+      </Route>
+      <Route path="/admin/security-audit">
+        {() => <ProtectedRoute component={AdminSecurityAudit} role="admin" allowedRoles={['MASTER']} tabKey="security-audit" />}
       </Route>
       <Route path="/admin/developer">
         {() => <ProtectedRoute component={AdminDeveloper} role="admin" allowedRoles={['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER']} tabKey="developer" />}
