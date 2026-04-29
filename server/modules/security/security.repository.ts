@@ -18,6 +18,8 @@
 import { db } from "../../database/db";
 import { tenantMismatchEvents } from "@shared/schema";
 import { sql } from "drizzle-orm";
+// FASE 6.5 — bloqueio temporário em memória (safe-mode, sem banco).
+import { blockUser } from "./security.blocker";
 
 export interface LogTenantMismatchInput {
   tenantId?: number | null;
@@ -140,6 +142,13 @@ export async function getTenantMismatchEvents(days: number): Promise<{
     const suspiciousUsers = Object.entries(byUser)
       .filter(([, count]) => count >= ABUSE_THRESHOLD)
       .map(([email, count]) => ({ email, count }));
+
+    // FASE 6.5 — aciona o bloqueio temporário (in-memory) para cada
+    // usuário suspeito. Ignora a chave "unknown" (não há email real para
+    // bloquear) e qualquer string vazia, evitando falsos positivos.
+    for (const { email } of suspiciousUsers) {
+      if (email && email !== "unknown") blockUser(email);
+    }
 
     return {
       total,

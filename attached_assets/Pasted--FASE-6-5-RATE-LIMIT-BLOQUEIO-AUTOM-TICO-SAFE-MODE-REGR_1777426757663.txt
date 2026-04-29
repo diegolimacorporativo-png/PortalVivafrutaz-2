@@ -1,0 +1,121 @@
+🎯 FASE 6.5 — RATE LIMIT / BLOQUEIO AUTOMÁTICO (SAFE MODE)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar validateOrderTenant  
+2. NÃO alterar lógica existente  
+3. NÃO bloquear usuários válidos  
+4. NÃO usar banco ainda  
+5. Apenas ADD de proteção  
+
+---
+
+🧠 OBJETIVO
+
+Quando usuário ultrapassar o threshold:
+
+👉 bloquear temporariamente  
+👉 impedir flood de tentativas  
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR BLOQUEIO EM MEMÓRIA
+
+📍 Criar arquivo:
+server/modules/security/security.blocker.ts
+
+ts id="blocker" const blockedUsers = new Map<string, number>();  const BLOCK_TIME_MS = 5 * 60 * 1000; // 5 minutos  export function isUserBlocked(email?: string) {   if (!email) return false;    const blockedUntil = blockedUsers.get(email);   if (!blockedUntil) return false;    if (Date.now() > blockedUntil) {     blockedUsers.delete(email);     return false;   }    return true; }  export function blockUser(email: string) {   blockedUsers.set(email, Date.now() + BLOCK_TIME_MS); } 
+
+---
+
+## 🛠️ ETAPA 2 — BLOQUEAR AO DETECTAR ABUSO
+
+📍 No repository (FASE 6.4)
+
+Após detectar suspiciousUsers:
+
+ts id="apply_block" import { blockUser } from "./security.blocker";  suspiciousUsers.forEach(user => {   blockUser(user.email); }); 
+
+---
+
+## 🛠️ ETAPA 3 — INTERCEPTAR REQUISIÇÕES
+
+📍 Arquivo:
+server/core/security/tenantGuard.ts
+
+No início do validateOrderTenant:
+
+ts id="check_block" import { isUserBlocked } from "@/modules/security/security.blocker";  if (isUserBlocked((actor as any)?.email)) {   throw new ForbiddenError("Too many invalid access attempts"); } 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Cenário
+
+userA faz 6 tentativas inválidas
+
+---
+
+### 2️⃣ Resultado
+
+✔ entra em suspiciousUsers  
+✔ é bloqueado  
+
+---
+
+### 3️⃣ Nova tentativa
+
+👉 deve retornar:
+
+json id="blocked" {   "message": "Too many invalid access attempts" } 
+
+---
+
+### 4️⃣ Após 5 minutos
+
+✔ desbloqueado automaticamente  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Não afeta usuários normais  
+✔ Não altera fluxo existente  
+✔ Sem banco  
+✔ Sem regressão  
+✔ Bloqueio temporário  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ sistema só detecta
+
+Depois:
+✔ sistema reage automaticamente  
+✔ bloqueia ataque  
+✔ reduz carga  
+✔ aumenta segurança  
+
+---
+
+## 🚀 PRÓXIMA FASE
+
+👉 FASE 6.6 — alertas inteligentes (email/webhook)
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. bloqueio funcionando  
+2. usuário bloqueado após threshold  
+3. desbloqueio automático validado  
+4. confirmação de zero regress

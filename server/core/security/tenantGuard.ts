@@ -38,6 +38,12 @@ import {
 } from "../../shared/errors/AppError";
 // FASE 6.2 — persistência de eventos (fail-open, não bloqueia o throw).
 import { logTenantMismatchEvent } from "../../modules/security/security.repository";
+// FASE 6.5 — bloqueio temporário (in-memory) para abusadores detectados.
+import {
+  isUserBlocked,
+  blockedCount,
+} from "../../modules/security/security.blocker";
+import { getTenantContext } from "../tenant/context";
 
 // ── Tipos auxiliares ─────────────────────────────────────────────────────────
 
@@ -111,6 +117,29 @@ function logSecurityMismatch(params: {
  */
 export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
   const tenantId = requireTenantId();
+
+  // FASE 6.5 — bloqueio temporário in-memory. Early-exit: se o blocker
+  // estiver vazio (caso comum), nem fazemos lookup do usuário — zero
+  // overhead em operação normal. Só fazemos a leitura quando há ao
+  // menos 1 email bloqueado e conseguimos derivar o email do principal.
+  if (blockedCount() > 0) {
+    const ctx = getTenantContext();
+    const userId = ctx?.principal?.userId;
+    if (typeof userId === "number" && userId > 0) {
+      try {
+        const user = (await storage.getUser(userId)) as
+          | { email?: string | null }
+          | undefined;
+        if (user?.email && isUserBlocked(user.email)) {
+          throw new ForbiddenError("Too many invalid access attempts");
+        }
+      } catch (err) {
+        // Se o erro veio do nosso próprio throw (ForbiddenError), repropaga.
+        if (err instanceof ForbiddenError) throw err;
+        // Falha no lookup do usuário NÃO deve quebrar fluxo normal.
+      }
+    }
+  }
 
   if (!Number.isInteger(orderId) || orderId <= 0) {
     throw new NotFoundError(`Pedido inválido: ${orderId}`);
