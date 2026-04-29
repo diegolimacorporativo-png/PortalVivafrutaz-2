@@ -1,0 +1,219 @@
+🎯 FASE 8.1 — PADRONIZAÇÃO DO MODELO DE FATURAMENTO (ZERO REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar comportamento atual  
+3. NÃO alterar engine (getFaturamentoContext)  
+4. NÃO alterar cron  
+5. NÃO alterar geração de XML  
+6. NÃO remover campos existentes  
+7. NÃO mudar retorno de endpoints  
+
+👉 Apenas ORGANIZAR a origem da decisão de faturamento
+
+---
+
+🧠 CONTEXTO
+
+Hoje existem múltiplas fontes de verdade:
+
+- companies.billingType (livre)
+- companies.billingModel (enum real)
+- nfDraft.billingType
+- nfDraft.useGroupedItems
+
+👉 Isso gera ambiguidade
+
+---
+
+🎯 OBJETIVO
+
+Criar UMA FONTE DE VERDADE CONTROLADA, sem quebrar nada:
+
+👉 decisão passa a vir da EMPRESA  
+👉 draft continua funcionando como hoje  
+
+---
+
+# 📦 ETAPA 1 — CRIAR RESOLVER CENTRAL
+
+📍 Arquivo novo:
+
+server/modules/billing/billing.resolver.ts
+
+---
+
+Criar função:
+
+ts export function resolveCompanyBillingConfig(company: any) {   return {     billingModel: company.billingModel ?? "STANDARD",     useGroupedItemsDefault: company.billingModel === "CONTRACT_AVERAGE"   }; } 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO usar banco diretamente
+- NÃO alterar dados
+- apenas leitura
+
+---
+
+# 📦 ETAPA 2 — INTEGRAR SEM QUEBRAR
+
+📍 Arquivo:
+
+server/modules/billing/billing.service.ts
+
+---
+
+Localizar:
+
+resolveBillingItems(...)
+
+---
+
+ANTES de qualquer lógica:
+
+ts const config = resolveCompanyBillingConfig(company); 
+
+---
+
+⚠️ NÃO alterar fluxo existente
+
+👉 apenas disponibilizar config
+
+---
+
+# 📦 ETAPA 3 — FALLBACK CONTROLADO
+
+Onde hoje existe:
+
+ts if (draft.useGroupedItems) 
+
+---
+
+Substituir por:
+
+ts const shouldGroup =   draft?.useGroupedItems ??   config.useGroupedItemsDefault; 
+
+---
+
+⚠️ IMPORTANTE
+
+- draft continua tendo prioridade
+- comportamento atual preservado
+
+---
+
+# 📦 ETAPA 4 — NÃO MEXER EM MAIS NADA
+
+❌ NÃO alterar:
+
+- getFaturamentoContext
+- canEmitNFe
+- cron
+- endpoints
+- nfe builder
+- schema
+
+---
+
+# 🧪 ETAPA 5 — VALIDAÇÃO
+
+Rodar:
+
+audit/baseline.json
+
+---
+
+Validar:
+
+✔ ZERO diferença  
+✔ mesmos responses  
+✔ mesmos status  
+✔ mesmos itens na NF  
+
+---
+
+# 📊 ETAPA 6 — TESTE FUNCIONAL
+
+Testar manualmente:
+
+---
+
+### 1️⃣ Empresa STANDARD
+
+Esperado:
+
+✔ itens normais (sem agrupamento)
+
+---
+
+### 2️⃣ Empresa CONTRACT_AVERAGE
+
+SEM draft:
+
+✔ sistema pode agrupar automaticamente
+
+COM draft:
+
+✔ draft continua mandando
+
+---
+
+# 🔐 GARANTIAS
+
+✔ comportamento atual preservado  
+✔ nenhuma regressão  
+✔ base pronta para evolução  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ múltiplas decisões espalhadas
+
+Depois:
+
+✔ decisão centralizada (empresa)  
+✔ draft continua funcionando  
+✔ sistema previsível  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença no baseline:
+
+❌ PARAR  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado  
+2. Pontos integrados  
+3. Resultado do baseline  
+4. Confirmação de zero regressão  
+
+---
+
+🚀 EXEC
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO ativar AUTO_FATURAMENTO  
+👉 NÃO ligar STRICT_MODE  
+👉 NÃO alterar banco  
+
+👉 isso vem na FA

@@ -37,6 +37,11 @@ import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../database/db";
 import { nfDrafts } from "@shared/schema";
 import { storage } from "../../services/storage";
+// FASE 8.1 — fonte única para o default de agrupamento da empresa.
+// O resolver não toca banco; recebe o `company` já carregado e devolve
+// `{ billingModel, useGroupedItemsDefault }`. Aqui é usado APENAS como
+// FALLBACK do draft (draft mantém prioridade absoluta).
+import { resolveCompanyBillingConfig } from "./billing.resolver";
 
 // ── Tipos públicos ──────────────────────────────────────────────────────────
 
@@ -194,6 +199,13 @@ export async function resolveBillingItems(
   );
   if (!company) throw new Error("Cliente não encontrado");
 
+  // FASE 8.1 — config de faturamento da empresa, lida ANTES de qualquer
+  // decisão de origem/agrupamento. Não substitui o draft: serve apenas
+  // como FALLBACK quando o draft for ausente. Para empresas STANDARD
+  // (incluindo billingModel undefined/null), `useGroupedItemsDefault`
+  // resolve para `false` — exatamente o comportamento legado.
+  const billingConfig = resolveCompanyBillingConfig(company);
+
   // Mesma resolução de defaultCfop que o builder usa (linha 230–231).
   const defaultCfop =
     (company as any).defaultCfop || (config as any).defaultCfop || "5102";
@@ -204,22 +216,38 @@ export async function resolveBillingItems(
     company,
   });
 
-  // Caminho legado: sem draft → usa order_items diretamente, sem agrupamento.
+  // FASE 8.1 — decisão única de agrupamento.
+  //   • Draft presente com `useGroupedItems` (true OU false) → DRAFT MANDA.
+  //     `??` só faz fallback em null/undefined, então `false` do draft é
+  //     respeitado integralmente.
+  //   • Sem draft (`resolved === null`) → cai no default da empresa
+  //     (`useGroupedItemsDefault`). Para STANDARD/CONTRACT_OPEN isso é
+  //     `false` → comportamento idêntico ao legado. Para CONTRACT_AVERAGE
+  //     passa a ser `true` automaticamente — expansão controlada de Fase 8.1.
+  const shouldGroup =
+    resolved?.useGroupedItems ?? billingConfig.useGroupedItemsDefault;
+
+  // Caminho legado: sem draft → usa order_items diretamente. Aplica
+  // agrupamento somente se o default da empresa pedir (CONTRACT_AVERAGE).
   if (resolved === null) {
+    const sourceItems = (orderData as any).items as any[];
+    const items = shouldGroup
+      ? applyItemGroupingInternal(sourceItems, "08039000", defaultCfop, "KG")
+      : sourceItems;
     return {
-      items: (orderData as any).items as any[],
-      useGroupedItems: false,
+      items,
+      useGroupedItems: shouldGroup,
     };
   }
 
-  // Caminho draft: aplica agrupamento se a flag estiver ligada (mesma
-  // condição e mesmos fallbacks do builder atual).
-  const items = resolved.useGroupedItems
+  // Caminho draft: aplica agrupamento conforme decisão acima (mesmos
+  // fallbacks do builder atual: NCM 08039000, CFOP defaultCfop, KG).
+  const items = shouldGroup
     ? applyItemGroupingInternal(resolved.items, "08039000", defaultCfop, "KG")
     : resolved.items;
 
   return {
     items,
-    useGroupedItems: resolved.useGroupedItems,
+    useGroupedItems: shouldGroup,
   };
 }
