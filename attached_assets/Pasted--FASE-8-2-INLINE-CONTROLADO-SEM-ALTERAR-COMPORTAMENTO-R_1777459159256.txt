@@ -1,0 +1,241 @@
+🎯 FASE 8.2 — INLINE CONTROLADO (SEM ALTERAR COMPORTAMENTO)
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+1. NÃO alterar comportamento
+2. NÃO alterar retorno
+3. NÃO alterar estrutura dos items
+4. NÃO alterar ordem de execução
+5. NÃO otimizar código
+6. NÃO renomear variáveis críticas
+7. NÃO reorganizar blocos
+8. NÃO remover código antes de validar
+9. NÃO sair do arquivo billing.service.ts
+10. Se houver dúvida → ❌ ABORTAR
+
+👉 Isso NÃO é refatoração  
+👉 Isso é SUBSTITUIÇÃO MECÂNICA CONTROLADA
+
+---
+
+🧠 CONTEXTO
+
+Hoje existe:
+
+- resolveBillingItems (função principal)
+- resolveDraftItemsInternal ❌ (helper)
+- applyItemGroupingInternal ❌ (helper)
+
+👉 Esses helpers são chamados internamente
+
+OBJETIVO:
+
+👉 Eliminar os helpers  
+👉 Tornar resolveBillingItems AUTOCONTIDA  
+👉 SEM alterar absolutamente nada no resultado
+
+---
+
+# 📦 ETAPA 1 — LOCALIZAR
+
+Arquivo:
+
+server/modules/billing/billing.service.ts
+
+---
+
+Localizar:
+
+1. função resolveBillingItems
+2. função resolveDraftItemsInternal
+3. função applyItemGroupingInternal
+
+---
+
+# 📦 ETAPA 2 — EXTRAIR CÓDIGO
+
+👉 Copiar EXACTAMENTE:
+
+- corpo completo de resolveDraftItemsInternal
+- corpo completo de applyItemGroupingInternal
+
+⚠️ NÃO modificar nada  
+⚠️ NÃO simplificar  
+⚠️ NÃO reorganizar  
+
+---
+
+# 📦 ETAPA 3 — INLINE CONTROLADO
+
+Dentro de resolveBillingItems:
+
+---
+
+### CASO 1 — onde existe:
+
+ts const resolved = await resolveDraftItemsInternal(...) 
+
+---
+
+SUBSTITUIR por:
+
+👉 o conteúdo INTERNO da função resolveDraftItemsInternal  
+👉 mantendo variáveis e fluxo iguais  
+
+⚠️ manter await se existir  
+⚠️ manter nomes de variáveis  
+
+---
+
+### CASO 2 — onde existe:
+
+ts applyItemGroupingInternal(...) 
+
+---
+
+SUBSTITUIR por:
+
+👉 o conteúdo INTERNO da função applyItemGroupingInternal  
+
+⚠️ manter mesma ordem  
+⚠️ manter mesmas condições  
+
+---
+
+# 🚨 REGRA CRÍTICA DE EXECUÇÃO
+
+👉 NÃO mudar isso:
+
+- ordem do IF (resolved vs null)
+- momento do agrupamento
+- fallback de items
+- defaults implícitos
+
+Se mudar qualquer ordem → ❌ QUEBRA SISTEMA
+
+---
+
+# 📦 ETAPA 4 — VALIDAÇÃO ANTES DE REMOVER
+
+Após inline:
+
+✔ código compila  
+✔ resolveBillingItems continua chamando mesmas variáveis  
+✔ nenhuma referência restante aos helpers  
+
+---
+
+# 📦 ETAPA 5 — REMOÇÃO SEGURA
+
+👉 Somente se:
+
+- NÃO houver mais chamadas
+
+REMOVER:
+
+- resolveDraftItemsInternal
+- applyItemGroupingInternal
+
+---
+
+# 🧪 ETAPA 6 — VALIDAÇÃO OBRIGATÓRIA
+
+Rodar:
+
+audit/baseline.json
+
+---
+
+Validar:
+
+✔ 100% igual  
+✔ mesmos status HTTP  
+✔ mesmos bodies  
+✔ zero diff  
+
+---
+
+# 🧪 ETAPA 7 — TESTE FUNCIONAL MÍNIMO
+
+Testar manualmente:
+
+---
+
+1️⃣ Pedido sem draft  
+✔ itens iguais  
+
+2️⃣ Pedido com draft  
+✔ itens iguais  
+
+3️⃣ Agrupamento ativo  
+✔ continua agrupando  
+
+4️⃣ Caminho legado (resolved === null)  
+✔ continua funcionando  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR IMEDIATAMENTE  
+❌ NÃO ajustar  
+❌ NÃO tentar corrigir  
+
+👉 reportar divergência
+
+---
+
+# 🔒 GARANTIAS
+
+✔ resolveBillingItems continua idêntica em comportamento  
+✔ apenas remove indireção  
+✔ nenhuma mudança fiscal  
+✔ nenhuma mudança de XML  
+✔ nenhuma mudança de dados  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+ANTES:
+
+❌ resolveBillingItems depende de helpers  
+
+DEPOIS:
+
+✔ resolveBillingItems autocontida  
+✔ helpers removidos  
+✔ comportamento idêntico  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. trecho substituído
+2. confirmação de inline correto
+3. resultado do baseline
+4. confirmação de zero regressão
+5. confirmação de remoção dos helpers
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO mexer em:
+- nfe-input.builder
+- cron
+- schema
+- flags
+- frontend
+
+👉 isso NÃO faz parte da fase
+
+---
+
+🚀 EXECUTAR COM E

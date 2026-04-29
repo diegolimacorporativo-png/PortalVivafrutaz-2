@@ -55,108 +55,6 @@ export interface ResolvedBillingItems {
   useGroupedItems: boolean;
 }
 
-// ── Helpers internos (cópias fiéis do builder) ──────────────────────────────
-
-/**
- * Cópia idêntica de `resolveDraftItems` (server/modules/nfe/nfe-input.builder.ts:83).
- * Mesma assinatura, mesmas mensagens de erro, mesmo comportamento de fallback.
- *
- * Prioridade:
- *   1. `draftId` explícito → lê esse draft (PRIORIDADE TOTAL).
- *   2. `company.useFiscalDraft = true` → busca o draft mais recente do pedido.
- *   3. Caso nenhum draft seja resolvido → retorna `null`.
- */
-async function resolveDraftItemsInternal(args: {
-  orderId: number;
-  draftId?: number;
-  company: any;
-}): Promise<{ items: any[]; useGroupedItems: boolean } | null> {
-  const { orderId, draftId, company } = args;
-
-  if (draftId) {
-    if (!Number.isInteger(draftId) || draftId <= 0) {
-      throw new Error(`draftId inválido: ${draftId}`);
-    }
-    const [row] = await db
-      .select()
-      .from(nfDrafts)
-      .where(eq(nfDrafts.id, draftId));
-    if (!row) throw new Error(`Rascunho de NF #${draftId} não encontrado`);
-    if (row.orderId !== orderId) {
-      throw new Error(
-        `Rascunho #${draftId} não pertence ao pedido #${orderId}`,
-      );
-    }
-    return {
-      items: Array.isArray(row.items) ? (row.items as any[]) : [],
-      useGroupedItems: row.useGroupedItems === true,
-    };
-  }
-
-  if (company?.useFiscalDraft === true) {
-    try {
-      const [latest] = await db
-        .select()
-        .from(nfDrafts)
-        .where(eq(nfDrafts.orderId, orderId))
-        .orderBy(desc(nfDrafts.createdAt))
-        .limit(1);
-      if (latest && Array.isArray(latest.items)) {
-        return {
-          items: latest.items as any[],
-          useGroupedItems: latest.useGroupedItems === true,
-        };
-      }
-    } catch {
-      // sem draft: cai no fluxo legado
-    }
-  }
-
-  return null;
-}
-
-/**
- * Cópia idêntica de `applyItemGrouping` (server/modules/nfe/nfe-input.builder.ts:138).
- * Quando `useGroupedItems = true`, todos os produtos viram 1 única linha
- * "Frutas in natura" com qCom=1 e vUnCom=vProd=soma.
- */
-function applyItemGroupingInternal(
-  items: any[],
-  fallbackNcm: string,
-  fallbackCfop: string,
-  fallbackUnit: string,
-): any[] {
-  if (!items.length) return items;
-  const total = items.reduce((acc, it) => {
-    const v =
-      it.totalPrice != null
-        ? Number(it.totalPrice)
-        : Number(it.quantity || 0) * Number(it.unitPrice || 0);
-    return acc + (Number.isFinite(v) ? v : 0);
-  }, 0);
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  const vTotal = round2(total);
-  const first = items[0] || {};
-  return [
-    {
-      productId: null,
-      description: "Frutas in natura",
-      quantity: 1,
-      unit: first.unit || fallbackUnit,
-      unitPrice: vTotal,
-      totalPrice: vTotal,
-      ncm: first.ncm || fallbackNcm,
-      cfop: first.cfop || fallbackCfop,
-      cst: (first as any).cst || '00',
-      // FASE NF.7.8 — preserva flag de importado através do agrupamento.
-      // Critério: se QUALQUER item agrupado for importado, o item consolidado
-      // herda true (lado seguro fiscalmente — evita esconder importação).
-      // Comparação === true evita falso positivo de strings/numbers truthy.
-      importado: items.some((it: any) => it?.importado === true),
-    },
-  ];
-}
-
 // ── API pública ─────────────────────────────────────────────────────────────
 
 /**
@@ -210,11 +108,48 @@ export async function resolveBillingItems(
   const defaultCfop =
     (company as any).defaultCfop || (config as any).defaultCfop || "5102";
 
-  const resolved = await resolveDraftItemsInternal({
-    orderId,
-    draftId,
-    company,
-  });
+  const resolved = await (async (): Promise<{ items: any[]; useGroupedItems: boolean } | null> => {
+    if (draftId) {
+      if (!Number.isInteger(draftId) || draftId <= 0) {
+        throw new Error(`draftId inválido: ${draftId}`);
+      }
+      const [row] = await db
+        .select()
+        .from(nfDrafts)
+        .where(eq(nfDrafts.id, draftId));
+      if (!row) throw new Error(`Rascunho de NF #${draftId} não encontrado`);
+      if (row.orderId !== orderId) {
+        throw new Error(
+          `Rascunho #${draftId} não pertence ao pedido #${orderId}`,
+        );
+      }
+      return {
+        items: Array.isArray(row.items) ? (row.items as any[]) : [],
+        useGroupedItems: row.useGroupedItems === true,
+      };
+    }
+
+    if (company?.useFiscalDraft === true) {
+      try {
+        const [latest] = await db
+          .select()
+          .from(nfDrafts)
+          .where(eq(nfDrafts.orderId, orderId))
+          .orderBy(desc(nfDrafts.createdAt))
+          .limit(1);
+        if (latest && Array.isArray(latest.items)) {
+          return {
+            items: latest.items as any[],
+            useGroupedItems: latest.useGroupedItems === true,
+          };
+        }
+      } catch {
+        // sem draft: cai no fluxo legado
+      }
+    }
+
+    return null;
+  })();
 
   // FASE 8.1 — decisão única de agrupamento.
   //   • Draft presente com `useGroupedItems` (true OU false) → DRAFT MANDA.
@@ -232,7 +167,37 @@ export async function resolveBillingItems(
   if (resolved === null) {
     const sourceItems = (orderData as any).items as any[];
     const items = shouldGroup
-      ? applyItemGroupingInternal(sourceItems, "08039000", defaultCfop, "KG")
+      ? ((items: any[], fallbackNcm: string, fallbackCfop: string, fallbackUnit: string): any[] => {
+          if (!items.length) return items;
+          const total = items.reduce((acc, it) => {
+            const v =
+              it.totalPrice != null
+                ? Number(it.totalPrice)
+                : Number(it.quantity || 0) * Number(it.unitPrice || 0);
+            return acc + (Number.isFinite(v) ? v : 0);
+          }, 0);
+          const round2 = (n: number) => Math.round(n * 100) / 100;
+          const vTotal = round2(total);
+          const first = items[0] || {};
+          return [
+            {
+              productId: null,
+              description: "Frutas in natura",
+              quantity: 1,
+              unit: first.unit || fallbackUnit,
+              unitPrice: vTotal,
+              totalPrice: vTotal,
+              ncm: first.ncm || fallbackNcm,
+              cfop: first.cfop || fallbackCfop,
+              cst: (first as any).cst || '00',
+              // FASE NF.7.8 — preserva flag de importado através do agrupamento.
+              // Critério: se QUALQUER item agrupado for importado, o item consolidado
+              // herda true (lado seguro fiscalmente — evita esconder importação).
+              // Comparação === true evita falso positivo de strings/numbers truthy.
+              importado: items.some((it: any) => it?.importado === true),
+            },
+          ];
+        })(sourceItems, "08039000", defaultCfop, "KG")
       : sourceItems;
     return {
       items,
@@ -243,7 +208,37 @@ export async function resolveBillingItems(
   // Caminho draft: aplica agrupamento conforme decisão acima (mesmos
   // fallbacks do builder atual: NCM 08039000, CFOP defaultCfop, KG).
   const items = shouldGroup
-    ? applyItemGroupingInternal(resolved.items, "08039000", defaultCfop, "KG")
+    ? ((items: any[], fallbackNcm: string, fallbackCfop: string, fallbackUnit: string): any[] => {
+        if (!items.length) return items;
+        const total = items.reduce((acc, it) => {
+          const v =
+            it.totalPrice != null
+              ? Number(it.totalPrice)
+              : Number(it.quantity || 0) * Number(it.unitPrice || 0);
+          return acc + (Number.isFinite(v) ? v : 0);
+        }, 0);
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        const vTotal = round2(total);
+        const first = items[0] || {};
+        return [
+          {
+            productId: null,
+            description: "Frutas in natura",
+            quantity: 1,
+            unit: first.unit || fallbackUnit,
+            unitPrice: vTotal,
+            totalPrice: vTotal,
+            ncm: first.ncm || fallbackNcm,
+            cfop: first.cfop || fallbackCfop,
+            cst: (first as any).cst || '00',
+            // FASE NF.7.8 — preserva flag de importado através do agrupamento.
+            // Critério: se QUALQUER item agrupado for importado, o item consolidado
+            // herda true (lado seguro fiscalmente — evita esconder importação).
+            // Comparação === true evita falso positivo de strings/numbers truthy.
+            importado: items.some((it: any) => it?.importado === true),
+          },
+        ];
+      })(resolved.items, "08039000", defaultCfop, "KG")
     : resolved.items;
 
   return {
