@@ -325,6 +325,32 @@ export async function registerRoutes(
     res.json(mailerStatus());
   });
 
+  // --- FASE 6.1 — Tenant Mismatch Audit (read-only, MASTER only) ---
+  // Endpoint de auditoria agregada para tentativas de acesso entre tenants.
+  // Apenas leitura, apenas MASTER, apenas dados agregados (sem orderId/tenantId reais).
+  app.get(
+    '/api/admin/security/tenant-mismatch-events',
+    requireAuthCore,
+    requireRole(['MASTER']),
+    async (req, res) => {
+      try {
+        console.log('[SECURITY_AUDIT] Tenant mismatch audit requested');
+        const { getTenantMismatchEvents } = await import('../modules/security/security.repository');
+        const days = Number(req.query.days || 7);
+        const data = await getTenantMismatchEvents(days);
+        return res.json({ success: true, data });
+      } catch (e: any) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: 'TENANT_MISMATCH_AUDIT_FAILED',
+            message: e?.message || 'Unknown error',
+          },
+        });
+      }
+    },
+  );
+
   // --- System Audit API ---
   // FASE 1 — exige sessão admin (auditoria revela usuários, empresas e logs).
   app.get('/api/admin/audit', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
