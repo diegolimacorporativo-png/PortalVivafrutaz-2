@@ -17,7 +17,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../../database/db";
 import { companyCertificates } from "@shared/schema";
 import type { CompanyCertificate } from "@shared/schema";
-import { encrypt } from "../../utils/crypto";
+import { encrypt, isEncrypted } from "../../utils/crypto";
 
 export interface SaveCompanyCertificateInput {
   companyId: number;
@@ -79,3 +79,41 @@ export class CompanyCertificateRepository {
 }
 
 export const companyCertificateRepository = new CompanyCertificateRepository();
+
+/**
+ * FASE 3.4 — migra registros legados (texto plano) para o formato `enc:v1:`.
+ *
+ * Idempotente: registros já cifrados são pulados via `isEncrypted`. NÃO
+ * altera schema, NÃO remove linhas, NÃO altera fluxo NF-e — apenas reescreve
+ * o `certPassword` quando ele ainda está em texto plano.
+ *
+ * Pode ser chamado múltiplas vezes com segurança. Operação cross-tenant
+ * (escaneia toda a tabela) — protegida em rota por `requireRole(['MASTER'])`.
+ *
+ * @returns `{ total, migrated }` — `total` = todas as linhas vistas;
+ *          `migrated` = apenas as que foram convertidas nesta execução.
+ */
+export interface MigrationResult {
+  total: number;
+  migrated: number;
+}
+
+export async function migrateLegacyCertificates(): Promise<MigrationResult> {
+  const rows = await db.select().from(companyCertificates);
+  let migrated = 0;
+
+  for (const row of rows) {
+    if (!row.certPassword) continue;
+    // Já cifrado — pula (idempotência: NUNCA criptografa duas vezes).
+    if (isEncrypted(row.certPassword)) continue;
+
+    const encrypted = encrypt(row.certPassword);
+    await db
+      .update(companyCertificates)
+      .set({ certPassword: encrypted, updatedAt: new Date() })
+      .where(eq(companyCertificates.id, row.id));
+    migrated++;
+  }
+
+  return { total: rows.length, migrated };
+}

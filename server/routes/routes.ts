@@ -5058,6 +5058,34 @@ export async function registerRoutes(
 
   app.get('/api/finance/pix/:id', (req: Request, res: Response, next: NextFunction) => financeController.getPixForReceivable(req, res).catch(next));
 
+  // ─── Admin: Cert Migration (FASE 3.4) ─────────────────────────────────
+  // Promove registros legados em texto plano (FASE 3.2) para o formato
+  // cifrado `enc:v1:` (FASE 3.3). Idempotente — re-execução é segura.
+  // Auth: MASTER only (operação cross-tenant; sem `tenantContext`).
+  // Logs: `[CERT_MIGRATION_DONE]` no sucesso, `[CERT_MIGRATION_ERROR]` em
+  // qualquer falha (com mensagem do erro, sem segredos).
+  app.post(
+    '/api/admin/certificates/migrate-legacy',
+    requireAuthCore,
+    requireRole(['MASTER']),
+    async (_req, res) => {
+      try {
+        const { migrateLegacyCertificates } = await import(
+          '../modules/companies/companyCertificate.repository.ts'
+        );
+        const result = await migrateLegacyCertificates();
+        console.log('[CERT_MIGRATION_DONE]', result);
+        return res.json({ success: true, ...result });
+      } catch (err: any) {
+        console.error('[CERT_MIGRATION_ERROR]', { error: err?.message });
+        return res.status(500).json({
+          success: false,
+          error: { message: err?.message ?? 'Erro na migração', code: 'MIGRATION_FAILED' },
+        });
+      }
+    },
+  );
+
   // ─── Company Certificates (NF-e A1) — FASE 3.2 ────────────────────────
   // Endpoints CRUD do certificado A1 por empresa (multi-tenant). Usados pela
   // UI de configuração fiscal e consumidos automaticamente pelo `nfeSender`

@@ -1,0 +1,125 @@
+🎯 FASE 3.4 — MIGRAÇÃO DE SENHAS LEGADAS (PLAIN → CRIPTO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema  
+2. NÃO remover registros  
+3. NÃO quebrar leitura atual  
+4. NÃO alterar contratos de API  
+5. NÃO criptografar duas vezes  
+6. Apenas migrar quando necessário  
+
+---
+
+🧠 OBJETIVO
+
+Converter TODAS as senhas de certificado que ainda estão em texto plano para:
+
+enc:v1:<cipher>
+
+👉 mantendo compatibilidade total com o sistema atual
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR FUNÇÃO DE MIGRAÇÃO
+
+📍 Arquivo:
+server/modules/companies/companyCertificate.repository.ts
+
+---
+
+Adicionar:
+
+ts import { isEncrypted, encrypt } from '@/utils/crypto';  export async function migrateLegacyCertificates(): Promise<{   total: number;   migrated: number; }> {   const rows = await db.select().from(companyCertificates);    let migrated = 0;    for (const row of rows) {     if (!row.certPassword) continue;      // já está criptografado → pula     if (isEncrypted(row.certPassword)) continue;      const encrypted = encrypt(row.certPassword);      await db       .update(companyCertificates)       .set({         certPassword: encrypted,         updatedAt: new Date(),       })       .where(eq(companyCertificates.id, row.id));      migrated++;   }    return {     total: rows.length,     migrated,   }; } 
+
+---
+
+## 🛠️ ETAPA 2 — CRIAR ENDPOINT ADMIN
+
+📍 Arquivo:
+server/routes/routes.ts
+
+---
+
+ANTES do bloco NF-e, adicionar:
+
+ts import { migrateLegacyCertificates } from '../modules/companies/companyCertificate.repository'; import { requireAuthCore, requireRole } from '../core/http/requireAuth';  app.post(   '/api/admin/certificates/migrate-legacy',   requireAuthCore,   requireRole(['MASTER']),   async (req, res) => {     try {       const result = await migrateLegacyCertificates();        console.log('[CERT_MIGRATION_DONE]', result);        return res.json({         success: true,         ...result,       });     } catch (err: any) {       console.error('[CERT_MIGRATION_ERROR]', {         error: err.message,       });        return res.status(500).json({         success: false,         error: 'Erro ao migrar certificados',       });     }   } ); 
+
+---
+
+## 🛠️ ETAPA 3 — LOG DE SEGURANÇA
+
+Garantir logs:
+
+ts [CERT_MIGRATION_DONE] [CERT_MIGRATION_ERROR] 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Antes da migração
+
+Banco contém:
+
+- alguns registros plaintext
+- alguns enc:v1:
+
+---
+
+### 2️⃣ Rodar endpoint
+
+POST:
+
+/api/admin/certificates/migrate-legacy
+
+---
+
+### 3️⃣ Resultado esperado
+
+json {   "success": true,   "total": 10,   "migrated": 6 } 
+
+---
+
+### 4️⃣ Após execução
+
+✔ TODOS registros → enc:v1:  
+✔ Nenhum plaintext restante  
+✔ Nenhum erro de leitura  
+✔ Loader continua funcionando  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ não criptografa duas vezes  
+✔ não quebra registros antigos  
+✔ zero impacto no envio NF-e  
+✔ zero impacto no tenant  
+✔ operação segura e idempotente  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+
+plaintext + enc:v1: (misturado)
+
+Depois:
+
+100% enc:v1:
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. função criada  
+2. endpoint criado  
+3. resultado da execução  
+4. confirmação de zero regres
