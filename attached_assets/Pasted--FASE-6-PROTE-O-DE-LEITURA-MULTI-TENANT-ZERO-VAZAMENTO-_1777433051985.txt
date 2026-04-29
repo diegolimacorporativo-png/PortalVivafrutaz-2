@@ -1,0 +1,227 @@
+🎯 FASE 6 — PROTEÇÃO DE LEITURA (MULTI-TENANT) — ZERO VAZAMENTO
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO refatorar  
+4. NÃO alterar estrutura de resposta  
+5. NÃO alterar status codes  
+6. NÃO alterar storage.ts  
+7. NÃO mover arquivos  
+8. NÃO alterar controllers/services  
+9. NÃO executar sem validação de segurança  
+
+👉 Apenas ADICIONAR validação antes da leitura
+
+---
+
+🧠 CONTEXTO
+
+- Sistema já possui:
+  ✔ validateOrderTenant(orderId)
+  ✔ safeGetOrder(orderId)
+  ✔ antifraude ativo (FASE 6.x)
+  ✔ tenant guard parcial
+
+❌ Problema atual:
+Endpoints de LEITURA ainda podem acessar pedidos de outros tenants
+
+👉 Risco: vazamento de dados entre empresas
+
+---
+
+# 🎯 OBJETIVO
+
+Garantir que TODA leitura de pedido:
+
+✔ valida tenant ANTES de acessar dados  
+✔ bloqueia acesso cross-tenant  
+✔ mantém comportamento atual intacto  
+
+---
+
+# 📦 ETAPA 1 — IDENTIFICAR ENDPOINTS CRÍTICOS
+
+Arquivo:
+
+server/routes/routes.ts
+
+---
+
+Localizar TODOS endpoints que usam:
+
+- storage.getOrder(...)
+- storage.getOrders(...)
+- qualquer leitura por orderId
+
+---
+
+🔥 MÍNIMO OBRIGATÓRIO:
+
+- GET /api/orders/:id  
+- GET /api/orders/:id/timeline (se existir)  
+- GET /api/orders/:id/danfe-logs  
+- GET /api/nfe/:orderId/historico  
+- GET /api/nfe/preflight/:orderId  
+- GET /api/nfe/fiscal-data/:orderId  
+
+---
+
+# 📦 ETAPA 2 — INSERIR VALIDAÇÃO (ANTES DE QUALQUER LEITURA)
+
+ANTES de qualquer:
+
+storage.getOrder(orderId)
+
+Adicionar:
+
+ts await validateOrderTenant(Number(orderId)); 
+
+---
+
+⚠️ POSIÇÃO CRÍTICA
+
+A validação deve ocorrer:
+
+✔ ANTES de qualquer acesso ao storage  
+✔ ANTES de qualquer lógica  
+✔ ANTES de montar resposta  
+
+---
+
+# 📦 ETAPA 3 — USAR safeGetOrder (OPCIONAL MAIS SEGURO)
+
+Quando possível, substituir:
+
+ts const order = await storage.getOrder(orderId); 
+
+por:
+
+ts const order = await safeGetOrder(orderId); 
+
+---
+
+⚠️ REGRAS
+
+- NÃO alterar retorno do endpoint  
+- NÃO alterar tratamento de erro  
+- NÃO alterar estrutura do objeto  
+
+---
+
+# 📦 ETAPA 4 — NÃO TOCAR NO RESTO
+
+🚫 NÃO alterar:
+
+- response.json
+- estrutura de payload
+- mensagens
+- status codes
+- antifraude
+- middleware existente
+
+---
+
+# 📦 ETAPA 5 — VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+---
+
+### ✅ 1. MESMO TENANT
+
+✔ retorna 200  
+✔ dados corretos  
+
+---
+
+### 🚫 2. CROSS-TENANT
+
+✔ retorna 403  
+✔ NÃO retorna dados  
+✔ loga:
+
+[SECURITY] Tenant mismatch
+
+---
+
+### ❌ 3. NOT FOUND
+
+✔ continua 404 (sem alteração)
+
+---
+
+### 🔐 4. SEM AUTH
+
+✔ continua 401
+
+---
+
+# 📦 ETAPA 6 — ORDEM DE EXECUÇÃO (CRÍTICO)
+
+Garantir:
+
+validateOrderTenant → storage.getOrder
+
+---
+
+❌ NUNCA:
+
+storage.getOrder → validateOrderTenant
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER comportamento mudar:
+
+❌ PARAR  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# 🔐 GARANTIAS ESPERADAS
+
+✔ zero vazamento entre empresas  
+✔ antifraude continua ativo  
+✔ logs de segurança funcionando  
+✔ nenhuma mudança de contrato HTTP  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+ANTES:
+❌ leitura vulnerável
+
+DEPOIS:
+✔ leitura protegida por tenant  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+---
+
+1. endpoints protegidos  
+2. código EXATO adicionado  
+3. pontos onde validateOrderTenant foi inserido  
+4. confirmação da ordem correta (ANTES do storage)  
+5. testes executados (4 cenários)  
+6. confirmação de zero regressão  
+7. confirmação de segurança ativa  
+
+---
+
+🚀 EXECUTAR COM EXTREMA CAUTELA
+
+👉 Esta fase protege TODO o sistema contra vazamento de dados
+👉 Qualquer erro aqui = falha crítica de segurança
+
+--
