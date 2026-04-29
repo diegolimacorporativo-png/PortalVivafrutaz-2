@@ -1,0 +1,174 @@
+🎯 HANDOFF — INICIAR FASE 6 (PROTEÇÃO MULTI-TENANT EM LEITURA)
+
+---
+
+🚨 CONTEXTO ATUAL (CRÍTICO)
+
+Sistema passou por:
+
+✔ FASE 8.1 → unificação de origem de itens (resolveBillingItems)  
+✔ FASE 8.2 → remoção de helpers (inline seguro)  
+✔ FASE 8.3 → consolidação segura de defaults (FRUTAS_IN_NATURA_DEFAULTS)  
+
+---
+
+🟢 ESTADO ATUAL
+
+✔ buildNFeInput ≡ resolveBillingItems (equivalência comprovada)  
+✔ XML 100% idêntico  
+✔ zero regressão  
+✔ faturamento estável  
+✔ builder fiscal intacto (NCM fail-fast + CFOP UF-aware)  
+
+---
+
+⚠️ ATENÇÃO
+
+👉 NÃO mexer em faturamento  
+👉 NÃO mexer em NF-e  
+👉 NÃO mexer em billing.service  
+👉 NÃO mexer em builder  
+
+👉 Foco AGORA é segurança de leitura (FASE 6)
+
+---
+
+# 🎯 OBJETIVO — FASE 6
+
+Bloquear vazamento de dados entre empresas (multi-tenant)
+
+---
+
+## ❌ PROBLEMA ATUAL
+
+Endpoints de leitura podem acessar pedidos de outro tenant se o ID for conhecido.
+
+Exemplo de risco:
+
+GET /api/orders/123  
+→ pode retornar pedido de outra empresa
+
+---
+
+## ✅ SOLUÇÃO
+
+Adicionar validação:
+
+ts await validateOrderTenant(orderId) 
+
+ANTES de qualquer leitura
+
+---
+
+# 📦 ESCOPO EXATO
+
+---
+
+## 1️⃣ PROTEGER GET /api/orders/:id
+
+📍 Arquivo:
+server/routes/routes.ts
+
+ANTES de acessar o pedido:
+
+ts await validateOrderTenant(Number(req.params.id)); 
+
+---
+
+## 2️⃣ PROTEGER GET /api/nfe/order/:orderId/info
+
+ANTES de qualquer leitura:
+
+ts await validateOrderTenant(Number(orderId)); 
+
+---
+
+## 3️⃣ (OPCIONAL — MAIS SEGURO)
+
+Substituir onde possível:
+
+ts storage.getOrder(orderId) 
+
+por:
+
+ts safeGetOrder(orderId) 
+
+⚠️ SEM alterar resposta do endpoint
+
+---
+
+## 4️⃣ LOG DE SEGURANÇA
+
+Manter comportamento existente:
+
+[SECURITY] Tenant mismatch
+
+---
+
+# 🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar retorno dos endpoints  
+3. NÃO remover código  
+4. NÃO alterar estrutura JSON  
+5. NÃO tocar em storage.ts  
+6. NÃO quebrar fluxo atual  
+
+👉 Apenas adicionar proteção
+
+---
+
+# 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Mesmo tenant
+✔ funciona normal  
+
+---
+
+### 2️⃣ Tenant diferente
+✔ bloqueado  
+
+---
+
+### 3️⃣ Sem auth
+✔ continua 401  
+
+---
+
+### 4️⃣ Logs
+✔ "[SECURITY] Tenant mismatch" aparece  
+
+---
+
+# 🔐 RESULTADO ESPERADO
+
+✔ zero vazamento entre empresas  
+✔ segurança ativa  
+✔ comportamento intacto  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. endpoints protegidos  
+2. código adicionado  
+3. testes realizados  
+4. confirmação de zero regressão  
+
+---
+
+🚀 EXECUTAR COM MODO CIRÚRGICO
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO inventar middleware novo  
+👉 NÃO refatorar rotas  
+👉 NÃO otimizar nada  
+
+👉 apenas prote
