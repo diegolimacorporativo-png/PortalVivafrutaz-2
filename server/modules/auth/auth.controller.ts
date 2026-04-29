@@ -87,9 +87,13 @@ export class AuthController {
         }
         console.log("[LOGIN] Sessão salva com sucesso");
         if (outcome.kind === "admin-success") {
-          res.json({ user: outcome.user });
+          // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
+          const { password: _pw, ...userSafe } = outcome.user as Record<string, unknown> & { password?: unknown };
+          res.json({ user: userSafe });
         } else {
-          res.json({ company: outcome.company });
+          // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
+          const { password: _pw, ...companySafe } = outcome.company as Record<string, unknown> & { password?: unknown };
+          res.json({ company: companySafe });
         }
         resolve();
       });
@@ -102,11 +106,15 @@ export class AuthController {
     const outcome = await this.service.resolveSession(session);
 
     if (outcome.kind === "admin") {
-      res.json({ user: outcome.user });
+      // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
+      const { password: _pw, ...userSafe } = outcome.user as Record<string, unknown> & { password?: unknown };
+      res.json({ user: userSafe });
       return;
     }
     if (outcome.kind === "company") {
-      res.json({ company: outcome.company });
+      // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
+      const { password: _pw, ...companySafe } = outcome.company as Record<string, unknown> & { password?: unknown };
+      res.json({ company: companySafe });
       return;
     }
     res.status(401).json({ message: "Not authenticated" });

@@ -502,6 +502,57 @@ export interface IStorage {
   installModuloEmpresa(empresaId: number, moduloId: number): Promise<EmpresaModulo>;
   updateEmpresaModulo(id: number, data: Partial<InsertEmpresaModulo>): Promise<EmpresaModulo>;
   removeModuloEmpresa(id: number): Promise<void>;
+
+  // FASE 7.1 — assinaturas adicionadas para fechar contrato com DatabaseStorage.
+  // Sem alteração de implementação. Apenas reconciliação interface ↔ classe.
+
+  // Tasks
+  createTask(data: { title: string; description: string; assignedToId?: number; assignedToName?: string; createdById?: number; createdByName?: string; deadline?: string; priority: string }): Promise<Task>;
+  getTasks(): Promise<Task[]>;
+  getTasksByUser(userId: number): Promise<Task[]>;
+  deleteTask(id: number): Promise<void>;
+
+  // Client Incidents
+  createClientIncident(data: { companyId: number; companyName: string; type: string; description: string; contactPhone?: string; contactEmail?: string; photoBase64?: string; photoMime?: string; photosJson?: string }): Promise<ClientIncident>;
+  getClientIncidents(): Promise<ClientIncident[]>;
+  getClientIncident(id: number): Promise<ClientIncident | undefined>;
+  getClientIncidentsByCompany(companyId: number): Promise<ClientIncident[]>;
+  updateClientIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null }): Promise<ClientIncident>;
+  deleteClientIncident(id: number): Promise<void>;
+  respondToClientIncident(id: number, responseMessage: string, respondedByName: string): Promise<ClientIncident>;
+  updateClientIncidentStatus(id: number, status: string): Promise<ClientIncident>;
+  markIncidentReadByClient(id: number): Promise<void>;
+
+  // Incident Messages
+  createIncidentMessage(data: { incidentId: number; senderType: string; senderName: string; message: string; photosJson?: string }): Promise<IncidentMessage>;
+  getIncidentMessages(incidentId: number): Promise<IncidentMessage[]>;
+
+  // Internal Incidents
+  createInternalIncident(data: { title: string; description: string; category: string; assignedToId?: number; assignedToName?: string; createdById?: number; createdByName?: string; priority: string }): Promise<InternalIncident>;
+  getInternalIncidents(): Promise<InternalIncident[]>;
+  deleteInternalIncident(id: number): Promise<void>;
+
+  // Company Settings
+  getCompanySettings(empresaId: number): Promise<CompanySettings | undefined>;
+  updateCompanySettings(empresaId: number, updates: Partial<InsertCompanySettings>): Promise<CompanySettings>;
+
+  // Other infra getters
+  getAboutUs(): Promise<AboutUs | undefined>;
+  getSmtpConfig(): Promise<SmtpConfig | undefined>;
+  getActivePushSubscriptions(): Promise<PushSubscription[]>;
+  getPushSubscriptionCount(): Promise<number>;
+  deactivatePushSubscription(endpoint: string): Promise<void>;
+  getNotificationSettings(): Promise<NotificationSetting[]>;
+
+  // Sanitary
+  getSanitaryQuestions(): Promise<SanitaryQuestion[]>;
+  createSanitaryQuestion(data: InsertSanitaryQuestion): Promise<SanitaryQuestion>;
+  deleteSanitaryQuestion(id: number): Promise<void>;
+  getSanitaryEvaluations(): Promise<SanitaryEvaluation[]>;
+  getSanitaryEvaluation(id: number): Promise<{ evaluation: SanitaryEvaluation; items: SanitaryEvaluationItem[] } | undefined>;
+  createSanitaryEvaluation(data: InsertSanitaryEvaluation): Promise<SanitaryEvaluation>;
+  createSanitaryEvaluationItem(data: InsertSanitaryEvaluationItem): Promise<SanitaryEvaluationItem>;
+  bulkCreateSanitaryEvaluationItems(items: InsertSanitaryEvaluationItem[]): Promise<SanitaryEvaluationItem[]>;
 }
 
 export class DatabaseStorage implements IStorage {

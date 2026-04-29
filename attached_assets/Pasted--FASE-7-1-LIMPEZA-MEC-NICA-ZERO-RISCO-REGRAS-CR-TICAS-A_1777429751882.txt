@@ -1,0 +1,241 @@
+🎯 FASE 7.1 — LIMPEZA MECÂNICA (ZERO RISCO)
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+1. NÃO alterar comportamento
+2. NÃO alterar lógica
+3. NÃO alterar segurança
+4. NÃO alterar respostas HTTP
+5. NÃO alterar fluxo de execução
+6. NÃO mover regras de negócio
+7. NÃO quebrar baseline.json
+
+👉 Se qualquer endpoint mudar resposta → ERRO
+
+---
+
+🧠 OBJETIVO
+
+Preparar o sistema para refatoração futura SEM risco:
+
+✔ reduzir bagunça estrutural  
+✔ padronizar base mínima  
+✔ manter comportamento 100% idêntico  
+
+---
+
+# 🔧 ETAPA 1 — CORREÇÃO CRÍTICA (HOTFIX)
+
+🚨 PRIORIDADE MÁXIMA
+
+Remover campo sensível:
+
+- user.password
+
+Dos endpoints:
+
+- POST /api/auth/login  
+- GET /api/auth/me  
+
+---
+
+📌 REGRAS:
+
+- NÃO alterar estrutura do objeto user
+- apenas remover campo password do retorno
+- NÃO alterar lógica de autenticação
+- NÃO alterar session
+- NÃO alterar outros campos
+
+---
+
+✔ Exemplo correto:
+
+ANTES:
+json {   "user": {     "id": 1,     "email": "...",     "password": "$2b$10$..."   } } 
+
+DEPOIS:
+json {   "user": {     "id": 1,     "email": "..."   } } 
+
+---
+
+# 🧹 ETAPA 2 — LIMPEZA DE IMPORTS (routes.ts)
+
+Arquivo:
+server/routes/routes.ts
+
+---
+
+Objetivo:
+
+Remover imports NÃO relacionados a roteamento:
+
+❌ bcryptjs  
+❌ fs  
+❌ path  
+❌ db  
+❌ lógica de negócio direta  
+
+---
+
+✔ IMPORTANTE:
+
+- NÃO remover imports usados
+- NÃO quebrar código
+- NÃO reorganizar lógica
+
+👉 Apenas remover lixo não utilizado
+
+---
+
+# 📦 ETAPA 3 — COMPLETAR IStorage (SEM MEXER NA LÓGICA)
+
+Arquivo:
+server/services/storage.ts
+
+---
+
+Problema:
+
+Existem métodos em DatabaseStorage que NÃO estão em IStorage
+
+---
+
+✔ Ação:
+
+- adicionar assinaturas faltantes na interface IStorage
+
+❗ NÃO alterar implementação  
+❗ NÃO remover métodos  
+❗ NÃO refatorar nada  
+
+---
+
+Objetivo:
+
+✔ evitar inconsistência futura  
+✔ permitir mock/test sem quebrar  
+
+---
+
+# 🔁 ETAPA 4 — PADRÃO DE RESPOSTA (SAFE ONLY)
+
+Padronizar SOMENTE onde for 100% seguro:
+
+---
+
+Se existir:
+
+ts res.json(data) 
+
+E for equivalente a:
+
+ts ok(res, data) 
+
+👉 substituir
+
+---
+
+🚫 NÃO alterar se:
+
+- existir error
+- existir estrutura custom
+- existir try/catch específico
+
+---
+
+👉 Em dúvida: NÃO mexer
+
+---
+
+# 🔐 ETAPA 5 — GARANTIA DE SEGURANÇA
+
+Confirmar que NADA disso foi afetado:
+
+✔ validateOrderTenant  
+✔ safeGetOrder  
+✔ tenantGuard  
+✔ antifraude (FASE 6)  
+✔ bloqueio persistente  
+✔ logs [SECURITY]  
+
+---
+
+# 🧪 ETAPA 6 — VALIDAÇÃO OBRIGATÓRIA
+
+Rodar novamente:
+
+baseline.json
+
+---
+
+Comparar:
+
+✔ status codes idênticos  
+✔ mesmas keys  
+✔ mesma estrutura  
+✔ mesmo comportamento  
+
+---
+
+❗ PERMITIDO:
+
+- diferença: ausência de user.password
+
+❌ NÃO permitido:
+
+- qualquer outra diferença
+
+---
+
+# 📊 RESULTADO FINAL
+
+Responder com:
+
+---
+
+## ✅ ALTERAÇÕES APLICADAS
+
+- lista exata dos arquivos
+- o que foi alterado
+
+---
+
+## 🔐 SEGURANÇA
+
+- confirmação que nenhum fluxo foi afetado
+
+---
+
+## 🧪 BASELINE
+
+- passou 100%  
+- diferenças encontradas (esperado: apenas password)
+
+---
+
+## ⚠️ RISCOS
+
+(se houver)
+
+---
+
+## 🚀 STATUS
+
+- LIMPEZA MECÂNICA CONCLUÍDA SEM REGRESSÃO
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Essa fase NÃO melhora o sistema
+
+👉 Ela apenas PREPARA o sistema
+
+👉 O ganho vem na FASE 7.2
+
+---
+
+🚀 EXECUTAR AGOR

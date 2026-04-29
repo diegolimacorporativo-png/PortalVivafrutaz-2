@@ -29,7 +29,7 @@ import { scheduleBackups, runBackup, runBackupSQL, listBackups, getBackupPath, d
 import { startEmailScheduler } from "./email-scheduler.ts";
 import fs from "fs";
 import bcrypt from "bcryptjs";
-import path from "path";
+// FASE 7.1 — `path` import removed (0 usages confirmed). bcrypt/fs/db kept (in use).
 import { db } from "../database/db.ts";
 import multer from "multer";
 import { createRequire } from "module";
@@ -42,7 +42,8 @@ const _require: NodeRequire = (typeof (globalThis as any).require !== "undefined
   : createRequire(process.cwd() + "/package.json");
 const pdfParse = _require("pdf-parse");
 import { orders, orderItems, companies, products, aiInteractions, nfManual } from "@shared/schema";
-import { sql, gte, lte, and, eq, desc, isNull } from "drizzle-orm";
+// FASE 7.1 — drizzle helpers narrowed to what's actually referenced. `lte`, `and`, `eq`, `isNull` removed (0 uses); `sql` retained (12 uses); `gte`, `desc` retained.
+import { gte, desc, sql } from "drizzle-orm";
 import { AIDeveloper } from "../services/aiDeveloper.ts";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
@@ -1342,10 +1343,18 @@ export async function registerRoutes(
       const session = req.session as any;
       if (session.userType === 'admin' && session.userId) {
         const user = await storage.getUser(session.userId);
-        if (user) return res.json({ user });
+        if (user) {
+          // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
+          const { password: _pw, ...userSafe } = user as Record<string, unknown> & { password?: unknown };
+          return res.json({ user: userSafe });
+        }
       } else if (session.userType === 'company' && session.companyId) {
         const company = await storage.getCompany(session.companyId);
-        if (company) return res.json({ company });
+        if (company) {
+          // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
+          const { password: _pw, ...companySafe } = company as Record<string, unknown> & { password?: unknown };
+          return res.json({ company: companySafe });
+        }
       }
       return res.status(401).json({ message: "Not authenticated" });
     } catch (e: any) {
