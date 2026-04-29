@@ -1,0 +1,192 @@
+🎯 PRÉ-FASE 8 — AUDITORIA DE FATURAMENTO (READ-ONLY)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código  
+2. NÃO criar arquivos  
+3. NÃO refatorar  
+4. NÃO mover nada  
+5. NÃO executar scripts de escrita  
+6. NÃO inferir comportamento — PROVAR com código  
+
+👉 Apenas LER e REGISTRAR
+
+---
+
+🧠 OBJETIVO
+
+Descobrir se já existe QUALQUER lógica de faturamento no sistema antes de implementar a FASE 8.
+
+---
+
+# 📦 ETAPA 1 — BUSCA GLOBAL (OBRIGATÓRIO)
+
+Procurar no projeto inteiro por:
+
+- billing  
+- faturamento  
+- invoice  
+- agrupar  
+- grouping  
+- resumo  
+- aggregate  
+- contract  
+- contractBilling  
+- billingType  
+- tipoFaturamento  
+
+---
+
+📊 Registrar:
+
+json {   "arquivo": "",   "linha": 0,   "trecho": "" } 
+
+---
+
+# 📦 ETAPA 2 — ANÁLISE DO PEDIDO
+
+📍 Localizar estrutura de Order:
+
+- order.items  
+- order.total  
+- order.companyId  
+
+---
+
+Verificar:
+
+✔ existe agrupamento de itens?  
+✔ existe campo já preparado para faturamento?  
+✔ existe diferenciação por tipo de cliente?  
+
+---
+
+# 📦 ETAPA 3 — ANÁLISE DA NF
+
+📍 Arquivo:
+
+server/services/nfe/nfeGenerator.ts
+
+---
+
+Verificar:
+
+- de onde vem os items?
+
+ts const items = ? 
+
+---
+
+Confirmar:
+
+✔ usa direto order.items?  
+✔ existe alguma transformação?  
+✔ existe algum agrupamento?  
+
+---
+
+# 📦 ETAPA 4 — ANÁLISE DE EMPRESA
+
+📍 Procurar:
+
+Company / CompanySettings
+
+---
+
+Verificar:
+
+✔ existe campo de tipo de faturamento?  
+✔ existe algo como:
+
+- billingType  
+- contract  
+- pricingMode  
+
+---
+
+---
+
+# 📦 ETAPA 5 — SERVICES
+
+📍 Procurar:
+
+server/services/
+
+---
+
+Verificar se existe algo como:
+
+- billing.service  
+- pricing.service  
+- invoice.service  
+
+---
+
+---
+
+# 📦 ETAPA 6 — FRONTEND (se existir)
+
+Procurar:
+
+- tela de faturamento  
+- configuração por empresa  
+- qualquer lógica de agrupamento  
+
+---
+
+---
+
+# 📦 ETAPA 7 — RESULTADO FINAL
+
+Gerar relatório:
+
+---
+
+## 📊 EXISTE FATURAMENTO?
+
+- SIM / NÃO  
+
+---
+
+## 📂 ONDE EXISTE (se houver)
+
+(lista de arquivos)
+
+---
+
+## ⚠️ RISCOS DE CONFLITO
+
+(se houver lógica parcial)
+
+---
+
+## 🧠 CONCLUSÃO
+
+Escolher UMA:
+
+1. ❌ NÃO EXISTE → pode implementar FASE 8 limpa  
+2. ⚠️ EXISTE PARCIAL → precisa adaptar  
+3. ✅ JÁ EXISTE → não implementar, apenas ajustar  
+
+---
+
+## 🔐 GARANTIA
+
+Confirmar:
+
+✔ nenhuma alteração feita  
+✔ nenhum arquivo modificado  
+✔ apenas leitura  
+
+---
+
+# 🚨 REGRA FINAL
+
+Se houver QUALQUER dúvida:
+
+👉 PARAR  
+👉 NÃO assumir comportamento  
+
+---
