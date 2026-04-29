@@ -1,0 +1,191 @@
+🎯 CONTEXTO DO PROJETO — SEGURANÇA MULTI-TENANT + ANTIFRAUDE (FASE 6 COMPLETA)
+
+Você está entrando em um projeto ERP backend já avançado.
+
+⚠️ IMPORTANTE: NÃO É UM PROJETO INICIAL  
+O sistema já possui:
+
+✔ Multi-tenant enforcement  
+✔ Proteção de leitura (validateOrderTenant)  
+✔ Auditoria de tentativas inválidas  
+✔ Sistema antifraude completo  
+✔ Bloqueio automático (memória + banco)  
+✔ Painel admin de segurança  
+✔ Desbloqueio manual  
+✔ Alertas antifraude  
+
+---
+
+## 🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO refatorar código existente  
+2. NÃO alterar lógica atual  
+3. NÃO remover nada  
+4. NÃO mexer em storage.ts  
+5. NÃO alterar contratos de API  
+6. NÃO mudar estrutura de resposta  
+7. NÃO otimizar nada ainda  
+
+👉 Você está em modo AUDITORIA + PREPARAÇÃO DE LIMPEZA CONTROLADA
+
+---
+
+## 🧠 ESTADO ATUAL (JÁ IMPLEMENTADO E VALIDADO)
+
+### 🔒 Segurança Multi-Tenant
+- validateOrderTenant aplicado em TODOS endpoints críticos
+- safeGetOrder como camada segura
+- logs: [SECURITY] TENANT_MISMATCH
+
+---
+
+### 🛡️ Antifraude (FASE 6.1 → 6.9)
+
+✔ Persistência de eventos:
+- tabela: tenant_mismatch_events
+
+✔ Auditoria:
+- GET /api/admin/security/tenant-mismatch-events
+
+✔ Agregações:
+- byOrder
+- byUser
+- byPath
+- topUsers
+- topPaths
+- suspiciousUsers
+
+✔ Bloqueio automático:
+- memória (TTL 5min)
+- banco (security_blocked_users)
+
+✔ Hidratação:
+- memória recarrega do banco após restart
+
+✔ Fail-safe:
+- sistema continua mesmo se DB falhar
+
+✔ Idempotência:
+- block/unblock seguros
+
+✔ Alertas:
+- [SECURITY_ALERT]
+
+✔ Desbloqueio manual:
+- POST /api/admin/security/unblock
+
+✔ Painel:
+- /admin/security-audit
+
+---
+
+## 🎯 OBJETIVO AGORA
+
+👉 NÃO implementar features novas  
+👉 NÃO mexer em segurança  
+
+👉 Fazer PREPARAÇÃO PARA LIMPEZA CONTROLADA de:
+
+- routes.ts
+- storage.ts
+
+---
+
+## 📦 TAREFA PRINCIPAL
+
+### 1️⃣ MAPEAR ROTAS (routes.ts)
+
+Gerar relatório:
+
+- rotas duplicadas
+- rotas muito longas
+- rotas fora de padrão REST
+- endpoints que deveriam estar em controllers
+
+⚠️ NÃO ALTERAR — apenas listar
+
+---
+
+### 2️⃣ MAPEAR STORAGE
+
+Identificar:
+
+- funções duplicadas
+- queries repetidas
+- funções que deveriam virar repository
+
+⚠️ NÃO ALTERAR
+
+---
+
+### 3️⃣ MAPEAR ACOPLAMENTO
+
+Identificar:
+
+- routes acessando direto storage
+- falta de camada service/controller
+
+---
+
+### 4️⃣ CLASSIFICAR COMPLEXIDADE
+
+Separar:
+
+- simples (pode mexer depois)
+- médio
+- crítico (alto risco)
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Responder com:
+
+---
+
+## 📍 ROTAS PROBLEMÁTICAS
+
+(lista detalhada)
+
+---
+
+## 📍 STORAGE PROBLEMAS
+
+(lista detalhada)
+
+---
+
+## 📍 ACOPLAMENTO ERRADO
+
+(lista detalhada)
+
+---
+
+## ⚠️ RISCOS
+
+(o que pode quebrar se mexer errado)
+
+---
+
+## 🧠 ESTRATÉGIA DE LIMPEZA (PASSO A PASSO)
+
+(com ordem segura baseada no sistema atual)
+
+---
+
+## 🚀 PRÓXIMA FASE SUGERIDA
+
+(ex: FASE 7 — limpeza controlada)
+
+---
+
+## 🔒 IMPORTANTE
+
+👉 Este sistema já está em nível PRODUÇÃO REAL (segurança)  
+👉 Qualquer alteração errada pode quebrar isolamento entre empresas
+
+---
+
+NÃO EXECUTE NENHUMA ALTERAÇÃO.
+
+APENAS ANALISE
