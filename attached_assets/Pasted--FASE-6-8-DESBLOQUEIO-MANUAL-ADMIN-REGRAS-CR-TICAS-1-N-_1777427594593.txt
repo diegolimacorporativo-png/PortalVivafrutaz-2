@@ -1,0 +1,121 @@
+🎯 FASE 6.8 — DESBLOQUEIO MANUAL (ADMIN)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar validateOrderTenant  
+3. NÃO quebrar bloqueio automático  
+4. Apenas ADD  
+5. MASTER only  
+
+---
+
+🧠 OBJETIVO
+
+Permitir que admin:
+
+👉 desbloqueie usuário manualmente  
+👉 antes do TTL expirar  
+
+---
+
+## 🛠️ ETAPA 1 — FUNÇÃO DE UNBLOCK
+
+📍 server/modules/security/security.blocker.ts
+
+Adicionar:
+
+ts export function unblockUser(email: string) {   const key = email.toLowerCase();    blockedUsers.delete(key);   alertedUsers.delete(key);    console.info("[SECURITY_UNBLOCK]", { email: key }); } 
+
+---
+
+## 🛠️ ETAPA 2 — ENDPOINT ADMIN
+
+📍 server/routes/routes.ts
+
+ts app.post(   "/api/admin/security/unblock",   requireAuthCore,   requireRole(["MASTER"]),   async (req, res) => {     const { email } = req.body;      if (!email) {       return res.status(400).json({         success: false,         error: { message: "Email é obrigatório" },       });     }      const { unblockUser } = await import(       "@/modules/security/security.blocker"     );      unblockUser(email);      return res.json({       success: true,       message: "Usuário desbloqueado",     });   } ); 
+
+---
+
+## 🛠️ ETAPA 3 — BOTÃO NO FRONTEND
+
+📍 security-audit.tsx
+
+Dentro da tabela:
+
+tsx <button   onClick={() => handleUnblock(email)} >   🔓 Desbloquear </button> 
+
+---
+
+## 🛠️ ETAPA 4 — FUNÇÃO FRONT
+
+tsx async function handleUnblock(email: string) {   await fetch("/api/admin/security/unblock", {     method: "POST",     headers: { "Content-Type": "application/json" },     body: JSON.stringify({ email }),   });    refetch(); // atualiza dashboard } 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Usuário bloqueado
+
+✔ aparece como 🔴 BLOQUEADO  
+
+---
+
+### 2️⃣ Clicar desbloquear
+
+✔ chama endpoint  
+✔ remove bloqueio  
+
+---
+
+### 3️⃣ Nova tentativa
+
+✔ NÃO deve mais retornar erro de bloqueio  
+
+---
+
+### 4️⃣ Log esperado
+
+bash [SECURITY_UNBLOCK] { email: "user@email.com" } 
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhuma lógica alterada  
+✔ Sem impacto no sistema  
+✔ Sem banco  
+✔ Apenas controle manual  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ só bloqueio automático  
+
+Agora:
+✔ controle total  
+✔ admin decide  
+✔ suporte facilitado  
+
+---
+
+## 🚀 PRÓXIMA FASE (IMPORTANTE)
+
+👉 FASE 6.9 — bloqueio persistente (DB)
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoint funcionando  
+2. botão no frontend  
+3. desbloqueio validado  
+4. confirmação de zero regre

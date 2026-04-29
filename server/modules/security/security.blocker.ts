@@ -85,6 +85,24 @@ export function blockUser(email: string, count?: number): void {
   }
 }
 
+/**
+ * FASE 6.8 — Desbloqueio manual (admin MASTER).
+ * Remove o usuário do mapa de bloqueio E do anti-spam, permitindo que
+ * uma nova ofensa subsequente dispare um novo `[SECURITY_ALERT]`.
+ * Idempotente: chamar para um email já desbloqueado é no-op (apenas loga).
+ * Fail-safe: nunca lança, retorna boolean indicando se havia bloqueio.
+ */
+export function unblockUser(email?: string | null): boolean {
+  const key = normalize(email);
+  if (!key) return false;
+
+  const wasBlocked = blockedUsers.delete(key);
+  alertedUsers.delete(key);
+
+  console.info("[SECURITY_UNBLOCK]", { email: key, wasBlocked });
+  return wasBlocked;
+}
+
 /** Test-only helper: clears all blocks. Não usar em produção. */
 export function _resetBlockerForTests(): void {
   blockedUsers.clear();

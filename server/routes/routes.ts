@@ -351,6 +351,45 @@ export async function registerRoutes(
     },
   );
 
+  // --- FASE 6.8 — Manual unblock (MASTER only) ---
+  // Permite ao MASTER liberar um usuário antes do TTL de 5 min expirar.
+  // Apenas em memória, idempotente, sem efeito sobre validateOrderTenant.
+  app.post(
+    '/api/admin/security/unblock',
+    requireAuthCore,
+    requireRole(['MASTER']),
+    async (req, res) => {
+      try {
+        const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
+        if (!email) {
+          return res.status(400).json({
+            success: false,
+            error: { code: 'EMAIL_REQUIRED', message: 'Email é obrigatório' },
+          });
+        }
+
+        const { unblockUser } = await import('../modules/security/security.blocker');
+        const wasBlocked = unblockUser(email);
+
+        return res.json({
+          success: true,
+          data: { email: email.toLowerCase(), wasBlocked },
+          message: wasBlocked
+            ? 'Usuário desbloqueado com sucesso'
+            : 'Usuário não estava bloqueado',
+        });
+      } catch (e: any) {
+        return res.status(500).json({
+          success: false,
+          error: {
+            code: 'UNBLOCK_FAILED',
+            message: e?.message || 'Unknown error',
+          },
+        });
+      }
+    },
+  );
+
   // --- System Audit API ---
   // FASE 1 — exige sessão admin (auditoria revela usuários, empresas e logs).
   app.get('/api/admin/audit', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {

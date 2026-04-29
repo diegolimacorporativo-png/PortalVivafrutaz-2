@@ -1,6 +1,9 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -9,7 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ShieldAlert, Activity, Calendar, AlertTriangle } from "lucide-react";
+import {
+  ShieldAlert,
+  Activity,
+  Calendar,
+  AlertTriangle,
+  Unlock,
+} from "lucide-react";
 
 interface SecurityAuditData {
   total: number;
@@ -28,9 +37,39 @@ interface ApiResponse {
 }
 
 export default function SecurityAuditPage() {
+  const { toast } = useToast();
   const { data: response, isLoading, isError } = useQuery<ApiResponse>({
     queryKey: ["/api/admin/security/tenant-mismatch-events"],
     refetchInterval: 30_000,
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: async (email: string) => {
+      const res = await apiRequest(
+        "POST",
+        "/api/admin/security/unblock",
+        { email },
+      );
+      return res.json();
+    },
+    onSuccess: (result, email) => {
+      toast({
+        title: "Usuário desbloqueado",
+        description: result?.wasBlocked === false
+          ? `${email} não estava bloqueado.`
+          : `${email} foi liberado com sucesso.`,
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["/api/admin/security/tenant-mismatch-events"],
+      });
+    },
+    onError: (error: any, email) => {
+      toast({
+        title: "Falha ao desbloquear",
+        description: `${email}: ${error?.message ?? "erro desconhecido"}`,
+        variant: "destructive",
+      });
+    },
   });
 
   const data = response?.data;
@@ -139,11 +178,15 @@ export default function SecurityAuditPage() {
                       <TableHead>Email</TableHead>
                       <TableHead className="w-32">Tentativas</TableHead>
                       <TableHead className="w-32">Status</TableHead>
+                      <TableHead className="w-40">Ações</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {data.topUsers.map(([email, count]) => {
                       const blocked = blockedSet.has(email);
+                      const isPending =
+                        unblockMutation.isPending &&
+                        unblockMutation.variables === email;
                       return (
                         <TableRow
                           key={email}
@@ -173,6 +216,28 @@ export default function SecurityAuditPage() {
                               >
                                 OK
                               </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {blocked && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={isPending}
+                                onClick={() => {
+                                  if (
+                                    window.confirm(
+                                      `Desbloquear ${email}? Ele poderá voltar a acessar imediatamente.`,
+                                    )
+                                  ) {
+                                    unblockMutation.mutate(email);
+                                  }
+                                }}
+                                data-testid={`button-unblock-${email}`}
+                              >
+                                <Unlock className="h-3 w-3 mr-1" />
+                                {isPending ? "Desbloqueando…" : "Desbloquear"}
+                              </Button>
                             )}
                           </TableCell>
                         </TableRow>
