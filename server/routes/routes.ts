@@ -6388,6 +6388,19 @@ export async function registerRoutes(
       if (!Number.isFinite(orderId) || orderId <= 0) {
         return res.status(400).json({ message: 'orderId inválido' });
       }
+      // FASE 6 — multi-tenant hardening: defense-in-depth. O repository já
+      // aplica JOIN por companyId (devolveria []), mas isso permite a um
+      // atacante distinguir "pedido inexistente" de "pedido alheio sem
+      // histórico". Validamos o tenant ANTES da leitura para retornar 403
+      // explícito + log [SECURITY] TENANT_MISMATCH (via safeGetOrder).
+      try {
+        await validateOrderTenant(orderId);
+      } catch (e: any) {
+        if (e instanceof AppError) {
+          return res.status(e.status).json({ message: e.message });
+        }
+        throw e;
+      }
       try {
         const { financeService } = await import('../modules/finance/finance.service');
         const historico = await financeService.getNfeHistoricoPorPedido(orderId);

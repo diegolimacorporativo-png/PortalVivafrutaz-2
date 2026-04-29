@@ -139,6 +139,10 @@ export class OrdersController {
   /** GET /api/orders/:id/timeline */
   timeline = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // FASE 6 — multi-tenant hardening: timeline expõe histórico do pedido
+    // (status, datas, atores). Bloqueia inspeção cruzada antes de chamar
+    // o service. Mesma política do `get` acima.
+    await validateOrderTenant(id);
     return ok(res, await this.service.getOrderTimeline(id, this.actor(req)));
   };
 
@@ -170,6 +174,9 @@ export class OrdersController {
   /** GET /api/orders/:id/danfe-logs */
   listDanfeLogs = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // FASE 6 — multi-tenant hardening: logs de DANFE expõem timestamps e
+    // payloads sensíveis. Bloqueia inspeção cruzada antes do service.
+    await validateOrderTenant(id);
     return ok(res, await this.service.listDanfeLogs(id, this.actor(req)));
   };
 

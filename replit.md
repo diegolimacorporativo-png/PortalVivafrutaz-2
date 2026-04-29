@@ -145,6 +145,23 @@ Preferred communication style: Simple, everyday language.
 - **Endpoint**: `POST /api/admin/certificates/migrate-legacy` — guarded by `requireAuthCore + requireRole(['MASTER'])` (cross-tenant scan, no `tenantContext`). Returns `{ success: true, total, migrated }` on hit, `500 { success: false, error: { code: 'MIGRATION_FAILED', message } }` on error. Logs `[CERT_MIGRATION_DONE]` / `[CERT_MIGRATION_ERROR]` (no secrets in either).
 - **Verified**: anonymous → 401; with a plaintext row in the table, run 1 → `{ total: 1, migrated: 1 }`, raw DB row now starts with `enc:v1:`; run 2 → `{ total: 1, migrated: 0 }` (idempotent, no re-encryption); loader correctly decrypts the migrated row back to the original passphrase.
 
+### Multi-Tenant Read Hardening (FASE 6)
+- **Goal**: close the remaining cross-tenant read leaks on order/NF-e GET endpoints. Defense-in-depth — every "fetch this resource by id" route must validate the active tenant BEFORE hitting the storage layer, so an attacker cannot ID-swap to inspect another company's data.
+- **Helpers (pre-existing, untouched)**: `validateOrderTenant(orderId)` and `safeGetOrder(orderId)` from `server/core/security/tenantGuard.ts`. Both pull the active tenant via `requireTenantId()` (ALS), call `storage.getOrder` once, compare `companyId`, and on mismatch log `[SECURITY] TENANT_MISMATCH | requestId=… | orderId=… | details=Tenant mismatch tenant=… orderCompanyId=…` + throw `ForbiddenError` (403). Missing → `NotFoundError` (404). No tenant in context → `UnauthorizedError` (401).
+- **Audit of existing routes** (already protected; unchanged): `GET /api/orders/:id`, `GET /api/nfe/:id`, `GET /api/nfe/can-emit/:orderId`, `GET /api/nfe/preflight/:orderId`, `GET /api/nfe/:id/danfe`, `GET /api/nfe/:id/xml`, `GET /api/nfe/fiscal-data/:orderId`, `GET /api/nfe/diagnostics/:orderId`.
+- **Gaps closed in this phase** (added `await validateOrderTenant(id)` before any storage read, no other change):
+  - `GET /api/orders/:id/timeline` — `OrdersController.timeline` (`server/modules/orders/orders.controller.ts`).
+  - `GET /api/orders/:id/danfe-logs` — `OrdersController.listDanfeLogs` (same file).
+  - `GET /api/nfe/:orderId/historico` — `server/routes/routes.ts` (was relying only on a repo-level JOIN; the JOIN returned `[]` for cross-tenant attempts, but that allowed an attacker to distinguish "alheio" from "inexistente" and silently leaked existence). Now returns explicit 403 + `[SECURITY]` log.
+- **Strict invariants**: storage.ts not touched; service logic not touched; response shape not touched (the guard only fails-fast before the existing handler runs). The errorHandler central já mapeia `AppError → status` para o controller; em `routes.ts` capturamos `AppError` e devolvemos `res.status(e.status).json({ message })` mantendo o envelope antigo.
+- **Verified** (real cross-tenant E2E with a temp order in DB):
+  - Same tenant → `safeGetOrder` returns `{ items, order }` (shape preserved).
+  - Cross tenant → `ForbiddenError` 403 + `[SECURITY] TENANT_MISMATCH … tenant=10000 orderCompanyId=1` printed to stderr.
+  - No tenant context → `UnauthorizedError` 401.
+  - Not-found order → `NotFoundError` 404.
+  - HTTP smoke: anonymous on `/api/orders/:id`, `/api/orders/:id/timeline`, `/api/orders/:id/danfe-logs`, `/api/nfe/:id/historico` → all 401 (auth gate). NF-e emission flow untouched (cron + manual emit still pass through the same `validateOrderTenant` they always called).
+  - TypeScript baseline unchanged (16 pre-existing errors, 0 new).
+
 ### NF-e Cert Audit (FASE 3.4.1)
 - **Goal**: read-only operational view of the certificate fleet — confirm the FASE 3.4 migration result and diagnose pending tenants without touching the DB. Strictly aggregate metrics, no sensitive fields.
 - **Function**: `auditCertificates()` (named export from `companyCertificate.repository.ts`) returns `{ total, encrypted, legacy, lastUpdatedAt: string|null }`. Counts `isEncrypted` rows vs the rest, picks the max `updatedAt` across the fleet, ISO-formats it. No side effects.
