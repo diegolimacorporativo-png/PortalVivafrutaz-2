@@ -1,0 +1,150 @@
+🎯 FASE 6.1 — AUDITORIA DE SEGURANÇA (TENANT MISMATCH EVENTS)
+
+👉 OBJETIVO  
+Criar um endpoint ADMIN (read-only) para monitorar tentativas de acesso indevido entre tenants.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO alterar endpoints já criados  
+4. NÃO mexer em validateOrderTenant  
+5. NÃO mexer em storage.ts  
+6. NÃO alterar estrutura de resposta existente  
+
+👉 Apenas ADICIONAR nova funcionalidade de auditoria
+
+---
+
+🧠 CONTEXTO
+
+- Já existe log:
+  [SECURITY] TENANT_MISMATCH
+
+- Já existe proteção nas rotas (FASE 6 ✅)
+
+👉 Agora precisamos VISIBILIDADE desses eventos
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1️⃣ CRIAR FUNÇÃO DE AUDITORIA (READ-ONLY)
+
+Arquivo:
+server/modules/security/security.repository.ts (criar se não existir)
+
+---
+
+Criar função:
+
+ts async function getTenantMismatchEvents(days: number): Promise<{   total: number;   byOrder: Record<string, number>; }> {   // implementação simples (mock seguro por enquanto)   return {     total: 0,     byOrder: {}   }; } 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO acessar banco ainda
+- NÃO criar query complexa
+- função placeholder segura
+
+---
+
+## 2️⃣ CRIAR ENDPOINT ADMIN
+
+Arquivo:
+server/routes/routes.ts
+
+---
+
+Adicionar:
+
+ts app.get("/api/admin/security/tenant-mismatch-events", requireAuthCore, requireRole(['MASTER']), async (req, res) => {   try {     const days = Number(req.query.days || 7);      const data = await getTenantMismatchEvents(days);      return res.json({       success: true,       data     });   } catch (e: any) {     return res.status(500).json({       success: false,       error: {         code: "TENANT_MISMATCH_AUDIT_FAILED",         message: e.message       }     });   } }); 
+
+---
+
+## 3️⃣ GARANTIR SEGURANÇA
+
+- Endpoint MASTER only  
+- Não expor:
+  - orderId real detalhado sensível
+  - tenantId
+  - dados do pedido
+
+👉 Apenas agregados
+
+---
+
+## 4️⃣ LOG OPCIONAL
+
+Adicionar log:
+
+ts console.log("[SECURITY_AUDIT] Tenant mismatch audit requested"); 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Sem auth
+
+→ 401
+
+---
+
+### 2️⃣ Usuário comum
+
+→ 403
+
+---
+
+### 3️⃣ MASTER
+
+→ 200
+
+Resposta:
+
+json {   "success": true,   "data": {     "total": 0,     "byOrder": {}   } } 
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero impacto nas rotas existentes  
+✔ zero impacto no fluxo NF-e  
+✔ zero alteração em validateOrderTenant  
+✔ apenas leitura (safe)  
+✔ pronto para evolução futura (logs reais / banco)
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- sistema agora tem VISÃO de tentativas de ataque  
+- base pronta para monitoramento real  
+- segurança multi-tenant mais madura  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivo criado  
+2. endpoint criado  
+3. resposta de teste  
+4. confirmação de zero regressão  
+
+---
+
+🚀 OBS
+
+👉 NÃO implementar leitura real de logs ainda  
+👉 NÃO integrar com banco ainda  
+
+👉 isso vem na próxi
