@@ -1,0 +1,243 @@
+🎯 FASE 8.3 — CONSOLIDAÇÃO DE DEFAULTS FISCAIS (ZERO REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar cálculo de impostos  
+3. NÃO alterar origem dos items  
+4. NÃO alterar comportamento de fallback  
+5. NÃO alterar resolveBillingItems (lógica já validada)  
+6. NÃO remover código ainda  
+7. NÃO alterar builder além do necessário  
+
+👉 Apenas centralizar defaults fiscais duplicados
+
+---
+
+🧠 CONTEXTO
+
+Hoje os defaults estão DUPLICADOS:
+
+📍 billing.service.ts (inline)
+- NCM: "08039000"
+- CFOP: defaultCfop
+- UNIT: "KG"
+
+📍 nfe-input.builder.ts
+- fallback de NCM
+- fallback de CFOP
+- fallback de unidade
+
+👉 Isso é risco silencioso de divergência futura
+
+---
+
+🎯 OBJETIVO
+
+Criar uma única fonte de defaults fiscais reutilizável:
+
+ts getFiscalDefaults(companyConfig)
+
+E usar nos pontos existentes SEM alterar comportamento
+
+---
+
+# 📦 ETAPA 1 — CRIAR FUNÇÃO CENTRAL
+
+📍 Novo arquivo:
+
+server/modules/nfe/fiscal.defaults.ts
+
+---
+
+ts export function getFiscalDefaults(companyConfig: any) {   return {     ncm: "08039000",     cfop: companyConfig?.defaultCfop ?? "5102",     unit: "KG",   }; } 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO puxar do banco
+- NÃO validar dados
+- NÃO mudar valores atuais
+- manter exatamente os mesmos defaults existentes
+
+---
+
+# 📦 ETAPA 2 — USAR NO billing.service.ts
+
+📍 Arquivo:
+
+server/modules/billing/billing.service.ts
+
+---
+
+Adicionar import:
+
+ts import { getFiscalDefaults } from "../nfe/fiscal.defaults"; 
+
+---
+
+Substituir APENAS onde hoje está hardcoded:
+
+ANTES:
+
+ts ("08039000", defaultCfop, "KG") 
+
+DEPOIS:
+
+ts const defaults = getFiscalDefaults(companyConfig);  (defaults.ncm, defaults.cfop, defaults.unit) 
+
+---
+
+⚠️ NÃO alterar mais nada  
+⚠️ NÃO mexer na lógica do agrupamento  
+
+---
+
+# 📦 ETAPA 3 — USAR NO nfe-input.builder.ts
+
+📍 Arquivo:
+
+server/modules/nfe/nfe-input.builder.ts
+
+---
+
+Adicionar import:
+
+ts import { getFiscalDefaults } from "./fiscal.defaults"; 
+
+---
+
+Localizar fallback de produtos:
+
+ts ncm: item.ncm ?? "08039000" cfop: item.cfop ?? defaultCfop uCom: item.unit ?? "KG" 
+
+---
+
+Substituir por:
+
+ts const defaults = getFiscalDefaults(companyConfig);  ncm: item.ncm ?? defaults.ncm cfop: item.cfop ?? defaults.cfop uCom: item.unit ?? defaults.unit 
+
+---
+
+⚠️ NÃO alterar map inteiro  
+⚠️ NÃO mexer em cálculos  
+⚠️ NÃO mudar estrutura  
+
+---
+
+# 📦 ETAPA 4 — NÃO REMOVER DUPLICAÇÃO AINDA
+
+👉 NÃO deletar:
+- valores inline antigos (fora desses pontos)
+- lógica do builder
+- lógica do service
+
+👉 apenas substituir pontos críticos
+
+---
+
+# 📦 ETAPA 5 — VALIDAÇÃO (CRÍTICA)
+
+Rodar:
+
+✔ baseline  
+✔ geração de NF  
+✔ cenários já testados na FASE 8.2  
+
+---
+
+Validar:
+
+✔ XML idêntico  
+✔ mesmos itens  
+✔ mesmos totais  
+✔ mesmos campos fiscais  
+
+---
+
+# 🧪 ETAPA 6 — TESTES
+
+Testar:
+
+---
+
+### 1️⃣ STANDARD com draft
+✔ NCM aplicado corretamente
+
+---
+
+### 2️⃣ CONTRACT_AVERAGE
+✔ agrupamento mantém defaults
+
+---
+
+### 3️⃣ Sem draft (legacy)
+✔ fallback continua funcionando
+
+---
+
+### 4️⃣ Agrupamento
+✔ continua gerando 1 linha
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se qualquer diferença:
+
+❌ PARAR  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# 🔐 GARANTIAS
+
+✔ elimina duplicação silenciosa  
+✔ mantém comportamento 100%  
+✔ prepara para regras fiscais reais  
+✔ reduz risco de divergência futura  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ defaults espalhados  
+❌ risco de inconsistência  
+
+Depois:
+
+✔ defaults centralizados  
+✔ builder + service sincronizados  
+✔ comportamento intacto  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. arquivo criado  
+2. pontos substituídos  
+3. resultado dos testes  
+4. confirmação de XML idêntico  
+5. confirmação de zero regressão  
+
+---
+
+🚀 EXEC
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO implementar regras fiscais novas ainda  
+👉 NÃO mexer em ICMS  
+👉 NÃO mexer em NCM real  
+
+👉 isso vem na
