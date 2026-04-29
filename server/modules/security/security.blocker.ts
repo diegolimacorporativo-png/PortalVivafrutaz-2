@@ -15,8 +15,35 @@
 
 const blockedUsers = new Map<string, number>();
 
+/**
+ * FASE 6.6 — set anti-spam: garante que `sendSecurityAlert` seja
+ * disparado UMA única vez por janela de bloqueio (até o usuário
+ * desbloquear, quando a entrada é removida e um novo abuso pode
+ * gerar novo alerta).
+ */
+const alertedUsers = new Set<string>();
+
 /** Janela de bloqueio: 5 minutos. Suficiente para frustrar flood automatizado. */
 export const BLOCK_TIME_MS = 5 * 60 * 1000;
+
+/**
+ * FASE 6.6 — Dispara alerta de segurança quando um usuário é bloqueado.
+ * Atualmente apenas loga em stderr (`[SECURITY_ALERT]`). Está pronto
+ * para ser estendido com SMTP / webhook / Slack na próxima fase.
+ *
+ * Fail-safe: qualquer erro é capturado e logado — nunca propaga.
+ */
+export function sendSecurityAlert(email: string, count: number): void {
+  try {
+    console.warn("[SECURITY_ALERT]", {
+      email,
+      attempts: count,
+      message: "User blocked due to repeated tenant mismatch",
+    });
+  } catch (e) {
+    console.error("[SECURITY_ALERT_FAIL]", e);
+  }
+}
 
 function normalize(email?: string | null): string | null {
   if (!email || typeof email !== "string") return null;
@@ -33,20 +60,35 @@ export function isUserBlocked(email?: string | null): boolean {
 
   if (Date.now() > blockedUntil) {
     blockedUsers.delete(key);
+    // FASE 6.6 — limpa o anti-spam ao expirar: próximo abuso pode
+    // disparar um novo alerta legítimo.
+    alertedUsers.delete(key);
     return false;
   }
   return true;
 }
 
-export function blockUser(email: string): void {
+/**
+ * Bloqueia um email por `BLOCK_TIME_MS` e dispara `sendSecurityAlert`
+ * na primeira vez (anti-spam via `alertedUsers`). O parâmetro `count`
+ * é o número de tentativas observadas — apenas informativo, vai pro log.
+ */
+export function blockUser(email: string, count?: number): void {
   const key = normalize(email);
   if (!key) return;
   blockedUsers.set(key, Date.now() + BLOCK_TIME_MS);
+
+  // FASE 6.6 — alerta one-shot por janela de bloqueio.
+  if (!alertedUsers.has(key)) {
+    alertedUsers.add(key);
+    sendSecurityAlert(key, count ?? 0);
+  }
 }
 
 /** Test-only helper: clears all blocks. Não usar em produção. */
 export function _resetBlockerForTests(): void {
   blockedUsers.clear();
+  alertedUsers.clear();
 }
 
 /** Read-only debug helper: tamanho do mapa de bloqueio. */

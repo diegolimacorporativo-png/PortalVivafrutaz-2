@@ -1,0 +1,135 @@
+🎯 FASE 6.6 — ALERTA INTELIGENTE (ANTI-SPAM)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO enviar múltiplos alertas para o mesmo usuário  
+3. NÃO usar banco ainda  
+4. NÃO quebrar fluxo se alerta falhar  
+5. Apenas ADD  
+
+---
+
+🧠 OBJETIVO
+
+Quando um usuário for bloqueado:
+
+👉 disparar alerta UMA vez  
+👉 evitar spam  
+👉 permitir futura integração com email/webhook  
+
+---
+
+## 🛠️ ETAPA 1 — MAPA DE ALERTA
+
+📍 server/modules/security/security.blocker.ts
+
+Adicionar:
+
+ts id="alert_map" const alertedUsers = new Set<string>(); 
+
+---
+
+## 🛠️ ETAPA 2 — FUNÇÃO DE ALERTA
+
+ts id="alert_fn" export function sendSecurityAlert(email: string, count: number) {   try {     console.warn("[SECURITY_ALERT]", {       email,       attempts: count,       message: "User blocked due to repeated tenant mismatch",     });   } catch (e) {     console.error("[SECURITY_ALERT_FAIL]", e);   } } 
+
+---
+
+## 🛠️ ETAPA 3 — DISPARAR ALERTA NO BLOQUEIO
+
+📍 Ainda no blocker:
+
+ts id="alert_trigger" import { sendSecurityAlert } from "./security.blocker";  export function blockUser(email: string, count?: number) {   const key = email.toLowerCase();    blockedUsers.set(key, Date.now() + BLOCK_TIME_MS);    if (!alertedUsers.has(key)) {     alertedUsers.add(key);     sendSecurityAlert(key, count ?? 0);   } } 
+
+---
+
+## 🛠️ ETAPA 4 — RESETAR ALERTA APÓS EXPIRAR
+
+Dentro de isUserBlocked:
+
+ts id="alert_reset" if (Date.now() > blockedUntil) {   blockedUsers.delete(email);   alertedUsers.delete(email); // permite novo alerta no futuro   return false; } 
+
+---
+
+## 🛠️ ETAPA 5 — PASSAR COUNT REAL
+
+📍 Onde chama blockUser:
+
+ts id="pass_count" blockUser(user.email, user.count); 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Cenário
+
+userA → 6 tentativas
+
+---
+
+### 2️⃣ Resultado esperado
+
+✔ bloqueado  
+✔ 1 log:
+
+id="alert_log" [SECURITY_ALERT] { email: "userA@email.com", attempts: 6 }
+
+---
+
+### 3️⃣ Repetir chamadas
+
+✔ NÃO deve gerar novo alerta  
+
+---
+
+### 4️⃣ Após 5 minutos
+
+✔ desbloqueia  
+✔ próximo abuso gera novo alerta  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Sem spam  
+✔ Sem duplicação  
+✔ Fail-safe  
+✔ Sem impacto no fluxo  
+✔ Pronto para email real  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ Sem visibilidade em tempo real  
+
+Agora:
+✔ alerta inteligente  
+✔ anti-spam  
+✔ pronto pra produção  
+
+---
+
+## 🚀 PRÓXIMA FASE
+
+👉 Integrar com:
+- email (SMTP)
+- webhook
+- Slack / Discord
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. alerta disparando corretamente  
+2. sem duplicação  
+3. reset após expiração  
+4. confirmação de zero regre

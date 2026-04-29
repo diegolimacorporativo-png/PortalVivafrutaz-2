@@ -143,11 +143,12 @@ export async function getTenantMismatchEvents(days: number): Promise<{
       .filter(([, count]) => count >= ABUSE_THRESHOLD)
       .map(([email, count]) => ({ email, count }));
 
-    // FASE 6.5 — aciona o bloqueio temporário (in-memory) para cada
-    // usuário suspeito. Ignora a chave "unknown" (não há email real para
-    // bloquear) e qualquer string vazia, evitando falsos positivos.
-    for (const { email } of suspiciousUsers) {
-      if (email && email !== "unknown") blockUser(email);
+    // FASE 6.5 / 6.6 — aciona o bloqueio temporário (in-memory) para
+    // cada usuário suspeito e dispara o alerta one-shot via blockUser.
+    // Passamos `count` real para que o alerta carregue a quantidade
+    // observada de tentativas. Ignora "unknown" / strings vazias.
+    for (const { email, count } of suspiciousUsers) {
+      if (email && email !== "unknown") blockUser(email, count);
     }
 
     return {
