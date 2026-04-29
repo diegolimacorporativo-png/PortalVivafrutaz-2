@@ -1,0 +1,205 @@
+🎯 FASE 7.4 — LIMPEZA CONTROLADA (ADMIN / SECURITY) — ZERO REGRESSÃO
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+1. NÃO alterar lógica  
+2. NÃO refatorar  
+3. NÃO alterar resposta HTTP  
+4. NÃO alterar status codes  
+5. NÃO alterar estrutura JSON  
+6. NÃO tocar em segurança (validateOrderTenant, safeGetOrder, tenantGuard, blocker)  
+7. NÃO remover código sem prova de que é código morto  
+8. SEMPRE validar com baseline (audit/baseline.json)  
+9. Se houver dúvida → PARAR  
+
+---
+
+🧠 CONTEXTO
+
+- Sistema já usa módulos em: server/modules/*
+- routes.ts ainda contém handlers inline
+- alguns endpoints podem estar duplicados (inline + módulo)
+- baseline já validado (audit/baseline.json)
+
+👉 objetivo: remover APENAS código morto (duplicado e não executado)
+
+---
+
+# 📦 ETAPA 1 — MAPEAR ROTAS (READ-ONLY)
+
+Arquivos:
+
+- server/app.ts  
+- server/routes/routes.ts  
+- server/modules/**/routes.ts  
+
+---
+
+Identificar:
+
+1. ordem de registro (app.ts)
+2. rotas registradas via módulos (registerModules)
+3. rotas registradas em routes.ts
+
+---
+
+# 📦 ETAPA 2 — IDENTIFICAR DUPLICAÇÃO REAL
+
+Para cada rota em routes.ts:
+
+👉 verificar se já existe no módulo correspondente
+
+Exemplos esperados:
+
+- /api/admin/security/*
+- /api/admin/audit
+- /api/admin/intelligence
+- /api/admin/system-sync
+
+---
+
+# 📦 ETAPA 3 — PROVAR QUE É CÓDIGO MORTO
+
+Uma rota inline só pode ser removida se:
+
+✔ mesma path existe no módulo  
+✔ método igual (GET/POST/etc)  
+✔ módulo é registrado ANTES no app.ts  
+✔ baseline confirma comportamento do módulo  
+
+---
+
+❌ NÃO assumir  
+❌ NÃO inferir  
+❌ NÃO remover “parece duplicado”  
+
+---
+
+# 📦 ETAPA 4 — REMOÇÃO CIRÚRGICA
+
+Para cada handler confirmado como morto:
+
+👉 remover APENAS o bloco:
+
+ts app.get('/api/admin/...', async (...) => { 
+
+ou
+
+ts app.post('/api/admin/...', async (...) => { 
+
+---
+
+Substituir por comentário:
+
+ts // REMOVIDO NA FASE 7.4 — código morto // handler duplicado já atendido por módulo em server/modules/* 
+
+---
+
+⚠️ NÃO criar wrapper  
+⚠️ NÃO redirecionar  
+⚠️ NÃO alterar controller  
+
+---
+
+# 📦 ETAPA 5 — BASELINE (OBRIGATÓRIO)
+
+Usar:
+
+audit/baseline.json
+
+---
+
+Executar TODOS os cenários:
+
+- auth (login, me, logout)
+- admin/security
+- orders
+- nfe
+
+---
+
+# 📊 ETAPA 6 — DIFF
+
+Comparar:
+
+ANTES vs DEPOIS
+
+---
+
+Validar:
+
+✔ status idêntico  
+✔ response idêntico  
+✔ keys idênticas  
+✔ headers idênticos  
+
+---
+
+⚠️ ignorar apenas:
+
+- responseTimeMs  
+- timestamps  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR  
+❌ NÃO corrigir  
+❌ NÃO continuar  
+
+---
+
+# 📦 ETAPA 7 — VALIDAÇÃO FINAL
+
+Confirmar:
+
+✔ sistema sobe (RUNNING)  
+✔ endpoints respondem  
+✔ nenhum 500 novo  
+✔ segurança intacta  
+
+---
+
+# 🔐 GARANTIAS
+
+✔ zero regressão  
+✔ zero mudança de contrato  
+✔ zero impacto na segurança  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+ANTES:
+routes.ts com duplicações
+
+DEPOIS:
+routes.ts mais limpo  
+apenas módulos ativos respondendo  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+---
+
+1. rotas removidas (lista exata)  
+2. prova de duplicação (onde está no módulo)  
+3. ordem de registro confirmada  
+4. cenários testados  
+5. diff (resumo)  
+6. confirmação de zero regressão  
+
+---
+
+🚀 EXECUTAR COM EXTREMA CAUTELA
+
+👉 limpar errado aqui quebra o sistema inteiro  
+👉 limpar certo deixa o projeto nível enterprise

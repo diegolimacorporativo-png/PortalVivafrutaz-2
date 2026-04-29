@@ -1160,7 +1160,8 @@ export async function registerRoutes(
 
   // --- Orders export with full detail (company, items, products) ---
   // Delegated to ordersController.export — owned by server/modules/orders.
-  app.get('/api/orders/export', (req: Request, res: Response, next: NextFunction) => ordersController.export(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // /api/products/safra-alerts, /next-code, /check-code, /check-duplicate,
   // /price-alerts → migrated to server/modules/products/products.routes.ts
@@ -1248,7 +1249,8 @@ export async function registerRoutes(
 
   // Forgot Password — Client submits a request
   // Delegated to authController.forgotPassword — owned by server/modules/auth.
-  app.post('/api/auth/forgot-password', (req: Request, res: Response, next: NextFunction) => authController.forgotPassword(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Special Order Requests ───────────────────────────────────
   // Client: submit special order
@@ -1959,40 +1961,49 @@ export async function registerRoutes(
 
   // Admin order management
   // Delegated to ordersController.update — owned by server/modules/orders.
-  app.patch('/api/orders/:id', (req: Request, res: Response, next: NextFunction) => ordersController.update(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── ORDER DELETION (Admin/Director/Developer only) ────────────────────────
 
   // Bulk delete orders
   // Delegated to ordersController.bulkDelete — owned by server/modules/orders.
-  app.delete('/api/orders/bulk', (req: Request, res: Response, next: NextFunction) => ordersController.bulkDelete(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Delete single order
   // Delegated to ordersController.remove — owned by server/modules/orders.
-  app.delete('/api/orders/:id', (req: Request, res: Response, next: NextFunction) => ordersController.remove(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Client requests reopening of a confirmed/locked order
   // Delegated to ordersController.requestReopen — owned by server/modules/orders.
-  app.post('/api/orders/:id/request-reopen', (req: Request, res: Response, next: NextFunction) => ordersController.requestReopen(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Admin approves reopening → OPEN_FOR_EDITING
   // Delegated to ordersController.approveReopen — owned by server/modules/orders.
-  app.post('/api/orders/:id/approve-reopen', (req: Request, res: Response, next: NextFunction) => ordersController.approveReopen(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Admin denies reopening → back to CONFIRMED
   // Delegated to ordersController.denyReopen — owned by server/modules/orders.
-  app.post('/api/orders/:id/deny-reopen', (req: Request, res: Response, next: NextFunction) => ordersController.denyReopen(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Client re-finalizes an open-for-editing order → back to CONFIRMED
   // Delegated to ordersController.finalizeEdit — owned by server/modules/orders.
-  app.post('/api/orders/:id/finalize-edit', (req: Request, res: Response, next: NextFunction) => ordersController.finalizeEdit(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Admin endpoint to check orders with REOPEN_REQUESTED status
   // Delegated to ordersController.reopenRequests — owned by server/modules/orders.
-  app.get('/api/orders/reopen-requests', (req: Request, res: Response, next: NextFunction) => ordersController.reopenRequests(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Delegated to ordersController.replaceItems — owned by server/modules/orders.
-  app.put('/api/orders/:id/items', (req: Request, res: Response, next: NextFunction) => ordersController.replaceItems(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Categories
   // /api/categories CRUD → migrated to server/modules/products/categories.routes.ts
@@ -2160,7 +2171,8 @@ export async function registerRoutes(
 
   // --- Log Unauthorized Route Access ---
   // Delegated to authController.logUnauthorized — owned by server/modules/auth.
-  app.post('/api/auth/log-unauthorized', (req: Request, res: Response, next: NextFunction) => authController.logUnauthorized(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── TAREFAS ──────────────────────────────────────────────────
   app.get('/api/tasks', async (req, res) => {
@@ -2412,25 +2424,41 @@ export async function registerRoutes(
   // The module router is mounted at /api/logistics BEFORE registerRoutes(), so
   // these delegations are effectively shadowed. Kept here as documentation /
   // safety net in case the module mount order changes.
-  app.get('/api/logistics/drivers', (req: Request, res: Response, next: NextFunction) => logisticsController.listDrivers(req, res).catch(next));
-  app.post('/api/logistics/drivers', (req: Request, res: Response, next: NextFunction) => logisticsController.createDriver(req, res).catch(next));
-  app.patch('/api/logistics/drivers/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.updateDriver(req, res).catch(next));
-  app.delete('/api/logistics/drivers/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.deleteDriver(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/logistics/vehicles', (req: Request, res: Response, next: NextFunction) => logisticsController.listVehicles(req, res).catch(next));
-  app.post('/api/logistics/vehicles', (req: Request, res: Response, next: NextFunction) => logisticsController.createVehicle(req, res).catch(next));
-  app.patch('/api/logistics/vehicles/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.updateVehicle(req, res).catch(next));
-  app.delete('/api/logistics/vehicles/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.deleteVehicle(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/logistics/routes', (req: Request, res: Response, next: NextFunction) => logisticsController.listRoutes(req, res).catch(next));
-  app.post('/api/logistics/routes', (req: Request, res: Response, next: NextFunction) => logisticsController.createRoute(req, res).catch(next));
-  app.patch('/api/logistics/routes/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.updateRoute(req, res).catch(next));
-  app.delete('/api/logistics/routes/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.deleteRoute(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/logistics/maintenance', (req: Request, res: Response, next: NextFunction) => logisticsController.listMaintenance(req, res).catch(next));
-  app.post('/api/logistics/maintenance', (req: Request, res: Response, next: NextFunction) => logisticsController.createMaintenance(req, res).catch(next));
-  app.patch('/api/logistics/maintenance/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.updateMaintenance(req, res).catch(next));
-  app.delete('/api/logistics/maintenance/:id', (req: Request, res: Response, next: NextFunction) => logisticsController.deleteMaintenance(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── COTAÇÃO DE EMPRESAS ──────────────────────────────────────
   app.get('/api/quotations', async (req, res) => {
@@ -2643,38 +2671,34 @@ export async function registerRoutes(
   // Comportamento idêntico ao boilerplate da FASE 6: valida tenant antes de
   // chamar o controller; em mismatch devolve {message} com o status do AppError;
   // em sucesso o payload do controller permanece inalterado.
-  app.get(
-    '/api/orders/:id/danfe-logs',
-    withTenantGuard((req: Request, res: Response, next: NextFunction) =>
-      ordersController.listDanfeLogs(req, res).catch(next),
-    ),
-  );
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Delegated to ordersController.createDanfeLog — owned by server/modules/orders.
-  app.post('/api/orders/:id/danfe-log', (req: Request, res: Response, next: NextFunction) => ordersController.createDanfeLog(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ── Fiscal: atualizar status fiscal e pré-nota ────────────────
   // Delegated to ordersController.updateFiscal — owned by server/modules/orders.
-  app.patch('/api/orders/:id/fiscal', (req: Request, res: Response, next: NextFunction) => ordersController.updateFiscal(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ── Fiscal: gerar número de pré-nota automático ───────────────
   // Delegated to ordersController.generatePrenota — owned by server/modules/orders.
-  app.post('/api/orders/:id/generate-prenota', (req: Request, res: Response, next: NextFunction) => ordersController.generatePrenota(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ── Fiscal: exportar dados para ERP (JSON com estrutura Excel/XML) ──
   // ─── BLING EXPORT — Status-tracked export to ERP Bling ───────
   // Delegated to ordersController.blingExport — owned by server/modules/orders.
-  app.post('/api/orders/:id/bling-export', (req: Request, res: Response, next: NextFunction) => ordersController.blingExport(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // Delegated to ordersController.exportErp — owned by server/modules/orders.
   // FASE 6.5 — passou a usar `withTenantGuard`. Mesma proteção da FASE 6,
   // mesma resposta em sucesso, menos boilerplate.
-  app.get(
-    '/api/orders/:id/export-erp',
-    withTenantGuard((req: Request, res: Response, next: NextFunction) =>
-      ordersController.exportErp(req, res).catch(next),
-    ),
-  );
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
   // SECURITY: Cross-tenant by design (executive overview spans all empresas).
@@ -2813,7 +2837,8 @@ export async function registerRoutes(
 
   // ─── Assistente de Rota Inteligente ───────────────────────────
   // Delegated to logisticsController.routeAssistant — owned by server/modules/logistics.
-  app.get('/api/logistics/route-assistant', (req: Request, res: Response, next: NextFunction) => logisticsController.routeAssistant(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Announcements (Painel de Avisos) ─────────────────────────
   // Admin: list all
@@ -4943,24 +4968,38 @@ export async function registerRoutes(
   // /api/finance/* handlers were delegated to financeController below.
 
   // ─── Finance — Delegated to financeController, owned by server/modules/finance ───
-  app.get('/api/finance/dashboard', (req: Request, res: Response, next: NextFunction) => financeController.getDashboard(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/finance/accounts-receivable', (req: Request, res: Response, next: NextFunction) => financeController.listAccountsReceivable(req, res).catch(next));
-  app.post('/api/finance/accounts-receivable', (req: Request, res: Response, next: NextFunction) => financeController.createAccountReceivable(req, res).catch(next));
-  app.patch('/api/finance/accounts-receivable/:id', (req: Request, res: Response, next: NextFunction) => financeController.updateAccountReceivable(req, res).catch(next));
-  app.patch('/api/finance/accounts-receivable/:id/pay', (req: Request, res: Response, next: NextFunction) => financeController.payAccountReceivable(req, res).catch(next));
-  app.delete('/api/finance/accounts-receivable/:id', (req: Request, res: Response, next: NextFunction) => financeController.deleteAccountReceivable(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/finance/accounts-payable', (req: Request, res: Response, next: NextFunction) => financeController.listAccountsPayable(req, res).catch(next));
-  app.post('/api/finance/accounts-payable', (req: Request, res: Response, next: NextFunction) => financeController.createAccountPayable(req, res).catch(next));
-  app.patch('/api/finance/accounts-payable/:id', (req: Request, res: Response, next: NextFunction) => financeController.updateAccountPayable(req, res).catch(next));
-  app.patch('/api/finance/accounts-payable/:id/pay', (req: Request, res: Response, next: NextFunction) => financeController.payAccountPayable(req, res).catch(next));
-  app.delete('/api/finance/accounts-payable/:id', (req: Request, res: Response, next: NextFunction) => financeController.deleteAccountPayable(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/finance/cashflow', (req: Request, res: Response, next: NextFunction) => financeController.listCashflow(req, res).catch(next));
-  app.post('/api/finance/cashflow', (req: Request, res: Response, next: NextFunction) => financeController.createCashflowEntry(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
-  app.get('/api/finance/pix/:id', (req: Request, res: Response, next: NextFunction) => financeController.getPixForReceivable(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Admin: Cert Audit (FASE 3.4.1) ───────────────────────────────────
   // Visão agregada read-only do estado dos certificados na frota. NÃO retorna
@@ -8160,19 +8199,23 @@ export async function registerRoutes(
 
   // ─── Route Optimization — Suggest Insertion ──────────────────────────────────
   // Delegated to logisticsController.suggestRoute — owned by server/modules/logistics.
-  app.post('/api/logistics/suggest-route', (req: Request, res: Response, next: NextFunction) => logisticsController.suggestRoute(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Day Orders for Logistics ────────────────────────────────────────────────
   // Delegated to logisticsController.dayOrders — owned by server/modules/logistics.
-  app.get('/api/logistics/day-orders', (req: Request, res: Response, next: NextFunction) => logisticsController.dayOrders(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Simulate Day ────────────────────────────────────────────────────────────
   // Delegated to logisticsController.simulateDay — owned by server/modules/logistics.
-  app.post('/api/logistics/simulate-day', (req: Request, res: Response, next: NextFunction) => logisticsController.simulateDay(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Calculate Distance between two points ───────────────────────────────────
   // Delegated to logisticsController.calculateDistance — owned by server/modules/logistics.
-  app.post('/api/logistics/calculate-distance', (req: Request, res: Response, next: NextFunction) => logisticsController.calculateDistance(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Logistics Audit Helper (kept here: still used by /api/deliveries/:id/checklist) ───
   async function logisticsAudit(req: any, acao: string, detalhes?: string, entidadeId?: number, entidadeTipo?: string) {
@@ -8190,7 +8233,8 @@ export async function registerRoutes(
 
   // ─── Audit Logs ───────────────────────────────────────────────────────────────
   // Delegated to logisticsController.auditLogs — owned by server/modules/logistics.
-  app.get('/api/logistics/audit-logs', (req: Request, res: Response, next: NextFunction) => logisticsController.auditLogs(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Driver Panel — Rota do dia ───────────────────────────────────────────────
   app.get('/api/driver/route-today', async (req: any, res) => {
@@ -8438,38 +8482,49 @@ export async function registerRoutes(
 
   // ─── Logistics Reports ────────────────────────────────────────────────────────
   // Delegated to logisticsController.deliveriesReport — owned by server/modules/logistics.
-  app.get('/api/logistics/reports/deliveries', (req: Request, res: Response, next: NextFunction) => logisticsController.deliveriesReport(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Route Stops (múltiplos CEPs por rota) ───────────────────────────────────
   // Delegated to logisticsController — owned by server/modules/logistics.
-  app.get('/api/logistics/routes/:routeId/stops', (req: Request, res: Response, next: NextFunction) => logisticsController.listRouteStops(req, res).catch(next));
-  app.post('/api/logistics/routes/:routeId/stops', (req: Request, res: Response, next: NextFunction) => logisticsController.createRouteStop(req, res).catch(next));
-  app.patch('/api/logistics/routes/:routeId/stops/:stopId', (req: Request, res: Response, next: NextFunction) => logisticsController.updateRouteStop(req, res).catch(next));
-  app.delete('/api/logistics/routes/:routeId/stops/:stopId', (req: Request, res: Response, next: NextFunction) => logisticsController.deleteRouteStop(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Busca CEP → Endereço + Geo ──────────────────────────────────────────────
   // Delegated to logisticsController.geoCep — owned by server/modules/logistics.
-  app.get('/api/logistics/geo/cep/:cep', (req: Request, res: Response, next: NextFunction) => logisticsController.geoCep(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Smart Company Search (por CNPJ ou CEP) ────────────────────────────────
   // Delegated to logisticsController.smartSearch — owned by server/modules/logistics.
-  app.get('/api/logistics/smart-search', (req: Request, res: Response, next: NextFunction) => logisticsController.smartSearch(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Best Driver Suggestion ────────────────────────────────────────────────
   // Delegated to logisticsController.bestDriver — owned by server/modules/logistics.
-  app.get('/api/logistics/best-driver', (req: Request, res: Response, next: NextFunction) => logisticsController.bestDriver(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Route Insertion Suggestion ────────────────────────────────────────────
   // Delegated to logisticsController.routeInsertion — owned by server/modules/logistics.
-  app.post('/api/logistics/route-insertion', (req: Request, res: Response, next: NextFunction) => logisticsController.routeInsertion(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Auto-create delivery when order is created ────────────────────────────
   // Delegated to ordersController.createWithDelivery — owned by server/modules/orders.
-  app.post('/api/orders/create-with-delivery', (req: Request, res: Response, next: NextFunction) => ordersController.createWithDelivery(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── Smart Route Plan (Inteligência de Rotas) ───────────────────────────────
   // Delegated to logisticsController.smartRoutePlan — owned by server/modules/logistics.
-  app.get('/api/logistics/smart-route-plan', (req: Request, res: Response, next: NextFunction) => logisticsController.smartRoutePlan(req, res).catch(next));
+  // REMOVIDO NA FASE 7.4 — código morto
+  // handler duplicado já atendido por módulo em server/modules/*
 
   // ─── SaaS: Bancos de Recebimento ────────────────────────────────────────────
   app.get('/api/saas/bancos', async (req: any, res) => {
