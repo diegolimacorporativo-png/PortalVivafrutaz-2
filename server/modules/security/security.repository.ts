@@ -52,19 +52,30 @@ export async function logTenantMismatchEvent(
 }
 
 /**
+ * Threshold de detecção de abuso (FASE 6.4). Acima disso, o usuário
+ * entra na lista `suspiciousUsers` retornada pelo endpoint admin.
+ * Mantido como constante exportada para reuso futuro (alertas/bloqueio).
+ */
+export const ABUSE_THRESHOLD = 5;
+
+/**
  * Agrega tentativas de tenant mismatch no período `days` (default 7,
  * máximo 90). Retorna apenas contagens — nenhum dado sensível é exposto
  * além do orderId/email/path, todos necessários para correlação.
  *
- * FASE 6.3 — agora também agrega por `email` (quem) e `path` (onde),
- * preservando os campos antigos `total` e `byOrder` para compatibilidade
- * com o frontend existente.
+ * FASE 6.3 — agrega por `email` (quem) e `path` (onde).
+ * FASE 6.4 — acrescenta `topUsers` e `topPaths` (ranking) e
+ *            `suspiciousUsers` (≥ ABUSE_THRESHOLD), sem remover
+ *            nenhum campo anterior.
  */
 export async function getTenantMismatchEvents(days: number): Promise<{
   total: number;
   byOrder: Record<string, number>;
   byUser: Record<string, number>;
   byPath: Record<string, number>;
+  topUsers: Array<[string, number]>;
+  topPaths: Array<[string, number]>;
+  suspiciousUsers: Array<{ email: string; count: number }>;
   windowDays: number;
 }> {
   const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
@@ -117,7 +128,29 @@ export async function getTenantMismatchEvents(days: number): Promise<{
       byPath[row.path ?? "unknown"] = Number(row.count) || 0;
     }
 
-    return { total, byOrder, byUser, byPath, windowDays: safeDays };
+    // FASE 6.4 — ranking + detecção de abuso (puro pós-processamento).
+    const topUsers: Array<[string, number]> = Object.entries(byUser)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    const topPaths: Array<[string, number]> = Object.entries(byPath)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    const suspiciousUsers = Object.entries(byUser)
+      .filter(([, count]) => count >= ABUSE_THRESHOLD)
+      .map(([email, count]) => ({ email, count }));
+
+    return {
+      total,
+      byOrder,
+      byUser,
+      byPath,
+      topUsers,
+      topPaths,
+      suspiciousUsers,
+      windowDays: safeDays,
+    };
   } catch (err: any) {
     console.error(
       `[SECURITY_AUDIT] Failed to aggregate TENANT_MISMATCH events: ${err?.message || err}`,
@@ -127,6 +160,9 @@ export async function getTenantMismatchEvents(days: number): Promise<{
       byOrder: {},
       byUser: {},
       byPath: {},
+      topUsers: [],
+      topPaths: [],
+      suspiciousUsers: [],
       windowDays: safeDays,
     };
   }

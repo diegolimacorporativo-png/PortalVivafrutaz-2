@@ -1,0 +1,117 @@
+🎯 FASE 6.4 — DETECÇÃO DE ABUSO + TOP OFFENDERS
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar validateOrderTenant  
+3. NÃO alterar campos existentes (total, byOrder, byUser, byPath)  
+4. NÃO remover nada  
+5. Apenas ADICIONAR inteligência  
+
+---
+
+🧠 OBJETIVO
+
+Transformar auditoria em detecção ativa:
+
+👉 identificar usuários suspeitos  
+👉 destacar endpoints atacados  
+👉 criar base para bloqueio automático  
+
+---
+
+## 🛠️ ETAPA 1 — TOP OFFENDERS
+
+📍 Arquivo:
+server/modules/security/security.repository.ts
+
+---
+
+Após montar byUser e byPath, adicionar:
+
+ts id="top_offenders" const topUsers = Object.entries(byUser)   .sort((a, b) => b[1] - a[1])   .slice(0, 5);  const topPaths = Object.entries(byPath)   .sort((a, b) => b[1] - a[1])   .slice(0, 5); 
+
+---
+
+## 🛠️ ETAPA 2 — DETECÇÃO DE ABUSO
+
+Definir threshold simples:
+
+ts id="threshold" const ABUSE_THRESHOLD = 5; 
+
+---
+
+Detectar usuários suspeitos:
+
+ts id="suspicious" const suspiciousUsers = Object.entries(byUser)   .filter(([_, count]) => count >= ABUSE_THRESHOLD)   .map(([email, count]) => ({ email, count })); 
+
+---
+
+## 🛠️ ETAPA 3 — EXPANDIR RESPONSE
+
+Adicionar ao retorno:
+
+ts id="final_response" return {   total,   byOrder,   byUser,   byPath,    topUsers,   topPaths,    suspiciousUsers,    windowDays: days, }; 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Cenário
+
+userA → 6 tentativas  
+userB → 2 tentativas  
+
+---
+
+### 2️⃣ Resultado esperado
+
+json id="expected_abuse" {   "success": true,   "data": {     "total": 8,     "byUser": {       "userA@email.com": 6,       "userB@email.com": 2     },     "topUsers": [       ["userA@email.com", 6],       ["userB@email.com", 2]     ],     "suspiciousUsers": [       { "email": "userA@email.com", "count": 6 }     ],     "windowDays": 7   } } 
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhuma lógica alterada  
+✔ Apenas leitura  
+✔ Sem impacto no fluxo  
+✔ Compatível com frontend atual  
+✔ Não quebra nada existente  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ Só auditoria
+
+Agora:
+✔ Ranking de ataques  
+✔ Identificação automática de abuso  
+✔ Base para bloqueio  
+✔ Base para alertas inteligentes  
+
+---
+
+## 🚀 PRÓXIMA FASE
+
+Depois disso você pode:
+
+👉 bloquear usuário automaticamente  
+👉 disparar alerta  
+👉 limitar requisições  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. topUsers funcionando  
+2. suspiciousUsers detectando corretamente  
+3. teste com threshold validado  
+4. confirmação de zero regressão
