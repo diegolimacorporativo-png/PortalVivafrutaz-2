@@ -1,0 +1,159 @@
+🎯 CONTINUIDADE — VALIDAÇÃO PÓS FASE 8.4 (SANITY CHECK)
+
+Você está entrando em um sistema que ACABOU de passar pela FASE 8.4.
+
+---
+
+## 🧠 CONTEXTO IMEDIATO
+
+A FASE 8.4 foi executada com sucesso:
+
+ANTES:
+buildNFeInput → resolveBillingItems
+
+DEPOIS:
+resolveBillingItems → buildNFeInput
+
+✔ Dependência invertida  
+✔ Builder desacoplado  
+✔ Call-sites ajustados  
+✔ Sistema rodando sem erro  
+
+---
+
+## ⚠️ SITUAÇÃO ATUAL
+
+A validação feita até agora foi:
+
+✔ estrutural  
+✔ lógica  
+✔ TypeScript  
+✔ runtime  
+
+👉 MAS FALTA UMA COISA:
+
+VALIDAÇÃO EMPÍRICA (prova real de zero drift)
+
+---
+
+## 🎯 SUA MISSÃO
+
+Executar a FASE 8.4.1:
+
+👉 provar que NÃO houve mudança no resultado do builder
+
+---
+
+## 🚫 REGRAS ABSOLUTAS
+
+1. NÃO alterar código de produção  
+2. NÃO refatorar nada  
+3. NÃO corrigir nada  
+4. NÃO alterar banco permanentemente  
+5. script deve ser temporário (tmp)  
+6. cleanup obrigatório (inclusive em erro)  
+
+---
+
+## 🧠 O QUE VOCÊ VAI VALIDAR
+
+Comparar:
+
+resolveBillingItems.items  
+VS  
+buildNFeInput.produtos  
+
+---
+
+## 📦 ETAPA 1 — SCRIPT
+
+Criar:
+
+scripts/_tmp_sanity_fase_8_4.ts
+
+---
+
+## 📦 ETAPA 2 — CENÁRIO CONTROLADO
+
+Criar dados isolados:
+
+- empresa (_EQ_SANITY*)
+- pedido com 2 itens
+- (opcional) draft STANDARD
+
+---
+
+## 📦 ETAPA 3 — EXECUÇÃO
+
+ts const resolved = await resolveBillingItems(orderId);  const input = await buildNFeInput({   orderId,   sourceItems: resolved.items }); 
+
+---
+
+## 📦 ETAPA 4 — COMPARAÇÃO
+
+Comparar profundamente:
+
+- descrição
+- quantidade
+- valor unitário
+- valor total
+
+E também:
+
+- total agregado
+
+---
+
+## 📦 ETAPA 5 — RESULTADO
+
+Você deve determinar:
+
+✔ ZERO DIFF  
+ou  
+❌ EXISTE DIFERENÇA  
+
+---
+
+## 📦 ETAPA 6 — CLEANUP
+
+Remover absolutamente tudo:
+
+- empresa
+- pedido
+- itens
+- draft
+- script
+
+---
+
+## 🚨 REGRA DE ABORT
+
+Se houver QUALQUER divergência:
+
+❌ NÃO corrigir  
+❌ NÃO ajustar  
+❌ APENAS reportar  
+
+---
+
+## 📊 OUTPUT OBRIGATÓRIO
+
+Responder com:
+
+1. resultado da comparação (PASS/FAIL)  
+2. diff detalhado (se houver)  
+3. confirmação de zero drift (ou não)  
+4. confirmação de cleanup completo  
+
+---
+
+## 🧠 IMPORTANTE
+
+A equivalência já foi provada na FASE 8.1b.
+
+👉 Este teste NÃO é para descobrir bugs novos  
+👉 É para garantir que a FASE 8.4 NÃO quebrou nada  
+
+---
+
+AGUARDAR EXECUÇÃO.
