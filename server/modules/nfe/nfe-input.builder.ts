@@ -15,12 +15,13 @@
  *     nenhum draft seja resolvido, cai no comportamento legado.
  */
 
-import { and, desc, eq } from "drizzle-orm";
-import { db } from "../../database/db";
-import { nfDrafts } from "@shared/schema";
 import { storage } from "../../services/storage";
 // FASE 4 — novo motor de faturamento (equivalência 100% validada
 // em scripts/test-billing-equivalence.ts antes da troca).
+// FASE 8.1b — única fonte da origem de itens da NF: `resolveBillingItems`
+// concentra a leitura de drafts + agrupamento + fallback de empresa,
+// substituindo as antigas `resolveDraftItems` e `applyItemGrouping`
+// (removidas deste arquivo após validação de equivalência).
 import { resolveBillingItems } from "../billing/billing.service";
 
 // ── Helper: busca código IBGE via ViaCEP ─────────────────────────────────────
@@ -95,105 +96,18 @@ export interface BuildNFeInputOpts {
 }
 
 /**
- * STEP FISCAL 2 — resolve qual fonte de itens usar:
- *   1. `draftId` explícito → lê esse draft (PRIORIDADE TOTAL).
- *   2. `company.useFiscalDraft = true` → busca o draft mais recente do pedido.
- *   3. Caso nenhum draft seja resolvido → retorna `null` (comportamento legado).
+ * FASE 8.1b — Origem de itens da NF é responsabilidade ÚNICA de
+ * `resolveBillingItems` (server/modules/billing/billing.service.ts).
  *
- * Não lança em caso de "draft não encontrado" para `draftId`: validamos antes
- * para dar mensagem clara. Para a busca automática (caso 2), tratamos a
- * ausência como "sem draft" e seguimos legado, sem falhar.
+ * Esta função era a antiga `resolveDraftItems` + `applyItemGrouping`,
+ * que foi consolidada no service. As regras (prioridade do draftId,
+ * `useFiscalDraft = true` → draft mais recente, fallback `order_items`,
+ * agrupamento "Frutas in natura") agora vivem em UM único lugar e são
+ * acionadas via `resolveBillingItems(orderId, draftId)` mais abaixo.
+ *
+ * Equivalência validada por `scripts/test-billing-equivalence.ts` nos
+ * 4 cenários (STANDARD, CONTRACT_OPEN, CONTRACT_AVERAGE, agrupamento).
  */
-interface ResolvedDraft {
-  items: any[];
-  useGroupedItems: boolean;
-}
-
-async function resolveDraftItems(args: {
-  orderId: number;
-  draftId?: number;
-  company: any;
-}): Promise<ResolvedDraft | null> {
-  const { orderId, draftId, company } = args;
-
-  if (draftId) {
-    if (!Number.isInteger(draftId) || draftId <= 0) {
-      throw new Error(`draftId inválido: ${draftId}`);
-    }
-    const [row] = await db
-      .select()
-      .from(nfDrafts)
-      .where(eq(nfDrafts.id, draftId));
-    if (!row) throw new Error(`Rascunho de NF #${draftId} não encontrado`);
-    if (row.orderId !== orderId) {
-      throw new Error(
-        `Rascunho #${draftId} não pertence ao pedido #${orderId}`,
-      );
-    }
-    return {
-      items: Array.isArray(row.items) ? (row.items as any[]) : [],
-      useGroupedItems: row.useGroupedItems === true,
-    };
-  }
-
-  if (company?.useFiscalDraft === true) {
-    try {
-      const [latest] = await db
-        .select()
-        .from(nfDrafts)
-        .where(eq(nfDrafts.orderId, orderId))
-        .orderBy(desc(nfDrafts.createdAt))
-        .limit(1);
-      if (latest && Array.isArray(latest.items)) {
-        return {
-          items: latest.items as any[],
-          useGroupedItems: latest.useGroupedItems === true,
-        };
-      }
-    } catch {
-      // sem draft: cai no fluxo legado
-    }
-  }
-
-  return null;
-}
-
-/**
- * STEP FISCAL 2 — agrupamento opcional de itens.
- * Quando o draft marca `useGroupedItems = true`, todos os produtos viram
- * 1 única linha "Frutas in natura" com qCom=1 e vUnCom=vProd=soma.
- * Mantém NCM/CFOP do primeiro item ou cai nos defaults da empresa/config.
- */
-function applyItemGrouping(
-  items: any[],
-  fallbackNcm: string,
-  fallbackCfop: string,
-  fallbackUnit: string,
-): any[] {
-  if (!items.length) return items;
-  const total = items.reduce((acc, it) => {
-    const v =
-      it.totalPrice != null
-        ? Number(it.totalPrice)
-        : Number(it.quantity || 0) * Number(it.unitPrice || 0);
-    return acc + (Number.isFinite(v) ? v : 0);
-  }, 0);
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  const vTotal = round2(total);
-  const first = items[0] || {};
-  return [
-    {
-      productId: null,
-      description: "Frutas in natura",
-      quantity: 1,
-      unit: first.unit || fallbackUnit,
-      unitPrice: vTotal,
-      totalPrice: vTotal,
-      ncm: first.ncm || fallbackNcm,
-      cfop: first.cfop || fallbackCfop,
-    },
-  ];
-}
 
 export async function buildNFeInput(
   arg: number | BuildNFeInputOpts,

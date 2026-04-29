@@ -1,0 +1,228 @@
+🎯 FASE 8.1b — CONSOLIDAÇÃO DA FONTE DE ITENS (ZERO REGRESSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do XML  
+2. NÃO alterar campos fiscais  
+3. NÃO alterar shape de items  
+4. NÃO alterar retorno de endpoints  
+5. NÃO remover código sem validação  
+6. NÃO alterar comportamento atual  
+7. NÃO seguir sem baseline  
+
+👉 Apenas consolidar a origem dos items da NF
+
+---
+
+🧠 CONTEXTO
+
+Hoje existem DOIS caminhos:
+
+❌ DUPLICADO (nfe-input.builder.ts)
+- resolveDraftItems
+- applyItemGrouping
+- lógica própria
+
+✅ CORRETO (billing.service.ts)
+- resolveBillingItems
+- já usa resolver central (FASE 8.1)
+
+👉 Isso gera risco de inconsistência
+
+---
+
+🎯 OBJETIVO
+
+Fazer com que:
+
+👉 TODA geração de NF use:
+
+ts resolveBillingItems(orderId, draftId) 
+
+---
+
+# 📦 ETAPA 1 — LOCALIZAR USO ATUAL
+
+📍 Arquivo:
+
+server/modules/nfe/nfe-input.builder.ts
+
+---
+
+Localizar:
+
+- resolveDraftItems(...)
+- applyItemGrouping(...)
+- qualquer lógica de agrupamento
+
+---
+
+# 📦 ETAPA 2 — SUBSTITUIÇÃO CONTROLADA
+
+ANTES (exemplo):
+
+ts const items = await resolveDraftItems(orderId, draftId);  if (useGroupedItems) {   items = applyItemGrouping(items); } 
+
+---
+
+DEPOIS:
+
+ts const { items } = await resolveBillingItems(orderId, draftId); 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO alterar nome da variável usada depois
+- manter compatibilidade com o restante do builder
+
+---
+
+# 📦 ETAPA 3 — COMPATIBILIDADE DE SHAPE
+
+Verificar:
+
+ts items.map(...) 
+
+---
+
+Se necessário:
+
+ts const { items } = await resolveBillingItems(orderId, draftId);  // garantir mesmo formato esperado const normalizedItems = items; 
+
+---
+
+⚠️ NÃO transformar estrutura  
+⚠️ NÃO adicionar/remover campos  
+
+---
+
+# 📦 ETAPA 4 — NÃO REMOVER AINDA
+
+👉 NÃO deletar:
+
+- resolveDraftItems
+- applyItemGrouping
+
+👉 apenas parar de usar
+
+---
+
+# 📦 ETAPA 5 — VALIDAÇÃO CRÍTICA
+
+Rodar:
+
+audit/baseline.json
+
+---
+
+Validar:
+
+✔ ZERO diferença  
+✔ mesmo XML  
+✔ mesmos valores  
+✔ mesmos itens  
+✔ mesmos totais  
+
+---
+
+# 🧪 ETAPA 6 — TESTE FUNCIONAL
+
+Testar:
+
+---
+
+### 1️⃣ Pedido SEM draft
+
+✔ itens continuam iguais
+
+---
+
+### 2️⃣ Pedido COM draft
+
+✔ itens continuam iguais
+
+---
+
+### 3️⃣ Agrupamento ativo
+
+✔ continua agrupando
+
+---
+
+### 4️⃣ Sem agrupamento
+
+✔ continua normal
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER diferença:
+
+❌ PARAR  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# 📦 ETAPA 7 — LIMPEZA (SÓ SE 100% IGUAL)
+
+👉 Se tudo validado:
+
+remover:
+
+- resolveDraftItems
+- applyItemGrouping
+
+---
+
+# 🔐 GARANTIAS
+
+✔ uma única fonte de verdade  
+✔ cron e manual iguais  
+✔ zero inconsistência  
+✔ base pronta para automação  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ 2 lógicas diferentes  
+❌ risco de divergência  
+
+Depois:
+
+✔ 1 única lógica (billing.service)  
+✔ comportamento unificado  
+✔ sistema previsível  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. ponto substituído no builder  
+2. validação do baseline  
+3. confirmação de XML idêntico  
+4. confirmação de zero regressão  
+5. confirmação de unificação  
+
+---
+
+🚀 EXEC
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO mexer em cron ainda  
+👉 NÃO ativar faturamento automático  
+👉 NÃO alterar engine  
+
+👉 isso vem n
