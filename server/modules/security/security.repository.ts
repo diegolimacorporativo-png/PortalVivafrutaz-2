@@ -61,6 +61,40 @@ export async function logTenantMismatchEvent(
 export const ABUSE_THRESHOLD = 5;
 
 /**
+ * FASE 6.7 — Resumo agregado por tipo de evento de segurança.
+ *
+ * Retorna `[{ type, total }]` para alimentar o card simples do dashboard
+ * admin. Hoje a única classe persistida é TENANT_MISMATCH (gravada por
+ * `logTenantMismatchEvent` em `tenant_mismatch_events`). WRITE_BLOCKED e
+ * MISSING_TENANT só emitem para console (stderr) — esta função NÃO toca
+ * nesse fluxo nem altera schema. Quando esses eventos passarem a ser
+ * persistidos no futuro, basta acrescentar o `select` correspondente
+ * — o shape de retorno permanece o mesmo.
+ *
+ * Política:
+ *  - Leitura pura, fail-open (em erro retorna `[]`).
+ *  - Sem PII, sem orderId/email — apenas o tipo e o total.
+ *  - Não filtra por tenant (visão global, restrita ao MASTER via rota).
+ */
+export async function getSecurityEventsResumo(): Promise<
+  Array<{ type: string; total: number }>
+> {
+  try {
+    const [row] = await db
+      .select({ total: sql<number>`count(*)::int` })
+      .from(tenantMismatchEvents);
+    const total = Number(row?.total ?? 0) || 0;
+    if (total === 0) return [];
+    return [{ type: "TENANT_MISMATCH", total }];
+  } catch (err: any) {
+    console.error(
+      `[SECURITY_AUDIT] Failed to aggregate security resumo: ${err?.message || err}`,
+    );
+    return [];
+  }
+}
+
+/**
  * Agrega tentativas de tenant mismatch no período `days` (default 7,
  * máximo 90). Retorna apenas contagens — nenhum dado sensível é exposto
  * além do orderId/email/path, todos necessários para correlação.

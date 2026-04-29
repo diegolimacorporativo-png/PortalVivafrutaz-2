@@ -1,0 +1,176 @@
+🎯 FASE 6.7 — DASHBOARD DE SEGURANÇA (VERSÃO SIMPLES E SEGURA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de segurança existente  
+2. NÃO alterar validateOrderTenant  
+3. NÃO alterar fluxo de logs  
+4. NÃO alterar schema do banco  
+5. NÃO alterar endpoints existentes  
+6. NÃO introduzir side-effects  
+7. NÃO quebrar frontend  
+
+👉 Apenas LEITURA e EXIBIÇÃO
+
+---
+
+## 🧠 OBJETIVO
+
+Criar visibilidade dos eventos:
+
+- TENANT_MISMATCH  
+- WRITE_BLOCKED  
+- MISSING_TENANT  
+
+---
+
+## 📦 ETAPA 1 — REPOSITORY (LEITURA PURA)
+
+📍 Arquivo:
+server/modules/security/security.repository.ts
+
+---
+
+Adicionar função:
+
+ts async getSecurityEventsResumo(): Promise<{   type: string;   total: number; }[]> {   return await db     .select({       type: securityLogs.type,       total: sql<number>`count(*)::int`,     })     .from(securityLogs)     .groupBy(securityLogs.type)     .orderBy(sql`count(*) DESC`); } 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO filtrar por tenant ainda (visão global admin)
+- NÃO alterar tabela
+- somente agregação
+
+---
+
+## 📦 ETAPA 2 — SERVICE (PASS-THROUGH)
+
+📍 server/modules/security/security.service.ts
+
+ts async getResumo() {   return repository.getSecurityEventsResumo(); } 
+
+---
+
+## 📦 ETAPA 3 — CONTROLLER
+
+📍 server/modules/security/security.controller.ts
+
+ts async resumo(req, res) {   const data = await service.getResumo();   res.json({ success: true, data }); } 
+
+---
+
+## 📦 ETAPA 4 — ROUTE
+
+📍 server/routes/routes.ts
+
+Adicionar:
+
+ts app.get("/api/admin/security/resumo", requireAdminAuth, controller.resumo); 
+
+---
+
+⚠️ PROTEÇÃO
+
+- usar requireAdminAuth (somente admin)
+- NÃO expor para usuário comum
+
+---
+
+## 📦 ETAPA 5 — FRONTEND (CARD SIMPLES)
+
+📍 client/src/pages/admin (mesma página de finance)
+
+---
+
+### QUERY
+
+ts const { data: securityResumo } = useQuery({   queryKey: ["security-resumo"],   queryFn: async () => {     const res = await fetch("/api/admin/security/resumo");     const json = await res.json();     return json.data;   },   refetchInterval: 60000, }); 
+
+---
+
+### UI (card simples)
+
+Adicionar abaixo dos outros cards:
+
+tsx <div data-testid="card-security">   <h3>Segurança do Sistema</h3>    {!securityResumo?.length && (     <p>Nenhum evento de segurança</p>   )}    {securityResumo?.map((item) => (     <div key={item.type} data-testid={`security-${item.type}`}>       <strong>{item.type}</strong>: {item.total}     </div>   ))} </div> 
+
+---
+
+## 🎨 OPCIONAL (cores simples)
+
+- TENANT_MISMATCH → vermelho  
+- WRITE_BLOCKED → laranja  
+- MISSING_TENANT → amarelo  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Sem eventos
+
+✔ mostra "Nenhum evento de segurança"
+
+---
+
+### 2️⃣ Com eventos
+
+✔ mostra contagem correta  
+✔ atualiza a cada 60s  
+
+---
+
+### 3️⃣ Segurança
+
+✔ endpoint protegido (admin only)  
+✔ sem vazamento de dados sensíveis  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero impacto no sistema  
+✔ zero impacto no banco  
+✔ zero impacto em performance (query leve)  
+✔ apenas leitura  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Painel admin passa a mostrar:
+
+Segurança do Sistema
+TENANT_MISMATCH: 12  
+WRITE_BLOCKED: 4  
+MISSING_TENANT: 2  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoint criado  
+2. query funcionando  
+3. card renderizando  
+4. confirmação de zero regressão  
+
+---
+
+🚀 EXEC
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO criar dashboard complexo  
+👉 NÃO usar gráficos ainda  
+👉 NÃO adicionar filtros  
+
+👉 versão simples p

@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useOrders } from "@/hooks/use-ordering";
 import { useCompanies } from "@/hooks/use-admin";
 import { Layout } from "@/components/Layout";
-import { ShoppingCart, Users, TrendingUp, Package, Wrench, CheckCircle2, AlertTriangle, FlaskConical, Shield, CalendarDays, Filter, ScrollText } from "lucide-react";
+import { ShoppingCart, Users, TrendingUp, Package, Wrench, CheckCircle2, AlertTriangle, FlaskConical, Shield, CalendarDays, Filter, ScrollText, ShieldAlert } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -277,6 +277,81 @@ function SystemStatusBanner() {
   );
 }
 
+/* ── FASE 6.7 — Security Resumo Card ─────────────────────────
+ * Card simples e leve que mostra o total de eventos de segurança
+ * agregados por tipo. Hoje a única classe persistida é
+ * TENANT_MISMATCH; quando o backend persistir WRITE_BLOCKED ou
+ * MISSING_TENANT no futuro, eles aparecem automaticamente.
+ *
+ * Falha silenciosa para usuários sem permissão (esconde o card).
+ */
+function SecurityResumoCard() {
+  const { data, isLoading, isError } = useQuery<{
+    success: boolean;
+    data: Array<{ type: string; total: number }>;
+  }>({
+    queryKey: ["/api/admin/security/resumo"],
+    refetchInterval: 60_000,
+    retry: false,
+  });
+
+  if (isError) return null;
+
+  const events = data?.data ?? [];
+  const total = events.reduce((s, e) => s + (e.total || 0), 0);
+
+  const labelMap: Record<string, { label: string; color: string }> = {
+    TENANT_MISMATCH: { label: "Tentativas de cross-tenant", color: "text-red-600 dark:text-red-400" },
+    WRITE_BLOCKED: { label: "Escritas bloqueadas", color: "text-orange-600 dark:text-orange-400" },
+    MISSING_TENANT: { label: "Acessos sem tenant", color: "text-amber-600 dark:text-amber-400" },
+  };
+
+  return (
+    <div className="bg-card rounded-2xl border border-border/50 premium-shadow p-6" data-testid="card-security-resumo">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-base font-bold text-foreground flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-primary" />
+          Segurança do Sistema
+        </h2>
+        <Link href="/admin/security-audit">
+          <span className="text-xs font-bold text-primary hover:underline cursor-pointer" data-testid="link-security-audit">
+            Ver auditoria completa →
+          </span>
+        </Link>
+      </div>
+
+      {isLoading ? (
+        <p className="text-sm text-muted-foreground" data-testid="text-security-loading">Carregando…</p>
+      ) : total === 0 ? (
+        <div className="flex items-center gap-3" data-testid="text-security-clean">
+          <CheckCircle2 className="w-5 h-5 text-green-600" />
+          <p className="text-sm font-semibold text-foreground">
+            Nenhum evento de segurança registrado.
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {events.map((e) => {
+            const meta = labelMap[e.type] ?? { label: e.type, color: "text-foreground" };
+            return (
+              <div
+                key={e.type}
+                className="rounded-xl border border-border/40 bg-muted/30 p-4"
+                data-testid={`security-event-${e.type}`}
+              >
+                <p className="text-xs text-muted-foreground font-semibold">{meta.label}</p>
+                <p className={`text-2xl font-display font-bold mt-1 ${meta.color}`} data-testid={`text-security-count-${e.type}`}>
+                  {e.total}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Date helpers ────────────────────────────────────────────── */
 function toDateStr(d: Date) { return d.toISOString().split('T')[0]; }
 function getPreset(preset: string): { start: string; end: string } {
@@ -417,6 +492,9 @@ export default function AdminDashboard() {
             </div>
           ))}
         </div>
+
+        {/* FASE 6.7 — Security Resumo */}
+        <SecurityResumoCard />
 
         {/* Contract Alerts */}
         {contractAlerts.length > 0 && (

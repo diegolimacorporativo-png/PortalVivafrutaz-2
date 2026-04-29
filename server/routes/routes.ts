@@ -326,6 +326,26 @@ export async function registerRoutes(
     res.json(mailerStatus());
   });
 
+  // --- FASE 6.7 — Resumo agregado de eventos de segurança (admin only) ---
+  // Endpoint super simples para o card "Segurança do Sistema" do dashboard
+  // admin. Retorna `{ success, data: [{ type, total }] }`. Apenas leitura,
+  // apenas papéis administrativos. Não toca em nenhum fluxo de validação,
+  // log ou schema — pass-through puro sobre a tabela já existente
+  // `tenant_mismatch_events`.
+  app.get(
+    '/api/admin/security/resumo',
+    requireAuthCore,
+    requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']),
+    async (req, res, next) => {
+      try {
+        const { securityController } = await import('../modules/security/security.controller');
+        return await securityController.resumo(req, res);
+      } catch (e) {
+        return next(e);
+      }
+    },
+  );
+
   // --- FASE 6.1 — Tenant Mismatch Audit (read-only, MASTER only) ---
   // Endpoint de auditoria agregada para tentativas de acesso entre tenants.
   // Apenas leitura, apenas MASTER, apenas dados agregados (sem orderId/tenantId reais).
