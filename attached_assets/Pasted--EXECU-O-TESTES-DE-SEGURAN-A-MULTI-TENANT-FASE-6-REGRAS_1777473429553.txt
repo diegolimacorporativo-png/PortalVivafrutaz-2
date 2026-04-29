@@ -1,0 +1,166 @@
+🎯 EXECUÇÃO — TESTES DE SEGURANÇA MULTI-TENANT (FASE 6)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código  
+2. NÃO alterar banco manualmente  
+3. NÃO corrigir nada automaticamente  
+4. NÃO mascarar erro  
+5. NÃO seguir em caso de falha  
+
+👉 Apenas executar e reportar
+
+---
+
+## 🧠 OBJETIVO
+
+Validar que:
+
+✔ nenhum endpoint permite acesso cross-tenant  
+✔ validação está SEMPRE antes da leitura  
+✔ logs de segurança estão funcionando  
+✔ bloqueio antifraude responde corretamente  
+
+---
+
+# 📦 ETAPA 1 — EXECUTAR TESTE HTTP (READ)
+
+Rodar:
+
+bash npx tsx scripts/test-tenant-http-security.ts 
+
+---
+
+## 📊 VALIDAR RESULTADO
+
+Para cada cenário:
+
+### ✔ Esperado
+
+- Mesmo tenant → 200  
+- Outro tenant → 403  
+- Sem auth → 401  
+
+---
+
+## ❌ ERRO CRÍTICO (ABORT)
+
+Se aparecer qualquer:
+
+- 200 em cross-tenant ❌  
+- 500 ❌  
+- vazamento de dados ❌  
+
+👉 PARAR IMEDIATAMENTE
+
+---
+
+# 📦 ETAPA 2 — EXECUTAR TESTE WRITE
+
+Rodar:
+
+bash npx tsx scripts/test-tenant-write-security.ts 
+
+---
+
+## 📊 VALIDAR
+
+- Escrita cross-tenant → BLOQUEADA  
+- Sem bypass via endpoints POST/PUT  
+
+---
+
+# 📦 ETAPA 3 — VALIDAR LOGS
+
+Buscar no console:
+
+bash [SECURITY] TENANT_MISMATCH 
+
+---
+
+✔ Deve aparecer em TODAS tentativas inválidas  
+
+---
+
+# 📦 ETAPA 4 — TESTE DE REPETIÇÃO (ANTIFRAUDE)
+
+Simular múltiplas tentativas:
+
+- repetir acesso inválido várias vezes  
+
+---
+
+## ✔ Esperado
+
+- bloqueio ativado (isUserBlocked)  
+- erro consistente  
+- sem crash  
+
+---
+
+# 📦 ETAPA 5 — CONSISTÊNCIA
+
+Verificar:
+
+- Nenhum endpoint retornou dados indevidos  
+- Nenhuma resposta mudou formato  
+- Nenhum erro inesperado  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER divergência:
+
+❌ PARAR  
+❌ NÃO corrigir  
+❌ REPORTAR  
+
+---
+
+# ✅ FINAL — RELATÓRIO
+
+Responder com:
+
+---
+
+## 1. Resultado HTTP
+- ✔ / ❌ por cenário  
+
+---
+
+## 2. Resultado WRITE
+- ✔ / ❌  
+
+---
+
+## 3. Logs
+- ✔ presentes / ❌ ausentes  
+
+---
+
+## 4. Antifraude
+- ✔ funcionando / ❌ falhou  
+
+---
+
+## 5. Segurança geral
+- ✔ SISTEMA SEGURO  
+ou  
+- ❌ VULNERABILIDADE DETECTADA  
+
+---
+
+🚀 EXECUTAR EM MODO READ-ONLY TOTAL
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO otimizar testes  
+👉 NÃO pular cenários  
+👉 NÃO assumir resultado  
+
+👉 somente evidência real
