@@ -1,0 +1,153 @@
+🎯 HANDOFF — SISTEMA ERP + NF-e (MODO SEGURO)
+
+Você está assumindo um sistema já em PRODUÇÃO LÓGICA.
+
+---
+
+## 🧠 VISÃO GERAL DO SISTEMA
+
+ERP multi-tenant com foco em:
+
+- pedidos (orders)
+- faturamento (billing)
+- NF-e (emissão fiscal)
+- segurança (multi-tenant + antifraude)
+
+Arquitetura modular:
+
+- server/modules/orders
+- server/modules/billing → resolveBillingItems (FONTE ÚNICA)
+- server/modules/nfe → buildNFeInput (builder XML)
+- server/services/nf.draft → snapshot fiscal
+- server/core/security → validateOrderTenant
+
+---
+
+## 🔒 ESTADO ATUAL (JÁ VALIDADO)
+
+✔ FASE 6 — proteção multi-tenant completa  
+✔ FASE 7 — antifraude + logs  
+✔ FASE 8.1 — equivalência faturamento ↔ XML  
+✔ FASE 8.2 — inline helpers (billing autocontido)  
+✔ FASE 8.3 — remoção de duplicação segura  
+
+👉 Sistema está ESTÁVEL e VALIDADO
+
+---
+
+## ⚠️ REGRAS ABSOLUTAS (NÃO QUEBRAR)
+
+1. NÃO alterar lógica fiscal  
+2. NÃO alterar XML  
+3. NÃO alterar cálculos  
+4. NÃO alterar resolveBillingItems  
+5. NÃO alterar builder interno (exceto assinatura controlada)  
+6. NÃO alterar multi-tenant  
+7. NÃO alterar estrutura de respostas  
+8. ZERO regressão é obrigatório  
+
+---
+
+## 🧪 VALIDAÇÕES OBRIGATÓRIAS
+
+Toda mudança deve garantir:
+
+✔ XML idêntico  
+✔ itens idênticos  
+✔ totais idênticos  
+✔ endpoints idênticos  
+✔ nenhum vazamento entre tenants  
+✔ logs de segurança intactos  
+
+---
+
+## 🧠 PONTO CRÍTICO ATUAL
+
+Hoje existe acoplamento:
+
+buildNFeInput → resolveBillingItems
+
+👉 Isso funciona (validado), MAS não é ideal.
+
+---
+
+## 🎯 PRÓXIMO OBJETIVO (FASE 8.4)
+
+Desacoplar:
+
+ANTES:
+builder → billing
+
+DEPOIS:
+billing → builder
+
+---
+
+## 🚫 ANTES DE IMPLEMENTAR
+
+Você DEVE rodar uma validação completa em READ-ONLY.
+
+---
+
+## 📦 TAREFA 1 — INVENTÁRIO (OBRIGATÓRIO)
+
+Validar:
+
+### billing.service.ts
+- resolveBillingItems existe
+- função está autocontida
+- possui caminhos:
+  - com draft
+  - sem draft
+
+### nfe-input.builder.ts
+- builder chama resolveBillingItems
+- NCM é obrigatório (throw)
+- CFOP UF-aware
+- safeStr presente
+
+### nf.draft
+- snapshot antes da emissão
+
+### security
+- validateOrderTenant ativo
+
+---
+
+## 📊 OUTPUT OBRIGATÓRIO
+
+Responder com:
+
+1. ✔/❌ por módulo
+2. divergências (se houver)
+3. confirmação:
+
+👉 "Sistema consistente com FASE 8.x"
+
+---
+
+## 🚨 IMPORTANTE
+
+Se houver QUALQUER dúvida:
+
+❌ NÃO IMPLEMENTAR  
+❌ NÃO ASSUMIR  
+❌ REPORTAR  
+
+---
+
+## ⛔ PROIBIDO NESTA FASE
+
+- NÃO refatorar
+- NÃO criar código novo
+- NÃO mover funções ainda
+
+---
+
+## 🟢 APÓS ISSO
+
+Você irá receber a FASE 8.4 para execução.
+
+---
+
+AGUARDAR PRÓXIMA INSTRUÇÃO.
