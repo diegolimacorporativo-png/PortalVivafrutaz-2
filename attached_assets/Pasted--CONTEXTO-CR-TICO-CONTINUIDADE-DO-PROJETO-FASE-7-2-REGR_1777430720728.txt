@@ -1,0 +1,222 @@
+🎯 CONTEXTO CRÍTICO — CONTINUIDADE DO PROJETO (FASE 7.2)
+
+---
+
+🚫 REGRAS ABSOLUTAS (NÃO QUEBRAR)
+
+1. NÃO alterar comportamento existente  
+2. NÃO alterar estrutura de resposta (JSON)  
+3. NÃO alterar status codes  
+4. NÃO remover logs de segurança  
+5. NÃO alterar validateOrderTenant / safeGetOrder  
+6. NÃO alterar antifraude (FASE 6.x)  
+7. NÃO alterar storage.ts (apenas leitura)  
+8. NÃO otimizar nada fora do escopo  
+9. NÃO padronizar erros agora  
+10. NÃO “melhorar código” por conta própria  
+
+👉 QUALQUER desvio disso = ERRO GRAVE
+
+---
+
+🧠 ESTADO ATUAL (IMPORTANTE)
+
+✔ FASE 6 COMPLETA (segurança multi-tenant + antifraude)
+
+Inclui:
+- bloqueio por comportamento suspeito
+- persistência em DB
+- fallback memória + banco
+- hidratação pós-restart
+- alertas
+- painel admin
+- unblock manual
+
+✔ FASE 7.0 COMPLETA (baseline criado)
+
+Arquivo:
+.local/audit/baseline.json
+
+👉 ESTE ARQUIVO É A VERDADE DO SISTEMA  
+👉 NADA pode mudar sem comparação com ele
+
+✔ FASE 7.1 COMPLETA
+
+- removido vazamento de password (login + me)
+- imports limpos
+- IStorage alinhado com DatabaseStorage
+- zero regressão confirmada via baseline
+
+---
+
+🚨 PROBLEMAS CONHECIDOS (NÃO CORRIGIR AGORA)
+
+- múltiplos formatos de erro (intencional por agora)
+- endpoints admin misturados em routes.ts
+- handlers gigantes inline
+- acoplamento com storage
+
+👉 isso será resolvido nas próximas fases, NÃO agora
+
+---
+
+🎯 OBJETIVO ATUAL — FASE 7.2
+
+👉 EXTRAIR HANDLER DUPLICADO DE LOGIN
+
+---
+
+📍 PROBLEMA
+
+Existe duplicação de lógica em:
+
+- server/routes/routes.ts (handler inline)
+- server/modules/auth/auth.controller.ts
+
+👉 Isso é risco de divergência e quebra futura
+
+---
+
+📦 TAREFA (PASSO A PASSO SEGURO)
+
+---
+
+## 1️⃣ IDENTIFICAR HANDLER INLINE
+
+Arquivo:
+server/routes/routes.ts
+
+Localizar:
+
+POST /api/auth/login
+
+---
+
+## 2️⃣ COMPARAR COM CONTROLLER
+
+Arquivo:
+server/modules/auth/auth.controller.ts
+
+👉 Garantir que o controller já possui:
+
+- mesma lógica
+- mesma validação
+- mesma estrutura de resposta
+- mesma criação de sessão
+- mesmo comportamento de erro
+
+---
+
+## ⚠️ REGRA CRÍTICA
+
+👉 NÃO assumir que são iguais  
+👉 VALIDAR linha por linha
+
+---
+
+## 3️⃣ EXTRAÇÃO SEGURA
+
+Substituir handler inline por:
+
+- chamada direta ao controller
+
+Exemplo (conceito):
+
+ts router.post('/api/auth/login', (req, res) => {   return authController.login(req, res); }); 
+
+---
+
+## 4️⃣ NÃO REMOVER LÓGICA ANTES DE VALIDAR
+
+👉 Primeiro redireciona
+👉 Depois testa
+👉 Só então remove duplicação
+
+---
+
+## 5️⃣ VALIDAR COM BASELINE
+
+Executar novamente:
+
+- sucesso
+- sem auth
+- login inválido
+
+Comparar com:
+
+.local/audit/baseline.json
+
+---
+
+## 6️⃣ CRITÉRIOS DE SUCESSO
+
+✔ resposta JSON idêntica  
+✔ mesmos campos (exceto password já removido)  
+✔ mesmos status codes  
+✔ mesmo cookie de sessão  
+✔ mesmo tempo aproximado  
+✔ nenhum erro novo  
+
+---
+
+## 🚫 PROIBIDO
+
+- refatorar controller  
+- alterar lógica de login  
+- mudar validação  
+- mudar mensagens  
+- alterar antifraude  
+
+---
+
+## 🧪 TESTES OBRIGATÓRIOS
+
+1. login válido → 200  
+2. senha errada → 401 + contador  
+3. usuário inexistente → 401  
+4. sessão criada corretamente (Set-Cookie)  
+5. /api/auth/me continua funcionando  
+
+---
+
+## 🔐 SEGURANÇA
+
+Confirmar:
+
+✔ password NÃO retorna  
+✔ sessão continua HttpOnly  
+✔ SameSite mantido  
+✔ antifraude continua ativo  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- duplicação removida  
+- comportamento 100% preservado  
+- base preparada para migrar outros módulos  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho removido (inline)
+2. trecho novo (controller call)
+3. validação contra baseline
+4. confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Se houver QUALQUER dúvida:
+
+PARAR e perguntar antes de alterar
+
+👉 segurança > velocidade
+
+---
+
+🚀 EXECU
