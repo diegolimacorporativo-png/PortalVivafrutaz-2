@@ -5058,6 +5058,34 @@ export async function registerRoutes(
 
   app.get('/api/finance/pix/:id', (req: Request, res: Response, next: NextFunction) => financeController.getPixForReceivable(req, res).catch(next));
 
+  // ─── Admin: Cert Audit (FASE 3.4.1) ───────────────────────────────────
+  // Visão agregada read-only do estado dos certificados na frota. NÃO retorna
+  // senha, NÃO retorna certBase64, NÃO retorna companyId — apenas contadores
+  // e o último updatedAt global. Útil para validar a migração 3.4 e
+  // diagnosticar rapidamente quantos tenants estão pendentes.
+  // Auth: MASTER only (operação cross-tenant; sem `tenantContext`).
+  app.get(
+    '/api/admin/certificates/audit',
+    requireAuthCore,
+    requireRole(['MASTER']),
+    async (_req, res) => {
+      try {
+        const { auditCertificates } = await import(
+          '../modules/companies/companyCertificate.repository.ts'
+        );
+        const result = await auditCertificates();
+        console.log('[CERT_AUDIT]', result);
+        return res.json({ success: true, data: result });
+      } catch (err: any) {
+        console.error('[CERT_AUDIT_ERROR]', { error: err?.message });
+        return res.status(500).json({
+          success: false,
+          error: { message: err?.message ?? 'Erro na auditoria', code: 'AUDIT_FAILED' },
+        });
+      }
+    },
+  );
+
   // ─── Admin: Cert Migration (FASE 3.4) ─────────────────────────────────
   // Promove registros legados em texto plano (FASE 3.2) para o formato
   // cifrado `enc:v1:` (FASE 3.3). Idempotente — re-execução é segura.

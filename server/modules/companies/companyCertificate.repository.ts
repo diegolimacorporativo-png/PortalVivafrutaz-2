@@ -98,6 +98,50 @@ export interface MigrationResult {
   migrated: number;
 }
 
+/**
+ * FASE 3.4.1 — auditoria read-only do estado dos certificados na frota.
+ *
+ * Devolve métricas AGREGADAS (sem nenhum dado sensível): nada de senha, nada
+ * de `certBase64`, nada de `companyId`. Só os contadores `total/encrypted/
+ * legacy` e o `lastUpdatedAt` global. Útil para validar a migração da FASE
+ * 3.4 e para diagnóstico rápido em produção.
+ *
+ * Operação cross-tenant (escaneia toda a tabela) — protegida em rota por
+ * `requireRole(['MASTER'])`. Idempotente, sem efeitos colaterais.
+ */
+export interface AuditResult {
+  total: number;
+  encrypted: number;
+  legacy: number;
+  lastUpdatedAt: string | null;
+}
+
+export async function auditCertificates(): Promise<AuditResult> {
+  const rows = await db.select().from(companyCertificates);
+
+  let encrypted = 0;
+  let legacy = 0;
+  let lastUpdatedAt: Date | null = null;
+
+  for (const row of rows) {
+    if (isEncrypted(row.certPassword)) {
+      encrypted++;
+    } else {
+      legacy++;
+    }
+    if (row.updatedAt && (!lastUpdatedAt || row.updatedAt > lastUpdatedAt)) {
+      lastUpdatedAt = row.updatedAt;
+    }
+  }
+
+  return {
+    total: rows.length,
+    encrypted,
+    legacy,
+    lastUpdatedAt: lastUpdatedAt ? lastUpdatedAt.toISOString() : null,
+  };
+}
+
 export async function migrateLegacyCertificates(): Promise<MigrationResult> {
   const rows = await db.select().from(companyCertificates);
   let migrated = 0;

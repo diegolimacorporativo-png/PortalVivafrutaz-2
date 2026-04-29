@@ -1,0 +1,105 @@
+🎯 FASE 3.4.1 — AUDITORIA DE CERTIFICADOS (VISÃO OPERACIONAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar schema  
+2. NÃO alterar fluxo NF-e  
+3. NÃO alterar repository existente  
+4. NÃO expor senha nem certBase64  
+5. Apenas ADICIONAR leitura segura (read-only)
+
+---
+
+🧠 OBJETIVO
+
+Criar endpoint administrativo que permita ver:
+
+- quantas empresas têm certificado
+- quantos estão criptografados
+- quantos ainda são legado (plaintext)
+- última atualização
+
+---
+
+# 🛠️ ETAPA 1 — FUNÇÃO DE AUDITORIA
+
+📍 Arquivo:
+server/modules/companies/companyCertificate.repository.ts
+
+---
+
+ADICIONAR função (NÃO alterar as existentes):
+
+ts import { isEncrypted } from '../../utils/crypto';  export async function auditCertificates(): Promise<{   total: number;   encrypted: number;   legacy: number;   lastUpdatedAt: string | null; }> {   const rows = await db.select().from(companyCertificates);    let encrypted = 0;   let legacy = 0;   let lastUpdatedAt: Date | null = null;    for (const row of rows) {     if (isEncrypted(row.certPassword)) {       encrypted++;     } else {       legacy++;     }      if (!lastUpdatedAt || row.updatedAt > lastUpdatedAt) {       lastUpdatedAt = row.updatedAt;     }   }    return {     total: rows.length,     encrypted,     legacy,     lastUpdatedAt: lastUpdatedAt ? lastUpdatedAt.toISOString() : null,   }; } 
+
+---
+
+# 🛠️ ETAPA 2 — ENDPOINT ADMIN
+
+📍 Arquivo:
+server/routes/routes.ts
+
+👉 Adicionar ANTES do bloco de Company Certificates
+
+---
+
+ts import { auditCertificates } from '../modules/companies/companyCertificate.repository'; import { requireAuthCore, requireRole } from '../core/http/requireAuth';  app.get(   '/api/admin/certificates/audit',   requireAuthCore,   requireRole(['MASTER']),   async (req, res) => {     try {       const result = await auditCertificates();        console.log('[CERT_AUDIT]', result);        return res.json({         success: true,         data: result,       });     } catch (err: any) {       console.error('[CERT_AUDIT_ERROR]', {         error: err.message,       });        return res.status(500).json({         success: false,         error: {           code: 'CERT_AUDIT_FAILED',           message: err.message,         },       });     }   } ); 
+
+---
+
+# 🧪 VALIDAÇÃO
+
+### 1️⃣ Sem login
+
+http GET /api/admin/certificates/audit 
+
+✔ 401 UNAUTHORIZED
+
+---
+
+### 2️⃣ Como MASTER
+
+json {   "success": true,   "data": {     "total": 10,     "encrypted": 10,     "legacy": 0,     "lastUpdatedAt": "2026-04-29T00:10:00.000Z"   } } 
+
+---
+
+### 3️⃣ Após migração (FASE 3.4)
+
+✔ encrypted = total  
+✔ legacy = 0  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ Nenhum dado sensível exposto  
+✔ Não retorna senha  
+✔ Não retorna certificado  
+✔ Apenas métricas agregadas  
+
+✔ Idempotente  
+✔ Read-only  
+✔ Zero impacto no fluxo NF-e  
+
+---
+
+# 📊 RESULTADO
+
+Você passa a ter:
+
+- visão global dos certificados
+- validação da migração
+- diagnóstico rápido em produção
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Função criada  
+2. Endpoint criado  
+3. Exemplo de retorno  
+4. Confirmação de zero regr
