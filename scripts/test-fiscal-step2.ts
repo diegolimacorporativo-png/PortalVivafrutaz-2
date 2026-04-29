@@ -22,11 +22,26 @@ import {
   companyConfig,
 } from "../shared/schema";
 import { runWithTenant } from "../server/core/tenant/context";
-import { buildNFeInput } from "../server/modules/nfe/nfe-input.builder";
+import { buildNFeInput as buildNFeInputRaw } from "../server/modules/nfe/nfe-input.builder";
+// FASE 8.4 — call-site agora orquestra resolveBillingItems → buildNFeInput.
+import { resolveBillingItems } from "../server/modules/billing/billing.service";
 import {
   createDraftFromOrder,
   updateDraft,
 } from "../server/services/nf.draft";
+
+// FASE 8.4 — wrapper de teste que reproduz o comportamento que o builder
+// fazia internamente antes do desacoplamento. Permite manter as chamadas
+// concisas dos cenários abaixo enquanto a produção usa a forma explícita.
+async function buildNFeInput(arg: number | { orderId: number; draftId?: number }) {
+  const opts = typeof arg === "number" ? { orderId: arg } : arg;
+  const resolved = await resolveBillingItems(opts.orderId, opts.draftId);
+  return buildNFeInputRaw({
+    orderId: opts.orderId,
+    draftId: opts.draftId,
+    sourceItems: resolved.items,
+  });
+}
 
 const TEST_TAG = "STEP_FISCAL_2_TEST";
 const errors: any[] = [];

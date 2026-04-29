@@ -55,6 +55,8 @@ import {
   checkWebhookIdempotency,
 } from "../modules/billing/subscription.middleware";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
+// FASE 8.4 — call-sites de NF-e agora orquestram resolveBillingItems → buildNFeInput.
+import { resolveBillingItems } from "../modules/billing/billing.service";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
 import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
 import {
@@ -5289,7 +5291,12 @@ export async function registerRoutes(
       const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
 
       try {
-        const input = await buildNFeInput(orderId);
+        // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+        const resolved = await resolveBillingItems(orderId);
+        const input = await buildNFeInput({
+          orderId,
+          sourceItems: resolved.items,
+        });
         const validation = validarNFeInput(input);
 
         // gerarNFeXML exige numero > 0 (NFE_XML_INVALID_NUMBER se !Number.isFinite
@@ -5929,7 +5936,12 @@ export async function registerRoutes(
           console.error("[NFE_PERIOD_CLOSURE_CHECK_ERROR]", closeErr?.message);
         }
 
-        const input = await buildNFeInput(Number(orderId));
+        // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+        const resolvedEmit = await resolveBillingItems(Number(orderId));
+        const input = await buildNFeInput({
+          orderId: Number(orderId),
+          sourceItems: resolvedEmit.items,
+        });
         const erros = validarNFeInput(input);
         if (erros.length > 0) return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
 
@@ -6080,7 +6092,12 @@ export async function registerRoutes(
         }
 
         // Build → validate → generate XML → persist (mesma sequência do /emitir).
-        const input = await buildNFeInput(orderId);
+        // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+        const resolvedReenviar = await resolveBillingItems(orderId);
+        const input = await buildNFeInput({
+          orderId,
+          sourceItems: resolvedReenviar.items,
+        });
         const erros = validarNFeInput(input);
         if (erros.length > 0) {
           return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
@@ -6241,7 +6258,12 @@ export async function registerRoutes(
         }
 
         // Reaproveita exatamente o pipeline do /emitir e do /reenviar.
-        const input = await buildNFeInput(orderId);
+        // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+        const resolvedCorrigir = await resolveBillingItems(orderId);
+        const input = await buildNFeInput({
+          orderId,
+          sourceItems: resolvedCorrigir.items,
+        });
         const erros = validarNFeInput(input);
         if (erros.length > 0) {
           return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
@@ -6448,7 +6470,12 @@ export async function registerRoutes(
               // FASE 3 — valida tenant também na emissão em lote (cada item).
               await validateOrderTenant(Number(orderId));
 
-              const input = await buildNFeInput(Number(orderId));
+              // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+              const resolvedLote = await resolveBillingItems(Number(orderId));
+              const input = await buildNFeInput({
+                orderId: Number(orderId),
+                sourceItems: resolvedLote.items,
+              });
               const erros = validarNFeInput(input);
               if (erros.length > 0) {
                 return { orderId, status: 'error', reason: `Dados fiscais incompletos: ${erros.join(', ')}` };
@@ -6634,7 +6661,15 @@ export async function registerRoutes(
         // FASE 3 — antes de usar nfe.orderId, garante que pertence ao tenant.
         if (nfe.orderId) await validateOrderTenant(nfe.orderId);
 
-        const input = nfe.orderId ? await buildNFeInput(nfe.orderId) : null;
+        // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+        let input: Awaited<ReturnType<typeof buildNFeInput>> | null = null;
+        if (nfe.orderId) {
+          const resolvedDanfe = await resolveBillingItems(nfe.orderId);
+          input = await buildNFeInput({
+            orderId: nfe.orderId,
+            sourceItems: resolvedDanfe.items,
+          });
+        }
         if (!input) return res.status(400).json({ message: 'Não é possível gerar DANFE sem dados do pedido' });
 
         const vProd = input.produtos.reduce((s: number, p: any) => s + p.vProd, 0);

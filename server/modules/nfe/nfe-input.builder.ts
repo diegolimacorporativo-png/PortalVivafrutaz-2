@@ -16,13 +16,10 @@
  */
 
 import { storage } from "../../services/storage";
-// FASE 4 — novo motor de faturamento (equivalência 100% validada
-// em scripts/test-billing-equivalence.ts antes da troca).
-// FASE 8.1b — única fonte da origem de itens da NF: `resolveBillingItems`
-// concentra a leitura de drafts + agrupamento + fallback de empresa,
-// substituindo as antigas `resolveDraftItems` e `applyItemGrouping`
-// (removidas deste arquivo após validação de equivalência).
-import { resolveBillingItems } from "../billing/billing.service";
+// FASE 8.4 — DESACOPLAMENTO CONTROLADO.
+// O builder NÃO importa mais `resolveBillingItems`. A origem dos itens
+// é responsabilidade dos call-sites, que passam `sourceItems` pronto.
+// Inversão de dependência: agora `billing → builder` (antes `builder → billing`).
 
 // ── Helper: busca código IBGE via ViaCEP ─────────────────────────────────────
 
@@ -93,32 +90,43 @@ function safeOptional(v: any): string | undefined {
 export interface BuildNFeInputOpts {
   orderId: number;
   draftId?: number;
+  /**
+   * FASE 8.4 — Itens já resolvidos pelo caller (via `resolveBillingItems`
+   * em `server/modules/billing/billing.service.ts`). O builder NÃO mais
+   * decide a origem dos itens: ele apenas monta o NFeInput a partir do
+   * que recebe. `draftId` é mantido como metadado para logs/auditoria.
+   */
+  sourceItems: any[];
 }
 
 /**
- * FASE 8.1b — Origem de itens da NF é responsabilidade ÚNICA de
- * `resolveBillingItems` (server/modules/billing/billing.service.ts).
+ * FASE 8.4 — DESACOPLAMENTO CONTROLADO.
  *
- * Esta função era a antiga `resolveDraftItems` + `applyItemGrouping`,
- * que foi consolidada no service. As regras (prioridade do draftId,
- * `useFiscalDraft = true` → draft mais recente, fallback `order_items`,
- * agrupamento "Frutas in natura") agora vivem em UM único lugar e são
- * acionadas via `resolveBillingItems(orderId, draftId)` mais abaixo.
+ * O builder agora recebe `sourceItems` PRONTO. A resolução de itens
+ * (drafts, agrupamento "Frutas in natura", fallback `order_items`)
+ * permanece como responsabilidade ÚNICA de `resolveBillingItems`,
+ * mas é executada pelo CALL-SITE, não mais pelo builder.
  *
- * Equivalência validada por `scripts/test-billing-equivalence.ts` nos
- * 4 cenários (STANDARD, CONTRACT_OPEN, CONTRACT_AVERAGE, agrupamento).
+ * Direção de dependência:
+ *   ANTES:  buildNFeInput → resolveBillingItems (acoplamento invertido)
+ *   AGORA:  resolveBillingItems → buildNFeInput (call-site orquestra)
+ *
+ * Validações fiscais (NCM obrigatório, CFOP UF-aware, safeStr,
+ * normalização vProd, fail-fast em emitente) permanecem INTOCADAS.
  */
 
-export async function buildNFeInput(
-  arg: number | BuildNFeInputOpts,
-) {
-  // Compatibilidade: aceita tanto o número (assinatura legada) quanto o objeto.
-  const opts: BuildNFeInputOpts =
-    typeof arg === "number" ? { orderId: arg } : arg || ({} as any);
-  const { orderId, draftId } = opts;
+export async function buildNFeInput(args: BuildNFeInputOpts) {
+  if (!args || typeof args !== "object") {
+    throw new Error("buildNFeInput: args obrigatório (objeto)");
+  }
+  const { orderId, sourceItems } = args;
 
   if (!orderId || isNaN(orderId) || orderId <= 0)
     throw new Error(`orderId inválido: ${orderId}`);
+
+  if (!Array.isArray(sourceItems)) {
+    throw new Error("buildNFeInput: sourceItems obrigatório (array)");
+  }
 
   const orderData = await storage.getOrder(orderId);
   if (!orderData) throw new Error(`Pedido #${orderId} não encontrado`);
@@ -208,9 +216,10 @@ export async function buildNFeInput(
     });
   }
 
-  // FASE 4: usando billing.service (equivalência já validada)
-  // lógica antiga mantida para rollback futuro
-  const { items: sourceItems } = await resolveBillingItems(orderId, draftId);
+  // FASE 8.4 — `sourceItems` chega PRONTO via `args` (resolveBillingItems
+  // foi movido para o call-site). Esta linha intencionalmente usa o array
+  // já resolvido, sem nenhuma transformação adicional, garantindo XML
+  // idêntico ao caminho anterior (validado em test-billing-equivalence.ts).
 
   // ETAPA 2 — normalização sem mutação: recalcula vProd a partir de qCom × vUnCom
   // FASE NF.4.2 — ETAPA 3: NCM obrigatório (sem fallback "08039000" de banana).

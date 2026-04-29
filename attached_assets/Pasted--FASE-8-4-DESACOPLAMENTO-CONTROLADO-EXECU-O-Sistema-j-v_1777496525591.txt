@@ -1,0 +1,162 @@
+🎯 FASE 8.4 — DESACOPLAMENTO CONTROLADO (EXECUÇÃO)
+
+Sistema já validado. Agora executar inversão de dependência:
+
+builder NÃO pode mais chamar billing.
+
+---
+
+## 🚫 REGRAS ABSOLUTAS
+
+1. NÃO alterar lógica fiscal
+2. NÃO alterar XML
+3. NÃO alterar cálculo de impostos
+4. NÃO alterar resolveBillingItems
+5. NÃO alterar validações do builder (NCM, CFOP, safeStr)
+6. NÃO alterar estrutura de retorno
+7. NÃO mexer em multi-tenant
+8. ZERO regressão obrigatória
+
+---
+
+## 🧠 ESTADO ATUAL (CONFIRMADO)
+
+Hoje:
+
+ts buildNFeInput → resolveBillingItems 
+
+---
+
+## 🎯 OBJETIVO FINAL
+
+Ficar:
+
+ts resolveBillingItems → buildNFeInput 
+
+---
+
+## 📦 ETAPA 1 — REMOVER ACOPLAMENTO
+
+Arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+### REMOVER:
+
+ts import { resolveBillingItems } from "../billing/billing.service"; 
+
+---
+
+## 📦 ETAPA 2 — REMOVER CHAMADA INTERNA
+
+LOCALIZAR dentro do builder:
+
+ts const { items } = await resolveBillingItems(...) 
+
+👉 REMOVER completamente
+
+---
+
+## 📦 ETAPA 3 — NOVA ASSINATURA
+
+ANTES:
+
+ts buildNFeInput(args) 
+
+DEPOIS:
+
+ts buildNFeInput(args: {   orderId: number;   draftId?: number;   sourceItems: any[]; }) 
+
+---
+
+## 📦 ETAPA 4 — USAR sourceItems
+
+Dentro do builder:
+
+SUBSTITUIR:
+
+ts const sourceItems = ... 
+
+POR:
+
+ts const sourceItems = args.sourceItems; 
+
+👉 NÃO alterar mais nada
+
+---
+
+## 📦 ETAPA 5 — AJUSTAR CALL-SITES
+
+Encontrar TODOS os lugares onde buildNFeInput é chamado.
+
+### ANTES:
+
+ts buildNFeInput({ orderId, draftId }) 
+
+### DEPOIS:
+
+ts const resolved = await resolveBillingItems({ orderId, draftId });  buildNFeInput({   orderId,   draftId,   sourceItems: resolved.items }); 
+
+---
+
+## ⚠️ IMPORTANTE
+
+- NÃO mudar ordem de execução
+- NÃO remover await
+- NÃO alterar tratamento de erro
+- NÃO mexer em resolveBillingItems
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+Confirmar explicitamente:
+
+1. ✔ XML idêntico
+2. ✔ produtos idênticos (descrição, vUnit, vTotal)
+3. ✔ totais idênticos
+4. ✔ nenhum endpoint mudou resposta
+5. ✔ multi-tenant intacto
+6. ✔ logs intactos
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts builder → billing 
+
+Depois:
+
+ts billing → builder 
+
+---
+
+## 🔒 GARANTIA
+
+Essa mudança é:
+
+✔ apenas estrutural  
+✔ sem impacto funcional  
+✔ base para evolução futura  
+
+---
+
+## 🚨 REGRA DE ABORT
+
+Se qualquer dúvida:
+
+❌ NÃO implementar  
+❌ PARAR  
+❌ reportar  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. diff da assinatura do builder  
+2. lista de call-sites ajustados  
+3. confirmação de XML idêntico  
+4. confirmação de zero regressão

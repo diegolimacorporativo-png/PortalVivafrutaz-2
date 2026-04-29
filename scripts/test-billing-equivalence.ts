@@ -34,8 +34,24 @@ import {
   companyConfig,
 } from "../shared/schema";
 import { runWithTenant } from "../server/core/tenant/context";
-import { buildNFeInput } from "../server/modules/nfe/nfe-input.builder";
+import { buildNFeInput as buildNFeInputRaw } from "../server/modules/nfe/nfe-input.builder";
 import { resolveBillingItems } from "../server/modules/billing/billing.service";
+
+// FASE 8.4 — wrapper de teste que reproduz o comportamento que o builder
+// fazia internamente antes do desacoplamento. Este teste foi originalmente
+// escrito para validar a equivalência (quando o acoplamento existia); após
+// FASE 8.4 a equivalência é trivialmente verdadeira (o builder consome o
+// próprio output do resolveBillingItems via call-site), mas o teste
+// continua útil como guard de regressão de XML.
+async function buildNFeInput(arg: number | { orderId: number; draftId?: number }) {
+  const opts = typeof arg === "number" ? { orderId: arg } : arg;
+  const resolved = await resolveBillingItems(opts.orderId, opts.draftId);
+  return buildNFeInputRaw({
+    orderId: opts.orderId,
+    draftId: opts.draftId,
+    sourceItems: resolved.items,
+  });
+}
 import {
   createDraftFromOrder,
   updateDraft,

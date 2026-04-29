@@ -28,6 +28,8 @@ import {
   type OrderLockHandle,
 } from "../modules/nfe/nfe-concurrency.lock";
 import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
+// FASE 8.4 — call-site agora orquestra: resolveBillingItems → buildNFeInput.
+import { resolveBillingItems } from "../modules/billing/billing.service";
 import { AUTO_FATURAMENTO, ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import {
   setCronRunning,
@@ -291,7 +293,12 @@ export async function runFaturamentoCron(
       const { gerarNFeXML } = await import("../services/nfe/nfeGenerator.ts");
       const { validarNFeInput } = await import("../services/nfe/nfeValidator.ts");
 
-      const input = await buildNFeInput(orderId);
+      // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+      const resolved = await resolveBillingItems(orderId);
+      const input = await buildNFeInput({
+        orderId,
+        sourceItems: resolved.items,
+      });
       const erros = validarNFeInput(input);
       if (erros.length > 0) {
         return { orderId, status: "error", reason: `Dados incompletos: ${erros.join(", ")}` };
