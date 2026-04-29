@@ -1,0 +1,139 @@
+🎯 FASE 6.3 — AUDITORIA AVANÇADA (POR USUÁRIO + ENDPOINT)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar validateOrderTenant  
+3. NÃO alterar estrutura atual do endpoint  
+4. NÃO remover campos existentes (total, byOrder)  
+5. NÃO alterar storage.ts  
+6. Apenas ADICIONAR agregações novas  
+
+---
+
+🧠 OBJETIVO
+
+Hoje você tem:
+- total de eventos
+- agrupamento por orderId
+
+Agora adicionar:
+👉 quem está tentando (user/email)  
+👉 de onde (endpoint/path)  
+
+---
+
+## 🛠️ ETAPA 1 — ATUALIZAR REPOSITORY
+
+📍 Arquivo:
+server/modules/security/security.repository.ts
+
+---
+
+Atualizar função:
+
+ts export async function getTenantMismatchEvents(days: number) { 
+
+---
+
+Adicionar novas agregações:
+
+ts id="adv_audit" import { sql } from "drizzle-orm";  const byUserResult = await db   .select({     email: tenantMismatchEvents.email,     count: sql<number>`count(*)`,   })   .from(tenantMismatchEvents)   .where(     sql`${tenantMismatchEvents.createdAt} >= now() - interval '${days} days'`   )   .groupBy(tenantMismatchEvents.email);  const byPathResult = await db   .select({     path: tenantMismatchEvents.path,     count: sql<number>`count(*)`,   })   .from(tenantMismatchEvents)   .where(     sql`${tenantMismatchEvents.createdAt} >= now() - interval '${days} days'`   )   .groupBy(tenantMismatchEvents.path); 
+
+---
+
+## 🛠️ ETAPA 2 — FORMATAR RESULTADO
+
+Adicionar no retorno:
+
+ts id="format_adv" const byUser: Record<string, number> = {}; byUserResult.forEach(r => {   byUser[r.email ?? "unknown"] = Number(r.count); });  const byPath: Record<string, number> = {}; byPathResult.forEach(r => {   byPath[r.path ?? "unknown"] = Number(r.count); }); 
+
+---
+
+## 🛠️ ETAPA 3 — EXPANDIR RESPONSE
+
+Retorno final:
+
+ts id="final_return" return {   total,   byOrder,   byUser,   byPath,   windowDays: days, }; 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO remover byOrder
+- NÃO mudar nomes existentes
+- Apenas adicionar novos campos
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Inserir eventos simulados
+
+Exemplo:
+
+- user A → 3 tentativas
+- user B → 1 tentativa
+- endpoint /api/orders → 2
+- endpoint /api/nfe → 2
+
+---
+
+### 2️⃣ Chamar endpoint
+
+GET /api/admin/security/tenant-mismatch-events
+
+---
+
+### 3️⃣ Resultado esperado
+
+json {   "success": true,   "data": {     "total": 4,     "byOrder": {       "5": 2,       "7": 2     },     "byUser": {       "userA@email.com": 3,       "userB@email.com": 1     },     "byPath": {       "/api/orders/5": 2,       "/api/nfe/7": 2     },     "windowDays": 7   } } 
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Nenhuma lógica alterada  
+✔ Apenas leitura  
+✔ Sem impacto em performance relevante  
+✔ Sem vazamento de dados sensíveis  
+✔ Compatível com frontend atual  
+✔ Endpoint antigo continua funcionando  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ Só sabia que houve tentativa  
+
+Agora:
+✔ Quem tentou  
+✔ Onde tentou  
+✔ Quantas vezes  
+✔ Padrão de ataque  
+
+---
+
+## 🚀 PREPARAÇÃO PARA PRÓXIMA FASE
+
+Com isso você já pode:
+
+- detectar abuso por usuário  
+- criar bloqueio automático  
+- criar alertas inteligentes  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. campos adicionados  
+2. resultado real do endpoint  
+3. validação com múltiplos usuários  
+4. confirmação de zero regressã

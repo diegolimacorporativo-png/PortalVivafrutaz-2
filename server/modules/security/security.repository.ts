@@ -54,41 +54,80 @@ export async function logTenantMismatchEvent(
 /**
  * Agrega tentativas de tenant mismatch no período `days` (default 7,
  * máximo 90). Retorna apenas contagens — nenhum dado sensível é exposto
- * além do orderId, que já é necessário para correlação.
+ * além do orderId/email/path, todos necessários para correlação.
+ *
+ * FASE 6.3 — agora também agrega por `email` (quem) e `path` (onde),
+ * preservando os campos antigos `total` e `byOrder` para compatibilidade
+ * com o frontend existente.
  */
 export async function getTenantMismatchEvents(days: number): Promise<{
   total: number;
   byOrder: Record<string, number>;
+  byUser: Record<string, number>;
+  byPath: Record<string, number>;
   windowDays: number;
 }> {
   const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 7;
+  const windowExpr = sql`${tenantMismatchEvents.createdAt} >= now() - (${safeDays}::int * interval '1 day')`;
 
   try {
-    const rows = await db
-      .select({
-        orderId: tenantMismatchEvents.orderId,
-        count: sql<number>`count(*)::int`,
-      })
-      .from(tenantMismatchEvents)
-      .where(
-        sql`${tenantMismatchEvents.createdAt} >= now() - (${safeDays}::int * interval '1 day')`,
-      )
-      .groupBy(tenantMismatchEvents.orderId);
+    const [byOrderRows, byUserRows, byPathRows] = await Promise.all([
+      db
+        .select({
+          orderId: tenantMismatchEvents.orderId,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tenantMismatchEvents)
+        .where(windowExpr)
+        .groupBy(tenantMismatchEvents.orderId),
+      db
+        .select({
+          email: tenantMismatchEvents.email,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tenantMismatchEvents)
+        .where(windowExpr)
+        .groupBy(tenantMismatchEvents.email),
+      db
+        .select({
+          path: tenantMismatchEvents.path,
+          count: sql<number>`count(*)::int`,
+        })
+        .from(tenantMismatchEvents)
+        .where(windowExpr)
+        .groupBy(tenantMismatchEvents.path),
+    ]);
 
     const byOrder: Record<string, number> = {};
     let total = 0;
-    for (const row of rows) {
+    for (const row of byOrderRows) {
       const key = row.orderId === null ? "unknown" : String(row.orderId);
       const c = Number(row.count) || 0;
       byOrder[key] = c;
       total += c;
     }
 
-    return { total, byOrder, windowDays: safeDays };
+    const byUser: Record<string, number> = {};
+    for (const row of byUserRows) {
+      byUser[row.email ?? "unknown"] = Number(row.count) || 0;
+    }
+
+    const byPath: Record<string, number> = {};
+    for (const row of byPathRows) {
+      byPath[row.path ?? "unknown"] = Number(row.count) || 0;
+    }
+
+    return { total, byOrder, byUser, byPath, windowDays: safeDays };
   } catch (err: any) {
     console.error(
       `[SECURITY_AUDIT] Failed to aggregate TENANT_MISMATCH events: ${err?.message || err}`,
     );
-    return { total: 0, byOrder: {}, windowDays: safeDays };
+    return {
+      total: 0,
+      byOrder: {},
+      byUser: {},
+      byPath: {},
+      windowDays: safeDays,
+    };
   }
 }
