@@ -1,0 +1,195 @@
+🎯 FASE 8.3 (REVISADA) — CONSOLIDAÇÃO SEGURA DO AGRUPAMENTO
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar builder (nfe-input.builder.ts)
+2. NÃO alterar regra de NCM (continua obrigatório)
+3. NÃO alterar CFOP UF-aware
+4. NÃO alterar resolveBillingItems (comportamento)
+5. NÃO alterar XML
+6. NÃO alterar fallback fiscal existente
+
+👉 Apenas remover duplicação REAL e segura
+
+---
+
+🧠 CONTEXTO
+
+Duplicação REAL identificada:
+
+📍 billing.service.ts (FASE 8.2 inline)
+
+Valores repetidos nos dois IIFEs de agrupamento:
+
+ts "08039000" "KG" 
+
+👉 Esses valores são:
+- fixos
+- não dependem de UF
+- usados apenas no agrupamento "Frutas in natura"
+
+---
+
+🎯 OBJETIVO
+
+Centralizar:
+
+ts ncm: "08039000" unit: "KG" 
+
+SEM tocar em CFOP  
+SEM tocar no builder  
+
+---
+
+# 📦 ETAPA 1 — CRIAR CONSTANTE
+
+📍 Arquivo:
+
+server/modules/billing/billing.service.ts
+
+---
+
+Adicionar no topo (após imports):
+
+ts const FRUTAS_IN_NATURA_DEFAULTS = {   ncm: "08039000",   unit: "KG", }; 
+
+---
+
+# 📦 ETAPA 2 — SUBSTITUIR NOS IIFEs
+
+Localizar os DOIS pontos de agrupamento (IIFEs criados na FASE 8.2)
+
+---
+
+ANTES:
+
+ts ("08039000", defaultCfop, "KG") 
+
+---
+
+DEPOIS:
+
+ts (   FRUTAS_IN_NATURA_DEFAULTS.ncm,   defaultCfop,   FRUTAS_IN_NATURA_DEFAULTS.unit ) 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO alterar ordem dos parâmetros
+- NÃO alterar defaultCfop
+- NÃO alterar lógica do agrupamento
+- NÃO tocar em mais nada
+
+---
+
+# 📦 ETAPA 3 — NÃO TOCAR NO BUILDER
+
+🚫 NÃO mexer em:
+
+server/modules/nfe/nfe-input.builder.ts
+
+---
+
+Motivo:
+
+✔ CFOP depende de UF  
+✔ NCM é obrigatório (fail-fast)  
+✔ safeStr é necessário  
+
+---
+
+# 📦 ETAPA 4 — VALIDAÇÃO
+
+Rodar:
+
+✔ baseline  
+✔ geração de NF  
+✔ cenários da FASE 8.2  
+
+---
+
+Validar:
+
+✔ XML idêntico  
+✔ mesmos itens  
+✔ mesmos totais  
+✔ mesmo agrupamento  
+
+---
+
+# 🧪 ETAPA 5 — TESTES
+
+---
+
+### 1️⃣ Agrupamento ativo
+✔ continua 1 linha "Frutas in natura"
+
+---
+
+### 2️⃣ Sem agrupamento
+✔ comportamento intacto
+
+---
+
+### 3️⃣ Draft / sem draft
+✔ sem mudança
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se qualquer diferença:
+
+❌ PARAR  
+❌ NÃO ajustar  
+
+---
+
+# 🔐 GARANTIAS
+
+✔ remove duplicação real  
+✔ zero impacto fiscal  
+✔ zero risco de rejeição SEFAZ  
+✔ prepara para futura parametrização  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ valores hardcoded duplicados  
+
+Depois:
+
+✔ constante única  
+✔ código mais seguro  
+✔ comportamento idêntico  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. constante criada  
+2. pontos substituídos  
+3. resultado dos testes  
+4. confirmação de XML idêntico  
+5. confirmação de zero regressão  
+
+---
+
+🚀 EXEC
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO centralizar CFOP  
+👉 NÃO centralizar NCM global  
+👉 NÃO mexer no builder  
+
+👉 isso foi corrigido nesta

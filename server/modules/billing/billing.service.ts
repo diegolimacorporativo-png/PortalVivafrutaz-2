@@ -43,6 +43,27 @@ import { storage } from "../../services/storage";
 // FALLBACK do draft (draft mantém prioridade absoluta).
 import { resolveCompanyBillingConfig } from "./billing.resolver";
 
+// ── Constantes fiscais ──────────────────────────────────────────────────────
+
+/**
+ * FASE 8.3 — Defaults fiscais do agrupamento "Frutas in natura".
+ *
+ * Centraliza APENAS os literais que são duplicados nos dois IIFEs de
+ * agrupamento (caminho legado e caminho draft). NÃO inclui CFOP — esse
+ * permanece resolvido por `defaultCfop` no escopo (company > config >
+ * "5102"), pois CFOP depende de UF no builder e tem cadeia de fallback
+ * própria. NCM e unidade são fixos para o agrupamento "Frutas in natura"
+ * por design (item consolidado único, não vai para o builder via map).
+ *
+ * ⚠️ Esta constante é EXCLUSIVA do agrupamento dentro deste service.
+ * Não usar no builder — lá NCM é fail-fast (FASE NF.4.2 ETAPA 3) e
+ * unidade vem do item via `safeStr(item.unit, "KG")`.
+ */
+const FRUTAS_IN_NATURA_DEFAULTS = {
+  ncm: "08039000",
+  unit: "KG",
+} as const;
+
 // ── Tipos públicos ──────────────────────────────────────────────────────────
 
 /**
@@ -197,7 +218,7 @@ export async function resolveBillingItems(
               importado: items.some((it: any) => it?.importado === true),
             },
           ];
-        })(sourceItems, "08039000", defaultCfop, "KG")
+        })(sourceItems, FRUTAS_IN_NATURA_DEFAULTS.ncm, defaultCfop, FRUTAS_IN_NATURA_DEFAULTS.unit)
       : sourceItems;
     return {
       items,
@@ -238,7 +259,7 @@ export async function resolveBillingItems(
             importado: items.some((it: any) => it?.importado === true),
           },
         ];
-      })(resolved.items, "08039000", defaultCfop, "KG")
+      })(resolved.items, FRUTAS_IN_NATURA_DEFAULTS.ncm, defaultCfop, FRUTAS_IN_NATURA_DEFAULTS.unit)
     : resolved.items;
 
   return {
