@@ -42,7 +42,10 @@ import { logTenantMismatchEvent } from "../../modules/security/security.reposito
 import {
   isUserBlocked,
   blockedCount,
+  hydrateBlockFromDb,
 } from "../../modules/security/security.blocker";
+// FASE 6.9 — fallback no DB para sobreviver a restarts do processo.
+import { getActiveBlock } from "../../modules/security/security.block.repository";
 import { getTenantContext } from "../tenant/context";
 
 // ── Tipos auxiliares ─────────────────────────────────────────────────────────
@@ -118,26 +121,47 @@ function logSecurityMismatch(params: {
 export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
   const tenantId = requireTenantId();
 
-  // FASE 6.5 — bloqueio temporário in-memory. Early-exit: se o blocker
-  // estiver vazio (caso comum), nem fazemos lookup do usuário — zero
-  // overhead em operação normal. Só fazemos a leitura quando há ao
-  // menos 1 email bloqueado e conseguimos derivar o email do principal.
-  if (blockedCount() > 0) {
+  // FASE 6.5 + 6.9 — bloqueio em duas camadas:
+  //   1. Memória (rápido, primeira linha de defesa).
+  //   2. DB (fallback pós-restart; só é consultado se memória diz "não").
+  // Resolve email do principal uma única vez para reaproveitar nos dois
+  // checks. Falha de lookup nunca pode quebrar o fluxo normal.
+  let userEmail: string | null = null;
+  try {
     const ctx = getTenantContext();
     const userId = ctx?.principal?.userId;
     if (typeof userId === "number" && userId > 0) {
-      try {
-        const user = (await storage.getUser(userId)) as
-          | { email?: string | null }
-          | undefined;
-        if (user?.email && isUserBlocked(user.email)) {
-          throw new ForbiddenError("Too many invalid access attempts");
-        }
-      } catch (err) {
-        // Se o erro veio do nosso próprio throw (ForbiddenError), repropaga.
-        if (err instanceof ForbiddenError) throw err;
-        // Falha no lookup do usuário NÃO deve quebrar fluxo normal.
+      const user = (await storage.getUser(userId)) as
+        | { email?: string | null }
+        | undefined;
+      userEmail = user?.email ?? null;
+    }
+  } catch {
+    // lookup falhou; segue sem email — apenas as proteções legadas atuam.
+  }
+
+  // (1) Memória — preserva o early-exit quando o Map está vazio.
+  if (
+    blockedCount() > 0 &&
+    userEmail &&
+    isUserBlocked(userEmail)
+  ) {
+    throw new ForbiddenError("Too many invalid access attempts");
+  }
+
+  // (2) DB fallback (FASE 6.9) — só consulta se NÃO bloqueado em memória.
+  // Re-hidrata a memória com o TTL ORIGINAL do DB para que próximas
+  // chamadas batam apenas em memória até o bloqueio expirar.
+  if (userEmail) {
+    try {
+      const dbBlock = await getActiveBlock(userEmail);
+      if (dbBlock) {
+        hydrateBlockFromDb(userEmail, dbBlock.blockedUntil.getTime());
+        throw new ForbiddenError("Too many invalid access attempts");
       }
+    } catch (err) {
+      if (err instanceof ForbiddenError) throw err;
+      // Falha de DB no fallback NÃO deve quebrar fluxo legítimo.
     }
   }
 

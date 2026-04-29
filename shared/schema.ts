@@ -1881,3 +1881,20 @@ export const tenantMismatchEvents = pgTable("tenant_mismatch_events", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type TenantMismatchEvent = typeof tenantMismatchEvents.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FASE 6.9 — Bloqueio persistente (DB + cache em memória).
+// Cada bloqueio gerado por `blockUser` em memória é replicado aqui,
+// com `blocked_until` = now + BLOCK_TIME_MS. Após restart do processo,
+// `safeGetOrder` consulta esta tabela para re-hidratar a memória e
+// continuar honrando bloqueios ativos. NÃO substitui o blocker
+// in-memory — apenas o complementa como camada de durabilidade.
+// ─────────────────────────────────────────────────────────────────────────────
+export const securityBlockedUsers = pgTable("security_blocked_users", {
+  id: serial("id").primaryKey(),
+  email: text("email").notNull(),
+  blockedUntil: timestamp("blocked_until").notNull(),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+export type SecurityBlockedUser = typeof securityBlockedUsers.$inferSelect;

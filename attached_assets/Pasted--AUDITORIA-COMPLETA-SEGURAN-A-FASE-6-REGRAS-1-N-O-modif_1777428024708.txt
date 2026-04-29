@@ -1,0 +1,175 @@
+}
+🎯 AUDITORIA COMPLETA — SEGURANÇA (FASE 6)
+
+---
+
+🚫 REGRAS
+
+1. NÃO modificar código  
+2. NÃO sugerir refatoração ainda  
+3. Apenas AUDITAR  
+4. Validar comportamento REAL (não teórico)  
+
+---
+
+🧠 OBJETIVO
+
+Verificar se TODAS as proteções de segurança foram corretamente implementadas:
+
+---
+
+# 🔒 1. MULTI-TENANT
+
+Verificar:
+
+- validateOrderTenant está sendo chamado em TODOS endpoints de leitura de pedido
+- safeGetOrder está sendo usado corretamente
+- nenhum endpoint permite acesso cross-tenant
+
+---
+
+Testar cenários:
+
+1. mesmo tenant → OK  
+2. outro tenant → 403  
+3. sem tenant → 401  
+4. pedido inexistente → 404  
+
+---
+
+# 🛡️ 2. LOG DE SEGURANÇA
+
+Verificar:
+
+- existe log: [SECURITY] TENANT_MISMATCH
+- log contém:
+  - tenantId
+  - orderId
+  - detalhes
+
+---
+
+# 📊 3. PERSISTÊNCIA DE EVENTOS
+
+Verificar:
+
+- tabela tenant_mismatch_events existe
+- eventos são salvos ao ocorrer mismatch
+- campos:
+  - email
+  - path
+  - method
+  - orderId
+
+---
+
+# 📈 4. ENDPOINT DE AUDITORIA
+
+GET /api/admin/security/tenant-mismatch-events
+
+Validar:
+
+- retorna:
+  - total
+  - byOrder
+  - byUser
+  - byPath
+  - topUsers
+  - topPaths
+  - suspiciousUsers
+- apenas MASTER acessa
+
+---
+
+# 🚨 5. DETECÇÃO DE ABUSO
+
+Verificar:
+
+- threshold funcionando (>= 5 tentativas)
+- usuário entra em suspiciousUsers corretamente
+
+---
+
+# 🛑 6. BLOQUEIO AUTOMÁTICO
+
+Verificar:
+
+- usuário bloqueado após abuso
+- erro retornado:
+
+id="x12a" Too many invalid access attempts
+
+- bloqueio expira após TTL
+
+---
+
+# 🔔 7. ALERTA
+
+Verificar:
+
+- log [SECURITY_ALERT] disparado
+- não duplica alertas
+- dispara novamente após expiração
+
+---
+
+# 🎛️ 8. DESBLOQUEIO MANUAL
+
+POST /api/admin/security/unblock
+
+Validar:
+
+- desbloqueia corretamente
+- idempotente
+- log gerado
+
+---
+
+# 🖥️ 9. PAINEL ADMIN
+
+Validar:
+
+- mostra dados corretos
+- destaca bloqueados
+- botão desbloquear funciona
+- apenas MASTER acessa
+
+---
+
+# 🔐 10. SEGURANÇA GERAL
+
+Verificar:
+
+- nenhum endpoint admin sem auth
+- nenhum dado sensível exposto
+- nenhuma rota aberta indevidamente
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Responder com:
+
+---
+
+## ✅ O QUE ESTÁ 100%
+
+## ⚠️ O QUE ESTÁ PARCIAL
+
+## ❌ O QUE ESTÁ FALTANDO
+
+---
+
+## 🔥 RISCO ATUAL
+
+Classificar:
+
+- baixo
+- médio
+- alto
+
+---
+
+## 🚀 PRÓXIMOS PASSOS
+
+Ordem recomendada (sem executar ainda)

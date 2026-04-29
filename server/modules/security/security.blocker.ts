@@ -72,17 +72,49 @@ export function isUserBlocked(email?: string | null): boolean {
  * Bloqueia um email por `BLOCK_TIME_MS` e dispara `sendSecurityAlert`
  * na primeira vez (anti-spam via `alertedUsers`). O parâmetro `count`
  * é o número de tentativas observadas — apenas informativo, vai pro log.
+ *
+ * FASE 6.9 — replica o bloqueio na tabela `security_blocked_users`
+ * (fire-and-forget, fail-safe) para sobreviver a restarts do processo.
  */
 export function blockUser(email: string, count?: number): void {
   const key = normalize(email);
   if (!key) return;
-  blockedUsers.set(key, Date.now() + BLOCK_TIME_MS);
+  const until = Date.now() + BLOCK_TIME_MS;
+  blockedUsers.set(key, until);
+
+  // FASE 6.9 — persistência DB. Promise descartada de propósito:
+  // erro de DB nunca pode quebrar o bloqueio em memória, que é a
+  // primeira linha de defesa.
+  void import("./security.block.repository").then(({ persistBlock }) =>
+    persistBlock(key, new Date(until)).catch(() => {}),
+  );
 
   // FASE 6.6 — alerta one-shot por janela de bloqueio.
   if (!alertedUsers.has(key)) {
     alertedUsers.add(key);
     sendSecurityAlert(key, count ?? 0);
   }
+}
+
+/**
+ * FASE 6.9 — Re-hidrata a memória a partir de um bloqueio encontrado
+ * no DB (após restart). Usa o TTL ORIGINAL salvo no DB, NÃO renova
+ * o bloqueio. Não dispara alerta (o usuário já foi notificado quando
+ * o bloqueio foi criado originalmente) e não persiste de novo (já está
+ * no DB). Idempotente.
+ */
+export function hydrateBlockFromDb(
+  email: string,
+  blockedUntilMs: number,
+): void {
+  const key = normalize(email);
+  if (!key) return;
+  if (!Number.isFinite(blockedUntilMs)) return;
+  if (blockedUntilMs <= Date.now()) return;
+  blockedUsers.set(key, blockedUntilMs);
+  // Marca como já-alertado para não disparar alerta duplicado se
+  // alguma race fizer blockUser ser chamado em seguida com o mesmo email.
+  alertedUsers.add(key);
 }
 
 /**
@@ -98,6 +130,13 @@ export function unblockUser(email?: string | null): boolean {
 
   const wasBlocked = blockedUsers.delete(key);
   alertedUsers.delete(key);
+
+  // FASE 6.9 — também remove o bloqueio persistente, garantindo que
+  // após restart o usuário não volte a ser bloqueado por uma linha
+  // antiga ainda dentro do TTL. Fail-safe: erro de DB não propaga.
+  void import("./security.block.repository").then(({ removeActiveBlock }) =>
+    removeActiveBlock(key).catch(() => {}),
+  );
 
   console.info("[SECURITY_UNBLOCK]", { email: key, wasBlocked });
   return wasBlocked;

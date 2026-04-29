@@ -1,0 +1,139 @@
+🎯 FASE 6.9 — BLOQUEIO PERSISTENTE (DB + CACHE)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO remover bloqueio em memória  
+2. NÃO alterar validateOrderTenant  
+3. NÃO quebrar fluxo atual  
+4. NÃO remover blocker atual  
+5. Apenas ADD  
+
+---
+
+🧠 OBJETIVO
+
+Persistir bloqueios no banco:
+
+👉 sobreviver restart  
+👉 permitir auditoria  
+👉 manter performance via cache  
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR TABELA
+
+📍 shared/schema.ts
+
+ts export const securityBlockedUsers = pgTable("security_blocked_users", {   id: serial("id").primaryKey(),   email: text("email").notNull(),   blockedUntil: timestamp("blocked_until").notNull(),   reason: text("reason"),   createdAt: timestamp("created_at").defaultNow(), }); 
+
+---
+
+## 🛠️ ETAPA 2 — REPOSITORY
+
+📍 server/modules/security/security.block.repository.ts
+
+ts export async function persistBlock(email: string, until: Date) {   await db.insert(securityBlockedUsers).values({     email,     blockedUntil: until,     reason: "tenant_mismatch_abuse",   }); }  export async function isBlockedInDB(email: string) {   const row = await db     .select()     .from(securityBlockedUsers)     .where(eq(securityBlockedUsers.email, email))     .limit(1);    if (!row[0]) return false;    return new Date(row[0].blockedUntil) > new Date(); } 
+
+---
+
+## 🛠️ ETAPA 3 — INTEGRAR NO blockUser
+
+📍 security.blocker.ts
+
+ts import { persistBlock } from "./security.block.repository";  export function blockUser(email: string, count?: number) {   const key = email.toLowerCase();    const until = Date.now() + BLOCK_TIME_MS;    blockedUsers.set(key, until);    // persistência (fail-safe)   persistBlock(key, new Date(until)).catch(() => {});      if (!alertedUsers.has(key)) {     alertedUsers.add(key);     sendSecurityAlert(key, count ?? 0);   } } 
+
+---
+
+## 🛠️ ETAPA 4 — CHECK NO BANCO (FALLBACK)
+
+📍 tenantGuard.ts
+
+ANTES do fluxo normal:
+
+ts import { isBlockedInDB } from "@/modules/security/security.block.repository";  if (!(await isBlockedInDB(email))) {   // segue fluxo normal } 
+
+⚠ IMPORTANTE:
+
+👉 Só consultar DB se NÃO estiver bloqueado em memória
+
+---
+
+## 🛠️ ETAPA 5 — SINCRONIZAR CACHE
+
+Quando detectar bloqueio no DB:
+
+ts if (await isBlockedInDB(email)) {   blockUser(email); // re-hidrata memória   throw new ForbiddenError("Too many invalid access attempts"); } 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Bloquear usuário
+
+✔ salva no DB  
+✔ salva em memória  
+
+---
+
+### 2️⃣ Reiniciar servidor
+
+✔ memória limpa  
+✔ DB mantém bloqueio  
+
+---
+
+### 3️⃣ Nova requisição
+
+✔ sistema consulta DB  
+✔ bloqueio continua ativo  
+
+---
+
+### 4️⃣ Expiração
+
+✔ DB respeita TTL  
+✔ memória atualiza automaticamente  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Sem regressão  
+✔ Memória continua funcionando  
+✔ DB como backup  
+✔ Fail-safe total  
+
+---
+
+## 📊 RESULTADO FINAL
+
+Antes:
+❌ bloqueio some ao reiniciar  
+
+Agora:
+✔ bloqueio persistente  
+✔ auditável  
+✔ escalável  
+
+---
+
+## 🚀 PRÓXIMA FASE
+
+👉 bloqueio por IP  
+👉 rate-limit por endpoint  
+👉 score de risco  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. tabela criada  
+2. persistência funcionando  
+3. fallback DB validado  
+4. confirmação de zero regr
