@@ -1,0 +1,192 @@
+🎯 CONTINUIDADE — PÓS FASE 8.1b + EQUIVALÊNCIA VALIDADA
+
+---
+
+🚫 REGRAS ABSOLUTAS (NÃO NEGOCIÁVEIS)
+
+1. NÃO alterar XML
+2. NÃO alterar cálculo fiscal
+3. NÃO alterar shape de items
+4. NÃO alterar endpoints
+5. NÃO alterar resolveBillingItems
+6. NÃO alterar buildNFeInput
+7. NÃO criar nova lógica paralela
+8. NÃO rodar nada sem validar baseline
+
+👉 Sistema já validado — qualquer mudança errada quebra equivalência
+
+---
+
+🧠 ESTADO ATUAL (CRÍTICO ENTENDER)
+
+✅ resolveBillingItems = fonte única de itens  
+✅ buildNFeInput usa resolveBillingItems  
+✅ equivalência TOTAL já comprovada em 6 cenários  
+✅ baseline HTTP = 20/20 PASS  
+✅ cleanup runner = 100% validado  
+✅ multi-tenant intacto  
+✅ faturamento ainda em modo observação  
+
+---
+
+📊 PROVA JÁ EXISTENTE (NÃO REFAZER)
+
+Cenários validados:
+
+✔ STANDARD (com draft)  
+✔ CONTRACT_OPEN  
+✔ CONTRACT_AVERAGE  
+✔ AGRUPAMENTO  
+✔ SNAPSHOT persistente  
+✔ LEGADO sem draft  
+
+Resultado:
+
+✔ ZERO divergência  
+✔ itens idênticos  
+✔ totais idênticos  
+✔ builder = função pura sobre resolveBillingItems  
+
+---
+
+🚨 IMPORTANTE
+
+👉 NÃO existe mais duplicação no builder  
+👉 resolveDraftItems NÃO está mais em uso  
+👉 applyItemGrouping NÃO está mais em uso externo  
+
+⚠️ Se você tentar “corrigir isso”, você VAI quebrar o sistema
+
+---
+
+🎯 PRÓXIMO PASSO PERMITIDO (FASE 8.2)
+
+👉 LIMPEZA FINAL CONTROLADA
+
+---
+
+# 📦 ETAPA 1 — CONFIRMAR NÃO USO (READ-ONLY)
+
+Buscar no projeto inteiro:
+
+- resolveDraftItems
+- applyItemGrouping
+
+👉 Se NÃO houver uso fora do billing.service → continuar  
+👉 Se houver → PARAR
+
+---
+
+# 📦 ETAPA 2 — REMOÇÃO INTERNA (SEGURO)
+
+Arquivo:
+
+server/modules/billing/billing.service.ts
+
+---
+
+Remover apenas:
+
+- resolveDraftItemsInternal
+- applyItemGroupingInternal
+
+---
+
+⚠️ SOMENTE SE:
+
+✔ não forem usados fora de resolveBillingItems  
+✔ resolveBillingItems continuar funcionando igual  
+
+---
+
+# 📦 ETAPA 3 — VALIDAÇÃO OBRIGATÓRIA
+
+Rodar:
+
+audit/baseline.json
+
+---
+
+Esperado:
+
+✔ ZERO diferença  
+✔ mesmos status  
+✔ mesmos responses  
+
+---
+
+# 📦 ETAPA 4 — VALIDAÇÃO FUNCIONAL
+
+Garantir:
+
+✔ NF continua gerando igual  
+✔ itens continuam iguais  
+✔ totais iguais  
+✔ agrupamento funcionando  
+
+---
+
+# 🚨 REGRA DE ABORT
+
+Se QUALQUER coisa mudar:
+
+❌ PARAR IMEDIATAMENTE  
+❌ NÃO ajustar  
+❌ NÃO continuar  
+
+---
+
+# 🔐 GARANTIAS ESPERADAS
+
+✔ código mais limpo  
+✔ nenhuma lógica duplicada  
+✔ uma única fonte real (resolveBillingItems)  
+✔ zero regressão  
+
+---
+
+# 📊 RESULTADO FINAL ESPERADO
+
+Antes:
+
+⚠️ lógica interna duplicada (mesmo não usada externamente)
+
+Depois:
+
+✔ apenas resolveBillingItems ativo  
+✔ service mais simples  
+✔ comportamento idêntico  
+
+---
+
+# ❗ PROIBIDO
+
+❌ mexer no cron  
+❌ mexer no builder  
+❌ mexer no schema  
+❌ mexer no XML  
+❌ mexer em billingModel  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. funções removidas
+2. prova de não uso
+3. resultado do baseline
+4. confirmação de equivalência mantida
+5. confirmação de zero regressão
+
+---
+
+⚠️ CONTEXTO FINAL
+
+👉 Sistema já está correto  
+👉 Agora é só limpeza fina  
+👉 Qualquer mudança fora disso = risco alto
+
+---
+
+🚀 EXECUÇÃO CONTROL
