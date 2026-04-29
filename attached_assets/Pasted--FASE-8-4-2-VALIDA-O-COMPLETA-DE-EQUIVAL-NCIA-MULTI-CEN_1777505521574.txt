@@ -1,0 +1,149 @@
+🎯 FASE 8.4.2 — VALIDAÇÃO COMPLETA DE EQUIVALÊNCIA (MULTI-CENÁRIOS)
+
+---
+
+🚫 REGRAS ABSOLUTAS
+
+1. NÃO alterar código de produção  
+2. NÃO refatorar nada  
+3. NÃO corrigir nada  
+4. NÃO alterar banco permanentemente  
+5. Script deve ser TEMPORÁRIO  
+6. Deve ter CLEANUP garantido (try/finally)  
+7. Se houver dúvida → ABORTAR e REPORTAR  
+
+---
+
+🧠 OBJETIVO
+
+Validar empiricamente que a FASE 8.4 mantém equivalência total entre:
+
+resolveBillingItems(orderId).items  
+E  
+buildNFeInput({ orderId, sourceItems }).produtos  
+
+👉 Em TODOS os cenários de faturamento:
+
+1. STANDARD  
+2. CONTRACT_OPEN  
+3. CONTRACT_AVERAGE  
+4. AGRUPAMENTO (useGroupedItems = true)
+
+---
+
+📦 TAREFA
+
+Criar script temporário:
+
+scripts/_tmp_sanity_fase_8_4_multi.ts
+
+---
+
+## 🛠️ ETAPA 1 — SETUP
+
+Para cada cenário:
+
+- Criar empresa eq_sanity* única
+- Criar config correspondente:
+  - STANDARD
+  - CONTRACT_OPEN
+  - CONTRACT_AVERAGE
+  - STANDARD + useGroupedItems=true
+
+- Criar pedido com 2 itens:
+  - Maçã EQ_SANITY
+  - Banana EQ_SANITY
+
+---
+
+## 🛠️ ETAPA 2 — EXECUÇÃO
+
+Para cada cenário:
+
+ts const resolved = await resolveBillingItems(orderId);  const input = await buildNFeInput({   orderId,   sourceItems: resolved.items, }); 
+
+---
+
+## 🛠️ ETAPA 3 — COMPARAÇÃO
+
+Comparar item a item:
+
+- description
+- quantity
+- unitPrice
+- totalPrice
+
+E também:
+
+- soma total
+
+---
+
+## 🛠️ ETAPA 4 — LOG
+
+Para cada cenário imprimir:
+
+txt [SCENARIO] STANDARD → PASS / FAIL [SCENARIO] CONTRACT_OPEN → PASS / FAIL [SCENARIO] CONTRACT_AVERAGE → PASS / FAIL [SCENARIO] GROUPED → PASS / FAIL 
+
+Se FAIL:
+
+- mostrar diff detalhado
+
+---
+
+## 🛠️ ETAPA 5 — CLEANUP (OBRIGATÓRIO)
+
+Remover:
+
+- empresas criadas
+- pedidos
+- order_items
+- drafts
+- produtos
+- configs alteradas (restaurar snapshot)
+
+Script deve usar:
+
+ts try {   // execução } finally {   // cleanup TOTAL } 
+
+---
+
+## 🧪 VALIDAÇÃO FINAL
+
+Após rodar:
+
+✔ Nenhum dado residual no banco  
+✔ Nenhum produto "EQ_SANITY" restante  
+✔ Nenhuma empresa criada restante  
+✔ Configuração restaurada  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Todos os cenários:
+
+✔ PASS  
+✔ ZERO DRIFT  
+✔ Totais idênticos  
+✔ Nenhuma diferença de comportamento  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Resultado por cenário (PASS/FAIL)
+2. Diferenças encontradas (se houver)
+3. Confirmação de zero drift
+4. Confirmação de cleanup completo
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Esse teste valida a BASE DO SISTEMA  
+👉 Se quebrar aqui → quebra NF-e inteira  
+
+👉 NÃO seguir para próxima fase sem PASS
