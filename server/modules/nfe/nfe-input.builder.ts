@@ -334,13 +334,21 @@ export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> 
   };
 
   // FASE 8.6A — VALIDAÇÃO RUNTIME EM SHADOW MODE.
+  // FASE 8.6B — ENFORCEMENT CONTROLADO POR ENV.
   //
-  // Ativada apenas com `NFE_VALIDATE_INPUT=1`. NUNCA lança e NUNCA bloqueia
-  // a emissão (regra crítica #1/#5 da fase). Apenas observa: se o objeto
-  // construído divergir do contrato `NFeInputSchema` (orderId + produtos[]
-  // com cProd/xProd/ncm/cfop/uCom/qCom/vUnCom/vProd válidos), emite um log
-  // estruturado `[NFE_SCHEMA_INVALID]` para diagnóstico, mantendo o fluxo
-  // intacto. Telemetria pura — base para enforcement futuro.
+  // Comportamento por flags (default OFF — zero regressão):
+  //
+  //   • NFE_VALIDATE_INPUT  ausente  → bloco inteiro pulado, zero overhead.
+  //   • NFE_VALIDATE_INPUT=1          → SHADOW MODE: `safeParse` + log de
+  //     `[NFE_SCHEMA_INVALID]`. Nunca lança. Telemetria pura.
+  //   • NFE_VALIDATE_INPUT=1
+  //     + NFE_ENFORCE_VALIDATION=1    → ENFORCEMENT SELETIVO: além do log,
+  //     se houver `issue.path` envolvendo `ncm`, `cfop` ou o array
+  //     `produtos` (ausente/vazio/estrutura quebrada), lança
+  //     `NFE_SCHEMA_CRITICAL_INVALID` interrompendo a emissão. Erros não
+  //     críticos (ex.: `cProd`/`xProd` vazios, `vUnCom` negativo isolado)
+  //     continuam APENAS logando — preserva regra #1 ("não bloquear todos
+  //     os erros").
   if (process.env.NFE_VALIDATE_INPUT === "1") {
     const result = NFeInputSchema.safeParse(nfeInput);
     if (!result.success) {
@@ -348,6 +356,28 @@ export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> 
         orderId: nfeInput.orderId,
         issues: result.error.issues,
       });
+
+      if (process.env.NFE_ENFORCE_VALIDATION === "1") {
+        const hasCriticalError = result.error.issues.some((issue) =>
+          issue.path.includes("ncm") ||
+          issue.path.includes("cfop") ||
+          issue.path.includes("produtos"),
+        );
+
+        if (hasCriticalError) {
+          console.error("[NFE_SCHEMA_CRITICAL_INVALID]", {
+            orderId: nfeInput.orderId,
+            criticalPaths: result.error.issues
+              .filter((i) =>
+                i.path.includes("ncm") ||
+                i.path.includes("cfop") ||
+                i.path.includes("produtos"),
+              )
+              .map((i) => i.path.join(".")),
+          });
+          throw new Error("NFE_SCHEMA_CRITICAL_INVALID");
+        }
+      }
     }
   }
 
