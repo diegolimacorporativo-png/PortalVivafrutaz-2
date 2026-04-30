@@ -7748,13 +7748,31 @@ export async function registerRoutes(
       if (!endpoint || !keys?.p256dh || !keys?.auth) {
         return res.status(400).json({ message: 'Dados de subscrição inválidos' });
       }
+
+      // FASE 8.6R — resolver companyId para staff (session.companyId é undefined para admins)
+      const userId    = req.session?.userId    || null;
+      const companyId = req.session?.companyId || null;
+
+      let resolvedCompanyId: number | null = companyId;
+
+      if (!resolvedCompanyId && userId) {
+        const user = await storage.getUser(userId);
+        resolvedCompanyId = user?.empresaId ?? null;
+      }
+
+      // fail-closed: sem companyId resolvido, a subscription seria órfã — bloquear
+      if (!resolvedCompanyId) {
+        console.warn("[PUSH] subscribe sem companyId resolvido — bloqueado");
+        return res.status(400).json({ message: "companyId não resolvido" });
+      }
+
       const sub = await storage.upsertPushSubscription({
         endpoint,
         p256dh: keys.p256dh,
         auth: keys.auth,
         userAgent: req.headers['user-agent'] || null,
-        userId: req.session?.userId || null,
-        companyId: req.session?.companyId || null,
+        userId,
+        companyId: resolvedCompanyId,
         active: true,
       });
       res.json({ success: true, id: sub.id });

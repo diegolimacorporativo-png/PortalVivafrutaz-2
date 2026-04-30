@@ -1,0 +1,147 @@
+🎯 FASE 8.6R — CORRIGIR GRAVAÇÃO DE pushSubscriptions (STAFF)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar login
+2. NÃO alterar session global
+3. NÃO alterar schema
+4. NÃO alterar pushService
+5. NÃO alterar leitura (8.6N permanece intacto)
+
+👉 Apenas corrigir a ORIGEM do companyId no subscribe
+
+---
+
+## 🧠 CONTEXTO
+
+Hoje:
+
+ts companyId: req.session?.companyId || null 
+
+👉 para staff:
+- session.companyId = undefined
+- resultado = NULL ❌
+
+---
+
+## 📦 ETAPA 1 — DETECTAR STAFF
+
+Dentro da rota:
+
+ts POST /api/push/subscribe 
+
+Identificar:
+
+ts const userId    = req.session?.userId; const companyId = req.session?.companyId; 
+
+---
+
+## 📦 ETAPA 2 — RESOLVER companyId PARA STAFF
+
+ANTES do upsert:
+
+ts let resolvedCompanyId = companyId; 
+
+Adicionar:
+
+ts if (!resolvedCompanyId && userId) {   const user = await storage.getUser(userId);   resolvedCompanyId = user?.empresaId ?? null; } 
+
+---
+
+## 📦 ETAPA 3 — USAR VALOR RESOLVIDO
+
+SUBSTITUIR:
+
+ts companyId: req.session?.companyId || null 
+
+POR:
+
+ts companyId: resolvedCompanyId 
+
+---
+
+## 📦 ETAPA 4 — FAIL-CLOSED (OBRIGATÓRIO)
+
+Antes do insert:
+
+ts if (!resolvedCompanyId) {   console.warn("[PUSH] subscribe sem companyId resolvido — bloqueado");   return res.status(400).json({ message: "companyId não resolvido" }); } 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Login admin
+
+✔ subscribe salva companyId correto  
+✔ push funciona  
+
+---
+
+### 2️⃣ Login company
+
+✔ continua funcionando igual  
+
+---
+
+### 3️⃣ Sem sessão válida
+
+✔ bloqueado com log  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ nenhuma subscription órfã nova  
+✔ compatível com 8.6N  
+✔ compatível com 8.6P  
+✔ nenhuma mudança estrutural  
+✔ zero risco de regressão  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+ts companyId: null ❌ 
+
+DEPOIS:
+
+ts companyId: empresaId correto ✔ 
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 NÃO migrar dados antigos ainda  
+👉 NÃO limpar banco ainda  
+
+👉 isso vira FASE 8.6S (opcional depois)
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trecho alterado
+2. Confirmação de gravação correta
+3. Teste manual (admin + company)
+4. Confirmação de zero regressão
+
+---
+
+🔥 RESULTADO FINAL
+
+Após 8.6R:
+
+✔ leitura protegida  
+✔ escrita correta  
+✔ notificações funcionando  
+✔ isolamento completo  
+
+👉 push system 100% con
