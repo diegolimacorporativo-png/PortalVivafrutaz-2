@@ -88,6 +88,8 @@ function safeOptional(v: any): string | undefined {
 // ── buildNFeInput ─────────────────────────────────────────────────────────────
 
 import type { BillingItemFiscal } from "../billing/types";
+import type { NFeInput } from "./types";
+export type { NFeInput, NFeProduto } from "./types";
 
 export interface BuildNFeInputOpts {
   orderId: number;
@@ -120,7 +122,7 @@ export interface BuildNFeInputOpts {
  * normalização vProd, fail-fast em emitente) permanecem INTOCADAS.
  */
 
-export async function buildNFeInput(args: BuildNFeInputOpts) {
+export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> {
   if (!args || typeof args !== "object") {
     throw new Error("buildNFeInput: args obrigatório (objeto)");
   }
