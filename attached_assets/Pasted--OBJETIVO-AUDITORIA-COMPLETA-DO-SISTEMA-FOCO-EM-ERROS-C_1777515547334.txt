@@ -1,0 +1,176 @@
+🎯 OBJETIVO — AUDITORIA COMPLETA DO SISTEMA (FOCO EM ERROS CRÍTICOS)
+
+Executar uma auditoria técnica FULL do sistema backend antes de qualquer evolução (frontend ou novas features).
+
+⚠️ CONTEXTO IMPORTANTE
+
+O sistema já está em produção lógica e passou pelas fases:
+
+- FASE 6 → Multi-tenant (proteção + antifraude)
+- FASE 7 → Logs e segurança
+- FASE 8.1 → 8.4 → Billing + NFe desacoplado
+- FASE 8.5 → Tipagem fiscal
+- FASE 8.6A/B → Validação runtime (Zod + enforcement controlado)
+
+👉 EXISTE SENTINELA DE REGRESSÃO (100 testes passando)
+👉 ZERO DRIFT já comprovado entre billing e NFe
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO corrigir nada
+3. NÃO refatorar nada
+4. NÃO sugerir melhorias estéticas
+5. NÃO criar features novas (ex: dashboard)
+
+👉 Apenas AUDITAR e REPORTAR
+
+---
+
+🧠 OBJETIVO DA AUDITORIA
+
+Identificar:
+
+1. ❌ ERROS CRÍTICOS (quebram produção)
+2. ⚠️ RISCOS REAIS (podem quebrar em escala)
+3. 🔓 FALHAS DE SEGURANÇA (multi-tenant / dados)
+4. 🧨 PONTOS DE FRAGILIDADE (acoplamento, runtime)
+5. 🧾 INCONSISTÊNCIAS ENTRE MÓDULOS
+
+---
+
+## 🔍 ESCOPO DA AUDITORIA
+
+### 1. SEGURANÇA (PRIORIDADE MÁXIMA)
+
+Validar:
+
+- validateOrderTenant está em TODOS endpoints críticos?
+- Existe algum endpoint sem proteção?
+- safeGetOrder está sendo usado corretamente?
+- Existe risco de vazamento entre tenants?
+- Logs de segurança estão sendo gerados corretamente?
+
+---
+
+### 2. BILLING (resolveBillingItems)
+
+Validar:
+
+- Fonte única está respeitada?
+- Algum fluxo bypassa billing?
+- Agrupamento pode gerar inconsistência?
+- Uso de fallback perigoso (NCM/CFOP)?
+
+---
+
+### 3. NFE BUILDER
+
+Validar:
+
+- Usa SOMENTE sourceItems (FASE 8.4 OK?)
+- Existe fallback fiscal indevido?
+- CFOP e NCM estão seguros?
+- Alguma NF pode ser gerada inválida?
+
+---
+
+### 4. NF DRAFT
+
+Validar:
+
+- Snapshot realmente isolado?
+- Pode ocorrer divergência entre draft e emissão?
+- CONTRACT / STANDARD está consistente?
+
+---
+
+### 5. VALIDAÇÃO (FASE 8.6B)
+
+Validar:
+
+- Zod cobre os campos críticos corretos?
+- Existem buracos na validação?
+- Enforcement pode bloquear algo legítimo?
+- Shadow mode está bem implementado?
+
+---
+
+### 6. TIPAGEM (FASE 8.5)
+
+Validar:
+
+- Ainda existe uso de any crítico?
+- Tipos refletem realidade do runtime?
+- Existe risco de quebra silenciosa?
+
+---
+
+### 7. ROTAS (routes.ts)
+
+Validar:
+
+- Ordem correta: auth → tenant → lógica
+- Algum endpoint acessa dados antes do guard?
+- Possíveis duplicações ou inconsistências
+
+---
+
+## 📊 FORMATO DA RESPOSTA
+
+Responder EXATAMENTE assim:
+
+---
+
+## 🚨 ERROS CRÍTICOS (SE EXISTIREM)
+- descrição
+- arquivo + linha
+- impacto
+
+---
+
+## ⚠️ RISCOS IMPORTANTES
+- descrição
+- probabilidade
+- impacto
+
+---
+
+## 🔓 FALHAS DE SEGURANÇA
+- descrição clara
+- endpoint afetado
+
+---
+
+## 🧨 FRAGILIDADES TÉCNICAS
+- pontos que podem quebrar no futuro
+
+---
+
+## 🧾 INCONSISTÊNCIAS
+- divergência entre módulos
+
+---
+
+## 🟢 O QUE ESTÁ SÓLIDO
+- partes confiáveis do sistema
+
+---
+
+## 🎯 CONCLUSÃO
+
+Classificar o sistema:
+
+- 🔴 CRÍTICO (não pode ir pra produção)
+- 🟡 MÉDIO RISCO
+- 🟢 ESTÁVEL
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO propor solução ainda  
+👉 NÃO corrigir nada  
+👉 Apenas diagnóstico técnico profun
