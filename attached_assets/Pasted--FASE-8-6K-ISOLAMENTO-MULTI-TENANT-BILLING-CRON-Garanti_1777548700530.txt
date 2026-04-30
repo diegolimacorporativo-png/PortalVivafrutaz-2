@@ -1,0 +1,100 @@
+🎯 FASE 8.6K — ISOLAMENTO MULTI-TENANT (BILLING CRON)
+
+Garantir que o cron de assinaturas execute isolado por empresa.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de cobrança
+2. NÃO alterar regras de downgrade
+3. NÃO alterar SQL interno do storage
+4. NÃO alterar estrutura de logs
+5. NÃO alterar horários do cron
+6. NÃO alterar campos da assinatura
+
+👉 Apenas adicionar isolamento por tenant
+
+---
+
+## 🧠 CONTEXTO
+
+- storage.getAssinaturas() retorna lista global
+- cada assinatura tem companyId
+- cron roda sem contexto de tenant
+- risco atual:
+  - falha silenciosa OU
+  - atualização cross-tenant
+
+---
+
+## 📦 TAREFAS
+
+---
+
+## 1️⃣ IMPORTAR runWithTenant
+
+Arquivo:
+server/modules/billing/billing.cron.ts
+
+ts import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context"; 
+
+---
+
+## 2️⃣ AGRUPAR ASSINATURAS POR EMPRESA
+
+ts const byCompany = new Map<number, Assinatura[]>();  for (const a of allAssinaturas) {   if (!a.companyId) continue;    if (!byCompany.has(a.companyId)) {     byCompany.set(a.companyId, []);   }    byCompany.get(a.companyId)!.push(a); } 
+
+---
+
+## 3️⃣ EXECUTAR POR TENANT (BLOCO)
+
+ts for (const [companyId, assinaturas] of byCompany.entries()) {    const tenantPrincipal: TenantPrincipal = {     kind: "admin",     empresaId: companyId,     userId: 0,     role: "SERVICE",   };    await runWithTenant(     { principal: tenantPrincipal, empresaId: companyId },     async () => {        for (const a of assinaturas) {         // 👇 NÃO ALTERAR LÓGICA EXISTENTE         if (a.status === "vencida") {           await storage.updateAssinatura(a.id, { plano: "FREE" });         }       }      }   ); } 
+
+---
+
+## ⚠️ IMPORTANTE
+
+- NÃO usar runWithTenant por item (performance)
+- NÃO alterar storage.getAssinaturas()
+- NÃO alterar updateAssinatura
+- NÃO alterar estrutura do loop interno
+
+---
+
+## 🔒 RESULTADO ESPERADO
+
+✔ Cada empresa executa isoladamente  
+✔ storage.updateAssinatura roda com tenant correto  
+✔ requireTenantId() não quebra mais  
+✔ nenhuma assinatura de outra empresa é afetada  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+1. Assinaturas de empresas diferentes no mesmo ciclo  
+✔ processadas separadamente  
+
+2. Nenhum erro de tenant  
+✔ zero falhas silenciosas  
+
+3. Logs continuam iguais  
+
+---
+
+## 📊 FINAL
+
+Responder com:
+
+1. trecho alterado  
+2. confirmação de isolamento  
+3. resultado dos testes  
+4. confirmação de zero regressão  
+
+---
+
+🚨 IMPORTANTE
+
+👉 NÃO usar runWithTenant direto no loop global  
+👉 sem agrupamento → ainda existe risco de e
