@@ -1,0 +1,174 @@
+🎯 FASE 8.7A — QUEBRAR routes.ts (SEM ALTERAR LÓGICA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de nenhum endpoint  
+2. NÃO alterar middleware existente  
+3. NÃO alterar resposta (JSON, status, etc.)  
+4. NÃO alterar imports de serviços/storage  
+5. NÃO alterar autenticação/session  
+6. NÃO mover lógica — apenas ORGANIZAR  
+
+👉 Refatoração PURAMENTE estrutural
+
+---
+
+🧠 OBJETIVO
+
+Reduzir o arquivo:
+
+server/routes/routes.ts (~10.000 linhas)
+
+Para múltiplos arquivos por domínio, mantendo:
+
+✔ comportamento idêntico  
+✔ mesmas rotas  
+✔ mesmos handlers  
+✔ zero regressão  
+
+---
+
+📦 ESTRUTURA FINAL
+
+Criar:
+
+server/routes/
+├── index.ts
+├── orders.routes.ts
+├── billing.routes.ts
+├── push.routes.ts
+├── email.routes.ts
+├── admin.routes.ts
+├── master.routes.ts
+├── nfe.routes.ts
+├── saas.routes.ts
+├── health.routes.ts
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR ROUTERS POR DOMÍNIO
+
+Exemplo padrão:
+
+ts import { Router } from "express";  const router = Router();  // colar endpoints aqui SEM alterar nada  export default router; 
+
+---
+
+## 🛠️ ETAPA 2 — MOVER ENDPOINTS
+
+Mover blocos do routes.ts para arquivos corretos:
+
+### orders.routes.ts
+- /api/orders/*
+- criação, update, cancelamento
+- recentOrders (mantido como está)
+
+### billing.routes.ts
+- /api/billing/*
+- assinaturas, planos, cobrança
+
+### push.routes.ts
+- /api/push/*
+- subscribe
+- test push
+
+### email.routes.ts
+- /api/email/*
+- broadcast
+- envio direto
+
+### nfe.routes.ts
+- /api/nfe/*
+- emissão
+- consulta
+
+### admin.routes.ts
+- /api/admin/*
+- dashboards internos
+
+### master.routes.ts
+- /api/master/*
+- rotas globais (cross-tenant)
+
+### saas.routes.ts
+- onboarding, empresa, config
+
+### health.routes.ts
+- /health
+- /status
+- endpoints simples
+
+---
+
+## 🛠️ ETAPA 3 — INDEX CENTRAL
+
+Criar:
+
+server/routes/index.ts
+
+ts import { Express } from "express";  import ordersRoutes from "./orders.routes"; import billingRoutes from "./billing.routes"; import pushRoutes from "./push.routes"; import emailRoutes from "./email.routes"; import adminRoutes from "./admin.routes"; import masterRoutes from "./master.routes"; import nfeRoutes from "./nfe.routes"; import saasRoutes from "./saas.routes"; import healthRoutes from "./health.routes";  export function registerRoutes(app: Express) {   app.use(ordersRoutes);   app.use(billingRoutes);   app.use(pushRoutes);   app.use(emailRoutes);   app.use(adminRoutes);   app.use(masterRoutes);   app.use(nfeRoutes);   app.use(saasRoutes);   app.use(healthRoutes); } 
+
+---
+
+## 🛠️ ETAPA 4 — AJUSTAR ENTRYPOINT
+
+No arquivo principal (server.ts ou app.ts):
+
+ANTES:
+ts import "./routes/routes"; 
+
+DEPOIS:
+ts import { registerRoutes } from "./routes";  registerRoutes(app); 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+1️⃣ Subir servidor  
+2️⃣ Testar endpoints principais:
+- criar pedido
+- cancelar pedido
+- emitir NFe
+- push subscribe
+- email broadcast
+
+3️⃣ Verificar:
+✔ mesmas respostas  
+✔ mesmos logs  
+✔ nenhum erro novo  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero alteração de comportamento  
+✔ zero alteração de segurança  
+✔ zero impacto em multi-tenant  
+✔ apenas organização de código  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+routes.ts → ~10.000 linhas ❌
+
+DEPOIS:
+10+ arquivos organizados ✅
+
+✔ manutenção mais fácil  
+✔ leitura mais clara  
+✔ risco de bug reduzido  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. lista de arquivos criados  
+2. endpoints movidos por domínio  
+3. confirmação de zero regressão  
+4. tamanho final de cada arqui
