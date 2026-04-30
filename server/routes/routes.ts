@@ -66,6 +66,10 @@ import {
   resetMetrics as resetNfeIdemMetrics,
 } from "../modules/nfe/nfe-idempotency.metrics";
 import {
+  getFiscalDefaultsStats,
+  resetFiscalDefaultsStats,
+} from "../modules/nfe/fiscal-defaults.metrics";
+import {
   acquireOrderLock,
   releaseOrderLock,
   type OrderLockHandle,
@@ -6881,6 +6885,34 @@ export async function registerRoutes(
         const record = await markNFeErrorResolved(Number(req.params.id));
         res.json(record);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // ── FASE 8.6E — MÉTRICAS DE DEFAULTS FISCAIS (in-memory) ─────────────────
+    // Telemetria das ocorrências de `[FISCAL_DEFAULT_APPLIED]` (uCom/csosn/cst).
+    // Apenas leitura — não toca builder, não bloqueia emissão, não usa banco.
+    app.get('/api/admin/nfe/fiscal-defaults', async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      try {
+        const stats = getFiscalDefaultsStats();
+        res.json({ ok: true, stats });
+      } catch (err: any) {
+        console.error('[ADMIN_FISCAL_DEFAULTS_ERROR]', err);
+        res.status(500).json({ ok: false, message: err?.message });
+      }
+    });
+
+    // POST /api/admin/nfe/fiscal-defaults/reset — zera contadores+buffer.
+    // Útil após corrigir cadastros para medir impacto sem esperar o ciclo
+    // natural do ring buffer (200 eventos).
+    app.post('/api/admin/nfe/fiscal-defaults/reset', async (req: any, res) => {
+      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+      try {
+        resetFiscalDefaultsStats();
+        res.json({ ok: true });
+      } catch (err: any) {
+        console.error('[ADMIN_FISCAL_DEFAULTS_RESET_ERROR]', err);
+        res.status(500).json({ ok: false, message: err?.message });
+      }
     });
 
     // GET /api/nfe/sefaz/status — status do serviço SEFAZ

@@ -16,6 +16,7 @@
  */
 
 import { storage } from "../../services/storage";
+import { recordFiscalDefault, type FiscalField } from "./fiscal-defaults.metrics";
 // FASE 8.4 — DESACOPLAMENTO CONTROLADO.
 // O builder NÃO importa mais `resolveBillingItems`. A origem dos itens
 // é responsabilidade dos call-sites, que passam `sourceItems` pronto.
@@ -117,6 +118,16 @@ function logFiscalDefault(
     fallback,
     orderId: context.orderId,
     itemIndex: context.index,
+  });
+
+  // FASE 8.6E — espelha a ocorrência no store in-memory para consulta
+  // via `/api/admin/nfe/fiscal-defaults`. Não muda a condição acima:
+  // só registra quando o log de fato dispara.
+  recordFiscalDefault({
+    field: field as FiscalField,
+    orderId: context.orderId,
+    itemIndex: context.index,
+    ts: Date.now(),
   });
 }
 

@@ -1,0 +1,112 @@
+🎯 FASE 8.6E — MÉTRICAS DE DEFAULTS FISCAIS (IN-MEMORY + ENDPOINT ADMIN)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica do builder
+2. NÃO alterar cálculo fiscal
+3. NÃO alterar estrutura do XML
+4. NÃO bloquear emissão
+5. NÃO alterar retorno de nenhum endpoint existente
+6. NÃO usar banco de dados
+
+👉 Apenas adicionar coleta de métricas em memória + endpoint de leitura
+
+---
+
+🧠 OBJETIVO
+
+Converter logs [FISCAL_DEFAULT_APPLIED] em métricas estruturadas:
+
+- contador por campo (uCom, csosn, cst)
+- últimas ocorrências (amostra)
+- janela recente (memória, não persistente)
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR STORE EM MEMÓRIA
+
+📍 Arquivo novo:
+server/modules/nfe/fiscal-defaults.metrics.ts
+
+ts id="m1a7kx" type FiscalField = "uCom" | "csosn" | "cst";  type Event = {   field: FiscalField;   orderId: number;   itemIndex: number;   ts: number; };  const MAX_EVENTS = 200; // ring buffer  const state = {   counts: {     uCom: 0,     csosn: 0,     cst: 0,   } as Record<FiscalField, number>,   events: [] as Event[], };  export function recordFiscalDefault(e: Event) {   state.counts[e.field]++;    state.events.push(e);   if (state.events.length > MAX_EVENTS) {     state.events.shift(); // mantém buffer fixo   } }  export function getFiscalDefaultsStats() {   return {     counts: { ...state.counts },     recent: [...state.events].slice(-20), // últimas 20   }; }  export function resetFiscalDefaultsStats() {   state.counts = { uCom: 0, csosn: 0, cst: 0 };   state.events = []; } 
+
+---
+
+## 🛠️ ETAPA 2 — INTEGRAR NO HELPER
+
+📍 Arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+Adicionar import:
+
+ts id="s8l2pq" import { recordFiscalDefault } from "./fiscal-defaults.metrics"; 
+
+---
+
+Modificar helper existente:
+
+ANTES:
+
+ts id="a1l9fp" console.warn("[FISCAL_DEFAULT_APPLIED]", {   field,   fallback,   orderId: context.orderId,   itemIndex: context.index, }); 
+
+DEPOIS:
+
+ts id="b7x2zm" console.warn("[FISCAL_DEFAULT_APPLIED]", {   field,   fallback,   orderId: context.orderId,   itemIndex: context.index, });  recordFiscalDefault({   field: field as any,   orderId: context.orderId,   itemIndex: context.index,   ts: Date.now(), }); 
+
+⚠️ NÃO alterar condição do helper
+
+---
+
+## 🛠️ ETAPA 3 — CRIAR ENDPOINT ADMIN
+
+📍 Arquivo:
+server/routes/routes.ts
+
+Adicionar endpoint:
+
+ts id="t6h8dy" import { getFiscalDefaultsStats } from "../modules/nfe/fiscal-defaults.metrics";  app.get("/api/admin/nfe/fiscal-defaults", async (req, res) => {   try {     if (!req.session?.userId) {       return res.status(401).json({ message: "Unauthorized" });     }      const stats = getFiscalDefaultsStats();      res.json({       ok: true,       stats,     });   } catch (err) {     console.error("[ADMIN_FISCAL_DEFAULTS_ERROR]", err);     res.status(500).json({ ok: false });   } }); 
+
+---
+
+## 🛠️ ETAPA 4 — (OPCIONAL) RESET ENDPOINT
+
+ts id="u3k9qa" import { resetFiscalDefaultsStats } from "../modules/nfe/fiscal-defaults.metrics";  app.post("/api/admin/nfe/fiscal-defaults/reset", async (req, res) => {   try {     if (!req.session?.userId) {       return res.status(401).json({ message: "Unauthorized" });     }      resetFiscalDefaultsStats();      res.json({ ok: true });   } catch (err) {     console.error("[ADMIN_FISCAL_DEFAULTS_RESET_ERROR]", err);     res.status(500).json({ ok: false });   } }); 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+1. Gerar pedidos com fallback
+
+2. Chamar:
+
+bash id="testcall" GET /api/admin/nfe/fiscal-defaults 
+
+Resposta esperada:
+
+json id="jsonex" {   "ok": true,   "stats": {     "counts": {       "uCom": 12,       "csosn": 8,       "cst": 21     },     "recent": [       {         "field": "cst",         "orderId": 123,         "itemIndex": 0,         "ts": 1710000000000       }     ]   } } 
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- Visão clara do problema
+- Dados em tempo real
+- Zero impacto no sistema
+- Base para decisões:
+  → bloquear
+  → corrigir cadastro
+  → criar validação
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado (metrics)
+2. Linha alterada no builder
+3. Endpoint funcionando (exemplo de resposta)
+4. Confirmação de zero regres
