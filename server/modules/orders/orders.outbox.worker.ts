@@ -160,7 +160,10 @@ async function handleTransitionEvent(p: WorkflowEventPayload): Promise<void> {
         company: `Empresa #${p.companyId}`,
         status:  STATUS_LABELS[p.to] || p.to,
       },
-      { url: `/admin/orders/${p.orderId}` },
+      {
+        url:       `/admin/orders/${p.orderId}`,
+        companyId: p.companyId,
+      },
     );
   } catch (pushErr) {
     // Push failures are non-fatal — log and continue to audit log.

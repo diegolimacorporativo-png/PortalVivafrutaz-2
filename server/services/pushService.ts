@@ -115,11 +115,20 @@ async function getActiveSubscriptions(audience: "staff" | "all" | "company", com
         .where(and(eq(pushSubscriptions.active, true), eq(pushSubscriptions.companyId, companyId)));
     }
     if (audience === "staff") {
-      // Staff subscriptions have userId set and no companyId
+      // FASE 8.6N — staff isolado por tenant: companyId obrigatório
+      if (!companyId) {
+        console.warn("[PUSH] staff audience sem companyId — bloqueado por segurança");
+        return [];
+      }
       return db
         .select()
         .from(pushSubscriptions)
-        .where(and(eq(pushSubscriptions.active, true)));
+        .where(
+          and(
+            eq(pushSubscriptions.active, true),
+            eq(pushSubscriptions.companyId, companyId)
+          )
+        );
     }
     return db
       .select()

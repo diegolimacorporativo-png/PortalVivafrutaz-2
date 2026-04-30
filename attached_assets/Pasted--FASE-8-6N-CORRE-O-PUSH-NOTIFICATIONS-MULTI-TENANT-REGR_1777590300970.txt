@@ -1,0 +1,198 @@
+🎯 FASE 8.6N — CORREÇÃO PUSH NOTIFICATIONS (MULTI-TENANT)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar estrutura do payload
+2. NÃO alterar eventos existentes
+3. NÃO remover lógica atual
+4. NÃO quebrar audience ("staff", "company", "all")
+5. NÃO alterar assinatura pública de fireNotification (compatível)
+6. NÃO alterar schema
+7. NÃO mexer no outbox além do necessário
+
+👉 Apenas garantir isolamento por tenant
+
+---
+
+## 🧠 PROBLEMA
+
+Hoje:
+
+- audience: "staff" → retorna TODAS subscriptions
+- fireNotification NÃO passa companyId
+- resultado: broadcast cross-tenant ❌
+
+---
+
+## 🎯 OBJETIVO
+
+Garantir:
+
+- staff recebe apenas da sua empresa
+- company continua funcionando
+- all continua global (intencional)
+- compatibilidade total preservada
+
+---
+
+## 📦 ETAPA 1 — AJUSTAR getActiveSubscriptions
+
+📍 Arquivo:
+server/services/pushService.ts
+
+---
+
+### 🔧 LOCALIZAR
+
+ts if (audience === "staff") {   return db.select().from(pushSubscriptions)     .where(eq(pushSubscriptions.active, true)); } 
+
+---
+
+### 🔁 SUBSTITUIR POR:
+
+ts if (audience === "staff") {   // FASE 8.6N — staff agora é isolado por tenant   if (!companyId) {     console.warn("[PUSH] staff audience sem companyId — bloqueado por segurança");     return [];   }    return db.select().from(pushSubscriptions).where(     and(       eq(pushSubscriptions.active, true),       eq(pushSubscriptions.companyId, companyId)     )   ); } 
+
+---
+
+## 📦 ETAPA 2 — PROPAGAR companyId NO fireNotification
+
+📍 Arquivo:
+server/services/pushService.ts
+
+---
+
+### 🔧 LOCALIZAR assinatura:
+
+ts export async function fireNotification(   type: string,   data: any,   options?: { url?: string } ) 
+
+---
+
+### 🔁 ALTERAR PARA:
+
+ts export async function fireNotification(   type: string,   data: any,   options?: { url?: string; companyId?: number } ) 
+
+---
+
+### 🔧 LOCALIZAR chamada interna:
+
+ts const subs = await getActiveSubscriptions(audience); 
+
+---
+
+### 🔁 ALTERAR PARA:
+
+ts const subs = await getActiveSubscriptions(audience, options?.companyId); 
+
+---
+
+## 📦 ETAPA 3 — PASSAR companyId NO OUTBOX
+
+📍 Arquivo:
+server/modules/orders/orders.outbox.worker.ts
+
+---
+
+### 🔧 LOCALIZAR:
+
+ts await fireNotification(   "order_updated",   { code, company, status },   { url: `/admin/orders/${p.orderId}` } ); 
+
+---
+
+### 🔁 ALTERAR PARA:
+
+ts await fireNotification(   "order_updated",   { code, company, status },   {     url: `/admin/orders/${p.orderId}`,     companyId: p.companyId   } ); 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO alterar payload { code, company, status }
+- NÃO alterar type
+- NÃO alterar URL
+- Apenas adicionar companyId
+
+---
+
+## 📦 ETAPA 4 — NÃO MEXER EM audience "all"
+
+👉 Manter exatamente como está:
+
+ts if (audience === "all") {   return db.select().from(pushSubscriptions)     .where(eq(pushSubscriptions.active, true)); } 
+
+✔ comportamento global intencional
+
+---
+
+## 📦 ETAPA 5 — LOG DE SEGURANÇA
+
+Já incluído:
+
+ts console.warn("[PUSH] staff audience sem companyId — bloqueado por segurança"); 
+
+✔ garante fail-closed
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Evento normal (tenant A)
+
+✔ apenas subscriptions de A recebem
+
+---
+
+### 2️⃣ Evento tenant B
+
+✔ A NÃO recebe
+
+---
+
+### 3️⃣ staff sem companyId
+
+✔ retorna []  
+✔ log de segurança
+
+---
+
+### 4️⃣ audience "all"
+
+✔ continua global
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero vazamento cross-tenant  
+✔ compatível com código atual  
+✔ não quebra notificações existentes  
+✔ não altera estrutura  
+✔ não altera schema  
+✔ não altera storage  
+✔ comportamento determinístico  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+ts staff → todas subscriptions ❌ 
+
+DEPOIS:
+
+ts staff → apenas subscriptions do tenant ✔ 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trechos alterados
+2. Confirmação de isolamento
+3. Resultado dos testes
+4. Confirmação de zero re
