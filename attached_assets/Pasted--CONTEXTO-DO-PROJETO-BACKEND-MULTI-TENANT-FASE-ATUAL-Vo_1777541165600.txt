@@ -1,0 +1,140 @@
+🎯 CONTEXTO DO PROJETO — BACKEND MULTI-TENANT (FASE ATUAL)
+
+Você está entrando em um sistema já avançado. NÃO refatore nada sem instrução.
+
+---
+
+## 🧠 ESTADO ATUAL (IMPORTANTE)
+
+O sistema já possui:
+
+✔ Fluxo fiscal completo (resolveBillingItems → buildNFeInput)  
+✔ Tipagem TypeScript segura (FASE 8.5)  
+✔ Validação runtime com Zod (FASE 8.6A)  
+✔ Enforcement antifraude controlado por ENV (FASE 8.6B)  
+✔ Testes automáticos garantindo comportamento (FASE 8.6C — 106 testes)  
+✔ Observabilidade de defaults fiscais (8.6D + 8.6E)  
+✔ Proteção multi-tenant aplicada em rotas críticas (8.6F)
+
+---
+
+## 🚨 PROBLEMA CRÍTICO IDENTIFICADO (AUDITORIA S2)
+
+Endpoints abaixo estão VAZANDO dados entre empresas:
+
+- GET /api/purchase-planning/forecast
+- GET /api/purchase-planning
+
+Motivo:
+
+ts storage.getOrders() 
+
+Está sendo usado SEM tenantContext → retorna pedidos de TODOS os tenants.
+
+👉 Isso já foi confirmado em código.
+
+---
+
+## 🚫 REGRAS ABSOLUTAS
+
+1. NÃO alterar lógica existente
+2. NÃO refatorar loops
+3. NÃO alterar resposta da API
+4. NÃO mexer em storage.ts
+5. NÃO adicionar validação dentro de loop
+6. NÃO alterar performance
+
+👉 Apenas corrigir isolamento multi-tenant
+
+---
+
+## 🛠️ TAREFA
+
+Aplicar middleware:
+
+ts tenantContext 
+
+nos dois endpoints.
+
+---
+
+## 📍 IMPLEMENTAÇÃO
+
+Arquivo:
+
+server/routes/routes.ts
+
+---
+
+### 1️⃣ Endpoint forecast
+
+ANTES:
+
+ts app.get('/api/purchase-planning/forecast', async (req, res) => { 
+
+DEPOIS:
+
+ts app.get('/api/purchase-planning/forecast',   tenantContext,   async (req, res) => { 
+
+---
+
+### 2️⃣ Endpoint purchase-planning
+
+ANTES:
+
+ts app.get('/api/purchase-planning', async (req, res) => { 
+
+DEPOIS:
+
+ts app.get('/api/purchase-planning',   tenantContext,   async (req, res) => { 
+
+---
+
+## 🔒 RESULTADO ESPERADO
+
+✔ storage.getOrders() passa a usar currentTenantId()  
+✔ cada usuário acessa apenas dados da própria empresa  
+✔ nenhum vazamento entre tenants  
+✔ loops permanecem intactos  
+✔ comportamento da API preservado  
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+1. Rodar:
+
+bash npm test 
+
+✔ Esperado: 106/106 testes passando
+
+---
+
+2. Teste manual:
+
+ANTES da correção:
+→ usuário A consegue ver dados da empresa B ❌
+
+DEPOIS:
+→ usuário A só vê dados da própria empresa ✔
+
+---
+
+## 📊 RESPOSTA FINAL (OBRIGATÓRIO)
+
+Responder com:
+
+1. Trechos alterados
+2. Confirmação de isolamento aplicado
+3. Resultado dos testes
+4. Confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO mexer em endpoints admin  
+👉 NÃO alterar mais nada além disso  
+👉 NÃO adicionar melhorias extras  
+
+👉 Foco total na correção do vazam

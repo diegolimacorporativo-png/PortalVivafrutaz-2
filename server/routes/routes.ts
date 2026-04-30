@@ -3006,7 +3006,7 @@ export async function registerRoutes(
   // ─── Planejamento de Compras ──────────────────────────────────
 
   // Smart forecast endpoint
-  app.get('/api/purchase-planning/forecast', async (req, res) => {
+  app.get('/api/purchase-planning/forecast', tenantContext, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     try {
@@ -3052,7 +3052,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get('/api/purchase-planning', async (req, res) => {
+  app.get('/api/purchase-planning', tenantContext, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     try {
