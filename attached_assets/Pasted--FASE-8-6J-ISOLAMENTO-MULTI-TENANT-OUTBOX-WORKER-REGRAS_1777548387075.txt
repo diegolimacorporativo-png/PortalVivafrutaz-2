@@ -1,0 +1,113 @@
+🎯 FASE 8.6J — ISOLAMENTO MULTI-TENANT (OUTBOX WORKER)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO alterar SQL  
+4. NÃO alterar estrutura de logs  
+5. NÃO alterar payload dos eventos  
+6. NÃO alterar retry logic  
+7. NÃO alterar fluxo de sucesso/erro  
+
+👉 Apenas adicionar isolamento por tenant
+
+---
+
+🧠 CONTEXTO
+
+- Worker: orders.outbox.worker.ts  
+- Loop processa eventos de TODOS os tenants  
+- payload já contém companyId  
+- hoje roda SEM contexto de tenant  
+- risco: funções internas podem usar currentTenantId()
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1️⃣ IMPORTAR runWithTenant
+
+Adicionar no topo do arquivo:
+
+ts import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context"; 
+
+---
+
+## 2️⃣ EXTRAIR companyId DO EVENTO
+
+Dentro do loop:
+
+ts const companyId = (event.payload as any)?.companyId; 
+
+---
+
+## 3️⃣ FAIL-CLOSED (SEGURANÇA)
+
+Antes de qualquer execução:
+
+ts if (!companyId) {   console.warn("[OUTBOX] Evento sem companyId — ignorado por segurança");   continue; } 
+
+---
+
+## 4️⃣ WRAP COM runWithTenant
+
+Envolver TODA a execução do evento:
+
+ts const tenantPrincipal: TenantPrincipal = {   kind: "admin",   empresaId: companyId,   userId: 0,   role: "SERVICE", };  await runWithTenant(   { principal: tenantPrincipal, empresaId: companyId },   async () => {     // NÃO alterar nada aqui dentro   }, ); 
+
+---
+
+## 5️⃣ NÃO MEXER NO CONTEÚDO INTERNO
+
+⚠️ IMPORTANTE
+
+Dentro do runWithTenant deve permanecer INALTERADO:
+
+ts await dispatchEvent(...)  await pool.query(UPDATE success)  catch {   await pool.query(UPDATE retry) } 
+
+---
+
+## 🔒 RESULTADO ESPERADO
+
+✔ Cada evento roda isolado por tenant  
+✔ currentTenantId() funciona corretamente  
+✔ requireTenantId() não quebra mais  
+✔ dispatchEvent executa no tenant correto  
+✔ logs continuam idênticos  
+✔ retry continua funcionando  
+✔ eventos sem companyId são ignorados com segurança  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+- Criar eventos de empresas diferentes no mesmo batch  
+- Confirmar execução isolada  
+- Confirmar ausência de erro de tenant  
+- Confirmar retry intacto  
+
+---
+
+## 📊 GARANTIAS
+
+✔ zero regressão  
+✔ zero alteração de comportamento  
+✔ zero impacto em performance  
+✔ isolamento total por evento  
+✔ compatível com batches paralelos  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trecho alterado  
+2. Confirmação de isolamento ativo  
+3. Resultado dos testes  
+4. Confirmação de zero regress
