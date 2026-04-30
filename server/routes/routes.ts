@@ -1195,7 +1195,18 @@ export async function registerRoutes(
 
   // --- Substitute/manage item in order (safra management) ---
   // Delegated to ordersController.substituteItem — owned by server/modules/orders.
-  app.post('/api/orders/:orderId/substitute-item', (req: Request, res: Response, next: NextFunction) => ordersController.substituteItem(req, res).catch(next));
+  // FASE 8.6F — guard de tenant ANTES da delegação. Mesmo padrão das demais
+  // rotas de pedido (`api.orders.get` linha ~1707): bloqueia cross-tenant
+  // antes de tocar o controller. Erros propagam via `next` para o
+  // errorHandler central (AppError → status correto).
+  app.post('/api/orders/:orderId/substitute-item', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await validateOrderTenant(Number(req.params.orderId));
+      await ordersController.substituteItem(req, res);
+    } catch (e) {
+      next(e);
+    }
+  });
 
   // --- System Logs API ---
   app.get('/api/admin/logs', async (req, res) => {
