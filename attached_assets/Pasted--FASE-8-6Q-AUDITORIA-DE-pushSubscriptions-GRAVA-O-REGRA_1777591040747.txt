@@ -1,0 +1,127 @@
+🎯 FASE 8.6Q — AUDITORIA DE pushSubscriptions (GRAVAÇÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO corrigir ainda
+3. NÃO assumir comportamento
+4. NÃO criar fallback
+
+👉 Apenas auditar gravação do companyId
+
+---
+
+## 🧠 CONTEXTO
+
+Após 8.6N + 8.6P:
+
+- leitura já está protegida:
+  WHERE companyId = X
+
+👉 agora precisamos garantir:
+
+> TODAS as subscriptions possuem companyId correto
+
+---
+
+## 📦 ETAPA 1 — ENCONTRAR INSERÇÕES
+
+Buscar no projeto:
+
+bash insert(pushSubscriptions 
+
+e também:
+
+bash db.insert(pushSubscriptions 
+
+---
+
+## 📦 ETAPA 2 — PARA CADA INSERT
+
+Mapear:
+
+ts Arquivo: Linha: Origem (rota, service, etc): companyId disponível no contexto? (SIM/NÃO) companyId está sendo salvo? (SIM/NÃO) Valor salvo:   - correto (tenant)   - null   - hardcoded   - ausente Risco:   [ ] OK   [ ] SUBSCRIPTION ÓRFÃ   [ ] RISCO DE FALHA 
+
+---
+
+## 🧠 CLASSIFICAÇÃO
+
+---
+
+### 🟢 OK
+
+ts companyId: user.companyId 
+
+---
+
+### 🟡 SUBSCRIPTION ÓRFÃ
+
+ts companyId: null 
+
+👉 nunca receberá push (fail-closed)
+
+---
+
+### 🔴 RISCO
+
+ts companyId: hardcoded companyId: errado ou não existe campo 
+
+---
+
+## 📦 ETAPA 3 — VERIFICAR LEITURA VS ESCRITA
+
+Conferir:
+
+- leitura usa companyId ✔
+- escrita preenche companyId ✔
+
+👉 ambos precisam bater
+
+---
+
+## 📦 ETAPA 4 — CHECK DE CONSISTÊNCIA
+
+Responder:
+
+ts Todas subscriptions têm companyId? (SIM/NÃO) Existe caminho sem companyId? (SIM/NÃO) Existe fallback perigoso? (SIM/NÃO) 
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Você vai descobrir:
+
+- se notificações podem falhar silenciosamente
+- se há subscriptions inúteis no banco
+- se há risco de inconsistência futura
+
+---
+
+## 🚫 NÃO FAZER AINDA
+
+- NÃO corrigir inserts
+- NÃO migrar banco
+- NÃO alterar schema
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Lista de todos os inserts
+2. Classificação de cada um
+3. Existência (ou não) de subscriptions órfãs
+4. Conclusão: sistema confiável ou não
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Se essa fase estiver OK  
+→ sistema de push está 100% confiável
+
+👉 Se não  
+→ vamos pra 8.6R (correção de gravação)
