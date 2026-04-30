@@ -1,0 +1,144 @@
+🎯 FASE 8.6L — PROACTIVE ALERTS MULTI-TENANT (ISOLAMENTO COMPLETO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar buildInsights  
+2. NÃO alterar emitAlertSmart  
+3. NÃO alterar payload dos alerts  
+4. NÃO alterar scheduler (intervalo / start / stop)  
+5. NÃO usar banco novo  
+6. NÃO criar cache  
+7. NÃO alterar lógica de severidade  
+
+👉 Apenas isolar execução por tenant
+
+---
+
+🧠 CONTEXTO
+
+Hoje:
+
+- buildInsights roda global  
+- emitAlertSmart pode enviar cross-tenant  
+- scheduler roda sem contexto ALS  
+
+👉 Resultado: risco de mistura de dados + destinatários
+
+---
+
+## 🛠️ ETAPA 1 — IMPORT
+
+Arquivo:  
+server/services/alerts.proactive.ts
+
+Adicionar:
+
+ts import { runWithTenant, type TenantPrincipal } from "../core/tenant/context"; 
+
+---
+
+## 🛠️ ETAPA 2 — LISTAR TENANTS ATIVOS
+
+Adicionar helper simples (topo do arquivo):
+
+ts async function listActiveTenants(): Promise<number[]> {   const rows = await db.execute(sql`     SELECT id FROM companies WHERE active = true   `);    return rows.map((r: any) => r.id).filter(Boolean); } 
+
+✔ sem alterar schema  
+✔ sem nova infra  
+✔ leitura direta  
+
+---
+
+## 🛠️ ETAPA 3 — WRAP DO SCHEDULER
+
+Localizar:
+
+ts const insights = await buildInsights({ windowHours: 24 }); 
+
+---
+
+### 🔁 SUBSTITUIR BLOCO COMPLETO POR:
+
+ts const tenants = await listActiveTenants();  for (const companyId of tenants) {   const tenantPrincipal: TenantPrincipal = {     kind: "admin",     empresaId: companyId,     userId: 0,     role: "SERVICE",   };    await runWithTenant(     { principal: tenantPrincipal, empresaId: companyId },     async () => {       const insights = await buildInsights({ windowHours: 24 });        const criticals = insights.filter(         (i: any) => i.severity === "critical"       );        for (const insight of criticals) {         await emitAlertSmart({           source: "proactive",           insightId: insight.id,           windowHours: 24,           category: "TECH",           ...insight.metric,           recipientsRoles: ["ADMIN", "DIRECTOR"],           rateLimitKey: `proactive:${insight.id}`,         });       }     }   ); } 
+
+---
+
+## 🔒 GARANTIAS DE SEGURANÇA
+
+✔ buildInsights executa com currentTenantId correto  
+✔ emitAlertSmart envia apenas para usuários do tenant  
+✔ recipientsRoles respeitam isolamento  
+✔ zero mistura entre empresas  
+
+---
+
+## ⚙️ COMPORTAMENTO PRESERVADO
+
+Item	Status  
+Scheduler (10 min)	✔  
+windowHours = 24	✔  
+Filtro severity === "critical"	✔  
+Formato do payload	✔  
+rateLimitKey	✔  
+Logs	✔  
+
+---
+
+## ⚠️ FAIL-SAFE
+
+✔ Tenant com erro não quebra os demais  
+✔ Loop continua  
+✔ Logs continuam sendo emitidos  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+Cenário	Resultado esperado  
+
+Tenant A com alerta	A recebe alerta  
+Tenant B com alerta	B recebe alerta  
+A + B simultâneo	isolados corretamente  
+Sem alertas	nada enviado  
+Erro em A	B continua  
+
+---
+
+## 📊 RESULTADO
+
+ANTES:
+
+❌ execução global  
+❌ mistura de dados  
+❌ destinatários cross-tenant  
+
+DEPOIS:
+
+✔ execução por tenant  
+✔ isolamento total  
+✔ previsibilidade  
+
+---
+
+## 🛡️ COBERTURA FINAL DOS WORKERS
+
+Worker	Status  
+
+faturamento.cron	✔ 8.6H  
+auto-dispatch	✔ 8.6I  
+outbox worker	✔ 8.6J  
+billing cron	✔ 8.6K  
+proactive alerts	✔ 8.6L ✅ FINAL  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho alterado  
+2. confirmação de isolamento  
+3. resultado dos testes  
+4. confirmação de zero regress

@@ -26,6 +26,14 @@ import { buildInsights, type InsightEntry } from "./alerts.intelligence";
 import { emitAlertSmart, type SmartEmitResult } from "./alerts.smart";
 // STEP 9.3F.10 — roteamento (apenas deriva roles; não envia, não persiste).
 import { resolveRecipients } from "./alerts.routing";
+// FASE 8.6L — isolamento multi-tenant: cada empresa ativa executa seu próprio
+// buildInsights + emitAlertSmart dentro de runWithTenant(...). Garante que
+// queries internas (que dependem de currentTenantId()) e roteamento de
+// destinatários (resolveRecipients) operem somente sobre dados da empresa
+// correta — eliminando risco de mistura cross-tenant nos alertas proativos.
+import { sql } from "drizzle-orm";
+import { db } from "../database/db";
+import { runWithTenant, type TenantPrincipal } from "../core/tenant/context";
 
 // ── Configuração ─────────────────────────────────────────────────────────────
 
@@ -52,6 +60,22 @@ export type ProactiveDispatchSummary = {
 };
 
 // ── Helpers internos ─────────────────────────────────────────────────────────
+
+/**
+ * FASE 8.6L — lista IDs das empresas ativas. Leitura direta, sem schema novo
+ * e sem cache: o scheduler roda a cada 10 min e o custo é desprezível.
+ * Falhas de query são propagadas para o caller (que loga e aborta o tick).
+ */
+async function listActiveTenants(): Promise<number[]> {
+  const result = await db.execute(sql`
+    SELECT id FROM companies WHERE active = true
+  `);
+  const rows = (result.rows ?? []) as Array<{ id: number | string | null }>;
+  return rows
+    .map((r) => Number(r.id))
+    .filter((id) => Number.isFinite(id) && id > 0);
+}
+
 
 /**
  * Deriva a categoria de roteamento a partir do insight.
@@ -116,43 +140,78 @@ export async function runProactiveAlerts(): Promise<ProactiveDispatchSummary> {
     generatedAt: new Date().toISOString(),
   };
 
-  let report;
+  // FASE 8.6L — lista empresas ativas. Falha aqui aborta o tick inteiro
+  // (mantém o comportamento original de "erro de query global = errors=1").
+  let tenants: number[];
   try {
-    report = await buildInsights({ windowHours: PROACTIVE_WINDOW_HOURS });
+    tenants = await listActiveTenants();
   } catch (err) {
-    console.error("[PROACTIVE_ALERTS_INSIGHTS_ERROR]", err);
+    console.error("[PROACTIVE_ALERTS_TENANTS_ERROR]", err);
     summary.errors = 1;
     return summary;
   }
 
-  summary.considered = report.insights.length;
+  // FASE 8.6L — itera empresa por empresa. Cada tenant roda dentro do seu
+  // próprio runWithTenant para isolar buildInsights + emitAlertSmart +
+  // resolveRecipients. Erro em uma empresa não interrompe as demais
+  // (fail-safe: incrementa summary.errors e segue).
+  for (const companyId of tenants) {
+    const tenantPrincipal: TenantPrincipal = {
+      kind: "admin",
+      empresaId: companyId,
+      userId: 0,
+      role: "SERVICE",
+    };
 
-  const criticals = report.insights.filter((i) => i.level === "critical");
-  summary.critical = criticals.length;
-
-  for (const insight of criticals) {
-    const payload = buildAlertPayload(insight);
     try {
-      const result = await emitAlertSmart(payload);
-      if (isSuppressed(result)) {
-        summary.suppressed += 1;
-        console.log("[PROACTIVE_ALERT_SUPPRESSED]", {
-          insightId: insight.id,
-          reason: (result as any).reason,
-        });
-      } else if (isRateLimited(result)) {
-        summary.rateLimited += 1;
-        console.log("[PROACTIVE_ALERT_RATE_LIMITED]", { insightId: insight.id });
-      } else {
-        summary.dispatched += 1;
-        console.log("[PROACTIVE_ALERT_DISPATCHED]", {
-          insightId: insight.id,
-          title: payload.title,
-        });
-      }
+      await runWithTenant(
+        { principal: tenantPrincipal, empresaId: companyId },
+        async () => {
+          let report;
+          try {
+            report = await buildInsights({ windowHours: PROACTIVE_WINDOW_HOURS });
+          } catch (err) {
+            console.error("[PROACTIVE_ALERTS_INSIGHTS_ERROR]", { companyId, err });
+            summary.errors += 1;
+            return;
+          }
+
+          summary.considered += report.insights.length;
+
+          const criticals = report.insights.filter((i) => i.level === "critical");
+          summary.critical += criticals.length;
+
+          for (const insight of criticals) {
+            const payload = buildAlertPayload(insight);
+            try {
+              const result = await emitAlertSmart(payload);
+              if (isSuppressed(result)) {
+                summary.suppressed += 1;
+                console.log("[PROACTIVE_ALERT_SUPPRESSED]", {
+                  insightId: insight.id,
+                  reason: (result as any).reason,
+                });
+              } else if (isRateLimited(result)) {
+                summary.rateLimited += 1;
+                console.log("[PROACTIVE_ALERT_RATE_LIMITED]", { insightId: insight.id });
+              } else {
+                summary.dispatched += 1;
+                console.log("[PROACTIVE_ALERT_DISPATCHED]", {
+                  insightId: insight.id,
+                  title: payload.title,
+                });
+              }
+            } catch (err) {
+              summary.errors += 1;
+              console.error("[PROACTIVE_ALERT_DISPATCH_ERROR]", { insightId: insight.id, err });
+            }
+          }
+        },
+      );
     } catch (err) {
+      // FASE 8.6L — fail-safe por tenant: erro em A não derruba B.
       summary.errors += 1;
-      console.error("[PROACTIVE_ALERT_DISPATCH_ERROR]", { insightId: insight.id, err });
+      console.error("[PROACTIVE_ALERTS_TENANT_ERROR]", { companyId, err });
     }
   }
 
