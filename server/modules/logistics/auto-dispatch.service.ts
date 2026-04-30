@@ -35,6 +35,11 @@ import {
   type DriverRoute,
   type GeoPoint,
 } from "../../services/logistics/routeOptimizer";
+// FASE 8.6I — isolamento multi-tenant: cada grupo (company_id, date) executa
+// dentro de runWithTenant(...) com um principal sintético "admin/SERVICE"
+// pinado no companyId do grupo. Necessário para que storage/services tenant
+// scoped não vazem dados entre empresas durante o dispatch automático.
+import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
 
 const TICK_MS = 10_000;
 
@@ -73,9 +78,15 @@ function rowsOf<T = any>(result: unknown): T[] {
  * Build a `DriverRoute[]` snapshot for the routes scheduled on `date`,
  * pre-populated with the deliveries already attached to each route so
  * `suggestInsertion` can compute a realistic insertion cost.
+ *
+ * FASE 8.6I — `companyId` é OBRIGATÓRIO: o filtro `empresa_id = $companyId`
+ * garante que apenas rotas da própria empresa sejam consideradas pelo
+ * `suggestInsertion`. Sem isso, deliveries da Empresa A poderiam ser
+ * fisicamente atribuídas a rotas/motoristas da Empresa B.
  */
 async function loadDriverRoutesForDate(
   date: string | null,
+  companyId: number,
 ): Promise<DriverRoute[]> {
   const routes = rowsOf<RouteRow>(
     await db.execute(
@@ -84,11 +95,13 @@ async function loadDriverRoutesForDate(
                      delivery_date::text AS delivery_date
               FROM   logistics_routes
               WHERE  delivery_date = ${date}::date
+                AND  empresa_id    = ${companyId}
                 AND  status IN ('SCHEDULED', 'IN_PROGRESS')`
         : sql`SELECT id, driver_id, driver_name, vehicle_id, vehicle_plate,
                      delivery_date::text AS delivery_date
               FROM   logistics_routes
-              WHERE  status IN ('SCHEDULED', 'IN_PROGRESS')`,
+              WHERE  empresa_id = ${companyId}
+                AND  status IN ('SCHEDULED', 'IN_PROGRESS')`,
     ),
   );
 
@@ -185,89 +198,130 @@ export async function autoDispatchReadyOrders(): Promise<number> {
 
   if (pending.length === 0) return 0;
 
-  // Group by delivery_date so we load each day's route set just once.
-  const byDate = new Map<string, PendingDeliveryRow[]>();
+  // FASE 8.6I — agrupamento por (company_id, delivery_date) garante que
+  // suggestInsertion NUNCA receba rotas/motoristas de outra empresa no mesmo
+  // array, eliminando o risco de cross-tenant write. Deliveries sem
+  // company_id ficam num grupo próprio e são puladas (não há tenant alvo
+  // seguro para atribuir).
+  type GroupKey = string;
+  const byTenantAndDate = new Map<
+    GroupKey,
+    {
+      companyId: number | null;
+      date: string | null;
+      deliveries: PendingDeliveryRow[];
+    }
+  >();
   for (const row of pending) {
-    const key = row.delivery_date ?? "__no_date__";
-    const arr = byDate.get(key) ?? [];
-    arr.push(row);
-    byDate.set(key, arr);
+    const datePart = row.delivery_date ?? "__no_date__";
+    const companyPart = row.company_id ?? "__no_company__";
+    const key = `${companyPart}__${datePart}`;
+    const bucket = byTenantAndDate.get(key) ?? {
+      companyId: row.company_id ?? null,
+      date: row.delivery_date ?? null,
+      deliveries: [] as PendingDeliveryRow[],
+    };
+    bucket.deliveries.push(row);
+    byTenantAndDate.set(key, bucket);
   }
 
-  for (const [dateKey, deliveriesForDate] of byDate.entries()) {
-    const date = dateKey === "__no_date__" ? null : dateKey;
-
-    let driverRoutes: DriverRoute[];
-    try {
-      driverRoutes = await loadDriverRoutesForDate(date);
-    } catch (err) {
-      console.error(
-        `[AUTO-DISPATCH] Failed to load routes for ${dateKey}:`,
-        err,
+  for (const [groupKey, group] of byTenantAndDate.entries()) {
+    // FASE 8.6I — sanity check: sem company_id não há tenant alvo seguro,
+    // portanto não dá para isolar a decisão. Loga e pula o grupo inteiro.
+    if (group.companyId == null) {
+      console.warn(
+        `[AUTO-DISPATCH] Grupo ${groupKey} sem company_id — ${group.deliveries.length} delivery(ies) ignorada(s) por segurança multi-tenant`,
       );
       continue;
     }
 
-    if (driverRoutes.length === 0) continue; // nothing to dispatch into
+    const tenantPrincipal: TenantPrincipal = {
+      kind: "admin",
+      empresaId: group.companyId,
+      userId: 0,
+      role: "SERVICE",
+    };
 
-    for (const d of deliveriesForDate) {
-      try {
-        const lat = d.latitude ? parseFloat(d.latitude) : NaN;
-        const lng = d.longitude ? parseFloat(d.longitude) : NaN;
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-
-        const point: GeoPoint = {
-          lat,
-          lng,
-          deliveryId: d.id,
-          companyId:  d.company_id ?? undefined,
-          orderId:    d.order_id ?? undefined,
-        };
-
-        const suggestion = suggestInsertion(point, driverRoutes);
-        if (!suggestion || !suggestion.routeId) continue;
-
-        const updated = rowsOf<{ id: number }>(
-          await db.execute(
-            sql`UPDATE deliveries
-                SET    route_id           = ${suggestion.routeId},
-                       driver_id          = COALESCE(driver_id, NULLIF(${suggestion.driverId}::int, 0)),
-                       route_position     = ${suggestion.insertAtPosition},
-                       distance_from_prev = ${suggestion.extraDistance.toFixed(3)}::numeric,
-                       updated_at         = NOW()
-                WHERE  id        = ${d.id}
-                  AND  route_id  IS NULL
-                  AND  status    = 'pendente'
-                RETURNING id`,
-          ),
-        );
-
-        if (updated.length > 0) {
-          assigned++;
-          // Reflect the new stop in our in-memory snapshot so subsequent
-          // suggestions in this same tick account for it.
-          const targetRoute = driverRoutes.find(
-            (r) => r.routeId === suggestion.routeId,
+    await runWithTenant(
+      { principal: tenantPrincipal, empresaId: group.companyId },
+      async () => {
+        let driverRoutes: DriverRoute[];
+        try {
+          // FASE 8.6I — sempre passa o companyId para o loader de rotas.
+          driverRoutes = await loadDriverRoutesForDate(
+            group.date,
+            group.companyId as number,
           );
-          if (targetRoute) {
-            targetRoute.stops.splice(suggestion.insertAtPosition, 0, {
+        } catch (err) {
+          console.error(
+            `[AUTO-DISPATCH] Failed to load routes for ${groupKey}:`,
+            err,
+          );
+          return;
+        }
+
+        if (driverRoutes.length === 0) return; // nothing to dispatch into
+
+        for (const d of group.deliveries) {
+          try {
+            const lat = d.latitude ? parseFloat(d.latitude) : NaN;
+            const lng = d.longitude ? parseFloat(d.longitude) : NaN;
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+            const point: GeoPoint = {
               lat,
               lng,
-              position: suggestion.insertAtPosition,
-              companyId: d.company_id ?? undefined,
               deliveryId: d.id,
-            });
-            targetRoute.stops.forEach((s, i) => (s.position = i));
-            targetRoute.totalDistance = suggestion.newTotalDistance;
+              companyId:  d.company_id ?? undefined,
+              orderId:    d.order_id ?? undefined,
+            };
+
+            const suggestion = suggestInsertion(point, driverRoutes);
+            if (!suggestion || !suggestion.routeId) continue;
+
+            const updated = rowsOf<{ id: number }>(
+              await db.execute(
+                sql`UPDATE deliveries
+                    SET    route_id           = ${suggestion.routeId},
+                           driver_id          = COALESCE(driver_id, NULLIF(${suggestion.driverId}::int, 0)),
+                           route_position     = ${suggestion.insertAtPosition},
+                           distance_from_prev = ${suggestion.extraDistance.toFixed(3)}::numeric,
+                           updated_at         = NOW()
+                    WHERE  id        = ${d.id}
+                      AND  route_id  IS NULL
+                      AND  status    = 'pendente'
+                    RETURNING id`,
+              ),
+            );
+
+            if (updated.length > 0) {
+              assigned++;
+              // Reflect the new stop in our in-memory snapshot so subsequent
+              // suggestions in this same tick account for it.
+              const targetRoute = driverRoutes.find(
+                (r) => r.routeId === suggestion.routeId,
+              );
+              if (targetRoute) {
+                targetRoute.stops.splice(suggestion.insertAtPosition, 0, {
+                  lat,
+                  lng,
+                  position: suggestion.insertAtPosition,
+                  companyId: d.company_id ?? undefined,
+                  deliveryId: d.id,
+                });
+                targetRoute.stops.forEach((s, i) => (s.position = i));
+                targetRoute.totalDistance = suggestion.newTotalDistance;
+              }
+            }
+          } catch (err) {
+            console.error(
+              `[AUTO-DISPATCH] Failed to dispatch delivery #${d.id}:`,
+              err,
+            );
           }
         }
-      } catch (err) {
-        console.error(
-          `[AUTO-DISPATCH] Failed to dispatch delivery #${d.id}:`,
-          err,
-        );
-      }
-    }
+      },
+    );
   }
 
   if (assigned > 0) {

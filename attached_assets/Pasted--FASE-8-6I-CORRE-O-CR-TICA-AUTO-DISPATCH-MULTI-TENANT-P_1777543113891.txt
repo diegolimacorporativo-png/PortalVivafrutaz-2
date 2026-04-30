@@ -1,0 +1,117 @@
+🎯 FASE 8.6I — CORREÇÃO CRÍTICA AUTO DISPATCH (MULTI-TENANT)
+
+---
+
+🚨 PROBLEMA
+
+Worker:
+
+server/modules/logistics/auto-dispatch.service.ts
+
+está misturando entregas e rotas de diferentes empresas.
+
+👉 Isso causa atribuição cross-tenant REAL (write path)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar algoritmo de sugestão (suggestInsertion)
+2. NÃO alterar estrutura de dados
+3. NÃO remover funcionalidades
+4. NÃO alterar UPDATE principal
+5. NÃO mexer em storage.ts
+
+👉 Apenas garantir isolamento por tenant
+
+---
+
+## 🧠 CAUSA RAIZ
+
+- pending deliveries → global
+- driverRoutes → global
+- algoritmo roda com dados misturados
+
+---
+
+## 🛠️ SOLUÇÃO (OBRIGATÓRIA)
+
+### ETAPA 1 — AGRUPAR POR TENANT + DATA
+
+ANTES:
+
+ts const pending = ... const driverRoutes = await loadDriverRoutesForDate(date) 
+
+---
+
+DEPOIS:
+
+ts // agrupar pending por (company_id, date) const groups = groupBy(pending, (d) => `${d.company_id}_${d.date}`); 
+
+---
+
+### ETAPA 2 — PROCESSAR POR GRUPO ISOLADO
+
+ts for (const group of groups) {   const { company_id, date } = extract(group);    await runWithTenant(     { empresaId: company_id, principal: SERVICE },     async () => {        const driverRoutes = await loadDriverRoutesForDate(date, company_id);        // processar apenas deliveries do grupo     }   ); } 
+
+---
+
+### ETAPA 3 — FILTRAR ROTAS POR TENANT
+
+Alterar:
+
+ts loadDriverRoutesForDate(date) 
+
+Para:
+
+ts loadDriverRoutesForDate(date, company_id) 
+
+E dentro da função:
+
+ts WHERE delivery_date = $1 AND company_id = $2 
+
+---
+
+## 🔒 RESULTADO ESPERADO
+
+✔ Nenhuma mistura entre empresas  
+✔ Cada decisão usa apenas dados do próprio tenant  
+✔ UPDATE continua intacto  
+✔ Algoritmo não muda  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+1. Rodar testes:
+
+bash npm test 
+
+✔ deve continuar 100%
+
+---
+
+2. Validar comportamento:
+
+- delivery A nunca recebe route de B
+- driver_id sempre da mesma empresa
+
+---
+
+## 📊 FINAL
+
+Responder com:
+
+1. trecho alterado
+2. confirmação de isolamento
+3. resultado dos testes
+4. confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO tentar resolver só com runWithTenant  
+👉 sem filtro de rotas → bug continua
+
+👉 essa correção é estrutura
