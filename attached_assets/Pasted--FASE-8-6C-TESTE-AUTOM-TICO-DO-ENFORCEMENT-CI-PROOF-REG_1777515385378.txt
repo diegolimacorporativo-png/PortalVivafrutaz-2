@@ -1,0 +1,127 @@
+🎯 FASE 8.6C — TESTE AUTOMÁTICO DO ENFORCEMENT (CI PROOF)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica do builder
+2. NÃO alterar schema Zod
+3. NÃO alterar cálculo fiscal
+4. NÃO alterar estrutura do XML
+5. NÃO quebrar testes existentes (FASE 8.4.3)
+6. NÃO mexer em produção — apenas testes
+
+👉 Apenas validar o comportamento do enforcement via testes automatizados
+
+---
+
+🧠 CONTEXTO
+
+Já existe:
+
+✔ Validação Zod (FASE 8.6A)  
+✔ Shadow mode (log apenas)  
+✔ Enforcement controlado por ENV (FASE 8.6B)
+
+Falta:
+
+❗ Garantia automática em CI de que isso nunca quebra no futuro
+
+---
+
+📦 OBJETIVO
+
+Criar testes que validem os 3 modos:
+
+1. OFF → não valida nada  
+2. SHADOW → loga, mas NÃO bloqueia  
+3. ENFORCEMENT → bloqueia apenas erros críticos  
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR NOVO TESTE
+
+Arquivo:
+
+tests/regression/nfe-enforcement.test.ts
+
+---
+
+## 🛠️ ETAPA 2 — MOCK CONTROLADO
+
+Criar um mock mínimo de NFeInput inválido:
+
+ts const invalidSemNCM = {   orderId: 1,   produtos: [{     cProd: "1",     xProd: "Produto teste",     ncm: "", // CRÍTICO     cfop: "5102",     uCom: "UN",     qCom: 1,     vUnCom: 10,     vProd: 10,     csosn: "102",     cst: "00",     importado: false,   }] }; 
+
+---
+
+## 🛠️ ETAPA 3 — TESTAR MODO OFF
+
+ts test("ENFORCEMENT OFF não bloqueia", async () => {   delete process.env.NFE_VALIDATE_INPUT;   delete process.env.NFE_ENFORCE_VALIDATION;    await assert.doesNotReject(async () => {     await simulateBuilder(invalidSemNCM);   }); }); 
+
+---
+
+## 🛠️ ETAPA 4 — TESTAR SHADOW MODE
+
+ts test("SHADOW MODE não bloqueia", async () => {   process.env.NFE_VALIDATE_INPUT = "1";   delete process.env.NFE_ENFORCE_VALIDATION;    await assert.doesNotReject(async () => {     await simulateBuilder(invalidSemNCM);   }); }); 
+
+---
+
+## 🛠️ ETAPA 5 — TESTAR ENFORCEMENT
+
+ts test("ENFORCEMENT bloqueia erro crítico", async () => {   process.env.NFE_VALIDATE_INPUT = "1";   process.env.NFE_ENFORCE_VALIDATION = "1";    await assert.rejects(async () => {     await simulateBuilder(invalidSemNCM);   }, /NFE_SCHEMA_CRITICAL_INVALID/); }); 
+
+---
+
+## 🛠️ ETAPA 6 — TESTE NÃO CRÍTICO
+
+ts const naoCritico = {   ...invalidSemNCM,   produtos: [{     ...invalidSemNCM.produtos[0],     ncm: "08039000",     xProd: "" // NÃO crítico   }] };  test("ENFORCEMENT não bloqueia erro não crítico", async () => {   process.env.NFE_VALIDATE_INPUT = "1";   process.env.NFE_ENFORCE_VALIDATION = "1";    await assert.doesNotReject(async () => {     await simulateBuilder(naoCritico);   }); }); 
+
+---
+
+## 🛠️ ETAPA 7 — ISOLAMENTO
+
+No final do arquivo:
+
+ts afterEach(() => {   delete process.env.NFE_VALIDATE_INPUT;   delete process.env.NFE_ENFORCE_VALIDATION; }); 
+
+---
+
+## 🛠️ ETAPA 8 — INTEGRAÇÃO COM CI
+
+Criar bridge:
+
+tests/unit/nfe-enforcement.test.ts
+
+ts import "../regression/nfe-enforcement.test"; 
+
+---
+
+## 🧪 VALIDAÇÃO ESPERADA
+
+✔ npm test continua 100% verde  
+✔ Novo teste roda automaticamente  
+✔ Cobertura dos 3 modos garantida  
+✔ Qualquer regressão futura quebra CI  
+
+---
+
+## 🔒 RESULTADO FINAL
+
+Sistema agora tem:
+
+✔ Validação estática (TypeScript — FASE 8.5)  
+✔ Validação runtime (Zod — FASE 8.6A)  
+✔ Proteção antifraude ativa (FASE 8.6B)  
+✔ Proteção automática em CI (FASE 8.6C)  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivos criados
+2. Resultado dos testes
+3. Confirmação de zero regressão
+4. Confirmação de cobertura dos 3
