@@ -1,0 +1,191 @@
+🎯 FASE 8.6O — AUDITORIA DE CALLERS DO fireNotification
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO corrigir nada ainda
+3. NÃO adicionar companyId automaticamente
+4. NÃO mudar comportamento
+5. NÃO assumir intenção do código
+
+👉 Apenas mapear e classificar
+
+---
+
+## 🧠 CONTEXTO
+
+Após a FASE 8.6N:
+
+- staff agora exige companyId
+- chamadas sem companyId → retornam [] (fail-closed)
+
+👉 risco atual:
+
+- notificações podem estar sendo silenciosamente descartadas
+
+---
+
+## 🎯 OBJETIVO
+
+Mapear TODOS os pontos onde fireNotification é chamado e classificar:
+
+- se precisa de tenant
+- se é global
+- se está quebrado agora
+
+---
+
+## 📦 ETAPA 1 — BUSCA GLOBAL
+
+Procurar no projeto inteiro:
+
+bash fireNotification( 
+
+---
+
+## 📦 ETAPA 2 — PARA CADA OCORRÊNCIA
+
+Criar tabela com:
+
+### 📊 FORMATO
+
+Arquivo: Linha: Evento (type): Origem: Possui companyId disponível? (SIM/NÃO) Está passando companyId? (SIM/NÃO) Tipo:   [ ] TENANT-BOUND   [ ] GLOBAL   [ ] INDEFINIDO Status atual:   [ ] OK   [ ] SILENCIADO (fail-closed)   [ ] RISCO DE VAZAMENTO Observação:
+
+---
+
+## 🧠 COMO CLASSIFICAR
+
+---
+
+### 🟢 TENANT-BOUND
+
+Se o evento está ligado a:
+
+- pedido (order)
+- cliente
+- estoque
+- operação da empresa
+
+👉 DEVE ter companyId
+
+Exemplo:
+order_created order_updated client_inactive low_stock
+
+---
+
+### 🔵 GLOBAL
+
+Se o evento é:
+
+- sistema
+- infraestrutura
+- alerta técnico global
+
+👉 NÃO deve ter companyId
+
+Exemplo:
+system_alert platform_issue
+
+---
+
+### 🟡 INDEFINIDO
+
+Quando não está claro:
+
+👉 marcar e NÃO decidir agora
+
+---
+
+## 📦 ETAPA 3 — IDENTIFICAR IMPACTO
+
+Marcar como:
+
+---
+
+### ❌ SILENCIADO (CRÍTICO)
+
+ts fireNotification("order_created", ...) 
+
+Sem companyId
+
+👉 agora retorna []
+
+👉 notificação PAROU de existir
+
+---
+
+### 🔴 VAZAMENTO (SE AINDA EXISTIR)
+
+Casos que ainda usam:
+
+- audience: "all"
+- ou bypassam getActiveSubscriptions
+
+---
+
+### 🟢 OK
+
+- já passa companyId
+- ou é global legítimo
+
+---
+
+## 📦 ETAPA 4 — RESUMO FINAL
+
+Gerar:
+
+---
+
+### 📊 CONTAGEM
+
+Total de calls: TENANT-BOUND: GLOBAL: INDEFINIDO:  OK: SILENCIADOS: RISCO:
+
+---
+
+### 🎯 LISTA PRIORITÁRIA
+
+Listar apenas:
+
+- 🔴 SILENCIADOS
+- 🟡 INDEFINIDOS
+
+---
+
+## 🚫 NÃO FAZER AINDA
+
+- NÃO corrigir calls
+- NÃO adicionar companyId
+- NÃO refatorar eventos
+- NÃO alterar pushService
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Você vai descobrir:
+
+- quais notificações pararam
+- quais precisam de fix
+- quais são globais de verdade
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Lista completa dos callers
+2. Classificação de cada um
+3. Resumo numérico
+4. Lista de SILENCIADOS
+5. Lista de INDEFINIDOS
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Essa fase define como o sistema de notificações vai funcionar corretamente
+
+👉 Se pular isso → risco de regressão invisível em produção
