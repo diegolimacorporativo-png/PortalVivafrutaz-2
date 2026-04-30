@@ -1840,7 +1840,7 @@ export async function registerRoutes(
           items: String(items.length),
           value: totalVal,
           code: no.vfCode || `#${no.id}`,
-        }, { url: `/admin/orders` });
+        }, { url: `/admin/orders`, companyId: order.companyId });
       } catch {}
 
       // Send emails (non-blocking)
@@ -3958,7 +3958,7 @@ export async function registerRoutes(
           response = `✅ **Tarefa criada com sucesso!**\n\n• Título: ${data.title}\n• Prioridade: ${data.priority}\n\nAcesse **Menu → Tarefas** para visualizar e gerenciar.`;
           newContext = null;
           // Fire push for task created by Clara
-          fireNotification('clara_task', { task: data.title }, { url: '/admin/tasks' });
+          fireNotification('clara_task', { task: data.title }, { url: '/admin/tasks', companyId: user?.empresaId ?? undefined });
         } catch (e: any) {
           response = `❌ Erro ao criar tarefa: ${e.message}`;
           newContext = null;

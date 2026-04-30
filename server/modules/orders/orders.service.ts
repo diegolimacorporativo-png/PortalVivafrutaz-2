@@ -487,7 +487,7 @@ export class OrdersService {
           value: totalVal,
           code: newOrder.vfCode || `#${newOrder.id}`,
         },
-        { url: `/admin/orders` },
+        { url: `/admin/orders`, companyId: order.companyId },
       );
     } catch {
       /* swallow per legacy */
@@ -985,7 +985,7 @@ export class OrdersService {
         fireNotification(
           "order_cancelled",
           { code: oa.vfCode || `#${id}`, company: companyName },
-          { url: `/admin/orders` },
+          { url: `/admin/orders`, companyId: oa.companyId },
         );
       } else {
         const statusLabel: Record<string, string> = {
@@ -1000,7 +1000,7 @@ export class OrdersService {
             company: companyName,
             status: statusLabel[status] || status,
           },
-          { url: `/admin/orders` },
+          { url: `/admin/orders`, companyId: oa.companyId },
         );
       }
     } catch (emailErr) {

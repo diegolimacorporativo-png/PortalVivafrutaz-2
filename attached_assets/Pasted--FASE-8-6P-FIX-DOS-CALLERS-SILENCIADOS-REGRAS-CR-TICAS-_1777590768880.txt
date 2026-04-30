@@ -1,0 +1,164 @@
+🎯 FASE 8.6P — FIX DOS CALLERS SILENCIADOS
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar payload
+2. NÃO alterar eventos
+3. NÃO alterar URLs
+4. NÃO refatorar funções
+5. NÃO mexer em pushService
+6. NÃO alterar lógica de negócio
+
+👉 Apenas adicionar companyId nas chamadas
+
+---
+
+## 📦 TAREFAS
+
+---
+
+### 🔴 1. CALLER-05 — orders.service.ts (order_created)
+
+LOCAL:
+
+ts await fireNotification(   "order_created",   { code, company, ... },   { url: "/admin/orders" } ); 
+
+---
+
+SUBSTITUIR POR:
+
+ts await fireNotification(   "order_created",   { code, company, ... },   {     url: "/admin/orders",     companyId: order.companyId   } ); 
+
+---
+
+### 🔴 2. CALLER-01 — routes.ts (order_created - legado)
+
+LOCAL:
+
+ts await fireNotification(   "order_created",   { ... },   { url: "/admin/orders" } ); 
+
+---
+
+SUBSTITUIR POR:
+
+ts await fireNotification(   "order_created",   { ... },   {     url: "/admin/orders",     companyId: order.companyId   } ); 
+
+---
+
+### 🔴 3. CALLER-06 — orders.service.ts (order_cancelled)
+
+LOCAL:
+
+ts await fireNotification(   "order_cancelled",   { ... },   { url: "/admin/orders" } ); 
+
+---
+
+SUBSTITUIR POR:
+
+ts await fireNotification(   "order_cancelled",   { ... },   {     url: "/admin/orders",     companyId: oa.companyId   } ); 
+
+---
+
+### 🔴 4. CALLER-07 — orders.service.ts (order_updated)
+
+LOCAL:
+
+ts await fireNotification(   "order_updated",   { ... },   { url: "/admin/orders" } ); 
+
+---
+
+SUBSTITUIR POR:
+
+ts await fireNotification(   "order_updated",   { ... },   {     url: "/admin/orders",     companyId: oa.companyId   } ); 
+
+---
+
+### 🟡 5. CALLER-02 — clara_task
+
+LOCAL:
+
+ts await fireNotification(   "clara_task",   { ... },   { url: "/admin/tasks" } ); 
+
+---
+
+SUBSTITUIR POR:
+
+ts await fireNotification(   "clara_task",   { ... },   {     url: "/admin/tasks",     companyId: user.companyId // ou equivalente do contexto   } ); 
+
+⚠️ usar o companyId da sessão do usuário
+
+---
+
+### 🔵 6. CALLER-03 — flora_alert
+
+👉 NÃO ALTERAR
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Criar pedido
+
+✔ push recebido pelo staff da empresa  
+✔ outras empresas NÃO recebem  
+
+---
+
+### 2️⃣ Atualizar status
+
+✔ push recebido corretamente  
+
+---
+
+### 3️⃣ Cancelar pedido
+
+✔ push recebido corretamente  
+
+---
+
+### 4️⃣ Clara task
+
+✔ apenas staff do tenant recebe  
+
+---
+
+### 5️⃣ Push test (flora_alert)
+
+✔ continua global  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero vazamento  
+✔ notificações restauradas  
+✔ compatibilidade total  
+✔ nenhuma mudança estrutural  
+✔ fail-safe preservado  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+ts staff → [] (silenciado) ❌ 
+
+DEPOIS:
+
+ts staff → tenant correto ✔ 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trechos alterados
+2. Confirmação de notificações restauradas
+3. Resultado dos testes
+4. Confirmação de zero
