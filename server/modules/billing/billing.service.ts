@@ -66,15 +66,28 @@ const FRUTAS_IN_NATURA_DEFAULTS = {
 
 // ── Tipos públicos ──────────────────────────────────────────────────────────
 
+import type { BillingItemFiscal } from "./types";
+export type { BillingItemFiscal } from "./types";
+
 /**
  * Estrutura padronizada devolvida ao caller. `items` já vêm prontos para
  * uso (com agrupamento aplicado quando o draft assim definir). A flag
  * `useGroupedItems` é informativa — útil para logs/telemetria.
+ *
+ * FASE 8.5 — `items` agora é `BillingItemFiscal[]` (era `any[]`).
+ * Apenas reforço de contrato; corpo da função NÃO foi alterado.
  */
 export interface ResolvedBillingItems {
-  items: any[];
+  items: BillingItemFiscal[];
   useGroupedItems: boolean;
 }
+
+/**
+ * FASE 8.5 — Alias público pedido pela ETAPA 2 da fase. É exatamente
+ * `ResolvedBillingItems`; existe para que novos consumidores possam
+ * referenciar o nome solicitado sem quebrar imports legados.
+ */
+export type ResolveBillingResult = ResolvedBillingItems;
 
 // ── API pública ─────────────────────────────────────────────────────────────
 

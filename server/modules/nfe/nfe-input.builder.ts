@@ -87,6 +87,8 @@ function safeOptional(v: any): string | undefined {
 
 // ── buildNFeInput ─────────────────────────────────────────────────────────────
 
+import type { BillingItemFiscal } from "../billing/types";
+
 export interface BuildNFeInputOpts {
   orderId: number;
   draftId?: number;
@@ -95,8 +97,11 @@ export interface BuildNFeInputOpts {
    * em `server/modules/billing/billing.service.ts`). O builder NÃO mais
    * decide a origem dos itens: ele apenas monta o NFeInput a partir do
    * que recebe. `draftId` é mantido como metadado para logs/auditoria.
+   *
+   * FASE 8.5 — tipado como `BillingItemFiscal[]` (era `any[]`). Apenas
+   * reforço de contrato; o corpo do builder NÃO foi alterado.
    */
-  sourceItems: any[];
+  sourceItems: BillingItemFiscal[];
 }
 
 /**
