@@ -90,6 +90,8 @@ function safeOptional(v: any): string | undefined {
 import type { BillingItemFiscal } from "../billing/types";
 import type { NFeInput } from "./types";
 export type { NFeInput, NFeProduto } from "./types";
+// FASE 8.6A — schema Zod usado em SHADOW MODE (apenas loga, nunca lança).
+import { NFeInputSchema } from "./schema";
 
 export interface BuildNFeInputOpts {
   orderId: number;
@@ -318,7 +320,7 @@ export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> 
   });
 
   // ETAPA 7 — retorno consistente: usa normalizedProdutos, sem campos undefined desnecessários
-  return {
+  const nfeInput: NFeInput = {
     emitente,
     destinatario,
     produtos: normalizedProdutos,
@@ -330,4 +332,24 @@ export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> 
       ? `${safeStr(config.informacoesAdicionais)}\nPedido: ${safeStr((orderData.order as any).orderCode, `#${orderId}`)}`
       : `Pedido: ${safeStr((orderData.order as any).orderCode, `#${orderId}`)}`,
   };
+
+  // FASE 8.6A — VALIDAÇÃO RUNTIME EM SHADOW MODE.
+  //
+  // Ativada apenas com `NFE_VALIDATE_INPUT=1`. NUNCA lança e NUNCA bloqueia
+  // a emissão (regra crítica #1/#5 da fase). Apenas observa: se o objeto
+  // construído divergir do contrato `NFeInputSchema` (orderId + produtos[]
+  // com cProd/xProd/ncm/cfop/uCom/qCom/vUnCom/vProd válidos), emite um log
+  // estruturado `[NFE_SCHEMA_INVALID]` para diagnóstico, mantendo o fluxo
+  // intacto. Telemetria pura — base para enforcement futuro.
+  if (process.env.NFE_VALIDATE_INPUT === "1") {
+    const result = NFeInputSchema.safeParse(nfeInput);
+    if (!result.success) {
+      console.error("[NFE_SCHEMA_INVALID]", {
+        orderId: nfeInput.orderId,
+        issues: result.error.issues,
+      });
+    }
+  }
+
+  return nfeInput;
 }
