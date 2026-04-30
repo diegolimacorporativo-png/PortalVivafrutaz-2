@@ -43,6 +43,11 @@ import {
   runWithRequestContext,
   getRequestIdForLog,
 } from "../core/context/requestContext";
+// FASE 8.6H — isolamento multi-tenant: cada iteração do cron passa a rodar
+// dentro de runWithTenant(...) com um principal sintético "admin/SERVICE"
+// pinado no companyId do próprio pedido. Sem isso, currentTenantId() retorna
+// null e requireTenantId() lança — abrindo risco de mistura entre tenants.
+import { runWithTenant, type TenantPrincipal } from "../core/tenant/context";
 // STEP 9.3F.6 — migrado de emitAlert → emitAlertSmart (camada de auto-supressão).
 // O emitAlert continua existindo e intocado; só este cron chama o wrapper.
 import { emitAlertSmart } from "../services/alerts.smart";
@@ -208,139 +213,154 @@ export async function runFaturamentoCron(
 
   // 2. Processar em batches de CONCURRENCY_LIMIT
   const detalhes = await processInBatches(candidates, async (row) => {
-    const orderId = row.id;
-    let lock: OrderLockHandle | null = null;
-    try {
-      // FASE 3 — sanity check: cron não tem contexto de tenant, então
-      // não usamos validateOrderTenant aqui. Apenas garantimos que o row
-      // veio com company_id (qualquer ausência é um sinal de corrupção
-      // upstream e bloqueia a emissão por segurança).
-      if (!row.company_id) {
-        // FASE 14 — log padronizado [SECURITY] com requestId do cron.
-        console.error(
-          `[SECURITY] CRON_INCONSISTENCY | requestId=${getRequestIdForLog()} | orderId=${orderId} | details=order sem companyId`,
-        );
-        return {
-          orderId,
-          status: "error",
-          reason: "Order sem companyId (sanity check)",
-        };
-      }
+    // FASE 8.6H — instala um TenantContext sintético (admin/SERVICE) pinado
+    // no companyId do próprio pedido ANTES de executar qualquer lógica
+    // existente. Isso faz currentTenantId()/requireTenantId() funcionarem
+    // dentro de billing/builder/storage sem alterar nenhuma dessas funções.
+    const tenantPrincipal: TenantPrincipal = {
+      kind: "admin",
+      empresaId: row.company_id,
+      userId: 0,
+      role: "SERVICE",
+    };
+    return runWithTenant(
+      { principal: tenantPrincipal, empresaId: row.company_id },
+      async () => {
+        const orderId = row.id;
+        let lock: OrderLockHandle | null = null;
+        try {
+          // FASE 3 — sanity check: cron não tem contexto de tenant, então
+          // não usamos validateOrderTenant aqui. Apenas garantimos que o row
+          // veio com company_id (qualquer ausência é um sinal de corrupção
+          // upstream e bloqueia a emissão por segurança).
+          if (!row.company_id) {
+            // FASE 14 — log padronizado [SECURITY] com requestId do cron.
+            console.error(
+              `[SECURITY] CRON_INCONSISTENCY | requestId=${getRequestIdForLog()} | orderId=${orderId} | details=order sem companyId`,
+            );
+            return {
+              orderId,
+              status: "error",
+              reason: "Order sem companyId (sanity check)",
+            };
+          }
 
-      // FASE 20 — Lock de concorrência (GAP 1, GAP 7). SEMPRE ANTES de
-      // qualquer validação ou escrita. Granular por (tenantId, orderId).
-      const tenantId = row.company_id;
-      lock = await acquireOrderLock(tenantId, orderId);
-      if (!lock) {
-        console.warn(
-          `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
-        );
-        return {
-          orderId,
-          status: "skipped_lock",
-          reason: "Pedido já está em processamento por outra execução",
-        };
-      }
-      console.log(
-        `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
-      );
-
-      // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
-      // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
-      // dry-run (flag false) apenas loga; em modo ativo, bloqueia a emissão.
-      const idem = await hasBlockingNFe(orderId);
-      if (idem.blocked) {
-        if (ENABLE_NFE_IDEMPOTENCY_GUARD) {
-          console.warn(
-            `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+          // FASE 20 — Lock de concorrência (GAP 1, GAP 7). SEMPRE ANTES de
+          // qualquer validação ou escrita. Granular por (tenantId, orderId).
+          const tenantId = row.company_id;
+          lock = await acquireOrderLock(tenantId, orderId);
+          if (!lock) {
+            console.warn(
+              `[NFE_CONCURRENCY_LOCK_SKIPPED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
+            );
+            return {
+              orderId,
+              status: "skipped_lock",
+              reason: "Pedido já está em processamento por outra execução",
+            };
+          }
+          console.log(
+            `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
           );
-          // FASE 19 — métrica agregada (sem dados sensíveis).
-          incNfeIdemBlocked(idem.blockingStatus ?? "unknown", "cron");
-          return {
+
+          // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
+          // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
+          // dry-run (flag false) apenas loga; em modo ativo, bloqueia a emissão.
+          const idem = await hasBlockingNFe(orderId);
+          if (idem.blocked) {
+            if (ENABLE_NFE_IDEMPOTENCY_GUARD) {
+              console.warn(
+                `[NFE_IDEMPOTENCY_BLOCKED] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | blockingStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+              );
+              // FASE 19 — métrica agregada (sem dados sensíveis).
+              incNfeIdemBlocked(idem.blockingStatus ?? "unknown", "cron");
+              return {
+                orderId,
+                status: "blocked",
+                reason: `Pedido já possui NF-e em status bloqueante: ${idem.blockingStatus}`,
+              };
+            } else {
+              console.warn(
+                `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
+              );
+              // FASE 19 — métrica agregada (sem dados sensíveis).
+              incNfeIdemDryRun(idem.blockingStatus ?? "unknown", "cron");
+              // segue o fluxo — só observa
+            }
+          }
+
+          // Guard — nunca emite sem passar aqui
+          const check = await canEmitNFe(orderId);
+
+          if (!check.allowed) {
+            console.log(`[CRON_FATURAMENTO_DRY] pedido #${orderId} bloqueado: ${check.reason}`);
+            return { orderId, status: "blocked", reason: check.reason };
+          }
+
+          // Modo observação: loga mas não emite
+          if (!autoMode) {
+            console.log(`[CRON_FATURAMENTO_DRY] pedido #${orderId} SERIA emitido (tipo=${check.faturamento?.tipo})`);
+            return { orderId, status: "would_emit", reason: `tipo=${check.faturamento?.tipo}` };
+          }
+
+          // Modo automático: emite de fato
+          // (FASE 18 — checagem antiga `getNfeEmissaoByOrderId + ['autorizada','enviada']`
+          // removida; substituída pelo `hasBlockingNFe` acima, que cobre EXISTÊNCIA
+          // sobre todo o histórico, sem ORDER BY DESC LIMIT 1.)
+
+          const { gerarNFeXML } = await import("../services/nfe/nfeGenerator.ts");
+          const { validarNFeInput } = await import("../services/nfe/nfeValidator.ts");
+
+          // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
+          const resolved = await resolveBillingItems(orderId);
+          const input = await buildNFeInput({
             orderId,
-            status: "blocked",
-            reason: `Pedido já possui NF-e em status bloqueante: ${idem.blockingStatus}`,
-          };
-        } else {
-          console.warn(
-            `[NFE_IDEMPOTENCY_DRY_RUN] requestId=${getRequestIdForLog()} | source=cron | orderId=${orderId} | wouldBlockStatus=${idem.blockingStatus} | blockingNfeId=${idem.blockingNfeId}`,
-          );
-          // FASE 19 — métrica agregada (sem dados sensíveis).
-          incNfeIdemDryRun(idem.blockingStatus ?? "unknown", "cron");
-          // segue o fluxo — só observa
+            sourceItems: resolved.items,
+          });
+          const erros = validarNFeInput(input);
+          if (erros.length > 0) {
+            return { orderId, status: "error", reason: `Dados incompletos: ${erros.join(", ")}` };
+          }
+
+          const numero = await storage.getNextNfeNumero();
+          const gerada = await gerarNFeXML(input, numero);
+
+          await storage.createNfeEmissao({
+            orderId,
+            numero: gerada.numero,
+            serie: gerada.serie,
+            chaveNFe: gerada.chaveNFe,
+            status: "gerada",
+            xmlGerado: gerada.xmlGerado,
+            dataEmissao: gerada.dataEmissao,
+            ambienteFiscal: input.tpAmb === "1" ? "producao" : "homologacao",
+          });
+
+          await storage.updateOrder(orderId, { fiscalStatus: "nota_emitida" });
+          await storage.createLog({
+            action: "NF-E_CRON_GERADA",
+            description: `NF-e nº ${numero} gerada automaticamente pelo cron para pedido #${orderId}.`,
+            level: "INFO",
+            userId: null as any,
+          });
+
+          console.log(`[CRON_FATURAMENTO] pedido #${orderId} emitido (NF nº ${numero})`);
+          return { orderId, status: "success" };
+        } catch (e: any) {
+          console.error(`[CRON_FATURAMENTO_ERROR] pedido #${orderId}:`, e.message);
+          return { orderId, status: "error", reason: e.message };
+        } finally {
+          // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
+          if (lock) {
+            const tenantId = lock.tenantId;
+            await releaseOrderLock(lock);
+            console.log(
+              `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
+            );
+          }
         }
-      }
-
-      // Guard — nunca emite sem passar aqui
-      const check = await canEmitNFe(orderId);
-
-      if (!check.allowed) {
-        console.log(`[CRON_FATURAMENTO_DRY] pedido #${orderId} bloqueado: ${check.reason}`);
-        return { orderId, status: "blocked", reason: check.reason };
-      }
-
-      // Modo observação: loga mas não emite
-      if (!autoMode) {
-        console.log(`[CRON_FATURAMENTO_DRY] pedido #${orderId} SERIA emitido (tipo=${check.faturamento?.tipo})`);
-        return { orderId, status: "would_emit", reason: `tipo=${check.faturamento?.tipo}` };
-      }
-
-      // Modo automático: emite de fato
-      // (FASE 18 — checagem antiga `getNfeEmissaoByOrderId + ['autorizada','enviada']`
-      // removida; substituída pelo `hasBlockingNFe` acima, que cobre EXISTÊNCIA
-      // sobre todo o histórico, sem ORDER BY DESC LIMIT 1.)
-
-      const { gerarNFeXML } = await import("../services/nfe/nfeGenerator.ts");
-      const { validarNFeInput } = await import("../services/nfe/nfeValidator.ts");
-
-      // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
-      const resolved = await resolveBillingItems(orderId);
-      const input = await buildNFeInput({
-        orderId,
-        sourceItems: resolved.items,
-      });
-      const erros = validarNFeInput(input);
-      if (erros.length > 0) {
-        return { orderId, status: "error", reason: `Dados incompletos: ${erros.join(", ")}` };
-      }
-
-      const numero = await storage.getNextNfeNumero();
-      const gerada = await gerarNFeXML(input, numero);
-
-      await storage.createNfeEmissao({
-        orderId,
-        numero: gerada.numero,
-        serie: gerada.serie,
-        chaveNFe: gerada.chaveNFe,
-        status: "gerada",
-        xmlGerado: gerada.xmlGerado,
-        dataEmissao: gerada.dataEmissao,
-        ambienteFiscal: input.tpAmb === "1" ? "producao" : "homologacao",
-      });
-
-      await storage.updateOrder(orderId, { fiscalStatus: "nota_emitida" });
-      await storage.createLog({
-        action: "NF-E_CRON_GERADA",
-        description: `NF-e nº ${numero} gerada automaticamente pelo cron para pedido #${orderId}.`,
-        level: "INFO",
-        userId: null as any,
-      });
-
-      console.log(`[CRON_FATURAMENTO] pedido #${orderId} emitido (NF nº ${numero})`);
-      return { orderId, status: "success" };
-    } catch (e: any) {
-      console.error(`[CRON_FATURAMENTO_ERROR] pedido #${orderId}:`, e.message);
-      return { orderId, status: "error", reason: e.message };
-    } finally {
-      // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
-      if (lock) {
-        const tenantId = lock.tenantId;
-        await releaseOrderLock(lock);
-        console.log(
-          `[NFE_CONCURRENCY_LOCK_RELEASED] requestId=${getRequestIdForLog()} | source=cron | tenantId=${tenantId} | orderId=${orderId}`,
-        );
-      }
-    }
+      },
+    );
   });
 
   const emitidas = detalhes.filter((d) => d.status === "success").length;
