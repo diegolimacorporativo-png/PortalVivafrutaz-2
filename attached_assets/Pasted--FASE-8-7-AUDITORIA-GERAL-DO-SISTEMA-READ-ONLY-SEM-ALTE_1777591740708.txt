@@ -1,0 +1,278 @@
+🎯 FASE 8.7 — AUDITORIA GERAL DO SISTEMA (READ-ONLY / SEM ALTERAÇÕES)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar nenhum código
+2. NÃO sugerir refatorações automáticas
+3. NÃO gerar patches ou diffs
+4. NÃO modificar arquivos
+5. NÃO executar migrações
+6. NÃO alterar banco de dados
+
+👉 Esta fase é 100% análise, diagnóstico e mapeamento
+
+---
+
+🧠 OBJETIVO
+
+Realizar uma auditoria completa do sistema para identificar:
+
+- pontos fortes da arquitetura
+- pontos fracos reais (escala, segurança, manutenção)
+- gargalos técnicos
+- riscos futuros
+- oportunidades de melhoria (sem implementar)
+
+---
+
+📦 ESCOPO OBRIGATÓRIO
+
+---
+
+## 1️⃣ ARQUITETURA GERAL
+
+Analisar:
+
+- estrutura de módulos (orders, billing, alerts, auth, etc.)
+- separação entre:
+  - routes
+  - services
+  - storage
+- uso de camadas (controller/service/repo)
+
+Responder:
+
+- arquitetura está bem definida ou acoplada?
+- existe padrão consistente ou mistura estilos?
+- nível de escalabilidade atual
+
+---
+
+## 2️⃣ MULTI-TENANT (CRÍTICO)
+
+Validar:
+
+- uso de runWithTenant
+- uso de currentTenantId / requireTenantId
+- isolamento em:
+  - workers
+  - services
+  - rotas
+  - notificações
+  - cache
+
+Responder:
+
+- sistema está 100% isolado?
+- existe algum risco residual?
+- nível de maturidade do multi-tenant
+
+---
+
+## 3️⃣ ROUTES.TS (FOCO PRINCIPAL)
+
+Analisar profundamente:
+
+Arquivo:
+server/routes/routes.ts
+
+Levantar:
+
+- quantidade de linhas
+- quantidade de endpoints
+- responsabilidades misturadas
+
+Classificar:
+
+- endpoints por domínio:
+  - orders
+  - billing
+  - admin
+  - push
+  - email
+  - auth
+
+Responder:
+
+- routes está:
+  - aceitável
+  - grande
+  - crítico
+
+- riscos:
+  - manutenção
+  - bugs
+  - onboard de devs
+
+- sugerir (SEM IMPLEMENTAR):
+  - como dividir (ex: routes por módulo)
+
+---
+
+## 4️⃣ WORKERS & BACKGROUND JOBS
+
+Cobertura:
+
+- outbox.worker
+- billing.cron
+- faturamento.cron
+- auto-dispatch
+- proactive.alerts
+
+Validar:
+
+- isolamento por tenant
+- fail-safe
+- retry
+- logs
+
+Responder:
+
+- estão robustos?
+- risco de falha silenciosa?
+- nível de maturidade
+
+---
+
+## 5️⃣ SISTEMA DE NOTIFICAÇÕES
+
+Analisar:
+
+- pushService
+- fireNotification
+- subscriptions
+- alert system
+
+Validar:
+
+- isolamento por tenant
+- consistência de gravação/leitura
+- rate limit
+- supressão
+
+Responder:
+
+- confiabilidade atual
+- risco de perda de evento
+- risco de duplicidade
+
+---
+
+## 6️⃣ CACHE & MEMÓRIA
+
+Analisar:
+
+- uso de Map
+- singleton cache
+- chaves com/sem tenant
+
+Responder:
+
+- existe risco de vazamento?
+- cache está seguro ou frágil?
+- pronto para escala?
+
+---
+
+## 7️⃣ BANCO DE DADOS / STORAGE
+
+Analisar:
+
+- uso do storage.ts
+- centralização de queries
+- acoplamento
+
+Responder:
+
+- storage está:
+  - saudável
+  - sobrecarregado
+  - crítico
+
+- risco de crescimento desorganizado
+
+---
+
+## 8️⃣ SEGURANÇA
+
+Cobrir:
+
+- autenticação
+- autorização
+- multi-tenant enforcement
+- logs de segurança
+
+Responder:
+
+- nível atual de segurança (0 a 10)
+- principais riscos
+
+---
+
+## 9️⃣ ESCALABILIDADE
+
+Avaliar:
+
+- suporte a múltiplas empresas
+- concorrência
+- volume de dados
+
+Responder:
+
+- sistema aguenta:
+  - 10 empresas?
+  - 100?
+  - 1.000?
+
+---
+
+## 🔟 DÍVIDA TÉCNICA
+
+Listar:
+
+- pontos que vão virar problema no futuro
+- áreas frágeis
+- código legado
+
+Classificar:
+
+- 🟢 baixo risco
+- 🟡 médio
+- 🔴 crítico
+
+---
+
+## 📊 FORMATO DA RESPOSTA
+
+Responder com:
+
+### ✅ PONTOS FORTES
+(lista clara)
+
+### ⚠️ PONTOS MÉDIOS
+(lista com explicação)
+
+### 🔴 PONTOS FRACOS / RISCOS
+(lista com impacto real)
+
+### 🧠 DIAGNÓSTICO FINAL
+
+- nível do sistema hoje (iniciante / intermediário / avançado / produção forte)
+- principais gargalos
+- principais riscos
+
+### 🚀 PRIORIDADES FUTURAS (SEM IMPLEMENTAR)
+
+Top 5 melhorias mais importantes
+
+---
+
+🎯 IMPORTANTE
+
+👉 NÃO escrever código  
+👉 NÃO sugerir patch  
+👉 NÃO alterar nada  
+
+Apenas análise profunda e profiss
