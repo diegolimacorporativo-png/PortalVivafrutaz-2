@@ -1,0 +1,203 @@
+🎯 FASE 8.6M — AUDITORIA REALTIME / CACHE (MULTI-TENANT)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO sugerir solução ainda
+3. NÃO aplicar fix
+4. NÃO refatorar nada
+5. NÃO criar helpers
+6. NÃO usar runWithTenant ainda
+
+👉 Apenas AUDITAR e CLASSIFICAR risco
+
+---
+
+🧠 OBJETIVO
+
+Identificar possíveis vazamentos multi-tenant em:
+
+- WebSockets / realtime
+- Cache em memória
+- Redis (se existir)
+- Broadcast / pub-sub
+- Event emitters
+- Filas internas (não já tratadas)
+
+---
+
+## 🔍 ESCOPO DE BUSCA
+
+Procurar no projeto:
+
+### 1️⃣ REALTIME / SOCKETS
+
+Buscar por:
+
+- socket.io
+- WebSocket
+- ws
+- io.on
+- connection
+- emit
+- broadcast
+- rooms
+- join
+- leave
+
+---
+
+### 2️⃣ CACHE / MEMÓRIA
+
+Buscar por:
+
+- Map(
+- new Map
+- global state
+- singleton
+- in-memory store
+- LRU
+- node-cache
+
+---
+
+### 3️⃣ REDIS (se existir)
+
+Buscar por:
+
+- redis
+- ioredis
+- pub/sub
+- subscribe
+- publish
+
+---
+
+### 4️⃣ EVENTOS INTERNOS
+
+Buscar por:
+
+- EventEmitter
+- emit(
+- on(
+- once(
+- listeners
+
+---
+
+### 5️⃣ BROADCAST / NOTIFICAÇÕES
+
+Buscar por:
+
+- broadcast
+- notify
+- push
+- sendToAll
+- sendToUser
+- sendToCompany
+
+---
+
+## 📦 PARA CADA OCORRÊNCIA ENCONTRADA
+
+Mapear exatamente:
+
+---
+
+### 📍 IDENTIFICAÇÃO
+
+- Arquivo:
+- Linha:
+- Tipo (socket | cache | redis | event | broadcast):
+
+---
+
+### 🔍 COMPORTAMENTO
+
+- Origem dos dados:
+- Existe companyId / tenantId envolvido?
+- Existe filtro por tenant?
+- Existe contexto ALS (currentTenantId)?
+- Existe runWithTenant?
+- Dados são globais ou isolados?
+
+---
+
+### ⚠️ ANÁLISE DE RISCO
+
+Classificar:
+
+🔴 RISCO REAL  
+→ mistura entre tenants possível (leitura OU escrita)
+
+🟡 RISCO IMPLÍCITO  
+→ depende de comportamento externo / futuro
+
+🟢 SEGURO  
+→ já isolado corretamente
+
+---
+
+### 🧠 EXPLICAÇÃO
+
+Explicar:
+
+- por que pode (ou não) vazar
+- onde o isolamento quebra (se quebrar)
+- se depende de outro módulo
+
+---
+
+## 📊 SAÍDA FINAL
+
+Gerar:
+
+---
+
+### 🔴 Itens com risco real
+
+(lista detalhada)
+
+---
+
+### 🟡 Itens com risco implícito
+
+(lista detalhada)
+
+---
+
+### 🟢 Itens seguros
+
+(lista resumida)
+
+---
+
+### 📌 RESUMO EXECUTIVO
+
+Responder:
+
+1. Existe vazamento possível? (SIM / NÃO)
+2. Onde exatamente?
+3. É leitura, escrita ou broadcast?
+4. Qual o ponto mais crítico?
+5. O sistema está seguro ou ainda exposto?
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO propor solução  
+👉 NÃO modificar código  
+👉 NÃO antecipar FASE 8.6N  
+
+---
+
+## ✅ FINAL
+
+Responder apenas com:
+
+- Auditoria completa
+- Classificação de risco
+- Diagnósti
