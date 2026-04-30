@@ -1,0 +1,119 @@
+🎯 FASE 8.6D — OBSERVABILIDADE DE DEFAULTS FISCAIS (SEM ALTERAR COMPORTAMENTO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica do builder
+2. NÃO alterar cálculo fiscal
+3. NÃO alterar estrutura do XML
+4. NÃO bloquear emissão
+5. NÃO remover defaults existentes
+6. NÃO alterar retorno do builder
+
+👉 Apenas adicionar LOG quando fallback fiscal for aplicado
+
+---
+
+🧠 OBJETIVO
+
+Detectar quando o sistema está usando valores padrão em vez de dados reais:
+
+- unit → "KG"
+- csosn → "102"
+- cst → "00"
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR HELPER DE LOG
+
+📍 Arquivo:
+server/modules/nfe/nfe-input.builder.ts
+
+Adicionar acima do builder:
+
+ts function logFiscalDefault(   field: string,   fallback: string,   originalValue: any,   context: { orderId: number; index: number } ) {   if (originalValue !== undefined && originalValue !== null && originalValue !== "") {     return;   }    console.warn("[FISCAL_DEFAULT_APPLIED]", {     field,     fallback,     orderId: context.orderId,     itemIndex: context.index,   }); } 
+
+---
+
+## 🛠️ ETAPA 2 — INSTRUMENTAR uCom (unit)
+
+ANTES:
+
+ts uCom: safeStr(item.unit, "KG"), 
+
+DEPOIS:
+
+ts logFiscalDefault("uCom", "KG", item.unit, { orderId, index });  uCom: safeStr(item.unit, "KG"), 
+
+---
+
+## 🛠️ ETAPA 3 — INSTRUMENTAR CSOSN
+
+ANTES:
+
+ts csosn: safeStr(item.csosn, "102"), 
+
+DEPOIS:
+
+ts logFiscalDefault("csosn", "102", item.csosn, { orderId, index });  csosn: safeStr(item.csosn, "102"), 
+
+---
+
+## 🛠️ ETAPA 4 — INSTRUMENTAR CST
+
+ANTES:
+
+ts cst: (item as any).cst || "00", 
+
+DEPOIS:
+
+ts logFiscalDefault("cst", "00", (item as any).cst, { orderId, index });  cst: (item as any).cst || "00", 
+
+---
+
+## ⚠️ IMPORTANTE
+
+- NÃO alterar safeStr
+- NÃO mexer em validações
+- NÃO adicionar throw
+- NÃO adicionar ENV flag
+- logs sempre ativos (nível warn)
+
+---
+
+## 🧪 VALIDAÇÃO
+
+Executar fluxo normal de emissão.
+
+Esperado:
+
+### Caso com dados completos
+
+bash (no logs) 
+
+### Caso com fallback
+
+bash [FISCAL_DEFAULT_APPLIED] {   field: "cst",   fallback: "00",   orderId: 123,   itemIndex: 0 } 
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- Visibilidade total dos defaults fiscais
+- Zero impacto no comportamento
+- Base para futura decisão:
+  → bloquear
+  → validar
+  → corrigir cadastro
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trecho exato onde logs foram inseridos
+2. Exemplo real de log gerado
+3. Confirmação de zero regressão
+4. Confirmação de que emissão continua funcionando normalme

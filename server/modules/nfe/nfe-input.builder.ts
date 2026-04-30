@@ -85,6 +85,41 @@ function safeOptional(v: any): string | undefined {
   return s || undefined;
 }
 
+/**
+ * FASE 8.6D — OBSERVABILIDADE DE DEFAULTS FISCAIS
+ *
+ * Loga (warn) quando um default fiscal é aplicado por ausência/vazio do
+ * valor original. NÃO altera comportamento: o caller continua chamando
+ * `safeStr(item.X, fallback)` normalmente — este helper apenas EMITE o
+ * sinal de telemetria. Não bloqueia, não muta, não cria dependência.
+ *
+ * Critério de log: o valor original é undefined, null ou string vazia.
+ * Espelha exatamente o caminho em que `safeStr` cai no fallback (após
+ * trim) e o caminho em que `(item.cst || "00")` cai no `||`.
+ *
+ * Decisão de design (spec da fase): sem ENV flag, sempre ativo. O custo
+ * é desprezível (warn só dispara quando há fallback) e a visibilidade é
+ * essencial para decidir, no futuro, entre bloquear / validar / corrigir
+ * cadastro.
+ */
+function logFiscalDefault(
+  field: string,
+  fallback: string,
+  originalValue: any,
+  context: { orderId: number; index: number },
+) {
+  if (originalValue !== undefined && originalValue !== null && originalValue !== "") {
+    return;
+  }
+
+  console.warn("[FISCAL_DEFAULT_APPLIED]", {
+    field,
+    fallback,
+    orderId: context.orderId,
+    itemIndex: context.index,
+  });
+}
+
 // ── buildNFeInput ─────────────────────────────────────────────────────────────
 
 import type { BillingItemFiscal } from "../billing/types";
@@ -238,6 +273,14 @@ export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> 
     if (!ncmRaw) {
       throw new Error("NFE_MISSING_NCM");
     }
+    // FASE 8.6D — telemetria de defaults fiscais (sem alterar comportamento).
+    // Disparado ANTES da construção do produto para que o log apareça mesmo
+    // se algum default acabar reescrito por etapa posterior. Não muta nem
+    // bloqueia: apenas observa.
+    logFiscalDefault("uCom", "KG", item.unit, { orderId, index: idx });
+    logFiscalDefault("csosn", "102", item.csosn, { orderId, index: idx });
+    logFiscalDefault("cst", "00", (item as any).cst, { orderId, index: idx });
+
     return {
       cProd: String(item.productId || idx + 1).padStart(6, "0"),
       xProd: safeStr(
