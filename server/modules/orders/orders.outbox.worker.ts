@@ -34,6 +34,12 @@ import { pool } from "../../database/db";
 import { type WorkflowEventPayload } from "@shared/schema";
 import { ordersRepository } from "./orders.repository";
 import { fireNotification } from "../../services/pushService";
+// FASE 8.6J — isolamento multi-tenant: cada evento do outbox é processado
+// dentro de runWithTenant(...) com um principal sintético "admin/SERVICE"
+// pinado no companyId do payload. Garante que dispatchEvent (push + audit log)
+// e qualquer chamada interna que dependa de currentTenantId() rode no
+// contexto da empresa correta, sem mistura entre tenants.
+import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
 
 const POLL_INTERVAL_MS = 5_000;   // check every 5 seconds
 const BATCH_SIZE       = 10;      // events per tick
@@ -81,28 +87,52 @@ async function processBatch(): Promise<void> {
   );
 
   for (const event of events) {
-    try {
-      await dispatchEvent(event.event_type, event.payload);
+    // FASE 8.6J — extrai companyId do payload do evento. O outbox grava o
+    // payload tipado como WorkflowEventPayload, que sempre traz companyId
+    // (ver orders.outbox no executeWorkflowTransaction). O cast defensivo
+    // protege contra eventuais eventos legados.
+    const companyId = (event.payload as any)?.companyId;
 
-      await pool.query(
-        `UPDATE workflow_events
-         SET    processed_at  = NOW(),
-                error_message = NULL
-         WHERE  id            = $1`,
-        [event.id],
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[OUTBOX] Event #${event.id} (order ${event.order_id}) failed: ${message}`);
-
-      await pool.query(
-        `UPDATE workflow_events
-         SET    retry_count   = retry_count + 1,
-                error_message = $1
-         WHERE  id            = $2`,
-        [message.slice(0, 1000), event.id],
-      );
+    // fail-safe — não processa evento sem tenant alvo seguro
+    if (!companyId) {
+      console.warn("[OUTBOX] Evento sem companyId — ignorado por segurança");
+      continue;
     }
+
+    const tenantPrincipal: TenantPrincipal = {
+      kind: "admin",
+      empresaId: companyId,
+      userId: 0,
+      role: "SERVICE",
+    };
+
+    await runWithTenant(
+      { principal: tenantPrincipal, empresaId: companyId },
+      async () => {
+        try {
+          await dispatchEvent(event.event_type, event.payload);
+
+          await pool.query(
+            `UPDATE workflow_events
+             SET    processed_at  = NOW(),
+                    error_message = NULL
+             WHERE  id            = $1`,
+            [event.id],
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`[OUTBOX] Event #${event.id} (order ${event.order_id}) failed: ${message}`);
+
+          await pool.query(
+            `UPDATE workflow_events
+             SET    retry_count   = retry_count + 1,
+                    error_message = $1
+             WHERE  id            = $2`,
+            [message.slice(0, 1000), event.id],
+          );
+        }
+      },
+    );
   }
 }
 

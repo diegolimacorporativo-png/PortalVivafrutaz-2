@@ -1,0 +1,133 @@
+🎯 FASE 8.6J — ISOLAMENTO MULTI-TENANT (OUTBOX WORKER)
+
+Adicionar isolamento por tenant no worker de eventos (startOutboxWorker), garantindo que cada evento seja processado dentro do contexto correto da empresa.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de negócio
+2. NÃO alterar payload dos eventos
+3. NÃO alterar estrutura de logs
+4. NÃO remover código existente
+5. NÃO alterar queries SQL
+6. NÃO alterar retries ou controle de fila
+
+👉 Apenas adicionar isolamento com runWithTenant por evento
+
+---
+
+🧠 CONTEXTO
+
+- Worker atual processa eventos de múltiplos tenants em loop único
+- payload já contém companyId
+- NÃO existe contexto de tenant ativo (ALS)
+- risco atual: chamadas internas podem operar sem tenant
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1️⃣ IMPORTAR runWithTenant
+
+Arquivo:  
+server/modules/orders/orders.outbox.worker.ts
+
+Adicionar no topo (próximo aos outros imports):
+
+ts import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context"; 
+
+---
+
+## 2️⃣ WRAP POR EVENTO
+
+Localizar loop principal:
+
+ts for (const event of events) { 
+
+---
+
+### Substituir conteúdo interno por:
+
+ts for (const event of events) {   const companyId = (event as any)?.payload?.companyId;    // fail-safe — não processa evento sem tenant   if (!companyId) {     console.warn("[OUTBOX] Evento sem companyId — ignorado por segurança");     continue;   }    const tenantPrincipal: TenantPrincipal = {     kind: "admin",     empresaId: companyId,     userId: 0,     role: "SERVICE",   };    await runWithTenant(     { principal: tenantPrincipal, empresaId: companyId },     async () => {       await dispatchEvent(event);     },   ); } 
+
+---
+
+## ⚠️ IMPORTANTE
+
+- NÃO alterar dispatchEvent
+- NÃO mover lógica de retry
+- NÃO alterar update de processed_at
+- NÃO alterar estrutura do worker
+- NÃO alterar logs existentes
+
+👉 Apenas envolver execução com contexto de tenant
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Evento válido
+
+✔ Processa normalmente  
+✔ dispatchEvent executa dentro do tenant correto  
+
+---
+
+### 2️⃣ Evento sem companyId
+
+✔ Ignorado com log:
+
+[OUTBOX] Evento sem companyId — ignorado por segurança
+
+✔ Não quebra o loop  
+
+---
+
+### 3️⃣ Execução paralela
+
+✔ Cada evento roda com seu próprio contexto ALS  
+✔ Sem mistura entre tenants  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ nenhuma mudança de comportamento  
+✔ isolamento completo por evento  
+✔ compatível com padrão aplicado no cron e auto-dispatch  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+ts await dispatchEvent(event); 
+
+Depois:
+
+ts await runWithTenant(..., async () => {   await dispatchEvent(event); }); 
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho alterado
+2. confirmação de isolamento ativo
+3. resultado dos testes
+4. confirmação de zero regressão
+
+---
+
+🚀 OBS
+
+Este é o último worker com correção trivial de isolamento.  
+Após isso, sistema fica **blindado contra execução cross-tenant em back
