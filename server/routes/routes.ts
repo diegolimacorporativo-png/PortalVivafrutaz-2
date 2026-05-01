@@ -117,6 +117,7 @@ import { register as sanitaryRegister } from './sanitary.routes';
 import { register as scopeSimulationsRegister } from './scope-simulations.routes';
 import { register as smtpConfigRegister } from './smtp-config.routes';
 import { register as empresaConfigRegister } from './empresa-config.routes';
+import { register as priceGroupsRegister } from './price-groups.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -186,6 +187,7 @@ export async function registerRoutes(
   scopeSimulationsRegister(app);
   smtpConfigRegister(app);
   empresaConfigRegister(app);
+  priceGroupsRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -1061,40 +1063,11 @@ export async function registerRoutes(
   // MOVED TO company-validate.routes.ts
   // GET /api/admin/companies/validate
 
-  // Price Groups
-  app.get(api.priceGroups.list.path, async (req, res) => {
-    const groups = await storage.getPriceGroups();
-    res.json(groups);
-  });
-
-  app.post(api.priceGroups.create.path, async (req, res) => {
-    try {
-      const input = api.priceGroups.create.input.parse(req.body);
-      const group = await storage.createPriceGroup(input);
-      res.status(201).json(group);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-
-  app.put(api.priceGroups.update.path, async (req, res) => {
-    try {
-      const input = api.priceGroups.update.input.parse(req.body);
-      const group = await storage.updatePriceGroup(Number(req.params.id), input);
-      res.json(group);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-
-  app.delete(api.priceGroups.delete.path, async (req, res) => {
-    try {
-      await storage.deletePriceGroup(Number(req.params.id));
-      res.status(204).end();
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
+  // --- Price Groups — MOVED TO price-groups.routes.ts ---
+  // GET    api.priceGroups.list.path
+  // POST   api.priceGroups.create.path
+  // PUT    api.priceGroups.update.path
+  // DELETE api.priceGroups.delete.path
 
   // Products CRUD + sub-categories → migrated to server/modules/products/
   // (mounted at /api/products by registerModules, BEFORE this legacy block).
