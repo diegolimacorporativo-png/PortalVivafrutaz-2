@@ -26,22 +26,13 @@ import {
   sendOrderRejectedEmail, sendAdminBroadcast, reloadSmtpConfig
 } from "../services/mailer";
 import { scheduleBackups, runBackup, runBackupSQL, listBackups, getBackupPath, deleteBackup, cleanOldBackups } from "../services/backup.ts";
-import { startEmailScheduler } from "./email-scheduler.ts";
 import fs from "fs";
 import bcrypt from "bcryptjs";
 // FASE 7.1 — `path` import removed (0 usages confirmed). bcrypt/fs/db kept (in use).
 import { db } from "../database/db.ts";
-import multer from "multer";
-import { createRequire } from "module";
-// In the production CJS bundle, `require` exists natively. In dev (tsx/ESM)
-// it does not, so we fall back to createRequire anchored at package.json.
-// We deliberately avoid `import.meta.url` here because esbuild emits it as
-// `undefined` in the CJS output, which crashes `fileURLToPath` at startup.
-const _require: NodeRequire = (typeof (globalThis as any).require !== "undefined")
-  ? (globalThis as any).require
-  : createRequire(process.cwd() + "/package.json");
-const pdfParse = _require("pdf-parse");
-import { orders, orderItems, companies, products, aiInteractions, nfManual } from "@shared/schema";
+import { uploadInMemory } from "../infra/upload";
+import { parsePdf } from "../infra/pdfParser";
+import { orders, orderItems, companies, products, aiInteractions, nfManual, cronFaturamentoRuns, cronAlertLogs } from "@shared/schema";
 // FASE 7.1 — drizzle helpers narrowed to what's actually referenced. `lte`, `and`, `eq`, `isNull` removed (0 uses); `sql` retained (12 uses); `gte`, `desc` retained.
 import { gte, desc, sql } from "drizzle-orm";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
@@ -56,53 +47,42 @@ import {
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 // FASE 8.4 — call-sites de NF-e agora orquestram resolveBillingItems → buildNFeInput.
 import { resolveBillingItems } from "../modules/billing/billing.service";
-import { canEmitNFe } from "../modules/nfe/faturamento.guard";
-import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
 import {
-  incrementBlocked as incNfeIdemBlocked,
-  incrementDryRun as incNfeIdemDryRun,
-  getMetrics as getNfeIdemMetrics,
-  resetMetrics as resetNfeIdemMetrics,
-} from "../modules/nfe/nfe-idempotency.metrics";
-import {
+  canEmitNFe,
+  hasBlockingNFe,
+  incNfeIdemBlocked,
+  incNfeIdemDryRun,
+  getNfeIdemMetrics,
+  resetNfeIdemMetrics,
   getFiscalDefaultsStats,
   resetFiscalDefaultsStats,
-} from "../modules/nfe/fiscal-defaults.metrics";
-import {
   acquireOrderLock,
   releaseOrderLock,
   type OrderLockHandle,
-} from "../modules/nfe/nfe-concurrency.lock";
-import { requireTenantId } from "../core/tenant/context";
-import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
-import { getRequestIdForLog } from "../core/context/requestContext";
-// FASE 3 — guarda de tenant (apenas validação, não substitui storage.getOrder)
-import { validateOrderTenant, safeGetOrder } from "../core/security/tenantGuard";
-// FASE 6.5 — wrapper reutilizável que envelopa validateOrderTenant + tradução
-// AppError→HTTP. Adoção controlada (rota a rota); coexiste com chamadas
-// diretas de validateOrderTenant herdadas da FASE 6.
-import { withTenantGuard } from "../middleware/tenantGuardWrapper";
-import { getDryRunMetrics, getTopCompanies, getDryRunMetricsWindow, getTopCompaniesWindow } from "../modules/nfe/dryrun-metrics";
-import { getCronStatus, isCronRunning } from "../modules/nfe/cron-status.store";
-import { runFaturamentoCron } from "../jobs/faturamento.cron";
-import { cronFaturamentoRuns, cronAlertLogs } from "@shared/schema";
-import {
+  getDryRunMetrics,
+  getTopCompanies,
+  getDryRunMetricsWindow,
+  getTopCompaniesWindow,
+  getCronStatus,
+  isCronRunning,
+  runFaturamentoCron,
+  getAlertLogs,
+  pruneOldAlertLogs,
+  buildAnomalies,
+  buildInsights,
+  buildDigest,
+  buildAlertsCsv,
   getAlertRecipients,
   setAlertRecipients,
   alertRecipientsArraySchema,
-} from "../services/alerts.service";
-import { getAlertLogs, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
-// STEP 9.3F.6 — inteligência sobre cron_alert_logs (puramente leitura).
-import { buildAnomalies, buildInsights } from "../services/alerts.intelligence";
-// STEP 9.3F.7 — digest automático (composição das funções existentes).
-import { buildDigest } from "../services/alerts.digest";
-// STEP 9.3F.8 — exportação CSV (reusa buildDigest, sem nova lógica de cálculo).
-import { buildAlertsCsv } from "../services/alerts.export";
-// STEP 9.3F.11 — preferências de notificação por usuário (apenas estrutura).
-import {
   getUserPreferences,
   upsertUserPreference,
-} from "../services/alerts.preferences";
+} from "../modules/nfe/nfe.dependencies";
+import { requireTenantId } from "../core/tenant/context";
+import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
+import { getRequestIdForLog } from "../core/context/requestContext";
+// FASE 3/6.5 — guarda de tenant e wrapper multi-tenant
+import { validateOrderTenant, safeGetOrder, withTenantGuard } from "../core/security/orderSecurity";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, AppError } from "../shared/errors/AppError";
@@ -133,9 +113,6 @@ export async function registerRoutes(
 
   // Start backup scheduler
   scheduleBackups();
-
-  // Start email scheduler (automated window open + unfinalised reminders)
-  startEmailScheduler();
 
   // Auto-cleanup: remove logs older than 90 days, daily at 03:00
   (async () => {
@@ -2828,16 +2805,13 @@ export async function registerRoutes(
   //    `registerRoutes(app)` in `server/app.ts` so it takes precedence.
   //    Inline handlers were removed in 2026-04 to delete dead code.
 
-  // ── Email Schedules ─────────────────────────────────────────
-  const uploadInMemory = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
-
   // POST /api/fiscal-invoices/parse-pdf — extract text from PDF server-side
   app.post('/api/fiscal-invoices/parse-pdf', uploadInMemory.single('file'), async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado' });
     try {
-      const data = await pdfParse(req.file.buffer);
+      const data = await parsePdf(req.file.buffer);
       res.json({ text: data.text, pages: data.numpages, info: data.info });
     } catch (e: any) {
       console.error('PDF parse error:', e);

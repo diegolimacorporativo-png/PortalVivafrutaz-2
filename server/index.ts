@@ -8,6 +8,7 @@ import { startBillingCron } from "./modules/billing/billing.cron";
 import { startFaturamentoCron } from "./jobs/faturamento.cron";
 // STEP 9.3F.9 — alertas proativos automatizados (reusa buildInsights + emitAlertSmart).
 import { startProactiveAlertsScheduler } from "./services/alerts.proactive";
+import { initSchedulers } from "./bootstrap/scheduler";
 
 /**
  * Bootstrap.
@@ -66,6 +67,10 @@ export function log(message: string, source = "express") {
   // STEP 9.3F.9 — alertas proativos: a cada 10min, dispara emitAlertSmart
   // para insights CRITICAL retornados por buildInsights. Sem nova lógica.
   startProactiveAlertsScheduler();
+
+  // Email scheduler (window open + unfinalised reminders) — FASE 8.8A: moved
+  // out of routes.ts into bootstrap so routes.ts has zero runtime side-effects.
+  initSchedulers();
 
   // Memory monitor — useful in production to catch leaks early.
   setInterval(() => {
