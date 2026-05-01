@@ -103,6 +103,7 @@ import { register as orderExceptionsRegister } from './order-exceptions.routes';
 import { register as specialOrderRequestsRegister } from './special-order-requests.routes';
 import { register as passwordResetRequestsRegister } from './password-reset-requests.routes';
 import { register as orderCleanupRegister } from './order-cleanup.routes';
+import { register as aboutUsRegister } from './about-us.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -158,6 +159,7 @@ export async function registerRoutes(
   specialOrderRequestsRegister(app);
   passwordResetRequestsRegister(app);
   orderCleanupRegister(app);
+  aboutUsRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -2787,29 +2789,9 @@ export async function registerRoutes(
     }
   });
 
-  // ─── About Us Routes ────────────────────────────────────────────────────────
-  app.get('/api/about-us', async (req: any, res) => {
-    try {
-      if (!req.session?.userId && !req.session?.companyId) return res.status(401).json({ message: 'Não autenticado' });
-      const data = await storage.getAboutUs();
-      res.json(data || { title: 'Quem Somos Nós', content: '', foundingYear: null, mission: null, vision: null, values: null, imageBase64: null, imageType: null });
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  app.put('/api/about-us', async (req: any, res) => {
-    try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-      const { title, content, foundingYear, mission, vision, values, imageBase64, imageType } = req.body;
-      const result = await storage.upsertAboutUs({ title, content, foundingYear, mission, vision, values, imageBase64, imageType });
-      res.json(result);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
+  // MOVED TO about-us.routes.ts
+  // GET /api/about-us
+  // PUT /api/about-us
 
   // ─── SMTP Config Routes ──────────────────────────────────────────────────────
   app.get('/api/smtp-config', async (req: any, res) => {
