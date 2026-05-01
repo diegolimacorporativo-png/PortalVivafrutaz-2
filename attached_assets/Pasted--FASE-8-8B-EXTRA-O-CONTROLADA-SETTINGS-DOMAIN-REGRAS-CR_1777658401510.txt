@@ -1,0 +1,134 @@
+🎯 FASE 8.8B — EXTRAÇÃO CONTROLADA (SETTINGS DOMAIN)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÍVEL ALTO)
+
+- NÃO alterar lógica
+- NÃO alterar estrutura de resposta
+- NÃO unificar endpoints
+- NÃO tentar "organizar melhor"
+- NÃO mexer em getSetting / storage
+- NÃO misturar com empresa-config (já extraído)
+
+👉 copiar exatamente como está, mesmo que pareça redundante
+
+---
+
+🧠 CONTEXTO
+
+- order-windows usa getSetting ✅
+- empresa-config já extraído ✅
+- sistema sensível a config global ⚠️
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair APENAS endpoints de:
+
+👉 settings / company-settings (se estiverem no routes.ts)
+
+Exemplos possíveis (confirmar no DISCOVERY):
+
+- GET /api/settings/:key
+- PUT /api/settings/:key
+- GET /api/company-settings
+- PUT /api/company-settings
+- GET /api/company-config (⚠️ somente se NÃO já estiver isolado)
+
+---
+
+## 🔁 EXECUÇÃO
+
+---
+
+### 1️⃣ DISCOVERY (OBRIGATÓRIO)
+
+- localizar TODOS endpoints relacionados a:
+  - settings
+  - company-settings
+  - company-config
+
+- validar se:
+  - NÃO estão já extraídos
+  - NÃO pertencem a outro domínio
+
+🚫 se houver dúvida → NÃO extrair
+
+---
+
+### 2️⃣ EXTRAÇÃO
+
+Criar:
+
+server/routes/settings.routes.ts
+
+Regras:
+
+- copiar código EXATO
+- manter getSetting / setSetting / storage intactos
+- manter validações (mesmo que simples)
+- manter try/catch
+- manter ordem original
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+ts import { register as settingsRegister } from './settings.routes'; 
+
+ts settingsRegister(app); 
+
+---
+
+### 4️⃣ DESATIVAÇÃO
+
+Substituir bloco original por:
+
+ts // MOVED TO settings.routes.ts 
+
+---
+
+### 5️⃣ VALIDAÇÃO (CRÍTICA)
+
+Testar:
+
+- GET /api/settings/:key → 200
+- PUT inválido → 400
+- company-settings → comportamento igual
+
+E MUITO IMPORTANTE:
+
+- validar endpoints que USAM config:
+  - order-windows (deadline logic)
+  - qualquer outro que usa getSetting
+
+👉 garantir que NADA quebrou indiretamente
+
+---
+
+### 6️⃣ RELATÓRIO
+
+Responder com:
+
+1. endpoints movidos  
+2. dependências envolvidas (getSetting, storage, etc)  
+3. testes diretos  
+4. testes indiretos (ex: order-windows)  
+5. confirmação de zero regressão  
+
+---
+
+🚫 PROIBIDO
+
+- alterar nomes de config
+- centralizar lógica
+- mexer em storage
+- alterar fallback/default
+
+---
+
+🛑 PARAR APÓS FINALIZAR
