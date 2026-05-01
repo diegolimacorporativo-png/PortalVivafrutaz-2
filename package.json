@@ -4,9 +4,9 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "cross-env NODE_ENV=development tsx server/index.ts",
+    "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "tsx script/build.ts",
-    "start": "cross-env NODE_ENV=production node --max-old-space-size=2048 dist/index.cjs",
+    "start": "NODE_ENV=production node --max-old-space-size=2048 dist/index.cjs",
     "check": "tsc",
     "check:strict": "node script/check-strict.mjs",
     "db:push": "drizzle-kit push",
