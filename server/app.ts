@@ -9,6 +9,14 @@ import { createSessionMiddleware } from "./core/http/session";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { requestContextMiddleware } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
+// FASE 7 — Rate limiting + critical action logging (in-memory, no DB).
+import {
+  apiLimiter,
+  nfeLimiter,
+  adminLimiter,
+  highRiskActionLogger,
+  criticalActionLogger,
+} from "./core/security/rateLimit";
 
 /**
  * App factory.
@@ -132,6 +140,38 @@ export async function buildApp(): Promise<BuildAppResult> {
   // router share the same session store. MUST come before registerModules
   // so the auth module can read/write `req.session` (login, logout, /me).
   app.use(createSessionMiddleware());
+
+  // ── FASE 7: Rate limiting + critical action logging ─────────────────────
+  // Mounted AFTER session (so req.session is readable in criticalActionLogger)
+  // and BEFORE all route registrations so every variant (/api, /api/v1,
+  // /api/v2) is covered by a single mount per path prefix.
+  //
+  // Rules:
+  //   • apiLimiter     — 60 req/min per IP  → /api/orders, /api/import
+  //   • nfeLimiter     — 30 req/min per IP  → /api/nfe
+  //   • adminLimiter   — 40 req/min per IP  → /api/admin
+  //   • highRiskActionLogger — log-only, POST/DELETE on NF-e
+  //   • criticalActionLogger — log-only, specific emission/admin ops
+  //
+  // /api/auth is intentionally omitted here: the login-specific IP limiter
+  // (5 attempts / 5 min) is mounted directly on POST /login in auth.routes.ts.
+  // The /me and /logout endpoints are low-risk and intentionally unlimited.
+  app.use("/api/orders", apiLimiter);
+  app.use("/api/v1/orders", apiLimiter);
+  app.use("/api/v2/orders", apiLimiter);
+
+  app.use("/api/import", apiLimiter);
+  app.use("/api/v1/import", apiLimiter);
+
+  app.use("/api/nfe", nfeLimiter);
+  app.use("/api/v1/nfe", nfeLimiter);
+  app.use("/api/nfe", highRiskActionLogger);
+  app.use("/api/nfe", criticalActionLogger);
+
+  app.use("/api/admin", adminLimiter);
+  app.use("/api/v1/admin", adminLimiter);
+  app.use("/api/admin", criticalActionLogger);
+  // ── end FASE 7 ──────────────────────────────────────────────────────────
 
   // 1) Modular routes — registered in version order so v2 wins ties,
   //    then v1, then the unversioned legacy-compat paths.

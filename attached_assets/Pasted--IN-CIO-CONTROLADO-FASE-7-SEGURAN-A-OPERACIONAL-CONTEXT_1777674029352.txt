@@ -1,0 +1,170 @@
+🎯 INÍCIO CONTROLADO — FASE 7 (SEGURANÇA OPERACIONAL)
+
+---
+
+🚨 CONTEXTO CRÍTICO (LER ANTES DE QUALQUER AÇÃO)
+
+O sistema já passou por:
+
+✔ Refatoração completa de routes.ts  
+✔ Extração por domínios  
+✔ Padronização de autenticação (requireAuthCore / requireSessionOrCompany)  
+✔ Blindagem multi-tenant completa (validateOrderTenant / validateCompanyTenant)  
+✔ Eliminação de vazamento de dados  
+✔ ZERO regressão confirmada em todos endpoints  
+
+👉 NÃO reimplementar nada disso  
+👉 NÃO mexer em autenticação existente  
+👉 NÃO mexer em tenant guards  
+
+---
+
+🚫 REGRAS CRÍTICAS DA FASE 7
+
+1. NÃO alterar lógica de negócio  
+2. NÃO alterar resposta dos endpoints  
+3. NÃO remover código existente  
+4. NÃO aplicar middleware global sem critério  
+5. NÃO quebrar endpoints públicos (portal empresa, webhooks)  
+6. NÃO usar banco de dados ainda  
+7. NÃO duplicar validações já existentes  
+
+👉 Apenas ADICIONAR camadas de proteção
+
+---
+
+🧠 OBJETIVO DA FASE 7
+
+Adicionar proteção contra:
+
+- abuso de API (spam / flood)
+- brute force (login)
+- uso indevido por usuários autenticados
+- ações críticas sem rastreio
+
+---
+
+# 🛠️ ETAPA 1 — CRIAR RATE LIMIT
+
+Criar arquivo:
+
+server/core/security/rateLimit.ts
+
+Implementar rate limit simples por IP (memória, sem banco)
+
+---
+
+# 🛠️ ETAPA 2 — APLICAR RATE LIMIT (CONTROLADO)
+
+Aplicar SOMENTE em rotas críticas:
+
+- /api/auth/*
+- /api/nfe/*
+- /api/admin/*
+- /api/import/*
+- /api/orders/*
+
+⚠️ NÃO aplicar global
+
+---
+
+# 🛠️ ETAPA 3 — PROTEGER LOGIN (BRUTE FORCE)
+
+Adicionar controle de tentativas por IP:
+
+- bloquear após 5 tentativas
+- janela de 5 minutos
+- reset após login bem sucedido
+
+⚠️ NÃO alterar fluxo de login existente
+
+---
+
+# 🛠️ ETAPA 4 — DETECÇÃO DE AÇÕES SUSPEITAS
+
+Criar função leve de monitoramento:
+
+- detectar POST em rotas críticas (ex: NF-e)
+- logar como [SECURITY] HIGH_RISK_ACTION
+
+⚠️ apenas log, sem bloquear ainda
+
+---
+
+# 🛠️ ETAPA 5 — LOG DE AÇÕES CRÍTICAS
+
+Adicionar logs em:
+
+- emissão de NF-e
+- cancelamento de NF-e
+- exclusões
+- ações admin
+
+Formato:
+
+[SECURITY] CRITICAL_ACTION
+
+---
+
+# 🛠️ ETAPA 6 — HEADERS DE SEGURANÇA
+
+Adicionar no server principal:
+
+- X-Frame-Options
+- X-Content-Type-Options
+- X-XSS-Protection
+
+---
+
+# 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+1. Flood (70 req/min) → 429  
+2. Login errado 6x → 429  
+3. Emissão NF-e → log SECURITY  
+4. Sistema normal → funcionando  
+
+---
+
+# 🚫 O QUE NÃO FAZER
+
+❌ Não mexer em requireAuthCore  
+❌ Não mexer em requireSessionOrCompany  
+❌ Não mexer em validateOrderTenant  
+❌ Não mexer em validateCompanyTenant  
+❌ Não refatorar rotas  
+❌ Não reorganizar arquivos  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+✔ Sistema resistente a abuso  
+✔ Login protegido  
+✔ Ações críticas rastreáveis  
+✔ Nenhuma quebra de fluxo  
+✔ ZERO regressão  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivos criados  
+2. rotas protegidas  
+3. testes realizados  
+4. confirmação de zero regressão  
+
+---
+
+👉 IMPORTANTE
+
+Se qualquer alteração afetar comportamento existente:
+
+PARAR imediatamente e reportar
+
+---
+
+👉 Próximo passo (depois): antifraude + bloqueio persistente (F

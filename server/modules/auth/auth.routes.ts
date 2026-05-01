@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/http/asyncHandler";
 import { authController } from "./auth.controller";
+// FASE 7 — IP-based brute-force guard on login (5 attempts / 5 min per IP).
+// Complements the per-account lockout in AuthService (MAX_ATTEMPTS=3).
+import { loginIpLimiter } from "../../core/security/rateLimit";
 
 /**
  * Auth router — wires HTTP method+path → controller.
@@ -20,7 +23,7 @@ import { authController } from "./auth.controller";
  */
 const router = Router();
 
-router.post("/login", asyncHandler(authController.login));
+router.post("/login", loginIpLimiter, asyncHandler(authController.login));
 router.get("/me", asyncHandler(authController.me));
 router.post("/logout", authController.logout);
 router.post("/forgot-password", asyncHandler(authController.forgotPassword));
