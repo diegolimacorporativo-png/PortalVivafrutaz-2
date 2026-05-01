@@ -101,6 +101,7 @@ import { register as quotationsRegister } from './quotations.routes';
 import { register as wasteControlRegister } from './waste-control.routes';
 import { register as orderExceptionsRegister } from './order-exceptions.routes';
 import { register as specialOrderRequestsRegister } from './special-order-requests.routes';
+import { register as passwordResetRequestsRegister } from './password-reset-requests.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -154,6 +155,7 @@ export async function registerRoutes(
   wasteControlRegister(app);
   orderExceptionsRegister(app);
   specialOrderRequestsRegister(app);
+  passwordResetRequestsRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -1074,50 +1076,9 @@ export async function registerRoutes(
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
 
-  // Password Reset Requests — Admin routes
-  app.get('/api/password-reset-requests', async (req, res) => {
-    try {
-      const requests = await storage.getPasswordResetRequests();
-      res.json(requests);
-    } catch {
-      res.status(500).json({ message: "Erro interno" });
-    }
-  });
-
-  app.put('/api/password-reset-requests/:id', async (req, res) => {
-    try {
-      const id = Number(req.params.id);
-      const { status, newPassword, adminNote } = req.body;
-      const updates: any = { status, adminNote, resolvedAt: new Date() };
-      const allReqs = await storage.getPasswordResetRequests();
-      const pr = allReqs.find(r => r.id === id);
-      if (newPassword && status === 'APPROVED' && pr) {
-        await storage.updateCompany(pr.companyId, { password: newPassword } as any);
-        updates.newPassword = newPassword;
-      }
-      const updated = await storage.updatePasswordResetRequest(id, updates);
-      res.json(updated);
-
-      // Send email (non-blocking)
-      if (pr) {
-        try {
-          const company = await storage.getCompany(pr.companyId);
-          if (company) {
-            await sendPasswordResetResolved({
-              toEmail: company.email,
-              companyName: company.companyName,
-              approved: status === 'APPROVED',
-              adminNote,
-            });
-          }
-        } catch (emailErr) {
-          console.error("[EMAIL] Erro ao enviar email de reset:", emailErr);
-        }
-      }
-    } catch {
-      res.status(500).json({ message: "Erro interno" });
-    }
-  });
+  // MOVED TO password-reset-requests.routes.ts
+  // GET  /api/password-reset-requests
+  // PUT  /api/password-reset-requests/:id
 
   // Companies — uses standardized response envelope { success, data, meta? }
   // ─── /api/companies/* migrated to server/modules/companies ───────────
