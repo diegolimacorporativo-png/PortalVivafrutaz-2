@@ -1,0 +1,139 @@
+🎯 FASE 8.7C — EXTRAÇÃO SEGURA (logs.routes.ts)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica dos endpoints  
+2. NÃO alterar queries ou filtros  
+3. NÃO alterar autenticação / autorização  
+4. NÃO alterar req.session / req.user  
+5. NÃO refatorar código interno  
+6. NÃO agrupar com outros domínios  
+
+👉 Apenas mover endpoints de logs
+
+---
+
+## 🧠 CONTEXTO
+
+Domínio: logs  
+Prefixos esperados:
+
+- /api/logs
+- /api/admin/logs
+
+Pode envolver:
+
+- filtros por usuário
+- paginação
+- queries grandes
+
+👉 exige validação mais cuidadosa
+
+---
+
+## 🛠️ ETAPA 1 — EXTRAÇÃO
+
+Criar:
+
+server/routes/logs.routes.ts
+
+---
+
+Estrutura:
+
+ts import { Router } from "express";  export function registerLogsRoutes(router: Router) {    // COLAR endpoints EXATAMENTE como estão  } 
+
+---
+
+## 🛠️ ETAPA 2 — REGISTRO
+
+No routes.ts:
+
+ts import { registerLogsRoutes } from "./routes/logs.routes";  registerLogsRoutes(app); 
+
+---
+
+## 🛠️ ETAPA 3 — SEGURANÇA
+
+No routes.ts:
+
+👉 COMENTAR (não deletar):
+
+ts // MOVED TO logs.routes.ts 
+
+---
+
+## 🧪 ETAPA 4 — VALIDAÇÃO FORTE
+
+Testar TODOS:
+
+- GET /api/logs
+- GET /api/admin/logs
+- qualquer endpoint com query params (?page, ?limit, etc)
+
+---
+
+Validar:
+
+✔ mesma resposta (dados e formato)  
+✔ mesma paginação  
+✔ mesmos filtros  
+✔ mesma permissão (401 / 403 corretos)  
+✔ nenhuma diferença de performance visível  
+
+---
+
+## 🚨 TESTE CRÍTICO
+
+Comparar:
+
+ANTES vs DEPOIS:
+
+- número de registros retornados
+- ordenação
+- filtros aplicados
+
+👉 logs são sensíveis a isso
+
+---
+
+## 🚨 FAIL-SAFE
+
+Se notar:
+
+- diferença de quantidade de logs
+- diferença de ordenação
+- erro de permissão
+
+👉 PARAR IMEDIATAMENTE  
+👉 reverter bloco  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+✔ logs isolados em módulo próprio  
+✔ comportamento idêntico  
+✔ routes.ts menor  
+✔ padrão validado em domínio mais sensível  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoints movidos  
+2. testes executados (ANTES vs DEPOIS)  
+3. validação de filtros/paginação  
+4. logs do servidor  
+5. confirmação de zero regressão  
+
+---
+
+🧠 LEMBRETE
+
+👉 logs não podem mudar comportamento  
+👉 mesmo 1 registro diferente =
