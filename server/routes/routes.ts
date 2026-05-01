@@ -118,6 +118,7 @@ import { register as scopeSimulationsRegister } from './scope-simulations.routes
 import { register as smtpConfigRegister } from './smtp-config.routes';
 import { register as empresaConfigRegister } from './empresa-config.routes';
 import { register as priceGroupsRegister } from './price-groups.routes';
+import { register as productPricesRegister } from './product-prices.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -188,6 +189,7 @@ export async function registerRoutes(
   smtpConfigRegister(app);
   empresaConfigRegister(app);
   priceGroupsRegister(app);
+  productPricesRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -1072,56 +1074,12 @@ export async function registerRoutes(
   // Products CRUD + sub-categories → migrated to server/modules/products/
   // (mounted at /api/products by registerModules, BEFORE this legacy block).
 
-  // Product Prices
-  app.get(api.productPrices.list.path, async (req, res) => {
-    try {
-      const prices = await storage.getProductPrices();
-      res.json(prices);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  app.get(api.productPrices.byProduct.path, async (req, res) => {
-    const prices = await storage.getProductPricesByProductId(Number(req.params.productId));
-    res.json(prices);
-  });
-
-  app.post(api.productPrices.create.path, async (req, res) => {
-    try {
-      // Use coercion for numbers coming from form inputs if needed
-      const bodySchema = api.productPrices.create.input.extend({
-        productId: z.coerce.number(),
-        priceGroupId: z.coerce.number(),
-        price: z.string() // numeric handles strings in pg, or convert to string
-      });
-      const input = bodySchema.parse(req.body);
-      const price = await storage.createProductPrice(input as any);
-      res.status(201).json(price);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-
-  app.put(api.productPrices.update.path, async (req, res) => {
-    try {
-      const bodySchema = api.productPrices.update.input.extend({
-        productId: z.coerce.number().optional(),
-        priceGroupId: z.coerce.number().optional(),
-        price: z.string().optional()
-      });
-      const input = bodySchema.parse(req.body);
-      const price = await storage.updateProductPrice(Number(req.params.id), input as any);
-      res.json(price);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
-
-  app.delete(api.productPrices.delete.path, async (req, res) => {
-    await storage.deleteProductPrice(Number(req.params.id));
-    res.status(204).end();
-  });
+  // --- Product Prices — MOVED TO product-prices.routes.ts ---
+  // GET    api.productPrices.list.path
+  // GET    api.productPrices.byProduct.path
+  // POST   api.productPrices.create.path
+  // PUT    api.productPrices.update.path
+  // DELETE api.productPrices.delete.path
 
   // Order Windows
   app.get(api.orderWindows.list.path, async (req, res) => {
