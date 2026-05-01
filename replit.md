@@ -87,5 +87,12 @@ Preferred communication style: Simple, everyday language.
 - **SEFAZ Integration**: Handles NF-e 4.00 transmission, supporting mock and production modes, multi-UF dispatch, and mTLS `https.Agent`.
 - **Certificate Management**: Environment-driven auto-loader for A1 certificates, dynamic per-tenant certificate management via API, and at-rest encryption of certificate passwords.
 
+### Security Observability (Fase 7.1)
+- **In-Memory Event Store**: `server/core/security/securityLogger.ts` — circular buffer (max 1000 events) for `RATE_LIMITED`, `HIGH_RISK_ACTION`, and `CRITICAL_ACTION` events. Zero DB dependency.
+- **Admin Endpoint**: `GET /api/admin/security/events` (MASTER/ADMIN only) — returns `{ events, total, topIPs, summary }` from the live buffer.
+- **Helpers**: `getTopIPs(n)` ranks IPs by event count; `getEventSummary()` groups counts by event type.
+- **Integration**: `server/core/security/rateLimit.ts` calls `logSecurityEvent` at every rate-limit block, high-risk action, and critical action.
+- **Route File**: `server/routes/security-events.routes.ts` — registered via `securityEventsRegister` in `routes.ts`.
+
 ### Multi-Tenant Read Hardening
 - **Tenant Guard**: Utilizes `validateOrderTenant` and `safeGetOrder` to ensure tenant isolation by validating the active tenant before any storage read, preventing cross-tenant data access.

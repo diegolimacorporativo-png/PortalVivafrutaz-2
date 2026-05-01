@@ -24,6 +24,8 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
+// FASE 7.1 — feed all security events into the centralised observer.
+import { logSecurityEvent } from "./securityLogger";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -84,9 +86,11 @@ function createRateLimiter(
 
     if (win.count > maxRequests) {
       const retryAfter = Math.ceil((win.resetAt - now) / 1000);
+      const rid = getRequestId(req);
       console.warn(
-        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${req.path} | requestId=${getRequestId(req)}`,
+        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${req.path} | requestId=${rid}`,
       );
+      logSecurityEvent({ type: "RATE_LIMITED", ip, path: req.originalUrl, requestId: rid });
       res.setHeader("Retry-After", String(retryAfter));
       res.status(429).json({ message });
       return;
@@ -147,9 +151,19 @@ export function highRiskActionLogger(
   next: NextFunction,
 ): void {
   if (req.method === "POST" || req.method === "DELETE") {
+    const ip = getClientIp(req);
+    const rid = getRequestId(req);
     console.error(
-      `[SECURITY] HIGH_RISK_ACTION | method=${req.method} | path=${req.path} | ip=${getClientIp(req)} | requestId=${getRequestId(req)}`,
+      `[SECURITY] HIGH_RISK_ACTION | method=${req.method} | path=${req.path} | ip=${ip} | requestId=${rid}`,
     );
+    const session = (req as any).session ?? {};
+    logSecurityEvent({
+      type: "HIGH_RISK_ACTION",
+      ip,
+      path: req.originalUrl,
+      requestId: rid,
+      userId: session.userId ?? undefined,
+    });
   }
   next();
 }
@@ -200,6 +214,8 @@ export function criticalActionLogger(
 
   if (isNfeCritical || isAdminCritical) {
     const session = (req as any).session ?? {};
+    const ip = getClientIp(req);
+    const rid = getRequestId(req);
     const actor =
       session.userId
         ? `userId=${session.userId}`
@@ -208,8 +224,15 @@ export function criticalActionLogger(
           : "unauthenticated";
 
     console.error(
-      `[SECURITY] CRITICAL_ACTION | method=${method} | path=${path} | ip=${getClientIp(req)} | ${actor} | requestId=${getRequestId(req)}`,
+      `[SECURITY] CRITICAL_ACTION | method=${method} | path=${path} | ip=${ip} | ${actor} | requestId=${rid}`,
     );
+    logSecurityEvent({
+      type: "CRITICAL_ACTION",
+      ip,
+      path: req.originalUrl,
+      requestId: rid,
+      userId: session.userId ?? undefined,
+    });
   }
 
   next();

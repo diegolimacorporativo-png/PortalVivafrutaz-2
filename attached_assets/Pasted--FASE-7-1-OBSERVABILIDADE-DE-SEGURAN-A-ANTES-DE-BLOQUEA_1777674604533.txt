@@ -1,0 +1,111 @@
+🎯 FASE 7.1 — OBSERVABILIDADE DE SEGURANÇA (ANTES DE BLOQUEAR)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO bloquear usuários ainda
+2. NÃO usar banco ainda
+3. NÃO alterar comportamento de resposta
+4. NÃO alterar rate limit existente
+5. NÃO criar lógica de blacklist
+
+👉 Apenas observar e organizar dados de segurança
+
+---
+
+🧠 OBJETIVO
+
+Transformar logs de segurança em informação útil:
+
+- identificar IPs abusivos
+- identificar usuários suspeitos
+- entender padrões reais de uso
+- preparar base para bloqueio futuro
+
+---
+
+# 🛠️ ETAPA 1 — CENTRALIZAR LOGS DE SEGURANÇA
+
+Criar arquivo:
+
+server/core/security/securityLogger.ts
+
+---
+
+ts type SecurityEvent = {   type: string;   ip?: string;   userId?: number;   path?: string;   timestamp: number; };  const events: SecurityEvent[] = [];  export function logSecurityEvent(event: SecurityEvent) {   events.push({     ...event,     timestamp: Date.now(),   });    // manter só últimos 1000 eventos   if (events.length > 1000) {     events.shift();   } }  export function getSecurityEvents() {   return events; } 
+
+---
+
+# 🛠️ ETAPA 2 — INTEGRAR COM LOGS EXISTENTES
+
+Substituir/acompanhar:
+
+- RATE_LIMITED
+- HIGH_RISK_ACTION
+- CRITICAL_ACTION
+
+Exemplo:
+
+ts logSecurityEvent({   type: 'RATE_LIMIT',   ip: req.ip,   path: req.originalUrl, }); 
+
+---
+
+# 🛠️ ETAPA 3 — CRIAR ENDPOINT DE MONITORAMENTO
+
+Criar rota:
+
+GET /api/admin/security/events
+
+---
+
+Protegida com:
+
+requireAuthCore + requireRole(['MASTER','ADMIN'])
+
+---
+
+Retornar:
+
+ts {   events: [...],   total: number } 
+
+---
+
+# 🛠️ ETAPA 4 — AGRUPAMENTO SIMPLES
+
+Adicionar helper:
+
+ts export function getTopIPs() {   const map: Record<string, number> = {};    for (const e of events) {     if (!e.ip) continue;     map[e.ip] = (map[e.ip] || 0) + 1;   }    return Object.entries(map)     .sort((a, b) => b[1] - a[1])     .slice(0, 10); } 
+
+---
+
+# 🧪 VALIDAÇÃO
+
+- gerar flood → aparece nos eventos ✅
+- login brute force → aparece nos eventos ✅
+- acessar endpoint → aparece nos logs ✅
+- endpoint admin retorna dados corretamente ✅
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+✔ visibilidade total de segurança  
+✔ identificação de padrões reais  
+✔ base para antifraude  
+✔ zero impacto no sistema  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivo criado
+2. endpoint criado
+3. exemplo de eventos capturados
+4. confirmação de zero regressão
+
+---
+
+👉 Próxima fase: bloqueio INTELIGENTE (não f
