@@ -1,0 +1,160 @@
+🎯 CONTINUAÇÃO FASE 8.8B — EXTRAÇÃO CONTROLADA (PRÓXIMO DOMÍNIO: EXECUTIVE-DASHBOARD)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+- NÃO alterar lógica
+- NÃO refatorar queries
+- NÃO otimizar nada
+- NÃO mexer em SQL / drizzle
+- NÃO alterar auth
+- NÃO alterar estrutura de resposta
+- NÃO simplificar código
+
+👉 copiar exatamente como está (inclusive queries complexas)
+
+---
+
+🧠 CONTEXTO ATUAL
+
+- audit ✅ recém extraído
+- sistema estável
+- servidor RUNNING
+- logs limpos
+- ZERO regressão acumulada
+
+👉 atenção: agora estamos entrando em domínio com queries complexas
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair APENAS:
+
+👉 /api/executive-dashboard
+
+---
+
+## ⚠️ ALERTAS IMPORTANTES
+
+Esse endpoint pode conter:
+
+- queries pesadas (drizzle / SQL)
+- joins
+- agregações
+- cálculos inline
+- múltiplos awaits
+- try/catch
+
+👉 NÃO tocar em nada disso
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA
+
+### 1️⃣ DISCOVERY (LEITURA COMPLETA)
+
+Mapear:
+
+- linhas exatas do handler
+- auth (session? role?)
+- dependências:
+  - db
+  - drizzle
+  - storage
+- estrutura da resposta (JSON final)
+- presença de:
+  - Promise.all
+  - reduce/map
+  - cálculos inline
+
+👉 NÃO ESCREVER CÓDIGO AINDA
+
+---
+
+### 2️⃣ EXTRAÇÃO CONTROLADA
+
+Criar:
+
+ts server/routes/executive-dashboard.routes.ts 
+
+Regras:
+
+- copiar handler 100% idêntico
+- manter:
+  - queries
+  - selects
+  - joins
+  - cálculos
+  - estrutura JSON
+- NÃO reorganizar código
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+ts import { register as executiveDashboardRegister } from './executive-dashboard.routes' 
+
+E:
+
+ts executiveDashboardRegister(app) 
+
+👉 seguir padrão dos outros domínios
+
+---
+
+### 4️⃣ DESATIVAÇÃO SEGURA
+
+Comentar bloco original:
+
+ts // MOVED TO executive-dashboard.routes.ts 
+
+👉 NÃO deletar
+
+---
+
+### 5️⃣ VALIDAÇÃO (CRÍTICO)
+
+Testar:
+
+- GET /api/executive-dashboard
+- /api/health
+
+Validar:
+
+- status code idêntico
+- estrutura JSON idêntica
+- valores retornados consistentes
+
+---
+
+### 6️⃣ RELATÓRIO FINAL
+
+Responder com:
+
+1. endpoint movido
+2. linhas removidas
+3. dependências envolvidas (db, drizzle, etc)
+4. validação antes vs depois
+5. confirmação:
+
+👉 ZERO REGRESSÃO
+
+---
+
+🚫 PROIBIDO
+
+- NÃO otimizar queries
+- NÃO mexer em performance
+- NÃO alterar nomes de campos
+- NÃO remover logs
+- NÃO alterar ordem de execução
+
+---
+
+🛑 PARAR APÓS FINALIZAR
+
+👉 NÃO continuar para outro domínio aut
