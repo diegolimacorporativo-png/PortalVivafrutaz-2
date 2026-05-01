@@ -194,7 +194,11 @@ export function computeIPScores(): IPScoreReport {
       breakdown,
       spike: recentCount >= SPIKE_THRESHOLD,
     }))
-    .sort((a, b) => b.score - a.score);
+    // FASE 7.3.3 — priority 1: active spike; priority 2: highest score
+    .sort((a, b) => {
+      if (a.spike !== b.spike) return a.spike ? -1 : 1;
+      return b.score - a.score;
+    });
 
   return { ips, generatedAt: new Date().toISOString() };
 }
