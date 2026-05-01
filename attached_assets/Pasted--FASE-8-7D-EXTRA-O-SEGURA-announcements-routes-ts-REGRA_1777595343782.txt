@@ -1,0 +1,150 @@
+🎯 FASE 8.7D — EXTRAÇÃO SEGURA (announcements.routes.ts)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica dos endpoints  
+2. NÃO alterar queries ou payloads  
+3. NÃO alterar autenticação / autorização  
+4. NÃO alterar estrutura de resposta  
+5. NÃO refatorar código  
+6. NÃO misturar com outros domínios  
+
+👉 Apenas mover endpoints de announcements
+
+---
+
+## 🧠 CONTEXTO
+
+Domínio: announcements  
+Prefixo esperado:
+
+- /api/announcements
+
+Possíveis operações:
+
+- listagem
+- criação
+- atualização
+- remoção
+
+👉 domínio geralmente isolado (baixo acoplamento)
+
+---
+
+## 🛠️ ETAPA 1 — DISCOVERY
+
+ANTES de mover:
+
+✔ localizar TODOS os endpoints com:
+
+/api/announcements
+
+✔ garantir que não existem dependências externas escondidas
+
+---
+
+## 🛠️ ETAPA 2 — EXTRAÇÃO
+
+Criar:
+
+server/routes/announcements.routes.ts
+
+---
+
+Estrutura:
+
+ts import { Router } from "express";  export function registerAnnouncementsRoutes(router: Router) {    // COLAR endpoints EXATAMENTE como estão  } 
+
+---
+
+## 🛠️ ETAPA 3 — REGISTRO
+
+No routes.ts:
+
+ts import { registerAnnouncementsRoutes } from "./routes/announcements.routes";  registerAnnouncementsRoutes(app); 
+
+---
+
+## 🛠️ ETAPA 4 — SEGURANÇA
+
+No routes.ts:
+
+👉 COMENTAR (não deletar):
+
+ts // MOVED TO announcements.routes.ts 
+
+---
+
+## 🧪 ETAPA 5 — VALIDAÇÃO
+
+Testar TODOS endpoints:
+
+- GET /api/announcements
+- POST /api/announcements
+- PUT /api/announcements/:id
+- DELETE /api/announcements/:id
+
+---
+
+Validar:
+
+✔ mesma resposta  
+✔ mesmos dados  
+✔ mesma permissão (401 / 403)  
+✔ nenhuma alteração no formato  
+✔ sem erros no servidor  
+
+---
+
+## 🚨 VALIDAÇÃO IMPORTANTE
+
+Se houver:
+
+- paginação
+- ordenação
+- filtros
+
+👉 comparar ANTES vs DEPOIS exatamente como fez nos logs
+
+---
+
+## 🚨 FAIL-SAFE
+
+Se qualquer endpoint:
+
+- retornar diferente
+- perder permissão
+- mudar estrutura
+
+👉 PARAR  
+👉 reverter bloco  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+✔ domínio announcements isolado  
+✔ routes.ts reduzido  
+✔ zero regressão  
+✔ padrão consolidado  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoints movidos  
+2. testes executados  
+3. validação de comportamento  
+4. logs do servidor  
+5. confirmação de zero regressão  
+
+---
+
+🧠 LEMBRETE
+
+👉 quanto mais simples o domínio, mais rápido você ganha escala  
+👉 você está construindo base pra remover o routes.ts inteiro dep
