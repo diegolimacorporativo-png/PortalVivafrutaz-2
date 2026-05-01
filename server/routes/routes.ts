@@ -121,6 +121,7 @@ import { register as priceGroupsRegister } from './price-groups.routes';
 import { register as productPricesRegister } from './product-prices.routes';
 import { register as orderWindowsRegister } from './order-windows.routes';
 import { register as settingsRegister } from './settings.routes';
+import { register as reportsRegister } from './reports.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -194,6 +195,7 @@ export async function registerRoutes(
   productPricesRegister(app);
   orderWindowsRegister(app);
   settingsRegister(app);
+  reportsRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -1359,44 +1361,10 @@ export async function registerRoutes(
   // DELETE /api/order-exceptions/:id
   // GET    /api/order-exceptions/company/:companyId
 
-  // Industrialized products report
-  app.get('/api/reports/industrialized', async (req, res) => {
-    const { dateFrom, dateTo, companyId, productId } = req.query;
-    const data = await storage.getIndustrializedReport({
-      dateFrom: dateFrom as string,
-      dateTo: dateTo as string,
-      companyId: companyId ? Number(companyId) : undefined,
-      productId: productId ? Number(productId) : undefined,
-    });
-    res.json(data);
-  });
-
-  // Reports — real data from DB
-  app.get(api.reports.purchasing.path, async (req, res) => {
-    const { dateFrom, dateTo, companyId, productId } = req.query;
-    const data = await storage.getPurchasingReport({
-      dateFrom: dateFrom as string,
-      dateTo: dateTo as string,
-      companyId: companyId ? Number(companyId) : undefined,
-      productId: productId ? Number(productId) : undefined,
-    });
-    res.json(data);
-  });
-
-  app.get(api.reports.financial.path, async (req, res) => {
-    res.json({
-      weeklyRevenue: 4500.00,
-      monthlyRevenue: 18200.00,
-      topCompanies: [
-        { companyName: "TechCorp", totalSpent: 1200 },
-        { companyName: "HealthPlus", totalSpent: 850 }
-      ],
-      topSellingFruits: [
-        { productName: "Banana Box", totalSold: 200 },
-        { productName: "Apple Box", totalSold: 150 }
-      ]
-    });
-  });
+  // --- Reports — MOVED TO reports.routes.ts ---
+  // GET    /api/reports/industrialized
+  // GET    api.reports.purchasing.path
+  // GET    api.reports.financial.path
 
   // --- Test Mode / Test Orders / Maintenance Mode — MOVED TO settings.routes.ts ---
   // GET    /api/settings/test-mode
