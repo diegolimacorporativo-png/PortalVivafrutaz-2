@@ -105,6 +105,7 @@ import { register as passwordResetRequestsRegister } from './password-reset-requ
 import { register as orderCleanupRegister } from './order-cleanup.routes';
 import { register as aboutUsRegister } from './about-us.routes';
 import { register as securityRegister } from './security.routes';
+import { register as contractsAlertsRegister } from './contracts-alerts.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -162,6 +163,7 @@ export async function registerRoutes(
   orderCleanupRegister(app);
   aboutUsRegister(app);
   securityRegister(app);
+  contractsAlertsRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -1028,48 +1030,8 @@ export async function registerRoutes(
   // contract-info, contract-adjustments, generate-orders-from-scope,
   // addresses, gps-status, gps-toggle. See server/modules/companies/.
 
-  // Get all contract alerts (dashboard use) — kept here because it lives at
-  // /api/contracts/* (different URL prefix than the migrated module).
-  app.get('/api/contracts/alerts', async (req, res) => {
-    try {
-      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
-      const companies = await storage.getCompanies();
-      const now = new Date();
-      const alerts: any[] = [];
-
-      for (const company of companies) {
-        if (!company.active) continue;
-        const c = company as any;
-
-        // Check 12-month milestone for indefinite contracts
-        if (c.contractVigencia === 'prazo_indefinido' && c.contractStartDate) {
-          const start = new Date(c.contractStartDate);
-          const monthsDiff = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-          if (monthsDiff >= 12) {
-            // Check last adjustment
-            const adjs = await storage.getContractAdjustments(company.id);
-            const lastAdj = adjs[0];
-            const lastAdjDate = lastAdj ? new Date(lastAdj.createdAt) : start;
-            const monthsSinceAdj = (now.getFullYear() - lastAdjDate.getFullYear()) * 12 + (now.getMonth() - lastAdjDate.getMonth());
-            if (monthsSinceAdj >= 12) {
-              alerts.push({ type: '12_months', companyId: company.id, companyName: company.companyName, contractStartDate: c.contractStartDate, monthsActive: monthsDiff, monthsSinceLastAdjustment: monthsSinceAdj });
-            }
-          }
-        }
-
-        // Check expiring contracts
-        if (c.contractVigencia === 'prazo_determinado' && c.contractEndDate) {
-          const end = new Date(c.contractEndDate);
-          const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          if (daysLeft <= 90 && daysLeft >= 0) {
-            alerts.push({ type: 'expiring', companyId: company.id, companyName: company.companyName, contractEndDate: c.contractEndDate, daysLeft });
-          }
-        }
-      }
-
-      return ok(res, alerts);
-    } catch (e: any) { return fail(res, e.message, 'INTERNAL_ERROR', 500); }
-  });
+  // MOVED TO contracts-alerts.routes.ts
+  // GET /api/contracts/alerts
 
   // ─── send-email, generate-orders-from-scope, addresses migrated to
   // server/modules/companies. Implementations live there. ──────────────────
