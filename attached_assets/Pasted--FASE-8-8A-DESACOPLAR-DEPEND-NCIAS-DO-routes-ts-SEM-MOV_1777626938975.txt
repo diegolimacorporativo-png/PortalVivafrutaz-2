@@ -1,0 +1,198 @@
+🎯 FASE 8.8A — DESACOPLAR DEPENDÊNCIAS DO routes.ts (SEM MOVER ROTAS)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO mover endpoints ainda
+2. NÃO alterar lógica de negócio
+3. NÃO alterar respostas das APIs
+4. NÃO deletar código
+5. NÃO reorganizar rotas
+6. NÃO otimizar nada
+
+👉 Apenas EXTRAIR dependências para fora do routes.ts
+
+---
+
+🧠 OBJETIVO
+
+Transformar routes.ts em um arquivo que:
+
+- NÃO cria dependências
+- NÃO executa runtime
+- APENAS usa dependências externas
+
+---
+
+📦 ESCOPO EXATO
+
+Extrair SOMENTE:
+
+1. multer / uploadInMemory  
+2. pdf-parse (createRequire workaround)  
+3. startEmailScheduler  
+4. dependências NFe (imports)  
+5. helpers de segurança (order tenant)
+
+---
+
+## 🛠️ ETAPA 1 — UPLOAD (MULTER)
+
+Criar arquivo:
+
+server/infra/upload.ts
+
+Conteúdo:
+
+ts import multer from "multer";  export const uploadInMemory = multer({   storage: multer.memoryStorage(),   limits: { fileSize: 10 * 1024 * 1024 }, }); 
+
+---
+
+Substituir em routes.ts:
+
+ANTES:
+
+ts const uploadInMemory = multer(...) 
+
+DEPOIS:
+
+ts import { uploadInMemory } from "../infra/upload"; 
+
+---
+
+⚠️ NÃO alterar uso nas rotas
+
+---
+
+## 🛠️ ETAPA 2 — PDF PARSER (CRÍTICO)
+
+Criar:
+
+server/infra/pdfParser.ts
+
+ts import { createRequire } from "module";  const _require = createRequire(import.meta.url); const pdfParse = _require("pdf-parse");  export async function parsePdf(buffer: Buffer) {   return pdfParse(buffer); } 
+
+---
+
+Substituir em routes.ts:
+
+ANTES:
+
+ts const data = await pdfParse(req.file.buffer) 
+
+DEPOIS:
+
+ts import { parsePdf } from "../infra/pdfParser";  const data = await parsePdf(req.file.buffer) 
+
+---
+
+⚠️ NÃO mudar lógica do endpoint
+
+---
+
+## 🛠️ ETAPA 3 — EMAIL SCHEDULER
+
+Criar:
+
+server/bootstrap/scheduler.ts
+
+ts import { startEmailScheduler } from "../services/email.scheduler";  export function initSchedulers() {   startEmailScheduler(); } 
+
+---
+
+Remover de routes.ts:
+
+ts startEmailScheduler(); 
+
+---
+
+Adicionar no bootstrap (server/index.ts ou app.ts):
+
+ts import { initSchedulers } from "./bootstrap/scheduler";  initSchedulers(); 
+
+---
+
+## 🛠️ ETAPA 4 — NFe DEPENDENCIES
+
+Criar:
+
+server/modules/nfe/nfe.dependencies.ts
+
+Mover TODOS os imports de NFe do routes.ts para este arquivo:
+
+ts export {   canEmitNFe,   hasBlockingNFe,   acquireOrderLock,   releaseOrderLock,   runFaturamentoCron,   getCronStatus,   getDryRunMetrics,   ... }; 
+
+---
+
+Depois no routes.ts:
+
+ts import {   canEmitNFe,   hasBlockingNFe,   ... } from "../modules/nfe/nfe.dependencies"; 
+
+---
+
+⚠️ NÃO alterar uso dessas funções
+
+---
+
+## 🛠️ ETAPA 5 — SECURITY HELPERS
+
+Criar:
+
+server/core/security/orderSecurity.ts
+
+ts export {   validateOrderTenant,   safeGetOrder,   withTenantGuard }; 
+
+---
+
+Atualizar imports no routes.ts para usar esse novo arquivo
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+1. Servidor sobe sem erro
+2. Nenhum ReferenceError
+3. Nenhum import quebrado
+4. Rotas continuam respondendo igual
+5. Upload continua funcionando
+6. PDF parsing continua funcionando
+7. Scheduler roda normalmente
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+- routes.ts cria dependências
+- routes.ts executa scheduler
+- routes.ts tem lógica de infra
+
+DEPOIS:
+
+- routes.ts apenas importa
+- infra isolada em /infra
+- bootstrap separado
+- pronto para FASE 8.8B
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Lista de arquivos criados
+2. Imports atualizados no routes.ts
+3. Confirmação que upload/pdf/scheduler funcionam
+4. Confirmação de ZERO regressão
+
+---
+
+🚫 IMPORTANTE
+
+👉 NÃO mover rotas ainda  
+👉 NÃO tocar em NFe endpoints  
+👉 NÃO deletar nada  
+
+👉 Isso é apenas preparação estr
