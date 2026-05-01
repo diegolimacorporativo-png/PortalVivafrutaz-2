@@ -112,6 +112,7 @@ import { register as pushRegister } from './push.routes';
 import { register as masterRegister } from './master.routes';
 import { register as logisticsRegister } from './logistics.routes';
 import { register as saasRegister } from './saas.routes';
+import { register as healthRegister } from './health.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -147,10 +148,10 @@ export async function registerRoutes(
     });
   })();
 
-  // Health check route
-  app.get("/health", (req, res) => {
-    res.status(200).json({ status: "ok" });
-  });
+  // Health check route — MOVED TO health.routes.ts
+  // app.get("/health", (req, res) => {
+  //   res.status(200).json({ status: "ok" });
+  // });
 
   // ─── Domain route files ────────────────────────────────────────────────────
   await claraRegister(app);
@@ -159,6 +160,7 @@ export async function registerRoutes(
   await masterRegister(app);
   await logisticsRegister(app);
   await saasRegister(app);
+  await healthRegister(app);
 
   // --- Backup Routes ---
   app.get('/api/admin/backups', async (req, res) => {
@@ -2456,56 +2458,8 @@ export async function registerRoutes(
     } catch (e) { res.status(500).json({ message: 'Erro ao exportar logs' }); }
   });
 
-  // ─── SAÚDE DO SISTEMA ─────────────────────────────────────────
-  app.get('/api/health', async (req, res) => {
-    const start = Date.now();
-    const report: any = { timestamp: new Date().toISOString(), checks: {} };
-    // DB check
-    try {
-      await storage.getLogs(1);
-      report.checks.database = { status: 'OK', message: 'Banco de dados conectado' };
-    } catch (e: any) {
-      report.checks.database = { status: 'ERROR', message: e?.message };
-    }
-    // Auth check
-    try {
-      const users = await storage.getUsers();
-      report.checks.auth = { status: 'OK', message: `${users.length} usuários cadastrados` };
-    } catch (e: any) {
-      report.checks.auth = { status: 'ERROR', message: e?.message };
-    }
-    // Orders check
-    try {
-      const recent = await storage.getLogs(5);
-      report.checks.logs = { status: 'OK', message: `${recent.length} logs recentes` };
-    } catch (e: any) {
-      report.checks.logs = { status: 'ERROR', message: e?.message };
-    }
-    // Server
-    report.checks.server = { status: 'OK', message: `Servidor respondendo — ${Date.now() - start}ms` };
-    // Session
-    report.checks.session = {
-      status: req.session?.userId || req.session?.companyId ? 'OK' : 'WARN',
-      message: req.session?.userId ? `Usuário #${req.session.userId} autenticado` : req.session?.companyId ? `Empresa #${req.session.companyId}` : 'Sem sessão ativa nesta requisição'
-    };
-    // Maintenance mode
-    try {
-      const maintenance = await storage.getSetting('maintenance_mode');
-      report.checks.maintenance = { status: maintenance === 'true' ? 'WARN' : 'OK', message: maintenance === 'true' ? 'MANUTENÇÃO ATIVA' : 'Sistema operacional' };
-    } catch (e) {
-      report.checks.maintenance = { status: 'WARN', message: 'Não verificado' };
-    }
-    // Test mode
-    try {
-      const testMode = await storage.getSetting('test_mode');
-      report.checks.testMode = { status: testMode === 'true' ? 'WARN' : 'OK', message: testMode === 'true' ? 'MODO TESTE ATIVO' : 'Modo produção' };
-    } catch (e) {
-      report.checks.testMode = { status: 'WARN', message: 'Não verificado' };
-    }
-    report.overall = Object.values(report.checks).every((c: any) => c.status !== 'ERROR') ? 'HEALTHY' : 'DEGRADED';
-    report.responseMs = Date.now() - start;
-    res.json(report);
-  });
+  // ─── SAÚDE DO SISTEMA — MOVED TO health.routes.ts ─────────────
+  // app.get('/api/health', async (req, res) => { ... });
 
   // ─── AUDITORIA DO SISTEMA ─────────────────────────────────────
   app.get('/api/audit', async (req, res) => {

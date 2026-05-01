@@ -1,0 +1,170 @@
+🎯 FASE 8.7A (MODO SEGURO) — QUEBRA CONTROLADA DO routes.ts
+
+---
+
+🚫 REGRAS CRÍTICAS (NÍVEL MÁXIMO)
+
+1. NÃO alterar lógica de nenhum endpoint  
+2. NÃO alterar ordem de execução de middlewares  
+3. NÃO alterar req / res / session  
+4. NÃO alterar imports existentes (storage, services, etc.)  
+5. NÃO refatorar código interno dos handlers  
+6. NÃO mover tudo de uma vez  
+
+👉 MIGRAÇÃO PROGRESSIVA, NÃO BIG BANG
+
+---
+
+🧠 ESTRATÉGIA
+
+Vamos fazer em 4 fases seguras:
+
+1. DISCOVERY (mapear)
+2. EXTRAÇÃO CONTROLADA (1 domínio)
+3. VALIDAÇÃO
+4. REPETIR
+
+---
+
+## 🔍 ETAPA 1 — DISCOVERY (MAPEAMENTO)
+
+Objetivo: entender o routes.ts antes de tocar
+
+Gerar:
+
+- Lista de endpoints agrupados por prefixo:
+  - /api/orders
+  - /api/billing
+  - /api/push
+  - etc.
+
+- Identificar:
+  ✔ middlewares usados (auth, role, etc.)
+  ✔ dependências (storage, services)
+  ✔ blocos claramente separáveis
+
+---
+
+## 🛠️ ETAPA 2 — PRIMEIRA EXTRAÇÃO (BAIXO RISCO)
+
+👉 COMEÇAR APENAS COM:
+
+push.routes.ts
+
+Porque:
+✔ pequeno
+✔ isolado
+✔ fácil validar
+✔ não crítico como pedidos/faturamento
+
+---
+
+### Criar arquivo:
+
+server/routes/push.routes.ts
+
+ts import { Router } from "express";  const router = Router();  // COLAR endpoints /api/push exatamente como estão  export default router; 
+
+---
+
+### No routes.ts:
+
+❌ NÃO deletar ainda  
+👉 Apenas COMENTAR o bloco movido:
+
+ts // MOVED TO push.routes.ts 
+
+---
+
+## 🛠️ ETAPA 3 — REGISTRO CONTROLADO
+
+Criar:
+
+server/routes/index.ts
+
+ts import { Express } from "express"; import pushRoutes from "./push.routes";  export function registerRoutes(app: Express) {   app.use(pushRoutes); } 
+
+---
+
+### Ajustar servidor:
+
+ts import { registerRoutes } from "./routes";  registerRoutes(app); 
+
+---
+
+⚠️ IMPORTANTE
+
+👉 routes.ts CONTINUA EXISTINDO  
+👉 Só removemos UM BLOCO por vez  
+
+---
+
+## 🧪 ETAPA 4 — VALIDAÇÃO IMEDIATA
+
+Testar:
+
+1. POST /api/push/subscribe  
+2. POST /api/push/test  
+
+Verificar:
+
+✔ resposta igual  
+✔ logs iguais  
+✔ nenhuma exceção  
+✔ push funcionando  
+
+---
+
+## 🔁 ETAPA 5 — EXPANSÃO GRADUAL
+
+Depois de validar push:
+
+Ordem recomendada:
+
+1. push.routes.ts ✅ (primeiro)
+2. health.routes.ts
+3. email.routes.ts
+4. nfe.routes.ts
+5. billing.routes.ts
+6. orders.routes.ts (POR ÚLTIMO — crítico)
+
+---
+
+## 🛑 REGRAS DE SEGURANÇA
+
+Se qualquer erro ocorrer:
+
+👉 parar imediatamente  
+👉 voltar o bloco pro routes.ts  
+👉 não continuar migração  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Após primeira etapa:
+
+✔ push isolado em arquivo próprio  
+✔ routes.ts menor  
+✔ zero regressão  
+✔ padrão validado  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoints movidos  
+2. testes realizados  
+3. confirmação de funcionamento  
+4. próximos blocos seguros para mover  
+
+---
+
+🧠 IMPORTANTE
+
+👉 Não estamos "refatorando código"  
+👉 Estamos "desacoplando sem tocar na lógica"
+
+Esse é o segredo pra não quebrar nad
