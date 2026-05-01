@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export function register(app: Express) {
   // --- IA Operacional / Central de Inteligência ---
-  app.get('/api/admin/intelligence', async (req, res) => {
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
+  app.get('/api/admin/intelligence', requireSessionOrCompany, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
@@ -356,9 +357,9 @@ export function register(app: Express) {
   });
 
   // --- IA Auto-Fix: Corrigir Automaticamente ---
-  app.post('/api/admin/intelligence/auto-fix', async (req: any, res) => {
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
+  app.post('/api/admin/intelligence/auto-fix', requireSessionOrCompany, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });

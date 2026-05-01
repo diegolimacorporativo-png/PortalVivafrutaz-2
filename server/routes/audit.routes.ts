@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export function register(app: Express) {
   app.get('/api/admin/audit', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
@@ -115,8 +116,8 @@ export function register(app: Express) {
     }
   });
 
-  app.get('/api/audit', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
+  app.get('/api/audit', requireSessionOrCompany, async (req: any, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {

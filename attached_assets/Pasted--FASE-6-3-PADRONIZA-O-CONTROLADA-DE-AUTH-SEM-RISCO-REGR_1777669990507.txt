@@ -1,0 +1,169 @@
+🎯 FASE 6.3 — PADRONIZAÇÃO CONTROLADA DE AUTH (SEM RISCO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO aplicar middleware global
+2. NÃO alterar rotas públicas
+3. NÃO alterar lógica interna
+4. NÃO quebrar integração externa (webhooks, portal)
+5. NÃO substituir tudo de uma vez
+
+👉 Aplicação INCREMENTAL por domínio
+
+---
+
+🧠 OBJETIVO
+
+Substituir gradualmente:
+
+ts if (!req.session?.userId) 
+
+Por:
+
+ts requireSessionOrCompany 
+
+👉 Reduzir erro humano sem quebrar sistema
+
+---
+
+# 🛠️ ETAPA 1 — MAPEAR ROTAS SEGURAS PARA MIGRAÇÃO
+
+Selecionar SOMENTE rotas que:
+
+✔ já exigem sessão  
+✔ NÃO são públicas  
+✔ NÃO usam companyId isolado  
+
+---
+
+📍 Domínios seguros para começar:
+
+- orders (admin)
+- nfe (admin)
+- admin/*
+- audit
+- intelligence
+
+---
+
+# 🛠️ ETAPA 2 — MIGRAR 1 DOMÍNIO (EXEMPLO: ORDERS ADMIN)
+
+ANTES:
+
+ts app.get('/api/orders/:id', async (req, res) => {   if (!req.session?.userId) {     return res.status(401).json({ message: 'Não autenticado' });   } 
+
+---
+
+DEPOIS:
+
+ts import { requireSessionOrCompany } from '../core/http/requireSessionOrCompany';  app.get(   '/api/orders/:id',   requireSessionOrCompany,   async (req, res) => { 
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO remover outras validações  
+👉 NÃO mexer no restante do handler  
+
+---
+
+# 🛠️ ETAPA 3 — NÃO TOCAR NISSO AINDA
+
+🚫 NÃO migrar:
+
+- /api/client/*
+- /api/company/*
+- endpoints com companyId sem userId
+- webhooks
+- rotas públicas
+
+---
+
+# 🛠️ ETAPA 4 — TESTE IMEDIATO
+
+Após cada domínio:
+
+---
+
+### Sem sessão
+
+bash GET /api/orders/1 
+
+✔ 401
+
+---
+
+### Com sessão válida
+
+✔ funcionamento normal
+
+---
+
+### Tenant errado
+
+✔ 403  
+✔ log:
+
+ts [SECURITY] TENANT_MISMATCH 
+
+---
+
+# 🛠️ ETAPA 5 — EXPANSÃO CONTROLADA
+
+Após validar 1 domínio:
+
+👉 repetir para:
+
+- nfe.routes.ts
+- audit.routes.ts
+- admin-intelligence.routes.ts
+
+---
+
+# 🧪 VALIDAÇÃO FINAL
+
+✔ nenhum endpoint público quebrado  
+✔ nenhum webhook afetado  
+✔ todos endpoints protegidos continuam funcionando  
+
+---
+
+# 🔒 RESULTADO
+
+ANTES:
+
+- validação espalhada (alto risco humano)
+
+DEPOIS:
+
+- validação centralizada
+- padrão consistente
+- manutenção mais segura
+
+---
+
+# 📊 ESTRATÉGIA
+
+FASE 6.2 → estrutura criada ✅  
+FASE 6.3 → adoção gradual 🔄  
+FASE 6.4 (futuro) → enforcement automático
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. domínios migrados
+2. endpoints afetados
+3. confirmação de testes
+4. confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Não tenha pressa aqui  
+👉 Melhor 5 endpoints perfeitos do que 100 quebrados

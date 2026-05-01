@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export function register(app: Express) {
   // ─── Commercial Intelligence ─────────────────────────────────────────────
-  app.get('/api/commercial-intelligence', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
+  app.get('/api/commercial-intelligence', requireSessionOrCompany, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'].includes(user.role)) {
@@ -127,8 +128,8 @@ export function register(app: Express) {
   });
 
   // ─── Financial Intelligence ───────────────────────────────────────────────
-  app.get('/api/financial-intelligence', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
+  app.get('/api/financial-intelligence', requireSessionOrCompany, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'FINANCEIRO'].includes(user.role)) {
@@ -212,8 +213,8 @@ export function register(app: Express) {
   });
 
   // ─── Logistics Intelligence ───────────────────────────────────────────────
-  app.get('/api/logistics-intelligence', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
+  app.get('/api/logistics-intelligence', requireSessionOrCompany, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'].includes(user.role)) {
