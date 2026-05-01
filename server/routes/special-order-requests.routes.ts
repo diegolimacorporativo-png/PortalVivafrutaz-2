@@ -2,9 +2,11 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { sendSpecialOrderResolved } from "../services/mailer";
 import { validateCompanyTenant } from "../core/security/orderSecurity";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export function register(app: Express) {
-  // Client: submit special order
+  // Client: submit special order — no auth required (public form)
   app.post('/api/special-order-requests', async (req, res) => {
     try {
       const { companyId, requestedDay, requestedDate, description, quantity, observations, items } = req.body;
@@ -34,13 +36,9 @@ export function register(app: Express) {
     }
   });
 
-  // Client: list own requests
-  app.get('/api/special-order-requests/company/:companyId', async (req, res) => {
+  // Client: list own requests — accessible by userId OR companyId
+  app.get('/api/special-order-requests/company/:companyId', requireSessionOrCompany, async (req, res) => {
     try {
-      // FASE 6 — BATCH FINAL: auth + tenant guard.
-      if (!(req as any).session?.userId && !(req as any).session?.companyId) {
-        return res.status(401).json({ message: 'Não autenticado' });
-      }
       const companyId = Number(req.params.companyId);
       try {
         validateCompanyTenant(companyId, req);
@@ -52,7 +50,7 @@ export function register(app: Express) {
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
 
-  // Admin: list all
+  // Admin: list all — public (no auth check, as per original)
   app.get('/api/special-order-requests', async (req, res) => {
     try {
       const items = await storage.getSpecialOrderRequests();
@@ -60,10 +58,9 @@ export function register(app: Express) {
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
 
-  // Admin: approve/reject (ADMIN, DIRECTOR, DEVELOPER only)
-  app.put('/api/special-order-requests/:id', async (req, res) => {
+  // Admin: approve/reject — admin users only
+  app.put('/api/special-order-requests/:id', requireAuthCore, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actingUser = await storage.getUser(req.session.userId);
       if (!actingUser || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(actingUser.role)) {
         return res.status(403).json({ message: 'Apenas Administrador, Diretor ou Desenvolvedor podem aprovar/recusar pedidos pontuais.' });

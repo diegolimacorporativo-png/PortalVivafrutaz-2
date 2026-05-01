@@ -1,16 +1,15 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  app.get('/api/quotations', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.get('/api/quotations', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try { res.json(await storage.getQuotations()); } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });
 
-  app.post('/api/quotations', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.post('/api/quotations', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
@@ -23,8 +22,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e?.message || 'Erro' }); }
   });
 
-  app.patch('/api/quotations/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.patch('/api/quotations/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
@@ -42,8 +40,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });
 
-  app.delete('/api/quotations/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.delete('/api/quotations/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try { await storage.deleteQuotation(parseInt(req.params.id)); res.json({ ok: true }); } catch (e) { res.status(500).json({ message: 'Erro' }); }

@@ -1,10 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  // ─── Security: Unlock company account ─────────────────────────
-  app.post('/api/admin/companies/:id/unlock', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.post('/api/admin/companies/:id/unlock', requireAuthCore, async (req, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão para desbloquear contas.' });
     try {
@@ -20,9 +19,7 @@ export function register(app: Express) {
     }
   });
 
-  // ─── Security Logs ────────────────────────────────────────────
-  app.get('/api/security-logs', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.get('/api/security-logs', requireAuthCore, async (req, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão.' });
     try {
@@ -34,9 +31,7 @@ export function register(app: Express) {
     }
   });
 
-  // ─── Locked accounts summary ──────────────────────────────────
-  app.get('/api/security/locked-accounts', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.get('/api/security/locked-accounts', requireAuthCore, async (req, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão.' });
     try {

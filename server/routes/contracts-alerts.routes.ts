@@ -1,13 +1,11 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { ok, fail } from "../core/http/apiResponse";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  // Get all contract alerts (dashboard use) — kept here because it lives at
-  // /api/contracts/* (different URL prefix than the migrated module).
-  app.get('/api/contracts/alerts', async (req, res) => {
+  app.get('/api/contracts/alerts', requireAuthCore, async (req, res) => {
     try {
-      if (!req.session?.userId) return fail(res, 'Não autenticado', 'UNAUTHORIZED', 401);
       const companies = await storage.getCompanies();
       const now = new Date();
       const alerts: any[] = [];
@@ -16,12 +14,10 @@ export function register(app: Express) {
         if (!company.active) continue;
         const c = company as any;
 
-        // Check 12-month milestone for indefinite contracts
         if (c.contractVigencia === 'prazo_indefinido' && c.contractStartDate) {
           const start = new Date(c.contractStartDate);
           const monthsDiff = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
           if (monthsDiff >= 12) {
-            // Check last adjustment
             const adjs = await storage.getContractAdjustments(company.id);
             const lastAdj = adjs[0];
             const lastAdjDate = lastAdj ? new Date(lastAdj.createdAt) : start;
@@ -32,7 +28,6 @@ export function register(app: Express) {
           }
         }
 
-        // Check expiring contracts
         if (c.contractVigencia === 'prazo_determinado' && c.contractEndDate) {
           const end = new Date(c.contractEndDate);
           const daysLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));

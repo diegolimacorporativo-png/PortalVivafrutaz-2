@@ -1,13 +1,14 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { fireNotification, VAPID_PUBLIC_KEY } from "../services/pushService";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export async function register(app: Express): Promise<void> {
   app.get('/api/push/vapid-public-key', (_req, res) => {
     res.json({ publicKey: VAPID_PUBLIC_KEY });
   });
 
-  // Subscribe device
+  // Subscribe device — accepts both userId and companyId (hybrid, no requireAuth)
   app.post('/api/push/subscribe', async (req: any, res) => {
     try {
       const { endpoint, keys } = req.body;
@@ -47,7 +48,7 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  // Unsubscribe device
+  // Unsubscribe device — no auth required
   app.post('/api/push/unsubscribe', async (req: any, res) => {
     try {
       const { endpoint } = req.body;
@@ -59,9 +60,8 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  // Get notification settings (admin)
-  app.get('/api/push/settings', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // Get notification settings — admin users only
+  app.get('/api/push/settings', requireAuthCore, async (req: any, res) => {
     try {
       const settings = await storage.getNotificationSettings();
       const count = await storage.getPushSubscriptionCount();
@@ -71,9 +71,8 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  // Update notification setting (admin)
-  app.patch('/api/push/settings/:event', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // Update notification setting — admin users only
+  app.patch('/api/push/settings/:event', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
@@ -86,9 +85,8 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  // Send test push notification (admin)
-  app.post('/api/push/test', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // Send test push notification — admin users only
+  app.post('/api/push/test', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {

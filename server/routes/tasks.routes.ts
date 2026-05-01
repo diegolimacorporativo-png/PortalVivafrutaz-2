@@ -1,9 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  app.get('/api/tasks', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.get('/api/tasks', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
@@ -17,8 +17,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error fetching tasks' }); }
   });
 
-  app.post('/api/tasks', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.post('/api/tasks', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
@@ -34,8 +33,7 @@ export function register(app: Express) {
     } catch (e: any) { console.error('[TASKS] createTask error:', e?.message); res.status(500).json({ message: 'Error creating task' }); }
   });
 
-  app.patch('/api/tasks/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.patch('/api/tasks/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
@@ -48,7 +46,6 @@ export function register(app: Express) {
       if (raw.status !== undefined) updates.status = raw.status;
       if (raw.assignedToId !== undefined) updates.assignedToId = raw.assignedToId ? Number(raw.assignedToId) : null;
       if (raw.assignedToName !== undefined) updates.assignedToName = raw.assignedToName || null;
-      // sanitize date: empty string → null to avoid DB type error
       if (raw.deadline !== undefined) updates.deadline = raw.deadline && raw.deadline !== '' ? raw.deadline : null;
       const task = await storage.updateTask(id, updates);
       await storage.createLog({ action: 'TASK_UPDATED', description: `Tarefa atualizada: ${task.title} → status: ${updates.status || task.status}`, userId: user.id, userEmail: user.email, userRole: user.role });
@@ -56,8 +53,7 @@ export function register(app: Express) {
     } catch (e: any) { console.error('Error updating task:', e); res.status(500).json({ message: 'Error updating task', detail: e?.message }); }
   });
 
-  app.delete('/api/tasks/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.delete('/api/tasks/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });

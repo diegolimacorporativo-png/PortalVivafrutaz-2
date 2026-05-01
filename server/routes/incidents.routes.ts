@@ -1,9 +1,12 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export function register(app: Express) {
-  app.post('/api/client-incidents', async (req, res) => {
-    if (!req.session?.companyId && !req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  // ─── CLIENT INCIDENTS ─────────────────────────────────────────────────────
+  // POST — hybrid: company portal or admin user
+  app.post('/api/client-incidents', requireSessionOrCompany, async (req, res) => {
     try {
       const { companyId, companyName, type, description, contactPhone, contactEmail, photoBase64, photoMime, photosJson } = req.body;
       if (!companyId || !type || !description) return res.status(400).json({ message: 'Campos obrigatórios: tipo e descrição são necessários.' });
@@ -13,8 +16,8 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error creating incident' }); }
   });
 
-  app.get('/api/client-incidents', async (req, res) => {
-    if (!req.session?.userId && !req.session?.companyId) return res.status(401).json({ message: 'Not authenticated' });
+  // GET — hybrid: company portal sees own; admin sees all
+  app.get('/api/client-incidents', requireSessionOrCompany, async (req, res) => {
     try {
       if (req.session?.companyId) {
         const incidents = await storage.getClientIncidentsByCompany(req.session.companyId);
@@ -29,8 +32,8 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error fetching incidents' }); }
   });
 
-  app.patch('/api/client-incidents/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  // PATCH — admin users only
+  app.patch('/api/client-incidents/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
@@ -45,8 +48,8 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error updating incident' }); }
   });
 
-  app.delete('/api/client-incidents/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  // DELETE — admin users only
+  app.delete('/api/client-incidents/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão - apenas administradores podem excluir ocorrências' });
@@ -61,8 +64,8 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/client-incidents/:id/respond', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  // POST respond — admin users only
+  app.post('/api/client-incidents/:id/respond', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
@@ -79,12 +82,11 @@ export function register(app: Express) {
   });
 
   // ─── MENSAGENS DE OCORRÊNCIAS ─────────────────────────────────
-  app.get('/api/client-incidents/:id/messages', async (req, res) => {
-    if (!req.session?.userId && !req.session?.companyId) return res.status(401).json({ message: 'Not authenticated' });
+  // GET messages — hybrid (company portal or admin)
+  app.get('/api/client-incidents/:id/messages', requireSessionOrCompany, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const messages = await storage.getIncidentMessages(id);
-      // Also mark as read if client is viewing
       if (req.session?.companyId) {
         await storage.markIncidentReadByClient(id);
       }
@@ -92,8 +94,8 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Erro ao buscar mensagens' }); }
   });
 
-  app.post('/api/client-incidents/:id/messages', async (req, res) => {
-    if (!req.session?.userId && !req.session?.companyId) return res.status(401).json({ message: 'Not authenticated' });
+  // POST message — hybrid (company portal or admin)
+  app.post('/api/client-incidents/:id/messages', requireSessionOrCompany, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       const { message, photosJson } = req.body;
@@ -102,7 +104,6 @@ export function register(app: Express) {
       let senderName = 'Equipe VivaFrutaz';
       if (req.session?.companyId) {
         senderType = 'CLIENT';
-        // Get company name from incident
         const incidents = await storage.getClientIncidentsByCompany(req.session.companyId);
         const inc = incidents.find(i => i.id === id);
         senderName = inc?.companyName || 'Cliente';
@@ -118,6 +119,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Erro ao enviar mensagem' }); }
   });
 
+  // POST mark-read — company portal only (no userId needed)
   app.post('/api/client-incidents/:id/mark-read', async (req, res) => {
     if (!req.session?.companyId) return res.status(401).json({ message: 'Not authenticated' });
     try {
@@ -127,8 +129,7 @@ export function register(app: Express) {
   });
 
   // ─── OCORRÊNCIAS INTERNAS ─────────────────────────────────────
-  app.get('/api/internal-incidents', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.get('/api/internal-incidents', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
@@ -139,8 +140,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error fetching internal incidents' }); }
   });
 
-  app.post('/api/internal-incidents', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.post('/api/internal-incidents', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
@@ -152,8 +152,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error creating internal incident' }); }
   });
 
-  app.patch('/api/internal-incidents/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.patch('/api/internal-incidents/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
@@ -166,8 +165,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error updating internal incident' }); }
   });
 
-  app.delete('/api/internal-incidents/:id', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.delete('/api/internal-incidents/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });

@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   // ─── Marketplace: Módulos Disponíveis ─────────────────────────────────────
@@ -14,8 +15,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/marketplace/modulos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/marketplace/modulos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -26,8 +26,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/marketplace/modulos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/marketplace/modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -38,8 +37,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/marketplace/modulos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/marketplace/modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -50,8 +48,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/marketplace/seed', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/marketplace/seed', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -79,16 +76,14 @@ export function register(app: Express) {
   });
 
   // ─── Marketplace: Módulos da Empresa ──────────────────────────────────────
-  app.get('/api/marketplace/empresa/:empresaId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/marketplace/empresa/:empresaId', requireAuthCore, async (req: any, res) => {
     try {
       const modulos = await storage.getEmpresaModulos(Number(req.params.empresaId));
       res.json(modulos);
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/marketplace/empresa/:empresaId/instalar/:moduloId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/marketplace/empresa/:empresaId/instalar/:moduloId', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -104,8 +99,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/marketplace/empresa-modulos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/marketplace/empresa-modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -116,8 +110,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/marketplace/empresa-modulos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/marketplace/empresa-modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });

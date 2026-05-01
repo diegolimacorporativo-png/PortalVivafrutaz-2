@@ -6,12 +6,11 @@ import {
   checkWebhookIdempotency,
 } from "../modules/billing/subscription.middleware";
 
+const requireMaster = [requireAuthCore, requireRole(['MASTER'])];
+
 export async function register(app: Express): Promise<void> {
-  app.get('/api/master/users', async (req: any, res) => {
+  app.get('/api/master/users', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
-      if (!user || user.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const allUsers = await storage.getUsers();
       res.json(allUsers);
     } catch (err: any) {
@@ -19,67 +18,57 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  app.post('/api/master/reset-password', async (req: any, res) => {
+  app.post('/api/master/reset-password', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const { userId, newPassword } = req.body;
       if (!userId || !newPassword) return res.status(400).json({ message: 'userId e newPassword são obrigatórios' });
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
       await storage.updateUser(userId, { password: newPassword });
-      await storage.createLog({ action: 'MASTER_RESET_PASSWORD', description: `[MASTER] Senha resetada para: ${targetUser.email} (ID ${userId})`, userId: masterUser.id, userEmail: masterUser.email, userRole: 'MASTER', level: 'WARN' });
+      await storage.createLog({ action: 'MASTER_RESET_PASSWORD', description: `[MASTER] Senha resetada para: ${targetUser.email} (ID ${userId})`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });
 
-  app.patch('/api/master/users/:id', async (req: any, res) => {
+  app.patch('/api/master/users/:id', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const targetId = parseInt(req.params.id);
       const targetUser = await storage.getUser(targetId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
-      // Protect MASTER from downgrade by other users
-      if (targetUser.role === 'MASTER' && targetId !== masterUser.id && req.body.role && req.body.role !== 'MASTER') {
+      if (targetUser.role === 'MASTER' && targetId !== masterUser!.id && req.body.role && req.body.role !== 'MASTER') {
         return res.status(403).json({ message: 'Não é possível rebaixar outro usuário MASTER' });
       }
       const allowed = ['role', 'active', 'isLocked', 'tabPermissions', 'permissions'];
       const updates: any = {};
       for (const key of allowed) { if (req.body[key] !== undefined) updates[key] = req.body[key]; }
       await storage.updateUser(targetId, updates);
-      await storage.createLog({ action: 'MASTER_UPDATE_USER', description: `[MASTER] Usuário atualizado: ${targetUser.email} — ${JSON.stringify(updates)}`, userId: masterUser.id, userEmail: masterUser.email, userRole: 'MASTER', level: 'WARN' });
+      await storage.createLog({ action: 'MASTER_UPDATE_USER', description: `[MASTER] Usuário atualizado: ${targetUser.email} — ${JSON.stringify(updates)}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });
 
-  app.post('/api/master/unlock-user', async (req: any, res) => {
+  app.post('/api/master/unlock-user', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const { userId } = req.body;
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
       await storage.updateUser(userId, { isLocked: false, loginAttempts: 0 });
-      await storage.createLog({ action: 'MASTER_UNLOCK_USER', description: `[MASTER] Conta desbloqueada: ${targetUser.email}`, userId: masterUser.id, userEmail: masterUser.email, userRole: 'MASTER', level: 'WARN' });
+      await storage.createLog({ action: 'MASTER_UNLOCK_USER', description: `[MASTER] Conta desbloqueada: ${targetUser.email}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
   });
 
-  app.get('/api/master/logs', async (req: any, res) => {
+  app.get('/api/master/logs', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const logs = await storage.getLogs(200);
       res.json(logs);
     } catch (err: any) {
@@ -87,12 +76,8 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  // ─── MASTER: Stats ──────────────────────────────────────────────────────────
-  app.get('/api/master/stats', async (req: any, res) => {
+  app.get('/api/master/stats', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const allCompanies = await storage.getCompanies();
       const allAssinaturas = await storage.getAssinaturas();
       const allPlanos = await storage.getPlanos();
@@ -122,49 +107,36 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── MASTER: Planos ──────────────────────────────────────────────────────────
-  app.get('/api/master/planos', async (req: any, res) => {
+  app.get('/api/master/planos', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       res.json(await storage.getPlanos());
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post('/api/master/planos', async (req: any, res) => {
+  app.post('/api/master/planos', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const plano = await storage.createPlano(req.body);
       res.status(201).json(plano);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.put('/api/master/planos/:id', async (req: any, res) => {
+  app.put('/api/master/planos/:id', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       const plano = await storage.updatePlano(Number(req.params.id), req.body);
       res.json(plano);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete('/api/master/planos/:id', async (req: any, res) => {
+  app.delete('/api/master/planos/:id', ...requireMaster, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const masterUser = await storage.getUser(req.session.userId);
-      if (!masterUser || masterUser.role !== 'MASTER') return res.status(403).json({ message: 'Acesso exclusivo para usuário MASTER' });
       await storage.deletePlano(Number(req.params.id));
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   // ─── MASTER: Módulos do Sistema (catálogo) ────────────────────────────────────
-  app.get('/api/master/modulos-sistema', async (req: any, res) => {
+  app.get('/api/master/modulos-sistema', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const MODULOS = [
         { chave: 'dashboard',    nome: 'Dashboard',          categoria: 'geral',      icone: 'LayoutDashboard', descricao: 'Painel executivo e KPIs' },
         { chave: 'empresas',     nome: 'Empresas',           categoria: 'admin',      icone: 'Building2',       descricao: 'Gestão de clientes/empresas' },
@@ -187,11 +159,10 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── MASTER: AI Sync ─────────────────────────────────────────────────────────
-  app.post('/api/admin/intelligence/ai-sync', async (req: any, res) => {
+  app.post('/api/admin/intelligence/ai-sync', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
-      if (!user || !['MASTER', 'admin', 'diretor'].includes(user.role)) return res.status(403).json({ message: 'Acesso negado' });
+      if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Acesso negado' });
       const syncResults = [
         { modulo: 'Central de Inteligência', acao: 'Atualizar modelos preditivos', status: 'SYNC', detalhes: 'Modelos de análise atualizados para v3.0.0' },
         { modulo: 'Clara IA', acao: 'Sincronizar base de conhecimento', status: 'SYNC', detalhes: 'Base de conhecimento atualizada' },
@@ -216,7 +187,6 @@ export async function register(app: Express): Promise<void> {
   // anonymous callers get 401 and non-MASTER users get 403, both via the
   // standard error-handler shape. ?companyId=N is a *filter*, not a security
   // boundary — MASTER is by definition cross-tenant.
-  const requireMaster = [requireAuthCore, requireRole(['MASTER'])];
 
   app.get('/api/master/assinaturas', ...requireMaster, async (req: any, res) => {
     try {
@@ -283,7 +253,6 @@ export async function register(app: Express): Promise<void> {
         const { gateway, event, companyId, valor } = req.body;
         const eventId = req.body?.gatewayEventId || req.body?.eventId || req.body?.id;
 
-        // Validação essencial — não basta confiar só no HMAC.
         if (!eventId || !companyId) {
           return res.status(400).json({ error: 'Payload inválido' });
         }
@@ -314,7 +283,6 @@ export async function register(app: Express): Promise<void> {
           descricao: `Webhook ${gateway}: ${event}`,
         });
 
-        // Status transitions on the assinatura record
         if (event === 'payment_approved') {
           await storage.updateAssinatura(assinaturaId, { status: 'ativa' });
         } else if (event === 'payment_failed') {

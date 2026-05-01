@@ -947,8 +947,7 @@ export async function registerRoutes(
 
   // ─── IMPORTAÇÃO DE DADOS (Excel / CSV / XML) ──────────────────────────────────
   // POST /api/import/preview — parse file and return preview rows (no DB write)
-  app.post('/api/import/preview', uploadInMemory.single('file'), async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/import/preview', requireAuthCore, uploadInMemory.single('file'), async (req: any, res) => {
     if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado' });
     try {
       const XLSX = await import('xlsx');
@@ -1028,8 +1027,7 @@ export async function registerRoutes(
   });
 
   // POST /api/import/execute — commit the import to DB
-  app.post('/api/import/execute', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/import/execute', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return res.status(401).json({ message: 'Não autenticado' });
     try {
@@ -1192,8 +1190,7 @@ export async function registerRoutes(
     const { buildNFeInput } = await import('../modules/nfe/nfe-input.builder.ts');
 
     // GET /api/nfe — list
-    app.get('/api/nfe', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe', requireAuthCore, async (req: any, res) => {
       try {
         const { status, orderId } = req.query;
         const data = await storage.getNfeEmissoes({ status: status as string, orderId: orderId ? Number(orderId) : undefined });
@@ -1202,8 +1199,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/:id
-    app.get('/api/nfe/:id', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/:id', requireAuthCore, async (req: any, res) => {
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
@@ -1269,11 +1265,7 @@ export async function registerRoutes(
     //
     // Sempre devolve HTTP 200 com { status: 'ok' | 'error' } no payload,
     // exceto em violações de tenant/auth (que mantêm os status 401/403/404).
-    app.get('/api/nfe/preflight/:orderId', async (req: any, res) => {
-      if (!req.session?.userId) {
-        return res.status(401).json({ message: 'Não autenticado' });
-      }
-
+    app.get('/api/nfe/preflight/:orderId', requireAuthCore, async (req: any, res) => {
       const orderId = Number(req.params.orderId);
       if (!orderId || !Number.isFinite(orderId) || orderId <= 0) {
         return res.status(400).json({ message: 'orderId inválido' });
@@ -1432,8 +1424,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/cron/run — STEP 9.3D: trigger manual do cron de faturamento
-    app.post('/api/nfe/cron/run', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/cron/run', requireAuthCore, async (req: any, res) => {
       // Evita execução concorrente: se já está rodando (cron diário ou outro trigger manual), recusa.
       if (isCronRunning()) {
         return res.status(409).json({ error: 'Cron já está em execução. Aguarde terminar.' });
@@ -1846,8 +1837,7 @@ export async function registerRoutes(
     );
 
     // POST /api/nfe/emitir — gerar XML + criar registro
-    app.post('/api/nfe/emitir', requireActiveSubscription, async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/emitir', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       try {
         const { orderId } = req.body;
@@ -2018,8 +2008,7 @@ export async function registerRoutes(
     //     terminal de falha. Se a última NF-e está `autorizada`/`enviada`/
     //     `gerada`/`assinada`, a reemissão é REJEITADA (409) — não é o caso
     //     de uso desta rota.
-    app.post('/api/nfe/:orderId/reenviar', requireActiveSubscription, async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/:orderId/reenviar', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
@@ -2177,8 +2166,7 @@ export async function registerRoutes(
     // (`buildNFeInput → validarNFeInput → gerarNFeXML → createNfeEmissao`),
     // que lê o estado ATUAL do pedido. A premissa é que o operador já
     // corrigiu o pedido antes de clicar.
-    app.post('/api/nfe/:orderId/corrigir-reenviar', requireActiveSubscription, async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/:orderId/corrigir-reenviar', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
@@ -2371,8 +2359,7 @@ export async function registerRoutes(
     // rejeições. Tenant scope é aplicado no repository (JOIN orders +
     // companyId), então tentar inspecionar pedido de outro tenant devolve
     // lista vazia. NÃO altera nada do fluxo fiscal — apenas SELECT.
-    app.get('/api/nfe/:orderId/historico', requireActiveSubscription, async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/:orderId/historico', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
       if (!Number.isFinite(orderId) || orderId <= 0) {
@@ -2406,8 +2393,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
-    app.post('/api/nfe/emitir-lote', requireActiveSubscription, async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/emitir-lote', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
       try {
         const { orderIds } = req.body;
         if (!Array.isArray(orderIds) || orderIds.length === 0) {
@@ -2543,8 +2529,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/:id/enviar — transmitir ao SEFAZ
-    app.post('/api/nfe/:id/enviar', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/:id/enviar', requireAuthCore, async (req: any, res) => {
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
@@ -2657,8 +2642,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/:id/danfe — baixar PDF
-    app.get('/api/nfe/:id/danfe', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/:id/danfe', requireAuthCore, async (req: any, res) => {
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
@@ -2702,8 +2686,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/:id/xml — baixar XML
-    app.get('/api/nfe/:id/xml', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/:id/xml', requireAuthCore, async (req: any, res) => {
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
@@ -2728,8 +2711,7 @@ export async function registerRoutes(
     });
 
     // ── NF-e Dados Fiscais (emissora + destinatário) ─────────────────────────
-    app.get('/api/nfe/fiscal-data/:orderId', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/fiscal-data/:orderId', requireAuthCore, async (req: any, res) => {
       try {
         const orderId = Number(req.params.orderId);
         // FASE 6 — bloqueia leitura de fiscal-data de pedido de outro tenant.
@@ -2815,8 +2797,7 @@ export async function registerRoutes(
 
     // ── NF-e Diagnóstico Fiscal ──────────────────────────────────────────────
     // GET /api/nfe/diagnostics/:orderId — validar dados antes de emitir
-    app.get('/api/nfe/diagnostics/:orderId', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/diagnostics/:orderId', requireAuthCore, async (req: any, res) => {
       try {
         // FASE 6 — diagnóstico de NF-e expõe dados sensíveis do pedido;
         // bloqueia se for de outro tenant.
@@ -2838,8 +2819,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/diagnostics/log-error — registrar erro + solução no training
-    app.post('/api/nfe/diagnostics/log-error', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/diagnostics/log-error', requireAuthCore, async (req: any, res) => {
       try {
         const { logNFeError } = await import('../services/nfe/diagnostics/nfe-training.ts');
         const record = await logNFeError({ ...req.body, userId: req.session.userId });
@@ -2848,8 +2828,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/diagnostics/log-errors — registrar múltiplos erros de validação
-    app.post('/api/nfe/diagnostics/log-errors', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/nfe/diagnostics/log-errors', requireAuthCore, async (req: any, res) => {
       try {
         const { logNFeErrors } = await import('../services/nfe/diagnostics/nfe-training.ts');
         const { errors, orderId, nfeId } = req.body;
@@ -2859,8 +2838,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/diagnostics/training/logs — logs de treinamento
-    app.get('/api/nfe/diagnostics/training/logs', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/diagnostics/training/logs', requireAuthCore, async (req: any, res) => {
       try {
         const limit = req.query.limit ? Number(req.query.limit) : 100;
         const orderId = req.query.orderId ? Number(req.query.orderId) : undefined;
@@ -2870,8 +2848,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/diagnostics/training/patterns — padrões aprendidos
-    app.get('/api/nfe/diagnostics/training/patterns', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/diagnostics/training/patterns', requireAuthCore, async (req: any, res) => {
       try {
         const { getLearnedPatterns } = await import('../services/nfe/diagnostics/nfe-training.ts');
         res.json(await getLearnedPatterns());
@@ -2879,8 +2856,7 @@ export async function registerRoutes(
     });
 
     // PATCH /api/nfe/diagnostics/training/:id/resolve — marcar erro como resolvido
-    app.patch('/api/nfe/diagnostics/training/:id/resolve', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.patch('/api/nfe/diagnostics/training/:id/resolve', requireAuthCore, async (req: any, res) => {
       try {
         const { markNFeErrorResolved } = await import('../services/nfe/diagnostics/nfe-training.ts');
         const record = await markNFeErrorResolved(Number(req.params.id));
@@ -2891,8 +2867,7 @@ export async function registerRoutes(
     // ── FASE 8.6E — MÉTRICAS DE DEFAULTS FISCAIS (in-memory) ─────────────────
     // Telemetria das ocorrências de `[FISCAL_DEFAULT_APPLIED]` (uCom/csosn/cst).
     // Apenas leitura — não toca builder, não bloqueia emissão, não usa banco.
-    app.get('/api/admin/nfe/fiscal-defaults', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/admin/nfe/fiscal-defaults', requireAuthCore, async (req: any, res) => {
       try {
         const stats = getFiscalDefaultsStats();
         res.json({ ok: true, stats });
@@ -2905,8 +2880,7 @@ export async function registerRoutes(
     // POST /api/admin/nfe/fiscal-defaults/reset — zera contadores+buffer.
     // Útil após corrigir cadastros para medir impacto sem esperar o ciclo
     // natural do ring buffer (200 eventos).
-    app.post('/api/admin/nfe/fiscal-defaults/reset', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.post('/api/admin/nfe/fiscal-defaults/reset', requireAuthCore, async (req: any, res) => {
       try {
         resetFiscalDefaultsStats();
         res.json({ ok: true });
@@ -2917,8 +2891,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/sefaz/status — status do serviço SEFAZ
-    app.get('/api/nfe/sefaz/status', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.get('/api/nfe/sefaz/status', requireAuthCore, async (req: any, res) => {
       try {
         const config = await storage.getCompanyConfig();
         const tpAmb = config?.ambienteFiscal === 'producao' ? '1' : '2';
@@ -2929,8 +2902,7 @@ export async function registerRoutes(
     });
 
     // DELETE /api/nfe/:id — cancelar NF-e
-    app.delete('/api/nfe/:id', async (req: any, res) => {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    app.delete('/api/nfe/:id', requireAuthCore, async (req: any, res) => {
       try {
         const { motivo } = req.body;
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
@@ -2995,11 +2967,6 @@ export async function registerRoutes(
     const { getItauExtrato, getItauSaldo, criarBoletItau, getItauConfigFromEnv } = await import('../services/financeiro/itauIntegration.ts');
     const { reconciliarTransacoes, resumoReconciliacao } = await import('../services/financeiro/bankReconciliation.ts');
 
-    const requireAuth = (req: any, res: any): boolean => {
-      if (!req.session?.userId) { res.status(401).json({ message: 'Não autenticado' }); return false; }
-      return true;
-    };
-
     const getItauConfigFromAccount = (acc: any) => {
       if (acc.clientId && acc.clientSecret && acc.agencia && acc.conta) {
         return { clientId: acc.clientId, clientSecret: acc.clientSecret, agencia: acc.agencia, conta: acc.conta, ambiente: (acc.ambiente || 'sandbox') as 'sandbox' | 'producao' };
@@ -3008,8 +2975,7 @@ export async function registerRoutes(
     };
 
     // GET /api/bank/accounts
-    app.get('/api/bank/accounts', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.get('/api/bank/accounts', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const accounts = await storage.getBankAccounts();
         // Mask secrets
@@ -3018,8 +2984,7 @@ export async function registerRoutes(
     });
 
     // POST /api/bank/accounts
-    app.post('/api/bank/accounts', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/accounts', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const acc = await storage.createBankAccount(req.body);
         res.status(201).json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
@@ -3027,8 +2992,7 @@ export async function registerRoutes(
     });
 
     // PATCH /api/bank/accounts/:id
-    app.patch('/api/bank/accounts/:id', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.patch('/api/bank/accounts/:id', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const acc = await storage.updateBankAccount(Number(req.params.id), req.body);
         res.json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
@@ -3036,8 +3000,7 @@ export async function registerRoutes(
     });
 
     // DELETE /api/bank/accounts/:id
-    app.delete('/api/bank/accounts/:id', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.delete('/api/bank/accounts/:id', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         await storage.deleteBankAccount(Number(req.params.id));
         res.json({ success: true });
@@ -3045,8 +3008,7 @@ export async function registerRoutes(
     });
 
     // POST /api/bank/accounts/:id/testar — testar conexão
-    app.post('/api/bank/accounts/:id/testar', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/accounts/:id/testar', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const acc = await storage.getBankAccount(Number(req.params.id));
         if (!acc) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -3062,8 +3024,7 @@ export async function registerRoutes(
     });
 
     // GET /api/bank/accounts/:id/extrato
-    app.get('/api/bank/accounts/:id/extrato', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.get('/api/bank/accounts/:id/extrato', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const acc = await storage.getBankAccount(Number(req.params.id));
         if (!acc) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -3090,8 +3051,7 @@ export async function registerRoutes(
     });
 
     // GET /api/bank/transactions — persisted transactions
-    app.get('/api/bank/transactions', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.get('/api/bank/transactions', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const { bankAccountId, status, from, to } = req.query;
         const txs = await storage.getBankTransactions({ bankAccountId: bankAccountId ? Number(bankAccountId) : undefined, status: status as string, from: from as string, to: to as string });
@@ -3100,8 +3060,7 @@ export async function registerRoutes(
     });
 
     // POST /api/bank/accounts/:id/boleto — emitir boleto
-    app.post('/api/bank/accounts/:id/boleto', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/accounts/:id/boleto', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const acc = await storage.getBankAccount(Number(req.params.id));
         if (!acc) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -3116,8 +3075,7 @@ export async function registerRoutes(
     });
 
     // POST /api/bank/reconciliar — reconciliar com AR/AP
-    app.post('/api/bank/reconciliar', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/reconciliar', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const { bankAccountId, from, to } = req.body;
         const txs = await storage.getBankTransactions({ bankAccountId: bankAccountId ? Number(bankAccountId) : undefined, status: 'pendente', from, to });
@@ -3132,8 +3090,7 @@ export async function registerRoutes(
     });
 
     // POST /api/bank/reconciliar/confirmar — confirm a match
-    app.post('/api/bank/reconciliar/confirmar', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/reconciliar/confirmar', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const { bankTxId, tipo, itemId } = req.body;
         // Mark transaction as reconciled
@@ -3166,8 +3123,7 @@ export async function registerRoutes(
     // Geração de arquivo CNAB 240 de remessa para o Banco Itaú a partir de
     // IDs de accounts_receivable. Aditivo: apenas LÊ AR via repo existente
     // e devolve text/plain. Não altera status, schema ou módulo financeiro.
-    app.post('/api/bank/remessa/itau', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/remessa/itau', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const { ids } = req.body ?? {};
         if (!Array.isArray(ids) || ids.length === 0) {
@@ -3209,8 +3165,7 @@ export async function registerRoutes(
     // CNAB 240 de retorno do Itaú e dispara baixa automática nas AR
     // identificadas via financeService.payAccountReceivable (mesma rota
     // da conciliação manual — FIN.3.5). Fail-safe por item.
-    app.post('/api/bank/retorno/itau', tenantContext, uploadInMemory.single('file'), async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.post('/api/bank/retorno/itau', requireAuthCore, tenantContext, uploadInMemory.single('file'), async (req: any, res) => {
       try {
         if (!req.file?.buffer) {
           return res.status(400).json({ message: 'Arquivo de retorno (.ret) ausente. Envie como multipart/form-data com campo "file".' });
@@ -3231,8 +3186,7 @@ export async function registerRoutes(
     // FASE BANCO.5 — GET /api/bank/retorno/historico
     // Lista os últimos 20 uploads de retorno CNAB (auditoria operacional).
     // Apenas leitura; não dispara nenhuma baixa.
-    app.get('/api/bank/retorno/historico', tenantContext, async (req: any, res) => {
-      if (!requireAuth(req, res)) return;
+    app.get('/api/bank/retorno/historico', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         const items = await financeRepository.listCnabImportHistory(20);
         return res.status(200).json(items);
@@ -3248,7 +3202,6 @@ export async function registerRoutes(
     const ALLOWED_ROLES = ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR', 'SUPER_ADMIN'];
 
     const requireDevAccess = async (req: any, res: any): Promise<boolean> => {
-      if (!req.session?.userId) { res.status(401).json({ message: 'Não autenticado' }); return false; }
       const user = await storage.getUser(req.session.userId);
       if (!user || !ALLOWED_ROLES.includes(user.role)) {
         res.status(403).json({ message: `Acesso restrito. Seu perfil: ${user?.role || 'desconhecido'}. Necessário: ADMIN, DEVELOPER ou DIRECTOR.` });
@@ -3258,7 +3211,7 @@ export async function registerRoutes(
     };
 
     // GET /api/ai-developer/index — system indexer
-    app.get('/api/ai-developer/index', async (req: any, res) => {
+    app.get('/api/ai-developer/index', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { buildSystemIndex } = await import('../services/aiDeveloper/systemIndexer.ts');
@@ -3268,7 +3221,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/bugs — bug detection
-    app.get('/api/ai-developer/bugs', async (req: any, res) => {
+    app.get('/api/ai-developer/bugs', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { detectBugs } = await import('../services/aiDeveloper/bugDetector.ts');
@@ -3278,7 +3231,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/security — security audit
-    app.get('/api/ai-developer/security', async (req: any, res) => {
+    app.get('/api/ai-developer/security', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { auditSecurity } = await import('../services/aiDeveloper/codeAnalyzer.ts');
@@ -3288,7 +3241,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/performance — performance analysis
-    app.get('/api/ai-developer/performance', async (req: any, res) => {
+    app.get('/api/ai-developer/performance', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { analyzePerformance } = await import('../services/aiDeveloper/codeAnalyzer.ts');
@@ -3298,7 +3251,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/deploy — generate deploy scripts
-    app.get('/api/ai-developer/deploy', async (req: any, res) => {
+    app.get('/api/ai-developer/deploy', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { generateDeployScripts } = await import('../services/aiDeveloper/codeAnalyzer.ts');
@@ -3308,7 +3261,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/database — database analysis
-    app.get('/api/ai-developer/database', async (req: any, res) => {
+    app.get('/api/ai-developer/database', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { db } = await import('../database/db.ts');
@@ -3358,7 +3311,7 @@ export async function registerRoutes(
     });
 
     // POST /api/ai-developer/command — process text commands
-    app.post('/api/ai-developer/command', async (req: any, res) => {
+    app.post('/api/ai-developer/command', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { command } = req.body as { command: string };
@@ -3387,7 +3340,7 @@ export async function registerRoutes(
 
     // ─── AI LAB Routes ────────────────────────────────────────────────────────
     // GET /api/ai-developer/lab/health
-    app.get('/api/ai-developer/lab/health', async (req: any, res) => {
+    app.get('/api/ai-developer/lab/health', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { getHealthMetrics } = await import('../services/aiDeveloper/labFunctions.ts');
@@ -3396,7 +3349,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/lab/test-routes
-    app.get('/api/ai-developer/lab/test-routes', async (req: any, res) => {
+    app.get('/api/ai-developer/lab/test-routes', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { testRoutes } = await import('../services/aiDeveloper/labFunctions.ts');
@@ -3410,7 +3363,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/lab/docs
-    app.get('/api/ai-developer/lab/docs', async (req: any, res) => {
+    app.get('/api/ai-developer/lab/docs', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { generateDocs } = await import('../services/aiDeveloper/labFunctions.ts');
@@ -3419,7 +3372,7 @@ export async function registerRoutes(
     });
 
     // POST /api/ai-developer/lab/simulate
-    app.post('/api/ai-developer/lab/simulate', async (req: any, res) => {
+    app.post('/api/ai-developer/lab/simulate', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { simulateUsage } = await import('../services/aiDeveloper/labFunctions.ts');
@@ -3433,7 +3386,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/lab/auto-fix
-    app.get('/api/ai-developer/lab/auto-fix', async (req: any, res) => {
+    app.get('/api/ai-developer/lab/auto-fix', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { autoFix } = await import('../services/aiDeveloper/labFunctions.ts');
@@ -3452,7 +3405,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/lab/ai-logs — historico de logs da IA
-    app.get('/api/ai-developer/lab/ai-logs', async (req: any, res) => {
+    app.get('/api/ai-developer/lab/ai-logs', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const limit = req.query.limit ? Number(req.query.limit) : 100;
@@ -3462,7 +3415,7 @@ export async function registerRoutes(
     });
 
     // POST /api/ai-developer/lab/ai-logs — registrar log da IA
-    app.post('/api/ai-developer/lab/ai-logs', async (req: any, res) => {
+    app.post('/api/ai-developer/lab/ai-logs', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { acao, arquivoAfetado, status, detalhes, duracao } = req.body;
@@ -3473,7 +3426,7 @@ export async function registerRoutes(
     });
 
     // POST /api/ai-developer/lab/create-test-company — criar empresa + plano + assinatura de teste
-    app.post('/api/ai-developer/lab/create-test-company', async (req: any, res) => {
+    app.post('/api/ai-developer/lab/create-test-company', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       const results: any[] = [];
       try {
@@ -3519,7 +3472,7 @@ export async function registerRoutes(
     });
 
     // POST /api/ai-developer/lab/create-module
-    app.post('/api/ai-developer/lab/create-module', async (req: any, res) => {
+    app.post('/api/ai-developer/lab/create-module', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { name } = req.body;
@@ -3530,7 +3483,7 @@ export async function registerRoutes(
     });
 
     // GET /api/ai-developer/file — read a specific file
-    app.get('/api/ai-developer/file', async (req: any, res) => {
+    app.get('/api/ai-developer/file', requireAuthCore, async (req: any, res) => {
       if (!await requireDevAccess(req, res)) return;
       try {
         const { path: filePath } = req.query as { path: string };

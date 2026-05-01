@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { companySettingsService } from "../services/companySettingsService.ts";
-import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   // System Settings
@@ -43,8 +43,7 @@ export function register(app: Express) {
     } catch (e) { res.status(500).json({ message: 'Error fetching config' }); }
   });
 
-  app.patch('/api/company-config', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.patch('/api/company-config', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
@@ -67,8 +66,7 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/company-settings/:empresaId', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.post('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || user.role !== 'MASTER') {
       return res.status(403).json({ message: 'Apenas usuário MASTER pode alterar configurações' });
@@ -83,8 +81,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put('/api/company-settings/:empresaId', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.put('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
     if (!user || user.role !== 'MASTER') {
       return res.status(403).json({ message: 'Apenas usuário MASTER pode alterar configurações' });
@@ -109,7 +106,7 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/settings/test-mode', requireSessionOrCompany, async (req, res) => {
+  app.post('/api/settings/test-mode', requireAuthCore, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
@@ -152,7 +149,7 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/settings/maintenance', requireSessionOrCompany, async (req, res) => {
+  app.post('/api/settings/maintenance', requireAuthCore, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {

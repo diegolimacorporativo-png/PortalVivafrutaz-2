@@ -1,0 +1,178 @@
+🎯 FASE 6.3 — WAVE 3 (MIGRAÇÃO AVANÇADA CONTROLADA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO migrar arquivos inteiros
+2. NÃO aplicar requireSessionOrCompany em massa
+3. NÃO tocar endpoints com companyId
+4. NÃO tocar endpoints híbridos (userId + companyId)
+5. NÃO alterar comportamento de rotas públicas
+6. NÃO assumir que ausência de auth = erro
+
+👉 MIGRAÇÃO CIRÚRGICA (endpoint por endpoint)
+
+---
+
+🧠 CONTEXTO
+
+- Wave 1 e Wave 2 concluídas com sucesso
+- requireSessionOrCompany validado
+- sistema já protegido contra vazamento multi-tenant
+
+👉 agora o risco NÃO é segurança  
+👉 o risco é quebrar comportamento legítimo
+
+---
+
+# 🛠️ ETAPA 1 — SCAN GLOBAL
+
+Buscar em:
+
+server/routes/
+
+padrões:
+
+ts if (!req.session?.userId) 
+
+---
+
+# 🛠️ ETAPA 2 — CLASSIFICAÇÃO OBRIGATÓRIA
+
+Para cada ocorrência encontrada:
+
+---
+
+## 🔴 IGNORAR (não migrar)
+
+Se o endpoint:
+
+- usa req.session.companyId
+- funciona como portal de empresa
+- aceita acesso sem login completo
+- pode ser usado por cliente externo
+- pode virar webhook/integrador
+
+---
+
+## 🟡 ANALISAR COM CUIDADO
+
+Se o endpoint:
+
+- mistura userId + companyId
+- usa fallback de sessão
+- não tem role check claro
+
+👉 Se houver dúvida → NÃO MIGRAR
+
+---
+
+## 🟢 MIGRAR
+
+Somente se:
+
+✔ exige userId obrigatoriamente  
+✔ possui role check (ADMIN, MASTER, etc)  
+✔ não usa companyId  
+✔ claramente admin-only  
+
+---
+
+# 🛠️ ETAPA 3 — PADRÃO DE SUBSTITUIÇÃO
+
+ANTES:
+
+ts if (!req.session?.userId) {   return res.status(401).json({ message: 'Não autenticado' }); } 
+
+---
+
+DEPOIS:
+
+ts requireSessionOrCompany 
+
+---
+
+⚠️ OBRIGATÓRIO
+
+- manter role checks
+- manter try/catch
+- NÃO alterar ordem do handler
+
+---
+
+# 🧪 ETAPA 4 — TESTES
+
+Para cada endpoint migrado:
+
+---
+
+### 1️⃣ Sem sessão
+
+✔ 401
+
+---
+
+### 2️⃣ Sessão válida
+
+✔ comportamento idêntico
+
+---
+
+### 3️⃣ Role inválido
+
+✔ 403 mantido
+
+---
+
+# 🔒 ETAPA 5 — VALIDAÇÃO GLOBAL
+
+Confirmar:
+
+✔ nenhum endpoint público foi afetado  
+✔ nenhum endpoint de cliente quebrou  
+✔ nenhum fluxo híbrido foi bloqueado  
+✔ nenhum endpoint passou a exigir login indevido  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- padronização gradual de auth
+- zero regressão
+- nenhum comportamento alterado
+
+---
+
+# 🧠 REGRA DE OURO
+
+Se houver qualquer dúvida:
+
+👉 NÃO MIGRAR AGORA
+
+---
+
+# 🚫 PROIBIDO
+
+- aplicar middleware via app.use
+- migrar reports, settings GET ou company endpoints
+- mexer em rotas de NF-e nessa fase
+- mexer em controllers (somente routes)
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. endpoints migrados (lista exata)
+2. endpoints ignorados (com motivo técnico)
+3. código substituído
+4. testes realizados
+5. confirmação de ZERO regressão
+
+---
+
+🛑 PARAR após concluir
+
+👉 NÃO avançar automaticamente para próxima

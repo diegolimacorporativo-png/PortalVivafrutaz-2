@@ -1,10 +1,12 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+
+const SCOPE_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'];
 
 export function register(app: Express) {
   // ─── Clara Training Routes ────────────────────────────────────────────────
-  app.get('/api/scope-simulations', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/scope-simulations', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !(SCOPE_ROLES as any).includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -13,8 +15,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.get('/api/scope-simulations/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/scope-simulations/:id', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !(SCOPE_ROLES as any).includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -24,8 +25,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/scope-simulations', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/scope-simulations', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !(SCOPE_ROLES as any).includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -51,8 +51,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/scope-simulations/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/scope-simulations/:id', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !(SCOPE_ROLES as any).includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -68,8 +67,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/scope-simulations/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/scope-simulations/:id', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !(SCOPE_ROLES as any).includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -82,8 +80,7 @@ export function register(app: Express) {
   });
 
   // Converter simulação em cliente real
-  app.post('/api/scope-simulations/:id/convert', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/scope-simulations/:id/convert', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -94,7 +91,6 @@ export function register(app: Express) {
       const { password, cnpj, email, phone, city, contactName, segment, priceGroupId, deliveryDay, adminFee } = req.body;
       if (!password) return res.status(400).json({ message: 'Senha é obrigatória para criar o acesso' });
 
-      // Criar empresa cliente
       const company = await storage.createCompany({
         name: sim.companyName,
         cnpj: cnpj || sim.cnpj || '',
@@ -115,7 +111,6 @@ export function register(app: Express) {
         lastLoginAttempt: null,
       } as any);
 
-      // Criar itens de escopo (contractScopes)
       const items = (sim.items as any[]) || [];
       for (const item of items) {
         if (!item.productId || !item.dayOfWeek) continue;
@@ -132,7 +127,6 @@ export function register(app: Express) {
         });
       }
 
-      // Marcar simulação como convertida
       await storage.updateScopeSimulation(sim.id, {
         status: 'converted',
         convertedToCompanyId: company.id,

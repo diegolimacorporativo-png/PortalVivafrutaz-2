@@ -178,16 +178,14 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── Clara Training ───────────────────────────────────────────────────────
-  app.get('/api/clara-training', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/clara-training', requireAuthCore, async (req: any, res) => {
     try {
       const trainings = await storage.getClaraTrainings();
       res.json(trainings);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/clara-training', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/clara-training', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -198,8 +196,7 @@ export async function register(app: Express): Promise<void> {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.put('/api/clara-training/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.put('/api/clara-training/:id', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
@@ -209,8 +206,7 @@ export async function register(app: Express): Promise<void> {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/clara-training/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/clara-training/:id', requireAuthCore, async (req: any, res) => {
     try {
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });

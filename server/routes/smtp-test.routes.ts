@@ -4,10 +4,9 @@ import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  // --- Test SMTP email ---
-  app.post('/api/admin/smtp-test', async (req, res) => {
+  // POST /api/admin/smtp-test — admin users only
+  app.post('/api/admin/smtp-test', requireAuthCore, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const status = mailerStatus();
@@ -24,8 +23,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e?.message }); }
   });
 
-  // --- Mailer status ---
-  // FASE 1 — exige sessão admin para evitar exposição de SMTP host/user.
+  // GET /api/admin/mailer-status — FASE 1: exige sessão admin para evitar exposição de SMTP host/user.
   app.get('/api/admin/mailer-status', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), (req, res) => {
     res.json(mailerStatus());
   });

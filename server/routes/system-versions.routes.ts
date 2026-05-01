@@ -1,10 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  // ─── System Versions ──────────────────────────────────────────────────────
-  app.get('/api/system/versions', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/system/versions', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -18,8 +17,7 @@ export function register(app: Express) {
     res.json(version ?? null);
   });
 
-  app.post('/api/system/versions', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/system/versions', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -33,8 +31,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/system/versions/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/system/versions/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -45,8 +42,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/system/versions/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/system/versions/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -55,9 +51,7 @@ export function register(app: Express) {
     res.json({ ok: true });
   });
 
-  // ─── Aplicar Atualização ──────────────────────────────────────────────────────
-  app.post('/api/system/apply-update', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/system/apply-update', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -122,9 +116,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // ─── Rollback de Versão ───────────────────────────────────────────────────────
-  app.post('/api/system/rollback', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/system/rollback', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -146,9 +138,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  // ─── Histórico de Atualizações ───────────────────────────────────────────────
-  app.get('/api/system/update-logs', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/system/update-logs', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -160,9 +150,7 @@ export function register(app: Express) {
     res.json(logs);
   });
 
-  // ─── Status de Updates por Versão ────────────────────────────────────────────
-  app.get('/api/system/updates', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/system/updates', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });

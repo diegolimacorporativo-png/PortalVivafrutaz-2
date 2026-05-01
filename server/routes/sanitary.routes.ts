@@ -1,15 +1,13 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   // GET /api/sanitary/plan-status — retorna nível de acesso ao módulo sanitário
-  app.get('/api/sanitary/plan-status', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/sanitary/plan-status', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return res.status(401).json({ message: 'Usuário não encontrado' });
 
-    // Admins/directors/devs e NUTRICIONISTA sempre têm acesso completo
-    // (NUTRICIONISTA é o papel exclusivo do módulo sanitário — acesso irrestrito)
     if (['ADMIN', 'DIRECTOR', 'DEVELOPER', 'MASTER', 'NUTRICIONISTA'].includes(actor.role)) {
       return res.json({ enabled: true, level: 'full' });
     }
@@ -19,7 +17,6 @@ export function register(app: Express) {
       const assinatura = assinaturasList[0];
 
       if (!assinatura || !assinatura.planoId) {
-        // Sem assinatura ativa: NUTRICIONISTA tem acesso completo, outros só relatórios
         if (actor.role === 'NUTRICIONISTA') return res.json({ enabled: true, level: 'full' });
         return res.json({ enabled: true, level: 'readonly' });
       }
@@ -27,11 +24,9 @@ export function register(app: Express) {
       const plano = await storage.getPlano(assinatura.planoId);
       if (!plano) return res.json({ enabled: false, level: 'none' });
 
-      // Verificar via plano_modulos (sistema correto de módulos)
       const modulos = await storage.getModulosByPlano(assinatura.planoId);
       const chaves = modulos.map((m: any) => m.chave);
 
-      // Verificar também via modulosHabilitados (campo legado)
       const habilitados: string[] = (plano.modulosHabilitados as string[]) || [];
 
       const hasFull = chaves.includes('vigilancia_sanitaria') || habilitados.includes('vigilancia-sanitaria') || habilitados.includes('vigilancia_sanitaria');
@@ -46,15 +41,13 @@ export function register(app: Express) {
         return res.json({ enabled: false, level: 'none' });
       }
     } catch {
-      // Fallback: permite acesso
       if (actor.role === 'NUTRICIONISTA') return res.json({ enabled: true, level: 'full' });
       return res.json({ enabled: true, level: 'readonly' });
     }
   });
 
   // GET /api/sanitary/questions
-  app.get('/api/sanitary/questions', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/sanitary/questions', requireAuthCore, async (req: any, res) => {
     try {
       const questions = await storage.getSanitaryQuestions();
       res.json(questions);
@@ -62,8 +55,7 @@ export function register(app: Express) {
   });
 
   // POST /api/sanitary/questions
-  app.post('/api/sanitary/questions', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/sanitary/questions', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado: apenas Nutricionista ou Admin' });
@@ -75,8 +67,7 @@ export function register(app: Express) {
   });
 
   // PATCH /api/sanitary/questions/:id
-  app.patch('/api/sanitary/questions/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/sanitary/questions/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado: apenas Nutricionista ou Admin' });
@@ -88,8 +79,7 @@ export function register(app: Express) {
   });
 
   // DELETE /api/sanitary/questions/:id
-  app.delete('/api/sanitary/questions/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/sanitary/questions/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado: apenas Nutricionista ou Admin' });
@@ -101,8 +91,7 @@ export function register(app: Express) {
   });
 
   // GET /api/sanitary/evaluations
-  app.get('/api/sanitary/evaluations', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/sanitary/evaluations', requireAuthCore, async (req: any, res) => {
     try {
       const evals = await storage.getSanitaryEvaluations();
       res.json(evals);
@@ -110,8 +99,7 @@ export function register(app: Express) {
   });
 
   // GET /api/sanitary/evaluations/:id
-  app.get('/api/sanitary/evaluations/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/sanitary/evaluations/:id', requireAuthCore, async (req: any, res) => {
     try {
       const ev = await storage.getSanitaryEvaluation(Number(req.params.id));
       if (!ev) return res.status(404).json({ message: 'Avaliação não encontrada' });
@@ -120,8 +108,7 @@ export function register(app: Express) {
   });
 
   // POST /api/sanitary/evaluations — cria avaliação e popula itens a partir das perguntas ativas
-  app.post('/api/sanitary/evaluations', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/sanitary/evaluations', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA', 'OPERATIONS_MANAGER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -137,7 +124,6 @@ export function register(app: Express) {
         notes: notes || null,
         evaluationDate: new Date(),
       });
-      // Populate items from active questions
       const questions = await storage.getSanitaryQuestions();
       const activeQuestions = questions.filter(q => q.active);
       if (activeQuestions.length > 0) {
@@ -158,8 +144,7 @@ export function register(app: Express) {
   });
 
   // PATCH /api/sanitary/evaluations/:id — atualiza status/notas/score
-  app.patch('/api/sanitary/evaluations/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/sanitary/evaluations/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA', 'OPERATIONS_MANAGER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -171,8 +156,7 @@ export function register(app: Express) {
   });
 
   // PATCH /api/sanitary/evaluations/:id/items/:itemId — responde item
-  app.patch('/api/sanitary/evaluations/:id/items/:itemId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/sanitary/evaluations/:id/items/:itemId', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA', 'OPERATIONS_MANAGER'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });

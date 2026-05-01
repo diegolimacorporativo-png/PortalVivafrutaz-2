@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  // ─── Order Cleanup Check (Module 5) ────────────────────────────
   app.get('/api/admin/order-cleanup-check', async (req, res) => {
     try {
       const twoMonthsAgo = new Date();
@@ -13,8 +13,7 @@ export function register(app: Express) {
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
 
-  app.delete('/api/admin/order-cleanup', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
+  app.delete('/api/admin/order-cleanup', requireAuthCore, async (req, res) => {
     try {
       const twoMonthsAgo = new Date();
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);

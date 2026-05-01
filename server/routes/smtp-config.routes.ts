@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { sendTestEmail, reloadSmtpConfig } from "../services/mailer";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
-  app.get('/api/smtp-config', async (req: any, res) => {
+  app.get('/api/smtp-config', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const cfg = await storage.getSmtpConfig();
@@ -16,9 +16,8 @@ export function register(app: Express) {
     }
   });
 
-  app.put('/api/smtp-config', async (req: any, res) => {
+  app.put('/api/smtp-config', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const { host, port, user: smtpUser, password, senderEmail, senderName } = req.body;
@@ -39,9 +38,8 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/smtp-config/test', async (req: any, res) => {
+  app.post('/api/smtp-config/test', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const user = await storage.getUser(req.session.userId);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const cfg = await storage.getSmtpConfig();

@@ -1,11 +1,11 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export async function register(app: Express): Promise<void> {
   // ─── SaaS: Bancos de Recebimento ────────────────────────────────────────────
-  app.get('/api/saas/bancos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/bancos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DIRECTOR','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -14,8 +14,7 @@ export async function register(app: Express): Promise<void> {
     res.json(bancos);
   });
 
-  app.post('/api/saas/bancos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/bancos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -26,8 +25,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/saas/bancos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/saas/bancos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -38,8 +36,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/saas/bancos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/saas/bancos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -49,8 +46,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Contratos de Clientes ────────────────────────────────────────────
-  app.get('/api/saas/contratos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/contratos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DIRECTOR','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -63,8 +59,7 @@ export async function register(app: Express): Promise<void> {
     res.json(contratos);
   });
 
-  app.post('/api/saas/contratos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/contratos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -75,8 +70,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/saas/contratos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/saas/contratos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -87,8 +81,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/saas/contratos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/saas/contratos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -98,8 +91,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Faturas SaaS ──────────────────────────────────────────────────────
-  app.get('/api/saas/faturas', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/faturas', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DIRECTOR','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -112,8 +104,7 @@ export async function register(app: Express): Promise<void> {
     res.json(faturas);
   });
 
-  app.post('/api/saas/faturas', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/faturas', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -124,8 +115,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/saas/faturas/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/saas/faturas/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -136,8 +126,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/saas/faturas/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/saas/faturas/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -147,8 +136,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Dashboard Stats ───────────────────────────────────────────────────
-  app.get('/api/saas/dashboard', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/dashboard', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DIRECTOR','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -207,8 +195,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Uso do Plano por Empresa ─────────────────────────────────────────
-  app.get('/api/saas/uso/:empresaId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/uso/:empresaId', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DIRECTOR','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -252,14 +239,13 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Reajuste IPCA ──────────────────────────────────────────────────────
-  app.post('/api/saas/reajuste-ipca', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/reajuste-ipca', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
-      const { indiceIpca } = req.body; // ex: 4.62 para 4,62%
+      const { indiceIpca } = req.body;
       if (!indiceIpca) return res.status(400).json({ message: 'indiceIpca obrigatório' });
 
       const contratos = await storage.getContratosClientes({ status: 'ativo' });
@@ -277,8 +263,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Verificar Inadimplência e Suspender ───────────────────────────────
-  app.post('/api/saas/verificar-inadimplencia', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/verificar-inadimplencia', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -314,8 +299,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/saas/modulos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/modulos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -324,8 +308,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/saas/modulos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.patch('/api/saas/modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -334,8 +317,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/saas/modulos/:id', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.delete('/api/saas/modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -352,12 +334,11 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/saas/planos/:id/modulos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/planos/:id/modulos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
-      const { moduloIds } = req.body; // array of modulo IDs
+      const { moduloIds } = req.body;
       await storage.setModulosForPlano(parseInt(req.params.id), moduloIds || []);
       const modulos = await storage.getModulosByPlano(parseInt(req.params.id));
       res.json(modulos);
@@ -365,8 +346,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Minha Assinatura (empresa autenticada) ────────────────────────────
-  app.get('/api/saas/minha-assinatura', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/minha-assinatura', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return res.status(401).json({ message: 'Não autenticado' });
     try {
@@ -379,12 +359,11 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.get('/api/saas/minha-assinatura/modulos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor2 = await storage.getUser(req.session.userId);
-    if (!actor2) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/minha-assinatura/modulos', requireAuthCore, async (req: any, res) => {
+    const actor = await storage.getUser(req.session.userId);
+    if (!actor) return res.status(401).json({ message: 'Não autenticado' });
     try {
-      const companyId = (actor2 as any).companyId;
+      const companyId = (actor as any).companyId;
       if (!companyId) return res.json([]);
       const chaves = await storage.getModuloChavesByCompany(companyId);
       res.json(chaves);
@@ -392,13 +371,12 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Processar Pagamento de Assinatura ────────────────────────────────
-  app.post('/api/saas/assinaturas/:id/pagar', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/assinaturas/:id/pagar', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
       const id = parseInt(req.params.id);
-      const { metodo } = req.body; // pix | cartao | boleto
+      const { metodo } = req.body;
       const assinatura = await storage.getAssinatura(id);
       if (!assinatura) return res.status(404).json({ message: 'Assinatura não encontrada' });
 
@@ -432,8 +410,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Confirmar PIX ─────────────────────────────────────────────────────
-  app.post('/api/saas/assinaturas/:id/confirmar-pix', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/assinaturas/:id/confirmar-pix', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -448,8 +425,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Upgrade de Plano ──────────────────────────────────────────────────
-  app.post('/api/saas/assinaturas/:id/upgrade', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/assinaturas/:id/upgrade', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','GESTOR_CONTRATOS'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -475,8 +451,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Verificar Boletos Vencidos (auto-check) ───────────────────────────
-  app.post('/api/saas/check-boletos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/check-boletos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -486,8 +461,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Seed Módulos Padrão ───────────────────────────────────────────────
-  app.post('/api/saas/seed-modulos', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.post('/api/saas/seed-modulos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN'].includes(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
     try {
@@ -524,8 +498,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Métricas Financeiras ──────────────────────────────────────────────
-  app.get('/api/saas/financeiro', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/financeiro', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -536,8 +509,7 @@ export async function register(app: Express): Promise<void> {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.get('/api/saas/financeiro/historico', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+  app.get('/api/saas/financeiro/historico', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });

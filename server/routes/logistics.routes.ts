@@ -3,6 +3,7 @@ import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
 import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export async function register(app: Express): Promise<void> {
   app.get('/api/geo/cep/:cep', async (req: any, res) => {
@@ -51,34 +52,30 @@ export async function register(app: Express): Promise<void> {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get('/api/deliveries/:id', async (req: any, res) => {
+  app.get('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const d = await storage.getDelivery(Number(req.params.id));
       if (!d) return res.status(404).json({ message: 'Entrega não encontrada' });
       res.json(d);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post('/api/deliveries', async (req: any, res) => {
+  app.post('/api/deliveries', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const delivery = await storage.createDelivery(req.body);
       res.status(201).json(delivery);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.put('/api/deliveries/:id', async (req: any, res) => {
+  app.put('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const delivery = await storage.updateDelivery(Number(req.params.id), req.body);
       res.json(delivery);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.patch('/api/deliveries/:id/status', async (req: any, res) => {
+  app.patch('/api/deliveries/:id/status', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const { status } = req.body;
       const updates: any = { status };
       if (status === 'entregue') updates.deliveredAt = new Date();
@@ -87,9 +84,8 @@ export async function register(app: Express): Promise<void> {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.delete('/api/deliveries/:id', async (req: any, res) => {
+  app.delete('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       await storage.deleteDelivery(Number(req.params.id));
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -110,9 +106,8 @@ export async function register(app: Express): Promise<void> {
   }
 
   // ─── Driver Panel — Rota do dia ───────────────────────────────────────────────
-  app.get('/api/driver/route-today', async (req: any, res) => {
+  app.get('/api/driver/route-today', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
 
@@ -200,9 +195,8 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── Driver GPS Position ───────────────────────────────────────────────────────
-  app.post('/api/driver/gps', async (req: any, res) => {
+  app.post('/api/driver/gps', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
 
@@ -230,11 +224,10 @@ export async function register(app: Express): Promise<void> {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get('/api/driver/:driverId/gps', async (req: any, res) => {
+  app.get('/api/driver/:driverId/gps', requireAuthCore, async (req: any, res) => {
     try {
       // STEP 8.7 — endpoint was previously fully open. Now requires session +
       // role gate, and DRIVERs can only read their OWN latest position.
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       if (!isDriverOrInternal(actor.role)) {
@@ -260,9 +253,8 @@ export async function register(app: Express): Promise<void> {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.post('/api/deliveries/:id/checklist', async (req: any, res) => {
+  app.post('/api/deliveries/:id/checklist', requireAuthCore, async (req: any, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
