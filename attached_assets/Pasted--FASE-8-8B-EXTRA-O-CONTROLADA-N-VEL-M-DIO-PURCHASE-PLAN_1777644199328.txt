@@ -1,0 +1,160 @@
+🎯 FASE 8.8B — EXTRAÇÃO CONTROLADA (NÍVEL MÉDIO — PURCHASE-PLANNING)
+
+---
+
+🚫 REGRAS CRÍTICAS (MODO HARD)
+
+1. NÃO alterar lógica
+2. NÃO refatorar código
+3. NÃO corrigir bugs
+4. NÃO mover lógica para outros arquivos
+5. NÃO alterar middleware
+6. NÃO alterar assinatura de função
+7. NÃO alterar ordem de execução
+8. NÃO alterar tratamento de erro
+
+👉 copiar exatamente como está
+
+---
+
+🧠 CONTEXTO
+
+Sistema já está estável após extrações simples:
+
+- vários domínios pequenos já removidos ✅
+- routes.ts ainda contém domínios médios e grandes
+- infra já desacoplada (upload, pdf, scheduler, NFe deps) ✅
+
+👉 AGORA estamos entrando em domínio de risco médio
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair APENAS:
+
+👉 purchase-planning
+
+---
+
+## ⚠️ ALERTAS ESPECIAIS (CRÍTICO)
+
+Antes de qualquer código:
+
+VERIFICAR se o domínio usa:
+
+- tenantContext middleware ⚠️
+- req.session casting (as any) ⚠️
+- acesso indireto via storage ⚠️
+
+👉 SE USAR → COPIAR EXATAMENTE (não adaptar)
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA
+
+---
+
+### 1️⃣ DISCOVERY PROFUNDO (LEITURA)
+
+Mapear:
+
+| Item | Verificar |
+|------|----------|
+| Endpoints | lista completa |
+| Linhas | início → fim |
+| Auth | session? |
+| Middleware | tenantContext? |
+| Dependências | storage apenas? |
+| Ordem | middleware → handler |
+
+🚫 NÃO CODAR
+
+---
+
+### 2️⃣ EXTRAÇÃO CONTROLADA
+
+Criar:
+
+server/routes/purchase-planning.routes.ts
+
+⚠️ REGRAS:
+
+- manter middleware inline EXACTO:
+ts app.get('/api/...', tenantContext, async (...) => {}) 
+
+- NÃO separar middleware
+- NÃO mover função
+- NÃO simplificar
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+ts import { register as purchasePlanningRegister } from './purchase-planning.routes'; 
+
+e:
+
+ts purchasePlanningRegister(app); 
+
+👉 mesma posição dos outros domains
+
+---
+
+### 4️⃣ DESATIVAÇÃO SEGURA
+
+Substituir bloco original por:
+
+ts // MOVED TO purchase-planning.routes.ts 
+
+🚫 NÃO deletar  
+🚫 NÃO deixar duplicado ativo  
+
+---
+
+### 5️⃣ VALIDAÇÃO AVANÇADA
+
+Testar:
+
+| Endpoint | Esperado |
+|----------|----------|
+| sem auth | 401 |
+| com auth | comportamento normal |
+| /api/health | 200 |
+
+⚠️ VALIDAR:
+
+- middleware ainda executa
+- nenhuma rota quebrou
+- nenhuma exception nova
+
+---
+
+### 6️⃣ RELATÓRIO COMPLETO
+
+Responder com:
+
+1. endpoints movidos
+2. middleware preservado? (SIM/OK)
+3. linhas removidas
+4. testes antes vs depois
+5. confirmação de ZERO regressão
+
+---
+
+🚫 PROIBIDO (IMPORTANTE)
+
+- NÃO extrair outro domínio
+- NÃO mexer em tenantContext
+- NÃO mexer em storage
+- NÃO “organizar melhor”
+- NÃO tentar melhorar código
+
+---
+
+🛑 REGRA FINAL
+
+👉 PARAR após relatório  
+👉 AGUARDAR próximo comando
