@@ -120,6 +120,8 @@ export interface IPScore {
   score: number;
   level: RiskLevel;
   breakdown: IPScoreBreakdown;
+  /** FASE 7.3.2 — true when ≥5 scored events occurred in the last 60 s for this IP. */
+  spike: boolean;
 }
 
 export interface IPScoreReport {
@@ -147,10 +149,19 @@ export interface IPScoreReport {
  *
  * Returns IPs sorted by score descending so callers can slice to top-N.
  */
+/** Events within this window are counted for per-IP spike detection. */
+const SPIKE_WINDOW_MS = 60_000;
+/** Minimum scored events in the spike window to flag a spike for an IP. */
+const SPIKE_THRESHOLD = 5;
+
 export function computeIPScores(): IPScoreReport {
   const events = getSecurityEvents();
+  const since = Date.now() - SPIKE_WINDOW_MS;
 
-  const perIP: Record<string, { score: number; breakdown: IPScoreBreakdown }> = {};
+  const perIP: Record<
+    string,
+    { score: number; breakdown: IPScoreBreakdown; recentCount: number }
+  > = {};
 
   for (const e of events) {
     if (!e.ip) continue;
@@ -161,6 +172,7 @@ export function computeIPScores(): IPScoreReport {
       perIP[e.ip] = {
         score: 0,
         breakdown: { RATE_LIMITED: 0, HIGH_RISK_ACTION: 0, CRITICAL_ACTION: 0 },
+        recentCount: 0,
       };
     }
 
@@ -169,14 +181,18 @@ export function computeIPScores(): IPScoreReport {
     if (e.type === "RATE_LIMITED") perIP[e.ip].breakdown.RATE_LIMITED++;
     else if (e.type === "HIGH_RISK_ACTION") perIP[e.ip].breakdown.HIGH_RISK_ACTION++;
     else if (e.type === "CRITICAL_ACTION") perIP[e.ip].breakdown.CRITICAL_ACTION++;
+
+    // FASE 7.3.2 — count events that fall inside the spike window
+    if (e.timestamp > since) perIP[e.ip].recentCount++;
   }
 
   const ips: IPScore[] = Object.entries(perIP)
-    .map(([ip, { score, breakdown }]) => ({
+    .map(([ip, { score, breakdown, recentCount }]) => ({
       ip,
       score,
       level: scoreToLevel(score),
       breakdown,
+      spike: recentCount >= SPIKE_THRESHOLD,
     }))
     .sort((a, b) => b.score - a.score);
 
