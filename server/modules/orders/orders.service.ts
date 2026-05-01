@@ -9,6 +9,8 @@ import {
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { currentTenantId } from "../../core/tenant/context";
+// FASE 9D — safe async observability for afterCreate
+import { logSecurity } from "../../core/security/securityLogger";
 // FASE NF.7.9.2 — guard de fechamento mensal. Bloqueia mutação em pedido
 // cujo `createdAt` cai num mês já consolidado para a empresa. NÃO altera
 // qualquer caminho de leitura nem a ausência de fechamento (default = aberto).
@@ -445,9 +447,20 @@ export class OrdersService {
       items,
     );
 
-    // 6) fire-and-forget side-effects (mirroring legacy try/catch swallow)
-    this.afterCreate(newOrder, order, items).catch((err) => {
-      console.error("[orders.afterCreate] side-effect error:", err);
+    // 6) fire-and-forget side-effects — FASE 9D: safe async wrapper with
+    //    structured error observability. setImmediate defers execution until
+    //    after the current event-loop tick so the HTTP response is sent first.
+    //    The try/catch ensures any afterCreate failure is surfaced via
+    //    logSecurity instead of being silently swallowed, without ever
+    //    blocking order creation or altering the response time.
+    setImmediate(async () => {
+      try {
+        await this.afterCreate(newOrder, order, items);
+      } catch (err: any) {
+        logSecurity(
+          `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} | error=${err?.message ?? "unknown"}`,
+        );
+      }
     });
 
     return { data: newOrder, isTest: false, status: 201 };

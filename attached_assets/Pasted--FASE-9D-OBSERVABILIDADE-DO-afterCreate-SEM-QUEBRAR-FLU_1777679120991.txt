@@ -1,0 +1,171 @@
+🎯 FASE 9D — OBSERVABILIDADE DO afterCreate (SEM QUEBRAR FLUXO)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO QUEBRAR PRODUÇÃO)
+
+1. NÃO usar await no afterCreate  
+2. NÃO alterar tempo de resposta da API  
+3. NÃO mover lógica de lugar  
+4. NÃO remover código existente  
+5. NÃO alterar estrutura de retorno de endpoints  
+6. NÃO criar fila (queue) ainda  
+7. NÃO bloquear criação de pedido em caso de erro  
+
+👉 Apenas adicionar visibilidade de falhas
+
+---
+
+🧠 PROBLEMA
+
+Hoje o fluxo é:
+
+createOrder → commit → afterCreate() (fire-and-forget)
+
+Se afterCreate falhar:
+❌ erro silencioso  
+❌ delivery pode não ser criado  
+❌ email/push podem falhar  
+❌ nenhum log estruturado  
+
+---
+
+🎯 OBJETIVO
+
+Garantir que:
+
+👉 TODA falha dentro do afterCreate seja logada via logSecurity  
+👉 sem alterar comportamento atual  
+
+---
+
+## 🛠️ ETAPA 1 — LOCALIZAR CHAMADA
+
+Arquivo:
+
+server/modules/orders/orders.service.ts
+
+Buscar por:
+
+ts afterCreate( 
+
+Ou:
+
+ts afterCreate(order) 
+
+---
+
+## 🛠️ ETAPA 2 — ENVOLVER COM SAFE ASYNC WRAPPER
+
+Substituir chamada direta por:
+
+ts id="qv9x1w" // FASE 9D — safe async execution with observability setImmediate(async () => {   try {     await afterCreate(order);   } catch (err: any) {     logSecurity(       `[ORDER_AFTER_CREATE_FAILED] orderId=${order.id} | error=${err.message}`     );   } }); 
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO usar:
+
+ts await afterCreate(order); // ❌ proibido 
+
+👉 NÃO usar:
+
+ts afterCreate(order).catch(...) // ❌ padrão inconsistente 
+
+👉 usar exatamente setImmediate + try/catch
+
+---
+
+## 🛠️ ETAPA 3 — IMPORTAR LOGGER
+
+Garantir no topo:
+
+ts id="4k5n7x" import { logSecurity } from "@/core/security/securityLogger"; 
+
+---
+
+## 🛠️ ETAPA 4 — NÃO MEXER EM MAIS NADA
+
+👉 NÃO alterar função afterCreate  
+👉 NÃO alterar createOrder  
+👉 NÃO alterar fluxo de delivery/email/push  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Pedido normal
+
+Resultado:
+✔ Pedido criado normalmente  
+✔ afterCreate executa  
+✔ Sem logs  
+
+---
+
+### 2️⃣ Falha simulada no afterCreate
+
+(ex: throw manual dentro da função)
+
+Resultado:
+
+✔ Pedido criado normalmente  
+✔ Log gerado:
+
+[SECURITY] ORDER_AFTER_CREATE_FAILED | orderId=...
+
+✔ Nenhum impacto no usuário  
+
+---
+
+### 3️⃣ Performance
+
+Resultado:
+✔ Tempo de resposta do endpoint inalterado  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Zero regressão  
+✔ Nenhum fluxo bloqueado  
+✔ Nenhuma mudança de comportamento  
+✔ Nenhuma dependência nova  
+✔ Sistema continua exatamente igual — agora com visibilidade  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+ts afterCreate(order); 
+
+DEPOIS:
+
+ts // execução assíncrona segura com log de erro setImmediate(async () => {   try {     await afterCreate(order);   } catch (err) {     logSecurity(...);   } }); 
+
+---
+
+## 🚀 FUTURA EVOLUÇÃO (NÃO IMPLEMENTAR AGORA)
+
+- fila (queue) de jobs  
+- retry automático  
+- dead-letter queue  
+- monitor de falhas  
+
+👉 NÃO fazer nada disso nesta fase
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho exato alterado  
+2. confirmação de uso de setImmediate  
+3. logs implementados  
+4. confirmação de zero re
