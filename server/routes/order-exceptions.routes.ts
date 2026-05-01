@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { validateCompanyTenant } from "../core/security/orderSecurity";
 
 export function register(app: Express) {
   // Order Exceptions
@@ -41,7 +42,17 @@ export function register(app: Express) {
 
   // Check order exception for a company (used by client-side order check)
   app.get('/api/order-exceptions/company/:companyId', async (req, res) => {
-    const exc = await storage.getCompanyException(Number(req.params.companyId));
+    // FASE 6 — BATCH FINAL: auth + tenant guard.
+    if (!(req as any).session?.userId && !(req as any).session?.companyId) {
+      return res.status(401).json({ message: 'Não autenticado' });
+    }
+    const companyId = Number(req.params.companyId);
+    try {
+      validateCompanyTenant(companyId, req);
+    } catch {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+    const exc = await storage.getCompanyException(companyId);
     res.json(exc || null);
   });
 }

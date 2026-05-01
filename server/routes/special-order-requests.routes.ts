@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { sendSpecialOrderResolved } from "../services/mailer";
+import { validateCompanyTenant } from "../core/security/orderSecurity";
 
 export function register(app: Express) {
   // Client: submit special order
@@ -36,7 +37,17 @@ export function register(app: Express) {
   // Client: list own requests
   app.get('/api/special-order-requests/company/:companyId', async (req, res) => {
     try {
-      const items = await storage.getSpecialOrderRequestsByCompany(Number(req.params.companyId));
+      // FASE 6 — BATCH FINAL: auth + tenant guard.
+      if (!(req as any).session?.userId && !(req as any).session?.companyId) {
+        return res.status(401).json({ message: 'Não autenticado' });
+      }
+      const companyId = Number(req.params.companyId);
+      try {
+        validateCompanyTenant(companyId, req);
+      } catch {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
+      const items = await storage.getSpecialOrderRequestsByCompany(companyId);
       res.json(items);
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });

@@ -2935,6 +2935,18 @@ export async function registerRoutes(
         const { motivo } = req.body;
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
+        // FASE 6 — BATCH FINAL: bloqueia cancelamento de NF-e de outro tenant.
+        // Mesmo padrão de /api/nfe/:id/xml e /api/nfe/:id/danfe.
+        if (nfe.orderId) {
+          try {
+            await validateOrderTenant(nfe.orderId);
+          } catch (e: any) {
+            if (e instanceof AppError) {
+              return res.status(e.status).json({ message: e.message });
+            }
+            throw e;
+          }
+        }
         await storage.updateNfeEmissao(nfe.id, { status: 'cancelada', motivoCancelamento: motivo || 'Cancelada pelo usuário' });
         res.json({ success: true });
       } catch (e: any) { res.status(500).json({ message: e.message }); }

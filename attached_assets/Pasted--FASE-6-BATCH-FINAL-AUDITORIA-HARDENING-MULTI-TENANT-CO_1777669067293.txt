@@ -1,0 +1,208 @@
+🎯 FASE 6 — BATCH FINAL (AUDITORIA + HARDENING MULTI-TENANT)
+
+---
+
+🧠 CONTEXTO ATUAL
+
+Sistema já passou por:
+
+✔ Modularização completa de routes.ts  
+✔ Extração de todos os domínios  
+✔ Implementação de:
+
+- validateOrderTenant(orderId)
+- validateCompanyTenant(companyId)
+- safeGetOrder(orderId)
+
+✔ Proteção aplicada em:
+- Orders (controllers v1/v2)
+- NF-e (todos GET com :orderId e :id)
+- Companies legacy endpoint
+- Rotas críticas auditadas
+
+👉 Sistema já está estável, sem regressão
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO QUEBRAR)
+
+1. NÃO alterar lógica existente  
+2. NÃO alterar response  
+3. NÃO alterar estrutura  
+4. NÃO alterar storage.ts  
+5. NÃO mover código  
+6. NÃO refatorar  
+7. NÃO alterar services  
+
+👉 Apenas AUDITAR e ADICIONAR proteção se faltar
+
+---
+
+🎯 OBJETIVO
+
+Garantir 100% de isolamento multi-tenant em:
+
+- leitura (GET)
+- escrita (POST/PATCH/DELETE)
+
+Sem vazamento entre empresas
+
+---
+
+## 🔍 ETAPA 1 — SCAN GLOBAL
+
+Procurar em TODO o projeto:
+
+### 1.1 Orders (CRÍTICO)
+
+Qualquer uso de:
+
+ts storage.getOrder( repo.get( service.getOrder( 
+
+👉 Se vier de param:
+
+- req.params.id
+- req.params.orderId
+
+OBRIGATÓRIO ter antes:
+
+ts await validateOrderTenant(id); 
+
+---
+
+### 1.2 NF-e (CRÍTICO)
+
+Se tiver:
+
+ts nfe = storage.getNFe(id) 
+
+OBRIGATÓRIO:
+
+ts await validateOrderTenant(nfe.orderId); 
+
+---
+
+### 1.3 Company (CRÍTICO)
+
+Se usar:
+
+ts req.params.companyId 
+
+OBRIGATÓRIO:
+
+ts validateCompanyTenant(companyId, req); 
+
+---
+
+### 1.4 Qualquer GET com :id
+
+Verificar:
+
+- products
+- logistics
+- inventory
+- billing
+- reports (se detalhado)
+- qualquer módulo novo
+
+👉 Se expõe dados sensíveis → proteger
+
+---
+
+## 🛠️ ETAPA 2 — APLICAR PROTEÇÃO
+
+Somente adicionar antes da leitura:
+
+✔ validateOrderTenant  
+✔ validateCompanyTenant  
+
+❌ NÃO alterar mais nada
+
+---
+
+## 🧾 ETAPA 3 — LOG DE SEGURANÇA
+
+Garantir que continua gerando:
+
+ts [SECURITY] TENANT_MISMATCH 
+
+❌ NÃO duplicar logs  
+❌ NÃO mudar formato  
+
+---
+
+## 🧪 ETAPA 4 — VALIDAÇÃO
+
+Testar:
+
+### Sem auth
+→ 401
+
+### Tenant errado
+→ 403 + log SECURITY
+
+### Tenant correto
+→ comportamento normal
+
+---
+
+## 📊 ETAPA 5 — RELATÓRIO FINAL
+
+Responder EXATAMENTE com:
+
+---
+
+### 1. Endpoints corrigidos
+
+Lista completa
+
+---
+
+### 2. Código adicionado
+
+Somente guards inseridos
+
+---
+
+### 3. Endpoints já seguros
+
+Lista dos que NÃO precisaram alteração
+
+---
+
+### 4. Riscos encontrados (se houver)
+
+Ex:
+- endpoint público indevido
+- leitura sem auth
+- uso perigoso de ID externo
+
+---
+
+### 5. Confirmação final
+
+✔ zero regressão  
+✔ nenhum dado vazado  
+✔ isolamento multi-tenant completo  
+
+---
+
+## 🧠 OBS FINAL
+
+👉 Se NÃO encontrar nada novo:
+
+Responder:
+
+"Sistema já está 100% protegido — nenhum ajuste adicional necessário"
+
+---
+
+🚀 MISSÃO
+
+Transformar o backend em:
+
+🔒 ISOLAMENTO TOTAL ENTRE EMPRESAS  
+🔒 ZERO VAZAMENTO DE DADOS  
+🔒 PADRÃO CONSISTENTE DE SEGURANÇA  
+
+---
