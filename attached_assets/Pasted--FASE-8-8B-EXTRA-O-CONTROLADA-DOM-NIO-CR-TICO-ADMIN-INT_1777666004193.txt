@@ -1,0 +1,144 @@
+🎯 FASE 8.8B — EXTRAÇÃO CONTROLADA (DOMÍNIO CRÍTICO: ADMIN-INTELLIGENCE)
+
+---
+
+🚨 NÍVEL DE RISCO: ALTO
+
+Este NÃO é um domínio simples.
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+- NÃO alterar lógica
+- NÃO reorganizar código
+- NÃO mover variáveis
+- NÃO extrair funções
+- NÃO alterar loops
+- NÃO alterar reduce/map/filter
+- NÃO alterar queries
+- NÃO alterar ordem de execução
+- NÃO renomear variáveis
+- NÃO otimizar
+
+👉 copiar EXATAMENTE como está (byte-a-byte)
+
+---
+
+🧠 CONTEXTO
+
+Sistema está com:
+
+✔ ZERO regressão até agora  
+✔ múltiplos domínios já extraídos  
+✔ servidor estável  
+
+👉 ESTE é o primeiro domínio complexo da fase
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair:
+
+👉 GET /api/admin/intelligence  
+👉 POST /api/admin/intelligence/auto-fix (se existir)
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA
+
+---
+
+### 1️⃣ DISCOVERY PROFUNDO
+
+ANTES de escrever código, mapear:
+
+- linhas exatas
+- todos os cálculos
+- todas as dependências:
+  - storage
+  - db
+  - drizzle (se houver)
+- estrutura COMPLETA da resposta JSON
+
+👉 listar TODOS os campos da resposta
+
+---
+
+### 2️⃣ EXTRAÇÃO (SEM QUEBRAR NADA)
+
+Criar:
+
+ts server/routes/admin-intelligence.routes.ts 
+
+Regras:
+
+- copiar handler inteiro
+- NÃO dividir código
+- NÃO separar lógica
+- manter tudo inline
+- manter ordem exata
+
+---
+
+### 3️⃣ REGISTRO
+
+ts import { register as adminIntelligenceRegister } from './admin-intelligence.routes';  adminIntelligenceRegister(app); 
+
+---
+
+### 4️⃣ DESATIVAÇÃO
+
+ts // ─── admin-intelligence — MOVED TO admin-intelligence.routes.ts 
+
+---
+
+### 5️⃣ VALIDAÇÃO AVANÇADA
+
+Testar:
+
+- /api/health → 200
+- endpoint → 401 (sem auth)
+
+---
+
+### 6️⃣ VALIDAÇÃO CRÍTICA (OBRIGATÓRIA)
+
+Comparar:
+
+ANTES vs DEPOIS:
+
+✔ mesmas keys no JSON  
+✔ mesmos arrays  
+✔ mesmos nomes de campos  
+✔ mesma estrutura  
+
+👉 NÃO validar só status code
+
+---
+
+### 7️⃣ RELATÓRIO COMPLETO
+
+Responder com:
+
+1. endpoints movidos  
+2. dependências usadas  
+3. estrutura da resposta  
+4. linhas removidas  
+5. testes realizados  
+6. confirmação:
+
+👉 ZERO REGRESSÃO  
+
+---
+
+## 🚫 PROIBIDO
+
+- NÃO continuar para outro domínio
+- NÃO agrupar com outros endpoints
+- NÃO corrigir nada
+
+---
+
+🛑 PARAR IMEDIATAMENTE
