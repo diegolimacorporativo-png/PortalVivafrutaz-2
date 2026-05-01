@@ -102,6 +102,7 @@ import { register as wasteControlRegister } from './waste-control.routes';
 import { register as orderExceptionsRegister } from './order-exceptions.routes';
 import { register as specialOrderRequestsRegister } from './special-order-requests.routes';
 import { register as passwordResetRequestsRegister } from './password-reset-requests.routes';
+import { register as orderCleanupRegister } from './order-cleanup.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -156,6 +157,7 @@ export async function registerRoutes(
   orderExceptionsRegister(app);
   specialOrderRequestsRegister(app);
   passwordResetRequestsRegister(app);
+  orderCleanupRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -1051,30 +1053,9 @@ export async function registerRoutes(
   // GET    /api/special-order-requests
   // PUT    /api/special-order-requests/:id
 
-  // ─── Order Cleanup Check (Module 5) ────────────────────────────
-  app.get('/api/admin/order-cleanup-check', async (req, res) => {
-    try {
-      const twoMonthsAgo = new Date();
-      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-      const allOrders = await storage.getOrders();
-      const old = allOrders.filter(o => new Date(o.orderDate) < twoMonthsAgo);
-      res.json({ count: old.length, oldestDate: old[old.length - 1]?.orderDate || null });
-    } catch { res.status(500).json({ message: "Erro interno" }); }
-  });
-
-  app.delete('/api/admin/order-cleanup', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    try {
-      const twoMonthsAgo = new Date();
-      twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
-      const allOrders = await storage.getOrders();
-      const oldOrders = allOrders.filter(o => new Date(o.orderDate) < twoMonthsAgo);
-      for (const o of oldOrders) {
-        await storage.deleteOrder(o.id);
-      }
-      res.json({ deleted: oldOrders.length });
-    } catch { res.status(500).json({ message: "Erro interno" }); }
-  });
+  // MOVED TO order-cleanup.routes.ts
+  // GET    /api/admin/order-cleanup-check
+  // DELETE /api/admin/order-cleanup
 
   // MOVED TO password-reset-requests.routes.ts
   // GET  /api/password-reset-requests
