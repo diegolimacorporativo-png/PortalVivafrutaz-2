@@ -1,0 +1,144 @@
+🎯 CONTEXTO GERAL DO PROJETO (OBRIGATÓRIO LER ANTES DE CODAR)
+
+Sistema backend já passou por:
+
+✔ Modularização completa de rotas  
+✔ Proteção multi-tenant (orders + companies)  
+✔ Padronização de auth (requireAuthCore / requireSessionOrCompany)  
+✔ Rate limiting ativo por rota  
+✔ Sistema de logs de segurança centralizado  
+✔ Endpoint de eventos de segurança (/api/admin/security/events)  
+✔ FASE 6.5 concluída (hardening + limpeza + padronização)  
+
+👉 Sistema está estável, seguro e sem regressão
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO VIOLAR)
+
+1. NÃO alterar comportamento de rotas existentes
+2. NÃO alterar response de endpoints existentes
+3. NÃO remover código funcional
+4. NÃO quebrar autenticação existente
+5. NÃO quebrar multi-tenant (validateOrderTenant / validateCompanyTenant)
+6. NÃO usar banco de dados nesta fase
+7. NÃO implementar bloqueio automático de IP
+
+👉 Qualquer violação = erro grave
+
+---
+
+🧠 OBJETIVO DA FASE ATUAL
+
+Implementar uma camada de INTELIGÊNCIA ANTIFRAUDE (SCORE)
+
+👉 SEM bloquear usuários  
+👉 SEM interferir no fluxo do sistema  
+
+Apenas:
+
+✔ analisar eventos existentes  
+✔ gerar score por IP  
+✔ classificar risco  
+
+---
+
+# 🛠️ FASE 7.3 — SCORE ANTIFRAUDE
+
+---
+
+## ETAPA 1 — USAR EVENTOS EXISTENTES
+
+Fonte:
+
+server/core/security/securityLogger.ts
+
+Funções disponíveis:
+
+- getSecurityEvents()
+- getTopIPs()
+- getEventSummary()
+
+---
+
+## ETAPA 2 — CALCULAR SCORE POR IP
+
+Regras:
+
+RATE_LIMITED → +5  
+HIGH_RISK_ACTION → +10  
+CRITICAL_ACTION → +20  
+
+---
+
+## ETAPA 3 — CLASSIFICAÇÃO
+
+LOW       → 0–20  
+MEDIUM    → 21–50  
+HIGH      → 51–80  
+CRITICAL  → 80+  
+
+---
+
+## ETAPA 4 — CRIAR ENDPOINT
+
+GET /api/admin/security/analysis
+
+Proteção obrigatória:
+
+requireAuth  
+requireRole(['MASTER','ADMIN'])
+
+---
+
+## ETAPA 5 — RESPOSTA PADRÃO
+
+ts {   ips: [     {       ip: "127.0.0.1",       score: 65,       level: "HIGH"     }   ],   generatedAt: string } 
+
+---
+
+## ETAPA 6 — NÃO FAZER
+
+🚫 NÃO bloquear IP  
+🚫 NÃO alterar rateLimit  
+🚫 NÃO alterar login  
+🚫 NÃO persistir dados  
+🚫 NÃO modificar eventos existentes  
+
+---
+
+## 🧪 VALIDAÇÃO OBRIGATÓRIA
+
+1. Flood de requests → score sobe ✔  
+2. Login inválido repetido → score sobe ✔  
+3. Uso normal → score baixo ✔  
+4. Endpoint responde corretamente ✔  
+5. Sistema continua funcionando normalmente ✔  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+✔ Sistema agora possui inteligência de risco  
+✔ Admin consegue identificar comportamento suspeito  
+✔ Base pronta para antifraude avançado  
+✔ ZERO regressão  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Endpoint criado
+2. Lógica de cálculo de score
+3. Exemplo real de resposta
+4. Confirmação de zero regressão
+
+---
+
+👉 IMPORTANTE
+
+Este sistema NÃO é para bloquear — é para analisar.
+
+Bloqueio automático será uma fase futura e controlada.

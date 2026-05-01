@@ -10,10 +10,6 @@ packages = ["glib", "nss", "nspr", "atk", "xorg.libX11", "xorg.libxcb", "xorg.li
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 7777
-externalPort = 3001
-
 [env]
 PORT = "5000"
 
@@ -43,7 +39,7 @@ outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "node_modules/.bin/tsx server/index.ts"
+args = "npm run dev"
 waitForPort = 5000
 
 [agent]
