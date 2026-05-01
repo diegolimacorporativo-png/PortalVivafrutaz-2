@@ -98,6 +98,7 @@ import { register as logsRegister } from './logs.routes';
 import { register as announcementsRegister } from './announcements.routes';
 import { register as tasksRegister } from './tasks.routes';
 import { register as quotationsRegister } from './quotations.routes';
+import { register as wasteControlRegister } from './waste-control.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -148,6 +149,7 @@ export async function registerRoutes(
   await announcementsRegister(app);
   tasksRegister(app);
   quotationsRegister(app);
+  wasteControlRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -2417,43 +2419,11 @@ export async function registerRoutes(
   // PATCH  /api/announcements/:id/toggle
   // DELETE /api/announcements/:id
 
-  // ─── Controle de Desperdício ──────────────────────────────────
-  app.get('/api/waste-control', async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
-    const records = await storage.getWasteRecords();
-    res.json(records);
-  });
-
-  app.post('/api/waste-control', async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
-    const user = await storage.getUser(session.userId);
-    try {
-      const rec = await storage.createWasteRecord({
-        ...req.body,
-        registeredBy: user?.name || 'Sistema',
-        registeredById: session.userId,
-      });
-      res.status(201).json(rec);
-    } catch (e: any) { res.status(400).json({ message: e.message }); }
-  });
-
-  app.patch('/api/waste-control/:id', async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
-    try {
-      const rec = await storage.updateWasteRecord(Number(req.params.id), req.body);
-      res.json(rec);
-    } catch (e: any) { res.status(400).json({ message: e.message }); }
-  });
-
-  app.delete('/api/waste-control/:id', async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
-    await storage.deleteWasteRecord(Number(req.params.id));
-    res.status(204).end();
-  });
+  // ─── Controle de Desperdício — MOVED TO waste-control.routes.ts
+  // GET    /api/waste-control
+  // POST   /api/waste-control
+  // PATCH  /api/waste-control/:id
+  // DELETE /api/waste-control/:id
 
   // ─── Planejamento de Compras ──────────────────────────────────
 
