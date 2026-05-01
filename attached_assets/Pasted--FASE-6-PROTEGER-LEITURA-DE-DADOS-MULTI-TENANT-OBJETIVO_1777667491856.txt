@@ -1,0 +1,131 @@
+🎯 FASE 6 — PROTEGER LEITURA DE DADOS (MULTI-TENANT)
+
+---
+
+🚨 OBJETIVO
+
+Impedir que um tenant (empresa) acesse dados de outro tenant.
+
+👉 foco APENAS em endpoints de leitura (GET)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente
+2. NÃO alterar response
+3. NÃO alterar estrutura dos endpoints
+4. NÃO remover código
+5. NÃO alterar storage.ts
+6. NÃO refatorar nada
+
+👉 apenas ADICIONAR proteção antes da leitura
+
+---
+
+🧠 CONTEXTO
+
+- sistema já possui multi-tenant
+- algumas validações já existem (ex: validateOrderTenant)
+- porém endpoints GET ainda podem vazar dados
+
+---
+
+## 🔒 ESTRATÉGIA
+
+Antes de retornar qualquer dado sensível:
+
+👉 validar se o recurso pertence ao tenant atual
+
+---
+
+## 📦 TAREFAS
+
+---
+
+### 1️⃣ IDENTIFICAR ENDPOINTS DE RISCO
+
+Procurar por:
+
+- GET /api/orders/:id
+- GET /api/* com acesso por ID
+- qualquer endpoint que use:
+  - storage.getOrder
+  - storage.getCompany
+  - storage.getUser
+  - storage.getProducts
+
+---
+
+### 2️⃣ ADICIONAR VALIDAÇÃO
+
+Antes da leitura:
+
+ts id="h9u4m2" await validateOrderTenant(orderId); 
+
+ou equivalente para o tipo de recurso
+
+---
+
+### 3️⃣ USAR SAFE FUNCTIONS (SE EXISTIR)
+
+Onde possível:
+
+ts id="mpay8l" storage.getOrder(id) 
+
+→ substituir por:
+
+ts id="7o8j2d" safeGetOrder(id) 
+
+⚠️ sem alterar retorno do endpoint
+
+---
+
+### 4️⃣ NÃO QUEBRAR NADA
+
+- endpoints devem continuar respondendo igual
+- apenas bloquear acesso indevido
+
+---
+
+### 5️⃣ LOG DE SEGURANÇA
+
+Garantir que continua logando:
+
+ts id="9b6f4p" [SECURITY] Tenant mismatch 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+Testar:
+
+1. Acesso normal → funciona ✅  
+2. Acesso a recurso de outro tenant → bloqueado ❌  
+3. /api/health → 200 ✅  
+4. logs limpos (sem erro inesperado)  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- zero vazamento de dados
+- sistema continua funcionando igual
+- segurança aumentada sem impacto
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoints protegidos  
+2. código adicionado  
+3. confirmação de ZERO regressão  
+
+---
+
+🛑 IMPORTANTE
+
+👉 NÃO aplicar em todos endpoints de uma vez  
+👉 fazer em LOTES pequenos

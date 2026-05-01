@@ -246,6 +246,10 @@ export class OrdersController {
   /** GET /api/orders/:id/export-erp */
   exportErp = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // FASE 6 — multi-tenant hardening: export-erp expõe dados fiscais e
+    // de itens do pedido. Bloqueia inspeção cruzada antes do service.
+    // Mesma política do `get`, `timeline` e `listDanfeLogs` acima.
+    await validateOrderTenant(id);
     return ok(res, await this.service.exportErp(id, this.actor(req)));
   };
 

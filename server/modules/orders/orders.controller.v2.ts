@@ -2,6 +2,9 @@ import type { NextFunction, Request, Response } from "express";
 import { ordersService, OrdersService, ActorContext } from "./orders.service";
 import { ok, created, noContent } from "../../shared/utils/apiResponse";
 import type { OrderStatus } from "./orders.workflow";
+// FASE 6 — guard de tenant para leitura de pedido por id (v2).
+// Bloqueia vazamento entre empresas em GET endpoints.
+import { validateOrderTenant } from "../../core/security/tenantGuard";
 
 /**
  * OrdersControllerV2 — the v2 HTTP adapter for the orders module.
@@ -173,6 +176,9 @@ export class OrdersControllerV2 {
   /** GET /api/v2/orders/:id/danfe-logs */
   listDanfeLogs = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // FASE 6 — multi-tenant hardening: logs de DANFE expõem timestamps e
+    // payloads sensíveis. Bloqueia inspeção cruzada antes do service.
+    await validateOrderTenant(id);
     return ok(res, await this.service.listDanfeLogs(id, this.actor(req)));
   };
 
@@ -220,6 +226,9 @@ export class OrdersControllerV2 {
   /** GET /api/v2/orders/:id/export-erp */
   exportErp = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
+    // FASE 6 — multi-tenant hardening: export-erp expõe dados fiscais e
+    // de itens do pedido. Bloqueia inspeção cruzada antes do service.
+    await validateOrderTenant(id);
     return ok(res, await this.service.exportErp(id, this.actor(req)));
   };
 
