@@ -1,0 +1,197 @@
+🎯 CONTEXTO GERAL — MIGRAÇÃO FASE 8.8 (DESACOPLAMENTO DE routes.ts)
+
+---
+
+🧠 VISÃO DO PROJETO
+
+Este é um sistema backend Node.js (Express + TypeScript) com arquitetura originalmente monolítica concentrada em:
+
+👉 server/routes/routes.ts
+
+O objetivo é evoluir para uma arquitetura modular baseada em:
+
+👉 server/routes/*.routes.ts (por domínio)
+
+---
+
+## 🚨 REGRA MAIS IMPORTANTE
+
+👉 ZERO REGRESSÃO
+
+Isso significa:
+
+- NÃO alterar lógica
+- NÃO corrigir bugs existentes
+- NÃO melhorar código
+- NÃO refatorar
+- NÃO mudar comportamento
+- NÃO alterar validações
+- NÃO alterar auth
+- NÃO alterar resposta da API
+
+👉 copiar EXATAMENTE como está
+
+---
+
+## 🧱 ESTADO ATUAL
+
+A migração já está em andamento.
+
+### ✅ Domínios já extraídos:
+
+- tasks
+- quotations
+- waste-control
+- order-exceptions
+- special-order-requests
+- password-reset-requests
+- order-cleanup
+- about-us
+- security
+- contracts-alerts
+- company-validate
+- purchase-planning
+- incidents
+- geocode
+- search
+- system-versions
+- sanitary
+- scope-simulations
+- smtp-config
+- push (já existia)
+- saas (com financeiro completado)
+- empresa-config
+
+👉 todos funcionando com:
+- servidor RUNNING
+- logs limpos
+- endpoints validados
+- ZERO regressão
+
+---
+
+## 🧩 ARQUITETURA ATUAL
+
+routes.ts agora:
+
+- atua apenas como ORQUESTRADOR
+- importa domínios via:
+  import { register } from './x.routes'
+- chama:
+  await xRegister(app)
+
+---
+
+## 🧪 PADRÃO DE EXTRAÇÃO (OBRIGATÓRIO)
+
+Cada domínio deve seguir EXATAMENTE:
+
+1. DISCOVERY (leitura completa)
+2. EXTRAÇÃO (cópia idêntica)
+3. REGISTRO no routes.ts
+4. DESATIVAÇÃO (comentário // MOVED TO)
+5. VALIDAÇÃO (HTTP + logs)
+6. RELATÓRIO
+
+---
+
+## 🚫 PROIBIDO
+
+- alterar imports
+- reorganizar código
+- tipar melhor
+- corrigir "erros"
+- mexer em middleware
+- mexer em storage
+- mexer em db
+- mexer em services
+- mexer em autenticação
+- mexer em roles
+- mexer em responses
+
+---
+
+## ⚠️ ATENÇÃO ESPECIAL
+
+Alguns domínios são sensíveis:
+
+🔴 NFe  
+🔴 Banking (CNAB / upload)  
+🔴 Fiscal (PDF parsing)  
+🔴 Upload (multer)  
+🔴 Cron / scheduler  
+🔴 Locks / concorrência  
+
+👉 esses NÃO devem ser atacados sem análise prévia
+
+---
+
+## 🎯 OBJETIVO ATUAL
+
+Continuar a FASE 8.8B:
+
+👉 extrair domínios restantes com segurança
+
+---
+
+## 📊 CRITÉRIO DE ESCOLHA
+
+Priorizar:
+
+🟢 domínios pequenos  
+🟢 sem dependências externas  
+🟢 sem upload  
+🟢 sem NFe  
+🟢 sem lógica crítica  
+
+---
+
+## 🔄 FLUXO DE EXECUÇÃO
+
+Você deve:
+
+1. analisar routes.ts
+2. identificar próximo domínio seguro
+3. executar as 6 etapas
+4. validar
+5. PARAR
+
+---
+
+## 🛑 REGRA FINAL
+
+👉 NUNCA continuar sozinho
+
+Sempre parar após:
+
+✅ RELATÓRIO
+
+---
+
+## ✅ FORMATO DE RELATÓRIO
+
+- domínio extraído
+- endpoints movidos
+- linhas removidas
+- validação antes vs depois
+- confirmação de ZERO regressão
+
+---
+
+## 🎯 OBJETIVO FINAL
+
+Eliminar o routes.ts monolítico com:
+
+- 100% dos endpoints modularizados
+- nenhuma quebra de comportamento
+- sistema pronto para escalar
+
+---
+
+🚀 Você está entrando no meio de uma migração crítica.
+
+Siga EXATAMENTE o padrão.
+
+---
+
+✅ AGUARDANDO INSTRUÇÃO PARA PRÓXIMO DOMÍNIO
