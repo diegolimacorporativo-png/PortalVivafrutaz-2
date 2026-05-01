@@ -1,0 +1,182 @@
+🎯 CONTINUAÇÃO FASE 8.8B — EXTRAÇÃO CONTROLADA (NOVO AGENTE)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO VIOLAR)
+
+- NÃO alterar lógica
+- NÃO corrigir bugs existentes (mesmo que veja erro)
+- NÃO refatorar código
+- NÃO mudar comportamento
+- NÃO padronizar nada
+- NÃO melhorar performance
+- NÃO mexer em auth
+- NÃO mover lógica entre funções
+
+👉 COPIAR EXATAMENTE COMO ESTÁ (byte-a-byte)
+
+---
+
+🧠 CONTEXTO DO PROJETO
+
+Sistema grande já em produção, com extração modular avançada.
+
+Já foram extraídos com sucesso (ZERO regressão):
+
+- tasks
+- quotations
+- waste-control
+- order-exceptions
+- special-order-requests
+- password-reset-requests
+- order-cleanup
+- about-us
+- security
+- contracts-alerts
+- company-validate
+- purchase-planning
+- incidents
+- geocode
+- search
+- system-versions
+- sanitary
+- scope-simulations
+- smtp-config
+- push (já existia)
+- saas (extendido)
+- empresa-config
+- price-groups
+- product-prices
+- order-windows
+- settings
+- reports
+- audit
+- executive-dashboard
+- client-intelligence
+- client-contract-scope
+- system-sync
+- assistant
+
+👉 routes.ts já foi drasticamente reduzido
+👉 sistema está estável
+👉 servidor está RUNNING
+👉 logs limpos
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair APENAS UM domínio por vez, seguindo rigorosamente o fluxo seguro.
+
+---
+
+## 🔁 WORKFLOW OBRIGATÓRIO (NÃO PULAR ETAPAS)
+
+### 1️⃣ DISCOVERY (LEITURA)
+
+- Ler routes.ts
+- Identificar um domínio candidato
+- Mapear:
+
+✔ endpoints  
+✔ linhas  
+✔ auth  
+✔ dependências  
+✔ riscos  
+
+👉 Escolher SEMPRE o mais seguro primeiro
+
+---
+
+### 2️⃣ EXTRAÇÃO
+
+Criar:
+
+server/routes/<domain>.routes.ts
+
+👉 copiar handlers exatamente
+👉 manter:
+
+- req.session
+- try/catch
+- logs
+- validações
+- bugs existentes
+- ordem do código
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+ts import { register as <domain>Register } from './<domain>.routes';  <domain>Register(app); 
+
+---
+
+### 4️⃣ DESATIVAÇÃO
+
+Substituir código original por:
+
+ts // ─── MOVED TO <domain>.routes.ts 
+
+👉 NÃO apagar lógica
+👉 NÃO editar parcialmente
+👉 comentar bloco inteiro
+
+---
+
+### 5️⃣ VALIDAÇÃO
+
+OBRIGATÓRIO:
+
+- /api/health → 200
+- endpoints → mesmos status codes
+- sem erros no console
+- servidor RUNNING
+
+---
+
+### 6️⃣ RELATÓRIO
+
+Responder SEMPRE com:
+
+- domínio extraído
+- arquivo criado
+- endpoints movidos
+- linhas removidas
+- testes realizados
+- confirmação de ZERO regressão
+
+---
+
+## ⚠️ REGRAS AVANÇADAS
+
+- Se domínio já foi extraído → PARAR
+- Se já existe arquivo → VALIDAR antes
+- Se tiver dúvida → NÃO inventar, manter igual
+- Se houver bug (ex: variável indefinida) → COPIAR ASSIM MESMO
+- NÃO agrupar domínios
+- NÃO extrair múltiplos domínios
+
+---
+
+## 🛑 IMPORTANTE
+
+Após finalizar:
+
+👉 PARAR imediatamente  
+👉 NÃO continuar sozinho  
+👉 AGUARDAR próximo comando  
+
+---
+
+## ▶️ INICIAR
+
+1. Ler routes.ts
+2. Identificar próximo domínio seguro
+3. Executar DISCOVERY completo
+
+---
+
+🚀 FOCO ABSOLUTO: Z
