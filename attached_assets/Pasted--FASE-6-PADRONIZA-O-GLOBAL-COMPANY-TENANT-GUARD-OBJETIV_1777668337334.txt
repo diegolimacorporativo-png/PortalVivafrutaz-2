@@ -1,0 +1,130 @@
+🎯 FASE 6 — PADRONIZAÇÃO GLOBAL (COMPANY TENANT GUARD)
+
+---
+
+🚨 OBJETIVO
+
+Eliminar validações manuais inconsistentes de companyId e padronizar proteção multi-tenant usando uma função única.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente
+2. NÃO alterar respostas
+3. NÃO alterar fluxo dos endpoints
+4. NÃO alterar storage.ts
+5. NÃO remover validações existentes ainda
+6. NÃO quebrar compatibilidade
+
+👉 Apenas CENTRALIZAR a validação
+
+---
+
+## 🧠 PROBLEMA ATUAL
+
+Hoje existem 3 padrões:
+
+ts // padrão 1 await validateOrderTenant(id);  // padrão 2 assertCompanyAccess(id);  // padrão 3 (manual) if (req.session?.companyId !== id) 
+
+👉 Isso gera inconsistência e risco futuro
+
+---
+
+## 🎯 SOLUÇÃO
+
+Criar função padrão:
+
+ts validateCompanyTenant(companyId: number) 
+
+---
+
+## 📦 ETAPA 1 — CRIAR FUNÇÃO
+
+Arquivo:
+
+server/security/tenantGuard.ts (ou onde já existe validateOrderTenant)
+
+Adicionar:
+
+ts export async function validateCompanyTenant(companyId: number, req?: any) {   const sessionCompanyId = req?.session?.companyId;    // se não houver contexto de empresa → ignorar (admin/global)   if (!sessionCompanyId) return;    if (sessionCompanyId !== companyId) {     console.error(       `[SECURITY] TENANT_MISMATCH | requestId=${req?.requestId ?? 'unknown'} | companyId=${companyId} | details=Tenant mismatch sessionCompanyId=${sessionCompanyId}`,     );      throw new Error('TENANT_MISMATCH');   } } 
+
+---
+
+## 📦 ETAPA 2 — USO CONTROLADO (SEM REMOVER O ANTIGO)
+
+⚠️ IMPORTANTE: NÃO substituir tudo ainda
+
+Aplicar apenas em endpoints que já têm validação manual:
+
+---
+
+### Antes:
+
+ts if (req.session?.companyId && req.session.companyId !== requestedCompanyId) {   return res.status(403).json({ message: 'Acesso negado' }); } 
+
+---
+
+### Depois:
+
+ts await validateCompanyTenant(requestedCompanyId, req); 
+
+E manter fallback:
+
+ts catch (err) {   return res.status(403).json({ message: 'Acesso negado' }); } 
+
+---
+
+## 📦 ETAPA 3 — NÃO MEXER EM:
+
+❌ assertCompanyAccess (repository)  
+❌ validações de order  
+❌ validações de admin  
+
+---
+
+## 📦 ETAPA 4 — LOGS
+
+Garantir que todos os bloqueios gerem:
+
+ts [SECURITY] TENANT_MISMATCH 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+Testar:
+
+1. Usuário acessando própria empresa → ✅ funciona  
+2. Usuário acessando outra empresa → ❌ bloqueado  
+3. Admin → continua funcionando  
+4. /api/health → 200  
+5. logs sem erro inesperado  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- padrão único de validação
+- logs consistentes
+- zero mudança de comportamento
+- base pronta para refatoração futura
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 NÃO substituir tudo agora  
+👉 NÃO remover validações antigas ainda  
+👉 NÃO alterar repository  
+👉 essa é apenas fase de padronização segura  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. função criada  
+2. endpoints ajustados  
+3. confirmação de zero regressão

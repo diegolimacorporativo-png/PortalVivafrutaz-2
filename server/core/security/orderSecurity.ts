@@ -1,2 +1,2 @@
-export { validateOrderTenant, safeGetOrder } from "./tenantGuard";
+export { validateOrderTenant, safeGetOrder, validateCompanyTenant } from "./tenantGuard";
 export { withTenantGuard } from "../../middleware/tenantGuardWrapper";

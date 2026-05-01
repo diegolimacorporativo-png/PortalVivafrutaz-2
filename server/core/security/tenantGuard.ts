@@ -210,3 +210,40 @@ export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
 export async function validateOrderTenant(orderId: number): Promise<void> {
   await safeGetOrder(orderId);
 }
+
+/**
+ * FASE 6 — Padronização global de tenant guard para recursos de empresa.
+ *
+ * Valida que o `companyId` solicitado pertence ao tenant da sessão atual.
+ * Centraliza o padrão manual que existia em rotas legacy:
+ *
+ *   if (req.session?.companyId && req.session.companyId !== id) { ... }
+ *
+ * Política:
+ *   - sem `sessionCompanyId` (admin/global sem pinning) → passa livremente
+ *   - `sessionCompanyId === companyId` → passa
+ *   - `sessionCompanyId !== companyId` → lança ForbiddenError + log [SECURITY]
+ *
+ * O parâmetro `req` é opcional para compatibilidade com call-sites que já
+ * possuem `req` disponível. Sem `req`, o log usa fallback "unknown" para
+ * requestId — comportamento seguro idêntico ao do tenantGuard de orders.
+ *
+ * NÃO substitui `assertCompanyAccess` (repository) nem as validações de
+ * order. Convive com ambos. Destinado exclusivamente a rotas legacy que
+ * não passam por tenantContext middleware.
+ */
+export function validateCompanyTenant(companyId: number, req?: any): void {
+  const sessionCompanyId: number | undefined = req?.session?.companyId;
+
+  // Sem contexto de empresa pinado → admin/global, passa livremente.
+  if (!sessionCompanyId) return;
+
+  if (sessionCompanyId !== companyId) {
+    console.error(
+      `[SECURITY] TENANT_MISMATCH | requestId=${req?.requestId ?? "unknown"} | companyId=${companyId} | details=Tenant mismatch sessionCompanyId=${sessionCompanyId}`,
+    );
+    throw new ForbiddenError(
+      `Acesso negado: empresa #${companyId} não pertence ao tenant atual.`,
+    );
+  }
+}

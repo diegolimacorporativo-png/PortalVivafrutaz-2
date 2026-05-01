@@ -82,7 +82,7 @@ import { requireTenantId } from "../core/tenant/context";
 import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3/6.5 — guarda de tenant e wrapper multi-tenant
-import { validateOrderTenant, safeGetOrder, withTenantGuard } from "../core/security/orderSecurity";
+import { validateOrderTenant, safeGetOrder, withTenantGuard, validateCompanyTenant } from "../core/security/orderSecurity";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, AppError } from "../shared/errors/AppError";
@@ -441,18 +441,16 @@ export async function registerRoutes(
   });
 
   app.get(api.orders.companyOrders.path, async (req, res) => {
-    // FASE 6 BATCH 2 — auth + tenant guard.
-    // Endpoint original não tinha nenhuma proteção; apenas adiciona guards,
-    // não altera lógica, response, nem estrutura.
+    // FASE 6 BATCH 2 — auth guard.
     if (!req.session?.userId && !req.session?.companyId) {
       return res.status(401).json({ message: 'Não autenticado' });
     }
     const requestedCompanyId = Number(req.params.companyId);
-    // Usuários do portal de empresa só podem ver ordens da própria empresa.
-    if (req.session?.companyId && req.session.companyId !== requestedCompanyId) {
-      console.error(
-        `[SECURITY] TENANT_MISMATCH | requestId=${req.requestId ?? 'unknown'} | companyId=${requestedCompanyId} | details=Tenant mismatch sessionCompanyId=${req.session.companyId}`,
-      );
+    // FASE 6 — padronização: usa validateCompanyTenant (padrão único).
+    // Lança ForbiddenError + log [SECURITY] TENANT_MISMATCH em mismatch.
+    try {
+      validateCompanyTenant(requestedCompanyId, req);
+    } catch (err) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     const orders = await storage.getCompanyOrders(requestedCompanyId);
