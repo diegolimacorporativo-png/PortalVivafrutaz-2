@@ -109,6 +109,7 @@ import { register as contractsAlertsRegister } from './contracts-alerts.routes';
 import { register as companyValidateRegister } from './company-validate.routes';
 import { register as purchasePlanningRegister } from './purchase-planning.routes';
 import { register as incidentsRegister } from './incidents.routes';
+import { register as geocodeRegister } from './geocode.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -170,6 +171,7 @@ export async function registerRoutes(
   companyValidateRegister(app);
   purchasePlanningRegister(app);
   incidentsRegister(app);
+  geocodeRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -2311,23 +2313,8 @@ export async function registerRoutes(
   });
 
   // ── Geocoding proxy (Nominatim) ────────────────────────────
-  app.get('/api/geocode', async (req, res) => {
-    const q = req.query.q as string;
-    if (!q) return res.status(400).json({ error: 'Missing address query' });
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=br`;
-      const response = await fetch(url, {
-        headers: {
-          'User-Agent': 'VivaFrutaz/1.0 (comercial@vivafrutaz.com)',
-          'Accept-Language': 'pt-BR,pt;q=0.9',
-        },
-      });
-      const data = await response.json();
-      res.json(data);
-    } catch (err: any) {
-      res.status(500).json({ error: 'Geocoding failed', detail: err.message });
-    }
-  });
+  // MOVED TO geocode.routes.ts
+  // GET /api/geocode
 
   // MOVED TO about-us.routes.ts
   // GET /api/about-us
