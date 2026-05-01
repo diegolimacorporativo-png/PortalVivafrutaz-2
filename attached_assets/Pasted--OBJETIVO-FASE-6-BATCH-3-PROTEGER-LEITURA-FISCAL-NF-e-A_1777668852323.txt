@@ -1,0 +1,166 @@
+🎯 OBJETIVO: FASE 6 — BATCH 3 — PROTEGER LEITURA FISCAL (NF-e)
+
+Adicionar proteção de tenant em TODOS os endpoints de leitura relacionados a NF-e para impedir vazamento de dados fiscais entre empresas.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO alterar estrutura de resposta  
+4. NÃO alterar nomes de variáveis  
+5. NÃO alterar storage.ts  
+6. NÃO refatorar nada fora do escopo  
+
+👉 Apenas adicionar validação antes da leitura
+
+---
+
+🧠 CONTEXTO
+
+- validateOrderTenant já existe
+- safeGetOrder já existe
+- logs de segurança já existem: [SECURITY] TENANT_MISMATCH
+- sistema já é multi-tenant, mas leitura fiscal ainda pode vazar dados
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1. PROTEGER ENDPOINTS COM orderId
+
+Localizar endpoints como:
+
+- GET /api/nfe/order/:orderId/info
+- GET /api/nfe/order/:orderId/*
+- qualquer endpoint que use req.params.orderId
+
+---
+
+Antes de qualquer acesso a dados:
+
+Adicionar:
+
+ts const orderId = Number(req.params.orderId); await validateOrderTenant(orderId); 
+
+---
+
+## 2. PROTEGER ENDPOINTS COM :id (NF-e por ID)
+
+Localizar endpoints como:
+
+- GET /api/nfe/:id
+- GET /api/nfe/xml/:id
+- GET /api/nfe/danfe/:id
+- GET /api/nfe/download/:id
+
+---
+
+⚠️ IMPORTANTE: nesses casos o ID NÃO é orderId
+
+---
+
+Antes de retornar dados:
+
+Adicionar:
+
+ts const nfe = await storage.getNFe(req.params.id);  if (nfe?.orderId) {   await validateOrderTenant(nfe.orderId); } 
+
+---
+
+👉 NÃO alterar retorno existente  
+👉 NÃO mover lógica  
+👉 apenas inserir validação após leitura inicial
+
+---
+
+## 3. (OPCIONAL MAIS SEGURO)
+
+Onde já houver uso de pedido:
+
+Substituir:
+
+ts storage.getOrder(orderId) 
+
+por:
+
+ts safeGetOrder(orderId) 
+
+⚠️ sem alterar estrutura de resposta
+
+---
+
+## 4. GARANTIR LOG DE SEGURANÇA
+
+Tentativas inválidas DEVEM continuar gerando:
+
+[SECURITY] TENANT_MISMATCH
+
+👉 não criar novo log  
+👉 não duplicar log  
+👉 apenas garantir que validateOrderTenant seja executado
+
+---
+
+## 5. NÃO TOCAR EM
+
+- emissão de NF-e  
+- geração de XML  
+- cálculo de impostos  
+- estrutura de resposta  
+- middlewares existentes  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Sem autenticação
+
+→ 401
+
+---
+
+### 2️⃣ Tenant diferente
+
+→ 403  
+→ log [SECURITY] TENANT_MISMATCH
+
+---
+
+### 3️⃣ Tenant correto
+
+→ resposta original intacta
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- leitura fiscal de outro tenant → BLOQUEADA  
+- nenhum dado fiscal vazado  
+- comportamento original preservado  
+- zero regressão  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoints protegidos  
+2. código adicionado  
+3. confirmação de zero regress  
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO alterar fluxo  
+👉 NÃO refatorar  
+👉 NÃO otimizar  
+
+👉 apenas proteger
