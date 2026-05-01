@@ -1,0 +1,179 @@
+🎯 MISSÃO: CONTINUAR EXTRAÇÃO MODULAR DO routes.ts (ZERO REGRESSÃO)
+
+Você está assumindo um projeto Node/Express grande onde o arquivo server/routes/routes.ts está sendo desmontado em módulos menores.
+
+---
+
+📌 CONTEXTO ATUAL (OBRIGATÓRIO LER)
+
+- Arquivo original tinha ~7600 linhas → já reduzido drasticamente
+- Vários domínios já foram extraídos com sucesso
+- Sistema está em PRODUÇÃO → NÃO PODE QUEBRAR NADA
+
+---
+
+✅ DOMÍNIOS JÁ EXTRAÍDOS (NÃO TOCAR)
+
+about-us  
+security  
+contracts-alerts  
+company-validate  
+purchase-planning  
+incidents  
+geocode  
+search  
+system-versions  
+sanitary  
+scope-simulations  
+smtp-config  
+push  
+saas  
+empresa-config  
+price-groups  
+product-prices  
+order-windows  
+settings  
+reports  
+audit  
+executive-dashboard  
+client-intelligence  
+client-contract-scope  
+system-sync  
+assistant  
+fiscal-invoices  
+
+---
+
+🚫 REGRAS CRÍTICAS (NUNCA VIOLAR)
+
+1. NÃO alterar lógica (NEM 1 caractere)
+2. NÃO refatorar
+3. NÃO “melhorar” código
+4. NÃO corrigir bugs existentes
+5. NÃO alterar auth
+6. NÃO alterar responses
+7. NÃO reorganizar imports internos
+8. NÃO tipar melhor
+9. NÃO tocar em outros módulos
+
+👉 É cópia 100% literal (byte-a-byte)
+
+---
+
+🔒 PRINCÍPIO CENTRAL
+
+Se existir um bug no código original → ELE DEVE CONTINUAR EXISTINDO
+
+---
+
+🧠 WORKFLOW OBRIGATÓRIO (SEMPRE SEGUIR)
+
+### PHASE 1 — DISCOVERY
+
+- Identificar próximo domínio seguro
+- Mapear:
+  - endpoints
+  - linhas
+  - auth
+  - dependências
+- Confirmar:
+  - sem upload
+  - sem NFe
+  - sem PDF
+  - baixo risco
+
+---
+
+### PHASE 2 — EXTRACTION
+
+Criar arquivo:
+
+server/routes/<domain>.routes.ts
+
+- Copiar handlers EXATAMENTE
+- Mesmo código
+- Mesmos as any
+- Mesmos try/catch
+- Mesmas variáveis
+
+---
+
+### PHASE 3 — REGISTRATION
+
+No routes.ts:
+
+1. Import:
+ts import { register as domainRegister } from './<domain>.routes'; 
+
+2. Registrar:
+ts await domainRegister(app); 
+
+---
+
+### PHASE 4 — DEACTIVATION
+
+Substituir bloco original por:
+
+ts // ─── <DOMAIN NAME> — MOVED TO <domain>.routes.ts 
+
+---
+
+### PHASE 5 — VALIDATION
+
+Validar:
+
+- servidor sobe (RUNNING)
+- /api/health → 200
+- endpoints:
+  - sem auth → 401 esperado
+  - comportamento idêntico
+
+- logs:
+  - ZERO erros novos
+
+---
+
+### PHASE 6 — REPORT
+
+Responder SEMPRE com:
+
+- endpoints movidos
+- linhas removidas
+- arquivo criado
+- validação antes vs depois
+- confirmação de ZERO regressão
+
+---
+
+⚠️ REGRAS DE SEGURANÇA
+
+- Se tiver dúvida → NÃO EXECUTA
+- Se depender de multer/upload → PULAR
+- Se envolver NFe → PULAR
+- Se envolver PDF → PULAR
+- Se for muito grande → quebrar em partes
+
+---
+
+🎯 OBJETIVO FINAL
+
+- routes.ts → próximo de 0 linhas
+- tudo modularizado
+- comportamento 100% idêntico
+
+---
+
+▶️ AGORA FAÇA:
+
+1. Ler routes.ts atual
+2. Identificar o PRÓXIMO domínio seguro
+3. Executar as 6 fases completas
+4. Parar após relatório
+
+---
+
+🛑 IMPORTANTE
+
+Você deve parar após cada domínio e aguardar próximo comando.
+
+NÃO executar múltiplas extrações de uma vez
