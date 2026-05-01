@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export async function register(app: Express): Promise<void> {
   // GET /api/admin/logs — lista logs (paginado por ?limit)
@@ -27,9 +28,8 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── LOGS: limpar todos ───────────────────────────────────────
-  app.delete('/api/logs', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    const user = await storage.getUser(req.session.userId);
+  app.delete('/api/logs', requireSessionOrCompany, async (req, res) => {
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const allLogs = await storage.getLogs(10000);
@@ -41,9 +41,8 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── LOGS: excluir selecionados ───────────────────────────────
-  app.delete('/api/logs/selected', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    const user = await storage.getUser(req.session.userId);
+  app.delete('/api/logs/selected', requireSessionOrCompany, async (req, res) => {
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const { ids } = req.body;
@@ -55,9 +54,8 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── LOGS: limpar por período ─────────────────────────────────
-  app.delete('/api/logs/by-date', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    const user = await storage.getUser(req.session.userId);
+  app.delete('/api/logs/by-date', requireSessionOrCompany, async (req, res) => {
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const { startDate, endDate } = req.body;
@@ -71,9 +69,8 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── LOGS: exportar CSV ───────────────────────────────────────
-  app.get('/api/logs/export', async (req, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Not authenticated' });
-    const user = await storage.getUser(req.session.userId);
+  app.get('/api/logs/export', requireSessionOrCompany, async (req, res) => {
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const logs = await storage.getLogs(10000);

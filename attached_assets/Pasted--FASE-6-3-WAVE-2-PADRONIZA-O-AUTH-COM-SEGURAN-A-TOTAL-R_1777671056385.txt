@@ -1,0 +1,163 @@
+🎯 FASE 6.3 — WAVE 2 (PADRONIZAÇÃO AUTH COM SEGURANÇA TOTAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente
+2. NÃO remover código
+3. NÃO alterar estrutura de resposta
+4. NÃO aplicar middleware global
+5. NÃO migrar endpoints públicos ou híbridos
+6. NÃO quebrar portal de empresa (companyId)
+
+👉 MIGRAÇÃO CONTROLADA POR ENDPOINT
+
+---
+
+🧠 CONTEXTO
+
+- requireSessionOrCompany já existe
+- validateOrderTenant já aplicado
+- validateCompanyTenant já aplicado
+- sistema já está seguro contra vazamento
+
+👉 objetivo agora: remover duplicação de auth manual
+
+---
+
+# 🛠️ ETAPA 1 — TARGET SEGURO
+
+Migrar APENAS endpoints claramente ADMIN
+
+---
+
+## 1️⃣ logs.routes.ts
+
+Migrar TODOS endpoints que possuem:
+
+ts if (!req.session?.userId) 
+
+---
+
+## 2️⃣ backup.routes.ts
+
+Migrar TODOS endpoints (admin-only)
+
+---
+
+## 3️⃣ settings.routes.ts (PARCIAL)
+
+👉 MIGRAR APENAS:
+
+- POST /api/settings/*
+- PATCH /api/settings/*
+
+🚫 NÃO MIGRAR:
+
+- GET /api/settings/:key
+- GET /api/company-config
+- GET /api/company-config/logo
+
+---
+
+## 4️⃣ reports.routes.ts (CONDICIONAL)
+
+👉 Só migrar SE:
+
+- já exige sessão
+- não é público
+
+👉 Se houver dúvida → NÃO MIGRAR
+
+---
+
+# 🛠️ ETAPA 2 — PADRÃO DE SUBSTITUIÇÃO
+
+ANTES:
+
+ts if (!req.session?.userId) {   return res.status(401).json({ message: 'Não autenticado' }); } 
+
+---
+
+DEPOIS:
+
+ts requireSessionOrCompany 
+
+---
+
+⚠️ IMPORTANTE
+
+- manter role checks (403)
+- manter try/catch
+- não alterar handlers
+
+---
+
+# 🧪 ETAPA 3 — TESTES OBRIGATÓRIOS
+
+Para cada endpoint migrado:
+
+---
+
+### 1️⃣ Sem sessão
+
+✔ 401
+
+---
+
+### 2️⃣ Com sessão válida
+
+✔ funciona normal
+
+---
+
+### 3️⃣ Role inválido
+
+✔ 403 mantido
+
+---
+
+# 🔒 ETAPA 4 — VALIDAÇÃO GLOBAL
+
+Confirmar:
+
+✔ nenhum endpoint público quebrou  
+✔ portal de empresa continua funcionando  
+✔ endpoints híbridos intactos  
+✔ nenhum fluxo alterado  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- menos código duplicado
+- auth padronizado
+- base mais limpa
+- zero impacto funcional
+
+---
+
+# ⚠️ BLOQUEIOS
+
+👉 NÃO migrar:
+
+- endpoints com companyId
+- endpoints sem auth atual
+- endpoints que podem ser públicos
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. endpoints migrados
+2. endpoints ignorados (com motivo)
+3. código substituído
+4. testes realizados
+5. confirmação de ZERO regressão
+
+---
+
+🛑 PARAR após concluir — não avançar para outros domínios aut

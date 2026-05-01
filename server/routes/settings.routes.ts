@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { companySettingsService } from "../services/companySettingsService.ts";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export function register(app: Express) {
   // System Settings
@@ -108,11 +109,9 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/settings/test-mode', async (req, res) => {
+  app.post('/api/settings/test-mode', requireSessionOrCompany, async (req, res) => {
     try {
-      const sess = req.session as any;
-      const userId = sess?.userId;
-      const user = userId ? await storage.getUser(userId) : null;
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
@@ -153,11 +152,9 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/settings/maintenance', async (req, res) => {
+  app.post('/api/settings/maintenance', requireSessionOrCompany, async (req, res) => {
     try {
-      const sess = req.session as any;
-      const userId = sess?.userId;
-      const user = userId ? await storage.getUser(userId) : null;
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }

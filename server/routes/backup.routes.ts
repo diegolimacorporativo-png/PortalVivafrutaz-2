@@ -2,13 +2,13 @@ import type { Express } from "express";
 import fs from "fs";
 import { storage } from "../services/storage.ts";
 import { runBackup, runBackupSQL, listBackups, getBackupPath, deleteBackup, cleanOldBackups } from "../services/backup.ts";
+import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 
 export async function register(app: Express): Promise<void> {
   // --- Backup Routes ---
-  app.get('/api/admin/backups', async (req, res) => {
+  app.get('/api/admin/backups', requireSessionOrCompany, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const backups = listBackups();
       res.json(backups);
@@ -17,10 +17,9 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  app.post('/api/admin/backups', async (req, res) => {
+  app.post('/api/admin/backups', requireSessionOrCompany, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const filename = await runBackup();
       await storage.createLog({ action: 'BACKUP_CREATED', description: `Backup JSON criado manualmente: ${filename}`, userId: user.id, userEmail: user.email, userRole: user.role });
@@ -30,10 +29,9 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  app.post('/api/admin/backups/sql', async (req, res) => {
+  app.post('/api/admin/backups/sql', requireSessionOrCompany, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const filename = await runBackupSQL();
       await storage.createLog({ action: 'BACKUP_CREATED', description: `Backup SQL criado manualmente: ${filename}`, userId: user.id, userEmail: user.email, userRole: user.role });
@@ -43,10 +41,9 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  app.get('/api/admin/backups/:filename', async (req, res) => {
+  app.get('/api/admin/backups/:filename', requireSessionOrCompany, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const filename = req.params.filename;
       const filepath = getBackupPath(filename);
@@ -63,10 +60,9 @@ export async function register(app: Express): Promise<void> {
   });
 
   // --- Delete specific backup ---
-  app.delete('/api/admin/backups/:filename', async (req, res) => {
+  app.delete('/api/admin/backups/:filename', requireSessionOrCompany, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const ok = deleteBackup(req.params.filename);
       if (!ok) return res.status(404).json({ message: 'Backup não encontrado' });
@@ -76,10 +72,9 @@ export async function register(app: Express): Promise<void> {
   });
 
   // --- Clean old backups ---
-  app.post('/api/admin/backups/clean-old', async (req, res) => {
+  app.post('/api/admin/backups/clean-old', requireSessionOrCompany, async (req, res) => {
     try {
-      if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
       const removed = cleanOldBackups(30);
       await storage.createLog({ action: 'BACKUPS_CLEANED', description: `${removed} backup(s) antigos removidos (>30 dias)`, userId: user.id, userEmail: user.email, userRole: user.role, level: 'WARN' });
