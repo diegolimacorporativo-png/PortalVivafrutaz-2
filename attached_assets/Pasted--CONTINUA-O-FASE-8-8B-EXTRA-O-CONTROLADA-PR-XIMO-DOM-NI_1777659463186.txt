@@ -1,0 +1,179 @@
+🎯 CONTINUAÇÃO FASE 8.8B — EXTRAÇÃO CONTROLADA (PRÓXIMO DOMÍNIO: AUDIT)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+- NÃO alterar lógica
+- NÃO corrigir código (mesmo que esteja errado)
+- NÃO refatorar
+- NÃO mudar auth
+- NÃO melhorar performance
+- NÃO alterar estrutura de resposta
+- NÃO renomear variáveis
+- NÃO mover dependências
+
+👉 COPIAR EXATAMENTE COMO ESTÁ (byte a byte)
+
+---
+
+🧠 CONTEXTO ATUAL
+
+Domínios já extraídos com sucesso:
+
+- tasks ✅
+- quotations ✅
+- waste-control ✅
+- order-exceptions ✅
+- special-order-requests ✅
+- password-reset-requests ✅
+- order-cleanup ✅
+- about-us ✅
+- security ✅
+- contracts-alerts ✅
+- company-validate ✅
+- purchase-planning ✅
+- incidents ✅
+- geocode ✅
+- search ✅
+- system-versions ✅
+- sanitary ✅
+- scope-simulations ✅
+- smtp-config ✅
+- push ✅ (já existia)
+- saas (financeiro) ✅ (append)
+- empresa-config ✅
+- price-groups ✅
+- product-prices ✅
+- order-windows ✅
+- settings ✅
+- reports ✅
+
+👉 Sistema estável
+👉 Servidor RUNNING
+👉 Logs limpos
+👉 ZERO regressão até aqui
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair APENAS o domínio:
+
+👉 audit
+
+Possíveis endpoints:
+
+- /api/audit
+- /api/admin/audit
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA (SEM PULAR ETAPAS)
+
+### 1️⃣ DISCOVERY (LEITURA APENAS)
+
+- localizar TODOS os endpoints relacionados a audit
+- mapear:
+  - métodos (GET, etc)
+  - rotas exatas
+  - auth (session? roles?)
+  - dependências (storage, logs, etc)
+  - comportamento (try/catch, filtros, etc)
+
+👉 NÃO ESCREVER CÓDIGO AINDA
+
+---
+
+### 2️⃣ EXTRAÇÃO CONTROLADA
+
+Criar:
+
+server/routes/audit.routes.ts
+
+Regras:
+
+- copiar handlers EXATAMENTE como estão
+- manter:
+  - req.session
+  - roles
+  - try/catch
+  - queries
+  - estrutura de resposta
+- NÃO alterar imports internos
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+- adicionar import:
+
+ts import { register as auditRegister } from './audit.routes' 
+
+- registrar no mesmo bloco dos outros:
+
+ts auditRegister(app) 
+
+👉 seguir o padrão já existente
+
+---
+
+### 4️⃣ DESATIVAÇÃO SEGURA
+
+No routes.ts:
+
+- comentar 100% dos handlers originais
+
+ts // MOVED TO audit.routes.ts 
+
+👉 NÃO deletar
+👉 NÃO alterar nada dentro do código comentado
+
+---
+
+### 5️⃣ VALIDAÇÃO (CRÍTICO)
+
+Testar:
+
+- GET /api/audit
+- GET /api/admin/audit
+- /api/health
+
+Verificar:
+
+- status codes idênticos (401, 403, 200, etc)
+- estrutura JSON idêntica
+- comportamento idêntico
+
+---
+
+### 6️⃣ RELATÓRIO FINAL (OBRIGATÓRIO)
+
+Responder com:
+
+1. endpoints movidos (tabela)
+2. arquivo criado
+3. linhas removidas do routes.ts
+4. testes antes vs depois
+5. confirmação explícita de:
+
+👉 ZERO REGRESSÃO
+
+---
+
+🚫 PROIBIDO
+
+- NÃO continuar para outro domínio
+- NÃO sugerir melhorias
+- NÃO corrigir bugs existentes
+- NÃO alterar SCOPE_ROLES se aparecer
+- NÃO alterar logs
+- NÃO alterar storage
+
+---
+
+🛑 PARAR APÓS FINALIZAR
+
+Aguardar próxi
