@@ -116,6 +116,7 @@ import { register as systemVersionsRegister } from './system-versions.routes';
 import { register as sanitaryRegister } from './sanitary.routes';
 import { register as scopeSimulationsRegister } from './scope-simulations.routes';
 import { register as smtpConfigRegister } from './smtp-config.routes';
+import { register as empresaConfigRegister } from './empresa-config.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -184,6 +185,7 @@ export async function registerRoutes(
   sanitaryRegister(app);
   scopeSimulationsRegister(app);
   smtpConfigRegister(app);
+  empresaConfigRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -6114,30 +6116,9 @@ export async function registerRoutes(
   // GET /api/saas/financeiro
   // GET /api/saas/financeiro/historico
 
-  // ─── White Label: EmpresaConfig ───────────────────────────────────────────
-  app.get('/api/empresa-config/:empresaId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    try {
-      const cfg = await storage.getEmpresaConfig(Number(req.params.empresaId));
-      res.json(cfg ?? null);
-    } catch(e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  app.put('/api/empresa-config/:empresaId', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    try {
-      const cfg = await storage.upsertEmpresaConfig(Number(req.params.empresaId), req.body);
-      res.json(cfg);
-    } catch(e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // MOVED TO empresa-config.routes.ts
+  // GET /api/empresa-config/:empresaId
+  // PUT /api/empresa-config/:empresaId
 
   // ─── /api/companies/:id/gps-status and /gps-toggle migrated to
   // server/modules/companies. Implementation lives there. ──────────────────
