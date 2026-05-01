@@ -441,7 +441,21 @@ export async function registerRoutes(
   });
 
   app.get(api.orders.companyOrders.path, async (req, res) => {
-    const orders = await storage.getCompanyOrders(Number(req.params.companyId));
+    // FASE 6 BATCH 2 — auth + tenant guard.
+    // Endpoint original não tinha nenhuma proteção; apenas adiciona guards,
+    // não altera lógica, response, nem estrutura.
+    if (!req.session?.userId && !req.session?.companyId) {
+      return res.status(401).json({ message: 'Não autenticado' });
+    }
+    const requestedCompanyId = Number(req.params.companyId);
+    // Usuários do portal de empresa só podem ver ordens da própria empresa.
+    if (req.session?.companyId && req.session.companyId !== requestedCompanyId) {
+      console.error(
+        `[SECURITY] TENANT_MISMATCH | requestId=${req.requestId ?? 'unknown'} | companyId=${requestedCompanyId} | details=Tenant mismatch sessionCompanyId=${req.session.companyId}`,
+      );
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+    const orders = await storage.getCompanyOrders(requestedCompanyId);
     res.json(orders);
   });
 
