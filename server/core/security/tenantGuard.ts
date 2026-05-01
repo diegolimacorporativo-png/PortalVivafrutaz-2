@@ -68,6 +68,20 @@ type StoredOrder = {
 // ── Helpers internos ─────────────────────────────────────────────────────────
 
 /**
+ * FASE 6.2 — Ponto único de emissão de logs de segurança.
+ *
+ * Centraliza todos os `console.error` de eventos [SECURITY] para que
+ * futuras evoluções (ex.: envio para SIEM, persistência assíncrona,
+ * rate-limiting de log-spam) sejam feitas em UM único lugar.
+ *
+ * NÃO altera o formato da mensagem — apenas encapsula o transporte.
+ * NÃO captura exceções — falhas de log não devem silenciar erros de segurança.
+ */
+function logSecurity(message: string): void {
+  console.error(message);
+}
+
+/**
  * Extrai o id do tenant a partir do pedido. Tabelas legadas podem usar
  * `companyId` (orders) ou `empresaId` (variantes) — aceitamos ambos
  * e priorizamos `companyId`, que é o campo real de `orders`.
@@ -97,7 +111,7 @@ function logSecurityMismatch(params: {
   orderCompanyId: number | null;
 }): void {
   const { orderId, tenantId, orderCompanyId } = params;
-  console.error(
+  logSecurity(
     `[SECURITY] TENANT_MISMATCH | requestId=${getRequestIdForLog()} | orderId=${orderId} | details=Tenant mismatch tenant=${tenantId} orderCompanyId=${orderCompanyId ?? "unknown"}`,
   );
 }
@@ -239,11 +253,73 @@ export function validateCompanyTenant(companyId: number, req?: any): void {
   if (!sessionCompanyId) return;
 
   if (sessionCompanyId !== companyId) {
-    console.error(
+    logSecurity(
       `[SECURITY] TENANT_MISMATCH | requestId=${req?.requestId ?? "unknown"} | companyId=${companyId} | details=Tenant mismatch sessionCompanyId=${sessionCompanyId}`,
     );
     throw new ForbiddenError(
       `Acesso negado: empresa #${companyId} não pertence ao tenant atual.`,
     );
   }
+}
+
+/**
+ * FASE 6.2 — Acesso seguro a pedido com validação de tenant integrada.
+ *
+ * Combina `validateOrderTenant` + `storage.getOrder` em uma única chamada
+ * garantida, para uso futuro em rotas que precisam tanto validar o tenant
+ * quanto obter os dados do pedido em seguida.
+ *
+ * Política de erro (mesma de validateOrderTenant + safeGetOrder):
+ *   - tenant ausente / mismatch → ForbiddenError + log [SECURITY]
+ *   - pedido não encontrado     → NotFoundError
+ *
+ * O parâmetro `req` é aceito para compatibilidade futura (ex.: quando
+ * `validateOrderTenant` for atualizado para logar path/method via `req`).
+ * Atualmente não é passado adiante — não altera o comportamento existente.
+ *
+ * NÃO substitui usages existentes. Destinado a novos call-sites.
+ */
+export async function safeGetOrderOrThrow(
+  orderId: number,
+  _req?: any,
+): Promise<StoredOrder> {
+  // FASE 6.2 — valida tenant (lança ForbiddenError em mismatch).
+  await validateOrderTenant(orderId);
+
+  // Relê após validação: mantém exatamente a fonte de dados de storage.getOrder
+  // sem alterar o contrato de validateOrderTenant/safeGetOrder.
+  const order = (await storage.getOrder(orderId)) as StoredOrder | undefined;
+  if (!order) {
+    throw new NotFoundError(`Pedido #${orderId} não encontrado`);
+  }
+
+  return order;
+}
+
+/**
+ * FASE 6.2 — Acesso seguro a empresa com validação de tenant integrada.
+ *
+ * Combina `validateCompanyTenant` + `storage.getCompany` em uma única
+ * chamada garantida, para uso futuro em rotas de empresa que precisam
+ * tanto guardar o tenant quanto obter os dados da empresa.
+ *
+ * Política de erro:
+ *   - tenant mismatch           → ForbiddenError + log [SECURITY]
+ *   - empresa não encontrada    → NotFoundError
+ *
+ * NÃO substitui usages existentes. Destinado a novos call-sites.
+ */
+export async function safeGetCompanyOrThrow(
+  companyId: number,
+  req?: any,
+): Promise<NonNullable<Awaited<ReturnType<typeof storage.getCompany>>>> {
+  // FASE 6.2 — valida tenant (lança ForbiddenError em mismatch).
+  validateCompanyTenant(companyId, req);
+
+  const company = await storage.getCompany(companyId);
+  if (!company) {
+    throw new NotFoundError(`Empresa #${companyId} não encontrada`);
+  }
+
+  return company;
 }

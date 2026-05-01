@@ -1,0 +1,193 @@
+🎯 FASE 6.2 — BLINDAGEM FINAL (ANTI-ERRO HUMANO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover código  
+3. NÃO alterar response  
+4. NÃO alterar fluxo  
+5. NÃO quebrar endpoints atuais  
+
+👉 Apenas ADICIONAR proteção estrutural
+
+---
+
+🧠 OBJETIVO
+
+Eliminar risco de:
+
+- dev esquecer auth
+- dev esquecer tenant guard
+- acesso indireto via storage
+
+---
+
+# 🛠️ ETAPA 1 — MIDDLEWARE PADRÃO DE AUTH
+
+📁 Arquivo:
+server/core/http/requireSessionOrCompany.ts
+
+---
+
+Criar:
+
+ts export function requireSessionOrCompany(req: any, res: any, next: any) {   if (!req.session?.userId && !req.session?.companyId) {     return res.status(401).json({ message: 'Não autenticado' });   }   next(); } 
+
+---
+
+👉 NÃO substituir nada ainda  
+👉 Apenas criar
+
+---
+
+# 🛠️ ETAPA 2 — SAFE ACCESS PADRÃO (ORDERS)
+
+📁 Arquivo:
+server/core/security/tenantGuard.ts
+
+---
+
+Adicionar função:
+
+ts export async function safeGetOrderOrThrow(orderId: number, req?: any) {   await validateOrderTenant(orderId, req);    const order = await storage.getOrder(orderId);    if (!order) {     throw new NotFoundError(`Pedido #${orderId} não encontrado`);   }    return order; } 
+
+---
+
+👉 NÃO substituir usages ainda  
+👉 Apenas criar versão segura
+
+---
+
+# 🛠️ ETAPA 3 — SAFE ACCESS (COMPANY)
+
+📁 Mesmo arquivo: tenantGuard.ts
+
+---
+
+Adicionar:
+
+ts export async function safeGetCompanyOrThrow(companyId: number, req?: any) {   validateCompanyTenant(companyId, req);    const company = await storage.getCompany(companyId);    if (!company) {     throw new NotFoundError(`Empresa #${companyId} não encontrada`);   }    return company; } 
+
+---
+
+# 🛠️ ETAPA 4 — EXPORT CENTRALIZADO
+
+📁 Arquivo:
+server/core/security/orderSecurity.ts
+
+---
+
+Garantir export:
+
+ts export {   validateOrderTenant,   validateCompanyTenant,   safeGetOrder,   safeGetOrderOrThrow,   safeGetCompanyOrThrow } from './tenantGuard'; 
+
+---
+
+# 🛠️ ETAPA 5 — LOG CENTRAL (SEM QUEBRAR NADA)
+
+📁 tenantGuard.ts
+
+---
+
+Substituir SOMENTE console.error por função:
+
+ANTES:
+
+ts console.error(`[SECURITY] TENANT_MISMATCH ...`) 
+
+---
+
+DEPOIS:
+
+ts function logSecurity(message: string) {   console.error(message); } 
+
+E trocar chamadas para:
+
+ts logSecurity(`[SECURITY] TENANT_MISMATCH ...`) 
+
+---
+
+👉 NÃO mudar mensagem  
+👉 NÃO mudar estrutura  
+
+---
+
+# 🛠️ ETAPA 6 — PROTEÇÃO GLOBAL (OPCIONAL SEGURO)
+
+📁 server/app.ts ou routes bootstrap
+
+---
+
+ANTES de registrar rotas:
+
+ts app.use(requireSessionOrCompany); 
+
+---
+
+⚠️ SOMENTE se todas rotas exigem auth  
+Se tiver rotas públicas → NÃO aplicar globalmente
+
+---
+
+# 🧪 VALIDAÇÃO
+
+Testar:
+
+---
+
+### 1️⃣ Sem sessão
+
+bash GET /api/orders/1 
+
+✔ 401
+
+---
+
+### 2️⃣ Tenant errado
+
+✔ 403  
+✔ log:
+
+[SECURITY] TENANT_MISMATCH
+
+---
+
+### 3️⃣ Fluxo normal
+
+✔ tudo funcionando igual
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ nenhum endpoint alterado  
+✔ proteção duplicada (manual + estrutural)  
+✔ base pronta pra auditoria e logs persistentes  
+
+---
+
+# 📊 RESULTADO FINAL
+
+ANTES:
+
+- segurança dependia do dev lembrar
+
+DEPOIS:
+
+- segurança estrutural
+- padrão único
+- impossível esquecer facilmente
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. arquivos criados
+2. funções adicionadas
+3. locais onde middleware pode ser aplicado
+4. confirmação de zero re
