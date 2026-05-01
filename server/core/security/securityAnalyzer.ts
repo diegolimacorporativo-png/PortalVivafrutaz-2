@@ -87,6 +87,74 @@ export function analyzeSecurity(): IPAnalysis[] {
     .sort((a, b) => b.total - a.total);
 }
 
+// ── FASE 7.3 — Score-based IP intelligence ────────────────────────────────────
+
+/**
+ * Event type weights for the anti-fraud score.
+ *   RATE_LIMITED    → +5   (automated probing / DDoS)
+ *   HIGH_RISK_ACTION → +10  (destructive HTTP verbs on sensitive paths)
+ *   CRITICAL_ACTION  → +20  (NF-e emission, cancellation, admin deletes)
+ */
+const SCORE_WEIGHTS: Record<string, number> = {
+  RATE_LIMITED: 5,
+  HIGH_RISK_ACTION: 10,
+  CRITICAL_ACTION: 20,
+};
+
+/** Score thresholds → risk level. */
+function scoreToLevel(score: number): RiskLevel {
+  if (score > 80) return "CRITICAL";
+  if (score > 50) return "HIGH";
+  if (score > 20) return "MEDIUM";
+  return "LOW";
+}
+
+export interface IPScore {
+  ip: string;
+  score: number;
+  level: RiskLevel;
+}
+
+export interface IPScoreReport {
+  ips: IPScore[];
+  generatedAt: string;
+}
+
+/**
+ * FASE 7.3 — Compute a numeric fraud-risk score for every IP that appears in
+ * the security event buffer.
+ *
+ * Rules (strictly additive — never blocks, never persists):
+ *   RATE_LIMITED     → +5
+ *   HIGH_RISK_ACTION → +10
+ *   CRITICAL_ACTION  → +20
+ *
+ * Classification by accumulated score:
+ *   LOW      0 – 20
+ *   MEDIUM  21 – 50
+ *   HIGH    51 – 80
+ *   CRITICAL 81+
+ *
+ * Returns IPs sorted by score descending so callers can slice to top-N.
+ */
+export function computeIPScores(): IPScoreReport {
+  const events = getSecurityEvents();
+  const scoreMap: Record<string, number> = {};
+
+  for (const e of events) {
+    if (!e.ip) continue;
+    const weight = SCORE_WEIGHTS[e.type] ?? 0;
+    if (weight === 0) continue;
+    scoreMap[e.ip] = (scoreMap[e.ip] ?? 0) + weight;
+  }
+
+  const ips: IPScore[] = Object.entries(scoreMap)
+    .map(([ip, score]) => ({ ip, score, level: scoreToLevel(score) }))
+    .sort((a, b) => b.score - a.score);
+
+  return { ips, generatedAt: new Date().toISOString() };
+}
+
 // ── Spike detector ────────────────────────────────────────────────────────────
 
 /**

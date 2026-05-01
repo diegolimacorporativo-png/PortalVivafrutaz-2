@@ -7,7 +7,7 @@
  */
 import type { Express, Request, Response } from "express";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
-import { analyzeSecurity, detectSpike } from "../core/security/securityAnalyzer";
+import { analyzeSecurity, detectSpike, computeIPScores } from "../core/security/securityAnalyzer";
 
 export function register(app: Express): void {
   app.get(
@@ -18,6 +18,8 @@ export function register(app: Express): void {
       try {
         const analysis = analyzeSecurity();
         const spike = detectSpike();
+        // FASE 7.3 — score-based anti-fraud intelligence (purely additive)
+        const scores = computeIPScores();
 
         return res.json({
           success: true,
@@ -25,6 +27,9 @@ export function register(app: Express): void {
             analysis,
             spike,
             total: analysis.length,
+            // FASE 7.3 fields — numeric score + level per IP
+            ips: scores.ips,
+            generatedAt: scores.generatedAt,
           },
         });
       } catch (e: any) {
