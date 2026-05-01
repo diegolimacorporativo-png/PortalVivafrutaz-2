@@ -1,0 +1,167 @@
+🎯 FASE 9B — HARDENING FISCAL (SEM QUEBRAR PRODUÇÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO alterar estrutura do XML
+2. NÃO alterar fluxo principal de emissão
+3. NÃO remover campos existentes
+4. NÃO quebrar emissão válida
+5. NÃO lançar erro genérico sem contexto
+6. NÃO alterar contratos de retorno existentes
+7. NÃO usar banco / persistência
+
+👉 Apenas adicionar validação segura + bloqueio controlado
+
+---
+
+## 🧠 OBJETIVO
+
+Eliminar fallbacks perigosos como:
+
+- Number(...) || 0
+- items || []
+
+QUE HOJE permitem:
+
+❌ NF-e com valor zerado  
+❌ NF-e sem itens  
+❌ Quantidade inválida silenciosa  
+
+---
+
+## ⚠️ ESTRATÉGIA (IMPORTANTE)
+
+👉 NÃO remover fallback direto  
+👉 NÃO quebrar fluxo atual  
+
+### Primeiro:
+
+✔ detectar inconsistência  
+✔ logar problema  
+✔ bloquear APENAS quando crítico  
+
+---
+
+# 🛠️ ETAPA 1 — CRIAR VALIDADOR LOCAL (REUTILIZÁVEL)
+
+Arquivo novo:
+
+server/core/security/fiscalGuard.ts
+
+Adicionar:
+
+ts export function assertValidNumber(   value: any,   field: string,   context: Record<string, any> ) {   const num = Number(value);    if (value === undefined || value === null || isNaN(num)) {     return {       valid: false,       message: `${field} inválido`,       context,     };   }    return { valid: true, value: num }; }  export function assertNonEmptyArray(   arr: any,   field: string,   context: Record<string, any> ) {   if (!Array.isArray(arr) || arr.length === 0) {     return {       valid: false,       message: `${field} vazio`,       context,     };   }    return { valid: true, value: arr }; } 
+
+---
+
+# 🛠️ ETAPA 2 — nf.draft.builder.ts (CRÍTICO)
+
+❌ NÃO remover:
+
+ts Number(item.quantity || 0) 
+
+👉 SUBSTITUIR por validação ANTES:
+
+ts const quantityCheck = assertValidNumber(item.quantity, 'quantity', { item });  if (!quantityCheck.valid) {   logSecurity(`[SECURITY] NFE_INVALID_QUANTITY | ${JSON.stringify(quantityCheck.context)}`);   throw new Error('Quantidade inválida na NF-e'); }  const quantity = quantityCheck.value; 
+
+---
+
+# 🛠️ ETAPA 3 — nfe-validator.ts (VALOR)
+
+Local:
+
+ts totalPrice || unitPrice || 0 
+
+👉 Ajustar para:
+
+ts if (!totalPrice && !unitPrice) {   logSecurity(`[SECURITY] NFE_ZERO_VALUE_DETECTED`);   throw new Error('Item com valor zerado na NF-e'); } 
+
+⚠️ NÃO alterar cálculo existente — apenas bloquear caso ambos falhem
+
+---
+
+# 🛠️ ETAPA 4 — nf.draft.ts (ITEMS)
+
+Local:
+
+ts items || [] 
+
+👉 Antes disso:
+
+ts const itemsCheck = assertNonEmptyArray(items, 'items', { orderId });  if (!itemsCheck.valid) {   logSecurity(`[SECURITY] NFE_EMPTY_ITEMS | orderId=${orderId}`);   throw new Error('NF-e sem itens'); } 
+
+---
+
+# 🛠️ ETAPA 5 — NÃO TOCAR NO RESTO
+
+👉 NÃO alterar:
+
+- estrutura do builder
+- cálculos de ICMS
+- CST / CSOSN
+- geração XML
+- envio SEFAZ
+
+---
+
+# 🧪 VALIDAÇÃO (OBRIGATÓRIO)
+
+### 1️⃣ Pedido válido
+✔ NF-e emitida normalmente
+
+---
+
+### 2️⃣ Item sem quantidade
+✔ erro lançado  
+✔ log [NFE_INVALID_QUANTITY]
+
+---
+
+### 3️⃣ Item sem valor
+✔ erro lançado  
+✔ log [NFE_ZERO_VALUE_DETECTED]
+
+---
+
+### 4️⃣ Pedido sem itens
+✔ erro lançado  
+✔ log [NFE_EMPTY_ITEMS]
+
+---
+
+# 🔒 GARANTIAS
+
+✔ Nenhuma emissão válida quebrada  
+✔ Nenhum fallback silencioso restante  
+✔ Logs centralizados via logSecurity  
+✔ Sistema para ANTES da SEFAZ (evita erro fiscal real)
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+ANTES:
+
+ts Number(undefined) || 0 → 0 ❌ 
+
+DEPOIS:
+
+ts undefined → ERRO BLOQUEADO ✔ 
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. Arquivos alterados
+2. Trechos substituídos
+3. Logs adicionados
+4. Casos testados
+5. Confirmação de zero regressão
+
+---
+
+👉 Próxima fase: FASE 9C — PROTEGER FLUXO FINANCEIRO (INVOICE

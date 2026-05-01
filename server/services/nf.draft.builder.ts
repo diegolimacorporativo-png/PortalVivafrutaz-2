@@ -19,6 +19,9 @@ import { contractScopes } from "@shared/schema";
 import { storage } from "./storage";
 import { tenantWhere } from "../core/tenant/scope";
 import type { BillingType, DraftItem } from "./nf.draft";
+// FASE 9B — fiscal hardening
+import { assertValidNumber } from "../core/security/fiscalGuard";
+import { logSecurity } from "../core/security/securityLogger";
 
 const round2 = (n: number): number => Math.round(n * 100) / 100;
 
@@ -54,7 +57,17 @@ export async function buildStandardDraft(
       `Produto #${item.productId ?? ""}`.trim() ||
       "Produto";
 
-    const quantity = Number(item.quantity || 0);
+    // FASE 9B — bloqueia quantidade inválida antes de gerar NF-e zerada
+    const quantityCheck = assertValidNumber(item.quantity, 'quantity', {
+      productId: item.productId,
+      description: item.productName,
+    });
+    if (!quantityCheck.valid) {
+      logSecurity(`[SECURITY] NFE_INVALID_QUANTITY | ${JSON.stringify(quantityCheck.context)}`);
+      throw new Error('Quantidade inválida na NF-e');
+    }
+    const quantity = quantityCheck.value;
+
     const unitPrice = Number(item.unitPrice || 0);
     const totalPriceRaw =
       item.totalPrice != null ? Number(item.totalPrice) : quantity * unitPrice;
@@ -136,7 +149,16 @@ export async function buildAverageDraft(
     const product = s.productId != null ? productMap.get(s.productId) : null;
     const description =
       product?.name || `Produto #${s.productId ?? ""}`.trim() || "Produto";
-    const quantity = Number(s.quantity || 0);
+
+    // FASE 9B — bloqueia quantidade inválida antes de gerar NF-e zerada
+    const quantityCheck = assertValidNumber(s.quantity, 'quantity', {
+      productId: s.productId,
+    });
+    if (!quantityCheck.valid) {
+      logSecurity(`[SECURITY] NFE_INVALID_QUANTITY | ${JSON.stringify(quantityCheck.context)}`);
+      throw new Error('Quantidade inválida na NF-e');
+    }
+    const quantity = quantityCheck.value;
 
     // Prioridade: averageCost (custo médio contratual) → unitPrice do scope → 0.
     const avgCost =

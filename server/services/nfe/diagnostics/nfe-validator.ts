@@ -11,6 +11,8 @@ import { parseNFeError } from './nfe-error-parser';
 import { generateFixSuggestion } from './nfe-fix-suggestions';
 import type { FixSuggestion } from './nfe-fix-suggestions';
 import { storage } from '../../storage';
+// FASE 9B — fiscal hardening
+import { logSecurity } from '../../../core/security/securityLogger';
 
 export interface DiagnosticResult {
   orderId: number;
@@ -127,7 +129,19 @@ export async function validateNFeBeforeSend(orderId: number): Promise<Diagnostic
       if (!prod?.ncm?.replace(/\D/g, '').trim()) {
         erros.push({ campo: `produto.ncm:${item.productId}`, mensagem: `Produto "${nome}": NCM não informado`, prioridade: 'CRITICA', telaCorrecao: '/admin/products', labelBotao: 'Corrigir Produtos' });
       }
-      totalValue += parseFloat(String(item.totalPrice || item.unitPrice || 0)) * (item.quantity || 1);
+      // FASE 9B — bloqueia item com valor zerado; preserva o contrato de retorno DiagnosticResult
+      if (!item.totalPrice && !item.unitPrice) {
+        logSecurity(`[SECURITY] NFE_ZERO_VALUE_DETECTED | orderId=${orderId} | itemId=${item.id}`);
+        erros.push({
+          campo: `produto.valor:${item.id}`,
+          mensagem: `Item "${nome}": valor zerado (totalPrice e unitPrice ausentes)`,
+          prioridade: 'CRITICA',
+          telaCorrecao: '/admin/orders',
+          labelBotao: 'Corrigir Pedido',
+        });
+      } else {
+        totalValue += parseFloat(String(item.totalPrice || item.unitPrice || 0)) * (item.quantity || 1);
+      }
     }
     if (totalValue <= 0) {
       erros.push({ campo: 'total', mensagem: 'Valor total do pedido é zero', prioridade: 'CRITICA', telaCorrecao: '/admin/orders', labelBotao: 'Ver Pedido' });

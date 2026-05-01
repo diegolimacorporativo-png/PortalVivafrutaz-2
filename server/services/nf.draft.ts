@@ -42,6 +42,9 @@ import {
   stripTenantFields,
 } from "../core/tenant/scope";
 import { NotFoundError, BadRequestError } from "../shared/errors/AppError";
+// FASE 9B — fiscal hardening
+import { assertNonEmptyArray } from "../core/security/fiscalGuard";
+import { logSecurity } from "../core/security/securityLogger";
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -178,6 +181,15 @@ export async function createDraftFromOrder(opts: CreateDraftOpts): Promise<NfDra
     companyId,
     defaults: { ncm: "08039000", cfop: defaultCfop, unit: "KG" },
   });
+
+  // FASE 9B — bloqueia NF-e sem itens para STANDARD (CONTRACT_OPEN começa vazio por design)
+  if (billingType === "STANDARD") {
+    const itemsCheck = assertNonEmptyArray<DraftItem>(items, "items", { orderId });
+    if (!itemsCheck.valid) {
+      logSecurity(`[SECURITY] NFE_EMPTY_ITEMS | orderId=${orderId}`);
+      throw new Error("NF-e sem itens");
+    }
+  }
 
   const totals = computeTotals(items);
 
