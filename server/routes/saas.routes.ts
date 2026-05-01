@@ -522,4 +522,32 @@ export async function register(app: Express): Promise<void> {
       res.json({ message: `${criados.length} módulos criados com sucesso`, modulos: criados });
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
+
+  // ─── SaaS: Métricas Financeiras ──────────────────────────────────────────────
+  app.get('/api/saas/financeiro', async (req: any, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    const actor = await storage.getUser(req.session.userId);
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+    try {
+      const metrics = await storage.computeAndSaveSaasMetrics();
+      res.json(metrics);
+    } catch(e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get('/api/saas/financeiro/historico', async (req: any, res) => {
+    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
+    const actor = await storage.getUser(req.session.userId);
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+    try {
+      const { db: dbConn } = await import('../database/db');
+      const { saasMetrics: sm } = await import('@shared/schema');
+      const { desc: descOrd } = await import('drizzle-orm');
+      const rows = await dbConn.select().from(sm).orderBy(descOrd(sm.createdAt)).limit(12);
+      res.json(rows);
+    } catch(e: any) { res.status(500).json({ message: e.message }); }
+  });
 }

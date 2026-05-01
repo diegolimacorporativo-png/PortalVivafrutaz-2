@@ -1,0 +1,143 @@
+🎯 FASE 8.8B — EXTRAÇÃO CONTROLADA (SAAS-FINANCEIRO — CORREÇÃO DE DOMÍNIO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica
+2. NÃO alterar estrutura de resposta
+3. NÃO alterar cálculos financeiros
+4. NÃO alterar auth
+5. NÃO alterar roles
+6. NÃO alterar filtros ou queries
+
+👉 copiar exatamente como está
+
+---
+
+🧠 CONTEXTO
+
+- saas.routes.ts já existe ⚠️  
+- está INCOMPLETO ⚠️  
+- faltam rotas de financeiro detectadas na auditoria  
+
+👉 objetivo é COMPLETAR, não criar novo domínio
+
+---
+
+## 🎯 OBJETIVO
+
+Mover APENAS:
+
+- GET /api/saas/financeiro  
+- GET /api/saas/financeiro/historico  
+
+👉 para dentro de:
+
+server/routes/saas.routes.ts
+
+---
+
+## ⚠️ ALERTAS CRÍTICOS
+
+Durante o DISCOVERY verificar:
+
+- existe cálculo financeiro? ⚠️  
+- existe agrupamento de dados? ⚠️  
+- existe filtro por empresa? ⚠️  
+- existe dependência de storage/db? ⚠️  
+
+👉 NÃO alterar nada disso
+
+---
+
+## 🔁 EXECUÇÃO
+
+---
+
+### 1️⃣ DISCOVERY (OBRIGATÓRIO)
+
+Mapear:
+
+- localização exata no routes.ts
+- lógica completa
+- auth
+- roles
+- dependências
+
+🚫 NÃO CODAR
+
+---
+
+### 2️⃣ EXTRAÇÃO
+
+👉 NÃO criar novo arquivo
+
+Adicionar os endpoints dentro de:
+
+server/routes/saas.routes.ts
+
+Regras:
+
+- copiar código EXATO
+- manter ordem lógica do arquivo
+- não refatorar
+- não reorganizar
+
+---
+
+### 3️⃣ REGISTRO
+
+👉 NÃO adicionar novo register
+
+(saída já registrada no sistema)
+
+---
+
+### 4️⃣ DESATIVAÇÃO
+
+No routes.ts:
+
+Substituir os handlers por:
+
+ts id="qaz1ws" // MOVED TO saas.routes.ts (financeiro) 
+
+---
+
+### 5️⃣ VALIDAÇÃO
+
+Testar:
+
+- GET /api/saas/financeiro → mesmo comportamento
+- GET /api/saas/financeiro/historico → mesmo comportamento
+- /api/health → 200
+
+Verificar:
+
+- servidor RUNNING
+- logs limpos
+
+---
+
+### 6️⃣ RELATÓRIO
+
+Responder com:
+
+1. endpoints adicionados ao saas.routes.ts  
+2. lógica financeira preservada  
+3. linhas removidas do routes.ts  
+4. testes antes vs depois  
+5. confirmação de ZERO regressão  
+
+---
+
+🚫 PROIBIDO
+
+- criar novo arquivo
+- alterar cálculos
+- alterar retorno
+- “organizar melhor” código
+
+---
+
+🛑 PARAR APÓS FINALI

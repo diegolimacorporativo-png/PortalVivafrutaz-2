@@ -6110,33 +6110,9 @@ export async function registerRoutes(
   // GET    /api/system/update-logs
   // GET    /api/system/updates
 
-  // ─── SaaS: Métricas Financeiras ──────────────────────────────────────────────
-  app.get('/api/saas/financeiro', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    try {
-      const metrics = await storage.computeAndSaveSaasMetrics();
-      res.json(metrics);
-    } catch(e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  app.get('/api/saas/financeiro/historico', async (req: any, res) => {
-    if (!req.session?.userId) return res.status(401).json({ message: 'Não autenticado' });
-    const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    try {
-      const { db: dbConn } = await import('../database/db');
-      const { saasMetrics: sm } = await import('@shared/schema');
-      const { desc: descOrd } = await import('drizzle-orm');
-      const rows = await dbConn.select().from(sm).orderBy(descOrd(sm.createdAt)).limit(12);
-      res.json(rows);
-    } catch(e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // MOVED TO saas.routes.ts (financeiro)
+  // GET /api/saas/financeiro
+  // GET /api/saas/financeiro/historico
 
   // ─── White Label: EmpresaConfig ───────────────────────────────────────────
   app.get('/api/empresa-config/:empresaId', async (req: any, res) => {
