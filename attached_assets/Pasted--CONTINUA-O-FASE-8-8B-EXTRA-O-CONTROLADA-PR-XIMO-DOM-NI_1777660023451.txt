@@ -1,0 +1,173 @@
+🎯 CONTINUAÇÃO FASE 8.8B — EXTRAÇÃO CONTROLADA (PRÓXIMO DOMÍNIO: CLIENT-INTELLIGENCE)
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+- NÃO alterar queries
+- NÃO otimizar cálculos
+- NÃO refatorar lógica
+- NÃO mexer em SQL / drizzle
+- NÃO alterar auth
+- NÃO alterar estrutura de resposta
+- NÃO alterar nomes de campos
+
+👉 copiar 100% idêntico (inclusive inconsistências)
+
+---
+
+🧠 CONTEXTO ATUAL
+
+- executive-dashboard ✅ (domínio crítico já extraído)
+- sistema estável
+- servidor RUNNING
+- logs limpos
+- ZERO regressão acumulada
+
+👉 próximos domínios = analytics (alto risco de quebra silenciosa)
+
+---
+
+## 🎯 OBJETIVO
+
+Extrair APENAS estes endpoints:
+
+- GET /api/commercial-intelligence
+- GET /api/financial-intelligence
+- GET /api/logistics-intelligence
+
+👉 tratar como UM ÚNICO DOMÍNIO
+
+Arquivo destino:
+
+ts server/routes/client-intelligence.routes.ts 
+
+---
+
+## ⚠️ ALERTAS CRÍTICOS
+
+Esses endpoints podem conter:
+
+- múltiplas queries
+- joins
+- agregações complexas
+- cálculos com reduce/map/filter
+- Promise.all
+- dados derivados (KPIs, métricas)
+- lógica duplicada ou inconsistente
+
+👉 NÃO corrigir nada
+👉 NÃO tentar “melhorar”
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA
+
+### 1️⃣ DISCOVERY (LEITURA COMPLETA)
+
+Para CADA endpoint mapear:
+
+- linhas exatas
+- auth (session? requireAuthCore? roles?)
+- dependências:
+  - db
+  - drizzle
+  - storage
+- estrutura do JSON retornado
+- presença de:
+  - reduce/map/filter
+  - Promise.all
+  - cálculos inline
+
+👉 NÃO ESCREVER CÓDIGO ainda
+
+---
+
+### 2️⃣ EXTRAÇÃO CONTROLADA
+
+Criar:
+
+ts server/routes/client-intelligence.routes.ts 
+
+Regras:
+
+- copiar handlers exatamente como estão
+- manter:
+  - queries
+  - cálculos
+  - estrutura de resposta
+  - ordem de execução
+
+👉 ZERO alteração
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+ts import { register as clientIntelligenceRegister } from './client-intelligence.routes' 
+
+E:
+
+ts clientIntelligenceRegister(app) 
+
+👉 seguir padrão existente
+
+---
+
+### 4️⃣ DESATIVAÇÃO SEGURA
+
+Comentar blocos originais:
+
+ts // MOVED TO client-intelligence.routes.ts 
+
+👉 NÃO deletar código
+
+---
+
+### 5️⃣ VALIDAÇÃO (CRÍTICO)
+
+Testar:
+
+- GET /api/commercial-intelligence
+- GET /api/financial-intelligence
+- GET /api/logistics-intelligence
+- /api/health
+
+Validar:
+
+- status codes idênticos
+- estrutura JSON idêntica
+- campos presentes exatamente iguais
+- nenhum erro nos logs
+
+---
+
+### 6️⃣ RELATÓRIO FINAL
+
+Responder com:
+
+1. endpoints movidos (3)
+2. linhas removidas
+3. dependências envolvidas (db, drizzle, storage)
+4. validação antes vs depois
+5. confirmação:
+
+👉 ZERO REGRESSÃO
+
+---
+
+🚫 PROIBIDO
+
+- NÃO mexer em performance
+- NÃO alterar nomes de variáveis
+- NÃO reorganizar código
+- NÃO remover try/catch
+- NÃO alterar ordem de cálculos
+
+---
+
+🛑 PARAR APÓS FINALIZAR
+
+👉 NÃO continuar para outro domínio aut
