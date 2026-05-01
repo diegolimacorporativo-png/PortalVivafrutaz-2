@@ -1,0 +1,196 @@
+🎯 FASE 8.8 — HANDOFF CONTROLADO (ANTES DO 8.8B)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO NEGOCIÁVEIS)
+
+1. NÃO criar lógica nova  
+2. NÃO refatorar código  
+3. NÃO alterar comportamento de endpoints  
+4. NÃO alterar auth, session ou middleware  
+5. NÃO tocar em storage.ts  
+6. NÃO “melhorar” nada  
+7. NÃO fazer otimizações  
+
+👉 Este passo é APENAS leitura + entendimento + validação
+
+---
+
+🧠 CONTEXTO ATUAL DO PROJETO
+
+O sistema passou por uma decomposição massiva do monólito:
+
+- routes.ts era um arquivo gigante (~10k linhas)
+- Foi progressivamente quebrado em múltiplos arquivos por domínio
+- Cada extração seguiu padrão zero alteração de lógica (byte a byte)
+
+---
+
+📦 ESTADO ATUAL (FASE 8.8)
+
+### ✔ Arquitetura
+
+- routes.ts agora atua como dispatcher central
+- Múltiplos arquivos *.routes.ts registrados via register(app)
+
+Exemplos:
+
+- health.routes.ts
+- backup.routes.ts
+- logs.routes.ts
+- announcements.routes.ts
+- tasks.routes.ts
+- purchase-planning.routes.ts
+- fiscal-invoices.routes.ts
+- settings.routes.ts
+- incidents.routes.ts
+- marketplace.routes.ts
+- sanitary.routes.ts
+- intelligence.routes.ts
+- assistant.routes.ts
+- scope-simulations.routes.ts
+- nfe.routes.ts (grande bloco crítico)
+- company-certificates.routes.ts
+
+---
+
+### ✔ Estratégia usada
+
+Para CADA domínio:
+
+1. Código copiado exatamente do routes.ts
+2. Novo arquivo criado: <domain>.routes.ts
+3. Importado no routes.ts
+4. Registrado via register(app)
+5. Bloco original marcado com:
+
+ts // MOVED TO <domain>.routes.ts 
+
+👉 Importante: os handlers antigos AINDA EXISTEM (fallback)
+
+---
+
+### ✔ Situação atual do routes.ts
+
+- Ainda contém handlers antigos (comentados ou ativos como fallback)
+- Novos arquivos já têm prioridade no Express
+- Sistema está rodando sem erros
+
+---
+
+⚠️ ESTADO CRÍTICO ATUAL
+
+Estamos no ponto exato antes de:
+
+👉 FASE 8.8B — REMOÇÃO DEFINITIVA (hard delete)
+
+Ou seja:
+
+- Ainda existe duplicação (novo + antigo)
+- Sistema funciona porque os novos handlers são registrados primeiro
+- O próximo passo REMOVE código antigo definitivamente
+
+---
+
+📊 O QUE VOCÊ (AGENTE) DEVE FAZER AGORA
+
+APENAS:
+
+### 1. VALIDAR COBERTURA
+
+Para cada domínio:
+
+- Confirmar que TODO endpoint do routes.ts existe no arquivo novo
+- Confirmar que NÃO há endpoint faltando
+
+---
+
+### 2. VALIDAR DUPLICIDADE
+
+Identificar:
+
+- Rotas duplicadas (mesmo path em dois lugares)
+- Ordem de registro (novo antes do antigo)
+
+---
+
+### 3. VALIDAR SEGURANÇA
+
+Garantir:
+
+- Auth continua igual
+- session continua igual
+- middlewares continuam iguais
+- nenhum endpoint ficou exposto sem proteção
+
+---
+
+### 4. VALIDAR DEPENDÊNCIAS CRÍTICAS
+
+Especial atenção:
+
+- multer / uploadInMemory
+- pdf-parse (CJS)
+- createRequire
+- integrações NFe
+- integrações bancárias
+
+---
+
+### 5. GERAR RELATÓRIO (OBRIGATÓRIO)
+
+Responder com:
+
+#### ✔ Cobertura (%)
+- % de endpoints já migrados corretamente
+
+#### ✔ Duplicações encontradas
+- lista clara (se houver)
+
+#### ✔ Riscos detectados
+- por domínio
+
+#### ✔ Pronto para 8.8B?
+- SIM / NÃO (com justificativa)
+
+---
+
+🚫 NÃO FAZER
+
+- NÃO deletar código
+- NÃO mover nada
+- NÃO criar arquivos novos
+- NÃO alterar ordem de execução
+
+---
+
+🎯 OBJETIVO FINAL
+
+Garantir que o sistema está 100% seguro para executar:
+
+👉 FASE 8.8B — HARD DELETE DO routes.ts
+
+Sem risco de:
+
+- endpoint sumir
+- regressão
+- quebra de produção
+
+---
+
+## ✅ FINAL
+
+Responder SOMENTE com:
+
+1. % de cobertura real
+2. endpoints faltantes (se houver)
+3. duplicações detectadas
+4. riscos críticos
+5. decisão: pronto ou não para 8.8B
+
+---
+
+⚠️ IMPORTANTE
+
+Este é um checkpoint de produção.  
+Erro aqui = sistema quebrado depois.
