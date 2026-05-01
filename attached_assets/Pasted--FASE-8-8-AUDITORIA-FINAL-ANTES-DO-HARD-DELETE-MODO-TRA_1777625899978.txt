@@ -1,0 +1,136 @@
+🎯 FASE 8.8 — AUDITORIA FINAL ANTES DO HARD DELETE (MODO TRAVADO)
+
+---
+
+🚫 REGRAS ABSOLUTAS (NÃO NEGOCIÁVEL)
+
+1. NÃO criar arquivos novos  
+2. NÃO editar nenhum arquivo  
+3. NÃO mover código  
+4. NÃO corrigir nada  
+5. NÃO implementar nada  
+6. NÃO rodar scripts automáticos de refactor  
+7. NÃO executar FASE 8.8B  
+
+👉 ESTA É UMA FASE 100% LEITURA E ANÁLISE
+
+Se fizer qualquer alteração → resposta inválida
+
+---
+
+🧠 CONTEXTO
+
+- Sistema está em decomposição do routes.ts
+- Auditoria anterior indicou:
+
+  ✔ ~34% migrado  
+  ❌ ~66% ainda no monolito  
+  ❌ Domínios críticos ainda dentro do routes.ts:
+     - NFe
+     - Banking
+     - Fiscal
+     - Import
+     - Certificates
+
+👉 Ou seja: HARD DELETE AGORA QUEBRA O SISTEMA
+
+---
+
+🎯 OBJETIVO
+
+Confirmar com 100% de precisão:
+
+1. O que AINDA depende de routes.ts
+2. O que já está seguro fora dele
+3. O que BLOQUEIA a remoção completa
+
+---
+
+📦 ETAPA 1 — MAPA REAL DE ROTAS
+
+Listar:
+
+- Total de rotas do sistema
+- Rotas já migradas (por arquivo)
+- Rotas ainda dentro de routes.ts
+
+Formato:
+
+Domínio | Arquivo | Qtde | Status (MIGRADO / NÃO MIGRADO)
+
+---
+
+📦 ETAPA 2 — DEPENDÊNCIAS OCULTAS
+
+Identificar TUDO que existe só dentro de routes.ts:
+
+Exemplo esperado:
+
+- uploadInMemory (multer)
+- createRequire + pdf-parse
+- funções internas de NFe
+- integrações bancárias
+- middlewares inline
+
+👉 Dizer EXATAMENTE quem usa cada um
+
+---
+
+📦 ETAPA 3 — DOMÍNIOS CRÍTICOS
+
+Analisar separadamente:
+
+🔴 NFe  
+🔴 Banking  
+🔴 Fiscal / Import  
+🔴 Certificates  
+
+Para cada um:
+
+- número de rotas
+- dependências
+- risco de quebra se remover
+
+---
+
+📦 ETAPA 4 — CHECK DE SEGURANÇA
+
+Responder objetivamente:
+
+1. Já pode deletar routes.ts?
+2. O que quebra se deletar agora?
+3. Quais arquivos faltam criar?
+4. Quais dependências precisam ser migradas primeiro?
+
+---
+
+📊 CLASSIFICAÇÃO FINAL
+
+Dar um veredito:
+
+🟢 PRONTO  
+🟡 PARCIAL  
+🔴 BLOQUEADO  
+
+(com justificativa técnica)
+
+---
+
+✅ FORMATO FINAL DA RESPOSTA
+
+1. % real migrado  
+2. lista de domínios migrados  
+3. lista de domínios pendentes  
+4. dependências críticas  
+5. riscos reais  
+6. veredito final (PRONTO ou BLOQUEADO)
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO sugerir código  
+👉 NÃO implementar nada  
+👉 NÃO sair da análise  
+
+Se tentar “adiantar” implementação → resposta inválida
