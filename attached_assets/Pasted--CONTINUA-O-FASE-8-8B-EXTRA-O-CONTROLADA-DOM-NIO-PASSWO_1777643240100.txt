@@ -1,0 +1,150 @@
+🎯 CONTINUAÇÃO FASE 8.8B — EXTRAÇÃO CONTROLADA (DOMÍNIO: PASSWORD-RESET-REQUESTS)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+- NÃO alterar lógica existente
+- NÃO corrigir bugs
+- NÃO refatorar código
+- NÃO alterar autenticação
+- NÃO mudar nomes, retornos ou estrutura
+- NÃO otimizar nada
+
+👉 COPIAR EXATAMENTE como está no routes.ts (byte a byte)
+
+---
+
+🧠 CONTEXTO ATUAL
+
+Domínios já extraídos com sucesso:
+
+- tasks ✅
+- quotations ✅
+- waste-control ✅
+- order-exceptions ✅
+- special-order-requests ✅
+
+Sistema:
+
+- ✅ RUNNING
+- ✅ HEALTHY
+- ✅ ZERO regressões
+
+---
+
+🎯 OBJETIVO
+
+Extrair APENAS o domínio:
+
+👉 /api/password-reset-requests (ou nome equivalente encontrado no routes.ts)
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA (SEGUIR ORDEM)
+
+---
+
+### 1️⃣ DISCOVERY (LEITURA SOMENTE)
+
+- Localizar TODOS endpoints relacionados a password reset
+- Ler bloco completo (incluindo cabeçalho)
+- Identificar:
+
+| Item | Detalhe |
+|------|--------|
+| Endpoints | listar todos |
+| Linhas | início → fim |
+| Auth | session? público? |
+| Dependências | mailer? token? storage? |
+| Side-effects | envio de email? |
+
+👉 NÃO CODAR ainda
+
+---
+
+### 2️⃣ EXTRAÇÃO CONTROLADA
+
+Criar:
+
+server/routes/password-reset-requests.routes.ts
+
+👉 copiar handlers EXATAMENTE iguais
+
+- mesma ordem
+- mesmo código
+- mesmos retornos
+- mesmos try/catch
+- mesmos status codes
+
+---
+
+### 3️⃣ REGISTRO
+
+No routes.ts:
+
+- adicionar import:
+ts import { register as passwordResetRequestsRegister } from './password-reset-requests.routes'; 
+
+- adicionar chamada dentro do registerRoutes:
+ts passwordResetRequestsRegister(app); 
+
+👉 seguir padrão existente (mesmo estilo dos outros domínios)
+
+---
+
+### 4️⃣ DESATIVAÇÃO SEGURA
+
+- comentar TODO o bloco original no routes.ts
+
+Usar padrão:
+
+ts // MOVED TO password-reset-requests.routes.ts 
+
+👉 NÃO deletar ainda  
+👉 NÃO deixar duplicado ativo
+
+---
+
+### 5️⃣ VALIDAÇÃO
+
+Testar TODOS endpoints:
+
+Esperado:
+
+| Cenário | Resultado |
+|--------|----------|
+| Sem auth (se público) | 200 / 400 |
+| Sem auth (se protegido) | 401 |
+| Fluxo inválido | mesmo erro de antes |
+| /api/health | 200 |
+
+Verificar:
+
+- logs sem erro
+- zero exception
+- servidor RUNNING
+
+---
+
+### 6️⃣ RELATÓRIO FINAL
+
+Responder com:
+
+1. Endpoints movidos (lista completa)
+2. Arquivo criado
+3. Linhas removidas do routes.ts
+4. Testes antes vs depois
+5. Confirmação de zero regressão
+
+---
+
+🚫 REGRA FINAL
+
+⛔ PARAR IMEDIATAMENTE após o relatório  
+⛔ NÃO continuar para outro domínio  
+⛔ NÃO tomar decisões sozinho  
+
+---
+
+✅ IN
