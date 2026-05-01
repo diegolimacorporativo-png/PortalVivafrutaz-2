@@ -13,6 +13,8 @@ import {
 import { legacyStatusFor, OrderStatus } from "./orders.workflow";
 import { BadRequestError, ConflictError } from "../../shared/errors/AppError";
 import { buildPixPayload } from "../../shared/utils/pix";
+// FASE 9C — financial consistency guard
+import { logSecurity } from "../../core/security/securityLogger";
 
 // ─── Compatibility helper ─────────────────────────────────────────────────────
 // `tx.execute(sql\`…\`)` returns either a plain row array (older drizzle) or a
@@ -416,6 +418,38 @@ export async function executeWorkflowTransaction(
 
     // ── Step 4c: SHIPPED — conditional delivery row update ──────────────────
     if (to === OrderStatus.SHIPPED) {
+
+      // FASE 9C — financial consistency guard (non-blocking, observability only).
+      //
+      // Detects orders that reach SHIPPED without an accounts_receivable record,
+      // which indicates the normal INVOICED step was bypassed. This guard never
+      // throws — it only logs so that no existing flow is disrupted.
+      //
+      // Future phases may escalate this to a hard block once all legacy orders
+      // are confirmed clean. ETAPA 3 auto-fix is intentionally omitted: there
+      // is no standalone createAccountsReceivable() function — the AR creation
+      // logic is inline in the INVOICED block above and must not be duplicated.
+      try {
+        const existingAR = await tx
+          .select({ id: accountsReceivable.id })
+          .from(accountsReceivable)
+          .where(eq(accountsReceivable.orderId, orderId))
+          .limit(1);
+
+        if (existingAR.length === 0) {
+          logSecurity(
+            `[FINANCIAL_GAP_DETECTED] orderId=${orderId} | companyId=${orderSnapshot.companyId} | ` +
+            `attempting SHIPPED without accounts_receivable | actor=${actor.email}`,
+          );
+        }
+      } catch (arCheckErr: any) {
+        // Never break the main SHIPPED flow on guard failure.
+        logSecurity(
+          `[FINANCIAL_GAP_CHECK_ERROR] orderId=${orderId} | ` +
+          `error=${arCheckErr?.message ?? "unknown"}`,
+        );
+      }
+
       // Only update if currently 'pendente' — idempotent and status-safe.
       const updated = rowsOf<{ id: number }>(
         await tx.execute(

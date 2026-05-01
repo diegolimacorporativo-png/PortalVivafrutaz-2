@@ -1,0 +1,200 @@
+🎯 FASE 9C — BLINDAGEM FINANCEIRA (APPROVED → SHIPPED)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO QUEBRAR PRODUÇÃO)
+
+1. NÃO alterar estrutura de response de endpoints  
+2. NÃO remover código existente  
+3. NÃO alterar fluxo principal (apenas adicionar guard)  
+4. NÃO bloquear pedidos antigos já inconsistentes  
+5. NÃO criar dependência de banco nova  
+6. NÃO alterar criação de pedido  
+7. NÃO alterar emissão de NF-e  
+
+👉 Apenas impedir inconsistência futura
+
+---
+
+🧠 PROBLEMA
+
+Hoje existe caminho:
+
+APPROVED → SHIPPED
+
+Sem passar por:
+
+INVOICED → criação de accounts_receivable
+
+Resultado:
+❌ Pedido entregue  
+❌ Receita não registrada  
+❌ Erro silencioso (grave)
+
+---
+
+🎯 OBJETIVO
+
+Garantir que:
+
+👉 Pedido NÃO pode ir para SHIPPED  
+SEM existir accounts_receivable
+
+---
+
+## 🛠️ ETAPA 1 — LOCALIZAR PONTO DE TRANSIÇÃO
+
+Arquivo:
+
+server/modules/orders/orders.transaction.ts
+
+Buscar:
+
+status === 'SHIPPED'
+OU
+updateStatus(... 'SHIPPED')
+
+👉 Encontrar o ponto EXATO onde o status é alterado
+
+---
+
+## 🛠️ ETAPA 2 — CRIAR GUARD NÃO-BLOQUEANTE (SAFE)
+
+ANTES de permitir SHIPPED, adicionar:
+
+ts // FASE 9C — financial consistency guard const hasReceivable = await storage.getAccountsReceivableByOrderId(order.id);  if (!hasReceivable) {   logSecurity(     `[FINANCIAL_GAP_DETECTED] orderId=${order.id} | attempting SHIPPED without receivable`   );    // 🔒 NÃO BLOQUEAR AINDA (fase segura)   // apenas logar e seguir fluxo } 
+
+---
+
+⚠️ IMPORTANTE
+
+👉 Nesta fase NÃO dar throw  
+👉 NÃO impedir envio  
+👉 Apenas DETECTAR e LOGAR
+
+---
+
+## 🛠️ ETAPA 3 — (OPCIONAL SEGURO) AUTO-CORREÇÃO LEVE
+
+Se existir função já pronta como:
+
+createAccountsReceivable(order)
+
+👉 pode usar:
+
+ts if (!hasReceivable) {   try {     await createAccountsReceivable(order);      logSecurity(       `[FINANCIAL_AUTO_FIX] receivable created | orderId=${order.id}`     );   } catch (err) {     logSecurity(       `[FINANCIAL_AUTO_FIX_FAILED] orderId=${order.id} | error=${(err as Error).message}`     );   } } 
+
+---
+
+⚠️ NÃO criar função nova  
+⚠️ NÃO inventar regra  
+👉 só usar se já existir
+
+---
+
+## 🛠️ ETAPA 4 — LOG PADRÃO
+
+Garantir uso de:
+
+ts import { logSecurity } from "@/core/security/securityLogger"; 
+
+Eventos obrigatórios:
+
+- FINANCIAL_GAP_DETECTED
+- FINANCIAL_AUTO_FIX (se aplicado)
+- FINANCIAL_AUTO_FIX_FAILED
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Pedido normal
+
+APPROVED → INVOICED → SHIPPED
+
+Resultado:
+✔ Sem logs  
+✔ Fluxo normal
+
+---
+
+### 2️⃣ Pedido pulando INVOICED
+
+APPROVED → SHIPPED direto
+
+Resultado:
+✔ Log:
+
+[FINANCIAL_GAP_DETECTED]
+
+✔ Pedido continua (sem quebra)
+
+---
+
+### 3️⃣ Auto-fix (se existir função)
+
+Resultado:
+✔ Receivable criado automaticamente  
+✔ Log:
+
+[FINANCIAL_AUTO_FIX]
+
+---
+
+### 4️⃣ Falha no auto-fix
+
+Resultado:
+✔ Log:
+
+[FINANCIAL_AUTO_FIX_FAILED]
+
+✔ Sistema continua funcionando
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Zero regressão  
+✔ Nenhum fluxo bloqueado  
+✔ Nenhum endpoint alterado  
+✔ Nenhum dado perdido  
+✔ Apenas observabilidade + proteção futura  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+ts updateStatus(order, 'SHIPPED'); 
+
+DEPOIS:
+
+ts // validação financeira adicionada (sem quebrar fluxo) updateStatus(order, 'SHIPPED'); 
+
++ logs de segurança quando necessário
+
+---
+
+## 🚀 FUTURA EVOLUÇÃO (NÃO IMPLEMENTAR AGORA)
+
+Fase futura poderá:
+
+- bloquear SHIPPED sem receivable ❌
+- exigir INVOICED antes ✔
+- dashboard financeiro com alertas ✔
+
+👉 NÃO fazer isso agora
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trecho exato onde guard foi inserido  
+2. logs implementados  
+3. confirmação de zero regressão  
+4. confirmação de não bloque
