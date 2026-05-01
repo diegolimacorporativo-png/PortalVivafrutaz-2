@@ -87,12 +87,16 @@ Preferred communication style: Simple, everyday language.
 - **SEFAZ Integration**: Handles NF-e 4.00 transmission, supporting mock and production modes, multi-UF dispatch, and mTLS `https.Agent`.
 - **Certificate Management**: Environment-driven auto-loader for A1 certificates, dynamic per-tenant certificate management via API, and at-rest encryption of certificate passwords.
 
-### Security Observability (Fase 7.1)
+### Security Observability (Fase 7.1 + 7.2)
 - **In-Memory Event Store**: `server/core/security/securityLogger.ts` — circular buffer (max 1000 events) for `RATE_LIMITED`, `HIGH_RISK_ACTION`, and `CRITICAL_ACTION` events. Zero DB dependency.
-- **Admin Endpoint**: `GET /api/admin/security/events` (MASTER/ADMIN only) — returns `{ events, total, topIPs, summary }` from the live buffer.
-- **Helpers**: `getTopIPs(n)` ranks IPs by event count; `getEventSummary()` groups counts by event type.
+- **Admin Endpoint — Events**: `GET /api/admin/security/events` (MASTER/ADMIN only) — returns `{ events, total, topIPs, summary }` from the live buffer.
+- **Analyzer** (Fase 7.2): `server/core/security/securityAnalyzer.ts` — pure-analysis layer, zero side effects.
+  - `analyzeSecurity()` — aggregates events by IP, computes per-type counts, and assigns risk level: `LOW / MEDIUM / HIGH / CRITICAL`.
+  - `detectSpike()` — counts events in last 60 s and flags `spike: true` when count > 50.
+  - Risk thresholds: CRITICAL (≥5 critical or ≥20 rateLimit+1 critical), HIGH (≥3 critical or ≥10 rateLimit), MEDIUM (≥1 critical or ≥5 rateLimit), LOW otherwise.
+- **Admin Endpoint — Analysis**: `GET /api/admin/security/analysis` (MASTER/ADMIN only) — returns `{ analysis: IPAnalysis[], spike: SpikeReport, total }`.
 - **Integration**: `server/core/security/rateLimit.ts` calls `logSecurityEvent` at every rate-limit block, high-risk action, and critical action.
-- **Route File**: `server/routes/security-events.routes.ts` — registered via `securityEventsRegister` in `routes.ts`.
+- **Route Files**: `server/routes/security-events.routes.ts` and `server/routes/security-analysis.routes.ts` — both registered in `routes.ts`.
 
 ### Multi-Tenant Read Hardening
 - **Tenant Guard**: Utilizes `validateOrderTenant` and `safeGetOrder` to ensure tenant isolation by validating the active tenant before any storage read, preventing cross-tenant data access.

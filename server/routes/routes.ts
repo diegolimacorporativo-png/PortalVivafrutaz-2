@@ -106,6 +106,7 @@ import { register as orderCleanupRegister } from './order-cleanup.routes';
 import { register as aboutUsRegister } from './about-us.routes';
 import { register as securityRegister } from './security.routes';
 import { register as securityEventsRegister } from './security-events.routes';
+import { register as securityAnalysisRegister } from './security-analysis.routes';
 import { register as contractsAlertsRegister } from './contracts-alerts.routes';
 import { register as companyValidateRegister } from './company-validate.routes';
 import { register as purchasePlanningRegister } from './purchase-planning.routes';
@@ -190,7 +191,8 @@ export async function registerRoutes(
   orderCleanupRegister(app);
   aboutUsRegister(app);
   securityRegister(app);
-  securityEventsRegister(app); // FASE 7.1 — in-memory security event stream
+  securityEventsRegister(app);    // FASE 7.1 — in-memory security event stream
+  securityAnalysisRegister(app);  // FASE 7.2 — per-IP risk analysis + spike detection
   contractsAlertsRegister(app);
   companyValidateRegister(app);
   purchasePlanningRegister(app);

@@ -1,0 +1,96 @@
+🎯 FASE 7.2 — DETECÇÃO INTELIGENTE DE RISCO
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO bloquear usuários ainda
+2. NÃO alterar comportamento de rotas
+3. NÃO mexer em rateLimit existente
+4. NÃO usar banco ainda
+5. NÃO alterar autenticação
+
+👉 Apenas ANALISAR eventos
+
+---
+
+🧠 OBJETIVO
+
+Criar um sistema que identifica:
+
+- IPs suspeitos
+- padrões de ataque
+- comportamento anormal
+
+---
+
+# 🛠️ ETAPA 1 — CRIAR ANALISADOR DE SEGURANÇA
+
+Arquivo:
+
+server/core/security/securityAnalyzer.ts
+
+---
+
+ts import { getSecurityEvents } from './securityLogger';  export function analyzeSecurity() {   const events = getSecurityEvents();    const ipStats: Record<string, {     total: number;     rateLimit: number;     critical: number;   }> = {};    for (const e of events) {     if (!e.ip) continue;      if (!ipStats[e.ip]) {       ipStats[e.ip] = { total: 0, rateLimit: 0, critical: 0 };     }      ipStats[e.ip].total++;      if (e.type === 'RATE_LIMITED') {       ipStats[e.ip].rateLimit++;     }      if (e.type === 'CRITICAL_ACTION') {       ipStats[e.ip].critical++;     }   }    return Object.entries(ipStats).map(([ip, stats]) => {     let risk = 'LOW';      if (stats.rateLimit > 5) risk = 'MEDIUM';     if (stats.rateLimit > 10) risk = 'HIGH';     if (stats.critical > 3) risk = 'CRITICAL';      return {       ip,       ...stats,       risk     };   }); } 
+
+---
+
+# 🛠️ ETAPA 2 — NOVO ENDPOINT DE ANÁLISE
+
+Criar rota:
+
+GET /api/admin/security/analysis
+
+---
+
+Proteção:
+
+requireAuthCore + requireRole(['MASTER','ADMIN'])
+
+---
+
+Retorno:
+
+ts {   analysis: [     {       ip: "127.0.0.1",       total: 20,       rateLimit: 12,       critical: 2,       risk: "HIGH"     }   ] } 
+
+---
+
+# 🛠️ ETAPA 3 — DETECÇÃO DE PICO
+
+Adicionar função:
+
+ts export function detectSpike() {   const events = getSecurityEvents();    const lastMinute = Date.now() - 60000;    const recent = events.filter(e => e.timestamp > lastMinute);    return {     lastMinuteEvents: recent.length,     spike: recent.length > 50   }; } 
+
+---
+
+# 🧪 VALIDAÇÃO
+
+- flood → IP aparece como HIGH ✅
+- múltiplos RATE_LIMIT → aumenta risco ✅
+- uso normal → LOW ✅
+- endpoint retorna análise correta ✅
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+✔ IPs classificados por risco  
+✔ sistema detecta comportamento anormal  
+✔ base pronta para bloqueio inteligente  
+✔ zero impacto no sistema  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivo criado
+2. endpoint criado
+3. exemplo de análise
+4. confirmação de zero regressão
+
+---
+
+👉 Próxima fase: BLOQUEIO AUTOMÁTICO INTELIGENTE (FASE 7
