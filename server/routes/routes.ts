@@ -83,6 +83,8 @@ import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3/6.5 — guarda de tenant e wrapper multi-tenant
 import { validateOrderTenant, safeGetOrder, withTenantGuard, validateCompanyTenant } from "../core/security/orderSecurity";
+// FASE 9A — logSecurity for NF-e error visibility
+import { logSecurity } from "../core/security/securityLogger";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, AppError } from "../shared/errors/AppError";
@@ -1214,8 +1216,8 @@ export async function registerRoutes(
     //   - NÃO altera buildNFeInput / gerarNFeXML / transmissão
     //   - Erros traduzidos via translateNFeError (FASE NF.4.3)
     //
-    // Sempre devolve HTTP 200 com { status: 'ok' | 'error' } no payload,
-    // exceto em violações de tenant/auth (que mantêm os status 401/403/404).
+    // FASE 9A — status codes corrigidos: 422 em erro de validação, 500 em exception.
+    // Violações de tenant/auth continuam retornando 401/403/404.
     app.get('/api/nfe/preflight/:orderId', requireAuthCore, async (req: any, res) => {
       const orderId = Number(req.params.orderId);
       if (!orderId || !Number.isFinite(orderId) || orderId <= 0) {
@@ -1275,7 +1277,9 @@ export async function registerRoutes(
             code: 'NFE_VALIDATION_FAILED',
             errors: validation.length,
           });
-          return res.status(200).json({
+          // FASE 9A — was 200; now 422 so react-query onError fires correctly
+          logSecurity(`[NFE_PREFLIGHT_VALIDATION_FAILED] requestId=${getRequestIdForLog()} | orderId=${orderId} | errors=${validation.length}`);
+          return res.status(422).json({
             status: 'error',
             errors: validation.map((v) => ({
               code: 'NFE_VALIDATION_FAILED',
@@ -1316,7 +1320,9 @@ export async function registerRoutes(
           code: parsed.code,
           rawMessage: e?.message,
         });
-        return res.status(200).json({
+        // FASE 9A — was 200; now 500 so exceptions are visible to callers
+        logSecurity(`[NFE_PREFLIGHT_EXCEPTION] requestId=${getRequestIdForLog()} | orderId=${orderId} | code=${parsed.code} | message=${e?.message ?? 'unknown'}`);
+        return res.status(500).json({
           status: 'error',
           errors: [parsed],
           alerts: [],
