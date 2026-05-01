@@ -1,0 +1,146 @@
+🎯 FASE 8.8B — EXTRAÇÃO CONTROLADA (MODO SEGURO E TRAVADO)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO executar múltiplas extrações em paralelo  
+2. NÃO criar vários arquivos de uma vez  
+3. NÃO modificar mais de UM domínio por vez  
+4. NÃO remover código original antes da validação  
+5. NÃO alterar lógica, auth, middlewares ou respostas  
+6. NÃO reorganizar imports fora do escopo do domínio atual  
+7. NÃO “otimizar” código — cópia deve ser byte a byte  
+
+👉 QUALQUER violação = PARAR execução
+
+---
+
+🧠 MODO DE EXECUÇÃO (OBRIGATÓRIO)
+
+Você deve seguir EXATAMENTE este fluxo:
+
+---
+
+### ETAPA 1 — DISCOVERY (LEITURA APENAS)
+
+- Identificar UM domínio dentro de routes.ts
+- Mapear:
+  - endpoints
+  - middlewares
+  - dependências (storage, upload, etc)
+  - intervalo de linhas
+
+❌ NÃO escrever código ainda
+
+---
+
+### ETAPA 2 — EXTRAÇÃO CONTROLADA
+
+- Criar arquivo:
+  server/routes/<dominio>.routes.ts
+
+- Copiar handlers:
+  ✔ 100% idênticos  
+  ✔ mesma ordem  
+  ✔ mesmos middlewares  
+  ✔ mesmas validações  
+
+❌ PROIBIDO:
+- refatorar
+- renomear variáveis
+- alterar imports desnecessariamente
+
+---
+
+### ETAPA 3 — REGISTRO
+
+Em routes.ts:
+
+1. Adicionar import
+2. Registrar dentro de registerRoutes(app)
+
+---
+
+### ETAPA 4 — DESATIVAÇÃO SEGURA
+
+- Comentar handlers originais com:
+
+ts // MOVED TO <dominio>.routes.ts 
+
+❌ NÃO deletar ainda
+
+---
+
+### ETAPA 5 — VALIDAÇÃO OBRIGATÓRIA
+
+Testar:
+
+- endpoints públicos → status correto
+- endpoints protegidos → 401 sem auth
+- /api/health → 200
+
+✔ Logs:
+- zero erro
+- zero exception
+- zero warning
+
+---
+
+### ETAPA 6 — RELATÓRIO
+
+Responder SEMPRE com:
+
+1. domínio extraído
+2. endpoints movidos
+3. código criado
+4. validação (antes vs depois)
+5. confirmação de zero regressão
+
+---
+
+🚫 COMPORTAMENTO PROIBIDO
+
+NÃO fazer isso:
+
+- “já aproveitei e extraí vários domínios”
+- “já removi código antigo”
+- “já reorganizei tudo”
+- “já criei 10 arquivos”
+
+👉 Isso QUEBRA o sistema
+
+---
+
+🎯 OBJETIVO
+
+- reduzir routes.ts com segurança
+- zero regressão
+- controle total por etapa
+- padrão enterprise (SaaS real)
+
+---
+
+🟢 EXECUÇÃO
+
+👉 Começar com domínio MAIS SEGURO (ex: tasks, quotations, waste-control)
+
+👉 Executar APENAS 1 domínio
+
+👉 Parar e aguardar próximo comando
+
+---
+
+⚠️ IMPORTANTE
+
+Se houver dúvida ou risco:
+
+👉 PARAR  
+👉 reportar  
+👉 NÃO assumir  
+
+---
+
+✅ FINAL
+
+Aguarde autorização antes de continuar para o próximo domínio.
