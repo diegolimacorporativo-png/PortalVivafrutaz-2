@@ -23,6 +23,7 @@ export interface SecurityEvent {
   path?: string;
   requestId?: string;
   timestamp: number;
+  metadata?: Record<string, unknown>;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -72,6 +73,19 @@ export function getTopIPs(n = 10): Array<{ ip: string; count: number }> {
     .map(([ip, count]) => ({ ip, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, n);
+}
+
+// ── Centralised security log transport ───────────────────────────────────────
+
+/**
+ * Single point of emission for all [SECURITY] console lines.
+ *
+ * Keeps `console.error` calls out of individual middleware files so
+ * future changes (e.g. SIEM integration, log-level filtering) are made
+ * in one place. Never throws.
+ */
+export function logSecurity(message: string): void {
+  console.error(message);
 }
 
 /**

@@ -874,60 +874,7 @@ export async function registerRoutes(
 
   // ─── Planejamento de Compras ──────────────────────────────────
 
-  // Smart forecast endpoint
-  // MOVED TO purchase-planning.routes.ts
-  // app.get('/api/purchase-planning/forecast', tenantContext, async (req, res) => {
-  //   const session = req.session as any;
-  //   if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
-  //   try {
-  //     const [allOrders, allProds] = await Promise.all([storage.getOrders(), storage.getProducts()]);
-  //     const prodById = new Map(allProds.map(p => [p.id, p]));
-  //     const eightWeeksAgo = new Date(); eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
-  //     const recentOrders = allOrders.filter(o => o.status !== 'CANCELLED' && new Date(o.deliveryDate) >= eightWeeksAgo);
-
-  //   // Aggregate by product name, per week
-  //   const weeklyMap: Record<string, Record<string, number>> = {}; // productName -> weekKey -> qty
-  //   for (const order of recentOrders) {
-  //     const orderWithItems = await storage.getOrder(order.id);
-  //     if (!orderWithItems) continue;
-  //     const items = orderWithItems.items;
-  //     const delivDate = new Date(order.deliveryDate);
-  //     const weekKey = `${delivDate.getFullYear()}-W${Math.ceil((delivDate.getDate() + new Date(delivDate.getFullYear(), delivDate.getMonth(), 1).getDay()) / 7)}`;
-  //     for (const item of items) {
-  //       const prod = prodById.get(item.productId);
-  //       const name = prod?.name || `Produto #${item.productId}`;
-  //       if (!weeklyMap[name]) weeklyMap[name] = {};
-  //       weeklyMap[name][weekKey] = (weeklyMap[name][weekKey] || 0) + Number(item.quantity || 0);
-  //     }
-  //   }
-  //   const forecast = Object.entries(weeklyMap).map(([productName, weeks]) => {
-  //     const weekValues = Object.values(weeks);
-  //     const totalWeeks = 8;
-  //     const avgWeekly = weekValues.reduce((s, v) => s + v, 0) / totalWeeks;
-  //     const recentWeeks = weekValues.slice(-2);
-  //     const recentAvg = recentWeeks.length ? recentWeeks.reduce((s, v) => s + v, 0) / recentWeeks.length : avgWeekly;
-  //     const trend: 'up' | 'down' | 'stable' = recentAvg > avgWeekly * 1.1 ? 'up' : recentAvg < avgWeekly * 0.9 ? 'down' : 'stable';
-  //     return {
-  //       productName, avgWeekly: Math.round(avgWeekly * 10) / 10,
-  //       suggestion: Math.ceil(avgWeekly * 1.15), weeksActive: weekValues.filter(v => v > 0).length,
-  //       trend, recentAvg: Math.round(recentAvg * 10) / 10,
-  //     };
-  //   }).filter(f => f.avgWeekly > 0).sort((a, b) => b.avgWeekly - a.avgWeekly);
-  //   res.json({ forecast, analyzedWeeks: 8, generatedAt: new Date().toISOString() });
-  //   } catch (e: any) {
-  //     console.error('Forecast error:', e);
-  //     res.status(500).json({ message: e.message });
-  //   }
-  // });
-
-  // MOVED TO purchase-planning.routes.ts
-  // app.get('/api/purchase-planning', tenantContext, async (req, res) => { ... });
-
-  // MOVED TO purchase-planning.routes.ts
-  // app.post('/api/purchase-planning/status', async (req, res) => { ... });
-
-  // MOVED TO purchase-planning.routes.ts
-  // app.get('/api/purchase-planning/statuses', async (req, res) => { ... });
+  // Planejamento de compras movido para purchase-planning.routes.ts
 
   // ── Estoque / Inventário ────────────────────────────────────
   // ⛔ MIGRATED: all `/api/inventory/*` endpoints now live in

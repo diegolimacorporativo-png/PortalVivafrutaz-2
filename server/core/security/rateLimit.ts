@@ -25,7 +25,8 @@
 
 import type { Request, Response, NextFunction } from "express";
 // FASE 7.1 — feed all security events into the centralised observer.
-import { logSecurityEvent } from "./securityLogger";
+// FASE 6.5 — logSecurity replaces scattered console.warn/error calls.
+import { logSecurityEvent, logSecurity } from "./securityLogger";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ function createRateLimiter(
     if (win.count > maxRequests) {
       const retryAfter = Math.ceil((win.resetAt - now) / 1000);
       const rid = getRequestId(req);
-      console.warn(
+      logSecurity(
         `[SECURITY] RATE_LIMITED | ip=${ip} | path=${req.path} | requestId=${rid}`,
       );
       logSecurityEvent({ type: "RATE_LIMITED", ip, path: req.originalUrl, requestId: rid });
@@ -153,7 +154,7 @@ export function highRiskActionLogger(
   if (req.method === "POST" || req.method === "DELETE") {
     const ip = getClientIp(req);
     const rid = getRequestId(req);
-    console.error(
+    logSecurity(
       `[SECURITY] HIGH_RISK_ACTION | method=${req.method} | path=${req.path} | ip=${ip} | requestId=${rid}`,
     );
     const session = (req as any).session ?? {};
@@ -223,7 +224,7 @@ export function criticalActionLogger(
           ? `companyId=${session.companyId}`
           : "unauthenticated";
 
-    console.error(
+    logSecurity(
       `[SECURITY] CRITICAL_ACTION | method=${method} | path=${path} | ip=${ip} | ${actor} | requestId=${rid}`,
     );
     logSecurityEvent({
