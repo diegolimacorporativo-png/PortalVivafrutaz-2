@@ -198,7 +198,9 @@ export function computeIPScores(): IPScoreReport {
     .sort((a, b) => {
       if (a.spike !== b.spike) return a.spike ? -1 : 1;
       return b.score - a.score;
-    });
+    })
+    // FASE 7.3.4 — drop noise: keep only IPs with meaningful activity
+    .filter((ip) => ip.score >= 10 || ip.spike === true);
 
   return { ips, generatedAt: new Date().toISOString() };
 }
