@@ -1,0 +1,182 @@
+🎯 CONTINUAÇÃO FASE 8.8B — EXTRAÇÃO CONTROLADA (AGENTE NOVO)
+
+---
+
+🧠 CONTEXTO GERAL
+
+Você está trabalhando em um backend Node.js (Express + TypeScript) com um arquivo central:
+
+👉 server/routes.ts
+
+Esse arquivo está sendo quebrado em domínios menores seguindo um processo rigoroso.
+
+---
+
+## 🚫 REGRAS CRÍTICAS (NÃO QUEBRAR)
+
+1. NÃO alterar lógica
+2. NÃO refatorar
+3. NÃO corrigir bugs (mesmo que existam)
+4. NÃO mudar autenticação
+5. NÃO alterar responses
+6. NÃO reorganizar código
+7. NÃO otimizar nada
+
+👉 COPIAR EXATAMENTE COMO ESTÁ (byte a byte)
+
+---
+
+## 🧱 PADRÃO DE EXTRAÇÃO (OBRIGATÓRIO)
+
+Seguir SEMPRE:
+
+### 1. DISCOVERY
+- Ler o bloco completo no routes.ts
+- Mapear:
+  - endpoints
+  - linhas
+  - auth
+  - dependências
+  - riscos
+
+---
+
+### 2. EXTRAÇÃO
+- Criar arquivo:
+  server/routes/<dominio>.routes.ts
+
+- Copiar handlers EXATAMENTE
+- Manter:
+  - async
+  - try/catch
+  - comentários
+  - variáveis
+  - até bugs existentes
+
+---
+
+### 3. REGISTRO
+No routes.ts:
+
+- Adicionar import:
+ts import { register as <dominio>Register } from './<dominio>.routes'; 
+
+- Registrar:
+ts <dominio>Register(app); 
+
+---
+
+### 4. DESATIVAÇÃO
+Substituir handlers originais por:
+
+ts // MOVED TO <dominio>.routes.ts 
+
+👉 NÃO apagar — apenas comentar
+
+---
+
+### 5. VALIDAÇÃO
+
+Testar:
+
+- /api/health → 200
+- endpoints do domínio:
+  - mesmo status code
+  - mesma resposta
+  - mesma autenticação
+
+---
+
+### 6. RELATÓRIO FINAL (OBRIGATÓRIO)
+
+Responder com:
+
+- domínio extraído
+- endpoints movidos
+- linhas removidas
+- arquivo criado
+- testes realizados
+- confirmação:
+
+👉 ZERO regressão
+
+---
+
+## 📊 ESTADO ATUAL DO SISTEMA
+
+Já extraído com sucesso:
+
+- tasks
+- quotations
+- waste-control
+- order-exceptions
+- special-order-requests
+- password-reset-requests
+- order-cleanup
+- about-us
+- security
+- contracts-alerts
+- company-validate
+- purchase-planning
+- incidents
+- geocode
+- search
+- system-versions
+- sanitary
+- scope-simulations
+- smtp-config
+- push
+- saas (financeiro incluído)
+- empresa-config
+- price-groups
+- product-prices
+- order-windows
+- settings
+- reports
+- audit
+- executive-dashboard
+- client-intelligence
+- client-contract-scope
+
+---
+
+## 🎯 OBJETIVO AGORA
+
+Escolher o próximo domínio ainda existente em routes.ts
+
+Critérios:
+
+✔ pequeno ou médio  
+✔ sem upload  
+✔ sem NFe  
+✔ sem PDF  
+✔ sem integração externa complexa  
+
+---
+
+## ⚠️ IMPORTANTE
+
+- Se encontrar bug → IGNORAR
+- Se algo parecer errado → IGNORAR
+- Se variável estiver undefined → COPIAR IGUAL
+- Se lógica for feia → MANTER
+
+👉 o objetivo NÃO é melhorar  
+👉 é apenas modularizar com ZERO risco
+
+---
+
+## 🛑 REGRA FINAL
+
+Após concluir:
+
+👉 PARAR  
+👉 NÃO continuar sozinho  
+
+---
+
+## ✅ INICIAR AGORA
+
+Comece com:
+
+👉 "PHASE 1 — DISCOVERY"
