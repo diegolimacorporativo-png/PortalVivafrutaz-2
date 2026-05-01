@@ -109,10 +109,17 @@ function scoreToLevel(score: number): RiskLevel {
   return "LOW";
 }
 
+export interface IPScoreBreakdown {
+  RATE_LIMITED: number;
+  HIGH_RISK_ACTION: number;
+  CRITICAL_ACTION: number;
+}
+
 export interface IPScore {
   ip: string;
   score: number;
   level: RiskLevel;
+  breakdown: IPScoreBreakdown;
 }
 
 export interface IPScoreReport {
@@ -135,21 +142,42 @@ export interface IPScoreReport {
  *   HIGH    51 – 80
  *   CRITICAL 81+
  *
+ * FASE 7.3.1 — Each entry now includes a `breakdown` with the raw event count
+ * per type so admins can understand exactly why a score was assigned.
+ *
  * Returns IPs sorted by score descending so callers can slice to top-N.
  */
 export function computeIPScores(): IPScoreReport {
   const events = getSecurityEvents();
-  const scoreMap: Record<string, number> = {};
+
+  const perIP: Record<string, { score: number; breakdown: IPScoreBreakdown }> = {};
 
   for (const e of events) {
     if (!e.ip) continue;
     const weight = SCORE_WEIGHTS[e.type] ?? 0;
     if (weight === 0) continue;
-    scoreMap[e.ip] = (scoreMap[e.ip] ?? 0) + weight;
+
+    if (!perIP[e.ip]) {
+      perIP[e.ip] = {
+        score: 0,
+        breakdown: { RATE_LIMITED: 0, HIGH_RISK_ACTION: 0, CRITICAL_ACTION: 0 },
+      };
+    }
+
+    perIP[e.ip].score += weight;
+
+    if (e.type === "RATE_LIMITED") perIP[e.ip].breakdown.RATE_LIMITED++;
+    else if (e.type === "HIGH_RISK_ACTION") perIP[e.ip].breakdown.HIGH_RISK_ACTION++;
+    else if (e.type === "CRITICAL_ACTION") perIP[e.ip].breakdown.CRITICAL_ACTION++;
   }
 
-  const ips: IPScore[] = Object.entries(scoreMap)
-    .map(([ip, score]) => ({ ip, score, level: scoreToLevel(score) }))
+  const ips: IPScore[] = Object.entries(perIP)
+    .map(([ip, { score, breakdown }]) => ({
+      ip,
+      score,
+      level: scoreToLevel(score),
+      breakdown,
+    }))
     .sort((a, b) => b.score - a.score);
 
   return { ips, generatedAt: new Date().toISOString() };
