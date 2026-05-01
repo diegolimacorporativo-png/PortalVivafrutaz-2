@@ -1,0 +1,189 @@
+🎯 HANDOFF — FASE 8.8B (MIGRAÇÃO CONTROLADA DE routes.ts)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO NEGOCIÁVEL)
+
+1. NÃO alterar lógica existente
+2. NÃO refatorar código
+3. NÃO otimizar nada
+4. NÃO corrigir bugs
+5. NÃO mudar estrutura de resposta
+6. NÃO executar múltiplos domínios
+7. NÃO deletar código (apenas comentar)
+
+👉 Se encontrar problema → IGNORAR e seguir
+
+---
+
+## 🧠 CONTEXTO DO PROJETO
+
+- Sistema SaaS grande (multi-domínio)
+- Arquivo monolítico: server/routes/routes.ts
+- Objetivo: transformar em dispatcher + domain routes
+- Estratégia: extração incremental segura (sem regressão)
+
+---
+
+## 📊 STATUS ATUAL
+
+### Progresso:
+
+- ~37% migrado
+- ~63% ainda no routes.ts
+
+### Domínios já extraídos:
+
+- tasks ✅
+- quotations ✅
+- waste-control ✅
+- order-exceptions ✅
+
+### Situação:
+
+- Sistema rodando (RUNNING)
+- /api/health → OK
+- Zero erros de runtime
+- Zero regressão confirmada
+
+---
+
+## 🧱 PADRÃO ARQUITETURAL
+
+Cada domínio segue:
+
+txt server/routes/<domain>.routes.ts 
+
+Com padrão:
+
+ts export function register(app: Express) {   // handlers copiados 100% iguais } 
+
+E no routes.ts:
+
+ts import { register as domainRegister } from "./domain.routes";  domainRegister(app); 
+
+---
+
+## 🔁 PROCESSO OBRIGATÓRIO (6 ETAPAS)
+
+### 1. DISCOVERY (LEITURA APENAS)
+
+- localizar endpoints no routes.ts
+- mapear:
+  - rotas
+  - auth
+  - dependências
+  - comportamento
+
+❌ NÃO escrever código
+
+---
+
+### 2. EXTRAÇÃO CONTROLADA
+
+- criar novo arquivo de domínio
+- copiar código 100% idêntico
+- manter:
+  - ordem
+  - lógica
+  - validações
+  - responses
+
+❌ PROIBIDO alterar qualquer coisa
+
+---
+
+### 3. REGISTRO
+
+Adicionar no routes.ts:
+
+ts import { register as <domain>Register } from "./<domain>.routes";  <domain>Register(app); 
+
+---
+
+### 4. DESATIVAÇÃO SEGURA
+
+Substituir handlers originais por:
+
+ts // MOVED TO <domain>.routes.ts 
+
+❌ NÃO deletar
+
+---
+
+### 5. VALIDAÇÃO
+
+Testar:
+
+- endpoints sem auth → mesmo comportamento (401, 200, etc)
+- endpoints públicos → manter comportamento
+- /api/health → 200
+
+Verificar:
+
+- servidor RUNNING
+- logs limpos
+- zero erro
+
+---
+
+### 6. RELATÓRIO
+
+Responder com:
+
+1. domínio extraído  
+2. endpoints movidos  
+3. linhas reduzidas  
+4. antes vs depois  
+5. confirmação de zero regressão  
+
+---
+
+## ⚠️ PADRÕES IMPORTANTES
+
+- Alguns endpoints são públicos (SEM auth) → NÃO adicionar auth
+- Alguns usam PUT (não PATCH) → manter
+- Alguns retornam 204 + end() → manter
+- Alguns não validam ID → manter
+
+👉 NÃO “melhorar” nada
+
+---
+
+## 🚫 DOMÍNIOS PROIBIDOS (POR ENQUANTO)
+
+NÃO tocar ainda:
+
+- NFe (/api/nfe)
+- Banking (/api/bank)
+- Fiscal/import
+- Upload (multer)
+- PDF parsing
+
+👉 esses são críticos
+
+---
+
+## 🎯 PRÓXIMO OBJETIVO
+
+Extrair APENAS UM domínio seguro por vez
+
+Sugestão atual:
+
+👉 special-order-requests (ou equivalente no routes.ts)
+
+---
+
+## 🛑 REGRA FINAL
+
+Após concluir 1 domínio:
+
+👉 PARAR  
+👉 NÃO continuar  
+👉 AGUARDAR instrução  
+
+---
+
+## ✅ INICIAR
+
+Começar pela ETAPA 1 (DISCOVERY)
