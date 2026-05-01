@@ -1,0 +1,173 @@
+🎯 HANDOFF — CONTINUAÇÃO FASE 8.8B (EXTRAÇÃO CONTROLADA)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO QUEBRAR)
+
+1. NÃO alterar lógica existente
+2. NÃO refatorar código
+3. NÃO otimizar nada
+4. NÃO corrigir bugs
+5. NÃO alterar auth
+6. NÃO alterar estrutura de resposta
+7. NÃO mexer em middlewares
+8. NÃO tocar em NFe, banking, upload ou pdf
+
+👉 copiar exatamente como está no routes.ts
+
+---
+
+🧠 ESTADO ATUAL DO SISTEMA
+
+Sistema:
+
+- Servidor: RUNNING ✅  
+- Logs: limpos ✅  
+- Zero regressão até agora ✅  
+
+---
+
+## ✅ DOMÍNIOS JÁ EXTRAÍDOS
+
+- tasks  
+- quotations  
+- waste-control  
+- order-exceptions  
+- special-order-requests  
+- password-reset-requests  
+- order-cleanup  
+- about-us  
+- security  
+- contracts-alerts  
+- company-validate  
+- purchase-planning  
+- incidents  
+
+👉 TODOS já validados após restart
+
+---
+
+## ⚠️ IMPORTANTE
+
+O domínio incidents já foi extraído  
+👉 NÃO tocar nele novamente  
+
+---
+
+## 🎯 OBJETIVO
+
+Continuar FASE 8.8B
+
+👉 Extrair APENAS 1 domínio por vez
+
+---
+
+## 🟢 ESCOLHA DO PRÓXIMO DOMÍNIO
+
+Selecionar domínio SEGURO:
+
+PODE:
+- usar storage
+- usar session
+- lógica simples
+
+NÃO PODE:
+- upload (multer)
+- pdf-parse
+- NFe
+- banking
+- cron
+- integrações externas
+
+👉 sugestão segura:
+geocode OU search OU contracts simples
+
+---
+
+## 🔁 EXECUÇÃO OBRIGATÓRIA
+
+---
+
+### 1. DISCOVERY (LEITURA)
+
+Mapear:
+
+- endpoints
+- linhas
+- auth
+- dependências
+
+🚫 NÃO CODAR ainda
+
+---
+
+### 2. EXTRAÇÃO
+
+Criar:
+
+server/routes/<domain>.routes.ts
+
+👉 copiar código 100% idêntico
+
+---
+
+### 3. REGISTRO
+
+No routes.ts:
+
+ts id="8h8k3m" import { register as <domain>Register } from './<domain>.routes'; 
+
+ts id="2qk91x" <domain>Register(app); 
+
+---
+
+### 4. DESATIVAÇÃO
+
+Substituir bloco original por:
+
+ts id="0f9p3a" // MOVED TO <domain>.routes.ts 
+
+---
+
+### 5. VALIDAÇÃO
+
+Testar:
+
+- endpoints → mesmos status
+- /api/health → 200
+
+Verificar:
+
+- servidor RUNNING
+- logs limpos
+
+---
+
+### 6. RELATÓRIO (OBRIGATÓRIO)
+
+Informar:
+
+1. domínio extraído  
+2. endpoints movidos  
+3. linhas removidas  
+4. testes antes vs depois  
+5. confirmação de ZERO regressão  
+
+---
+
+🚫 PROIBIDO
+
+- extrair mais de 1 domínio
+- continuar automaticamente
+- mexer em outros domínios
+- tocar em código crítico
+
+---
+
+🛑 PARAR APÓS FINALIZAR
+
+👉 aguardar próximo comando  
+
+---
+
+✅ INICIAR
