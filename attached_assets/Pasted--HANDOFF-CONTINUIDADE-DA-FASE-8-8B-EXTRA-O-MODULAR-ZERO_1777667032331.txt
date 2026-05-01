@@ -1,0 +1,190 @@
+🎯 HANDOFF — CONTINUIDADE DA FASE 8.8B (EXTRAÇÃO MODULAR ZERO REGRESSÃO)
+
+---
+
+🧠 CONTEXTO DO PROJETO
+
+Você está assumindo um backend Node/Express grande.
+
+Arquivo principal:
+👉 server/routes/routes.ts
+
+Ele está sendo desmontado em módulos menores (domain routes).
+
+---
+
+📊 ESTADO ATUAL (CRÍTICO)
+
+✔ Sistema em PRODUÇÃO  
+✔ Servidor estável (HEALTHY)  
+✔ ZERO regressão até agora  
+✔ routes.ts já reduzido drasticamente  
+
+👉 Extração já avançada (~97% concluída)
+
+---
+
+✅ DOMÍNIOS JÁ EXTRAÍDOS (NÃO TOCAR)
+
+about-us  
+security  
+contracts-alerts  
+company-validate  
+purchase-planning  
+incidents  
+geocode  
+search  
+system-versions  
+sanitary  
+scope-simulations  
+smtp-config  
+push  
+saas  
+empresa-config  
+price-groups  
+product-prices  
+order-windows  
+settings  
+reports  
+audit  
+executive-dashboard  
+client-intelligence  
+client-contract-scope  
+system-sync  
+assistant  
+fiscal-invoices  
+certificates  
+admin-intelligence  
+
+---
+
+🎯 PRÓXIMO OBJETIVO
+
+Extrair domínio pequeno restante:
+
+👉 SMTP TEST / MAILER STATUS
+
+(Endpoints relacionados a teste/configuração de email)
+
+---
+
+🚫 REGRAS CRÍTICAS (ABSOLUTAS)
+
+- NÃO alterar lógica
+- NÃO refatorar
+- NÃO corrigir bugs
+- NÃO reorganizar código
+- NÃO alterar auth
+- NÃO alterar responses
+- NÃO alterar chamadas de mailer
+- NÃO alterar parâmetros de envio
+
+👉 copiar EXATAMENTE como está (byte-a-byte)
+
+---
+
+🧠 PRINCÍPIO
+
+Se existir bug → manter bug
+
+---
+
+## 🔁 WORKFLOW OBRIGATÓRIO
+
+---
+
+### PHASE 1 — DISCOVERY
+
+- localizar endpoints SMTP no routes.ts
+- mapear:
+  - métodos
+  - rotas
+  - linhas
+  - dependências (mailer, storage, etc)
+
+---
+
+### PHASE 2 — EXTRACTION
+
+Criar:
+
+ts server/routes/smtp-test.routes.ts 
+
+- copiar handlers exatamente
+- manter await, try/catch, logs
+- manter chamadas de email intactas
+
+---
+
+### PHASE 3 — REGISTRATION
+
+ts import { register as smtpTestRegister } from './smtp-test.routes';  smtpTestRegister(app); 
+
+---
+
+### PHASE 4 — DEACTIVATION
+
+ts // ─── smtp-test — MOVED TO smtp-test.routes.ts 
+
+---
+
+### PHASE 5 — VALIDAÇÃO
+
+Testar:
+
+- servidor sobe (RUNNING)
+- /api/health → 200
+- endpoints → comportamento idêntico
+
+---
+
+### ⚠️ VALIDAÇÃO EXTRA (OBRIGATÓRIA)
+
+- verificar que mailer NÃO quebrou
+- verificar que config SMTP continua funcionando
+- verificar logs sem erro
+
+---
+
+### PHASE 6 — REPORT
+
+Responder com:
+
+1. endpoints movidos  
+2. dependências usadas  
+3. linhas removidas  
+4. testes realizados  
+5. confirmação de ZERO regressão  
+
+---
+
+🚫 PROIBIDO
+
+- NÃO extrair múltiplos domínios
+- NÃO continuar para outro endpoint
+- NÃO tocar em NFe ou upload
+- NÃO otimizar nada
+
+---
+
+🛑 PARAR APÓS FINALIZAR
+
+---
+
+📊 STATUS FINAL
+
+Você está nos últimos ~3% da extração.
+
+Após isso:
+
+👉 NÃO continuar extraindo  
+👉 Próxima fase será segurança (multi-tenant)
+
+---
+
+▶️ AGORA FAÇA:
+
+1. Ler routes.ts  
+2. Identificar endpoints SMTP  
+3. Executar as 6 fases  
+4. Parar após relatório
