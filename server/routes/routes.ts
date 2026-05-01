@@ -125,6 +125,7 @@ import { register as reportsRegister } from './reports.routes';
 import { register as auditRegister } from './audit.routes';
 import { register as executiveDashboardRegister } from './executive-dashboard.routes';
 import { register as clientIntelligenceRegister } from './client-intelligence.routes';
+import { register as clientContractScopeRegister } from './client-contract-scope.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -202,6 +203,7 @@ export async function registerRoutes(
   auditRegister(app);
   executiveDashboardRegister(app);
   clientIntelligenceRegister(app);
+  clientContractScopeRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -2630,47 +2632,9 @@ export async function registerRoutes(
   // --- Logistics Intelligence — MOVED TO client-intelligence.routes.ts ---
   // GET    /api/logistics-intelligence
 
-  // ─── Client Contract Scope Routes ────────────────────────────────────────
-  app.get('/api/client/contract-scope', async (req: any, res) => {
-    const companyId = req.session?.companyId;
-    if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const company = await storage.getCompany(companyId);
-      if (!company || company.clientType !== 'contratual') return res.status(403).json({ message: 'Acesso restrito a clientes contratuais' });
-      const rawScopes = await storage.getContractScopes(companyId);
-      const allProducts = await storage.getProducts();
-      const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
-      const scopes = rawScopes.map((s: any) => {
-        const product = productMap.get(s.productId);
-        return {
-          ...s,
-          productName: product?.name || null,
-          categoryName: s.scopeCategory || product?.category || null,
-        };
-      });
-      res.json({ scopes, company });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
-
-  app.post('/api/client/scope-change-request', async (req: any, res) => {
-    const companyId = req.session?.companyId;
-    if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
-    try {
-      const company = await storage.getCompany(companyId);
-      if (!company || company.clientType !== 'contratual') return res.status(403).json({ message: 'Acesso restrito a clientes contratuais' });
-      const { message } = req.body;
-      if (!message || typeof message !== 'string' || message.trim().length < 5) {
-        return res.status(400).json({ message: 'Mensagem inválida' });
-      }
-      const task = await storage.createTask({
-        title: `Solicitação de alteração de escopo — ${company.companyName}`,
-        description: `Cliente: ${company.companyName} (ID #${company.id})\nContato: ${company.contactName || '—'}\n\nMensagem do cliente:\n${message.trim()}`,
-        priority: 'medium',
-        createdByName: company.companyName,
-      });
-      res.json({ success: true, taskId: task.id });
-    } catch (e: any) { res.status(500).json({ message: e.message }); }
-  });
+  // --- Client Contract Scope — MOVED TO client-contract-scope.routes.ts ---
+  // GET    /api/client/contract-scope
+  // POST   /api/client/scope-change-request
 
   // ─── Módulo Financeiro ───────────────────────────────────────────────────
   // PIX payload generation has been migrated to server/modules/finance/finance.service.ts.
