@@ -1,0 +1,194 @@
+🎯 FASE 9D.1 — TELA: SECURITY INTELLIGENCE (READ-ONLY)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend  
+2. NÃO criar endpoint novo  
+3. NÃO alterar contrato da API  
+4. NÃO alterar autenticação  
+5. NÃO alterar lógica existente  
+
+👉 Apenas consumir /api/admin/security/analysis
+
+---
+
+🧠 OBJETIVO
+
+Criar painel visual para:
+
+- Score antifraude por IP  
+- Classificação de risco  
+- Detecção de spike (ataque ativo)  
+- Breakdown por tipo de evento  
+
+👉 Transformar FASE 7.3 em VISUAL
+
+---
+
+## 📡 ENDPOINT
+
+GET /api/admin/security/analysis
+
+Resposta esperada:
+
+json {   "success": true,   "data": {     "ips": [       {         "ip": "127.0.0.1",         "score": 120,         "level": "CRITICAL",         "spike": true,         "breakdown": {           "RATE_LIMITED": 4,           "HIGH_RISK_ACTION": 2,           "CRITICAL_ACTION": 3         }       }     ],     "generatedAt": "...",     "total": 1   } } 
+
+---
+
+## 🧩 ETAPA 1 — CRIAR PÁGINA
+
+Arquivo:
+
+client/src/pages/security-intelligence.tsx
+
+---
+
+## 🧩 ETAPA 2 — FETCH DOS DADOS
+
+Usar React Query (mesmo padrão do projeto):
+
+ts const { data, isLoading, refetch } = useQuery({   queryKey: ['security-analysis'],   queryFn: () => api.get('/api/admin/security/analysis'),   refetchInterval: 30000, // auto refresh 30s }); 
+
+---
+
+## 🧩 ETAPA 3 — ESTADOS
+
+### Loading
+
+tsx if (isLoading) return <div>Carregando análise de segurança...</div>; 
+
+---
+
+### Sem dados
+
+tsx if (!data?.data?.ips?.length) {   return <div>Nenhuma atividade suspeita detectada.</div>; } 
+
+---
+
+## 🧩 ETAPA 4 — TABELA PRINCIPAL
+
+Colunas:
+
+| IP | Score | Nível | Spike | Rate Limited | High Risk | Critical |
+
+---
+
+## 🧩 ETAPA 5 — BADGES DE RISCO
+
+Função:
+
+ts function getRiskColor(level: string) {   switch (level) {     case 'LOW': return 'gray';     case 'MEDIUM': return 'yellow';     case 'HIGH': return 'orange';     case 'CRITICAL': return 'red';     default: return 'gray';   } } 
+
+---
+
+Render:
+
+tsx <span className={`badge-${getRiskColor(ip.level)}`}>   {ip.level} </span> 
+
+---
+
+## 🧩 ETAPA 6 — INDICADOR DE SPIKE
+
+tsx {ip.spike && (   <span className="text-red-500 font-bold">     ⚠️ SPIKE ATIVO   </span> )} 
+
+---
+
+## 🧩 ETAPA 7 — BREAKDOWN
+
+tsx <td>{ip.breakdown.RATE_LIMITED}</td> <td>{ip.breakdown.HIGH_RISK_ACTION}</td> <td>{ip.breakdown.CRITICAL_ACTION}</td> 
+
+---
+
+## 🧩 ETAPA 8 — BOTÃO REFRESH MANUAL
+
+tsx <button onClick={() => refetch()}>   Atualizar agora </button> 
+
+---
+
+## 🧩 ETAPA 9 — ORDENAÇÃO
+
+👉 NÃO implementar (já vem do backend)
+
+---
+
+## 🧩 ETAPA 10 — PERMISSÃO
+
+Página só acessível para:
+
+- MASTER  
+- ADMIN  
+
+👉 usar mesmo guard das outras páginas admin
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Sistema normal
+
+✔ tabela vazia  
+✔ mensagem “Nenhuma atividade suspeita”  
+
+---
+
+### 2️⃣ Com eventos
+
+✔ IP aparece  
+✔ score correto  
+✔ nível correto  
+✔ breakdown correto  
+
+---
+
+### 3️⃣ Ataque (flood)
+
+✔ spike = true  
+✔ aparece “SPIKE ATIVO”  
+
+---
+
+### 4️⃣ Atualização
+
+✔ auto refresh a cada 30s  
+✔ botão manual funciona  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+- FASE 7.3 visível  
+- antifraude operacional  
+- admin consegue agir  
+
+---
+
+## ❌ NÃO FAZER AGORA
+
+- NÃO bloquear IP  
+- NÃO criar botão de ação  
+- NÃO integrar com banco  
+- NÃO criar gráfico  
+
+👉 apenas leitura
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado  
+2. Trecho principal da tabela  
+3. Confirmação que consome endpoint correto  
+4. Confirmação de zero regressão  
+
+---
+
+🚀 IMPACTO
+
+👉 primeira feature “nível banco” visível no sistema  
+👉 vira argumento comercial imediato

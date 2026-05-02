@@ -150,6 +150,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/about-us', label: 'Quem Somos Nós', icon: Building2, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'], tabKey: 'about-us', category: 'Sistema' },
     { href: '/admin/support', label: 'Configuração de Suporte', icon: ShieldCheck, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'support', category: 'Sistema' },
     { href: '/admin/ai-developer', label: 'AI Developer', icon: Bot, roles: ['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER'], tabKey: 'ai-developer', category: 'Sistema' },
+    { href: '/admin/security-intelligence', label: 'Security Intelligence', icon: ShieldCheck, roles: ['MASTER', 'ADMIN'], tabKey: 'security-intelligence', category: 'Sistema' },
     { href: '/admin/developer', label: 'Área do Desenvolvedor', icon: ShieldCheck, roles: ['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER'], tabKey: 'developer', category: 'Sistema' },
     { href: '/admin/master-control', label: 'Painel MASTER', icon: ShieldCheck, roles: ['MASTER'], tabKey: 'master-control', category: 'Sistema' },
     { href: '/admin/saas-dashboard', label: 'Gestão SaaS', icon: ShieldCheck, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS'], tabKey: 'saas-dashboard', category: 'SaaS' },
