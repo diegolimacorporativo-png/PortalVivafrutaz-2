@@ -1,0 +1,194 @@
+🎯 FASE 10.1 — CONECTAR LOCKED ACCOUNTS (SEM CRIAR NADA NOVO)
+
+---
+
+🚫 REGRAS CRÍTICAS (OBRIGATÓRIO)
+
+1. NÃO criar endpoints novos  
+2. NÃO alterar backend  
+3. NÃO alterar regras de negócio  
+4. NÃO alterar contratos de API  
+5. NÃO alterar estrutura de resposta  
+6. NÃO remover código existente  
+7. NÃO criar lógica paralela  
+
+👉 Apenas CONECTAR frontend ao backend existente
+
+---
+
+🧠 CONTEXTO
+
+Backend já possui:
+
+- GET /api/security/locked-accounts  
+- POST /api/security/locked-accounts (unlock)  
+
+Sistema já possui:
+
+- logSecurity (FASE 9E) ✔  
+- antifraude (FASE 7.3) ✔  
+- painel security-intelligence ✔  
+
+⚠️ PROBLEMA ATUAL
+
+- Contas bloqueadas NÃO aparecem para o admin  
+- Admin NÃO consegue desbloquear via UI  
+- Endpoint existe mas está invisível  
+
+---
+
+🎯 OBJETIVO
+
+Exibir e gerenciar contas bloqueadas dentro do painel de segurança já existente
+
+👉 SEM criar nova página se não for necessário
+
+---
+
+## 🛠️ ETAPA 1 — LOCALIZAR TELA EXISTENTE
+
+Arquivo provável:
+
+client/src/pages/admin/security-audit.tsx
+
+OU
+
+client/src/pages/admin/security-intelligence.tsx
+
+👉 Escolher UMA dessas telas (preferência: security-audit)
+
+---
+
+## 🛠️ ETAPA 2 — CONSUMIR ENDPOINT
+
+Adicionar query:
+
+GET /api/security/locked-accounts
+
+---
+
+Exemplo:
+
+ts const { data: lockedData, isLoading } = useQuery({   queryKey: ['/api/security/locked-accounts'], }); 
+
+---
+
+## 🛠️ ETAPA 3 — RENDERIZAR LISTA
+
+Estrutura mínima:
+
+Tabela com:
+
+- userId ou email  
+- motivo do bloqueio (se existir)  
+- timestamp  
+- botão "Desbloquear"  
+
+---
+
+Exemplo:
+
+tsx <Table>   <TableHeader>     <TableRow>       <TableHead>Usuário</TableHead>       <TableHead>Status</TableHead>       <TableHead>Ação</TableHead>     </TableRow>   </TableHeader>    <TableBody>     {lockedAccounts.map((acc) => (       <TableRow key={acc.userId}>         <TableCell>{acc.email}</TableCell>         <TableCell>Bloqueado</TableCell>         <TableCell>           <Button onClick={() => unlock(acc.userId)}>             Desbloquear           </Button>         </TableCell>       </TableRow>     ))}   </TableBody> </Table> 
+
+---
+
+## 🛠️ ETAPA 4 — AÇÃO DE UNLOCK
+
+Implementar mutation:
+
+POST /api/security/locked-accounts
+
+---
+
+Exemplo:
+
+ts const unlockMutation = useMutation({   mutationFn: async (userId: number) => {     return apiRequest('/api/security/locked-accounts', {       method: 'POST',       body: { userId },     });   },   onSuccess: () => {     queryClient.invalidateQueries(['/api/security/locked-accounts']);   }, }); 
+
+---
+
+## 🛠️ ETAPA 5 — ESTADOS
+
+Implementar:
+
+- loading
+- empty state
+- erro
+
+---
+
+Empty state:
+
+tsx Nenhuma conta bloqueada 
+
+---
+
+## 🛠️ ETAPA 6 — NÃO QUEBRAR NADA
+
+- NÃO mexer em outras queries  
+- NÃO alterar layout global  
+- NÃO remover componentes existentes  
+- NÃO alterar permissões  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Lista aparece
+
+✔ contas bloqueadas visíveis  
+
+---
+
+### 2️⃣ Unlock funciona
+
+✔ clicar → desbloqueia  
+✔ lista atualiza  
+
+---
+
+### 3️⃣ Sem contas
+
+✔ mostra "Nenhuma conta bloqueada"  
+
+---
+
+### 4️⃣ Sem regressão
+
+✔ outras partes da tela intactas  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero impacto no backend  
+✔ zero risco fiscal  
+✔ zero risco financeiro  
+✔ zero regressão  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ contas bloqueadas invisíveis  
+
+Depois:
+
+✔ admin vê contas bloqueadas  
+✔ admin desbloqueia via UI  
+✔ fluxo antifraude completo  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo alterado  
+2. Query adicionada  
+3. Mutation criada  
+4. Trecho da tabela  
+5. Confirmação de zer
