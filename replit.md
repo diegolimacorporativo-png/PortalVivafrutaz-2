@@ -31,7 +31,18 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Storage
 - **Database**: PostgreSQL, accessed via Drizzle ORM.
-- **Key Tables**: `users`, `companies`, `products`, `orders`, `system_settings`, `nfe_emissoes`, `companyCertificates`, and others to support core features.
+- **Key Tables**: `users`, `companies`, `products`, `orders`, `system_settings`, `nfe_emissoes`, `companyCertificates`, `nfe_cce` (CC-e history, FASE 14.2), and others to support core features.
+
+### Route Decomposition (FASE 8.8B)
+- Monolithic `server/routes/routes.ts` is being decomposed one domain at a time into `server/routes/<domain>.routes.ts` files.
+- Each extracted file exports `register(app: Express)` (sync) or `async function register(app: Express)` (async, for domains using top-level `await import(...)`).
+- Completed extractions: `tasks`, `quotations`, `waste-control`, `order-exceptions`, `bank` (Banco Itaú, 13 routes, −220 lines).
+- `routes.ts` current size: ~3612 lines (down from ~7738 original).
+
+### CC-e Persistence (FASE 14.2)
+- `nfe_cce` table added to `shared/schema.ts` and created in DB via `npm run db:push`.
+- `createNfeCce` / `getNfeCceHistory` added to `IStorage` + `DatabaseStorage` in `server/services/storage.ts`.
+- `POST /api/nfe/:id/cce` and `GET /api/nfe/:id/cce` now persist to PostgreSQL instead of in-memory `cceHistory` map.
 
 ### Authentication & Authorization
 - Session-based authentication with `express-session`.

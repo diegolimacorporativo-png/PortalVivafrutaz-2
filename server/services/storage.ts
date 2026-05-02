@@ -48,6 +48,7 @@ import {
   type ScopeSimulation, type InsertScopeSimulation,
   nfeEmissoes, type NfeEmissao, type InsertNfeEmissao,
   nfeTrainingLogs, type NfeTrainingLog, type InsertNfeTrainingLog,
+  nfeCce, type NfeCce, type InsertNfeCce,
   bankAccounts, type BankAccount, type InsertBankAccount,
   bankTransactions, type BankTransaction, type InsertBankTransaction,
   companyAddresses, type CompanyAddress, type InsertCompanyAddress,
@@ -364,6 +365,9 @@ export interface IStorage {
   getNfeTrainingLogs(filters?: { orderId?: number; limit?: number }): Promise<NfeTrainingLog[]>;
   createNfeTrainingLog(data: InsertNfeTrainingLog): Promise<NfeTrainingLog>;
   updateNfeTrainingLog(id: number, data: Partial<InsertNfeTrainingLog>): Promise<NfeTrainingLog>;
+  // CC-e (Carta de Correção Eletrônica) — FASE 14.2
+  createNfeCce(nfeId: number, correcao: string, createdByUserId: number | null): Promise<NfeCce>;
+  getNfeCceHistory(nfeId: number): Promise<NfeCce[]>;
   // Logistics Audit Logs
   createLogisticsAudit(data: InsertLogisticsAuditLog): Promise<LogisticsAuditLog>;
   getLogisticsAuditLogs(filters?: { modulo?: string; usuarioId?: number; limit?: number }): Promise<LogisticsAuditLog[]>;
@@ -2141,6 +2145,18 @@ export class DatabaseStorage implements IStorage {
   async updateNfeTrainingLog(id: number, data: Partial<InsertNfeTrainingLog>): Promise<NfeTrainingLog> {
     const [r] = await db.update(nfeTrainingLogs).set(data as any).where(eq(nfeTrainingLogs.id, id)).returning();
     return r;
+  }
+
+  // ─── CC-e (Carta de Correção Eletrônica) — FASE 14.2 ─────────────────────
+  async createNfeCce(nfeId: number, correcao: string, createdByUserId: number | null): Promise<NfeCce> {
+    const existing = await db.select().from(nfeCce).where(eq(nfeCce.nfeId, nfeId)).orderBy(desc(nfeCce.sequencia));
+    const sequencia = existing.length > 0 ? existing[0].sequencia + 1 : 1;
+    const [r] = await db.insert(nfeCce).values({ nfeId, sequencia, correcao, createdByUserId }).returning();
+    return r;
+  }
+
+  async getNfeCceHistory(nfeId: number): Promise<NfeCce[]> {
+    return db.select().from(nfeCce).where(eq(nfeCce.nfeId, nfeId)).orderBy(nfeCce.sequencia);
   }
 
   // ─── AI Logs ────────────────────────────────────────────────────────────────

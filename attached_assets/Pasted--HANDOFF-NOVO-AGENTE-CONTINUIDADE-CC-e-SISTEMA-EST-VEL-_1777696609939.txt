@@ -1,0 +1,147 @@
+🎯 HANDOFF — NOVO AGENTE (CONTINUIDADE CC-e + SISTEMA ESTÁVEL)
+
+---
+
+🚫 REGRAS CRÍTICAS (NÃO NEGOCIÁVEL)
+
+1. NÃO alterar fluxo de emissão NF-e  
+2. NÃO alterar endpoints existentes  
+3. NÃO alterar contratos de API  
+4. NÃO remover validações existentes  
+5. NÃO mover lógica entre arquivos  
+6. NÃO usar mock / fake data  
+7. NÃO quebrar multi-tenant  
+8. NÃO alterar auth middleware  
+
+👉 Qualquer violação = REGRESSÃO CRÍTICA
+
+---
+
+# 🧠 CONTEXTO ATUAL (OBRIGATÓRIO LER)
+
+Sistema ERP com:
+
+✔ Multi-tenant ativo  
+✔ NF-e completa (emissão, preflight, diagnóstico)  
+✔ CC-e implementada (backend + frontend)  
+✔ Segurança (tenant validation + logs)  
+✔ Rate limit ativo  
+✔ Frontend 100% conectado  
+
+---
+
+# ⚠️ ESTADO ATUAL DA CC-e
+
+✔ Rotas funcionando:
+
+POST /api/nfe/:id/cce  
+GET  /api/nfe/:id/cce  
+
+✔ Validações:
+
+- texto ≥ 15 caracteres  
+- NF status = "autorizada"  
+- requireAuth funcionando  
+
+✔ UI conectada (botão + modal)
+
+---
+
+# 🚨 LIMITAÇÃO ATUAL
+
+txt id="limite-cce" CC-e armazenada apenas em memória (cceHistory) 
+
+👉 Problema:
+
+- reinício do servidor → perde tudo  
+- sem auditoria real  
+- sem persistência  
+
+---
+
+# 🎯 PRÓXIMO OBJETIVO
+
+Implementar:
+
+txt id="objetivo" PERSISTÊNCIA REAL DE CC-e (BANCO) 
+
+---
+
+# 📦 ESCOPO DA PRÓXIMA FASE (14.2)
+
+Você irá:
+
+1. Criar tabela nfe_cce  
+2. Substituir armazenamento em memória  
+3. Persistir histórico  
+4. Garantir sequência incremental correta  
+5. Manter compatibilidade total com frontend  
+
+---
+
+# ⚠️ REGRAS DE IMPLEMENTAÇÃO
+
+👉 NÃO mudar assinatura das rotas:
+
+POST /api/nfe/:id/cce  
+GET  /api/nfe/:id/cce  
+
+👉 NÃO alterar retorno:
+
+ts id="retorno" { success: true, data: ... } 
+
+👉 NÃO alterar validações já existentes  
+
+👉 NÃO alterar lógica de autorização  
+
+---
+
+# 🧪 EXPECTATIVA DE COMPORTAMENTO
+
+Antes:
+
+❌ CC-e perdida ao reiniciar  
+
+Depois:
+
+✔ histórico persistente  
+✔ múltiplas correções por NF  
+✔ sequência correta (1, 2, 3...)  
+✔ dados auditáveis  
+
+---
+
+# 🔒 GARANTIAS OBRIGATÓRIAS
+
+✔ zero regressão  
+✔ rotas continuam respondendo igual  
+✔ frontend continua funcionando sem alteração  
+✔ dados consistentes  
+
+---
+
+# 📊 CRITÉRIO DE SUCESSO
+
+Sistema deve:
+
+✔ criar CC-e  
+✔ salvar no banco  
+✔ retornar histórico correto  
+✔ manter validações existentes  
+✔ funcionar após restart  
+
+---
+
+# 🚀 FINAL
+
+Responder com:
+
+1. tabela criada  
+2. queries implementadas  
+3. substituição da memória  
+4. testes realizados  
+5. confirmação de zero regressão  
+
+---
+
+🔥 CONTINUIDADE DIRETA — NÃO REFAZER NADA, APENAS EVOLUI

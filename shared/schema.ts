@@ -1121,6 +1121,19 @@ export type NfeTrainingLog = typeof nfeTrainingLogs.$inferSelect;
 export const insertNfeTrainingLogSchema = createInsertSchema(nfeTrainingLogs).omit({ id: true, createdAt: true });
 export type InsertNfeTrainingLog = z.infer<typeof insertNfeTrainingLogSchema>;
 
+// ─── CC-e (Carta de Correção Eletrônica) — FASE 14.2 ─────────────────────────
+export const nfeCce = pgTable("nfe_cce", {
+  id: serial("id").primaryKey(),
+  nfeId: integer("nfe_id").references(() => nfeEmissoes.id).notNull(),
+  sequencia: integer("sequencia").notNull(),
+  correcao: text("correcao").notNull(),
+  createdByUserId: integer("created_by_user_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type NfeCce = typeof nfeCce.$inferSelect;
+export const insertNfeCceSchema = createInsertSchema(nfeCce).omit({ id: true, createdAt: true });
+export type InsertNfeCce = z.infer<typeof insertNfeCceSchema>;
+
 // ─── NF Manual ──────────────────────────────────────────────────────────────
 export const nfManual = pgTable("nf_manual", {
   id: serial("id").primaryKey(),
