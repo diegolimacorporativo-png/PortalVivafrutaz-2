@@ -12,7 +12,12 @@
  *   getSecurityEvents()      — return all events (newest first)
  *   getTopIPs(n?)            — return the N IPs with most events
  *   getEventSummary()        — return event counts grouped by type
+ *
+ * FASE 11: logSecurity() also forwards to alertEngine for operational alerting.
  */
+
+// FASE 11 — import must be at module top-level (ES module hoisting)
+import { pushAlert } from "./alertEngine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,9 +88,20 @@ export function getTopIPs(n = 10): Array<{ ip: string; count: number }> {
  * Keeps `console.error` calls out of individual middleware files so
  * future changes (e.g. SIEM integration, log-level filtering) are made
  * in one place. Never throws.
+ *
+ * FASE 11: also forwards every message to the alert engine so critical
+ * operational events become actionable alerts — without altering the
+ * existing log behaviour or any caller.
  */
 export function logSecurity(message: string): void {
   console.error(message);
+  try {
+    const typeMatch = message.match(/\[(.*?)\]/);
+    const type = typeMatch ? typeMatch[1] : "UNKNOWN";
+    pushAlert(type, message);
+  } catch {
+    // never break the log path
+  }
 }
 
 /**

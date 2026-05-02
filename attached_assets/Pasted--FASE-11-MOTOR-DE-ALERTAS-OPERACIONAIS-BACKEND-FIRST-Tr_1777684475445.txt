@@ -1,0 +1,176 @@
+🎯 FASE 11 — MOTOR DE ALERTAS OPERACIONAIS (BACKEND FIRST)
+
+Transformar eventos críticos já logados em alertas acionáveis (sem alterar comportamento atual)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica existente  
+2. NÃO remover logs atuais  
+3. NÃO alterar endpoints existentes  
+4. NÃO bloquear nenhum fluxo  
+5. NÃO usar banco (memória apenas)  
+6. NÃO quebrar performance  
+7. NÃO alterar contratos de resposta  
+
+👉 Apenas OBSERVAR + CLASSIFICAR + EXPOR
+
+---
+
+🧠 CONTEXTO
+
+Já existem eventos via logSecurity:
+
+- NFE_PREFLIGHT_VALIDATION_FAILED
+- NFE_PREFLIGHT_EXCEPTION
+- NFE_INVALID_QUANTITY
+- NFE_ZERO_VALUE_DETECTED
+- NFE_EMPTY_ITEMS
+- FINANCIAL_GAP_DETECTED
+- ORDER_AFTER_CREATE_FAILED
+- SECURITY (tenant mismatch etc)
+
+👉 Hoje: só log  
+👉 Objetivo: virar ALERTA operacional
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR ALERT ENGINE (NOVO ARQUIVO)
+
+📄 server/core/security/alertEngine.ts
+
+ts type AlertLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";  interface AlertEvent {   id: string;   type: string;   level: AlertLevel;   message: string;   timestamp: number;   count: number; }  const alertBuffer: Map<string, AlertEvent> = new Map();  const ALERT_WINDOW_MS = 60_000;  function classify(level: string): AlertLevel {   if (level.includes("CRITICAL")) return "CRITICAL";   if (level.includes("FINANCIAL")) return "CRITICAL";   if (level.includes("AFTER_CREATE")) return "HIGH";   if (level.includes("NFE_")) return "HIGH";   if (level.includes("SECURITY")) return "HIGH";   return "MEDIUM"; }  export function pushAlert(type: string, message: string) {   const now = Date.now();    const existing = alertBuffer.get(type);    if (existing && now - existing.timestamp < ALERT_WINDOW_MS) {     existing.count++;     existing.timestamp = now;     return;   }    alertBuffer.set(type, {     id: `${type}-${now}`,     type,     level: classify(type),     message,     timestamp: now,     count: 1,   }); }  export function getAlerts(): AlertEvent[] {   return Array.from(alertBuffer.values()).sort(     (a, b) => b.timestamp - a.timestamp   ); } 
+
+---
+
+## 🛠️ ETAPA 2 — INTEGRAR COM logSecurity
+
+📄 server/core/security/securityLogger.ts
+
+---
+
+LOCALIZAR função:
+
+ts export function logSecurity(message: string) { 
+
+---
+
+ADICIONAR import no topo:
+
+ts import { pushAlert } from "./alertEngine"; 
+
+---
+
+DENTRO da função, após console.error:
+
+ts try {   const typeMatch = message.match(/\[(.*?)\]/);   const type = typeMatch ? typeMatch[1] : "UNKNOWN";    pushAlert(type, message); } catch {   // nunca quebrar log } 
+
+---
+
+## 🛠️ ETAPA 3 — CRIAR ENDPOINT DE ALERTAS
+
+📄 server/routes/security-alerts.routes.ts
+
+ts import { Router } from "express"; import { getAlerts } from "../core/security/alertEngine"; import { requireAuth } from "../middleware/auth";  const router = Router();  router.get("/api/admin/security/alerts", requireAuth, (req, res) => {   const alerts = getAlerts();    return res.json({     success: true,     data: alerts,     total: alerts.length,   }); });  export default router; 
+
+---
+
+## 🛠️ ETAPA 4 — REGISTRAR ROTA
+
+📄 server/routes/routes.ts
+
+Adicionar:
+
+ts import securityAlertsRoutes from "./security-alerts.routes"; 
+
+E registrar:
+
+ts app.use(securityAlertsRoutes); 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Disparar erro NF-e
+
+Esperado:
+
+✔ logSecurity existente continua  
+✔ novo alerta criado  
+
+---
+
+### 2️⃣ Disparar múltiplos erros iguais (<60s)
+
+Esperado:
+
+✔ count incrementa  
+✔ NÃO cria duplicado  
+
+---
+
+### 3️⃣ Consultar endpoint
+
+GET /api/admin/security/alerts
+
+Resposta:
+
+json {   "success": true,   "data": [     {       "type": "NFE_ZERO_VALUE_DETECTED",       "level": "HIGH",       "count": 3     }   ] } 
+
+---
+
+### 4️⃣ Sistema funcionando
+
+✔ nenhum fluxo bloqueado  
+✔ pedidos continuam criando  
+✔ NF-e continua emitindo  
+✔ logs continuam normais  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ zero impacto em performance  
+✔ zero alteração em fluxo  
+✔ memória controlada  
+✔ pronto pra UI futura  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+- logs espalhados
+- sem prioridade
+- sem ação
+
+DEPOIS:
+
+- eventos agrupados
+- níveis definidos
+- endpoint central de alertas
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivo criado  
+2. integração com logSecurity confirmada  
+3. endpoint funcionando  
+4. exemplos de alertas gerados  
+5. confirmação de zero regressão  
+
+---
+
+🚀 PRÓXIMA FASE (depois dessa)
+
+FASE 11.1 — PRIORIDADE + AUTO-ESCALAÇÃO  
+FASE 11.2 — ALERTA EM TEMPO REAL (SSE)  
+FASE 11.3 — AÇÃO AUTOMÁTICA (bloqueios int
