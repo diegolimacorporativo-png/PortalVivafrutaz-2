@@ -1,0 +1,218 @@
+# 🧠 PROMPT — CONTEXTO COMPLETO DO SISTEMA (AGENT ONBOARDING)
+
+## 🎯 OBJETIVO
+
+Este prompt é para um novo agent assumir o projeto e ENTENDER TODO O ESTADO ATUAL DA ARQUITETURA antes de qualquer implementação.
+
+👉 Ele NÃO deve codar imediatamente.  
+👉 Primeiro deve mapear, entender e validar o sistema existente.
+
+---
+
+# ⚠️ REGRAS OBRIGATÓRIAS
+
+- NÃO implementar nada na primeira etapa
+- NÃO refatorar sem entender o fluxo atual
+- NÃO assumir padrões inexistentes
+- NÃO quebrar contratos de API
+- NÃO remover funcionalidades existentes
+- NÃO reestruturar auth sem validação completa
+
+---
+
+# 🧠 CONTEXTO GERAL DO SISTEMA
+
+O sistema é um ERP SaaS multi-tenant enterprise, com módulos:
+
+- autenticação avançada (em evolução)
+- NF-e / fiscal (SEFAZ integration)
+- CC-e (Carta de Correção Eletrônica)
+- billing STANDARD e CONTRACT
+- logística e estoque
+- financeiro e conciliação bancária
+- IA assistente (Clara IA)
+- auditoria e segurança avançada
+
+---
+
+# 🔐 ESTADO ATUAL DO SISTEMA (CRÍTICO)
+
+## 🧠 AUTH SYSTEM (FASES 14.5 → 14.7)
+
+O sistema de autenticação já evoluiu para um nível enterprise e contém:
+
+### ✔ IMPLEMENTADO:
+
+- session-based auth (NÃO JWT)
+- login tradicional com bcrypt
+- provisioning seguro de usuários via Clara IA
+- senha temporária obrigatória (mustChangePassword)
+- bloqueio de login até troca de senha
+- deviceId para rastreamento de dispositivo
+- tokenVersion para invalidação global de sessão
+- revoke all sessions (logout global)
+- brute force protection (L1 memory + L2 DB)
+- auth_attempts persistente no PostgreSQL
+- sessionGuard middleware validando tokenVersion
+- AuthCoreService centralizando validação crítica
+- security event logging padronizado
+
+---
+
+## 🧾 NF-e / FISCAL
+
+Já implementado:
+
+- emissão de NF-e via SEFAZ
+- cancelamento de NF-e
+- CC-e (Carta de Correção Eletrônica)
+  - limite por NF-e
+  - bloqueio por tempo (ex: 30 dias)
+  - validação de status NF-e
+  - motivo obrigatório
+  - auditoria completa
+- integração com fluxo de pedidos
+
+---
+
+## 💰 BILLING SYSTEM
+
+- billing STANDARD (itemizado por pedido)
+- billing CONTRACT (agrupado — ex: frutas in natura)
+- cálculo de média de custo
+- integração direta com NF-e
+
+---
+
+## 🤖 CLARA IA
+
+- cria empresas e usuários
+- aciona fluxos internos do ERP
+- foi DESACOPLADA de criação insegura de usuários
+- agora usa provisioning service seguro
+- não pode mais criar senha fixa (123456 removido)
+
+---
+
+## 🛡️ SEGURANÇA (FASE 14.6 / 14.7)
+
+### ✔ IMPLEMENTADO:
+
+- tokenVersion invalidation system
+- session revocation global
+- device binding (X-Device-Id)
+- brute force protection (L1 + L2)
+- rate limiting persistente em DB
+- security event logging estruturado
+- sessionGuard → delegado ao AuthCoreService
+
+---
+
+# ⚠️ ARQUITETURA ATUAL (IMPORTANTE)
+
+O sistema está em fase de transição:
+
+## ❌ LEGADO:
+- auth distribuído entre múltiplos arquivos
+- session middleware ainda ativo
+- rate limit híbrido (memory + DB)
+- lógica parcial em controllers e services
+
+## ✔ MODERNO (EM CONSTRUÇÃO):
+- AuthCoreService como núcleo de decisão
+- AuthRiskEngine (parcial)
+- security event pipeline estruturado
+- auth_attempts persistente
+
+---
+
+# 🚨 PROBLEMA ARQUITETURAL ATUAL
+
+O sistema ainda possui:
+
+- múltiplas fontes de decisão de autenticação
+- validações duplicadas em middleware + service
+- rate limit em duas camadas (L1/L2)
+- dependência parcial de estado em memória
+- necessidade de consolidação do AuthCore como único "decision engine"
+
+---
+
+# 🧠 ESTÁGIO DO SISTEMA
+
+O sistema está entre:
+
+### ❌ arquitetura híbrida fragmentada
+e
+### ✔ identity & security enterprise system
+
+---
+
+# 🚀 OBJETIVO DA PRÓXIMA FASE (CONTEXTUAL)
+
+O próximo passo planejado NÃO é UI.
+
+É:
+
+## 🔐 AUTH CONSOLIDATION FINAL (Identity Decision Engine)
+
+Objetivo:
+
+- transformar AuthCore em único ponto de decisão
+- eliminar duplicidade sessionGuard vs AuthCore
+- unificar rate limit em AuthRiskEngine
+- centralizar TODAS as decisões de auth
+- preparar sistema para observability layer
+
+---
+
+# 🚫 O QUE O AGENT NÃO DEVE FAZER
+
+- NÃO migrar para JWT sem aprovação
+- NÃO remover session system atual
+- NÃO criar nova arquitetura paralela
+- NÃO refatorar NF-e ou billing sem necessidade
+- NÃO mexer em Clara IA provisioning sem entender fluxo
+
+---
+
+# 🧭 COMO O AGENT DEVE TRABALHAR
+
+## 1. PRIMEIRO PASSO (OBRIGATÓRIO)
+
+- mapear auth completo (session, guard, service, core)
+- identificar fluxo real de login → request → validation
+- entender dependências entre módulos
+
+---
+
+## 2. SEGUNDO PASSO
+
+- identificar duplicações de lógica
+- identificar inconsistências entre layers
+- mapear riscos de segurança e concorrência
+
+---
+
+## 3. TERCEIRO PASSO
+
+- propor consolidação incremental (sem breaking changes)
+- priorizar AuthCore como ponto único de decisão
+- manter compatibilidade total com sistema atual
+
+---
+
+# 📌 OBJETIVO FINAL DO AGENT
+
+Evoluir o sistema para:
+
+> ✔ Identity & Security Enterprise Core System  
+> ✔ Sem duplicação de lógica  
+> ✔ Sem decisões espalhadas  
+> ✔ Pronto para observability e escala  
+
+---
+
+# 🧠 PRINCÍPIO FUNDAMENTAL
+
+> CONSOLIDAR > CRIA
