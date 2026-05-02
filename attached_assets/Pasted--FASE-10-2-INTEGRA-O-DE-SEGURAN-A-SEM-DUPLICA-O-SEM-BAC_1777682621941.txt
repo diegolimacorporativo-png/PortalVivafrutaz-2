@@ -1,0 +1,191 @@
+🎯 FASE 10.2 — INTEGRAÇÃO DE SEGURANÇA (SEM DUPLICAÇÃO, SEM BACKEND NOVO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO criar endpoints novos  
+2. NÃO alterar backend  
+3. NÃO duplicar lógica existente  
+4. NÃO mover arquivos existentes  
+5. NÃO quebrar telas atuais  
+6. NÃO alterar contratos de API  
+7. NÃO remover nada existente  
+
+👉 Apenas conectar o que já existe no frontend
+
+---
+
+🧠 CONTEXTO
+
+Já existem 3 fontes de segurança:
+
+1. 🔥 Antifraude (FASE 7.3)
+   → /api/admin/security/analysis
+   → Tela: security-intelligence.tsx
+
+2. 🔒 Contas bloqueadas
+   → /api/security/locked-accounts
+   → Tela: system-health.tsx
+
+3. 📊 Logs de segurança
+   → /api/admin/security/events e /api/security-logs
+   → Tela: security-audit.tsx
+
+⚠️ Problema atual:
+Tudo está fragmentado → operador não tem visão central
+
+---
+
+📦 OBJETIVO
+
+Criar um HUB DE SEGURANÇA dentro de:
+
+👉 security-intelligence.tsx
+
+Sem duplicar lógica — apenas consumindo queries existentes
+
+---
+
+## 🛠️ ETAPA 1 — ADICIONAR RESUMO DE CONTAS BLOQUEADAS
+
+Dentro de security-intelligence.tsx
+
+Adicionar nova query:
+
+ts const { data: lockedAccounts } = useQuery({   queryKey: ['/api/security/locked-accounts'], }); 
+
+---
+
+Criar um CARD simples no topo:
+
+tsx <Card>   <CardHeader>     <CardTitle>Contas Bloqueadas</CardTitle>   </CardHeader>   <CardContent>     <p>{lockedAccounts?.length ?? 0} contas bloqueadas</p>     <Button onClick={() => navigate('/admin/system-health?tab=locked')}>       Ver detalhes     </Button>   </CardContent> </Card> 
+
+---
+
+## 🛠️ ETAPA 2 — LINKAR PARA SYSTEM HEALTH
+
+👉 NÃO recriar tabela  
+👉 NÃO copiar código  
+
+Apenas navegação:
+
+ts navigate('/admin/system-health?tab=locked') 
+
+---
+
+## 🛠️ ETAPA 3 — ADICIONAR RESUMO DE LOGS
+
+Reutilizar endpoint existente:
+
+ts const { data: securityEvents } = useQuery({   queryKey: ['/api/admin/security/events'], }); 
+
+---
+
+Criar CARD:
+
+tsx <Card>   <CardHeader>     <CardTitle>Eventos de Segurança</CardTitle>   </CardHeader>   <CardContent>     <p>{securityEvents?.length ?? 0} eventos registrados</p>     <Button onClick={() => navigate('/admin/security-audit')}>       Ver logs     </Button>   </CardContent> </Card> 
+
+---
+
+## 🛠️ ETAPA 4 — ORGANIZAÇÃO VISUAL
+
+Ordem dos blocos na tela:
+
+1. 🔥 Antifraude (já existente)
+2. 🔒 Contas bloqueadas (novo resumo)
+3. 📊 Logs de segurança (novo resumo)
+
+👉 NÃO remover tabela atual de IPs  
+👉 NÃO alterar lógica existente
+
+---
+
+## 🛠️ ETAPA 5 — NÃO DUPLICAR DADOS
+
+🚫 NÃO copiar:
+
+- tabela de contas bloqueadas  
+- tabela de logs  
+- lógica de unlock  
+
+👉 apenas resumo + link
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Tela carrega normal
+
+✔ tabela antifraude continua funcionando  
+✔ nenhum erro no console  
+
+---
+
+### 2️⃣ Contas bloqueadas
+
+✔ número aparece  
+✔ botão navega corretamente  
+
+---
+
+### 3️⃣ Logs
+
+✔ contador aparece  
+✔ botão abre security-audit  
+
+---
+
+### 4️⃣ Sem regressão
+
+✔ system-health continua funcionando  
+✔ security-audit continua funcionando  
+✔ nenhuma rota alterada  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero backend alterado  
+✔ zero duplicação  
+✔ zero regressão  
+✔ UX muito mais clara  
+✔ base pronta para dashboard completo  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ Segurança fragmentada  
+❌ Admin precisa navegar em 3 telas  
+
+Depois:
+
+✅ Hub central de segurança  
+✅ Visão rápida + atalhos  
+✅ Integração sem duplicação  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Cards adicionados  
+2. Queries reutilizadas  
+3. Navegação funcionando  
+4. Confirmação de zero regressão  
+
+---
+
+🚀 IMPORTANTE
+
+👉 Isso NÃO é criação de feature  
+👉 Isso é organização do sistema existente  
+
+👉 Próxima fase depois dessa:
+FASE 10.3 — PRIORIZAÇÃO VISUAL (alertas críti

@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,9 @@ import {
   ShieldCheck,
   Activity,
   Zap,
+  Lock,
+  FileText,
+  ArrowRight,
 } from "lucide-react";
 
 interface IPScore {
@@ -189,11 +193,22 @@ function LoadingSkeleton() {
 }
 
 export default function SecurityIntelligencePage() {
+  const [, navigate] = useLocation();
+
   const { data: response, isLoading, isFetching, refetch, dataUpdatedAt } =
     useQuery<ApiResponse>({
       queryKey: ["/api/admin/security/analysis"],
       refetchInterval: 30_000,
     });
+
+  const { data: lockedAccounts = [] } = useQuery<any[]>({
+    queryKey: ["/api/security/locked-accounts"],
+    refetchInterval: 30_000,
+  });
+
+  const { data: securityEvents = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/security/events"],
+  });
 
   const data = response?.data;
   const ips = data?.ips ?? [];
@@ -246,6 +261,80 @@ export default function SecurityIntelligencePage() {
       </div>
 
       {data && <SummaryCards data={data} />}
+
+      {/* ── Hub de Segurança — resumos + atalhos ────────────────── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {/* Contas Bloqueadas */}
+        <Card data-testid="card-locked-accounts-hub">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30">
+                <Lock className="w-4 h-4 text-red-600 dark:text-red-400" />
+              </div>
+              Contas Bloqueadas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-end justify-between gap-4">
+            <div>
+              <p
+                className={`text-3xl font-bold ${lockedAccounts.length > 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}
+                data-testid="stat-locked-accounts"
+              >
+                {lockedAccounts.length}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {lockedAccounts.length === 0
+                  ? "Nenhuma conta bloqueada"
+                  : lockedAccounts.length === 1
+                    ? "conta bloqueada por senha incorreta"
+                    : "contas bloqueadas por senha incorreta"}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 flex-shrink-0"
+              onClick={() => navigate("/admin/system-health?tab=locked")}
+              data-testid="button-view-locked-accounts"
+            >
+              Ver detalhes
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Eventos de Segurança */}
+        <Card data-testid="card-security-events-hub">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <div className="p-1.5 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+              Eventos de Segurança
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-end justify-between gap-4">
+            <div>
+              <p className="text-3xl font-bold text-foreground" data-testid="stat-security-events">
+                {Array.isArray(securityEvents) ? securityEvents.length : 0}
+              </p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                eventos registrados no sistema
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 flex-shrink-0"
+              onClick={() => navigate("/admin/security-audit")}
+              data-testid="button-view-security-audit"
+            >
+              Ver logs
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader className="pb-3">
