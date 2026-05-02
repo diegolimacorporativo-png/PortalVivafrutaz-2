@@ -21,9 +21,9 @@ import {
   FileText, Send, Download, XCircle, RefreshCw, CheckCircle2, Clock,
   AlertCircle, Info, ReceiptText, ArrowLeft, Search, Package, Building2,
   ChevronRight, Wifi, WifiOff, Shield, BookOpen, ChevronDown, ChevronUp,
-  Settings, Award, Zap, Lock, ShieldCheck, Stethoscope
+  Settings, Award, Zap, Lock, ShieldCheck, Stethoscope, Pencil
 } from "lucide-react";
-import { getNFePreflight, getNFeDiagnostics } from "@/services/nfe.service";
+import { getNFePreflight, getNFeDiagnostics, sendNFeCCe } from "@/services/nfe.service";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -627,6 +627,8 @@ export default function NfePage() {
   const [selectedOrderCode, setSelectedOrderCode] = useState("");
   const [selectedNfe, setSelectedNfe] = useState<any>(null);
   const [cancelMotivo, setCancelMotivo] = useState("");
+  const [cceOpen, setCceOpen] = useState(false);
+  const [cceText, setCceText] = useState("");
 
   const { data: nfes = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/nfe", statusFiltro],
@@ -715,6 +717,20 @@ export default function NfePage() {
       setCancelMotivo("");
     },
     onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
+  });
+
+  const cceMutation = useMutation({
+    mutationFn: ({ id, correcao }: { id: number; correcao: string }) => sendNFeCCe(id, correcao),
+    onSuccess: (data: any) => {
+      if (!data.success) {
+        toast({ title: data.error?.message || "Erro ao enviar CC-e", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Carta de Correção registrada com sucesso!" });
+      setCceOpen(false);
+      setCceText("");
+    },
+    onError: (e: any) => toast({ title: e.message || "Erro ao enviar CC-e", variant: "destructive" }),
   });
 
   function downloadFile(id: number, type: "danfe" | "xml") {
@@ -968,6 +984,17 @@ export default function NfePage() {
                 <Button type="button" variant="outline" onClick={() => downloadFile(selectedNfe.id, "xml")} data-testid="button-modal-xml">
                   <Download className="w-4 h-4 mr-2" />XML
                 </Button>
+                {selectedNfe.status === "autorizada" && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setCceOpen(true)}
+                    data-testid="btn-cce"
+                    className="border-amber-400 text-amber-700 hover:bg-amber-50"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />Carta de Correção
+                  </Button>
+                )}
                 {!["cancelada","rejeitada"].includes(selectedNfe.status) && (
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -1002,6 +1029,54 @@ export default function NfePage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CC-e Modal ── */}
+      <Dialog open={cceOpen} onOpenChange={o => { setCceOpen(o); if (!o) setCceText(""); }}>
+        <DialogContent data-testid="modal-cce" className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-amber-600" />
+              Carta de Correção Eletrônica
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              A CC-e é um evento oficial vinculado à NF-e autorizada. Descreva a correção com no mínimo 15 caracteres.
+            </p>
+            <textarea
+              data-testid="textarea-cce"
+              className="w-full border border-input rounded-lg p-3 text-sm resize-none bg-background focus:outline-none focus:ring-2 focus:ring-amber-400"
+              rows={5}
+              value={cceText}
+              onChange={e => setCceText(e.target.value)}
+              placeholder="Descreva a correção (ex: Correção do CFOP de 5102 para 6102)..."
+            />
+            <p className={`text-xs ${cceText.length < 15 ? "text-red-500" : "text-muted-foreground"}`}>
+              {cceText.length} caractere{cceText.length !== 1 ? "s" : ""} {cceText.length < 15 ? `(mínimo 15)` : "✓"}
+            </p>
+          </div>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => { setCceOpen(false); setCceText(""); }}
+              data-testid="btn-cce-cancelar"
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              data-testid="btn-cce-enviar"
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+              disabled={cceText.length < 15 || cceMutation.isPending}
+              onClick={() => selectedNfe && cceMutation.mutate({ id: selectedNfe.id, correcao: cceText })}
+            >
+              {cceMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Pencil className="w-4 h-4 mr-2" />}
+              Enviar CC-e
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -138,6 +138,7 @@ import { register as fiscalInvoicesRegister } from './fiscal-invoices.routes';
 import { register as certificatesRegister } from './certificates.routes';
 import { register as adminIntelligenceRegister } from './admin-intelligence.routes';
 import { register as smtpTestRegister } from './smtp-test.routes';
+import { register as nfeCceRegister } from './nfe-cce.routes';
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -228,6 +229,7 @@ export async function registerRoutes(
   await certificatesRegister(app);
   adminIntelligenceRegister(app);
   smtpTestRegister(app);
+  nfeCceRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups

@@ -1,0 +1,189 @@
+🎯 FASE 14 — CARTA DE CORREÇÃO ELETRÔNICA (CC-e) — IMPLEMENTAÇÃO COMPLETA
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar fluxo de emissão existente  
+2. NÃO alterar endpoints atuais  
+3. NÃO quebrar NF-e já emitida  
+4. NÃO permitir correções inválidas  
+5. NÃO misturar com “corrigir-reenviar”  
+
+👉 CC-e é evento SEPARADO da NF-e
+
+---
+
+🧠 OBJETIVO
+
+Permitir:
+
+✔ corrigir NF já AUTORIZADA  
+✔ registrar evento oficial na SEFAZ  
+✔ manter histórico de correções  
+✔ expor UI simples para operador  
+
+---
+
+# 📦 CONCEITO
+
+CC-e = evento vinculado à NF-e
+
+txt id="cceflow1" NF AUTORIZADA → CC-e → SEFAZ → evento registrado 
+
+---
+
+# 🛠️ ETAPA 1 — NOVO ENDPOINT
+
+📍 Criar:
+
+server/routes/nfe-cce.routes.ts
+
+---
+
+ts import { Router } from "express"; import { requireAuth } from "../middlewares/requireAuth";  const router = Router();  router.post("/api/nfe/:id/cce", requireAuth, async (req, res) => {   try {     const { id } = req.params;     const { correcao } = req.body;      if (!correcao || correcao.length < 15) {       return res.status(400).json({         success: false,         error: { message: "Texto da correção inválido" }       });     }      // TODO: gerar XML CC-e     // TODO: enviar para SEFAZ      return res.json({       success: true,       message: "CC-e enviada (mock inicial)"     });    } catch (err) {     console.error(err);     return res.status(500).json({       success: false,       error: { message: "Erro ao enviar CC-e" }     });   } });  export default router; 
+
+---
+
+📍 Registrar em:
+
+server/routes/routes.ts
+
+ts import nfeCceRoutes from "./nfe-cce.routes"; app.use(nfeCceRoutes); 
+
+---
+
+# 🛠️ ETAPA 2 — ESTRUTURA DE DADOS (LEVE)
+
+👉 SEM banco por enquanto
+
+Criar estrutura temporária:
+
+ts const cceHistory: Record<string, any[]> = {}; 
+
+---
+
+Salvar:
+
+ts if (!cceHistory[id]) cceHistory[id] = [];  cceHistory[id].push({   correcao,   createdAt: new Date() }); 
+
+---
+
+# 🛠️ ETAPA 3 — SERVICE FRONTEND
+
+📍 client/src/services/nfe.service.ts
+
+Adicionar:
+
+ts export async function sendNFeCCe(id: number, correcao: string) {   const res = await fetch(`/api/nfe/${id}/cce`, {     method: "POST",     credentials: "include",     headers: { "Content-Type": "application/json" },     body: JSON.stringify({ correcao })   });    return res.json(); } 
+
+---
+
+# 🛠️ ETAPA 4 — UI (BOTÃO + MODAL)
+
+📍 orders.tsx ou nfe.tsx
+
+---
+
+Adicionar botão:
+
+tsx <Button   variant="outline"   onClick={() => setCceOpen(true)}   data-testid="btn-cce" >   Carta de Correção </Button> 
+
+---
+
+Estado:
+
+ts const [cceOpen, setCceOpen] = useState(false); const [cceText, setCceText] = useState(""); const [loadingCce, setLoadingCce] = useState(false); 
+
+---
+
+Modal:
+
+tsx <Dialog open={cceOpen} onOpenChange={setCceOpen}>   <DialogContent data-testid="modal-cce">     <DialogHeader>       <DialogTitle>Carta de Correção</DialogTitle>     </DialogHeader>      <textarea       className="w-full border p-2 rounded"       rows={5}       value={cceText}       onChange={(e) => setCceText(e.target.value)}       placeholder="Descreva a correção..."     />      <div className="flex justify-end gap-2 mt-3">       <Button         variant="outline"         onClick={() => setCceOpen(false)}       >         Cancelar       </Button>        <Button         disabled={loadingCce}         onClick={async () => {           try {             setLoadingCce(true);             await sendNFeCCe(order.id, cceText);             setCceOpen(false);           } catch (err) {             console.error(err);           } finally {             setLoadingCce(false);           }         }}       >         Enviar CC-e       </Button>     </div>   </DialogContent> </Dialog> 
+
+---
+
+# 🛠️ ETAPA 5 — REGRAS MÍNIMAS
+
+Antes de enviar:
+
+ts if (nfe.status !== "AUTORIZADA") {   bloquear envio } 
+
+---
+
+# 🧪 VALIDAÇÃO
+
+---
+
+## 1️⃣ NF autorizada
+
+✔ botão aparece  
+✔ envia CC-e  
+
+---
+
+## 2️⃣ Texto curto
+
+✔ erro 400  
+
+---
+
+## 3️⃣ NF não autorizada
+
+✔ bloqueio  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ não altera NF original  
+✔ não interfere na emissão  
+✔ isolado do fluxo atual  
+✔ pronto para integrar SEFAZ  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ sem correção formal  
+
+Depois:
+
+✔ correção registrada  
+✔ operador tem controle  
+✔ base pronta para SEFAZ  
+
+---
+
+# ⚠️ IMPORTANTE
+
+👉 isso é versão inicial (mock)  
+👉 próxima fase integra com SEFAZ  
+
+---
+
+## 🚀 PRÓXIMA FASE
+
+FASE 14.1 — Integração real:
+
+- XML CC-e  
+- assinatura digital  
+- envio SEFAZ  
+- retorno protocolo  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. endpoint criado  
+2. frontend conectado  
+3. validação funcionando  
+4. confirmação de zero regressão  
+
+---
+
+🔥 ISSO TE COLOCA EM NÍV

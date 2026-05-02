@@ -29,3 +29,13 @@ export async function getNFeDiagnostics(orderId: number) {
 
   return unwrap<any>(await res.json());
 }
+
+export async function sendNFeCCe(id: number, correcao: string) {
+  const res = await fetch(`/api/nfe/${id}/cce`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ correcao }),
+  });
+  return res.json();
+}
