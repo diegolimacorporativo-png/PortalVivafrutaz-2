@@ -16,7 +16,10 @@ export async function getNFeDiagnostics(orderId: number) {
     credentials: 'include',
   });
 
-  if (!res.ok) throw new Error('Erro ao buscar diagnóstico');
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err?.message || err?.error?.message || 'Erro ao buscar diagnóstico');
+  }
 
   return res.json();
 }

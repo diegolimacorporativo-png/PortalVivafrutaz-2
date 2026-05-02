@@ -339,8 +339,9 @@ function SelectedOrderEmitRow({
       const data = await getNFeDiagnostics(selectedOrderId);
       setDiagnosticsData(data);
       setDiagnosticsOpen(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      toast({ title: "Erro no diagnóstico", description: err.message || "Não foi possível carregar o diagnóstico fiscal.", variant: "destructive" });
     } finally {
       setDiagnosticsLoading(false);
     }

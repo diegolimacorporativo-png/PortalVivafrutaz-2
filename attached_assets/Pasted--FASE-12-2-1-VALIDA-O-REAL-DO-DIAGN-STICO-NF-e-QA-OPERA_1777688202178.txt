@@ -1,0 +1,233 @@
+🎯 FASE 12.2.1 — VALIDAÇÃO REAL DO DIAGNÓSTICO NF-e (QA OPERACIONAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar código
+2. NÃO ajustar lógica
+3. NÃO corrigir erro agora
+4. NÃO criar fallback
+5. NÃO mascarar problema
+
+👉 Apenas TESTAR e VALIDAR comportamento real
+
+---
+
+🧠 OBJETIVO
+
+Garantir que:
+
+- diagnóstico reflete exatamente os erros reais
+- FASE 9B (guards fiscais) está funcionando
+- preflight (FASE 12.1) e diagnóstico estão coerentes
+- nenhum erro está passando silenciosamente
+
+---
+
+## 🧪 CENÁRIOS DE TESTE (EXECUTAR TODOS)
+
+---
+
+### 1️⃣ PEDIDO VÁLIDO (BASELINE)
+
+Criar pedido completo:
+
+- ✔ itens com quantity válida
+- ✔ totalPrice preenchido
+- ✔ cliente com dados completos
+- ✔ UF emitente e destino válidas
+
+Ação:
+
+👉 clicar "Ver Diagnóstico"
+
+Resultado esperado:
+
+✔ sem erros  
+✔ sem alertas  
+✔ JSON consistente  
+✔ preflight também limpo  
+
+---
+
+### 2️⃣ ITEM COM QUANTIDADE INVÁLIDA
+
+Forçar:
+
+- quantity = null OU undefined OU string inválida
+
+Ação:
+
+👉 abrir diagnóstico
+
+Resultado esperado:
+
+✔ erro aparece (NFE_INVALID_QUANTITY)  
+✔ NÃO passa silencioso  
+✔ emissão futura deve falhar  
+
+---
+
+### 3️⃣ ITEM SEM VALOR (CRÍTICO)
+
+Forçar:
+
+- totalPrice = null  
+- unitPrice = null  
+
+Ação:
+
+👉 diagnóstico
+
+Resultado esperado:
+
+✔ erro crítico aparece  
+✔ log: NFE_ZERO_VALUE_DETECTED  
+✔ aparece em erros[]  
+✔ NÃO permitido emitir  
+
+---
+
+### 4️⃣ PEDIDO SEM ITENS (STANDARD)
+
+Forçar:
+
+- orderItems = []
+
+Ação:
+
+👉 diagnóstico
+
+Resultado esperado:
+
+✔ erro: NFE_EMPTY_ITEMS  
+✔ bloqueio correto  
+✔ NÃO permitido seguir  
+
+---
+
+### 5️⃣ UF DIFERENTE (ICMS INTERESTADUAL)
+
+Configurar:
+
+- emit.UF = "SP"  
+- dest.UF = "MG"
+
+Ação:
+
+👉 diagnóstico
+
+Resultado esperado:
+
+✔ pICMS = 12  
+✔ cálculo proporcional correto  
+✔ sem erro  
+
+---
+
+### 6️⃣ SEM UF (FALLBACK)
+
+Remover:
+
+- emit.UF OU dest.UF
+
+Resultado esperado:
+
+✔ pICMS = 18 (fallback)  
+✔ sem crash  
+✔ comportamento preservado  
+
+---
+
+### 7️⃣ SIMPLES NACIONAL
+
+Configurar empresa:
+
+- regime = SIMPLES
+
+Resultado esperado:
+
+✔ ICMS ignorado  
+✔ sem quebra  
+✔ diagnóstico consistente  
+
+---
+
+## 🔁 VALIDAÇÃO CRUZADA (CRÍTICO)
+
+Para cada cenário acima:
+
+1. Rodar:
+👉 botão "Validar NF-e" (preflight)
+
+2. Rodar:
+👉 botão "Ver Diagnóstico"
+
+---
+
+### RESULTADO ESPERADO
+
+✔ erros do preflight == erros do diagnóstico  
+✔ nenhuma divergência  
+✔ nenhum erro “sumindo” em um dos lados  
+
+---
+
+## 🔍 VERIFICAÇÃO DE BACKEND
+
+Durante os testes:
+
+- observar logs do servidor
+
+Esperado:
+
+✔ [SECURITY] NFE_INVALID_QUANTITY  
+✔ [SECURITY] NFE_ZERO_VALUE_DETECTED  
+✔ [SECURITY] NFE_EMPTY_ITEMS  
+
+👉 TODOS devem aparecer quando aplicável
+
+---
+
+## 🚨 ALERTA DE FALHA
+
+Se QUALQUER um acontecer:
+
+- erro não aparece na UI ❌
+- erro aparece mas não loga ❌
+- preflight ≠ diagnóstico ❌
+- emissão ainda possível com erro ❌
+
+👉 PARAR imediatamente  
+👉 NÃO seguir para próxima fase  
+
+---
+
+## 📊 RESULTADO FINAL ESPERADO
+
+✔ diagnóstico 100% confiável  
+✔ preflight alinhado  
+✔ guards funcionando  
+✔ zero erro silencioso  
+✔ base pronta para FASE 12.3 (Correção inteligente)
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. cenários testados
+2. quais erros apareceram
+3. logs capturados
+4. divergências (se houver)
+5. confirmação: diagnóstico confiável ✔ ou ❌
+
+---
+
+🚀 IMPORTANTE
+
+👉 Essa fase define se seu sistema é confiável ou perigoso  
+👉 NÃO pular essa etapa  
+👉 NÃO avançar sem valida
