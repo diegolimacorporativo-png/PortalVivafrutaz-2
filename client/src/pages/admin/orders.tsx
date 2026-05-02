@@ -625,8 +625,8 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       const res = await getNFePreflight(order.id);
       setPreflightData(res);
       setPreflightOpen(true);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      toast({ title: "Erro ao validar NF-e", description: err.message, variant: "destructive" });
     } finally {
       setLoadingPreflight(false);
     }

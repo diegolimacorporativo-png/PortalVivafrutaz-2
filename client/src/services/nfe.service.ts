@@ -3,12 +3,13 @@ export async function getNFePreflight(orderId: number) {
     credentials: 'include',
   });
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err?.error?.message || 'Erro no preflight');
+  const body = await res.json();
+
+  if (res.status === 401 || res.status === 403) {
+    throw new Error(body?.error?.message || body?.message || 'Não autorizado');
   }
 
-  return res.json();
+  return body;
 }
 
 export async function getNFeDiagnostics(orderId: number) {

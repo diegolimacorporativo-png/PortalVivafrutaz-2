@@ -351,7 +351,7 @@ function SelectedOrderEmitRow({
     try {
       setPreflightLoading(true);
       const res = await getNFePreflight(selectedOrderId);
-      setPreflightData(res.data);
+      setPreflightData(res);
       setPreflightOpen(true);
     } catch (err: any) {
       toast({ title: "Erro no preflight", description: err.message, variant: "destructive" });
