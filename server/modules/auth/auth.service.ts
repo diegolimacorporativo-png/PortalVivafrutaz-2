@@ -7,14 +7,16 @@ import type {
   MeOutcome,
   SessionPayload,
 } from "./auth.types";
-// FASE 14.6 — per-user progressive rate limiter (complements IP limiter in rateLimit.ts)
+// FASE 14.6 — in-memory L1 fast-path rate limit cache (still used for hot-key early exit)
 import {
   checkUserRateLimit,
   recordUserLoginSuccess,
   recordUserLoginFailure,
 } from "../../core/security/userRateLimit";
-// FASE 14.6 — centralised security event bus
-import { logSecurityEvent, logSecurity } from "../../core/security/securityLogger";
+// FASE 14.7 — AuthCoreService: DB-backed rate limit (L2) + typed security events
+import { authCoreService, AUTH_EVENTS } from "../../core/auth/authCore.service";
+// FASE 14.6 — centralised security event bus (kept for legacy logSecurity calls)
+import { logSecurity } from "../../core/security/securityLogger";
 
 /** Number of failed attempts before an account is auto-locked. */
 const MAX_ATTEMPTS = 3;
@@ -254,13 +256,25 @@ export class AuthService {
       };
     }
 
-    // FASE 14.6 — per-company rate limit check (in-memory, progressive cooldown)
+    // FASE 14.6/14.7 — two-layer rate limit: L1 in-memory (fast) then L2 DB (persistent)
     const rateLimitKey = `company:${company.id}`;
     const rateCheck = checkUserRateLimit(rateLimitKey);
     if (!rateCheck.allowed) {
       const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
-      logSecurity(`[SECURITY] USER_RATE_LIMITED | companyId=${company.id} | ip=${ip} | retryAfterSec=${retryAfterSec}`);
-      logSecurityEvent({ type: "USER_RATE_LIMITED", ip, userId: company.id, metadata: { kind: "company", retryAfterMs: rateCheck.retryAfterMs } });
+      logSecurity(`[SECURITY] ${AUTH_EVENTS.RATE_LIMITED} | companyId=${company.id} | ip=${ip} | layer=L1 | retryAfterSec=${retryAfterSec}`);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, { ip, companyId: company.id, metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs } });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+      };
+    }
+    // L2 — DB-backed persistent rate limit (survives server restarts)
+    const dbRateCheck = await authCoreService.checkDbRateLimit({ companyId: company.id, ip });
+    if (!dbRateCheck.allowed) {
+      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
+      logSecurity(`[SECURITY] ${AUTH_EVENTS.RATE_LIMITED} | companyId=${company.id} | ip=${ip} | layer=L2 | retryAfterSec=${retryAfterSec}`);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, { ip, companyId: company.id, metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore } });
       return {
         kind: "failure",
         status: 429,
@@ -328,11 +342,14 @@ export class AuthService {
         level: "WARN",
         ip,
       });
-      // FASE 14.6 — record failure in per-user rate limiter + detect brute force
+      // FASE 14.6/14.7 — record failure in both L1 (memory) and L2 (DB)
       const failResult = recordUserLoginFailure(rateLimitKey);
-      if (failResult.riskScore >= 5) {
-        logSecurity(`[SECURITY] BRUTE_FORCE_DETECTED | companyId=${company.id} | ip=${ip} | riskScore=${failResult.riskScore} | blocked=${failResult.blocked}`);
-        logSecurityEvent({ type: "BRUTE_FORCE_DETECTED", ip, userId: company.id, metadata: { kind: "company", riskScore: failResult.riskScore, cooldownMs: failResult.cooldownMs } });
+      // L2 — persist to auth_attempts for cross-restart rate limiting
+      authCoreService.recordAttempt({ companyId: company.id, ip, success: false }).catch(() => {});
+      if (failResult.riskScore >= 5 || dbRateCheck.riskScore >= 5) {
+        const riskScore = Math.max(failResult.riskScore, dbRateCheck.riskScore);
+        logSecurity(`[SECURITY] ${AUTH_EVENTS.BRUTE_FORCE} | companyId=${company.id} | ip=${ip} | riskScore=${riskScore}`);
+        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, { ip, companyId: company.id, metadata: { riskScore, cooldownMs: failResult.cooldownMs } });
       }
       if (willLock) {
         await this.notifyAdminsOfLockout(email, "empresa cliente", ip);
@@ -366,8 +383,9 @@ export class AuthService {
 
     // Success — reset attempts, log
     console.log("[LOGIN] Login bem-sucedido para empresa:", company.email);
-    // FASE 14.6 — reset per-user rate limit on success
+    // FASE 14.6/14.7 — reset L1 in-memory rate limit + persist success to L2 DB
     recordUserLoginSuccess(rateLimitKey);
+    authCoreService.recordAttempt({ companyId: company.id, ip, success: true }).catch(() => {});
     const refreshed = await this.repo.updateCompany(company.id, {
       loginAttempts: 0,
       lastLoginAttempt: new Date(),
@@ -380,7 +398,7 @@ export class AuthService {
       userRole: "CLIENT",
       ip,
     });
-    logSecurityEvent({ type: "LOGIN_SUCCESS", ip, userId: refreshed.id, metadata: { kind: "company", email: refreshed.email } });
+    authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, { ip, companyId: refreshed.id, metadata: { email: refreshed.email } });
     return { kind: "company-success", company: refreshed };
   }
 
@@ -456,8 +474,8 @@ export class AuthService {
           level: "WARN",
           ip,
         });
-        logSecurity(`[SECURITY] REVOKE_ALL_SESSIONS | companyId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
-        logSecurityEvent({ type: "REVOKE_ALL_SESSIONS", ip, userId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
+        logSecurity(`[SECURITY] ${AUTH_EVENTS.REVOKE_ALL_SESSIONS} | companyId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
+        authCoreService.logAuthEvent(AUTH_EVENTS.REVOKE_ALL_SESSIONS, { ip, companyId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
       } else {
         const user = await this.repo.getUserById(id);
         if (!user) return { ok: false, status: 404, message: "Usuário não encontrado." };
@@ -470,8 +488,8 @@ export class AuthService {
           level: "WARN",
           ip,
         });
-        logSecurity(`[SECURITY] REVOKE_ALL_SESSIONS | userId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
-        logSecurityEvent({ type: "REVOKE_ALL_SESSIONS", ip, userId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
+        logSecurity(`[SECURITY] ${AUTH_EVENTS.REVOKE_ALL_SESSIONS} | userId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
+        authCoreService.logAuthEvent(AUTH_EVENTS.REVOKE_ALL_SESSIONS, { ip, userId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
       }
       return { ok: true };
     } catch (err: any) {

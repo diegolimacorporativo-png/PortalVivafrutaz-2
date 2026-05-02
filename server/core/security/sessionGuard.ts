@@ -1,32 +1,27 @@
 /**
- * FASE 14.6 — Session Token Version Guard.
+ * FASE 14.6 / 14.7 — Session Token Version Guard.
  *
- * Validates that every authenticated request carries a session whose
- * `tokenVersion` matches the value currently stored in the DB for that
- * user/company. If they diverge (because `revokeAllSessions` was called or
- * the account was reset), the session is destroyed immediately and the client
- * receives HTTP 401 with `{ error: "SESSION_INVALIDATED" }`.
+ * FASE 14.7 REFACTOR: validation logic delegated to AuthCoreService.validateSession()
+ * so tokenVersion checks and device-binding enforcement live in one place.
+ * This file is now a thin Express middleware adapter.
  *
- * This is the session-based equivalent of "refresh token rotation":
- * incrementing `tokenVersion` in the DB is a single-operation way to
- * invalidate ALL active sessions for an account without touching the
- * session store directly.
+ * Behaviour unchanged from FASE 14.6:
+ *  • Only runs on /api/* (not Vite assets).
+ *  • Skips /api/auth/* and /api/v1/auth/* — login/logout always reachable.
+ *  • Skips unauthenticated sessions (no tokenVersion) — pass-through.
+ *  • Pre-FASE-14.6 sessions (no tokenVersion field) — pass-through.
+ *  • DB error → fail-open (DB outage must not lock everyone out).
  *
- * Design decisions:
- *  • Only runs on `/api/*` routes — static assets are untouched.
- *  • Skips `/api/auth/*` — login/logout/force-password-change must always work.
- *  • Skips unauthenticated requests — no userId or companyId in session.
- *  • Only blocks when `session.tokenVersion` is DEFINED and MISMATCHES the DB.
- *    Sessions created before FASE 14.6 (no tokenVersion) are NOT kicked out —
- *    they just don't benefit from the revocation mechanism until next login.
- *  • DB lookup is best-effort: a DB error logs a warning but lets the request
- *    through (fail-open), preventing a DB outage from locking everyone out.
- *  • Logs to securityLogger + storage.createLog so the audit trail is complete.
+ * New in FASE 14.7:
+ *  • Device binding: if client sends X-Device-Id header AND session has
+ *    deviceId AND they differ → SESSION_INVALIDATED with reason DEVICE_MISMATCH.
+ *  • Uses AUTH_EVENTS typed constants for security event types.
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { authCoreService, AUTH_EVENTS } from "../auth/authCore.service";
+import { logSecurity } from "./securityLogger";
 import { storage } from "../../services/storage";
-import { logSecurityEvent, logSecurity } from "./securityLogger";
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"] as string | undefined;
@@ -46,75 +41,63 @@ export async function sessionVersionGuard(
   const session = (req as any).session as Record<string, any> | undefined;
   if (!session) return next();
 
-  const sessionTokenVersion: number | undefined = session.tokenVersion;
   // No tokenVersion in session → pre-FASE-14.6 session, pass through
-  if (sessionTokenVersion === undefined) return next();
+  if (session.tokenVersion === undefined) return next();
 
   const userId: number | undefined = session.userId;
   const companyId: number | undefined = session.companyId;
-
-  // Unauthenticated request — nothing to guard
-  if (!userId && !companyId) return next();
+  if (!userId && !companyId) return next(); // unauthenticated
 
   const ip = getClientIp(req);
+  // FASE 14.7 — read device ID from client header for binding check
+  const requestDeviceId = req.headers["x-device-id"] as string | undefined;
 
-  try {
-    let dbTokenVersion: number | null = null;
-    let actorLabel = "";
+  // Delegate validation to AuthCoreService (FASE 14.7)
+  const validation = await authCoreService.validateSession(
+    { userId, companyId, tokenVersion: session.tokenVersion, deviceId: session.deviceId },
+    requestDeviceId,
+  );
 
-    if (userId) {
-      const user = await storage.getUser(userId);
-      if (!user) {
-        // User deleted — destroy session
-        req.session.destroy(() => {});
-        res.status(401).json({ error: "SESSION_INVALIDATED", message: "Sessão inválida. Faça login novamente." });
-        return;
-      }
-      dbTokenVersion = (user as any).tokenVersion ?? 0;
-      actorLabel = `userId=${userId}`;
-    } else if (companyId) {
-      const company = await storage.getCompany(companyId);
-      if (!company) {
-        req.session.destroy(() => {});
-        res.status(401).json({ error: "SESSION_INVALIDATED", message: "Sessão inválida. Faça login novamente." });
-        return;
-      }
-      dbTokenVersion = (company as any).tokenVersion ?? 0;
-      actorLabel = `companyId=${companyId}`;
-    }
+  if (!validation.valid) {
+    const reason = validation.reason ?? "UNKNOWN";
+    const actorLabel = userId ? `userId=${userId}` : `companyId=${companyId}`;
+    const eventType = reason === "DEVICE_MISMATCH"
+      ? AUTH_EVENTS.DEVICE_MISMATCH
+      : reason === "TOKEN_VERSION_MISMATCH"
+        ? AUTH_EVENTS.TOKEN_VERSION_MISMATCH
+        : AUTH_EVENTS.SESSION_INVALIDATED;
 
-    if (dbTokenVersion !== null && sessionTokenVersion !== dbTokenVersion) {
-      logSecurity(
-        `[SECURITY] SESSION_INVALIDATED | ${actorLabel} | ip=${ip} | sessionVersion=${sessionTokenVersion} | dbVersion=${dbTokenVersion} | path=${req.path}`,
-      );
-      logSecurityEvent({
-        type: "SESSION_INVALIDATED",
-        ip,
-        path: req.originalUrl,
-        requestId: (req as any).requestId,
-        userId,
-        metadata: { companyId, sessionTokenVersion, dbTokenVersion },
-      });
-      // Best-effort DB audit log
-      storage.createLog({
-        action: "SESSION_INVALIDATED",
-        description: `Sessão revogada por tokenVersion desatualizado (${sessionTokenVersion} ≠ ${dbTokenVersion}). Usuário forçado a re-autenticar.`,
-        userId,
-        companyId,
-        ip,
-        level: "WARN",
-      }).catch(() => {});
+    logSecurity(
+      `[SECURITY] ${eventType} | ${actorLabel} | ip=${ip} | reason=${reason} | path=${req.path}`,
+    );
+    authCoreService.logAuthEvent(eventType, {
+      ip,
+      path: req.originalUrl,
+      requestId: (req as any).requestId,
+      userId,
+      companyId,
+      metadata: { reason, sessionTokenVersion: session.tokenVersion, requestDeviceId },
+    });
 
-      req.session.destroy(() => {});
-      res.status(401).json({
-        error: "SESSION_INVALIDATED",
-        message: "Sua sessão foi encerrada por segurança. Faça login novamente.",
-      });
-      return;
-    }
-  } catch (err: any) {
-    // Fail-open: DB error must not lock everyone out
-    logSecurity(`[SECURITY] SESSION_GUARD_ERROR | path=${req.path} | error=${err?.message ?? "unknown"}`);
+    // Best-effort DB audit log
+    storage.createLog({
+      action: "SESSION_INVALIDATED",
+      description: `Sessão encerrada por segurança: ${reason}. Usuário forçado a re-autenticar.`,
+      userId,
+      companyId,
+      ip,
+      level: "WARN",
+    }).catch(() => {});
+
+    req.session.destroy(() => {});
+    res.status(401).json({
+      error: "SESSION_INVALIDATED",
+      reason,
+      message: reason === "DEVICE_MISMATCH"
+        ? "Dispositivo não reconhecido. Faça login novamente."
+        : "Sua sessão foi encerrada por segurança. Faça login novamente.",
+    });
+    return;
   }
 
   next();

@@ -1,0 +1,261 @@
+# 🔐 FASE 14.7 — AUTH CORE REFACTOR (CLEAN ARCHITECTURE CONSOLIDATION)
+
+## 🎯 OBJETIVO
+
+Consolidar todo o sistema de autenticação em uma arquitetura única, previsível e escalável, eliminando:
+
+- lógica de auth espalhada
+- duplicação de validações
+- inconsistência entre session / guards / services
+- dependência de memória para regras críticas
+
+---
+
+# 🚫 REGRAS CRÍTICAS
+
+- NÃO mudar contratos de API existentes
+- NÃO quebrar sessões atuais de usuários
+- NÃO migrar para JWT (manter session atual)
+- NÃO remover segurança já implementada (FASE 14.6)
+- NÃO introduzir dependências externas obrigatórias
+- manter compatibilidade total com frontend atual
+
+---
+
+# 🧠 PROBLEMA ATUAL (DIAGNÓSTICO REAL)
+
+O sistema atual possui:
+
+- auth.service.ts (login + regras)
+- auth.controller.ts (orquestração)
+- session middleware (express-session)
+- sessionGuard (tokenVersion validation)
+- rate limiter em memória separado
+- security event log distribuído
+
+👉 Resultado: múltiplas fontes de verdade
+
+---
+
+# 🧱 SOLUÇÃO: AUTH CORE ÚNICO
+
+## 📦 CRIAR: server/core/auth/authCore.service.ts
+
+### 🎯 RESPONSABILIDADE ÚNICA
+
+Centralizar TODA lógica de autenticação:
+
+- login
+- validação de sessão
+- device binding
+- tokenVersion check
+- rate limit decision
+- security event dispatch
+
+---
+
+# 🔁 NOVA ARQUITETURA
+
+## 🧠 FLUXO ANTERIOR (FRAGMENTADO)
+
+controller → service → session middleware → sessionGuard → rateLimit → DB checks
+
+---
+
+## ✅ FLUXO NOVO (UNIFICADO)
+
+controller → AuthCoreService → session updated → response
+
+---
+
+# 🧱 1. AUTH CORE SERVICE
+
+## FUNÇÕES PRINCIPAIS
+
+### 🔐 login()
+
+ts id="auth_login_core" AuthCore.login({   email,   password,   deviceId,   ip }) 
+
+### RESPONSABILIDADES:
+
+- validar credenciais
+- checar rate limit (persistente)
+- validar tokenVersion
+- validar mustChangePassword
+- gerar sessão única
+- registrar security event
+
+---
+
+### 🔁 validateRequest()
+
+ts id="auth_validate" AuthCore.validateRequest(session, dbUser) 
+
+Valida:
+
+- session válida
+- tokenVersion match
+- deviceId match
+- status de bloqueio
+
+---
+
+### 🚨 revokeAllSessions()
+
+Centralizado (substitui lógica espalhada):
+
+- incrementa tokenVersion
+- invalida todas sessões
+- gera SECURITY_EVENT
+
+---
+
+# 🧱 2. PERSISTÊNCIA DE RATE LIMIT (SUBSTITUI MEMORY)
+
+## ❌ REMOVER DEPENDÊNCIA EM MEMÓRIA
+
+Substituir:
+
+- userRateLimit.ts (memory)
+
+---
+
+## ✅ NOVO MODELO
+
+### 📦 TABELA:
+
+sql id="auth_attempts" auth_attempts - id - user_id - ip - endpoint - success - created_at 
+
+---
+
+### LÓGICA:
+
+- calcular tentativas nos últimos X minutos
+- aplicar cooldown progressivo
+- reset automático após login sucesso
+
+---
+
+# 🧱 3. SESSION SIMPLIFICATION
+
+## ❌ REMOVER:
+
+- sessionGuard separado
+
+---
+
+## ✅ SUBSTITUIR POR:
+
+### middleware único:
+
+ts id="auth_middleware" requireAuth → AuthCore.validateRequest() 
+
+---
+
+# 🧱 4. DEVICE BINDING OBRIGATÓRIO
+
+## REGRA GLOBAL:
+
+- toda sessão deve conter deviceId
+- deviceId obrigatório no login
+- mismatch → logout automático
+
+---
+
+# 🧱 5. SECURITY EVENT ENGINE UNIFICADO
+
+## 📦 CRIAR:
+
+ts id="security_core" SecurityEventService 
+
+---
+
+## TIPOS:
+
+- AUTH_LOGIN_SUCCESS
+- AUTH_LOGIN_FAILED
+- AUTH_BRUTE_FORCE
+- AUTH_SESSION_INVALIDATED
+- AUTH_DEVICE_MISMATCH
+- AUTH_TOKEN_VERSION_MISMATCH
+
+---
+
+# 🔐 6. FLUXO FINAL UNIFICADO
+
+## LOGIN
+
+1. AuthCore.login()
+2. rate limit DB check
+3. credential validation
+4. device binding
+5. tokenVersion snapshot
+6. session create
+7. security event log
+
+---
+
+## REQUEST PROTECTED
+
+1. requireAuth()
+2. AuthCore.validateRequest()
+3. allow / deny
+
+---
+
+## SESSION REVOKE
+
+1. AuthCore.revokeAllSessions()
+2. increment tokenVersion
+3. invalidate sessions
+4. log security event
+
+---
+
+# 📊 RESULTADO FINAL
+
+## ✔ AUTH CENTRALIZADO
+## ✔ ZERO LÓGICA DUPLICADA
+## ✔ RATE LIMIT PERSISTENTE
+## ✔ DEVICE ENFORCED GLOBALMENTE
+## ✔ TOKEN VERSION UNIFICADO
+## ✔ SECURITY EVENTS PADRONIZADOS
+
+---
+
+# 🚀 IMPACTO ARQUITETURAL
+
+Você sai de:
+
+❌ sistema de auth incremental e fragmentado  
+
+para:
+
+✔ identity core system (nível enterprise SaaS)
+
+---
+
+# 🧠 ESTADO FINAL DO SISTEMA (APÓS FASE 14.7)
+
+- AuthCore = fonte única de verdade
+- session middleware = apenas transporte
+- DB = source of truth de segurança
+- memory = apenas cache (não segurança)
+
+---
+
+# 📌 PRÓXIMO PASSO NATURAL (FASE 14.8)
+
+Se quiser evolução real:
+
+## 🔐 14.8 — IDENTITY OBSERVABILITY LAYER
+
+- painel de segurança em tempo real
+- mapa de risco por usuário
+- detecção de anomalia comportamental
+- dashboard de sessões ativas
+- tracing de login attempts
+
+---
+
+Se quiser, eu monto essa próxima fase também no mesmo nível.

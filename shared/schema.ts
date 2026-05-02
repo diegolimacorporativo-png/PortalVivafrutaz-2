@@ -1934,3 +1934,25 @@ export const securityBlockedUsers = pgTable("security_blocked_users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 export type SecurityBlockedUser = typeof securityBlockedUsers.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FASE 14.7 — auth_attempts: persistent audit trail of every login attempt.
+// Replaces the in-memory userRateLimit (FASE 14.6) as the source of truth for
+// rate limiting decisions. In-memory cache remains as L1 fast-path only.
+// Indexes on (company_id, created_at) and (user_id, created_at) allow fast
+// window-based failure counts without full-table scans.
+// ─────────────────────────────────────────────────────────────────────────────
+export const authAttempts = pgTable("auth_attempts", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id, { onDelete: "cascade" }),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }),
+  ip: text("ip").notNull(),
+  endpoint: text("endpoint").notNull().default("login"),
+  success: boolean("success").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  companyCreatedIdx: index("auth_attempts_company_created_idx").on(table.companyId, table.createdAt),
+  userCreatedIdx: index("auth_attempts_user_created_idx").on(table.userId, table.createdAt),
+  ipCreatedIdx: index("auth_attempts_ip_created_idx").on(table.ip, table.createdAt),
+}));
+export type AuthAttempt = typeof authAttempts.$inferSelect;
