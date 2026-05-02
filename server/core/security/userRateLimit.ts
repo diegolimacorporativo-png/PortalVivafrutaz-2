@@ -1,12 +1,14 @@
 /**
  * FASE 14.6 — Per-user / per-company in-memory progressive rate limiter.
+ * FASE 14.7.1 — Cooldown schedule extracted to shared rateSchedule.ts.
  *
  * Complements the existing IP-based `loginIpLimiter` (FASE 7).
  * That one protects unknown accounts; this one protects authenticated
  * identities by keying on the DB id rather than the network address,
  * making it resilient against IP rotation used by botnets.
  *
- * Progressive cooldown schedule (consecutive failures):
+ * Progressive cooldown schedule (consecutive failures) — defined in
+ * rateSchedule.ts and shared with AuthCoreService L2:
  *   1–2  fails  → no block (normal wrong-password tolerance)
  *   3    fails  → 5 s cooldown
  *   5    fails  → 30 s cooldown
@@ -22,6 +24,8 @@
  * when blockedUntil has passed at check time, so the Map stays small.
  */
 
+import { RATE_LIMIT_SCHEDULE } from "../auth/rateSchedule";
+
 interface UserRateEntry {
   consecutiveFails: number;
   blockedUntil: number; // epoch ms; 0 = not blocked
@@ -30,17 +34,9 @@ interface UserRateEntry {
 
 const store = new Map<string, UserRateEntry>();
 
-// Cooldown thresholds: [minFails, cooldownMs]
-const THRESHOLDS: Array<[number, number]> = [
-  [10,  5 * 60_000],
-  [8,   2 * 60_000],
-  [5,   30_000],
-  [3,   5_000],
-];
-
 function computeCooldown(consecutiveFails: number): number {
-  for (const [min, ms] of THRESHOLDS) {
-    if (consecutiveFails >= min) return ms;
+  for (const tier of RATE_LIMIT_SCHEDULE) {
+    if (consecutiveFails >= tier.minFails) return tier.cooldownMs;
   }
   return 0;
 }
@@ -67,7 +63,6 @@ export function checkUserRateLimit(
     };
   }
 
-  // Block expired — prune if no consecutive fails remain
   return {
     allowed: true,
     riskScore: Math.min(entry.consecutiveFails, 100),

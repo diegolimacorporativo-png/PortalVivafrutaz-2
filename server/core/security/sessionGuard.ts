@@ -1,27 +1,25 @@
 /**
  * FASE 14.6 / 14.7 — Session Token Version Guard.
+ * FASE 14.7.1 — Thin adapter: zero direct dependencies on storage or securityLogger.
  *
- * FASE 14.7 REFACTOR: validation logic delegated to AuthCoreService.validateSession()
- * so tokenVersion checks and device-binding enforcement live in one place.
- * This file is now a thin Express middleware adapter.
+ * Validation logic is fully delegated to AuthCoreService:
+ *   • validateSession()        → tokenVersion + deviceId enforcement
+ *   • logSessionInvalidation() → unified logging pipeline + persistent audit log
  *
- * Behaviour unchanged from FASE 14.6:
+ * This file owns only Express plumbing: read session/headers, call AuthCore,
+ * destroy session, and respond. Nothing else.
+ *
+ * Behaviour:
  *  • Only runs on /api/* (not Vite assets).
  *  • Skips /api/auth/* and /api/v1/auth/* — login/logout always reachable.
  *  • Skips unauthenticated sessions (no tokenVersion) — pass-through.
  *  • Pre-FASE-14.6 sessions (no tokenVersion field) — pass-through.
  *  • DB error → fail-open (DB outage must not lock everyone out).
- *
- * New in FASE 14.7:
- *  • Device binding: if client sends X-Device-Id header AND session has
- *    deviceId AND they differ → SESSION_INVALIDATED with reason DEVICE_MISMATCH.
- *  • Uses AUTH_EVENTS typed constants for security event types.
+ *  • Device binding: X-Device-Id header mismatch → SESSION_INVALIDATED.
  */
 
 import type { Request, Response, NextFunction } from "express";
 import { authCoreService, AUTH_EVENTS } from "../auth/authCore.service";
-import { logSecurity } from "./securityLogger";
-import { storage } from "../../services/storage";
 
 function getClientIp(req: Request): string {
   const forwarded = req.headers["x-forwarded-for"] as string | undefined;
@@ -49,10 +47,9 @@ export async function sessionVersionGuard(
   if (!userId && !companyId) return next(); // unauthenticated
 
   const ip = getClientIp(req);
-  // FASE 14.7 — read device ID from client header for binding check
   const requestDeviceId = req.headers["x-device-id"] as string | undefined;
 
-  // Delegate validation to AuthCoreService (FASE 14.7)
+  // Delegate validation to AuthCoreService
   const validation = await authCoreService.validateSession(
     { userId, companyId, tokenVersion: session.tokenVersion, deviceId: session.deviceId },
     requestDeviceId,
@@ -60,34 +57,23 @@ export async function sessionVersionGuard(
 
   if (!validation.valid) {
     const reason = validation.reason ?? "UNKNOWN";
-    const actorLabel = userId ? `userId=${userId}` : `companyId=${companyId}`;
     const eventType = reason === "DEVICE_MISMATCH"
       ? AUTH_EVENTS.DEVICE_MISMATCH
       : reason === "TOKEN_VERSION_MISMATCH"
         ? AUTH_EVENTS.TOKEN_VERSION_MISMATCH
         : AUTH_EVENTS.SESSION_INVALIDATED;
 
-    logSecurity(
-      `[SECURITY] ${eventType} | ${actorLabel} | ip=${ip} | reason=${reason} | path=${req.path}`,
-    );
-    authCoreService.logAuthEvent(eventType, {
+    // FASE 14.7.1 — single call: buffer + console/alertEngine + persistent DB audit
+    await authCoreService.logSessionInvalidation({
+      eventType,
+      userId,
+      companyId,
       ip,
       path: req.originalUrl,
       requestId: (req as any).requestId,
-      userId,
-      companyId,
-      metadata: { reason, sessionTokenVersion: session.tokenVersion, requestDeviceId },
+      reason,
+      metadata: { sessionTokenVersion: session.tokenVersion, requestDeviceId },
     });
-
-    // Best-effort DB audit log
-    storage.createLog({
-      action: "SESSION_INVALIDATED",
-      description: `Sessão encerrada por segurança: ${reason}. Usuário forçado a re-autenticar.`,
-      userId,
-      companyId,
-      ip,
-      level: "WARN",
-    }).catch(() => {});
 
     req.session.destroy(() => {});
     res.status(401).json({

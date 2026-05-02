@@ -1,12 +1,15 @@
 /**
  * FASE 14.7 — AuthCoreService: single source of truth for auth decisions.
+ * FASE 14.7.1 — Unified logging pipeline + shared rate schedule + logSessionInvalidation.
  *
  * Centralises:
- *  1. DB-backed rate limiting (persistent across server restarts, replaces
- *     in-memory userRateLimit as the authoritative source).
+ *  1. DB-backed rate limiting (persistent across server restarts).
  *  2. Session validation (tokenVersion + deviceId checks).
  *  3. Typed security-event constants (AUTH_EVENTS) replacing raw strings.
- *  4. Unified `logAuthEvent()` wrapping securityLogger.
+ *  4. Unified `logAuthEvent()` — single call that writes to BOTH the in-memory
+ *     security event buffer AND the console/alertEngine for critical events.
+ *     Callers no longer need to call logSecurity() separately.
+ *  5. `logSessionInvalidation()` — decouples sessionGuard from storage.
  *
  * Architecture decisions:
  *  • Queries `auth_attempts` table directly via Drizzle — this is a core
@@ -18,6 +21,8 @@
  *  • Device binding is enforced as "warn then block": if both sides advertise a
  *    deviceId and they differ, the request is rejected. Clients that never send
  *    X-Device-Id (most existing frontend code) are NOT affected.
+ *  • Rate schedule is now imported from rateSchedule.ts — single source shared
+ *    with the L1 in-memory limiter.
  */
 
 import { and, eq, gte, lt, desc } from "drizzle-orm";
@@ -26,6 +31,7 @@ import { authAttempts } from "../../../shared/schema";
 import { storage } from "../../services/storage";
 import { logSecurityEvent, logSecurity } from "../security/securityLogger";
 import type { SessionPayload } from "../../modules/auth/auth.types";
+import { RATE_LIMIT_SCHEDULE } from "./rateSchedule";
 
 // ── Typed security-event constants ───────────────────────────────────────────
 
@@ -46,20 +52,21 @@ export const AUTH_EVENTS = {
 
 export type AuthEventType = typeof AUTH_EVENTS[keyof typeof AUTH_EVENTS];
 
-// ── Progressive cooldown schedule (shared with in-memory L1) ─────────────────
-
-interface CooldownThreshold {
-  minFails: number;
-  windowMs: number;   // how far back to look
-  cooldownMs: number; // how long to block after threshold is reached
-}
-
-const COOLDOWN_SCHEDULE: CooldownThreshold[] = [
-  { minFails: 10, windowMs: 10 * 60_000, cooldownMs: 5 * 60_000 },
-  { minFails:  8, windowMs:  5 * 60_000, cooldownMs: 2 * 60_000 },
-  { minFails:  5, windowMs:  5 * 60_000, cooldownMs: 30_000 },
-  { minFails:  3, windowMs:  1 * 60_000, cooldownMs: 5_000 },
-];
+/**
+ * Events that warrant console emission + alertEngine forwarding via logSecurity().
+ * Non-critical events (e.g. LOGIN_SUCCESS) go only to the in-memory buffer.
+ */
+const CRITICAL_AUTH_EVENTS = new Set<AuthEventType>([
+  AUTH_EVENTS.BRUTE_FORCE,
+  AUTH_EVENTS.RATE_LIMITED,
+  AUTH_EVENTS.SESSION_INVALIDATED,
+  AUTH_EVENTS.DEVICE_MISMATCH,
+  AUTH_EVENTS.TOKEN_VERSION_MISMATCH,
+  AUTH_EVENTS.REVOKE_ALL_SESSIONS,
+  AUTH_EVENTS.LOGIN_BLOCKED_LOCKED,
+  AUTH_EVENTS.LOGIN_BLOCKED_INACTIVE,
+  AUTH_EVENTS.LOGIN_BLOCKED_TEMP_PW,
+]);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -83,9 +90,9 @@ class AuthCoreService {
 
   /**
    * Query auth_attempts to determine whether this account/IP is rate-limited.
-   * Uses the COOLDOWN_SCHEDULE to decide window size and block duration.
-   * Fail-open: any DB error returns `{ allowed: true }` so a DB outage can't
-   * deny access.
+   * Uses RATE_LIMIT_SCHEDULE (shared with L1) to decide window size and block
+   * duration. Fail-open: any DB error returns `{ allowed: true }` so a DB
+   * outage can't deny access.
    */
   async checkDbRateLimit(params: {
     companyId?: number;
@@ -98,7 +105,7 @@ class AuthCoreService {
       if (!companyId && !userId) return { allowed: true, recentFailures: 0, riskScore: 0 };
 
       // Determine worst-case window (largest) so we query once
-      const maxWindowMs = Math.max(...COOLDOWN_SCHEDULE.map(t => t.windowMs));
+      const maxWindowMs = Math.max(...RATE_LIMIT_SCHEDULE.map(t => t.windowMs));
       const since = new Date(Date.now() - maxWindowMs);
 
       const conditions = [
@@ -120,14 +127,14 @@ class AuthCoreService {
       const failTimestamps = rows.map(r => r.createdAt.getTime());
 
       // Walk thresholds from most to least severe
-      for (const threshold of COOLDOWN_SCHEDULE) {
-        const windowStart = now - threshold.windowMs;
+      for (const tier of RATE_LIMIT_SCHEDULE) {
+        const windowStart = now - tier.windowMs;
         const failsInWindow = failTimestamps.filter(t => t >= windowStart).length;
 
-        if (failsInWindow >= threshold.minFails) {
+        if (failsInWindow >= tier.minFails) {
           // Find most recent failure in this window
           const lastFail = Math.max(...failTimestamps.filter(t => t >= windowStart));
-          const blockExpiry = lastFail + threshold.cooldownMs;
+          const blockExpiry = lastFail + tier.cooldownMs;
 
           if (blockExpiry > now) {
             return {
@@ -242,8 +249,12 @@ class AuthCoreService {
   // ── Unified event logger ────────────────────────────────────────────────
 
   /**
-   * Log a typed auth security event to the in-memory securityLogger.
-   * Wraps `logSecurityEvent` with typed constants so callers don't use raw strings.
+   * FASE 14.7.1 — Unified logging pipeline. Single call that:
+   *   1. Writes to the in-memory security event buffer (observability).
+   *   2. For critical events: also emits to console + alertEngine via logSecurity().
+   *
+   * Callers (AuthService, sessionGuard) no longer call logSecurity() directly —
+   * this method is the only emission point for auth security events.
    */
   logAuthEvent(
     type: AuthEventType,
@@ -256,6 +267,7 @@ class AuthCoreService {
       metadata?: Record<string, unknown>;
     } = {},
   ): void {
+    // 1. In-memory circular buffer (always)
     logSecurityEvent({
       type,
       ip: payload.ip,
@@ -264,6 +276,62 @@ class AuthCoreService {
       requestId: payload.requestId,
       metadata: payload.metadata,
     });
+
+    // 2. Console + alertEngine (critical events only)
+    if (CRITICAL_AUTH_EVENTS.has(type)) {
+      const actor = payload.userId
+        ? `userId=${payload.userId}`
+        : payload.companyId
+          ? `companyId=${payload.companyId}`
+          : "unknown";
+      logSecurity(
+        `[SECURITY] ${type} | ${actor} | ip=${payload.ip ?? "?"} | path=${payload.path ?? "?"}`,
+      );
+    }
+  }
+
+  // ── Session invalidation audit ──────────────────────────────────────────
+
+  /**
+   * FASE 14.7.1 — Decouples sessionGuard from the storage facade.
+   *
+   * Replaces the three-call pattern previously in sessionGuard:
+   *   logSecurity(...)            → now handled inside logAuthEvent()
+   *   authCoreService.logAuthEvent(...) → this method
+   *   storage.createLog(...)      → now handled here (best-effort)
+   *
+   * sessionGuard becomes a pure thin adapter: zero direct dependencies on
+   * storage or securityLogger.
+   */
+  async logSessionInvalidation(params: {
+    eventType: AuthEventType;
+    userId?: number;
+    companyId?: number;
+    ip: string;
+    path: string;
+    requestId?: string;
+    reason: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    // Unified event (buffer + console/alertEngine for critical)
+    this.logAuthEvent(params.eventType, {
+      ip: params.ip,
+      path: params.path,
+      requestId: params.requestId,
+      userId: params.userId,
+      companyId: params.companyId,
+      metadata: { reason: params.reason, ...params.metadata },
+    });
+
+    // Persistent DB audit trail — best-effort, never throws
+    storage.createLog({
+      action: "SESSION_INVALIDATED",
+      description: `Sessão encerrada por segurança: ${params.reason}. Usuário forçado a re-autenticar.`,
+      userId: params.userId,
+      companyId: params.companyId,
+      ip: params.ip,
+      level: "WARN",
+    }).catch(() => {});
   }
 
   // ── Pruning ─────────────────────────────────────────────────────────────

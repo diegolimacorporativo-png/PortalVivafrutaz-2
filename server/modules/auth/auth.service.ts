@@ -7,16 +7,14 @@ import type {
   MeOutcome,
   SessionPayload,
 } from "./auth.types";
-// FASE 14.6 — in-memory L1 fast-path rate limit cache (still used for hot-key early exit)
+// FASE 14.6 — in-memory L1 fast-path rate limit cache
 import {
   checkUserRateLimit,
   recordUserLoginSuccess,
   recordUserLoginFailure,
 } from "../../core/security/userRateLimit";
-// FASE 14.7 — AuthCoreService: DB-backed rate limit (L2) + typed security events
+// FASE 14.7 — AuthCoreService: DB-backed L2 rate limit + unified logging pipeline
 import { authCoreService, AUTH_EVENTS } from "../../core/auth/authCore.service";
-// FASE 14.6 — centralised security event bus (kept for legacy logSecurity calls)
-import { logSecurity } from "../../core/security/securityLogger";
 
 /** Number of failed attempts before an account is auto-locked. */
 const MAX_ATTEMPTS = 3;
@@ -34,15 +32,12 @@ const LOCKOUT_NOTIFY_ROLES = ["ADMIN", "DIRECTOR", "DEVELOPER"] as const;
  * Portuguese message intact while leaving the controller as a thin HTTP
  * adapter.
  *
- * What is preserved verbatim from the legacy `routes.ts`:
- *  • Account lockout after 3 wrong attempts (status 423 with the exact
- *    Portuguese message and `LOGIN_BLOCKED` / `ACCOUNT_LOCKED` audit logs).
- *  • Plaintext-to-bcrypt upgrade-on-correct-login for legacy seeded passwords.
- *  • Maintenance-mode block for company logins only (status 503,
- *    `MAINTENANCE_MODE` body) — admin/staff can always log in.
- *  • Email normalisation (lowercase + trim).
- *  • Audit logs (`LOGIN`, `LOGIN_FAILED`, `LOGIN_BLOCKED`, `ACCOUNT_LOCKED`)
- *    written through the repository so the security-logs UI keeps working.
+ * FASE 14.7.1 changes:
+ *  • Admin login now has full L1+L2 rate limiting, auth_attempts recording,
+ *    and LOGIN_SUCCESS logging — identical security model as company login.
+ *  • logSecurity() is no longer called directly from this service; all
+ *    security emission goes through authCoreService.logAuthEvent() which
+ *    handles both buffer and alertEngine internally.
  */
 export class AuthService {
   constructor(private readonly repo: AuthRepository = authRepository) {}
@@ -137,6 +132,42 @@ export class AuthService {
       };
     }
 
+    // FASE 14.7.1 — L1/L2 rate limit (mirrors company login)
+    const rateLimitKey = `user:${user.id}`;
+    const rateCheck = checkUserRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) {
+      const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        userId: user.id,
+        metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs },
+      });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+      };
+    }
+
+    const dbRateCheck = await authCoreService.checkDbRateLimit({
+      userId: user.id,
+      ip,
+      endpoint: "admin_login",
+    });
+    if (!dbRateCheck.allowed) {
+      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        userId: user.id,
+        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
+      });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+      };
+    }
+
     if (user.isLocked) {
       console.log("[LOGIN] Conta bloqueada");
       await this.repo.log({
@@ -147,6 +178,7 @@ export class AuthService {
         level: "ERROR",
         ip,
       });
+      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, userId: user.id });
       return {
         kind: "failure",
         status: 423,
@@ -164,6 +196,7 @@ export class AuthService {
         level: "WARN",
         ip,
       });
+      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_INACTIVE, { ip, userId: user.id });
       return {
         kind: "failure",
         status: 401,
@@ -194,6 +227,17 @@ export class AuthService {
         level: "WARN",
         ip,
       });
+      // FASE 14.7.1 — record failure in L1 (memory) and L2 (DB)
+      const failResult = recordUserLoginFailure(rateLimitKey);
+      authCoreService.recordAttempt({ userId: user.id, ip, endpoint: "admin_login", success: false }).catch(() => {});
+      if (failResult.riskScore >= 5 || dbRateCheck.riskScore >= 5) {
+        const riskScore = Math.max(failResult.riskScore, dbRateCheck.riskScore);
+        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, {
+          ip,
+          userId: user.id,
+          metadata: { riskScore, cooldownMs: failResult.cooldownMs },
+        });
+      }
       if (willLock) {
         await this.notifyAdminsOfLockout(email, "usuário interno", ip);
         return {
@@ -210,8 +254,10 @@ export class AuthService {
       };
     }
 
-    // Success — reset attempts, log
+    // Success — reset L1/L2 counters, log
     console.log("[LOGIN] Login bem-sucedido para usuário:", user.email);
+    recordUserLoginSuccess(rateLimitKey);
+    authCoreService.recordAttempt({ userId: user.id, ip, endpoint: "admin_login", success: true }).catch(() => {});
     const refreshed = await this.repo.updateUser(user.id, {
       loginAttempts: 0,
       lastLoginAttempt: new Date(),
@@ -223,6 +269,11 @@ export class AuthService {
       userEmail: refreshed.email,
       userRole: refreshed.role,
       ip,
+    });
+    authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, {
+      ip,
+      userId: refreshed.id,
+      metadata: { email: refreshed.email, role: refreshed.role },
     });
     return { kind: "admin-success", user: refreshed };
   }
@@ -261,8 +312,11 @@ export class AuthService {
     const rateCheck = checkUserRateLimit(rateLimitKey);
     if (!rateCheck.allowed) {
       const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
-      logSecurity(`[SECURITY] ${AUTH_EVENTS.RATE_LIMITED} | companyId=${company.id} | ip=${ip} | layer=L1 | retryAfterSec=${retryAfterSec}`);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, { ip, companyId: company.id, metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs } });
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        companyId: company.id,
+        metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs },
+      });
       return {
         kind: "failure",
         status: 429,
@@ -273,8 +327,11 @@ export class AuthService {
     const dbRateCheck = await authCoreService.checkDbRateLimit({ companyId: company.id, ip });
     if (!dbRateCheck.allowed) {
       const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
-      logSecurity(`[SECURITY] ${AUTH_EVENTS.RATE_LIMITED} | companyId=${company.id} | ip=${ip} | layer=L2 | retryAfterSec=${retryAfterSec}`);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, { ip, companyId: company.id, metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore } });
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        companyId: company.id,
+        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
+      });
       return {
         kind: "failure",
         status: 429,
@@ -282,7 +339,7 @@ export class AuthService {
       };
     }
 
-    const c = company as any; // Company schema has loginAttempts/isLocked
+    const c = company as any;
     if (c.isLocked) {
       console.log("[LOGIN] Empresa bloqueada");
       await this.repo.log({
@@ -344,12 +401,14 @@ export class AuthService {
       });
       // FASE 14.6/14.7 — record failure in both L1 (memory) and L2 (DB)
       const failResult = recordUserLoginFailure(rateLimitKey);
-      // L2 — persist to auth_attempts for cross-restart rate limiting
       authCoreService.recordAttempt({ companyId: company.id, ip, success: false }).catch(() => {});
       if (failResult.riskScore >= 5 || dbRateCheck.riskScore >= 5) {
         const riskScore = Math.max(failResult.riskScore, dbRateCheck.riskScore);
-        logSecurity(`[SECURITY] ${AUTH_EVENTS.BRUTE_FORCE} | companyId=${company.id} | ip=${ip} | riskScore=${riskScore}`);
-        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, { ip, companyId: company.id, metadata: { riskScore, cooldownMs: failResult.cooldownMs } });
+        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, {
+          ip,
+          companyId: company.id,
+          metadata: { riskScore, cooldownMs: failResult.cooldownMs },
+        });
       }
       if (willLock) {
         await this.notifyAdminsOfLockout(email, "empresa cliente", ip);
@@ -381,9 +440,8 @@ export class AuthService {
       return { kind: "password-change-required", companyId: company.id, email: company.email };
     }
 
-    // Success — reset attempts, log
+    // Success — reset attempts, record in L1/L2, log
     console.log("[LOGIN] Login bem-sucedido para empresa:", company.email);
-    // FASE 14.6/14.7 — reset L1 in-memory rate limit + persist success to L2 DB
     recordUserLoginSuccess(rateLimitKey);
     authCoreService.recordAttempt({ companyId: company.id, ip, success: true }).catch(() => {});
     const refreshed = await this.repo.updateCompany(company.id, {
@@ -398,7 +456,11 @@ export class AuthService {
       userRole: "CLIENT",
       ip,
     });
-    authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, { ip, companyId: refreshed.id, metadata: { email: refreshed.email } });
+    authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, {
+      ip,
+      companyId: refreshed.id,
+      metadata: { email: refreshed.email },
+    });
     return { kind: "company-success", company: refreshed };
   }
 
@@ -474,8 +536,11 @@ export class AuthService {
           level: "WARN",
           ip,
         });
-        logSecurity(`[SECURITY] ${AUTH_EVENTS.REVOKE_ALL_SESSIONS} | companyId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
-        authCoreService.logAuthEvent(AUTH_EVENTS.REVOKE_ALL_SESSIONS, { ip, companyId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
+        authCoreService.logAuthEvent(AUTH_EVENTS.REVOKE_ALL_SESSIONS, {
+          ip,
+          companyId: id,
+          metadata: { kind, newTokenVersion: currentVersion + 1 },
+        });
       } else {
         const user = await this.repo.getUserById(id);
         if (!user) return { ok: false, status: 404, message: "Usuário não encontrado." };
@@ -488,8 +553,11 @@ export class AuthService {
           level: "WARN",
           ip,
         });
-        logSecurity(`[SECURITY] ${AUTH_EVENTS.REVOKE_ALL_SESSIONS} | userId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
-        authCoreService.logAuthEvent(AUTH_EVENTS.REVOKE_ALL_SESSIONS, { ip, userId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
+        authCoreService.logAuthEvent(AUTH_EVENTS.REVOKE_ALL_SESSIONS, {
+          ip,
+          userId: id,
+          metadata: { kind, newTokenVersion: currentVersion + 1 },
+        });
       }
       return { ok: true };
     } catch (err: any) {
