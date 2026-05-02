@@ -1,0 +1,194 @@
+🎯 FASE 8.1 — AUDITORIA DE FRONTEND vs BACKEND (ANTI-DUPLICAÇÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO criar código novo  
+2. NÃO alterar código existente  
+3. NÃO refatorar nada  
+4. NÃO sugerir melhoria ainda  
+5. NÃO assumir comportamento — apenas verificar  
+
+👉 Apenas mapear o que já existe
+
+---
+
+🧠 OBJETIVO
+
+Evitar:
+
+❌ criar tela que já existe  
+❌ duplicar endpoint  
+❌ construir UI em cima de lógica já pronta  
+❌ perder tempo com coisa resolvida  
+
+Garantir:
+
+✔ visão real do sistema  
+✔ identificar GAPs reais  
+✔ base limpa para próximas fases  
+
+---
+
+## 🛠️ ETAPA 1 — MAPEAR BACKEND (ROTAS)
+
+📍 Procurar em:
+
+server/routes/  
+server/modules/**/routes  
+routes.ts  
+
+---
+
+### Para cada endpoint encontrado, montar:
+
+ts {   path: "/api/...",   method: "GET | POST | PUT | DELETE",   categoria: "auth | orders | nfe | finance | security | admin | logistics | etc",   protegido: true | false,   tipoAuth: "requireAuth | requireSessionOrCompany | público", } 
+
+---
+
+## 🛠️ ETAPA 2 — MAPEAR FRONTEND
+
+📍 Procurar em:
+
+client/src/pages/  
+client/src/components/  
+client/src/hooks/  
+
+---
+
+### Para cada tela:
+
+ts {   page: "nome-da-tela",   endpointsConsumidos: ["/api/..."], } 
+
+---
+
+## 🛠️ ETAPA 3 — CRUZAMENTO (O MAIS IMPORTANTE)
+
+Criar tabela:
+
+| Endpoint | Método | Tem UI? | Tela | Status |
+|----------|--------|--------|------|--------|
+
+---
+
+### Classificação:
+
+- ✅ USADO → tem frontend
+- ❌ NÃO USADO → sem frontend
+- ⚠️ PARCIAL → frontend incompleto
+
+---
+
+## 🛠️ ETAPA 4 — IDENTIFICAR ÁREAS CRÍTICAS
+
+Dar atenção especial para:
+
+### 🔴 SEGURANÇA
+- /api/admin/security/*
+- /api/security/*
+- /api/security-logs
+
+---
+
+### 🔴 FINANCEIRO
+- accounts_receivable
+- gaps detectados (FASE 9C)
+
+---
+
+### 🔴 NF-e
+- preflight
+- diagnostics
+- erros fiscais
+
+---
+
+### 🔴 ADMIN
+- desbloqueio
+- auditoria
+- logs
+
+---
+
+## 🛠️ ETAPA 5 — DETECTAR DUPLICAÇÃO
+
+Identificar:
+
+❌ endpoints duplicados (ex: /api/nfe vs /api/fiscal)  
+❌ telas que fazem a mesma coisa  
+❌ lógica repetida  
+
+---
+
+## 🛠️ ETAPA 6 — RESULTADO FINAL
+
+Responder com:
+
+---
+
+### 1. 🔴 ENDPOINTS SEM UI (PRIORIDADE)
+
+Lista completa:
+
+- /api/...
+- /api/...
+
+---
+
+### 2. ⚠️ TELAS INCOMPLETAS
+
+- tela X → falta Y
+- tela Y → consome só parte do endpoint
+
+---
+
+### 3. 🔁 DUPLICAÇÕES
+
+- endpoint duplicado X vs Y
+- tela duplicada
+
+---
+
+### 4. 🟢 O QUE JÁ ESTÁ BOM
+
+- módulos completos
+- fluxos fechados
+
+---
+
+### 5. 📊 TOP 5 GAPS MAIS IMPORTANTES
+
+Ordenado por impacto real:
+
+1. ...
+2. ...
+3. ...
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 NÃO sugerir solução ainda  
+👉 NÃO criar tela  
+👉 NÃO alterar código  
+
+👉 Apenas diagnóstico
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+- tabela endpoints vs frontend  
+- gaps reais  
+- duplicações  
+- top prioridades  
+
+---
+
+🎯 OBJETIVO FINAL
+
+👉 Saber exatamente o que já existe  
+👉 antes de construir qualquer UI nova
