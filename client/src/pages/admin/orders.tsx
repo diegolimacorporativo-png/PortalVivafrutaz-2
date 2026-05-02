@@ -590,7 +590,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     }
   };
 
-  const handleEmit = () => {
+  const runOriginalEmit = (_orderId: number) => {
     if (isShaking) return;
     if (canEmit === false) {
       setIsShaking(true);
@@ -606,14 +606,14 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       setLoadingEmitGuard(true);
       const res = await getNFePreflight(orderId);
       if (!res?.error && !(res?.errors?.length)) {
-        return handleEmit();
+        return runOriginalEmit(orderId);
       }
       setEmitPreflight(res);
       setPendingEmitOrderId(orderId);
       setEmitGuardOpen(true);
     } catch (err) {
       console.error(err);
-      return handleEmit();
+      return runOriginalEmit(orderId);
     } finally {
       setLoadingEmitGuard(false);
     }
@@ -963,7 +963,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                 data-testid="button-emit-guard-confirm"
                 onClick={() => {
                   setEmitGuardOpen(false);
-                  handleEmit();
+                  runOriginalEmit(pendingEmitOrderId ?? order.id);
                 }}
                 className="px-4 py-2 text-sm font-bold rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors"
               >

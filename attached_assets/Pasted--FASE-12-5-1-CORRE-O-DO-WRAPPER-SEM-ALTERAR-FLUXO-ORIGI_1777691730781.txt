@@ -1,0 +1,167 @@
+🎯 FASE 12.5.1 — CORREÇÃO DO WRAPPER (SEM ALTERAR FLUXO ORIGINAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO criar nova função handleEmit  
+2. NÃO mover lógica de emissão  
+3. NÃO alterar fluxo existente  
+4. NÃO alterar mutation de emissão  
+5. NÃO alterar backend  
+6. NÃO alterar UX (texto, loading, botão)  
+7. NÃO remover código existente  
+
+👉 Apenas ajustar o wrapper para chamar o fluxo ORIGINAL
+
+---
+
+🧠 PROBLEMA IDENTIFICADO
+
+Na FASE 12.5 foi criado:
+
+ts function handleEmit() { ... } 
+
+⚠️ Isso NÃO estava no escopo
+
+👉 O correto é usar a lógica ORIGINAL já existente no botão
+
+---
+
+## 🛠️ ETAPA 1 — REMOVER HANDLEEMIT CRIADO
+
+Localizar:
+
+ts function handleEmit(...) { ... } 
+
+👉 REMOVER essa função completamente
+
+⚠️ Não mover código dela  
+⚠️ Não reaproveitar  
+⚠️ Ela não deve existir  
+
+---
+
+## 🛠️ ETAPA 2 — RESTAURAR LÓGICA ORIGINAL NO BOTÃO
+
+Antes da FASE 12.5 o botão tinha algo como:
+
+tsx onClick={() => {   if (!canEmit) return;   if (isShaking) return;    emitirNfeMutation.mutate(order.id); }} 
+
+👉 Essa lógica deve continuar EXISTINDO exatamente igual
+
+---
+
+## 🛠️ ETAPA 3 — CRIAR FUNÇÃO ORIGINAL ISOLADA (SEM ALTERAR NADA)
+
+Criar:
+
+ts function runOriginalEmit(orderId: number) {   if (!canEmit) return;   if (isShaking) return;    emitirNfeMutation.mutate(orderId); } 
+
+⚠️ IMPORTANTE:
+
+- Copiar exatamente o que já existia  
+- NÃO adicionar nada  
+- NÃO remover nada  
+- NÃO alterar ordem  
+
+👉 Isso é apenas encapsulamento, não mudança de lógica
+
+---
+
+## 🛠️ ETAPA 4 — AJUSTAR WRAPPER CORRETAMENTE
+
+Substituir por:
+
+ts async function handleEmitWithGuard(orderId: number) {   try {     setLoadingEmitGuard(true);      const res = await getNFePreflight(orderId);      // fluxo normal     if (!res?.error && !res?.errors?.length) {       return runOriginalEmit(orderId);     }      // fluxo com erro → modal     setEmitPreflight(res);     setPendingEmitOrderId(orderId);     setEmitGuardOpen(true);    } catch (err) {     console.error(err);      // fallback seguro     return runOriginalEmit(orderId);    } finally {     setLoadingEmitGuard(false);   } } 
+
+---
+
+## 🛠️ ETAPA 5 — AJUSTAR BOTÃO
+
+Garantir que o botão usa:
+
+tsx onClick={() => handleEmitWithGuard(order.id)} 
+
+⚠️ NÃO alterar:
+
+- texto do botão  
+- loading original  
+- ícones  
+- disabled existente  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Pedido válido
+
+✔ preflight roda  
+✔ emissão ocorre  
+✔ comportamento igual ao original  
+
+---
+
+### 2️⃣ Pedido com erro
+
+✔ modal abre  
+✔ botão "Emitir mesmo assim" chama runOriginalEmit  
+✔ emissão funciona  
+
+---
+
+### 3️⃣ Falha no preflight
+
+✔ console.error  
+✔ emissão continua (fallback)  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ fluxo original preservado 100%  
+✔ nenhuma lógica movida  
+✔ nenhuma função crítica alterada  
+✔ zero regressão  
+✔ wrapper isolado  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES (errado):
+
+- lógica de emissão movida ❌  
+- risco de regressão ❌  
+
+DEPOIS (correto):
+
+✔ lógica original intacta  
+✔ wrapper só intercepta  
+✔ emissão confiável  
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 O wrapper NÃO é dono da emissão  
+👉 Ele apenas decide SE vai emitir  
+
+👉 Quem executa a emissão é sempre o fluxo original
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Função removida  
+2. runOriginalEmit criado  
+3. Wrapper corrigido  
+4. Confirmação de zero regressão  
+
+---
+
+🔥 Isso deixa seu sistema no padrão
