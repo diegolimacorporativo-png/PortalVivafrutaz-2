@@ -1,0 +1,216 @@
+🎯 FASE 12.2.2 — CORREÇÃO DE TENANT + QA LIMPO + AUDITORIA DE ALTERAÇÃO INDEVIDA
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de negócio
+2. NÃO alterar estrutura de resposta
+3. NÃO alterar validações fiscais
+4. NÃO alterar fluxo de emissão NF-e
+5. NÃO alterar frontend além do estritamente necessário
+6. NÃO criar endpoints novos
+
+👉 PERMITIDO APENAS:
+- corrigir contexto de tenant
+- validar comportamento correto
+- AUDITAR alterações indevidas feitas na fase anterior
+
+---
+
+## 🧠 CONTEXTO
+
+Durante FASE 12.2.1:
+
+❌ QA foi contaminado porque houve alteração de código:
+- handleDiagnostics foi modificado
+- getNFeDiagnostics foi modificado
+
+❌ endpoints retornam:
+"Tenant context ausente"
+
+👉 Isso quebra:
+- QA
+- uso por ADMIN
+- confiabilidade do sistema
+
+---
+
+# 🧨 ETAPA 0 — AUDITORIA DE VIOLAÇÃO (OBRIGATÓRIO)
+
+📍 Arquivos:
+
+client/src/pages/admin/nfe.tsx  
+client/src/services/nfe.service.ts  
+
+---
+
+### VALIDAR:
+
+1. handleDiagnostics foi alterado?
+
+ANTES esperado:
+ts catch (err) {   console.error(err); } 
+
+SE estiver assim:
+
+ts toast(...) 
+
+👉 REGISTRAR:
+
+[VIOLATION] handleDiagnostics foi alterado durante QA
+
+---
+
+2. getNFeDiagnostics foi alterado?
+
+ANTES esperado:
+ts throw new Error("Erro ao buscar diagnóstico") 
+
+SE estiver propagando mensagem do backend:
+
+👉 REGISTRAR:
+
+[VIOLATION] getNFeDiagnostics alterado durante QA
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO reverter automaticamente  
+👉 APENAS reportar no final
+
+---
+
+# 🔒 ETAPA 1 — CORRIGIR TENANT CONTEXT (CRÍTICO)
+
+📍 Backend — rotas:
+
+/api/nfe/preflight/:orderId  
+/api/nfe/diagnostics/:orderId  
+
+---
+
+## PROBLEMA
+
+Admin não possui tenant automaticamente → erro:
+
+"Tenant context ausente"
+
+---
+
+## SOLUÇÃO SEGURA (SEM QUEBRAR NADA)
+
+Antes de executar lógica principal:
+
+Adicionar fallback controlado:
+
+ts const empresaId =   req.query.empresaId ||   req.user?.companyId ||   req.user?.empresaId; 
+
+---
+
+### PASSAR empresaId para:
+
+- validateOrderTenant
+OU
+- funções internas equivalentes
+
+---
+
+⚠️ REGRAS:
+
+- NÃO remover validação existente
+- NÃO ignorar tenant
+- NÃO permitir acesso cruzado
+
+👉 Apenas permitir ADMIN informar empresaId explicitamente
+
+---
+
+# 🧪 ETAPA 2 — RE-VALIDAÇÃO COMPLETA (QA LIMPO)
+
+⚠️ AGORA SEM ALTERAR CÓDIGO
+
+Executar novamente os 7 cenários:
+
+---
+
+### CENÁRIOS
+
+1. Pedido válido  
+2. quantity = 0  
+3. price = 0  
+4. sem itens  
+5. CNPJ inválido  
+6. NCM ausente  
+7. empresa sem CNPJ  
+
+---
+
+## VALIDAR:
+
+Para cada cenário:
+
+- preflight responde corretamente
+- diagnostics responde corretamente
+- erros aparecem em:
+  - errors[]
+  - alerts[]
+- status HTTP correto (422 / 200)
+
+---
+
+## IMPORTANTE
+
+👉 ADMIN deve conseguir testar usando:
+
+/api/nfe/diagnostics/:orderId?empresaId=XXX
+
+---
+
+# 📊 ETAPA 3 — COMPARAÇÃO FINAL
+
+Comparar:
+
+| Cenário | Preflight | Diagnóstico | Consistente? |
+|--------|----------|------------|--------------|
+
+---
+
+# 🔒 GARANTIAS
+
+✔ nenhuma regra fiscal alterada  
+✔ nenhum cálculo modificado  
+✔ multi-tenant preservado  
+✔ QA agora confiável  
+✔ admin funcional  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+- erro de tenant resolvido  
+- QA limpo executado  
+- inconsistências detectadas (se houver)  
+- violações documentadas  
+
+---
+
+# ✅ FINAL
+
+Responder com:
+
+1. ✔ Status do tenant (corrigido ou não)
+2. ✔ Resultado dos 7 cenários
+3. ✔ Tabela de consistência preflight vs diagnóstico
+4. 🚨 Lista de VIOLAÇÕES encontradas
+5. ✔ Confirmação de zero regressão
+
+---
+
+🚨 IMPORTANTE
+
+👉 NÃO corrigir as violações automaticamente  
+👉 apenas reportar  
+
+👉 correção vem na próxima fas

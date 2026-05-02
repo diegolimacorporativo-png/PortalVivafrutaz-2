@@ -1220,7 +1220,7 @@ export async function registerRoutes(
     //
     // FASE 9A — status codes corrigidos: 422 em erro de validação, 500 em exception.
     // Violações de tenant/auth continuam retornando 401/403/404.
-    app.get('/api/nfe/preflight/:orderId', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/preflight/:orderId', requireAuthCore, tenantContext, async (req: any, res) => {
       const orderId = Number(req.params.orderId);
       if (!orderId || !Number.isFinite(orderId) || orderId <= 0) {
         return res.status(400).json({ message: 'orderId inválido' });
@@ -2756,23 +2756,17 @@ export async function registerRoutes(
 
     // ── NF-e Diagnóstico Fiscal ──────────────────────────────────────────────
     // GET /api/nfe/diagnostics/:orderId — validar dados antes de emitir
-    app.get('/api/nfe/diagnostics/:orderId', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/diagnostics/:orderId', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
         // FASE 6 — diagnóstico de NF-e expõe dados sensíveis do pedido;
         // bloqueia se for de outro tenant.
+        // FASE 12.2.2 — tenantContext middleware adicionado: admins podem usar
+        // ?empresaId=N para identificar o tenant alvo sem quebrar multi-tenant.
         await validateOrderTenant(Number(req.params.orderId));
         const { validateNFeBeforeSend } = await import('../services/nfe/diagnostics/nfe-validator.ts');
         const result = await validateNFeBeforeSend(Number(req.params.orderId));
         res.json(result);
       } catch (e: any) {
-        // FASE 8 — observabilidade: detecta ausência de tenant context numa
-        // rota protegida (não há tenantContext middleware aqui). Apenas log;
-        // status 500 e body permanecem inalterados.
-        if (e?.message?.includes("Tenant context ausente")) {
-          console.warn(
-            `[SECURITY] MISSING_TENANT | requestId=${req.requestId ?? "unknown"} | orderId=${req.params.orderId} | details=Missing tenant context on protected route`,
-          );
-        }
         res.status(500).json({ message: e.message });
       }
     });
