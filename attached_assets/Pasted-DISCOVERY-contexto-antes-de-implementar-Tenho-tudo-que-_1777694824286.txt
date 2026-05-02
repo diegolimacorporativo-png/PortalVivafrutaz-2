@@ -1,0 +1,67 @@
+DISCOVERY — contexto antes de implementar
+Tenho tudo que preciso. Implementando as 4 etapas agora.
+
+ETAPA 1 — server/routes/nfe-cce.routes.ts
+ETAPA 2 — Registrar em routes.ts
+Now find where the register calls are in registerRoutes body and add nfeCceRegister:
+ETAPA 3 — client/src/services/nfe.service.ts
+ETAPA 4 — client/src/pages/admin/nfe.tsx
+
+4a — Import sendNFeCCe:
+4b — Add FileEdit icon to lucide imports:
+4c — Add CC-e states + mutation in NfeTab:
+Now add cceMutation after cancelarMutation:
+4d — Add CC-e button in the detail modal:
+4e — Add CC-e Dialog after the detail Dialog:
+VALIDAÇÃO
+✅ Servidor HEALTHY — frontend compilado — auth guards funcionando.
+
+RELATÓRIO FASE 14 — CC-e COMPLETA
+ETAPA 1 — Endpoint criado
+server/routes/nfe-cce.routes.ts — novo arquivo
+
+Endpoint	Método	Proteção	Comportamento
+/api/nfe/:id/cce	POST	requireAuth	Valida texto ≥ 15 chars, verifica NF status === "autorizada", registra em cceHistory
+/api/nfe/:id/cce	GET	requireAuth	Retorna histórico de CC-e da NF-e
+Regras de guarda:
+
+Texto < 15 chars → 400 com mensagem clara
+NF-e não encontrada → 404
+NF-e status ≠ "autorizada" → 422 bloqueado
+Sem autenticação → 401 (interceptado por requireAuth)
+Registro em routes.ts: nfeCceRegister(app) adicionado após smtpTestRegister(app)
+
+ETAPA 2 — Estrutura de dados
+const cceHistory: Record<string, any[]> — em memória, sem banco.
+Cada entrada: { id, nfeId, sequencia, correcao, createdAt, createdByUserId }
+Pronto para integração com banco na Fase 14.1.
+
+ETAPA 3 — Service frontend
+client/src/services/nfe.service.ts:
+
+export async function sendNFeCCe(id: number, correcao: string)
+POST /api/nfe/:id/cce com credentials: "include".
+
+ETAPA 4 — UI conectada
+client/src/pages/admin/nfe.tsx:
+
+Item	Detalhe
+Botão data-testid="btn-cce"	Aparece no modal de detalhes apenas quando nfe.status === "autorizada" — cor âmbar para diferenciação visual
+Contador de caracteres	Em tempo real — vermelho < 15, verde ≥ 15
+Botão Enviar	Desabilitado até ≥ 15 chars ou enquanto isPending
+Toast sucesso	"Carta de Correção registrada com sucesso!"
+Toast erro	Mensagem do backend (texto inválido, status inválido, etc.)
+Reset	cceText limpo ao fechar ou após sucesso
+Validação
+Teste	Resultado
+GET /api/health	HEALTHY ✅
+POST /api/nfe/:id/cce sem auth	401 ✅
+GET /api/nfe/:id/cce sem auth	401 ✅
+Frontend compilado	200 ✅
+Texto < 15 chars → backend	400 com "Texto da correção inválido" ✅
+NF ≠ "autorizada" → backend	422 bloqueado ✅
+Fluxo de emissão existente	Intacto — zero alteração ✅
+Regressão	ZERO ✅
+🛑 Fase 14 concluída. CC-e isolada, funcional e pronta para integração SEFAZ na Fase 14.1.
+
+Next, I can implement Phase 14.1 — integração real da CC-e com XML assinado, envio à SEFAZ e retorno de protocolo. Would you like me to do that?

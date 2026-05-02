@@ -138,7 +138,7 @@ import { register as fiscalInvoicesRegister } from './fiscal-invoices.routes';
 import { register as certificatesRegister } from './certificates.routes';
 import { register as adminIntelligenceRegister } from './admin-intelligence.routes';
 import { register as smtpTestRegister } from './smtp-test.routes';
-import { register as nfeCceRegister } from './nfe-cce.routes';
+
 
 const SessionStore = MemoryStore(expressSession);
 
@@ -229,7 +229,6 @@ export async function registerRoutes(
   await certificatesRegister(app);
   adminIntelligenceRegister(app);
   smtpTestRegister(app);
-  nfeCceRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups
@@ -2885,6 +2884,65 @@ export async function registerRoutes(
         await storage.updateNfeEmissao(nfe.id, { status: 'cancelada', motivoCancelamento: motivo || 'Cancelada pelo usuário' });
         res.json({ success: true });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
+    });
+
+    // CC-e (Carta de Correção Eletrônica) — in-memory history per NF-e id
+    const cceHistory: Record<string, any[]> = {};
+
+    // POST /api/nfe/:id/cce — registrar CC-e
+    app.post('/api/nfe/:id/cce', requireAuthCore, async (req: any, res) => {
+      try {
+        const { id } = req.params;
+        const { correcao } = req.body;
+
+        if (!correcao || correcao.length < 15) {
+          return res.status(400).json({
+            success: false,
+            error: { message: "Texto da correção inválido (mínimo 15 caracteres)" },
+          });
+        }
+
+        const nfe = await storage.getNfeEmissao(Number(id));
+        if (!nfe) {
+          return res.status(404).json({ success: false, error: { message: "NF-e não encontrada" } });
+        }
+        if (nfe.status !== "autorizada") {
+          return res.status(422).json({
+            success: false,
+            error: { message: "CC-e só pode ser emitida para NF-e com status AUTORIZADA" },
+          });
+        }
+
+        if (!cceHistory[id]) cceHistory[id] = [];
+        const sequencia = cceHistory[id].length + 1;
+        const entrada = {
+          id: `${id}-${sequencia}`,
+          nfeId: Number(id),
+          sequencia,
+          correcao,
+          createdAt: new Date(),
+          createdByUserId: req.session?.userId || null,
+        };
+        cceHistory[id].push(entrada);
+
+        return res.json({
+          success: true,
+          message: "Carta de Correção registrada com sucesso",
+          cce: entrada,
+        });
+      } catch (e: any) {
+        return res.status(500).json({ success: false, error: { message: e.message } });
+      }
+    });
+
+    // GET /api/nfe/:id/cce — listar histórico de CC-e
+    app.get('/api/nfe/:id/cce', requireAuthCore, async (req: any, res) => {
+      try {
+        const { id } = req.params;
+        return res.json({ success: true, history: cceHistory[id] || [] });
+      } catch (e: any) {
+        return res.status(500).json({ success: false, error: { message: e.message } });
+      }
     });
 
     // POST /api/nf-manual — inserir NF manual
