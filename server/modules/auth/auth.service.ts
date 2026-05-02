@@ -21,34 +21,98 @@ const MAX_ATTEMPTS = 3;
 /** Roles that get notified when any account is auto-locked. */
 const LOCKOUT_NOTIFY_ROLES = ["ADMIN", "DIRECTOR", "DEVELOPER"] as const;
 
+// ── Auth Decision Delegate ─────────────────────────────────────────────────
+/**
+ * Adapter interface that decouples the shared auth decision flow (_runAuthFlow)
+ * from entity-specific data and operations (admin users vs company accounts).
+ *
+ * Constructed by attemptAdminLogin / attemptCompanyLogin via closure — captures
+ * all entity-specific state and callbacks. _runAuthFlow never references the
+ * `users` or `companies` tables directly, ensuring the two paths share one
+ * identical decision order.
+ */
+interface AuthDelegate {
+  /** Discriminator — routes logAuthEvent to userId vs companyId. */
+  readonly kind: "admin" | "company";
+  /** Entity DB primary key. */
+  readonly id: number;
+  /** Normalised email (for log descriptions). */
+  readonly email: string;
+  /** L1 key — "user:N" or "company:N". */
+  readonly rateLimitKey: string;
+  /** L2 DB rate-limit params — forwarded to checkDbRateLimit / recordAttempt. */
+  readonly dbRateLimitParams: {
+    userId?: number;
+    companyId?: number;
+    ip: string;
+    endpoint?: string;
+  };
+  /** Pre-loaded from entity row — avoids extra DB round-trips in shared flow. */
+  readonly isLocked: boolean;
+  readonly isActive: boolean;
+  readonly loginAttempts: number;
+  /** Entity-specific bcrypt comparison (admin may auto-upgrade plaintext). */
+  verifyPassword(submitted: string): Promise<boolean>;
+  /**
+   * Write a repo.log entry with the correct entity ID (userId vs companyId).
+   * Called for locked / inactive events in the shared flow.
+   */
+  logEvent(action: string, description: string, level: "INFO" | "WARN" | "ERROR"): Promise<void>;
+  /**
+   * Persist the new failure count (and optionally isLocked) to the entity row,
+   * then write the LOGIN_FAILED repo.log entry.
+   * Called only on wrong password — after L1/L2 recording in _runAuthFlow.
+   */
+  updateAttempts(newAttempts: number, willLock: boolean): Promise<void>;
+  /** Send lockout notification to admin-role users. */
+  notifyLockout(): Promise<void>;
+  /**
+   * Called when credentials are confirmed valid.
+   * Owns: mustChangePassword check (company only), L1/L2 counter reset,
+   * entity row update, repo.log(LOGIN), logAuthEvent(LOGIN_SUCCESS).
+   * Returns the specific success (or password-change-required) outcome.
+   *
+   * NOTE: L1/L2 counter reset is done inside onSuccess (not in _runAuthFlow)
+   * so that company's mustChangePassword can short-circuit before counters reset.
+   */
+  onSuccess(): Promise<LoginOutcome>;
+}
+
 /**
  * AuthService — business rules of the auth module.
  *
- * Architecture decision: identical to FinanceService and UsersService —
- * services own behaviour, never touch req/res. Auth has many legitimate
- * failure modes, so the service returns a discriminated `LoginOutcome` /
- * `MeOutcome` instead of throwing. This keeps every legacy status code and
- * Portuguese message intact while leaving the controller as a thin HTTP
- * adapter.
+ * Architecture: services own behaviour, never touch req/res. Auth has many
+ * legitimate failure modes so the service returns a discriminated LoginOutcome
+ * instead of throwing, keeping every legacy status code and Portuguese message
+ * intact while the controller stays a thin HTTP adapter.
  *
- * CONSOLIDATION (FASE 14.X):
- *  • L1 in-memory rate limit is NO LONGER a blocking gate.
- *    In a multi-instance deployment, each instance has independent L1 state.
- *    A request blocked by instance-A's L1 counter would be incorrectly
- *    rejected by instance-B even though the DB (L2) says it is allowed.
- *    L1 now only records post-failure state (via recordUserLoginFailure) so
- *    the riskScore remains available for BRUTE_FORCE detection. L2 (DB-backed,
- *    authCoreService.checkDbRateLimit) is the sole pre-check gate.
+ * CONSOLIDAÇÃO FINAL (FASE 14.X):
  *
- *  • All console.log("[LOGIN]…") calls removed. Every security-relevant event
- *    is emitted through authCoreService.logAuthEvent() or repo.log(), which
- *    route through the unified pipeline (buffer → alertEngine → console).
- *    Direct console.log was a duplicate channel and produced noise in prod logs.
+ *  • SINGLE AUTH DECISION FLOW: _runAuthFlow() is the only place where
+ *    blocking decisions are made. Both admin and company login share this
+ *    identical six-step order:
+ *      1. isLocked            (pre-loaded — free, no extra DB I/O)
+ *      2. isActive            (pre-loaded — free)
+ *      3. L2 DB rate limit    (auth_attempts, multi-instance authoritative gate)
+ *      4. Credential verify   (bcrypt — entity-specific via delegate)
+ *      5. Failure path        (updateAttempts + L1 record + L2 record + BRUTE_FORCE)
+ *      6. Success path        (delegate.onSuccess — L1/L2 reset + log + outcome)
+ *
+ *  • L1 IS NOT A GATE: In a multi-instance deployment each instance has
+ *    independent in-memory L1 state. An L1 block on instance-A would
+ *    incorrectly reject a request on instance-B even when the DB allows it.
+ *    L1 (recordUserLoginFailure) is called POST-failure only to maintain a
+ *    local risk score for BRUTE_FORCE detection. L2 (checkDbRateLimit) is the
+ *    sole pre-check blocking gate.
+ *
+ *  • SINGLE LOG PIPELINE: every security-relevant event flows through
+ *    authCoreService.logAuthEvent() or repo.log(). No console.log in login
+ *    paths — that was a duplicate channel producing noise in prod logs.
  */
 export class AuthService {
   constructor(private readonly repo: AuthRepository = authRepository) {}
 
-  // ── Login ──────────────────────────────────────────────────────────────
+  // ── Login entry point ──────────────────────────────────────────────────
   async attemptLogin(input: LoginInput, ip: string): Promise<LoginOutcome> {
     const normalizedEmail = input.email.toLowerCase().trim();
     return input.type === "admin"
@@ -109,7 +173,137 @@ export class AuthService {
     }
   }
 
+  // ── UNIFIED AUTH DECISION FLOW ─────────────────────────────────────────
+  /**
+   * Single point of truth for all auth blocking decisions.
+   * Shared identically between admin and company login via AuthDelegate.
+   *
+   * Step order:
+   *   1. isLocked          → 423  (pre-loaded; no additional DB I/O)
+   *   2. isActive          → 401  (pre-loaded; no additional DB I/O)
+   *   3. L2 DB rate limit  → 429  (auth_attempts; multi-instance safe)
+   *   4. Password verify         (bcrypt via delegate)
+   *   5a. Wrong password   → delegate.updateAttempts + L1 + L2 + BRUTE_FORCE
+   *   5b. Credentials OK   → delegate.onSuccess()
+   */
+  private async _runAuthFlow(
+    delegate: AuthDelegate,
+    submittedPassword: string,
+    ip: string,
+  ): Promise<LoginOutcome> {
+    const entityId =
+      delegate.kind === "admin"
+        ? { userId: delegate.id }
+        : { companyId: delegate.id };
+
+    // ── 1. Account state: locked ───────────────────────────────────────
+    if (delegate.isLocked) {
+      await delegate.logEvent(
+        "LOGIN_BLOCKED",
+        `Tentativa de acesso a conta bloqueada: ${delegate.email}`,
+        "ERROR",
+      );
+      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, ...entityId });
+      return {
+        kind: "failure",
+        status: 423,
+        message: "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
+      };
+    }
+
+    // ── 2. Account state: inactive ─────────────────────────────────────
+    if (!delegate.isActive) {
+      await delegate.logEvent(
+        "LOGIN_BLOCKED",
+        `Login bloqueado (conta inativa): ${delegate.email}`,
+        "WARN",
+      );
+      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_INACTIVE, { ip, ...entityId });
+      return {
+        kind: "failure",
+        status: 401,
+        message:
+          delegate.kind === "admin"
+            ? "Usuário inativo. Entre em contato com o administrador."
+            : "Conta desativada. Entre em contato com a equipe VivaFrutaz para reativar seu acesso.",
+      };
+    }
+
+    // ── 3. L2 DB rate limit — SOLE AUTHORITATIVE GATE ─────────────────
+    // Runs after state checks (BUG-01 fix): locked / inactive accounts do not
+    // consume rate-limit windows; the state check is free (pre-loaded data).
+    const dbRateCheck = await authCoreService.checkDbRateLimit(delegate.dbRateLimitParams);
+    if (!dbRateCheck.allowed) {
+      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        ...entityId,
+        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
+      });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+      };
+    }
+
+    // ── 4. Credential validation ───────────────────────────────────────
+    const passwordMatch = await delegate.verifyPassword(submittedPassword);
+
+    // ── 5a. Wrong password ─────────────────────────────────────────────
+    if (!passwordMatch) {
+      const newAttempts = delegate.loginAttempts + 1;
+      const willLock = newAttempts >= MAX_ATTEMPTS;
+
+      // Entity-specific: update DB row + write LOGIN_FAILED log entry
+      await delegate.updateAttempts(newAttempts, willLock);
+
+      // L1 — post-failure state for local risk-score tracking (not a gate)
+      const failResult = recordUserLoginFailure(delegate.rateLimitKey);
+
+      // L2 — persist to auth_attempts for cross-instance rate-limit accuracy
+      authCoreService
+        .recordAttempt({ ...delegate.dbRateLimitParams, success: false })
+        .catch(() => {});
+
+      // BRUTE_FORCE signal — triggers alert when risk is elevated
+      if (failResult.riskScore >= 5 || dbRateCheck.riskScore >= 5) {
+        const riskScore = Math.max(failResult.riskScore, dbRateCheck.riskScore);
+        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, {
+          ip,
+          ...entityId,
+          metadata: { riskScore, cooldownMs: failResult.cooldownMs },
+        });
+      }
+
+      if (willLock) {
+        await delegate.notifyLockout();
+        return {
+          kind: "failure",
+          status: 423,
+          message: "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
+        };
+      }
+
+      return {
+        kind: "failure",
+        status: 401,
+        message: `Usuário ou senha incorretos. (${newAttempts}/${MAX_ATTEMPTS} tentativas)`,
+      };
+    }
+
+    // ── 5b. Credentials OK → delegate owns all success side-effects ────
+    // onSuccess is responsible for: mustChangePassword check (company only),
+    // L1/L2 counter reset, entity row update, repo.log(LOGIN),
+    // logAuthEvent(LOGIN_SUCCESS), and returning the final outcome.
+    return delegate.onSuccess();
+  }
+
   // ── Internal: admin login ──────────────────────────────────────────────
+  /**
+   * Thin adapter: loads the user entity, builds an AuthDelegate, then
+   * delegates all decision logic to _runAuthFlow.
+   */
   private async attemptAdminLogin(
     email: string,
     password: string,
@@ -124,157 +318,90 @@ export class AuthService {
         level: "WARN",
         ip,
       });
-      return {
-        kind: "failure",
-        status: 401,
-        message: "Usuário ou senha incorretos.",
-      };
+      return { kind: "failure", status: 401, message: "Usuário ou senha incorretos." };
     }
 
-    // BUG-01-FIX: isLocked check runs BEFORE rate limit consumption.
-    if (user.isLocked) {
-      await this.repo.log({
-        action: "LOGIN_BLOCKED",
-        description: `Tentativa de acesso a conta bloqueada: ${email}`,
-        userId: user.id,
-        userEmail: email,
-        level: "ERROR",
-        ip,
-      });
-      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, userId: user.id });
-      return {
-        kind: "failure",
-        status: 423,
-        message:
-          "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
-      };
-    }
+    return this._runAuthFlow(
+      {
+        kind: "admin",
+        id: user.id,
+        email,
+        rateLimitKey: `user:${user.id}`,
+        dbRateLimitParams: { userId: user.id, ip, endpoint: "admin_login" },
+        isLocked: user.isLocked,
+        isActive: user.active,
+        loginAttempts: user.loginAttempts || 0,
 
-    if (!user.active) {
-      await this.repo.log({
-        action: "LOGIN_BLOCKED",
-        description: `Login bloqueado (usuário inativo): ${email}`,
-        userEmail: email,
-        level: "WARN",
-        ip,
-      });
-      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_INACTIVE, { ip, userId: user.id });
-      return {
-        kind: "failure",
-        status: 401,
-        message: "Usuário inativo. Entre em contato com o administrador.",
-      };
-    }
+        verifyPassword: (submitted) =>
+          this.verifyAndMaybeUpgradeUserPassword(user.id, submitted, user.password),
 
-    // Rate limits run AFTER lock/active checks (BUG-01 fix) so that locked
-    // accounts don't silently exhaust rate limit windows.
-    //
-    // CONSOLIDATION: L1 (in-memory userRateLimit) is NOT a blocking gate.
-    // In a multi-instance deployment each instance has independent L1 state,
-    // so an L1 block on instance-A would incorrectly reject a request on
-    // instance-B even when the DB (L2) allows it. L1 is still called after
-    // a password failure (recordUserLoginFailure) to maintain local risk score
-    // for BRUTE_FORCE detection. L2 is the sole pre-check authoritative gate.
-    const rateLimitKey = `user:${user.id}`;
+        logEvent: (action, description, level) =>
+          this.repo.log({ action, description, userId: user.id, userEmail: email, level, ip }),
 
-    const dbRateCheck = await authCoreService.checkDbRateLimit({
-      userId: user.id,
-      ip,
-      endpoint: "admin_login",
-    });
-    if (!dbRateCheck.allowed) {
-      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        userId: user.id,
-        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
+        updateAttempts: async (newAttempts, willLock) => {
+          await this.repo.updateUser(user.id, {
+            loginAttempts: newAttempts,
+            lastLoginAttempt: new Date(),
+            ...(willLock ? { isLocked: true } : {}),
+          });
+          await this.repo.log({
+            action: "LOGIN_FAILED",
+            description: `Senha incorreta para usuário interno: ${email} — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
+            userId: user.id,
+            userEmail: email,
+            level: "WARN",
+            ip,
+          });
+        },
 
-    const passwordMatch = await this.verifyAndMaybeUpgradeUserPassword(
-      user.id,
+        notifyLockout: () => this.notifyAdminsOfLockout(email, "usuário interno", ip),
+
+        onSuccess: async () => {
+          // L1 reset + L2 record — done inside onSuccess so admin and company
+          // can independently decide when to commit these side-effects.
+          recordUserLoginSuccess(`user:${user.id}`);
+          authCoreService
+            .recordAttempt({ userId: user.id, ip, endpoint: "admin_login", success: true })
+            .catch(() => {});
+
+          const refreshed = await this.repo.updateUser(user.id, {
+            loginAttempts: 0,
+            lastLoginAttempt: new Date(),
+          });
+          await this.repo.log({
+            action: "LOGIN",
+            description: `Login realizado: ${refreshed.name} (${refreshed.role})`,
+            userId: refreshed.id,
+            userEmail: refreshed.email,
+            userRole: refreshed.role,
+            ip,
+          });
+          authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, {
+            ip,
+            userId: refreshed.id,
+            metadata: { email: refreshed.email, role: refreshed.role },
+          });
+          return { kind: "admin-success", user: refreshed };
+        },
+      },
       password,
-      user.password,
+      ip,
     );
-
-    if (!passwordMatch) {
-      const newAttempts = (user.loginAttempts || 0) + 1;
-      const willLock = newAttempts >= MAX_ATTEMPTS;
-      await this.repo.updateUser(user.id, {
-        loginAttempts: newAttempts,
-        lastLoginAttempt: new Date(),
-        ...(willLock ? { isLocked: true } : {}),
-      });
-      await this.repo.log({
-        action: "LOGIN_FAILED",
-        description: `Senha incorreta para usuário interno: ${email} — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
-        userId: user.id,
-        userEmail: email,
-        level: "WARN",
-        ip,
-      });
-      // FASE 14.7.1 — record failure in L1 (memory) and L2 (DB)
-      const failResult = recordUserLoginFailure(rateLimitKey);
-      authCoreService.recordAttempt({ userId: user.id, ip, endpoint: "admin_login", success: false }).catch(() => {});
-      if (failResult.riskScore >= 5 || dbRateCheck.riskScore >= 5) {
-        const riskScore = Math.max(failResult.riskScore, dbRateCheck.riskScore);
-        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, {
-          ip,
-          userId: user.id,
-          metadata: { riskScore, cooldownMs: failResult.cooldownMs },
-        });
-      }
-      if (willLock) {
-        await this.notifyAdminsOfLockout(email, "usuário interno", ip);
-        return {
-          kind: "failure",
-          status: 423,
-          message:
-            "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
-        };
-      }
-      return {
-        kind: "failure",
-        status: 401,
-        message: `Usuário ou senha incorretos. (${newAttempts}/${MAX_ATTEMPTS} tentativas)`,
-      };
-    }
-
-    // Success — reset L1/L2 counters, log
-    recordUserLoginSuccess(rateLimitKey);
-    authCoreService.recordAttempt({ userId: user.id, ip, endpoint: "admin_login", success: true }).catch(() => {});
-    const refreshed = await this.repo.updateUser(user.id, {
-      loginAttempts: 0,
-      lastLoginAttempt: new Date(),
-    });
-    await this.repo.log({
-      action: "LOGIN",
-      description: `Login realizado: ${refreshed.name} (${refreshed.role})`,
-      userId: refreshed.id,
-      userEmail: refreshed.email,
-      userRole: refreshed.role,
-      ip,
-    });
-    authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, {
-      ip,
-      userId: refreshed.id,
-      metadata: { email: refreshed.email, role: refreshed.role },
-    });
-    return { kind: "admin-success", user: refreshed };
   }
 
   // ── Internal: company login ────────────────────────────────────────────
+  /**
+   * Thin adapter: checks maintenance mode, loads company entity, builds an
+   * AuthDelegate, then delegates all decision logic to _runAuthFlow.
+   * Company-specific concerns (maintenance mode, mustChangePassword) are
+   * handled in the pre-check and inside onSuccess respectively.
+   */
   private async attemptCompanyLogin(
     email: string,
     password: string,
     ip: string,
   ): Promise<LoginOutcome> {
-    // Maintenance mode blocks client logins; staff are unaffected.
+    // Maintenance mode blocks client logins; staff logins are unaffected.
     if (await this.repo.getMaintenanceMode()) {
       return { kind: "failure", status: 503, message: "MAINTENANCE_MODE" };
     }
@@ -297,148 +424,86 @@ export class AuthService {
 
     const c = company as any;
 
-    // BUG-01-FIX: isLocked check runs BEFORE rate limit consumption.
-    if (c.isLocked) {
-      await this.repo.log({
-        action: "LOGIN_BLOCKED",
-        description: `Tentativa de acesso a empresa bloqueada: ${email}`,
-        companyId: company.id,
-        userEmail: email,
-        level: "ERROR",
-        ip,
-      });
-      // BUG-04-FIX: company login was missing logAuthEvent for blocked states.
-      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, companyId: company.id });
-      return {
-        kind: "failure",
-        status: 423,
-        message:
-          "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
-      };
-    }
+    return this._runAuthFlow(
+      {
+        kind: "company",
+        id: company.id,
+        email,
+        rateLimitKey: `company:${company.id}`,
+        dbRateLimitParams: { companyId: company.id, ip },
+        isLocked: c.isLocked,
+        isActive: company.active,
+        loginAttempts: c.loginAttempts || 0,
 
-    if (!company.active) {
-      await this.repo.log({
-        action: "LOGIN_BLOCKED",
-        description: `Login cliente bloqueado (conta inativa): ${email}`,
-        companyId: company.id,
-        userEmail: company.email,
-        level: "WARN",
-        ip,
-      });
-      // BUG-04-FIX: emit logAuthEvent for inactive block (mirrors admin login).
-      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_INACTIVE, { ip, companyId: company.id });
-      return {
-        kind: "failure",
-        status: 401,
-        message:
-          "Conta desativada. Entre em contato com a equipe VivaFrutaz para reativar seu acesso.",
-      };
-    }
+        verifyPassword: (submitted) =>
+          this.verifyAndMaybeUpgradeCompanyPassword(company.id, submitted, company.password),
 
-    // Rate limits run AFTER lock/active checks (BUG-01 fix).
-    // CONSOLIDATION: L1 is NOT a blocking gate — see attemptAdminLogin comment.
-    const rateLimitKey = `company:${company.id}`;
+        logEvent: (action, description, level) =>
+          this.repo.log({ action, description, companyId: company.id, userEmail: email, level, ip }),
 
-    // L2 — DB-backed persistent rate limit (authoritative across all instances)
-    const dbRateCheck = await authCoreService.checkDbRateLimit({ companyId: company.id, ip });
-    if (!dbRateCheck.allowed) {
-      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        companyId: company.id,
-        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
+        updateAttempts: async (newAttempts, willLock) => {
+          await this.repo.updateCompany(company.id, {
+            loginAttempts: newAttempts,
+            lastLoginAttempt: new Date(),
+            ...(willLock ? { isLocked: true } : {}),
+          } as any);
+          await this.repo.log({
+            action: "LOGIN_FAILED",
+            description: `Senha incorreta para empresa: ${email} — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
+            companyId: company.id,
+            userEmail: email,
+            level: "WARN",
+            ip,
+          });
+        },
 
-    const passwordMatch = await this.verifyAndMaybeUpgradeCompanyPassword(
-      company.id,
+        notifyLockout: () => this.notifyAdminsOfLockout(email, "empresa cliente", ip),
+
+        onSuccess: async () => {
+          // FASE 14.5 — mustChangePassword check runs BEFORE L1/L2 counter reset.
+          // The password was verified correct, but we don't grant a full session
+          // until the temporary password is replaced.
+          if (c.mustChangePassword) {
+            await this.repo.log({
+              action: "LOGIN_BLOCKED_TEMP_PASSWORD",
+              description: `Login bloqueado: empresa "${company.companyName}" (${email}) deve trocar senha temporária antes de acessar o sistema.`,
+              companyId: company.id,
+              userEmail: email,
+              level: "WARN",
+              ip,
+            });
+            return { kind: "password-change-required", companyId: company.id, email: company.email };
+          }
+
+          // L1 reset + L2 record — only after mustChangePassword gate is cleared
+          recordUserLoginSuccess(`company:${company.id}`);
+          authCoreService
+            .recordAttempt({ companyId: company.id, ip, success: true })
+            .catch(() => {});
+
+          const refreshed = await this.repo.updateCompany(company.id, {
+            loginAttempts: 0,
+            lastLoginAttempt: new Date(),
+          } as any);
+          await this.repo.log({
+            action: "LOGIN",
+            description: `Login cliente: ${refreshed.companyName}`,
+            companyId: refreshed.id,
+            userEmail: refreshed.email,
+            userRole: "CLIENT",
+            ip,
+          });
+          authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, {
+            ip,
+            companyId: refreshed.id,
+            metadata: { email: refreshed.email },
+          });
+          return { kind: "company-success", company: refreshed };
+        },
+      },
       password,
-      company.password,
+      ip,
     );
-
-    if (!passwordMatch) {
-      const newAttempts = (c.loginAttempts || 0) + 1;
-      const willLock = newAttempts >= MAX_ATTEMPTS;
-      await this.repo.updateCompany(company.id, {
-        loginAttempts: newAttempts,
-        lastLoginAttempt: new Date(),
-        ...(willLock ? { isLocked: true } : {}),
-      } as any);
-      await this.repo.log({
-        action: "LOGIN_FAILED",
-        description: `Senha incorreta para empresa: ${email} — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
-        companyId: company.id,
-        userEmail: email,
-        level: "WARN",
-        ip,
-      });
-      // FASE 14.6/14.7 — record failure in both L1 (memory) and L2 (DB)
-      const failResult = recordUserLoginFailure(rateLimitKey);
-      authCoreService.recordAttempt({ companyId: company.id, ip, success: false }).catch(() => {});
-      if (failResult.riskScore >= 5 || dbRateCheck.riskScore >= 5) {
-        const riskScore = Math.max(failResult.riskScore, dbRateCheck.riskScore);
-        authCoreService.logAuthEvent(AUTH_EVENTS.BRUTE_FORCE, {
-          ip,
-          companyId: company.id,
-          metadata: { riskScore, cooldownMs: failResult.cooldownMs },
-        });
-      }
-      if (willLock) {
-        await this.notifyAdminsOfLockout(email, "empresa cliente", ip);
-        return {
-          kind: "failure",
-          status: 423,
-          message:
-            "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
-        };
-      }
-      return {
-        kind: "failure",
-        status: 401,
-        message: `Usuário ou senha incorretos. (${newAttempts}/${MAX_ATTEMPTS} tentativas)`,
-      };
-    }
-
-    // FASE 14.5 — block login and force password change for provisioned accounts
-    if ((company as any).mustChangePassword) {
-      await this.repo.log({
-        action: "LOGIN_BLOCKED_TEMP_PASSWORD",
-        description: `Login bloqueado: empresa "${company.companyName}" (${email}) deve trocar senha temporária antes de acessar o sistema.`,
-        companyId: company.id,
-        userEmail: email,
-        level: "WARN",
-        ip,
-      });
-      return { kind: "password-change-required", companyId: company.id, email: company.email };
-    }
-
-    // Success — reset attempts, record in L1/L2, log
-    recordUserLoginSuccess(rateLimitKey);
-    authCoreService.recordAttempt({ companyId: company.id, ip, success: true }).catch(() => {});
-    const refreshed = await this.repo.updateCompany(company.id, {
-      loginAttempts: 0,
-      lastLoginAttempt: new Date(),
-    } as any);
-    await this.repo.log({
-      action: "LOGIN",
-      description: `Login cliente: ${refreshed.companyName}`,
-      companyId: refreshed.id,
-      userEmail: refreshed.email,
-      userRole: "CLIENT",
-      ip,
-    });
-    authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_SUCCESS, {
-      ip,
-      companyId: refreshed.id,
-      metadata: { email: refreshed.email },
-    });
-    return { kind: "company-success", company: refreshed };
   }
 
   // ── Force password change (FASE 14.5) ─────────────────────────────────

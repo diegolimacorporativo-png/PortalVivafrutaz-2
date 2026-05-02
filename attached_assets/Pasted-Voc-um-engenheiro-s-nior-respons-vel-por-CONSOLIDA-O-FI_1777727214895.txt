@@ -1,0 +1,170 @@
+Você é um engenheiro sênior responsável por CONSOLIDAÇÃO FINAL de um sistema ERP em produção real multi-instância.
+
+MISSÃO:
+Transformar o sistema atual em um modelo determinístico, eliminando qualquer divergência de decisão entre L1, L2, auth.service e AuthCoreService.
+
+REGRAS ABSOLUTAS:
+- NÃO criar novas arquiteturas paralelas
+- NÃO criar novos serviços ou engines
+- NÃO alterar contratos de API
+- NÃO adicionar features novas
+- Apenas CONSOLIDAR lógica existente em um fluxo único determinístico
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 OBJETIVO CENTRAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar UM ÚNICO “AUTH DECISION FLOW” onde TODAS as decisões de autenticação passam por uma ordem fixa, previsível e idêntica entre admin e company.
+
+Hoje o sistema está dividido entre:
+- L1 (memory rate limit)
+- L2 (DB auth_attempts rate limit)
+- auth.service.ts (login logic)
+- AuthCoreService (session + validation)
+- sessionGuard (validation layer)
+
+ISSUE:
+Cada camada toma decisões parciais → risco de inconsistência em multi-instância.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔧 1. CRIAR FLUXO ÚNICO DE DECISÃO (OBRIGATÓRIO)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Refatorar lógica de autenticação para seguir EXATAMENTE esta ordem única:
+
+1. SESSION VALIDATION
+   - tokenVersion check
+   - session existence
+   - deviceId validation
+
+2. INFRASTRUCTURE PROTECTION (L1)
+   - apenas detecção de burst / abuso
+   - NÃO pode bloquear login sozinho
+   - apenas sinaliza risco e registra evento
+
+3. BUSINESS RATE LIMIT (L2 - DB)
+   - auth_attempts lookup
+   - decisão final de bloqueio (allowed / denied)
+
+4. ACCOUNT STATE CHECK
+   - isLocked
+   - mustChangePassword
+   - active status
+
+5. CREDENTIAL VALIDATION
+   - bcrypt compare
+
+6. FINAL RESULT HANDLING
+   - success → reset counters + logAuthEvent(LOGIN_SUCCESS)
+   - failure → recordAttempt + L1 increment
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 2. ELIMINAR SPLIT DE DECISÃO ENTRE L1 E L2
+━━━━━━━━━━━━━━━━━━━━━━━
+
+AÇÃO:
+- L1 NÃO pode bloquear login
+- L1 apenas:
+  - incrementa contador
+  - dispara alertas de risco
+- L2 é a ÚNICA fonte de decisão de bloqueio
+
+REMOVER QUALQUER:
+- if (!rateLimit.allowed) antes do L2
+- bloqueio baseado em memória como decisão final
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 3. UNIFICAR AUTH ENTRY POINT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir que:
+
+TODOS os logins passam por UMA função central:
+
+authDecisionEngine.login()
+
+Essa função substitui qualquer lógica espalhada em:
+- auth.service.ts
+- admin login path
+- company login path
+
+NÃO duplicar lógica entre admin e company.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 4. NF-e — TRANSFORMAR EM STATE MACHINE SEGURA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir modelo atual de status string:
+
+Problema:
+- "enviando" é estado procedural vulnerável
+
+AÇÃO:
+- garantir estados imutáveis por transição válida
+- impedir:
+  - double emit
+  - restart duplication
+  - concurrent emission
+
+REGRA:
+Uma NF-e só pode estar em UM estado ativo por vez.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 5. OBSERVABILIDADE — UM ÚNICO PIPELINE REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+AÇÃO:
+- logAuthEvent = único canal oficial de auth
+- logSecurity = derivado de logAuthEvent (não paralelo)
+- remover console.log / console.warn de lógica de negócio
+
+REGRA:
+Nenhum evento de segurança pode existir fora do pipeline central.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 6. MULTI-INSTANCE CONSISTENCY LOCK
+━━━━━━━━━━━━━━━━━━━━━━━
+
+AÇÃO:
+- eliminar qualquer dependência de memória para decisão crítica
+- L1 pode existir apenas como cache
+- L2 + DB são verdade
+
+GARANTIA:
+Mesmo com 10 instâncias:
+- comportamento deve ser idêntico
+- sem divergência de login
+- sem race condition de bloqueio
+
+━━━━━━━━━━━━━━━━━━━━━━━
+📊 ENTREGÁVEL FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ao final entregar:
+
+1. Novo fluxo consolidado (step-by-step)
+2. Arquivos modificados
+3. O que foi removido (duplicações eliminadas)
+4. Garantia de consistência multi-instância
+5. Resposta final:
+
+"SISTEMA CONSOLIDADO EM AUTH DECISION ENGINE: SIM/NÃO"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🎯 RESULTADO ESPERADO
+
+Sistema deve ficar:
+
+✔ Um único ponto de decisão de auth
+✔ Sem L1/L2 divergindo comportamento
+✔ NF-e sem concorrência de estado
+✔ Logs em pipeline único
+✔ Multi-instância determinístico
+✔ Sem lógica duplicada de segurança
+
+COMEÇAR PELA ORDEM:
+1. AUTH FLOW CONSOLIDATION
+2. RATE LIMIT UNIFICATION
+3. SESSION VALIDATION LOCK
+4. NF-e STATE MACHINE
+5. LOG PIPELINE FINAL CLEANUP
