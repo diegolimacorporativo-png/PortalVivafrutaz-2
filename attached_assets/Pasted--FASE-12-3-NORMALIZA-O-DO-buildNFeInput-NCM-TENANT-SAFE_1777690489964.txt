@@ -1,0 +1,217 @@
+🎯 FASE 12.3 — NORMALIZAÇÃO DO buildNFeInput (NCM + TENANT SAFE FALLBACK)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar regras fiscais
+2. NÃO alterar XML
+3. NÃO alterar validator (diagnostics)
+4. NÃO alterar retorno de endpoints
+5. NÃO alterar estrutura de produtos
+6. NÃO usar banco/migration
+7. NÃO remover filtros existentes
+
+👉 Apenas corrigir leitura de produto dentro do buildNFeInput
+
+---
+
+🧠 PROBLEMA
+
+Hoje existe inconsistência:
+
+- diagnostics → encontra NCM corretamente
+- preflight → NÃO encontra produto (por causa de empresa_id)
+
+Causa:
+
+ts produto sem empresa_id 
+
+↓
+
+ts buildNFeInput não encontra produto → NCM undefined 
+
+↓
+
+ts erro falso: NFE_MISSING_NCM 
+
+---
+
+🎯 OBJETIVO
+
+Garantir que:
+
+✔ buildNFeInput encontre o produto corretamente  
+✔ NCM real seja usado  
+✔ preflight e diagnostics fiquem consistentes  
+✔ zero regressão  
+
+---
+
+📦 ESCOPO
+
+Arquivo:
+
+server/services/nfe/buildNFeInput.ts  
+(ou equivalente onde ocorre busca de produto)
+
+---
+
+## 🛠️ ETAPA 1 — LOCALIZAR BUSCA DE PRODUTO
+
+Encontrar trecho semelhante a:
+
+ts const product = await db.query.products.findFirst({   where: and(     eq(products.id, item.productId),     eq(products.companyId, companyId)   ) }); 
+
+---
+
+## 🛠️ ETAPA 2 — IMPLEMENTAR FALLBACK SEGURO
+
+Substituir por:
+
+ts let product = await db.query.products.findFirst({   where: and(     eq(products.id, item.productId),     eq(products.companyId, companyId)   ) });  // FASE 12.3 — fallback seguro para produtos sem empresa_id if (!product) {   product = await db.query.products.findFirst({     where: eq(products.id, item.productId)   });    if (product) {     logSecurity(       `[NFE_PRODUCT_FALLBACK] productId=${item.productId} | orderId=${order.id} | reason=missing_company_id`     );   } } 
+
+---
+
+## ⚠️ IMPORTANTE
+
+- NÃO remover filtro por companyId
+- fallback só executa se NÃO encontrar produto
+- NÃO usar OR direto na query (evitar regressão multi-tenant)
+- fallback é controlado e logado
+
+---
+
+## 🛠️ ETAPA 3 — NÃO ALTERAR NADA ABAIXO
+
+👉 NÃO mexer em:
+
+- product.ncm
+- validações
+- cálculos
+- estrutura do input
+- builder de XML
+
+---
+
+## 🛠️ ETAPA 4 — LOG DE SEGURANÇA
+
+Já incluído:
+
+ts [NFE_PRODUCT_FALLBACK] 
+
+Permite:
+
+- rastrear produtos inconsistentes
+- futura correção de base
+- visibilidade no dashboard (FASE 9E)
+
+---
+
+## 🧪 VALIDAÇÃO (OBRIGATÓRIO)
+
+Reexecutar os 7 cenários:
+
+---
+
+### TEST-001 — válido
+
+ANTES:
+❌ NFE_MISSING_NCM
+
+DEPOIS:
+✔ apenas erro de certificado
+
+---
+
+### TEST-002 — quantidade zero
+
+ANTES:
+❌ NFE_MISSING_NCM
+
+DEPOIS:
+✔ erro de total (correto)
+
+---
+
+### TEST-003 — preço zero
+
+✔ mantém erro de total
+
+---
+
+### TEST-004 — sem itens
+
+✔ mantém erro de itens
+
+---
+
+### TEST-005 — CNPJ inválido
+
+ANTES:
+❌ mascarado por NCM
+
+DEPOIS:
+✔ erro real de CNPJ aparece
+
+---
+
+### TEST-006 — sem NCM
+
+✔ continua erro NCM (correto)
+
+---
+
+### TEST-007 — CNPJ nulo
+
+✔ erro correto de destinatário
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+
+- Preflight ≠ Diagnostics ❌
+- erros mascarados ❌
+- comportamento inconsistente ❌
+
+---
+
+DEPOIS:
+
+- Preflight == Diagnostics ✔
+- erros reais aparecem ✔
+- consistência total ✔
+- zero regressão ✔
+
+---
+
+## 🔒 GARANTIAS
+
+✔ Multi-tenant preservado  
+✔ Nenhuma regra fiscal alterada  
+✔ Nenhum endpoint alterado  
+✔ Nenhuma estrutura alterada  
+✔ Apenas leitura ajustada  
+✔ Sistema mais confiável  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Trecho exato alterado
+2. Confirmação do log [NFE_PRODUCT_FALLBACK]
+3. Resultado dos 7 cenários (antes vs depois)
+4. Confirmação de consistência entre preflight e diagnostics
+5. Confirmação de zero regressão
+
+---
+
+🚀 RESULTADO
+
+👉 Sistema deixa de mentir pro usuário  
+👉 Diagnóstico e validação passam a falar a mesma língua  
+👉 Base pronta para correção estrutural futura (FASE 2

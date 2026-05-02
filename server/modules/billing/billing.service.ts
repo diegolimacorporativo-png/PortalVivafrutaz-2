@@ -35,8 +35,9 @@
 
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "../../database/db";
-import { nfDrafts } from "@shared/schema";
+import { nfDrafts, products } from "@shared/schema";
 import { storage } from "../../services/storage";
+import { logSecurity } from "../../core/security/securityLogger";
 // FASE 8.1 — fonte única para o default de agrupamento da empresa.
 // O resolver não toca banco; recebe o `company` já carregado e devolve
 // `{ billingModel, useGroupedItemsDefault }`. Aqui é usado APENAS como
@@ -199,7 +200,46 @@ export async function resolveBillingItems(
   // Caminho legado: sem draft → usa order_items diretamente. Aplica
   // agrupamento somente se o default da empresa pedir (CONTRACT_AVERAGE).
   if (resolved === null) {
-    const sourceItems = (orderData as any).items as any[];
+    const rawSourceItems = (orderData as any).items as any[];
+    const companyId = (orderData.order as any).companyId;
+
+    // FASE 12.3 — enriquecer itens legados com NCM e dados fiscais do cadastro
+    const sourceItems: any[] = await Promise.all(
+      rawSourceItems.map(async (item: any) => {
+        if (!item.productId || item.ncm) return item;
+
+        // FASE 12.3 — first try: produto filtrado por empresa
+        let prod = await db.query.products.findFirst({
+          where: and(
+            eq(products.id, item.productId),
+            eq(products.empresaId, companyId)
+          ),
+        });
+
+        // FASE 12.3 — fallback seguro: produto sem empresa_id
+        if (!prod) {
+          prod = await db.query.products.findFirst({
+            where: eq(products.id, item.productId),
+          });
+          if (prod) {
+            logSecurity(
+              `[NFE_PRODUCT_FALLBACK] productId=${item.productId} | orderId=${orderId} | reason=missing_company_id`
+            );
+          }
+        }
+
+        if (!prod) return item;
+
+        return {
+          ...item,
+          ncm: item.ncm || prod.ncm || undefined,
+          cfop: item.cfop || prod.cfop || undefined,
+          unit: item.unit || prod.commercialUnit || prod.unit || undefined,
+          importado: item.importado !== undefined ? item.importado : (prod.importado === true),
+        };
+      })
+    );
+
     const items = shouldGroup
       ? ((items: any[], fallbackNcm: string, fallbackCfop: string, fallbackUnit: string): any[] => {
           if (!items.length) return items;
