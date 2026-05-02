@@ -1,0 +1,157 @@
+Você é um engenheiro sênior responsável por estabilização de sistemas ERP em produção real.
+
+MISSÃO:
+Executar uma CONSOLIDAÇÃO FINAL do sistema existente, eliminando duplicações, inconsistências e comportamentos divergentes introduzidos nas FASES 14.x.
+
+REGRAS ABSOLUTAS:
+- NÃO criar novas features
+- NÃO criar novos engines ou serviços
+- NÃO duplicar lógica existente
+- NÃO alterar contratos de API
+- NÃO mudar comportamento de negócio
+- Apenas CONSOLIDAR, UNIFICAR e ESTABILIZAR
+
+OBJETIVO:
+Transformar o sistema em estado de PRODUÇÃO REAL MULTI-INSTANCE SAFE.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 1. UNIFICAÇÃO DO ENFORCEMENT LAYER (CRÍTICO)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema atual:
+Existem múltiplas decisões de segurança espalhadas:
+- AuthCoreService
+- userRateLimit (L1 memória)
+- auth_attempts (L2 DB)
+- sessionGuard
+- auth.service.ts
+
+AÇÃO:
+→ Criar fluxo único de decisão lógica (sem criar novos sistemas)
+→ Garantir ordem fixa e determinística:
+
+ORDEM OBRIGATÓRIA:
+1. session valid (tokenVersion + session)
+2. isLocked check (DB)
+3. rate limit L1 (memória)
+4. rate limit L2 (DB)
+5. credential check
+6. success/failure logging
+
+→ Garantir que TODOS os fluxos (admin + company) seguem exatamente a mesma ordem
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 2. ELIMINAR DIVERGÊNCIA L1 vs L2 RATE LIMIT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema:
+- L1 (memória) e L2 (DB) usam lógica similar mas não idêntica
+
+AÇÃO:
+→ garantir que ambos usam o MESMO RATE_LIMIT_SCHEDULE
+→ remover qualquer threshold duplicado
+→ garantir que cooldown, window e score são idênticos
+
+NÃO criar novo sistema — apenas sincronizar os existentes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 3. OBSERVABILIDADE — ELIMINAR DUPLICAÇÃO DE LOGS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema:
+Existem múltiplos pipelines:
+- console.log / console.warn
+- securityLogger
+- logAuthEvent
+- alertEngine
+
+AÇÃO:
+→ garantir que logAuthEvent é o ÚNICO ponto de entrada lógico
+→ remover logs diretos redundantes fora dele
+→ alertEngine deve consumir apenas eventos já normalizados
+→ console logs apenas para fallback técnico (erro crítico)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 4. NF-e — TORNAR IDPOTENTE E DETERMINÍSTICO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema:
+- emissão pode ser chamada múltiplas vezes concorrentes
+- não há lock distribuído
+
+AÇÃO:
+→ adicionar proteção de execução única por NF-e (idempotência lógica)
+→ garantir que status não pode ser sobrescrito simultaneamente
+→ evitar double emission
+
+SEM CRIAR FILA NOVA — apenas controle em DB/transação
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 5. REMOVER DEPENDÊNCIA DE MEMÓRIA EM DECISÕES CRÍTICAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema:
+- L1 rate limit em memória
+- security events buffer
+- alerts buffer
+
+AÇÃO:
+→ manter memória apenas como cache auxiliar
+→ decisões críticas devem vir de DB (L2 ou source of truth)
+→ garantir consistência multi-instância
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 6. NORMALIZAR SESSION + DEVICE VALIDATION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Problema:
+- deviceId check pode ser inconsistente em edge cases
+
+AÇÃO:
+→ garantir regra única:
+  - se session.deviceId existe → deve bater com request
+  - se não existe → gerar e persistir
+→ eliminar qualquer bypass silencioso
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 7. LIMPEZA DE CÓDIGO DUPLICADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Remover ou consolidar:
+- brute force detection duplicado (engine vs authRead)
+- risk scoring duplicado
+- rate limit config duplicado
+- auth log duplicado direto fora do core
+
+━━━━━━━━━━━━━━━━━━━━━━━
+📊 ENTREGÁVEL FINAL OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ao final da execução, entregar:
+
+1. Lista de conflitos encontrados
+2. Lista de unificações feitas
+3. Arquivos alterados
+4. Sistemas removidos ou consolidados
+5. Garantia de:
+   → "SISTEMA PRONTO PARA PRODUÇÃO MULTI-INSTANCE: SIM/NÃO"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🎯 RESULTADO ESPERADO
+
+Sistema deve ficar:
+- sem duplicação de lógica crítica
+- determinístico sob carga
+- consistente entre instâncias
+- sem divergência L1 vs L2
+- sem múltiplos pipelines de log
+- NF-e segura contra concorrência
+- autenticação com fluxo único
+
+COMEÇAR PELA ORDEM:
+1. AUTH FLOW
+2. RATE LIMIT
+3. SESSION
+4. NF-e
+5. LOGGING
+6. CLEANUP FINAL

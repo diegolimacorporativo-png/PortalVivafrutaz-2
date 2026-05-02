@@ -25,3 +25,19 @@ export const RATE_LIMIT_SCHEDULE: readonly RateLimitTier[] = [
   { minFails:  5, windowMs:  5 * 60_000, cooldownMs:    30_000  },
   { minFails:  3, windowMs:  1 * 60_000, cooldownMs:     5_000  },
 ];
+
+/**
+ * IP-level login limiter config — single source of truth for rateLimit.ts.
+ *
+ * Protects endpoints before any account lookup occurs (unknown accounts,
+ * credential stuffing). Intentionally more permissive than RATE_LIMIT_SCHEDULE
+ * because IPs may be shared (NAT, office proxies). Per-account limits in
+ * RATE_LIMIT_SCHEDULE apply AFTER the IP check.
+ *
+ * maxRequests : maximum login attempts per IP in the window
+ * windowMs    : rolling window duration in milliseconds
+ */
+export const IP_LOGIN_RATE_LIMIT = {
+  maxRequests: 5,
+  windowMs:    5 * 60_000,   // 5 minutes
+} as const;

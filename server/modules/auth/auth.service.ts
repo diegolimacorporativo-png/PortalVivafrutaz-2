@@ -7,9 +7,8 @@ import type {
   MeOutcome,
   SessionPayload,
 } from "./auth.types";
-// FASE 14.6 — in-memory L1 fast-path rate limit cache
+// FASE 14.6 — in-memory L1 post-failure recorder (risk score only — not a gate)
 import {
-  checkUserRateLimit,
   recordUserLoginSuccess,
   recordUserLoginFailure,
 } from "../../core/security/userRateLimit";
@@ -32,12 +31,19 @@ const LOCKOUT_NOTIFY_ROLES = ["ADMIN", "DIRECTOR", "DEVELOPER"] as const;
  * Portuguese message intact while leaving the controller as a thin HTTP
  * adapter.
  *
- * FASE 14.7.1 changes:
- *  • Admin login now has full L1+L2 rate limiting, auth_attempts recording,
- *    and LOGIN_SUCCESS logging — identical security model as company login.
- *  • logSecurity() is no longer called directly from this service; all
- *    security emission goes through authCoreService.logAuthEvent() which
- *    handles both buffer and alertEngine internally.
+ * CONSOLIDATION (FASE 14.X):
+ *  • L1 in-memory rate limit is NO LONGER a blocking gate.
+ *    In a multi-instance deployment, each instance has independent L1 state.
+ *    A request blocked by instance-A's L1 counter would be incorrectly
+ *    rejected by instance-B even though the DB (L2) says it is allowed.
+ *    L1 now only records post-failure state (via recordUserLoginFailure) so
+ *    the riskScore remains available for BRUTE_FORCE detection. L2 (DB-backed,
+ *    authCoreService.checkDbRateLimit) is the sole pre-check gate.
+ *
+ *  • All console.log("[LOGIN]…") calls removed. Every security-relevant event
+ *    is emitted through authCoreService.logAuthEvent() or repo.log(), which
+ *    route through the unified pipeline (buffer → alertEngine → console).
+ *    Direct console.log was a duplicate channel and produced noise in prod logs.
  */
 export class AuthService {
   constructor(private readonly repo: AuthRepository = authRepository) {}
@@ -45,11 +51,6 @@ export class AuthService {
   // ── Login ──────────────────────────────────────────────────────────────
   async attemptLogin(input: LoginInput, ip: string): Promise<LoginOutcome> {
     const normalizedEmail = input.email.toLowerCase().trim();
-    console.log("[LOGIN] Tentativa de login:", {
-      email: normalizedEmail,
-      type: input.type,
-    });
-
     return input.type === "admin"
       ? this.attemptAdminLogin(normalizedEmail, input.password, ip)
       : this.attemptCompanyLogin(normalizedEmail, input.password, ip);
@@ -115,8 +116,6 @@ export class AuthService {
     ip: string,
   ): Promise<LoginOutcome> {
     const user = await this.repo.getUserByEmail(email);
-    console.log("[LOGIN] Usuário encontrado:", user ? "SIM" : "NÃO");
-
     if (!user) {
       await this.repo.log({
         action: "LOGIN_FAILED",
@@ -132,11 +131,8 @@ export class AuthService {
       };
     }
 
-    // BUG-01-FIX: check isLocked BEFORE consuming rate limit slots.
-    // Previously the L1/L2 checks ran first, which meant an attacker could
-    // keep burning rate limit windows even after the account was locked.
+    // BUG-01-FIX: isLocked check runs BEFORE rate limit consumption.
     if (user.isLocked) {
-      console.log("[LOGIN] Conta bloqueada");
       await this.repo.log({
         action: "LOGIN_BLOCKED",
         description: `Tentativa de acesso a conta bloqueada: ${email}`,
@@ -155,7 +151,6 @@ export class AuthService {
     }
 
     if (!user.active) {
-      console.log("[LOGIN] Usuário inativo");
       await this.repo.log({
         action: "LOGIN_BLOCKED",
         description: `Login bloqueado (usuário inativo): ${email}`,
@@ -173,21 +168,14 @@ export class AuthService {
 
     // Rate limits run AFTER lock/active checks (BUG-01 fix) so that locked
     // accounts don't silently exhaust rate limit windows.
+    //
+    // CONSOLIDATION: L1 (in-memory userRateLimit) is NOT a blocking gate.
+    // In a multi-instance deployment each instance has independent L1 state,
+    // so an L1 block on instance-A would incorrectly reject a request on
+    // instance-B even when the DB (L2) allows it. L1 is still called after
+    // a password failure (recordUserLoginFailure) to maintain local risk score
+    // for BRUTE_FORCE detection. L2 is the sole pre-check authoritative gate.
     const rateLimitKey = `user:${user.id}`;
-    const rateCheck = checkUserRateLimit(rateLimitKey);
-    if (!rateCheck.allowed) {
-      const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        userId: user.id,
-        metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
 
     const dbRateCheck = await authCoreService.checkDbRateLimit({
       userId: user.id,
@@ -213,7 +201,6 @@ export class AuthService {
       password,
       user.password,
     );
-    console.log("[LOGIN] Senha correcta:", passwordMatch);
 
     if (!passwordMatch) {
       const newAttempts = (user.loginAttempts || 0) + 1;
@@ -259,7 +246,6 @@ export class AuthService {
     }
 
     // Success — reset L1/L2 counters, log
-    console.log("[LOGIN] Login bem-sucedido para usuário:", user.email);
     recordUserLoginSuccess(rateLimitKey);
     authCoreService.recordAttempt({ userId: user.id, ip, endpoint: "admin_login", success: true }).catch(() => {});
     const refreshed = await this.repo.updateUser(user.id, {
@@ -294,8 +280,6 @@ export class AuthService {
     }
 
     const company = await this.repo.getCompanyByEmail(email);
-    console.log("[LOGIN] Empresa encontrada:", company ? "SIM" : "NÃO");
-
     if (!company) {
       await this.repo.log({
         action: "LOGIN_FAILED",
@@ -313,9 +297,8 @@ export class AuthService {
 
     const c = company as any;
 
-    // BUG-01-FIX: check isLocked BEFORE consuming rate limit slots.
+    // BUG-01-FIX: isLocked check runs BEFORE rate limit consumption.
     if (c.isLocked) {
-      console.log("[LOGIN] Empresa bloqueada");
       await this.repo.log({
         action: "LOGIN_BLOCKED",
         description: `Tentativa de acesso a empresa bloqueada: ${email}`,
@@ -335,7 +318,6 @@ export class AuthService {
     }
 
     if (!company.active) {
-      console.log("[LOGIN] Empresa inativa");
       await this.repo.log({
         action: "LOGIN_BLOCKED",
         description: `Login cliente bloqueado (conta inativa): ${email}`,
@@ -355,22 +337,10 @@ export class AuthService {
     }
 
     // Rate limits run AFTER lock/active checks (BUG-01 fix).
+    // CONSOLIDATION: L1 is NOT a blocking gate — see attemptAdminLogin comment.
     const rateLimitKey = `company:${company.id}`;
-    const rateCheck = checkUserRateLimit(rateLimitKey);
-    if (!rateCheck.allowed) {
-      const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        companyId: company.id,
-        metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
-    // L2 — DB-backed persistent rate limit (survives server restarts)
+
+    // L2 — DB-backed persistent rate limit (authoritative across all instances)
     const dbRateCheck = await authCoreService.checkDbRateLimit({ companyId: company.id, ip });
     if (!dbRateCheck.allowed) {
       const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
@@ -391,7 +361,6 @@ export class AuthService {
       password,
       company.password,
     );
-    console.log("[LOGIN] Senha correcta (empresa):", passwordMatch);
 
     if (!passwordMatch) {
       const newAttempts = (c.loginAttempts || 0) + 1;
@@ -438,7 +407,6 @@ export class AuthService {
 
     // FASE 14.5 — block login and force password change for provisioned accounts
     if ((company as any).mustChangePassword) {
-      console.log("[LOGIN] Empresa com mustChangePassword=true — bloqueando até troca de senha");
       await this.repo.log({
         action: "LOGIN_BLOCKED_TEMP_PASSWORD",
         description: `Login bloqueado: empresa "${company.companyName}" (${email}) deve trocar senha temporária antes de acessar o sistema.`,
@@ -451,7 +419,6 @@ export class AuthService {
     }
 
     // Success — reset attempts, record in L1/L2, log
-    console.log("[LOGIN] Login bem-sucedido para empresa:", company.email);
     recordUserLoginSuccess(rateLimitKey);
     authCoreService.recordAttempt({ companyId: company.id, ip, success: true }).catch(() => {});
     const refreshed = await this.repo.updateCompany(company.id, {

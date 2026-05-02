@@ -27,6 +27,8 @@ import type { Request, Response, NextFunction } from "express";
 // FASE 7.1 — feed all security events into the centralised observer.
 // FASE 6.5 — logSecurity replaces scattered console.warn/error calls.
 import { logSecurityEvent, logSecurity } from "./securityLogger";
+// IP limiter config centralised in rateSchedule.ts — single source of truth.
+import { IP_LOGIN_RATE_LIMIT } from "../auth/rateSchedule";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -111,16 +113,17 @@ export const apiLimiter = createRateLimiter(
 );
 
 /**
- * Login IP limiter — 5 attempts per IP per 5-minute window.
+ * Login IP limiter — config driven from rateSchedule.IP_LOGIN_RATE_LIMIT.
  *
- * Complements the per-account lockout already in AuthService (MAX_ATTEMPTS=3):
+ * Complements the per-account lockout in AuthService (MAX_ATTEMPTS=3):
  * that one locks the account record; this one blocks the IP entirely,
- * protecting even accounts that don't exist yet.
+ * protecting even accounts that don't exist yet. Threshold values live in
+ * rateSchedule.ts so they can be tuned in one place for all limiters.
  */
 export const loginIpLimiter = createRateLimiter(
-  5,
-  5 * 60_000,
-  "Muitas tentativas de login. Aguarde 5 minutos e tente novamente.",
+  IP_LOGIN_RATE_LIMIT.maxRequests,
+  IP_LOGIN_RATE_LIMIT.windowMs,
+  `Muitas tentativas de login. Aguarde ${IP_LOGIN_RATE_LIMIT.windowMs / 60_000} minutos e tente novamente.`,
 );
 
 /** NF-e limiter — fiscal routes are expensive; tighter window. */

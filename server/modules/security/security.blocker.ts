@@ -13,6 +13,8 @@
  */
 
 import { persistBlock, removeActiveBlock as _removeActiveBlock } from "./security.block.repository";
+// Route all security log lines through the unified pipeline instead of direct console calls.
+import { logSecurity } from "../../core/security/securityLogger";
 
 const blockedUsers = new Map<string, number>();
 
@@ -36,12 +38,11 @@ export const BLOCK_TIME_MS = 5 * 60 * 1000;
  */
 export function sendSecurityAlert(email: string, count: number): void {
   try {
-    console.warn("[SECURITY_ALERT]", {
-      email,
-      attempts: count,
-      message: "User blocked due to repeated tenant mismatch",
-    });
+    logSecurity(
+      `[SECURITY] TENANT_ABUSE_BLOCKED | email=${email} | attempts=${count} | reason=repeated_tenant_mismatch`,
+    );
   } catch (e) {
+    // logSecurity itself should never throw, but guard defensively.
     console.error("[SECURITY_ALERT_FAIL]", e);
   }
 }
@@ -147,7 +148,7 @@ export function unblockUser(email?: string | null): boolean {
     });
   });
 
-  console.info("[SECURITY_UNBLOCK]", { email: key, wasBlocked });
+  logSecurity(`[SECURITY] TENANT_ABUSE_UNBLOCKED | email=${key} | wasBlocked=${wasBlocked}`);
   return wasBlocked;
 }
 
