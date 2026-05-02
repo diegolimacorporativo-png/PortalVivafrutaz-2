@@ -21,8 +21,9 @@ import {
   FileText, Send, Download, XCircle, RefreshCw, CheckCircle2, Clock,
   AlertCircle, Info, ReceiptText, ArrowLeft, Search, Package, Building2,
   ChevronRight, Wifi, WifiOff, Shield, BookOpen, ChevronDown, ChevronUp,
-  Settings, Award, Zap, Lock
+  Settings, Award, Zap, Lock, ShieldCheck
 } from "lucide-react";
+import { getNFePreflight } from "@/services/nfe.service";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -322,70 +323,187 @@ function SelectedOrderEmitRow({
   const blocked = canEmit === false;
   const [isShaking, setIsShaking] = useState(false);
 
+  const [preflightLoading, setPreflightLoading] = useState(false);
+  const [preflightData, setPreflightData] = useState<any>(null);
+  const [preflightOpen, setPreflightOpen] = useState(false);
+
+  const hasPreflightError = (preflightData?.errors?.length ?? 0) > 0;
+
+  const handlePreflight = async () => {
+    try {
+      setPreflightLoading(true);
+      const res = await getNFePreflight(selectedOrderId);
+      setPreflightData(res.data);
+      setPreflightOpen(true);
+    } catch (err: any) {
+      toast({ title: "Erro no preflight", description: err.message, variant: "destructive" });
+    } finally {
+      setPreflightLoading(false);
+    }
+  };
+
   return (
-    <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 flex-wrap">
-      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-      <div className="flex-1 min-w-[140px]">
-        <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
-          Pedido: <span className="font-mono">{selectedOrderCode}</span>
-        </p>
-        <p className="text-xs text-emerald-600">#{selectedOrderId}</p>
-        {blocked ? (
-          <span
-            data-testid="badge-nfe-blocked"
-            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-600"
+    <>
+      <div className="flex items-center gap-3 p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 flex-wrap">
+        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+        <div className="flex-1 min-w-[140px]">
+          <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+            Pedido: <span className="font-mono">{selectedOrderCode}</span>
+          </p>
+          <p className="text-xs text-emerald-600">#{selectedOrderId}</p>
+          {blocked ? (
+            <span
+              data-testid="badge-nfe-blocked"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-600"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              {blockReason}
+              {canForceRelease && (
+                <button
+                  type="button"
+                  onClick={forceRelease}
+                  disabled={isReleasing}
+                  data-testid="button-force-release"
+                  className="ml-2 text-xs text-blue-600 underline hover:text-blue-700 disabled:opacity-50"
+                >
+                  {isReleasing ? "Liberando..." : "Liberar agora"}
+                </button>
+              )}
+            </span>
+          ) : justUnlocked ? (
+            <span
+              data-testid="badge-nfe-unlocked"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Liberado
+            </span>
+          ) : null}
+          {hasPreflightError && (
+            <span
+              data-testid="badge-preflight-error"
+              className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-red-600"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              Preflight encontrou erros — corrija antes de emitir
+            </span>
+          )}
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="button-validar-nfe"
+            onClick={handlePreflight}
+            disabled={preflightLoading}
+            className="border-blue-300 text-blue-700 hover:bg-blue-50"
           >
-            <AlertCircle className="w-3.5 h-3.5" />
-            {blockReason}
-            {canForceRelease && (
-              <button
-                type="button"
-                onClick={forceRelease}
-                disabled={isReleasing}
-                data-testid="button-force-release"
-                className="ml-2 text-xs text-blue-600 underline hover:text-blue-700 disabled:opacity-50"
-              >
-                {isReleasing ? "Liberando..." : "Liberar agora"}
-              </button>
-            )}
-          </span>
-        ) : justUnlocked ? (
-          <span
-            data-testid="badge-nfe-unlocked"
-            className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-emerald-600"
+            {preflightLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
+            Validar NF-e
+          </Button>
+          <Button
+            type="button"
+            id={`emit-btn-${selectedOrderId}`}
+            data-testid="button-emitir-nfe"
+            onClick={() => {
+              if (isShaking) return;
+              if (blocked) {
+                setIsShaking(true);
+                setTimeout(() => setIsShaking(false), 400);
+                toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
+                return;
+              }
+              emitirMutation.mutate(selectedOrderId);
+            }}
+            disabled={emitirMutation.isPending || checkingEmit || hasPreflightError}
+            title={blocked ? blockReason : hasPreflightError ? "Corrija os erros do preflight antes de emitir" : "Gerar XML"}
+            className={`bg-emerald-600 hover:bg-emerald-700 text-white ${justUnlocked ? "unlock-highlight" : ""} ${isShaking ? "shake-horizontal" : ""} ${(blocked || hasPreflightError) ? "opacity-70 cursor-not-allowed" : ""}`}
           >
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            Liberado
-          </span>
-        ) : null}
+            {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
+            Gerar XML
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={onClear}>
+            <XCircle className="w-4 h-4" />
+          </Button>
+        </div>
       </div>
-      <div className="flex gap-2">
-        <Button
-          type="button"
-          id={`emit-btn-${selectedOrderId}`}
-          data-testid="button-emitir-nfe"
-          onClick={() => {
-            if (isShaking) return;
-            if (blocked) {
-              setIsShaking(true);
-              setTimeout(() => setIsShaking(false), 400);
-              toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
-              return;
-            }
-            emitirMutation.mutate(selectedOrderId);
-          }}
-          disabled={emitirMutation.isPending || checkingEmit}
-          title={blocked ? blockReason : "Gerar XML"}
-          className={`bg-emerald-600 hover:bg-emerald-700 text-white ${justUnlocked ? "unlock-highlight" : ""} ${isShaking ? "shake-horizontal" : ""} ${blocked ? "opacity-70 cursor-not-allowed" : ""}`}
-        >
-          {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-          Gerar XML
-        </Button>
-        <Button type="button" variant="ghost" size="sm" onClick={onClear}>
-          <XCircle className="w-4 h-4" />
-        </Button>
-      </div>
-    </div>
+
+      {/* Preflight Result Modal */}
+      <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>
+        <DialogContent className="max-w-xl" data-testid="modal-preflight">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-blue-600" />
+              Validação Preflight — Pedido {selectedOrderCode}
+            </DialogTitle>
+          </DialogHeader>
+          {preflightData && (
+            <div className="space-y-4 text-sm">
+              {preflightData.errors?.length > 0 ? (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-700 flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" /> Erros ({preflightData.errors.length})
+                  </h3>
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 divide-y divide-red-100">
+                    {preflightData.errors.map((e: any, i: number) => (
+                      <p key={i} data-testid={`preflight-error-${i}`} className="px-3 py-2 text-red-700 dark:text-red-400 text-xs">
+                        {e.message || e}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                  <p className="text-green-700 text-xs font-medium">Nenhum erro encontrado — pedido apto para emissão.</p>
+                </div>
+              )}
+
+              {preflightData.alerts?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-yellow-700 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4" /> Alertas ({preflightData.alerts.length})
+                  </h3>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 divide-y divide-yellow-100">
+                    {preflightData.alerts.map((a: any, i: number) => (
+                      <p key={i} data-testid={`preflight-alert-${i}`} className="px-3 py-2 text-yellow-700 dark:text-yellow-400 text-xs">
+                        {a.message || a}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {preflightData.preview && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-gray-700 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4" /> Preview da Nota
+                  </h3>
+                  <ScrollArea className="h-40 rounded-lg border bg-gray-50 dark:bg-gray-900">
+                    <pre data-testid="preflight-preview" className="p-3 text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-all">
+                      {JSON.stringify(preflightData.preview, null, 2)}
+                    </pre>
+                  </ScrollArea>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-preflight-close"
+                  onClick={() => setPreflightOpen(false)}
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

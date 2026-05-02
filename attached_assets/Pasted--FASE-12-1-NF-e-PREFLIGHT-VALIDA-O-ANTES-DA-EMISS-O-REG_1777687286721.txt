@@ -1,0 +1,158 @@
+🎯 FASE 12.1 — NF-e PREFLIGHT (VALIDAÇÃO ANTES DA EMISSÃO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar nenhum endpoint existente  
+2. NÃO alterar lógica de emissão de NF-e  
+3. NÃO alterar estrutura de resposta da API  
+4. NÃO criar validação nova (usar apenas o backend já existente)  
+5. NÃO quebrar fluxo atual de emissão  
+6. NÃO alterar hooks globais  
+
+👉 Apenas CONSUMIR /api/nfe/preflight/:orderId no frontend
+
+---
+
+🧠 OBJETIVO
+
+Antes de emitir a NF-e, permitir que o usuário visualize:
+
+- erros de validação
+- alertas
+- preview da nota
+
+👉 evitar erro direto na SEFAZ
+
+---
+
+📦 TAREFAS
+
+---
+
+## 1. CRIAR FUNÇÃO DE PREFLIGHT
+
+Arquivo:
+client/src/services/nfe.service.ts
+
+Adicionar:
+
+ts export async function getNFePreflight(orderId: number) {   const res = await fetch(`/api/nfe/preflight/${orderId}`, {     credentials: 'include',   });    if (!res.ok) {     const err = await res.json();     throw new Error(err?.error?.message || 'Erro no preflight');   }    return res.json(); } 
+
+---
+
+## 2. INTEGRAR NA TELA DE PEDIDOS OU NF-e
+
+📍 Arquivo (usar o existente):
+client/src/pages/nfe.tsx  
+OU  
+client/src/pages/orders.tsx
+
+---
+
+### Criar botão:
+
+tsx <Button onClick={() => handlePreflight(order.id)}>   Validar NF-e </Button> 
+
+---
+
+## 3. IMPLEMENTAR HANDLER
+
+ts const handlePreflight = async (orderId: number) => {   try {     setLoading(true);     const res = await getNFePreflight(orderId);      setPreflightData(res.data);     setOpenModal(true);   } catch (err: any) {     toast.error(err.message);   } finally {     setLoading(false);   } }; 
+
+---
+
+## 4. CRIAR MODAL DE RESULTADO
+
+Exibir:
+
+### ❌ ERROS
+
+tsx {data.errors?.length > 0 && (   <div>     <h3>Erros</h3>     {data.errors.map((e, i) => (       <p key={i} className="text-red-600">{e.message}</p>     ))}   </div> )} 
+
+---
+
+### ⚠️ ALERTAS
+
+tsx {data.alerts?.length > 0 && (   <div>     <h3>Alertas</h3>     {data.alerts.map((a, i) => (       <p key={i} className="text-yellow-600">{a.message}</p>     ))}   </div> )} 
+
+---
+
+### 📄 PREVIEW (opcional)
+
+tsx {data.preview && (   <pre>{JSON.stringify(data.preview, null, 2)}</pre> )} 
+
+---
+
+## 5. BLOQUEIO VISUAL (SEM QUEBRAR BACKEND)
+
+Se houver erro:
+
+ts const hasError = data.errors?.length > 0; 
+
+Desabilitar botão de emitir:
+
+tsx <Button disabled={hasError}>   Emitir NF-e </Button> 
+
+⚠️ IMPORTANTE:  
+👉 Isso é apenas visual — NÃO alterar backend
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Pedido válido
+
+✔ modal abre sem erros  
+✔ botão emitir ativo  
+
+---
+
+### 2️⃣ Pedido com erro fiscal
+
+✔ erros aparecem  
+✔ botão emitir desabilitado  
+
+---
+
+### 3️⃣ Erro de API (422 / 500)
+
+✔ toast.error exibido  
+✔ nada quebra na tela  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ nenhum endpoint alterado  
+✔ nenhuma regra fiscal alterada  
+✔ nenhuma lógica de emissão tocada  
+✔ apenas leitura + exibição  
+✔ zero regressão  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+Usuário clica em emitir → erro direto na SEFAZ ❌  
+
+Depois:
+
+Usuário valida → vê erro antes → corrige → emite ✔  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado/alterado  
+2. Botão adicionado  
+3. Modal implementado  
+4. Cenários testados  
+5. Confirmação de zero regre
