@@ -21,9 +21,12 @@ import MemoryStore from "memorystore";
 const SessionStore = MemoryStore(expressSession);
 
 export function createSessionMiddleware() {
+  if (!process.env.SESSION_SECRET) {
+    throw new Error("SESSION_SECRET não configurado");
+  }
   const isProduction = process.env.NODE_ENV === "production";
   const options: SessionOptions = {
-    secret: process.env.SESSION_SECRET || "super-secret-key",
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     store: new SessionStore({ checkPeriod: 86400000 }),

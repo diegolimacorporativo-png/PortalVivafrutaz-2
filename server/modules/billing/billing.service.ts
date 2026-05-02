@@ -216,19 +216,14 @@ export async function resolveBillingItems(
           ),
         });
 
-        // FASE 12.3 — fallback seguro: produto sem empresa_id
         if (!prod) {
-          prod = await db.query.products.findFirst({
-            where: eq(products.id, item.productId),
-          });
-          if (prod) {
-            logSecurity(
-              `[NFE_PRODUCT_FALLBACK] productId=${item.productId} | orderId=${orderId} | reason=missing_company_id`
-            );
-          }
+          logSecurity(
+            "[NFE_PRODUCT_BLOCKED] productId=" + item.productId +
+            " | orderId=" + orderId +
+            " | reason=cross-tenant"
+          );
+          return item; // NÃO fazer fallback inseguro
         }
-
-        if (!prod) return item;
 
         return {
           ...item,

@@ -1,0 +1,226 @@
+🎯 FASE 13.5 — CORREÇÃO CRÍTICA (MULTI-TENANT + SEGURANÇA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de negócio  
+2. NÃO alterar endpoints  
+3. NÃO alterar contratos de resposta  
+4. NÃO quebrar fluxo existente  
+5. NÃO remover código existente  
+
+👉 Apenas BLINDAR o sistema
+
+---
+
+🧠 OBJETIVO
+
+Eliminar riscos reais encontrados na auditoria:
+
+- vazamento entre tenants  
+- fallback inseguro  
+- logs perigosos  
+- erros silenciosos  
+
+---
+
+# 🛠️ ETAPA 1 — BLINDAR LEITURA DE PEDIDOS
+
+📍 Procurar TODOS os usos de:
+
+ts storage.getOrder(orderId) 
+
+---
+
+👉 Substituir por:
+
+ts await validateOrderTenant(orderId); const order = await storage.getOrder(orderId); 
+
+---
+
+⚠️ IMPORTANTE
+
+- NÃO remover getOrder  
+- NÃO alterar retorno  
+- validação SEMPRE antes da leitura  
+
+---
+
+# 🛠️ ETAPA 2 — BLINDAR PRODUTOS (CRÍTICO)
+
+📍 Arquivo:
+server/modules/billing/billing.service.ts
+
+---
+
+⚠️ LOCAL:
+fallback de produto
+
+---
+
+ANTES (perigoso):
+
+ts buscar produto sem empresaId 
+
+---
+
+DEPOIS (seguro):
+
+ts let product = await db.query.products.findFirst({   where: and(     eq(products.id, item.productId),     eq(products.empresaId, companyId)   ), });  if (!product) {   logSecurity(     "[NFE_PRODUCT_BLOCKED] productId=" + item.productId +     " | orderId=" + orderId +     " | reason=cross-tenant"   );    return item; // NÃO fazer fallback inseguro } 
+
+---
+
+👉 REMOVER fallback sem empresaId  
+👉 NÃO buscar produto global  
+
+---
+
+# 🛠️ ETAPA 3 — LOGS SEGUROS
+
+📍 Procurar:
+
+ts console.error(err) 
+
+---
+
+👉 Substituir por:
+
+ts logSecurity(   "[ERROR] context=nome_do_fluxo | message=" + (err?.message ?? "unknown") ); 
+
+---
+
+⚠️ NÃO logar:
+
+- request completo  
+- payload fiscal  
+- dados sensíveis  
+
+---
+
+# 🛠️ ETAPA 4 — REMOVER SILÊNCIO CRÍTICO
+
+📍 Procurar:
+
+ts catch (err) {   console.error(err); } 
+
+---
+
+👉 Substituir por:
+
+ts catch (err) {   logSecurity(     "[FLOW_FAILED] step=nome_do_fluxo | error=" + (err?.message ?? "unknown")   ); } 
+
+---
+
+👉 NÃO deixar catch vazio  
+👉 NÃO deixar erro invisível  
+
+---
+
+# 🛠️ ETAPA 5 — PROTEGER SESSION SECRET
+
+📍 Arquivo:
+.env.example
+
+---
+
+Garantir que esteja:
+
+env SESSION_SECRET=CHANGE_IN_PRODUCTION 
+
+---
+
+📍 No código (se houver fallback):
+
+ts process.env.SESSION_SECRET || "dev_secret" 
+
+---
+
+👉 alterar para:
+
+ts if (!process.env.SESSION_SECRET) {   throw new Error("SESSION_SECRET não configurado"); } 
+
+---
+
+# 🧪 VALIDAÇÃO
+
+---
+
+## 1️⃣ Multi-tenant
+
+- tentar acessar pedido de outro tenant  
+✔ deve bloquear  
+
+---
+
+## 2️⃣ Produtos
+
+- produto sem empresaId  
+✔ NÃO deve usar fallback  
+
+---
+
+## 3️⃣ Logs
+
+✔ não conter dados sensíveis  
+
+---
+
+## 4️⃣ Sistema geral
+
+✔ pedidos continuam funcionando  
+✔ NF-e continua funcionando  
+✔ emissão intacta  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero alteração de fluxo  
+✔ zero regressão  
+✔ segurança reforçada  
+✔ sistema pronto para produção  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ risco de vazamento  
+❌ fallback inseguro  
+❌ logs perigosos  
+
+---
+
+Depois:
+
+✔ isolamento total entre empresas  
+✔ dados fiscais confiáveis  
+✔ logs seguros  
+✔ sistema blindado  
+
+---
+
+# ⚠️ IMPORTANTE
+
+👉 NÃO adicionar feature  
+👉 NÃO refatorar  
+👉 NÃO otimizar  
+
+👉 Apenas corrigir riscos
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivos alterados  
+2. trechos corrigidos  
+3. validação dos testes  
+4. confirmação de zero regressão  
+
+---
+
+🚀 Isso leva o sistema para NÍV
