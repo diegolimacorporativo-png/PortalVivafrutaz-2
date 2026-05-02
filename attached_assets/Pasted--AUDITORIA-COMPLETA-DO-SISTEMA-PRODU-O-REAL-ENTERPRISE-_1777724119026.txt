@@ -1,0 +1,177 @@
+🧪 AUDITORIA COMPLETA DO SISTEMA — PRODUÇÃO REAL (ENTERPRISE REVIEW)
+
+🎯 OBJETIVO:
+Executar uma auditoria total do sistema atual (backend + frontend + auth + fiscal + security + IA), identificando:
+
+- bugs reais (exploráveis ou funcionais)
+- falhas de segurança
+- duplicações de lógica
+- inconsistências de arquitetura
+- riscos de produção
+- gargalos de performance
+- endpoints inseguros ou incompletos
+
+---
+
+🚫 REGRAS CRÍTICAS:
+
+- NÃO alterar código durante auditoria
+- NÃO sugerir novas features
+- NÃO refatorar sistema
+- NÃO implementar melhorias ainda
+- NÃO assumir comportamento — apenas verificar o que existe no código
+- NÃO inventar dados ou suposições
+
+👉 Apenas leitura, análise e diagnóstico real
+
+---
+
+🧠 PARTE 1 — MAPA COMPLETO DO SISTEMA
+
+Mapear 100% da arquitetura atual:
+
+1. BACKEND
+- todas as rotas (routes.ts + módulos)
+- todos os services
+- controllers e middlewares
+- integrações externas (SEFAZ, banco, IA, email, etc.)
+
+2. AUTH SYSTEM
+- login admin + company
+- session handling
+- tokenVersion
+- deviceId validation
+- rate limit L1 / L2
+- bloqueios e lockout
+
+3. SECURITY LAYER
+- AuthCoreService
+- AuthReadService
+- sessionGuard
+- anomalyDetection
+- riskDerivation
+- security logs
+
+4. NF-e / FISCAL
+- emissão
+- CC-e
+- cancelamento
+- retry / falhas
+- integração SEFAZ
+
+5. FRONTEND
+- páginas admin
+- dashboards de segurança
+- fluxo de login
+- integração com API
+
+---
+
+📊 PARTE 2 — DIAGNÓSTICO TÉCNICO
+
+## 🔴 BUGS REAIS
+
+Listar apenas bugs CONFIRMADOS no código:
+- erros de lógica
+- falhas de fluxo
+- endpoints quebrados
+- erros silenciosos (catch vazio)
+- inconsistência de resposta API
+
+---
+
+## 🔐 SEGURANÇA
+
+Verificar:
+
+- autenticação pode ser bypassada?
+- session pode ser forjada?
+- tokenVersion realmente invalida sessão?
+- deviceId é confiável?
+- existe endpoint sem auth?
+- rate limit pode ser burlado?
+- brute force totalmente protegido?
+
+---
+
+## ⚠️ DUPLICAÇÕES CRÍTICAS
+
+Identificar:
+
+- múltiplos sistemas de rate limit
+- múltiplos sistemas de log
+- múltiplos validadores de auth
+- múltiplas fontes de verdade (DB vs memory vs service)
+- lógica repetida entre services
+
+---
+
+## 🧱 PROBLEMAS DE ARQUITETURA
+
+Verificar:
+
+- existe monólito escondido (routes.ts)
+- services estão acoplados demais
+- dependências circulares
+- lógica de domínio fora do lugar correto
+- uso de memória onde deveria ser DB/Redis
+
+---
+
+## 📉 PRODUÇÃO READINESS
+
+Responder objetivamente:
+
+- sistema aguenta múltiplas instâncias?
+- sistema sobrevive a restart sem perda?
+- sistema funciona sem memória local?
+- logs são auditáveis de verdade?
+- dados são consistentes sob carga?
+- existe risco de corrupção de estado?
+
+---
+
+## ⚡ PERFORMANCE
+
+Verificar:
+
+- queries N+1
+- endpoints sem paginação
+- loops pesados em requests
+- falta de cache onde necessário
+- consultas redundantes em DB
+
+---
+
+📊 PARTE 3 — RELATÓRIO FINAL
+
+Gerar saída estruturada:
+
+### 1. RESUMO EXECUTIVO
+- sistema está pronto para produção? (SIM / NÃO / PARCIAL)
+- score de maturidade (0–100)
+
+---
+
+### 2. LISTA DE RISCOS CRÍTICOS
+- riscos que podem quebrar produção
+
+---
+
+### 3. BUGS ENCONTRADOS
+- lista objetiva
+
+---
+
+### 4. DUPLICAÇÕES
+- o que está repetido e conflitando
+
+---
+
+### 5. GARGALOS
+- performance / arquitetura
+
+---
+
+### 6. RECOMENDAÇÃO FINAL
+- o que precisa ser corrigido antes de produção real

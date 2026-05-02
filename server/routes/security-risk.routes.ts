@@ -1,18 +1,18 @@
 /**
  * FASE 14.9 — Risk Derivation Layer: read-only risk score endpoint.
+ * FASE 14.X  — Unified: delegates 100% to SecurityAnalyticsEngine.
  *
  * GET /api/admin/security/risk
  *
- * Queries auth_attempts (PostgreSQL) via RiskDerivationService and joins
- * with company names from the storage facade. 100% read-only — zero writes,
- * zero side effects on auth flow, session, or rate limit.
+ * Thin adapter over SecurityAnalyticsEngine. Enriches companyRisks with
+ * company names from the storage facade. 100% read-only.
  *
  * Protected: MASTER and ADMIN roles only.
  */
 
 import type { Express, Request, Response } from "express";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
-import { computeAllCompanyRisks } from "../core/security/riskDerivation.service";
+import { runSecurityAnalytics } from "../core/security/securityAnalytics.engine";
 import { storage } from "../services/storage";
 
 export function register(app: Express): void {
@@ -22,40 +22,43 @@ export function register(app: Express): void {
     requireRole(["MASTER", "ADMIN"]),
     async (_req: Request, res: Response) => {
       try {
-        // Compute risk for all companies that appear in auth_attempts (last 7d)
-        const risks = await computeAllCompanyRisks();
+        // Engine handles everything — just extract companyRisks
+        const report = await runSecurityAnalytics(7);
 
-        if (risks.length === 0) {
+        if (report.companyRisks.length === 0) {
           return res.json({
             success: true,
-            data: { generatedAt: new Date().toISOString(), results: [] },
+            data: { generatedAt: report.generatedAt, results: [] },
           });
         }
 
-        // Fetch company names for display — best-effort (unknown names shown as ID)
-        const companyIds = risks.map(r => r.companyId).filter(Boolean);
+        // Enrich with company names — best-effort, fail-open
         const nameMap = new Map<number, string>();
-        for (const cid of companyIds) {
+        for (const { companyId } of report.companyRisks) {
+          if (!companyId) continue;
           try {
-            const company = await storage.getCompany(cid);
+            const company = await storage.getCompany(companyId);
             if (company) {
-              nameMap.set(cid, (company as any).companyName ?? (company as any).name ?? `Empresa #${cid}`);
+              nameMap.set(
+                companyId,
+                (company as any).companyName ?? (company as any).name ?? `Empresa #${companyId}`,
+              );
             }
           } catch {
-            // fail-open: leave nameMap entry absent
+            /* fail-open */
           }
         }
 
-        const results = risks.map(r => ({
-          companyId:  r.companyId,
-          name:       nameMap.get(r.companyId) ?? `Empresa #${r.companyId}`,
-          riskScore:  r.riskScore,
-          breakdown:  r.breakdown,
+        const results = report.companyRisks.map(r => ({
+          companyId: r.companyId,
+          name:      nameMap.get(r.companyId) ?? `Empresa #${r.companyId}`,
+          riskScore: r.riskScore,
+          breakdown: r.breakdown,
         }));
 
         return res.json({
           success: true,
-          data: { generatedAt: new Date().toISOString(), results },
+          data: { generatedAt: report.generatedAt, results },
         });
       } catch (err: any) {
         return res.status(500).json({

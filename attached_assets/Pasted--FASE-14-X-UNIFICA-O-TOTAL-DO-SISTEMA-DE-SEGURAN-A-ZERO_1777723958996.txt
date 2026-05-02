@@ -1,0 +1,134 @@
+🎯 FASE 14.X — UNIFICAÇÃO TOTAL DO SISTEMA DE SEGURANÇA (ZERO DUPLICAÇÃO)
+
+OBJETIVO:
+Unificar TODO o sistema de análise de segurança em um único engine central, eliminando qualquer lógica duplicada de risco, anomalia ou interpretação de auth_attempts.
+
+---
+
+🚫 REGRAS CRÍTICAS:
+- NÃO criar novas tabelas
+- NÃO alterar AuthCoreService (write layer)
+- NÃO alterar sessionGuard
+- NÃO criar novos endpoints de auth separados
+- NÃO manter múltiplos services de análise
+- NÃO duplicar lógica existente
+- NÃO quebrar contratos de API atuais
+
+---
+
+🧠 ESTADO ATUAL (ANTES DA REFACTOR):
+
+Existem duplicações em:
+- RiskDerivationService (cálculo de risco)
+- AnomalyDetectionService (detecção de comportamento)
+- security-overview route (agregações duplicadas)
+
+Todos usam auth_attempts + AuthReadService, mas com lógica repetida.
+
+---
+
+🔥 OBJETIVO FINAL:
+
+Criar UM ÚNICO CÉREBRO DE SEGURANÇA:
+
+server/core/security/securityAnalytics.engine.ts
+
+---
+
+🧱 RESPONSABILIDADE DO ENGINE:
+
+Ele substitui TODOS os seguintes:
+
+❌ RiskDerivationService
+❌ AnomalyDetectionService
+❌ lógica interna do security-overview route
+
+---
+
+📊 INPUT ÚNICO:
+
+const rows = await authReadService.getAuthAttempts({
+  from: window
+});
+
+---
+
+🧠 PROCESSAMENTO CENTRALIZADO:
+
+Gerar em UMA única execução:
+
+1. STATS
+- totalAttempts
+- successCount
+- failureCount
+- successRate
+
+2. RISK SCORE GLOBAL (0–100)
+Baseado em:
+- brute force patterns
+- IP diversity
+- login spikes
+- clustering de falhas
+
+3. ANOMALIES
+Detectar:
+- BRUTE_FORCE (multi-IP / multi-account)
+- SPIKE (crescimento anormal de falhas)
+- IP_VOLATILITY (muitos IPs por conta)
+- CLUSTER (falhas em janela curta)
+
+4. ATTACKERS
+- ranking de IPs por agressividade
+- número de contas afetadas
+
+5. TIMELINE
+- buckets horários (24h/7d)
+- sucessos vs falhas
+
+---
+
+📦 OUTPUT FINAL ÚNICO:
+
+{
+  stats: {...},
+  risk: {
+    globalScore: number (0–100),
+    level: "low" | "medium" | "high"
+  },
+  anomalies: [],
+  attackers: [],
+  timeline: []
+}
+
+---
+
+🔁 INTEGRAÇÃO:
+
+- security-overview route deve chamar SOMENTE este engine
+- remover chamadas diretas a RiskDerivationService
+- remover chamadas a AnomalyDetectionService
+- manter AuthReadService como única fonte de dados
+
+---
+
+🚫 PROIBIDO:
+
+- múltiplos engines de risco
+- múltiplos cálculos de anomalia
+- duplicação de query em auth_attempts
+- endpoints novos de segurança
+
+---
+
+🧠 PRINCÍPIO FINAL:
+
+"Existe apenas UM cérebro de segurança. Tudo é derivado dele."
+
+---
+
+🚀 RESULTADO ESPERADO:
+
+- sistema de segurança unificado
+- zero duplicação de lógica
+- single source of truth para análise
+- arquitetura pronta para produção real
