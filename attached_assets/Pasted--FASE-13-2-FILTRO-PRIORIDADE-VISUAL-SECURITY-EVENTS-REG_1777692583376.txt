@@ -1,0 +1,177 @@
+🎯 FASE 13.2 — FILTRO + PRIORIDADE VISUAL (SECURITY EVENTS)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend  
+2. NÃO alterar endpoint  
+3. NÃO alterar query existente  
+4. NÃO remover código  
+5. NÃO refatorar tabela criada  
+6. NÃO mover componentes  
+
+👉 Apenas adicionar filtro + destaque visual
+
+---
+
+🧠 CONTEXTO
+
+- Tabela de eventos já existe (FASE 13.1)
+- Eventos já estão sendo exibidos corretamente
+
+Problema atual:
+
+❌ lista grande sem organização  
+❌ difícil identificar eventos críticos  
+
+---
+
+## 🎯 OBJETIVO
+
+Adicionar:
+
+1. Filtro por tipo de evento  
+2. Destaque visual por severidade  
+
+👉 sem alterar estrutura existente
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR ESTADO DE FILTRO
+
+Adicionar no componente:
+
+ts const [eventFilter, setEventFilter] = useState<string>("ALL"); 
+
+---
+
+## 🛠️ ETAPA 2 — CRIAR LISTA DE TIPOS
+
+ts const eventTypes = [   "ALL",   "RATE_LIMITED",   "TENANT_MISMATCH",   "HIGH_RISK_ACTION",   "CRITICAL_ACTION" ]; 
+
+---
+
+## 🛠️ ETAPA 3 — FILTRAR DADOS
+
+Substituir uso de events por:
+
+ts const filteredEvents = events.filter((ev: any) => {   if (eventFilter === "ALL") return true;   return ev.type === eventFilter; }); 
+
+---
+
+## 🛠️ ETAPA 4 — DROPDOWN DE FILTRO
+
+Adicionar acima da tabela:
+
+tsx <div className="mb-3 flex gap-2 items-center">   <span className="text-sm">Filtro:</span>    <select     value={eventFilter}     onChange={(e) => setEventFilter(e.target.value)}     className="border px-2 py-1 text-sm"     data-testid="filter-events-type"   >     {eventTypes.map((type) => (       <option key={type} value={type}>         {type === "ALL" ? "Todos" : type}       </option>     ))}   </select> </div> 
+
+---
+
+## 🛠️ ETAPA 5 — USAR FILTERED EVENTS
+
+Trocar:
+
+tsx events.map(...) 
+
+Por:
+
+tsx filteredEvents.map(...) 
+
+---
+
+## 🛠️ ETAPA 6 — PRIORIDADE VISUAL
+
+Adicionar no <tr>:
+
+tsx <tr   key={i}   data-testid={`event-${i}`}   className={     ev.type === "CRITICAL_ACTION"       ? "bg-red-50 border-l-4 border-l-red-600"       : ev.type === "HIGH_RISK_ACTION"       ? "bg-orange-50 border-l-4 border-l-orange-500"       : ev.type === "TENANT_MISMATCH"       ? "bg-yellow-50 border-l-4 border-l-yellow-500"       : ""   } > 
+
+---
+
+## 🛠️ ETAPA 7 — NÃO MEXER MAIS NADA
+
+⚠️ NÃO alterar:
+
+- query  
+- endpoint  
+- estrutura da tabela  
+- tipagem  
+- layout existente  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Filtro ALL
+
+✔ mostra todos  
+
+---
+
+### 2️⃣ Filtro específico
+
+✔ mostra apenas aquele tipo  
+
+---
+
+### 3️⃣ Eventos críticos
+
+✔ linha vermelha  
+
+---
+
+### 4️⃣ Tenant mismatch
+
+✔ destaque amarelo  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero backend alterado  
+✔ zero regressão  
+✔ performance intacta  
+✔ UX melhorada  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ lista crua  
+❌ difícil leitura  
+
+Depois:
+
+✔ filtrável  
+✔ eventos críticos visíveis  
+✔ leitura rápida  
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 NÃO adicionar paginação  
+👉 NÃO criar componente novo  
+👉 NÃO alterar tabela base  
+
+👉 isso vem depois
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Estado de filtro criado  
+2. Dropdown implementado  
+3. Lógica de filtro aplicada  
+4. Destaque visual aplicado  
+5. Confirmação de zero regressão  
+
+---
+
+🚀 Isso transforma log em ferramenta

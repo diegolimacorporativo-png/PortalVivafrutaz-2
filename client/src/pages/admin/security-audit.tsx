@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -103,6 +104,21 @@ export default function SecurityAuditPage() {
   );
 
   const events = eventsData?.data?.events ?? [];
+
+  const [eventFilter, setEventFilter] = useState<string>("ALL");
+
+  const eventTypes = [
+    "ALL",
+    "RATE_LIMITED",
+    "TENANT_MISMATCH",
+    "HIGH_RISK_ACTION",
+    "CRITICAL_ACTION",
+  ];
+
+  const filteredEvents = events.filter((ev: SecurityEventItem) => {
+    if (eventFilter === "ALL") return true;
+    return ev.type === eventFilter;
+  });
 
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="page-security-audit">
@@ -330,11 +346,27 @@ export default function SecurityAuditPage() {
           <CardTitle className="text-base">Eventos de Segurança</CardTitle>
         </CardHeader>
         <CardContent>
+          <div className="mb-3 flex gap-2 items-center">
+            <span className="text-sm">Filtro:</span>
+            <select
+              value={eventFilter}
+              onChange={(e) => setEventFilter(e.target.value)}
+              className="border px-2 py-1 text-sm"
+              data-testid="filter-events-type"
+            >
+              {eventTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type === "ALL" ? "Todos" : type}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {loadingEvents ? (
             <div className="text-sm text-muted-foreground" data-testid="status-events-loading">
               Carregando...
             </div>
-          ) : events.length === 0 ? (
+          ) : filteredEvents.length === 0 ? (
             <div className="text-sm text-green-600" data-testid="status-events-empty">
               Nenhum evento registrado
             </div>
@@ -350,8 +382,20 @@ export default function SecurityAuditPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {events.map((ev, idx) => (
-                  <TableRow key={ev.requestId ?? idx} data-testid={`row-event-${idx}`}>
+                {filteredEvents.map((ev, idx) => (
+                  <TableRow
+                    key={ev.requestId ?? idx}
+                    data-testid={`row-event-${idx}`}
+                    className={
+                      ev.type === "CRITICAL_ACTION"
+                        ? "bg-red-50 border-l-4 border-l-red-600"
+                        : ev.type === "HIGH_RISK_ACTION"
+                        ? "bg-orange-50 border-l-4 border-l-orange-500"
+                        : ev.type === "TENANT_MISMATCH"
+                        ? "bg-yellow-50 border-l-4 border-l-yellow-500"
+                        : ""
+                    }
+                  >
                     <TableCell>
                       <Badge variant="outline" data-testid={`badge-event-type-${idx}`}>
                         {ev.type}
