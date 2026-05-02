@@ -36,11 +36,36 @@ interface ApiResponse {
   data: SecurityAuditData;
 }
 
+interface SecurityEventItem {
+  type: string;
+  ip?: string;
+  userId?: number;
+  path?: string;
+  requestId?: string;
+  timestamp: number;
+  metadata?: Record<string, unknown>;
+}
+
+interface SecurityEventsResponse {
+  success: boolean;
+  data: {
+    events: SecurityEventItem[];
+    total: number;
+    topIPs: Array<{ ip: string; count: number }>;
+    summary: Record<string, unknown>;
+  };
+}
+
 export default function SecurityAuditPage() {
   const { toast } = useToast();
   const { data: response, isLoading, isError } = useQuery<ApiResponse>({
     queryKey: ["/api/admin/security/tenant-mismatch-events"],
     refetchInterval: 30_000,
+  });
+
+  const { data: eventsData, isLoading: loadingEvents } = useQuery<SecurityEventsResponse>({
+    queryKey: ["/api/admin/security/events"],
+    refetchInterval: 30000,
   });
 
   const unblockMutation = useMutation({
@@ -76,6 +101,8 @@ export default function SecurityAuditPage() {
   const blockedSet = new Set(
     (data?.suspiciousUsers ?? []).map((u) => u.email),
   );
+
+  const events = eventsData?.data?.events ?? [];
 
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="page-security-audit">
@@ -296,6 +323,65 @@ export default function SecurityAuditPage() {
           </Card>
         </>
       )}
+
+      {/* Security Events */}
+      <Card data-testid="card-security-events">
+        <CardHeader>
+          <CardTitle className="text-base">Eventos de Segurança</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loadingEvents ? (
+            <div className="text-sm text-muted-foreground" data-testid="status-events-loading">
+              Carregando...
+            </div>
+          ) : events.length === 0 ? (
+            <div className="text-sm text-green-600" data-testid="status-events-empty">
+              Nenhum evento registrado
+            </div>
+          ) : (
+            <Table data-testid="table-security-events">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Mensagem / Path</TableHead>
+                  <TableHead className="w-28">IP</TableHead>
+                  <TableHead className="w-20">User ID</TableHead>
+                  <TableHead className="w-44">Data/Hora</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {events.map((ev, idx) => (
+                  <TableRow key={ev.requestId ?? idx} data-testid={`row-event-${idx}`}>
+                    <TableCell>
+                      <Badge variant="outline" data-testid={`badge-event-type-${idx}`}>
+                        {ev.type}
+                      </Badge>
+                    </TableCell>
+                    <TableCell
+                      className="font-mono text-sm max-w-xs truncate"
+                      data-testid={`text-event-path-${idx}`}
+                    >
+                      {ev.path ?? "—"}
+                    </TableCell>
+                    <TableCell data-testid={`text-event-ip-${idx}`}>
+                      {ev.ip ?? "—"}
+                    </TableCell>
+                    <TableCell data-testid={`text-event-userid-${idx}`}>
+                      {ev.userId ?? "—"}
+                    </TableCell>
+                    <TableCell
+                      className="text-xs text-muted-foreground"
+                      data-testid={`text-event-ts-${idx}`}
+                    >
+                      {new Date(ev.timestamp).toLocaleString("pt-BR")}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

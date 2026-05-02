@@ -1,0 +1,142 @@
+🎯 FASE 13.1 — SECURITY EVENTS (VISIBILIDADE REAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend  
+2. NÃO criar endpoint novo  
+3. NÃO alterar contrato da API  
+4. NÃO alterar lógica existente  
+5. NÃO remover código  
+6. NÃO alterar outras telas  
+
+👉 Apenas CONSUMIR endpoint existente
+
+---
+
+🧠 CONTEXTO
+
+Backend já possui:
+
+GET /api/admin/security/events
+
+Mas:
+
+❌ Nenhuma tela consome corretamente  
+❌ Eventos de segurança estão invisíveis  
+
+👉 Precisamos exibir isso na UI
+
+---
+
+## 🎯 OBJETIVO
+
+Criar uma tabela de eventos de segurança dentro de:
+
+client/src/pages/admin/security-audit.tsx
+
+---
+
+## 🛠️ ETAPA 1 — CRIAR QUERY
+
+Adicionar:
+
+ts const { data: eventsData, isLoading: loadingEvents } = useQuery({   queryKey: ['/api/admin/security/events'],   refetchInterval: 30000, }); 
+
+---
+
+## 🛠️ ETAPA 2 — NORMALIZAR DADOS
+
+ts const events = eventsData?.data || []; 
+
+---
+
+## 🛠️ ETAPA 3 — CRIAR TABELA
+
+Adicionar abaixo da seção existente:
+
+tsx <div className="mt-6">   <h3 className="text-lg font-semibold mb-3">     Eventos de Segurança   </h3>    {loadingEvents ? (     <div>Carregando...</div>   ) : events.length === 0 ? (     <div className="text-green-600">       Nenhum evento registrado     </div>   ) : (     <table className="w-full text-sm border">       <thead>         <tr className="bg-gray-100">           <th className="p-2 text-left">Tipo</th>           <th className="p-2 text-left">Mensagem</th>           <th className="p-2 text-left">Data</th>         </tr>       </thead>        <tbody>         {events.map((e: any, i: number) => (           <tr key={i} data-testid={`event-${i}`}>             <td className="p-2 font-mono">               {e.type}             </td>              <td className="p-2">               {e.message}             </td>              <td className="p-2 text-gray-500 text-xs">               {new Date(e.createdAt).toLocaleString('pt-BR')}             </td>           </tr>         ))}       </tbody>     </table>   )} </div> 
+
+---
+
+## 🛠️ ETAPA 4 — NÃO MEXER NO RESTO
+
+⚠️ NÃO alterar:
+
+- queries existentes  
+- layout da página  
+- outras tabelas  
+- rotas  
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Com eventos
+
+✔ tabela aparece  
+✔ dados listados  
+✔ datas formatadas  
+
+---
+
+### 2️⃣ Sem eventos
+
+✔ mostra “Nenhum evento registrado”  
+
+---
+
+### 3️⃣ Loading
+
+✔ mostra “Carregando...”  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero alteração backend  
+✔ zero regressão  
+✔ endpoint reaproveitado  
+✔ observabilidade ativada  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ eventos invisíveis  
+
+Depois:
+
+✔ eventos visíveis  
+✔ debug possível  
+✔ base para antifraude  
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 NÃO adicionar filtro ainda  
+👉 NÃO adicionar paginação  
+👉 NÃO criar componentes novos  
+
+👉 isso vem nas próximas fases
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo alterado  
+2. Query adicionada  
+3. Tabela criada  
+4. Confirmação de zero regressão  
+
+---
+
+🚀 Isso abre a visibilidade do sistema de
