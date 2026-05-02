@@ -1,0 +1,145 @@
+🎯 FASE 14.10 — AUTH READ LAYER ABSTRACTION (SAFE CONSOLIDATION)
+
+OBJETIVO:
+Criar uma camada única e padronizada de leitura para auth_attempts e dados de segurança, evitando queries duplicadas e garantindo consistência entre:
+
+- RiskDerivationService
+- Security Overview endpoint
+- futuros dashboards de observabilidade
+
+IMPORTANTE:
+- NÃO alterar AuthCoreService
+- NÃO alterar sessionGuard
+- NÃO alterar rate limit (L1/L2)
+- NÃO criar novas tabelas
+- NÃO mudar lógica de autenticação
+- APENAS padronizar leitura de dados existentes
+
+---
+
+🧠 1. CRIAR CAMADA CENTRAL DE LEITURA
+
+Criar arquivo:
+
+server/core/security/authRead.service.ts
+
+Função principal:
+
+AuthReadService
+
+Responsável por TODAS as consultas de segurança baseadas em:
+
+- auth_attempts (DB)
+- companies/users (lookup contextual)
+
+---
+
+📊 2. FUNÇÕES OBRIGATÓRIAS
+
+## 2.1 getAuthAttempts(filters)
+
+Deve suportar:
+
+- companyId?: number
+- userId?: number
+- ip?: string
+- success?: boolean
+- from?: Date
+- to?: Date
+- limit?: number
+
+Retorna:
+- lista normalizada de tentativas
+
+---
+
+## 2.2 getAuthStats(window)
+
+Retorna agregações:
+
+- totalAttempts
+- successCount
+- failureCount
+- uniqueIPs
+- uniqueAccounts
+- failureRate
+
+---
+
+## 2.3 getTopAttackers(window)
+
+Retorna:
+
+- IPs ordenados por volume de falhas
+- contas atingidas por IP
+- score simples de agressividade (READ-ONLY)
+
+---
+
+## 2.4 getCompanySecurityProfile(companyId)
+
+Combina:
+
+- auth_attempts (7d)
+- session invalidations (via AuthCore logs)
+- rate limit signals (L1 + L2 indiretos)
+
+Retorna:
+
+- risk indicators
+- summary de comportamento
+- não calcula score final (isso fica no RiskDerivationService)
+
+---
+
+🧩 3. PADRONIZAÇÃO OBRIGATÓRIA
+
+TODOS os serviços abaixo devem ser refatorados para usar AuthReadService:
+
+- RiskDerivationService
+- /api/admin/security/overview
+- /api/admin/security/risk
+
+---
+
+🚫 4. REGRAS CRÍTICAS
+
+- Proibido duplicar queries diretas em auth_attempts fora deste service
+- Proibido calcular métricas diretamente em routes
+- Proibido lógica de agregação em frontend
+- Proibido alterar estrutura de auth_attempts
+
+---
+
+🧠 5. ARQUITETURA FINAL (APÓS FASE 14.10)
+
+Auth Engine (AuthCore)
+        ↓
+auth_attempts (DB)
+        ↓
+AuthReadService (ÚNICA FONTE DE LEITURA)
+        ↓
+├── RiskDerivationService
+├── Security Overview API
+├── Security Risk API
+        ↓
+Frontend dashboards
+
+---
+
+📊 6. RESULTADO ESPERADO
+
+- Zero queries duplicadas em segurança
+- Todas as análises usando o mesmo padrão de leitura
+- Fácil evolução futura (novos dashboards sem retrabalho)
+- Separação limpa entre:
+  - Auth (decisão)
+  - Read Layer (dados)
+  - Risk Layer (interpretação)
+  - UI (visualização)
+
+---
+
+🧠 PRINCÍPIO ARQUITETURAL:
+
+"Security data has one way in, one way out — via AuthReadService"
