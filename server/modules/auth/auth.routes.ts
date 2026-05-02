@@ -28,5 +28,7 @@ router.get("/me", asyncHandler(authController.me));
 router.post("/logout", authController.logout);
 router.post("/forgot-password", asyncHandler(authController.forgotPassword));
 router.post("/log-unauthorized", asyncHandler(authController.logUnauthorized));
+// FASE 14.5 — mandatory first-login password change for provisioned accounts
+router.post("/force-password-change", asyncHandler(authController.forcePasswordChange));
 
 export const authRouter = router;

@@ -7,6 +7,8 @@ import { tenantWhere } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { desc } from "drizzle-orm";
 import { fireNotification } from "../services/pushService";
+// FASE 14.5 — Clara IA MUST use the provisioning service; direct storage.createCompany is forbidden
+import { createCompanyFromClaraAI } from "../modules/auth/userProvisioningService";
 
 export function register(app: Express) {
   // ─── IA ASSISTENTE VIRTUAL (Interactive AI Chat) ──────────────
@@ -96,21 +98,20 @@ export function register(app: Express) {
             response = `⚠️ Já existe uma empresa com o e-mail **${data.email}**. Tente outro e-mail.`;
             newContext = { action: 'create_company', step: 'email', data };
           } else {
-            const newComp = await storage.createCompany({
+            // FASE 14.5 — use provisioning service; never create company with hardcoded password
+            const ip = (req.headers['x-forwarded-for'] as string || '').split(',')[0] || req.socket?.remoteAddress || '';
+            const { company: newComp, tempPassword } = await createCompanyFromClaraAI({
               companyName: data.name,
               contactName: data.contactName || data.name,
               email: data.email,
-              password: '123456',
               cnpj: data.cnpj || null,
-              priceGroupId: 1,
-              allowedOrderDays: [],
-              active: true,
-              clientType: 'semanal',
+              createdByUserId: user?.id,
+              ip,
             });
             actionExecuted = 'create_company';
             actionData = { companyId: newComp.id, companyName: data.name };
             intent = 'create_company_done';
-            response = `✅ **Empresa criada com sucesso!**\n\n• ID: #${newComp.id}\n• Nome: ${data.name}\n• E-mail: ${data.email}\n• Senha padrão: **123456**\n\nA empresa já pode fazer login no portal. Acesse Empresas para configurar preços, dias de entrega e demais dados.`;
+            response = `✅ **Empresa criada com sucesso!**\n\n• ID: #${newComp.id}\n• Nome: ${data.name}\n• E-mail: ${data.email}\n• Senha temporária: \`${tempPassword}\`\n\n⚠️ **Importante:** Esta senha é de uso único. A empresa será obrigada a criar uma nova senha no primeiro login.\n\nAcesse Empresas para configurar preços, dias de entrega e demais dados.`;
             newContext = null;
           }
         } catch (e: any) {

@@ -56,6 +56,17 @@ export class AuthController {
       return;
     }
 
+    // FASE 14.5 — temporary password must be changed before granting access
+    if (outcome.kind === "password-change-required") {
+      res.status(403).json({
+        error: "PASSWORD_CHANGE_REQUIRED",
+        message: "Sua senha é temporária e deve ser alterada antes de continuar.",
+        companyId: outcome.companyId,
+        email: outcome.email,
+      });
+      return;
+    }
+
     // Success — write session, persist it, then respond. Saving before the
     // response is critical because the frontend immediately fires GET /me
     // after login and expects the cookie to be valid.
@@ -147,6 +158,36 @@ export class AuthController {
       return;
     }
     res.json({ message: result.message, requestId: result.requestId });
+  };
+
+  // ── POST /api/auth/force-password-change (FASE 14.5) ──────────────────
+  forcePasswordChange = async (req: Request, res: Response): Promise<void> => {
+    const { email, tempPassword, newPassword } = req.body as {
+      email?: string;
+      tempPassword?: string;
+      newPassword?: string;
+    };
+
+    if (!email || !tempPassword || !newPassword) {
+      res.status(400).json({ message: "Os campos email, tempPassword e newPassword são obrigatórios." });
+      return;
+    }
+
+    const ip =
+      ((req.headers["x-forwarded-for"] as string) || "").split(",")[0] ||
+      req.socket.remoteAddress ||
+      "";
+
+    const result = await this.service.forcePasswordChange(email, tempPassword, newPassword, ip);
+
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message });
+      return;
+    }
+
+    // Password changed — strip password hash before responding
+    const { password: _pw, ...companySafe } = result.company as Record<string, unknown> & { password?: unknown };
+    res.json({ ok: true, message: "Senha alterada com sucesso. Você já pode fazer login.", company: companySafe });
   };
 
   // ── POST /api/auth/log-unauthorized ────────────────────────────────────

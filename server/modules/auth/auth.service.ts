@@ -322,6 +322,20 @@ export class AuthService {
       };
     }
 
+    // FASE 14.5 — block login and force password change for provisioned accounts
+    if ((company as any).mustChangePassword) {
+      console.log("[LOGIN] Empresa com mustChangePassword=true — bloqueando até troca de senha");
+      await this.repo.log({
+        action: "LOGIN_BLOCKED_TEMP_PASSWORD",
+        description: `Login bloqueado: empresa "${company.companyName}" (${email}) deve trocar senha temporária antes de acessar o sistema.`,
+        companyId: company.id,
+        userEmail: email,
+        level: "WARN",
+        ip,
+      });
+      return { kind: "password-change-required", companyId: company.id, email: company.email };
+    }
+
     // Success — reset attempts, log
     console.log("[LOGIN] Login bem-sucedido para empresa:", company.email);
     const refreshed = await this.repo.updateCompany(company.id, {
@@ -337,6 +351,52 @@ export class AuthService {
       ip,
     });
     return { kind: "company-success", company: refreshed };
+  }
+
+  // ── Force password change (FASE 14.5) ─────────────────────────────────
+  async forcePasswordChange(
+    email: string,
+    tempPassword: string,
+    newPassword: string,
+    ip: string,
+  ): Promise<{ ok: true; company: import("./auth.types").Company } | { ok: false; status: number; message: string }> {
+    const company = await this.repo.getCompanyByEmail(email.toLowerCase().trim());
+    if (!company) {
+      return { ok: false, status: 404, message: "Empresa não encontrada." };
+    }
+    if (!(company as any).mustChangePassword) {
+      return { ok: false, status: 400, message: "Esta conta não requer troca de senha." };
+    }
+
+    const passwordMatch = await this.verifyAndMaybeUpgradeCompanyPassword(
+      company.id,
+      tempPassword,
+      company.password,
+    );
+    if (!passwordMatch) {
+      return { ok: false, status: 401, message: "Senha temporária incorreta." };
+    }
+
+    if (newPassword.length < 8) {
+      return { ok: false, status: 422, message: "A nova senha deve ter pelo menos 8 caracteres." };
+    }
+
+    const updated = await this.repo.updateCompany(company.id, {
+      password: newPassword,
+      mustChangePassword: false,
+      passwordTemporary: false,
+    } as any);
+
+    await this.repo.log({
+      action: "PASSWORD_CHANGED",
+      description: `Senha temporária trocada com sucesso pela empresa "${company.companyName}" no primeiro login.`,
+      companyId: company.id,
+      userEmail: company.email,
+      level: "INFO",
+      ip,
+    });
+
+    return { ok: true, company: updated };
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────

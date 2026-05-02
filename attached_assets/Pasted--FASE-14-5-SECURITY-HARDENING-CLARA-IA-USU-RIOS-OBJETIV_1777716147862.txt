@@ -1,0 +1,191 @@
+# 🔐 FASE 14.5 — SECURITY HARDENING (CLARA IA + USUÁRIOS)
+
+## 🎯 OBJETIVO
+
+Eliminar vulnerabilidade crítica de criação de usuários pela Clara IA e implementar um fluxo seguro de autenticação empresarial com:
+
+- remoção de senha hardcoded
+- senha temporária segura
+- obrigatoriedade de troca de senha no primeiro login
+- controle de provisioning centralizado
+- auditoria de criação de contas
+
+---
+
+# 🚫 REGRAS CRÍTICAS
+
+- NÃO alterar arquitetura global do sistema
+- NÃO quebrar autenticação existente
+- NÃO remover funcionalidades atuais de login
+- NÃO expor senha em nenhum ponto do sistema
+- NÃO armazenar senha em texto puro
+- NÃO criar bypass de autenticação
+- manter compatibilidade com usuários existentes
+
+---
+
+# ⚠️ PROBLEMA A SER CORRIGIDO
+
+## ❌ VULNERABILIDADE ATUAL
+
+- Clara IA cria usuários com senha fixa "123456"
+- não há controle de provisioning seguro
+- usuários entram no sistema sem fluxo de segurança
+- risco crítico de comprometimento de contas
+
+---
+
+# 🧱 IMPLEMENTAÇÃO DA FASE 14.5
+
+---
+
+## 1. 🔐 REMOVER SENHA FIXA (OBRIGATÓRIO)
+
+### ❌ REMOVER:
+ts password: "123456" 
+
+---
+
+### ✅ SUBSTITUIR POR SENHA SEGURA:
+
+ts import crypto from "crypto";  const tempPassword = crypto.randomBytes(12).toString("hex"); 
+
+---
+
+## 2. 🧾 ADICIONAR FLAG DE SEGURANÇA NO USUÁRIO
+
+No schema de usuário:
+
+ts mustChangePassword: boolean passwordTemporary: boolean createdBy: "CLARA_AI" | "MANUAL" 
+
+---
+
+## 3. 🧠 CENTRALIZAR CRIAÇÃO DE USUÁRIOS (PROVISIONING SERVICE)
+
+Criar:
+
+## 📦 userProvisioningService.ts
+
+Responsável por TODA criação de usuário no sistema.
+
+---
+
+### FUNÇÃO PRINCIPAL:
+
+ts createUserFromClaraAI(data) 
+
+---
+
+### REGRAS:
+
+- gera senha temporária segura
+- define mustChangePassword = true
+- define createdBy = "CLARA_AI"
+- nunca retorna senha em resposta API
+- registra auditoria
+
+---
+
+## 4. 🔒 BLOQUEIO NO LOGIN
+
+No login:
+
+ts if (user.mustChangePassword) {   return res.status(403).json({     error: "PASSWORD_CHANGE_REQUIRED"   }); } 
+
+---
+
+## 5. 🔁 FLUXO OBRIGATÓRIO DE TROCA DE SENHA
+
+Criar endpoint:
+
+## POST /auth/force-password-change
+
+### REGRAS:
+
+- valida usuário autenticado
+- exige senha atual temporária
+- define nova senha hash
+- remove mustChangePassword
+
+---
+
+## 6. 🧾 AUDITORIA DE CRIAÇÃO DE USUÁRIO
+
+Registrar evento:
+
+ts {   userId,   createdBy: "CLARA_AI",   ip,   timestamp,   tenantId } 
+
+---
+
+## 7. 🚫 PROIBIR CRIAÇÃO DIRETA PELA CLARA IA
+
+Antes:
+
+❌ Clara chamava storage direto
+
+Agora:
+
+✔ Clara SÓ pode chamar:
+
+ts userProvisioningService.createUserFromClaraAI() 
+
+---
+
+# 🔐 FLUXO FINAL CORRIGIDO
+
+## 🧭 CRIAÇÃO DE USUÁRIO
+
+1. Clara IA solicita criação
+2. Provisioning Service gera senha segura
+3. Usuário é criado com flag:
+   - mustChangePassword = true
+4. Auditoria registrada
+5. Senha nunca exposta
+
+---
+
+## 🔑 PRIMEIRO LOGIN
+
+1. usuário loga com senha temporária
+2. sistema bloqueia acesso normal
+3. força troca de senha
+4. libera sistema após update
+
+---
+
+# 🛡️ SEGURANÇA ADICIONAL (RECOMENDADO)
+
+- hash de senha com bcrypt
+- rate limit em login
+- bloqueio após tentativas inválidas
+- log de tentativa de login com senha temporária
+
+---
+
+# 📊 RESULTADO DA FASE 14.5
+
+## ✔ Corrige vulnerabilidade crítica (senha fixa)
+## ✔ Cria pipeline seguro de usuários
+## ✔ Centraliza provisioning
+## ✔ Garante zero exposição de senha
+## ✔ Força troca de senha obrigatória
+## ✔ Adiciona auditoria de criação
+
+---
+
+# 🚀 STATUS FINAL
+
+Sistema evolui de:
+
+❌ criação insegura via IA  
+→ para  
+✔ provisioning enterprise controlado
+
+---
+
+# 👉 PRÓXIMO PASSO (FASE 15 sugerida)
+
+- Auth hardening completo (JWT refresh rotation)
+- RBAC por empresa (roles granulares)
+- bloqueio de sessão suspeita
+- device fingerprint login

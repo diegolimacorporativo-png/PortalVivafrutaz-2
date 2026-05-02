@@ -103,6 +103,10 @@ export const companies = pgTable("companies", {
   lastLoginAttempt: timestamp("last_login_attempt"),
   betaTester: boolean("beta_tester").default(false).notNull(),
   currentVersion: text("current_version"),
+  // FASE 14.5 — Secure provisioning flags
+  mustChangePassword: boolean("must_change_password").default(false).notNull(),
+  passwordTemporary: boolean("password_temporary").default(false).notNull(),
+  createdBySource: text("created_by_source"), // "CLARA_AI" | "MANUAL" | null
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
