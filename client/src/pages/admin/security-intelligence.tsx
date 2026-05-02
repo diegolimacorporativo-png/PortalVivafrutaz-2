@@ -858,6 +858,9 @@ export default function SecurityIntelligencePage() {
         </Card>
       )}
 
+      {/* ── FASE 14.9 — Risk Overview por empresa ────────────────────────── */}
+      <RiskOverviewSection />
+
       {ips.length > 0 && (
         <p className="text-xs text-muted-foreground text-right" data-testid="text-generated-at">
           Análise em memória gerada em:{" "}
@@ -868,5 +871,166 @@ export default function SecurityIntelligencePage() {
         </p>
       )}
     </div>
+  );
+}
+
+// ── FASE 14.9 — Risk Overview section (separate component for clarity) ────────
+
+interface RiskResult {
+  companyId: number;
+  name: string;
+  riskScore: number;
+  breakdown: {
+    failedLogins: number;
+    successLogins: number;
+    ipDiversity: number;
+    targetSpread: number;
+    bruteForceSignal: boolean;
+  };
+}
+
+interface RiskResponse {
+  success: boolean;
+  data: { generatedAt: string; results: RiskResult[] };
+}
+
+function riskColor(score: number): string {
+  if (score >= 61) return "text-red-600 dark:text-red-400";
+  if (score >= 26) return "text-yellow-600 dark:text-yellow-500";
+  return "text-green-600 dark:text-green-400";
+}
+
+function riskBg(score: number): string {
+  if (score >= 61) return "bg-red-50 dark:bg-red-900/10 border-l-4 border-l-red-600";
+  if (score >= 26) return "bg-yellow-50 dark:bg-yellow-900/10 border-l-4 border-l-yellow-500";
+  return "";
+}
+
+function riskLabel(score: number): { text: string; className: string } {
+  if (score >= 61) return { text: "ALTO RISCO", className: "bg-red-100 border-red-200 text-red-700 dark:bg-red-900/20 dark:text-red-400" };
+  if (score >= 26) return { text: "SUSPEITO",   className: "bg-yellow-100 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400" };
+  return             { text: "SEGURO",      className: "bg-green-100 border-green-200 text-green-700 dark:bg-green-900/20 dark:text-green-400" };
+}
+
+function RiskScoreBar({ score }: { score: number }) {
+  const color = score >= 61 ? "bg-red-500" : score >= 26 ? "bg-yellow-500" : "bg-green-500";
+  return (
+    <div className="flex items-center gap-2" data-testid="risk-score-bar">
+      <div className="w-24 h-2.5 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${score}%` }} />
+      </div>
+      <span className={`text-sm font-bold tabular-nums font-mono ${riskColor(score)}`}>{score}</span>
+    </div>
+  );
+}
+
+function RiskOverviewSection() {
+  const { data: riskResponse, isLoading } = useQuery<RiskResponse>({
+    queryKey: ["/api/admin/security/risk"],
+    refetchInterval: 120_000,
+  });
+
+  const results = riskResponse?.data?.results ?? [];
+  const generatedAt = riskResponse?.data?.generatedAt;
+
+  // Only render the section if we have data or are loading
+  if (!isLoading && results.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldAlert className="w-4 h-4 text-muted-foreground" />
+            Risk Overview por Empresa
+            <span className="text-xs font-normal text-muted-foreground ml-1">
+              — FASE 14.9 · apenas leitura · score 0–100
+            </span>
+          </CardTitle>
+          {generatedAt && (
+            <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="risk-generated-at">
+              <Clock className="w-3.5 h-3.5" />
+              {new Date(generatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
+        </div>
+        <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-green-500 inline-block" />0–25: Seguro</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-yellow-500 inline-block" />26–60: Suspeito</span>
+          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 rounded-full bg-red-500 inline-block" />61–100: Alto risco</span>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-10 w-full rounded" />)}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table data-testid="table-risk-overview">
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Empresa</TableHead>
+                  <TableHead className="w-44">Risk Score</TableHead>
+                  <TableHead className="w-28">Nível</TableHead>
+                  <TableHead className="text-right">Falhas (7d)</TableHead>
+                  <TableHead className="text-right">Sucessos (7d)</TableHead>
+                  <TableHead className="text-right">IPs distintos</TableHead>
+                  <TableHead className="text-center">Brute Force</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {results.map((r) => {
+                  const label = riskLabel(r.riskScore);
+                  return (
+                    <TableRow
+                      key={r.companyId}
+                      data-testid={`row-risk-company-${r.companyId}`}
+                      className={riskBg(r.riskScore)}
+                    >
+                      <TableCell className="font-medium" data-testid={`text-risk-name-${r.companyId}`}>
+                        {r.name}
+                        <span className="ml-2 text-xs text-muted-foreground font-mono">#{r.companyId}</span>
+                      </TableCell>
+                      <TableCell>
+                        <RiskScoreBar score={r.riskScore} />
+                      </TableCell>
+                      <TableCell>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${label.className}`}
+                          data-testid={`badge-risk-level-${r.companyId}`}
+                        >
+                          {label.text}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums" data-testid={`text-risk-failures-${r.companyId}`}>
+                        <span className={r.breakdown.failedLogins > 0 ? "text-red-600 font-semibold" : ""}>
+                          {r.breakdown.failedLogins}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums" data-testid={`text-risk-successes-${r.companyId}`}>
+                        {r.breakdown.successLogins}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums" data-testid={`text-risk-ip-diversity-${r.companyId}`}>
+                        {r.breakdown.ipDiversity}
+                      </TableCell>
+                      <TableCell className="text-center" data-testid={`text-risk-brute-${r.companyId}`}>
+                        {r.breakdown.bruteForceSignal ? (
+                          <span className="inline-flex items-center gap-1 text-red-600 font-bold text-xs">
+                            <Zap className="w-3.5 h-3.5 animate-pulse" /> SIM
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

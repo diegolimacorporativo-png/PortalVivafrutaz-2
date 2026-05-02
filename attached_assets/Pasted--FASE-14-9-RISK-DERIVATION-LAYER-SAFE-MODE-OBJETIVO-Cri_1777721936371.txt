@@ -1,0 +1,133 @@
+🎯 FASE 14.9 — RISK DERIVATION LAYER (SAFE MODE)
+
+OBJETIVO:
+Criar uma camada 100% READ-ONLY de análise de risco baseada em dados existentes (auth_attempts + AuthCore logs), sem impactar autenticação, sessão ou rate limit.
+
+REGRAS CRÍTICAS (OBRIGATÓRIAS):
+- NÃO alterar AuthCoreService (lógica de decisão)
+- NÃO alterar sessionGuard
+- NÃO alterar rate limit (L1 ou L2)
+- NÃO bloquear login baseado em risk score
+- NÃO criar novas tabelas de eventos
+- NÃO duplicar sistema de logging
+- NÃO introduzir side effects no auth flow
+
+---
+
+🧠 1. CRIAR SERVICE: RiskDerivationService
+
+Criar arquivo:
+server/core/security/riskDerivation.service.ts
+
+Função principal:
+- computeAccountRisk(companyId, userId?)
+
+O serviço deve:
+- Ler auth_attempts do PostgreSQL
+- Filtrar dados por janelas de tempo (24h, 7d)
+- Calcular métricas:
+  - failed logins
+  - successful logins
+  - IP diversity
+  - target spread
+  - brute force pattern detection
+
+---
+
+📊 2. FÓRMULA DE RISK SCORE (0–100)
+
+Calcular score baseado em:
+
+- + até 40 pontos → número de falhas recentes
+- + até 20 pontos → diversidade de IPs
+- + 25 pontos → detecção de brute force (IPs atacando múltiplas contas)
+- + 15 pontos → spread de alvos (múltiplas contas afetadas)
+
+Limitar máximo: 100
+
+---
+
+🔍 3. DETECÇÃO DE BRUTE FORCE
+
+Detectar padrão quando:
+- Um mesmo IP tenta acessar 2 ou mais contas diferentes
+- Ou múltiplos failures distribuídos em curto período
+
+---
+
+📡 4. CRIAR ENDPOINT NOVO (READ-ONLY)
+
+Criar:
+GET /api/admin/security/risk
+
+Regras:
+- protegido por requireAuth (ADMIN/MASTER)
+- NÃO altera dados
+- apenas leitura de auth_attempts
+- retorna risk score por empresa
+
+Response:
+
+{
+  generatedAt: string,
+  results: [
+    {
+      companyId: number,
+      name: string,
+      riskScore: number,
+      breakdown: {
+        failedLogins: number,
+        successLogins: number,
+        ipDiversity: number,
+        targetSpread: number,
+        bruteForceSignal: boolean
+      }
+    }
+  ]
+}
+
+---
+
+🧩 5. REGISTRAR ROTA
+
+Adicionar em routes.ts:
+- registrar security-risk.routes.ts no app
+
+---
+
+🎨 6. FRONTEND (SE JÁ EXISTIR security-intelligence.tsx)
+
+APENAS ADICIONAR:
+- nova seção "Risk Overview"
+- consumir /api/admin/security/risk
+- exibir tabela com:
+  - company name
+  - risk score (0–100)
+  - breakdown expandível
+
+Cores:
+- 0–25 → verde (safe)
+- 26–60 → amarelo (suspicious)
+- 61–100 → vermelho (high risk)
+
+---
+
+🚫 PROIBIDO:
+- criar novo sistema de auth
+- criar nova tabela de logs
+- alterar login flow
+- usar risk score para bloquear qualquer ação
+- duplicar AuthCore logic
+
+---
+
+🧠 PRINCÍPIO ARQUITETURAL:
+"Risk Layer é leitura, nunca decisão"
+
+---
+
+RESULTADO ESPERADO:
+- Camada de inteligência sobre auth_attempts
+- Dashboard de risco por empresa
+- Zero impacto no sistema de autenticação
+- Zero duplicação de infraestrutura existente
