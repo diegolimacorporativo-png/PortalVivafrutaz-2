@@ -132,42 +132,9 @@ export class AuthService {
       };
     }
 
-    // FASE 14.7.1 — L1/L2 rate limit (mirrors company login)
-    const rateLimitKey = `user:${user.id}`;
-    const rateCheck = checkUserRateLimit(rateLimitKey);
-    if (!rateCheck.allowed) {
-      const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        userId: user.id,
-        metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
-
-    const dbRateCheck = await authCoreService.checkDbRateLimit({
-      userId: user.id,
-      ip,
-      endpoint: "admin_login",
-    });
-    if (!dbRateCheck.allowed) {
-      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        userId: user.id,
-        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
-
+    // BUG-01-FIX: check isLocked BEFORE consuming rate limit slots.
+    // Previously the L1/L2 checks ran first, which meant an attacker could
+    // keep burning rate limit windows even after the account was locked.
     if (user.isLocked) {
       console.log("[LOGIN] Conta bloqueada");
       await this.repo.log({
@@ -201,6 +168,43 @@ export class AuthService {
         kind: "failure",
         status: 401,
         message: "Usuário inativo. Entre em contato com o administrador.",
+      };
+    }
+
+    // Rate limits run AFTER lock/active checks (BUG-01 fix) so that locked
+    // accounts don't silently exhaust rate limit windows.
+    const rateLimitKey = `user:${user.id}`;
+    const rateCheck = checkUserRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) {
+      const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        userId: user.id,
+        metadata: { layer: "L1", retryAfterMs: rateCheck.retryAfterMs },
+      });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+      };
+    }
+
+    const dbRateCheck = await authCoreService.checkDbRateLimit({
+      userId: user.id,
+      ip,
+      endpoint: "admin_login",
+    });
+    if (!dbRateCheck.allowed) {
+      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
+      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+        ip,
+        userId: user.id,
+        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
+      });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
       };
     }
 
@@ -307,7 +311,50 @@ export class AuthService {
       };
     }
 
-    // FASE 14.6/14.7 — two-layer rate limit: L1 in-memory (fast) then L2 DB (persistent)
+    const c = company as any;
+
+    // BUG-01-FIX: check isLocked BEFORE consuming rate limit slots.
+    if (c.isLocked) {
+      console.log("[LOGIN] Empresa bloqueada");
+      await this.repo.log({
+        action: "LOGIN_BLOCKED",
+        description: `Tentativa de acesso a empresa bloqueada: ${email}`,
+        companyId: company.id,
+        userEmail: email,
+        level: "ERROR",
+        ip,
+      });
+      // BUG-04-FIX: company login was missing logAuthEvent for blocked states.
+      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, companyId: company.id });
+      return {
+        kind: "failure",
+        status: 423,
+        message:
+          "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
+      };
+    }
+
+    if (!company.active) {
+      console.log("[LOGIN] Empresa inativa");
+      await this.repo.log({
+        action: "LOGIN_BLOCKED",
+        description: `Login cliente bloqueado (conta inativa): ${email}`,
+        companyId: company.id,
+        userEmail: company.email,
+        level: "WARN",
+        ip,
+      });
+      // BUG-04-FIX: emit logAuthEvent for inactive block (mirrors admin login).
+      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_INACTIVE, { ip, companyId: company.id });
+      return {
+        kind: "failure",
+        status: 401,
+        message:
+          "Conta desativada. Entre em contato com a equipe VivaFrutaz para reativar seu acesso.",
+      };
+    }
+
+    // Rate limits run AFTER lock/active checks (BUG-01 fix).
     const rateLimitKey = `company:${company.id}`;
     const rateCheck = checkUserRateLimit(rateLimitKey);
     if (!rateCheck.allowed) {
@@ -336,43 +383,6 @@ export class AuthService {
         kind: "failure",
         status: 429,
         message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
-    }
-
-    const c = company as any;
-    if (c.isLocked) {
-      console.log("[LOGIN] Empresa bloqueada");
-      await this.repo.log({
-        action: "LOGIN_BLOCKED",
-        description: `Tentativa de acesso a empresa bloqueada: ${email}`,
-        companyId: company.id,
-        userEmail: email,
-        level: "ERROR",
-        ip,
-      });
-      return {
-        kind: "failure",
-        status: 423,
-        message:
-          "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
-      };
-    }
-
-    if (!company.active) {
-      console.log("[LOGIN] Empresa inativa");
-      await this.repo.log({
-        action: "LOGIN_BLOCKED",
-        description: `Login cliente bloqueado (conta inativa): ${email}`,
-        companyId: company.id,
-        userEmail: company.email,
-        level: "WARN",
-        ip,
-      });
-      return {
-        kind: "failure",
-        status: 401,
-        message:
-          "Conta desativada. Entre em contato com a equipe VivaFrutaz para reativar seu acesso.",
       };
     }
 

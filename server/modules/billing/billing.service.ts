@@ -33,7 +33,7 @@
  * mantendo todo o resto do builder intacto.
  */
 
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { db } from "../../database/db";
 import { nfDrafts, products } from "@shared/schema";
 import { storage } from "../../services/storage";
@@ -204,36 +204,40 @@ export async function resolveBillingItems(
     const companyId = (orderData.order as any).companyId;
 
     // FASE 12.3 — enriquecer itens legados com NCM e dados fiscais do cadastro
-    const sourceItems: any[] = await Promise.all(
-      rawSourceItems.map(async (item: any) => {
-        if (!item.productId || item.ncm) return item;
-
-        // FASE 12.3 — first try: produto filtrado por empresa
-        let prod = await db.query.products.findFirst({
-          where: and(
-            eq(products.id, item.productId),
-            eq(products.empresaId, companyId)
-          ),
-        });
-
-        if (!prod) {
-          logSecurity(
-            "[NFE_PRODUCT_BLOCKED] productId=" + item.productId +
-            " | orderId=" + orderId +
-            " | reason=cross-tenant"
-          );
-          return item; // NÃO fazer fallback inseguro
-        }
-
-        return {
-          ...item,
-          ncm: item.ncm || prod.ncm || undefined,
-          cfop: item.cfop || prod.cfop || undefined,
-          unit: item.unit || prod.commercialUnit || prod.unit || undefined,
-          importado: item.importado !== undefined ? item.importado : (prod.importado === true),
-        };
-      })
+    // N+1-FIX: replaced per-item db.query.products.findFirst with a single
+    // inArray batch query; results are stored in a Map for O(1) lookup.
+    const needEnrichment = rawSourceItems.filter(
+      (item: any) => item.productId && !item.ncm
     );
+    const productIds = needEnrichment.map((item: any) => item.productId as number);
+    const productMap = new Map<number, any>();
+    if (productIds.length > 0) {
+      const prods = await db
+        .select()
+        .from(products)
+        .where(and(inArray(products.id, productIds), eq(products.empresaId, companyId)));
+      for (const p of prods) productMap.set(p.id, p);
+    }
+
+    const sourceItems: any[] = rawSourceItems.map((item: any) => {
+      if (!item.productId || item.ncm) return item;
+      const prod = productMap.get(item.productId);
+      if (!prod) {
+        logSecurity(
+          "[NFE_PRODUCT_BLOCKED] productId=" + item.productId +
+          " | orderId=" + orderId +
+          " | reason=cross-tenant"
+        );
+        return item; // NÃO fazer fallback inseguro
+      }
+      return {
+        ...item,
+        ncm: item.ncm || prod.ncm || undefined,
+        cfop: item.cfop || prod.cfop || undefined,
+        unit: item.unit || prod.commercialUnit || prod.unit || undefined,
+        importado: item.importado !== undefined ? item.importado : (prod.importado === true),
+      };
+    });
 
     const items = shouldGroup
       ? ((items: any[], fallbackNcm: string, fallbackCfop: string, fallbackUnit: string): any[] => {

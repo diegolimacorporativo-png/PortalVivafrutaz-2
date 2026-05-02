@@ -9,6 +9,9 @@ import {
   changePasswordSchema,
   idParamSchema,
 } from "./users.validation";
+// C2-FIX: users CRUD endpoints were completely unauthenticated — now require
+// a valid admin session. Role enforcement (ADMIN/MASTER) is applied per route.
+import { requireAuth, requireRole } from "../../core/http/requireAuth";
 
 /**
  * Users router — wires HTTP method+path → middleware chain → controller.
@@ -35,11 +38,13 @@ import {
 const router = Router();
 
 // ── List ────────────────────────────────────────────────────────────────
-router.get("/", asyncHandler(usersController.list));
+router.get("/", requireAuth, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), asyncHandler(usersController.list));
 
 // ── Create ──────────────────────────────────────────────────────────────
 router.post(
   "/",
+  requireAuth,
+  requireRole(["MASTER", "ADMIN"]),
   checkPlanLimit("usuarios"),
   validate(createUserSchema, "body"),
   asyncHandler(usersController.create),
@@ -48,6 +53,8 @@ router.post(
 // ── Update ──────────────────────────────────────────────────────────────
 router.put(
   "/:id",
+  requireAuth,
+  requireRole(["MASTER", "ADMIN"]),
   validate(idParamSchema, "params"),
   validate(updateUserSchema, "body"),
   asyncHandler(usersController.update),
@@ -56,6 +63,8 @@ router.put(
 // ── Delete ──────────────────────────────────────────────────────────────
 router.delete(
   "/:id",
+  requireAuth,
+  requireRole(["MASTER", "ADMIN"]),
   validate(idParamSchema, "params"),
   asyncHandler(usersController.remove),
 );
@@ -63,6 +72,8 @@ router.delete(
 // ── Privileged: change password ─────────────────────────────────────────
 router.put(
   "/:id/password",
+  requireAuth,
+  requireRole(["MASTER", "ADMIN"]),
   validate(idParamSchema, "params"),
   validate(changePasswordSchema, "body"),
   asyncHandler(usersController.changePassword),

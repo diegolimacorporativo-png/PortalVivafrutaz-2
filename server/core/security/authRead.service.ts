@@ -244,28 +244,23 @@ export async function getCompanySecurityProfile(
 
   const dates7d = rows7d.map(r => r.createdAt.getTime());
 
-  // Brute force: identify IPs that appear in the failures of OTHER accounts too.
-  // We do a second query only for failure rows — still a single additional query.
+  // BUG-07-FIX: removed second global getAuthAttempts call that fetched ALL
+  // failures from all companies across 7d (expensive, unbounded scan).
+  // Brute-force signal is now derived purely from the company's own already-
+  // fetched rows: flag any IP that appears against 2+ distinct account targets
+  // (the company's own account + any user ID). Cross-company detection is handled
+  // globally by securityAnalytics.engine.ts which is the authoritative source.
   const failureRows7d = rows7d.filter(r => !r.success);
-  const companyIPs = new Set(failureRows7d.map(r => r.ip));
-  const bruteForceIPs: string[] = [];
-
-  if (companyIPs.size > 0) {
-    // Fetch all failures in the 7d window across all accounts, filtered by
-    // the IPs we already know attacked this company
-    const allFailures7d = await getAuthAttempts({ from: since7d, success: false });
-    const ipTargetMap = new Map<string, Set<string>>();
-    for (const r of allFailures7d) {
-      if (!companyIPs.has(r.ip)) continue;
-      const targets = ipTargetMap.get(r.ip) ?? new Set<string>();
-      if (r.companyId) targets.add(`company:${r.companyId}`);
-      if (r.userId)    targets.add(`user:${r.userId}`);
-      ipTargetMap.set(r.ip, targets);
-    }
-    for (const [ip, targets] of ipTargetMap) {
-      if (targets.size >= 2) bruteForceIPs.push(ip);
-    }
+  const ipTargetMap = new Map<string, Set<string>>();
+  for (const r of failureRows7d) {
+    const targets = ipTargetMap.get(r.ip) ?? new Set<string>();
+    if (r.companyId) targets.add(`company:${r.companyId}`);
+    if (r.userId)    targets.add(`user:${r.userId}`);
+    ipTargetMap.set(r.ip, targets);
   }
+  const bruteForceIPs = [...ipTargetMap.entries()]
+    .filter(([, targets]) => targets.size >= 2)
+    .map(([ip]) => ip);
 
   return {
     companyId,

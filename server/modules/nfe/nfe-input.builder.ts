@@ -50,7 +50,15 @@ export async function fetchIbgeCode(cep: string, cityName?: string): Promise<str
         const data = await resp.json();
         if (data.ibge) return String(data.ibge);
       }
-    } catch {}
+    } catch (err) {
+      // BUG-10-FIX: log structured alert instead of swallowing silently.
+      console.warn("[NFE_IBGE_VIACEP_FAIL]", {
+        cep: cleaned,
+        cityName,
+        error: err instanceof Error ? err.message : String(err),
+        fallback: "localMap",
+      });
+    }
   }
   const cityKey = (cityName || "")
     .toLowerCase()

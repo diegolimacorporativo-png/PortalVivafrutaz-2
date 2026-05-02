@@ -1,24 +1,27 @@
-import expressSession, { type SessionOptions } from "express-session";
-import MemoryStore from "memorystore";
-
 /**
  * Shared `express-session` middleware factory.
  *
- * Architecture decision: session is a cross-cutting concern that EVERY
- * modular router and the legacy router need access to. Historically the
- * middleware was mounted inside `registerRoutes` (legacy routes), which
- * meant any modular router mounted BEFORE it received `req.session ===
- * undefined` and crashed on session reads/writes (e.g. `/api/auth/logout`).
+ * C4-FIX: Replaced MemoryStore (process-local, lost on restart, single-instance
+ * only) with connect-pg-simple backed by the existing PostgreSQL pool. Sessions
+ * now survive restarts and are consistent across multiple instances.
  *
- * By centralising the factory here and mounting it in `app.ts` BEFORE the
- * module loader, every router shares the same session store and cookie
- * config — exact parity with the legacy setup is required so existing
- * sessions remain valid across the refactor.
+ * The `sessions` table is auto-created by connect-pg-simple on first boot
+ * (`createTableIfMissing: true`). Schema matches the library default:
+ *   CREATE TABLE "session" (
+ *     "sid" varchar NOT NULL COLLATE "default",
+ *     "sess" json NOT NULL,
+ *     "expire" timestamp(6) NOT NULL
+ *   )
  *
- * The configuration values (cookie name, secret, maxAge, sameSite, etc.)
- * mirror the legacy block from `server/routes/routes.ts` byte-for-byte.
+ * Configuration values (cookie name, secret, maxAge, sameSite, etc.)
+ * mirror the legacy MemoryStore setup byte-for-byte so existing sessions
+ * with the old cookie still cleanly expire without compatibility issues.
  */
-const SessionStore = MemoryStore(expressSession);
+import expressSession, { type SessionOptions } from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { pool } from "../../database/db";
+
+const PgSessionStore = connectPgSimple(expressSession);
 
 export function createSessionMiddleware() {
   if (!process.env.SESSION_SECRET) {
@@ -29,7 +32,12 @@ export function createSessionMiddleware() {
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    store: new SessionStore({ checkPeriod: 86400000 }),
+    store: new PgSessionStore({
+      pool,
+      createTableIfMissing: true,
+      // Prune expired sessions every 24h
+      pruneSessionInterval: 60 * 60 * 24,
+    }),
     cookie: {
       maxAge: 86400000,
       httpOnly: true,

@@ -1,17 +1,18 @@
 /**
  * FASE 6.5 — In-memory tenant abuse blocker (safe mode).
  *
- * Bloqueio temporário em memória para usuários que ultrapassaram o
- * threshold de tenant mismatch (FASE 6.4). Nenhuma persistência: se o
- * processo reiniciar, todos os bloqueios caem — proposital, para evitar
- * que um falso-positivo sobreviva a deploys.
+ * BUG-03-FIX: Changed from fire-and-forget dynamic import pattern to a static
+ * top-level import. The previous `void import(...).then(persistBlock)` could
+ * silently fail or never resolve if the process crashed before the dynamic
+ * import resolved. Static import ensures the module is ready at call time.
  *
- * Garantias:
- *   - chave por email (lowercased) — evita bypass por capitalização
- *   - email vazio/undefined  → nunca bloqueado
- *   - bloqueio expira sozinho após BLOCK_TIME_MS (lazy cleanup no read)
- *   - sem dependência de banco / sem efeito colateral em fluxos válidos
+ * blockUser is now async — awaits the DB write so crashes between the in-memory
+ * set and the DB persist no longer lose the block record.
+ * The one caller (security.repository.ts) uses `void blockUser(...)` to stay
+ * non-blocking at the call site while still letting blockUser complete.
  */
+
+import { persistBlock, removeActiveBlock as _removeActiveBlock } from "./security.block.repository";
 
 const blockedUsers = new Map<string, number>();
 
@@ -70,24 +71,30 @@ export function isUserBlocked(email?: string | null): boolean {
 
 /**
  * Bloqueia um email por `BLOCK_TIME_MS` e dispara `sendSecurityAlert`
- * na primeira vez (anti-spam via `alertedUsers`). O parâmetro `count`
- * é o número de tentativas observadas — apenas informativo, vai pro log.
+ * na primeira vez (anti-spam via `alertedUsers`).
  *
- * FASE 6.9 — replica o bloqueio na tabela `security_blocked_users`
- * (fire-and-forget, fail-safe) para sobreviver a restarts do processo.
+ * BUG-03-FIX: now async — awaits the DB write so the block survives a
+ * process crash. In-memory set happens first (immediate protection), then
+ * the DB write is awaited. On DB error, the in-memory block is still
+ * active and the error is logged — never propagated.
  */
-export function blockUser(email: string, count?: number): void {
+export async function blockUser(email: string, count?: number): Promise<void> {
   const key = normalize(email);
   if (!key) return;
   const until = Date.now() + BLOCK_TIME_MS;
+
+  // Set in-memory first — immediate protection, even if DB write fails.
   blockedUsers.set(key, until);
 
-  // FASE 6.9 — persistência DB. Promise descartada de propósito:
-  // erro de DB nunca pode quebrar o bloqueio em memória, que é a
-  // primeira linha de defesa.
-  void import("./security.block.repository").then(({ persistBlock }) =>
-    persistBlock(key, new Date(until)).catch(() => {}),
-  );
+  // FASE 6.9 — await DB persist so crashes don't lose the block.
+  try {
+    await persistBlock(key, new Date(until));
+  } catch (err) {
+    console.error("[SECURITY_BLOCK_PERSIST_FAIL]", {
+      key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   // FASE 6.6 — alerta one-shot por janela de bloqueio.
   if (!alertedUsers.has(key)) {
@@ -131,12 +138,14 @@ export function unblockUser(email?: string | null): boolean {
   const wasBlocked = blockedUsers.delete(key);
   alertedUsers.delete(key);
 
-  // FASE 6.9 — também remove o bloqueio persistente, garantindo que
-  // após restart o usuário não volte a ser bloqueado por uma linha
-  // antiga ainda dentro do TTL. Fail-safe: erro de DB não propaga.
-  void import("./security.block.repository").then(({ removeActiveBlock }) =>
-    removeActiveBlock(key).catch(() => {}),
-  );
+  // FASE 6.9 — também remove o bloqueio persistente. Static import now
+  // (BUG-03-FIX). Fail-safe: error logged but never propagated.
+  _removeActiveBlock(key).catch((err) => {
+    console.error("[SECURITY_UNBLOCK_PERSIST_FAIL]", {
+      key,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  });
 
   console.info("[SECURITY_UNBLOCK]", { email: key, wasBlocked });
   return wasBlocked;

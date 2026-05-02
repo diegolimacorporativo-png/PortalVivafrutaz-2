@@ -21,9 +21,10 @@ Preferred communication style: Simple, everyday language.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express 5, TypeScript.
-- **Session Management**: `express-session` with `memorystore`, mounted centrally.
+- **Session Management**: `express-session` with **`connect-pg-simple`** (PostgreSQL-backed, survives restarts, `createTableIfMissing: true`). Sessions table auto-created on first boot. Replaced prior MemoryStore (C4-fix).
+- **Graceful Shutdown**: SIGTERM/SIGINT handlers drain the HTTP server then close the DB pool with a 15-second force-exit safety net.
 - **API Design**: Centralized, typed API definitions with Zod schemas for validation.
-- **Storage Layer**: `IStorage` interface implemented using Drizzle ORM and PostgreSQL.
+- **Storage Layer**: `IStorage` interface implemented using Drizzle ORM and PostgreSQL. `getOrders`, `getProducts`, `getUsers` have a default `LIMIT 1000` to prevent OOM on large datasets.
 - **Modular ERP Layout**: Organized into `server/modules/<domain>/` for maintainability and scalability, with `auth`, `companies`, `finance`, `logistics`, `orders`, `products`, and `users` modules fully refactored.
 - **Standardized Response Envelope**: New modules use `{ success: true, data, meta? }` or `{ success: false, error: { message, code, details? } }`.
 - **Authentication Model**: Built with `requireAuth` (session-only), `requireAuthOrService` (session or API key for read-only access), and `tenantContext` for multi-tenancy. Write endpoints intentionally omit service authentication.
@@ -45,9 +46,25 @@ Preferred communication style: Simple, everyday language.
 - `POST /api/nfe/:id/cce` and `GET /api/nfe/:id/cce` now persist to PostgreSQL instead of in-memory `cceHistory` map.
 
 ### Authentication & Authorization
-- Session-based authentication with `express-session`.
+- Session-based authentication with `express-session` backed by PostgreSQL (`connect-pg-simple`).
 - Role-based access control for `admin` and `company` user types, enforced by `ProtectedRoute` and `tabPermissions`.
 - Account lockout mechanism after failed login attempts.
+- **Security audit fixes applied (FASE 14.X):**
+  - C1: `GET /api/admin/logs` now requires `requireAuth + requireRole(['MASTER','ADMIN','DEVELOPER','DIRECTOR'])`.
+  - C2: All `/api/v1/users` CRUD routes now require `requireAuth + requireRole(['MASTER','ADMIN'])`.
+  - C3: `POST /api/auth/revoke-sessions` now requires `requireAuth`.
+  - BUG-01: `isLocked` check moved **before** L1/L2 rate-limit consumption in both admin and company login flows.
+  - BUG-02: Admin unblock endpoint now also resets `isLocked + loginAttempts` on `users`/`companies` tables.
+  - BUG-03: `security.blocker.ts::blockUser` converted to `async` with static import and awaited DB write.
+  - BUG-04: Company login now emits `logAuthEvent` for `LOGIN_BLOCKED_LOCKED` and `LOGIN_BLOCKED_INACTIVE`.
+  - BUG-05: Device-binding enforcement now activates for client-sent `X-Device-Id` headers (sessions with `srv-*` server-generated IDs remain unenforced for backward compat).
+  - BUG-06: `validateSession` catch block is now **fail-closed** (`{ valid: false }` on DB error).
+  - BUG-07: `getCompanySecurityProfile` no longer issues a second global `getAuthAttempts` query; brute-force signal derived from already-fetched company rows.
+  - BUG-08: NF-e period-closure guard is now **fail-closed** (returns HTTP 503 on internal error instead of bypassing the fiscal check).
+  - BUG-09: On startup, any NF-e stuck in `fiscal_status='enviando'` is recovered to `'erro'` (crash-safe reset).
+  - BUG-10: ViaCEP IBGE lookup catch block now emits a structured `console.warn` instead of silently swallowing errors.
+  - N+1 `/api/nfe/eligible`: replaced per-row `canEmitNFe` calls (500 SQL JOINs) with one batch JOIN + JS-level `getFaturamentoContext`.
+  - N+1 `billing.service.ts`: replaced per-item `db.query.products.findFirst` loop with single `inArray` batch query + Map lookup.
 
 ### Core Features
 - **Dual Portal System**: Separate interfaces for client companies and internal administration.

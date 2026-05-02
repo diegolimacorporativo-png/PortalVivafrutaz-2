@@ -233,16 +233,27 @@ class AuthCoreService {
         }
       }
 
-      // Device binding: only enforce if BOTH sides declare a deviceId
-      if (requestDeviceId && session.deviceId && requestDeviceId !== session.deviceId) {
+      // BUG-05-FIX: enforce device binding when the session carries a
+      // CLIENT-generated deviceId (i.e. not a server-generated "srv-*" fallback).
+      // Sessions where the frontend didn't send X-Device-Id at login get a
+      // "srv-<timestamp>" value — we don't enforce those to avoid breaking
+      // existing clients. Sessions where the client DID send the header are
+      // fully bound: missing or mismatched header → reject.
+      const isClientBound =
+        session.deviceId && !String(session.deviceId).startsWith("srv-");
+      if (isClientBound && requestDeviceId !== session.deviceId) {
         return { valid: false, reason: "DEVICE_MISMATCH" };
       }
 
       return { valid: true };
     } catch (err: any) {
-      // Fail-open: DB error must NOT kick active sessions
-      logSecurity(`[SECURITY] AUTH_CORE_VALIDATE_SESSION_ERROR | error=${err?.message ?? "unknown"}`);
-      return { valid: true };
+      // BUG-06-FIX: FAIL-CLOSED — a DB error during session validation now
+      // invalidates the session instead of silently granting access. This
+      // prevents a DB instability window from being exploitable. Legitimate
+      // users will be prompted to re-authenticate, which is the correct
+      // security posture for an enterprise ERP.
+      logSecurity(`[SECURITY] AUTH_CORE_VALIDATE_SESSION_ERROR | error=${err?.message ?? "unknown"} | decision=REJECT`);
+      return { valid: false, reason: "ACCOUNT_NOT_FOUND" };
     }
   }
 

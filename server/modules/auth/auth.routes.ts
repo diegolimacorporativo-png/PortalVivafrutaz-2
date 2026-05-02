@@ -4,6 +4,8 @@ import { authController } from "./auth.controller";
 // FASE 7 — IP-based brute-force guard on login (5 attempts / 5 min per IP).
 // Complements the per-account lockout in AuthService (MAX_ATTEMPTS=3).
 import { loginIpLimiter } from "../../core/security/rateLimit";
+// C3-FIX: revoke-sessions must require an authenticated session.
+import { requireAuth } from "../../core/http/requireAuth";
 
 /**
  * Auth router — wires HTTP method+path → controller.
@@ -31,6 +33,7 @@ router.post("/log-unauthorized", asyncHandler(authController.logUnauthorized));
 // FASE 14.5 — mandatory first-login password change for provisioned accounts
 router.post("/force-password-change", asyncHandler(authController.forcePasswordChange));
 // FASE 14.6 — revoke all sessions for the caller's account (increment tokenVersion)
-router.post("/revoke-sessions", asyncHandler(authController.revokeAllSessions));
+// C3-FIX: was public — requires active session (admin or company).
+router.post("/revoke-sessions", requireAuth, asyncHandler(authController.revokeAllSessions));
 
 export const authRouter = router;

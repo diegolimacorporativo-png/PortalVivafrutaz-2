@@ -1,0 +1,144 @@
+Você é um engenheiro sênior de auditoria de sistemas ERP em produção.
+
+MISSÃO:
+Executar uma auditoria profunda e CORREÇÃO DIRETA no sistema existente.
+
+REGRAS ABSOLUTAS:
+- NÃO criar novas arquiteturas, engines ou serviços paralelos
+- NÃO duplicar lógica já existente
+- NÃO refatorar além do necessário para corrigir bugs
+- NÃO alterar contratos de API
+- NÃO criar novas tabelas sem necessidade crítica
+- Apenas corrigir, proteger e estabilizar o que já existe
+
+FOCO DA MISSÃO:
+Corrigir TODOS os itens abaixo, exatamente como estão descritos no relatório de auditoria:
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 1. FALHAS CRÍTICAS DE SEGURANÇA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Proteger endpoints sem autenticação:
+- GET /api/admin/logs
+- /api/users CRUD
+- POST /api/auth/revoke-sessions
+
+Ação:
+→ aplicar requireAuth + requireRole correto
+→ garantir ADMIN/MASTER onde necessário
+
+2. Substituir MemoryStore de sessão:
+- remover dependência de memória
+- migrar para connect-pg-simple (PostgreSQL)
+- manter compatibilidade com session atual
+
+3. Corrigir SEFAZ produção:
+- bloquear emissão em production se SEFAZ mock
+OU
+- implementar flag segura NODE_ENV check
+NUNCA permitir emissão silenciosa fake em produção
+
+4. Adicionar graceful shutdown:
+- SIGTERM handler
+- fechar pool DB corretamente
+- encerrar workers e cron jobs
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔴 2. BUGS CRÍTICOS (CORRIGIR DIRETAMENTE)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+BUG-01:
+Rate limit sendo consumido após lockout
+→ mover verificação isLocked ANTES de rate limit
+
+BUG-02:
+unblockUser não reseta estado real
+→ resetar loginAttempts + isLocked no DB
+
+BUG-03:
+blockUser sem await no DB
+→ garantir persistência síncrona
+
+BUG-04:
+company login sem logAuthEvent em bloqueios
+→ espelhar comportamento do admin login
+
+BUG-05:
+deviceId bypass
+→ tornar obrigatório X-Device-Id OU gerar server-bound hash
+
+BUG-06:
+sessionVersionGuard fail-open em erro DB
+→ transformar em FAIL-CLOSED para segurança
+
+BUG-07:
+N+1 em getCompanySecurityProfile
+→ substituir múltiplas queries por IN batch único
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🟡 3. NF-e / FISCAL (ESTABILIDADE REAL)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+BUG-08:
+period check fail-open
+→ bloquear emissão em caso de erro crítico
+
+BUG-09:
+status SEFAZ preso em "enviando"
+→ implementar retry + timeout + fallback state
+
+BUG-10:
+IBGE fallback silencioso
+→ adicionar log + alerta estruturado
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🔵 4. DUPLICAÇÕES (ELIMINAR, NÃO DUPLICAR MAIS)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+- remover lógica duplicada de brute force detection
+- manter APENAS AuthReadService como fonte de leitura
+- unificar risk indicators (engine vs profile)
+- eliminar chamadas diretas a logSecurity fora do AuthCoreService
+- manter UM único sistema de rate limit (L1 + L2 mas com mesma config central)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+🟣 5. PERFORMANCE (CORRIGIR N+1)
+━━━━━━━━━━━━━━━━━━━━━━━
+
+- corrigir /api/nfe/eligible (substituir loop por batch IN query)
+- corrigir billing service N+1 por produto
+- garantir paginação obrigatória em:
+  - getOrders
+  - getUsers
+  - getProducts
+  - getCompanies
+
+━━━━━━━━━━━━━━━━━━━━━━━
+ENTREGÁVEL FINAL:
+
+Ao final, você deve entregar:
+
+1. Lista do que foi corrigido
+2. Arquivos alterados
+3. Riscos eliminados
+4. Riscos ainda existentes
+5. Confirmação: "PRONTO PARA PRODUÇÃO SIM ou NÃO"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+OBJETIVO FINAL:
+
+Transformar o sistema em:
+- seguro para produção real
+- sem endpoints abertos
+- sem fail-open crítico
+- sem N+1 destrutivo
+- sem duplicação de segurança
+- com sessão persistente real
+- com NF-e confiável
+
+COMECE PELA ORDEM:
+1. AUTH (segurança)
+2. SESSÃO
+3. NF-e
+4. PERFORMANCE
+5. DUPLICAÇÕES

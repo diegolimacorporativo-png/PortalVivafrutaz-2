@@ -182,7 +182,7 @@ export async function getTenantMismatchEvents(days: number): Promise<{
     // Passamos `count` real para que o alerta carregue a quantidade
     // observada de tentativas. Ignora "unknown" / strings vazias.
     for (const { email, count } of suspiciousUsers) {
-      if (email && email !== "unknown") blockUser(email, count);
+      if (email && email !== "unknown") void blockUser(email, count);
     }
 
     return {

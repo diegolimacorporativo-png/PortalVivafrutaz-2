@@ -1,10 +1,12 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { requireAuth, requireRole } from "../core/http/requireAuth";
 
 export async function register(app: Express): Promise<void> {
   // GET /api/admin/logs — lista logs (paginado por ?limit)
-  app.get('/api/admin/logs', async (req, res) => {
+  // C1-FIX: was completely unauthenticated — now requires MASTER/ADMIN/DEVELOPER/DIRECTOR
+  app.get('/api/admin/logs', requireAuth, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
     try {
       const limit = Math.min(Number(req.query.limit) || 200, 500);
       const logs = await storage.getLogs(limit);

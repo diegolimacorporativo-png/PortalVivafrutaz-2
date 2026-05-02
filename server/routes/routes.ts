@@ -80,6 +80,9 @@ import {
 } from "../modules/nfe/nfe.dependencies";
 import { requireTenantId } from "../core/tenant/context";
 import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
+// N+1-FIX: getFaturamentoContext is used in the /api/nfe/eligible batch query
+// instead of calling canEmitNFe once per row.
+import { getFaturamentoContext } from "../modules/nfe/faturamento.engine";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3/6.5 — guarda de tenant e wrapper multi-tenant
 import { validateOrderTenant, safeGetOrder, withTenantGuard, validateCompanyTenant } from "../core/security/orderSecurity";
@@ -322,12 +325,32 @@ export async function registerRoutes(
         const { unblockUser } = await import('../modules/security/security.blocker');
         const wasBlocked = unblockUser(email);
 
+        // BUG-02-FIX: unblockUser only clears the tenant-mismatch in-memory block
+        // and the security_blocked_users DB record. It does NOT reset the
+        // isLocked / loginAttempts state on the actual users / companies table,
+        // meaning the account remains fully locked for normal logins after unblock.
+        // Fix: look up the account by email and reset both tables.
+        const [userRow, companyRow] = await Promise.all([
+          storage.getUserByEmail(email).catch(() => null),
+          storage.getCompanyByEmail(email).catch(() => null),
+        ]);
+        const resetUpdates = { isLocked: false, loginAttempts: 0 } as any;
+        await Promise.all([
+          userRow    ? storage.updateUser(userRow.id, resetUpdates).catch(() => null)       : Promise.resolve(),
+          companyRow ? storage.updateCompany(companyRow.id, resetUpdates).catch(() => null) : Promise.resolve(),
+        ]);
+
         return res.json({
           success: true,
-          data: { email: email.toLowerCase(), wasBlocked },
+          data: {
+            email: email.toLowerCase(),
+            wasBlocked,
+            resetUser: !!userRow,
+            resetCompany: !!companyRow,
+          },
           message: wasBlocked
-            ? 'Usuário desbloqueado com sucesso'
-            : 'Usuário não estava bloqueado',
+            ? 'Usuário desbloqueado e estado de login resetado com sucesso'
+            : 'Usuário não estava bloqueado (estado de login resetado)',
         });
       } catch (e: any) {
         return res.status(500).json({
@@ -1352,38 +1375,75 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/eligible — STEP 9.3: lista pedidos prontos para emitir NF agora
+    // N+1-FIX: replaced 500x canEmitNFe (one JOIN query each) with a single
+    // batch JOIN that fetches all candidate data at once. getFaturamentoContext
+    // runs in JS for each row — zero additional DB round-trips.
     app.get('/api/nfe/eligible', async (req: any, res) => {
       try {
-        // Pre-filter: só candidatos que passam pelas regras básicas do guard,
-        // evitando chamar canEmitNFe em pedidos obviamente bloqueados.
+        // One query — same JOIN as canEmitNFe but for all candidates at once.
         const raw = await db.execute(sql`
-          SELECT o.id, o.company_id
+          SELECT
+            o.id,
+            o.company_id,
+            o.status,
+            o.fiscal_status,
+            o.delivery_date,
+            c.client_type,
+            c.billing_term,
+            c.payment_dates,
+            c.contract_start_date,
+            c.contract_end_date
           FROM orders o
+          JOIN companies c ON c.id = o.company_id
           WHERE o.status != 'CANCELLED'
             AND o.fiscal_status = 'nota_liberada'
             AND o.delivery_date IS NOT NULL
-          LIMIT 500
+          LIMIT 100
         `);
 
-        const candidates = (raw as any).rows as Array<{ id: number; company_id: number }>;
+        const candidates = (raw as any).rows as Array<{
+          id: number;
+          company_id: number;
+          status: string;
+          fiscal_status: string;
+          delivery_date: any;
+          client_type: any;
+          billing_term: any;
+          payment_dates: any;
+          contract_start_date: any;
+          contract_end_date: any;
+        }>;
 
-        // Roda canEmitNFe em paralelo para todos os candidatos.
-        const results = await Promise.all(
-          candidates.map(async (row) => {
-            const check = await canEmitNFe(row.id);
-            if (!check.allowed) return null;
+        // Apply same business rules as canEmitNFe — pure JS, no DB calls.
+        const eligible = candidates
+          .map((row) => {
+            const order = {
+              id: row.id,
+              status: row.status,
+              fiscal_status: row.fiscal_status,
+              delivery_date: row.delivery_date,
+            };
+            const company = {
+              id: row.company_id,
+              client_type: row.client_type,
+              billing_term: row.billing_term,
+              payment_dates: row.payment_dates,
+              contract_start_date: row.contract_start_date,
+              contract_end_date: row.contract_end_date,
+            };
+            const faturamento = getFaturamentoContext(company, order);
+            if (!faturamento.podeEmitir) return null;
             return {
               orderId: row.id,
               companyId: row.company_id,
               faturamento: {
-                tipo: check.faturamento?.tipo,
-                prazoDias: check.faturamento?.prazoDias,
+                tipo: faturamento.tipo,
+                prazoDias: faturamento.prazoDias,
               },
             };
-          }),
-        );
+          })
+          .filter(Boolean);
 
-        const eligible = results.filter(Boolean);
         return res.json(eligible);
       } catch (error) {
         console.error('[NFE_ELIGIBLE_ERROR]', error);
@@ -1906,9 +1966,15 @@ export async function registerRoutes(
             }
           }
         } catch (closeErr: any) {
-          // Falha aberta: se a checagem em si quebrar, não bloqueamos a
-          // emissão (evita indisponibilidade fiscal por falha do guard).
+          // BUG-08-FIX: FAIL-CLOSED — if the period-closure guard itself throws,
+          // block the emission. Emitting a NF-e into a closed fiscal period is an
+          // irreversible compliance violation; being temporarily unavailable is
+          // safer than silently bypassing the fiscal guard.
           console.error("[NFE_PERIOD_CLOSURE_CHECK_ERROR]", closeErr?.message);
+          return res.status(503).json({
+            message: "PERIOD_CLOSURE_CHECK_UNAVAILABLE",
+            detail: "Verificação de fechamento de período indisponível. Tente novamente em instantes.",
+          });
         }
 
         // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.

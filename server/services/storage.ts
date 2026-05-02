@@ -743,11 +743,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(categories).where(eq(categories.id, id));
   }
 
-  async getProducts(empresaId?: number): Promise<Product[]> {
+  async getProducts(empresaId?: number, limit = 1000): Promise<Product[]> {
+    // PERF-FIX: bounded LIMIT (default 1000) prevents OOM on large catalogs.
+    // All existing callers that omit `limit` get the safe default.
     const query = db.select().from(products);
     if (empresaId) {
       query.where(eq(products.empresaId, empresaId));
     }
+    query.limit(limit);
     return await query;
   }
 
@@ -878,17 +881,19 @@ export class DatabaseStorage implements IStorage {
     await db.delete(orderWindows).where(eq(orderWindows.id, id));
   }
 
-  async getOrders(empresaId?: number): Promise<Order[]> {
+  async getOrders(empresaId?: number, limit = 1000): Promise<Order[]> {
     // FASE 1 — Safe-guard tenant: se o caller não passa empresaId explícito,
     // tenta deduzir do TenantContext em escopo (sessão de empresa ou admin
     // pinned). Se não houver contexto (ex.: admin cross-tenant legítimo),
     // mantém o comportamento original de retornar tudo, preservando os 25+
     // call-sites em rotas administrativas que agregam entre empresas.
+    // PERF-FIX: bounded LIMIT (default 1000) prevents OOM on large datasets.
     const empresa = empresaId ?? currentTenantId();
     const query = db.select().from(orders).orderBy(desc(orders.orderDate));
     if (empresa != null) {
       query.where(eq(orders.companyId, empresa));
     }
+    query.limit(limit);
     return await query;
   }
 
@@ -1226,8 +1231,10 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async getUsers(): Promise<User[]> {
-    return await db.select().from(users).orderBy(users.id);
+  async getUsers(limit = 1000): Promise<User[]> {
+    // PERF-FIX: bounded LIMIT (default 1000) prevents OOM. All existing callers
+    // that omit `limit` get the safe default without any signature change.
+    return await db.select().from(users).orderBy(users.id).limit(limit);
   }
 
   async deleteUser(id: number): Promise<void> {
