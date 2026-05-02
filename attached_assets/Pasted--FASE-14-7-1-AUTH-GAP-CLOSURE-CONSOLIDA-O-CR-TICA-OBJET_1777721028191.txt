@@ -1,0 +1,211 @@
+# 🔐 FASE 14.7.1 — AUTH GAP CLOSURE (CONSOLIDAÇÃO CRÍTICA)
+
+## 🎯 OBJETIVO
+
+Fechar as inconsistências reais do sistema de autenticação identificadas na FASE 14.7:
+
+- alinhar ADMIN login com COMPANY login
+- eliminar divergência de rate limit (L1/L2)
+- unificar pipeline de logging de segurança
+- remover acoplamento indevido sessionGuard → storage
+- manter zero breaking changes de API
+
+---
+
+# 🚫 REGRAS OBRIGATÓRIAS
+
+- NÃO alterar contratos de API
+- NÃO mudar estrutura de sessão (express-session mantém)
+- NÃO migrar para JWT
+- NÃO remover AuthCoreService existente
+- NÃO quebrar fluxo atual de login
+- NÃO introduzir novas arquiteturas paralelas
+
+👉 Apenas CONSOLIDAR o que já existe
+
+---
+
+# 🧠 PROBLEMA CENTRAL
+
+O sistema tem 1 inconsistência crítica:
+
+## ❗ ADMIN LOGIN está fora do modelo de segurança unificado
+
+Enquanto COMPANY login usa:
+
+- L1 rate limit (memory)
+- L2 rate limit (DB)
+- auth_attempts logging
+- AuthCoreService logging
+
+👉 ADMIN login usa apenas:
+- IP limiter + lockout simples
+
+---
+
+# 🔧 IMPLEMENTAÇÃO — PASSO 1 (CRÍTICO)
+
+## 🔐 ALINHAR ADMIN LOGIN COM COMPANY LOGIN
+
+📍 arquivo: auth.service.ts
+
+### ANTES (simplificado)
+- loginIpLimiter (IP only)
+- bcrypt verify
+- loginAttempts + lockout
+- sem AuthCore
+
+---
+
+### DEPOIS (CONSOLIDADO)
+
+Adicionar fluxo equivalente ao COMPANY:
+
+ts id="admin_rate_l1" await checkUserRateLimit(admin.id); 
+
+ts id="admin_rate_l2" await authCoreService.checkDbRateLimit({   userId: admin.id,   ip,   endpoint: "admin_login" }); 
+
+---
+
+### LOG DE TENTATIVA (OBRIGATÓRIO)
+
+ts id="admin_attempt_log" await authCoreService.recordAttempt({   userId: admin.id,   companyId: null,   ip,   endpoint: "admin_login",   success: false }); 
+
+---
+
+### LOG DE SUCESSO
+
+ts id="admin_success_log" authCoreService.logAuthEvent(   AUTH_EVENTS.LOGIN_SUCCESS,   {     userId: admin.id,     ip,     endpoint: "admin_login"   } ); 
+
+---
+
+# 🔧 IMPLEMENTAÇÃO — PASSO 2
+
+## 🔄 UNIFICAR RATE LIMIT SCHEDULE
+
+📍 criar novo arquivo:
+
+ts id="rate_schedule" server/core/auth/rateSchedule.ts 
+
+### CONTEÚDO:
+
+ts id="schedule_config" export const RATE_LIMIT_SCHEDULE = [   { minFails: 3, cooldownMs: 5_000 },   { minFails: 5, cooldownMs: 30_000 },   { minFails: 8, cooldownMs: 120_000 },   { minFails: 10, cooldownMs: 300_000 } ]; 
+
+---
+
+### USO:
+
+Substituir:
+
+- userRateLimit.ts thresholds
+- authCoreService COOLDOWN_SCHEDULE
+
+👉 ambos devem importar ESTE arquivo
+
+---
+
+# 🔧 IMPLEMENTAÇÃO — PASSO 3
+
+## 📊 UNIFICAR LOGGING PIPELINE
+
+### PROBLEMA ATUAL
+
+- logSecurity() → alertEngine + console
+- logAuthEvent() → buffer circular
+
+👉 dois pipelines diferentes
+
+---
+
+### SOLUÇÃO
+
+📍 dentro de AuthCoreService
+
+Criar wrapper único:
+
+ts id="unified_logger" logAuthEvent(event, payload) {   // 1. buffer interno (observability)   logSecurityEvent(event, payload);    // 2. alert engine apenas para críticos   if (isCritical(event)) {     logSecurity(`[SECURITY] ${event}`, payload);   } } 
+
+---
+
+### RESULTADO
+
+- 1 chamada
+- 2 outputs consistentes
+- sem duplicação externa
+
+---
+
+# 🔧 IMPLEMENTAÇÃO — PASSO 4
+
+## 🧹 REMOVER ACOPLAMENTO sessionGuard → storage
+
+### PROBLEMA
+
+sessionGuard chama storage diretamente para logs.
+
+---
+
+### SOLUÇÃO
+
+Substituir:
+
+ts id="guard_fix_before" // ❌ sessionGuard usa storage storage.createLog(...) 
+
+---
+
+por:
+
+ts id="guard_fix_after" // ✔ usa AuthCoreService authCoreService.logAuthEvent(   AUTH_EVENTS.SESSION_INVALIDATED,   {     userId,     reason: "token_version_mismatch"   } ); 
+
+---
+
+# 📊 RESULTADO FINAL DA FASE 14.7.1
+
+## ✔ ADMIN LOGIN alinhado ao padrão enterprise
+## ✔ RATE LIMIT com configuração única
+## ✔ LOGGING unificado em pipeline único
+## ✔ SESSION GUARD desacoplado de storage
+## ✔ ZERO mudanças de API
+
+---
+
+# 🧠 IMPACTO ARQUITETURAL
+
+Depois disso:
+
+## 🔐 AuthCoreService deixa de ser “parcial”
+e vira:
+
+> ✔ REAL DECISION & OBSERVABILITY ENGINE
+
+---
+
+# 🚀 ESTADO FINAL DO SISTEMA (APÓS ESTA FASE)
+
+- 100% login paths consistentes (admin + company)
+- 1 fonte de rate limit rules
+- 1 pipeline de logging
+- sessionGuard = thin adapter puro
+- AuthCore = centro de decisão real
+
+---
+
+# 📌 PRÓXIMO PASSO NATURAL
+
+Após isso, o sistema está pronto para:
+
+## 📊 FASE 14.8 — SECURITY OBSERVABILITY PANEL
+
+- dashboard de ataques
+- risk score por usuário
+- timeline de auth events
+- visualização de brute force
+- sessão ativa por device
+
+---
+
+# 🧠 PRINCÍPIO FINAL
+
+> CONSOLIDAR PRIMEIRO  
+> OBSERVAR DEPOIS  
+> EVOLUIR EM CAMADA
