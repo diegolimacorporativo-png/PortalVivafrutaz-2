@@ -17,6 +17,8 @@ import {
   highRiskActionLogger,
   criticalActionLogger,
 } from "./core/security/rateLimit";
+// FASE 14.6 — Session token version guard (enterprise session invalidation)
+import { sessionVersionGuard } from "./core/security/sessionGuard";
 
 /**
  * App factory.
@@ -140,6 +142,13 @@ export async function buildApp(): Promise<BuildAppResult> {
   // router share the same session store. MUST come before registerModules
   // so the auth module can read/write `req.session` (login, logout, /me).
   app.use(createSessionMiddleware());
+
+  // ── FASE 14.6: Session version guard ────────────────────────────────────
+  // Mounted immediately after session so the tokenVersion check runs before
+  // any business logic. Skip auth paths (login/logout/force-password-change)
+  // and unauthenticated requests — guard logic handles these internally.
+  app.use(sessionVersionGuard);
+  // ── end FASE 14.6 ────────────────────────────────────────────────────────
 
   // ── FASE 7: Rate limiting + critical action logging ─────────────────────
   // Mounted AFTER session (so req.session is readable in criticalActionLogger)

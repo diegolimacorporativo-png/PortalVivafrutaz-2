@@ -30,5 +30,7 @@ router.post("/forgot-password", asyncHandler(authController.forgotPassword));
 router.post("/log-unauthorized", asyncHandler(authController.logUnauthorized));
 // FASE 14.5 — mandatory first-login password change for provisioned accounts
 router.post("/force-password-change", asyncHandler(authController.forcePasswordChange));
+// FASE 14.6 — revoke all sessions for the caller's account (increment tokenVersion)
+router.post("/revoke-sessions", asyncHandler(authController.revokeAllSessions));
 
 export const authRouter = router;

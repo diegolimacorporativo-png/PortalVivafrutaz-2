@@ -7,6 +7,14 @@ import type {
   MeOutcome,
   SessionPayload,
 } from "./auth.types";
+// FASE 14.6 — per-user progressive rate limiter (complements IP limiter in rateLimit.ts)
+import {
+  checkUserRateLimit,
+  recordUserLoginSuccess,
+  recordUserLoginFailure,
+} from "../../core/security/userRateLimit";
+// FASE 14.6 — centralised security event bus
+import { logSecurityEvent, logSecurity } from "../../core/security/securityLogger";
 
 /** Number of failed attempts before an account is auto-locked. */
 const MAX_ATTEMPTS = 3;
@@ -246,6 +254,20 @@ export class AuthService {
       };
     }
 
+    // FASE 14.6 — per-company rate limit check (in-memory, progressive cooldown)
+    const rateLimitKey = `company:${company.id}`;
+    const rateCheck = checkUserRateLimit(rateLimitKey);
+    if (!rateCheck.allowed) {
+      const retryAfterSec = Math.ceil((rateCheck.retryAfterMs ?? 0) / 1000);
+      logSecurity(`[SECURITY] USER_RATE_LIMITED | companyId=${company.id} | ip=${ip} | retryAfterSec=${retryAfterSec}`);
+      logSecurityEvent({ type: "USER_RATE_LIMITED", ip, userId: company.id, metadata: { kind: "company", retryAfterMs: rateCheck.retryAfterMs } });
+      return {
+        kind: "failure",
+        status: 429,
+        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+      };
+    }
+
     const c = company as any; // Company schema has loginAttempts/isLocked
     if (c.isLocked) {
       console.log("[LOGIN] Empresa bloqueada");
@@ -306,6 +328,12 @@ export class AuthService {
         level: "WARN",
         ip,
       });
+      // FASE 14.6 — record failure in per-user rate limiter + detect brute force
+      const failResult = recordUserLoginFailure(rateLimitKey);
+      if (failResult.riskScore >= 5) {
+        logSecurity(`[SECURITY] BRUTE_FORCE_DETECTED | companyId=${company.id} | ip=${ip} | riskScore=${failResult.riskScore} | blocked=${failResult.blocked}`);
+        logSecurityEvent({ type: "BRUTE_FORCE_DETECTED", ip, userId: company.id, metadata: { kind: "company", riskScore: failResult.riskScore, cooldownMs: failResult.cooldownMs } });
+      }
       if (willLock) {
         await this.notifyAdminsOfLockout(email, "empresa cliente", ip);
         return {
@@ -338,6 +366,8 @@ export class AuthService {
 
     // Success — reset attempts, log
     console.log("[LOGIN] Login bem-sucedido para empresa:", company.email);
+    // FASE 14.6 — reset per-user rate limit on success
+    recordUserLoginSuccess(rateLimitKey);
     const refreshed = await this.repo.updateCompany(company.id, {
       loginAttempts: 0,
       lastLoginAttempt: new Date(),
@@ -350,6 +380,7 @@ export class AuthService {
       userRole: "CLIENT",
       ip,
     });
+    logSecurityEvent({ type: "LOGIN_SUCCESS", ip, userId: refreshed.id, metadata: { kind: "company", email: refreshed.email } });
     return { kind: "company-success", company: refreshed };
   }
 
@@ -397,6 +428,56 @@ export class AuthService {
     });
 
     return { ok: true, company: updated };
+  }
+
+  // ── Revoke all sessions (FASE 14.6) ────────────────────────────────────
+  /**
+   * Invalidates ALL active sessions for a company or user by incrementing
+   * their tokenVersion in the DB. Every existing session with the old version
+   * will be rejected by sessionVersionGuard on the next request, forcing
+   * re-authentication. Use this on compromise, suspicious activity, or at
+   * operator request.
+   */
+  async revokeAllSessions(
+    kind: "company" | "admin",
+    id: number,
+    ip: string,
+  ): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    try {
+      if (kind === "company") {
+        const company = await this.repo.getCompanyById(id);
+        if (!company) return { ok: false, status: 404, message: "Empresa não encontrada." };
+        const currentVersion = (company as any).tokenVersion ?? 0;
+        await this.repo.updateCompany(id, { tokenVersion: currentVersion + 1 } as any);
+        await this.repo.log({
+          action: "REVOKE_ALL_SESSIONS",
+          description: `Todas as sessões da empresa "${(company as any).companyName}" foram revogadas (tokenVersion: ${currentVersion} → ${currentVersion + 1}).`,
+          companyId: id,
+          level: "WARN",
+          ip,
+        });
+        logSecurity(`[SECURITY] REVOKE_ALL_SESSIONS | companyId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
+        logSecurityEvent({ type: "REVOKE_ALL_SESSIONS", ip, userId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
+      } else {
+        const user = await this.repo.getUserById(id);
+        if (!user) return { ok: false, status: 404, message: "Usuário não encontrado." };
+        const currentVersion = (user as any).tokenVersion ?? 0;
+        await this.repo.updateUser(id, { tokenVersion: currentVersion + 1 } as any);
+        await this.repo.log({
+          action: "REVOKE_ALL_SESSIONS",
+          description: `Todas as sessões do usuário "${user.name}" foram revogadas (tokenVersion: ${currentVersion} → ${currentVersion + 1}).`,
+          userId: id,
+          level: "WARN",
+          ip,
+        });
+        logSecurity(`[SECURITY] REVOKE_ALL_SESSIONS | userId=${id} | ip=${ip} | newTokenVersion=${currentVersion + 1}`);
+        logSecurityEvent({ type: "REVOKE_ALL_SESSIONS", ip, userId: id, metadata: { kind, newTokenVersion: currentVersion + 1 } });
+      }
+      return { ok: true };
+    } catch (err: any) {
+      console.error("[auth.service] revokeAllSessions error:", err);
+      return { ok: false, status: 500, message: "Erro ao revogar sessões." };
+    }
   }
 
   // ── Internal helpers ───────────────────────────────────────────────────

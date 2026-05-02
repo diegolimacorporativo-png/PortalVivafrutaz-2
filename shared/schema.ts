@@ -18,6 +18,8 @@ export const users = pgTable("users", {
   loginAttempts: integer("login_attempts").default(0).notNull(),
   isLocked: boolean("is_locked").default(false).notNull(),
   lastLoginAttempt: timestamp("last_login_attempt"),
+  // FASE 14.6 — session invalidation: increment to kick all active sessions
+  tokenVersion: integer("token_version").default(0).notNull(),
 }, (table) => ({
   empresaIdIdx: index("users_empresa_id_idx").on(table.empresaId),
 }));
@@ -107,6 +109,8 @@ export const companies = pgTable("companies", {
   mustChangePassword: boolean("must_change_password").default(false).notNull(),
   passwordTemporary: boolean("password_temporary").default(false).notNull(),
   createdBySource: text("created_by_source"), // "CLARA_AI" | "MANUAL" | null
+  // FASE 14.6 — session invalidation: increment to kick all active sessions
+  tokenVersion: integer("token_version").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

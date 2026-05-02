@@ -71,6 +71,8 @@ export class AuthController {
     // response is critical because the frontend immediately fires GET /me
     // after login and expects the cookie to be valid.
     const session = req.session as unknown as SessionPayload;
+    // FASE 14.6 — deviceId from client (fingerprint) or generate a fallback UUID
+    const deviceId = (req.body as any)?.deviceId || `srv-${Date.now().toString(36)}`;
     if (outcome.kind === "admin-success") {
       session.userId = outcome.user.id;
       session.userType = "admin";
@@ -78,9 +80,15 @@ export class AuthController {
       // an extra DB round-trip per request. requireRole still falls back to a
       // DB lookup for legacy sessions written before this field existed.
       session.userRole = outcome.user.role;
+      // FASE 14.6 — snapshot tokenVersion + deviceId for sessionVersionGuard
+      session.tokenVersion = (outcome.user as any).tokenVersion ?? 0;
+      session.deviceId = deviceId;
     } else {
       session.companyId = outcome.company.id;
       session.userType = "company";
+      // FASE 14.6 — snapshot tokenVersion + deviceId for sessionVersionGuard
+      session.tokenVersion = (outcome.company as any).tokenVersion ?? 0;
+      session.deviceId = deviceId;
     }
 
     await new Promise<void>((resolve) => {
@@ -188,6 +196,42 @@ export class AuthController {
     // Password changed — strip password hash before responding
     const { password: _pw, ...companySafe } = result.company as Record<string, unknown> & { password?: unknown };
     res.json({ ok: true, message: "Senha alterada com sucesso. Você já pode fazer login.", company: companySafe });
+  };
+
+  // ── POST /api/auth/revoke-sessions (FASE 14.6) ────────────────────────
+  /**
+   * Revoke all active sessions for the currently logged-in company or user by
+   * incrementing their tokenVersion. Any existing session (across all devices /
+   * browsers) will be rejected by sessionVersionGuard on the next request.
+   *
+   * Requires an active session — the actor revokes their own account's sessions.
+   * After this call the current session is also immediately destroyed so the
+   * caller is forced to log in again with the new tokenVersion.
+   */
+  revokeAllSessions = async (req: Request, res: Response): Promise<void> => {
+    const session = req.session as unknown as SessionPayload;
+    const ip =
+      ((req.headers["x-forwarded-for"] as string) || "").split(",")[0] ||
+      req.socket.remoteAddress ||
+      "";
+
+    const kind = session.userType === "admin" ? "admin" : "company";
+    const id = session.userId ?? session.companyId;
+    if (!id) {
+      res.status(401).json({ message: "Não autenticado." });
+      return;
+    }
+
+    const result = await this.service.revokeAllSessions(kind, id, ip);
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message });
+      return;
+    }
+
+    // Destroy the caller's own session too — they must re-authenticate with
+    // the new tokenVersion so the guard doesn't immediately kick them out.
+    req.session.destroy(() => {});
+    res.json({ ok: true, message: "Todas as sessões foram encerradas. Faça login novamente." });
   };
 
   // ── POST /api/auth/log-unauthorized ────────────────────────────────────

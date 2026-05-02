@@ -1,0 +1,238 @@
+# 🔐 FASE 14.6 — AUTH RESILIENCE ENGINE (ENTERPRISE SECURITY HARDENING)
+
+## 🎯 OBJETIVO
+
+Elevar o sistema de autenticação para nível enterprise resiliente, protegendo contra:
+
+- brute force
+- replay attacks
+- token theft
+- sessão comprometida
+- abuso de refresh token
+- tentativas automatizadas
+
+---
+
+# 🚫 REGRAS CRÍTICAS
+
+- NÃO alterar arquitetura geral do sistema
+- NÃO quebrar login existente
+- NÃO remover funcionalidades atuais
+- NÃO mudar contratos de API
+- NÃO introduzir dependências desnecessárias
+- manter compatibilidade total com FASE 14.5
+
+---
+
+# 🧠 CONTEXTO ATUAL
+
+O sistema já possui:
+
+✔ login com bloqueio mustChangePassword  
+✔ provisioning seguro via Clara IA  
+✔ endpoint de troca de senha  
+✔ auditoria de autenticação  
+
+---
+
+# 🧱 IMPLEMENTAÇÃO DA FASE 14.6
+
+---
+
+## 1. 🔁 REFRESH TOKEN ROTATION (CRÍTICO)
+
+### 🎯 OBJETIVO
+
+Impedir reutilização de refresh token roubado.
+
+---
+
+### REGRAS:
+
+- refresh token só pode ser usado UMA vez
+- ao usar, gera novo refresh token
+- invalida o anterior imediatamente
+
+---
+
+### LÓGICA:
+
+ts id="rt_rotation" if (refreshTokenAlreadyUsed) {   throw new Error("INVALID_REFRESH_TOKEN"); } 
+
+---
+
+### ARMAZENAMENTO:
+
+Adicionar:
+
+ts id="rt_store" refreshTokenVersion: number 
+
+---
+
+## 2. 📱 SESSÃO POR DISPOSITIVO
+
+### 🎯 OBJETIVO
+
+Detectar e isolar sessões por device.
+
+---
+
+### ADICIONAR:
+
+ts id="device_session" deviceId: string sessionId: string 
+
+---
+
+### REGRAS:
+
+- login cria device session
+- cada device tem refresh token independente
+- logout invalida apenas device atual
+
+---
+
+## 3. 🚨 RATE LIMIT INTELIGENTE (POR USUÁRIO)
+
+### ❌ ATUAL (problema)
+- rate limit baseado em IP
+
+---
+
+### ✅ NOVO MODELO:
+
+ts id="user_rate_limit" key = userId + endpoint 
+
+---
+
+### REGRAS:
+
+- 5 tentativas de login por minuto por usuário
+- 10 tentativas de refresh por minuto
+- bloqueio progressivo (cooldown crescente)
+
+---
+
+## 4. 🛑 DETECÇÃO DE ABUSO (BASIC ANTI-BOT)
+
+### DETECTAR:
+
+- múltiplos logins falhos seguidos
+- uso repetido de refresh token inválido
+- tentativas de força bruta
+
+---
+
+### AÇÃO:
+
+ts id="abuse_block" if (riskScore > threshold) {   blockUserTemporarily(); } 
+
+---
+
+## 5. 🔐 TOKEN SECURITY HARDENING
+
+### JWT deve conter:
+
+ts id="jwt_payload" {   userId,   tenantId,   deviceId,   tokenVersion } 
+
+---
+
+### VALIDAÇÕES:
+
+- tokenVersion deve bater com DB
+- deviceId deve ser válido
+- tenantId obrigatório em todas requisições
+
+---
+
+## 6. 🧾 AUDITORIA DE SEGURANÇA CENTRALIZADA
+
+Criar evento único:
+
+ts id="security_event" SECURITY_EVENT_LOG 
+
+---
+
+### REGISTRAR:
+
+- login success
+- login fail
+- refresh token use
+- token invalid attempt
+- device mismatch
+- brute force detection
+
+---
+
+## 7. ⛔ BLOQUEIO DE SESSÃO COMPROMETIDA
+
+### REGRA:
+
+Se detectar risco:
+
+- invalidar todos refresh tokens do usuário
+- forçar novo login
+- log SECURITY_LOCKED_ACCOUNT
+
+---
+
+# 🔄 FLUXO FINAL (NOVO SISTEMA)
+
+## LOGIN
+
+1. valida credenciais
+2. checa mustChangePassword
+3. valida deviceId
+4. gera access + refresh token
+5. registra sessão
+
+---
+
+## REFRESH TOKEN
+
+1. valida tokenVersion
+2. valida deviceId
+3. verifica se já foi usado
+4. gera novo refresh token
+5. invalida anterior
+
+---
+
+## ABUSO
+
+1. detecta padrão suspeito
+2. aumenta riskScore
+3. bloqueia temporariamente se necessário
+
+---
+
+# 🛡️ RESULTADO FINAL DA FASE 14.6
+
+## ✔ Sistema resistente a ataque de token reuse
+## ✔ Sessão isolada por dispositivo
+## ✔ Rate limit inteligente por usuário
+## ✔ Detecção básica de comportamento suspeito
+## ✔ Auditoria completa de segurança
+## ✔ Proteção contra brute force avançado
+
+---
+
+# 🚀 IMPACTO ARQUITETURAL
+
+O sistema evolui de:
+
+❌ Auth tradicional baseado em sessão simples  
+
+→ para:
+
+✔ Auth enterprise resiliente com controle de sessão, device e token lifecycle
+
+---
+
+# 👉 PRÓXIMO PASSO (FASE 14.7)
+
+Quando isso estiver pronto:
+
+- frontend force-password-change
+- tela de dispositivos conectados
+- logout remoto por device
+- painel de segurança do usuário

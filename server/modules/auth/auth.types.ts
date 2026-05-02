@@ -56,6 +56,17 @@ export interface SessionPayload {
    * Absent for company-portal sessions (companies don't have a role).
    */
   userRole?: string;
+  /**
+   * FASE 14.6 — Snapshot of the account's tokenVersion at login time.
+   * sessionVersionGuard compares this against the DB on every request;
+   * a mismatch means the account's sessions were revoked (revokeAllSessions).
+   */
+  tokenVersion?: number;
+  /**
+   * FASE 14.6 — Optional device fingerprint supplied by the client at login.
+   * Stored for per-device session isolation and audit trails.
+   */
+  deviceId?: string;
 }
 
 export interface ForgotPasswordOutcome {
