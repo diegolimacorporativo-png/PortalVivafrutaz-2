@@ -205,20 +205,89 @@ export function register(app: Express) {
     else if (/clima|tempo|previsão do tempo|previsao do tempo|chuva|temperatura|vai chover|como está o tempo/.test(msg)) {
       intent = 'weather';
       try {
-        const city = msg.match(/em\s+([a-záàâãéèêíïóôõöúçñü\s]+)/i)?.[1]?.trim() || 'São Paulo';
-        const cityEncoded = encodeURIComponent(city);
-        const weatherRes = await fetch(`https://wttr.in/${cityEncoded}?format=%l:+%C,+%t+(sensação+%f),+umidade+%h&lang=pt`, {
-          headers: { 'User-Agent': 'VivaFrutaz/1.0' },
-          signal: AbortSignal.timeout(5000),
-        });
-        if (weatherRes.ok) {
-          const weatherText = await weatherRes.text();
-          response = `🌤️ **Previsão do Tempo**\n\n${weatherText.trim()}\n\n_Fonte: wttr.in — dados em tempo real_`;
+        // Extract city — stop before trailing temporal words so "clima em SP hoje" → "SP"
+        const cityRaw = msg
+          .match(/em\s+([a-záàâãéèêíïóôõöúçñü\s]+?)(?:\s+(?:hoje|amanhã|amanha|agora|semana|nessa|nesta|essa|esta|para|no|na|do|da)|\s*$)/i)?.[1]?.trim()
+          || msg.match(/em\s+([a-záàâãéèêíïóôõöúçñü\s]+)/i)?.[1]?.trim()
+          || 'São Paulo';
+
+        // ── Step 1: Geocode city → lat/lon (Open-Meteo geocoding, free, no key) ──
+        const geoRes = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityRaw)}&count=1&language=pt&format=json`,
+          { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'VivaFrutaz/1.0' } },
+        );
+
+        if (!geoRes.ok) throw new Error(`Geocoding HTTP ${geoRes.status}`);
+        const geoData = await geoRes.json() as any;
+        const location = geoData?.results?.[0];
+
+        if (!location) {
+          response = `⚠️ Cidade **"${cityRaw}"** não encontrada. Tente com outro nome (ex: "São Paulo", "Rio de Janeiro").`;
         } else {
-          response = '⚠️ Não consegui obter a previsão do tempo agora. Tente novamente em instantes.';
+          const { latitude, longitude, name: cityName, country } = location;
+
+          // ── Step 2: Fetch current weather (Open-Meteo, free, no key) ──────────
+          const weatherRes = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
+            `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode,windspeed_10m` +
+            `&timezone=auto&forecast_days=1`,
+            { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'VivaFrutaz/1.0' } },
+          );
+
+          if (!weatherRes.ok) throw new Error(`Weather HTTP ${weatherRes.status}`);
+          const weatherData = await weatherRes.json() as any;
+          const cur = weatherData?.current;
+
+          // WMO weather code → Portuguese description + emoji
+          const WMO_CODES: Record<number, [string, string]> = {
+            0:  ['Céu limpo', '☀️'],
+            1:  ['Principalmente limpo', '🌤️'],
+            2:  ['Parcialmente nublado', '⛅'],
+            3:  ['Nublado', '☁️'],
+            45: ['Névoa', '🌫️'],
+            48: ['Névoa com geada', '🌫️'],
+            51: ['Garoa leve', '🌦️'],
+            53: ['Garoa moderada', '🌦️'],
+            55: ['Garoa intensa', '🌦️'],
+            61: ['Chuva leve', '🌧️'],
+            63: ['Chuva moderada', '🌧️'],
+            65: ['Chuva forte', '🌧️'],
+            71: ['Neve leve', '🌨️'],
+            73: ['Neve moderada', '🌨️'],
+            75: ['Neve forte', '🌨️'],
+            77: ['Grãos de neve', '🌨️'],
+            80: ['Chuva rápida leve', '🌦️'],
+            81: ['Chuva rápida moderada', '🌦️'],
+            82: ['Chuva rápida forte', '⛈️'],
+            85: ['Neve rápida leve', '🌨️'],
+            86: ['Neve rápida forte', '🌨️'],
+            95: ['Tempestade', '⛈️'],
+            96: ['Tempestade com granizo', '⛈️'],
+            99: ['Tempestade forte com granizo', '⛈️'],
+          };
+
+          const code = cur?.weathercode ?? 0;
+          const [descricao, emoji] = WMO_CODES[code] ?? ['Condição desconhecida', '🌡️'];
+          const temperatura = Math.round(cur?.temperature_2m ?? 0);
+          const sensacao = Math.round(cur?.apparent_temperature ?? temperatura);
+          const umidade = cur?.relative_humidity_2m ?? 0;
+          const vento = Math.round(cur?.windspeed_10m ?? 0);
+          const atualizadoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
+
+          // Structured weather object (matches spec: {cidade, temperatura, descricao, atualizadoEm})
+          const weatherPayload = { cidade: `${cityName}, ${country}`, temperatura, descricao, atualizadoEm };
+          actionData = weatherPayload;
+
+          response = `${emoji} **Clima em ${cityName}${country ? `, ${country}` : ''}**\n\n` +
+            `• 🌡️ Temperatura: **${temperatura}°C** (sensação ${sensacao}°C)\n` +
+            `• ${emoji} Condição: **${descricao}**\n` +
+            `• 💧 Umidade: **${umidade}%**\n` +
+            `• 💨 Vento: **${vento} km/h**\n\n` +
+            `_Atualizado em: ${atualizadoEm} — Open-Meteo (tempo real)_`;
         }
-      } catch {
-        response = '⚠️ Serviço de clima temporariamente indisponível. Tente novamente mais tarde.';
+      } catch (err: any) {
+        console.error('[CLARA_WEATHER] Erro ao buscar clima:', err?.message ?? err);
+        response = '⚠️ Serviço de clima temporariamente indisponível. Tente novamente em instantes.';
       }
     }
 
