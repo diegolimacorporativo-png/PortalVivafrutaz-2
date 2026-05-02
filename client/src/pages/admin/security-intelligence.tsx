@@ -157,14 +157,21 @@ function SummaryCards({ data }: { data: SecurityAnalysisData }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className={spikes > 0 ? "border-red-400 bg-red-50 dark:bg-red-900/10" : ""}>
         <CardContent className="pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">Spikes Ativos</p>
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                Spikes Ativos
+                {spikes > 0 && (
+                  <span className="text-red-600 font-bold animate-pulse ml-1">
+                    ⚠ {spikes} {spikes === 1 ? "ativo" : "ativos"}
+                  </span>
+                )}
+              </p>
               <p className="text-2xl font-bold text-red-600" data-testid="stat-spikes">{spikes}</p>
             </div>
-            <Zap className="w-5 h-5 text-red-500" />
+            <Zap className={`w-5 h-5 ${spikes > 0 ? "text-red-500 animate-pulse" : "text-red-500"}`} />
           </div>
         </CardContent>
       </Card>
@@ -265,13 +272,16 @@ export default function SecurityIntelligencePage() {
       {/* ── Hub de Segurança — resumos + atalhos ────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Contas Bloqueadas */}
-        <Card data-testid="card-locked-accounts-hub">
+        <Card
+          data-testid="card-locked-accounts-hub"
+          className={lockedAccounts.length > 0 ? "border-red-500 bg-red-50 dark:bg-red-900/10" : ""}
+        >
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30">
                 <Lock className="w-4 h-4 text-red-600 dark:text-red-400" />
               </div>
-              Contas Bloqueadas
+              🔒 Contas Bloqueadas
             </CardTitle>
           </CardHeader>
           <CardContent className="flex items-end justify-between gap-4">
@@ -379,7 +389,13 @@ export default function SecurityIntelligencePage() {
                     <TableRow
                       key={ip.ip}
                       data-testid={`row-ip-${ip.ip}`}
-                      className={ip.level === "CRITICAL" ? "bg-red-50/50 dark:bg-red-900/10" : ""}
+                      className={
+                        ip.level === "CRITICAL"
+                          ? "bg-red-50 dark:bg-red-900/10 border-l-4 border-l-red-600"
+                          : ip.level === "HIGH"
+                            ? "bg-orange-50 dark:bg-orange-900/10 border-l-4 border-l-orange-500"
+                            : ""
+                      }
                     >
                       <TableCell>
                         <code
@@ -391,7 +407,9 @@ export default function SecurityIntelligencePage() {
                       </TableCell>
 
                       <TableCell>
-                        <ScoreBar score={ip.score} />
+                        <div className={ip.level === "CRITICAL" ? "scale-105 origin-left" : ""}>
+                          <ScoreBar score={ip.score} />
+                        </div>
                       </TableCell>
 
                       <TableCell>
@@ -401,11 +419,11 @@ export default function SecurityIntelligencePage() {
                       <TableCell>
                         {ip.spike ? (
                           <span
-                            className="inline-flex items-center gap-1.5 text-red-600 font-bold text-sm"
+                            className="inline-flex items-center gap-1.5 text-red-600 font-bold text-sm animate-pulse"
                             data-testid={`spike-active-${ip.ip}`}
                           >
                             <Zap className="w-4 h-4" />
-                            SPIKE ATIVO
+                            ⚡ SPIKE ATIVO
                           </span>
                         ) : (
                           <span className="text-xs text-muted-foreground" data-testid={`spike-none-${ip.ip}`}>

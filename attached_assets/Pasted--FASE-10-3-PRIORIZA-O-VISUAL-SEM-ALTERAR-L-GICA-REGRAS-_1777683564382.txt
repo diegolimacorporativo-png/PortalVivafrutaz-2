@@ -1,0 +1,245 @@
+🎯 FASE 10.3 — PRIORIZAÇÃO VISUAL (SEM ALTERAR LÓGICA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar endpoints
+2. NÃO alterar lógica de cálculo (score, level, spike)
+3. NÃO alterar queries existentes
+4. NÃO remover nenhum componente
+5. NÃO alterar estrutura da tabela
+6. NÃO mexer no backend
+7. NÃO criar estado global
+
+👉 Apenas melhorar PRIORIDADE VISUAL dentro da tela existente
+
+---
+
+🧠 OBJETIVO
+
+Destacar automaticamente o que é crítico para o admin:
+
+- IPs perigosos
+- Spikes ativos
+- Contas bloqueadas
+
+Sem mudar comportamento — apenas VISUAL
+
+---
+
+## 🛠️ ETAPA 1 — DESTAQUE PARA IP CRÍTICO
+
+Arquivo:
+
+client/src/pages/admin/security-intelligence.tsx
+
+---
+
+Dentro do map da tabela:
+
+tsx <TableRow key={ip.ip}> 
+
+---
+
+Alterar para:
+
+tsx <TableRow   key={ip.ip}   className={     ip.level === 'CRITICAL'       ? 'bg-red-50 border-l-4 border-red-600'       : ip.level === 'HIGH'       ? 'bg-orange-50 border-l-4 border-orange-500'       : ''   } > 
+
+---
+
+🎯 Resultado:
+
+- CRITICAL → fundo vermelho leve + borda forte
+- HIGH → fundo laranja leve
+- LOW/MEDIUM → normal
+
+---
+
+## 🛠️ ETAPA 2 — SPIKE MAIS VISÍVEL
+
+Local:
+
+coluna de spike
+
+---
+
+Antes:
+
+tsx {ip.spike ? <span>SPIKE ATIVO</span> : <span>—</span>} 
+
+---
+
+Depois:
+
+tsx {ip.spike ? (   <span className="text-red-600 font-bold animate-pulse">     ⚡ SPIKE ATIVO   </span> ) : (   <span className="text-muted-foreground">—</span> )} 
+
+---
+
+🎯 Resultado:
+
+- Spike chama atenção visual imediata
+- Sem mudar lógica
+
+---
+
+## 🛠️ ETAPA 3 — SCORE COM ÊNFASE EM RISCO
+
+Onde usa:
+
+tsx <ScoreBar score={ip.score} /> 
+
+---
+
+Envolver com destaque condicional:
+
+tsx <div   className={     ip.level === 'CRITICAL'       ? 'scale-105'       : ''   } >   <ScoreBar score={ip.score} /> </div> 
+
+---
+
+🎯 Resultado:
+
+- Score de risco alto fica levemente maior
+- Nenhuma mudança no componente
+
+---
+
+## 🛠️ ETAPA 4 — CARD DE CONTAS BLOQUEADAS
+
+Local: card já criado
+
+---
+
+Adicionar classe dinâmica:
+
+tsx <Card   className={     lockedAccounts?.length > 0       ? 'border-red-500 bg-red-50'       : ''   } > 
+
+---
+
+E no título:
+
+tsx <h3 className="font-semibold">   🔒 Contas Bloqueadas </h3> 
+
+---
+
+🎯 Resultado:
+
+- Se houver bloqueios → card vira alerta visual
+- Zero mudança de lógica
+
+---
+
+## 🛠️ ETAPA 5 — CARD DE SPIKES ATIVOS
+
+Criar contador simples (sem alterar query):
+
+tsx const activeSpikes = ips.filter(ip => ip.spike).length; 
+
+---
+
+No card antifraude existente:
+
+tsx {activeSpikes > 0 && (   <span className="text-red-600 font-bold ml-2">     ⚠ {activeSpikes} ativos   </span> )} 
+
+---
+
+🎯 Resultado:
+
+- Admin vê risco ativo sem olhar tabela
+- Nenhum endpoint novo
+
+---
+
+## 🛠️ ETAPA 6 — ORDEM VISUAL (SEM ALTERAR SORT)
+
+⚠️ NÃO alterar .sort() do backend
+
+Apenas garantir que:
+
+- cores + destaque já refletem prioridade
+- tabela continua consumindo como está
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ IP CRITICAL
+
+✔ fundo vermelho leve  
+✔ borda lateral vermelha  
+✔ score levemente maior  
+
+---
+
+### 2️⃣ IP HIGH
+
+✔ fundo laranja leve  
+
+---
+
+### 3️⃣ SPIKE ATIVO
+
+✔ texto vermelho  
+✔ animação pulse  
+✔ visível imediatamente  
+
+---
+
+### 4️⃣ Contas bloqueadas
+
+✔ card vermelho quando > 0  
+✔ neutro quando 0  
+
+---
+
+### 5️⃣ Nenhum dado
+
+✔ layout intacto  
+✔ tabela intacta  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero alteração de backend  
+✔ zero alteração de lógica  
+✔ zero impacto em performance  
+✔ zero regressão  
+✔ apenas classes CSS condicionais  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+- Tudo visualmente igual  
+- difícil identificar risco  
+
+Depois:
+
+- riscos destacados automaticamente  
+- leitura em 2 segundos  
+- admin sabe onde agir sem pensar  
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. trechos alterados
+2. prints visuais (ou descrição)
+3. confirmação de zero regressão
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO adicionar badge global  
+👉 NÃO criar alert system  
+👉 NÃO mexer em outras páginas  
+
+👉 isso vem
