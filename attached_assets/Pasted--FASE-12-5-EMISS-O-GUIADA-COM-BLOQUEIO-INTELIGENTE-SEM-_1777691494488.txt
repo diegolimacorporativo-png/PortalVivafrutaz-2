@@ -1,0 +1,179 @@
+🎯 FASE 12.5 — EMISSÃO GUIADA COM BLOQUEIO INTELIGENTE (SEM QUEBRAR FLUXO)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend  
+2. NÃO alterar endpoints  
+3. NÃO alterar contrato do preflight  
+4. NÃO alterar fluxo atual de emissão  
+5. NÃO remover botão de emitir  
+6. NÃO bloquear hard (sem opção de override)  
+7. NÃO mover lógica entre arquivos  
+
+👉 Apenas adicionar camada de proteção no frontend
+
+---
+
+🧠 CONTEXTO
+
+- FASE 12.4 já permite:
+  ✔ Validar NF-e  
+  ✔ Ver diagnóstico  
+
+- Problema atual:
+  ❌ usuário ainda pode emitir NF com erro  
+
+👉 Precisamos impedir erro operacional SEM travar o sistema
+
+---
+
+📦 OBJETIVO
+
+Antes de emitir NF:
+
+1. Rodar preflight automaticamente  
+2. Se houver erro → ALERTAR usuário  
+3. Permitir decisão:
+   - Corrigir
+   - OU emitir mesmo assim (override controlado)
+
+👉 emissão continua possível (não quebrar fluxo)
+
+---
+
+## 🛠️ ETAPA 1 — LOCALIZAR BOTÃO DE EMISSÃO
+
+Dentro de:
+
+client/src/pages/admin/orders.tsx
+
+Ou componente:
+
+DanfePanel / OrderActions
+
+Encontrar:
+
+tsx <Button onClick={handleEmit}>   Emitir NF-e </Button> 
+
+---
+
+## 🛠️ ETAPA 2 — CRIAR ESTADO DE BLOQUEIO
+
+ts const [emitGuardOpen, setEmitGuardOpen] = useState(false); const [emitPreflight, setEmitPreflight] = useState<any>(null); const [loadingEmitGuard, setLoadingEmitGuard] = useState(false); const [pendingEmitOrderId, setPendingEmitOrderId] = useState<number | null>(null); 
+
+---
+
+## 🛠️ ETAPA 3 — INTERCEPTAR EMISSÃO (WRAPPER)
+
+⚠️ NÃO alterar handleEmit original
+
+Criar função:
+
+ts async function handleEmitWithGuard(orderId: number) {   try {     setLoadingEmitGuard(true);      const res = await getNFePreflight(orderId);      // sem erro → segue normal     if (!res?.error && !res?.errors?.length) {       return handleEmit(orderId);     }      // com erro → abrir modal     setEmitPreflight(res);     setPendingEmitOrderId(orderId);     setEmitGuardOpen(true);    } catch (err) {     console.error(err);      // fallback: não bloquear emissão em caso de erro técnico     return handleEmit(orderId);    } finally {     setLoadingEmitGuard(false);   } } 
+
+---
+
+## 🛠️ ETAPA 4 — SUBSTITUIR ONCLICK
+
+ANTES:
+
+tsx onClick={() => handleEmit(order.id)} 
+
+DEPOIS:
+
+tsx onClick={() => handleEmitWithGuard(order.id)} 
+
+⚠️ NÃO remover handleEmit  
+⚠️ NÃO alterar handleEmit  
+
+---
+
+## 🛠️ ETAPA 5 — MODAL DE BLOQUEIO INTELIGENTE
+
+tsx <Dialog open={emitGuardOpen} onOpenChange={setEmitGuardOpen}>   <DialogContent data-testid="modal-emit-guard">     <DialogHeader>       <DialogTitle>⚠ Problemas na NF-e</DialogTitle>     </DialogHeader>      <div className="space-y-3">        <div className="text-sm text-red-600">         Foram encontrados erros na validação da NF-e.       </div>        <pre className="max-h-60 overflow-auto text-xs bg-gray-100 p-2 rounded">         {JSON.stringify(emitPreflight, null, 2)}       </pre>        <div className="flex gap-2 justify-end">          <Button           variant="outline"           onClick={() => setEmitGuardOpen(false)}           data-testid="btn-cancel-emit"         >           Corrigir         </Button>          <Button           variant="destructive"           onClick={() => {             if (pendingEmitOrderId) {               handleEmit(pendingEmitOrderId);               setEmitGuardOpen(false);             }           }}           data-testid="btn-force-emit"         >           Emitir mesmo assim         </Button>        </div>      </div>   </DialogContent> </Dialog> 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+### 1️⃣ Pedido válido
+
+✔ preflight roda  
+✔ emissão segue automática  
+✔ nenhum modal aparece  
+
+---
+
+### 2️⃣ Pedido com erro
+
+✔ modal abre  
+✔ usuário vê erro  
+✔ pode cancelar OU emitir  
+
+---
+
+### 3️⃣ Falha no preflight (erro técnico)
+
+✔ console.error  
+✔ emissão continua (fallback seguro)  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero alteração no backend  
+✔ zero alteração no contrato  
+✔ emissão nunca bloqueada 100%  
+✔ operador continua com controle  
+✔ erro visível antes da emissão  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ emissão cega  
+❌ erro só depois  
+
+Depois:
+
+✔ validação automática  
+✔ bloqueio visual  
+✔ decisão consciente  
+✔ redução de erro real  
+
+---
+
+## ⚠️ IMPORTANTE
+
+👉 NÃO impedir emissão totalmente  
+👉 NÃO esconder botão  
+👉 NÃO alterar handleEmit  
+👉 NÃO mover lógica  
+
+👉 Isso é “bloqueio inteligente”, não bloqueio rígido
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo alterado  
+2. Wrapper implementado  
+3. Modal criado  
+4. Confirmação de zero regressão  
+
+---
+
+🚀 Isso finaliza o fluxo:
+
+→ leitura ✔  
+→ validação ✔  
+→ diagnóstico ✔  
+→ decisão ✔  
+
+👉 próximo nível: FASE 13 (frontend compl

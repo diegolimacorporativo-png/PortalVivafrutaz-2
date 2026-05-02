@@ -387,6 +387,11 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   const [loadingPreflight, setLoadingPreflight] = useState(false);
   const [loadingDiagnostics, setLoadingDiagnostics] = useState(false);
 
+  const [emitGuardOpen, setEmitGuardOpen] = useState(false);
+  const [emitPreflight, setEmitPreflight] = useState<any>(null);
+  const [loadingEmitGuard, setLoadingEmitGuard] = useState(false);
+  const [pendingEmitOrderId, setPendingEmitOrderId] = useState<number | null>(null);
+
   const emitirNfeMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/nfe/emitir", { orderId: order.id }),
     onSuccess: async (res) => {
@@ -585,6 +590,35 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
     }
   };
 
+  const handleEmit = () => {
+    if (isShaking) return;
+    if (canEmit === false) {
+      setIsShaking(true);
+      setTimeout(() => setIsShaking(false), 400);
+      toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
+      return;
+    }
+    emitirNfeMutation.mutate();
+  };
+
+  const handleEmitWithGuard = async (orderId: number) => {
+    try {
+      setLoadingEmitGuard(true);
+      const res = await getNFePreflight(orderId);
+      if (!res?.error && !(res?.errors?.length)) {
+        return handleEmit();
+      }
+      setEmitPreflight(res);
+      setPendingEmitOrderId(orderId);
+      setEmitGuardOpen(true);
+    } catch (err) {
+      console.error(err);
+      return handleEmit();
+    } finally {
+      setLoadingEmitGuard(false);
+    }
+  };
+
   const handlePreflight = async () => {
     try {
       setLoadingPreflight(true);
@@ -763,26 +797,18 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                   type="button"
                   id={`emit-btn-${order.id}`}
                   data-testid={`button-emitir-nfe-${order.id}`}
-                  onClick={() => {
-                    if (isShaking) return;
-                    if (canEmit === false) {
-                      setIsShaking(true);
-                      setTimeout(() => setIsShaking(false), 400);
-                      toast({ title: "Faturamento bloqueado", description: blockReason, variant: "destructive" });
-                      return;
-                    }
-                    emitirNfeMutation.mutate();
-                  }}
+                  onClick={() => handleEmitWithGuard(order.id)}
                   disabled={
                     emitirNfeMutation.isPending ||
                     order.status === "CANCELLED" ||
-                    checkingEmit
+                    checkingEmit ||
+                    loadingEmitGuard
                   }
                   title={canEmit === false ? blockReason : "Emitir NF"}
                   className={`flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 ${justUnlocked ? "unlock-highlight" : ""} ${isShaking ? "shake-horizontal" : ""} ${canEmit === false ? "opacity-70 cursor-not-allowed" : ""}`}
                 >
-                  {emitirNfeMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
-                  {emitirNfeMutation.isPending ? "Gerando NF-e..." : "Emitir NF-e"}
+                  {(emitirNfeMutation.isPending || loadingEmitGuard) ? <Loader2 className="w-4 h-4 animate-spin" /> : <ReceiptText className="w-4 h-4" />}
+                  {emitirNfeMutation.isPending ? "Gerando NF-e..." : loadingEmitGuard ? "Validando..." : "Emitir NF-e"}
                 </button>
                 {canEmit === false ? (
                   <span
@@ -909,6 +935,44 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
           </div>
         </div>
       </div>
+
+      {/* Emit Guard Modal */}
+      <Dialog open={emitGuardOpen} onOpenChange={setEmitGuardOpen}>
+        <DialogContent className="max-w-xl" data-testid="modal-emit-guard">
+          <DialogHeader>
+            <DialogTitle>⚠ Problemas na NF-e</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="text-sm text-red-600">
+              Foram encontrados erros na validação da NF-e.
+            </div>
+            <pre className="max-h-60 overflow-auto text-xs bg-gray-100 p-2 rounded whitespace-pre-wrap break-all">
+              {JSON.stringify(emitPreflight, null, 2)}
+            </pre>
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                type="button"
+                data-testid="button-emit-guard-cancel"
+                onClick={() => setEmitGuardOpen(false)}
+                className="px-4 py-2 text-sm font-semibold rounded-lg border-2 border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                data-testid="button-emit-guard-confirm"
+                onClick={() => {
+                  setEmitGuardOpen(false);
+                  handleEmit();
+                }}
+                className="px-4 py-2 text-sm font-bold rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors"
+              >
+                Emitir mesmo assim
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Preflight Modal */}
       <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>
