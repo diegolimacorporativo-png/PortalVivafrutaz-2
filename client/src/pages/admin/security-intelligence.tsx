@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +102,25 @@ interface RecentActivity {
   createdAt: string;
 }
 
+// FASE 14.11 — anomaly detection types
+type AnomalyType     = "BRUTE_FORCE" | "SPIKE" | "IP_VOLATILITY" | "CLUSTER";
+type AnomalySeverity = "low" | "medium" | "high";
+
+interface Anomaly {
+  type:             AnomalyType;
+  severity:         AnomalySeverity;
+  score:            number;
+  affectedEntities: string[];
+  evidence:         Record<string, unknown>;
+}
+
+interface AnomalyReport {
+  generatedAt:      string;
+  window:           "24h";
+  globalRiskSignal: number;
+  anomalies:        Anomaly[];
+}
+
 interface OverviewData {
   stats: {
     failures24h: number;
@@ -115,6 +135,7 @@ interface OverviewData {
   bruteForceCluster: IPStat[];
   topRiskyAccounts: AccountRisk[];
   recentActivity: RecentActivity[];
+  anomalies?: AnomalyReport;
   generatedAt: string;
 }
 
@@ -858,6 +879,9 @@ export default function SecurityIntelligencePage() {
         </Card>
       )}
 
+      {/* ── FASE 14.11 — Anomaly Detection Panel ────────────────────────── */}
+      <AnomaliesSection report={overview?.anomalies} loading={loadingOverview} />
+
       {/* ── FASE 14.9 — Risk Overview por empresa ────────────────────────── */}
       <RiskOverviewSection />
 
@@ -871,6 +895,189 @@ export default function SecurityIntelligencePage() {
         </p>
       )}
     </div>
+  );
+}
+
+// ── FASE 14.11 — Anomaly Detection Panel ─────────────────────────────────────
+
+const ANOMALY_META: Record<
+  AnomalyType,
+  { label: string; icon: ReactNode; description: string }
+> = {
+  BRUTE_FORCE:   { label: "Brute Force Distribuído",  icon: <Zap className="w-4 h-4" />,          description: "Um IP atacando múltiplas contas ou múltiplos IPs atacando a mesma conta." },
+  SPIKE:         { label: "Login Spike",               icon: <TrendingUp className="w-4 h-4" />,   description: "Aumento súbito de falhas em relação à média histórica de 7 dias." },
+  IP_VOLATILITY: { label: "Volatilidade de IP",        icon: <Globe className="w-4 h-4" />,        description: "Mesma conta autenticando de 3+ IPs distintos em menos de 24h." },
+  CLUSTER:       { label: "Cluster de Falhas",         icon: <Activity className="w-4 h-4" />,     description: "5+ falhas agrupadas em janela de 5 minutos." },
+};
+
+const SEVERITY_STYLE: Record<AnomalySeverity, string> = {
+  high:   "border-red-400 bg-red-50 dark:bg-red-900/10",
+  medium: "border-yellow-400 bg-yellow-50 dark:bg-yellow-900/10",
+  low:    "border-gray-300 bg-gray-50 dark:bg-gray-800/20",
+};
+
+const SEVERITY_BADGE: Record<AnomalySeverity, string> = {
+  high:   "bg-red-100 border-red-200 text-red-700 dark:bg-red-900/20 dark:text-red-400",
+  medium: "bg-yellow-100 border-yellow-200 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400",
+  low:    "bg-gray-100 border-gray-200 text-gray-700 dark:bg-gray-800/40 dark:text-gray-300",
+};
+
+const SEVERITY_LABEL: Record<AnomalySeverity, string> = {
+  high:   "ALTO",
+  medium: "MÉDIO",
+  low:    "BAIXO",
+};
+
+function GlobalRiskSignalBar({ signal }: { signal: number }) {
+  const color =
+    signal >= 60 ? "bg-red-500"    :
+    signal >= 30 ? "bg-yellow-500" : "bg-green-500";
+  const textColor =
+    signal >= 60 ? "text-red-600 dark:text-red-400"    :
+    signal >= 30 ? "text-yellow-600 dark:text-yellow-500" : "text-green-600 dark:text-green-400";
+  return (
+    <div className="flex items-center gap-3" data-testid="global-risk-signal">
+      <div className="flex-1 h-3 rounded-full bg-muted overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${signal}%` }} />
+      </div>
+      <span className={`text-lg font-bold tabular-nums font-mono w-12 text-right ${textColor}`}>
+        {signal}
+      </span>
+      <span className="text-xs text-muted-foreground">/100</span>
+    </div>
+  );
+}
+
+function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
+  const meta = ANOMALY_META[anomaly.type];
+  return (
+    <div
+      className={`rounded-xl border-l-4 p-4 ${SEVERITY_STYLE[anomaly.severity]}`}
+      data-testid={`card-anomaly-${anomaly.type}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="flex-shrink-0 text-muted-foreground">{meta.icon}</span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-semibold text-sm">{meta.label}</span>
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border ${SEVERITY_BADGE[anomaly.severity]}`}
+                data-testid={`badge-anomaly-severity-${anomaly.type}`}
+              >
+                {SEVERITY_LABEL[anomaly.severity]}
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">
+                +{anomaly.score} pts
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{meta.description}</p>
+          </div>
+        </div>
+      </div>
+
+      {anomaly.affectedEntities.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {anomaly.affectedEntities.slice(0, 6).map(e => (
+            <code
+              key={e}
+              className="text-xs bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 px-1.5 py-0.5 rounded font-mono"
+            >
+              {e}
+            </code>
+          ))}
+          {anomaly.affectedEntities.length > 6 && (
+            <span className="text-xs text-muted-foreground self-center">
+              +{anomaly.affectedEntities.length - 6} mais
+            </span>
+          )}
+        </div>
+      )}
+
+      <div className="mt-3 text-xs text-muted-foreground font-mono bg-white/60 dark:bg-gray-900/30 rounded-lg p-2 border border-gray-100 dark:border-gray-800">
+        {Object.entries(anomaly.evidence).map(([k, v]) => (
+          <div key={k} className="flex gap-2">
+            <span className="text-muted-foreground/70 flex-shrink-0">{k}:</span>
+            <span className="truncate">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function AnomaliesSection({
+  report,
+  loading,
+}: {
+  report?: AnomalyReport;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <Card>
+        <CardHeader className="pb-3">
+          <Skeleton className="h-5 w-64" />
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {[...Array(2)].map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!report) return null;
+
+  const hasAnomalies = report.anomalies.length > 0;
+
+  return (
+    <Card className={report.globalRiskSignal >= 60 ? "border-red-400" : report.globalRiskSignal >= 30 ? "border-yellow-400" : ""}>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ShieldAlert className={`w-4 h-4 ${report.globalRiskSignal >= 60 ? "text-red-500 animate-pulse" : "text-muted-foreground"}`} />
+            Anomaly Detection Engine
+            <span className="text-xs font-normal text-muted-foreground ml-1">
+              — FASE 14.11 · janela 24h · leitura exclusiva
+            </span>
+          </CardTitle>
+          <span className="text-xs text-muted-foreground flex items-center gap-1" data-testid="anomaly-generated-at">
+            <Clock className="w-3.5 h-3.5" />
+            {new Date(report.generatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+          </span>
+        </div>
+
+        <div className="mt-3">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+              Global Risk Signal
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {report.anomalies.length} {report.anomalies.length === 1 ? "anomalia detectada" : "anomalias detectadas"}
+            </span>
+          </div>
+          <GlobalRiskSignalBar signal={report.globalRiskSignal} />
+        </div>
+      </CardHeader>
+
+      <CardContent>
+        {!hasAnomalies ? (
+          <div className="flex flex-col items-center py-10 text-center" data-testid="anomalies-empty">
+            <ShieldCheck className="w-10 h-10 text-green-500 mb-2" />
+            <p className="text-sm font-semibold">Nenhuma anomalia detectada nas últimas 24h</p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Todos os padrões de autenticação estão dentro dos parâmetros normais.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3" data-testid="anomalies-list">
+            {report.anomalies.map((a, i) => (
+              <AnomalyCard key={`${a.type}-${i}`} anomaly={a} />
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

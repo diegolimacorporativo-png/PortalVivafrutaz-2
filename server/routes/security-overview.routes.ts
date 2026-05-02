@@ -1,19 +1,13 @@
 /**
  * FASE 14.8 — Security Observability Panel: DB-backed risk intelligence.
  * FASE 14.10 — Refactored to use AuthReadService as the single read path.
- *
- * All auth_attempts reads now go through AuthReadService. No direct Drizzle
- * queries live in this file.
+ * FASE 14.11 — Extended response with anomaly detection results.
  *
  * GET /api/admin/security/overview
  *
- * Computes from a single 30d fetch:
- *   - Stats: 24h / 7d / 30d windows
- *   - Hourly timeline (24 buckets for the last 24h)
- *   - Top attacker IPs by failure volume + distinct targets
- *   - Brute force clusters (IPs targeting ≥ 2 accounts)
- *   - Top risky accounts
- *   - Recent activity feed (last 20 rows)
+ * All auth_attempts reads go through AuthReadService (FASE 14.10).
+ * Anomaly detection runs in parallel with stats computation (FASE 14.11).
+ * No direct Drizzle queries in this file.
  *
  * Fail-open: any error returns empty but valid structure.
  * Protected: MASTER and ADMIN roles only.
@@ -25,43 +19,46 @@ import {
   getAuthAttempts,
   computeAuthStats,
   computeTopAttackers,
-  type NormalizedAttempt,
 } from "../core/security/authRead.service";
+import { detectAnomalies } from "../core/security/anomalyDetection.service";
 
 interface HourBucket {
-  hour:     number;
-  label:    string;
-  failures: number;
+  hour:      number;
+  label:     string;
+  failures:  number;
   successes: number;
 }
 
 async function buildOverview() {
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60_000);
 
-  // Single DB fetch via AuthReadService covers all windows (cap: 5 000 rows)
-  const allRows = await getAuthAttempts({ from: since30d });
+  // Run stats fetch and anomaly detection in parallel — both use AuthReadService
+  const [allRows, anomalyReport] = await Promise.all([
+    getAuthAttempts({ from: since30d }),
+    detectAnomalies(),
+  ]);
 
-  const now      = Date.now();
-  const cut24h   = now - 24 * 60 * 60_000;
-  const cut7d    = now -  7 * 24 * 60 * 60_000;
+  const now    = Date.now();
+  const cut24h = now - 24 * 60 * 60_000;
+  const cut7d  = now -  7 * 24 * 60 * 60_000;
 
   const rows24h = allRows.filter(r => r.createdAt.getTime() >= cut24h);
   const rows7d  = allRows.filter(r => r.createdAt.getTime() >= cut7d);
 
-  // ── Stats ───────────────────────────────────────────────────────────────
-  const stats24h  = computeAuthStats(rows24h);
-  const stats7d   = computeAuthStats(rows7d);
-  const stats30d  = computeAuthStats(allRows);
+  // ── Stats via AuthReadService pure fn ───────────────────────────────────
+  const s24h = computeAuthStats(rows24h);
+  const s7d  = computeAuthStats(rows7d);
+  const s30d = computeAuthStats(allRows);
 
   const stats = {
-    failures24h:    stats24h.failureCount,
-    successes24h:   stats24h.successCount,
-    total24h:       stats24h.totalAttempts,
-    successRate24h: stats24h.totalAttempts === 0
+    failures24h:    s24h.failureCount,
+    successes24h:   s24h.successCount,
+    total24h:       s24h.totalAttempts,
+    successRate24h: s24h.totalAttempts === 0
       ? 100
-      : Math.round((stats24h.successCount / stats24h.totalAttempts) * 100),
-    failures7d:     stats7d.failureCount,
-    failures30d:    stats30d.failureCount,
+      : Math.round((s24h.successCount / s24h.totalAttempts) * 100),
+    failures7d:     s7d.failureCount,
+    failures30d:    s30d.failureCount,
   };
 
   // ── Hourly timeline (24 buckets, hour-of-day) ───────────────────────────
@@ -75,7 +72,7 @@ async function buildOverview() {
   }
   const hourlyTimeline: HourBucket[] = Array.from(hourlyMap.values());
 
-  // ── Top attacker IPs (7d failures, via AuthReadService pure fn) ─────────
+  // ── Top attacker IPs (7d failures) via AuthReadService pure fn ──────────
   const failures7dRows = rows7d.filter(r => !r.success);
   const attackers = computeTopAttackers(failures7dRows);
 
@@ -104,7 +101,7 @@ async function buildOverview() {
     .sort((a, b) => b.failures - a.failures)
     .slice(0, 10);
 
-  // ── Recent activity feed (last 20 rows regardless of success) ───────────
+  // ── Recent activity feed (last 20 rows) ─────────────────────────────────
   const recentActivity = allRows.slice(0, 20).map(r => ({
     userId:    r.userId,
     companyId: r.companyId,
@@ -121,11 +118,12 @@ async function buildOverview() {
     bruteForceCluster,
     topRiskyAccounts,
     recentActivity,
+    // FASE 14.11 — anomaly detection (derived intelligence, not a system)
+    anomalies: anomalyReport,
     generatedAt: new Date().toISOString(),
   };
 }
 
-/** Empty but valid structure returned on error — dashboard must not crash */
 function emptyOverview(errorMsg?: string) {
   return {
     stats: {
@@ -135,12 +133,18 @@ function emptyOverview(errorMsg?: string) {
     hourlyTimeline: Array.from({ length: 24 }, (_, h) => ({
       hour: h, label: `${String(h).padStart(2, "0")}h`, failures: 0, successes: 0,
     })),
-    topAttackerIPs:   [],
+    topAttackerIPs:    [],
     bruteForceCluster: [],
-    topRiskyAccounts: [],
-    recentActivity:   [],
-    generatedAt:      new Date().toISOString(),
-    _error:           errorMsg,
+    topRiskyAccounts:  [],
+    recentActivity:    [],
+    anomalies: {
+      generatedAt: new Date().toISOString(),
+      window: "24h",
+      globalRiskSignal: 0,
+      anomalies: [],
+    },
+    generatedAt: new Date().toISOString(),
+    _error: errorMsg,
   };
 }
 

@@ -1,0 +1,172 @@
+🎯 FASE 14.11 — REAL-TIME ANOMALY DETECTION (READ-ONLY INTELLIGENCE LAYER)
+
+OBJETIVO:
+Criar um sistema de detecção de anomalias em tempo quase real usando APENAS dados já existentes:
+
+- auth_attempts (DB)
+- AuthReadService (FASE 14.10)
+- AuthCore logs (buffer já existente)
+
+🚫 REGRAS CRÍTICAS:
+- NÃO criar novas tabelas
+- NÃO criar novos sistemas de auth
+- NÃO alterar AuthCoreService (write path)
+- NÃO alterar sessionGuard
+- NÃO criar novos endpoints de auth
+- NÃO duplicar lógica de RiskDerivationService
+
+✔ APENAS leitura + análise em cima do que já existe
+
+---
+
+🧠 1. CRIAR ANOMALY DETECTION ENGINE
+
+Criar arquivo:
+
+server/core/security/anomalyDetection.service.ts
+
+Este serviço NÃO persiste nada.
+Ele apenas ANALISA dados já existentes.
+
+---
+
+📊 2. FUNÇÃO PRINCIPAL
+
+detectAnomalies(window = 24h)
+
+Usa:
+
+const data = await authReadService.getAuthAttempts({
+  from: last24h
+});
+
+---
+
+🔍 3. TIPOS DE ANOMALIAS
+
+## 3.1 BRUTE FORCE DISTRIBUÍDO
+
+Detectar quando:
+
+- múltiplos IPs atacam a mesma conta
+- ou 1 IP ataca múltiplas contas
+
+Sinal:
+score +30
+
+---
+
+## 3.2 LOGIN SPIKE
+
+Detectar:
+
+- aumento súbito de falhas vs média histórica
+
+Comparação:
+- last 1h vs last 7d baseline
+
+Sinal:
+score +25
+
+---
+
+## 3.3 IP VOLATILITY
+
+Detectar:
+
+- mesma conta logando de muitos IPs em pouco tempo
+
+Sinal:
+score +20
+
+---
+
+## 3.4 DEVICE ANOMALY (se existir deviceId)
+
+Detectar:
+
+- mudança de device em múltiplos logins consecutivos
+
+Sinal:
+score +15
+
+---
+
+## 3.5 FAILURE CLUSTERING
+
+Detectar:
+
+- tentativas agrupadas em janelas curtas (<5 min)
+
+Sinal:
+score +10
+
+---
+
+📊 4. OUTPUT DO ENGINE
+
+Retornar:
+
+{
+  generatedAt: string,
+  window: "24h",
+  globalRiskSignal: number (0–100),
+  anomalies: [
+    {
+      type: "BRUTE_FORCE | SPIKE | IP_VOLATILITY | DEVICE | CLUSTER",
+      severity: "low | medium | high",
+      score: number,
+      affectedEntities: string[],
+      evidence: object
+    }
+  ]
+}
+
+---
+
+🧩 5. INTEGRAÇÃO COM SISTEMA EXISTENTE
+
+O anomalyDetectionService DEVE CONSUMIR:
+
+✔ AuthReadService (único acesso ao DB)
+✔ auth_attempts
+✔ AuthCore logs (opcional enrichment)
+
+---
+
+📡 6. EXPOSIÇÃO (SEM NOVO SISTEMA DE AUTH)
+
+Adicionar APENAS dentro de:
+
+GET /api/admin/security/overview
+
+OU
+
+estender resposta existente com:
+
+anomalies: anomalyDetectionService.detectAnomalies()
+
+---
+
+🚫 PROIBIDO:
+
+- criar endpoint separado só para anomalias
+- persistir resultados em DB
+- usar anomaly engine para bloquear login
+- duplicar lógica do RiskDerivationService
+
+---
+
+🧠 PRINCÍPIO ARQUITETURAL:
+
+"Anomaly Detection is derived intelligence, not a system"
+
+---
+
+📊 RESULTADO ESPERADO:
+
+- detecção de ataques em tempo quase real
+- sem novas tabelas
+- sem novos sistemas de auth
+- apenas inteligência em cima de auth_attempts
+- integração natural com dashboard existente
