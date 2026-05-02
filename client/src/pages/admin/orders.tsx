@@ -20,8 +20,10 @@ import {
   Lock, Unlock, ThumbsUp, ThumbsDown, ClipboardEdit, Bell, Building2,
   Download, Eye, History, Loader2, FileDown, FileSpreadsheet, Code2,
   FileCheck, FileX, FileClock, Tag, Send, ShieldCheck, ShieldX, Clock, RefreshCw,
-  ReceiptText, ExternalLink
+  ReceiptText, ExternalLink, Stethoscope
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { getNFePreflight, getNFeDiagnostics } from "@/services/nfe.service";
 import { api } from "@shared/routes";
 // NF.7.9.7 — feedback amigável para erro 403 PERIODO_FECHADO (aditivo).
 import { handleIfPeriodoFechado } from "@/lib/periodo-fechado";
@@ -378,6 +380,13 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   const { canForceRelease, forceRelease, isPending: isReleasing } = useForceReleaseNfe(order.id);
   const [isShaking, setIsShaking] = useState(false);
 
+  const [preflightOpen, setPreflightOpen] = useState(false);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+  const [preflightData, setPreflightData] = useState<any>(null);
+  const [diagnosticsData, setDiagnosticsData] = useState<any>(null);
+  const [loadingPreflight, setLoadingPreflight] = useState(false);
+  const [loadingDiagnostics, setLoadingDiagnostics] = useState(false);
+
   const emitirNfeMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/nfe/emitir", { orderId: order.id }),
     onSuccess: async (res) => {
@@ -573,6 +582,32 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       toast({ title: "Erro ao atualizar fiscal", description: e.message, variant: "destructive" });
     } finally {
       setUpdatingFiscal(false);
+    }
+  };
+
+  const handlePreflight = async () => {
+    try {
+      setLoadingPreflight(true);
+      const res = await getNFePreflight(order.id);
+      setPreflightData(res);
+      setPreflightOpen(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingPreflight(false);
+    }
+  };
+
+  const handleDiagnostics = async () => {
+    try {
+      setLoadingDiagnostics(true);
+      const res = await getNFeDiagnostics(order.id);
+      setDiagnosticsData(res);
+      setDiagnosticsOpen(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingDiagnostics(false);
     }
   };
 
@@ -789,6 +824,26 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
                     )}
                   </span>
                 )}
+                <button
+                  type="button"
+                  data-testid={`btn-preflight-order-${order.id}`}
+                  onClick={handlePreflight}
+                  disabled={loadingPreflight}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border-2 border-sky-500 text-sky-700 text-xs font-bold rounded-lg hover:bg-sky-50 transition-colors disabled:opacity-50"
+                >
+                  {loadingPreflight ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5" />}
+                  Validar NF-e
+                </button>
+                <button
+                  type="button"
+                  data-testid={`btn-diagnostics-order-${order.id}`}
+                  onClick={handleDiagnostics}
+                  disabled={loadingDiagnostics}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border-2 border-gray-400 text-gray-600 text-xs font-bold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  {loadingDiagnostics ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Stethoscope className="w-3.5 h-3.5" />}
+                  Diagnóstico
+                </button>
               </div>
             )}
           </div>
@@ -854,6 +909,71 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
           </div>
         </div>
       </div>
+
+      {/* Preflight Modal */}
+      <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>
+        <DialogContent className="max-w-xl" data-testid={`modal-preflight-${order.id}`}>
+          <DialogHeader>
+            <DialogTitle>Validação NF-e — Pedido #{order.id}</DialogTitle>
+          </DialogHeader>
+          {preflightData ? (
+            <div className="space-y-2 max-h-[70vh] overflow-y-auto">
+              {preflightData.errors?.length > 0 && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3">
+                  <p className="text-xs font-bold text-red-700 uppercase mb-1">Erros ({preflightData.errors.length})</p>
+                  <ul className="space-y-1">
+                    {preflightData.errors.map((e: string, i: number) => (
+                      <li key={i} className="text-xs text-red-700 flex items-start gap-1.5">
+                        <ShieldX className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        {e}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {preflightData.warnings?.length > 0 && (
+                <div className="rounded-lg border border-yellow-200 bg-yellow-50 p-3">
+                  <p className="text-xs font-bold text-yellow-700 uppercase mb-1">Avisos ({preflightData.warnings.length})</p>
+                  <ul className="space-y-1">
+                    {preflightData.warnings.map((w: string, i: number) => (
+                      <li key={i} className="text-xs text-yellow-700 flex items-start gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {(preflightData.errors?.length ?? 0) === 0 && (preflightData.warnings?.length ?? 0) === 0 && (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <p className="text-sm text-emerald-700 font-semibold">Sem erros ou avisos. Pronto para emitir.</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhum dado disponível.</p>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Diagnostics Modal */}
+      <Dialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen}>
+        <DialogContent className="max-w-xl" data-testid={`modal-diagnostics-${order.id}`}>
+          <DialogHeader>
+            <DialogTitle>Diagnóstico NF-e — Pedido #{order.id}</DialogTitle>
+          </DialogHeader>
+          {diagnosticsData ? (
+            <div className="max-h-[70vh] overflow-y-auto">
+              <pre className="text-xs whitespace-pre-wrap break-all bg-gray-50 border border-gray-200 rounded-lg p-3">
+                {JSON.stringify(diagnosticsData, null, 2)}
+              </pre>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nenhum dado disponível.</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

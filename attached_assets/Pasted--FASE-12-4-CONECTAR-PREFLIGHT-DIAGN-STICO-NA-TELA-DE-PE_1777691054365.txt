@@ -1,0 +1,178 @@
+🎯 FASE 12.4 — CONECTAR PREFLIGHT + DIAGNÓSTICO NA TELA DE PEDIDOS (SEM QUEBRAR NADA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO alterar endpoints existentes
+3. NÃO alterar contratos de resposta
+4. NÃO remover botões existentes
+5. NÃO alterar fluxo de emissão atual
+6. NÃO mover lógica entre arquivos
+7. NÃO bloquear nenhuma ação atual
+
+👉 Apenas adicionar acesso visual seguro ao preflight e diagnóstico
+
+---
+
+🧠 CONTEXTO
+
+- Backend já pronto:
+
+  - GET /api/nfe/preflight/
+  - GET /api/nfe/diagnostics/
+
+- FASE 12.3 corrigiu inconsistência de NCM ✔
+
+- FASE 12.2 já criou modal de diagnóstico em nfe.tsx ✔
+
+- Tela de pedidos ainda NÃO usa esses endpoints ❌
+
+👉 Operador ainda emite NF “no escuro”
+
+---
+
+📦 OBJETIVO
+
+Permitir que o usuário:
+
+1. Valide NF-e antes de emitir
+2. Veja diagnóstico completo do pedido
+3. Faça isso DIRETO da tela de pedidos
+
+👉 Sem alterar comportamento atual
+
+---
+
+## 🛠️ ETAPA 1 — IDENTIFICAR COMPONENTE
+
+Localizar:
+
+📍 Tela de pedidos (orders)
+
+Exemplo comum:
+
+client/src/pages/admin/orders.tsx
+
+Ou componente de linha:
+
+OrderRow / OrderActions / OrdersTable
+
+---
+
+## 🛠️ ETAPA 2 — IMPORTAR SERVICES
+
+Usar serviços existentes:
+
+ts import { getNFePreflight, getNFeDiagnostics } from "@/services/nfe.service"; 
+
+---
+
+## 🛠️ ETAPA 3 — ADICIONAR ESTADOS LOCAIS
+
+Dentro do componente da linha do pedido:
+
+ts const [preflightOpen, setPreflightOpen] = useState(false); const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);  const [preflightData, setPreflightData] = useState<any>(null); const [diagnosticsData, setDiagnosticsData] = useState<any>(null);  const [loadingPreflight, setLoadingPreflight] = useState(false); const [loadingDiagnostics, setLoadingDiagnostics] = useState(false); 
+
+---
+
+## 🛠️ ETAPA 4 — HANDLERS (SEM ALTERAR LÓGICA EXISTENTE)
+
+ts async function handlePreflight(orderId: number) {   try {     setLoadingPreflight(true);     const res = await getNFePreflight(orderId);     setPreflightData(res);     setPreflightOpen(true);   } catch (err) {     console.error(err);   } finally {     setLoadingPreflight(false);   } }  async function handleDiagnostics(orderId: number) {   try {     setLoadingDiagnostics(true);     const res = await getNFeDiagnostics(orderId);     setDiagnosticsData(res);     setDiagnosticsOpen(true);   } catch (err) {     console.error(err);   } finally {     setLoadingDiagnostics(false);   } } 
+
+⚠️ IMPORTANTE
+👉 NÃO adicionar toast
+👉 NÃO alterar padrão de erro
+👉 manter comportamento atual
+
+---
+
+## 🛠️ ETAPA 5 — BOTÕES (SEM REMOVER OS EXISTENTES)
+
+Adicionar no row de ações:
+
+tsx <Button   size="sm"   variant="outline"   onClick={() => handlePreflight(order.id)}   data-testid="btn-preflight-order" >   Validar NF-e </Button>  <Button   size="sm"   variant="secondary"   onClick={() => handleDiagnostics(order.id)}   data-testid="btn-diagnostics-order" >   Diagnóstico </Button> 
+
+👉 NÃO remover botões atuais
+👉 NÃO alterar layout existente
+
+---
+
+## 🛠️ ETAPA 6 — MODAL PREFLIGHT
+
+tsx <Dialog open={preflightOpen} onOpenChange={setPreflightOpen}>   <DialogContent data-testid="modal-preflight">     <DialogHeader>       <DialogTitle>Validação NF-e</DialogTitle>     </DialogHeader>      {loadingPreflight ? (       <div>Carregando...</div>     ) : (       <pre>{JSON.stringify(preflightData, null, 2)}</pre>     )}   </DialogContent> </Dialog> 
+
+---
+
+## 🛠️ ETAPA 7 — MODAL DIAGNÓSTICO
+
+tsx <Dialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen}>   <DialogContent data-testid="modal-diagnostics">     <DialogHeader>       <DialogTitle>Diagnóstico NF-e</DialogTitle>     </DialogHeader>      {loadingDiagnostics ? (       <div>Carregando...</div>     ) : (       <pre>{JSON.stringify(diagnosticsData, null, 2)}</pre>     )}   </DialogContent> </Dialog> 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+### 1️⃣ Pedido válido
+
+✔ botão abre modal
+✔ dados aparecem
+✔ nenhuma quebra
+
+---
+
+### 2️⃣ Pedido com erro
+
+✔ preflight retorna erro
+✔ diagnóstico lista campos
+✔ UI continua funcionando
+
+---
+
+### 3️⃣ Sem permissão / erro API
+
+✔ console.error apenas
+✔ UI não quebra
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero impacto no backend
+✔ zero alteração em emissão
+✔ zero alteração em regras fiscais
+✔ apenas leitura de dados
+✔ comportamento atual intacto
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ usuário emite NF sem validação
+❌ erros só aparecem depois
+
+Depois:
+
+✔ botão "Validar NF-e"
+✔ botão "Diagnóstico"
+✔ visibilidade antes da emissão
+✔ menos erro operacional
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo alterado
+2. Botões adicionados
+3. Modais implementados
+4. Confirmação de zero regressão
+
+---
+
+🚀 Isso prepara o sistema para:
+
+👉 FASE 12.5 — emissão guiada com bloqueio inteligente (opcional e controlado 
