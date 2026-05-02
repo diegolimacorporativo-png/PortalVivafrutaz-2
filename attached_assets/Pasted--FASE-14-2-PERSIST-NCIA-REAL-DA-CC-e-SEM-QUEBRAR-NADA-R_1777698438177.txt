@@ -1,0 +1,200 @@
+🎯 FASE 14.2 — PERSISTÊNCIA REAL DA CC-e (SEM QUEBRAR NADA)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar endpoints existentes  
+2. NÃO alterar contrato de resposta  
+3. NÃO alterar validações já existentes  
+4. NÃO alterar fluxo da CC-e atual  
+5. NÃO remover lógica — apenas substituir storage  
+6. NÃO quebrar multi-tenant  
+7. NÃO alterar frontend  
+
+👉 Apenas trocar memória → banco
+
+---
+
+# 🧠 CONTEXTO
+
+Hoje:
+
+ts const cceHistory: Record<string, any[]> = {} 
+
+👉 Problema:
+
+❌ perde tudo ao reiniciar  
+❌ sem auditoria  
+❌ sem persistência  
+
+---
+
+# 🎯 OBJETIVO
+
+Substituir completamente:
+
+txt memória → banco de dados 
+
+Com:
+
+✔ histórico persistente  
+✔ sequência correta  
+✔ compatível com API atual  
+
+---
+
+# 📦 ETAPA 1 — CRIAR TABELA
+
+Arquivo: schema (Drizzle / SQL)
+
+sql CREATE TABLE nfe_cce (   id SERIAL PRIMARY KEY,   nfe_id INTEGER NOT NULL,   sequencia INTEGER NOT NULL,   correcao TEXT NOT NULL,   created_by INTEGER,   created_at TIMESTAMP DEFAULT NOW() ); 
+
+---
+
+⚠️ IMPORTANTE
+
+👉 NÃO adicionar foreign keys ainda (evitar regressão)  
+👉 manter simples  
+
+---
+
+# 🛠️ ETAPA 2 — REMOVER MEMÓRIA
+
+Local:
+
+routes.ts (bloco CC-e)
+
+---
+
+❌ REMOVER:
+
+ts const cceHistory = {} 
+
+---
+
+# 🛠️ ETAPA 3 — IMPLEMENTAR INSERT
+
+Dentro do POST /api/nfe/:id/cce
+
+---
+
+ANTES:
+
+ts cceHistory[nfeId].push(...) 
+
+---
+
+DEPOIS:
+
+ts const last = await db   .select()   .from(nfe_cce)   .where(eq(nfe_cce.nfe_id, nfeId))   .orderBy(desc(nfe_cce.sequencia))   .limit(1);  const nextSeq = last.length ? last[0].sequencia + 1 : 1;  await db.insert(nfe_cce).values({   nfe_id: nfeId,   sequencia: nextSeq,   correcao,   created_by: req.user?.id }); 
+
+---
+
+# 🛠️ ETAPA 4 — IMPLEMENTAR GET HISTÓRICO
+
+Dentro do:
+
+GET /api/nfe/:id/cce
+
+---
+
+ANTES:
+
+ts return res.json({ success: true, data: cceHistory[nfeId] }) 
+
+---
+
+DEPOIS:
+
+ts const history = await db   .select()   .from(nfe_cce)   .where(eq(nfe_cce.nfe_id, nfeId))   .orderBy(asc(nfe_cce.sequencia));  return res.json({   success: true,   data: history }); 
+
+---
+
+# 🧪 ETAPA 5 — VALIDAÇÃO
+
+---
+
+## 1️⃣ Criar CC-e
+
+✔ POST funciona  
+✔ salva no banco  
+
+---
+
+## 2️⃣ Criar segunda CC-e
+
+✔ sequencia = 2  
+
+---
+
+## 3️⃣ GET histórico
+
+✔ retorna lista ordenada  
+
+---
+
+## 4️⃣ Reiniciar servidor
+
+✔ dados permanecem  
+
+---
+
+## 5️⃣ Frontend
+
+✔ continua funcionando  
+✔ sem alterações  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero mudança de contrato  
+✔ zero mudança no frontend  
+✔ zero quebra de rota  
+✔ multi-tenant intacto  
+✔ dados persistentes  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ memória volátil  
+❌ perde histórico  
+
+Depois:
+
+✔ persistência real  
+✔ histórico auditável  
+✔ base pronta para SEFAZ  
+
+---
+
+# ⚠️ IMPORTANTE
+
+👉 NÃO mexer em:
+
+- emissão NF-e  
+- preflight  
+- diagnóstico  
+- endpoints existentes  
+
+👉 Apenas persistência  
+
+---
+
+# 🚀 FINAL
+
+Responder com:
+
+1. tabela criada  
+2. código atualizado  
+3. memória removida  
+4. testes realizados  
+5. confirmação de zero regressão  
+
+---
+
+🔥 AGORA SIM: BASE PROFIS
