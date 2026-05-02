@@ -705,8 +705,12 @@ export default function ContractsPage() {
   const [search, setSearch] = useState('');
   const [filterVigencia, setFilterVigencia] = useState('');
 
-  const { data: companies = [] } = useQuery<Company[]>({ queryKey: ['/api/companies'], select: normalizeList });
-  const { data: alerts = [] } = useQuery<ContractAlert[]>({ queryKey: ['/api/contracts/alerts'], select: normalizeList });
+  const { data: companies = [], isLoading: loadingCompanies } = useQuery<Company[]>({ queryKey: ['/api/companies'], select: normalizeList });
+  const { data: alerts = [], isLoading: loadingAlerts } = useQuery<ContractAlert[]>({ queryKey: ['/api/contracts/alerts'], select: normalizeList });
+
+  if (loadingCompanies || loadingAlerts) {
+    return <div data-testid="loading-screen" className="flex items-center justify-center h-64 text-muted-foreground">Carregando...</div>;
+  }
 
   const contractualCompanies = companies.filter(c =>
     (c.clientType === 'contratual' || (c as any).contractStartDate || (c as any).contractVigencia) &&

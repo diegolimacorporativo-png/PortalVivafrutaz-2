@@ -638,8 +638,9 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
       const res = await getNFeDiagnostics(order.id);
       setDiagnosticsData(res);
       setDiagnosticsOpen(true);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      toast({ title: "Erro ao carregar diagnóstico", description: err?.message || "Não foi possível carregar o diagnóstico fiscal.", variant: "destructive" });
     } finally {
       setLoadingDiagnostics(false);
     }
