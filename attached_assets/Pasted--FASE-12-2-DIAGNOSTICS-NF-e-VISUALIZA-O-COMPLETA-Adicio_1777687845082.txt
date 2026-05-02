@@ -1,0 +1,182 @@
+🎯 FASE 12.2 — DIAGNOSTICS NF-e (VISUALIZAÇÃO COMPLETA)
+
+Adicionar visualização detalhada de diagnóstico NF-e por pedido, utilizando o endpoint já existente.
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend
+2. NÃO alterar endpoint existente
+3. NÃO alterar estrutura de resposta
+4. NÃO remover nada do preflight (FASE 12.1)
+5. NÃO bloquear fluxo de emissão
+6. NÃO alterar botão "Gerar XML"
+
+👉 Apenas leitura + exibição
+
+---
+
+🧠 CONTEXTO
+
+Já existe:
+
+GET /api/nfe/diagnostics/:orderId
+
+Retorna diagnóstico completo da NF-e (validações, padrões, inconsistências)
+
+Atualmente:
+- endpoint existe
+- NÃO existe UI consumindo corretamente
+
+---
+
+📦 TAREFAS
+
+---
+
+## 🛠️ ETAPA 1 — SERVICE
+
+Arquivo:
+
+client/src/services/nfe.service.ts
+
+Adicionar função:
+
+ts export async function getNFeDiagnostics(orderId: number) {   const res = await fetch(`/api/nfe/diagnostics/${orderId}`);   if (!res.ok) throw new Error("Erro ao buscar diagnóstico");   return res.json(); } 
+
+---
+
+## 🛠️ ETAPA 2 — BOTÃO NA UI
+
+Arquivo:
+
+client/src/pages/admin/nfe.tsx
+
+Dentro de:
+
+SelectedOrderEmitRow
+
+Adicionar botão:
+
+tsx <Button   variant="outline"   onClick={handleDiagnostics}   data-testid="button-diagnostics-nfe" >   Ver Diagnóstico </Button> 
+
+👉 NÃO remover botão existente de preflight
+
+---
+
+## 🛠️ ETAPA 3 — ESTADO
+
+Adicionar:
+
+ts const [diagnosticsData, setDiagnosticsData] = useState<any>(null); const [loadingDiagnostics, setLoadingDiagnostics] = useState(false); 
+
+---
+
+## 🛠️ ETAPA 4 — HANDLER
+
+ts async function handleDiagnostics() {   try {     setLoadingDiagnostics(true);     const data = await getNFeDiagnostics(order.id);     setDiagnosticsData(data);   } catch (err) {     console.error(err);   } finally {     setLoadingDiagnostics(false);   } } 
+
+---
+
+## 🛠️ ETAPA 5 — MODAL
+
+Criar modal:
+
+Título:
+
+"Diagnóstico Completo NF-e"
+
+---
+
+### 🔴 Seção 1 — Erros Críticos
+
+tsx {diagnosticsData?.errors?.map((e, i) => (   <div key={i} data-testid={`diag-error-${i}`} className="text-red-600">     {e}   </div> ))} 
+
+---
+
+### 🟡 Seção 2 — Alertas
+
+tsx {diagnosticsData?.alerts?.map((a, i) => (   <div key={i} data-testid={`diag-alert-${i}`} className="text-yellow-600">     {a}   </div> ))} 
+
+---
+
+### 🔵 Seção 3 — Informações / Padrões detectados
+
+tsx <pre data-testid="diag-preview">   {JSON.stringify(diagnosticsData, null, 2)} </pre> 
+
+---
+
+### 🟢 Seção 4 — Estado OK
+
+Se não houver erros:
+
+tsx <div className="text-green-600">   Nenhum problema crítico encontrado </div> 
+
+---
+
+## 🛠️ ETAPA 6 — LOADING
+
+tsx {loadingDiagnostics && <Spinner />} 
+
+---
+
+## 🧪 VALIDAÇÃO
+
+---
+
+### 1️⃣ Pedido válido
+
+✔ modal abre  
+✔ sem erros  
+✔ mensagem verde  
+
+---
+
+### 2️⃣ Pedido com erro fiscal
+
+✔ erros exibidos em vermelho  
+✔ alertas exibidos  
+✔ JSON visível  
+
+---
+
+### 3️⃣ Erro de API
+
+✔ console.error acionado  
+✔ UI não quebra  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ nenhum endpoint alterado  
+✔ nenhum fluxo alterado  
+✔ nenhuma lógica fiscal modificada  
+✔ preflight continua funcionando  
+✔ emissão continua funcionando  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+Antes:
+
+- usuário não vê diagnóstico completo
+
+Depois:
+
+- usuário vê diagnóstico detalhado antes da emissão
+- consegue entender exatamente o erro
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. Arquivo criado/alterado
+2. Botão adicionado
+3. Modal implementado
+4. Testes realizados
+5. Confirmação de zero

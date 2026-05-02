@@ -21,9 +21,9 @@ import {
   FileText, Send, Download, XCircle, RefreshCw, CheckCircle2, Clock,
   AlertCircle, Info, ReceiptText, ArrowLeft, Search, Package, Building2,
   ChevronRight, Wifi, WifiOff, Shield, BookOpen, ChevronDown, ChevronUp,
-  Settings, Award, Zap, Lock, ShieldCheck
+  Settings, Award, Zap, Lock, ShieldCheck, Stethoscope
 } from "lucide-react";
-import { getNFePreflight } from "@/services/nfe.service";
+import { getNFePreflight, getNFeDiagnostics } from "@/services/nfe.service";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -327,7 +327,24 @@ function SelectedOrderEmitRow({
   const [preflightData, setPreflightData] = useState<any>(null);
   const [preflightOpen, setPreflightOpen] = useState(false);
 
+  const [diagnosticsLoading, setDiagnosticsLoading] = useState(false);
+  const [diagnosticsData, setDiagnosticsData] = useState<any>(null);
+  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
+
   const hasPreflightError = (preflightData?.errors?.length ?? 0) > 0;
+
+  const handleDiagnostics = async () => {
+    try {
+      setDiagnosticsLoading(true);
+      const data = await getNFeDiagnostics(selectedOrderId);
+      setDiagnosticsData(data);
+      setDiagnosticsOpen(true);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDiagnosticsLoading(false);
+    }
+  };
 
   const handlePreflight = async () => {
     try {
@@ -401,6 +418,18 @@ function SelectedOrderEmitRow({
           >
             {preflightLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />}
             Validar NF-e
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="button-diagnostics-nfe"
+            onClick={handleDiagnostics}
+            disabled={diagnosticsLoading}
+            className="border-purple-300 text-purple-700 hover:bg-purple-50"
+          >
+            {diagnosticsLoading ? <RefreshCw className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Stethoscope className="w-3.5 h-3.5 mr-1.5" />}
+            Ver Diagnóstico
           </Button>
           <Button
             type="button"
@@ -495,6 +524,89 @@ function SelectedOrderEmitRow({
                   size="sm"
                   data-testid="button-preflight-close"
                   onClick={() => setPreflightOpen(false)}
+                >
+                  Fechar
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Diagnostics Result Modal */}
+      <Dialog open={diagnosticsOpen} onOpenChange={setDiagnosticsOpen}>
+        <DialogContent className="max-w-2xl" data-testid="modal-diagnostics">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Stethoscope className="w-5 h-5 text-purple-600" />
+              Diagnóstico Completo NF-e — Pedido {selectedOrderCode}
+            </DialogTitle>
+          </DialogHeader>
+          {diagnosticsLoading && (
+            <div className="flex items-center justify-center py-8">
+              <RefreshCw className="w-6 h-6 animate-spin text-purple-500" />
+            </div>
+          )}
+          {diagnosticsData && (
+            <div className="space-y-4 text-sm">
+              {/* Seção 1 — Erros Críticos */}
+              {(diagnosticsData.erros?.length > 0) ? (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-red-700 flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" /> Erros Críticos ({diagnosticsData.erros.length})
+                  </h3>
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 divide-y divide-red-100">
+                    {diagnosticsData.erros.map((e: any, i: number) => (
+                      <div key={i} data-testid={`diag-error-${i}`} className="px-3 py-2 text-red-600 text-xs">
+                        {e.mensagem || e.message || e}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                  <p data-testid="diag-ok" className="text-green-600 text-xs font-medium">
+                    Nenhum problema crítico encontrado
+                  </p>
+                </div>
+              )}
+
+              {/* Seção 2 — Alertas */}
+              {diagnosticsData.avisos?.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-yellow-700 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4" /> Alertas ({diagnosticsData.avisos.length})
+                  </h3>
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 divide-y divide-yellow-100">
+                    {diagnosticsData.avisos.map((a: any, i: number) => (
+                      <div key={i} data-testid={`diag-alert-${i}`} className="px-3 py-2 text-yellow-600 text-xs">
+                        {a.mensagem || a.message || a}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Seção 3 — Informações / Padrões detectados */}
+              <div className="space-y-2">
+                <h3 className="font-semibold text-gray-700 flex items-center gap-1.5">
+                  <Info className="w-4 h-4" /> Dados Completos do Diagnóstico
+                </h3>
+                <ScrollArea className="h-48 rounded-lg border bg-gray-50 dark:bg-gray-900">
+                  <pre data-testid="diag-preview" className="p-3 text-xs text-gray-700 dark:text-gray-300 whitespace-pre-wrap break-all">
+                    {JSON.stringify(diagnosticsData, null, 2)}
+                  </pre>
+                </ScrollArea>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid="button-diagnostics-close"
+                  onClick={() => setDiagnosticsOpen(false)}
                 >
                   Fechar
                 </Button>

@@ -10,3 +10,13 @@ export async function getNFePreflight(orderId: number) {
 
   return res.json();
 }
+
+export async function getNFeDiagnostics(orderId: number) {
+  const res = await fetch(`/api/nfe/diagnostics/${orderId}`, {
+    credentials: 'include',
+  });
+
+  if (!res.ok) throw new Error('Erro ao buscar diagnóstico');
+
+  return res.json();
+}
