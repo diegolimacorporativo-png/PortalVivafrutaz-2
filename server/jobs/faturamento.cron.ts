@@ -51,6 +51,7 @@ import { runWithTenant, type TenantPrincipal } from "../core/tenant/context";
 // STEP 9.3F.6 — migrado de emitAlert → emitAlertSmart (camada de auto-supressão).
 // O emitAlert continua existindo e intocado; só este cron chama o wrapper.
 import { emitAlertSmart } from "../services/alerts.smart";
+import { logSecurity } from "../core/security/securityLogger";
 
 const CONCURRENCY_LIMIT = 5;
 
@@ -101,6 +102,7 @@ async function persistCronRun(args: {
       errors: args.errors,
     });
   } catch (e: any) {
+    logSecurity(`[BILLING_CRON_FAILED] step=persist_run | triggeredBy=${args.triggeredBy} | error=${e?.message ?? "unknown"}`);
     console.error("[CRON_HISTORY_PERSIST_ERROR]", e?.message ?? e);
   }
 }
@@ -135,7 +137,8 @@ async function emitCronAlerts(args: {
           triggeredBy: args.triggeredBy,
         },
       });
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[BILLING_CRON_FAILED] step=emit_alert | severity=ALERT | triggeredBy=${args.triggeredBy} | error=${err?.message ?? "unknown"}`);
       console.error("[ALERT_DISPATCH_ERROR]", err);
     }
   }
@@ -157,7 +160,8 @@ async function emitCronAlerts(args: {
           triggeredBy: args.triggeredBy,
         },
       });
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[BILLING_CRON_FAILED] step=emit_alert | severity=CRITICAL | triggeredBy=${args.triggeredBy} | error=${err?.message ?? "unknown"}`);
       console.error("[ALERT_DISPATCH_ERROR]", err);
     }
   }
@@ -347,6 +351,7 @@ export async function runFaturamentoCron(
           console.log(`[CRON_FATURAMENTO] pedido #${orderId} emitido (NF nº ${numero})`);
           return { orderId, status: "success" };
         } catch (e: any) {
+          logSecurity(`[BILLING_CRON_FAILED] step=emit_nfe | orderId=${orderId} | triggeredBy=${triggeredBy} | error=${e?.message ?? "unknown"}`);
           console.error(`[CRON_FATURAMENTO_ERROR] pedido #${orderId}:`, e.message);
           return { orderId, status: "error", reason: e.message };
         } finally {
@@ -391,8 +396,9 @@ export async function runFaturamentoCron(
   await emitCronAlerts({ total: candidates.length, success: emitidas, blocked: bloqueadas, errors: erros, triggeredBy });
 
   return { executadoEm, autoMode, total: candidates.length, emitidas, bloqueadas, erros, detalhes };
-  } catch (err) {
+  } catch (err: any) {
     // STEP 9.3D — em caso de exceção fatal, registra resumo zerado e relança.
+    logSecurity(`[BILLING_CRON_FAILED] step=fatal_abort | triggeredBy=${triggeredBy} | error=${err?.message ?? "unknown"}`);
     setCronResult({ total: 0, success: 0, blocked: 0, errors: 1 });
     await persistCronRun({
       triggeredBy,
@@ -405,7 +411,7 @@ export async function runFaturamentoCron(
     console.error("[CRON_CRITICAL]", {
       message: "Execução abortada por exceção",
       triggeredBy,
-      error: (err as any)?.message,
+      error: err?.message,
     });
     throw err;
   }
@@ -428,6 +434,7 @@ export function startFaturamentoCron(): void {
         `[CRON_FATURAMENTO] executado em ${result.executadoEm.toISOString()} — emitidas=${result.emitidas} bloqueadas=${result.bloqueadas} erros=${result.erros}`,
       );
     } catch (err: any) {
+      logSecurity(`[BILLING_CRON_FAILED] step=scheduled_run | error=${err?.message ?? "unknown"}`);
       console.error("[CRON_FATURAMENTO] erro fatal:", err.message);
     }
   });

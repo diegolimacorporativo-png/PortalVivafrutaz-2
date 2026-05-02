@@ -10,6 +10,7 @@
  */
 
 import { storage } from "./storage";
+import { logSecurity } from "../core/security/securityLogger";
 import {
   sendWindowOpenReminder,
   sendUnfinalisedReminder,
@@ -182,7 +183,8 @@ async function runSchedulerTick() {
         }
       }
     }
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[EMAIL_SCHEDULER_TICK_FAILED] job=emailScheduler | error=${err?.message ?? "unknown"}`);
     console.error('[EMAIL-SCHEDULER] Error during tick:', err);
   }
 }

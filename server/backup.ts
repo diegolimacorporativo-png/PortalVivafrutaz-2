@@ -2,6 +2,7 @@ import cron from "node-cron";
 import fs from "fs";
 import path from "path";
 import { db } from "./database/db";
+import { logSecurity } from "./core/security/securityLogger";
 import {
   users, companies, priceGroups, categories, products, productPrices,
   orderWindows, orderExceptions, orders, orderItems, systemSettings,
@@ -306,7 +307,8 @@ export async function sendBackupEmail(filename: string): Promise<boolean> {
       console.log(`[BACKUP] Falha ao enviar email: ${result.reason}`);
     }
     return result.sent;
-  } catch (e) {
+  } catch (e: any) {
+    logSecurity(`[BACKUP_FAILED] step=send_email | filename=${filename} | error=${e?.message ?? "unknown"}`);
     console.error("[BACKUP] Erro ao enviar email de backup:", e);
     return false;
   }
@@ -321,7 +323,8 @@ export function scheduleBackups() {
       const filename = await runBackup();
       console.log(`[BACKUP] Backup concluído: ${filename}`);
       sendBackupEmail(filename).catch(e => console.error("[BACKUP] Erro no email:", e));
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[BACKUP_FAILED] step=scheduled_run | error=${err?.message ?? "unknown"}`);
       console.error("[BACKUP] Erro no backup automático:", err);
     }
   });

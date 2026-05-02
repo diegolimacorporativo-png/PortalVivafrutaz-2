@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { db } from "../database/db";
 import { cache } from "./cache.js";
 import { invalidateUsageCache } from "../modules/billing/usage-cache";
+import { logSecurity } from "../core/security/securityLogger";
 import {
   tenantWhere,
   tenantAnd,
@@ -695,8 +696,8 @@ export class DatabaseStorage implements IStorage {
         query.where(eq(priceGroups.empresaId, empresaId));
       }
       return await query;
-    } catch (err) {
-      // Se coluna empresa_id não existe, retorna sem filtro
+    } catch (err: any) {
+      logSecurity(`[STORAGE_WRITE_FAILED] step=getPriceGroups | reason=empresa_id_column_missing | error=${err?.message ?? "unknown"}`);
       console.warn('[STORAGE] getPriceGroups: coluna empresa_id pode não existir, retornando sem filtro');
       return await db.select().from(priceGroups);
     }
@@ -1248,7 +1249,8 @@ export class DatabaseStorage implements IStorage {
   async createLog(log: { action: string; description: string; userId?: number; companyId?: number; userEmail?: string; userRole?: string; ip?: string; level?: string }): Promise<void> {
     try {
       await db.insert(systemLogs).values({ ...log, level: log.level || "INFO" });
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[STORAGE_WRITE_FAILED] step=createLog | action=${log.action} | error=${err?.message ?? "unknown"}`);
       console.error("[LOG] Failed to write system log:", err);
     }
   }

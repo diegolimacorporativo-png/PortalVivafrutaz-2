@@ -1,0 +1,173 @@
+🎯 FASE 9E — ELIMINAR ERROS SILENCIOSOS (OBSERVABILIDADE TOTAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar lógica de negócio  
+2. NÃO alterar retornos de endpoints  
+3. NÃO alterar status HTTP  
+4. NÃO remover try/catch existentes  
+5. NÃO lançar novos erros (throw)  
+6. NÃO bloquear fluxos existentes  
+
+👉 Apenas ADICIONAR VISIBILIDADE (log estruturado)
+
+---
+
+🧠 OBJETIVO
+
+Eliminar todos os catch silenciosos restantes no sistema.
+
+Garantir que:
+
+- nenhum erro desaparece sem log
+- todos os fluxos críticos geram rastreabilidade
+- tudo entra no pipeline [SECURITY]
+
+---
+
+## 📍 ESCOPO (baseado na auditoria)
+
+Arquivos alvo:
+
+- server/modules/logistics/auto-dispatch.service.ts
+- server/modules/nfe/alerts-log.store.ts
+- server/jobs/faturamento.cron.ts
+- server/services/email-scheduler.ts
+- server/services/alerts.service.ts
+- server/services/storage.ts
+- server/services/pushService.ts
+- server/backup.ts
+- server/routes/routes.ts (seed/init blocks)
+
+---
+
+## 🛠️ ETAPA 1 — PADRÃO GLOBAL
+
+Para TODO catch que:
+
+- está vazio
+- usa apenas console.log / console.error
+- ou ignora erro
+
+Aplicar o padrão:
+
+ts catch (err: any) {   logSecurity(     `[NOME_EVENTO] context=${...} | error=${err?.message ?? "unknown"}`   ); } 
+
+---
+
+## 🛠️ ETAPA 2 — NOMES DOS EVENTOS (PADRÃO)
+
+Usar nomes claros e rastreáveis:
+
+| Contexto | Evento |
+|--------|--------|
+| logística dispatch | LOGISTICS_DISPATCH_FAILED |
+| NF-e alert log | NFE_ALERT_LOG_FAILED |
+| faturamento cron | BILLING_CRON_FAILED |
+| email scheduler | EMAIL_SCHEDULER_TICK_FAILED |
+| alerts service | ALERT_DELIVERY_FAILED |
+| storage/log persist | STORAGE_WRITE_FAILED |
+| push notification | PUSH_NOTIFICATION_FAILED |
+| backup automático | BACKUP_FAILED |
+| seed/init | SYSTEM_SEED_FAILED |
+
+---
+
+## 🛠️ ETAPA 3 — CONTEXTO MÍNIMO
+
+Sempre incluir no log (quando disponível):
+
+- orderId
+- companyId
+- userId
+- jobName / service
+- requestId (se existir no escopo)
+
+Exemplo:
+
+ts logSecurity(   `[EMAIL_SCHEDULER_TICK_FAILED] job=emailScheduler | error=${err?.message}` ); 
+
+---
+
+## 🛠️ ETAPA 4 — NÃO DUPLICAR LOG
+
+Se já existir:
+
+ts logSecurity(...) 
+
+👉 NÃO adicionar outro
+
+Se existir apenas:
+
+ts console.error(...) 
+
+👉 substituir por logSecurity
+
+---
+
+## 🛠️ ETAPA 5 — NÃO ALTERAR FLUXO
+
+❌ NÃO fazer:
+
+ts throw err; return res.status(...) 
+
+✔ manter:
+
+ts logSecurity(...) 
+
+👉 fluxo continua normal
+
+---
+
+## 🛠️ ETAPA 6 — IMPORT
+
+Garantir no topo dos arquivos:
+
+ts import { logSecurity } from "@/core/security/securityLogger"; 
+
+(ajustar path conforme projeto)
+
+---
+
+## 🧪 VALIDAÇÃO
+
+1️⃣ Sistema sobe sem erro  
+2️⃣ Nenhum endpoint alterado  
+3️⃣ Nenhuma mudança de comportamento  
+4️⃣ Forçar erro manual (ex: mock falha) → log aparece  
+
+---
+
+## 🔒 GARANTIAS
+
+✔ zero regressão  
+✔ zero impacto funcional  
+✔ apenas observabilidade  
+✔ base pronta para alertas reais depois  
+
+---
+
+## 📊 RESULTADO ESPERADO
+
+ANTES:
+- erros somem
+- console perdido
+- sem rastreabilidade
+
+DEPOIS:
+- todos erros aparecem como [SECURITY]
+- contexto claro
+- pronto para monitoramento real
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. lista de arquivos modificados  
+2. quantidade de logs adicionados  
+3. exemplos reais de logs gerados  
+4. confirmação de zero reg

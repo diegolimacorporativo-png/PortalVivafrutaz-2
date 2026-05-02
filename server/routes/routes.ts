@@ -3543,7 +3543,8 @@ async function seedDatabase() {
           active: true,
         });
       }
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=dev_user | error=${err?.message ?? "unknown"}`);
       console.error("[SEED] Error checking/creating dev user:", err);
     }
 
@@ -3560,7 +3561,8 @@ async function seedDatabase() {
         });
         console.log("[SEED] Usuário MASTER criado: master@vivafrutaz.com / Master@2026!");
       }
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=master_user | error=${err?.message ?? "unknown"}`);
       console.error("[SEED] Error checking/creating master user:", err);
     }
 
@@ -3589,7 +3591,8 @@ async function seedDatabase() {
           active: true,
         });
       }
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=admin_ops_users | error=${err?.message ?? "unknown"}`);
       console.error("[SEED] Error checking/creating admin/ops/buy users:", err);
     }
 
@@ -3642,7 +3645,8 @@ async function seedDatabase() {
         active: true
       });
     }
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=price_groups_products | error=${err?.message ?? "unknown"}`);
       console.error("[SEED] Error seeding price groups and products:", err);
     }
 
@@ -3667,7 +3671,8 @@ async function seedDatabase() {
         }
         console.log(`[SEED] ${marketplaceSeeds.length} módulos do marketplace criados com sucesso.`);
       }
-    } catch (seedErr) {
+    } catch (seedErr: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=marketplace_modules | error=${seedErr?.message ?? "unknown"}`);
       console.error('[SEED] Erro ao criar módulos do marketplace:', seedErr);
     }
 
@@ -3697,7 +3702,8 @@ async function seedDatabase() {
         });
         console.log('[SEED] Módulo vigilancia_sanitaria_relatorios criado em modulosSistema.');
       }
-    } catch (modErr) {
+    } catch (modErr: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=sanitary_modules | error=${modErr?.message ?? "unknown"}`);
       console.error('[SEED] Erro ao criar módulos sanitários:', modErr);
     }
 
@@ -3714,7 +3720,8 @@ async function seedDatabase() {
         });
         console.log('[SEED] Usuário NUTRICIONISTA criado: nutri@vivafrutaz.com / nutri123');
       }
-    } catch (nutriErr) {
+    } catch (nutriErr: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=nutricionista_user | error=${nutriErr?.message ?? "unknown"}`);
       console.error('[SEED] Erro ao criar usuário nutricionista:', nutriErr);
     }
 
@@ -3743,11 +3750,13 @@ async function seedDatabase() {
         }
         console.log(`[SEED] ${defaultQuestions.length} perguntas do checklist sanitário criadas.`);
       }
-    } catch (sanitaryErr) {
+    } catch (sanitaryErr: any) {
+      logSecurity(`[SYSTEM_SEED_FAILED] step=sanitary_questions | error=${sanitaryErr?.message ?? "unknown"}`);
       console.error('[SEED] Erro ao criar perguntas sanitárias:', sanitaryErr);
     }
 
-  } catch(e) {
+  } catch(e: any) {
+    logSecurity(`[SYSTEM_SEED_FAILED] step=seed_root | error=${e?.message ?? "unknown"}`);
     console.error("Failed to seed database:", e);
   }
 }

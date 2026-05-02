@@ -11,6 +11,7 @@
 import { lt } from "drizzle-orm";
 import { db } from "../../database/db";
 import { cronAlertLogs } from "@shared/schema";
+import { logSecurity } from "../../core/security/securityLogger";
 
 export type AlertLogChannelResult = {
   channel: "email" | "slack" | "whatsapp";
@@ -69,7 +70,8 @@ export async function persistAlertLog(entry: AlertLog): Promise<void> {
       suppressed:  entry.suppressed ?? false,
       context:     entry.context ?? null,
     });
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[NFE_ALERT_LOG_FAILED] step=persist | error=${err?.message ?? "unknown"}`);
     console.error("[ALERT_PERSIST_ERROR]", err);
   }
 }
@@ -93,7 +95,8 @@ export async function pruneOldAlertLogs(days = 90): Promise<void> {
       deleted: (result as any)?.rowCount ?? "unknown",
       cutoff: cutoff.toISOString(),
     });
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[NFE_ALERT_LOG_FAILED] step=prune | error=${err?.message ?? "unknown"}`);
     console.error("[ALERT_PRUNE_ERROR]", err);
   }
 }

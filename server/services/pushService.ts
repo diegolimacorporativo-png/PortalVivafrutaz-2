@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { db } from "../database/db";
 import { pushSubscriptions, notificationSettings } from "@shared/schema";
+import { logSecurity } from "../core/security/securityLogger";
 import { eq, and } from "drizzle-orm";
 
 export const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
@@ -86,7 +87,8 @@ export async function ensureDefaultNotificationSettings() {
         await db.insert(notificationSettings).values(setting);
       }
     }
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=seed_settings | error=${err?.message ?? "unknown"}`);
     console.error("[PUSH] Failed to seed notification settings:", err);
   }
 }
@@ -100,7 +102,8 @@ async function getNotifSetting(event: string) {
       .where(eq(notificationSettings.event, event))
       .limit(1);
     return rows[0] || null;
-  } catch {
+  } catch (err: any) {
+    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=get_setting | event=${event} | error=${err?.message ?? "unknown"}`);
     return null;
   }
 }
@@ -134,7 +137,8 @@ async function getActiveSubscriptions(audience: "staff" | "all" | "company", com
       .select()
       .from(pushSubscriptions)
       .where(eq(pushSubscriptions.active, true));
-  } catch {
+  } catch (err: any) {
+    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=get_subscriptions | audience=${audience} | companyId=${companyId ?? "null"} | error=${err?.message ?? "unknown"}`);
     return [];
   }
 }
@@ -167,7 +171,9 @@ async function sendPushToSubscription(
           .update(pushSubscriptions)
           .set({ active: false })
           .where(eq(pushSubscriptions.endpoint, sub.endpoint));
-      } catch {}
+      } catch (deactivateErr: any) {
+        logSecurity(`[PUSH_NOTIFICATION_FAILED] step=deactivate_subscription | error=${deactivateErr?.message ?? "unknown"}`);
+      }
     }
   }
 }
@@ -182,7 +188,8 @@ export async function sendClientPush(
     for (const sub of subs) {
       sendPushToSubscription(sub, payload);
     }
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=client_push | companyId=${companyId} | error=${err?.message ?? "unknown"}`);
     console.error(`[PUSH] Error sending client push to company ${companyId}:`, err);
   }
 }
@@ -209,7 +216,8 @@ export async function fireNotification(
     for (const sub of subs) {
       sendPushToSubscription(sub, { title, body, url: options.url });
     }
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=fire_event | event=${event} | error=${err?.message ?? "unknown"}`);
     console.error(`[PUSH] Error firing event ${event}:`, err);
   }
 }

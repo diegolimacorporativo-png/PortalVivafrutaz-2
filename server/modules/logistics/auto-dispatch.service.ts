@@ -40,6 +40,7 @@ import {
 // pinado no companyId do grupo. Necessário para que storage/services tenant
 // scoped não vazem dados entre empresas durante o dispatch automático.
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
+import { logSecurity } from "../../core/security/securityLogger";
 
 const TICK_MS = 10_000;
 
@@ -191,7 +192,8 @@ export async function autoDispatchReadyOrders(): Promise<number> {
             LIMIT  50`,
       ),
     );
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[LOGISTICS_DISPATCH_FAILED] step=load_pending | error=${err?.message ?? "unknown"}`);
     console.error("[AUTO-DISPATCH] Failed to load pending deliveries:", err);
     return 0;
   }
@@ -252,7 +254,8 @@ export async function autoDispatchReadyOrders(): Promise<number> {
             group.date,
             group.companyId as number,
           );
-        } catch (err) {
+        } catch (err: any) {
+          logSecurity(`[LOGISTICS_DISPATCH_FAILED] step=load_routes | group=${groupKey} | error=${err?.message ?? "unknown"}`);
           console.error(
             `[AUTO-DISPATCH] Failed to load routes for ${groupKey}:`,
             err,
@@ -313,7 +316,8 @@ export async function autoDispatchReadyOrders(): Promise<number> {
                 targetRoute.totalDistance = suggestion.newTotalDistance;
               }
             }
-          } catch (err) {
+          } catch (err: any) {
+            logSecurity(`[LOGISTICS_DISPATCH_FAILED] step=assign_delivery | deliveryId=${d.id} | orderId=${d.order_id ?? "null"} | companyId=${d.company_id ?? "null"} | error=${err?.message ?? "unknown"}`);
             console.error(
               `[AUTO-DISPATCH] Failed to dispatch delivery #${d.id}:`,
               err,
@@ -350,7 +354,8 @@ export function startAutoDispatchWorker(): void {
   workerTimer = setInterval(async () => {
     try {
       await autoDispatchReadyOrders();
-    } catch (err) {
+    } catch (err: any) {
+      logSecurity(`[LOGISTICS_DISPATCH_FAILED] step=worker_tick | error=${err?.message ?? "unknown"}`);
       console.error("[AUTO-DISPATCH] Unexpected worker error:", err);
     }
   }, TICK_MS);

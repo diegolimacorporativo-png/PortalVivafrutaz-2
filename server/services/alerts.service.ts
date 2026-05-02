@@ -19,6 +19,7 @@
 
 import { z } from "zod";
 import { storage } from "./storage";
+import { logSecurity } from "../core/security/securityLogger";
 import { sendAdminBroadcast, mailerStatus } from "./mailer";
 import { recordAlertLog, persistAlertLog, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
 // STEP 9.3F.12 — camada de entrega aditiva (mock por enquanto).
@@ -101,7 +102,8 @@ export async function getAlertRecipients(): Promise<AlertRecipient[]> {
       return [];
     }
     return result.data;
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[ALERT_DELIVERY_FAILED] step=read_recipients | error=${err?.message ?? "unknown"}`);
     console.error("[ALERT_RECIPIENTS_READ_ERROR]", err);
     return [];
   }
@@ -347,10 +349,12 @@ export async function emitAlert(input: EmitAlertInput): Promise<{
       message: input.message,
       severity: input.severity,
       context: input.context,
-    }).catch((err) => {
+    }).catch((err: any) => {
+      logSecurity(`[ALERT_DELIVERY_FAILED] step=deliver_async | severity=${input.severity} | error=${err?.message ?? "unknown"}`);
       console.error("[ALERT_DELIVERY_ERROR]", err);
     });
-  } catch (err) {
+  } catch (err: any) {
+    logSecurity(`[ALERT_DELIVERY_FAILED] step=deliver_dispatch | severity=${input.severity} | error=${err?.message ?? "unknown"}`);
     console.error("[ALERT_DELIVERY_DISPATCH_ERROR]", err);
   }
 
