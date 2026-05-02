@@ -1,0 +1,258 @@
+AUDITORIA COMPLETA — SECURITY OBSERVABILITY BASE (ATUAL)
+
+🎯 OBJETIVO DA AUDITORIA
+
+Mapear exatamente:
+
+* o que já existe de observabilidade
+* o que já está emitindo dados
+* o que já está persistido
+* o que já está redundante
+* o que NÃO deve ser recriado na FASE 14.8
+
+⸻
+
+🧠 1. FONTES DE EVENTOS (JÁ EXISTENTES)
+
+📡 AuthCoreService (CENTRAL)
+
+✔ Já gera:
+
+* AUTH_LOGIN_SUCCESS
+* AUTH_LOGIN_FAILED
+* AUTH_BRUTE_FORCE
+* AUTH_RATE_LIMITED
+* AUTH_SESSION_INVALIDATED
+* AUTH_DEVICE_MISMATCH
+* AUTH_TOKEN_VERSION_MISMATCH
+* AUTH_REVOKE_ALL_SESSIONS
+
+✔ Função:
+
+* logAuthEvent()
+* logSessionInvalidation()
+
+👉 ISSO JÁ É O EVENT STREAM PRINCIPAL DO SISTEMA
+
+⸻
+
+🧠 2. PERSISTÊNCIA REAL (DB)
+
+📊 auth_attempts (PostgreSQL)
+
+✔ Já existe e é usado em:
+
+* L2 rate limit (AuthCoreService)
+* login company
+* login admin (agora corrigido na 14.7.1)
+
+Contém:
+
+* userId / companyId
+* ip
+* endpoint
+* success
+* timestamp
+
+👉 ISSO JÁ É SUA BASE HISTÓRICA DE ATAQUES
+
+⸻
+
+🧠 3. MEMÓRIA (L1 RATE LIMIT)
+
+⚠ userRateLimit.ts
+
+✔ já existente:
+
+* tracking de fails recentes
+* cooldown dinâmico
+* reset após sucesso
+
+❗ mas:
+
+* NÃO é persistido
+* NÃO é histórico
+* só “estado quente”
+
+👉 isso NÃO deve ser duplicado na 14.8
+
+⸻
+
+🧠 4. SESSION SYSTEM (EXISTENTE)
+
+✔ session + sessionGuard
+
+Já produz:
+
+* invalidation por tokenVersion mismatch
+* device mismatch events
+* session invalidation logs via AuthCoreService
+
+⸻
+
+⚠ IMPORTANTE
+
+👉 já existe “evento de sessão”
+
+NÃO criar novo “session event table”
+
+⸻
+
+🧠 5. SECURITY LOGGING (PIPELINE)
+
+✔ EXISTE HOJE:
+
+AuthCoreService:
+
+* buffer circular (logAuthEvent)
+* alertEngine integration (via logSecurity)
+
+sessionGuard:
+
+* usa logSessionInvalidation()
+
+⸻
+
+⚠ PROBLEMA JÁ RESOLVIDO NA 14.7.1
+
+👉 não existe mais dual logging funcional
+👉 mas ainda existem dois destinos físicos:
+
+* buffer (observability interna)
+* alertEngine (alerta crítico)
+
+⸻
+
+🧠 6. RATE LIMIT SYSTEM
+
+✔ EXISTE HOJE:
+
+L1:
+
+* memory-based (userRateLimit.ts)
+
+L2:
+
+* DB-based (auth_attempts via AuthCoreService)
+
+config:
+
+* rateSchedule.ts (single source of truth)
+
+⸻
+
+✔ CONCLUSÃO:
+
+👉 já existe “dual layer model oficial”
+
+⸻
+
+🚨 REDUNDÂNCIAS IDENTIFICADAS
+
+🔴 NÃO CRIAR NA FASE 14.8:
+
+❌ novo rate limit system
+
+→ já existe L1 + L2 consolidado
+
+⸻
+
+❌ nova tabela de eventos de auth
+
+→ auth_attempts + AuthCore logs já cobrem isso
+
+⸻
+
+❌ novo session tracking system
+
+→ session + tokenVersion + logs já resolvem
+
+⸻
+
+❌ novo logging engine separado
+
+→ AuthCoreService já é o engine
+
+⸻
+
+🧠 GAPS REAIS (SÓ ISSO FALTA)
+
+Aqui está o que REALMENTE não existe ainda:
+
+⸻
+
+🟡 1. RISK SCORE ENGINE (NÃO EXISTE)
+
+Hoje você tem dados, mas não tem:
+
+* score por usuário
+* score por IP
+* score por device
+* score agregado por empresa
+
+⸻
+
+🟡 2. EVENT AGGREGATION LAYER
+
+Hoje:
+
+* eventos são individuais
+
+Falta:
+
+* agrupamento por tempo
+* cluster de ataques
+* padrões de comportamento
+
+⸻
+
+🟡 3. QUERY LAYER OTIMIZADO
+
+Hoje:
+
+* auth_attempts existe
+* mas não existe “API de leitura inteligente”
+
+⸻
+
+🟡 4. VISUALIZATION LAYER
+
+Hoje:
+
+* tudo é backend logs
+
+Falta:
+
+* endpoint estruturado para dashboard
+
+⸻
+
+🧠 RESUMO REAL (IMPORTANTE)
+
+✔ O QUE JÁ EXISTE (NÃO DUPLICAR)
+
+* Auth event stream (AuthCoreService)
+* auth_attempts DB (histórico real)
+* L1 + L2 rate limit system
+* session invalidation tracking
+* security logging pipeline
+
+⸻
+
+❗ O QUE NÃO EXISTE (FASE 14.8 REAL)
+
+* risk scoring engine
+* aggregation layer
+* observability API layer
+* dashboard-ready endpoints
+
+⸻
+
+🚀 CONCLUSÃO ARQUITETURAL
+
+Você NÃO precisa de:
+
+❌ novo sistema de segurança
+❌ novo event system
+❌ nova tabela de logs
+❌ novo rate limiter
