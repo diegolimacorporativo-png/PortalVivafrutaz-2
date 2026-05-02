@@ -1,0 +1,194 @@
+# 🚀 PROMPT — FASE 14.3 CC-e ENTERPRISE HARDENING
+
+Você vai implementar a FASE 14.3 do módulo CC-e (Carta de Correção Eletrônica) no sistema.
+
+---
+
+## 🎯 OBJETIVO
+
+Evoluir o módulo CC-e atual para um nível ERP fiscal enterprise, adicionando:
+
+- regras de negócio robustas
+- auditoria completa
+- segurança operacional
+- travas pós-emissão
+- rastreabilidade total
+
+---
+
+## 🚫 REGRAS CRÍTICAS (OBRIGATÓRIAS)
+
+- NÃO alterar arquitetura geral do sistema
+- NÃO modificar contratos de API existentes
+- NÃO remover código atual
+- NÃO quebrar funcionalidades existentes
+- NÃO introduzir dependências novas desnecessárias
+- NÃO usar dados fake
+- Apenas EXTENSÃO incremental segura
+
+---
+
+## 🧠 O QUE JÁ EXISTE (NÃO REFAZER)
+
+- tabela nfe_cce já criada no banco
+- storage já possui:
+  - createNfeCce()
+  - getNfeCceHistory()
+- rotas já funcionais:
+  - POST /api/nfe/:id/cce
+  - GET /api/nfe/:id/cce
+- persistência já está em banco (não in-memory)
+
+---
+
+# 🧱 IMPLEMENTAÇÃO DA FASE 14.3
+
+## 1. CRIAR SERVICE DE REGRAS
+
+Criar nfeCceRulesService.ts com:
+
+### Regras obrigatórias:
+
+- Limite de CC-e por NF-e (default: 20)
+- Bloqueio por tempo após emissão (ex: 30 dias)
+- NF-e deve estar AUTORIZADA
+- Motivo de correção obrigatório (mínimo 10 caracteres)
+
+---
+
+## 2. CRIAR SERVICE DE AUDITORIA
+
+Criar nfeCceAuditService.ts para registrar:
+
+- nfeId
+- sequencia CC-e
+- userId
+- tenantId
+- motivo da correção
+- snapshot antes da alteração
+- snapshot depois da alteração
+- timestamp
+
+---
+
+## 3. REGRAS DE NEGÓCIO (OBRIGATÓRIAS)
+
+### REGRA 1 — LIMITE CC-e
+
+Se quantidade de CC-e >= 20:
+
+→ retornar erro 422:
+{
+  success: false,
+  error: "Limite de CC-e atingido para esta NF-e"
+}
+
+---
+
+### REGRA 2 — BLOQUEIO POR TEMPO
+
+Se NF-e foi emitida há mais de 30 dias:
+
+→ erro 423:
+{
+  success: false,
+  error: "CC-e bloqueada por tempo de emissão"
+}
+
+---
+
+### REGRA 3 — STATUS NF-e
+
+Somente permitir CC-e se NF-e estiver:
+
+- AUTORIZADA
+
+Caso contrário:
+
+→ erro 403
+
+---
+
+### REGRA 4 — MOTIVO OBRIGATÓRIO
+
+Se motivo < 10 caracteres:
+
+→ erro 422:
+{
+  success: false,
+  error: "Motivo de CC-e inválido"
+}
+
+---
+
+## 4. FLUXO DE EXECUÇÃO (OBRIGATÓRIO)
+
+No POST /cce:
+
+1. validar tenant
+2. validar status NF-e
+3. validar limite CC-e
+4. validar tempo de emissão
+5. validar motivo
+6. buscar última sequência
+7. criar CC-e no banco
+8. registrar auditoria
+9. retornar resposta padrão (SEM ALTERAR CONTRATO)
+
+---
+
+## 5. RESPOSTA DA API (NÃO ALTERAR)
+
+POST /cce:
+
+{
+  "success": true,
+  "cce": {
+    "id": number,
+    "sequencia": number,
+    "correcao": string
+  }
+}
+
+GET /cce:
+
+{
+  "success": true,
+  "history": []
+}
+
+---
+
+## 6. AUDITORIA OBRIGATÓRIA
+
+Sempre registrar:
+
+{
+  nfeId,
+  sequencia,
+  userId,
+  tenantId,
+  motivo,
+  payloadAnteriorSnapshot,
+  payloadNovoSnapshot,
+  timestamp
+}
+
+---
+
+## 7. NÃO FAZER
+
+- NÃO mudar rotas existentes
+- NÃO mudar resposta da API
+- NÃO remover storage atual
+- NÃO usar mock
+- NÃO quebrar multi-tenant
+
+---
+
+## 🚀 RESULTADO ESPERADO
+
+- CC-e com regras enterprise
+- auditoria completa ativa
+- segurança fiscal reforçada
+- sistema 100% compatível com versão anterior

@@ -1134,6 +1134,21 @@ export type NfeCce = typeof nfeCce.$inferSelect;
 export const insertNfeCceSchema = createInsertSchema(nfeCce).omit({ id: true, createdAt: true });
 export type InsertNfeCce = z.infer<typeof insertNfeCceSchema>;
 
+// ─── NF-e CC-e Audit Log — FASE 14.3 ────────────────────────────────────────
+export const nfeCceAuditLogs = pgTable("nfe_cce_audit_logs", {
+  id: serial("id").primaryKey(),
+  nfeId: integer("nfe_id").notNull(),
+  sequencia: integer("sequencia").notNull(),
+  userId: integer("user_id"),
+  empresaId: integer("empresa_id"),
+  correcao: text("correcao").notNull(),
+  payloadAnterior: jsonb("payload_anterior"),
+  payloadNovo: jsonb("payload_novo"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type NfeCceAuditLog = typeof nfeCceAuditLogs.$inferSelect;
+export type InsertNfeCceAuditLog = typeof nfeCceAuditLogs.$inferInsert;
+
 // ─── NF Manual ──────────────────────────────────────────────────────────────
 export const nfManual = pgTable("nf_manual", {
   id: serial("id").primaryKey(),

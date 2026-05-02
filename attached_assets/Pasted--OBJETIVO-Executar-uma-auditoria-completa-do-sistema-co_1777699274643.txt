@@ -1,0 +1,114 @@
+🎯 OBJETIVO
+
+Executar uma auditoria completa do sistema + corrigir falha da IA de clima (tempo real não funcionando).
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar arquitetura global
+2. NÃO quebrar funcionalidades existentes
+3. NÃO remover código
+4. NÃO alterar contratos de API existentes
+5. NÃO adicionar dependências desnecessárias
+6. NÃO inventar dados fake
+
+👉 Apenas analisar, diagnosticar e corrigir pontualmente
+
+---
+
+## 🧠 PARTE 1 — DESCOBERTA COMPLETA DO SISTEMA
+
+### MAPEAR:
+
+1. TODOS os módulos backend:
+   - rotas (routes.ts + domínios extraídos)
+   - services
+   - integrações externas (SEFAZ, banco, IA, etc.)
+
+2. TODAS as funcionalidades reais:
+   - pedidos
+   - faturamento
+   - NF-e (emissão, diagnóstico, preflight)
+   - CC-e
+   - segurança (rate limit, logs, tenant)
+   - auditoria
+   - IA (chat, clima, etc.)
+
+3. FRONTEND:
+   - páginas admin
+   - fluxos principais
+   - integrações com backend
+
+---
+
+## 📊 SAÍDA ESPERADA (PARTE 1)
+
+Gerar relatório estruturado:
+
+### 🔍 O QUE O SISTEMA FAZ HOJE
+
+- lista completa de funcionalidades
+- fluxos principais (ex: pedido → NF → emissão → CC-e)
+
+---
+
+### ⚠️ PONTOS FRACOS
+
+- bugs potenciais
+- inconsistências de dados
+- pontos sem validação
+- riscos de segurança
+- endpoints sem proteção adequada
+
+---
+
+### 🚀 MELHORIAS SUGERIDAS
+
+- melhorias de UX
+- melhorias de performance
+- melhorias de segurança
+- melhorias fiscais (NF-e)
+
+---
+
+## 🌦️ PARTE 2 — BUG IA CLIMA (CRÍTICO)
+
+### PROBLEMA
+
+IA não retorna clima em tempo real
+
+---
+
+## 🛠️ INVESTIGAR
+
+1. Onde a IA de clima está implementada:
+   - service de IA
+   - endpoint
+   - integração externa (API clima)
+
+2. Verificar:
+
+- Está usando API real ou mock?
+- Está com chave inválida?
+- Está sem await?
+- Está retornando cache antigo?
+- Está com erro silencioso (try/catch vazio)?
+
+---
+
+## 🔧 CORRIGIR
+
+Aplicar correção mínima necessária:
+
+- Garantir chamada real (ex: OpenWeather, WeatherAPI, etc.)
+- Garantir async/await correto
+- Garantir retorno estruturado:
+
+```ts
+{
+  cidade: string,
+  temperatura: number,
+  descricao: string,
+  atualizadoEm: string
+}

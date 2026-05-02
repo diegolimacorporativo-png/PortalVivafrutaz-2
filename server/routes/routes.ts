@@ -139,6 +139,14 @@ import { register as certificatesRegister } from './certificates.routes';
 import { register as adminIntelligenceRegister } from './admin-intelligence.routes';
 import { register as smtpTestRegister } from './smtp-test.routes';
 import { register as bankRegister } from './bank.routes';
+import {
+  validateCceLimit,
+  validateCceTimeWindow,
+  validateCceStatus,
+  validateCceMotivo,
+  isCceRuleViolation,
+} from '../modules/nfe/nfe-cce-rules.service';
+import { recordCceAudit } from '../modules/nfe/nfe-cce-audit.service';
 
 
 const SessionStore = MemoryStore(expressSession);
@@ -2888,14 +2896,18 @@ export async function registerRoutes(
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
-    // CC-e (Carta de Correção Eletrônica) — FASE 14.2: persistência real (nfe_cce)
+    // CC-e (Carta de Correção Eletrônica) — FASE 14.3: enterprise hardening
+    // Rules enforced (in order): motivo length → status → limit → time window
+    // Audit persisted after every successful creation.
 
     // POST /api/nfe/:id/cce — registrar CC-e
     app.post('/api/nfe/:id/cce', requireAuthCore, async (req: any, res) => {
       try {
         const { id } = req.params;
         const { correcao } = req.body;
+        const nfeId = Number(id);
 
+        // ── Existing validation (FASE 14.2) — do not remove ─────────────────
         if (!correcao || correcao.length < 15) {
           return res.status(400).json({
             success: false,
@@ -2903,22 +2915,40 @@ export async function registerRoutes(
           });
         }
 
-        const nfe = await storage.getNfeEmissao(Number(id));
+        const nfe = await storage.getNfeEmissao(nfeId);
         if (!nfe) {
           return res.status(404).json({ success: false, error: { message: "NF-e não encontrada" } });
         }
-        if (nfe.status !== "autorizada") {
-          return res.status(422).json({
-            success: false,
-            error: { message: "CC-e só pode ser emitida para NF-e com status AUTORIZADA" },
-          });
-        }
 
-        const entrada = await storage.createNfeCce(
-          Number(id),
+        // ── FASE 14.3 enterprise rules ────────────────────────────────────────
+        // Rule 4 — motivo mínimo 10 chars (defensive; route already checks 15)
+        validateCceMotivo(correcao);
+
+        // Rule 3 — NF-e deve estar AUTORIZADA
+        validateCceStatus(nfe);
+
+        // Rule 1 — limite de 20 CC-e por NF-e
+        await validateCceLimit(nfeId);
+
+        // Rule 2 — bloqueio por tempo (30 dias após autorização)
+        validateCceTimeWindow(nfe);
+        // ── end FASE 14.3 rules ───────────────────────────────────────────────
+
+        const userId: number | null = req.session?.userId || null;
+        const empresaId: number | null = currentTenantId() ?? req.session?.companyId ?? null;
+
+        const entrada = await storage.createNfeCce(nfeId, correcao, userId);
+
+        // ── FASE 14.3 audit — fire-and-forget, never blocks the response ─────
+        void recordCceAudit({
+          nfeId,
+          sequencia: entrada.sequencia,
+          userId,
+          empresaId,
           correcao,
-          req.session?.userId || null,
-        );
+          nfeSnapshot: nfe,
+          cceSnapshot: entrada,
+        });
 
         return res.json({
           success: true,
@@ -2926,6 +2956,13 @@ export async function registerRoutes(
           cce: entrada,
         });
       } catch (e: any) {
+        if (isCceRuleViolation(e)) {
+          return res.status(e.status).json({
+            success: false,
+            error: e.message,
+            code: e.code,
+          });
+        }
         return res.status(500).json({ success: false, error: { message: e.message } });
       }
     });
