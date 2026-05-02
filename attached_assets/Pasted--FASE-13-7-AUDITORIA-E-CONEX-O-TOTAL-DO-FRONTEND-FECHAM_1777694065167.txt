@@ -1,0 +1,265 @@
+🎯 FASE 13.7 — AUDITORIA E CONEXÃO TOTAL DO FRONTEND (FECHAMENTO FINAL)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar backend  
+2. NÃO alterar endpoints  
+3. NÃO mudar contratos de API  
+4. NÃO remover componentes existentes  
+5. NÃO refatorar estrutura geral  
+
+👉 Apenas conectar corretamente o que já existe
+
+---
+
+🧠 OBJETIVO
+
+- garantir que TODAS as telas usam dados reais  
+- eliminar qualquer dado mockado  
+- garantir feedback visual em TODAS ações  
+- detectar e corrigir falhas silenciosas  
+
+---
+
+# 🛠️ ETAPA 1 — MAPEAR TODAS AS TELAS
+
+📍 Procurar em:
+
+client/src/pages/
+
+---
+
+Listar todas:
+
+- admin/orders.tsx ✔  
+- admin/nfe.tsx ✔  
+- admin/security-intelligence.tsx ✔  
+- admin/security-audit.tsx ✔  
+- admin/system-health.tsx ✔  
+- outras páginas admin/*  
+
+---
+
+👉 Para cada tela responder:
+
+txt Tem useQuery? (sim/não) Tem chamada real de API? (sim/não) Tem loading? (sim/não) Tem erro tratado? (sim/não) 
+
+---
+
+# 🛠️ ETAPA 2 — DETECTAR DADOS MOCKADOS
+
+🚨 Procurar por:
+
+ts const data = [...] 
+
+ou:
+
+ts mockData fakeData staticData 
+
+---
+
+👉 Substituir por:
+
+ts useQuery({   queryKey: [...],   queryFn: async () => {     const res = await fetch("/api/...");     return res.json();   } }); 
+
+---
+
+⚠️ NÃO alterar layout  
+👉 apenas trocar origem dos dados
+
+---
+
+# 🛠️ ETAPA 3 — GARANTIR LOADING EM TODAS AS TELAS
+
+Se NÃO existir:
+
+tsx if (isLoading) {   return <div data-testid="loading-screen">Carregando...</div>; } 
+
+---
+
+Adicionar SEMPRE antes do render principal
+
+---
+
+# 🛠️ ETAPA 4 — TRATAR ERROS (CRÍTICO)
+
+Se NÃO existir:
+
+tsx if (error) {   return (     <div data-testid="error-screen" className="text-red-600">       Erro ao carregar dados     </div>   ); } 
+
+---
+
+👉 evita tela quebrada silenciosa
+
+---
+
+# 🛠️ ETAPA 5 — AÇÕES COM FEEDBACK (BOTÕES)
+
+🚨 Procurar TODOS:
+
+- onClick
+- mutations
+- submits
+
+---
+
+Se tiver:
+
+ts catch (err) {   console.error(err); } 
+
+---
+
+Adicionar feedback:
+
+ts catch (err) {   console.error(err);   alert("Erro ao executar ação"); } 
+
+---
+
+👉 mínimo aceitável (sem refatorar toast system)
+
+---
+
+# 🛠️ ETAPA 6 — BOTÕES SEM AÇÃO
+
+🚨 Detectar:
+
+tsx <Button onClick={() => {}}> 
+
+ou:
+
+tsx <Button>...</Button> 
+
+---
+
+👉 Resolver:
+
+- conectar API existente  
+OU  
+- desabilitar:
+
+tsx disabled 
+
+---
+
+# 🛠️ ETAPA 7 — SINCRONIZAÇÃO (REFETCH)
+
+Após ações críticas:
+
+- emitir NF  
+- desbloquear usuário  
+- alterar status  
+
+---
+
+Garantir:
+
+ts queryClient.invalidateQueries([...]); 
+
+---
+
+👉 evita dados desatualizados
+
+---
+
+# 🛠️ ETAPA 8 — TESTE FUNCIONAL REAL
+
+Executar manualmente:
+
+---
+
+## 🔎 TESTE 1 — NAVEGAÇÃO
+
+- abrir todas telas  
+✔ nenhuma tela vazia  
+
+---
+
+## 🔎 TESTE 2 — AÇÕES
+
+- clicar todos botões  
+✔ todos respondem  
+
+---
+
+## 🔎 TESTE 3 — ERROS
+
+- simular erro (API offline)  
+✔ UI mostra erro  
+
+---
+
+## 🔎 TESTE 4 — ATUALIZAÇÃO
+
+- alterar algo  
+✔ UI atualiza  
+
+---
+
+# 🛠️ ETAPA 9 — LIMPEZA FINAL
+
+Remover:
+
+- console.log  
+- dados mock  
+- código morto  
+
+---
+
+⚠️ NÃO remover lógica ativa
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero mudança no backend  
+✔ zero quebra de contrato  
+✔ todas telas funcionais  
+✔ nenhuma ação silenciosa  
+✔ UX consistente  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ telas parcialmente conectadas  
+❌ erros silenciosos  
+❌ dados inconsistentes  
+
+---
+
+Depois:
+
+✔ frontend 100% conectado  
+✔ todas ações visíveis  
+✔ sistema utilizável por cliente real  
+✔ experiência profissional  
+
+---
+
+# ⚠️ IMPORTANTE
+
+👉 NÃO inventar novas APIs  
+👉 NÃO alterar lógica backend  
+👉 NÃO refatorar design  
+
+👉 apenas conectar e garantir funcionamento
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. telas auditadas  
+2. telas corrigidas  
+3. ações conectadas  
+4. erros tratados  
+5. confirmação de frontend 100% funcional  
+
+---
+
+🚀 ESSA É A FASE QUE TRANSFORMA EM P

@@ -1,3 +1,8 @@
+function unwrap<T>(res: any): T {
+  if (res?.data) return res.data;
+  return res;
+}
+
 export async function getNFePreflight(orderId: number) {
   const res = await fetch(`/api/nfe/preflight/${orderId}`, {
     credentials: 'include',
@@ -9,7 +14,7 @@ export async function getNFePreflight(orderId: number) {
     throw new Error(body?.error?.message || body?.message || 'Não autorizado');
   }
 
-  return body;
+  return unwrap<any>(body);
 }
 
 export async function getNFeDiagnostics(orderId: number) {
@@ -22,5 +27,5 @@ export async function getNFeDiagnostics(orderId: number) {
     throw new Error(err?.message || err?.error?.message || 'Erro ao buscar diagnóstico');
   }
 
-  return res.json();
+  return unwrap<any>(await res.json());
 }

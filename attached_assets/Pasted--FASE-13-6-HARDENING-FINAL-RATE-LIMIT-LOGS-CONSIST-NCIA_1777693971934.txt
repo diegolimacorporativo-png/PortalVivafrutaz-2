@@ -1,0 +1,232 @@
+🎯 FASE 13.6 — HARDENING FINAL (RATE LIMIT + LOGS + CONSISTÊNCIA LEVE)
+
+---
+
+🚫 REGRAS CRÍTICAS
+
+1. NÃO alterar endpoints  
+2. NÃO alterar contratos existentes  
+3. NÃO quebrar fluxo atual  
+4. NÃO remover código  
+5. NÃO refatorar em massa  
+
+👉 Apenas adicionar camadas de proteção leves e seguras
+
+---
+
+🧠 OBJETIVO
+
+- evitar abuso (rate limit)
+- melhorar rastreabilidade (logs críticos)
+- reduzir risco de inconsistência (frontend leve)
+
+---
+
+# 🛠️ ETAPA 1 — RATE LIMIT GLOBAL (SIMPLES E SEGURO)
+
+📍 Arquivo (criar se não existir):
+
+server/core/http/rateLimit.ts
+
+---
+
+Adicionar:
+
+ts import type { Request, Response, NextFunction } from "express";  const memory = new Map<string, { count: number; time: number }>();  const WINDOW = 60_000; // 1 min const LIMIT = 60; // 60 req/min por IP  export function simpleRateLimit(req: Request, res: Response, next: NextFunction) {   const ip = req.ip || "unknown";   const now = Date.now();    const entry = memory.get(ip);    if (!entry) {     memory.set(ip, { count: 1, time: now });     return next();   }    if (now - entry.time > WINDOW) {     memory.set(ip, { count: 1, time: now });     return next();   }    entry.count++;    if (entry.count > LIMIT) {     return res.status(429).json({       success: false,       error: { message: "Too many requests", code: "RATE_LIMIT" }     });   }    next(); } 
+
+---
+
+📍 Aplicar em:
+
+server/routes/routes.ts
+
+---
+
+ANTES de registrar rotas:
+
+ts app.use(simpleRateLimit); 
+
+---
+
+⚠️ NÃO aplicar em rotas internas de cron
+
+---
+
+# 🛠️ ETAPA 2 — LOG DE AÇÕES CRÍTICAS
+
+📍 Procurar:
+
+- emissão NF
+- cancelamento NF
+- override manual
+
+---
+
+Adicionar (sem alterar lógica):
+
+ts logSecurity(   "[NFE_EMIT] order=" + orderId + " | user=" + userId ); 
+
+ts logSecurity(   "[NFE_CANCEL] order=" + orderId + " | user=" + userId ); 
+
+ts logSecurity(   "[NFE_OVERRIDE] order=" + orderId + " | user=" + userId ); 
+
+---
+
+⚠️ NÃO alterar fluxo  
+⚠️ apenas adicionar linha de log
+
+---
+
+# 🛠️ ETAPA 3 — PADRONIZAÇÃO LEVE NO FRONTEND
+
+📍 Arquivo:
+client/src/services/nfe.service.ts
+
+---
+
+Criar helper interno:
+
+ts function unwrap<T>(res: any): T {   if (res?.data) return res.data;   return res; } 
+
+---
+
+Aplicar nos serviços:
+
+ts const data = await res.json(); return unwrap(data); 
+
+---
+
+👉 NÃO mudar retorno externo  
+👉 apenas garantir consistência interna
+
+---
+
+# 🛠️ ETAPA 4 — TIPAGEM CRÍTICA (SEM EXAGERO)
+
+📍 Apenas nos pontos:
+
+- preflight
+- diagnostics
+- emit
+
+---
+
+Exemplo:
+
+ts type PreflightResult = {   errors?: any[];   warnings?: any[]; }; 
+
+---
+
+👉 substituir:
+
+ts (input as any) 
+
+por tipagem mínima
+
+---
+
+⚠️ NÃO sair tipando tudo  
+👉 foco só no core NF-e
+
+---
+
+# 🛠️ ETAPA 5 — PROTEÇÃO EXTRA (OPCIONAL SEGURA)
+
+📍 No rateLimit:
+
+Adicionar bypass para admin interno:
+
+ts if (req.user?.role === "MASTER") return next(); 
+
+---
+
+👉 evita travar uso administrativo
+
+---
+
+# 🧪 VALIDAÇÃO
+
+---
+
+## 1️⃣ Rate limit
+
+- fazer várias requisições rápidas  
+✔ deve bloquear com 429  
+
+---
+
+## 2️⃣ Logs
+
+- emitir NF  
+✔ log [NFE_EMIT] aparece  
+
+---
+
+## 3️⃣ Frontend
+
+✔ preflight continua funcionando  
+✔ diagnóstico continua funcionando  
+✔ emissão intacta  
+
+---
+
+## 4️⃣ Sistema geral
+
+✔ /api/health → OK  
+✔ sem erro no console  
+✔ sem regressão  
+
+---
+
+# 🔒 GARANTIAS
+
+✔ zero alteração de contrato  
+✔ zero impacto no fluxo  
+✔ proteção contra abuso  
+✔ rastreabilidade completa  
+✔ consistência frontend melhorada  
+
+---
+
+# 📊 RESULTADO ESPERADO
+
+Antes:
+
+❌ sem proteção contra spam  
+❌ logs incompletos  
+❌ inconsistência ocasional  
+
+---
+
+Depois:
+
+✔ sistema protegido contra abuso  
+✔ auditoria completa  
+✔ frontend resiliente  
+✔ pronto para escalar  
+
+---
+
+# ⚠️ IMPORTANTE
+
+👉 NÃO usar libs externas agora  
+👉 NÃO complicar rate limit  
+👉 NÃO refatorar backend  
+
+👉 manter tudo simples e seguro
+
+---
+
+## ✅ FINAL
+
+Responder com:
+
+1. arquivos criados/alterados  
+2. middleware aplicado  
+3. logs adicionados  
+4. validação completa  
+5. confirmação de zero regressão  
+
+---
+
+🚀 FASE FINAL DE HARDENING — SISTEMA

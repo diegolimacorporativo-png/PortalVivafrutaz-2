@@ -122,6 +122,7 @@ import { register as sanitaryRegister } from './sanitary.routes';
 import { register as scopeSimulationsRegister } from './scope-simulations.routes';
 import { register as smtpConfigRegister } from './smtp-config.routes';
 import { register as empresaConfigRegister } from './empresa-config.routes';
+import { simpleRateLimit } from '../core/http/rateLimit';
 import { register as priceGroupsRegister } from './price-groups.routes';
 import { register as productPricesRegister } from './product-prices.routes';
 import { register as orderWindowsRegister } from './order-windows.routes';
@@ -151,6 +152,9 @@ export async function registerRoutes(
   // place above because other code in this file references them, but the
   // `app.use(expressSession(...))` block has been removed to avoid mounting
   // session twice.
+
+  // FASE 13.6 — Rate limit global (unauthenticated IPs, 60 req/min)
+  app.use(simpleRateLimit);
 
   // Start backup scheduler
   scheduleBackups();
@@ -1802,6 +1806,8 @@ export async function registerRoutes(
         const { orderId } = req.body;
         if (!orderId) return res.status(400).json({ message: 'orderId obrigatório' });
 
+        logSecurity("[NFE_EMIT] order=" + orderId + " | user=" + req.session?.userId);
+
         // FASE 20 — Lock de concorrência (GAP 1, GAP 7). SEMPRE ANTES de
         // qualquer validação ou escrita. Granular por (tenantId, orderId).
         const tenantId = requireTenantId();
@@ -2132,6 +2138,7 @@ export async function registerRoutes(
       if (!Number.isFinite(orderId) || orderId <= 0) {
         return res.status(400).json({ message: 'orderId inválido' });
       }
+      logSecurity("[NFE_OVERRIDE] order=" + orderId + " | user=" + req.session?.userId);
       try {
         const tenantId = requireTenantId();
         lock = await acquireOrderLock(tenantId, orderId);
@@ -2872,6 +2879,7 @@ export async function registerRoutes(
             throw e;
           }
         }
+        logSecurity("[NFE_CANCEL] order=" + (nfe.orderId ?? req.params.id) + " | user=" + req.session?.userId);
         await storage.updateNfeEmissao(nfe.id, { status: 'cancelada', motivoCancelamento: motivo || 'Cancelada pelo usuário' });
         res.json({ success: true });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
