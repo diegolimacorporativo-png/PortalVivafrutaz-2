@@ -1,0 +1,155 @@
+FASE 18.4 — DRIFT ALERT ENGINE (AUTONOMOUS READ-ONLY MONITORING)
+
+OBJETIVO:
+Criar um sistema de alerta que detecta automaticamente quando o AUTH SYSTEM
+começa a divergir do comportamento esperado (CLI + TRUTH LAYER).
+
+IMPORTANTE:
+✔ NÃO modifica backend
+✔ NÃO interfere em login
+✔ NÃO cria endpoint
+✔ NÃO roda em produção runtime
+✔ SOMENTE leitura + análise + alertas locais
+
+========================================================
+1. FONTES DE DADOS
+========================================================
+
+A) CLI AUDIT
+/scripts/output/cli-auth-audit.json
+
+B) TRUTH LAYER
+/scripts/output/auth-truth-layer.json
+
+C) DRIFT DASHBOARD OUTPUT
+/scripts/output/auth-drift-dashboard.json
+
+========================================================
+2. NOVO SCRIPT
+========================================================
+
+/scripts/auth-drift-alert-engine.ts
+
+Execução:
+node scripts/auth-drift-alert-engine.ts
+
+========================================================
+3. OBJETIVO DO ENGINE
+========================================================
+
+Monitorar continuamente:
+
+- TRUST_SCORE
+- FALSE_NEGATIVE rate
+- FALSE_POSITIVE rate
+- DRIFT_SCORE médio
+- padrões repetidos de inconsistência
+
+========================================================
+4. LÓGICA DE DETECÇÃO
+========================================================
+
+function evaluateDrift(metrics) {
+
+  if (metrics.trustScore < 70)
+    return "CRITICAL_DRIFT"
+
+  if (metrics.falseNegativeRate > 0.10)
+    return "SECURITY_RISK"
+
+  if (metrics.falsePositiveRate > 0.15)
+    return "OVER_BLOCKING"
+
+  if (metrics.avgDriftScore > 20)
+    return "SYSTEM_INCONSISTENCY"
+
+  return "STABLE"
+}
+
+========================================================
+5. THRESHOLDS DE ALERTA
+========================================================
+
+CRITICAL_DRIFT:
+- TRUST_SCORE < 70
+- ou crescimento contínuo de drift
+
+SECURITY_RISK:
+- false negatives > 10%
+→ sistema deixando passar usuários perigosos
+
+OVER_BLOCKING:
+- false positives > 15%
+→ sistema bloqueando usuários válidos
+
+SYSTEM_INCONSISTENCY:
+- drift médio > 20 pontos
+
+========================================================
+6. OUTPUT DO ENGINE
+========================================================
+
+A) RESUMO GLOBAL
+{
+  trustScore,
+  driftLevel,
+  totalEntities,
+  falsePositiveRate,
+  falseNegativeRate
+}
+
+B) ALERTAS GERADOS
+[
+  {
+    type: "CRITICAL_DRIFT | SECURITY_RISK | OVER_BLOCKING | SYSTEM_INCONSISTENCY",
+    severity: "LOW | MEDIUM | HIGH | CRITICAL",
+    description,
+    affectedEntitiesCount
+  }
+]
+
+C) TOP ENTITIES PROBLEMÁTICAS
+- usuários com maior drift
+- companies com inconsistência crítica
+- IPs com comportamento anômalo
+
+========================================================
+7. REGRAS IMPORTANTES
+
+✔ leitura apenas (CLI + JSON + DB read-only)
+✔ sem alteração de dados
+✔ sem impacto no sistema de auth
+✔ sem integração com backend runtime
+✔ execução independente
+
+========================================================
+8. OBJETIVO FINAL
+
+Transformar o sistema em:
+
+- auto-monitorado
+- auto-diagnosticável
+- capaz de detectar degradação de segurança
+- observável em tempo real (offline engine)
+
+========================================================
+9. SAÍDA FINAL
+
+O script deve gerar:
+
+- relatório em JSON
+- log no terminal com cores:
+  - verde = STABLE
+  - amarelo = WARNING
+  - vermelho = CRITICAL
+- summary final com recomendação:
+
+"SAFE", "MONITOR CLOSELY", "RISK INTERVENTION REQUIRED"
+
+========================================================
+FASE 18.4 CONCLUÍDA QUANDO:
+
+✔ drift engine executa localmente
+✔ alertas são gerados automaticamente
+✔ trust score monitorado
+✔ nenhum impacto no backend
