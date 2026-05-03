@@ -1,0 +1,170 @@
+FASE 16 — VALIDAÇÃO DE PRODUÇÃO REAL (STABILITY & CHAOS AUDIT)
+
+OBJETIVO:
+Validar se o sistema está realmente pronto para produção multi-instância sob:
+- carga real
+- falhas de infraestrutura
+- concorrência simultânea
+- restart inesperado
+- degradação de banco de dados
+- execução paralela de rotinas críticas (auth, NF-e, billing)
+
+IMPORTANTE:
+Esta fase é READ-ONLY por padrão. Nenhuma alteração estrutural deve ser feita sem evidência de falha crítica.
+
+========================================================
+1. AUTH & SESSION STABILITY TESTS
+========================================================
+
+1.1 Restart Safety Test
+- Simular restart do servidor durante:
+  - login ativo
+  - sessão validada
+  - revoke sessions em execução
+VALIDAR:
+- nenhuma sessão inválida deve ser aceita após restart
+- nenhuma sessão válida deve ser perdida sem motivo
+
+1.2 Multi-Instance Session Consistency
+- Rodar 2 instâncias simultâneas
+- Logar em uma e validar acesso na outra
+VALIDAR:
+- tokenVersion deve invalidar corretamente entre instâncias
+- não pode existir sessão divergente entre nodes
+
+1.3 Fail-Closed Enforcement Test
+- Simular DB offline durante validateSession()
+VALIDAR:
+- sistema deve BLOQUEAR acesso (fail-closed)
+- nunca permitir fallback "valid: true"
+
+1.4 Device Binding Enforcement
+- testar:
+  - login com X-Device-Id
+  - login sem X-Device-Id
+VALIDAR:
+- comportamento consistente e previsível
+- sem bypass via header omission
+
+========================================================
+2. RATE LIMIT & BRUTE FORCE RESILIENCE
+========================================================
+
+2.1 Distributed Attack Simulation
+- simular login brute force em múltiplos IPs
+VALIDAR:
+- L2 (DB) deve ser fonte única de decisão
+- L1 não pode bloquear de forma inconsistente entre instâncias
+
+2.2 Burst Traffic Test
+- 100–500 requests simultâneos login
+VALIDAR:
+- nenhum race condition em loginAttempts
+- lockout deve ser determinístico
+
+========================================================
+3. NF-e (CRITICAL FINANCIAL FLOW)
+========================================================
+
+3.1 Crash During Emission
+- simular crash entre:
+  - criação da NF-e
+  - status "enviando"
+  - resposta SEFAZ
+VALIDAR:
+- NÃO pode existir NF-e duplicada após restart
+- estado deve ser idempotente
+
+3.2 Concurrent Emission Lock Test
+- 2 requests simultâneas mesma NF-e
+VALIDAR:
+- advisory lock ou equivalente deve impedir duplicação
+
+3.3 SEFAZ Failure Recovery
+- simular falha externa SEFAZ
+VALIDAR:
+- sistema não pode travar NF-e em estado inconsistente eterno
+
+========================================================
+4. DATABASE & PERFORMANCE STRESS
+========================================================
+
+4.1 N+1 Detection Test
+VALIDAR endpoints:
+- /orders
+- /users
+- /products
+- /nfe/eligible
+
+CHECK:
+- nenhuma execução > 50 queries por request aceitável
+- identificar loops com query dentro
+
+4.2 Load Test (soft)
+- 200–1000 req/s simulados
+VALIDAR:
+- sem memory leak
+- sem crescimento anormal de CPU
+- sem bloqueio de event loop
+
+========================================================
+5. LOGGING & OBSERVABILITY CONSISTENCY
+========================================================
+
+5.1 Single Source of Truth Logging
+VALIDAR:
+- NÃO deve existir console.log em:
+  - auth flow
+  - NF-e flow
+  - session validation
+
+5.2 Event Consistency
+VALIDAR:
+- logAuthEvent deve ser único pipeline
+- alertEngine não pode ser bypassado
+
+========================================================
+6. FAILURE MODE TEST (CHAOS ENGINE)
+========================================================
+
+Simular aleatoriamente:
+- DB latency 200ms–3000ms
+- DB disconnect
+- partial timeout
+- CPU spike
+- restart during login / NF-e emission
+
+VALIDAR:
+- sistema não entra em estado corrompido
+- não há sessão fantasma
+- NF-e não duplica
+- auth não vira fail-open
+
+========================================================
+7. FINAL CLASSIFICATION
+========================================================
+
+Classificar o sistema em:
+
+🟢 READY FOR PRODUCTION
+- passa todos testes críticos
+- zero fail-open em auth/session
+- NF-e idempotente garantido
+- sem N+1 crítico
+
+🟡 READY WITH RISKS
+- falhas não críticas presentes
+- performance ou observability incompleta
+
+🔴 NOT READY FOR PRODUCTION
+- qualquer fail-open em auth/session
+- duplicação NF-e possível
+- inconsistência multi-instância
+
+========================================================
+OUTPUT FINAL OBRIGATÓRIO:
+
+- lista de falhas encontradas (se houver)
+- severidade por categoria
+- impacto em produção real
+- recomendação objetiva (go / no-go)
