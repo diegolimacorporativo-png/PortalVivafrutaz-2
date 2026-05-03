@@ -1,10 +1,15 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { requireRole } from "../core/http/requireAuth";
+import { resolveTenant } from "../core/tenant/context";
+import { logSecurityEvent } from "../core/security/securityLogger";
 
 export function register(app: Express) {
-  app.get('/api/admin/order-cleanup-check', async (req, res) => {
+  app.get('/api/admin/order-cleanup-check', requireAuthCore, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), async (req: any, res) => {
     try {
+      resolveTenant(req);
+      logSecurityEvent({ type: "ADMIN_ORDER_CLEANUP_CHECK", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
       const twoMonthsAgo = new Date();
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
       const allOrders = await storage.getOrders();
@@ -15,6 +20,8 @@ export function register(app: Express) {
 
   app.delete('/api/admin/order-cleanup', requireAuthCore, async (req, res) => {
     try {
+      resolveTenant(req);
+      logSecurityEvent({ type: "ADMIN_ORDER_CLEANUP_DELETE", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
       const twoMonthsAgo = new Date();
       twoMonthsAgo.setMonth(twoMonthsAgo.getMonth() - 2);
       const allOrders = await storage.getOrders();

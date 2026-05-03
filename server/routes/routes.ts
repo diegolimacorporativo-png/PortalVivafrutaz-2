@@ -38,6 +38,8 @@ import { gte, desc, sql } from "drizzle-orm";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { resolveTenant } from "../core/tenant/context";
+import { logSecurityEvent } from "../core/security/securityLogger";
 import {
   requireActiveSubscription,
   checkPlanLimit,
@@ -940,7 +942,9 @@ export async function registerRoutes(
   //    Inline handlers were removed in 2026-04 to delete dead code.
 
   // POST /api/fiscal-invoices/parse-pdf — extract text from PDF server-side
-  app.post('/api/fiscal-invoices/parse-pdf', uploadInMemory.single('file'), async (req, res) => {
+  app.post('/api/fiscal-invoices/parse-pdf', requireAuthCore, uploadInMemory.single('file'), async (req: any, res) => {
+    resolveTenant(req);
+    logSecurityEvent({ type: "FISCAL_INVOICES_PARSE_PDF", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado' });
@@ -956,6 +960,8 @@ export async function registerRoutes(
   // ─── IMPORTAÇÃO DE DADOS (Excel / CSV / XML) ──────────────────────────────────
   // POST /api/import/preview — parse file and return preview rows (no DB write)
   app.post('/api/import/preview', requireAuthCore, uploadInMemory.single('file'), async (req: any, res) => {
+    resolveTenant(req);
+    logSecurityEvent({ type: "IMPORT_PREVIEW", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
     if (!req.file) return res.status(400).json({ message: 'Arquivo não enviado' });
     try {
       const XLSX = await import('xlsx');
@@ -1036,6 +1042,8 @@ export async function registerRoutes(
 
   // POST /api/import/execute — commit the import to DB
   app.post('/api/import/execute', sensitiveActionLimiter, requireAuthCore, requireRole(["ADMIN"]), async (req: any, res) => {
+    resolveTenant(req);
+    logSecurityEvent({ type: "IMPORT_EXECUTE", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { mode: req.body?.mode } });
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return res.status(401).json({ message: 'Não autenticado' });
     try {
@@ -1200,6 +1208,8 @@ export async function registerRoutes(
     // GET /api/nfe — list
     app.get('/api/nfe', requireAuthCore, async (req: any, res) => {
       try {
+        resolveTenant(req);
+        logSecurityEvent({ type: "NFE_LIST", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
         const { status, orderId } = req.query;
         const data = await storage.getNfeEmissoes({ status: status as string, orderId: orderId ? Number(orderId) : undefined });
         res.json(data);
@@ -1209,6 +1219,8 @@ export async function registerRoutes(
     // GET /api/nfe/:id
     app.get('/api/nfe/:id', requireAuthCore, async (req: any, res) => {
       try {
+        resolveTenant(req);
+        logSecurityEvent({ type: "NFE_GET", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { id: req.params.id } });
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
         // FASE 6 — multi-tenant hardening: NF-e carrega orderId; valida tenant
@@ -1228,8 +1240,10 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/can-emit/:orderId — validação prévia (mesma lógica do guard)
-    app.get('/api/nfe/can-emit/:orderId', async (req: any, res) => {
+    app.get('/api/nfe/can-emit/:orderId', requireAuthCore, requireRole(["MASTER","ADMIN","DEVELOPER","DIRECTOR"]), async (req: any, res) => {
       try {
+        resolveTenant(req);
+        logSecurityEvent({ type: "NFE_CAN_EMIT", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { orderId: req.params.orderId } });
         const orderId = Number(req.params.orderId);
         if (!orderId) {
           return res.status(400).json({ error: 'orderId inválido' });
@@ -1274,6 +1288,8 @@ export async function registerRoutes(
     // FASE 9A — status codes corrigidos: 422 em erro de validação, 500 em exception.
     // Violações de tenant/auth continuam retornando 401/403/404.
     app.get('/api/nfe/preflight/:orderId', requireAuthCore, tenantContext, async (req: any, res) => {
+      resolveTenant(req);
+      logSecurityEvent({ type: "NFE_PREFLIGHT", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { orderId: req.params.orderId } });
       const orderId = Number(req.params.orderId);
       if (!orderId || !Number.isFinite(orderId) || orderId <= 0) {
         return res.status(400).json({ message: 'orderId inválido' });
@@ -1463,8 +1479,10 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/cron/status — STEP 9.3D: status em memória do cron de faturamento
-    app.get('/api/nfe/cron/status', (req: any, res) => {
+    app.get('/api/nfe/cron/status', requireAuthCore, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), (req: any, res) => {
       try {
+        resolveTenant(req);
+        logSecurityEvent({ type: "NFE_CRON_STATUS", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
         return res.json(getCronStatus());
       } catch (error) {
         console.error('[CRON_STATUS_ERROR]', error);

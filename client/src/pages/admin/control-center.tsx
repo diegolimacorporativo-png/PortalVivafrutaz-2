@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/use-auth";
 import { Activity, AlertTriangle, CheckCircle2, RefreshCw, Shield, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
+import { handleAuthError } from "@/lib/authErrors";
 
 type HealthStatus = "OK" | "DEGRADED" | "CRITICAL";
 type ProtectiveLevel = "NORMAL" | "ELEVATED" | "LOCKDOWN";
@@ -58,6 +59,7 @@ export default function ControlCenter() {
     queryKey: ["/api/admin/system-state", activeTenantId],
     queryFn: async () => {
       const res = await fetch(apiUrl, { credentials: "include" });
+      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error("Failed to load system state");
       return res.json();
     },

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
+import { handleAuthError } from "@/lib/authErrors";
 
 /* ── Reusable visual toggle switch ──────────────────────────── */
 function ToggleSwitch({
@@ -60,6 +61,7 @@ function MaintenanceToggle() {
         body: JSON.stringify({ enabled: enable }),
         credentials: "include",
       });
+      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error("Sem permissão");
       return res.json() as Promise<{ enabled: boolean }>;
     },
@@ -156,6 +158,7 @@ function TestModeToggle() {
         body: JSON.stringify({ enabled: enable }),
         credentials: "include",
       });
+      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error("Sem permissão");
       return res.json() as Promise<{ enabled: boolean }>;
     },
