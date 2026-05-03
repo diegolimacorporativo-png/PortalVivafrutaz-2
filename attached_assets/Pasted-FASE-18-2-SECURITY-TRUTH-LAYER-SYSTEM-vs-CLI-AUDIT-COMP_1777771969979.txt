@@ -1,0 +1,167 @@
+FASE 18.2 — SECURITY TRUTH LAYER (SYSTEM vs CLI AUDIT COMPARISON)
+
+OBJETIVO:
+Criar uma camada de validação que compara o comportamento REAL do sistema de autenticação
+com o comportamento SIMULADO do CLI audit (FASE 18.1.0).
+
+Isso não altera o backend.
+Isso não cria endpoint.
+Isso não interfere no login.
+É apenas leitura + comparação.
+
+========================================================
+1. FONTES DE VERDADE
+========================================================
+
+A) SISTEMA REAL (PRODUÇÃO/APP)
+- auth_attempts (DB)
+- sessions (DB)
+- logs de auth (logAuthEvent pipeline)
+
+B) SISTEMA SIMULADO (CLI AUDIT)
+- scripts/cli-auth-audit.ts output JSON
+
+========================================================
+2. NOVO SCRIPT
+========================================================
+
+CRIAR:
+
+/scripts/auth-truth-layer.ts
+
+EXECUÇÃO:
+node scripts/auth-truth-layer.ts
+
+========================================================
+3. PIPELINE DE EXECUÇÃO
+========================================================
+
+STEP 1 — RUN CLI AUDIT
+- executar cli-auth-audit.ts
+- gerar snapshot externo:
+  cliReport.json
+
+STEP 2 — FETCH REAL SYSTEM DATA
+- puxar auth_attempts (7d / 30d)
+- calcular decisões reais baseadas em regras do sistema atual
+
+STEP 3 — NORMALIZAÇÃO
+Padronizar formato:
+
+{
+  entityId,
+  type: "user | company",
+  systemDecision,
+  cliDecision,
+  metrics
+}
+
+========================================================
+4. MOTOR DE COMPARAÇÃO
+========================================================
+
+function compareDecisions(system, cli) {
+
+  if (system.decision === cli.decision)
+    return "CONSISTENT"
+
+  if (system.decision === "SUCCESS" && cli.decision !== "SUCCESS")
+    return "FALSE_POSITIVE"
+
+  if (system.decision !== "SUCCESS" && cli.decision === "SUCCESS")
+    return "FALSE_NEGATIVE"
+
+  return "DRIFT"
+}
+
+========================================================
+5. CATEGORIAS DE ERRO
+========================================================
+
+FALSE_NEGATIVE:
+→ sistema deixou passar usuário que CLI marcaria como risco
+
+FALSE_POSITIVE:
+→ sistema bloqueou usuário que CLI consideraria seguro
+
+DRIFT:
+→ diferença de score, mas mesma decisão geral
+
+CONSISTENT:
+→ comportamento igual
+
+========================================================
+6. OUTPUT FINAL DO SCRIPT
+========================================================
+
+A) RESUMO GLOBAL
+- total entidades analisadas
+- % consistência geral
+- % false positives
+- % false negatives
+- % drift
+
+B) RISK HEATMAP
+[
+  {
+    entityId,
+    systemDecision,
+    cliDecision,
+    divergenceType,
+    riskScoreSystem,
+    riskScoreCLI
+  }
+]
+
+C) TOP DIVERGENCES
+- entidades com maior inconsistência
+- padrões de erro repetido
+- clusters de drift por IP / company
+
+========================================================
+7. SCORE FINAL DO SISTEMA
+
+CALCULAR:
+
+TRUST_SCORE =
+
+100
+- (FALSE_NEGATIVE * 2.0)
+- (FALSE_POSITIVE * 1.5)
+- (DRIFT * 0.5)
+
+RESULTADO:
+
+- 90–100 → Sistema confiável
+- 70–89 → Ajustes necessários
+- <70 → Risco crítico de auth inconsistency
+
+========================================================
+8. REGRAS IMPORTANTES
+
+✔ NÃO altera backend
+✔ NÃO interfere no login
+✔ NÃO escreve no banco
+✔ NÃO cria endpoint
+✔ NÃO depende de runtime do servidor
+
+========================================================
+OBJETIVO FINAL
+
+VALIDAR SE O AUTH ENGINE REAL ESTÁ COERENTE COM A LÓGICA ESPERADA.
+
+Isso transforma o sistema em:
+
+- observável
+- auditável
+- verificável
+- resistente a drift de regra
+
+========================================================
+FASE 18.2 CONCLUÍDA QUANDO:
+
+✔ CLI audit gerado
+✔ sistema real analisado
+✔ comparação feita
+✔ divergência classificada
+✔ trust score calculado
