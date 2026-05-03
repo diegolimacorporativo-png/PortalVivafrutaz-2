@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { eventRepository } from "./event.repository";
+import { processEventStream } from "./event-stream.processor";
 
 export type SystemEvent = {
   id: string;
@@ -38,6 +39,7 @@ export function emitEvent(event: Omit<SystemEvent, "id" | "timestamp"> & Partial
       entityId: event.entityId,
       metadata: event.metadata,
     });
+    void processEventStream(queue[queue.length - 1] as SystemEvent);
     void drainQueue();
   } catch {
   }

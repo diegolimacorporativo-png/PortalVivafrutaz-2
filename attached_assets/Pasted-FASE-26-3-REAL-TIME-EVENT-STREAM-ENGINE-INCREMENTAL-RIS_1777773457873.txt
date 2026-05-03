@@ -1,0 +1,216 @@
+FASE 26.3 — REAL-TIME EVENT STREAM ENGINE (INCREMENTAL RISK + LIVE OBSERVABILITY)
+
+OBJETIVO:
+Transformar o sistema da FASE 26.2 (batch analytics) em um motor contínuo e incremental.
+
+✔ elimina batch de 30s
+✔ mantém event_store como base de verdade
+✔ adiciona processamento incremental em tempo real
+✔ NÃO altera auth/session/NF-e flows
+✔ NÃO quebra APIs existentes
+✔ evolução segura (overlay incremental)
+
+========================================================
+1. CONCEITO CENTRAL
+========================================================
+
+ANTES:
+event_store → batch worker (30s) → snapshots
+
+DEPOIS:
+event_store → event stream processor → incremental risk updates → snapshots live
+
+========================================================
+2. NOVO MÓDULO CORE
+========================================================
+
+/server/core/events/event-stream.processor.ts
+
+Responsabilidade:
+
+- consumir eventos assim que chegam
+- atualizar risco incrementalmente
+- manter estado em memória + persistência
+- eliminar necessidade de batch polling
+
+========================================================
+3. STREAM MODEL (CORE IDEA)
+
+Cada evento NÃO é apenas armazenado.
+Ele também:
+
+→ atualiza estado atual do sistema
+→ recalcula score parcial
+→ ajusta risco global incrementalmente
+
+========================================================
+4. IN-MEMORY STATE STORE (FAST LAYER)
+
+/infra/governance/realtime-state.store.ts
+
+Estrutura:
+
+{
+  authRisk: number,
+  sessionRisk: number,
+  nfeRisk: number,
+  securityRisk: number,
+  globalRisk: number,
+
+  rollingWindows: {
+    authFailures: Event[],
+    nfeFailures: Event[],
+    securityEvents: Event[]
+  }
+}
+
+✔ atualizado em tempo real
+✔ sem DB read constante
+
+========================================================
+5. EVENT FLOW (REAL-TIME)
+
+emitEvent()
+    ↓
+EventBus
+    ↓
+StreamProcessor
+    ↓
+updateRealtimeState()
+    ↓
+persistSnapshotIfNeeded()
+
+========================================================
+6. INCREMENTAL UPDATE LOGIC
+
+EXEMPLO:
+
+AUTH_LOGIN_FAILURE:
+  → authRisk += 2
+  → push into rolling window
+  → check brute force pattern instantly
+
+NF_E_FAILED:
+  → nfeRisk += 3
+  → detect retry loop in real-time
+
+SECURITY_ANOMALY:
+  → securityRisk += 5
+  → escalate global risk immediately
+
+========================================================
+7. ROLLING WINDOW DETECTION
+
+Janela:
+
+- 1 min (hot)
+- 5 min (medium)
+- 15 min (global context)
+
+Detecções:
+
+✔ brute force instant
+✔ NF-e retry storm instant
+✔ session instability instant
+✔ attack pattern correlation instant
+
+========================================================
+8. SNAPSHOT SYSTEM (REDUZIDO)
+
+/server/core/events/realtime-snapshot.writer.ts
+
+- salva snapshot apenas quando:
+  - risk muda significativamente (> threshold)
+  - ou a cada X eventos acumulados
+
+✔ evita overload no banco
+✔ reduz writes desnecessários
+
+========================================================
+9. REMOÇÃO DO BATCH (FASE 26.2 EVOLUI)
+
+ANTES:
+setInterval(30s worker)
+
+DEPOIS:
+❌ removido ou mantido fallback debug-only
+
+✔ stream substitui completamente batch
+
+========================================================
+10. WEB LAYER (SEM BREAKING CHANGE)
+
+Admin dashboard continua:
+
+OPÇÃO 1:
+polling snapshots (fallback)
+
+OPÇÃO 2 (futuro):
+WebSocket incremental updates
+
+========================================================
+11. PERFORMANCE MODEL
+
+✔ O(1) update por evento
+✔ sem reprocessamento de histórico
+✔ sem queries pesadas
+✔ estado em memória + snapshot leve
+
+========================================================
+12. FAIL-SAFE DESIGN
+
+Se stream falhar:
+
+✔ event_store continua intacto
+✔ batch worker pode ser reativado
+✔ sistema degrada graciosamente
+
+========================================================
+13. COMPATIBILIDADE
+
+✔ auth unchanged
+✔ NF-e unchanged
+✔ session unchanged
+✔ event_store reused
+✔ analytics snapshots still valid
+
+========================================================
+14. MIGRAÇÃO SEGURA
+
+ETAPA 1:
+✔ adicionar stream processor paralelo
+
+ETAPA 2:
+✔ espelhar eventos do emitter
+
+ETAPA 3:
+✔ validar equivalência com batch
+
+ETAPA 4:
+✔ desativar batch worker
+
+ETAPA 5:
+✔ ativar stream como fonte primária
+
+========================================================
+15. RESULTADO FINAL
+
+Sistema passa a ser:
+
+"REAL-TIME RISK & GOVERNANCE ENGINE"
+
+com:
+
+✔ detecção instantânea
+✔ risco contínuo atualizado
+✔ zero batch dependency
+✔ observabilidade viva
+
+========================================================
+FASE 26.3 CONCLUÍDA QUANDO:
+
+✔ stream processor ativo
+✔ batch removido ou desativado
+✔ risco atualizado em tempo real
+✔ snapshots ainda persistentes
+✔ dashboard refletindo estado vivo
