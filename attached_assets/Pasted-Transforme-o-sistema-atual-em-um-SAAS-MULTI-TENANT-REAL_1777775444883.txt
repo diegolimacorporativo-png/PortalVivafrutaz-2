@@ -1,0 +1,144 @@
+Transforme o sistema atual em um SAAS MULTI-TENANT REAL, mantendo o Control Center existente como base.
+
+OBJETIVO:
+Evoluir o sistema de “dashboard interno” para um produto SaaS estilo Stripe/Datadog.
+
+NÃO quebrar o frontend atual.
+NÃO alterar lógica de risco/alert/policy.
+NÃO refatorar backend desnecessariamente.
+
+========================================================
+1. MULTI-TENANT ARCHITECTURE (OBRIGATÓRIO)
+========================================================
+
+Implementar camada de tenant (empresa):
+
+- Cada request deve considerar "tenantId"
+- system-state deve ser filtrado por tenant
+- alerts devem ser isolados por empresa
+- policies devem ser por empresa
+
+Estrutura lógica:
+
+Tenant {
+  id: string
+  name: string
+  plan: "FREE" | "PRO" | "ENTERPRISE"
+}
+
+========================================================
+2. FRONTEND (CONTROL CENTER EXPANSION)
+========================================================
+
+Manter:
+
+/admin/control-center
+
+Adicionar camada:
+
+- seletor de tenant no topo (dropdown simples)
+- indicador de empresa ativa
+- dados mudam por tenant selecionado
+
+UI:
+
+Top Bar:
+[ Tenant Selector ] [ Live Indicator ] [ Health Badge ]
+
+========================================================
+3. API LAYER (ADAPTAR SEM QUEBRAR)
+========================================================
+
+Atualizar fetch:
+
+GET /api/admin/system-state?tenantId=xxx
+
+Regra:
+- default = tenant do usuário logado
+- nunca expor dados cross-tenant
+
+========================================================
+4. ISOLAMENTO DE DADOS
+========================================================
+
+Garantir:
+
+- alerts por tenant
+- policies por tenant
+- risk engine por tenant
+- system-state por tenant
+
+NUNCA misturar dados entre empresas.
+
+========================================================
+5. SAAS FEATURES (CAMADA PRODUTO)
+========================================================
+
+Adicionar:
+
+A) PLANOS
+- FREE: 1 tenant, histórico limitado
+- PRO: múltiplos tenants
+- ENTERPRISE: full access + realtime
+
+B) USUÁRIOS
+- ADMIN
+- MEMBER
+- VIEWER
+
+C) PERMISSÕES
+- VIEW_ONLY → só dashboard
+- MANAGE_POLICIES
+- FULL_ACCESS
+
+========================================================
+6. BILLING MOCK (SEM INTEGRAÇÃO EXTERNA)
+========================================================
+
+Criar estrutura:
+
+Billing {
+  plan: string
+  usage: number
+  limit: number
+}
+
+Mostrar no UI:
+
+- plano atual
+- uso
+- limite
+
+========================================================
+7. UI POLISH (MANTER STRIPE STYLE)
+========================================================
+
+- manter dark SaaS theme
+- manter motion cards
+- manter KPIs
+- adicionar seletor de tenant no topo
+- manter alerts/policies já existentes
+
+========================================================
+8. REGRAS CRÍTICAS
+========================================================
+
+- NÃO duplicar dashboards
+- NÃO criar nova arquitetura paralela
+- NÃO quebrar system-state atual
+- NÃO expor dados de outros tenants
+- manter Control Center como única UI principal
+
+========================================================
+RESULTADO FINAL ESPERADO
+========================================================
+
+O sistema deve virar:
+
+- SaaS multi-tenant real
+- estilo Stripe/Datadog
+- Control Center único por empresa
+- isolamento total de dados
+- pronto para venda como produto
+
+========================================================
