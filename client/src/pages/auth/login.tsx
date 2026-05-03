@@ -21,6 +21,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
   const [type, setType] = useState<'admin' | 'company'>(forceAdminTab ? 'admin' : 'company');
   const didAutoLogout = useRef(false);
   const [sessionExpiredBanner, setSessionExpiredBanner] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (sessionStorage.getItem("auth_expired")) {
@@ -28,6 +29,10 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
       setSessionExpiredBanner(true);
     }
   }, []);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [type]);
 
   const { data: logoData } = useQuery<{ logoBase64: string; logoType: string }>({
     queryKey: ['/api/company-config/logo'],
@@ -270,6 +275,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                     <label className="block text-sm font-semibold text-foreground mb-2">Usuário</label>
                     <div className="flex items-center border-2 border-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all bg-background">
                       <input
+                        ref={inputRef}
                         data-testid="input-username"
                         type="text"
                         required
@@ -292,6 +298,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                     <label className="block text-sm font-semibold text-foreground mb-2">Usuário de acesso</label>
                     <div className="flex items-center border-2 border-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all bg-background">
                       <input
+                        ref={inputRef}
                         data-testid="input-email"
                         type="text"
                         required
