@@ -173,14 +173,16 @@ export default function AiDeveloperPage() {
 
   function handleAuthError(status: number) {
     if (status === 401 || status === 403) {
-      setSessionExpired(true);
+      if (!sessionExpired) {
+        setSessionExpired(true);
+      }
       return true;
     }
     return false;
   }
 
   async function runTool(toolName: string, label: string, tabSwitch?: string) {
-    if (!isAuthenticated) { setSessionExpired(true); return; }
+    if (!isAuthenticated || sessionExpired) { setSessionExpired(true); return; }
     setLoadingTool(toolName);
     addMsg("user", `> ${label}`);
     if (tabSwitch) setActiveTab(tabSwitch);
@@ -226,7 +228,7 @@ export default function AiDeveloperPage() {
   }
 
   async function runLabTool(toolPath: string, label: string, method: 'GET' | 'POST' = 'GET', body?: any) {
-    if (!isAuthenticated) { setSessionExpired(true); return null; }
+    if (!isAuthenticated || sessionExpired) { setSessionExpired(true); return null; }
     setLoadingTool(`lab-${toolPath}`);
     addMsg("user", `> [AI LAB] ${label}`);
     try {
@@ -324,7 +326,7 @@ export default function AiDeveloperPage() {
 
   async function handleCommand() {
     if (!inputCmd.trim()) return;
-    if (!isAuthenticated) { setSessionExpired(true); return; }
+    if (!isAuthenticated || sessionExpired) { setSessionExpired(true); return; }
     const cmd = inputCmd.trim();
     setInputCmd("");
 
