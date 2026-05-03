@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "iqhZLzRybO8iDy5pP4mbU"
+uri = "file://ROUTE_SAFETY_AUDIT.md"
+type = "text"
+title = "VivafrutaZ ERP — Full Route Safety Audit"
