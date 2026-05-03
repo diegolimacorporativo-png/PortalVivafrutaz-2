@@ -1,0 +1,200 @@
+FASE: SAAS SYSTEM — FULL PRODUCT AUDIT (READ-ONLY)
+
+OBJETIVO:
+Auditar completamente o sistema SaaS interno (planos, billing, permissões, limites e operação), identificando o que já existe, o que funciona de verdade e o que falta para ativação em produção.
+
+IMPORTANTE:
+- NÃO alterar código
+- NÃO implementar nada
+- APENAS leitura e análise
+- Considerar backend + frontend + banco
+
+========================================================
+ESCOPO
+========================================================
+
+Backend:
+- rotas relacionadas a billing, planos, assinaturas
+- services de cobrança, planos, limites
+- middlewares de controle (limite, role, tenant)
+
+Frontend:
+- telas de planos, billing, assinatura
+- qualquer UI de upgrade/downgrade
+
+Banco:
+- tabelas de:
+  - plans
+  - subscriptions
+  - usage / limits
+  - invoices / billing
+
+========================================================
+1. PLANOS (PLANS)
+========================================================
+
+Verificar:
+
+- existe tabela de planos?
+- campos:
+  ✔ nome
+  ✔ preço
+  ✔ limites (ex: pedidos, usuários, empresas)
+  ✔ features (flags)
+
+- planos são:
+  - fixos no código?
+  - dinâmicos no banco?
+
+- existe plano padrão/free?
+
+========================================================
+2. ASSINATURA (SUBSCRIPTIONS)
+========================================================
+
+- existe vínculo empresa → plano?
+- campos:
+  ✔ status (active, trial, canceled)
+  ✔ startedAt
+  ✔ expiresAt
+  ✔ trial?
+
+- sistema reconhece plano atual em runtime?
+
+========================================================
+3. CONTROLE DE LIMITES
+========================================================
+
+Verificar se o sistema bloqueia:
+
+- criação de pedidos além do limite
+- número de usuários
+- uso de features premium
+
+IMPORTANTE:
+
+- limite é:
+  - apenas visual?
+  - ou realmente bloqueia no backend?
+
+========================================================
+4. BILLING (COBRANÇA)
+========================================================
+
+- existe integração de pagamento?
+  (Stripe, Mercado Pago, etc)
+
+OU:
+
+- sistema ainda está:
+  - mockado?
+  - manual?
+
+- existe geração de fatura?
+
+========================================================
+5. UPGRADE / DOWNGRADE
+========================================================
+
+- usuário consegue trocar plano?
+- existe rota:
+  /api/subscription/change-plan ?
+
+- comportamento:
+
+✔ imediato?  
+✔ próximo ciclo?  
+
+========================================================
+6. MULTI-TENANT + SAAS
+========================================================
+
+- cada empresa tem plano independente?
+- isolamento correto?
+- plano influencia permissões?
+
+========================================================
+7. FEATURE FLAGS
+========================================================
+
+- features controladas por plano?
+
+ex:
+
+- NF-e
+- relatórios avançados
+- IA
+- exportações
+
+========================================================
+8. FRONTEND SAAS
+========================================================
+
+- existe tela de:
+  ✔ planos
+  ✔ assinatura
+  ✔ upgrade
+
+- usuário vê limites?
+
+- UX:
+  ✔ bloqueia ação?
+  ✔ mostra mensagem clara?
+
+========================================================
+9. AUDITORIA DE USO
+========================================================
+
+- sistema mede uso?
+
+ex:
+
+- pedidos criados
+- usuários ativos
+- chamadas IA
+
+- dados persistidos ou só calculados?
+
+========================================================
+10. SEGURANÇA
+========================================================
+
+- limites são aplicados no backend?
+- impossível burlar via API?
+
+========================================================
+SAÍDA OBRIGATÓRIA
+========================================================
+
+STATUS GERAL:
+- READY
+- PARTIAL
+- NOT IMPLEMENTED
+
+O QUE JÁ EXISTE:
+- lista objetiva
+
+O QUE FUNCIONA DE VERDADE:
+- validado em código
+
+O QUE É SÓ MOCK / PARCIAL:
+- lista
+
+O QUE FALTA:
+- lista clara
+
+RISCOS:
+- financeiro
+- segurança
+- inconsistência
+
+PRIORIDADE:
+P0 (bloqueador)
+P1 (importante)
+P2 (melhoria)
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Determinar se o SaaS pode ser ativado com segurança ou o que falta para isso
