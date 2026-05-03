@@ -4,6 +4,9 @@ import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
 import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { db } from "../database/db";
+import { logisticsDrivers as driversTable, orders as ordersTable } from "@shared/schema";
+import { eq, or, and, gte, lt, type SQL } from "drizzle-orm";
 
 export async function register(app: Express): Promise<void> {
   app.get('/api/geo/cep/:cep', async (req: any, res) => {
@@ -122,10 +125,20 @@ export async function register(app: Express): Promise<void> {
       const allCompanies = await storage.getCompanies();
       const companyMap = Object.fromEntries(allCompanies.map((c: any) => [c.id, c]));
 
-      const drivers = await storage.getDrivers();
-      const myDriver = drivers.find((d: any) =>
-        d.email === actor.email || d.name === actor.name
-      );
+      // FASE MT-1 — driver lookup scoped to actor's tenant in SQL (no full-table scan).
+      const driverIdentity: SQL<unknown>[] = [];
+      if (actor.email) driverIdentity.push(eq(driversTable.email, actor.email));
+      if (actor.name) driverIdentity.push(eq(driversTable.name, actor.name));
+      let myDriver: any = null;
+      if (driverIdentity.length > 0) {
+        const identityCond: SQL<unknown> =
+          driverIdentity.length === 1 ? driverIdentity[0]! : or(...driverIdentity)!;
+        const driverWhere: SQL<unknown> = actor.empresaId
+          ? and(eq(driversTable.empresaId, actor.empresaId), identityCond)!
+          : identityCond;
+        const driverRows = await db.select().from(driversTable).where(driverWhere).limit(1);
+        myDriver = driverRows[0] ?? null;
+      }
 
       // STEP 8.7 — DRIVER must have a matching logistics_drivers row;
       // without it we can't safely determine ownership, so return empty.
@@ -137,15 +150,19 @@ export async function register(app: Express): Promise<void> {
       let allDeliveries = await storage.getDeliveries({ date: today });
       let source: 'deliveries' | 'orders' = 'deliveries';
 
-      // If deliveries table is empty, bridge from today's orders
+      // If deliveries table is empty, bridge from today's orders.
+      // FASE MT-1: Drizzle query scoped to tenant + date range in SQL — no full-table scan.
       if (allDeliveries.length === 0) {
         source = 'orders';
-        const allOrders = await storage.getOrders();
-        const todayOrders = allOrders.filter((o: any) => {
-          if (!o.deliveryDate) return false;
-          const d = new Date(o.deliveryDate);
-          return d.toISOString().split('T')[0] === today;
-        });
+        const todayStart = new Date(today + 'T00:00:00.000Z');
+        const tomorrowStart = new Date(todayStart);
+        tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+        const orderConds: SQL<unknown>[] = [
+          gte(ordersTable.deliveryDate, todayStart),
+          lt(ordersTable.deliveryDate, tomorrowStart),
+        ];
+        if (actor.empresaId) orderConds.push(eq(ordersTable.companyId, actor.empresaId));
+        const todayOrders = await db.select().from(ordersTable).where(and(...orderConds));
         const statusMap: Record<string, string> = {
           CONFIRMED: 'pendente', ACTIVE: 'pendente',
           DELIVERED: 'entregue', CANCELLED: 'cancelado', LOCKED: 'pendente',

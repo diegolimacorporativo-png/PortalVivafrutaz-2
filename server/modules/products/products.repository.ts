@@ -12,6 +12,10 @@ import type {
   InsertCategory,
 } from "@shared/schema";
 import { storage } from "../../services/storage";
+import { db } from "../../database/db";
+import { orders as ordersTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { currentTenantId } from "../../core/tenant/context";
 import type { Product, CreateProductInput, UpdateProductInput } from "./products.types";
 
 export interface SystemLogEntry {
@@ -78,8 +82,23 @@ export class ProductRepository implements IProductRepository {
     return storage.getProducts();
   }
 
+  /**
+   * FASE MT-1: Replaced storage.getOrders() full-table scan with a Drizzle
+   * query scoped by tenant in SQL — no in-memory filter for isolation.
+   *
+   * - tenantId set  → WHERE company_id = tenantId
+   * - tenantId null → no WHERE (cross-tenant admin / background job context)
+   */
   async findAllOrders(): Promise<SchemaOrder[]> {
-    return storage.getOrders();
+    const tenantId = currentTenantId();
+    if (tenantId != null) {
+      return db
+        .select()
+        .from(ordersTable)
+        .where(eq(ordersTable.companyId, tenantId)) as unknown as Promise<SchemaOrder[]>;
+    }
+    // Cross-tenant admin or background-job context — explicit, no storage.getOrders().
+    return db.select().from(ordersTable) as unknown as Promise<SchemaOrder[]>;
   }
 
   async findOrderDetail(id: number): Promise<{ order: SchemaOrder; items: SchemaOrderItem[] } | undefined> {

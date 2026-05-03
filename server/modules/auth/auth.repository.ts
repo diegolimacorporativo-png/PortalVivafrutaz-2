@@ -2,17 +2,22 @@ import { storage } from "../../services/storage";
 import type { Company, User, InsertUser } from "./auth.types";
 import type { InsertCompany } from "@shared/schema";
 import { db } from "../../database/db";
-import { passwordResetTokens } from "@shared/schema";
+import { passwordResetTokens, users as usersTable } from "@shared/schema";
 import { eq, gt, and } from "drizzle-orm";
+import { currentTenantId } from "../../core/tenant/context";
 
 /**
  * AuthRepository — the only place the auth module talks to persistence.
  *
- * Architecture decision: identical to the finance and users modules. We
- * delegate to the legacy `storage` facade today (which already implements
- * bcrypt hashing inside `createUser`/`updateUser`). When storage is split
- * per-domain, this file is the seam: swap each method body for direct
- * Drizzle queries without touching the service or controller above it.
+ * FASE MT-1: listUsers() now uses Drizzle with a SQL tenant filter instead of
+ * the legacy storage.getUsers() full-table scan.
+ *
+ * - tenantId set   → WHERE empresaId = tenantId (scoped)
+ * - tenantId null  → [] (fail-safe: no tenant context during login flow means
+ *                    we cannot safely identify which tenant's admins to notify)
+ *
+ * All other methods delegate to the storage facade or use Drizzle directly
+ * for token operations.
  */
 export class AuthRepository {
   // ── Lookups ────────────────────────────────────────────────────────────
@@ -33,7 +38,17 @@ export class AuthRepository {
   }
 
   listUsers(): Promise<User[]> {
-    return storage.getUsers();
+    const tenantId = currentTenantId();
+    if (tenantId == null) {
+      // No tenant context (e.g. pre-authentication login flow).
+      // Return empty to fail safe — lockout notifications silently skip
+      // rather than scanning across all tenants.
+      return Promise.resolve([]);
+    }
+    return db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.empresaId, tenantId)) as unknown as Promise<User[]>;
   }
 
   // ── Mutations on identity ──────────────────────────────────────────────

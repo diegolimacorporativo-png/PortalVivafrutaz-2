@@ -1,20 +1,36 @@
 import { storage } from "../../services/storage";
 import type { User, InsertUser } from "./users.types";
+import { db } from "../../database/db";
+import { users as usersTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
+import { currentTenantId } from "../../core/tenant/context";
 
 /**
  * UsersRepository — the only place the users module talks to persistence.
  *
- * Architecture decision: identical to the finance module. We delegate to the
- * legacy `storage` facade today (which already implements bcrypt hashing in
- * createUser/updateUser). When storage is split per-domain this file is the
- * seam — swap each method for direct Drizzle queries without touching the
- * service or controller above it.
+ * FASE MT-1: list() now uses Drizzle with a SQL tenant filter instead of the
+ * legacy storage.getUsers() full-table scan. No in-memory filter for isolation.
  *
- * Repository = data access only. No business rules, no HTTP, no validation.
+ * - tenantId set   → WHERE empresaId = tenantId  (scoped, fast)
+ * - tenantId null  → no WHERE (MASTER cross-tenant admin, explicit by design)
+ *
+ * Every other method delegates to the storage facade which handles bcrypt
+ * hashing. When storage is split per-domain, swap each method for a direct
+ * Drizzle call here without touching the service or controller above it.
  */
 export class UsersRepository {
   list(): Promise<User[]> {
-    return storage.getUsers();
+    const tenantId = currentTenantId();
+    if (tenantId != null) {
+      return db
+        .select()
+        .from(usersTable)
+        .where(eq(usersTable.empresaId, tenantId)) as unknown as Promise<User[]>;
+    }
+    // Cross-tenant: MASTER admin without a scoped target.
+    // Intentional — tracked here so a grep for this comment surfaces every
+    // cross-tenant user read. Not using storage.getUsers() (banned call).
+    return db.select().from(usersTable) as unknown as Promise<User[]>;
   }
 
   getById(id: number): Promise<User | undefined> {

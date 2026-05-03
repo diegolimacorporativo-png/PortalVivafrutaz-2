@@ -1,0 +1,152 @@
+🧠 TAREFA: HARDENING DO DATA LAYER — ELIMINAR FULL-TABLE SCANS E PADRONIZAR TENANT ISOLATION
+
+OBJETIVO:
+Eliminar todos os acessos diretos ao storage sem filtro de tenant e garantir que TODAS as queries passem por tenantWhere no banco.
+
+========================================================
+REGRAS GERAIS
+========================================================
+
+❌ Não criar novas camadas
+❌ Não duplicar safeQueryRouter
+❌ Não mudar arquitetura geral
+✔ Apenas corrigir acesso a dados
+✔ Forçar tenant filter no SQL (NUNCA em memória)
+✔ Eliminar storage.getX() direto fora de router/repository seguro
+
+========================================================
+PADRÃO OBRIGATÓRIO FINAL
+========================================================
+
+TODAS as queries devem seguir UM destes padrões:
+
+✔ db.select(...).from(...).where(tenantWhere(...))
+✔ repository com tenantWhere interno
+✔ routeGetX(companyId) (safe router já existente)
+
+❌ NUNCA:
+storage.getUsers()
+storage.getOrders()
+storage.getDrivers()
+storage.getRoutes()
++ filter() em memória para isolamento
+
+========================================================
+ARQUIVOS ALVO (CRÍTICOS P1)
+========================================================
+
+1. users.repository.ts
+2. auth.repository.ts
+3. products.repository.ts
+4. logistics.routes.ts (driver flow)
+5. driver.access.ts
+
+========================================================
+CORREÇÕES OBRIGATÓRIAS
+========================================================
+
+## 1. users.repository.ts
+
+❌ ATUAL:
+return storage.getUsers();
+
+✔ CORRIGIR PARA:
+db.select()
+  .from(users)
+  .where(eq(users.companyId, tenantId))
+
+
+========================================================
+
+## 2. auth.repository.ts
+
+❌ ATUAL:
+return storage.getUsers();
+
+✔ CORRIGIR PARA:
+db.select()
+  .from(users)
+  .where(eq(users.companyId, tenantId))
+
+
+========================================================
+
+## 3. products.repository.ts
+
+❌ ATUAL:
+return storage.getOrders();
+
+✔ CORRIGIR PARA:
+db.select()
+  .from(orders)
+  .where(eq(orders.companyId, tenantId))
+
+
+========================================================
+
+## 4. logistics.routes.ts (CRÍTICO DE PERFORMANCE)
+
+❌ PROBLEMA:
+const drivers = await storage.getDrivers()
+const orders = await storage.getOrders()
+.then filter() em memória
+
+✔ CORREÇÃO:
+
+- mover companyId ANTES da query
+- aplicar filtro no SQL
+
+EXEMPLO:
+
+db.select()
+  .from(drivers)
+  .where(eq(drivers.companyId, tenantId))
+
+db.select()
+  .from(orders)
+  .where(eq(orders.companyId, tenantId))
+
+
+❌ PROIBIDO:
+filter(), map(), find() para isolamento de tenant
+
+========================================================
+
+## 5. driver.access.ts
+
+❌ ATUAL:
+storage.getDrivers()
+
+✔ CORRIGIR:
+db.select()
+  .from(drivers)
+  .where(eq(drivers.companyId, tenantId))
+
+========================================================
+REGRA CRÍTICA DE SEGURANÇA
+========================================================
+
+Se o tenantId não estiver disponível:
+
+✔ retornar []
+✔ NUNCA retornar dados globais
+
+========================================================
+VALIDAÇÃO FINAL OBRIGATÓRIA
+========================================================
+
+Após aplicação:
+
+✔ zero storage.getUsers/getOrders/getDrivers/getRoutes diretos
+✔ zero filter() usado para isolamento de tenant
+✔ todas queries filtradas no SQL
+✔ nenhuma tabela carregada inteira em memória
+✔ tenant isolation garantido no banco
+
+========================================================
+RESULTADO ESPERADO
+
+Sistema deve operar com:
+- isolamento de tenant 100% no nível de query
+- zero risco de cross-tenant leak por memória
+- performance melhor (menos full-table scan)
