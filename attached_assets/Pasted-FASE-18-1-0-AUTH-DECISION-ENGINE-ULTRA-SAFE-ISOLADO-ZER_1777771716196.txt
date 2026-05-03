@@ -1,0 +1,151 @@
+FASE 18.1.0 — AUTH DECISION ENGINE (ULTRA SAFE / ISOLADO / ZERO INTEGRAÇÃO)
+
+OBJETIVO:
+Criar um engine de autenticação totalmente isolado (READ-ONLY),
+sem qualquer integração com login, sessão, middleware ou auth.service.
+
+FINALIDADE:
+- Auditoria de decisões de autenticação
+- Simulação de fluxo real
+- Comparação futura com sistema atual
+- ZERO impacto em produção
+
+========================================================
+1. CRIAR ARQUIVO ISOLADO
+========================================================
+
+server/core/auth/authDecision.engine.ts
+
+IMPORTANTE:
+✔ não importar em auth.service
+✔ não chamar dentro de login
+✔ não interceptar fluxo de autenticação
+
+========================================================
+2. ENGINE 100% PASSIVO (READ ONLY)
+========================================================
+
+export class AuthDecisionEngine {
+
+  static async analyze(input: {
+    entity: any,
+    password: string,
+    ip: string,
+    deviceId?: string,
+    context: "admin_login" | "company_login"
+  }) {
+
+    // NÃO ALTERA NADA
+    // NÃO PERSISTE NADA
+    // NÃO BLOQUEIA NADA
+
+    const diagnostics = {
+      entityExists: !!input.entity,
+      isActive: input.entity?.isActive ?? false,
+      isLocked: input.entity?.isLocked ?? false,
+
+      // apenas simulação
+      passwordValid: false,
+
+      deviceMatch: false,
+      rateLimitAllowed: true
+    }
+
+    return {
+      wouldBeDecision: this.calculateDecision(diagnostics),
+      diagnostics,
+      riskSignals: this.calculateRisk(diagnostics)
+    }
+  }
+
+  static calculateDecision(d: any) {
+    if (!d.entityExists) return "INVALID_ENTITY"
+    if (!d.isActive) return "INACTIVE"
+    if (d.isLocked) return "LOCKED"
+    if (!d.passwordValid) return "INVALID_PASSWORD"
+    if (!d.rateLimitAllowed) return "RATE_LIMITED"
+
+    return "SUCCESS"
+  }
+
+  static calculateRisk(d: any) {
+    const risks = []
+
+    if (d.isLocked) risks.push("ENTITY_LOCKED")
+    if (!d.isActive) risks.push("INACTIVE_ENTITY")
+    if (!d.deviceMatch) risks.push("DEVICE_UNKNOWN")
+
+    return risks
+  }
+}
+
+========================================================
+3. EXPOSIÇÃO VIA ENDPOINT (SEGURA)
+========================================================
+
+CRIAR NOVO ENDPOINT:
+
+GET /api/admin/auth/decision-scan
+
+FUNÇÃO:
+- apenas leitura
+- não interfere no login real
+- usado só para auditoria
+
+EXEMPLO:
+
+return AuthDecisionEngine.analyze({
+  entity,
+  password: "dummy",
+  ip,
+  deviceId,
+  context
+})
+
+========================================================
+4. REGRAS DE SEGURANÇA (OBRIGATÓRIO)
+========================================================
+
+✔ NÃO importar no auth.service.ts
+✔ NÃO interceptar login flow
+✔ NÃO alterar session logic
+✔ NÃO escrever no banco
+✔ NÃO usar logAuthEvent
+✔ NÃO usar alertEngine
+
+========================================================
+5. OBJETIVO DA FASE
+
+VALIDAR:
+
+✔ consistência de dados de auth
+✔ divergência entre admin vs company logic
+✔ comportamento esperado do sistema atual
+✔ possíveis riscos futuros de refatoração
+
+========================================================
+6. CRITÉRIO DE SUCESSO
+
+FASE 18.1.0 SAFE ESTÁ PRONTA QUANDO:
+
+✔ engine roda isolado
+✔ nenhum fluxo de login foi tocado
+✔ endpoint retorna dados consistentes
+✔ zero impacto em produção
+✔ pode ser removido sem risco
+
+========================================================
+RESULTADO FINAL
+
+ANTES:
+integração direta no auth (alto risco)
+
+AGORA:
+engine isolado de auditoria (zero risco)
+
+========================================================
+PRÓXIMO PASSO (FASE 18.1.1)
+
+Se validado:
+
+→ começar shadow integration controlada (somente leitura em runtime)
