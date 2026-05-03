@@ -1,0 +1,137 @@
+FASE — AUDITORIA ESTÁTICA COMPLETA DO SISTEMA (BUGS + DUPLICAÇÕES + RISCOS CRÍTICOS)
+
+OBJETIVO:
+Realizar uma análise 100% estática e profunda do código-fonte para identificar:
+- bugs reais (confirmáveis no código)
+- rotas duplicadas ou conflitantes
+- lógica redundante ou inconsistente
+- falhas de segurança
+- inconsistências entre módulos
+- problemas de arquitetura e acoplamento
+- riscos críticos para produção
+
+IMPORTANTE:
+- NÃO executar o sistema
+- NÃO assumir comportamento em runtime
+- NÃO inventar resultados
+- Somente análise baseada em código existente
+
+========================================================
+1. AUDITORIA DE ROTAS
+========================================================
+
+Verificar:
+- rotas duplicadas (mesmo path em arquivos diferentes)
+- endpoints conflitantes (GET/POST com lógica divergente)
+- rotas sem autenticação ou com middleware inconsistente
+- rotas legacy ainda ativas
+- rotas não registradas corretamente no router principal
+
+ENTREGAR:
+- lista de rotas duplicadas
+- impacto de cada conflito
+- qual rota prevalece em runtime
+
+========================================================
+2. AUDITORIA DE AUTH / SESSÃO
+========================================================
+
+Verificar:
+- múltiplos middlewares de auth (duplicação de lógica)
+- bypass de autenticação em qualquer endpoint crítico
+- inconsistência entre requireAuth / sessionGuard / auth middleware
+- tokenVersion / deviceId / session validation divergente
+- fail-open em qualquer fluxo de auth
+
+ENTREGAR:
+- lista de bypass possíveis
+- inconsistências entre middlewares
+- riscos de sessão
+
+========================================================
+3. AUDITORIA DE LÓGICA DUPLICADA
+========================================================
+
+Detectar:
+- funções repetidas com nomes diferentes
+- regras de negócio duplicadas em serviços diferentes
+- validações repetidas (ex: rate limit, lockout, billing rules)
+- lógica de NF-e duplicada em múltiplos módulos
+- cálculo de risco duplicado (security engines diferentes)
+
+ENTREGAR:
+- mapa de duplicações
+- impacto de divergência entre implementações
+- sugestão de unificação
+
+========================================================
+4. AUDITORIA DE BUGS LÓGICOS (STATIC)
+========================================================
+
+Procurar:
+- condições impossíveis ou contraditórias
+- if/else redundantes ou ineficazes
+- uso incorreto de async/await
+- promises sem await
+- race conditions possíveis em memória
+- updates de DB não aguardados (fire-and-forget perigosos)
+- estados que podem ficar inconsistentes
+
+ENTREGAR:
+- lista de bugs confirmáveis no código
+- severidade (baixa/média/crítica)
+- impacto potencial
+
+========================================================
+5. AUDITORIA DE SEGURANÇA
+========================================================
+
+Verificar:
+- endpoints públicos indevidos
+- logs sensíveis expostos (console.log com dados críticos)
+- falhas de autorização por role
+- bypass de validação de sessão
+- exposição de dados no response
+
+ENTREGAR:
+- vulnerabilidades reais encontradas
+- rotas críticas expostas
+- riscos de produção
+
+========================================================
+6. AUDITORIA DE ARQUITETURA
+========================================================
+
+Verificar:
+- monólitos (routes.ts, storage.ts)
+- dependência circular entre serviços
+- serviços fazendo lógica de repositório
+- lógica de domínio espalhada
+- falta de single source of truth
+
+ENTREGAR:
+- problemas estruturais
+- áreas de alto acoplamento
+- pontos de refatoração crítica
+
+========================================================
+7. RESULTADO FINAL OBRIGATÓRIO
+========================================================
+
+GERAR:
+
+1. CRITICAL BUGS LIST (confirmados no código)
+2. ROUTE DUPLICATION MAP
+3. SECURITY RISKS (priorizados)
+4. ARCHITECTURE PROBLEMS
+5. PRODUCTION READINESS SCORE (0–100)
+6. VEREDICT:
+   - READY
+   - READY WITH RISKS
+   - NOT READY
+
+IMPORTANTE:
+- não sugerir features novas
+- não refatorar
+- não implementar nada
+- apenas auditoria e diagnóstico técnico rigoroso
