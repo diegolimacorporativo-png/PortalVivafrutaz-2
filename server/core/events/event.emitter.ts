@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { eventRepository } from "./event.repository";
-import { processEventStream } from "./event-stream.processor";
+import { processEvent } from "../intelligence/intelligence.engine";
+import { makeDecisions } from "../decision/decision.engine";
 
 export type SystemEvent = {
   id: string;
@@ -31,16 +32,17 @@ async function drainQueue() {
 
 export function emitEvent(event: Omit<SystemEvent, "id" | "timestamp"> & Partial<Pick<SystemEvent, "id" | "timestamp">>) {
   try {
-    queue.push({
-      id: event.id ?? randomUUID(),
-      timestamp: event.timestamp ?? new Date(),
-      type: event.type,
+    const built: SystemEvent = {
+      id:         event.id        ?? randomUUID(),
+      timestamp:  event.timestamp ?? new Date(),
+      type:       event.type,
       entityType: event.entityType,
-      entityId: event.entityId,
-      metadata: event.metadata,
-    });
-    void processEventStream(queue[queue.length - 1] as SystemEvent);
+      entityId:   event.entityId,
+      metadata:   event.metadata,
+    };
+    queue.push(built);
     void drainQueue();
+    void processEvent(built).then(() => makeDecisions()).catch(() => {});
   } catch {
   }
 }

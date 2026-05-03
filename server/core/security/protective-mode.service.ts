@@ -1,19 +1,11 @@
-type ProtectiveModeState = {
-  enabled: boolean;
-  level: "NORMAL" | "ELEVATED" | "LOCKDOWN";
-};
-
-const state: ProtectiveModeState = {
-  enabled: false,
-  level: "NORMAL",
-};
+import { systemState } from "../state/system-state";
 
 export const protectiveModeService = {
-  getState(): ProtectiveModeState {
-    return { ...state };
+  getState() {
+    const level = systemState.get().protectiveMode;
+    return { enabled: level !== "NORMAL", level };
   },
-  setLevel(level: ProtectiveModeState["level"]) {
-    state.enabled = level !== "NORMAL";
-    state.level = level;
+  setLevel(level: "NORMAL" | "ELEVATED" | "LOCKDOWN") {
+    systemState.setProtectiveMode(level);
   },
 };

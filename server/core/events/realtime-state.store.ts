@@ -1,10 +1,4 @@
-type RollingEvent = {
-  id: string;
-  type: string;
-  entityType?: string | null;
-  entityId?: string | null;
-  createdAt: Date;
-};
+import { systemState } from "../state/system-state";
 
 export type RealtimeRiskState = {
   authRisk: number;
@@ -13,10 +7,10 @@ export type RealtimeRiskState = {
   securityRisk: number;
   globalRisk: number;
   rollingWindows: {
-    authFailures: RollingEvent[];
-    nfeFailures: RollingEvent[];
-    securityEvents: RollingEvent[];
-    sessionInvalids: RollingEvent[];
+    authFailures: any[];
+    nfeFailures: any[];
+    securityEvents: any[];
+    sessionInvalids: any[];
   };
   protectiveMode: {
     enabled: boolean;
@@ -24,32 +18,20 @@ export type RealtimeRiskState = {
   };
 };
 
-const MAX_WINDOW = 250;
-
-export const realtimeState: RealtimeRiskState = {
-  authRisk: 0,
-  sessionRisk: 0,
-  nfeRisk: 0,
-  securityRisk: 0,
-  globalRisk: 0,
-  protectiveMode: {
-    enabled: false,
-    level: "NORMAL",
+export const realtimeState: RealtimeRiskState = new Proxy({} as any, {
+  get(_target, prop) {
+    const s = systemState.get();
+    if (prop === "authRisk")     return s.risk.auth;
+    if (prop === "sessionRisk")  return s.risk.session;
+    if (prop === "nfeRisk")      return s.risk.nfe;
+    if (prop === "securityRisk") return s.risk.security;
+    if (prop === "globalRisk")   return s.risk.global;
+    if (prop === "protectiveMode") return { enabled: s.protectiveMode !== "NORMAL", level: s.protectiveMode };
+    if (prop === "rollingWindows") return { authFailures: [], nfeFailures: [], securityEvents: [], sessionInvalids: [] };
+    return undefined;
   },
-  rollingWindows: {
-    authFailures: [],
-    nfeFailures: [],
-    securityEvents: [],
-    sessionInvalids: [],
-  },
-};
+  set() { return true; },
+});
 
-export function pushWindow(window: RollingEvent[], event: RollingEvent) {
-  window.push(event);
-  if (window.length > MAX_WINDOW) window.shift();
-}
-
-export function pruneWindow(window: RollingEvent[], cutoffMs: number) {
-  const cutoff = Date.now() - cutoffMs;
-  return window.filter((event) => event.createdAt.getTime() >= cutoff);
-}
+export function pushWindow(_window: any[], _event: any) {}
+export function pruneWindow(window: any[], _cutoffMs: number) { return window; }
