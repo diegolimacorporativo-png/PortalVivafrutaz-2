@@ -11,7 +11,7 @@ import {
 } from "../core/tenant/scope";
 import { requireTenantId, currentTenantId } from "../core/tenant/context";
 import {
-  users, priceGroups, companies, categories, products, productPrices, productSubCategories, orderWindows, orderExceptions, orders, orderItems, systemSettings, passwordResetRequests, specialOrderRequests, systemLogs, testOrders, tasks, clientIncidents, incidentMessages, internalIncidents, logisticsDrivers, logisticsVehicles, logisticsRoutes, logisticsMaintenance, companyQuotations, contractScopes, danfeRecords, companyConfig, companySettings, announcements, wasteControl, purchasePlanStatus, inventorySettings, inventoryEntries, inventoryMovements, inventoryPhysicalCounts, fiscalInvoices, emailSchedules, emailLogs, smtpConfig, claraTraining, pushSubscriptions, notificationSettings, contractAdjustments, scopeSimulations, accountsReceivable, accountsPayable, financialTransactions,
+  users, priceGroups, companies, categories, products, productPrices, productSubCategories, orderWindows, orderExceptions, orders, orderItems, systemSettings, passwordResetRequests, specialOrderRequests, systemLogs, testOrders, tasks, clientIncidents, incidentMessages, internalIncidents, logisticsDrivers, logisticsVehicles, logisticsRoutes, logisticsMaintenance, companyQuotations, contractScopes, danfeRecords, companyConfig, companySettings, announcements, wasteControl, purchasePlanStatus, inventorySettings, inventoryEntries, inventoryMovements, inventoryPhysicalCounts, fiscalInvoices, emailSchedules, emailLogs, aboutUs, smtpConfig, claraTraining, pushSubscriptions, notificationSettings, contractAdjustments, scopeSimulations, accountsReceivable, accountsPayable, financialTransactions,
   type AccountReceivable, type InsertAccountReceivable,
   type AccountPayable, type InsertAccountPayable,
   type FinancialTransaction, type InsertFinancialTransaction,
@@ -40,6 +40,7 @@ import {
   type FiscalInvoice, type InsertFiscalInvoice,
   type EmailSchedule, type InsertEmailSchedule,
   type EmailLog, type InsertEmailLog,
+  type AboutUs, type InsertAboutUs,
   type SmtpConfig, type InsertSmtpConfig,
   type ClaraTraining, type InsertClaraTraining,
   type PushSubscription, type InsertPushSubscription,
@@ -1745,6 +1746,25 @@ export class DatabaseStorage implements IStorage {
         gte(emailLogs.sentAt, startOfMonth)
       ));
     return !!r;
+  }
+
+  // ─── About Us (Quem Somos Nós) ────────────────────────────────────────────
+  async getAboutUs(): Promise<AboutUs | undefined> {
+    const [r] = await db.select().from(aboutUs).limit(1);
+    return r;
+  }
+  async upsertAboutUs(data: Partial<InsertAboutUs>): Promise<AboutUs> {
+    const existing = await this.getAboutUs();
+    if (existing) {
+      const [r] = await db.update(aboutUs)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(aboutUs.id, existing.id))
+        .returning();
+      return r;
+    } else {
+      const [r] = await db.insert(aboutUs).values({ ...data } as InsertAboutUs).returning();
+      return r;
+    }
   }
 
   // ─── SMTP Config ──────────────────────────────────────────────────────────
