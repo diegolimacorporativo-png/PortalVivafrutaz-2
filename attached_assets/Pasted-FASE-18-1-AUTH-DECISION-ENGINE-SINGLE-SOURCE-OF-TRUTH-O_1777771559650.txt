@@ -1,0 +1,177 @@
+FASE 18.1 — AUTH DECISION ENGINE (SINGLE SOURCE OF TRUTH)
+
+OBJETIVO:
+Centralizar TODA a lógica de autenticação em um único engine determinístico,
+eliminando duplicação entre auth.service, authCore, rateLimit e middlewares.
+
+========================================================
+1. CRIAR AUTH DECISION ENGINE
+========================================================
+
+CRIAR NOVO ARQUIVO:
+
+server/core/auth/authDecision.engine.ts
+
+RESPONSABILIDADE ÚNICA:
+Tomar TODA decisão de login (admin e company).
+
+========================================================
+INTERFACE PRINCIPAL
+========================================================
+
+AuthDecisionEngine.run({
+  entity,          // user ou company
+  password,
+  ip,
+  deviceId,
+  context          // admin_login | company_login
+})
+
+RETORNO:
+{
+  success: boolean,
+  status: "SUCCESS" | "LOCKED" | "INVALID_PASSWORD" | "RATE_LIMITED" | "INACTIVE",
+  sessionData?: object,
+  riskFlags?: string[]
+}
+
+========================================================
+2. PIPELINE INTERNO DO ENGINE (ORDEM FIXA)
+========================================================
+
+ORDEM OBRIGATÓRIA (NÃO ALTERAR):
+
+STEP 1 — ENTITY VALIDATION
+- entity existe?
+- isActive == true?
+→ se não: INACTIVE (401)
+
+STEP 2 — IS LOCKED CHECK
+- entity.isLocked
+→ se sim: LOCKED (423)
+
+STEP 3 — DEVICE VALIDATION
+- se session existente:
+  - validar deviceId
+  - se mismatch → LOCKED (403)
+- se novo login → aceitar deviceId e registrar
+
+STEP 4 — RATE LIMIT (L2 ONLY)
+- checkDbRateLimit(entityId, ip, context)
+→ se bloqueado: RATE_LIMITED (429)
+
+IMPORTANTE:
+❌ NÃO usar L1 como decisão
+✔ L2 é única autoridade
+
+STEP 5 — PASSWORD VALIDATION
+- bcrypt compare
+→ se falhar:
+  - recordUserLoginFailure (score)
+  - recordAttempt(success:false)
+  - BRUTE FORCE check
+  → INVALID_PASSWORD
+
+STEP 6 — SUCCESS FLOW
+- recordUserLoginSuccess
+- recordAttempt(success:true)
+- logAuthEvent(LOGIN_SUCCESS)
+- update session (tokenVersion, deviceId)
+- return sessionData
+
+========================================================
+3. ALTERAÇÕES NOS SERVIÇOS EXISTENTES
+========================================================
+
+A) auth.service.ts
+ANTES:
+- contém lógica de login duplicada
+
+AGORA:
+- vira THIN ADAPTER
+
+MUDAR PARA:
+
+attemptAdminLogin() → AuthDecisionEngine.run()
+attemptCompanyLogin() → AuthDecisionEngine.run()
+
+REMOVER:
+- isLocked checks locais
+- rate limit checks locais
+- device validation local
+- password validation duplicada
+
+========================================================
+B) authCore.service.ts
+========================================================
+
+MANTER APENAS:
+- logAuthEvent
+- recordAttempt
+- helpers de sessão
+
+REMOVER:
+- qualquer decisão de login
+- qualquer gate de autenticação
+
+========================================================
+C) rateLimit.ts / rateSchedule.ts
+========================================================
+
+REGRA:
+
+✔ L2 continua existindo
+❌ MAS NÃO DECIDE MAIS LOGIN DIRETAMENTE
+
+Ele só fornece:
+- checkDbRateLimit()
+
+========================================================
+4. REGRAS DE CONSISTÊNCIA (CRÍTICO)
+========================================================
+
+✔ UMA ÚNICA FUNÇÃO DECIDE LOGIN:
+   AuthDecisionEngine.run()
+
+✔ ZERO decisão de auth fora do engine
+
+✔ ZERO duplicação entre admin/company
+
+✔ L1 nunca bloqueia nada (apenas métricas)
+
+✔ L2 é autoridade única
+
+✔ deviceId enforcement centralizado aqui
+
+✔ tokenVersion update só em SUCCESS FLOW
+
+========================================================
+5. SEGURANÇA OBRIGATÓRIA
+========================================================
+
+FAIL-FAST:
+- qualquer erro de DB no STEP 4 → FAIL CLOSED
+
+NUNCA:
+- permitir login em caso de erro silencioso
+
+========================================================
+6. CRITÉRIO DE CONCLUSÃO
+
+FASE 18.1 SÓ ESTÁ PRONTA QUANDO:
+
+✔ authDecision.engine.ts é o único lugar com lógica de login
+✔ auth.service.ts é apenas adapter
+✔ authCore.service.ts não decide mais autenticação
+✔ L1 não influencia decisão de login
+✔ admin/company usam o mesmo fluxo
+
+========================================================
+RESULTADO FINAL
+
+ANTES:
+auth.service.ts + authCore + rateLimit + session logic (fragmentado)
+
+DEPOIS:
+1 ENGINE → AuthDecisionEngine
+RESTO → adapters / telemetry / storage
