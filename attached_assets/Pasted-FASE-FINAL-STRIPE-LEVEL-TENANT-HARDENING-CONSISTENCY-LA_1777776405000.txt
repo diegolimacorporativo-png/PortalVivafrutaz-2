@@ -1,0 +1,155 @@
+FASE FINAL: STRIPE-LEVEL TENANT HARDENING + CONSISTENCY LAYER
+
+OBJETIVO:
+Fechar o sistema em nível SaaS enterprise real (Stripe/Datadog), garantindo consistência total de multi-tenancy, eliminando qualquer ambiguidade entre global vs tenant, e prevenindo 100% de data leakage.
+
+NÃO quebrar sistema atual.
+NÃO refatorar frontend desnecessariamente.
+NÃO mudar UX.
+FOCO: segurança + consistência arquitetural.
+
+========================================================
+1. PRINCÍPIO ABSOLUTO (STRIPE RULE)
+========================================================
+
+"Client never defines data scope. Server is the only authority."
+
+Regra:
+- frontend NUNCA influencia isolamento de dados
+- backend SEMPRE decide tenant
+- DB SEMPRE aplica filtro
+
+========================================================
+2. SINGLE TENANT RESOLVER (SOURCE OF TRUTH)
+========================================================
+
+Criar e padronizar um único resolvedor global:
+
+function resolveTenant(req) {
+  const user = req.user;
+
+  if (user.role === "MASTER") {
+    return req.query.tenantId || "GLOBAL_VIEW";
+  }
+
+  return user.tenantId;
+}
+
+REGRAS:
+- apenas MASTER pode alternar tenant
+- todos os outros são fixos
+- nenhuma outra lógica pode redefinir tenant
+
+========================================================
+3. GLOBAL VS TENANT CONSISTENCY MODEL
+========================================================
+
+Definir claramente:
+
+GLOBAL MODE:
+- apenas MASTER
+- somente leitura ou análise agregada
+- nunca usado para escrita
+
+TENANT MODE:
+- padrão do sistema
+- todos usuários não-MASTER
+
+========================================================
+4. DATABASE ENFORCEMENT (ZERO LEAK GUARANTEE)
+========================================================
+
+TODAS as queries devem obedecer:
+
+SELECT * FROM table
+WHERE tenant_id = resolvedTenantId
+   OR (tenant_id IS NULL AND LEGACY_READ = true)
+
+REGRAS:
+- INSERT sempre inclui tenant_id
+- NULL permitido apenas para dados legacy read-only
+- nunca escrever novos registros com NULL
+
+========================================================
+5. MASTER SAFETY LAYER (ANTI-ABUSE)
+========================================================
+
+MASTER actions devem gerar audit log obrigatório:
+
+AuditLog {
+  userId
+  action: "TENANT_SWITCH"
+  fromTenant
+  toTenant
+  timestamp
+}
+
+REGRAS:
+- log obrigatório em toda troca de tenant
+- rate limit em switching
+- prevenção de loop de alternância
+
+========================================================
+6. ZERO LEAK ARCHITECTURE GUARANTEE
+========================================================
+
+Garantir:
+
+BACKEND:
+- tenant filter obrigatório em TODAS as queries
+- nenhuma rota retorna dados sem resolver tenant
+- system-state SEMPRE scoped
+
+FRONTEND:
+- nunca envia tenant como source of truth
+- apenas exibe contexto retornado
+
+DATABASE:
+- índice por tenant_id obrigatório
+- isolamento físico lógico garantido
+
+========================================================
+7. LEGACY COMPATIBILITY FREEZE
+========================================================
+
+Manter:
+
+- tenant_id = NULL → LEGACY READ ONLY
+- NÃO migrar automaticamente ainda
+- não permitir escrita em legacy
+
+========================================================
+8. CONSISTENCY RULE (CRÍTICO)
+========================================================
+
+"Nenhum endpoint pode existir sem explicitamente declarar seu tenant behavior"
+
+Todo endpoint deve ser:
+
+- TENANT-SCOPED
+- GLOBAL-READ-ONLY (MASTER only)
+- OR LEGACY-READ (explicit)
+
+========================================================
+9. FINAL SAFETY GUARANTEE
+========================================================
+
+Sistema deve garantir:
+
+- impossível acessar dados de outro tenant
+- impossível criar dados fora de tenant scope
+- frontend não influencia segurança
+- MASTER não pode quebrar isolamento acidentalmente
+- auditabilidade completa de ações críticas
+
+========================================================
+RESULTADO FINAL ESPERADO
+========================================================
+
+Sistema atinge nível:
+
+- Stripe-level multi-tenant isolation
+- Datadog-style observability separation
+- enterprise SaaS security model
+- zero cross-tenant leakage risk
+- production-ready SaaS architecture
