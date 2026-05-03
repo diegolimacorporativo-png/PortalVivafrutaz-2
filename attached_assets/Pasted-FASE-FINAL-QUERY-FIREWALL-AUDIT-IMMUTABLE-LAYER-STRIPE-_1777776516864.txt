@@ -1,0 +1,167 @@
+FASE FINAL: QUERY FIREWALL + AUDIT IMMUTABLE LAYER (STRIPE INFRA LEVEL)
+
+OBJETIVO:
+Adicionar uma camada de segurança e observabilidade de nível Stripe/Datadog que impede vazamento de dados por erro humano, bug ou endpoint mal implementado.
+
+Garantir:
+- ZERO cross-tenant leakage por falha de query
+- AUDITORIA IMUTÁVEL de todas operações críticas
+- ENFORCEMENT AUTOMÁTICO de tenant scope em runtime
+
+NÃO mudar UI.
+NÃO quebrar APIs existentes.
+NÃO refatorar sistema inteiro.
+FOCO: segurança estrutural e observabilidade.
+
+========================================================
+1. QUERY FIREWALL LAYER (OBRIGATÓRIO)
+========================================================
+
+Criar camada intermediária entre service e DB:
+
+function queryFirewall(query, context) {
+  enforceTenantScope(query, context.tenantId)
+  enforceAccessPolicy(context.user)
+  logQueryMetadata(query, context)
+
+  return execute(query)
+}
+
+REGRAS:
+- TODA query passa por firewall
+- nenhuma query direta no DB sem passar por essa camada
+- tenantId SEMPRE injetado pelo backend
+
+========================================================
+2. AUTOMATIC TENANT ENFORCEMENT
+========================================================
+
+Se query não tiver tenant filter:
+
+→ AUTOMATICAMENTE INJETAR:
+
+WHERE tenant_id = resolvedTenantId
+
+Se tentativa de bypass:
+
+→ BLOCK + LOG SECURITY EVENT
+
+========================================================
+3. AUDIT LAYER (IMMUTABLE LOG SYSTEM)
+========================================================
+
+Criar tabela append-only:
+
+AuditLog {
+  id: string
+  userId: string
+  tenantId: string
+  action: string
+  resource: string
+  queryHash: string
+  timestamp: number
+}
+
+REGRAS:
+- NÃO pode UPDATE nem DELETE (append-only)
+- logs são imutáveis
+- logs incluem MASTER actions também
+
+========================================================
+4. AUDIT EVENTS OBRIGATÓRIOS
+========================================================
+
+Registrar automaticamente:
+
+- login
+- tenant switch (MASTER)
+- query execution (sensível)
+- policy changes
+- alert generation
+- system-state access (admin)
+
+========================================================
+5. QUERY HASHING (DETECTION LAYER)
+========================================================
+
+Cada query deve gerar:
+
+queryHash = hash(sql + tenantId + userId)
+
+Usado para:
+- detectar abuso
+- detectar repetição suspeita
+- rastrear leakage attempts
+
+========================================================
+6. SECURITY ENFORCEMENT ENGINE
+========================================================
+
+Criar engine que valida:
+
+- query scope
+- tenant alignment
+- permission level
+- anomaly detection (query behavior)
+
+Se violação:
+→ block request
+→ emit security event
+→ log audit entry
+
+========================================================
+7. MASTER PROTECTION LAYER
+========================================================
+
+MASTER não pode:
+
+- acessar tenants sem log
+- trocar tenant sem audit entry
+- executar queries sem tracking
+
+REGRAS:
+- tudo que MASTER faz é auditado
+- nenhuma exceção silenciosa
+
+========================================================
+8. ZERO LEAK GUARANTEE (FINAL LAYER)
+========================================================
+
+Sistema deve garantir:
+
+- impossível executar query fora do tenant scope
+- impossível acessar dados cross-tenant mesmo com bug
+- impossível bypass via frontend
+- impossível bypass via API misuse
+
+========================================================
+9. STRIPE-LEVEL BEHAVIOR MODEL
+========================================================
+
+Sistema passa a operar assim:
+
+Request
+  ↓
+Auth
+  ↓
+Tenant Resolver
+  ↓
+Query Firewall (NEW)
+  ↓
+Policy Engine
+  ↓
+DB
+  ↓
+Audit Log (IMMUTABLE)
+
+========================================================
+RESULTADO FINAL ESPERADO
+========================================================
+
+Sistema atinge nível:
+
+- Stripe-like multi-tenant security
+- Datadog-like observability audit trail
+- zero trust architecture (backend enforced)
+- immutable compliance logging
+- enterprise SaaS readiness
