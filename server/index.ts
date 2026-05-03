@@ -6,6 +6,7 @@ import { startOutboxWorker } from "./modules/orders/orders.outbox.worker";
 import { startAutoDispatchWorker } from "./modules/logistics/auto-dispatch.service";
 import { startBillingCron } from "./modules/billing/billing.cron";
 import { startFaturamentoCron } from "./jobs/faturamento.cron";
+import { startAnalyticsWorker } from "./core/events/event-analytics.worker";
 // STEP 9.3F.9 — alertas proativos automatizados (reusa buildInsights + emitAlertSmart).
 import { startProactiveAlertsScheduler } from "./services/alerts.proactive";
 import { initSchedulers } from "./bootstrap/scheduler";
@@ -97,6 +98,7 @@ async function recoverStuckNFes(): Promise<void> {
 
   // Billing cron — daily check for overdue invoices and downgrade to free.
   startBillingCron();
+  startAnalyticsWorker();
 
   // Faturamento cron — STEP 9.3C: emissão automática às 08:00 (controlada por AUTO_FATURAMENTO flag).
   startFaturamentoCron();

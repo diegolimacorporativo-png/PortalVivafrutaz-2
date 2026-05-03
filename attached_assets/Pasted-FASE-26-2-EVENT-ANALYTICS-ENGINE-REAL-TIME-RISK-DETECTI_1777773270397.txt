@@ -1,0 +1,232 @@
+FASE 26.2 — EVENT ANALYTICS ENGINE (REAL-TIME RISK DETECTION OVER EVENT STORE)
+
+OBJETIVO:
+Transformar o event_store (FASE 26.1) em um motor de análise automática de risco.
+
+✔ NÃO altera auth/session/NF-e flows
+✔ NÃO introduz websocket ainda
+✔ NÃO cria stream engine
+✔ roda APENAS em cima de dados já persistidos
+✔ 100% safe overlay analytics layer
+
+========================================================
+1. CONCEITO CENTRAL
+========================================================
+
+EVENTOS (FASE 26.1)
+        ↓
+EVENT ANALYTICS ENGINE
+        ↓
+RISK SIGNALS + ANOMALY DETECTION + SCORE UPDATES
+
+========================================================
+2. NOVO MÓDULO CORE
+========================================================
+
+/server/core/events/event-analytics.engine.ts
+
+Responsabilidade:
+
+- consumir event_store
+- detectar padrões de risco
+- gerar alertas estruturados
+- atualizar scores derivados (não críticos)
+- alimentar governance layer
+
+========================================================
+3. TIPOS DE RISCO DETECTADOS
+========================================================
+
+A) AUTH RISK
+- brute force patterns
+- repeated login failures
+- token invalid spikes
+- device mismatch frequency
+
+B) SESSION RISK
+- session invalid bursts
+- abnormal session churn
+- concurrent session anomalies
+
+C) NF-E RISK
+- repeated "enviando → erro" cycles
+- retry storms
+- concurrency conflicts
+
+D) SECURITY RISK
+- repeated SECURITY_ANOMALY events
+- blocked users spike
+- rate limit saturation
+
+========================================================
+4. DETECÇÃO BASE (RULE ENGINE SIMPLES)
+
+function analyzeEvents(events):
+
+  return {
+    authRiskScore,
+    sessionRiskScore,
+    nfeRiskScore,
+    securityRiskScore,
+    globalRiskScore,
+    anomalies: []
+  }
+
+========================================================
+5. REGRAS DE ANÁLISE
+
+A) BRUTE FORCE DETECTION
+
+if (AUTH_LOGIN_FAILURE > 5 in 5min per IP):
+  anomaly = "BRUTE_FORCE_ATTEMPT"
+
+--------------------------------------------------------
+
+B) SESSION INSTABILITY
+
+if (SESSION_INVALID spike > threshold):
+  anomaly = "SESSION_UNSTABLE_CLUSTER"
+
+--------------------------------------------------------
+
+C) NF-E FAILURE LOOP
+
+if (NF_E_FAILED repeated within short window):
+  anomaly = "NF_E_RETRY_STORM"
+
+--------------------------------------------------------
+
+D) SECURITY ESCALATION
+
+if (SECURITY_ANOMALY + AUTH_FAILURE correlated):
+  anomaly = "SECURITY_ATTACK_PATTERN"
+
+========================================================
+6. OUTPUT MODEL
+
+{
+  timestamp,
+  riskScores: {
+    auth: number,
+    session: number,
+    nfe: number,
+    security: number,
+    global: number
+  },
+
+  anomalies: [
+    {
+      type,
+      severity: LOW | MEDIUM | HIGH | CRITICAL,
+      affectedEntity,
+      evidenceEvents: []
+    }
+  ],
+
+  recommendation:
+    "MONITOR" |
+    "INVESTIGATE" |
+    "MITIGATE" |
+    "BLOCK"
+}
+
+========================================================
+7. EXECUTION MODEL (SAFE)
+
+✔ batch processing (ex: every 30s / 1min)
+✔ no blocking runtime requests
+✔ read-only from event_store
+✔ async background job only
+
+========================================================
+8. BACKGROUND WORKER
+
+/server/core/events/event-analytics.worker.ts
+
+function startAnalyticsWorker() {
+
+  setInterval(async () => {
+
+    const events = await eventRepo.getRecentEvents(1000)
+
+    const analysis = analyzeEvents(events)
+
+    await saveAnalyticsSnapshot(analysis)
+
+    emitInternalSignal("RISK_UPDATED")
+
+  }, 30000)
+
+}
+
+========================================================
+9. STORAGE (DERIVED DATA)
+
+Tabela:
+
+event_risk_snapshots
+
+- id
+- global_risk_score
+- auth_risk_score
+- session_risk_score
+- nfe_risk_score
+- security_risk_score
+- anomalies (jsonb)
+- created_at
+
+========================================================
+10. INTEGRAÇÃO COM GOVERNANCE ENGINE (FASE 25)
+
+Governance Dashboard passa a consumir:
+
+ANTES:
+- event_store raw
+
+DEPOIS:
+- event_risk_snapshots (agregado)
+- anomalies detectadas automaticamente
+
+========================================================
+11. BENEFÍCIOS DIRETOS
+
+✔ detecção automática de ataque
+✔ visão de risco contínuo
+✔ base para decisão futura automática
+✔ preparação para real-time streaming
+✔ elimina análise manual de logs
+
+========================================================
+12. REGRAS IMPORTANTES
+
+🔴 não bloquear requests
+🟢 apenas análise e classificação
+🟢 sempre assíncrono
+🟢 nunca interferir no auth/NF-e flow
+
+========================================================
+13. MIGRAÇÃO SEGURA
+
+ETAPA 1:
+✔ implementar engine
+
+ETAPA 2:
+✔ criar worker
+
+ETAPA 3:
+✔ criar snapshots table
+
+ETAPA 4:
+✔ integrar no dashboard
+
+ETAPA 5:
+✔ manter CLI engines como fallback
+
+========================================================
+FASE 26.2 CONCLUÍDA QUANDO:
+
+✔ análise automática funcionando
+✔ risco calculado em batch
+✔ anomalies detectadas
+✔ snapshots persistidos
+✔ zero impacto em runtime crítico

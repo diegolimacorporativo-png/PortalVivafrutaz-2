@@ -543,6 +543,20 @@ export type EventStore = typeof eventStore.$inferSelect;
 export const insertEventStoreSchema = createInsertSchema(eventStore).omit({ createdAt: true });
 export type InsertEventStore = z.infer<typeof insertEventStoreSchema>;
 
+export const eventRiskSnapshots = pgTable("event_risk_snapshots", {
+  id: serial("id").primaryKey(),
+  globalRiskScore: integer("global_risk_score").notNull(),
+  authRiskScore: integer("auth_risk_score").notNull(),
+  sessionRiskScore: integer("session_risk_score").notNull(),
+  nfeRiskScore: integer("nfe_risk_score").notNull(),
+  securityRiskScore: integer("security_risk_score").notNull(),
+  anomalies: jsonb("anomalies").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type EventRiskSnapshot = typeof eventRiskSnapshots.$inferSelect;
+export const insertEventRiskSnapshotSchema = createInsertSchema(eventRiskSnapshots).omit({ id: true, createdAt: true });
+export type InsertEventRiskSnapshot = z.infer<typeof insertEventRiskSnapshotSchema>;
+
 export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({ id: true, createdAt: true });
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;
