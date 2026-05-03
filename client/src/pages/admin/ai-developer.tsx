@@ -119,8 +119,8 @@ const QUICK_COMMANDS = [
   { icon: Layers, label: "Analisar Sistema", cmd: "analisar sistema", tab: "index" },
   { icon: Bug, label: "Detectar Bugs", cmd: "detectar bugs", tab: "bugs" },
   { icon: ShieldCheck, label: "Auditoria de Segurança", cmd: "auditoria de segurança", tab: "security" },
-  { icon: Database, label: "Otimizar Banco", cmd: "analisar banco de dados", tab: "database" },
-  { icon: FlaskConical, label: "Abrir AI LAB", cmd: "abrir ai lab", tab: "ailab" },
+  { icon: Database, label: "Analisar Banco", cmd: "analisar banco de dados", tab: "database" },
+  { icon: FlaskConical, label: "AI LAB", cmd: "abrir ai lab", tab: "ailab" },
 ];
 
 export default function AiDeveloperPage() {
@@ -130,7 +130,7 @@ export default function AiDeveloperPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "system",
-      content: "🤖 AI Developer inicializado. Use os comandos rápidos ou digite um comando abaixo.\n\nCapacidades reais:\n• analisar sistema — mapear rotas, tabelas e arquivos expostos\n• detectar bugs — gerar heurísticas de problemas\n• auditoria de segurança — revisar padrões de risco\n• analisar banco de dados — inspecionar tabelas e índices\n• AI LAB — saúde, docs, simulação e módulos de exemplo\n\nPromessas não automáticas:\n• deploy completo\n• testes reais do projeto\n• correção automática aplicada",
+      content: "🤖 AI Developer inicializado.\n\nDiagnóstico: assistente técnico assistivo, sem execução automática.\nImpacto: ajuda a analisar, explicar e gerar código seguro.\nSolução sugerida: usar as abas abaixo para mapeamento, bugs, segurança e banco.\nCódigo: disponível quando fizer sentido.\nRisco: baixo.\n\nSugestão rápida: quer que eu gere o código com base no diagnóstico?",
       timestamp: new Date(),
     }
   ]);
@@ -199,7 +199,7 @@ export default function AiDeveloperPage() {
         case "deploy":
           setDeployData(data);
           setSelectedScript(data[0]);
-          addMsg("system", `⚠️ Este painel mostra apenas exemplos de scripts e heurísticas, não um pipeline de deploy real.`);
+          addMsg("system", `⚠️ Este painel mostra apenas exemplos e heurísticas, não um pipeline de deploy real.`);
           break;
       }
     } catch (e: any) {
@@ -448,7 +448,7 @@ export default function AiDeveloperPage() {
                 </TabsTrigger>
                 <TabsTrigger value="ailab" className="text-xs h-7 data-[state=active]:bg-white bg-gradient-to-r data-[state=active]:from-violet-50 data-[state=active]:to-indigo-50 border border-violet-200 data-[state=active]:border-violet-400" data-testid="tab-ailab">
                   <FlaskConical className="w-3.5 h-3.5 mr-1 text-violet-600" />
-                  <span className="text-violet-700 font-semibold">AI LAB real</span>
+                  <span className="text-violet-700 font-semibold">AI LAB</span>
                 </TabsTrigger>
               </TabsList>
             </CardHeader>
@@ -463,8 +463,8 @@ export default function AiDeveloperPage() {
                   <div>
                     <h2 className="text-lg font-bold text-gray-800 dark:text-white">AI Developer — VivaFrutaz ERP</h2>
                     <p className="text-sm text-gray-500 mt-1 max-w-md mx-auto">
-                      Módulo de inteligência artificial para análise, monitoramento e manutenção do sistema.
-                      Use os comandos à esquerda ou clique nos painéis abaixo para começar.
+                      Assistente técnico para análise, explicação e geração de código seguro.
+                      Sem ações automáticas no sistema.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 max-w-lg mx-auto">
@@ -490,7 +490,7 @@ export default function AiDeveloperPage() {
                   <div className="text-center py-12 text-gray-400">
                     <Files className="w-10 h-10 mx-auto mb-2 opacity-40" />
                     <p className="text-sm">Execute "Analisar Sistema" para indexar o projeto.</p>
-                    <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("index", "Analisar Sistema", "index")} disabled={loadingTool !== null}>
+                      <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("index", "Analisar Sistema", "index")} disabled={loadingTool !== null}>
                       {loadingTool === "index" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Layers className="w-4 h-4 mr-2" />}
                       Analisar Sistema
                     </Button>
