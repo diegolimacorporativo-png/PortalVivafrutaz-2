@@ -1,0 +1,210 @@
+FASE 26 — REAL-TIME GOVERNANCE ENGINE (EVENT-DRIVEN + STREAM + CONTINUOUS OBSERVABILITY)
+
+OBJETIVO:
+Transformar todo o ecossistema atual (CLI engines + JSON outputs + dashboard admin)
+em um sistema contínuo baseado em eventos, com atualização em tempo real de:
+
+- security score
+- drift score
+- chaos score
+- production readiness
+- auto-healing suggestions
+
+sem depender de execução manual de scripts.
+
+========================================================
+1. NOVA ARQUITETURA BASE
+========================================================
+
+ANTES (ATUAL):
+CLI scripts → JSON files → API read-only → Admin dashboard
+
+DEPOIS (REAL-TIME):
+System Events → Event Bus → Stream Processor → Governance State Store → WebSocket → Admin Dashboard
+
+========================================================
+2. COMPONENTES NOVOS
+========================================================
+
+A) EVENT BUS (CORE LAYER)
+
+/infra/events/event-bus.ts
+
+Responsável por emitir eventos do sistema:
+
+Eventos:
+
+- AUTH_LOGIN_SUCCESS
+- AUTH_LOGIN_FAILURE
+- AUTH_RATE_LIMIT_HIT
+- SESSION_INVALID
+- NF_E_CREATED
+- NF_E_FAILED
+- SECURITY_ANOMALY_DETECTED
+- DRIFT_DETECTED
+- CHAOS_TEST_TRIGGERED
+- SYSTEM_ERROR
+
+========================================================
+B) STREAM PROCESSOR (GOVERNANCE ENGINE REAL-TIME)
+
+/infra/governance/governance-stream.processor.ts
+
+Função:
+Consumir eventos em tempo real e atualizar estado global.
+
+Responsável por:
+
+- recalcular security score incrementalmente
+- atualizar drift score contínuo
+- detectar anomalias instantaneamente
+- atualizar production readiness score
+
+========================================================
+C) GOVERNANCE STATE STORE (MEMORY + PERSISTENCE)
+
+/infra/governance/governance-state.store.ts
+
+Estrutura:
+
+{
+  securityScore: number,
+  driftScore: number,
+  chaosScore: number,
+  productionScore: number,
+
+  lastEvents: Event[],
+  riskHotspots: string[],
+  activeAlerts: Alert[]
+}
+
+Persistência:
+- Redis (ideal)
+- fallback in-memory (dev)
+
+========================================================
+D) REAL-TIME WEBSOCKET LAYER
+
+/server/ws/governance.ws.ts
+
+Canal:
+ws://admin/governance-stream
+
+Eventos enviados:
+
+- score updates
+- alerts
+- drift changes
+- security incidents
+
+========================================================
+3. INTEGRAÇÃO COM SISTEMA EXISTENTE
+========================================================
+
+ANTES:
+auth.service.ts → chama engines via scripts
+
+DEPOIS:
+auth.service.ts → EMITE EVENTOS
+
+Exemplo:
+
+logAuthEvent() →
+  emit(AUTH_LOGIN_SUCCESS)
+
+recordUserLoginFailure() →
+  emit(AUTH_LOGIN_FAILURE)
+
+security.blocker.ts →
+  emit(SECURITY_ANOMALY_DETECTED)
+
+NF-e service →
+  emit(NF_E_CREATED | NF_E_FAILED)
+
+========================================================
+4. GOVERNANCE ENGINE (REFATORAÇÃO)
+
+ANTES:
+rodava CLI scripts
+
+DEPOIS:
+- 100% event-driven
+- mantém state incremental
+- sem recomputar tudo
+
+Substitui:
+
+❌ batch CLI audit
+✔ incremental scoring engine
+
+========================================================
+5. ADMIN DASHBOARD (ATUALIZAÇÃO)
+
+ANTES:
+fetch JSON files
+
+DEPOIS:
+WebSocket subscription:
+
+useGovernanceStream()
+
+Recebe:
+
+- score updates em tempo real
+- alerts instantâneos
+- drift changes
+- chaos events
+
+========================================================
+6. PERFORMANCE MODEL
+
+✔ sem reprocessar dados completos
+✔ só incremental updates
+✔ zero CLI dependency em runtime
+✔ baixa latência (<100ms ideal)
+✔ escalável multi-instância
+
+========================================================
+7. BENEFÍCIOS DIRETOS
+
+- detecção imediata de ataque
+- drift em tempo real
+- NF-e falhas instantâneas
+- score de produção sempre atualizado
+- dashboard vivo (não batch)
+
+========================================================
+8. MIGRAÇÃO SEGURA (SEM BREAKING CHANGE)
+
+ETAPA 1:
+- manter CLI engines funcionando
+
+ETAPA 2:
+- adicionar event emitter paralelo
+
+ETAPA 3:
+- ativar stream processor
+
+ETAPA 4:
+- migrar dashboard para websocket
+
+ETAPA 5:
+- desativar leitura de JSON como fonte primária
+
+========================================================
+9. OBJETIVO FINAL
+
+Transformar o sistema em:
+
+"Governance Operating System em tempo real"
+
+onde o sistema se observa continuamente e reage a si mesmo.
+
+========================================================
+FASE 26 CONCLUÍDA QUANDO:
+
+✔ event bus ativo
+✔ governance state em tempo real
+✔ dashboard via websocket
+✔ engines convertidos para eventos
+✔ zero dependência de execução manual de scripts
