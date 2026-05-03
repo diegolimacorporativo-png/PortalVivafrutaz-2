@@ -23,6 +23,11 @@ export const forgotPasswordSchema = z.object({
   email: z.string().email(),
 });
 
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  novaSenha: z.string().min(8, "A nova senha deve ter pelo menos 8 caracteres."),
+});
+
 export const logUnauthorizedSchema = z.object({
   route: z.string().optional(),
 });

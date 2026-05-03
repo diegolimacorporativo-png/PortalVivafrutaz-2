@@ -311,6 +311,16 @@ export const passwordResetRequests = pgTable("password_reset_requests", {
   resolvedAt: timestamp("resolved_at"),
 });
 
+// ─── Tokens de recuperação de senha (auto-serviço) ─────────────
+export const passwordResetTokens = pgTable("password_reset_tokens", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id),
+  companyId: integer("company_id").references(() => companies.id),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // ─── Pedidos de Teste (modo teste) ────────────────────────────
 export const testOrders = pgTable("test_orders", {
   id: serial("id").primaryKey(),
@@ -2045,6 +2055,7 @@ export function validateSchemaIntegrity(): void {
     systemSettings,
     specialOrderRequests,
     passwordResetRequests,
+    passwordResetTokens,
     testOrders,
     tasks,
     clientIncidents,

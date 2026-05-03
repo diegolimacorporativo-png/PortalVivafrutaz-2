@@ -4,6 +4,7 @@ import { authService, AuthService } from "./auth.service";
 import {
   forgotPasswordSchema,
   loginSchema,
+  resetPasswordSchema,
 } from "./auth.validation";
 import type { SessionPayload } from "./auth.types";
 
@@ -150,16 +151,40 @@ export class AuthController {
     try {
       email = forgotPasswordSchema.parse(req.body).email;
     } catch (err) {
-      res.status(400).json({ message: "Email obrigatório." });
+      // SECURITY: always 200 — do not expose whether email validation failed
+      res.json({ message: "Se o email estiver cadastrado, você receberá um link de recuperação em breve." });
       return;
     }
 
     const result = await this.service.requestPasswordReset(email);
-    if (!result.found) {
-      res.status(404).json({ message: result.message });
+    // SECURITY: always 200 — never reveal if email exists in the system
+    res.json({ message: result.message });
+  };
+
+  // ── POST /api/auth/reset-password ──────────────────────────────────────
+  resetPassword = async (req: Request, res: Response): Promise<void> => {
+    let input: { token: string; novaSenha: string };
+    try {
+      input = resetPasswordSchema.parse(req.body);
+    } catch (err) {
+      if (err instanceof ZodError) {
+        res.status(400).json({ message: err.errors[0]?.message ?? "Dados inválidos." });
+        return;
+      }
+      throw err;
+    }
+
+    const ip =
+      ((req.headers["x-forwarded-for"] as string) || "").split(",")[0] ||
+      req.socket.remoteAddress ||
+      "";
+
+    const result = await this.service.resetPassword(input.token, input.novaSenha, ip);
+    if (!result.ok) {
+      res.status(result.status).json({ message: result.message });
       return;
     }
-    res.json({ message: result.message, requestId: result.requestId });
+    res.json({ ok: true, message: result.message });
   };
 
   // ── POST /api/auth/force-password-change (FASE 14.5) ──────────────────

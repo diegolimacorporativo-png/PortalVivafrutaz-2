@@ -74,3 +74,7 @@ export interface ForgotPasswordOutcome {
   message: string;
   requestId?: number;
 }
+
+export type ResetPasswordOutcome =
+  | { ok: true; message: string }
+  | { ok: false; status: number; message: string };

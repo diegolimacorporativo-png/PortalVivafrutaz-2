@@ -28,7 +28,8 @@ const router = Router();
 router.post("/login", loginIpLimiter, asyncHandler(authController.login));
 router.get("/me", asyncHandler(authController.me));
 router.post("/logout", authController.logout);
-router.post("/forgot-password", asyncHandler(authController.forgotPassword));
+router.post("/forgot-password", loginIpLimiter, asyncHandler(authController.forgotPassword));
+router.post("/reset-password", loginIpLimiter, asyncHandler(authController.resetPassword));
 router.post("/log-unauthorized", asyncHandler(authController.logUnauthorized));
 // FASE 14.5 — mandatory first-login password change for provisioned accounts
 router.post("/force-password-change", asyncHandler(authController.forcePasswordChange));

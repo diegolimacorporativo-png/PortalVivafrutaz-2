@@ -1,6 +1,9 @@
 import { storage } from "../../services/storage";
 import type { Company, User, InsertUser } from "./auth.types";
 import type { InsertCompany } from "@shared/schema";
+import { db } from "../../database/db";
+import { passwordResetTokens } from "@shared/schema";
+import { eq, gt, and } from "drizzle-orm";
 
 /**
  * AuthRepository — the only place the auth module talks to persistence.
@@ -48,9 +51,42 @@ export class AuthRepository {
     return value === "true";
   }
 
-  // ── Password reset ─────────────────────────────────────────────────────
+  // ── Manual password reset request (admin-reviewed flow) ───────────────
   createPasswordResetRequest(companyId: number) {
     return storage.createPasswordResetRequest(companyId);
+  }
+
+  // ── Token-based password reset (self-service flow) ─────────────────────
+  async createResetToken(params: {
+    userId?: number;
+    companyId?: number;
+    token: string;
+    expiresAt: Date;
+  }) {
+    const [row] = await db
+      .insert(passwordResetTokens)
+      .values(params)
+      .returning();
+    return row;
+  }
+
+  async getValidResetToken(token: string) {
+    const [row] = await db
+      .select()
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.token, token),
+          gt(passwordResetTokens.expiresAt, new Date()),
+        ),
+      );
+    return row ?? null;
+  }
+
+  async deleteResetToken(token: string) {
+    await db
+      .delete(passwordResetTokens)
+      .where(eq(passwordResetTokens.token, token));
   }
 
   // ── Audit log ──────────────────────────────────────────────────────────

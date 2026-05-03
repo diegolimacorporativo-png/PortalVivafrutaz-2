@@ -135,19 +135,115 @@ export class AuthService {
     return { kind: "unauthenticated" };
   }
 
-  // ── Forgot password ────────────────────────────────────────────────────
+  // ── Forgot password (token-based self-service) ─────────────────────────
   async requestPasswordReset(email: string): Promise<ForgotPasswordOutcome> {
-    const company = await this.repo.getCompanyByEmail(email);
-    if (!company) {
-      return { found: false, message: "Email não encontrado no sistema." };
+    const normalised = email.toLowerCase().trim();
+
+    // Look up in both tables — admin users take precedence
+    const user = await this.repo.getUserByEmail(normalised);
+    const company = !user ? await this.repo.getCompanyByEmail(normalised) : null;
+
+    // SECURITY: always return the same 200 message — never reveal email existence
+    const SAFE_MESSAGE =
+      "Se o email estiver cadastrado, você receberá um link de recuperação em breve.";
+
+    if (!user && !company) {
+      return { found: false, message: SAFE_MESSAGE };
     }
-    const request = await this.repo.createPasswordResetRequest(company.id);
-    return {
-      found: true,
-      message:
-        "Solicitação enviada! A equipe VivaFrutaz irá redefinir sua senha em breve.",
-      requestId: request.id,
-    };
+
+    const token = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await this.repo.createResetToken({
+      userId: user?.id,
+      companyId: company?.id,
+      token,
+      expiresAt,
+    });
+
+    // DEV MODE — log reset link to console instead of sending email
+    if (process.env.NODE_ENV !== "production") {
+      const baseUrl = process.env.REPLIT_DEV_DOMAIN
+        ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+        : "http://localhost:5000";
+      console.log("\n========================================");
+      console.log("🔑  PASSWORD RESET LINK (dev only)");
+      console.log(`    ${baseUrl}/reset-password?token=${token}`);
+      console.log(`    Account: ${normalised}`);
+      console.log(`    Expires: ${expiresAt.toISOString()}`);
+      console.log("========================================\n");
+    }
+
+    // Keep creating the manual request for companies (legacy admin-reviewed flow)
+    let requestId: number | undefined;
+    if (company) {
+      const req = await this.repo.createPasswordResetRequest(company.id);
+      requestId = req.id;
+    }
+
+    return { found: true, message: SAFE_MESSAGE, requestId };
+  }
+
+  // ── Reset password (token-based self-service) ───────────────────────────
+  async resetPassword(
+    token: string,
+    novaSenha: string,
+    ip: string,
+  ): Promise<import("./auth.types").ResetPasswordOutcome> {
+    const record = await this.repo.getValidResetToken(token);
+    if (!record) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Token inválido ou expirado. Solicite um novo link de recuperação.",
+      };
+    }
+
+    if (novaSenha.length < 8) {
+      return {
+        ok: false,
+        status: 422,
+        message: "A nova senha deve ter pelo menos 8 caracteres.",
+      };
+    }
+
+    // Update the correct entity
+    if (record.userId) {
+      await this.repo.updateUser(record.userId, {
+        password: novaSenha,
+        loginAttempts: 0,
+        isLocked: false,
+      });
+      const user = await this.repo.getUserById(record.userId);
+      await this.repo.log({
+        action: "PASSWORD_RESET",
+        description: `Senha redefinida via token para usuário: ${user?.email ?? record.userId}`,
+        userId: record.userId,
+        userEmail: user?.email,
+        level: "INFO",
+        ip,
+      });
+    } else if (record.companyId) {
+      await this.repo.updateCompany(record.companyId, {
+        password: novaSenha,
+        loginAttempts: 0,
+        isLocked: false,
+      } as any);
+      const company = await this.repo.getCompanyById(record.companyId);
+      await this.repo.log({
+        action: "PASSWORD_RESET",
+        description: `Senha redefinida via token para empresa: ${company?.email ?? record.companyId}`,
+        companyId: record.companyId,
+        userEmail: company?.email,
+        level: "INFO",
+        ip,
+      });
+    }
+
+    // Token is single-use — delete immediately after successful reset
+    await this.repo.deleteResetToken(token);
+
+    return { ok: true, message: "Senha redefinida com sucesso. Você já pode fazer login." };
   }
 
   // ── Log unauthorized access (best-effort) ──────────────────────────────
