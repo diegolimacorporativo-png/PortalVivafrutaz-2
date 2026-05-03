@@ -1,0 +1,136 @@
+FASE FINAL: TENANT HARDENING + ZERO LEAK ARCHITECTURE (STRIPE LEVEL)
+
+OBJETIVO:
+Garantir isolamento total entre tenants com segurança de nível SaaS enterprise (Stripe/Datadog).
+Eliminar qualquer possibilidade de vazamento de dados cross-tenant.
+
+NÃO mudar UI desnecessariamente.
+NÃO quebrar system-state existente.
+NÃO remover compatibilidade legacy ainda.
+FOCO: segurança estrutural.
+
+========================================================
+1. PRINCÍPIO FUNDAMENTAL (OBRIGATÓRIO)
+========================================================
+
+Frontend NUNCA é fonte de verdade.
+Tenant NUNCA pode ser confiado vindo do client.
+
+Regra:
+- Segurança é 100% server-side
+- Frontend apenas exibe contexto
+
+========================================================
+2. TENANT RESOLVER (SERVER AUTHORITATIVE)
+========================================================
+
+Criar camada única de resolução:
+
+function resolveTenant(req) {
+  const user = req.user;
+
+  if (user.role === "MASTER") {
+    return req.query.tenantId || "GLOBAL_VIEW";
+  }
+
+  return user.tenantId;
+}
+
+Regra:
+- apenas MASTER pode trocar tenant via query
+- todos os outros são fixos no tenant do usuário
+
+========================================================
+3. ENFORCEMENT OBRIGATÓRIO EM TODAS AS QUERIES
+========================================================
+
+TODAS as queries devem incluir tenant filter:
+
+SELECT * FROM table WHERE tenant_id = ?
+
+Regra de fallback:
+- legacy NULL rows apenas leitura
+- nunca escrever dados sem tenant_id
+
+========================================================
+4. PROTEÇÃO CONTRA FRONTEND SPOOFING
+========================================================
+
+IGNORAR completamente tenantId vindo do frontend (exceto MASTER via backend validation).
+
+Proibido:
+- confiar em query param direto
+- usar tenantId do client sem resolver no backend
+
+========================================================
+5. DATABASE SAFETY RULES
+========================================================
+
+INSERTS obrigatórios:
+
+INSERT INTO alerts (..., tenant_id)
+VALUES (..., resolvedTenantId)
+
+Regra:
+- nenhum registro novo pode ter tenant_id = NULL
+- NULL apenas para legado read-only
+
+========================================================
+6. MASTER SAFETY MODE (CRÍTICO)
+========================================================
+
+MASTER pode trocar tenant, mas deve ter:
+
+- audit log obrigatório de troca de tenant
+- registro de:
+  - userId
+  - fromTenant
+  - toTenant
+  - timestamp
+
+========================================================
+7. ZERO LEAK GUARANTEE LAYER
+========================================================
+
+Garantir:
+
+Backend:
+- todas queries filtradas por tenant
+- nenhum endpoint retorna dados globais sem controle
+- tenant scope sempre explícito
+
+Frontend:
+- nunca decide segurança
+- apenas exibe tenant atual
+
+Database:
+- índices por tenant_id
+- isolamento lógico obrigatório
+
+========================================================
+8. LEGACY COMPATIBILITY MODE
+========================================================
+
+Manter suporte temporário:
+
+- tenant_id = NULL → considerado GLOBAL LEGACY
+- apenas leitura
+- não migrar ainda (não quebrar sistema)
+
+========================================================
+9. SECURITY RULE (STRIPE STANDARD)
+========================================================
+
+"Se um usuário malicioso mudar o frontend, nenhum dado de outro tenant pode ser acessado"
+
+========================================================
+RESULTADO FINAL ESPERADO
+========================================================
+
+Sistema deve garantir:
+
+- isolamento total entre empresas
+- impossível vazamento cross-tenant
+- segurança server-side forte
+- frontend não influencia segurança
+- pronto para escala SaaS real
