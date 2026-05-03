@@ -15,6 +15,8 @@ export type ActiveAlert = {
   severity: string;
   createdAt: Date;
   actionsTriggered: string[];
+  title?: string;
+  message?: string;
 };
 
 export type SystemState = {
