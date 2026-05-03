@@ -1,0 +1,119 @@
+FASE 16 — VALIDAÇÃO REAL DE PRODUÇÃO (GO/NO-GO AUDIT EXECUTÁVEL)
+
+OBJETIVO:
+Executar uma auditoria REAL do sistema em ambiente rodando (não teórico), validando se o sistema está pronto para produção sob:
+- carga
+- concorrência
+- falhas de infraestrutura
+- restart inesperado
+- multi-instância
+- comportamento NF-e e Auth em situação real
+
+IMPORTANTE:
+Esta fase NÃO pode alterar código.
+Esta fase NÃO pode assumir comportamento.
+Somente evidência observável é válida.
+
+========================================================
+1. AMBIENTE DE TESTE OBRIGATÓRIO
+========================================================
+
+Rodar o sistema em modo real com:
+
+- pelo menos 2 instâncias simultâneas (multi-instance)
+- banco PostgreSQL ativo
+- sessão ativa funcionando
+- NF-e endpoints habilitados
+- logs ativos
+
+Se não for possível multi-instância → reportar como LIMITAÇÃO CRÍTICA.
+
+========================================================
+2. TESTES DE AUTH / SESSION (REAL EXECUTION)
+========================================================
+
+2.1 Login simultâneo
+- 100 requisições simultâneas de login (admin e company)
+
+VALIDAR:
+- não existe race condition em loginAttempts
+- não existe bypass de rate limit
+- lockout é consistente entre instâncias
+
+2.2 Restart test
+- reiniciar uma instância durante sessão ativa
+
+VALIDAR:
+- sessões inválidas não continuam funcionando
+- sessões válidas continuam consistentes
+- não há sessão fantasma
+
+2.3 Fail-closed validation
+- simular DB indisponível durante validateSession()
+
+VALIDAR:
+- sistema deve BLOQUEAR acesso (não permitir fail-open)
+
+========================================================
+3. NF-e (CRÍTICO)
+========================================================
+
+3.1 Crash simulation durante emissão
+- iniciar emissão NF-e
+- forçar crash do processo no meio
+
+VALIDAR:
+- não pode existir NF-e duplicada após restart
+- estado "enviando" não pode gerar inconsistência
+
+3.2 Concurrency test
+- 2 requisições simultâneas mesma NF-e
+
+VALIDAR:
+- apenas 1 emissão real deve ocorrer
+
+========================================================
+4. CARGA E PERFORMANCE
+========================================================
+
+Executar stress test:
+
+- 200 a 1000 req/s em endpoints críticos:
+  - login
+  - orders
+  - NF-e eligible
+
+VALIDAR:
+- sem memory leak
+- sem crash
+- sem crescimento infinito de CPU
+- sem bloqueio de event loop
+
+========================================================
+5. OBSERVABILIDADE
+========================================================
+
+VALIDAR:
+- não existem console.log em auth/NF-e flow
+- todos eventos passam por pipeline central (logAuthEvent / logSecurity)
+- logs são consistentes entre instâncias
+
+========================================================
+6. RESULTADO FINAL (OBRIGATÓRIO)
+========================================================
+
+Retornar:
+
+- FAIL POINTS (com evidência real)
+- RISK LEVEL (baixo / médio / crítico)
+- LISTA DE BUGS REPRODUZIDOS EM EXECUÇÃO REAL
+- DIFERENÇA ENTRE INSTÂNCIAS (se existir)
+- CONCLUSÃO FINAL:
+  - READY FOR PRODUCTION
+  - READY WITH RISKS
+  - NOT READY
+
+IMPORTANTE:
+Não assumir nada.
+Não inferir do código.
+Somente comportamento observado em execução real.
