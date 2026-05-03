@@ -1,0 +1,168 @@
+FASE: FULL SYSTEM AUDIT (READ-ONLY — PRODUCTION VALIDATION)
+
+OBJETIVO:
+Realizar uma auditoria completa do sistema (backend + frontend + segurança + multi-tenant + IA Developer) SEM alterar código, apenas analisando.
+
+========================================================
+ESCOPO
+========================================================
+
+Auditar:
+
+- Todas as rotas (/api/*)
+- Sistema de autenticação
+- Multi-tenant (tenant_id, scoping)
+- Rate limiting
+- Query firewall / auditLogs
+- system-state
+- Control Center (frontend)
+- AI Developer
+- Health endpoints
+- Fluxos críticos (login, import, NF-e)
+
+========================================================
+1. SEGURANÇA DE ROTAS
+========================================================
+
+Verificar:
+
+✔ todas rotas sensíveis usam requireAuthCore  
+✔ todas rotas admin usam requireRole  
+✔ nenhuma rota crítica está pública  
+
+Classificar:
+
+- CRITICAL
+- HIGH
+- MEDIUM
+- OK
+
+========================================================
+2. MULTI-TENANT (ZERO LEAK)
+========================================================
+
+Validar:
+
+✔ todas queries filtram por tenant_id  
+✔ MASTER pode trocar tenant corretamente  
+✔ usuários comuns NÃO conseguem acessar outros tenants  
+
+Testar:
+
+- tentativa de acesso cruzado  
+- endpoints como search, reports, system-state  
+
+========================================================
+3. RATE LIMIT / ABUSE
+========================================================
+
+Verificar:
+
+✔ rotas públicas protegidas (/api/health)  
+✔ rotas sensíveis com limite restrito  
+✔ login protegido contra brute force  
+
+========================================================
+4. AUTH + SESSION
+========================================================
+
+Validar:
+
+✔ sessão expira corretamente  
+✔ frontend trata 401/403  
+✔ nenhuma chamada sem credentials  
+
+========================================================
+5. OBSERVABILIDADE
+========================================================
+
+Verificar:
+
+✔ auditLogs funcionando  
+✔ RATE_LIMITED sendo registrado  
+✔ HEALTH_TEST_EXECUTED sendo registrado  
+
+========================================================
+6. SYSTEM-STATE
+========================================================
+
+Validar:
+
+✔ retorna dados consistentes  
+✔ sem vazamento entre tenants  
+✔ performance adequada  
+
+========================================================
+7. AI DEVELOPER
+========================================================
+
+Validar:
+
+✔ não executa sem auth  
+✔ respeita roles  
+✔ UX de sessão expirada funcionando  
+✔ não faz chamadas anônimas  
+
+========================================================
+8. FRONTEND (CONTROL CENTER)
+========================================================
+
+Validar:
+
+✔ consome apenas /api/admin/system-state  
+✔ não expõe dados sensíveis  
+✔ funciona com auth  
+
+========================================================
+9. HEALTH SYSTEM
+========================================================
+
+Validar:
+
+✔ /api/health público e mínimo  
+✔ /api/admin/health protegido  
+✔ /api/admin/health/test seguro, com cache e lock  
+
+========================================================
+10. PERFORMANCE BÁSICA
+========================================================
+
+Verificar:
+
+✔ endpoints pesados protegidos  
+✔ cache aplicado onde necessário  
+✔ sem loops ou chamadas redundantes  
+
+========================================================
+RESULTADO FINAL
+========================================================
+
+Gerar:
+
+1. Score geral (0–100)
+2. Lista de vulnerabilidades (se houver)
+3. Pontos fortes do sistema
+4. Recomendações finais (curto prazo)
+5. Status final:
+
+- NOT READY
+- PARTIAL
+- PRODUCTION READY
+
+========================================================
+REGRAS
+========================================================
+
+❌ NÃO modificar código  
+❌ NÃO sugerir refatorações grandes  
+✔ apenas análise objetiva  
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Confirmar se o sistema está:
+
+✔ seguro  
+✔ estável  
+✔ pronto para produção real
