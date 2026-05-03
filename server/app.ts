@@ -13,6 +13,8 @@ import {
   apiLimiter,
   nfeLimiter,
   adminLimiter,
+  publicLimiter,
+  searchLimiter,
   highRiskActionLogger,
   criticalActionLogger,
 } from "./core/security/rateLimit";
@@ -109,6 +111,10 @@ export async function buildApp(): Promise<BuildAppResult> {
   app.use("/api/admin", adminLimiter);
   app.use("/api/v1/admin", adminLimiter);
   app.use("/api/admin", criticalActionLogger);
+  // Public endpoint rate-guard (no auth, must be protected against ping-flood)
+  app.use("/api/health", publicLimiter);
+  // Search limiter — 7 SQL queries per request, authenticated users not exempt
+  app.use("/api/search", searchLimiter);
 
   registerV2Modules(app);
   registerV1Modules(app);

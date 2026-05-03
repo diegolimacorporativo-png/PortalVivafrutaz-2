@@ -140,6 +140,38 @@ export const adminLimiter = createRateLimiter(
   "Muitas requisições administrativas. Tente novamente em breve.",
 );
 
+/**
+ * Public limiter — unauthenticated public endpoints (e.g. /api/health).
+ * 60 req/min per IP to prevent external ping-flood abuse.
+ */
+export const publicLimiter = createRateLimiter(
+  60,
+  60_000,
+  "Muitas requisições. Tente novamente em breve.",
+);
+
+/**
+ * Search limiter — authenticated but expensive (7 SQL queries per call).
+ * 60 req/min per IP; authenticated users are not blanket-bypassed here.
+ */
+export const searchLimiter = createRateLimiter(
+  60,
+  60_000,
+  "Muitas requisições de busca. Tente novamente em breve.",
+);
+
+/**
+ * Sensitive action limiter — destructive / high-impact write operations:
+ *   POST /api/import/execute  — bulk DB writes
+ *   POST /api/nfe/cron/run    — fiscal cron trigger
+ * 10 req/min per IP; intentionally tighter than apiLimiter / nfeLimiter.
+ */
+export const sensitiveActionLimiter = createRateLimiter(
+  10,
+  60_000,
+  "Muitas requisições sensíveis. Aguarde antes de tentar novamente.",
+);
+
 // ── High-risk action detector (ETAPA 4) ──────────────────────────────────────
 
 /**

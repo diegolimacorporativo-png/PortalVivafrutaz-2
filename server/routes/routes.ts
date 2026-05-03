@@ -133,6 +133,7 @@ import { register as scopeSimulationsRegister } from './scope-simulations.routes
 import { register as smtpConfigRegister } from './smtp-config.routes';
 import { register as empresaConfigRegister } from './empresa-config.routes';
 import { simpleRateLimit } from '../core/http/rateLimit';
+import { sensitiveActionLimiter } from '../core/security/rateLimit';
 import { register as priceGroupsRegister } from './price-groups.routes';
 import { register as productPricesRegister } from './product-prices.routes';
 import { register as orderWindowsRegister } from './order-windows.routes';
@@ -1034,7 +1035,7 @@ export async function registerRoutes(
   });
 
   // POST /api/import/execute — commit the import to DB
-  app.post('/api/import/execute', requireAuthCore, requireRole(["ADMIN"]), async (req: any, res) => {
+  app.post('/api/import/execute', sensitiveActionLimiter, requireAuthCore, requireRole(["ADMIN"]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return res.status(401).json({ message: 'Não autenticado' });
     try {
@@ -1472,7 +1473,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/cron/run — STEP 9.3D: trigger manual do cron de faturamento
-    app.post('/api/nfe/cron/run', requireAuthCore, requireRole(["MASTER", "ADMIN"]), async (req: any, res) => {
+    app.post('/api/nfe/cron/run', sensitiveActionLimiter, requireAuthCore, requireRole(["MASTER", "ADMIN"]), async (req: any, res) => {
       // Evita execução concorrente: se já está rodando (cron diário ou outro trigger manual), recusa.
       if (isCronRunning()) {
         return res.status(409).json({ error: 'Cron já está em execução. Aguarde terminar.' });
