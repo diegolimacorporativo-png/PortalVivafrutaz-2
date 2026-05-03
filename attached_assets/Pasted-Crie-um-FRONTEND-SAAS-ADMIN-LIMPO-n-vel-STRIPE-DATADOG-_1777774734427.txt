@@ -1,0 +1,252 @@
+Crie um FRONTEND SAAS ADMIN LIMPO nível STRIPE / DATADOG usando Next.js (App Router) + React + TypeScript.
+
+OBJETIVO:
+Transformar o sistema em um Control Center único, limpo e operacional, consumindo APENAS:
+
+GET /api/admin/system-state
+
+NÃO criar backend novo.
+NÃO alterar backend existente.
+APENAS frontend.
+
+========================================================
+STACK
+========================================================
+- Next.js (App Router)
+- React (client components quando necessário)
+- TypeScript
+- CSS inline simples (estilo SaaS limpo Stripe)
+- fetch nativo (sem libs externas)
+
+========================================================
+ARQUITETURA FINAL
+========================================================
+
+/app
+  /admin
+    /control-center
+      page.tsx
+
+/components/ui
+  Card.tsx
+  Badge.tsx
+  Stat.tsx
+
+========================================================
+DESIGN SYSTEM (STRIPE STYLE)
+========================================================
+
+BACKGROUND: #0b0f19
+CARD: #111827
+BORDER: #1f2937
+TEXT: white
+MUTED: rgba(255,255,255,0.6)
+
+STATUS COLORS:
+- success: #22c55e
+- warning: #facc15
+- danger: #ef4444
+
+========================================================
+COMPONENTES
+========================================================
+
+1. CARD
+
+export function Card({ children }) {
+  return (
+    <div style={{
+      background: "#111827",
+      border: "1px solid #1f2937",
+      borderRadius: 12,
+      padding: 16
+    }}>
+      {children}
+    </div>
+  );
+}
+
+--------------------------------------------------------
+
+2. BADGE
+
+export function Badge({ type, text }) {
+  const colors = {
+    success: "#22c55e",
+    warning: "#facc15",
+    danger: "#ef4444"
+  };
+
+  return (
+    <span style={{
+      background: colors[type],
+      padding: "4px 8px",
+      borderRadius: 6,
+      fontSize: 12,
+      fontWeight: 600,
+      color: "black"
+    }}>
+      {text}
+    </span>
+  );
+}
+
+--------------------------------------------------------
+
+3. STAT CARD
+
+export function Stat({ label, value }) {
+  return (
+    <div style={{
+      background: "#111827",
+      border: "1px solid #1f2937",
+      borderRadius: 12,
+      padding: 16
+    }}>
+      <div style={{ fontSize: 12, opacity: 0.6 }}>{label}</div>
+      <div style={{ fontSize: 28, fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+}
+
+========================================================
+CONTROL CENTER PAGE
+========================================================
+
+Crie:
+
+/app/admin/control-center/page.tsx
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { Card } from "@/components/ui/Card";
+import { Stat } from "@/components/ui/Stat";
+import { Badge } from "@/components/ui/Badge";
+
+async function getSystemState() {
+  const res = await fetch("/api/admin/system-state", {
+    cache: "no-store"
+  });
+  return res.json();
+}
+
+export default function ControlCenter() {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    getSystemState().then(setData);
+  }, []);
+
+  if (!data) return <div style={{ color: "white" }}>Loading...</div>;
+
+  return (
+    <div style={{
+      padding: 24,
+      background: "#0b0f19",
+      minHeight: "100vh",
+      color: "white"
+    }}>
+      <h1 style={{ fontSize: 22, marginBottom: 20 }}>
+        Control Center
+      </h1>
+
+      {/* STATUS STRIP */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 20 }}>
+        <Badge type="success" text={data.health} />
+        <Badge type="warning" text={data.protectiveMode} />
+        <Badge type="danger" text={"Risk " + data.risk.global} />
+      </div>
+
+      {/* KPI GRID */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(4, 1fr)",
+        gap: 12
+      }}>
+        <Stat label="Global Risk" value={data.risk.global} />
+        <Stat label="Auth Risk" value={data.risk.auth} />
+        <Stat label="Session Risk" value={data.risk.session} />
+        <Stat label="NF-e Risk" value={data.risk.nfe} />
+      </div>
+
+      {/* ALERTS */}
+      <div style={{ marginTop: 24 }}>
+        <h2>Active Alerts</h2>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {data.alerts?.map(a => (
+            <Card key={a.id}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <b>{a.type}</b>
+                  <div style={{ fontSize: 12, opacity: 0.6 }}>
+                    {a.created_at}
+                  </div>
+                </div>
+
+                <Badge
+                  type={
+                    a.severity === "CRITICAL"
+                      ? "danger"
+                      : a.severity === "HIGH"
+                      ? "warning"
+                      : "success"
+                  }
+                  text={a.severity}
+                />
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* POLICIES */}
+      <div style={{ marginTop: 24 }}>
+        <h2>Policies</h2>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {data.policies?.map(p => (
+            <Card key={p.id}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div>
+                  <b>{p.name}</b>
+                  <div style={{ fontSize: 12, opacity: 0.6 }}>
+                    {p.type}
+                  </div>
+                </div>
+
+                <div style={{ fontWeight: 600 }}>
+                  {p.enabled ? "ON" : "OFF"}
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+========================================================
+REGRAS IMPORTANTES
+========================================================
+
+- NÃO criar backend novo
+- NÃO duplicar dashboards existentes
+- consumir apenas /api/admin/system-state
+- UI limpa estilo Stripe/Datadog
+- foco em simplicidade operacional
+- zero exposição de engines internas
+- sistema deve parecer um produto SaaS real
+
+========================================================
+RESULTADO ESPERADO
+========================================================
+
+Um único Control Center SaaS com:
+
+- KPIs claros
+- Alerts estilo incident system
+- Policies estilo Stripe rules
+- Layout limpo e vendável
