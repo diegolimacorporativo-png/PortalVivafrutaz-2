@@ -6,6 +6,9 @@ import { logSecurityEvent } from "../core/security/securityLogger";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 let healthTestRunning = false;
+let lastHealthTestResult: any | null = null;
+let lastHealthTestAt: number | null = null;
+const CACHE_TTL = 15000;
 
 export async function register(app: Express): Promise<void> {
   // Simple liveness probe
@@ -72,6 +75,18 @@ export async function register(app: Express): Promise<void> {
   app.post('/api/admin/health/test', healthTestLimiter, requireAuthCore, requireRole(["MASTER", "ADMIN"]), async (req, res) => {
     const start = Date.now();
     const session = req.session as any;
+    const now = Date.now();
+    if (lastHealthTestResult && lastHealthTestAt != null && now - lastHealthTestAt < CACHE_TTL) {
+      const cachedResult = { ...lastHealthTestResult };
+      logSecurityEvent({
+        type: "HEALTH_TEST_EXECUTED",
+        userId: session?.userId,
+        ip: req.ip,
+        requestId: (req as any).requestId,
+        metadata: { source: "cache" },
+      });
+      return res.json(cachedResult);
+    }
     if (healthTestRunning) {
       return res.json({ status: "running" });
     }
@@ -80,13 +95,14 @@ export async function register(app: Express): Promise<void> {
     try {
       const runWithTimeout = async (label: string, durationMs: number, action: () => Promise<void>) => {
         let timedOut = false;
-        await Promise.race([
+        const result = await Promise.race([
           action(),
           (async () => {
             await sleep(durationMs);
             timedOut = true;
           })(),
         ]);
+        void result;
         return timedOut ? "error" : "ok";
       };
 
@@ -103,15 +119,19 @@ export async function register(app: Express): Promise<void> {
       };
 
       const status = Object.values(checks).every((v) => v === "ok") ? "ok" : Object.values(checks).some((v) => v === "ok") ? "degraded" : "error";
+      const result = { status, checks, duration_ms: Date.now() - start };
+      lastHealthTestResult = result;
+      lastHealthTestAt = now;
 
       logSecurityEvent({
         type: "HEALTH_TEST_EXECUTED",
         userId: session?.userId,
         ip: req.ip,
         requestId: (req as any).requestId,
+        metadata: { source: "fresh" },
       });
 
-      res.json({ status, checks, duration_ms: Date.now() - start });
+      res.json(result);
     } finally {
       healthTestRunning = false;
     }

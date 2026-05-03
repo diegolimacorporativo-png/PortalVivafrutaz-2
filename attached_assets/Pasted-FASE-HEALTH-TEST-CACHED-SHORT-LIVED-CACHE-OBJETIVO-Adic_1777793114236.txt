@@ -1,0 +1,99 @@
+FASE: HEALTH TEST CACHED (SHORT-LIVED CACHE)
+
+OBJETIVO:
+Adicionar cache de curta duração (10–30s) no endpoint /api/admin/health/test para evitar execuções repetidas desnecessárias, mantendo consistência e segurança.
+
+========================================================
+REGRAS
+========================================================
+
+✔ manter global lock existente  
+✔ manter rate limit (3/min)  
+✔ NÃO remover timeouts  
+✔ NÃO alterar estrutura da resposta  
+
+========================================================
+1. CACHE EM MEMÓRIA (SIMPLES)
+========================================================
+
+Criar no escopo do módulo:
+
+- lastHealthTestResult: any | null
+- lastHealthTestAt: number | null
+
+TTL:
+
+- CACHE_TTL = 15000 (15 segundos)
+
+========================================================
+2. FLUXO DO ENDPOINT
+========================================================
+
+Ordem obrigatória:
+
+1. Verificar cache:
+
+if (lastHealthTestResult && now - lastHealthTestAt < CACHE_TTL)  
+→ retornar resultado cached imediatamente
+
+2. Verificar lock global:
+
+if (isRunning)  
+→ retornar:
+
+{ "status": "running" }
+
+3. Executar novo teste:
+
+- ativar lock
+- rodar checks com timeout
+- montar resultado
+
+4. Salvar no cache:
+
+lastHealthTestResult = result  
+lastHealthTestAt = now  
+
+5. liberar lock
+
+6. retornar resultado
+
+========================================================
+3. CONSISTÊNCIA
+========================================================
+
+Garantir:
+
+✔ nunca retornar cache parcial  
+✔ cache só após execução completa  
+✔ erro também pode ser cacheado por curto período  
+
+========================================================
+4. LOGGING
+========================================================
+
+Manter:
+
+logSecurityEvent({
+  type: "HEALTH_TEST_EXECUTED",
+  source: "fresh" | "cache",
+  userId,
+  requestId
+})
+
+========================================================
+5. NÃO FAZER
+========================================================
+
+❌ não usar Redis agora (overkill)  
+❌ não persistir no banco  
+❌ não cachear por mais de 30s  
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+✔ evitar execuções repetidas  
+✔ reduzir carga no servidor  
+✔ manter resposta rápida  
+✔ comportamento previsível
