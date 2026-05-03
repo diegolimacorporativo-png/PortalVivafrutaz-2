@@ -8,8 +8,8 @@ export async function register(app: Express): Promise<void> {
     res.status(200).json({ status: "ok" });
   });
 
-  // Full health check — DB, auth, session, maintenance, test-mode
-  app.get('/api/health', requireAuthCore, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), async (req, res) => {
+  // Full internal health check
+  app.get('/api/admin/health', requireAuthCore, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), async (req, res) => {
     const start = Date.now();
     const report: any = { timestamp: new Date().toISOString(), checks: {} };
     // DB check
@@ -57,5 +57,10 @@ export async function register(app: Express): Promise<void> {
     report.overall = Object.values(report.checks).every((c: any) => c.status !== 'ERROR') ? 'HEALTHY' : 'DEGRADED';
     report.responseMs = Date.now() - start;
     res.json(report);
+  });
+
+  // Public health check
+  app.get('/api/health', (_req, res) => {
+    res.status(200).json({ status: "ok" });
   });
 }
