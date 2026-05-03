@@ -181,22 +181,18 @@ function ProtectedRoute({
   if (role === 'admin' && !isStaff) return <Redirect to="/client" />;
   if (role === 'client' && !isClient) return <Redirect to="/admin" />;
 
-  // Role-based protection for admin routes — MASTER bypasses all
   if (allowedRoles && user && user.role !== 'MASTER' && !allowedRoles.includes(user.role)) {
-    // Log unauthorized access attempt (fire and forget)
     fetch('/api/auth/log-unauthorized', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ route: location }),
       credentials: 'include',
     }).catch(() => {});
-    // Redirect to first allowed page for NUTRICIONISTA and MOTORISTA
     if (user.role === 'NUTRICIONISTA') return <Redirect to="/admin/sanitary" />;
     if (user.role === 'MOTORISTA') return <Redirect to="/admin/driver-panel" />;
     return <Redirect to="/admin" />;
   }
 
-  // Tab-level permission check (MASTER bypasses all tab restrictions)
   if (tabKey && user && user.role !== 'MASTER') {
     const tabPerms = (user as any).tabPermissions as string[] | null | undefined;
     if (tabPerms && tabPerms.length > 0 && !tabPerms.includes(tabKey)) {
@@ -204,7 +200,6 @@ function ProtectedRoute({
     }
   }
 
-  // Maintenance mode: block clients (not staff)
   if (role === 'client' && maintenance?.enabled) {
     return <MaintenanceScreen />;
   }
@@ -216,7 +211,6 @@ function ProtectedRoute({
   );
 }
 
-// Initial Redirector
 function HomeRoute() {
   const { isAuthenticated, isStaff, isClient, isLoading, user } = useAuth();
   if (isLoading) return <div className="h-screen flex items-center justify-center text-primary font-bold text-xl animate-pulse">Carregando...</div>;
@@ -236,14 +230,10 @@ function Router() {
       <Route path="/login">{() => <Login />}</Route>
       <Route path="/auth">{() => <Login />}</Route>
       <Route path="/equipe">{() => <Login forceAdminTab />}</Route>
-
-      {/* Legacy OS module redirects → Tarefas */}
       <Route path="/os">{() => <Redirect to="/admin/tasks" />}</Route>
       <Route path="/os/:rest*">{() => <Redirect to="/admin/tasks" />}</Route>
       <Route path="/ordem-servico">{() => <Redirect to="/admin/tasks" />}</Route>
       <Route path="/ordem-servico/:rest*">{() => <Redirect to="/admin/tasks" />}</Route>
-
-      {/* Admin Routes */}
       <Route path="/admin">
         {() => <ProtectedRoute component={AdminDashboard} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS']} tabKey="dashboard" />}
       </Route>
@@ -468,7 +458,6 @@ function Router() {
       <Route path="/client/contract-scope">
         {() => <ProtectedRoute component={ClientContractScope} role="client" />}
       </Route>
-
       <Route component={NotFound} />
     </Switch>
   );
