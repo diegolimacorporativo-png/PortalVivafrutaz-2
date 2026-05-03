@@ -1,0 +1,111 @@
+FASE 18.3 — TRUTH & DRIFT DASHBOARD (READ-ONLY VISUAL LAYER)
+
+OBJETIVO:
+Criar um dashboard local (ou página admin opcional) que visualiza:
+
+- divergência entre AUTH REAL vs CLI AUDIT (FASE 18.1.0)
+- comparação do TRUTH LAYER (FASE 18.2)
+- ranking de risco real por entidade
+- detecção de drift estrutural no sistema de autenticação
+
+IMPORTANTE:
+✔ NÃO altera backend
+✔ NÃO altera auth flow
+✔ NÃO cria lógica de segurança em runtime
+✔ SOMENTE visualização + leitura de arquivos/DB
+
+========================================================
+1. ENTRADAS DO DASHBOARD
+========================================================
+
+A) CLI AUDIT OUTPUT
+/scripts/output/cli-auth-audit.json
+
+B) TRUTH LAYER OUTPUT
+/scripts/output/auth-truth-layer.json
+
+C) DB READ ONLY
+- users
+- companies
+- auth_attempts
+- sessions
+
+========================================================
+2. NOVO ARQUIVO (FRONTEND OU CLI UI)
+========================================================
+
+OPÇÃO A (CLI):
+/scripts/auth-drift-dashboard.ts
+
+OPÇÃO B (ADMIN VIEW READ-ONLY):
+/client/pages/admin/auth-drift-dashboard.tsx
+
+========================================================
+3. ESTRUTURA DO DASHBOARD
+========================================================
+
+SEÇÃO 1 — OVERVIEW GLOBAL
+
+- total entidades analisadas
+- total divergências encontradas
+- TRUST SCORE GLOBAL
+- % consistência sistema vs CLI
+
+========================================================
+SEÇÃO 2 — DRIFT CLASSIFICATION
+
+Categorias:
+
+- FALSE_POSITIVE (bloqueio indevido)
+- FALSE_NEGATIVE (falha de bloqueio)
+- SCORE_DRIFT (diferença de risco)
+- OK (consistente)
+
+========================================================
+SEÇÃO 3 — RANKING DE RISCO REAL
+
+Lista ordenada por maior divergência:
+
+[
+  {
+    entityId,
+    type: "user | company",
+    systemDecision,
+    cliDecision,
+    divergenceType,
+    riskScoreSystem,
+    riskScoreCLI,
+    driftScore
+  }
+]
+
+Ordenação:
+→ maior driftScore primeiro
+
+========================================================
+SEÇÃO 4 — HEATMAP DE RISCO
+
+Representação:
+
+- verde = OK
+- amarelo = SCORE_DRIFT leve
+- laranja = FALSE_POSITIVE
+- vermelho = FALSE_NEGATIVE
+
+Agrupamento por:
+- IP cluster
+- companyId
+- userId
+
+========================================================
+SEÇÃO 5 — TOP ANOMALIAS
+
+Mostrar:
+
+- top 10 entidades mais inconsistentes
+- top 10 IPs com maior drift
+- top 10 companies com risco divergente
+- top 10 users com comportamento instável
+
+========================================================
+4. MÉ
