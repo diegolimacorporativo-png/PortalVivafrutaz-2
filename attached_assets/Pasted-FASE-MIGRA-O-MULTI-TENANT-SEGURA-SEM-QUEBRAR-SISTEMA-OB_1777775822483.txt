@@ -1,0 +1,146 @@
+FASE: MIGRAÇÃO MULTI-TENANT SEGURA (SEM QUEBRAR SISTEMA)
+
+OBJETIVO:
+Transformar o sistema atual (single-tenant/global) em um SaaS MULTI-TENANT REAL, mantendo o app funcionando durante toda a migração.
+
+NÃO quebrar auth.
+NÃO quebrar system-state atual.
+NÃO alterar UX existente.
+FAZER migração gradual e segura.
+
+========================================================
+1. NOVO CONCEITO BASE
+========================================================
+
+Adicionar entidade Tenant:
+
+Tenant {
+  id: string
+  name: string
+  plan: "FREE" | "PRO" | "ENTERPRISE"
+}
+
+User passa a ter:
+
+User {
+  id: string
+  name: string
+  role: "MASTER" | "ADMIN" | "DEVELOPER" | "DIRECTOR" | "USER"
+  tenantId: string
+}
+
+========================================================
+2. BACKEND (MIGRAÇÃO SEGURA)
+========================================================
+
+FASE 1 (compatibilidade obrigatória):
+
+- system-state continua funcionando GLOBAL
+- adicionar versão nova: system-state(tenantId)
+
+Criar função paralela:
+
+getSystemState(tenantId?)
+
+Regra:
+- se tenantId existir → retorna dados filtrados
+- se NÃO existir → fallback global (legacy)
+
+========================================================
+3. BANCO DE DADOS (ISOLAMENTO GRADUAL)
+========================================================
+
+Adicionar coluna em tabelas:
+
+- alerts.tenant_id
+- policies.tenant_id
+- events.tenant_id (se existir)
+
+Regra de migração:
+
+- valores antigos = NULL (global legacy)
+- novos registros = sempre tenantId obrigatório
+
+========================================================
+4. API LAYER (SEM BREAKING CHANGE)
+========================================================
+
+Atualizar endpoint:
+
+GET /api/admin/system-state?tenantId=xxx
+
+Regras:
+
+- default = req.user.tenantId
+- MASTER pode ver todos tenants
+- nunca retornar dados cross-tenant
+
+========================================================
+5. FRONTEND (JÁ EXISTE - SÓ CONECTAR)
+========================================================
+
+Control Center já tem:
+
+- tenant bar
+- plan badge
+- permissions UI
+
+Agora ajustar:
+
+fetch:
+/api/admin/system-state?tenantId=activeTenant
+
+Regra:
+- MASTER pode trocar tenant
+- outros usuários fixos no próprio tenant
+
+========================================================
+6. ISOLAMENTO DE SEGURANÇA
+========================================================
+
+OBRIGATÓRIO:
+
+- nenhum alert pode vazar entre tenants
+- nenhuma policy pode ser compartilhada
+- system-state deve ser sempre scoped
+- logs devem conter tenantId
+
+========================================================
+7. MIGRAÇÃO SEGURA (ROLLING)
+========================================================
+
+ETAPAS:
+
+FASE A:
+- manter sistema atual funcionando
+
+FASE B:
+- introduzir tenantId opcional
+
+FASE C:
+- tornar tenantId obrigatório em novos dados
+
+FASE D:
+- desativar leitura global futura
+
+========================================================
+8. REGRAS CRÍTICAS
+========================================================
+
+- ZERO downtime
+- ZERO quebra de auth
+- ZERO mudança brusca de frontend
+- compatibilidade total com sistema atual
+- migração incremental
+
+========================================================
+RESULTADO FINAL
+========================================================
+
+Sistema evolui para:
+
+- SaaS multi-tenant real
+- isolamento total de empresas
+- backend escalável
+- frontend já preparado
+- migração segura sem risco
