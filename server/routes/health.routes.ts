@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 
 export async function register(app: Express): Promise<void> {
   // Simple liveness probe
@@ -8,7 +9,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // Full health check — DB, auth, session, maintenance, test-mode
-  app.get('/api/health', async (req, res) => {
+  app.get('/api/health', requireAuthCore, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), async (req, res) => {
     const start = Date.now();
     const report: any = { timestamp: new Date().toISOString(), checks: {} };
     // DB check

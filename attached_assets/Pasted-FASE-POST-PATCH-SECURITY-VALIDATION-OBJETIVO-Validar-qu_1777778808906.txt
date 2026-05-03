@@ -1,0 +1,101 @@
+FASE: POST-PATCH SECURITY VALIDATION
+
+OBJETIVO:
+Validar que TODAS as rotas críticas e sensíveis estão corretamente protegidas após aplicação dos guards.
+
+========================================================
+1. TESTE DE ACESSO ANÔNIMO
+========================================================
+
+Tentar acessar SEM login:
+
+- /api/settings/*
+- /api/reports/*
+- /api/order-exceptions/*
+- /api/nfe/eligible
+- /api/search
+
+Resultado esperado:
+
+❌ 401 ou 403 em TODOS
+
+========================================================
+2. TESTE POR ROLE
+========================================================
+
+Testar com usuários diferentes:
+
+USER comum:
+❌ não pode acessar rotas admin
+
+ADMIN:
+✔ acesso parcial
+
+MASTER:
+✔ acesso total
+
+Verificar inconsistências
+
+========================================================
+3. TESTE MULTI-TENANT (CRÍTICO)
+========================================================
+
+Logado como empresa A:
+
+Tentar acessar dados da empresa B
+
+Resultado esperado:
+
+❌ impossível acessar
+
+✔ todas queries filtradas por tenant_id
+
+========================================================
+4. TESTE DE ENDPOINTS PERIGOSOS
+========================================================
+
+Validar:
+
+POST /api/nfe/cron/run
+POST /api/import/execute
+
+Somente roles corretas devem conseguir executar
+
+========================================================
+5. SCAN DE ROTAS
+========================================================
+
+Garantir:
+
+✔ nenhuma rota sensível sem requireAuthCore
+✔ nenhuma rota admin sem requireRole
+
+========================================================
+6. TESTE DE FRONTEND
+========================================================
+
+Validar:
+
+✔ Control Center funciona
+✔ dashboards carregam
+✔ nenhuma tela quebrada
+
+========================================================
+7. RESULTADO FINAL
+========================================================
+
+Gerar:
+
+- lista de falhas encontradas
+- score de segurança (0–100)
+- rotas ainda vulneráveis (se houver)
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Garantir que:
+
+✔ não existe acesso não autorizado
+✔ multi-tenant está seguro
+✔ sistema está pronto para produção real

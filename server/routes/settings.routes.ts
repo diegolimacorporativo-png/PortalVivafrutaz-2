@@ -6,7 +6,7 @@ import { requireAuth as requireAuthCore, requireRole } from "../core/http/requir
 export function register(app: Express) {
   // System Settings
   app.get('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req, res) => {
-    const key = req.params.key;
+    const key = String(req.params.key);
     const value = await storage.getSetting(key);
     // For boolean-mode keys, always return {enabled} so toggles work correctly
     if (key === 'maintenance' || key === 'test-mode') {
@@ -20,7 +20,7 @@ export function register(app: Express) {
   app.put('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req, res) => {
     const { value } = req.body;
     if (typeof value !== 'string') return res.status(400).json({ message: 'value required' });
-    await storage.setSetting(req.params.key, value);
+    await storage.setSetting(String(req.params.key), value);
     res.json({ key: req.params.key, value });
   });
 
