@@ -557,6 +557,20 @@ export type EventRiskSnapshot = typeof eventRiskSnapshots.$inferSelect;
 export const insertEventRiskSnapshotSchema = createInsertSchema(eventRiskSnapshots).omit({ id: true, createdAt: true });
 export type InsertEventRiskSnapshot = z.infer<typeof insertEventRiskSnapshotSchema>;
 
+export const systemAlerts = pgTable("system_alerts", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  severity: text("severity").notNull(),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+export type SystemAlert = typeof systemAlerts.$inferSelect;
+export const insertSystemAlertSchema = createInsertSchema(systemAlerts).omit({ createdAt: true });
+export type InsertSystemAlert = z.infer<typeof insertSystemAlertSchema>;
+
 export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({ id: true, createdAt: true });
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;

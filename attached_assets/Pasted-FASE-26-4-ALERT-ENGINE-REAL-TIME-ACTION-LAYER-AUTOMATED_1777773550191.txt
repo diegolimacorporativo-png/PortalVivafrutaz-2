@@ -1,0 +1,240 @@
+FASE 26.4 — ALERT ENGINE (REAL-TIME ACTION LAYER / AUTOMATED RESPONSE SYSTEM)
+
+OBJETIVO:
+Transformar o sistema de “detecção de risco” (FASE 26.3) em um sistema de ação automática controlada.
+
+✔ NÃO altera auth/session/NF-e flows diretamente
+✔ NÃO bloqueia usuários por conta própria sem regra explícita
+✔ NÃO substitui stream processor
+✔ apenas consome o REAL-TIME STATE
+✔ adiciona camada de resposta automática segura
+
+========================================================
+1. CONCEITO CENTRAL
+========================================================
+
+ANTES:
+Stream Processor → detecta risco → atualiza estado
+
+AGORA:
+Stream Processor → detecta risco → ALERT ENGINE → ações controladas
+
+========================================================
+2. NOVO MÓDULO CORE
+========================================================
+
+/server/core/alerts/alert-engine.ts
+
+Responsabilidade:
+
+- consumir real-time state (FASE 26.3)
+- transformar risco em alertas estruturados
+- disparar ações seguras (não destrutivas)
+- notificar admin dashboard
+
+========================================================
+3. TIPOS DE ALERTA
+
+export type SystemAlert = {
+
+  id: string
+
+  type:
+    | "BRUTE_FORCE_DETECTED"
+    | "SESSION_ANOMALY"
+    | "NF_E_FAILURE_STORM"
+    | "SECURITY_THREAT"
+    | "RISK_SPIKE"
+    | "SYSTEM_DEGRADATION"
+
+  severity:
+    | "LOW"
+    | "MEDIUM"
+    | "HIGH"
+    | "CRITICAL"
+
+  entityType?: "user" | "company" | "nfe"
+  entityId?: string
+
+  metadata?: Record<string, any>
+
+  actionsTriggered: string[]
+}
+
+========================================================
+4. REGRAS DE DECISÃO (ACTION ENGINE)
+
+ALERTA NÃO É BLOQUEIO AUTOMÁTICO.
+
+Ele segue regras:
+
+--------------------------------------------------------
+A) BRUTE FORCE
+
+if (authRisk > threshold):
+  → create alert
+  → notify admin
+  → optional: increase rate sensitivity (não bloqueia direto)
+
+--------------------------------------------------------
+B) SESSION ANOMALY
+
+if (sessionRisk high):
+  → alert
+  → force session revalidation flag
+  → NO auto logout imediato
+
+--------------------------------------------------------
+C) NF-E FAILURE STORM
+
+if (nfeRisk high):
+  → alert CRITICAL
+  → pause retry queue (soft throttle)
+  → notify operator
+
+--------------------------------------------------------
+D) SECURITY THREAT
+
+if (securityRisk critical):
+  → alert CRITICAL
+  → enable "protective mode flag"
+  → tighten rate limits dynamically
+
+========================================================
+5. PROTECTIVE MODE (SAFE CONTROL LAYER)
+
+/server/core/security/protective-mode.service.ts
+
+Estado global:
+
+{
+  enabled: boolean,
+  level: "NORMAL" | "ELEVATED" | "LOCKDOWN"
+}
+
+Efeitos:
+
+ELEVATED:
+- stricter rate limits
+- more logging sensitivity
+
+LOCKDOWN:
+- block suspicious patterns only
+- NO full system shutdown
+- NO auth breakage
+
+========================================================
+6. ALERT PIPELINE
+
+REAL-TIME STATE
+      ↓
+ALERT ENGINE
+      ↓
+RULE EVALUATION
+      ↓
+ALERT STORE
+      ↓
+ADMIN NOTIFICATION
+
+========================================================
+7. ALERT STORE (DB)
+
+table: system_alerts
+
+- id
+- type
+- severity
+- entity_type
+- entity_id
+- metadata (jsonb)
+- created_at
+- resolved_at (nullable)
+
+========================================================
+8. NOTIFICATION LAYER (SAFE)
+
+/server/core/alerts/alert-notifier.ts
+
+channels:
+
+✔ admin dashboard (web polling or future websocket)
+✔ internal logs (structured)
+✔ optional email/webhook (future)
+
+NUNCA:
+- não bloqueia request direto
+- não quebra fluxo auth
+- não altera NF-e runtime
+
+========================================================
+9. INTEGRAÇÃO COM STREAM (FASE 26.3)
+
+Stream Processor → chama:
+
+evaluateRisk(state)
+      ↓
+generateAlerts(state)
+      ↓
+emitAlerts()
+
+========================================================
+10. PERFORMANCE MODEL
+
+✔ async only
+✔ non-blocking
+✔ no impact on request latency
+✔ batch persistence optional
+✔ in-memory rule evaluation
+
+========================================================
+11. FAIL SAFE RULE
+
+Se alert engine falhar:
+
+✔ sistema continua funcionando
+✔ apenas perde alertas temporariamente
+✔ event_store continua intacto
+✔ stream continua rodando
+
+========================================================
+12. GOVERNANCE INTEGRATION
+
+Dashboard agora exibe:
+
+- risk score (26.3)
+- active alerts (26.4)
+- alert history
+- protective mode status
+
+========================================================
+13. MIGRAÇÃO SEGURA
+
+ETAPA 1:
+✔ add alert engine (inactive)
+
+ETAPA 2:
+✔ connect stream output
+
+ETAPA 3:
+✔ enable alert generation
+
+ETAPA 4:
+✔ enable protective mode (manual first)
+
+ETAPA 5:
+✔ optional automation tuning
+
+========================================================
+14. REGRA DE OURO
+
+🔴 ALERT ≠ ACTION AUTOMÁTICA CRÍTICA
+🟢 ALERT = DECISION SUPPORT LAYER
+
+========================================================
+FASE 26.4 CONCLUÍDA QUANDO:
+
+✔ alert engine ativo
+✔ alerts sendo gerados em tempo real
+✔ protective mode controlado
+✔ dashboard exibindo alertas
+✔ zero impacto no auth/NF-e flow

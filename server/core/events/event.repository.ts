@@ -1,5 +1,5 @@
 import { db } from "../../database/db";
-import { eventStore, eventRiskSnapshots, type InsertEventStore, type InsertEventRiskSnapshot } from "../../../shared/schema";
+import { eventStore, eventRiskSnapshots, systemAlerts, type InsertEventStore, type InsertEventRiskSnapshot, type InsertSystemAlert } from "../../../shared/schema";
 
 export const eventRepository = {
   async saveEvent(event: { id: string; type: string; entityType?: string; entityId?: string; metadata?: Record<string, any>; timestamp: Date }) {
@@ -20,5 +20,8 @@ export const eventRepository = {
   },
   async saveRiskSnapshot(snapshot: InsertEventRiskSnapshot) {
     await db.insert(eventRiskSnapshots).values(snapshot);
+  },
+  async saveAlert(alert: InsertSystemAlert) {
+    await db.insert(systemAlerts).values(alert);
   },
 };

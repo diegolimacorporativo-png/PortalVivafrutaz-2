@@ -18,6 +18,10 @@ export type RealtimeRiskState = {
     securityEvents: RollingEvent[];
     sessionInvalids: RollingEvent[];
   };
+  protectiveMode: {
+    enabled: boolean;
+    level: "NORMAL" | "ELEVATED" | "LOCKDOWN";
+  };
 };
 
 const MAX_WINDOW = 250;
@@ -28,6 +32,10 @@ export const realtimeState: RealtimeRiskState = {
   nfeRisk: 0,
   securityRisk: 0,
   globalRisk: 0,
+  protectiveMode: {
+    enabled: false,
+    level: "NORMAL",
+  },
   rollingWindows: {
     authFailures: [],
     nfeFailures: [],

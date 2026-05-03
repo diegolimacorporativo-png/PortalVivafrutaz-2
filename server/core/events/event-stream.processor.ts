@@ -2,6 +2,7 @@ import type { SystemEvent } from "./event.emitter";
 import { analyzeEvents } from "./event-analytics.engine";
 import { persistSnapshotIfNeeded } from "./realtime-snapshot.writer";
 import { pruneWindow, pushWindow, realtimeState } from "./realtime-state.store";
+import { evaluateRisk } from "../alerts/alert-engine";
 
 const HOT = 60_000;
 const MEDIUM = 5 * 60_000;
@@ -53,4 +54,7 @@ export async function processEventStream(event: SystemEvent) {
   realtimeState.globalRisk = analysis.riskScores.global;
 
   await persistSnapshotIfNeeded(analysis);
+  realtimeState.protectiveMode.enabled = false;
+  realtimeState.protectiveMode.level = "NORMAL";
+  await evaluateRisk(realtimeState);
 }
