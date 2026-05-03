@@ -1,0 +1,138 @@
+FASE: SCHEMA STABILITY LAYER (ANTI-BREAK / PRODUCTION SAFE BASE)
+
+OBJETIVO:
+Garantir que o shared/schema.ts nunca mais seja corrompido, truncado ou driftado por alterações parciais.
+
+Criar uma camada de proteção estrutural leve que impede:
+- overwrite acidental de schema
+- remoção parcial de tabelas
+- imports quebrados
+- schema drift silencioso
+- inconsistência entre storage e schema
+
+========================================================
+1. PRINCÍPIO BASE (FONTE ÚNICA DA VERDADE)
+========================================================
+
+O arquivo shared/schema.ts é:
+
+- SINGLE SOURCE OF TRUTH
+- nunca pode ser parcialmente sobrescrito
+- nunca pode perder tabelas existentes
+- nunca pode ser editado sem validação estrutural
+
+REGRA:
+"Schema só pode crescer ou ser explicitamente removido via processo controlado"
+
+========================================================
+2. SCHEMA REGISTRY (LOCK LÓGICO)
+========================================================
+
+Criar um registry leve:
+
+SCHEMA_REGISTRY = {
+  auth: ["users", "sessions"],
+  tenant: ["tenants"],
+  system: ["system_state", "alerts", "policies", "events", "audit_logs"],
+  legacy: ["aboutUs", "accountsPayable", "accountsReceivable"]
+}
+
+REGRA:
+- nenhuma tabela fora do registry pode existir
+- qualquer nova tabela deve ser adicionada explicitamente
+
+========================================================
+3. SCHEMA VALIDATION CHECK (DEV ONLY)
+========================================================
+
+Criar função:
+
+function validateSchemaIntegrity(schema) {
+  compare schema exports vs SCHEMA_REGISTRY
+
+  if missing tables:
+    throw error "SCHEMA DRIFT DETECTED"
+
+  if unexpected tables:
+    throw error "UNREGISTERED TABLE DETECTED"
+}
+
+EXECUTAR:
+- em dev startup
+- em build step (opcional leve)
+
+========================================================
+4. STORAGE SAFETY BOUNDARY
+========================================================
+
+storage layer deve obedecer:
+
+- só pode acessar tabelas registradas
+- não pode referenciar schema inexistente
+- não pode criar dependência implícita
+
+REGRA:
+"Storage NEVER defines schema — only consumes it"
+
+========================================================
+5. IMPORT SAFETY RULE (CRÍTICO)
+========================================================
+
+Proibir:
+
+❌ import de schema parcial ou destruído
+❌ uso de campos não registrados
+❌ fallback silencioso de tabela inexistente
+
+Permitir:
+
+✔ import apenas de shared/schema completo
+✔ uso apenas de tabelas registradas
+
+========================================================
+6. SCHEMA EVOLUTION RULE (STRIPE-STYLE)
+========================================================
+
+Mudanças no schema seguem:
+
+1. ADD (seguro)
+   - adicionar nova tabela
+
+2. MODIFY (controlado)
+   - alteração com compatibilidade
+
+3. REMOVE (bloqueado por padrão)
+   - só via processo explícito
+
+========================================================
+7. FAIL-FAST SAFETY (IMPORTANTE)
+========================================================
+
+Se houver inconsistência:
+
+- NÃO iniciar app parcialmente
+- FAIL IMEDIATO no boot
+- log explícito de schema drift
+
+========================================================
+8. GUARANTEE FINAL
+========================================================
+
+Sistema deve garantir:
+
+- schema nunca mais reduzido acidentalmente
+- storage nunca quebra por falta de tabela
+- import sempre consistente
+- build confiável
+- zero schema drift silencioso
+
+========================================================
+RESULTADO FINAL ESPERADO
+========================================================
+
+Sistema atinge:
+
+- schema estável nível produção
+- proteção contra corrupção estrutural
+- base segura para multi-tenant + firewall + audit
+- padrão similar a infra Stripe/Datadog

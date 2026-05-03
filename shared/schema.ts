@@ -2027,3 +2027,42 @@ export const auditLogs = pgTable("audit_logs", {
 export type AuditLog = typeof auditLogs.$inferSelect;
 export const insertAuditLogSchema = createInsertSchema(auditLogs).omit({ timestamp: true });
 export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
+
+export const SCHEMA_REGISTRY = {
+  auth: ["users"],
+  tenant: ["companies"],
+  system: ["systemAlerts", "systemPolicies", "auditLogs"],
+  legacy: ["aboutUs", "accountsPayable", "accountsReceivable"],
+} as const;
+
+const SCHEMA_EXPORTS = {
+  users,
+  companies,
+  systemAlerts,
+  systemPolicies,
+  auditLogs,
+  aboutUs,
+  accountsPayable,
+  accountsReceivable,
+} as const;
+
+export function validateSchemaIntegrity(schema = SCHEMA_EXPORTS): void {
+  const expected = new Set([
+    ...SCHEMA_REGISTRY.auth,
+    ...SCHEMA_REGISTRY.tenant,
+    ...SCHEMA_REGISTRY.system,
+    ...SCHEMA_REGISTRY.legacy,
+  ]);
+  const actual = new Set(Object.keys(schema));
+  const missing = [...expected].filter((key) => !actual.has(key));
+  const unexpected = [...actual].filter((key) => !expected.has(key));
+  if (missing.length || unexpected.length) {
+    throw new Error(
+      `SCHEMA DRIFT DETECTED${missing.length ? ` missing=${missing.join(",")}` : ""}${unexpected.length ? ` unexpected=${unexpected.join(",")}` : ""}`,
+    );
+  }
+}
+
+if (process.env.NODE_ENV !== "production") {
+  validateSchemaIntegrity();
+}
