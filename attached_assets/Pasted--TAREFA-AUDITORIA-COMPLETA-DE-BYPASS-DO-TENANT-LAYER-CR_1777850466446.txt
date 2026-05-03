@@ -1,0 +1,133 @@
+🧠 TAREFA: AUDITORIA COMPLETA DE BYPASS DO TENANT LAYER (CRÍTICO)
+
+Você é um engenheiro sênior de segurança SaaS multi-tenant.
+
+OBJETIVO:
+Encontrar TODOS os pontos no código onde o sistema ainda acessa dados sem passar pelo safeQueryRouter ou sem filtro de tenantId no SQL.
+
+========================================================
+REGRAS OBRIGATÓRIAS
+========================================================
+
+❌ Não modificar código
+❌ Não refatorar
+❌ Não sugerir arquitetura nova ainda
+✔ Apenas analisar, rastrear e identificar falhas reais
+✔ Ser extremamente rigoroso com isolamento de tenant
+
+========================================================
+CONTEXTO IMPORTANTE
+========================================================
+
+O sistema já possui:
+- safeQueryRouter (com shadow + rollout)
+- safe storage methods (getOrdersSafe, getUsersSafe, etc)
+- feature flags de migração
+- tenant context existente
+
+MAS:
+Ainda pode existir código LEGACY que acessa storage diretamente sem filtro.
+
+========================================================
+OBJETIVO DA AUDITORIA
+========================================================
+
+Encontrar qualquer ponto onde:
+
+🚨 storage é chamado diretamente sem safe layer
+🚨 queries SQL não possuem tenantId
+🚨 endpoints bypassam safeQueryRouter
+🚨 IA (Clara) acessa dados sem isolamento
+🚨 admin routes ignoram tenant context
+🚨 relatórios ou aggregations usam full table scan
+🚨 qualquer lógica filtra tenant em memória (JS)
+
+========================================================
+ESCOPO DE ANÁLISE
+========================================================
+
+1. CONTROLLERS / ROUTES
+- verificar TODOS endpoints HTTP
+- identificar chamadas diretas como:
+  storage.getOrders()
+  storage.getUsers()
+  storage.getDrivers()
+  storage.getRoutes()
+
+2. SERVICES
+- qualquer service chamando storage direto
+- especialmente:
+  - billing
+  - logistics
+  - AI (Clara)
+  - admin modules
+
+3. IA / ASSISTANT LAYER
+- verificar se IA acessa storage diretamente
+- verificar bypass de tenant context
+
+4. ADMIN ROUTES
+- endpoints administrativos sem tenant filter
+- qualquer acesso global a dados
+
+5. SAFE ROUTER USAGE
+- verificar onde safeQueryRouter NÃO está sendo usado
+- listar todos os bypasses
+
+6. DATABASE LAYER
+- queries sem WHERE tenantId / companyId
+- full table scans
+- filtering em memória (JS arrays)
+
+========================================================
+CRITÉRIO DE RISCO
+========================================================
+
+Classificar cada achado:
+
+🔴 CRITICAL:
+- vazamento cross-tenant possível
+- acesso global a dados sensíveis
+- bypass de tenant layer
+
+🟠 HIGH:
+- risco de leak em edge cases
+- filtragem em memória
+- inconsistência de tenant context
+
+🟡 MEDIUM:
+- uso inconsistente de safe layer
+- código legado não migrado
+
+========================================================
+FORMATO DE SAÍDA OBRIGATÓRIO
+========================================================
+
+1. RESUMO EXECUTIVO
+- quantos bypass encontrados
+- nível de risco geral
+
+2. CRITICAL ISSUES (P0)
+- arquivo
+- função
+- linha (se possível)
+- explicação do risco real
+
+3. HIGH ISSUES (P1)
+
+4. MEDIUM ISSUES (P2)
+
+5. MAPA DE BYPASS DE TENANT
+- lista de todos os caminhos perigosos
+
+6. COMPONENTES MAIS ARRISCADOS
+- top 5 áreas mais críticas do sistema
+
+7. CONCLUSÃO
+- sistema está realmente protegido ou ainda vulnerável?
+
+========================================================
+REGRA FINAL
+
+Se qualquer endpoint acessa dados sem passar por safeQueryRouter OU sem tenantId no SQL:
+→ considerar como VAZAMENTO POTENCIAL até prova contrária
