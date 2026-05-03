@@ -85,6 +85,8 @@ type SystemStateData = {
   health: HealthStatus;
   recommendation: Recommendation;
   updatedAt: string;
+  tenantScope: string;
+  isMaster: boolean;
 };
 
 type ApiResponse = { success: boolean; data: SystemStateData };
@@ -425,19 +427,29 @@ function UsageBar({ used, limit, color }: { used: number; limit: number; color: 
 export default function ControlCenter() {
   const qc = useQueryClient();
   const { user } = useAuth();
-  const [now, setNow]               = useState(Date.now());
+  const [now, setNow]                     = useState(Date.now());
   const [showPermissions, setShowPermissions] = useState(false);
+  const [activeTenantId, setActiveTenantId]   = useState<string>("");
+  const [tenantInput, setTenantInput]         = useState<string>("");
 
+  const isMasterRole = user?.role === "MASTER";
   const plan       = derivePlan(user?.role);
   const permission = derivePermission(user?.role);
   const planCfg    = PLAN_CONFIG[plan];
   const permCfg    = PERM_CONFIG[permission];
   const PlanIcon   = planCfg.icon;
 
+  /* Derive the URL to fetch: MASTER can pass ?tenantId=xxx, others rely on server-side scoping */
+  const apiUrl = useMemo(() => {
+    const base = "/api/admin/system-state";
+    if (isMasterRole && activeTenantId) return `${base}?tenantId=${encodeURIComponent(activeTenantId)}`;
+    return base;
+  }, [isMasterRole, activeTenantId]);
+
   const { data: resp, isLoading, isFetching } = useQuery<ApiResponse>({
-    queryKey: ["/api/admin/system-state"],
+    queryKey: ["/api/admin/system-state", activeTenantId],
     queryFn: async () => {
-      const res = await fetch("/api/admin/system-state", { credentials: "include" });
+      const res = await fetch(apiUrl, { credentials: "include" });
       if (!res.ok) throw new Error("Failed to load system state");
       return res.json();
     },
@@ -524,7 +536,6 @@ export default function ControlCenter() {
               border: `1px solid ${CC.border}`,
               borderRadius: 8,
               padding: "6px 12px",
-              cursor: "default",
             }}
             data-testid="tenant-selector"
           >
@@ -534,6 +545,90 @@ export default function ControlCenter() {
             </span>
             <Pill text={user?.role ?? "—"} color={CC.info} />
           </div>
+
+          {/* Tenant scope badge — shows what data is being viewed */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: CC.card,
+              border: `1px solid ${CC.border}`,
+              borderRadius: 8,
+              padding: "6px 10px",
+            }}
+            data-testid="tenant-scope-badge"
+          >
+            <Eye size={12} color={CC.muted} />
+            <span style={{ fontSize: 11, color: CC.muted }}>Scope:</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: (state.tenantScope === "global" ? CC.warning : CC.success) }}>
+              {state.tenantScope === "global" ? "Global" : `Tenant ${state.tenantScope}`}
+            </span>
+          </div>
+
+          {/* MASTER-only: tenant switcher */}
+          {isMasterRole && (
+            <form
+              onSubmit={e => {
+                e.preventDefault();
+                setActiveTenantId(tenantInput.trim());
+                qc.invalidateQueries({ queryKey: ["/api/admin/system-state", tenantInput.trim()] });
+              }}
+              style={{ display: "flex", alignItems: "center", gap: 6 }}
+              data-testid="tenant-switcher"
+            >
+              <input
+                type="text"
+                value={tenantInput}
+                onChange={e => setTenantInput(e.target.value)}
+                placeholder="Tenant ID (empresaId)…"
+                style={{
+                  background: CC.card,
+                  border: `1px solid ${CC.border}`,
+                  borderRadius: 6,
+                  padding: "5px 10px",
+                  color: CC.text,
+                  fontSize: 12,
+                  width: 180,
+                  outline: "none",
+                }}
+                data-testid="input-tenant-id"
+              />
+              <button
+                type="submit"
+                style={{
+                  background: CC.info + "20",
+                  border: `1px solid ${CC.info}40`,
+                  color: CC.info,
+                  borderRadius: 6,
+                  padding: "5px 10px",
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+                data-testid="button-switch-tenant"
+              >
+                Scope
+              </button>
+              {activeTenantId && (
+                <button
+                  type="button"
+                  onClick={() => { setActiveTenantId(""); setTenantInput(""); }}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: CC.muted,
+                    cursor: "pointer",
+                    fontSize: 11,
+                    padding: "5px 6px",
+                  }}
+                  data-testid="button-clear-tenant"
+                >
+                  × Global
+                </button>
+              )}
+            </form>
+          )}
 
           {/* Plan badge */}
           <div
@@ -580,7 +675,7 @@ export default function ControlCenter() {
             <LiveIndicator />
             <button
               type="button"
-              onClick={() => qc.invalidateQueries({ queryKey: ["/api/admin/system-state"] })}
+              onClick={() => qc.invalidateQueries({ queryKey: ["/api/admin/system-state", activeTenantId] })}
               disabled={isFetching}
               style={{
                 display: "flex",

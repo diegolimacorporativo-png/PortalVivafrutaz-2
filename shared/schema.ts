@@ -566,6 +566,7 @@ export const systemAlerts = pgTable("system_alerts", {
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   resolvedAt: timestamp("resolved_at"),
+  tenantId: text("tenant_id"),
 });
 export type SystemAlert = typeof systemAlerts.$inferSelect;
 export const insertSystemAlertSchema = createInsertSchema(systemAlerts).omit({ createdAt: true });
@@ -580,6 +581,7 @@ export const systemPolicies = pgTable("system_policies", {
   enabled: boolean("enabled").default(true).notNull(),
   priority: integer("priority").default(0).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  tenantId: text("tenant_id"),
 });
 export type SystemPolicy = typeof systemPolicies.$inferSelect;
 export const insertSystemPolicySchema = createInsertSchema(systemPolicies).omit({ id: true, createdAt: true });
