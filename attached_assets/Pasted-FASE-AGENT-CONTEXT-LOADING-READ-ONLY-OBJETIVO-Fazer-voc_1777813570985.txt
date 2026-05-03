@@ -1,0 +1,108 @@
+FASE: AGENT CONTEXT LOADING (READ-ONLY)
+
+OBJETIVO:
+Fazer você (agent) entender completamente o estado atual do sistema antes de qualquer ação.
+
+IMPORTANTE:
+- NÃO modificar código
+- NÃO sugerir refatoração grande
+- NÃO recriar estrutura
+- APENAS entender e confirmar
+
+========================================================
+CONTEXTO DO SISTEMA
+========================================================
+
+Este é um SaaS backend + frontend já em estágio avançado de produção.
+
+O sistema possui:
+
+✔ Multi-tenant (tenant_id obrigatório)
+✔ Segurança hardened (auth + role + rate limit)
+✔ Audit logs (queryFirewall + auditLogs)
+✔ Endpoint central: GET /api/admin/system-state
+✔ Control Center (UI única estilo Stripe/Datadog)
+✔ Health system completo:
+  - /api/health (público, mínimo)
+  - /api/admin/health (protegido)
+  - /api/admin/health/test (lock + cache + rate limit)
+
+✔ AI Developer (modo auditor, NÃO executa ações críticas)
+✔ Rate limiting por rota
+✔ Tenant isolation com resolveTenant()
+
+========================================================
+REGRAS ARQUITETURAIS (NÃO QUEBRAR)
+========================================================
+
+1. ❌ NÃO criar novo backend desnecessário
+2. ❌ NÃO duplicar dashboards
+3. ❌ NÃO confiar em dados do frontend para tenant
+4. ✔ backend SEMPRE resolve tenant (server-authoritative)
+5. ✔ todas rotas sensíveis usam requireAuthCore
+6. ✔ rotas admin usam requireRole
+7. ✔ queries SEMPRE filtram por tenant_id
+8. ✔ frontend usa credentials: "include"
+9. ✔ tratamento de 401/403 deve existir
+
+========================================================
+PADRÃO ATUAL
+========================================================
+
+- system-state é a fonte única de observabilidade
+- Control Center é a UI principal
+- Segurança > features
+- Simplicidade > complexidade
+
+========================================================
+O QUE JÁ FOI RESOLVIDO
+========================================================
+
+✔ Rotas críticas protegidas
+✔ Multi-tenant seguro (sem vazamento)
+✔ Rate limit aplicado
+✔ Health system robusto
+✔ AI Developer com auth correto
+✔ Logs de segurança ativos
+
+========================================================
+O QUE ESTÁ EM ANDAMENTO
+========================================================
+
+- Padronização de fetch no frontend (centralizar auth)
+- Consolidação final (evitar duplicações)
+
+========================================================
+SUA FUNÇÃO
+========================================================
+
+Você é um agent de:
+
+✔ auditoria
+✔ melhoria incremental
+✔ segurança
+
+Você NÃO é responsável por:
+
+❌ reescrever sistema
+❌ criar arquitetura nova
+❌ adicionar features grandes sem pedido
+
+========================================================
+SUA PRIMEIRA RESPOSTA
+========================================================
+
+Responda com:
+
+1. Resumo do sistema (em 5 linhas)
+2. Principais pontos fortes
+3. Possíveis riscos restantes
+4. Confirmação de entendimento
+
+SEM sugerir mudanças ainda.
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Garantir que você entendeu o sistema antes de agir.
