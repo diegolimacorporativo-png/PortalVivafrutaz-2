@@ -1,0 +1,145 @@
+FASE: SAAS CONTROL CENTER FINAL (PRODUCT POLISH / STRIPE UX LEVEL)
+
+OBJETIVO:
+Transformar o Control Center atual em um painel SaaS final, limpo, rápido e comercialmente utilizável.
+
+FOCO:
+- UX de produto real (Stripe / Datadog style)
+- clareza operacional
+- simplicidade extrema
+- zero complexidade técnica exposta
+
+========================================================
+1. PRINCÍPIO DE DESIGN
+========================================================
+
+REGRA PRINCIPAL:
+
+"Se não ajuda decisão rápida, não existe na UI"
+
+Eliminar:
+- excesso de métricas técnicas
+- nesting profundo
+- painéis redundantes
+- informações duplicadas (risk/alerts/policies repetidos)
+
+========================================================
+2. ESTRUTURA FINAL DA UI (1 TELA PRINCIPAL)
+========================================================
+
+CONTROL CENTER ÚNICO:
+
+[TOP BAR]
+- Tenant (nome + status)
+- Health badge (OK / DEGRADED / CRITICAL)
+- Protective Mode (NORMAL / ELEVATED / LOCKDOWN)
+- Refresh + Live indicator
+
+--------------------------------------------------------
+
+[SECTION 1: SYSTEM OVERVIEW]
+- Global Risk Score (único número principal)
+- System Health (status visual simples)
+- Active Alerts count
+- Critical Issues count
+
+👉 tudo em cards minimalistas
+
+--------------------------------------------------------
+
+[SECTION 2: RISK BREAKDOWN]
+- Auth
+- Session
+- NF-e
+- Security
+
+UI:
+- barras horizontais simples
+- cores só para status (verde/amarelo/vermelho)
+
+--------------------------------------------------------
+
+[SECTION 3: LIVE INCIDENTS]
+- lista de alerts ativos
+- severity badge
+- timestamp
+- tipo
+
+REGRA:
+mostrar só o que importa agora
+
+--------------------------------------------------------
+
+[SECTION 4: POLICIES (SIMPLIFICADO)]
+- enabled / disabled
+- nome da regra
+- impacto (LOW / MEDIUM / HIGH)
+
+SEM edição avançada aqui (somente status)
+
+========================================================
+3. REMOÇÃO DE COMPLEXIDADE
+========================================================
+
+REMOVER DA UI:
+- duplicação de alerts/policies em múltiplos lugares
+- gráficos complexos desnecessários
+- qualquer “engine status”
+- qualquer referência a schema/infra
+
+========================================================
+4. DATA LAYER (IMPORTANTE)
+========================================================
+
+UI consome APENAS:
+
+GET /api/admin/system-state
+
+REGRA:
+- nenhuma nova API
+- nenhum endpoint extra
+- tudo derivado desse state
+
+========================================================
+5. UX PRINCIPLES (STRIPE STYLE)
+========================================================
+
+- 1 tela = visão completa do sistema
+- decisões em 5 segundos
+- zero poluição visual
+- foco em status, não em dados técnicos
+
+========================================================
+6. PERFORMANCE
+========================================================
+
+- fetch leve (30s interval)
+- sem re-render pesado
+- sem libs desnecessárias
+- UI sempre instantânea
+
+========================================================
+7. FINAL RESULT
+========================================================
+
+O Control Center deve parecer:
+
+- Stripe Dashboard (clean SaaS)
+- Datadog overview (mas simplificado)
+- painel operacional real
+
+Não parecer:
+- painel de dev interno
+- debug tool
+- console técnico
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Sistema atinge estado:
+
+✔ pronto para cliente real
+✔ pronto para demo comercial
+✔ pronto para escala SaaS
+✔ UI simples e vendável
