@@ -9,6 +9,8 @@ import { desc } from "drizzle-orm";
 import { fireNotification } from "../services/pushService";
 // FASE 14.5 — Clara IA MUST use the provisioning service; direct storage.createCompany is forbidden
 import { createCompanyFromClaraAI } from "../modules/auth/userProvisioningService";
+// FASE MT-1 — tenant-safe query routing for Clara IA (eliminates P0 cross-tenant bypass)
+import { routeGetOrders, routeGetRoutes } from "../core/tenant/safeQueryRouter";
 
 export function register(app: Express) {
   // ─── IA ASSISTENTE VIRTUAL (Interactive AI Chat) ──────────────
@@ -53,6 +55,20 @@ export function register(app: Express) {
 
     const isAdmin = user && ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role);
     const isInternal = !!user;
+
+    // FASE MT-1 — resolve tenant from request context (never falls back to global).
+    // Internal users: user.empresaId; portal companies: company.id.
+    // If null, data-fetching intents return [] rather than leaking cross-tenant rows.
+    const tenantId: number | null =
+      company?.id ?? (company as any)?.empresaId ?? user?.empresaId ?? null;
+
+    // Tenant-safe wrappers — used by every isInternal data-fetching intent below.
+    // Returns [] when tenantId is unresolvable so responses degrade gracefully
+    // without ever falling back to a full-table scan.
+    const safeGetOrders = (): Promise<any[]> =>
+      tenantId ? routeGetOrders(tenantId) : Promise.resolve([]);
+    const safeGetRoutes = (): Promise<any[]> =>
+      tenantId ? routeGetRoutes(tenantId) : Promise.resolve([]);
 
     let intent = 'unknown';
     let response = '';
@@ -306,7 +322,7 @@ export function register(app: Express) {
     else if (isInternal && /pedido|pedidos/.test(msg)) {
       intent = 'query_orders';
       try {
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const today = new Date().toISOString().split('T')[0];
         const todayOrders = allOrders.filter((o: any) => o.deliveryDate?.toString().startsWith(today) || o.orderDate?.toString().startsWith(today));
         const pending = allOrders.filter((o: any) => o.status === 'PENDING' || o.status === 'ACTIVE');
@@ -338,7 +354,7 @@ export function register(app: Express) {
         const inactive = allCompanies.filter((c: any) => !c.active);
 
         if (/não pediram|nao pediram|sem pedido|não fizeram pedido|nao fizeram/.test(msg)) {
-          const allOrders = await storage.getOrders();
+          const allOrders = await safeGetOrders();
           const activeWindow = await storage.getActiveOrderWindow();
           const weekRef = activeWindow?.weekReference;
           const companiesWithOrders = new Set(
@@ -396,7 +412,7 @@ export function register(app: Express) {
     else if (isInternal && /compra|compras|lista de compras|plano de compras|planejamento|o que comprar|precisa comprar/.test(msg)) {
       intent = 'query_purchases';
       try {
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const activeWindow = await storage.getActiveOrderWindow();
         const weekRef = activeWindow?.weekReference;
         const weekOrders = weekRef ? allOrders.filter((o: any) => o.weekReference === weekRef && o.status !== 'CANCELLED') : [];
@@ -421,7 +437,7 @@ export function register(app: Express) {
     else if (isInternal && /rota|rotas|logística|logistica|entrega|entregas|janela de entrega|janelas|horário de entrega/.test(msg)) {
       intent = 'query_routes';
       try {
-        const routes = await storage.getRoutes();
+        const routes = await safeGetRoutes();
         const activeWindow = await storage.getActiveOrderWindow();
         let routeLines = '';
         if (routes.length > 0) {
@@ -461,7 +477,7 @@ export function register(app: Express) {
     else if (isInternal && /sistema|auditoria|saúde|saude|erros|alertas|status do sistema/.test(msg)) {
       intent = 'system_status';
       try {
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const confirmed = allOrders.filter((o: any) => o.status === 'CONFIRMED').length;
         const pending = allOrders.filter((o: any) => o.status === 'PENDING' || o.status === 'ACTIVE').length;
         response = `🔧 **Status do Sistema**\n\n• Pedidos confirmados: ${confirmed}\n• Pedidos pendentes: ${pending}\n• Total de pedidos: ${allOrders.length}\n\nPara auditoria completa → Menu → Área do Desenvolvedor → Auditoria\nPara alertas preditivos → Menu → IA Operacional`;
@@ -543,7 +559,7 @@ export function register(app: Express) {
 
       // Count orders for this period
       try {
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const now = new Date();
         let dateFrom: Date | null = null;
         if (period === 'today') dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -580,7 +596,7 @@ export function register(app: Express) {
       intent = 'commercial_risk';
       try {
         const now = Date.now();
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const allCompanies = await storage.getCompanies();
         const activeCompanies = allCompanies.filter((c: any) => c.active);
         const ordersByCompany: Record<number, any[]> = {};
@@ -620,7 +636,7 @@ export function register(app: Express) {
       try {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const validOrders = allOrders.filter((o: any) => o.status !== 'CANCELLED');
         const thisMonthOrders = validOrders.filter((o: any) => new Date(o.orderDate || o.createdAt) >= startOfMonth);
         const thisMonthRevenue = thisMonthOrders.reduce((s: number, o: any) => s + parseFloat(o.totalValue || '0'), 0);
@@ -643,7 +659,7 @@ export function register(app: Express) {
     else if (isInternal && /faturamento por cliente|ranking de cliente|clientes mais rentáveis|clientes mais rentaveis|top clientes/.test(msg)) {
       intent = 'financial_ranking';
       try {
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const allCompanies = await storage.getCompanies();
         const validOrders = allOrders.filter((o: any) => o.status !== 'CANCELLED');
         const byCompany: Record<number, { name: string; total: number }> = {};
@@ -663,8 +679,8 @@ export function register(app: Express) {
     else if (isInternal && /analisar logística|analisar logistica|agenda de entrega|quantas entrega|capacidade de entrega|rotas disponíveis|rotas disponiveis|logística de amanhã|logistica de amanha/.test(msg)) {
       intent = 'logistics_analysis';
       try {
-        const allOrders = await storage.getOrders();
-        const routes = await storage.getRoutes();
+        const allOrders = await safeGetOrders();
+        const routes = await safeGetRoutes();
         const activeWindow = await storage.getActiveOrderWindow();
         const activeOrders = allOrders.filter((o: any) => !['CANCELLED'].includes(o.status));
         const withDelivery = activeOrders.filter((o: any) => o.deliveryDate);
@@ -685,7 +701,7 @@ export function register(app: Express) {
     else if (isInternal && /analisar eficiência|eficiencia do sistema|analisar sistema|auto otimização|auto otimizacao|gargalo|processos lentos/.test(msg)) {
       intent = 'system_efficiency';
       try {
-        const allOrders = await storage.getOrders();
+        const allOrders = await safeGetOrders();
         const now = Date.now();
         const recent = allOrders.filter((o: any) => now - new Date(o.orderDate || o.createdAt).getTime() < 7 * 86400000);
         const pending = recent.filter((o: any) => ['PENDING', 'ACTIVE'].includes(o.status));

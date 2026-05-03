@@ -1,0 +1,69 @@
+🧠 TAREFA: CORRIGIR IA LAYER (CLARA) — ELIMINAR BYPASS DE TENANT
+
+Você está trabalhando no sistema SaaS multi-tenant.
+
+OBJETIVO:
+Eliminar qualquer acesso direto a storage.getOrders/getUsers/getRoutes dentro do assistant.routes.ts (Clara IA), garantindo isolamento por tenant.
+
+========================================================
+REGRAS
+========================================================
+
+❌ Não quebrar endpoints existentes
+❌ Não alterar arquitetura geral
+✔ Apenas corrigir acesso a dados
+✔ Garantir tenantId obrigatório
+✔ Usar safeQueryRouter OU repositories já tenant-safe
+
+========================================================
+ARQUIVO CRÍTICO
+========================================================
+server/routes/assistant.routes.ts
+
+========================================================
+PROBLEMA ATUAL
+========================================================
+
+O endpoint POST /api/assistant/chat contém múltiplas chamadas diretas como:
+
+- storage.getOrders()
+- storage.getUsers()
+- storage.getRoutes()
+
+SEM filtro de tenantId.
+
+Isso causa:
+🚨 vazamento cross-tenant via IA
+🚨 acesso global de dados sensíveis
+🚨 risco P0 de segurança
+
+========================================================
+OBJETIVO DA CORREÇÃO
+========================================================
+
+Substituir TODAS as chamadas diretas por:
+
+✔ routeGetOrders(companyId)
+✔ routeGetUsers(companyId)
+✔ routeGetRoutes(companyId)
+
+OU repositories já com tenantWhere aplicado.
+
+========================================================
+REGRAS DE SEGURANÇA
+========================================================
+
+- companyId DEVE vir do contexto da requisição
+- NUNCA permitir fallback para dados globais dentro da IA
+- IA só pode ver dados do tenant atual
+- remover qualquer full-table scan
+
+========================================================
+VALIDAÇÃO FINAL
+========================================================
+
+Após alteração:
+
+✔ IA só retorna dados do tenant atual
+✔ nenhuma função storage.* direta no arquivo
+✔ zero acesso cross-tenant possível via chat
