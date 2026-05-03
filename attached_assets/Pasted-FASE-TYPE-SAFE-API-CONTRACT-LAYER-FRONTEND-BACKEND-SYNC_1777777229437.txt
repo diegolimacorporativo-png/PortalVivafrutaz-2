@@ -1,0 +1,145 @@
+FASE: TYPE-SAFE API CONTRACT LAYER (FRONTEND ↔ BACKEND SYNC)
+
+OBJETIVO:
+Criar uma camada de contrato único entre frontend e backend para garantir:
+
+- ZERO mismatch entre API e UI
+- ZERO endpoint quebrado silencioso
+- TIPAGEM compartilhada real (source of truth)
+- EVOLUÇÃO segura de endpoints
+
+========================================================
+1. PROBLEMA QUE RESOLVE
+========================================================
+
+Hoje o sistema pode ter:
+
+- frontend esperando campos inexistentes
+- backend mudando response sem aviso
+- endpoints desatualizados
+- risk de runtime bugs invisíveis
+
+========================================================
+2. SOLUÇÃO: API CONTRACT REGISTRY
+========================================================
+
+Criar:
+
+API_CONTRACT = {
+  "GET /api/admin/system-state": {
+    response: "SystemState"
+  },
+
+  "GET /api/admin/alerts": {
+    response: "Alert[]"
+  },
+
+  "GET /api/admin/policies": {
+    response: "Policy[]"
+  }
+}
+
+REGRA:
+- todo endpoint deve existir no contract
+- toda response deve ter tipo explícito
+
+========================================================
+3. SHARED TYPES LAYER
+========================================================
+
+Criar:
+
+/shared/contracts/types.ts
+
+Contém:
+
+- SystemState
+- Alert
+- Policy
+- Tenant
+- RiskMetrics
+
+REGRA:
+- frontend e backend importam daqui
+- nunca duplicar tipos
+
+========================================================
+4. API CLIENT TYPE-SAFE
+========================================================
+
+Criar client:
+
+/client/lib/api.ts
+
+Exemplo:
+
+async function getSystemState(): Promise<SystemState> {
+  return fetch("/api/admin/system-state").then(r => r.json());
+}
+
+REGRA:
+- sempre retorna types do contract
+- nunca any
+- nunca implicit
+
+========================================================
+5. BACKEND CONTRACT ENFORCEMENT
+========================================================
+
+No backend:
+
+- responses DEVEM bater com contract
+- middleware valida shape (dev mode)
+- mismatch gera warning ou fail
+
+========================================================
+6. FRONTEND CONTRACT BINDING
+========================================================
+
+Frontend:
+
+- usa somente types do shared contract
+- nunca define interface local duplicada
+- UI depende 100% do contract
+
+========================================================
+7. VERSIONING (STRIPE STYLE PREPARATION)
+========================================================
+
+Preparar estrutura:
+
+/v1
+/v2
+
+REGRA:
+- breaking changes só via versionamento
+- nunca modificar contrato silenciosamente
+
+========================================================
+8. SAFETY GUARANTEES
+========================================================
+
+Sistema garante:
+
+- frontend nunca quebra silenciosamente
+- backend nunca muda contrato sem controle
+- API sempre previsível
+- types sempre sincronizados
+
+========================================================
+9. STRIPE PRINCIPLE
+========================================================
+
+"API is a contract, not an implementation detail"
+
+========================================================
+RESULTADO FINAL
+========================================================
+
+Sistema atinge:
+
+- frontend/backend fully synchronized
+- zero runtime mismatch
+- scalable API evolution
+- production-grade type safety
+- Stripe-level API discipline

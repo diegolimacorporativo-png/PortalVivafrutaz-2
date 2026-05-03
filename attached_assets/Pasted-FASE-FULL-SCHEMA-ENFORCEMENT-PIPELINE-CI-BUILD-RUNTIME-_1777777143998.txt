@@ -1,0 +1,153 @@
+FASE: FULL SCHEMA ENFORCEMENT PIPELINE (CI + BUILD + RUNTIME)
+
+OBJETIVO:
+Transformar o schema system em um sistema de contrato totalmente imutável e enforceable em todos os níveis:
+
+- Runtime (dev/prod)
+- Build-time
+- CI/CD pipeline
+
+Garantir:
+- ZERO schema drift
+- ZERO imports inválidos
+- ZERO tabelas não registradas
+- FAIL FAST em qualquer inconsistência
+
+========================================================
+1. BASE EXISTENTE (CONTEXT)
+========================================================
+
+Já existe:
+
+- shared/schema.ts (fonte da verdade)
+- SCHEMA_REGISTRY (inventário)
+- validateSchemaIntegrity() (dev-only check)
+
+Agora vamos EVOLUIR isso para enforcement total.
+
+========================================================
+2. RUNTIME ENFORCEMENT (DEV + PROD SAFE)
+========================================================
+
+Criar modo:
+
+SCHEMA_ENFORCEMENT_MODE = true
+
+Regras:
+
+- validar schema no boot
+- bloquear inicialização se houver drift
+- log detalhado de inconsistências
+
+SE FALHAR:
+throw new Error("SCHEMA ENFORCEMENT FAILED - SYSTEM BLOCKED")
+
+========================================================
+3. BUILD-TIME GATE (CRÍTICO)
+========================================================
+
+Adicionar verificação no build:
+
+STEP 1:
+scan shared/schema.ts exports
+
+STEP 2:
+comparar com SCHEMA_REGISTRY
+
+STEP 3:
+se mismatch:
+
+❌ FAIL BUILD IMMEDIATELY
+
+Mensagem:
+"Schema contract violation detected"
+
+========================================================
+4. CI/CD INTEGRATION (STRIPE-LEVEL SAFETY)
+========================================================
+
+Adicionar step no pipeline:
+
+- run schema validation script
+- run registry consistency check
+- block merge if failure
+
+REGRA:
+"no schema drift can reach main branch"
+
+========================================================
+5. IMPORT ENFORCEMENT LAYER
+========================================================
+
+Criar guard de import:
+
+RULES:
+- only allow schema keys present in SCHEMA_REGISTRY
+- block dynamic/unknown table imports
+- disallow partial schema imports outside contract
+
+========================================================
+6. STORAGE CONTRACT BOUNDARY
+========================================================
+
+storage layer rules:
+
+✔ may ONLY consume schema from registry
+❌ cannot define or infer schema
+❌ cannot reference unregistered tables
+
+========================================================
+7. CONTRACT VALIDATION PIPELINE
+========================================================
+
+ORDER OF EXECUTION:
+
+1. CI check (pre-merge)
+2. Build-time validation
+3. Runtime boot validation
+4. Dev hot-reload validation (optional)
+
+ALL MUST PASS
+
+========================================================
+8. FAIL-FAST POLICY (CRITICAL)
+========================================================
+
+ANY violation must:
+
+- stop build OR
+- stop server boot (depending on environment)
+
+NO silent fallback allowed
+
+========================================================
+9. STRIPE-LEVEL PRINCIPLE
+========================================================
+
+"Schema is not flexible data — it is a contract"
+
+RULE:
+If it's not in the contract, it does not exist.
+
+========================================================
+10. FINAL GUARANTEE
+========================================================
+
+After implementation:
+
+- impossible to deploy broken schema
+- impossible to drift silently
+- impossible to import invalid tables
+- schema becomes fully governed system asset
+- production stability significantly increased
+
+========================================================
+RESULT
+========================================================
+
+System reaches:
+
+- Stripe-level schema governance
+- CI-enforced contract integrity
+- runtime safety guarantees
+- zero structural drift ever again
