@@ -32,10 +32,6 @@ import { sql } from "drizzle-orm";
 export const NFE_BLOCKING_STATUSES = [
   "gerada",
   "assinada",
-  // "enviando" is set by nfe-transmit.service.ts BEFORE the SEFAZ call.
-  // A crash after this transition releases the advisory lock (session-scoped)
-  // but leaves the nfe_emissoes record in this state. Including it here ensures
-  // a post-crash restart cannot create a second NF-e for the same order.
   "enviando",
   "enviada",
   "autorizada",

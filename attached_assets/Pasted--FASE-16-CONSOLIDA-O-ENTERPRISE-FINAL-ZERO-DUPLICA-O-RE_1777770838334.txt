@@ -1,0 +1,177 @@
+# FASE 16 — CONSOLIDAÇÃO ENTERPRISE FINAL (ZERO DUPLICAÇÃO REAL)
+
+## MISSÃO
+Executar uma consolidação final do sistema para reduzir COMPLEXIDADE e eliminar duplicações estruturais remanescentes após FASE 15.
+
+Objetivo não é adicionar nada novo, e sim:
+
+- Simplificar pontos de decisão
+- Eliminar caminhos paralelos de auth/session
+- Tornar NF-e idempotente e previsível
+- Remover qualquer lógica duplicada estrutural
+- Centralizar decisões críticas em um único fluxo
+
+---
+
+# ❌ PROIBIDO
+- Criar novos sistemas
+- Criar novos endpoints
+- Criar novos serviços (engines, dashboards, observability etc.)
+- Mudar contratos de API
+- Mudar frontend
+- Adicionar features
+
+---
+
+# ✔ PERMITIDO
+- Remover duplicações estruturais
+- Unificar fluxos paralelos
+- Simplificar decisões de auth/session
+- Tornar fluxos determinísticos
+- Eliminar redundância entre guard/service/controller
+- Corrigir fluxos paralelos de NF-e
+- Reduzir complexidade sem alterar comportamento externo
+
+---
+
+# 1. OBJETIVO PRINCIPAL
+
+Transformar o sistema em:
+
+## AUTH
+- 1 único fluxo de decisão de login
+- 1 único ponto de validação de sessão
+- 0 divergência entre admin/company
+
+## SESSION
+- 1 único guard real ativo
+- 0 bypass por camada alternativa
+- 0 fallback implícito
+
+## NF-e
+- fluxo idempotente determinístico
+- 1 estado real de controle (sem lógica paralela)
+- 0 dependência de log ou side-effect
+
+---
+
+# 2. AUTH — SIMPLIFICAÇÃO FINAL
+
+## 2.1 UNIFICAR DECISÃO DE LOGIN
+- Admin e Company devem usar EXATAMENTE o mesmo fluxo interno
+- Nenhuma lógica pode existir fora do engine central (_runAuthFlow)
+
+REMOVER:
+- qualquer branch paralelo fora do fluxo central
+- qualquer lógica específica de entidade fora de flags
+
+---
+
+## 2.2 ELIMINAR DUPLICAÇÃO DE CONTEXTO
+- remover qualquer lógica duplicada entre:
+  - controller
+  - service
+  - guard
+
+REGRA:
+> apenas UM local decide autenticação
+
+---
+
+# 3. SESSION — SINGLE SOURCE OF TRUTH
+
+## 3.1 UM ÚNICO GUARD ATIVO
+- remover qualquer middleware auth duplicado residual
+- garantir que apenas UM middleware controla sessão
+
+## 3.2 VALIDAÇÃO ÚNICA
+- session validation deve ocorrer SOMENTE em:
+  authCoreService.validateSession()
+
+REMOVER:
+- qualquer validação paralela em middleware diferente
+
+---
+
+# 4. NF-e — CONSOLIDAÇÃO DE FLUXO
+
+## 4.1 REMOVER DUPLICAÇÃO DE ESTADO
+- garantir que "enviando" NÃO seja tratado em múltiplos pontos
+- status deve ser único e controlado por guard central
+
+## 4.2 IDPOTÊNCIA FORTE
+- uma NF-e não pode ser emitida duas vezes em nenhum cenário:
+  - retry
+  - crash
+  - concorrência
+  - reprocessamento manual
+
+REGRA:
+> 1 estado real = 1 emissão possível
+
+---
+
+## 4.3 REMOVER DEPENDÊNCIA DE SIDE EFFECTS
+- logs NÃO podem influenciar estado
+- console logs não podem existir em fluxo NF-e
+
+---
+
+# 5. ELIMINAÇÃO DE DUPLICAÇÃO ESTRUTURAL
+
+## REMOVER COMPLETAMENTE:
+
+- múltiplos auth wrappers
+- múltiplos middlewares de auth
+- múltiplos pontos de decisão de login
+- lógica de sessão fora do service central
+- lógica de NF-e fora do guard central
+- qualquer fallback duplicado de autenticação
+
+---
+
+# 6. REGRAS DE EXECUÇÃO
+
+- Ler tudo antes de alterar
+- Fazer mudanças cirúrgicas
+- Não quebrar API existente
+- Não alterar frontend
+- Não criar abstrações novas
+- Apenas remover duplicação e simplificar fluxo
+
+---
+
+# 7. VALIDAÇÃO FINAL OBRIGATÓRIA
+
+Após execução:
+
+## AUTH
+- [ ] 1 único fluxo de login ativo
+- [ ] admin e company usam mesmo engine
+- [ ] nenhuma lógica paralela fora do service
+
+## SESSION
+- [ ] 1 único middleware de auth ativo
+- [ ] 0 bypass por rota alternativa
+- [ ] validateSession é único ponto de verdade
+
+## NF-e
+- [ ] nenhuma emissão duplicada possível
+- [ ] estado não depende de log
+- [ ] fluxo determinístico
+
+## SISTEMA
+- [ ] sem duplicação estrutural de decisão
+- [ ] sem middleware paralelo ativo
+- [ ] sem lógica paralela de auth/session
+
+---
+
+# 8. OUTPUT ESPERADO
+
+- Lista de arquivos alterados
+- Lista de duplicações removidas
+- Confirmação final:
+
+"FASE 16 COMPLETE — SYSTEM SIMPLIFIED TO SINGLE DECISION ARCHITECTURE"
+```

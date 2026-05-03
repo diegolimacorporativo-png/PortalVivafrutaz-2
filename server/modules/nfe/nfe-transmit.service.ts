@@ -70,9 +70,6 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
     throw new Error('NFE_SEFAZ_PRODUCTION_NOT_IMPLEMENTED');
   }
 
-  // FASE NF.3.1 — estado intermediário "enviando" (proteção de corrida +
-  // observabilidade). Atua APÓS as validações iniciais e ANTES do retry loop.
-  // Não altera fluxo, assinaturas ou retorno externo.
   const preTransition = await storage.getNfeEmissao(nfe.id);
   if (!preTransition || preTransition.status !== 'gerada') {
     throw new Error('NFE_INVALID_STATE_TRANSITION');
