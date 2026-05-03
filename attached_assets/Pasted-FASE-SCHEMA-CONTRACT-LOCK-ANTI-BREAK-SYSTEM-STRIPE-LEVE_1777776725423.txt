@@ -1,0 +1,117 @@
+FASE: SCHEMA CONTRACT LOCK (ANTI-BREAK SYSTEM - STRIPE LEVEL)
+
+OBJETIVO:
+Criar um sistema de proteção de schema que impede imports quebrados, campos inexistentes e schema drift.
+
+Garantir:
+- ZERO imports inválidos
+- ZERO campos fantasmas (ex: aboutUs)
+- ZERO schema drift em runtime
+- FAIL FAST em build quando houver inconsistência
+
+========================================================
+1. CONTRACT COMO FONTE ÚNICA DA VERDADE
+========================================================
+
+Criar um schema contract central:
+
+SCHEMA_CONTRACT = {
+  auth: {
+    user: true,
+    session: true
+  },
+
+  tenant: {
+    tenant: true
+  },
+
+  system: {
+    system_state: true,
+    alerts: true,
+    policies: true,
+    events: true
+  }
+}
+
+REGRA:
+- somente itens dentro do contract existem no sistema
+- qualquer coisa fora dele é inválida
+
+========================================================
+2. IMPORT GATE (ANTI BREAK LAYER)
+========================================================
+
+Criar validação obrigatória para qualquer acesso a schema:
+
+function validateSchemaAccess(key) {
+  if (!SCHEMA_CONTRACT.system[key] &&
+      !SCHEMA_CONTRACT.auth[key] &&
+      !SCHEMA_CONTRACT.tenant[key]) {
+    throw new Error("SCHEMA VIOLATION: " + key);
+  }
+}
+
+REGRA:
+- nenhum import pode ser usado sem passar pelo contract
+
+========================================================
+3. BUILD-TIME SAFETY (CRÍTICO)
+========================================================
+
+Adicionar verificação no build:
+
+- scan de imports em @shared/schema
+- bloquear qualquer referência fora do SCHEMA_CONTRACT
+- falhar build se detectar schema drift
+
+REGRA:
+- build FAIL se schema não existir no contract
+
+========================================================
+4. ESLINT ENFORCEMENT RULE
+========================================================
+
+Proibir:
+
+❌ import direto de schema sem validação
+❌ uso de campos não declarados no contract
+
+Permitir:
+
+✔ somente campos definidos no SCHEMA_CONTRACT
+
+========================================================
+5. RUNTIME SAFETY CHECK (DEV MODE)
+========================================================
+
+Se campo não existir:
+
+console.error("SCHEMA DRIFT DETECTED", field)
+
+========================================================
+6. PRINCÍPIO STRIPE-LEVEL
+========================================================
+
+"Se não está no contract, não existe no sistema"
+
+========================================================
+7. ZERO BREAK GUARANTEE
+========================================================
+
+Sistema deve garantir:
+
+- nenhum import quebrado em runtime
+- nenhum campo fantasma (ex: aboutUs)
+- nenhum schema drift silencioso
+- erro detectado ANTES do deploy
+
+========================================================
+RESULTADO FINAL
+========================================================
+
+Sistema atinge:
+
+- schema 100% consistente
+- build-safe architecture
+- zero runtime schema errors
+- Stripe-level contract enforcement

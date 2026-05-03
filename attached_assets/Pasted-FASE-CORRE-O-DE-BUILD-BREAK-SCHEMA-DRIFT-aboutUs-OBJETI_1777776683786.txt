@@ -1,0 +1,90 @@
+FASE: CORREÇÃO DE BUILD BREAK — SCHEMA DRIFT (aboutUs)
+
+OBJETIVO:
+Corrigir erro de compilação causado por referência inexistente no @shared/schema ("aboutUs"), sem alterar arquitetura de tenant, firewall ou sistema SaaS.
+
+NÃO modificar backend de negócio.
+NÃO refatorar tenant system.
+FOCO: restaurar build estável.
+
+========================================================
+1. PROBLEMA
+========================================================
+
+Erro:
+@shared/schema não exporta "aboutUs"
+
+Causa:
+- import antigo ainda existe no código
+- schema foi evoluído e "aboutUs" foi removido ou nunca mais usado
+
+========================================================
+2. CORREÇÃO OBRIGATÓRIA
+========================================================
+
+PASSO 1:
+Localizar todas as referências:
+
+- import { aboutUs }
+- uso direto de aboutUs em qualquer arquivo
+
+PASSO 2:
+REMOVER todas as referências:
+
+ANTES:
+import { aboutUs } from "@shared/schema";
+
+DEPOIS:
+(remover completamente ou comentar)
+
+========================================================
+3. CASO ALGUMA UI DEPENDA DISSO
+========================================================
+
+Substituir por stub seguro:
+
+const aboutUs = {
+  name: "System Control Center",
+  version: "2.0",
+  mode: "SaaS Multi-Tenant",
+};
+
+Regra:
+- apenas se necessário para UI
+- nunca importar do schema
+
+========================================================
+4. REGRA ARQUITETURAL (IMPORTANTE)
+========================================================
+
+O @shared/schema deve conter APENAS:
+
+- entidades reais do sistema
+- models de DB
+- types oficiais
+
+NUNCA:
+
+- conteúdo estático de UI
+- placeholders antigos
+- dados desatualizados sem uso
+
+========================================================
+5. VALIDAÇÃO FINAL
+========================================================
+
+Após correção:
+
+- build deve subir sem erros
+- nenhum import quebrado restante
+- sistema-state continua intacto
+- tenant system não afetado
+
+========================================================
+RESULTADO ESPERADO
+========================================================
+
+- build estável
+- schema limpo
+- sem referências órfãs
+- sistema pronto para continuar hardening (firewall/audit)
