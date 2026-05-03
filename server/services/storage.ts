@@ -174,6 +174,12 @@ export interface IStorage {
   // Orders
   getOrders(): Promise<Order[]>;
   /**
+   * FASE MT-1 — Safe variant: filtro SQL obrigatório por companyId.
+   * Nunca retorna dados de outros tenants. Usar no lugar de getOrders()
+   * quando o contexto é single-tenant (plan limits, relatórios por empresa).
+   */
+  getOrdersSafe(companyId: number): Promise<Order[]>;
+  /**
    * Direct lookup of a single order item by (orderId, productId). Lets the
    * `safraAlerts` flow avoid loading every order's full detail just to scan
    * the items array. Returns `undefined` when the order has no item for
@@ -212,6 +218,11 @@ export interface IStorage {
 
   // User Management
   getUsers(): Promise<User[]>;
+  /**
+   * FASE MT-1 — Safe variant: filtro SQL obrigatório por empresaId.
+   * Nunca retorna usuários de outros tenants.
+   */
+  getUsersSafe(empresaId: number): Promise<User[]>;
   updateUser(id: number, updates: Partial<InsertUser>): Promise<User>;
   deleteUser(id: number): Promise<void>;
 
@@ -240,6 +251,11 @@ export interface IStorage {
   cleanOldLogs(olderThanDays?: number): Promise<number>;
   // Logistics
   getDrivers(): Promise<LogisticsDriver[]>;
+  /**
+   * FASE MT-1 — Safe variant: filtro SQL obrigatório por empresaId.
+   * Nunca retorna motoristas de outros tenants.
+   */
+  getDriversSafe(empresaId: number): Promise<LogisticsDriver[]>;
   createDriver(data: Partial<LogisticsDriver>): Promise<LogisticsDriver>;
   updateDriver(id: number, data: Partial<LogisticsDriver>): Promise<LogisticsDriver>;
   deleteDriver(id: number): Promise<void>;
@@ -248,6 +264,11 @@ export interface IStorage {
   updateVehicle(id: number, data: Partial<LogisticsVehicle>): Promise<LogisticsVehicle>;
   deleteVehicle(id: number): Promise<void>;
   getRoutes(): Promise<LogisticsRoute[]>;
+  /**
+   * FASE MT-1 — Safe variant: filtro SQL obrigatório por empresaId.
+   * Nunca retorna rotas de outros tenants.
+   */
+  getRoutesSafe(empresaId: number): Promise<LogisticsRoute[]>;
   createRoute(data: Partial<LogisticsRoute>): Promise<LogisticsRoute>;
   updateRoute(id: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute>;
   deleteRoute(id: number): Promise<void>;
@@ -897,6 +918,18 @@ export class DatabaseStorage implements IStorage {
     return await query;
   }
 
+  // FASE MT-1 — Safe variant: companyId obrigatório, filtro no SQL, sem fallback global.
+  // Nunca retorna pedidos de outro tenant. Diferente de getOrders(empresaId) porque:
+  //   - não aceita undefined/null → falha em compilação se omitido
+  //   - não lê currentTenantId() → comportamento determinístico independente de contexto
+  async getOrdersSafe(companyId: number): Promise<Order[]> {
+    return db
+      .select()
+      .from(orders)
+      .where(eq(orders.companyId, companyId))
+      .orderBy(desc(orders.orderDate));
+  }
+
   async getOrder(id: number): Promise<{ order: Order, items: OrderItem[] } | undefined> {
     const [order] = await db.select().from(orders).where(eq(orders.id, id));
     if (!order) return undefined;
@@ -1237,6 +1270,15 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).orderBy(users.id).limit(limit);
   }
 
+  // FASE MT-1 — Safe variant: empresaId obrigatório, filtro no SQL, sem fallback global.
+  async getUsersSafe(empresaId: number): Promise<User[]> {
+    return db
+      .select()
+      .from(users)
+      .where(eq(users.empresaId, empresaId))
+      .orderBy(users.id);
+  }
+
   async deleteUser(id: number): Promise<void> {
     const [deleted] = await db.delete(users).where(eq(users.id, id)).returning();
     if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
@@ -1404,6 +1446,15 @@ export class DatabaseStorage implements IStorage {
   async getDrivers(): Promise<LogisticsDriver[]> {
     return db.select().from(logisticsDrivers).orderBy(logisticsDrivers.name);
   }
+
+  // FASE MT-1 — Safe variant com filtro SQL obrigatório.
+  async getDriversSafe(empresaId: number): Promise<LogisticsDriver[]> {
+    return db
+      .select()
+      .from(logisticsDrivers)
+      .where(eq(logisticsDrivers.empresaId, empresaId))
+      .orderBy(logisticsDrivers.name);
+  }
   async createDriver(data: Partial<LogisticsDriver>): Promise<LogisticsDriver> {
     const [d] = await db.insert(logisticsDrivers).values(data as any).returning();
     if ((d as any)?.empresaId) invalidateUsageCache((d as any).empresaId);
@@ -1438,6 +1489,15 @@ export class DatabaseStorage implements IStorage {
   // ─── Logística: Rotas ─────────────────────────────────────────
   async getRoutes(): Promise<LogisticsRoute[]> {
     return db.select().from(logisticsRoutes).orderBy(desc(logisticsRoutes.createdAt));
+  }
+
+  // FASE MT-1 — Safe variant com filtro SQL obrigatório.
+  async getRoutesSafe(empresaId: number): Promise<LogisticsRoute[]> {
+    return db
+      .select()
+      .from(logisticsRoutes)
+      .where(eq(logisticsRoutes.empresaId, empresaId))
+      .orderBy(desc(logisticsRoutes.createdAt));
   }
   async createRoute(data: Partial<LogisticsRoute>): Promise<LogisticsRoute> {
     const [r] = await db.insert(logisticsRoutes).values(data as any).returning();

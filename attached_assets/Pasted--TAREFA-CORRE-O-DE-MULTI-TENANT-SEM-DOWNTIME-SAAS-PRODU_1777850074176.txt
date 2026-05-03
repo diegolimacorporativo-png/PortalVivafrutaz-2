@@ -1,0 +1,131 @@
+🧠 TAREFA: CORREÇÃO DE MULTI-TENANT SEM DOWNTIME (SAAS PRODUÇÃO)
+
+Você é um engenheiro sênior de backend SaaS multi-tenant.
+
+OBJETIVO:
+Corrigir o problema de isolamento de tenantId no sistema sem causar downtime, sem quebrar produção e sem alterar comportamento atual de forma abrupta.
+
+========================================================
+REGRAS OBRIGATÓRIAS
+========================================================
+
+❌ Não derrubar sistema
+❌ Não quebrar endpoints existentes
+❌ Não alterar comportamento atual diretamente
+✔ Criar migração segura
+✔ Usar feature flag
+✔ Fazer rollout gradual
+✔ Garantir rollback fácil
+
+========================================================
+PROBLEMA ATUAL
+========================================================
+
+Existem funções no storage que retornam dados sem filtro de tenantId, causando risco de cross-tenant data leak:
+
+Exemplos críticos:
+- getOrders()
+- getUsers()
+- getDrivers()
+- getRoutes()
+
+Essas funções fazem queries globais no banco e filtram depois em memória (JS), o que é inseguro e perigoso.
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Garantir que TODAS as queries sejam filtradas no SQL por tenantId, eliminando:
+
+- vazamento entre empresas
+- full table scan cross-tenant
+- filtragem em memória
+
+========================================================
+ESTRATÉGIA OBRIGATÓRIA (SEM DOWNTIME)
+========================================================
+
+FASE 1 — CRIAR VERSÕES SEGURAS
+Criar versões novas das funções:
+
+- getOrdersSafe(tenantId)
+- getUsersSafe(tenantId)
+- getDriversSafe(tenantId)
+- getRoutesSafe(tenantId)
+
+Regras:
+✔ filtro tenantId obrigatório no SQL
+✔ nunca retornar dados globais
+✔ não alterar funções antigas ainda
+
+========================================================
+
+FASE 2 — FEATURE FLAG
+Adicionar flag global:
+
+USE_SAFE_TENANT_QUERY = false (default inicialmente)
+
+Permitir alternância entre:
+
+- LEGACY (atual)
+- SAFE (novo comportamento)
+
+========================================================
+
+FASE 3 — ROTEAMENTO GRADUAL
+Alterar storage para:
+
+if (USE_SAFE_TENANT_QUERY) {
+  use safe functions
+} else {
+  use legacy functions
+}
+
+========================================================
+
+FASE 4 — SHADOW VALIDATION (OBRIGATÓRIO)
+Rodar ambos em paralelo:
+
+- legacy result
+- safe result
+
+Comparar resultados e logar diferenças sem quebrar request.
+
+========================================================
+
+FASE 5 — MIGRAÇÃO GRADUAL
+Ativar SAFE mode progressivamente:
+
+- 5% tenants
+- 25%
+- 50%
+- 100%
+
+========================================================
+
+FASE 6 — REMOÇÃO LEGACY
+Após validação total:
+
+- remover funções legacy sem tenant filter
+- padronizar apenas safe queries
+
+========================================================
+
+CRITÉRIO DE ACEITE
+
+✔ Zero cross-tenant data exposure
+✔ Zero downtime durante migração
+✔ Compatibilidade total com sistema atual
+✔ Rollback possível a qualquer momento
+
+========================================================
+REGRA CRÍTICA
+
+Se uma query não tiver tenantId aplicado no SQL:
+→ deve ser considerada BUG CRÍTICO
+→ nunca pode chegar em produção no modo SAFE
+
+========================================================
+RESULTADO ESPERADO
+
+Sistema com isolamento real de dados por empresa, sem filtragem em memória e sem risco de vazamento entre tenants.

@@ -6,6 +6,12 @@ import {
   setCachedUsage,
   invalidateUsageCache,
 } from "./usage-cache";
+import {
+  routeGetOrders,
+  routeGetUsers,
+  routeGetDrivers,
+  routeGetRoutes,
+} from "../../core/tenant/safeQueryRouter";
 
 export { invalidateUsageCache };
 
@@ -82,14 +88,20 @@ export async function requireActiveSubscription(
 }
 
 async function realComputeUsageAndLimits(companyId: number): Promise<UsageAndLimits> {
+  // FASE MT-1 — As queries de entidade agora passam pelo safeQueryRouter.
+  // Em modo legacy (USE_SAFE_TENANT_QUERY=false): roda shadow validation
+  // em background e retorna dados já filtrados por companyId — eliminando
+  // o full-table-scan + filtro em memória que existia antes.
+  // Em modo safe (USE_SAFE_TENANT_QUERY=true): SQL filtrado por empresa, zero
+  // cross-tenant data em memória.
   const [allAssinaturas, allPlanos, usuarios, pedidos, motoristas, rotas] =
     await Promise.all([
       storage.getAssinaturas(),
       storage.getPlanos(),
-      storage.getUsers(),
-      storage.getOrders(),
-      storage.getDrivers(),
-      storage.getRoutes(),
+      routeGetUsers(companyId),
+      routeGetOrders(companyId),
+      routeGetDrivers(companyId),
+      routeGetRoutes(companyId),
     ]);
 
   const assinatura = allAssinaturas.find((a) => a.companyId === companyId);
@@ -100,14 +112,14 @@ async function realComputeUsageAndLimits(companyId: number): Promise<UsageAndLim
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+  // Os arrays já estão pré-filtrados pelo router — não há dados de outros tenants.
   const uso = {
-    usuarios: usuarios.filter((u: any) => u.companyId === companyId).length,
+    usuarios: usuarios.length,
     pedidosMes: pedidos.filter(
-      (p: any) =>
-        p.companyId === companyId && new Date(p.createdAt) >= startOfMonth,
+      (p: any) => new Date(p.createdAt) >= startOfMonth,
     ).length,
-    motoristas: motoristas.filter((m: any) => m.companyId === companyId).length,
-    rotas: rotas.filter((r: any) => r.companyId === companyId).length,
+    motoristas: motoristas.length,
+    rotas: rotas.length,
   };
 
   const limites = {

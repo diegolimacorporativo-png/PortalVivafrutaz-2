@@ -52,6 +52,53 @@ export const BILLING_DRY_RUN = true;
 export const AUTO_FATURAMENTO = false;
 
 /**
+ * FASE MT-1 — Safe tenant query rollout.
+ *
+ * Controla a migração gradual das queries globais (getOrders, getUsers,
+ * getDrivers, getRoutes) para versões com filtro SQL obrigatório por tenant.
+ *
+ * FASE 1  — Criar métodos *Safe (sem mexer nos legados).           ✅ DONE
+ * FASE 2  — Feature flags aqui.                                    ✅ DONE
+ * FASE 3  — Router: USE_SAFE_TENANT_QUERY=false → legacy ou shadow ✅ DONE
+ * FASE 4  — Shadow validation: roda os dois e loga divergências.   ✅ DONE
+ * FASE 5  — Rollout gradual: SAFE_TENANT_ROLLOUT_PERCENT (0..100). ✅ DONE
+ * FASE 6  — Remover legacy (pós validação total).                  🔲 PENDENTE
+ *
+ * ROLLOUT SEGURO:
+ *   1. Manter USE_SAFE_TENANT_QUERY=false por 24-72h (modo shadow).
+ *      Monitorar logs [SAFE_QUERY_DIVERGENCE] — deve ser 0 divergências.
+ *   2. Subir SAFE_TENANT_ROLLOUT_PERCENT=10, depois 50, depois 100.
+ *   3. Quando estiver em 100% sem divergências, ligar USE_SAFE_TENANT_QUERY=true.
+ *   4. Acompanhar [SAFE_QUERY_ACTIVE] nos logs por 24h.
+ *   5. Em emergência: ligar USE_SAFE_TENANT_QUERY=false e reiniciar.
+ *      A flag é lida no runtime — não precisa de redeploy.
+ *
+ * KILL SWITCH: setar USE_SAFE_TENANT_QUERY=false nas env vars e reiniciar.
+ */
+
+/**
+ * Quando true, TODAS as queries de uso/limite usam filtro SQL por tenant.
+ * Quando false (DEFAULT SEGURO), roda em modo shadow: executa os dois caminhos,
+ * compara e loga divergências, mas NÃO altera o comportamento para o usuário.
+ */
+export const USE_SAFE_TENANT_QUERY =
+  process.env.USE_SAFE_TENANT_QUERY === "true";
+
+/**
+ * Percentual de tenants (0-100) que usam queries safe quando
+ * USE_SAFE_TENANT_QUERY=false (modo shadow/rollout gradual).
+ * Determinismo: o mesmo companyId recebe sempre o mesmo tratamento.
+ * Padrão: 0 — apenas shadow (nenhum tenant em modo safe ainda).
+ */
+export const SAFE_TENANT_ROLLOUT_PERCENT = Math.min(
+  100,
+  Math.max(
+    0,
+    Number(process.env.SAFE_TENANT_ROLLOUT_PERCENT ?? "0"),
+  ),
+);
+
+/**
  * FASE 18 — Guard de idempotência de NF-e (GAP 2 — duplicação sequencial).
  *
  * Quando true, BLOQUEIA emissão de nova NF-e para pedidos com qualquer
