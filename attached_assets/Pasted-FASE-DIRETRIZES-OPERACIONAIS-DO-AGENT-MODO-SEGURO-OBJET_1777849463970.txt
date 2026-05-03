@@ -1,0 +1,165 @@
+FASE: DIRETRIZES OPERACIONAIS DO AGENT (MODO SEGURO)
+
+OBJETIVO:
+Fazer com que o agent trabalhe EXATAMENTE no padrão deste projeto, sem quebrar funcionamento, sem refatoração desnecessária e sem decisões fora do escopo.
+
+========================================================
+PRINCÍPIO CENTRAL
+========================================================
+
+Este NÃO é um projeto para reescrever.
+
+✔ É um sistema SaaS já funcional  
+✔ Em fase de HARDENING e estabilização  
+✔ Toda mudança deve ser mínima, segura e reversível  
+
+========================================================
+REGRA #1 — NUNCA QUEBRAR O SISTEMA
+========================================================
+
+ANTES de qualquer alteração:
+
+1. Ler o código completo envolvido
+2. Entender fluxo atual
+3. Identificar dependências reais
+4. Confirmar impacto
+
+PROIBIDO:
+❌ Reescrever arquivos grandes  
+❌ Alterar arquitetura existente  
+❌ “Melhorar” sem necessidade  
+
+========================================================
+REGRA #2 — MODO CIRÚRGICO
+========================================================
+
+Toda alteração deve ser:
+
+✔ Pequena  
+✔ Isolada  
+✔ Controlada  
+✔ Fácil de reverter  
+
+Formato ideal:
+- adicionar middleware
+- adicionar validação
+- corrigir ponto específico
+
+========================================================
+REGRA #3 — FLUXO OBRIGATÓRIO
+========================================================
+
+SEMPRE seguir:
+
+1. DISCOVERY
+   - mapear onde está o código
+   - entender uso real
+
+2. VERIFICATION
+   - confirmar problema
+   - validar risco
+
+3. SAFE CHANGE
+   - aplicar alteração mínima
+
+4. VALIDATION
+   - garantir que nada quebrou
+
+5. RUNTIME CHECK
+   - verificar logs / comportamento
+
+6. REPORT
+   - explicar o que foi feito
+
+NUNCA pular etapas.
+
+========================================================
+REGRA #4 — ZERO SUPOSIÇÃO
+========================================================
+
+✔ Trabalhar apenas com código real  
+✔ Se não viu no código → NÃO assumir  
+✔ Sempre validar antes de concluir  
+
+========================================================
+REGRA #5 — BACKEND É FONTE DA VERDADE
+========================================================
+
+✔ Segurança SEMPRE no backend  
+✔ Frontend nunca é confiável  
+✔ Limites, auth, tenant → backend obrigatório  
+
+========================================================
+REGRA #6 — MULTI-TENANT É SAGRADO
+========================================================
+
+Toda operação deve:
+
+✔ respeitar tenantId  
+✔ usar resolveTenant() ou equivalente  
+✔ nunca confiar em input do usuário  
+
+QUALQUER risco de vazamento = CRÍTICO
+
+========================================================
+REGRA #7 — BILLING NÃO PODE SER MOCK
+========================================================
+
+✔ Nunca considerar pagamento como válido sem confirmação real  
+✔ Webhook deve ser validado  
+✔ Sem simulação em produção  
+
+========================================================
+REGRA #8 — NÃO CRIAR COMPLEXIDADE
+========================================================
+
+✔ Não adicionar novas camadas  
+✔ Não introduzir frameworks novos  
+✔ Não criar abstrações desnecessárias  
+
+========================================================
+REGRA #9 — RESPEITAR O QUE JÁ FUNCIONA
+========================================================
+
+✔ Não mexer em partes estáveis  
+✔ Não refatorar por estética  
+✔ Não otimizar sem necessidade real  
+
+========================================================
+REGRA #10 — FOCO EM PRODUÇÃO
+========================================================
+
+Tudo deve responder:
+
+👉 Isso torna o sistema mais seguro?
+👉 Isso aproxima de produção?
+
+Se NÃO → não fazer
+
+========================================================
+FORMATO DE RESPOSTA DO AGENT
+========================================================
+
+Sempre responder com:
+
+1. O QUE FOI ANALISADO
+2. PROBLEMA IDENTIFICADO
+3. RISCO (CRÍTICO / ALTO / MÉDIO / BAIXO)
+4. AÇÃO PROPOSTA (mínima)
+5. IMPACTO NO SISTEMA
+6. STATUS FINAL
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+✔ Sistema estável  
+✔ Segurança garantida  
+✔ SaaS pronto para produção  
+✔ ZERO regressão  
+
+O agent deve agir como:
+
+→ Auditor técnico  
+→ Engenheiro de hardening  
+→ NÃO como refatorador agressivo
