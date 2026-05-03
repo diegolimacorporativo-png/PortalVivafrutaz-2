@@ -1,0 +1,140 @@
+FASE: LEGACY STORAGE ISOLATION LAYER (BUILD STABILITY FIX)
+
+OBJETIVO:
+Parar o schema drift em cascata isolando completamente o storage legado do storage moderno.
+
+Eliminar dependência cruzada entre:
+- schema antigo (aboutUs, accountsPayable, etc.)
+- sistema SaaS atual (system-state, alerts, policies, tenant)
+
+NÃO continuar removendo item por item.
+NÃO quebrar tenant hardening.
+FOCO: estabilizar arquitetura e destravar build.
+
+========================================================
+1. PROBLEMA ATUAL (RAIZ)
+========================================================
+
+O storage atual está híbrido:
+
+- storage.ts contém legacy + moderno misturados
+- schema antigo ainda sendo referenciado indiretamente
+- remoção manual gera cascade errors
+
+RESULTADO:
+- schema drift infinito
+- build instável
+- dependências circulares invisíveis
+
+========================================================
+2. SOLUÇÃO: SEPARAÇÃO EM 3 CAMADAS
+========================================================
+
+CRIAR ESTRUTURA:
+
+/server/storage/
+  ├── storage.core.ts       (NOVO - SaaS)
+  ├── storage.legacy.ts     (ANTIGO - isolado)
+  ├── storage.adapter.ts    (ROTEADOR)
+
+========================================================
+3. STORAGE CORE (SISTEMA NOVO)
+========================================================
+
+storage.core.ts contém APENAS:
+
+- system-state
+- alerts (tenant-aware)
+- policies (tenant-aware)
+- events
+- tenant logic
+
+REGRAS:
+- ZERO referência a schema antigo
+- ZERO campos legacy
+- somente modelo SaaS atual
+
+========================================================
+4. STORAGE LEGACY (ISOLAMENTO TOTAL)
+========================================================
+
+storage.legacy.ts:
+
+- contains ALL old references (aboutUs, accountsPayable, etc.)
+- NÃO é usado diretamente pelo app moderno
+- apenas read-only fallback se necessário
+
+REGRAS:
+- nunca escrever dados novos aqui
+- nunca usar em fluxo principal
+- apenas compatibilidade temporária
+
+========================================================
+5. STORAGE ADAPTER (ROTEAMENTO INTELIGENTE)
+========================================================
+
+storage.adapter.ts:
+
+function getStorage(mode) {
+  if (mode === "legacy") return legacyStorage;
+  return coreStorage;
+}
+
+REGRAS:
+- app moderno SEMPRE usa core
+- legacy só para fallback explícito
+- nenhum import direto do legacy fora do adapter
+
+========================================================
+6. MIGRAÇÃO GRADUAL (ZERO BREAK)
+========================================================
+
+ETAPA 1:
+- manter legacy intacto
+- mover sistema novo para core
+
+ETAPA 2:
+- backend passa a usar adapter
+
+ETAPA 3:
+- legacy becomes read-only archive
+
+ETAPA 4:
+- eventual remoção futura (opcional)
+
+========================================================
+7. ELIMINAÇÃO DO SCHEMA DRIFT
+========================================================
+
+REGRAS OBRIGATÓRIAS:
+
+- nenhum arquivo novo pode importar legacy schema diretamente
+- todos os novos endpoints usam storage.core
+- build NÃO pode falhar por referência legacy
+- legacy isolado não participa do runtime SaaS
+
+========================================================
+8. RESULTADO FINAL ESPERADO
+========================================================
+
+Sistema fica:
+
+- build estável (zero cascade errors)
+- SaaS layer isolado e limpo
+- legacy isolado e seguro
+- tenant system intacto
+- evolução sem risco de quebrar schema novamente
+
+========================================================
+9. STRIPE-LEVEL PRINCIPLE
+========================================================
+
+"Legacy nunca toca o core runtime"
+
+Sistema passa a operar com:
+
+CORE (produção)
+LEGACY (arquivo isolado)
+ADAPTER (controle de acesso)
+
+========================================================
