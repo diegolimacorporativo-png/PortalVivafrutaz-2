@@ -1,10 +1,11 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   // Industrialized products report
-  app.get('/api/reports/industrialized', async (req, res) => {
+  app.get('/api/reports/industrialized', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     const { dateFrom, dateTo, companyId, productId } = req.query;
     const data = await storage.getIndustrializedReport({
       dateFrom: dateFrom as string,
@@ -16,7 +17,7 @@ export function register(app: Express) {
   });
 
   // Reports — real data from DB
-  app.get(api.reports.purchasing.path, async (req, res) => {
+  app.get(api.reports.purchasing.path, requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     const { dateFrom, dateTo, companyId, productId } = req.query;
     const data = await storage.getPurchasingReport({
       dateFrom: dateFrom as string,
@@ -27,7 +28,7 @@ export function register(app: Express) {
     res.json(data);
   });
 
-  app.get(api.reports.financial.path, async (req, res) => {
+  app.get(api.reports.financial.path, requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     res.json({
       weeklyRevenue: 4500.00,
       monthlyRevenue: 18200.00,

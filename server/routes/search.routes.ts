@@ -2,10 +2,13 @@ import type { Express } from "express";
 import { db } from "../database/db.ts";
 import { sql } from "drizzle-orm";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { currentTenantId } from "../core/tenant/context";
 
 export function register(app: Express) {
   app.get('/api/search', requireAuthCore, async (req: any, res) => {
     try {
+      const tenantId = currentTenantId();
+      if (tenantId == null) return res.json({ results: [], total: 0 });
       const q = ((req.query.q as string) || '').trim();
       if (!q || q.length < 2) return res.json({ results: [], total: 0 });
       const term = `%${q.toLowerCase()}%`;

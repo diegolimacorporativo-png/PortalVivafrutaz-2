@@ -1,0 +1,123 @@
+FASE: P0 SECURITY PATCH (CRITICAL ROUTE HARDENING)
+
+OBJETIVO:
+Corrigir imediatamente todas as rotas CRÍTICAS e HIGH adicionando autenticação e autorização adequadas, SEM alterar lógica de negócio.
+
+========================================================
+REGRAS
+========================================================
+
+❌ NÃO alterar lógica interna
+❌ NÃO refatorar serviços
+❌ NÃO mudar estrutura de resposta
+
+✔ APENAS adicionar middleware de segurança
+
+========================================================
+PADRÃO OBRIGATÓRIO
+========================================================
+
+Todas as rotas devem usar:
+
+requireAuthCore
++
+requireRole([...])
+
+========================================================
+1. CORREÇÃO CRÍTICA (IMEDIATO)
+========================================================
+
+Aplicar nas rotas:
+
+GET /api/settings/:key
+PUT /api/settings/:key
+
+Adicionar:
+
+requireAuthCore
+requireRole(["MASTER"])
+
+========================================================
+2. CORREÇÕES HIGH
+========================================================
+
+Aplicar:
+
+--------------------------------------------------------
+/api/order-exceptions/*
+--------------------------------------------------------
+requireAuthCore
+requireRole(["ADMIN", "DIRECTOR"])
+
+--------------------------------------------------------
+/api/reports/*
+--------------------------------------------------------
+requireAuthCore
+requireRole(["ADMIN", "DIRECTOR"])
+
+--------------------------------------------------------
+GET /api/nfe/eligible
+--------------------------------------------------------
+requireAuthCore
+requireRole(["ADMIN", "FISCAL", "DIRECTOR"])
+
+--------------------------------------------------------
+POST /api/nfe/cron/run
+--------------------------------------------------------
+requireAuthCore
+requireRole(["MASTER", "ADMIN"])
+
+--------------------------------------------------------
+GET /api/search
+--------------------------------------------------------
+requireAuthCore
++ aplicar tenant filter obrigatório
+
+--------------------------------------------------------
+POST /api/import/execute
+--------------------------------------------------------
+requireAuthCore
+requireRole(["ADMIN"])
+
+--------------------------------------------------------
+Bank account mutations
+--------------------------------------------------------
+requireAuthCore
+requireRole(["ADMIN", "FINANCE"])
+
+========================================================
+3. CORREÇÃO MÉDIA (PADRONIZAÇÃO)
+========================================================
+
+Substituir TODOS os usos de:
+
+requireSessionOrCompany
+ou
+checagens manuais
+
+Por:
+
+requireAuthCore + requireRole
+
+========================================================
+4. VALIDAÇÃO
+========================================================
+
+Verificar:
+
+- Control Center continua funcionando
+- system-state intacto
+- login intacto
+- nenhuma rota pública sensível
+- multi-tenant preservado
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Sistema deve atingir:
+
+✔ zero rota crítica sem proteção
+✔ zero acesso anônimo a dados sensíveis
+✔ controle de acesso por role consistente
+✔ segurança mínima de produção garantida

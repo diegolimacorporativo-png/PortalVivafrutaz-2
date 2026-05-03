@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
-import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { tenantContext } from "../middleware/tenant";
 import { financeService } from "../modules/finance/finance.service";
 import { financeRepository } from "../modules/finance/finance.repository";
@@ -18,7 +18,7 @@ export async function register(app: Express) {
   };
 
   // GET /api/bank/accounts
-  app.get('/api/bank/accounts', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.get('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, async (req: any, res) => {
     try {
       const accounts = await storage.getBankAccounts();
       // Mask secrets
@@ -27,7 +27,7 @@ export async function register(app: Express) {
   });
 
   // POST /api/bank/accounts
-  app.post('/api/bank/accounts', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.post('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, async (req: any, res) => {
     try {
       const acc = await storage.createBankAccount(req.body);
       res.status(201).json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
@@ -35,7 +35,7 @@ export async function register(app: Express) {
   });
 
   // PATCH /api/bank/accounts/:id
-  app.patch('/api/bank/accounts/:id', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.patch('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, async (req: any, res) => {
     try {
       const acc = await storage.updateBankAccount(Number(req.params.id), req.body);
       res.json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
@@ -43,7 +43,7 @@ export async function register(app: Express) {
   });
 
   // DELETE /api/bank/accounts/:id
-  app.delete('/api/bank/accounts/:id', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.delete('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, async (req: any, res) => {
     try {
       await storage.deleteBankAccount(Number(req.params.id));
       res.json({ success: true });

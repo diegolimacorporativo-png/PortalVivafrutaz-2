@@ -1034,7 +1034,7 @@ export async function registerRoutes(
   });
 
   // POST /api/import/execute — commit the import to DB
-  app.post('/api/import/execute', requireAuthCore, async (req: any, res) => {
+  app.post('/api/import/execute', requireAuthCore, requireRole(["ADMIN"]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return res.status(401).json({ message: 'Não autenticado' });
     try {
@@ -1388,7 +1388,7 @@ export async function registerRoutes(
     // N+1-FIX: replaced 500x canEmitNFe (one JOIN query each) with a single
     // batch JOIN that fetches all candidate data at once. getFaturamentoContext
     // runs in JS for each row — zero additional DB round-trips.
-    app.get('/api/nfe/eligible', async (req: any, res) => {
+    app.get('/api/nfe/eligible', requireAuthCore, requireRole(["ADMIN", "FISCAL", "DIRECTOR"]), async (req: any, res) => {
       try {
         // One query — same JOIN as canEmitNFe but for all candidates at once.
         const raw = await db.execute(sql`
@@ -1472,7 +1472,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/cron/run — STEP 9.3D: trigger manual do cron de faturamento
-    app.post('/api/nfe/cron/run', requireAuthCore, async (req: any, res) => {
+    app.post('/api/nfe/cron/run', requireAuthCore, requireRole(["MASTER", "ADMIN"]), async (req: any, res) => {
       // Evita execução concorrente: se já está rodando (cron diário ou outro trigger manual), recusa.
       if (isCronRunning()) {
         return res.status(409).json({ error: 'Cron já está em execução. Aguarde terminar.' });
@@ -1488,7 +1488,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/cron/history — STEP 9.3E: últimas 50 execuções do cron de faturamento
-    app.get('/api/nfe/cron/history', async (req: any, res) => {
+    app.get('/api/nfe/cron/history', requireAuthCore, async (req: any, res) => {
       try {
         const rows = await db
           .select()

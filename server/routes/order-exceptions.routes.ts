@@ -1,15 +1,16 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { validateCompanyTenant } from "../core/security/orderSecurity";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   // Order Exceptions
-  app.get('/api/order-exceptions', async (req, res) => {
+  app.get('/api/order-exceptions', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     const exceptions = await storage.getOrderExceptions();
     res.json(exceptions);
   });
 
-  app.post('/api/order-exceptions', async (req, res) => {
+  app.post('/api/order-exceptions', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     try {
       const { companyId, reason, expiryDate, active } = req.body;
       if (!companyId || !reason) return res.status(400).json({ message: "companyId and reason required" });
@@ -25,7 +26,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put('/api/order-exceptions/:id', async (req, res) => {
+  app.put('/api/order-exceptions/:id', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     try {
       const { reason, expiryDate, active } = req.body;
       const exc = await storage.updateOrderException(Number(req.params.id), { reason, expiryDate: expiryDate || null, active });
@@ -35,7 +36,7 @@ export function register(app: Express) {
     }
   });
 
-  app.delete('/api/order-exceptions/:id', async (req, res) => {
+  app.delete('/api/order-exceptions/:id', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
     await storage.deleteOrderException(Number(req.params.id));
     res.status(204).end();
   });
