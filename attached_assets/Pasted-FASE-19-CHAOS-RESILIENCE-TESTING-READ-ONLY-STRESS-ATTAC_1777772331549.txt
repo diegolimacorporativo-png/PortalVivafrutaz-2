@@ -1,0 +1,168 @@
+FASE 19 — CHAOS & RESILIENCE TESTING (READ-ONLY STRESS & ATTACK SIMULATION)
+
+OBJETIVO:
+Validar a RESILIÊNCIA REAL do sistema de autenticação, sessão e NF-e
+através de simulações CONTROLADAS de falhas, carga e comportamento malicioso.
+
+IMPORTANTE:
+✔ NÃO altera backend
+✔ NÃO executa em produção real
+✔ NÃO modifica dados
+✔ SOMENTE simulação local/read-only
+✔ SEM impacto no sistema vivo
+
+========================================================
+1. NOVO ARQUIVO
+========================================================
+
+/scripts/auth-chaos-test-engine.ts
+
+Execução:
+node scripts/auth-chaos-test-engine.ts
+
+========================================================
+2. ENTRADAS (READ-ONLY)
+========================================================
+
+A) /scripts/output/cli-auth-audit.json
+B) /scripts/output/auth-truth-layer.json
+C) /scripts/output/auth-drift-alert-engine.json
+D) /scripts/output/auth-governance-engine.json
+
+E opcional:
+- DB read-only (users, companies, auth_attempts, sessions)
+
+========================================================
+3. OBJETIVO DO CHAOS ENGINE
+========================================================
+
+Simular cenários extremos para medir:
+
+- estabilidade do auth system
+- consistência de sessão
+- resistência a abuso
+- comportamento sob falha de dependência
+- impacto de carga simultânea
+
+========================================================
+4. CENÁRIOS DE TESTE
+
+A) BRUTE FORCE SIMULATION
+- múltiplos login attempts por IP
+- variação de userId + password random
+- validação de bloqueio L2
+
+B) SESSION STRESS
+- criação massiva de sessões simultâneas
+- simulação de restart entre requests
+- validação de tokenVersion consistency
+
+C) DEVICE SPOOFING
+- headers X-Device-Id alternados
+- sessão sem deviceId
+- device mismatch simulation
+
+D) NF-E CONCURRENCY STRESS
+- múltiplas emissões simultâneas
+- status "enviando" simultâneo
+- validação de idempotência
+
+E) RATE LIMIT EXTREMO
+- bursts de login por milissegundo
+- simulação de ataque distribuído
+
+========================================================
+5. MÉTRICAS COLETADAS
+
+- successRate
+- failureRate
+- falsePositiveBlocks
+- falseNegativePasses
+- systemStabilityScore
+- avgResponseTime (simulado)
+- authConsistencyScore
+
+========================================================
+6. CHAOS SCORE ENGINE
+
+function calculateChaosScore(metrics) {
+
+  return (
+    metrics.systemStabilityScore * 0.4 +
+    metrics.authConsistencyScore * 0.3 +
+    (100 - metrics.falseNegativeRate * 100) * 0.2 +
+    (100 - metrics.falsePositiveRate * 100) * 0.1
+  )
+}
+
+========================================================
+7. CLASSIFICAÇÃO FINAL
+
+CHAOS_SCORE:
+
+- 90–100 → ROBUST SYSTEM
+- 75–89  → STABLE WITH MINOR RISKS
+- 50–74  → FRAGILE UNDER LOAD
+- <50    → CRITICAL FAILURE RISK
+
+========================================================
+8. OUTPUT DO ENGINE
+
+A) RESUMO GERAL
+{
+  chaosScore,
+  systemStabilityScore,
+  authConsistencyScore,
+  nfEConsistencyScore,
+  sessionStabilityScore
+}
+
+B) TEST RESULTS
+[
+  {
+    scenario: BRUTE_FORCE | SESSION_STRESS | DEVICE_SPOOFING | NF_E_CONCURRENCY | RATE_LIMIT,
+    passed: true | false,
+    failurePoints,
+    impactLevel
+  }
+]
+
+C) RISK ANALYSIS
+- weakest subsystem
+- most unstable flow
+- highest failure scenario
+- authentication bottleneck
+
+D) FINAL VERDICT
+
+"PRODUCTION READY"
+"NEEDS HARDENING"
+"NOT STABLE FOR SCALE"
+
+========================================================
+9. REGRAS IMPORTANTES
+
+✔ somente simulação local
+✔ sem escrita no banco
+✔ sem impacto em auth real
+✔ sem alteração de código
+✔ execução isolada
+
+========================================================
+10. OBJETIVO FINAL
+
+Testar o sistema como se estivesse sob:
+
+- ataque real
+- carga extrema
+- falhas simultâneas
+- comportamento adversarial
+
+========================================================
+FASE 19 CONCLUÍDA QUANDO:
+
+✔ chaos score gerado
+✔ cenários de ataque simulados
+✔ pontos fracos identificados
+✔ estabilidade medida sob estresse
+✔ sistema classificado para produção ou não
