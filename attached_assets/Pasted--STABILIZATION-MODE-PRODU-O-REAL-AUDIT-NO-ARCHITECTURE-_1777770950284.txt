@@ -1,0 +1,145 @@
+# STABILIZATION MODE — PRODUÇÃO REAL AUDIT (NO ARCHITECTURE CHANGES)
+
+## MISSÃO
+Executar uma auditoria COMPLETA de estabilidade do sistema em condições de produção real.
+
+Objetivo NÃO é evoluir arquitetura.
+
+Objetivo é validar:
+
+- estabilidade sob restart
+- consistência multi-instância
+- comportamento sob carga
+- failover seguro
+- ausência de regressões silenciosas
+
+---
+
+# ❌ PROIBIDO
+- Criar novas features
+- Criar novos endpoints
+- Criar novos sistemas (engines, dashboards, abstrações)
+- Refatoração arquitetural
+- Mudança de contratos de API
+- Mudança de frontend
+- Reescrever lógica existente
+
+---
+
+# ✔ PERMITIDO
+- Identificar bugs reais
+- Corrigir comportamentos perigosos (somente se crítico)
+- Ajustar falhas de consistência
+- Validar comportamento sob falha
+- Corrigir inconsistências de runtime
+- Melhorar segurança operacional sem mudar arquitetura
+
+---
+
+# 1. AUTH STABILITY CHECK
+
+Validar em produção real:
+
+- [ ] Login funciona após restart do servidor
+- [ ] Sessão não quebra entre instâncias
+- [ ] Fail-closed funciona em erro de DB
+- [ ] Device binding não pode ser bypassado
+- [ ] TokenVersion revogação funciona corretamente
+- [ ] Não existe fallback oculto de autenticação
+
+---
+
+# 2. SESSION CONSISTENCY (MULTI-INSTANCE)
+
+Verificar:
+
+- [ ] Sessões são consistentes entre instâncias
+- [ ] Não há divergência de middleware entre nodes
+- [ ] validateSession é determinístico
+- [ ] Nenhum acesso é permitido em erro silencioso
+
+---
+
+# 3. NF-e STABILITY & IDEMPOTÊNCIA
+
+Validar:
+
+- [ ] Não existe dupla emissão sob retry
+- [ ] Crash durante emissão não gera duplicação
+- [ ] Status "enviando" não permite reprocessamento duplicado
+- [ ] Lock de concorrência funciona corretamente
+- [ ] NF-e não depende de logs ou side-effects
+
+---
+
+# 4. LOAD BEHAVIOR (REAL WORLD SIMULATION)
+
+Validar:
+
+- [ ] Auth aguenta múltiplas requisições simultâneas
+- [ ] NF-e não degrada sob carga
+- [ ] DB não gera inconsistência sob concorrência
+- [ ] Rate limit não bloqueia usuários legítimos incorretamente
+
+---
+
+# 5. FAILOVER BEHAVIOR
+
+Simular:
+
+- DB indisponível
+- restart inesperado
+- instância duplicada
+
+Validar:
+
+- [ ] sistema falha corretamente (fail-closed)
+- [ ] não há abertura de bypass
+- [ ] não há autenticação insegura temporária
+- [ ] NF-e não duplica após recovery
+
+---
+
+# 6. LOG & OBSERVABILITY HEALTH
+
+Validar:
+
+- [ ] logs críticos existem (auth, NF-e, sessão)
+- [ ] não há logs redundantes ou duplicados
+- [ ] não há console.log em fluxo crítico
+- [ ] eventos importantes são rastreáveis
+
+---
+
+# 7. CONSISTENCY ACROSS DEPLOYMENT
+
+Validar:
+
+- [ ] múltiplas instâncias se comportam igual
+- [ ] não há divergência de middleware
+- [ ] não há estado local quebrando decisão global
+- [ ] DB é única fonte de verdade
+
+---
+
+# 8. OUTPUT FINAL OBRIGATÓRIO
+
+Entregar:
+
+- Lista de riscos encontrados em runtime (se houver)
+- Lista de inconsistências de produção real
+- Lista de possíveis regressões silenciosas
+- Status final:
+
+"STABLE FOR PRODUCTION DEPLOYMENT (YES/NO)"
+
+---
+
+# IMPORTANTE
+
+Este não é um processo de evolução.
+
+Este é o último checkpoint antes de produção real.
+
+Nenhuma arquitetura deve ser alterada.
+```
