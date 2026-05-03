@@ -1,0 +1,155 @@
+FASE 18.5 — AUTO-GOVERNANCE LAYER (READ-ONLY RECOMMENDATION ENGINE)
+
+OBJETIVO:
+Criar uma camada de governança que ANALISA o sistema de autenticação
+e SUGERE correções automaticamente com base em:
+
+- CLI AUTH AUDIT (FASE 18.1)
+- TRUTH LAYER (FASE 18.2)
+- DRIFT DASHBOARD (FASE 18.3)
+- DRIFT ALERT ENGINE (FASE 18.4)
+
+IMPORTANTE:
+✔ NÃO aplica mudanças no sistema
+✔ NÃO altera backend
+✔ NÃO cria endpoints
+✔ NÃO executa SQL de escrita
+✔ SOMENTE análise + recomendações
+
+========================================================
+1. NOVO ARQUIVO
+========================================================
+
+/scripts/auth-governance-engine.ts
+
+Execução:
+node scripts/auth-governance-engine.ts
+
+========================================================
+2. ENTRADAS
+========================================================
+
+Ler apenas:
+
+A) /scripts/output/cli-auth-audit.json
+B) /scripts/output/auth-truth-layer.json
+C) /scripts/output/auth-drift-dashboard.json
+D) /scripts/output/auth-drift-alert-engine.json
+
+E opcional (read-only DB):
+- users
+- companies
+- auth_attempts
+- sessions
+
+========================================================
+3. OBJETIVO DO ENGINE
+========================================================
+
+Transformar dados de auditoria em:
+
+- recomendações de melhoria
+- sugestões de correção
+- identificação de padrões estruturais
+- alertas de arquitetura inconsistente
+
+========================================================
+4. CATEGORIAS DE GOVERNANÇA
+========================================================
+
+A) SECURITY_GAP
+- falha de segurança real detectada
+(ex: false negative alto, bypass lógico)
+
+B) CONSISTENCY_DRIFT
+- diferença entre CLI e sistema real
+
+C) ARCHITECTURE_DEBT
+- duplicação de lógica (auth, rate limit, session)
+
+D) PERFORMANCE_RISK
+- queries redundantes / N+1 / loops pesados
+
+E) OBSERVABILITY_GAP
+- ausência de logs ou rastreabilidade
+
+========================================================
+5. MOTOR DE RECOMENDAÇÃO
+
+function generateRecommendation(issue) {
+
+  if (issue.type === "SECURITY_GAP")
+    return "Fix auth logic inconsistency between CLI and runtime"
+
+  if (issue.type === "CONSISTENCY_DRIFT")
+    return "Align system decision engine with CLI audit baseline"
+
+  if (issue.type === "ARCHITECTURE_DEBT")
+    return "Consolidate duplicated auth/session/rate-limit logic"
+
+  if (issue.type === "PERFORMANCE_RISK")
+    return "Replace N+1 queries with batch operations"
+
+  if (issue.type === "OBSERVABILITY_GAP")
+    return "Increase logging consistency across auth pipeline"
+}
+
+========================================================
+6. OUTPUT DO ENGINE
+
+A) SUMMARY REPORT
+{
+  totalIssues,
+  criticalIssues,
+  warningIssues,
+  architectureScore,
+  securityScore,
+  consistencyScore
+}
+
+B) RECOMMENDATIONS LIST
+[
+  {
+    type: SECURITY_GAP | CONSISTENCY_DRIFT | ARCHITECTURE_DEBT | PERFORMANCE_RISK | OBSERVABILITY_GAP,
+    severity: LOW | MEDIUM | HIGH | CRITICAL,
+    description,
+    recommendation,
+    affectedModules
+  }
+]
+
+C) PRIORITY ROADMAP (AUTO-GENERATED)
+1. Fix critical security gaps
+2. Align auth decision consistency
+3. Remove duplicated logic
+4. Optimize performance hotspots
+5. Improve observability coverage
+
+========================================================
+7. REGRAS IMPORTANTES
+
+✔ SOMENTE LEITURA
+✔ SEM ALTERAÇÃO DE CÓDIGO
+✔ SEM EXECUÇÃO EM PRODUÇÃO
+✔ SEM ENDPOINTS
+✔ SEM IMPACTO EM AUTH FLOW
+✔ EXECUÇÃO LOCAL ONLY
+
+========================================================
+8. OBJETIVO FINAL
+
+Criar uma camada de GOVERNANÇA AUTOMÁTICA capaz de:
+
+- detectar dívida arquitetural
+- sugerir melhorias estruturais
+- manter consistência entre CLI e runtime
+- prevenir degradação futura do sistema
+
+========================================================
+FASE 18.5 CONCLUÍDA QUANDO:
+
+✔ recomendações são geradas automaticamente
+✔ sistema identifica dívida técnica real
+✔ inconsistências são mapeadas
+✔ roadmap de correção é criado
+✔ nenhum impacto no sistema vivo
