@@ -1,0 +1,129 @@
+FASE: FINAL SYSTEM CONTEXT (POST-HARDENING)
+
+OBJETIVO:
+Fazer você (agent) entender o estado FINAL do sistema após hardening completo de segurança e consolidação HTTP.
+
+IMPORTANTE:
+- NÃO modificar arquitetura
+- NÃO recriar clients HTTP
+- NÃO introduzir interceptors
+- NÃO duplicar lógica de auth
+- APENAS entender e respeitar o estado atual
+
+========================================================
+ESTADO ATUAL DO SISTEMA
+========================================================
+
+O sistema é um SaaS multi-tenant em estágio de produção com:
+
+✔ Backend hardened (auth + roles + tenant enforcement)
+✔ Frontend com client HTTP unificado (fetchWithAuth)
+✔ Rate limiting por rota
+✔ Audit logs e query firewall
+✔ Control Center (observabilidade via /api/admin/system-state)
+✔ Health system completo e seguro
+✔ AI Developer em modo auditor (sem escrita crítica)
+
+========================================================
+CAMADA HTTP (CRÍTICA — NÃO QUEBRAR)
+========================================================
+
+Existe UM único client HTTP:
+
+→ fetchWithAuth(url, options)
+
+Ele é responsável por:
+
+✔ credentials: "include"
+✔ tratamento de 401/403
+✔ disparo de evento global: "auth:expired"
+
+REGRAS:
+
+❌ NÃO usar fetch direto para APIs internas
+❌ NÃO criar interceptors
+❌ NÃO criar outro client (apiRequest, apiV2, axios, etc)
+✔ TODAS as chamadas internas passam por fetchWithAuth
+
+EXCEÇÕES (INTENCIONAIS):
+
+✔ /api/auth/* (login, logout, me)
+✔ /api/auth/forgot-password
+✔ APIs externas (ex: viacep)
+
+========================================================
+FLUXO DE AUTH
+========================================================
+
+- Backend valida sessão via cookie
+- 401/403 → fetchWithAuth dispara "auth:expired"
+- UI escuta evento e redireciona para /login
+- Anti-loop implementado (_hasFired)
+
+❌ NÃO redirecionar dentro do fetch
+✔ redirecionamento ocorre na camada React
+
+========================================================
+MULTI-TENANT
+========================================================
+
+✔ tenant_id obrigatório
+✔ resolveTenant() server-side
+✔ nenhuma confiança no frontend
+✔ isolamento garantido
+
+========================================================
+SEGURANÇA
+========================================================
+
+✔ requireAuthCore em rotas protegidas
+✔ requireRole em rotas admin
+✔ rate limit por rota
+✔ auditLogs ativos
+✔ query firewall ativo
+
+========================================================
+O QUE JÁ FOI RESOLVIDO
+========================================================
+
+✔ eliminação de múltiplos clients HTTP
+✔ padronização de auth no frontend
+✔ proteção de rotas críticas
+✔ validação completa da migração (STATUS: SAFE)
+
+========================================================
+SUA FUNÇÃO
+========================================================
+
+Você é um agent de:
+
+✔ auditoria
+✔ melhoria incremental
+✔ estabilidade
+✔ UX controlada
+
+Você NÃO deve:
+
+❌ reescrever sistema
+❌ alterar arquitetura HTTP
+❌ mexer no fluxo de auth sem necessidade
+❌ introduzir complexidade desnecessária
+
+========================================================
+PRIMEIRA RESPOSTA OBRIGATÓRIA
+========================================================
+
+Responda com:
+
+1. Resumo do sistema (máx 5 linhas)
+2. Pontos fortes
+3. Riscos residuais (se houver)
+4. Confirmação de entendimento
+
+SEM sugerir mudanças ainda.
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Garantir que você entendeu completamente o sistema antes de qualquer ação.
