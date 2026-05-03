@@ -1,0 +1,180 @@
+FASE 17 — CONSOLIDAÇÃO ARQUITETURAL ENTERPRISE (CLEANUP + UNIFICAÇÃO DE DOMÍNIO)
+
+OBJETIVO:
+Eliminar duplicações estruturais e reduzir acoplamento do sistema, sem alterar regras de negócio ou contratos de API.
+
+PRINCÍPIOS OBRIGATÓRIOS:
+- ZERO mudança de comportamento externo (API contracts intactos)
+- ZERO novas features
+- Apenas reorganização, unificação e eliminação de duplicação
+- Prioridade: estabilidade + previsibilidade + manutenibilidade
+
+========================================================
+1. CONSOLIDAÇÃO DE ROTAS (CRÍTICO)
+========================================================
+
+1.1 Orders Module
+- Unificar:
+  - orders.routes.ts
+  - orders.routes.v2.ts
+
+AÇÃO:
+- Criar um único entrypoint: orders.routes.ts
+- Migrar todas as rotas da v2 para o arquivo principal
+- Marcar endpoints antigos como deprecated (comentário interno apenas)
+- Garantir mesma resposta API (zero breaking change)
+
+VALIDAR:
+- não existe duplicação de endpoint /orders/*
+- comportamento idêntico pós-migração
+
+--------------------------------------------------------
+
+1.2 Products Module
+- Unificar:
+  - products.routes.ts
+  - category routes
+  - pricing routes
+
+AÇÃO:
+- centralizar em products.routes.ts
+- separar internamente por sections (não por arquivos duplicados)
+  ex:
+    /products
+    /products/categories
+    /products/pricing
+
+VALIDAR:
+- nenhuma rota duplicada registrada no router global
+
+========================================================
+2. ELIMINAÇÃO DE MONÓLITO DE ROTAS
+========================================================
+
+2.1 server/routes/routes.ts (CRÍTICO)
+AÇÃO:
+- identificar domínios internos:
+  - auth
+  - nf-e
+  - orders
+  - billing
+  - users
+  - admin
+
+REFATORAÇÃO:
+- quebrar routes.ts em módulos organizados:
+
+  /routes/auth.routes.ts
+  /routes/nfe.routes.ts
+  /routes/orders.routes.ts
+  /routes/billing.routes.ts
+  /routes/admin.routes.ts
+
+- routes.ts vira apenas "composer":
+
+  registerAllRoutes(app)
+
+VALIDAR:
+- nenhuma rota perde registro
+- ordem de middleware mantida
+
+========================================================
+3. NF-e — NORMALIZAÇÃO DE FLUXO (SEM MUDAR REGRA)
+========================================================
+
+PROBLEMA ATUAL:
+- fluxo dividido em:
+  - nfe-transmit.service.ts
+  - nfe-idempotency.guard.ts
+  - nfe-concurrency.lock.ts
+
+AÇÃO (SEM MUDAR LÓGICA):
+- criar um único orchestrator:
+
+  NFeFlowService
+
+RESPONSABILIDADES:
+- acquireLock()
+- validateIdempotency()
+- setStatus('enviando')
+- transmit()
+- finalize()
+
+REGRAS:
+- NÃO alterar lógica atual
+- apenas centralizar chamadas existentes
+
+VALIDAR:
+- não existe dupla emissão
+- lock continua funcionando
+- status behavior idêntico
+
+========================================================
+4. REDUÇÃO DE ACOPLAMENTO ENTRE MÓDULOS
+========================================================
+
+PROBLEMAS:
+- routes chamando services diretamente demais
+- lógica de domínio espalhada
+
+AÇÃO:
+- introduzir camada leve de "domain services entrypoint":
+
+  ex:
+  ordersService.createOrder()
+  nfeService.emitNFe()
+  productService.getProducts()
+
+VALIDAR:
+- controllers não contêm lógica de negócio
+- services não dependem de routes
+
+========================================================
+5. REMOÇÃO DE DUPLICAÇÃO FUNCIONAL
+========================================================
+
+PROCURAR E UNIFICAR:
+
+- endpoints duplicados com mesma lógica
+- validações repetidas
+- regras de negócio duplicadas
+
+EXEMPLOS:
+- pricing calculation duplicado
+- order validation duplicado
+- NF-e status checks duplicados
+
+AÇÃO:
+- escolher SINGLE SOURCE OF TRUTH por domínio
+- eliminar cópias
+
+========================================================
+6. CONSISTÊNCIA DE ARQUITETURA
+========================================================
+
+VALIDAR:
+
+- 1 domínio = 1 módulo principal
+- 1 rota = 1 definição
+- 1 regra de negócio = 1 implementação
+- sem cross-import circular
+
+========================================================
+7. RESULTADO FINAL OBRIGATÓRIO
+========================================================
+
+GERAR RELATÓRIO:
+
+1. ROTAS DUPLICADAS ELIMINADAS
+2. MÓDULOS CONSOLIDADOS
+3. REDUÇÃO DE ACOPLAMENTO (% estimado)
+4. RISCOS REMANESCENTES
+5. VEREDICT:
+   - ARCHITECTURE CLEAN
+   - PARTIALLY CLEAN
+   - STILL FRAGMENTED
+
+========================================================
+REGRA FINAL:
+NÃO ALTERAR COMPORTAMENTO DO SISTEMA.
+APENAS CONSOLIDAR E ELIMINAR DUPLICAÇÃO.

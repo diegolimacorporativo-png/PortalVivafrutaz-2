@@ -13,7 +13,6 @@ import {
   productsAdminDefinition as productsAdminModule,
 } from "./products";
 import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
-import { ordersRouterV2 } from "./orders/orders.routes.v2";
 
 /**
  * Central module loader.
@@ -83,7 +82,7 @@ const AUX_MODULES: readonly ModuleDefinition[] = [
  * Pilot: orders.  Next: users, companies, finance.
  */
 const V2_MODULES: readonly ModuleDefinition[] = [
-  { name: "orders", basePath: "/api/v2/orders", router: ordersRouterV2 },
+  { name: "orders", basePath: "/api/v2/orders", router: ordersModule.router },
   // 🔜 Add other modules as they gain v2 controllers:
   // { name: "users",     basePath: "/api/v2/users",     router: usersRouterV2     },
   // { name: "companies", basePath: "/api/v2/companies", router: companiesRouterV2 },
