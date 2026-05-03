@@ -1,0 +1,162 @@
+FASE 18.1.0 — AUTH DECISION ENGINE (MODO NEUTRO / SHADOW MODE)
+
+OBJETIVO:
+Criar o AuthDecisionEngine em modo observação (shadow mode),
+sem impactar nenhum fluxo atual de login ou sessão.
+
+Isso permite testar toda a lógica antes de substituir o sistema existente.
+
+========================================================
+1. CRIAR ENGINE EM MODO SHADOW
+========================================================
+
+CRIAR ARQUIVO:
+
+server/core/auth/authDecision.engine.ts
+
+========================================================
+MODO DE OPERAÇÃO:
+========================================================
+
+O engine NÃO pode:
+❌ bloquear login
+❌ alterar sessão
+❌ escrever no banco
+❌ interferir no fluxo atual
+
+Ele apenas:
+✔ simula decisões
+✔ retorna diagnóstico
+✔ gera logs estruturados (opcional)
+
+========================================================
+2. INTERFACE DO ENGINE
+========================================================
+
+export class AuthDecisionEngine {
+
+  static async runShadow(input: {
+    entity: any,
+    password: string,
+    ip: string,
+    deviceId?: string,
+    context: "admin_login" | "company_login"
+  }) {
+
+    return {
+      decision: {
+        success: false | true,
+        status: "SHADOW_OK",
+        wouldBe: "SUCCESS | LOCKED | RATE_LIMITED | INVALID_PASSWORD | INACTIVE"
+      },
+
+      diagnostics: {
+        isLocked: boolean,
+        isActive: boolean,
+        rateLimitAllowed: boolean,
+        deviceMatch: boolean,
+        passwordValid: boolean
+      },
+
+      riskSignals: string[]
+    }
+  }
+}
+
+========================================================
+3. PIPELINE INTERNO (SEM EFEITO REAL)
+========================================================
+
+STEP 1 — CHECK ENTITY
+- verifica isActive
+- verifica isLocked
+
+STEP 2 — DEVICE CHECK (apenas simulação)
+- compara deviceId
+- NÃO bloqueia
+
+STEP 3 — RATE LIMIT (L2 READ ONLY)
+- checkDbRateLimit()
+- NÃO bloqueia
+
+STEP 4 — PASSWORD CHECK (bcrypt compare)
+- apenas simula resultado
+
+STEP 5 — RESULTADO FINAL
+- calcula “wouldBe status”
+- NÃO retorna erro real
+- NÃO interfere no login atual
+
+========================================================
+4. INTEGRAÇÃO SEGURA (OBRIGATÓRIA)
+========================================================
+
+EM auth.service.ts:
+
+ANTES de qualquer alteração real:
+
+await AuthDecisionEngine.runShadow({
+  entity,
+  password,
+  ip,
+  deviceId,
+  context
+})
+
+IMPORTANTE:
+✔ isso NÃO pode interferir no fluxo atual
+✔ apenas loga ou retorna diagnóstico interno
+
+========================================================
+5. LOGGING (OPCIONAL CONTROLADO)
+========================================================
+
+Se ativado:
+
+log:
+- auth_shadow_decision
+- auth_shadow_risk_analysis
+
+MAS:
+❌ nunca usar logAuthEvent (produção)
+❌ nunca alterar state real
+
+========================================================
+6. OBJETIVO DA FASE 18.1.0
+
+VALIDAR:
+
+✔ se engine replica corretamente decisões reais
+✔ se não há divergência admin vs company
+✔ se rate limit L2 está consistente
+✔ se device binding funciona corretamente
+✔ se session assumptions estão corretas
+
+========================================================
+7. CRITÉRIO DE SUCESSO
+
+FASE 18.1.0 ESTÁ COMPLETA QUANDO:
+
+✔ engine roda sem impacto no login real
+✔ decisões shadow batem com sistema atual ≥ 95%
+✔ nenhum fluxo de auth foi alterado
+✔ logs permitem auditoria completa
+✔ zero risco de lockout
+
+========================================================
+RESULTADO FINAL
+
+ANTES:
+refatoração direta (alto risco)
+
+AGORA:
+shadow engine paralelo (zero risco, validado antes de substituir)
+
+========================================================
+PRÓXIMO PASSO (FASE 18.1.1)
+
+Se validado:
+
+→ substituir login admin primeiro (apenas um fluxo)
+→ depois company
+→ depois remover lógica antiga
