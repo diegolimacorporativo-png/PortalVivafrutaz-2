@@ -1,0 +1,156 @@
+FASE 22 — CONTROLLED PATCH SANDBOX (SIMULAÇÃO DE CORREÇÃO SEGURA)
+
+OBJETIVO:
+Criar um sistema de simulação de alterações (patches) que permite:
+
+- testar correções sugeridas pela FASE 21
+- validar impacto antes de qualquer mudança real
+- rodar cenários de segurança, performance e consistência
+- comparar BEFORE vs AFTER em ambiente isolado
+
+IMPORTANTE:
+✔ NÃO aplica mudanças em produção
+✔ NÃO modifica código real automaticamente
+✔ NÃO executa migrations reais
+✔ SOMENTE sandbox local simulado
+✔ EXECUÇÃO 100% READ-ONLY ou ISOLADA
+
+========================================================
+1. NOVO ARQUIVO
+========================================================
+
+/scripts/auth-patch-sandbox-engine.ts
+
+Execução:
+node scripts/auth-patch-sandbox-engine.ts
+
+========================================================
+2. ENTRADAS
+========================================================
+
+A) /scripts/output/auth-auto-healing-engine.json
+B) /scripts/output/auth-governance-engine.json
+C) /scripts/output/auth-chaos-test-engine.json
+D) /scripts/output/production-readiness-gate.json
+
+========================================================
+3. OBJETIVO DO SANDBOX
+
+Simular aplicação de patches sugeridos sem tocar no sistema real:
+
+- refactors de auth
+- ajustes de session
+- mudanças de rate limit
+- correções de N+1 queries
+- consolidação de middleware
+- ajustes de NF-e idempotência
+
+========================================================
+4. TIPOS DE SIMULAÇÃO
+
+A) SECURITY PATCH SIMULATION
+- remove bypass hipotético
+- reforça fail-closed
+- valida device binding estrito
+
+B) ARCHITECTURE PATCH SIMULATION
+- unifica middlewares
+- remove duplicações
+- consolida auth flows
+
+C) PERFORMANCE PATCH SIMULATION
+- transforma N+1 em batch queries
+- reduz chamadas redundantes
+- otimiza loops críticos
+
+D) NF-E PATCH SIMULATION
+- reforça idempotência
+- valida advisory lock
+- simula concorrência segura
+
+========================================================
+5. MOTOR DE SIMULAÇÃO
+
+function simulatePatch(patch) {
+
+  const beforeMetrics = runBaselineMetrics()
+  const afterMetrics = runSimulatedMetrics(patch)
+
+  return {
+    patchId: patch.id,
+
+    impact: {
+      securityDelta: afterMetrics.security - beforeMetrics.security,
+      stabilityDelta: afterMetrics.stability - beforeMetrics.stability,
+      performanceDelta: afterMetrics.performance - beforeMetrics.performance,
+      consistencyDelta: afterMetrics.consistency - beforeMetrics.consistency
+    },
+
+    risk: {
+      rollbackComplexity: "LOW | MEDIUM | HIGH",
+      sideEffects: [],
+      confidenceScore: number
+    },
+
+    recommendation:
+      if (afterMetrics.totalScore > beforeMetrics.totalScore)
+        "APPROVE FOR IMPLEMENTATION"
+      else
+        "REJECT OR REWORK"
+  }
+}
+
+========================================================
+6. OUTPUT DO ENGINE
+
+A) PATCH SIMULATION REPORT
+[
+  {
+    patchId,
+    impact,
+    risk,
+    recommendation
+  }
+]
+
+B) GLOBAL COMPARISON
+
+{
+  beforeScore,
+  afterScore,
+  improvementDelta,
+  regressionsDetected
+}
+
+C) FINAL SANDBOX VERDICT
+
+- "SAFE TO APPLY"
+- "REQUIRES REVIEW"
+- "HIGH RISK - DO NOT APPLY"
+
+========================================================
+7. REGRAS IMPORTANTES
+
+✔ nunca altera produção
+✔ nunca executa migrations reais
+✔ nunca escreve no banco real
+✔ apenas simulação baseada em modelos
+✔ deve ser determinístico
+
+========================================================
+8. OBJETIVO FINAL
+
+Permitir responder:
+
+→ "se eu aplicar essa correção, o sistema melhora ou piora?"
+
+antes de qualquer mudança real.
+
+========================================================
+FASE 22 CONCLUÍDA QUANDO:
+
+✔ patches simulados
+✔ impacto calculado
+✔ risco avaliado
+✔ comparação before/after gerada
+✔ decisão de segurança sugerida
