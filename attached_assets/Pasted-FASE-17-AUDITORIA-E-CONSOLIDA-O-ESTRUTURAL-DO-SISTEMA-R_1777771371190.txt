@@ -1,0 +1,85 @@
+FASE 17 — AUDITORIA E CONSOLIDAÇÃO ESTRUTURAL DO SISTEMA (ROUTES + DUPLICAÇÃO + SEGURANÇA)
+
+OBJETIVO:
+Realizar uma auditoria estática completa do sistema e executar apenas correções seguras de consolidação estrutural.
+Foco absoluto em:
+- Rotas duplicadas ou sobrepostas
+- Middlewares de autenticação duplicados
+- NF-e fluxo fragmentado
+- Endpoints redundantes ou alias incorreto
+- Inconsistências de registro no routes.ts
+- Dependências circulares ou paralelas entre módulos
+
+REGRAS OBRIGATÓRIAS:
+- NÃO alterar comportamento de negócio (zero change em regras de negócio)
+- NÃO mudar contratos de API (request/response devem permanecer idênticos)
+- NÃO criar novas features
+- Apenas remover duplicação estrutural ou unificar mounts/aliases
+- Se houver dúvida entre quebrar comportamento ou manter duplicação → MANTER E APENAS REPORTAR
+
+ESCOPO DA AUDITORIA:
+
+1. ROTAS (CRÍTICO)
+- Verificar server/routes/routes.ts (monólito principal)
+- Identificar rotas duplicadas entre módulos:
+  - orders.routes.ts vs orders.routes.v2.ts
+  - products.routes.ts vs category/pricing routes
+  - auth.routes vs middleware auth wrappers
+- Mapear endpoints idênticos registrados em múltiplos arquivos
+
+AÇÃO PERMITIDA:
+- Substituir versões duplicadas por alias seguro (v2 → v1)
+- Ou consolidar mount point sem alterar comportamento
+
+2. AUTH / MIDDLEWARE
+- Verificar duplicação entre:
+  - server/middleware/auth.ts
+  - server/core/http/requireAuth.ts
+- Confirmar single source of truth
+- Remover wrappers redundantes apenas se não afetarem comportamento
+
+3. NF-e (IDEMPOTÊNCIA E CONCORRÊNCIA)
+- Verificar divisão entre:
+  - nfe-transmit.service.ts
+  - nfe-idempotency.guard.ts
+  - nfe-concurrency.lock.ts
+- Confirmar se há duplicação de controle de estado (lock vs guard vs status string)
+- NÃO alterar lógica de emissão, apenas consolidar responsabilidades duplicadas (se existirem)
+
+4. REGISTRO DE ROTAS (routes.ts)
+- Garantir que:
+  - Cada endpoint só é registrado UMA vez
+  - Não há mount duplicado de routers
+  - Não há alias conflitante
+
+5. OUTPUT DA AUDITORIA (OBRIGATÓRIO)
+
+Entregar:
+
+A) MAPA DE DUPLICAÇÕES
+- arquivo A → arquivo B
+- tipo de duplicação (route / middleware / service / NF-e / auth)
+- impacto (low / medium / critical)
+
+B) CONSOLIDAÇÕES FEITAS
+- o que foi unificado
+- o que foi removido (aliases, mounts duplicados)
+
+C) RISCOS REMANESCENTES
+- qualquer duplicação que NÃO pôde ser removida com segurança
+
+D) STATUS FINAL DO SISTEMA
+- SCORE DE DUPLICAÇÃO (0–100)
+- SCORE DE ESTABILIDADE (0–100)
+- PRONTO PARA PRODUÇÃO? (SIM/NÃO com justificativa técnica)
+
+IMPORTANTE:
+- Priorizar segurança do sistema acima de limpeza estética
+- Se uma duplicação for necessária para compatibilidade, manter e marcar como LEGACY
+- Não “otimizar demais” — sistema deve continuar funcional 100%
+
+FASE 17 FINALIZADA APENAS QUANDO:
+- Todas duplicações críticas de rota forem resolvidas ou justificadas
+- Middleware de auth estiver com uma única fonte funcional
+- NF-e estiver com fluxo consistente (mesmo que ainda procedural)
+- routes.ts não tiver registros duplicados de endpoints
