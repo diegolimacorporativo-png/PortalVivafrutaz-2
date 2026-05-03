@@ -115,6 +115,7 @@ import { register as securityAnalysisRegister } from './security-analysis.routes
 import { register as securityAlertsRegister } from './security-alerts.routes';
 import { register as securityOverviewRegister } from './security-overview.routes';
 import { register as securityRiskRegister } from './security-risk.routes';
+import { registerGovernanceRoutes } from './governance.routes';
 import { register as contractsAlertsRegister } from './contracts-alerts.routes';
 import { register as companyValidateRegister } from './company-validate.routes';
 import { register as purchasePlanningRegister } from './purchase-planning.routes';
@@ -219,6 +220,7 @@ export async function registerRoutes(
   securityAlertsRegister(app);    // FASE 11 — operational alert engine (GET /api/admin/security/alerts)
   securityOverviewRegister(app);  // FASE 14.8 — DB-backed risk intelligence (GET /api/admin/security/overview)
   securityRiskRegister(app);      // FASE 14.9 — Risk Derivation Layer READ-ONLY (GET /api/admin/security/risk)
+  registerGovernanceRoutes(app);
   contractsAlertsRegister(app);
   companyValidateRegister(app);
   purchasePlanningRegister(app);

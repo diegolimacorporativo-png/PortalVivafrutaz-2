@@ -1,0 +1,203 @@
+FASE 25 — ADMIN FRONTEND OBSERVABILITY & GOVERNANCE DASHBOARD (READ-ONLY)
+
+OBJETIVO:
+Criar um painel administrativo centralizado para visualização de todo o ecossistema de governança:
+
+- CLI AUTH AUDIT (FASE 18.1)
+- TRUTH LAYER (FASE 18.2)
+- DRIFT ENGINE (FASE 18.3)
+- ALERT ENGINE (FASE 18.4)
+- GOVERNANCE ENGINE (FASE 18.5)
+- CHAOS ENGINE (FASE 19)
+- PRODUCTION GATE (FASE 20)
+- AUTO-HEALING ENGINE (FASE 21)
+- PATCH SANDBOX ENGINE (FASE 22)
+
+IMPORTANTE:
+✔ SOMENTE READ-ONLY
+✔ NÃO executa patches
+✔ NÃO altera backend
+✔ NÃO altera auth/session/NF-e
+✔ apenas visualização + análise
+✔ exclusivo para área ADMIN
+
+========================================================
+1. FRONTEND (ADMIN ONLY)
+========================================================
+
+/client/admin/pages/governance-dashboard.tsx
+
+ROTA:
+GET /admin/governance
+
+========================================================
+2. ESTRUTURA DO DASHBOARD
+
+LAYOUT PRINCIPAL:
+
+┌──────────────────────────────────────────────┐
+│  SYSTEM GOVERNANCE OVERVIEW                  │
+├──────────────────────────────────────────────┤
+│  Production Score (FASE 20)                  │
+│  Chaos Score (FASE 19)                      │
+│  Drift Score (FASE 18.3)                    │
+│  Security Score (FASE 18.1)                │
+└──────────────────────────────────────────────┘
+
+========================================================
+3. PAINÉIS PRINCIPAIS
+
+A) 🔐 SECURITY PANEL
+- auth bypass alerts
+- session integrity status
+- device binding health
+- rate limit anomalies
+
+Fonte:
+→ cli-auth-audit.json
+→ truth-layer.json
+
+--------------------------------------------------------
+
+B) 📉 DRIFT PANEL
+- divergence CLI vs runtime
+- historical drift graph
+- top inconsistent modules
+
+Fonte:
+→ auth-drift-dashboard.json
+
+--------------------------------------------------------
+
+C) ⚠️ CHAOS PANEL
+- failure under load simulation
+- NF-e concurrency stress result
+- session breakdown under attack
+
+Fonte:
+→ auth-chaos-test-engine.json
+
+--------------------------------------------------------
+
+D) 🧠 GOVERNANCE PANEL
+- system-wide risk classification
+- architectural debt map
+- duplication hotspots
+
+Fonte:
+→ auth-governance-engine.json
+
+--------------------------------------------------------
+
+E) 🚀 PRODUCTION GATE PANEL
+- final score breakdown
+- deployment verdict
+- blockers list
+
+Fonte:
+→ production-readiness-gate.json
+
+--------------------------------------------------------
+
+F) 🧪 AUTO-HEALING PANEL
+- suggested patches
+- impact simulation summary
+- risk ranking of fixes
+
+Fonte:
+→ auth-auto-healing-engine.json
+
+--------------------------------------------------------
+
+G) 🧬 PATCH SANDBOX PANEL
+- before vs after simulation
+- expected score delta
+- reject/approve recommendation
+
+Fonte:
+→ auth-patch-sandbox-engine.json
+
+========================================================
+4. COMPONENTES UI
+
+A) Score Cards
+- SecurityScoreCard
+- DriftScoreCard
+- ChaosScoreCard
+- ProductionScoreCard
+
+B) Risk Tables
+- TopIssuesTable
+- BypassDetectionTable
+- NFESafetyTable
+- SessionIntegrityTable
+
+C) Visualizations
+- DriftTimelineChart
+- ChaosHeatmap
+- ArchitectureDependencyGraph
+
+D) Decision Banner
+- "PRODUCTION READY"
+- "READY WITH MONITORING"
+- "NOT READY"
+- "CRITICAL RISK"
+
+========================================================
+5. DATA FLOW
+
+Frontend (React)
+   ↓
+API Layer (read-only endpoints)
+   ↓
+JSON outputs from CLI engines
+   ↓
+Aggregated UI rendering
+
+IMPORTANT:
+✔ NO DB writes
+✔ NO auth mutation
+✔ NO state mutation
+✔ ONLY aggregation layer
+
+========================================================
+6. OPTIONAL BACKEND READ APIs (READ-ONLY)
+
+GET /api/admin/governance/summary
+GET /api/admin/governance/drift
+GET /api/admin/governance/chaos
+GET /api/admin/governance/security
+GET /api/admin/governance/production-gate
+
+ALL:
+→ read JSON outputs
+→ no computation heavy logic
+→ no side effects
+
+========================================================
+7. SECURITY MODEL
+
+- requires ADMIN role only
+- session validated via requireAuth
+- no public access
+- no write permissions anywhere
+
+========================================================
+8. OBJECTIVE FINAL
+
+Criar um painel que permita responder visualmente:
+
+→ O sistema está seguro?
+→ Está estável?
+→ Está consistente?
+→ Está pronto para produção?
+→ O que deve ser corrigido primeiro?
+
+========================================================
+FASE 25 CONCLUÍDA QUANDO:
+
+✔ dashboard admin funcional
+✔ todos os engines conectados
+✔ visualização de scores completa
+✔ zero impacto no backend
+✔ sistema totalmente observável via UI
