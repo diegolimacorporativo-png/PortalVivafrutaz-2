@@ -1,0 +1,169 @@
+FASE 18.1.0 — AUTH DECISION ENGINE (CLI MODE / EXTERNAL AUDIT / ZERO BACKEND INTEGRATION)
+
+OBJETIVO:
+Criar um auditor externo de autenticação rodando via CLI,
+sem qualquer integração com o backend, API ou fluxo de login.
+
+FINALIDADE:
+- Auditoria de decisões de autenticação
+- Detecção de inconsistências entre regras reais e esperadas
+- Validação de risco de auth/session
+- ZERO impacto no sistema em execução
+
+========================================================
+1. ARQUITETURA
+========================================================
+
+CRIAR SCRIPT:
+
+/scripts/auth-audit-engine.ts
+
+EXECUÇÃO:
+node scripts/auth-audit-engine.ts
+
+OU:
+ts-node scripts/auth-audit-engine.ts
+
+========================================================
+2. FONTES DE DADOS (READ ONLY)
+========================================================
+
+O script pode apenas LER:
+
+- tabela: users
+- tabela: companies
+- tabela: auth_attempts
+- tabela: sessions
+
+USAR:
+- conexão direta com PostgreSQL (DATABASE_URL)
+- OU cliente read-only existente do projeto
+
+IMPORTANTE:
+✔ SOMENTE SELECT
+✔ NENHUM UPDATE / INSERT / DELETE
+
+========================================================
+3. LÓGICA DO AUDITOR (SIMULAÇÃO DE DECISÃO)
+========================================================
+
+PARA CADA ENTIDADE (user/company):
+
+simular fluxo:
+
+STEP 1 — ENTITY CHECK
+- isActive
+- exists
+
+STEP 2 — LOCK CHECK
+- isLocked
+
+STEP 3 — RATE LIMIT ANALYSIS
+- contar auth_attempts últimos 5/15/60 min
+- detectar spikes
+
+STEP 4 — DEVICE ANALYSIS
+- IPs distintos por entidade
+- deviceId inconsistências
+
+STEP 5 — PASSWORD FAILURE RATE
+- success vs failure ratio
+
+========================================================
+4. MOTOR DE DECISÃO (SIMULADO)
+========================================================
+
+function simulateDecision(entity, metrics) {
+
+  if (!entity.exists) return "INVALID_ENTITY"
+  if (!entity.isActive) return "INACTIVE"
+  if (entity.isLocked) return "LOCKED"
+
+  if (metrics.failureRate > 0.8) return "RISK_LOCK"
+
+  if (metrics.rateSpike > 3) return "RATE_LIMITED"
+
+  return "SUCCESS"
+}
+
+========================================================
+5. OUTPUT DO CLI
+========================================================
+
+O script deve gerar:
+
+A) RESUMO GLOBAL
+- total users analisados
+- total companies analisadas
+- % risco alto
+- % locked
+- % inactive
+
+B) RISCO POR ENTIDADE
+[
+  {
+    entityId,
+    type: user | company,
+    decision: "SUCCESS | LOCKED | RISK_LOCK | RATE_LIMITED",
+    metrics: {
+      failureRate,
+      ipCount,
+      recentAttempts,
+      deviceSpread
+    }
+  }
+]
+
+C) ANOMALIAS DETECTADAS
+- brute force patterns
+- IP reuse across accounts
+- spike windows
+- suspicious login clusters
+
+========================================================
+6. REGRAS DE SEGURANÇA
+
+✔ NÃO importa código do backend
+✔ NÃO executa lógica de auth real
+✔ NÃO interfere em sessão ou login
+✔ NÃO escreve no banco
+✔ NÃO depende de runtime do servidor
+
+========================================================
+7. OBJETIVO DA FASE
+
+VALIDAR EXTERNAMENTE:
+
+✔ se regras de auth atuais são consistentes
+✔ se rate limit L2 está coerente
+✔ se há contas com comportamento anômalo
+✔ se logs batem com comportamento esperado
+✔ se sistema está seguro em escala real
+
+========================================================
+8. CRITÉRIO DE SUCESSO
+
+FASE 18.1.0 CLI ESTÁ COMPLETA QUANDO:
+
+✔ script roda isolado sem backend
+✔ gera relatório completo de auth
+✔ detecta padrões de risco reais
+✔ não altera sistema em execução
+✔ pode ser rodado em produção sem impacto
+
+========================================================
+RESULTADO FINAL
+
+ANTES:
+integração direta no auth engine (alto risco)
+
+AGORA:
+auditoria externa independente (zero risco, produção-safe)
+
+========================================================
+PRÓXIMO PASSO (FASE 18.1.1)
+
+Se validado:
+
+→ comparar resultados CLI vs AuthDecisionEngine futuro
+→ começar shadow sync controlado (sem impacto em login)
