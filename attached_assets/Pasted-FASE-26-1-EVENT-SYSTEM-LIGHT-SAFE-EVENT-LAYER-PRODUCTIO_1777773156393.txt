@@ -1,0 +1,218 @@
+FASE 26.1 — EVENT SYSTEM LIGHT (SAFE EVENT LAYER / PRODUCTION READY)
+
+OBJETIVO:
+Adicionar uma camada de eventos leve, segura e não intrusiva ao sistema atual.
+
+✔ NÃO quebra auth/session
+✔ NÃO altera NF-e fluxo
+✔ NÃO introduz websocket
+✔ NÃO cria stream processor
+✔ NÃO muda arquitetura existente
+✔ apenas “observabilidade estruturada”
+
+========================================================
+1. CONCEITO CENTRAL
+========================================================
+
+ANTES:
+logs soltos (console.log / logAuthEvent isolado)
+
+DEPOIS:
+eventos estruturados + persistíveis
+
+SYSTEM FLOW:
+
+current code
+   ↓
+emitEvent()
+   ↓
+event_store (DB table)
+   ↓
+future analytics / dashboard
+
+========================================================
+2. NOVO MÓDULO CORE
+========================================================
+
+/server/core/events/event.emitter.ts
+
+FUNÇÃO PRINCIPAL:
+
+export function emitEvent(event: SystemEvent) {
+  // 1. NÃO bloqueante
+  // 2. NÃO interfere no fluxo principal
+  // 3. apenas grava e segue execução
+
+  enqueueEvent(event)
+}
+
+========================================================
+3. TIPO DE EVENTO (TIPAGEM SEGURA)
+========================================================
+
+export type SystemEvent = {
+
+  id: string
+  type:
+    | "AUTH_LOGIN_SUCCESS"
+    | "AUTH_LOGIN_FAILURE"
+    | "AUTH_RATE_LIMIT_HIT"
+    | "SESSION_INVALID"
+    | "NF_E_CREATED"
+    | "NF_E_FAILED"
+    | "SECURITY_ANOMALY"
+    | "SYSTEM_ERROR"
+
+  entityType?: "user" | "company" | "nfe"
+  entityId?: string
+
+  metadata?: Record<string, any>
+
+  timestamp: Date
+}
+
+========================================================
+4. EVENT STORE (BANCO DE DADOS)
+========================================================
+
+Tabela:
+
+event_store
+
+Campos:
+
+- id (uuid)
+- type (varchar)
+- entity_type (varchar nullable)
+- entity_id (varchar nullable)
+- metadata (jsonb)
+- created_at (timestamp)
+
+========================================================
+5. REPOSITORY LAYER
+========================================================
+
+/server/core/events/event.repository.ts
+
+Funções:
+
+- saveEvent(event)
+- getEvents(filters)
+- getRecentEvents(limit)
+
+IMPORTANTE:
+✔ async non-blocking write
+✔ fail silent (never break main flow)
+
+========================================================
+6. INTEGRAÇÃO NO AUTH SERVICE (SEM MUDAR FLUXO)
+
+ANTES:
+logAuthEvent()
+
+DEPOIS:
+
+logAuthEvent() + emitEvent()
+
+EXEMPLO:
+
+onLoginSuccess:
+  logAuthEvent(...)
+  emitEvent({
+    type: "AUTH_LOGIN_SUCCESS",
+    entityType: "user",
+    entityId: user.id,
+    metadata: { ip, deviceId }
+  })
+
+onLoginFailure:
+  emitEvent({
+    type: "AUTH_LOGIN_FAILURE",
+    metadata: { reason, ip }
+  })
+
+========================================================
+7. INTEGRAÇÃO NF-e
+
+nfe-transmit.service.ts:
+
+emitEvent({
+  type: "NF_E_CREATED",
+  entityType: "nfe",
+  entityId: nfe.id,
+  metadata: {
+    status: "enviando"
+  }
+})
+
+emitEvent({
+  type: "NF_E_FAILED",
+  entityId: nfe.id
+})
+
+========================================================
+8. PERFORMANCE GUARANTEES
+
+✔ non-blocking queue
+✔ no await on main flow
+✔ batched inserts (optional future upgrade)
+✔ no retry storms
+✔ zero impact on request latency
+
+========================================================
+9. ERROR HANDLING RULE
+
+emitEvent MUST NEVER break system
+
+try {
+  queue.push(event)
+} catch (e) {
+  // silent fail
+  // log internally only if debug enabled
+}
+
+========================================================
+10. USO FUTURO (SEM IMPLEMENTAR AGORA)
+
+Essa base permite:
+
+- real-time stream (FASE 26.2)
+- governance dashboard live
+- anomaly detection
+- audit trail completo
+- behavioral analytics
+
+========================================================
+11. MIGRATION STRATEGY (SAFE)
+
+ETAPA 1:
+✔ add event.emitter.ts
+✔ add event_store table
+
+ETAPA 2:
+✔ integrate AUTH only
+
+ETAPA 3:
+✔ integrate NF-e
+
+ETAPA 4:
+✔ integrate security.blocker
+
+ETAPA 5:
+✔ remove reliance on console logs gradually
+
+========================================================
+12. REGRA DE OURO
+
+🔴 NUNCA substituir lógica existente
+🟢 sempre apenas adicionar emitEvent()
+
+========================================================
+FASE 26.1 CONCLUÍDA QUANDO:
+
+✔ event system ativo
+✔ sem impacto no runtime
+✔ auth continua funcionando igual
+✔ NF-e continua intacto
+✔ eventos sendo persistidos
+✔ zero breaking changes

@@ -27,6 +27,7 @@ import { db } from "../../database/db";
 import { authAttempts } from "../../../shared/schema";
 import { storage } from "../../services/storage";
 import { logSecurityEvent, logSecurity } from "../security/securityLogger";
+import { emitEvent } from "../events/event.emitter";
 import type { SessionPayload } from "../../modules/auth/auth.types";
 import { RATE_LIMIT_SCHEDULE } from "./rateSchedule";
 
@@ -172,6 +173,12 @@ class AuthCoreService {
     success: boolean;
   }): Promise<void> {
     try {
+      emitEvent({
+        type: params.success ? "AUTH_LOGIN_SUCCESS" : "AUTH_LOGIN_FAILURE",
+        entityType: params.userId ? "user" : params.companyId ? "company" : undefined,
+        entityId: String(params.userId ?? params.companyId ?? ""),
+        metadata: { ip: params.ip, endpoint: params.endpoint ?? "login", success: params.success },
+      });
       await db.insert(authAttempts).values({
         companyId: params.companyId ?? null,
         userId: params.userId ?? null,
@@ -261,6 +268,19 @@ class AuthCoreService {
       metadata?: Record<string, unknown>;
     } = {},
   ): void {
+    emitEvent({
+      type:
+        type === AUTH_EVENTS.LOGIN_SUCCESS
+          ? "AUTH_LOGIN_SUCCESS"
+          : type === AUTH_EVENTS.RATE_LIMITED
+            ? "AUTH_RATE_LIMIT_HIT"
+            : type === AUTH_EVENTS.SESSION_INVALIDATED
+              ? "SESSION_INVALID"
+              : "SECURITY_ANOMALY",
+      entityType: payload.userId ? "user" : payload.companyId ? "company" : undefined,
+      entityId: String(payload.userId ?? payload.companyId ?? ""),
+      metadata: payload.metadata ?? payload,
+    });
     // 1. In-memory circular buffer (always)
     logSecurityEvent({
       type,

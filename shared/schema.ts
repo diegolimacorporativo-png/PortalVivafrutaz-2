@@ -531,6 +531,17 @@ export const systemLogs = pgTable("system_logs", {
   level: text("level").notNull().default("INFO"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+export const eventStore = pgTable("event_store", {
+  id: text("id").primaryKey(),
+  type: text("type").notNull(),
+  entityType: text("entity_type"),
+  entityId: text("entity_id"),
+  metadata: jsonb("metadata"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type EventStore = typeof eventStore.$inferSelect;
+export const insertEventStoreSchema = createInsertSchema(eventStore).omit({ createdAt: true });
+export type InsertEventStore = z.infer<typeof insertEventStoreSchema>;
 
 export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({ id: true, createdAt: true });
 export type SystemLog = typeof systemLogs.$inferSelect;
