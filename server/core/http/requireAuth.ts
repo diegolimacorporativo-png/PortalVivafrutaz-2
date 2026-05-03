@@ -17,6 +17,11 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 }
 
 /**
+ * Deprecated alias kept for internal compatibility only.
+ */
+export { requireAuth as requireAuthDeprecated };
+
+/**
  * Restrict an endpoint to a set of roles. Composes after requireAuth.
  * Usage: router.delete('/:id', requireAuth, requireRole(['ADMIN', 'DIRECTOR']), handler)
  *

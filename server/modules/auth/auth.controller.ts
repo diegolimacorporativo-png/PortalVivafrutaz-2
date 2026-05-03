@@ -37,7 +37,6 @@ export class AuthController {
       input = loginSchema.parse(req.body);
     } catch (err) {
       if (err instanceof ZodError) {
-        console.warn(`[${req.requestId}] [auth.controller] login failed`, err);
         res.status(400).json({ message: "Usuário ou senha incorretos." });
         return;
       }
@@ -104,7 +103,6 @@ export class AuthController {
           resolve();
           return;
         }
-        console.log("[LOGIN] Sessão salva com sucesso");
         if (outcome.kind === "admin-success") {
           // FASE 7.1 HOTFIX — strip password hash from response. Other fields untouched.
           const { password: _pw, ...userSafe } = outcome.user as Record<string, unknown> & { password?: unknown };
@@ -155,7 +153,6 @@ export class AuthController {
     try {
       email = forgotPasswordSchema.parse(req.body).email;
     } catch (err) {
-      console.warn(`[${req.requestId}] [auth.controller] forgotPassword failed`, err);
       res.status(400).json({ message: "Email obrigatório." });
       return;
     }

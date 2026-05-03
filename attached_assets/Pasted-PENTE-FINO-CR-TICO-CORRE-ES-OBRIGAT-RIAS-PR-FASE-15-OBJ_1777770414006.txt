@@ -1,0 +1,132 @@
+PENTE FINO CRÍTICO — CORREÇÕES OBRIGATÓRIAS (PRÉ-FASE 15)
+
+OBJETIVO:
+Corrigir apenas falhas críticas de segurança e consistência de autenticação/sessão.
+Sem criar novas features. Sem refatoração grande. Apenas correções cirúrgicas.
+
+REGRAS:
+- NÃO adicionar funcionalidades novas
+- NÃO criar novos módulos
+- NÃO alterar contratos de API
+- Apenas corrigir comportamento existente
+- Foco: segurança determinística em produção multi-instância
+
+========================================
+C1 — SESSION FAIL-OPEN (CRÍTICO)
+========================================
+
+PROBLEMA:
+validateSession() retorna "valid: true" em erro de DB.
+
+AÇÃO:
+- Se houver erro de banco de dados:
+  → sessão deve ser INVALIDA
+  → nunca retornar true em fallback
+
+REGRA FINAL:
+DB ERROR = FAIL CLOSED (bloqueia acesso)
+
+========================================
+C2 — DEVICE BINDING NÃO OBRIGATÓRIO
+========================================
+
+PROBLEMA:
+- Se não existe X-Device-Id, sistema cria "srv-*"
+- Isso permite bypass indireto do device binding
+
+AÇÃO:
+- Remover fallback srv-* como bypass válido
+- Se session.deviceId existir:
+    → deve obrigatoriamente bater com request
+- Se deviceId não existir corretamente:
+    → sessão deve ser INVALIDADA
+
+REGRA FINAL:
+Device binding deve ser enforcement real, não opcional
+
+========================================
+C3 — DUPLICIDADE DE MIDDLEWARE DE AUTH
+========================================
+
+PROBLEMA:
+Existem dois middlewares:
+- requireAuth.ts
+- middleware/auth.ts
+
+AÇÃO:
+- Escolher UM middleware oficial
+- O outro deve ser:
+    → removido das rotas OU marcado como deprecated interno
+- Unificar parsing de:
+    → session
+    → role
+    → userId
+
+REGRA FINAL:
+UMA única fonte de autenticação
+
+========================================
+C4 — SESSION VERSION LEGACY BYPASS
+========================================
+
+PROBLEMA:
+Sessões antigas sem tokenVersion são ignoradas:
+
+if (!session.tokenVersion) skip validation
+
+AÇÃO:
+- REMOVER bypass legacy
+- Se tokenVersion não existir:
+    → sessão deve ser INVALIDA
+
+REGRA FINAL:
+Sem compatibilidade insegura em produção
+
+========================================
+C5 — LOGGING RESIDUAL EM AUTH
+========================================
+
+PROBLEMA:
+Ainda existem console.log em auth flow.
+
+AÇÃO:
+- Remover TODOS console.log em:
+    → auth
+    → session
+    → security
+- Substituir por:
+    → logAuthEvent
+    → logSecurity
+
+REGRA FINAL:
+ZERO console.log em fluxo de autenticação
+
+========================================
+C6 — L1 vs L2 AMBIGUIDADE
+
+PROBLEMA:
+L1 ainda aparece como "rate limit", causando confusão.
+
+AÇÃO:
+- L1 = apenas TELEMETRIA (não bloqueia nada)
+- L2 = única fonte de decisão
+- Garantir que não existe if (!L1.allowed)
+
+REGRA FINAL:
+Somente L2 decide bloqueio
+
+========================================
+
+RESULTADO ESPERADO:
+
+Após execução:
+
+- Sessão FAIL CLOSED real
+- Device binding obrigatório
+- Auth com um único middleware
+- Zero bypass legado de tokenVersion
+- Zero console.log em auth
+- Rate limit com única fonte de decisão
+
+STATUS FINAL:
+SISTEMA PRONTO PARA PRODUÇÃO MULTI-INSTANCE: SIM/NÃO (após validação)

@@ -203,16 +203,16 @@ class AuthCoreService {
    *  • The session's tokenVersion is stale (revokeAllSessions was called).
    *  • Both sides advertise a deviceId and they differ.
    *
-   * Fail-open: any DB error returns `{ valid: true }` to prevent DB outages
-   * from locking everyone out.
+   * Fail-closed: any DB error returns `{ valid: false }` so access is denied
+   * when session verification cannot be trusted.
    */
   async validateSession(
     session: Partial<SessionPayload>,
     requestDeviceId?: string,
   ): Promise<SessionValidation> {
-    // Unauthenticated or pre-FASE-14.6 session → pass through
+    // Unauthenticated session → pass through
     if (!session.userId && !session.companyId) return { valid: true };
-    if (session.tokenVersion === undefined) return { valid: true };
+    if (session.tokenVersion === undefined) return { valid: false, reason: "TOKEN_VERSION_MISMATCH" };
 
     try {
       if (session.userId) {
@@ -233,25 +233,12 @@ class AuthCoreService {
         }
       }
 
-      // BUG-05-FIX: enforce device binding when the session carries a
-      // CLIENT-generated deviceId (i.e. not a server-generated "srv-*" fallback).
-      // Sessions where the frontend didn't send X-Device-Id at login get a
-      // "srv-<timestamp>" value — we don't enforce those to avoid breaking
-      // existing clients. Sessions where the client DID send the header are
-      // fully bound: missing or mismatched header → reject.
-      const isClientBound =
-        session.deviceId && !String(session.deviceId).startsWith("srv-");
-      if (isClientBound && requestDeviceId !== session.deviceId) {
+      if (!session.deviceId || requestDeviceId !== session.deviceId) {
         return { valid: false, reason: "DEVICE_MISMATCH" };
       }
 
       return { valid: true };
     } catch (err: any) {
-      // BUG-06-FIX: FAIL-CLOSED — a DB error during session validation now
-      // invalidates the session instead of silently granting access. This
-      // prevents a DB instability window from being exploitable. Legitimate
-      // users will be prompted to re-authenticate, which is the correct
-      // security posture for an enterprise ERP.
       logSecurity(`[SECURITY] AUTH_CORE_VALIDATE_SESSION_ERROR | error=${err?.message ?? "unknown"} | decision=REJECT`);
       return { valid: false, reason: "ACCOUNT_NOT_FOUND" };
     }

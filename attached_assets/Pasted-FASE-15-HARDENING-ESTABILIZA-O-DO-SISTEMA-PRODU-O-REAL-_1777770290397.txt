@@ -1,0 +1,161 @@
+FASE 15 — HARDENING & ESTABILIZAÇÃO DO SISTEMA (PRODUÇÃO REAL)
+
+OBJETIVO:
+Executar uma consolidação total do sistema existente, eliminando duplicações, inconsistências arquiteturais e riscos de produção.
+
+REGRAS OBRIGATÓRIAS:
+- NÃO criar novas features funcionais
+- NÃO criar novos módulos desnecessários
+- NÃO duplicar engines ou camadas
+- NÃO mudar contratos de API existentes
+- SOMENTE refatoração, consolidação e remoção de duplicação
+- Foco total em estabilidade de produção multi-instância
+
+========================================
+FASE 15.1 — AUTH ENGINE CONSOLIDATION
+========================================
+
+Problema:
+- Admin e Company ainda possuem lógica duplicada de autenticação
+- Decisões de auth ainda estão espalhadas em services
+
+Ação:
+Criar um único fluxo interno de decisão:
+
+AuthFlow:
+  1. fetchEntity (user/company)
+  2. checkLockState
+  3. checkSessionState
+  4. checkDbRateLimit (L2 único decisor)
+  5. verifyPassword
+  6. onSuccess / onFailure
+
+Regras:
+- Admin e Company são apenas adapters
+- TODA lógica de auth deve passar pelo AuthFlow
+- Remover qualquer duplicação de lógica entre paths
+
+========================================
+FASE 15.2 — RATE LIMIT CONSOLIDATION
+========================================
+
+Problema:
+- L1 (memória) e L2 (DB) coexistem como lógica de decisão
+- risco de divergência entre instâncias
+
+Ação:
+- L1 passa a ser apenas TELEMETRIA (não bloqueia mais nada)
+- L2 (auth_attempts DB) é a única fonte de decisão
+- Centralizar rateSchedule em um único arquivo imutável
+
+Resultado:
+- Apenas um sistema de rate limit ativo
+- Zero divergência multi-instância
+
+========================================
+FASE 15.3 — LOGGING SINGLE PIPELINE
+========================================
+
+Problema:
+- logAuthEvent
+- logSecurity
+- alertEngine
+- console.log residual
+
+Ação:
+Criar pipeline único:
+
+SecurityEventPipeline:
+  - normalizar evento
+  - persistir no DB
+  - enviar alertEngine (se crítico)
+  - emitir logs estruturados
+
+Regras:
+- ZERO console.log em auth/security
+- ZERO duplicação de logs
+- apenas pipeline único
+
+========================================
+FASE 15.4 — NF-e STATE MACHINE
+========================================
+
+Problema:
+- estados "enviando", retry e falhas não são consistentes
+- lógica espalhada entre services
+
+Ação:
+- Criar máquina de estados única para NF-e
+- Definir transições válidas
+- Centralizar controle de status
+
+Resultado:
+- zero emissão duplicada
+- crash-safe real
+- idempotência garantida
+
+========================================
+FASE 15.5 — ELIMINAÇÃO DE N+1 QUERIES
+========================================
+
+Problema:
+- billing, NF-e, auth e analytics possuem loops com queries internas
+
+Ação:
+- substituir loops com queries por batch queries (IN / JOIN)
+- remover query dentro de map/forEach
+- preload de dados quando necessário
+
+Resultado:
+- redução drástica de queries
+- sistema escalável real
+
+========================================
+FASE 15.6 — SINGLE SOURCE OF TRUTH
+========================================
+
+Problema:
+- storage.ts contém lógica de domínio
+- regras duplicadas em services
+
+Ação:
+- storage = apenas acesso a dados
+- lógica de negócio = services únicos
+- remover duplicação de regras de domínio
+
+========================================
+FASE 15.7 — FAIL-OPEN / FAIL-CLOSED HARDENING
+========================================
+
+Regras:
+- AUTH = FAIL CLOSED
+- NF-e = FAIL CLOSED
+- Analytics = FAIL OPEN
+
+Corrigir qualquer comportamento inconsistente atual.
+
+========================================
+FASE 15.8 — MULTI-INSTANCE CONSISTENCY
+========================================
+
+Problema:
+- uso parcial de memória ainda existe em fluxos críticos
+
+Ação:
+- remover memória como fonte de decisão
+- DB passa a ser única fonte compartilhada
+- garantir consistência entre instâncias
+
+========================================
+
+RESULTADO FINAL ESPERADO:
+
+- Auth totalmente centralizado
+- Rate limit único (DB)
+- Logging unificado
+- NF-e state machine consistente
+- Zero duplicação lógica
+- Sistema pronto para produção multi-instância real
+
+STATUS FINAL:
+PRODUÇÃO REAL READY: SIM / NÃO (após validação)

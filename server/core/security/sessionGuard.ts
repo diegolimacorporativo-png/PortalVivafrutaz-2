@@ -14,8 +14,8 @@
  *  • Skips /api/auth/* and /api/v1/auth/* — login/logout always reachable.
  *  • Skips unauthenticated sessions (no tokenVersion) — pass-through.
  *  • Pre-FASE-14.6 sessions (no tokenVersion field) — pass-through.
- *  • DB error → fail-open (DB outage must not lock everyone out).
- *  • Device binding: X-Device-Id header mismatch → SESSION_INVALIDATED.
+ *  • DB error → fail-closed (DB outage must not trust sessions).
+ *  • Device binding: missing or mismatched X-Device-Id → SESSION_INVALIDATED.
  */
 
 import type { Request, Response, NextFunction } from "express";
@@ -39,8 +39,16 @@ export async function sessionVersionGuard(
   const session = (req as any).session as Record<string, any> | undefined;
   if (!session) return next();
 
-  // No tokenVersion in session → pre-FASE-14.6 session, pass through
-  if (session.tokenVersion === undefined) return next();
+  // No tokenVersion in session → invalid for authenticated requests
+  if (session.tokenVersion === undefined) {
+    req.session.destroy(() => {});
+    res.status(401).json({
+      error: "SESSION_INVALIDATED",
+      reason: "TOKEN_VERSION_MISMATCH",
+      message: "Sua sessão foi encerrada por segurança. Faça login novamente.",
+    });
+    return;
+  }
 
   const userId: number | undefined = session.userId;
   const companyId: number | undefined = session.companyId;
