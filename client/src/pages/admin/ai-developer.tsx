@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
+import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +15,7 @@ import {
   Copy, Download, ChevronRight, Files, GitBranch, Server, Package,
   TrendingUp, Lock, Activity, BarChart3, Layers, FlaskConical,
   Cpu, MemoryStick, Clock, Globe, Wrench, BookOpen, Play, Plus,
-  HardDrive, Wifi, WifiOff, CheckCheck, XCircle, Building2, List
+  HardDrive, Wifi, WifiOff, CheckCheck, XCircle, Building2, List, LogIn
 } from "lucide-react";
 
 type SeverityLevel = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "OK" | "WARN" | "FAIL";
@@ -125,6 +127,9 @@ const QUICK_COMMANDS = [
 
 export default function AiDeveloperPage() {
   const { toast } = useToast();
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth();
+  const [, setLocation] = useLocation();
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [activeTab, setActiveTab] = useState("terminal");
   const [inputCmd, setInputCmd] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -166,12 +171,22 @@ export default function AiDeveloperPage() {
     setMessages(m => [...m, { role, content, action, timestamp: new Date() }]);
   }
 
+  function handleAuthError(status: number) {
+    if (status === 401 || status === 403) {
+      setSessionExpired(true);
+      return true;
+    }
+    return false;
+  }
+
   async function runTool(toolName: string, label: string, tabSwitch?: string) {
+    if (!isAuthenticated) { setSessionExpired(true); return; }
     setLoadingTool(toolName);
     addMsg("user", `> ${label}`);
     if (tabSwitch) setActiveTab(tabSwitch);
     try {
-      const res = await fetch(`/api/ai-developer/${toolName}`);
+      const res = await fetch(`/api/ai-developer/${toolName}`, { credentials: "include" });
+      if (handleAuthError(res.status)) { setLoadingTool(null); return; }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erro");
 
@@ -211,12 +226,14 @@ export default function AiDeveloperPage() {
   }
 
   async function runLabTool(toolPath: string, label: string, method: 'GET' | 'POST' = 'GET', body?: any) {
+    if (!isAuthenticated) { setSessionExpired(true); return null; }
     setLoadingTool(`lab-${toolPath}`);
     addMsg("user", `> [AI LAB] ${label}`);
     try {
-      const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
+      const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' }, credentials: "include" };
       if (body) opts.body = JSON.stringify(body);
       const res = await fetch(`/api/ai-developer/lab/${toolPath}`, opts);
+      if (handleAuthError(res.status)) { setLoadingTool(null); return null; }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Erro');
       return data;
@@ -307,6 +324,7 @@ export default function AiDeveloperPage() {
 
   async function handleCommand() {
     if (!inputCmd.trim()) return;
+    if (!isAuthenticated) { setSessionExpired(true); return; }
     const cmd = inputCmd.trim();
     setInputCmd("");
 
@@ -314,7 +332,9 @@ export default function AiDeveloperPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: cmd }),
+      credentials: "include",
     });
+    if (handleAuthError(res.status)) return;
     const data = await res.json();
 
     const toolMap: Record<string, [string, string]> = {
@@ -341,6 +361,30 @@ export default function AiDeveloperPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col p-4 gap-3">
+      {/* Session expired banner */}
+      {sessionExpired && (
+        <div
+          data-testid="banner-session-expired"
+          className="flex-shrink-0 flex items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 dark:bg-red-900/20 dark:border-red-800 px-4 py-3"
+        >
+          <div className="flex items-center gap-2">
+            <Lock className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0" />
+            <span className="text-sm font-semibold text-red-700 dark:text-red-300">Sessão expirada</span>
+            <span className="text-xs text-red-500 dark:text-red-400 hidden sm:inline">— faça login novamente para continuar.</span>
+          </div>
+          <Button
+            data-testid="button-login-novamente"
+            size="sm"
+            variant="destructive"
+            className="h-7 gap-1.5 text-xs"
+            onClick={() => setLocation("/login")}
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            Login novamente
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-3 flex-shrink-0">
         <div className="p-2 bg-gradient-to-br from-violet-600 to-indigo-600 rounded-xl shadow">
@@ -351,8 +395,17 @@ export default function AiDeveloperPage() {
           <p className="text-xs text-gray-500">Análise inteligente do ERP VivaFrutaz</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          <span className="text-xs text-gray-400">Sistema Online</span>
+          {sessionExpired ? (
+            <>
+              <div className="w-2 h-2 bg-red-500 rounded-full" />
+              <span className="text-xs text-red-500 font-medium">Sessão expirada</span>
+            </>
+          ) : (
+            <>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-xs text-gray-400">Sistema Online</span>
+            </>
+          )}
         </div>
       </div>
 
@@ -371,8 +424,8 @@ export default function AiDeveloperPage() {
                   type="button"
                   data-testid={`cmd-${tab}`}
                   onClick={() => runTool(tab, label, tab)}
-                  disabled={loadingTool !== null}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors group disabled:opacity-50"
+                  disabled={loadingTool !== null || sessionExpired || !isAuthenticated}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors group disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {loadingTool === tab ? (
                     <RefreshCw className="w-4 h-4 text-violet-500 animate-spin flex-shrink-0" />
@@ -411,10 +464,18 @@ export default function AiDeveloperPage() {
                   value={inputCmd}
                   onChange={e => setInputCmd(e.target.value)}
                   onKeyDown={e => e.key === "Enter" && handleCommand()}
-                  placeholder="Digite um comando..."
+                  placeholder={sessionExpired ? "Sessão expirada..." : "Digite um comando..."}
+                  disabled={sessionExpired || !isAuthenticated}
                   className="h-7 text-xs flex-1"
                 />
-                <Button type="button" size="sm" className="h-7 px-2 bg-violet-600 hover:bg-violet-700" onClick={handleCommand} data-testid="button-send-cmd">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 px-2 bg-violet-600 hover:bg-violet-700"
+                  onClick={handleCommand}
+                  data-testid="button-send-cmd"
+                  disabled={sessionExpired || !isAuthenticated}
+                >
                   <Send className="w-3.5 h-3.5" />
                 </Button>
               </div>
