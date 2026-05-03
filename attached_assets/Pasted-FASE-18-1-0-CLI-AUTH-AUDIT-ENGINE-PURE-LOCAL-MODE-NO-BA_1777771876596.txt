@@ -1,0 +1,143 @@
+FASE 18.1.0 — CLI AUTH AUDIT ENGINE (PURE LOCAL MODE / NO BACKEND / NO PRODUCTION IMPACT)
+
+CONTEXTO:
+Este é um SCRIPT LOCAL DE AUDITORIA.
+Ele NÃO faz parte do backend.
+Ele NÃO será importado no sistema.
+Ele NÃO cria endpoints.
+Ele NÃO modifica autenticação.
+Ele NÃO interage com login em runtime.
+
+========================================================
+OBJETIVO
+========================================================
+
+Criar uma ferramenta CLI 100% isolada para análise de segurança de autenticação.
+
+Uso exclusivo:
+- execução local (node/ts-node)
+- análise de banco de dados (READ ONLY)
+- geração de relatório offline
+
+========================================================
+RESTRIÇÕES ABSOLUTAS
+========================================================
+
+O script deve obedecer:
+
+✔ NÃO alterar banco de dados
+✔ NÃO chamar APIs do backend
+✔ NÃO importar módulos do sistema principal
+✔ NÃO interferir em autenticação real
+✔ NÃO rodar em runtime do servidor
+✔ NÃO criar endpoint
+✔ NÃO afetar produção
+
+========================================================
+ENTRADA DE DADOS
+========================================================
+
+Acesso somente via conexão direta READ ONLY:
+
+- PostgreSQL (DATABASE_URL)
+- tabelas permitidas:
+  - users
+  - companies
+  - auth_attempts
+  - sessions
+
+Somente SELECT queries.
+
+========================================================
+ARQUIVO
+========================================================
+
+/scripts/cli-auth-audit.ts
+
+Execução:
+node scripts/cli-auth-audit.ts
+
+ou
+
+ts-node scripts/cli-auth-audit.ts
+
+========================================================
+LÓGICA DE AUDITORIA (SEM DEPENDÊNCIAS DO BACKEND)
+========================================================
+
+Para cada entity (user/company):
+
+1. Coletar métricas:
+
+- total login attempts (7d / 30d)
+- success rate vs failure rate
+- unique IPs
+- device spread
+- spike de tentativas por janela de tempo
+
+2. Simular decisão de segurança:
+
+function simulateAuthRisk(metrics) {
+
+  if (metrics.isLocked) return "LOCKED"
+
+  if (metrics.failureRate > 0.8) return "HIGH_RISK"
+
+  if (metrics.ipCount > 5) return "SUSPICIOUS_IP_SPREAD"
+
+  if (metrics.spikeDetected) return "RATE_SPIKE"
+
+  return "OK"
+}
+
+========================================================
+OUTPUT DO SCRIPT
+========================================================
+
+Gerar relatório JSON + console output:
+
+A) RESUMO GLOBAL
+- total users analisados
+- total companies analisadas
+- % risco alto
+- % bloqueados
+- % comportamento suspeito
+
+B) LISTA POR ENTIDADE
+[
+  {
+    id,
+    type: "user | company",
+    decision,
+    metrics
+  }
+]
+
+C) ANOMALIAS DETECTADAS
+- brute force patterns
+- IP reuse cross accounts
+- login spikes
+- suspicious clusters
+
+========================================================
+GARANTIA DE ISOLAMENTO
+========================================================
+
+Este script:
+
+✔ NÃO faz parte do sistema principal
+✔ NÃO é carregado em produção
+✔ NÃO influencia autenticação real
+✔ NÃO altera sessão ou login flow
+✔ NÃO depende de código do backend
+
+É uma ferramenta EXTERNA de auditoria.
+
+========================================================
+OBJETIVO FINAL
+
+Permitir auditoria independente de segurança de autenticação
+sem qualquer risco ao sistema em produção.
+
+STATUS ESPERADO:
+SAFE FOR LOCAL EXECUTION ONLY
