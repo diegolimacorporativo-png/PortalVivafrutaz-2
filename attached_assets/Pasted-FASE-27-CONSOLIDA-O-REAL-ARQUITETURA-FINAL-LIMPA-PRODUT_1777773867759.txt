@@ -1,0 +1,254 @@
+FASE 27 — CONSOLIDAÇÃO REAL (ARQUITETURA FINAL LIMPA + PRODUTO)
+
+OBJETIVO:
+Reorganizar TODO o sistema em uma arquitetura única, previsível e operável,
+sem adicionar novas features — apenas consolidar e simplificar.
+
+✔ remove duplicação de engines
+✔ reduz complexidade operacional
+✔ mantém compatibilidade total com auth/NF-e
+✔ prepara sistema para frontend admin limpo
+✔ mantém performance e estabilidade
+
+========================================================
+1. ARQUITETURA FINAL (SIMPLIFICADA)
+========================================================
+
+ANTES (FRAGMENTADO):
+- event-emitter
+- stream-processor
+- risk-engine
+- alert-engine
+- policy-engine
+- protective-mode
+- batch-worker
+- snapshots engine
+
+DEPOIS (FASE 27):
+
+┌──────────────────────┐
+│   EVENT LAYER        │
+└─────────┬────────────┘
+          ↓
+┌──────────────────────┐
+│ INTELLIGENCE LAYER   │
+└─────────┬────────────┘
+          ↓
+┌──────────────────────┐
+│ DECISION LAYER       │
+└─────────┬────────────┘
+          ↓
+┌──────────────────────┐
+│ SYSTEM STATE (DB)    │
+└──────────────────────┘
+
+========================================================
+2. EVENT LAYER (VERDADE BRUTA)
+========================================================
+
+MANTER APENAS:
+
+/server/core/events/
+
+✔ event_store (DB)
+✔ emitEvent()
+✔ event.repository.ts
+
+REMOVER CONCEITO DE:
+❌ batch worker separado
+❌ stream isolado como módulo independente
+
+FUNÇÃO:
+- apenas registrar fatos
+- nunca interpretar
+- nunca decidir
+
+========================================================
+3. INTELLIGENCE LAYER (UNIFICADA)
+========================================================
+
+UNIFICAR EM:
+
+/server/core/intelligence/
+
+Inclui:
+
+✔ risk evaluation (antigo 26.2 + 26.3)
+✔ real-time state computation
+✔ anomaly detection
+✔ rolling windows
+
+REMOVER:
+❌ stream processor separado
+❌ analytics worker separado
+
+FUNÇÃO:
+- transformar eventos em estado atual do sistema
+- manter risk score contínuo
+- detectar padrões
+
+========================================================
+4. DECISION LAYER (UNIFICADA)
+========================================================
+
+/server/core/decision/
+
+Inclui:
+
+✔ alert engine
+✔ policy engine
+✔ protective mode
+
+REMOVER:
+❌ engines separados
+❌ múltiplas regras espalhadas
+
+FUNÇÃO:
+- decidir ações baseadas no system state
+- gerar alertas
+- ajustar protective mode
+
+========================================================
+5. SINGLE SOURCE OF TRUTH
+========================================================
+
+/server/core/state/system-state.ts
+
+export type SystemState = {
+
+  risk: {
+    auth: number
+    session: number
+    nfe: number
+    security: number
+    global: number
+  }
+
+  alerts: ActiveAlert[]
+
+  policies: ActivePolicy[]
+
+  protectiveMode: "NORMAL" | "ELEVATED" | "LOCKDOWN"
+
+  health: "OK" | "DEGRADED" | "CRITICAL"
+}
+
+✔ único estado operacional do sistema
+
+========================================================
+6. FLUXO FINAL SIMPLIFICADO
+========================================================
+
+EVENT FLOW:
+
+event
+  ↓
+intelligence layer
+  ↓
+system state update
+  ↓
+decision layer
+  ↓
+state persistido + alerts
+
+========================================================
+7. REMOÇÃO DE COMPLEXIDADE
+========================================================
+
+REMOVER OU UNIFICAR:
+
+❌ stream processor standalone
+❌ batch analytics worker
+❌ duplicated alert logic
+❌ duplicated policy evaluation
+❌ multiple risk engines
+
+========================================================
+8. DASHBOARD (PRODUTO FINAL)
+========================================================
+
+FRONTEND ADMIN SIMPLIFICADO:
+
+PAINÉIS:
+
+📊 System Health
+🚨 Active Alerts
+⚠ Risk Overview
+⚙ Policies (CRUD + simulação)
+
+FONTE:
+→ system-state API única
+
+========================================================
+9. NOVA API PRINCIPAL
+
+GET /api/admin/system-state
+
+RETORNA:
+
+{
+  risk,
+  alerts,
+  policies,
+  protectiveMode,
+  health
+}
+
+========================================================
+10. REGRAS DE ENGENHARIA
+
+🔴 proibido duplicar lógica de risco
+🔴 proibido múltiplos pipelines paralelos
+🔴 proibido engines independentes
+🟢 permitido apenas módulos internos
+
+========================================================
+11. PERFORMANCE MODEL
+
+✔ event write O(1)
+✔ intelligence incremental
+✔ decision layer stateless (quase)
+✔ state cached
+✔ DB writes only for snapshots
+
+========================================================
+12. MIGRAÇÃO SEGURA
+
+ETAPA 1:
+✔ mover lógica para 3 layers
+
+ETAPA 2:
+✔ desativar workers antigos
+
+ETAPA 3:
+✔ unificar state model
+
+ETAPA 4:
+✔ atualizar dashboard
+
+ETAPA 5:
+✔ remover duplicações antigas
+
+========================================================
+13. RESULTADO FINAL
+
+Sistema se torna:
+
+"UNIFIED GOVERNANCE PLATFORM"
+
+com:
+
+✔ arquitetura limpa
+✔ previsibilidade
+✔ fácil manutenção
+✔ fácil debug
+✔ pronto para produto real
+
+========================================================
+FASE 27 CONCLUÍDA QUANDO:
+
+✔ 3 layers implementadas
+✔ system-state único ativo
+✔ engines duplicados removidos
+✔ dashboard consumindo API única
+✔ zero breaking change em auth/NF-e
