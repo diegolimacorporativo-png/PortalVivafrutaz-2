@@ -1,0 +1,143 @@
+FASE: ROUTE SAFETY AUDIT (READ-ONLY / NO CHANGES)
+
+OBJETIVO:
+Analisar TODAS as rotas do sistema (route.ts / routes.ts) e classificar com precisão o que é seguro mexer e o que NÃO pode ser alterado.
+
+IMPORTANTE:
+❌ NÃO modificar código  
+❌ NÃO refatorar  
+❌ NÃO remover rotas  
+✔ SOMENTE analisar e classificar  
+
+========================================================
+1. MAPEAMENTO COMPLETO DE ROTAS
+========================================================
+
+Listar TODAS as rotas existentes:
+
+Para cada rota, identificar:
+
+- endpoint (ex: /api/admin/system-state)
+- método (GET, POST, etc)
+- arquivo de origem
+- funções/services usados
+- se é consumida pelo frontend (qual página)
+- dependências (db, engines, auth, etc)
+
+========================================================
+2. CLASSIFICAÇÃO POR TIPO
+========================================================
+
+Classificar cada rota em:
+
+- CORE (essencial para funcionamento)
+- SENSITIVE (importante, mas pode ser ajustada com cuidado)
+- SAFE (baixo risco, pode mexer)
+- LEGACY (antiga ou substituída)
+- UNUSED (não usada)
+
+========================================================
+3. CLASSIFICAÇÃO DE RISCO
+========================================================
+
+Para cada rota, definir:
+
+- RISCO: LOW / MEDIUM / HIGH / CRITICAL
+
+Critérios:
+
+CRITICAL:
+- system-state
+- auth/session
+- multi-tenant resolver
+- NF-e
+- qualquer rota que alimenta o Control Center
+
+HIGH:
+- rotas admin principais (alerts, policies, security)
+- rotas que escrevem no banco
+
+MEDIUM:
+- rotas de leitura não críticas
+- endpoints parcialmente usados
+
+LOW:
+- rotas duplicadas
+- endpoints auxiliares
+
+========================================================
+4. DETECÇÃO DE PROBLEMAS
+========================================================
+
+Identificar:
+
+- rotas duplicadas (mesma função)
+- endpoints com mesma responsabilidade
+- rotas sem proteção de tenant
+- inconsistência de resposta (JSON diferente)
+- múltiplas fontes de verdade
+
+========================================================
+5. MULTI-TENANT AUDIT
+========================================================
+
+Para cada rota verificar:
+
+- usa tenantId corretamente?
+- resolve tenant no servidor?
+- confia em input do client? (ERRO CRÍTICO)
+- pode vazar dados entre tenants?
+
+========================================================
+6. RELAÇÃO COM SYSTEM-STATE
+========================================================
+
+Verificar:
+
+- quais rotas duplicam dados do system-state
+- quais deveriam ser consolidadas nele
+- quais estão fora do padrão atual
+
+========================================================
+7. MATRIZ FINAL (OBRIGATÓRIO)
+========================================================
+
+Gerar tabela final:
+
+ROTA | TIPO | RISCO | USO | AÇÃO RECOMENDADA
+
+Exemplo:
+
+/api/admin/system-state | CORE | CRITICAL | Control Center | NÃO TOCAR
+/api/admin/alerts       | SENSITIVE | MEDIUM | Parcial | REVISAR
+/api/admin/legacy-x     | LEGACY | LOW | Não usado | REMOVER
+
+========================================================
+8. LISTAS FINAIS
+========================================================
+
+Separar claramente:
+
+❌ NÃO TOCAR (core do sistema)
+⚠️ REVISAR COM CUIDADO
+✅ SEGURO PARA LIMPEZA
+
+========================================================
+9. RECOMENDAÇÃO FINAL
+========================================================
+
+Responder:
+
+- o que pode ser limpo imediatamente
+- o que precisa de plano antes
+- o que NÃO deve ser alterado
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Gerar um mapa completo de segurança das rotas para permitir:
+
+✔ refatoração sem risco  
+✔ consolidação segura  
+✔ zero regressão
