@@ -87,6 +87,7 @@ import TestClaraPage from "@/pages/test-clara";
 import AdminTreinamento from "@/pages/admin/treinamento";
 import AdminSanitary from "@/pages/admin/sanitary";
 import AdminImportData from "@/pages/admin/import-data";
+import ControlCenter from "@/pages/admin/control-center";
 
 import ClientDashboard from "@/pages/client/dashboard";
 import ClientCreateOrder from "@/pages/client/create-order";
@@ -413,6 +414,9 @@ function Router() {
       </Route>
       <Route path="/admin/import-data">
         {() => <ProtectedRoute component={AdminImportData} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER']} tabKey="import-data" />}
+      </Route>
+      <Route path="/admin/control-center">
+        {() => <ProtectedRoute component={ControlCenter} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="control-center" />}
       </Route>
       <Route path="/track/:id">
         {() => <TrackDelivery />}
