@@ -1,0 +1,155 @@
+FASE FINAL: SINGLE SOURCE SCHEMA SYSTEM (STRIPE-GRADE CONTRACT ENGINE)
+
+OBJETIVO:
+Eliminar definitivamente schema drift, registry inconsistencies e múltiplas fontes de verdade.
+
+Transformar o sistema em:
+
+👉 SCHEMA = única fonte de verdade absoluta
+👉 tudo o resto é gerado automaticamente
+
+========================================================
+1. PRINCÍPIO ABSOLUTO (ZERO AMBIGUIDADE)
+========================================================
+
+REGRA MÁXIMA:
+
+"shared/schema.ts é a única fonte de verdade estrutural do sistema"
+
+Tudo o resto é DERIVADO.
+
+❌ Não existe registry manual
+❌ Não existe allowlist duplicada
+❌ Não existe contract paralelo
+
+========================================================
+2. SCHEMA DERIVED REGISTRY (AUTO-GENERATED)
+========================================================
+
+Substituir SCHEMA_REGISTRY manual por geração automática:
+
+function generateSchemaRegistry(schema) {
+  return extractAllTables(schema)
+}
+
+REGRA:
+- registry NÃO é escrito manualmente
+- registry SEMPRE deriva do schema.ts
+- registry nunca pode divergir do schema
+
+========================================================
+3. BUILD-TIME ENFORCEMENT (DERIVED)
+========================================================
+
+Criar script:
+
+schema-check.ts
+
+PASSO 1:
+- importar schema.ts real
+
+PASSO 2:
+- gerar registry automaticamente
+
+PASSO 3:
+- comparar com build expectations
+
+SE qualquer mismatch:
+❌ FAIL BUILD IMMEDIATELY
+
+========================================================
+4. BOOT ENFORCEMENT (LIGHTWEIGHT)
+========================================================
+
+No startup:
+
+- schema é carregado
+- registry é gerado dinamicamente
+- validação ocorre em memória
+
+SE erro:
+throw "SCHEMA CONTRACT VIOLATION - BOOT BLOCKED"
+
+========================================================
+5. STORAGE RULE (HARD BOUNDARY)
+========================================================
+
+storage layer:
+
+✔ só consome schema.ts
+❌ nunca define tabela
+❌ nunca cria contract paralelo
+❌ nunca referencia registry manual
+
+REGRA:
+"Storage is a consumer only"
+
+========================================================
+6. IMPORT SAFETY (SINGLE SOURCE RULE)
+========================================================
+
+Proibir:
+
+❌ registry manual imports
+❌ duplicated schema types
+❌ shadow tables
+❌ fallback schema definitions
+
+Permitir:
+
+✔ imports diretos de shared/schema.ts
+
+========================================================
+7. TYPE SAFETY ALIGNMENT
+========================================================
+
+Types derivam diretamente do schema:
+
+type SystemTables = InferSchema<typeof schema>
+
+REGRA:
+- não duplicar interfaces
+- não criar tipos paralelos
+- schema gera tudo
+
+========================================================
+8. DRIFT ELIMINATION STRATEGY
+========================================================
+
+ANTES:
+schema → registry → guard → build (4 fontes)
+
+AGORA:
+schema → everything (1 fonte)
+
+========================================================
+9. FAIL-FAST POLICY
+========================================================
+
+Se qualquer inconsistência for detectada:
+
+- build FAIL
+- boot BLOCKED
+- no fallback allowed
+- explicit error logging
+
+========================================================
+10. STRIPE PRINCIPLE
+========================================================
+
+"One schema to rule all contracts"
+
+Schema is not data.
+Schema is the system definition.
+
+========================================================
+RESULTADO FINAL
+========================================================
+
+Sistema atinge:
+
+- ZERO schema drift forever
+- ZERO registry mismatch
+- ZERO duplicate contract logic
+- FULL type + runtime consistency
+- Stripe-level infra governance
