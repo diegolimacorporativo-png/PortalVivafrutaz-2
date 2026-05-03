@@ -1,0 +1,162 @@
+FASE 21 — AUTO-HEALING RECOMMENDATION ENGINE (READ-ONLY SIMULATION LAYER)
+
+OBJETIVO:
+Criar uma camada de inteligência que NÃO corrige o sistema,
+mas simula correções e sugere patches baseados em:
+
+- CLI AUTH AUDIT (FASE 18.1)
+- TRUTH LAYER (FASE 18.2)
+- DRIFT ENGINE (FASE 18.3)
+- ALERT ENGINE (FASE 18.4)
+- GOVERNANCE ENGINE (FASE 18.5)
+- CHAOS ENGINE (FASE 19)
+- PRODUCTION GATE (FASE 20)
+
+IMPORTANTE:
+✔ NÃO modifica código real
+✔ NÃO altera backend
+✔ NÃO executa patches
+✔ SOMENTE gera sugestões estruturais
+✔ EXECUÇÃO LOCAL READ-ONLY
+
+========================================================
+1. NOVO ARQUIVO
+========================================================
+
+/scripts/auth-auto-healing-engine.ts
+
+Execução:
+node scripts/auth-auto-healing-engine.ts
+
+========================================================
+2. ENTRADAS
+========================================================
+
+A) /scripts/output/cli-auth-audit.json
+B) /scripts/output/auth-truth-layer.json
+C) /scripts/output/auth-drift-alert-engine.json
+D) /scripts/output/auth-governance-engine.json
+E) /scripts/output/auth-chaos-test-engine.json
+F) /scripts/output/production-readiness-gate.json
+
+========================================================
+3. OBJETIVO DO ENGINE
+========================================================
+
+Transformar problemas detectados em:
+
+- PATCH SUGGESTIONS (não aplicados)
+- REFACTOR PROPOSALS
+- ARCHITECTURE FIX PLANS
+- PERFORMANCE IMPROVEMENTS
+
+========================================================
+4. TIPOS DE HEALING
+
+A) SECURITY_HEALING
+- corrigir bypasses
+- fortalecer sessão
+- eliminar fail-open
+
+B) CONSISTENCY_HEALING
+- alinhar CLI vs runtime
+- corrigir drift de decisão
+
+C) ARCHITECTURE_HEALING
+- remover duplicações
+- consolidar auth flows
+- unificar middleware
+
+D) PERFORMANCE_HEALING
+- eliminar N+1 queries
+- batch operations
+- reduzir loops críticos
+
+E) OBSERVABILITY_HEALING
+- aumentar logs estruturados
+- melhorar rastreabilidade
+- padronizar eventos
+
+========================================================
+5. MOTOR DE HEALING
+
+function generateHealingPlan(issue) {
+
+  return {
+    problem: issue.description,
+    severity: issue.severity,
+
+    patchProposal: {
+      type: issue.type,
+      description: "Suggested structural fix",
+      affectedFiles: issue.modules,
+      estimatedImpact: "LOW | MEDIUM | HIGH",
+      riskOfChange: "NONE | LOW | MEDIUM | HIGH"
+    },
+
+    simulationResult: {
+      expectedImprovementScore: number,
+      sideEffects: [],
+      rollbackComplexity: "LOW | MEDIUM | HIGH"
+    }
+  }
+}
+
+========================================================
+6. OUTPUT DO ENGINE
+
+A) GLOBAL HEALING REPORT
+{
+  totalIssues,
+  securityIssues,
+  architectureIssues,
+  performanceIssues,
+  consistencyIssues,
+  observabilityIssues
+}
+
+B) PATCH CANDIDATES
+[
+  {
+    type,
+    severity,
+    patchProposal,
+    simulationResult
+  }
+]
+
+C) PRIORITY HEALING ROADMAP
+
+1. CRITICAL SECURITY FIXES
+2. CONSISTENCY ALIGNMENT (CLI vs Runtime)
+3. ARCHITECTURE CONSOLIDATION
+4. PERFORMANCE OPTIMIZATION
+5. OBSERVABILITY IMPROVEMENTS
+
+========================================================
+7. SIMULATION RULES
+
+✔ não aplicar mudanças reais
+✔ simular impacto apenas
+✔ não modificar runtime
+✔ não tocar em DB
+✔ não gerar side effects
+
+========================================================
+8. OBJETIVO FINAL
+
+Criar um sistema capaz de:
+
+→ detectar problema
+→ propor correção estrutural
+→ simular impacto da correção
+→ avaliar risco da mudança
+
+========================================================
+FASE 21 CONCLUÍDA QUANDO:
+
+✔ patch suggestions gerados
+✔ impacto simulado
+✔ riscos avaliados
+✔ roadmap de correção estruturado
+✔ sistema permanece intacto
