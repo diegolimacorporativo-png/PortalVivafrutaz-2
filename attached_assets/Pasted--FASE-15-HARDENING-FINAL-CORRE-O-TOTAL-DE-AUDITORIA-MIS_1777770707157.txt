@@ -1,0 +1,169 @@
+# FASE 15 — HARDENING FINAL (CORREÇÃO TOTAL DE AUDITORIA)
+
+## MISSÃO
+Corrigir TODOS os problemas identificados na auditoria recente do sistema, com foco exclusivo em:
+
+- Auth / Session security
+- Middleware duplicado
+- NF-e idempotência e estado
+- Logs em fluxo crítico
+- Consistência de autenticação multi-instância
+
+❌ PROIBIDO:
+- Criar novas features
+- Criar novos endpoints
+- Criar novos sistemas (Redis, engines, dashboards, observability etc.)
+- Refatoração arquitetural grande
+- Mudança de contratos de API
+- Alterações de frontend
+
+✔ PERMITIDO:
+- Correções cirúrgicas de bugs
+- Remoção de bypass de segurança
+- Unificação de middleware duplicado
+- Correção de fail-open → fail-closed
+- Remoção de console.log/warn/error em auth/NF-e
+- Ajuste de fluxo de sessão e device binding
+- Correção de inconsistências de tokenVersion
+- Correção de idempotência NF-e
+
+---
+
+# 1. AUTH / SESSION — CORREÇÕES OBRIGATÓRIAS
+
+## 1.1 SESSION FAIL-CLOSED (CRÍTICO)
+- authCoreService.validateSession NÃO pode retornar true em erro de DB
+- QUALQUER erro → REJEITAR sessão
+- Remover completamente comportamento fail-open
+
+---
+
+## 1.2 DEVICE BINDING (CRÍTICO)
+- X-Device-Id deve ser OBRIGATÓRIO para sessão válida
+- Remover qualquer bypass por ausência de header
+- Remover exceção srv-* se permitir bypass de segurança
+- Sessão sem deviceId = INVALID
+
+---
+
+## 1.3 TOKEN VERSION CONSISTENCY
+- Sessões sem tokenVersion devem ser consideradas INVÁLIDAS
+- Remover qualquer bypass de compatibilidade silenciosa
+- revokeAllSessions deve invalidar TODAS sessões antigas corretamente
+
+---
+
+## 1.4 MIDDLEWARE DUPLICADO (CRÍTICO)
+Unificar em uma única fonte de verdade:
+
+- requireAuth (core/http)
+- auth middleware (middleware/auth)
+
+REGRAS:
+- Apenas UM middleware ativo no sistema
+- Remover divergência entre:
+  - session.role vs session.userRole
+  - session.userId vs session.id
+- Garantir execução única e consistente
+
+---
+
+## 1.5 LOGIN FLOW CONSISTENCY
+- Admin e Company DEVEM usar o MESMO _runAuthFlow
+- Remover qualquer lógica paralela fora do engine
+- maintenanceMode e mustChangePassword devem ser flags internas do fluxo, não branches separados
+
+---
+
+## 1.6 LOGGING CLEANUP (CRÍTICO)
+Remover completamente de auth/session/NF-e:
+
+- console.log
+- console.warn
+- console.error
+
+Substituir SOMENTE por:
+- logAuthEvent
+- logSecurityEvent
+
+Aplicar em:
+- auth.service
+- auth.controller
+- session guard
+- security blocker
+- NF-e transmit flow
+
+---
+
+# 2. NF-e — CORREÇÕES DE IDPOTÊNCIA
+
+## 2.1 ESTADO "ENVIANDO"
+- Garantir que status "enviando" não pode gerar dupla emissão após crash
+- Ajustar lógica para ser idempotente no guard
+- status procedural NÃO pode permitir reprocessamento duplicado
+
+---
+
+## 2.2 CONSISTÊNCIA DE TRANSAÇÃO
+- Nenhuma NF-e pode ser emitida duas vezes por retry automático
+- Garantir proteção via:
+  - advisory lock existente
+  - status guard reforçado
+
+---
+
+# 3. BUGS CRÍTICOS A CORRIGIR
+
+## BUG-SESSION-01
+- DB error na validação de sessão ainda pode permitir bypass parcial → corrigir para fail-closed total
+
+## BUG-DEVICE-01
+- Device binding ainda pode ser bypassado em fluxos sem header → tornar obrigatório globalmente
+
+## BUG-MIDDLEWARE-01
+- Dois middlewares auth coexistindo → remover um e padronizar completamente
+
+## BUG-LOG-01
+- Ainda existem logs em auth controller ou revoke session → remover totalmente
+
+## BUG-NFE-01
+- Estado "enviando" ainda pode gerar duplicação em crash/retry → corrigir idempotência total
+
+---
+
+# 4. REGRAS DE EXECUÇÃO
+
+- Fazer leitura completa antes de qualquer alteração
+- Aplicar mudanças mínimas e cirúrgicas
+- NÃO alterar arquitetura
+- NÃO criar novos sistemas
+- NÃO modificar frontend
+- Manter contratos de API intactos
+- Manter comportamento funcional atual
+
+---
+
+# 5. VALIDAÇÃO FINAL OBRIGATÓRIA
+
+Após correção:
+
+- [ ] Login admin funciona
+- [ ] Login company funciona
+- [ ] Sessão inválida é bloqueada sempre (fail-closed)
+- [ ] Device sem header é rejeitado
+- [ ] TokenVersion inválido bloqueia acesso
+- [ ] Nenhum console.log no fluxo auth/NF-e
+- [ ] Middleware único ativo
+- [ ] NF-e não pode duplicar emissão após crash/restart
+- [ ] Sistema sobe sem erro
+
+---
+
+# 6. OUTPUT ESPERADO
+
+Entregar:
+
+- Lista de arquivos alterados
+- Lista de bugs corrigidos mapeados à auditoria
+- Confirmação final: "AUTH + NF-e HARDENED STATE READY FOR PRODUCTION"
+```

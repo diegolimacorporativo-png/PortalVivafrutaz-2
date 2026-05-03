@@ -4,14 +4,6 @@ import { requireAuth as requireAuthCore, requireRole as requireRoleCore } from "
 
 export const requireAuth = requireAuthCore;
 
-export function requireCompanyAuth(req: any, res: any, next: NextFunction) {
-  return requireAuthCore(req, res, next);
-}
-
-export function requireAdminAuth(req: any, res: any, next: NextFunction) {
-  return requireAuthCore(req, res, next);
-}
-
 export function tenantIsolation(req: any, _res: any, next: NextFunction) {
   const session = (req as any).session;
   if (session?.companyId) {

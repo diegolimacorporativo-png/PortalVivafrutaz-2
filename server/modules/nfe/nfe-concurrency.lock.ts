@@ -98,10 +98,7 @@ export async function releaseOrderLock(
       [handle.tenantId, handle.orderId],
     );
   } catch (err) {
-    // Não relançar — release nunca deve quebrar o caller. Loga e segue.
-    console.error(
-      `[NFE_CONCURRENCY_LOCK_RELEASE_ERROR] tenantId=${handle.tenantId} | orderId=${handle.orderId} | error=${(err as any)?.message ?? err}`,
-    );
+    void err;
   } finally {
     try {
       handle._client.release();

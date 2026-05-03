@@ -70,30 +70,14 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
     throw new Error('NFE_SEFAZ_PRODUCTION_NOT_IMPLEMENTED');
   }
 
-  console.log('[NFE_SEND_START]', {
-    nfeId: nfe.id,
-    orderId: nfe.orderId,
-    mode: 'mock',
-  });
-
   // FASE NF.3.1 — estado intermediário "enviando" (proteção de corrida +
   // observabilidade). Atua APÓS as validações iniciais e ANTES do retry loop.
   // Não altera fluxo, assinaturas ou retorno externo.
   const preTransition = await storage.getNfeEmissao(nfe.id);
   if (!preTransition || preTransition.status !== 'gerada') {
-    console.warn('[NFE_SEND_ABORTED_STATE]', {
-      nfeId: nfe.id,
-      currentStatus: preTransition?.status,
-    });
     throw new Error('NFE_INVALID_STATE_TRANSITION');
   }
   await storage.updateNfeEmissao(nfe.id, { status: 'enviando' });
-  console.info('[NFE_STATUS_TRANSITION]', {
-    nfeId: nfe.id,
-    from: 'gerada',
-    to: 'enviando',
-    attempt: 1,
-  });
 
   // ETAPA 8 — retry controlado (3 tentativas, sem retry em erro de validação).
   let lastErr: unknown = null;
@@ -107,34 +91,17 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
       break;
     } catch (err) {
       lastErr = err;
-      console.error('[NFE_SEND_ERROR]', {
-        nfeId: nfe.id,
-        orderId: nfe.orderId,
-        attempt,
-        error: err instanceof Error ? err.message : String(err),
-      });
       if (attempt === MAX_ATTEMPTS) {
         // FASE NF.3.1 — recuperação: marcar "erro" só após esgotar tentativas,
         // sem sobrescrever um eventual "autorizada" definido por outro caminho.
         try {
           const latest = await storage.getNfeEmissao(nfe.id);
           if (latest?.status === 'autorizada') {
-            console.warn('[NFE_ERROR_ABORTED_ALREADY_AUTHORIZED]', {
-              nfeId: nfe.id,
-            });
           } else {
             await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
-            console.warn('[NFE_STATUS_TRANSITION]', {
-              nfeId: nfe.id,
-              from: 'enviando',
-              to: 'erro',
-            });
           }
         } catch (recoverErr) {
-          console.error('[NFE_STATUS_RECOVER_FAIL]', {
-            nfeId: nfe.id,
-            error: recoverErr instanceof Error ? recoverErr.message : String(recoverErr),
-          });
+          void recoverErr;
         }
         throw err;
       }
@@ -151,11 +118,6 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
   // início desta transmissão e a conclusão do mock.
   const refetched = await storage.getNfeEmissao(nfe.id);
   if (refetched && BLOCKED_STATUSES.has(refetched.status)) {
-    console.warn('[NFE_SEND_SKIPPED_RACE]', {
-      nfeId: nfe.id,
-      orderId: nfe.orderId,
-      currentStatus: refetched.status,
-    });
     return {
       nfeId: nfe.id,
       orderId: nfe.orderId,
@@ -181,13 +143,6 @@ export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
   if (response.status === 'autorizada' && nfe.orderId) {
     await storage.updateOrder(nfe.orderId, { fiscalStatus: 'nota_emitida' });
   }
-
-  console.log('[NFE_SEND_SUCCESS]', {
-    nfeId: nfe.id,
-    orderId: nfe.orderId,
-    attempt: attemptsUsed,
-    statusFinal: response.status,
-  });
 
   return {
     nfeId: nfe.id,
