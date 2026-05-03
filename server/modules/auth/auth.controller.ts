@@ -71,7 +71,7 @@ export class AuthController {
     // after login and expects the cookie to be valid.
     const session = req.session as unknown as SessionPayload;
     // FASE 14.6 — deviceId from client (fingerprint) or generate a fallback UUID
-    const deviceId = (req.body as any)?.deviceId || `srv-${Date.now().toString(36)}`;
+    const deviceId = (req.body as any)?.deviceId;
     if (outcome.kind === "admin-success") {
       session.userId = outcome.user.id;
       session.userType = "admin";
@@ -93,10 +93,7 @@ export class AuthController {
     await new Promise<void>((resolve) => {
       req.session.save((err) => {
         if (err) {
-          console.error(
-            `[${req.requestId}] [auth.controller] session save failed`,
-            err,
-          );
+          void err;
           res
             .status(500)
             .json({ message: "Erro ao processar login. Tente novamente." });

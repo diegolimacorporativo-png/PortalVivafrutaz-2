@@ -1,0 +1,145 @@
+# FASE 15 — AUDITORIA + CORREÇÃO CRÍTICA (HARDENING REAL)
+
+## MISSÃO
+Executar uma auditoria técnica profunda no sistema inteiro (auth, sessão, NF-e, rate-limit, logs, middleware, DB flows) e aplicar SOMENTE correções críticas confirmadas no relatório.
+
+❌ PROIBIDO:
+- Criar novas features
+- Criar novos endpoints não solicitados
+- Introduzir novos sistemas (Redis, engines, dashboards etc.)
+- Refatorações arquiteturais grandes fora do escopo
+- Duplicar lógica já existente
+
+✔ PERMITIDO:
+- Corrigir bugs críticos confirmados
+- Remover bypass de segurança
+- Unificar comportamento inconsistente
+- Ajustar ordem de execução de auth/session
+- Corrigir fail-open → fail-closed onde necessário
+- Remover duplicações reais de lógica
+- Ajustar middlewares conflitantes
+- Corrigir inconsistências entre admin/company flows
+
+---
+
+## 1. OBJETIVO PRINCIPAL
+Deixar o sistema em estado:
+
+- 🔒 Auth determinístico (sem fail-open)
+- 🔒 Sessão consistente entre instâncias
+- 🔒 Device binding obrigatório e real
+- 🔒 Zero bypass de middleware
+- 🔒 Zero duplicação de decisão de login
+- 🔒 NF-e sem estados frágeis baseados em string procedural
+- 🔒 Logs 100% centralizados (sem console.log no fluxo crítico)
+- 🔒 Middleware único de autenticação (sem duplicação de requireAuth)
+
+---
+
+## 2. CORREÇÕES OBRIGATÓRIAS (CRÍTICAS)
+
+### (A) SESSION SECURITY — FAIL CLOSED
+- [ ] authCoreService.validateSession NÃO pode retornar true em erro de DB
+- [ ] Qualquer erro de DB deve = REJECT SESSION (fail-closed)
+- [ ] Remover qualquer comportamento fail-open
+
+---
+
+### (B) DEVICE BINDING — OBRIGATÓRIO REAL
+- [ ] X-Device-Id deve ser obrigatório para todas sessões autenticadas
+- [ ] Remover exceção implícita srv-* se permitir bypass
+- [ ] Sessão sem deviceId = INVALID
+
+---
+
+### (C) TOKEN VERSION CONSISTENCY
+- [ ] Remover qualquer bypass de sessões antigas sem tokenVersion
+- [ ] Se tokenVersion inexistente → tratar como inválido (ou migração explícita)
+- [ ] Garantir consistência entre revoke sessions e validateSession
+
+---
+
+### (D) AUTH MIDDLEWARE DUPLICATION
+- [ ] Unificar:
+  - requireAuth (core/http)
+  - auth middleware (middleware/auth)
+- [ ] Garantir UMA única fonte de verdade
+- [ ] Remover divergência de:
+  - session.userRole vs session.role
+  - userId vs session.userId
+
+---
+
+### (E) LOGIN FLOW CONSISTENCY
+- [ ] Garantir que admin e company usam MESMO _runAuthFlow
+- [ ] Remover qualquer lógica divergente fora do engine
+- [ ] Maintenance mode e mustChangePassword devem ser apenas flags dentro do fluxo, não branches paralelos
+
+---
+
+### (F) LOGGING CRITICAL PATH
+- [ ] Remover TODO console.log / console.warn / console.error em:
+  - auth.service
+  - session guard
+  - security blocker
+- [ ] Garantir que SOMENTE:
+  - logAuthEvent
+  - logSecurityEvent
+  sejam usados no fluxo crítico
+
+---
+
+### (G) NF-e CONSISTENCY (STATE SAFETY)
+- [ ] Garantir que status "enviando" está protegido contra:
+  - crash duplication
+  - retry duplicate emission
+- [ ] Estado deve ser idempotente via guard (não procedural strings soltas)
+
+---
+
+## 3. REGRAS DE EXECUÇÃO
+
+- Fazer leitura completa antes de qualquer alteração
+- Aplicar mudanças em batch mínimo (evitar refactor grande)
+- Manter contratos de API intactos
+- NÃO alterar frontend
+- NÃO criar novos sistemas paralelos
+
+---
+
+## 4. VALIDAÇÃO FINAL OBRIGATÓRIA
+
+Após correções:
+
+- [ ] servidor sobe sem erro
+- [ ] login admin funciona
+- [ ] login company funciona
+- [ ] sessão inválida é bloqueada (sem fail-open)
+- [ ] device sem header é rejeitado
+- [ ] logs não usam console em auth path
+- [ ] não existe middleware duplicado ativo
+- [ ] NF-e não pode duplicar emissão após crash/restart
+
+---
+
+## 5. OUTPUT ESPERADO
+
+Entregar:
+
+- Lista de arquivos alterados
+- Lista de bugs corrigidos (mapeados ao relatório original)
+- Confirmação de “READY FOR PRODUCTION HARDENED STATE”
+
+---
+
+## IMPORTANTE
+
+Isso NÃO é refactor.
+Isso NÃO é FASE nova.
+
+É apenas:
+➡ correção crítica
+➡ eliminação de bypass
+➡ unificação de segurança
+➡ estabilização real para produção multi-instância
+```

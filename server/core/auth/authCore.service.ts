@@ -14,13 +14,10 @@
  * Architecture decisions:
  *  • Queries `auth_attempts` table directly via Drizzle — this is a core
  *    infrastructure service that sits below the storage facade.
- *  • Fail-open on DB errors — a DB outage must NOT lock legitimate users out.
- *    Failures are logged to console but never thrown to callers.
- *  • The in-memory userRateLimit (FASE 14.6) is demoted to L1 fast-path cache:
- *    it blocks obviously-hot keys without a DB round-trip; this service is L2.
- *  • Device binding is enforced as "warn then block": if both sides advertise a
- *    deviceId and they differ, the request is rejected. Clients that never send
- *    X-Device-Id (most existing frontend code) are NOT affected.
+ *  • Fail-closed on DB errors — a DB outage invalidates sessions.
+ *  • The in-memory userRateLimit (FASE 14.6) is telemetry only and never blocks.
+ *  • Device binding is mandatory: session.deviceId must exist and must match
+ *    the request X-Device-Id header for authenticated requests.
  *  • Rate schedule is now imported from rateSchedule.ts — single source shared
  *    with the L1 in-memory limiter.
  */
@@ -194,7 +191,6 @@ class AuthCoreService {
    *
    * Called by sessionGuard on every authenticated API request. Returns
    * `{ valid: true }` when:
-   *  • The session carries no tokenVersion (pre-FASE-14.6 session) — pass-through.
    *  • The session is unauthenticated — pass-through.
    *  • tokenVersion matches the DB record.
    *
@@ -233,7 +229,7 @@ class AuthCoreService {
         }
       }
 
-      if (!session.deviceId || requestDeviceId !== session.deviceId) {
+      if (!session.deviceId || !requestDeviceId || requestDeviceId !== session.deviceId) {
         return { valid: false, reason: "DEVICE_MISMATCH" };
       }
 

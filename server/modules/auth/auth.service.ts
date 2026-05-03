@@ -602,8 +602,7 @@ export class AuthService {
         });
       }
       return { ok: true };
-    } catch (err: any) {
-      console.error("[auth.service] revokeAllSessions error:", err);
+    } catch {
       return { ok: false, status: 500, message: "Erro ao revogar sessões." };
     }
   }
