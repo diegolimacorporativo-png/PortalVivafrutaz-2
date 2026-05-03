@@ -1,0 +1,117 @@
+FASE: AI DEVELOPER AUDIT (FUNCTIONALITY + GAP ANALYSIS)
+
+OBJETIVO:
+Mapear completamente a IA Developer do sistema e identificar:
+
+1. Funcionalidades reais (o que está funcionando de verdade)
+2. Funcionalidades declaradas mas não implementadas
+3. Fluxos incompletos ou quebrados
+4. Dependências externas
+5. Gaps para nível “AI developer útil de produção”
+
+========================================================
+1. MAPEAMENTO DE FUNÇÕES
+========================================================
+
+Liste todas as funções existentes da IA Developer:
+
+- tools disponíveis
+- endpoints usados
+- comandos internos
+- capacidades reais (code gen, refactor, analysis, etc)
+
+Para cada função, responda:
+
+✔ O que ela faz
+✔ Onde ela é usada
+✔ Se está realmente funcionando
+✔ Se é usada em produção ou só mock
+
+========================================================
+2. FLUXO COMPLETO DA IA
+========================================================
+
+Descrever pipeline completo:
+
+User Input →
+Processing →
+Decision →
+Tool usage →
+Output
+
+Identificar:
+
+- etapas faltando
+- etapas duplicadas
+- etapas mortas (não usadas)
+- gargalos
+
+========================================================
+3. GAP ANALYSIS (CRÍTICO)
+========================================================
+
+Comparar:
+
+REAL vs EXPECTED
+
+Responder:
+
+- o que a IA deveria fazer mas não faz
+- o que ela promete mas não executa
+- o que está incompleto ou fake
+- o que quebra em casos reais
+
+========================================================
+4. QUALIDADE DA IA DEVELOPER
+========================================================
+
+Avaliar:
+
+- precisão de respostas
+- consistência de código gerado
+- capacidade de entender contexto do sistema
+- capacidade de modificar código com segurança
+- integração com schema/tenant/system-state
+
+========================================================
+5. DEPENDÊNCIAS E LIMITAÇÕES
+========================================================
+
+Identificar:
+
+- dependências externas (APIs, engines, prompts)
+- limitações atuais
+- pontos de falha
+- falta de contexto estrutural
+
+========================================================
+6. NÍVEL DE PRODUÇÃO (SCORE)
+========================================================
+
+Dar uma nota de 0 a 100 para:
+
+- utilidade real
+- confiabilidade
+- integração com sistema
+- capacidade de dev real
+- segurança
+
+========================================================
+7. MELHORIAS NECESSÁRIAS (PRIORIDADE)
+========================================================
+
+Listar melhorias em ordem:
+
+P0 (crítico)
+P1 (importante)
+P2 (otimização)
+
+========================================================
+8. RESULTADO FINAL
+========================================================
+
+Responder com:
+
+- diagnóstico completo da IA Developer
+- o que falta para ser “AI dev real de produção”
+- o que está impedindo ela de ser útil hoje

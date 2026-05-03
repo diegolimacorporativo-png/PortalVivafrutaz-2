@@ -1624,6 +1624,19 @@ export const updateLogs = pgTable("update_logs", {
   operador: text("operador"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+export const auditLogs = pgTable("audit_logs", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tenantId: text("tenant_id").notNull(),
+  action: text("action").notNull(),
+  resource: text("resource").notNull(),
+  queryHash: text("query_hash").notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export const insertAuditLogSchema = createInsertSchema(auditLogs);
+export type InsertAuditLog = z.infer<typeof insertAuditLogSchema>;
 export type UpdateLog = typeof updateLogs.$inferSelect;
 export const insertUpdateLogSchema = createInsertSchema(updateLogs).omit({ id: true, createdAt: true });
 export type InsertUpdateLog = z.infer<typeof insertUpdateLogSchema>;

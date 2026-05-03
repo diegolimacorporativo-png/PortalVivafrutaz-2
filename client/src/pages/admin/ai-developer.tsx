@@ -119,9 +119,8 @@ const QUICK_COMMANDS = [
   { icon: Layers, label: "Analisar Sistema", cmd: "analisar sistema", tab: "index" },
   { icon: Bug, label: "Detectar Bugs", cmd: "detectar bugs", tab: "bugs" },
   { icon: ShieldCheck, label: "Auditoria de Segurança", cmd: "auditoria de segurança", tab: "security" },
-  { icon: Zap, label: "Analisar Performance", cmd: "analisar performance", tab: "performance" },
   { icon: Database, label: "Otimizar Banco", cmd: "analisar banco de dados", tab: "database" },
-  { icon: Rocket, label: "Gerar Deploy", cmd: "gerar scripts de deploy", tab: "deploy" },
+  { icon: FlaskConical, label: "Abrir AI LAB", cmd: "abrir ai lab", tab: "ailab" },
 ];
 
 export default function AiDeveloperPage() {
@@ -131,7 +130,7 @@ export default function AiDeveloperPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       role: "system",
-      content: "🤖 AI Developer inicializado. Use os comandos rápidos ou digite um comando abaixo.\n\nComandos disponíveis:\n• analisar sistema — Mapear toda a estrutura do projeto\n• detectar bugs — Analisar logs e código em busca de erros\n• auditoria de segurança — Verificar vulnerabilidades\n• analisar performance — Verificar gargalos de desempenho\n• analisar banco de dados — Estrutura e otimizações do PostgreSQL\n• gerar scripts de deploy — Dockerfile, docker-compose, deploy.sh",
+      content: "🤖 AI Developer inicializado. Use os comandos rápidos ou digite um comando abaixo.\n\nCapacidades reais:\n• analisar sistema — mapear rotas, tabelas e arquivos expostos\n• detectar bugs — gerar heurísticas de problemas\n• auditoria de segurança — revisar padrões de risco\n• analisar banco de dados — inspecionar tabelas e índices\n• AI LAB — saúde, docs, simulação e módulos de exemplo\n\nPromessas não automáticas:\n• deploy completo\n• testes reais do projeto\n• correção automática aplicada",
       timestamp: new Date(),
     }
   ]);
@@ -200,7 +199,7 @@ export default function AiDeveloperPage() {
         case "deploy":
           setDeployData(data);
           setSelectedScript(data[0]);
-          addMsg("system", `🚀 Scripts de deploy gerados:\n${data.map((s: any) => `• ${s.name} — ${s.description}`).join('\n')}\n\nSelecione um script para visualizar e baixar.`);
+          addMsg("system", `⚠️ Este painel mostra apenas exemplos de scripts e heurísticas, não um pipeline de deploy real.`);
           break;
       }
     } catch (e: any) {
@@ -330,7 +329,7 @@ export default function AiDeveloperPage() {
 
     if (data.action === "help") {
       addMsg("user", `> ${cmd}`);
-      addMsg("system", "📚 Comandos disponíveis:\n• analisar sistema\n• detectar bugs\n• auditoria de segurança\n• analisar performance\n• analisar banco de dados\n• gerar scripts de deploy");
+      addMsg("system", "📚 Comandos disponíveis:\n• analisar sistema\n• detectar bugs\n• auditoria de segurança\n• analisar banco de dados\n• abrir ai lab");
     } else if (data.action in toolMap) {
       const [tool, label] = toolMap[data.action];
       await runTool(tool, label, tool === "index" ? "index" : tool);
@@ -429,7 +428,7 @@ export default function AiDeveloperPage() {
             <CardHeader className="pb-0 pt-3 flex-shrink-0">
               <TabsList className="flex-wrap h-auto gap-1 justify-start bg-gray-100 dark:bg-gray-800 p-1">
                 <TabsTrigger value="terminal" className="text-xs h-7 data-[state=active]:bg-white">
-                  <Terminal className="w-3.5 h-3.5 mr-1" />Início
+                  <Terminal className="w-3.5 h-3.5 mr-1" />Visão Geral
                 </TabsTrigger>
                 <TabsTrigger value="index" className="text-xs h-7 data-[state=active]:bg-white" data-testid="tab-index">
                   <Files className="w-3.5 h-3.5 mr-1" />Sistema
@@ -441,18 +440,15 @@ export default function AiDeveloperPage() {
                 <TabsTrigger value="security" className="text-xs h-7 data-[state=active]:bg-white" data-testid="tab-security">
                   <ShieldCheck className="w-3.5 h-3.5 mr-1" />Segurança
                 </TabsTrigger>
-                <TabsTrigger value="performance" className="text-xs h-7 data-[state=active]:bg-white" data-testid="tab-perf">
-                  <Zap className="w-3.5 h-3.5 mr-1" />Performance
-                </TabsTrigger>
                 <TabsTrigger value="database" className="text-xs h-7 data-[state=active]:bg-white" data-testid="tab-db">
                   <Database className="w-3.5 h-3.5 mr-1" />Banco
                 </TabsTrigger>
                 <TabsTrigger value="deploy" className="text-xs h-7 data-[state=active]:bg-white" data-testid="tab-deploy">
-                  <Rocket className="w-3.5 h-3.5 mr-1" />Deploy
+                  <Rocket className="w-3.5 h-3.5 mr-1" />Scripts
                 </TabsTrigger>
                 <TabsTrigger value="ailab" className="text-xs h-7 data-[state=active]:bg-white bg-gradient-to-r data-[state=active]:from-violet-50 data-[state=active]:to-indigo-50 border border-violet-200 data-[state=active]:border-violet-400" data-testid="tab-ailab">
                   <FlaskConical className="w-3.5 h-3.5 mr-1 text-violet-600" />
-                  <span className="text-violet-700 font-semibold">AI LAB</span>
+                  <span className="text-violet-700 font-semibold">AI LAB real</span>
                 </TabsTrigger>
               </TabsList>
             </CardHeader>
