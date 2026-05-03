@@ -20,6 +20,14 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
   const { login, logout, isLoggingIn, isAuthenticated, isStaff, isClient } = useAuth();
   const [type, setType] = useState<'admin' | 'company'>(forceAdminTab ? 'admin' : 'company');
   const didAutoLogout = useRef(false);
+  const [sessionExpiredBanner, setSessionExpiredBanner] = useState(false);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("auth_expired")) {
+      sessionStorage.removeItem("auth_expired");
+      setSessionExpiredBanner(true);
+    }
+  }, []);
 
   const { data: logoData } = useQuery<{ logoBase64: string; logoType: string }>({
     queryKey: ['/api/company-config/logo'],
@@ -120,6 +128,20 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
         <div className="bg-card py-8 px-4 shadow-2xl shadow-black/5 sm:rounded-3xl sm:px-10 border border-border/50">
+
+          {sessionExpiredBanner && (
+            <div
+              data-testid="banner-session-expired"
+              className="mb-6 flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl"
+            >
+              <svg className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19H19a2 2 0 001.75-2.97L13.75 4a2 2 0 00-3.5 0L3.25 16.03A2 2 0 005.07 19z" />
+              </svg>
+              <p className="text-sm font-medium text-amber-800">
+                Sua sessão expirou. Faça login novamente.
+              </p>
+            </div>
+          )}
 
           {/* Maintenance mode — block company (client) login */}
           {maintenanceActive && type === 'company' && !forceAdminTab ? (

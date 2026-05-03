@@ -25,7 +25,10 @@ function KeepAlive() {
 function AuthExpiredHandler() {
   const [, setLocation] = useLocation();
   useEffect(() => {
-    const handler = () => setLocation("/login");
+    const handler = () => {
+      sessionStorage.setItem("auth_expired", "1");
+      setLocation("/login");
+    };
     window.addEventListener("auth:expired", handler);
     return () => window.removeEventListener("auth:expired", handler);
   }, [setLocation]);
