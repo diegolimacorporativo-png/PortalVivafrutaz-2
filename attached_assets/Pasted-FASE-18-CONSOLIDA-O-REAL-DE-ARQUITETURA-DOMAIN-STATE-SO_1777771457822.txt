@@ -1,0 +1,252 @@
+FASE 18 — CONSOLIDAÇÃO REAL DE ARQUITETURA (DOMAIN + STATE + SOURCE OF TRUTH)
+
+OBJETIVO:
+Transformar o sistema de um conjunto de módulos parcialmente duplicados em uma arquitetura verdadeiramente consistente de nível produção enterprise.
+
+FOCO:
+- Eliminar duplicação semântica (regras iguais em lugares diferentes)
+- Criar fontes únicas de verdade por domínio
+- Corrigir inconsistências de estado (NF-e, Auth, Billing)
+- Garantir previsibilidade em multi-instância
+- Reduzir lógica espalhada em services
+
+NÃO É SOBRE:
+- Rotas
+- Alias
+- Organização de arquivos
+
+É SOBRE:
+- Regras de negócio centralizadas
+- Estado consistente
+- Fluxos determinísticos
+
+========================================================
+1. AUTH DOMAIN CONSOLIDATION (CRÍTICO)
+========================================================
+
+PROBLEMA:
+- Auth ainda está dividido entre:
+  - authCoreService (engine)
+  - auth.service.ts (adapters)
+  - userRateLimit / rateSchedule
+  - session guard logic
+
+OBJETIVO:
+Criar um único "Auth Decision Engine" como fonte de verdade.
+
+AÇÃO:
+- Centralizar TODA decisão de login em:
+  → AuthDecisionEngine.run()
+
+- Regras dentro dele:
+  - isLocked
+  - isActive
+  - rate limit (L2 only)
+  - password validation
+  - device binding
+  - tokenVersion validation
+  - session creation
+
+- Auth.service.ts vira APENAS adapter HTTP
+
+RESULTADO:
+✔ Zero lógica de autenticação fora do engine
+✔ Zero divergência admin vs company
+✔ Fluxo determinístico único
+
+========================================================
+2. SESSION STATE CONSISTENCY LAYER
+========================================================
+
+PROBLEMA:
+- session validation ainda tem pontos de fail-open históricos
+- deviceId, tokenVersion e role checks espalhados
+
+OBJETIVO:
+Criar SessionStateResolver único.
+
+AÇÃO:
+Criar:
+→ SessionStateResolver.validate(session)
+
+Ele deve:
+- validar tokenVersion
+- validar deviceId
+- validar role
+- validar expiration
+- validar revogação global
+
+REGRA:
+✔ FAIL-CLOSED SEM EXCEÇÃO (exceto DB crash explicitamente tratado)
+
+RESULTADO:
+✔ Nenhuma rota valida sessão diretamente
+✔ Apenas 1 ponto de validação
+
+========================================================
+3. NF-e STATE MACHINE (CRÍTICO PRODUÇÃO)
+========================================================
+
+PROBLEMA:
+NF-e ainda é:
+- status string-based (enviando, erro, autorizado)
+- dependente de guards + services separados
+- vulnerável a duplicação por crash timing
+
+OBJETIVO:
+Transformar NF-e em STATE MACHINE real.
+
+AÇÃO:
+Criar:
+→ NFeStateMachine
+
+Estados:
+- DRAFT
+- VALIDATING
+- LOCKED
+- SENDING
+- SENT
+- AUTHORIZED
+- ERROR
+
+REGRAS:
+- transições explícitas
+- nenhuma alteração direta de status fora da máquina
+- idempotência interna obrigatória
+
+RESULTADO:
+✔ Zero double emission
+✔ Zero estado inconsistente pós-crash
+✔ Fluxo determinístico
+
+========================================================
+4. RATE LIMIT CONSOLIDATION (REMOVER DUPLICAÇÃO SEMÂNTICA)
+========================================================
+
+PROBLEMA:
+- L1 (memória)
+- L2 (DB)
+- schedule duplicado
+
+OBJETIVO:
+Definir modelo único:
+
+AÇÃO:
+- L1 = observabilidade apenas (logs/telemetria)
+- L2 = autoridade única de decisão
+
+CRIAR:
+→ RateLimitDecisionEngine
+
+RESULTADO:
+✔ Nenhum sistema local bloqueia autenticação
+✔ Multi-instância consistente
+✔ Sem divergência de memória
+
+========================================================
+5. BILLING & ORDER DOMAIN NORMALIZATION
+========================================================
+
+PROBLEMA:
+- lógica de negócio dentro de services e routes
+- queries espalhadas
+- regras duplicadas entre endpoints
+
+OBJETIVO:
+Criar camada de domínio:
+
+→ BillingDomainService
+→ OrderDomainService
+
+REGRA:
+- routes NÃO fazem lógica
+- services NÃO fazem query direta complexa
+- domínio controla regra
+
+RESULTADO:
+✔ Queries centralizadas
+✔ Sem N+1 escondido
+✔ Regras auditáveis
+
+========================================================
+6. OBSERVABILITY SINGLE SOURCE
+========================================================
+
+PROBLEMA:
+- logAuthEvent
+- logSecurity
+- console.log residual
+- alertEngine separado
+
+OBJETIVO:
+Criar:
+
+→ ObservabilityPipeline
+
+Entrada única para:
+- auth events
+- security events
+- NF-e events
+- system events
+
+RESULTADO:
+✔ 1 pipeline de eventos
+✔ zero logs fora do pipeline
+✔ auditabilidade total
+
+========================================================
+7. MULTI-INSTANCE SAFETY LAYER
+========================================================
+
+PROBLEMA:
+- partes do sistema ainda dependem de memória local
+
+OBJETIVO:
+Criar:
+
+→ InstanceSafetyLayer
+
+Responsável por:
+- advisory locks
+- idempotency keys
+- distributed safe guards
+
+RESULTADO:
+✔ Nenhuma decisão crítica em memória local
+✔ Sistema seguro em cluster real
+
+========================================================
+ENTREGÁVEIS DA FASE 18
+
+1. AuthDecisionEngine (single source of truth)
+2. SessionStateResolver (fail-closed)
+3. NFeStateMachine (determinística)
+4. RateLimitDecisionEngine (L2-only)
+5. Domain Services (Billing/Orders)
+6. ObservabilityPipeline (unified logging)
+7. InstanceSafetyLayer (multi-instance safe execution)
+
+========================================================
+CRITÉRIO DE CONCLUSÃO DA FASE 18
+
+O sistema só é considerado pronto quando:
+
+✔ Não existe lógica crítica fora de engines centrais
+✔ Não existe decisão baseada em memória local
+✔ NF-e não depende de status string solto
+✔ Auth não tem lógica duplicada em nenhum arquivo
+✔ Logs não existem fora do pipeline único
+✔ Billing/Orders não fazem query direta fora do domínio
+
+========================================================
+RESULTADO FINAL ESPERADO
+
+Arquitetura:
+- Determinística
+- Auditável
+- Multi-instância segura
+- Sem duplicação semântica
+- Pronta para escala real
+
+STATUS:
+FASE 18 = TRANSFORMAÇÃO ARQUITETURAL (NÍVEL PRODUÇÃO REAL)
