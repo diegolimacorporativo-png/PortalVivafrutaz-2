@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Redirect } from "wouter";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lock } from "lucide-react";
 import { api } from "@shared/routes";
 import { resolvePrice } from "@/utils/priceResolver";
@@ -92,11 +93,10 @@ export default function EditOrderPage() {
         unitPrice: String(product.price),
         totalPrice: String(product.price * qty),
       }));
-      const res = await fetch(`/api/orders/${orderId}/finalize-edit`, {
+      const res = await fetchWithAuth(`/api/orders/${orderId}/finalize-edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ items }),
-        credentials: 'include',
       });
       if (!res.ok) {
         const d = await res.json();

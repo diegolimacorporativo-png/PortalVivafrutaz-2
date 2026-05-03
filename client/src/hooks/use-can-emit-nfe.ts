@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export type FaturamentoContext = {
   tipo: "imediato" | "semanal" | "mensal" | "contratual" | "pontual";
@@ -27,17 +28,11 @@ export function useCanEmitNfe(orderId: number | null | undefined) {
   const query = useQuery<CanEmitNfeResponse>({
     queryKey: ["/api/nfe/can-emit", orderId],
     queryFn: async () => {
-      const res = await fetch(`/api/nfe/can-emit/${orderId}`, {
-        credentials: "include",
-      });
+      const res = await fetchWithAuth(`/api/nfe/can-emit/${orderId}`);
       if (!res.ok) throw new Error("Erro ao validar emissão");
       return res.json();
     },
     enabled: !!orderId,
-    // Cross-tab / cross-admin sync without sockets:
-    //   - while blocked → re-check every 5s (lightweight, ~1 req per tab)
-    //   - once allowed → stop polling (zero ongoing cost)
-    //   - on tab focus → refetch immediately (catches changes made in another tab)
     refetchInterval: (q) => (q.state.data?.allowed ? false : 5000),
     refetchOnWindowFocus: true,
     staleTime: 3000,
@@ -45,9 +40,6 @@ export function useCanEmitNfe(orderId: number | null | undefined) {
 
   const allowed = query.data?.allowed ?? null;
 
-  // Detect blocked → allowed transitions so the UI can flash a confirmation
-  // (button highlight + transient "✔ Liberado"). The flag auto-clears after
-  // 1.2s so callers don't need timer plumbing.
   const wasBlockedRef = useRef(false);
   const [justUnlocked, setJustUnlocked] = useState(false);
 

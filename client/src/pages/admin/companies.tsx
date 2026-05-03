@@ -11,6 +11,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useProducts } from "@/hooks/use-catalog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
 import type { Company } from "@shared/schema";
 
@@ -191,7 +192,7 @@ function AddressesTab({ company }: { company: Company | null }) {
     queryKey: ['/api/companies', companyId, 'addresses'],
     queryFn: async () => {
       if (!companyId) return [];
-      const r = await fetch(`/api/companies/${companyId}/addresses`);
+      const r = await fetchWithAuth(`/api/companies/${companyId}/addresses`);
       return normalizeList(await r.json());
     },
     enabled: !!companyId,
@@ -552,8 +553,8 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
     if (!confirm('Gerar pedidos desta semana a partir do escopo contratual?')) return;
     setGenerating(true);
     try {
-      const res = await fetch(`/api/companies/${company.id}/generate-orders-from-scope`, {
-        method: 'POST', credentials: 'include',
+      const res = await fetchWithAuth(`/api/companies/${company.id}/generate-orders-from-scope`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
       const json = await res.json();
@@ -570,7 +571,7 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
     queryKey: ['/api/companies', company?.id, 'contract-scopes'],
     queryFn: async () => {
       if (!company?.id) return [];
-      const res = await fetch(`/api/companies/${company.id}/contract-scopes`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/companies/${company.id}/contract-scopes`);
       return normalizeList(await res.json());
     },
     enabled: !!company?.id,
@@ -617,8 +618,8 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
       if ((contractModel === 'alternado' || contractModel === 'rotacao4') && newItem.weekNumber) {
         body.weekNumber = Number(newItem.weekNumber);
       }
-      const res = await fetch(`/api/companies/${company.id}/contract-scopes`, {
-        method: 'POST', credentials: 'include',
+      const res = await fetchWithAuth(`/api/companies/${company.id}/contract-scopes`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -653,8 +654,8 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
         unitPrice: editRow.unitPrice ? Number(editRow.unitPrice) : null,
         averageCost: editRow.averageCost ? Number(editRow.averageCost) : null,
       };
-      const res = await fetch(`/api/companies/${company.id}/contract-scopes/${id}`, {
-        method: 'PUT', credentials: 'include',
+      const res = await fetchWithAuth(`/api/companies/${company.id}/contract-scopes/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
@@ -1193,7 +1194,7 @@ export default function CompaniesPage() {
     const enderecoCompleto = partes.join(", ");
     setGeocoding(true);
     try {
-      const res = await fetch(`/api/geocode?q=${encodeURIComponent(enderecoCompleto)}`, { credentials: "include" });
+      const res = await fetchWithAuth(`/api/geocode?q=${encodeURIComponent(enderecoCompleto)}`);
       const data = await res.json();
       if (Array.isArray(data) && data.length > 0) {
         const { lat, lon } = data[0];
@@ -1264,7 +1265,7 @@ export default function CompaniesPage() {
       // Flush staged scope deletions
       if (pendingDeletes.length > 0) {
         await Promise.all(pendingDeletes.map(id =>
-          fetch(`/api/companies/${editingCompany.id}/contract-scopes/${id}`, { method: 'DELETE', credentials: 'include' })
+          fetchWithAuth(`/api/companies/${editingCompany.id}/contract-scopes/${id}`, { method: 'DELETE' })
         ));
       }
     } else {

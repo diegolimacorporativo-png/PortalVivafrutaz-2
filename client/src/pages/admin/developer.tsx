@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -188,7 +189,7 @@ export default function DeveloperPage() {
 
   const auditMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/admin/audit', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/admin/audit');
       if (!res.ok) throw new Error('Falha na auditoria');
       return res.json();
     },
@@ -197,7 +198,7 @@ export default function DeveloperPage() {
 
   const syncMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/admin/system-sync', { method: 'POST', credentials: 'include' });
+      const res = await fetchWithAuth('/api/admin/system-sync', { method: 'POST' });
       if (!res.ok) throw new Error('Falha na sincronização');
       return res.json();
     },
@@ -221,8 +222,8 @@ export default function DeveloperPage() {
 
   const deleteSelectedMut = useMutation({
     mutationFn: async (ids: number[]) => {
-      const res = await fetch('/api/logs/selected', {
-        method: 'DELETE', credentials: 'include',
+      const res = await fetchWithAuth('/api/logs/selected', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids }),
       });
@@ -239,8 +240,8 @@ export default function DeveloperPage() {
 
   const cleanByDateMut = useMutation({
     mutationFn: async ({ start, end }: { start: string; end: string }) => {
-      const res = await fetch('/api/logs/by-date', {
-        method: 'DELETE', credentials: 'include',
+      const res = await fetchWithAuth('/api/logs/by-date', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ startDate: start, endDate: end }),
       });

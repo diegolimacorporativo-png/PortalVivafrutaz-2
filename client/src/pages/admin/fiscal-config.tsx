@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -81,7 +82,7 @@ export default function FiscalConfigPage() {
   const { data: config, isLoading } = useQuery<any>({
     queryKey: ['/api/company-config'],
     queryFn: async () => {
-      const res = await fetch('/api/company-config', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/company-config');
       if (!res.ok) return {};
       return res.json();
     },

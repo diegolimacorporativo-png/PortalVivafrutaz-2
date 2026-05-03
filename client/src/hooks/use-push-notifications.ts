@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export type PushPermission = "default" | "granted" | "denied" | "unsupported";
 
@@ -25,7 +26,7 @@ export function usePushNotifications() {
 
   useEffect(() => {
     if (isSupported) {
-      fetch("/api/push/vapid-public-key")
+      fetchWithAuth("/api/push/vapid-public-key")
         .then((r) => r.json())
         .then((d) => setVapidKey(d.publicKey))
         .catch(() => {});
@@ -64,7 +65,7 @@ export function usePushNotifications() {
       });
 
       const subJSON = sub.toJSON();
-      await fetch("/api/push/subscribe", {
+      await fetchWithAuth("/api/push/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -89,7 +90,7 @@ export function usePushNotifications() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       if (sub) {
-        await fetch("/api/push/unsubscribe", {
+        await fetchWithAuth("/api/push/unsubscribe", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ endpoint: sub.endpoint }),

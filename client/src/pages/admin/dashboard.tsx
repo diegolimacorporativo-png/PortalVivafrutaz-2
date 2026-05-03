@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { handleAuthError } from "@/lib/authErrors";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 /* ── Reusable visual toggle switch ──────────────────────────── */
 function ToggleSwitch({
@@ -55,13 +55,11 @@ function MaintenanceToggle() {
 
   const toggle = useMutation({
     mutationFn: async (enable: boolean) => {
-      const res = await fetch("/api/settings/maintenance", {
+      const res = await fetchWithAuth("/api/settings/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: enable }),
-        credentials: "include",
       });
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error("Sem permissão");
       return res.json() as Promise<{ enabled: boolean }>;
     },
@@ -152,13 +150,11 @@ function TestModeToggle() {
 
   const toggle = useMutation({
     mutationFn: async (enable: boolean) => {
-      const res = await fetch("/api/settings/test-mode", {
+      const res = await fetchWithAuth("/api/settings/test-mode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ enabled: enable }),
-        credentials: "include",
       });
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error("Sem permissão");
       return res.json() as Promise<{ enabled: boolean }>;
     },

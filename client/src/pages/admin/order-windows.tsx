@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useOrderWindows, useCreateOrderWindow, useUpdateOrderWindow, useSetting, useUpdateSetting } from "@/hooks/use-ordering";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
@@ -25,7 +26,7 @@ export default function OrderWindowsPage() {
 
   const deleteWindow = useMutation({
     mutationFn: async (id: number) => {
-      const res = await fetch(`/api/order-windows/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetchWithAuth(`/api/order-windows/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error();
     },
     onSuccess: () => {

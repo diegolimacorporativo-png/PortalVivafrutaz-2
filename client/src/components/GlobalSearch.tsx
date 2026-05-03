@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { Search, Building2, Package, ShoppingCart, ScrollText, Receipt, FolderOpen, UserCog, X, Loader2 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import { useAuth } from '@/hooks/use-auth';
@@ -43,7 +44,7 @@ export function GlobalSearch() {
     if (!q.trim()) { setResults([]); setLoading(false); return; }
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q.trim())}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/search?q=${encodeURIComponent(q.trim())}`);
       if (res.ok) {
         const data: SearchResponse = await res.json();
         setResults(data.results || []);

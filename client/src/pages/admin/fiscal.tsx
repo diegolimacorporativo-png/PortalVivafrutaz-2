@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { ContextualTip } from '@/components/ContextualTip';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { normalizeList, normalizeOne } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -162,7 +163,7 @@ export default function FiscalManagement() {
 
     let detail: any = { order, items: [] };
     try {
-      const res = await fetch(`/api/orders/${order.id}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/orders/${order.id}`);
       if (res.ok) detail = normalizeOne<any>(await res.json()) ?? detail;
     } catch { /* use fallback */ }
 
@@ -766,7 +767,7 @@ function IcmsSummarySection() {
       const url = qs
         ? `/api/fiscal/icms-summary?${qs}`
         : '/api/fiscal/icms-summary';
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return res.json();
     },

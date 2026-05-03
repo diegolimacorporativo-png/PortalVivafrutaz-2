@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format, getYear, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -259,11 +260,10 @@ function ReopenRequestModal({ order, onClose, onSuccess }: {
     }
     setSubmitting(true);
     try {
-      const res = await fetch(`/api/orders/${order.id}/request-reopen`, {
+      const res = await fetchWithAuth(`/api/orders/${order.id}/request-reopen`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: reason.trim() }),
-        credentials: 'include',
       });
       if (!res.ok) {
         const d = await res.json();

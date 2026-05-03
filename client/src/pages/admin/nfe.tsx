@@ -15,7 +15,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import NfeDiagnosticsPanel from "@/components/NfeDiagnosticsPanel";
 // NF.7.9.7 — feedback amigável para erro 403 PERIODO_FECHADO (aditivo).
 import { handleIfPeriodoFechado } from "@/lib/periodo-fechado";
-import { handleAuthError } from "@/lib/authErrors";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useCanEmitNfe } from "@/hooks/use-can-emit-nfe";
 import { useForceReleaseNfe } from "@/hooks/use-force-release-nfe";
 import {
@@ -88,9 +88,7 @@ function OrderSearchPanel({ onSelect, selectedId }: { onSelect: (id: number, cod
     queryKey: ["/api/orders"],
     queryFn: async () =>
       normalizeList<any>(
-        await fetch("/api/orders", { credentials: "include" }).then((r) =>
-          r.json(),
-        ),
+        await fetchWithAuth("/api/orders").then((r) => r.json()),
       ),
   });
 
@@ -633,13 +631,12 @@ export default function NfePage() {
 
   const { data: nfes = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/nfe", statusFiltro],
-    queryFn: () => {
+    queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFiltro !== "todos") params.set("status", statusFiltro);
-      return fetch(`/api/nfe?${params}`, { credentials: "include" }).then((r) => {
-        if (handleAuthError(r.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
-        return r.json();
-      });
+      const r = await fetchWithAuth(`/api/nfe?${params}`);
+      if (!r.ok) throw new Error(`${r.status}: ${r.statusText}`);
+      return r.json();
     },
   });
 
@@ -667,13 +664,11 @@ export default function NfePage() {
           const body = JSON.parse(e.message || "{}");
           const errors = body?.erros || [];
           if (errors.length) {
-            const diagRes = await fetch("/api/nfe/diagnostics/log-errors", {
+            await fetchWithAuth("/api/nfe/diagnostics/log-errors", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              credentials: "include",
               body: JSON.stringify({ orderId: selectedOrderId, errors }),
             });
-            if (handleAuthError(diagRes.status, () => window.location.assign("/login"))) return;
             queryClient.invalidateQueries({ queryKey: ["/api/nfe/diagnostics/training/patterns"] });
           }
         } catch {}
@@ -695,10 +690,9 @@ export default function NfePage() {
       // Registrar erros SEFAZ no treinamento
       if (!ok && data.retorno?.xMotivo && selectedNfe?.orderId) {
         try {
-          const diagRes = await fetch("/api/nfe/diagnostics/log-error", {
+          await fetchWithAuth("/api/nfe/diagnostics/log-error", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            credentials: "include",
             body: JSON.stringify({
               orderId: selectedNfe.orderId,
               nfeId: selectedNfe.id,
@@ -706,7 +700,6 @@ export default function NfePage() {
               mensagemErro: data.retorno?.xMotivo,
             }),
           });
-          if (handleAuthError(diagRes.status, () => window.location.assign("/login"))) return;
           queryClient.invalidateQueries({ queryKey: ["/api/nfe/diagnostics/training/patterns"] });
         } catch {}
       }

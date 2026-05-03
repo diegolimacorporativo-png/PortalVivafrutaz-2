@@ -4,6 +4,7 @@ import { useActiveOrderWindow, useCompanyOrders } from "@/hooks/use-ordering";
 import { Layout } from "@/components/Layout";
 import { Link, useLocation } from "wouter";
 import { ShoppingCart, History, AlertCircle, CheckCircle2, Info, Clock, AlertTriangle, Wrench, FlaskConical, Megaphone, X, Truck, FileText } from "lucide-react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { FruitCuriosities } from "@/components/FruitCuriosities";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -61,7 +62,7 @@ function AnnouncementBanners({ companyId }: { companyId: number }) {
   const { data: announcements = [] } = useQuery<Announcement[]>({
     queryKey: ['/api/announcements/active', companyId],
     queryFn: async () => {
-      const res = await fetch('/api/announcements/active', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/announcements/active');
       if (!res.ok) return [];
       return res.json();
     },

@@ -3,13 +3,14 @@ import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeList, normalizeOne, normalizeError } from "@/lib/normalizeResponse";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // ========== ORDER WINDOWS ==========
 export function useOrderWindows() {
   return useQuery({
     queryKey: [api.orderWindows.list.path],
     queryFn: async () => {
-      const res = await fetch(api.orderWindows.list.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.orderWindows.list.path);
       if (!res.ok) throw new Error("Failed to fetch order windows");
       return api.orderWindows.list.responses[200].parse(await res.json());
     }
@@ -20,12 +21,12 @@ export function useActiveOrderWindow() {
   return useQuery({
     queryKey: [api.orderWindows.active.path],
     queryFn: async () => {
-      const res = await fetch(api.orderWindows.active.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.orderWindows.active.path);
       if (!res.ok) throw new Error("Failed to fetch active window");
       const data = await res.json();
       return data || null;
     },
-    refetchInterval: 60000, // re-check every minute
+    refetchInterval: 60000,
   });
 }
 
@@ -43,11 +44,10 @@ export function useCreateOrderWindow() {
         active: data.active ?? true,
         forceOpen: data.forceOpen ?? false,
       };
-      const res = await fetch(api.orderWindows.create.path, {
+      const res = await fetchWithAuth(api.orderWindows.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create order window");
       return api.orderWindows.create.responses[201].parse(await res.json());
@@ -66,11 +66,10 @@ export function useUpdateOrderWindow() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
       const url = buildUrl(api.orderWindows.update.path, { id });
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update order window");
       return res.json();
@@ -88,7 +87,7 @@ export function useSetting(key: string) {
   return useQuery({
     queryKey: ['/api/settings', key],
     queryFn: async () => {
-      const res = await fetch(`/api/settings/${key}`, { credentials: "include" });
+      const res = await fetchWithAuth(`/api/settings/${key}`);
       if (!res.ok) return null;
       const data = await res.json();
       return data.value as string | null;
@@ -100,11 +99,10 @@ export function useUpdateSetting() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const res = await fetch(`/api/settings/${key}`, {
+      const res = await fetchWithAuth(`/api/settings/${key}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ value }),
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update setting");
       return res.json();
@@ -132,7 +130,7 @@ export function useOrders() {
   return useQuery<OrderRow[]>({
     queryKey: [api.orders.list.path],
     queryFn: async () => {
-      const res = await fetch(api.orders.list.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.orders.list.path);
       if (!res.ok) throw new Error("Failed to fetch orders");
       return normalizeList<OrderRow>(await res.json());
     }
@@ -145,7 +143,7 @@ export function useCompanyOrders(companyId?: number) {
     queryFn: async () => {
       if (!companyId) return [];
       const url = buildUrl(api.orders.companyOrders.path, { companyId });
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetchWithAuth(url);
       if (!res.ok) throw new Error("Failed to fetch company orders");
       return normalizeList<OrderRow>(await res.json());
     },
@@ -159,7 +157,7 @@ export function useOrderDetail(orderId?: number) {
     queryFn: async () => {
       if (!orderId) return null;
       const url = buildUrl(api.orders.get.path, { id: orderId });
-      const res = await fetch(url, { credentials: "include" });
+      const res = await fetchWithAuth(url);
       if (!res.ok) return null;
       return normalizeOne<OrderDetail>(await res.json());
     },
@@ -172,15 +170,11 @@ export function useCreateOrder() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch(api.orders.create.path, {
+      const res = await fetchWithAuth(api.orders.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
       });
-      // The backend now wraps responses in the standard envelope
-      // (`{ success, data }`); legacy callers also receive raw payloads,
-      // so `normalizeOne` returns the unwrapped order in either case.
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         const err = normalizeError(body);
@@ -203,7 +197,7 @@ export function usePurchasingReport() {
   return useQuery({
     queryKey: [api.reports.purchasing.path],
     queryFn: async () => {
-      const res = await fetch(api.reports.purchasing.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.reports.purchasing.path);
       if (!res.ok) throw new Error("Failed to fetch purchasing report");
       return api.reports.purchasing.responses[200].parse(await res.json());
     }
@@ -214,7 +208,7 @@ export function useFinancialReport() {
   return useQuery({
     queryKey: [api.reports.financial.path],
     queryFn: async () => {
-      const res = await fetch(api.reports.financial.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.reports.financial.path);
       if (!res.ok) throw new Error("Failed to fetch financial report");
       return api.reports.financial.responses[200].parse(await res.json());
     }

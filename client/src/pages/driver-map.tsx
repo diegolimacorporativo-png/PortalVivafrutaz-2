@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Truck, MapPin, Navigation, RefreshCw, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Leaflet's default marker icons break under bundlers because the URLs are
 // resolved relative to the CSS file. Re-pin them to the CDN so the markers
@@ -112,7 +113,7 @@ export default function DriverMap() {
   const { data, isLoading, error, refetch, isFetching } = useQuery<TrackingResponse>({
     queryKey: ["/api/logistics/track", routeId],
     queryFn: async () => {
-      const r = await fetch(`/api/logistics/track/${routeId}`);
+      const r = await fetchWithAuth(`/api/logistics/track/${routeId}`);
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body?.error || "Rota não encontrada");

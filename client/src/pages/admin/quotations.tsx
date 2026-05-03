@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -58,7 +59,7 @@ function DeliverySuggestionsPanel({ city }: { city: string }) {
     timerRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/companies/delivery-suggestions?city=${encodeURIComponent(city.trim())}`, { credentials: 'include' });
+        const res = await fetchWithAuth(`/api/companies/delivery-suggestions?city=${encodeURIComponent(city.trim())}`);
         if (res.ok) setSuggestions(normalizeList(await res.json()));
       } catch {}
       setLoading(false);
@@ -341,9 +342,8 @@ function ConvertToCompanyModal({ quotation, onClose }: { quotation: CompanyQuota
     }
     setLoading(true);
     try {
-      const res = await fetch('/api/companies', {
+      const res = await fetchWithAuth('/api/companies', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
@@ -351,9 +351,8 @@ function ConvertToCompanyModal({ quotation, onClose }: { quotation: CompanyQuota
         const err = await res.json();
         throw new Error(err?.error?.message || err.message || 'Erro ao criar empresa');
       }
-      await fetch(`/api/quotations/${quotation.id}`, {
+      await fetchWithAuth(`/api/quotations/${quotation.id}`, {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'APPROVED', adminNote: `Convertida em empresa em ${new Date().toLocaleDateString('pt-BR')}` }),
       });

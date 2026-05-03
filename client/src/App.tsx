@@ -9,14 +9,26 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import FloatingGuide from "@/components/FloatingGuide";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Keep-alive: ping every 5 minutes to prevent Replit sleep
 function KeepAlive() {
   useEffect(() => {
-    const ping = () => fetch('/api/health').catch(() => {});
+    const ping = () => fetchWithAuth('/api/health').catch(() => {});
     const id = setInterval(ping, 5 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
+  return null;
+}
+
+// Redirects to /login when any request fires auth:expired
+function AuthExpiredHandler() {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    const handler = () => setLocation("/login");
+    window.addEventListener("auth:expired", handler);
+    return () => window.removeEventListener("auth:expired", handler);
+  }, [setLocation]);
   return null;
 }
 
@@ -182,11 +194,10 @@ function ProtectedRoute({
   if (role === 'client' && !isClient) return <Redirect to="/admin" />;
 
   if (allowedRoles && user && user.role !== 'MASTER' && !allowedRoles.includes(user.role)) {
-    fetch('/api/auth/log-unauthorized', {
+    fetchWithAuth('/api/auth/log-unauthorized', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ route: location }),
-      credentials: 'include',
     }).catch(() => {});
     if (user.role === 'NUTRICIONISTA') return <Redirect to="/admin/sanitary" />;
     if (user.role === 'MOTORISTA') return <Redirect to="/admin/driver-panel" />;
@@ -225,6 +236,8 @@ function HomeRoute() {
 
 function Router() {
   return (
+    <>
+    <AuthExpiredHandler />
     <Switch>
       <Route path="/" component={HomeRoute} />
       <Route path="/login">{() => <Login />}</Route>
@@ -460,6 +473,7 @@ function Router() {
       </Route>
       <Route component={NotFound} />
     </Switch>
+    </>
   );
 }
 

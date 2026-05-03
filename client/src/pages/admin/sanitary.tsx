@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { Layout } from "@/components/Layout";
@@ -591,7 +592,7 @@ export default function SanitaryPage() {
   }
 
   async function fetchEvalDetail(evalId: number): Promise<{ evaluation: any; items: any[] }> {
-    const res = await fetch(`/api/sanitary/evaluations/${evalId}`, { credentials: 'include' });
+    const res = await fetchWithAuth(`/api/sanitary/evaluations/${evalId}`);
     return res.json();
   }
 

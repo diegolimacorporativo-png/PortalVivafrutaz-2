@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Modal } from "@/components/Modal";
 import {
   ShoppingBasket, Download, Filter, Building2, ChevronDown, ChevronUp,
@@ -27,7 +28,7 @@ function usePurchasingData(filters: {
   return useQuery({
     queryKey: ['/api/reports/purchasing', qs],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/purchasing${qs}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/reports/purchasing${qs}`);
       if (!res.ok) throw new Error('Failed to fetch purchasing data');
       return res.json() as Promise<{
         products: {

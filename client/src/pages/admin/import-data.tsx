@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -179,10 +180,9 @@ export default function ImportData() {
     formData.append("file", f);
 
     try {
-      const res = await fetch("/api/import/preview", {
+      const res = await fetchWithAuth("/api/import/preview", {
         method: "POST",
         body: formData,
-        credentials: "include",
       });
       if (!res.ok) throw new Error((await res.json()).message || "Erro ao processar arquivo");
       const data = await res.json();
@@ -204,10 +204,9 @@ export default function ImportData() {
     setStatus("importing");
     const rowsToImport = rows.filter((_, i) => selectedRows.has(i));
     try {
-      const res = await fetch("/api/import/execute", {
+      const res = await fetchWithAuth("/api/import/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
         body: JSON.stringify({ rows: rowsToImport, mode }),
       });
       if (!res.ok) throw new Error((await res.json()).message || "Erro na importação");

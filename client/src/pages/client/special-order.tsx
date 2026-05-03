@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Star, Plus, Clock, CheckCircle, XCircle, Send, Calendar, Filter, X, Info, Trash2, Package, Tag } from "lucide-react";
@@ -74,7 +75,7 @@ export default function SpecialOrderPage() {
   const { data: requests, isLoading } = useQuery({
     queryKey: ['/api/special-order-requests/company', company?.id],
     queryFn: async () => {
-      const res = await fetch(`/api/special-order-requests/company/${company?.id}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/special-order-requests/company/${company?.id}`);
       return res.json() as Promise<SpecialOrderRequest[]>;
     },
     enabled: !!company?.id,
@@ -82,8 +83,8 @@ export default function SpecialOrderPage() {
 
   const submit = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/special-order-requests', {
-        method: 'POST', credentials: 'include',
+      const res = await fetchWithAuth('/api/special-order-requests', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           companyId: company!.id,

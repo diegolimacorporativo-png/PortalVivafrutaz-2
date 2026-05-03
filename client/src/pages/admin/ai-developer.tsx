@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useLocation } from "wouter";
@@ -171,24 +172,14 @@ export default function AiDeveloperPage() {
     setMessages(m => [...m, { role, content, action, timestamp: new Date() }]);
   }
 
-  function handleAuthError(status: number) {
-    if (status === 401 || status === 403) {
-      if (!sessionExpired) {
-        setSessionExpired(true);
-      }
-      return true;
-    }
-    return false;
-  }
-
   async function runTool(toolName: string, label: string, tabSwitch?: string) {
     if (!isAuthenticated || sessionExpired) { setSessionExpired(true); return; }
     setLoadingTool(toolName);
     addMsg("user", `> ${label}`);
     if (tabSwitch) setActiveTab(tabSwitch);
     try {
-      const res = await fetch(`/api/ai-developer/${toolName}`, { credentials: "include" });
-      if (handleAuthError(res.status)) { setLoadingTool(null); return; }
+      const res = await fetchWithAuth(`/api/ai-developer/${toolName}`);
+      if (res.status === 401 || res.status === 403) { setLoadingTool(null); return; }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erro");
 
@@ -232,10 +223,10 @@ export default function AiDeveloperPage() {
     setLoadingTool(`lab-${toolPath}`);
     addMsg("user", `> [AI LAB] ${label}`);
     try {
-      const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' }, credentials: "include" };
+      const opts: RequestInit = { method, headers: { 'Content-Type': 'application/json' } };
       if (body) opts.body = JSON.stringify(body);
-      const res = await fetch(`/api/ai-developer/lab/${toolPath}`, opts);
-      if (handleAuthError(res.status)) { setLoadingTool(null); return null; }
+      const res = await fetchWithAuth(`/api/ai-developer/lab/${toolPath}`, opts);
+      if (res.status === 401 || res.status === 403) { setLoadingTool(null); return null; }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Erro');
       return data;
@@ -330,13 +321,12 @@ export default function AiDeveloperPage() {
     const cmd = inputCmd.trim();
     setInputCmd("");
 
-    const res = await fetch("/api/ai-developer/command", {
+    const res = await fetchWithAuth("/api/ai-developer/command", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ command: cmd }),
-      credentials: "include",
     });
-    if (handleAuthError(res.status)) return;
+    if (res.status === 401 || res.status === 403) return;
     const data = await res.json();
 
     const toolMap: Record<string, [string, string]> = {

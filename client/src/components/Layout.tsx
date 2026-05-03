@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { 
   Leaf, LayoutDashboard, Users, Package, Tag, 
   CalendarDays, ShoppingCart, BarChart3, PieChart, LogOut, Receipt,
@@ -29,7 +30,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     queryKey: ['empresa-config', company?.id],
     queryFn: async () => {
       if (!company?.id) return null;
-      const res = await fetch(`/api/empresa-config/${company.id}`);
+      const res = await fetchWithAuth(`/api/empresa-config/${company.id}`);
       if (res.status === 404) return null;
       return res.json();
     },

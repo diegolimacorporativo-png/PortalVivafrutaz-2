@@ -1,12 +1,12 @@
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
+
 function unwrap<T>(res: any): T {
   if (res?.data) return res.data;
   return res;
 }
 
 export async function getNFePreflight(orderId: number) {
-  const res = await fetch(`/api/nfe/preflight/${orderId}`, {
-    credentials: 'include',
-  });
+  const res = await fetchWithAuth(`/api/nfe/preflight/${orderId}`);
 
   const body = await res.json();
 
@@ -18,9 +18,7 @@ export async function getNFePreflight(orderId: number) {
 }
 
 export async function getNFeDiagnostics(orderId: number) {
-  const res = await fetch(`/api/nfe/diagnostics/${orderId}`, {
-    credentials: 'include',
-  });
+  const res = await fetchWithAuth(`/api/nfe/diagnostics/${orderId}`);
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -31,9 +29,8 @@ export async function getNFeDiagnostics(orderId: number) {
 }
 
 export async function sendNFeCCe(id: number, correcao: string) {
-  const res = await fetch(`/api/nfe/${id}/cce`, {
+  const res = await fetchWithAuth(`/api/nfe/${id}/cce`, {
     method: "POST",
-    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ correcao }),
   });

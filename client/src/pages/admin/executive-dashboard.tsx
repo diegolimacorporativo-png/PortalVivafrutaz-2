@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -32,7 +33,7 @@ export default function ExecutiveDashboard() {
   const { data, isLoading, refetch } = useQuery<any>({
     queryKey: ['/api/executive-dashboard', period],
     queryFn: async () => {
-      const res = await fetch(`/api/executive-dashboard?period=${period}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/executive-dashboard?period=${period}`);
       if (!res.ok) throw new Error('Erro ao carregar dashboard');
       return res.json();
     },

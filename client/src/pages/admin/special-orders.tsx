@@ -4,6 +4,7 @@ import { useCompanies } from "@/hooks/use-admin";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
@@ -171,7 +172,7 @@ export default function SpecialOrdersAdminPage() {
   const { data: requests, isLoading } = useQuery({
     queryKey: ['/api/special-order-requests'],
     queryFn: async () => {
-      const res = await fetch('/api/special-order-requests', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/special-order-requests');
       return res.json() as Promise<SpecialOrderRequest[]>;
     },
     refetchInterval: 30000,
@@ -181,8 +182,8 @@ export default function SpecialOrdersAdminPage() {
     mutationFn: async ({ id, status, adminNote, items, estimatedDeliveryDate }: {
       id: number; status: string; adminNote: string; items?: SpecialItem[]; estimatedDeliveryDate?: string;
     }) => {
-      const res = await fetch(`/api/special-order-requests/${id}`, {
-        method: 'PUT', credentials: 'include',
+      const res = await fetchWithAuth(`/api/special-order-requests/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, adminNote, items, estimatedDeliveryDate }),
       });

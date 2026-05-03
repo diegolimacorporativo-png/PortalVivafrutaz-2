@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { Building2, Phone, Mail, MapPin, Tag, Calendar, CreditCard, AlertCircle, User, Clock, RefreshCw, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 function CompanyMissing() {
   return (
@@ -91,9 +92,8 @@ export default function ClientProfile() {
     if (!selectedPref || selectedPref === currentPref) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/companies/my/preferred-order-type', {
+      const res = await fetchWithAuth('/api/companies/my/preferred-order-type', {
         method: 'PATCH',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ preferredOrderType: selectedPref }),
       });

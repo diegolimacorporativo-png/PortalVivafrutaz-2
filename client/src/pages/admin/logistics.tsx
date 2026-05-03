@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
@@ -998,7 +999,7 @@ function RouteAssistantTab() {
     try {
       const params = new URLSearchParams({ day: selectedDay });
       if (selectedDate) params.set('date', selectedDate);
-      const res = await fetch(`/api/logistics/route-assistant?${params}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/logistics/route-assistant?${params}`);
       const data = await res.json();
       setCompanies(Array.isArray(data) ? data : []);
     } catch { toast({ title: 'Erro ao buscar dados', variant: 'destructive' }); }
@@ -1315,16 +1316,15 @@ function SmartIntelligenceTab() {
     queryFn: () => {
       const params = new URLSearchParams();
       if (selectedDate) params.set('date', selectedDate);
-      return fetch(`/api/logistics/smart-route-plan?${params}`, { credentials: 'include' }).then(r => r.json());
+      return fetchWithAuth(`/api/logistics/smart-route-plan?${params}`).then(r => r.json());
     },
   });
 
   const applyMut = useMutation({
     mutationFn: async (suggestion: any) => {
-      const res = await fetch('/api/logistics/route-insertion', {
+      const res = await fetchWithAuth('/api/logistics/route-insertion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ companyId: suggestion.companyId, date: selectedDate }),
       });
       return res.json();

@@ -5,6 +5,7 @@ import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, ChevronDown, ChevronRight, Truck, Leaf } from "lucide-react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 type AdminUser = {
   id: number; name: string; email: string; password: string; role: string; active: boolean;
@@ -190,7 +191,7 @@ export default function UsersAdminPage() {
   const { data: users, isLoading } = useQuery({
     queryKey: ['/api/users'],
     queryFn: async () => {
-      const res = await fetch('/api/users', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/users');
       return res.json() as Promise<AdminUser[]>;
     },
   });
@@ -199,8 +200,8 @@ export default function UsersAdminPage() {
     mutationFn: async () => {
       const isEdit = !!modal.editing;
       const url = isEdit ? `/api/users/${modal.editing!.id}` : '/api/users';
-      const res = await fetch(url, {
-        method: isEdit ? 'PUT' : 'POST', credentials: 'include',
+      const res = await fetchWithAuth(url, {
+        method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
@@ -218,7 +219,7 @@ export default function UsersAdminPage() {
 
   const del = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/users/${id}`, { method: 'DELETE', credentials: 'include' });
+      await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
@@ -229,11 +230,10 @@ export default function UsersAdminPage() {
 
   const changePassword = useMutation({
     mutationFn: async ({ userId, password }: { userId: number; password: string }) => {
-      const res = await fetch(`/api/users/${userId}/password`, {
+      const res = await fetchWithAuth(`/api/users/${userId}/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newPassword: password }),
-        credentials: 'include',
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
       return res.json();

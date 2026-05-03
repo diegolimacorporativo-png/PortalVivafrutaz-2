@@ -47,7 +47,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { handleAuthError } from "@/lib/authErrors";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 type EligibleOrder = {
   orderId: number;
@@ -297,10 +297,7 @@ export default function CentralFaturamento() {
   const { data: analytics, isLoading: analyticsLoading } = useQuery<AlertAnalytics>({
     queryKey: ["/api/cron/alerts/analytics", analyticsDays],
     queryFn: async () => {
-      const res = await fetch(`/api/cron/alerts/analytics?days=${analyticsDays}`, {
-        credentials: "include",
-      });
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
+      const res = await fetchWithAuth(`/api/cron/alerts/analytics?days=${analyticsDays}`);
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       return (await res.json()) as AlertAnalytics;
     },
@@ -322,11 +319,9 @@ export default function CentralFaturamento() {
   const { data: anomalies, isLoading: anomaliesLoading } = useQuery<AnomalyReport>({
     queryKey: ["/api/cron/alerts/anomalies", intelParams.currentHours, intelParams.baselineDays],
     queryFn: async () => {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `/api/cron/alerts/anomalies?currentHours=${intelParams.currentHours}&baselineDays=${intelParams.baselineDays}`,
-        { credentials: "include" },
       );
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       return (await res.json()) as AnomalyReport;
     },
@@ -337,10 +332,7 @@ export default function CentralFaturamento() {
   const { data: digest, isLoading: digestLoading } = useQuery<DigestReport>({
     queryKey: ["/api/cron/alerts/digest", intelParams.windowHours],
     queryFn: async () => {
-      const res = await fetch(`/api/cron/alerts/digest?windowHours=${intelParams.windowHours}`, {
-        credentials: "include",
-      });
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
+      const res = await fetchWithAuth(`/api/cron/alerts/digest?windowHours=${intelParams.windowHours}`);
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       return (await res.json()) as DigestReport;
     },
@@ -352,11 +344,9 @@ export default function CentralFaturamento() {
   const handleExportCsv = async () => {
     setExporting(true);
     try {
-      const res = await fetch(
+      const res = await fetchWithAuth(
         `/api/cron/alerts/export?windowHours=${intelParams.windowHours}&format=csv`,
-        { credentials: "include" },
       );
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       const blob = await res.blob();
       // Tenta extrair filename do header; fallback amigável.
@@ -386,10 +376,7 @@ export default function CentralFaturamento() {
   const { data: insightsData, isLoading: insightsLoading } = useQuery<InsightReport>({
     queryKey: ["/api/cron/alerts/insights", intelParams.windowHours],
     queryFn: async () => {
-      const res = await fetch(`/api/cron/alerts/insights?windowHours=${intelParams.windowHours}`, {
-        credentials: "include",
-      });
-      if (handleAuthError(res.status, () => window.location.assign("/login"))) throw new Error("Sessão expirada");
+      const res = await fetchWithAuth(`/api/cron/alerts/insights?windowHours=${intelParams.windowHours}`);
       if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
       return (await res.json()) as InsightReport;
     },

@@ -4,6 +4,7 @@ import { useCompanies } from "@/hooks/use-admin";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { KeyRound, Building2, CheckCircle, XCircle, Clock, Eye } from "lucide-react";
@@ -22,7 +23,7 @@ function useResetRequests() {
   return useQuery({
     queryKey: ['/api/password-reset-requests'],
     queryFn: async () => {
-      const res = await fetch('/api/password-reset-requests', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/password-reset-requests');
       return res.json() as Promise<PasswordResetRequest[]>;
     },
     refetchInterval: 30000,
@@ -47,8 +48,8 @@ export default function PasswordResetRequestsPage() {
 
   const resolve = useMutation({
     mutationFn: async ({ id, status, newPassword, adminNote }: { id: number; status: string; newPassword?: string; adminNote?: string }) => {
-      const res = await fetch(`/api/password-reset-requests/${id}`, {
-        method: 'PUT', credentials: 'include',
+      const res = await fetchWithAuth(`/api/password-reset-requests/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, newPassword, adminNote }),
       });

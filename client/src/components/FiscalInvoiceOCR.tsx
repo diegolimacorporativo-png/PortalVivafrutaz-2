@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import {
   FileText, Camera, Upload, Image, AlertTriangle, CheckCircle2,
@@ -275,8 +276,8 @@ export function FiscalInvoiceOCR() {
       formData.append('file', file);
       setProcessingMsg('Extraindo texto do PDF...');
       setProcessingProgress(50);
-      const resp = await fetch('/api/fiscal-invoices/parse-pdf', {
-        method: 'POST', credentials: 'include', body: formData,
+      const resp = await fetchWithAuth('/api/fiscal-invoices/parse-pdf', {
+        method: 'POST', body: formData,
       });
       if (!resp.ok) throw new Error('Falha ao processar PDF');
       const { text } = await resp.json();

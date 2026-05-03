@@ -4,6 +4,7 @@ import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Tag, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 type Category = { id: number; name: string; description: string | null; active: boolean };
 
@@ -11,7 +12,7 @@ function useCategories() {
   return useQuery({
     queryKey: ['/api/categories'],
     queryFn: async () => {
-      const res = await fetch('/api/categories', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/categories');
       return res.json() as Promise<Category[]>;
     }
   });
@@ -38,8 +39,8 @@ export default function CategoriesPage() {
 
   const create = useMutation({
     mutationFn: async (data: typeof emptyForm) => {
-      const res = await fetch('/api/categories', {
-        method: 'POST', credentials: 'include',
+      const res = await fetchWithAuth('/api/categories', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -55,8 +56,8 @@ export default function CategoriesPage() {
 
   const update = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<typeof emptyForm> }) => {
-      const res = await fetch(`/api/categories/${id}`, {
-        method: 'PUT', credentials: 'include',
+      const res = await fetchWithAuth(`/api/categories/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -72,7 +73,7 @@ export default function CategoriesPage() {
 
   const remove = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/categories/${id}`, { method: 'DELETE', credentials: 'include' });
+      await fetchWithAuth(`/api/categories/${id}`, { method: 'DELETE' });
     },
     onSuccess: () => { invalidate(); toast({ title: "Categoria excluída.", variant: "destructive" }); setDeleteTarget(null); },
   });
@@ -97,8 +98,8 @@ export default function CategoriesPage() {
     for (const name of DEFAULT_CATEGORIES) {
       const exists = categories?.some(c => c.name === name);
       if (!exists) {
-        await fetch('/api/categories', {
-          method: 'POST', credentials: 'include',
+        await fetchWithAuth('/api/categories', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, description: null, active: true }),
         });

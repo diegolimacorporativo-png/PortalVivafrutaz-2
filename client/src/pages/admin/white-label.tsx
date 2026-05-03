@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/Layout";
@@ -129,7 +130,7 @@ export default function WhiteLabelPage() {
     queryKey: ["/api/empresa-config", selectedCompanyId],
     queryFn: async () => {
       if (!selectedCompanyId) return null;
-      const r = await fetch(`/api/empresa-config/${selectedCompanyId}`);
+      const r = await fetchWithAuth(`/api/empresa-config/${selectedCompanyId}`);
       if (r.status === 404) return null;
       const data = await r.json();
       setForm(data ? { ...DEFAULT_CONFIG, ...data } : { ...DEFAULT_CONFIG, empresaId: selectedCompanyId! });

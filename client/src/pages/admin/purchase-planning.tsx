@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { ContextualTip } from "@/components/ContextualTip";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -164,7 +165,7 @@ export default function PurchasePlanningPage() {
     queryKey: ['/api/purchase-planning', startDate, sourceFilter, categoryFilter],
     queryFn: async () => {
       const p = new URLSearchParams({ startDate, sourceFilter, categoryFilter });
-      const res = await fetch(`/api/purchase-planning?${p}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/purchase-planning?${p}`);
       if (!res.ok) throw new Error('Erro ao carregar dados');
       return res.json();
     },
@@ -173,7 +174,7 @@ export default function PurchasePlanningPage() {
   const { data: forecastData, isLoading: forecastLoading } = useQuery<ForecastResult>({
     queryKey: ['/api/purchase-planning/forecast'],
     queryFn: async () => {
-      const res = await fetch('/api/purchase-planning/forecast', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/purchase-planning/forecast');
       if (!res.ok) throw new Error('Erro ao carregar previsão');
       return res.json();
     },
@@ -183,7 +184,7 @@ export default function PurchasePlanningPage() {
   const { data: inventorySettings = [] } = useQuery<any[]>({
     queryKey: ['/api/inventory/settings'],
     queryFn: async () => {
-      const res = await fetch('/api/inventory/settings', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/inventory/settings');
       if (!res.ok) return [];
       return res.json();
     },

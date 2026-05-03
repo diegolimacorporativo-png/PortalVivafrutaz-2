@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import {
   HardDrive, Plus, Download, RefreshCw, CheckCircle, WifiOff,
   Trash2, Send, AlertTriangle, Mail, X, Database, FileCode2, Loader2
@@ -42,7 +43,7 @@ export default function BackupsPage() {
   // ─── Mutations ────────────────────────────────────────────────
   const createJsonBackup = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/admin/backups', { method: 'POST', credentials: 'include' });
+      const res = await fetchWithAuth('/api/admin/backups', { method: 'POST' });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
       return res.json();
     },
@@ -55,7 +56,7 @@ export default function BackupsPage() {
 
   const createSqlBackup = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/admin/backups/sql', { method: 'POST', credentials: 'include' });
+      const res = await fetchWithAuth('/api/admin/backups/sql', { method: 'POST' });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
       return res.json();
     },
@@ -68,7 +69,7 @@ export default function BackupsPage() {
 
   const deleteBackupMut = useMutation({
     mutationFn: async (filename: string) => {
-      const res = await fetch(`/api/admin/backups/${encodeURIComponent(filename)}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetchWithAuth(`/api/admin/backups/${encodeURIComponent(filename)}`, { method: 'DELETE' });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
       return res.json();
     },
@@ -82,7 +83,7 @@ export default function BackupsPage() {
 
   const cleanOldMut = useMutation({
     mutationFn: async () => {
-      const res = await fetch('/api/admin/backups/clean-old', { method: 'POST', credentials: 'include' });
+      const res = await fetchWithAuth('/api/admin/backups/clean-old', { method: 'POST' });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
       return res.json();
     },
@@ -96,8 +97,8 @@ export default function BackupsPage() {
 
   const smtpTestMut = useMutation({
     mutationFn: async (email: string) => {
-      const res = await fetch('/api/admin/smtp-test', {
-        method: 'POST', credentials: 'include',
+      const res = await fetchWithAuth('/api/admin/smtp-test', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ toEmail: email }),
       });
@@ -118,9 +119,8 @@ export default function BackupsPage() {
     if (downloadingFile) return;
     setDownloadingFile(filename);
     try {
-      const res = await fetch(`/api/admin/backups/${encodeURIComponent(filename)}`, {
+      const res = await fetchWithAuth(`/api/admin/backups/${encodeURIComponent(filename)}`, {
         method: 'GET',
-        credentials: 'include',
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));

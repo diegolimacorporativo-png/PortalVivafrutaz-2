@@ -3,15 +3,15 @@ import { api, buildUrl } from "@shared/routes";
 import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // ========== COMPANIES ==========
 export function useCompanies() {
   return useQuery({
     queryKey: [api.companies.list.path],
     queryFn: async () => {
-      const res = await fetch(api.companies.list.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.companies.list.path);
       if (!res.ok) throw new Error("Failed to fetch companies");
-      // Backend returns { success, data: [...] } — unwrap before validating with the legacy schema.
       return api.companies.list.responses[200].parse(normalizeList(await res.json()));
     }
   });
@@ -22,11 +22,10 @@ export function useCreateCompany() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (data: z.infer<typeof api.companies.create.input>) => {
-      const res = await fetch(api.companies.create.path, {
+      const res = await fetchWithAuth(api.companies.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create company");
       return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
@@ -47,11 +46,10 @@ export function useUpdateCompany() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: Partial<z.infer<typeof api.companies.update.input>> }) => {
       const url = buildUrl(api.companies.update.path, { id });
-      const res = await fetch(url, {
+      const res = await fetchWithAuth(url, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to update company");
       return api.companies.update.responses[200].parse(normalizeOne(await res.json()));
@@ -71,7 +69,7 @@ export function useUsers() {
   return useQuery({
     queryKey: [api.users.list.path],
     queryFn: async () => {
-      const res = await fetch(api.users.list.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.users.list.path);
       if (!res.ok) throw new Error("Failed to fetch users");
       return api.users.list.responses[200].parse(await res.json());
     }
@@ -83,7 +81,7 @@ export function usePriceGroups() {
   return useQuery({
     queryKey: [api.priceGroups.list.path],
     queryFn: async () => {
-      const res = await fetch(api.priceGroups.list.path, { credentials: "include" });
+      const res = await fetchWithAuth(api.priceGroups.list.path);
       if (!res.ok) throw new Error("Failed to fetch price groups");
       return api.priceGroups.list.responses[200].parse(await res.json());
     }
@@ -95,11 +93,10 @@ export function useCreatePriceGroup() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (data: z.infer<typeof api.priceGroups.create.input>) => {
-      const res = await fetch(api.priceGroups.create.path, {
+      const res = await fetchWithAuth(api.priceGroups.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
-        credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to create price group");
       return api.priceGroups.create.responses[201].parse(await res.json());

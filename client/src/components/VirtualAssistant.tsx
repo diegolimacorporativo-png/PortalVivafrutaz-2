@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import {
   MessageCircle, X, Send, Bot, User, Clock, RefreshCw, ChevronRight,
   Loader2, Download, ArrowLeft, FileSpreadsheet, TrendingUp, Package,
@@ -214,10 +215,9 @@ export function VirtualAssistant() {
     setIsTyping(true);
 
     try {
-      const res = await fetch('/api/assistant/chat', {
+      const res = await fetchWithAuth('/api/assistant/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ message: messageText.trim(), sessionContext }),
       });
 

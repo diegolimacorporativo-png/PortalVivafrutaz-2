@@ -4,6 +4,7 @@ import {
   Truck, CheckCircle2, Clock, MapPin, Package,
   Navigation, RefreshCw, AlertCircle, ArrowRight,
 } from 'lucide-react';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 
 const STATUS_LABELS: Record<string, { label: string; icon: any; color: string; description: string }> = {
   pendente:  {
@@ -61,7 +62,7 @@ export default function TrackDelivery() {
   const { data, isLoading, error, refetch } = useQuery<TrackingData>({
     queryKey: ['/api/track', deliveryId],
     queryFn: async () => {
-      const r = await fetch(`/api/track/${deliveryId}`);
+      const r = await fetchWithAuth(`/api/track/${deliveryId}`);
       if (!r.ok) throw new Error('Entrega não encontrada');
       return r.json();
     },

@@ -18,6 +18,8 @@
  *   await v2.delete("/api/v2/orders/bulk", ids);    // void — 204 no body
  */
 
+import { fetchWithAuth } from "./fetchWithAuth";
+
 export interface V2ErrorPayload {
   message: string;
   code: string;
@@ -53,21 +55,19 @@ async function parseV2<T>(res: globalThis.Response): Promise<T | null> {
     throw new ApiV2Error(res.status, err);
   }
 
-  // Unwrap the standard envelope.
   return body?.data !== undefined ? (body.data as T) : (body as T);
 }
 
-/** Base fetch with credentials and JSON content-type. */
+/** Base fetch with credentials and JSON content-type via fetchWithAuth. */
 async function request<T>(
   method: string,
   url: string,
   body?: unknown,
 ): Promise<T | null> {
-  const res = await fetch(url, {
+  const res = await fetchWithAuth(url, {
     method,
     headers: body !== undefined ? { "Content-Type": "application/json" } : {},
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    credentials: "include",
   });
   return parseV2<T>(res);
 }

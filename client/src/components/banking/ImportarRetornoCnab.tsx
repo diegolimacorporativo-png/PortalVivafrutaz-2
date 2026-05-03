@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Upload, Loader2, FileCheck2, History } from "lucide-react";
 
@@ -53,10 +54,9 @@ export function ImportarRetornoCnab() {
     setResult(null);
 
     try {
-      const res = await fetch("/api/bank/retorno/itau", {
+      const res = await fetchWithAuth("/api/bank/retorno/itau", {
         method: "POST",
         body: formData,
-        credentials: "include",
       });
       const data = await res.json();
       if (!res.ok) {

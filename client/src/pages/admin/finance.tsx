@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -73,7 +74,7 @@ function BreakdownIndicator({ arId }: { arId: number }) {
   const { data } = useQuery<Breakdown>({
     queryKey: ['/api/finance/accounts-receivable', arId, 'breakdown'],
     queryFn: () =>
-      fetch(`/api/finance/accounts-receivable/${arId}/breakdown`, { credentials: 'include' }).then(r => r.json()),
+      fetchWithAuth(`/api/finance/accounts-receivable/${arId}/breakdown`).then(r => r.json()),
   });
   if (!data) return null;
   if (data.totalLiquido === data.principal) return null;
@@ -96,7 +97,7 @@ function BreakdownModal({ ar, onClose }: { ar: AR; onClose: () => void }) {
   const { data, isLoading, error } = useQuery<Breakdown>({
     queryKey: ['/api/finance/accounts-receivable', ar.id, 'breakdown'],
     queryFn: () =>
-      fetch(`/api/finance/accounts-receivable/${ar.id}/breakdown`, { credentials: 'include' }).then(r => r.json()),
+      fetchWithAuth(`/api/finance/accounts-receivable/${ar.id}/breakdown`).then(r => r.json()),
   });
   return (
     <div
@@ -637,7 +638,7 @@ export default function FinancePage() {
       : [];
   const { data: arRaw, isLoading: arLoading, refetch: refetchAR } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-receivable', filterAR],
-    queryFn: () => fetch(`/api/finance/accounts-receivable?status=${filterAR}`, { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => fetchWithAuth(`/api/finance/accounts-receivable?status=${filterAR}`).then(r => r.json()),
   });
   console.log('[finance] AR response shape:', arRaw);
   const arList: AR[] = Array.isArray(arRaw)
@@ -647,7 +648,7 @@ export default function FinancePage() {
       : [];
   const { data: apRaw, isLoading: apLoading, refetch: refetchAP } = useQuery<unknown>({
     queryKey: ['/api/finance/accounts-payable', filterAP],
-    queryFn: () => fetch(`/api/finance/accounts-payable?status=${filterAP}`, { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => fetchWithAuth(`/api/finance/accounts-payable?status=${filterAP}`).then(r => r.json()),
   });
   console.log('[finance] AP response shape:', apRaw);
   const apList: AP[] = Array.isArray(apRaw)
@@ -657,7 +658,7 @@ export default function FinancePage() {
       : [];
   const { data: cfRaw, isLoading: cfLoading, refetch: refetchCF } = useQuery<unknown>({
     queryKey: ['/api/finance/cashflow', cfFrom, cfTo],
-    queryFn: () => fetch(`/api/finance/cashflow?from=${cfFrom}&to=${cfTo}`, { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => fetchWithAuth(`/api/finance/cashflow?from=${cfFrom}&to=${cfTo}`).then(r => r.json()),
   });
   console.log('[finance] Cashflow response shape:', cfRaw);
   const cashflow: FT[] = Array.isArray(cfRaw)

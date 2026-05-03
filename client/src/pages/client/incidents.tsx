@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -107,10 +108,9 @@ function IncidentForm({ onClose, companyId, companyName }: { onClose: () => void
 
   const createMut = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch('/api/client-incidents', {
+      const res = await fetchWithAuth('/api/client-incidents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(data),
       });
       if (!res.ok) {
@@ -233,7 +233,7 @@ function IncidentDetail({ incident, onClose, companyName }: { incident: ClientIn
   const { data: messages = [], isLoading: msgsLoading } = useQuery<IncidentMessage[]>({
     queryKey: ['/api/client-incidents', incident.id, 'messages'],
     queryFn: async () => {
-      const res = await fetch(`/api/client-incidents/${incident.id}/messages`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/client-incidents/${incident.id}/messages`);
       if (!res.ok) throw new Error('Erro ao carregar mensagens');
       return res.json();
     },
@@ -241,10 +241,9 @@ function IncidentDetail({ incident, onClose, companyName }: { incident: ClientIn
 
   const sendMut = useMutation({
     mutationFn: async (msg: string) => {
-      const res = await fetch(`/api/client-incidents/${incident.id}/messages`, {
+      const res = await fetchWithAuth(`/api/client-incidents/${incident.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ message: msg }),
       });
       if (!res.ok) throw new Error('Erro ao enviar mensagem');

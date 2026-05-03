@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Factory, Download, Filter, X, Calendar, FileSpreadsheet, Building2, Package, TrendingUp } from "lucide-react";
 
 type ReportRow = {
@@ -31,7 +32,7 @@ function useIndustrializedData(filters: { dateFrom: string; dateTo: string; comp
   return useQuery({
     queryKey: ['/api/reports/industrialized', qs],
     queryFn: async () => {
-      const res = await fetch(`/api/reports/industrialized${qs}`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/reports/industrialized${qs}`);
       if (!res.ok) throw new Error('Failed to fetch');
       return res.json() as Promise<ReportRow[]>;
     }

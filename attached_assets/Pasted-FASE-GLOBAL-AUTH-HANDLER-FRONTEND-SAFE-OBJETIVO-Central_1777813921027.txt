@@ -1,0 +1,111 @@
+FASE: GLOBAL AUTH HANDLER (FRONTEND — SAFE)
+
+OBJETIVO:
+Centralizar o tratamento de autenticação (401/403) com segurança, evitando loops, SSR issues e duplicação.
+
+========================================================
+1. CRIAR HELPER GLOBAL
+========================================================
+
+Criar:
+
+/lib/fetchWithAuth.ts
+
+Função:
+
+fetchWithAuth(url, options)
+
+========================================================
+2. IMPLEMENTAÇÃO
+========================================================
+
+Regras obrigatórias:
+
+✔ sempre incluir:
+credentials: "include"
+
+✔ não sobrescrever headers existentes
+
+✔ interceptar resposta:
+
+se status === 401 ou 403:
+
+- disparar evento global:
+
+window.dispatchEvent(new Event("auth:expired"))
+
+- NÃO redirecionar diretamente aqui
+
+========================================================
+3. REDIRECT SEGURO (IMPORTANTE)
+========================================================
+
+❌ NÃO usar router.push dentro do helper
+
+✔ redirecionamento deve acontecer no frontend (React)
+
+Exemplo:
+
+useEffect(() => {
+  const handler = () => {
+    router.push("/login")
+  }
+
+  window.addEventListener("auth:expired", handler)
+
+  return () => window.removeEventListener("auth:expired", handler)
+}, [])
+
+========================================================
+4. SUBSTITUIR FETCH
+========================================================
+
+Substituir TODOS os fetch() por:
+
+fetchWithAuth()
+
+========================================================
+5. EVITAR DUPLICAÇÃO
+========================================================
+
+Remover:
+
+- handleAuthError locais
+- lógica duplicada
+
+========================================================
+6. BLOQUEIO DE LOOP
+========================================================
+
+Garantir:
+
+- evento "auth:expired" dispara apenas uma vez
+- não gerar múltiplos redirects
+
+Sugestão:
+
+let hasFired = false
+
+if (!hasFired) {
+  hasFired = true
+  dispatch event
+}
+
+========================================================
+7. OPCIONAL (AVANÇADO)
+========================================================
+
+Criar AuthContext:
+
+- isAuthenticated
+- sessionExpired
+- logout()
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+✔ centralização total  
+✔ sem loops  
+✔ compatível com Next.js  
+✔ comportamento previsível

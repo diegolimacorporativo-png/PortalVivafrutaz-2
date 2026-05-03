@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -49,7 +50,7 @@ function IncidentDetail({ incident, onClose }: { incident: ClientIncident; onClo
   const { data: messages = [], isLoading: msgsLoading } = useQuery<IncidentMessage[]>({
     queryKey: ['/api/client-incidents', incident.id, 'messages'],
     queryFn: async () => {
-      const res = await fetch(`/api/client-incidents/${incident.id}/messages`, { credentials: 'include' });
+      const res = await fetchWithAuth(`/api/client-incidents/${incident.id}/messages`);
       if (!res.ok) throw new Error('Erro ao carregar mensagens');
       return res.json();
     },
@@ -66,7 +67,7 @@ function IncidentDetail({ incident, onClose }: { incident: ClientIncident; onClo
 
   const deleteMut = useMutation({
     mutationFn: async () => {
-      const res = await fetch(`/api/client-incidents/${incident.id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await fetchWithAuth(`/api/client-incidents/${incident.id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Erro ao excluir');
       return res;
     },
@@ -80,10 +81,9 @@ function IncidentDetail({ incident, onClose }: { incident: ClientIncident; onClo
 
   const sendMut = useMutation({
     mutationFn: async (msg: string) => {
-      const res = await fetch(`/api/client-incidents/${incident.id}/messages`, {
+      const res = await fetchWithAuth(`/api/client-incidents/${incident.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ message: msg }),
       });
       if (!res.ok) throw new Error('Erro');

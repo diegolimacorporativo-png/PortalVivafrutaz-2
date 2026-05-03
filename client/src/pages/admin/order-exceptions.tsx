@@ -4,6 +4,7 @@ import { useCompanies } from "@/hooks/use-admin";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Plus, ShieldCheck, Building2, AlertTriangle, Trash2, Edit2, CheckCircle, XCircle, Calendar } from "lucide-react";
@@ -21,7 +22,7 @@ function useOrderExceptions() {
   return useQuery({
     queryKey: ['/api/order-exceptions'],
     queryFn: async () => {
-      const res = await fetch('/api/order-exceptions', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/order-exceptions');
       return res.json() as Promise<OrderException[]>;
     }
   });
@@ -54,8 +55,8 @@ export default function OrderExceptionsPage() {
 
   const create = useMutation({
     mutationFn: async (data: any) => {
-      const res = await fetch('/api/order-exceptions', {
-        method: 'POST', credentials: 'include',
+      const res = await fetchWithAuth('/api/order-exceptions', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -68,8 +69,8 @@ export default function OrderExceptionsPage() {
 
   const update = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const res = await fetch(`/api/order-exceptions/${id}`, {
-        method: 'PUT', credentials: 'include',
+      const res = await fetchWithAuth(`/api/order-exceptions/${id}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
@@ -82,7 +83,7 @@ export default function OrderExceptionsPage() {
 
   const remove = useMutation({
     mutationFn: async (id: number) => {
-      await fetch(`/api/order-exceptions/${id}`, { method: 'DELETE', credentials: 'include' });
+      await fetchWithAuth(`/api/order-exceptions/${id}`, { method: 'DELETE' });
     },
     onSuccess: () => { invalidate(); toast({ title: "Exceção removida.", variant: "destructive" }); setDeleteTarget(null); },
   });

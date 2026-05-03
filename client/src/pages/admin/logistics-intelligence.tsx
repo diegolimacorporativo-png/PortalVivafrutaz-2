@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -78,7 +79,7 @@ function CepLookupPanel() {
     setLoading(true);
     try {
       const endpoint = withCoords ? `/api/geo/cep/${cep}` : `/api/geo/cep-basic/${cep}`;
-      const resp = await fetch(endpoint);
+      const resp = await fetchWithAuth(endpoint);
       if (!resp.ok) throw new Error('CEP não encontrado');
       setResult(await resp.json());
     } catch (e: any) {
@@ -167,7 +168,7 @@ function DistanceCalculator() {
 
   async function calculate() {
     try {
-      const resp = await fetch('/api/logistics/calculate-distance', {
+      const resp = await fetchWithAuth('/api/logistics/calculate-distance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -233,15 +234,15 @@ function SimulationPanel() {
 
   const { data: dayData, isLoading: dayLoading, refetch: refetchDay } = useQuery<any>({
     queryKey: ['/api/logistics/day-orders', simDate],
-    queryFn: () => fetch(`/api/logistics/day-orders?date=${simDate}`, { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => fetchWithAuth(`/api/logistics/day-orders?date=${simDate}`).then(r => r.json()),
     enabled: !!simDate,
   });
 
   async function runSimulation() {
     setSimLoading(true);
     try {
-      const resp = await fetch('/api/logistics/simulate-day', {
-        method: 'POST', credentials: 'include',
+      const resp = await fetchWithAuth('/api/logistics/simulate-day', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: simDate }),
       });
@@ -266,7 +267,7 @@ function SimulationPanel() {
     }
     setManualLoading(true);
     try {
-      const resp = await fetch(`/api/geo/cep/${cleanCep}`);
+      const resp = await fetchWithAuth(`/api/geo/cep/${cleanCep}`);
       if (!resp.ok) throw new Error('CEP não encontrado');
       const geo = await resp.json();
       if (!geo.latitude || !geo.longitude) throw new Error('Coordenadas não disponíveis para este CEP');
@@ -777,7 +778,7 @@ function DeliveryModal({ delivery, onClose }: { delivery?: Delivery | null; onCl
     if (!form.addressZip) return;
     setCepLoading(true);
     try {
-      const resp = await fetch(`/api/geo/cep/${form.addressZip}`);
+      const resp = await fetchWithAuth(`/api/geo/cep/${form.addressZip}`);
       if (!resp.ok) throw new Error('CEP não encontrado');
       const geo = await resp.json();
       setForm((f: any) => ({
@@ -995,7 +996,7 @@ function ReportsPanel() {
   async function loadDayReport() {
     setDayReportLoading(true);
     try {
-      const resp = await fetch(`/api/logistics/day-orders?date=${dayReportDate}`, { credentials: 'include' });
+      const resp = await fetchWithAuth(`/api/logistics/day-orders?date=${dayReportDate}`);
       if (!resp.ok) throw new Error('Erro ao carregar pedidos');
       setDayReport(await resp.json());
     } catch (e: any) {
@@ -1013,7 +1014,7 @@ function ReportsPanel() {
       if (filters.endDate) params.set('endDate', filters.endDate);
       if (filters.status) params.set('status', filters.status);
 
-      const resp = await fetch(`/api/logistics/reports/deliveries?${params.toString()}`);
+      const resp = await fetchWithAuth(`/api/logistics/reports/deliveries?${params.toString()}`);
       if (!resp.ok) throw new Error('Erro ao carregar relatório');
       setReportData(await resp.json());
     } catch (e: any) {
@@ -1280,7 +1281,7 @@ function SmartSearchPanel() {
     if (!q) return;
     setLoading(true);
     try {
-      const resp = await fetch(`/api/logistics/smart-search?q=${encodeURIComponent(q)}`);
+      const resp = await fetchWithAuth(`/api/logistics/smart-search?q=${encodeURIComponent(q)}`);
       if (!resp.ok) throw new Error(await resp.text());
       const data = await resp.json();
       setResults(data);
@@ -1301,7 +1302,7 @@ function SmartSearchPanel() {
   async function loadBestDriver() {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const resp = await fetch(`/api/logistics/best-driver?date=${today}`);
+      const resp = await fetchWithAuth(`/api/logistics/best-driver?date=${today}`);
       const data = await resp.json();
       setBestDriver(data.driver);
     } catch (_) {}

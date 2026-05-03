@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, Send, Save, Eye, EyeOff, CheckCircle2, XCircle, Loader2, Server, Info, ExternalLink, Zap } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export default function AdminSmtpConfig() {
   const { toast } = useToast();
@@ -51,9 +52,8 @@ export default function AdminSmtpConfig() {
     setTesting(true);
     setTestResult(null);
     try {
-      const res = await fetch('/api/smtp-config/test', {
+      const res = await fetchWithAuth('/api/smtp-config/test', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
       const d = await res.json();

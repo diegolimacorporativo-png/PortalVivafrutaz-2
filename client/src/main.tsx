@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { fetchWithAuth } from "./lib/fetchWithAuth";
 
 (window as any).APP_NAME = "VivaFrutaz";
 
@@ -12,10 +13,9 @@ function reportError(message: string, source?: string) {
   _reportedErrors.add(key);
   setTimeout(() => _reportedErrors.delete(key), 10000);
   try {
-    fetch('/api/logs', {
+    fetchWithAuth('/api/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({
         action: 'FRONTEND_RUNTIME_ERROR',
         description: `[${source || window.location.pathname}] ${message}`,

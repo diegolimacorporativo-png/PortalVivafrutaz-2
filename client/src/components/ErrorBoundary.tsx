@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 
 interface Props {
@@ -22,10 +23,9 @@ export class ErrorBoundary extends Component<Props, State> {
     const page = this.props.pageName || window.location.pathname;
     console.error(`[ErrorBoundary][${page}] Erro capturado:`, error, info);
     try {
-      fetch('/api/logs', {
+      fetchWithAuth('/api/logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({
           action: 'FRONTEND_ERROR',
           description: `[${page}] ${error?.message || 'Erro desconhecido'} | Stack: ${info?.componentStack?.split('\n')?.[1]?.trim() || '?'}`,

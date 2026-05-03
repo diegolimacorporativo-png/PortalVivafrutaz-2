@@ -4,6 +4,7 @@ import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient as globalQueryClient } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeOne, normalizeList, normalizeError } from "@/lib/normalizeResponse";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
@@ -16,7 +17,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import {
   Receipt, Search, ChevronDown, ChevronUp, MessageSquare, Package, FileText,
-  XCircle, Edit3, AlertTriangle, CheckCircle, StickyNote, Save, Trash2, Calendar,
+  XCircle, Edit3, AlertTriangle, CheckCircle, CheckCircle2, AlertCircle, StickyNote, Save, Trash2, Calendar,
   Lock, Unlock, ThumbsUp, ThumbsDown, ClipboardEdit, Bell, Building2,
   Download, Eye, History, Loader2, FileDown, FileSpreadsheet, Code2,
   FileCheck, FileX, FileClock, Tag, Send, ShieldCheck, ShieldX, Clock, RefreshCw,
@@ -297,7 +298,7 @@ function SubCategorySelector({ productId, selectedSubCatId, onSelect }: {
   const { data: subCats = [] } = useQuery<any[]>({
     queryKey: ['/api/products', productId, 'sub-categories'],
     queryFn: async () => {
-      const r = await fetch(`/api/products/${productId}/sub-categories`, { credentials: 'include' });
+      const r = await fetchWithAuth(`/api/products/${productId}/sub-categories`);
       if (!r.ok) return [];
       return r.json();
     },
@@ -373,7 +374,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
 
   const { data: orderNfes = [], refetch: refetchNfes } = useQuery<any[]>({
     queryKey: ["/api/nfe", "order", order.id],
-    queryFn: () => fetch(`/api/nfe?orderId=${order.id}`, { credentials: "include" }).then(r => r.ok ? r.json() : []),
+    queryFn: () => fetchWithAuth(`/api/nfe?orderId=${order.id}`).then(r => r.ok ? r.json() : []),
   });
 
   const { allowed: canEmit, reason: blockReason, faturamento, isLoading: checkingEmit, justUnlocked } = useCanEmitNfe(order.id);
@@ -412,7 +413,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   const { data: danfeLogs, refetch: refetchLogs } = useQuery({
     queryKey: ["/api/orders", order.id, "danfe-logs"],
     queryFn: async () => {
-      const res = await fetch(`/api/orders/${order.id}/danfe-logs`, { credentials: "include" });
+      const res = await fetchWithAuth(`/api/orders/${order.id}/danfe-logs`);
       if (!res.ok) return [];
       // Migrated endpoint returns the standard envelope; legacy fallback
       // returns a bare array. `normalizeList` handles both transparently.
@@ -423,8 +424,8 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
 
   const buildDanfeData = async (): Promise<DanfeData> => {
     const [detailRaw, configRes] = await Promise.all([
-      fetch(`/api/orders/${order.id}`, { credentials: "include" }).then(r => r.json()),
-      fetch("/api/company-config", { credentials: "include" }).then(r => r.ok ? r.json() : {} as any),
+      fetchWithAuth(`/api/orders/${order.id}`).then(r => r.json()),
+      fetchWithAuth("/api/company-config").then(r => r.ok ? r.json() : {} as any),
     ]);
     const detail = normalizeOne<any>(detailRaw) ?? { order, items: [] };
     const items = (detail.items || []).map((item: any) => {
@@ -489,9 +490,8 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   };
 
   const logGeneration = async () => {
-    await fetch(`/api/orders/${order.id}/danfe-log`, {
+    await fetchWithAuth(`/api/orders/${order.id}/danfe-log`, {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ orderCode: order.orderCode }),
     });
@@ -555,7 +555,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   const handleGeneratePreNota = async () => {
     setGenNota(true);
     try {
-      const res = await fetch(`/api/orders/${order.id}/generate-prenota`, { method: "POST", credentials: "include" });
+      const res = await fetchWithAuth(`/api/orders/${order.id}/generate-prenota`, { method: "POST" });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(normalizeError(body).message || "Erro ao gerar pré-nota");
       const ok = normalizeOne<{ preNotaNumber: string }>(body) ?? body;
@@ -571,9 +571,8 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
   const handleUpdateFiscal = async (fiscalStatus: string) => {
     setUpdatingFiscal(true);
     try {
-      const res = await fetch(`/api/orders/${order.id}/fiscal`, {
+      const res = await fetchWithAuth(`/api/orders/${order.id}/fiscal`, {
         method: "PATCH",
-        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fiscalStatus }),
       });
@@ -1450,7 +1449,7 @@ function ExportOrdersModal({ companies, onClose }: { companies: any[]; onClose: 
   };
 
   const fetchData = async () => {
-    const res = await fetch(buildUrl(), { credentials: 'include' });
+    const res = await fetchWithAuth(buildUrl());
     if (!res.ok) throw new Error('Erro ao buscar pedidos');
     return res.json() as Promise<any[]>;
   };
@@ -1688,10 +1687,9 @@ function DeleteHistoryModal({ orders, companies, onClose, onDeleted }: {
   const handleDelete = async (forceConfirm = false) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/orders/bulk', {
+      const res = await fetchWithAuth('/api/orders/bulk', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ orderIds: selectedIds, motivo, confirmar: forceConfirm }),
       });
       const body = await res.json().catch(() => ({}));
@@ -1932,11 +1930,10 @@ export default function OrdersPage() {
   const totalCount = orders?.length ?? 0;
 
   const patchOrder = async (id: number, updates: any) => {
-    const res = await fetch(`/api/orders/${id}`, {
+    const res = await fetchWithAuth(`/api/orders/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
-      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to update order');
     queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
@@ -1959,9 +1956,8 @@ export default function OrdersPage() {
 
   const blingExport = async (order: Order) => {
     try {
-      const res = await fetch(`/api/orders/${order.id}/bling-export`, {
+      const res = await fetchWithAuth(`/api/orders/${order.id}/bling-export`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
       const body = await res.json().catch(() => ({}));
@@ -1984,8 +1980,8 @@ export default function OrdersPage() {
 
   const approveReopen = async (order: Order) => {
     try {
-      const res = await fetch(`/api/orders/${order.id}/approve-reopen`, {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      const res = await fetchWithAuth(`/api/orders/${order.id}/approve-reopen`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(normalizeError(d).message); }
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
@@ -1995,8 +1991,8 @@ export default function OrdersPage() {
 
   const denyReopen = async (order: Order) => {
     try {
-      const res = await fetch(`/api/orders/${order.id}/deny-reopen`, {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      const res = await fetchWithAuth(`/api/orders/${order.id}/deny-reopen`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
       });
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(normalizeError(d).message); }
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
@@ -2006,9 +2002,8 @@ export default function OrdersPage() {
 
   const transitionOrder = async (order: Order, to: string, label: string) => {
     try {
-      const res = await fetch(`/api/orders/${order.id}/transition`, {
+      const res = await fetchWithAuth(`/api/orders/${order.id}/transition`, {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to }),
       });
@@ -2026,11 +2021,10 @@ export default function OrdersPage() {
   };
 
   const saveItems = async (items: any[]) => {
-    const res = await fetch(`/api/orders/${editOrder!.id}/items`, {
+    const res = await fetchWithAuth(`/api/orders/${editOrder!.id}/items`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
-      credentials: 'include',
     });
     if (!res.ok) throw new Error('Failed to update items');
     queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });

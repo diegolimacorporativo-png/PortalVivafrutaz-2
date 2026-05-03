@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -113,13 +114,13 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
 
   const { data: diagnostic, isLoading, refetch, isFetching } = useQuery<DiagnosticResult>({
     queryKey: ['/api/nfe/diagnostics', orderId],
-    queryFn: () => fetch(`/api/nfe/diagnostics/${orderId}`, { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => fetchWithAuth(`/api/nfe/diagnostics/${orderId}`).then(r => r.json()),
     enabled: !!orderId,
   });
 
   const { data: fiscalData, isLoading: fiscalLoading } = useQuery<FiscalData>({
     queryKey: ['/api/nfe/fiscal-data', orderId],
-    queryFn: () => fetch(`/api/nfe/fiscal-data/${orderId}`, { credentials: 'include' }).then(r => r.json()),
+    queryFn: () => fetchWithAuth(`/api/nfe/fiscal-data/${orderId}`).then(r => r.json()),
     enabled: !!orderId,
   });
 
@@ -142,10 +143,9 @@ export default function NfeDiagnosticsPanel({ orderId, onEmitirClick, className 
 
   useEffect(() => {
     if (!diagnostic || !orderId || !diagnostic.erros.length) return;
-    fetch('/api/nfe/diagnostics/log-errors', {
+    fetchWithAuth('/api/nfe/diagnostics/log-errors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
       body: JSON.stringify({
         orderId,
         errors: diagnostic.erros.map(e => ({ campo: e.campo, mensagem: e.mensagem, codigo: '422' })),

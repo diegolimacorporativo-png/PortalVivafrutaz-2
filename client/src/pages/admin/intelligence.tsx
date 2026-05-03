@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import {
@@ -85,7 +86,7 @@ export default function IntelligencePage() {
   const { data, isLoading, error, dataUpdatedAt } = useQuery<IntelligenceResponse>({
     queryKey: ['/api/admin/intelligence'],
     queryFn: async () => {
-      const res = await fetch('/api/admin/intelligence', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/admin/intelligence');
       if (!res.ok) throw new Error('Erro ao carregar análise');
       return res.json();
     },

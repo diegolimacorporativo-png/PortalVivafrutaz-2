@@ -1,10 +1,7 @@
-let handled = false;
-
-export function handleAuthError(status: number, onExpire: () => void) {
-  if ((status === 401 || status === 403) && !handled) {
-    handled = true;
-    onExpire();
-    return true;
-  }
-  return status === 401 || status === 403;
+/** @deprecated Use fetchWithAuth from "@/lib/fetchWithAuth". */
+export function handleAuthError(
+  _status: number,
+  _onExpire?: () => void,
+): boolean {
+  return false;
 }

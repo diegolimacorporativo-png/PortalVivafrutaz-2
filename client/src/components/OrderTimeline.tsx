@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { ptBR } from "date-fns/locale";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -99,9 +100,7 @@ export function OrderTimeline({ orderId }: { orderId: number }) {
   const { data, isLoading, error } = useQuery<TimelineLog[]>({
     queryKey: ["/api/orders", orderId, "timeline"],
     queryFn: async () => {
-      const res = await fetch(`/api/orders/${orderId}/timeline`, {
-        credentials: "include",
-      });
+      const res = await fetchWithAuth(`/api/orders/${orderId}/timeline`);
       if (!res.ok) throw new Error("Falha ao carregar timeline");
       const body = await res.json();
       return Array.isArray(body) ? body : body?.data || [];

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -142,7 +143,7 @@ function ExtratoTab({ account }: { account: BankAccount }) {
   async function buscar() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/bank/accounts/${account.id}/extrato?from=${from}&to=${to}`);
+      const res = await fetchWithAuth(`/api/bank/accounts/${account.id}/extrato?from=${from}&to=${to}`);
       const data = await res.json();
       if (!res.ok) { toast({ title: data.message || "Erro ao buscar extrato", variant: "destructive" }); return; }
       setTxs(data.transacoes || []);

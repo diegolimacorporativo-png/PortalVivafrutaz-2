@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useProducts, useCreateProduct, useUpdateProduct } from "@/hooks/use-catalog";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { format } from "date-fns";
@@ -34,7 +35,7 @@ function useCategories() {
   return useQuery({
     queryKey: ['/api/categories'],
     queryFn: async () => {
-      const res = await fetch('/api/categories', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/categories');
       return res.json() as Promise<{ id: number; name: string }[]>;
     }
   });
@@ -144,8 +145,8 @@ function SafraSubstituteModal({ alert, products, onClose, onDone }: {
         if (action === 'replace') body.newProductId = Number(newProductId);
         if (action === 'discount') body.discountPct = Number(discountPct);
         if (action === 'note') body.nfNote = nfNote;
-        const res = await fetch(`/api/orders/${o.orderId}/substitute-item`, {
-          method: 'POST', credentials: 'include',
+        const res = await fetchWithAuth(`/api/orders/${o.orderId}/substitute-item`, {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
@@ -248,7 +249,7 @@ function PriceAlertsSection() {
   const { data: alerts = [], isLoading, refetch, isFetching } = useQuery<any[]>({
     queryKey: ['/api/products/price-alerts'],
     queryFn: async () => {
-      const res = await fetch('/api/products/price-alerts', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/products/price-alerts');
       return res.json();
     },
     refetchInterval: 60000,
@@ -344,7 +345,7 @@ function SafraAlertsSection({ allProducts }: { allProducts: any[] }) {
   const { data: alerts, isLoading } = useQuery({
     queryKey: ['/api/products/safra-alerts'],
     queryFn: async () => {
-      const res = await fetch('/api/products/safra-alerts', { credentials: 'include' });
+      const res = await fetchWithAuth('/api/products/safra-alerts');
       return res.json();
     },
     refetchInterval: 30000,
@@ -538,7 +539,7 @@ export default function ProductsPage() {
   const { data: editingSubCats = [] } = useQuery<any[]>({
     queryKey: ['/api/products', editingProduct?.id, 'sub-categories'],
     queryFn: async () => {
-      const r = await fetch(`/api/products/${editingProduct!.id}/sub-categories`, { credentials: 'include' });
+      const r = await fetchWithAuth(`/api/products/${editingProduct!.id}/sub-categories`);
       return r.json();
     },
     enabled: !!editingProduct,
@@ -600,10 +601,9 @@ export default function ProductsPage() {
       setUploadingImage(true);
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch("/api/admin/products/upload-image", {
+      const res = await fetchWithAuth("/api/admin/products/upload-image", {
         method: "POST",
         body: fd,
-        credentials: "include",
       });
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
@@ -660,7 +660,7 @@ export default function ProductsPage() {
     try {
       const excludeId = editingProduct?.id;
       const url = `/api/products/check-code?code=${encodeURIComponent(code.trim())}${excludeId ? `&excludeId=${excludeId}` : ''}`;
-      const res = await fetch(url, { credentials: 'include' });
+      const res = await fetchWithAuth(url);
       const data = await res.json();
       if (data.exists) {
         setCodeError(`ID já cadastrado (produto: "${data.product?.name}"). Utilize outro ID ou edite o produto existente.`);
@@ -723,7 +723,7 @@ export default function ProductsPage() {
     if (formData.productCode.trim()) {
       const excludeId = editingProduct?.id;
       const codeUrl = `/api/products/check-code?code=${encodeURIComponent(formData.productCode.trim())}${excludeId ? `&excludeId=${excludeId}` : ''}`;
-      const codeRes = await fetch(codeUrl, { credentials: 'include' });
+      const codeRes = await fetchWithAuth(codeUrl);
       const codeData = await codeRes.json();
       if (codeData.exists) {
         const msg = `ID já cadastrado (produto: "${codeData.product?.name}"). Utilize outro ID ou edite o produto existente.`;
@@ -735,7 +735,7 @@ export default function ProductsPage() {
 
     // Trava de produto duplicado (nome + código)
     const dupUrl = `/api/products/check-duplicate?name=${encodeURIComponent(formData.name.trim())}&code=${encodeURIComponent(formData.productCode.trim())}${editingProduct ? `&excludeId=${editingProduct.id}` : ''}`;
-    const dupRes = await fetch(dupUrl, { credentials: 'include' });
+    const dupRes = await fetchWithAuth(dupUrl);
     const dupData = await dupRes.json();
     if (dupData.exists) {
       const msg = `Produto já cadastrado com esse ID (produto existente: "${dupData.product?.name}").`;
@@ -1105,7 +1105,7 @@ export default function ProductsPage() {
                 data-testid="button-auto-generate-code"
                 onClick={async () => {
                   try {
-                    const res = await fetch('/api/products/next-code', { credentials: 'include' });
+                    const res = await fetchWithAuth('/api/products/next-code');
                     const data = await res.json();
                     set("productCode", data.nextCode);
                   } catch { /* ignore */ }
