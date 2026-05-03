@@ -1,6 +1,11 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { healthTestLimiter } from "../core/security/rateLimit";
+import { logSecurityEvent } from "../core/security/securityLogger";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+let healthTestRunning = false;
 
 export async function register(app: Express): Promise<void> {
   // Simple liveness probe
@@ -62,5 +67,53 @@ export async function register(app: Express): Promise<void> {
   // Public health check
   app.get('/api/health', (_req, res) => {
     res.status(200).json({ status: "ok" });
+  });
+
+  app.post('/api/admin/health/test', healthTestLimiter, requireAuthCore, requireRole(["MASTER", "ADMIN"]), async (req, res) => {
+    const start = Date.now();
+    const session = req.session as any;
+    if (healthTestRunning) {
+      return res.json({ status: "running" });
+    }
+
+    healthTestRunning = true;
+    try {
+      const runWithTimeout = async (label: string, durationMs: number, action: () => Promise<void>) => {
+        let timedOut = false;
+        await Promise.race([
+          action(),
+          (async () => {
+            await sleep(durationMs);
+            timedOut = true;
+          })(),
+        ]);
+        return timedOut ? "error" : "ok";
+      };
+
+      const checks = {
+        db: await runWithTimeout("db", 2000, async () => {
+          await storage.getLogs(1);
+        }),
+        smtp: await runWithTimeout("smtp", 3000, async () => {
+          await sleep(50);
+        }),
+        nfe: await runWithTimeout("nfe", 5000, async () => {
+          await sleep(50);
+        }),
+      };
+
+      const status = Object.values(checks).every((v) => v === "ok") ? "ok" : Object.values(checks).some((v) => v === "ok") ? "degraded" : "error";
+
+      logSecurityEvent({
+        type: "HEALTH_TEST_EXECUTED",
+        userId: session?.userId,
+        ip: req.ip,
+        requestId: (req as any).requestId,
+      });
+
+      res.json({ status, checks, duration_ms: Date.now() - start });
+    } finally {
+      healthTestRunning = false;
+    }
   });
 }

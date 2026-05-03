@@ -1,0 +1,108 @@
+FASE: SAFE HEALTH SELF-TEST (CONTROLLED DIAGNOSTICS)
+
+OBJETIVO:
+Adicionar um endpoint de teste interno de saúde do sistema de forma segura, controlada e sem impacto em produção.
+
+========================================================
+1. ENDPOINT
+========================================================
+
+POST /api/admin/health/test
+
+PROTEÇÃO:
+
+requireAuthCore
+requireRole(["MASTER", "ADMIN"])
+
+========================================================
+2. RATE LIMIT (CRÍTICO)
+========================================================
+
+Aplicar:
+
+sensitiveActionLimiter
+
+OU MAIS RESTRITO:
+
+- 3 requisições por minuto
+
+========================================================
+3. LOCK DE EXECUÇÃO
+========================================================
+
+Implementar:
+
+- apenas 1 teste rodando por vez (global lock)
+- se já estiver rodando → retornar:
+
+{ "status": "running" }
+
+========================================================
+4. TIMEOUT
+========================================================
+
+Cada teste deve ter timeout:
+
+- DB: 2s
+- SMTP: 3s
+- NF-e: 5s
+
+Evitar travar o servidor
+
+========================================================
+5. MODO SEGURO
+========================================================
+
+Testes NÃO devem:
+
+❌ enviar email real
+❌ emitir NF-e real
+❌ alterar dados
+
+✔ apenas simular ou validar conexão
+
+========================================================
+6. RESPOSTA PADRÃO
+========================================================
+
+Retornar:
+
+{
+  "status": "ok" | "degraded" | "error",
+  "checks": {
+    "db": "ok",
+    "smtp": "ok",
+    "nfe": "ok"
+  },
+  "duration_ms": 1234
+}
+
+========================================================
+7. LOG
+========================================================
+
+Registrar:
+
+logSecurityEvent({
+  type: "HEALTH_TEST_EXECUTED",
+  userId,
+  ip,
+  requestId
+})
+
+========================================================
+8. NÃO IMPACTAR
+========================================================
+
+❌ não interferir no system-state
+❌ não travar event loop
+❌ não rodar automaticamente
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+✔ diagnóstico sob demanda
+✔ seguro
+✔ sem impacto em produção
+✔ visível no Control Center

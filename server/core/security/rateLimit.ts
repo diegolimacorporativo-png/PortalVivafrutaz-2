@@ -172,6 +172,12 @@ export const sensitiveActionLimiter = createRateLimiter(
   "Muitas requisições sensíveis. Aguarde antes de tentar novamente.",
 );
 
+export const healthTestLimiter = createRateLimiter(
+  3,
+  60_000,
+  "Muitas requisições de diagnóstico. Aguarde antes de tentar novamente.",
+);
+
 // ── High-risk action detector (ETAPA 4) ──────────────────────────────────────
 
 /**
