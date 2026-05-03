@@ -1,0 +1,235 @@
+FASE 26.5 — POLICY ENGINE (CONFIGURABLE RULES LAYER / NO-CODE GOVERNANCE CONTROL)
+
+OBJETIVO:
+Transformar alert engine + protective mode em um sistema totalmente configurável por regras,
+sem necessidade de alterar código ou fazer deploy.
+
+✔ NÃO altera auth/session/NF-e flow
+✔ NÃO substitui alert engine
+✔ NÃO substitui stream processor
+✔ apenas adiciona camada de decisão configurável
+✔ 100% read-evaluate-apply (sem side effects diretos críticos)
+
+========================================================
+1. CONCEITO CENTRAL
+========================================================
+
+ANTES:
+Código define regras fixas:
+- thresholds hardcoded
+- protective mode logic fixa
+- alert conditions embutidas
+
+DEPOIS:
+Regras são DATA:
+
+POLICY ENGINE decide tudo em runtime.
+
+========================================================
+2. NOVO MÓDULO CORE
+========================================================
+
+/server/core/policy/policy-engine.service.ts
+
+Responsabilidade:
+
+- carregar regras dinâmicas
+- avaliar eventos/risk state
+- decidir ações (alert, escalate, protect)
+- sem lógica hardcoded crítica
+
+========================================================
+3. POLICY MODEL (CONFIGURÁVEL)
+
+Tabela:
+
+system_policies
+
+Campos:
+
+- id
+- name
+- type (AUTH | NF_E | SESSION | SECURITY)
+- condition (JSON)
+- action (JSON)
+- enabled (boolean)
+- priority (number)
+- created_at
+
+========================================================
+4. EXEMPLO DE POLICY
+
+{
+  "type": "AUTH",
+  "condition": {
+    "event": "AUTH_LOGIN_FAILURE",
+    "threshold": 5,
+    "window": "5m"
+  },
+  "action": {
+    "type": "CREATE_ALERT",
+    "severity": "HIGH",
+    "protectiveMode": "ELEVATED"
+  }
+}
+
+========================================================
+5. POLICY EVALUATION ENGINE
+
+function evaluatePolicies(event, state):
+
+  policies = loadEnabledPolicies(event.type)
+
+  for policy in policies:
+
+    if matchCondition(policy.condition, event, state):
+
+      executeAction(policy.action)
+
+========================================================
+6. TIPOS DE AÇÃO
+
+A) ALERT ACTION
+- cria alertas no alert engine
+
+B) PROTECTIVE MODE ACTION
+- ajusta modo:
+  - NORMAL
+  - ELEVATED
+  - LOCKDOWN (controlado)
+
+C) RATE LIMIT TUNING
+- ajusta limites dinamicamente (sem código)
+
+D) NOTIFICATION ACTION
+- envia alerta admin
+
+========================================================
+7. INTEGRAÇÃO COM ALERT ENGINE (26.4)
+
+FLUXO ATUAL:
+
+Event Stream
+    ↓
+Risk Engine
+    ↓
+Alert Engine
+    ↓
+Policy Engine (NOVO)
+    ↓
+Final Decision Layer
+
+IMPORTANTE:
+Policy Engine NÃO substitui Alert Engine
+→ ele refina decisões
+
+========================================================
+8. POLICY EXECUTION RULE
+
+🔴 SEM ação destrutiva direta
+
+Permitido:
+✔ alertar
+✔ ajustar protective mode
+✔ ajustar thresholds
+✔ marcar risco
+
+Proibido:
+❌ bloquear usuário direto
+❌ alterar auth flow
+❌ interferir NF-e execution
+
+========================================================
+9. CACHE LAYER
+
+/server/core/policy/policy-cache.ts
+
+✔ evita leitura constante do DB
+✔ refresh a cada X segundos
+✔ fallback para última versão válida
+
+========================================================
+10. ADMIN CONTROL PANEL (FASE 25 EXTENSÃO)
+
+Nova seção:
+
+POLICY MANAGEMENT
+
+Permite:
+
+- criar regras
+- ativar/desativar policies
+- simular impacto
+- versionar regras
+
+========================================================
+11. SIMULATION MODE (IMPORTANTE)
+
+Antes de ativar policy:
+
+runPolicySimulation(policy)
+
+Retorna:
+
+{
+  expectedAlertsIncrease,
+  riskDelta,
+  systemImpact,
+  conflictsWithExistingPolicies
+}
+
+========================================================
+12. CONFLITOS DE POLÍTICAS
+
+Engine detecta:
+
+- policies conflitantes
+- duplicação de regras
+- sobreposição de ações
+
+resolve por:
+→ priority + specificity scoring
+
+========================================================
+13. PERFORMANCE MODEL
+
+✔ evaluation O(n policies per event)
+✔ cache-first lookup
+✔ async execution of actions
+✔ non-blocking pipeline
+
+========================================================
+14. FAIL SAFE DESIGN
+
+Se policy engine falhar:
+
+✔ alert engine continua funcionando
+✔ stream engine continua funcionando
+✔ sistema nunca bloqueia auth/NF-e
+
+Fallback:
+→ "NO POLICY APPLIED"
+
+========================================================
+15. RESULTADO FINAL
+
+Sistema passa a ser:
+
+"CONFIGURABLE SECURITY & GOVERNANCE ENGINE"
+
+com:
+
+✔ regras dinâmicas sem deploy
+✔ proteção ajustável em runtime
+✔ governança programável
+✔ controle granular de risco
+
+========================================================
+FASE 26.5 CONCLUÍDA QUANDO:
+
+✔ policy engine ativo
+✔ regras no banco funcionando
+✔ alert engine consumindo policies
+✔ protective mode configurável
+✔ dashboard com editor de regras
+✔ zero impacto no core auth/NF-e

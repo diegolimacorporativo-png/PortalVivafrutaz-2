@@ -3,6 +3,7 @@ import { eventRepository } from "../events/event.repository";
 import { protectiveModeService } from "../security/protective-mode.service";
 import { notifyAlert } from "./alert-notifier";
 import type { RealtimeRiskState } from "../events/realtime-state.store";
+import { evaluatePolicies } from "../policy/policy-engine.service";
 
 let lastAlertKey = "";
 
@@ -61,5 +62,6 @@ export async function evaluateRisk(state: RealtimeRiskState) {
     };
     await eventRepository.saveAlert(row as any);
     notifyAlert(alert.type, alert.severity, row.metadata as Record<string, any>);
+    await evaluatePolicies({ type: alert.type }, state);
   }
 }

@@ -571,6 +571,20 @@ export type SystemAlert = typeof systemAlerts.$inferSelect;
 export const insertSystemAlertSchema = createInsertSchema(systemAlerts).omit({ createdAt: true });
 export type InsertSystemAlert = z.infer<typeof insertSystemAlertSchema>;
 
+export const systemPolicies = pgTable("system_policies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  type: text("type").notNull(),
+  condition: jsonb("condition").notNull(),
+  action: jsonb("action").notNull(),
+  enabled: boolean("enabled").default(true).notNull(),
+  priority: integer("priority").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type SystemPolicy = typeof systemPolicies.$inferSelect;
+export const insertSystemPolicySchema = createInsertSchema(systemPolicies).omit({ id: true, createdAt: true });
+export type InsertSystemPolicy = z.infer<typeof insertSystemPolicySchema>;
+
 export const insertSystemLogSchema = createInsertSchema(systemLogs).omit({ id: true, createdAt: true });
 export type SystemLog = typeof systemLogs.$inferSelect;
 export type InsertSystemLog = z.infer<typeof insertSystemLogSchema>;

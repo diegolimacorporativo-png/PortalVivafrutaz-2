@@ -118,6 +118,7 @@ import { register as securityRiskRegister } from './security-risk.routes';
 import { registerEventRoutes } from './event.routes';
 import { registerGovernanceRoutes } from './governance.routes';
 import { registerAlertRoutes } from './alert.routes';
+import { registerPolicyRoutes } from './policy.routes';
 import { register as contractsAlertsRegister } from './contracts-alerts.routes';
 import { register as companyValidateRegister } from './company-validate.routes';
 import { register as purchasePlanningRegister } from './purchase-planning.routes';
@@ -225,6 +226,7 @@ export async function registerRoutes(
   registerEventRoutes(app);
   registerGovernanceRoutes(app);
   registerAlertRoutes(app);
+  registerPolicyRoutes(app);
   contractsAlertsRegister(app);
   companyValidateRegister(app);
   purchasePlanningRegister(app);
