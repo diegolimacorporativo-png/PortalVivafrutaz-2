@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { auditLog } from "../utils/auditLogger";
 import {
   validateWebhookSignature,
   checkWebhookIdempotency,
@@ -25,6 +26,13 @@ export async function register(app: Express): Promise<void> {
       if (!userId || !newPassword) return res.status(400).json({ message: 'userId e newPassword são obrigatórios' });
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
+      auditLog("RESET_USER_PASSWORD", {
+        userId: masterUser!.id,
+        role: masterUser!.role,
+        entity: "user",
+        entityId: userId,
+        details: { targetEmail: targetUser.email },
+      });
       await storage.updateUser(userId, { password: newPassword });
       await storage.createLog({ action: 'MASTER_RESET_PASSWORD', description: `[MASTER] Senha resetada para: ${targetUser.email} (ID ${userId})`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
       res.json({ success: true });
@@ -45,6 +53,13 @@ export async function register(app: Express): Promise<void> {
       const allowed = ['role', 'active', 'isLocked', 'tabPermissions', 'permissions'];
       const updates: any = {};
       for (const key of allowed) { if (req.body[key] !== undefined) updates[key] = req.body[key]; }
+      auditLog("UPDATE_USER", {
+        userId: masterUser!.id,
+        role: masterUser!.role,
+        entity: "user",
+        entityId: targetId,
+        details: { targetEmail: targetUser.email, updates },
+      });
       await storage.updateUser(targetId, updates);
       await storage.createLog({ action: 'MASTER_UPDATE_USER', description: `[MASTER] Usuário atualizado: ${targetUser.email} — ${JSON.stringify(updates)}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
       res.json({ success: true });

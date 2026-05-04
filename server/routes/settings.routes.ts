@@ -2,13 +2,13 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { auditLog } from "../utils/auditLogger";
 
 export function register(app: Express) {
   // System Settings
   app.get('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req, res) => {
     const key = String(req.params.key);
     const value = await storage.getSetting(key);
-    // For boolean-mode keys, always return {enabled} so toggles work correctly
     if (key === 'maintenance' || key === 'test-mode') {
       const dbKey = key === 'maintenance' ? 'maintenance_mode' : 'test_mode';
       const modeVal = await storage.getSetting(dbKey);
@@ -17,11 +17,19 @@ export function register(app: Express) {
     res.json({ key, value });
   });
 
-  app.put('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req, res) => {
+  app.put('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req: any, res) => {
     const { value } = req.body;
     if (typeof value !== 'string') return res.status(400).json({ message: 'value required' });
-    await storage.setSetting(String(req.params.key), value);
-    res.json({ key: req.params.key, value });
+    const key = String(req.params.key);
+    auditLog("UPDATE_SYSTEM_SETTING", {
+      userId: req.session?.userId,
+      role: req.session?.userRole,
+      entity: "system_setting",
+      entityId: key,
+      details: { value },
+    });
+    await storage.setSetting(key, value);
+    res.json({ key, value });
   });
 
   // ─── COMPANY CONFIG LOGO (public — no auth needed) ────────────
@@ -49,6 +57,12 @@ export function register(app: Express) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
     try {
+      auditLog("UPDATE_COMPANY_CONFIG", {
+        userId: user.id,
+        role: user.role,
+        entity: "company_config",
+        details: req.body,
+      });
       const updated = await storage.updateCompanyConfig(req.body);
       await storage.createLog({ action: 'COMPANY_CONFIG_UPDATED', description: `Configuração de suporte atualizada por ${user.name}`, userId: user.id, userEmail: user.email, userRole: user.role });
       res.json(updated);
@@ -74,6 +88,13 @@ export function register(app: Express) {
     }
     try {
       const empresaId = Number(req.params.empresaId);
+      auditLog("UPDATE_COMPANY_SETTINGS", {
+        userId: user.id,
+        role: user.role,
+        entity: "company_settings",
+        entityId: empresaId,
+        details: req.body,
+      });
       const settings = await companySettingsService.updateSettings(empresaId, req.body);
       await storage.createLog({ action: 'COMPANY_SETTINGS_UPDATED', description: `Configurações white-label atualizadas para empresa ${empresaId} por ${user.name}`, userId: user.id, userEmail: user.email, userRole: user.role });
       res.json(settings);
@@ -90,6 +111,13 @@ export function register(app: Express) {
     }
     try {
       const empresaId = Number(req.params.empresaId);
+      auditLog("UPDATE_COMPANY_SETTINGS", {
+        userId: user.id,
+        role: user.role,
+        entity: "company_settings",
+        entityId: empresaId,
+        details: req.body,
+      });
       const settings = await companySettingsService.updateSettings(empresaId, req.body);
       await storage.createLog({ action: 'COMPANY_SETTINGS_UPDATED', description: `Configurações white-label atualizadas para empresa ${empresaId} por ${user.name}`, userId: user.id, userEmail: user.email, userRole: user.role });
       res.json(settings);
@@ -115,6 +143,13 @@ export function register(app: Express) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
       const { enabled } = req.body;
+      auditLog("TOGGLE_TEST_MODE", {
+        userId: user.id,
+        role: user.role,
+        entity: "system_setting",
+        entityId: "test_mode",
+        details: { enabled },
+      });
       await storage.setSetting('test_mode', enabled ? 'true' : 'false');
       await storage.createLog({
         action: enabled ? 'TEST_MODE_ON' : 'TEST_MODE_OFF',
@@ -158,6 +193,13 @@ export function register(app: Express) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
       const { enabled } = req.body;
+      auditLog("TOGGLE_MAINTENANCE_MODE", {
+        userId: user.id,
+        role: user.role,
+        entity: "system_setting",
+        entityId: "maintenance_mode",
+        details: { enabled },
+      });
       await storage.setSetting('maintenance_mode', enabled ? 'true' : 'false');
       await storage.createLog({
         action: enabled ? 'MAINTENANCE_ON' : 'MAINTENANCE_OFF',

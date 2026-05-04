@@ -1,0 +1,142 @@
+FASE: IMPLEMENTAÇÃO DE AUDITORIA DE AÇÕES CRÍTICAS
+OBJETIVO: registrar TODAS as ações sensíveis feitas por usuários (principalmente FULL_ACCESS_ROLES)
+REGRA: NÃO alterar fluxo existente — apenas adicionar logging
+
+--------------------------------------------------
+ETAPA 1 — DEFINIR AÇÕES CRÍTICAS
+--------------------------------------------------
+
+Considerar como críticas:
+
+- DELETE (qualquer entidade)
+- UPDATE de:
+  - preços
+  - pedidos
+  - financeiro
+  - usuários
+- operações financeiras
+- alterações de configuração
+- qualquer ação de ADMIN / MASTER / DIRECTOR
+
+--------------------------------------------------
+ETAPA 2 — CRIAR HELPER DE AUDITORIA
+--------------------------------------------------
+
+Arquivo: server/utils/auditLogger.ts
+
+Criar função:
+
+export function auditLog(action: string, meta: {
+  userId: number;
+  role: string;
+  empresaId?: number | null;
+  entity?: string;
+  entityId?: number | string;
+  details?: any;
+}) {
+  console.warn("[AUDIT]", {
+    action,
+    ...meta,
+    timestamp: Date.now()
+  });
+}
+
+OBJETIVO:
+- padrão único de log
+- fácil evolução futura (DB, fila, etc.)
+
+--------------------------------------------------
+ETAPA 3 — APLICAR NOS PONTOS CRÍTICOS
+--------------------------------------------------
+
+ANTES de cada operação sensível:
+
+Exemplo DELETE:
+
+auditLog("DELETE_ORDER", {
+  userId: req.user.id,
+  role: req.user.role,
+  empresaId: req.user.empresaId,
+  entity: "order",
+  entityId: id
+});
+
+Exemplo UPDATE:
+
+auditLog("UPDATE_PRODUCT_PRICE", {
+  userId: req.user.id,
+  role: req.user.role,
+  entity: "product_price",
+  entityId: id,
+  details: req.body
+});
+
+--------------------------------------------------
+ETAPA 4 — FOCO INICIAL (não sair espalhando)
+--------------------------------------------------
+
+Aplicar primeiro em:
+
+- orders.routes.ts
+- financial routes
+- product-prices
+- users
+- settings
+- qualquer DELETE
+
+--------------------------------------------------
+ETAPA 5 — FULL ACCESS TRACKING (IMPORTANTE)
+--------------------------------------------------
+
+Se role ∈ ['MASTER','ADMIN','DIRECTOR']:
+
+auditLog("FULL_ACCESS_ACTION", {
+  userId,
+  role,
+  action,
+  entity,
+  entityId
+});
+
+OBJETIVO:
+- rastrear tudo que super usuários fazem
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO
+--------------------------------------------------
+
+Executar:
+
+1. Deletar algo
+2. Atualizar algo
+3. Alterar config
+
+Esperado no log:
+
+[AUDIT] {
+  action: "...",
+  userId: X,
+  role: "...",
+  entity: "...",
+  timestamp: ...
+}
+
+--------------------------------------------------
+RESTRIÇÕES
+--------------------------------------------------
+
+- NÃO criar tabela ainda
+- NÃO alterar schema
+- NÃO bloquear nada
+- NÃO mudar fluxo
+
+APENAS LOGAR
+
+--------------------------------------------------
+RESULTADO
+--------------------------------------------------
+
+Você passa a ter:
+- rastreabilidade total
+- base pronta para auditoria persistente
+- controle sobre ações críticas

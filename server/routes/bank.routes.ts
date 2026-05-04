@@ -5,6 +5,7 @@ import { tenantContext, requireTenant } from "../middleware/tenant";
 import { financeService } from "../modules/finance/finance.service";
 import { financeRepository } from "../modules/finance/finance.repository";
 import { uploadInMemory } from "../infra/upload";
+import { auditLog } from "../utils/auditLogger";
 
 export async function register(app: Express) {
   const { getItauExtrato, getItauSaldo, criarBoletItau, getItauConfigFromEnv } = await import('../services/financeiro/itauIntegration.ts');
@@ -29,6 +30,12 @@ export async function register(app: Express) {
   // POST /api/bank/accounts — withTenant() stamps empresa_id
   app.post('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
     try {
+      auditLog("CREATE_BANK_ACCOUNT", {
+        userId: req.session?.userId,
+        role: req.session?.userRole,
+        entity: "bank_account",
+        details: { nome: req.body.nome, banco: req.body.banco },
+      });
       const acc = await storage.createBankAccount(req.body);
       res.status(201).json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -37,7 +44,15 @@ export async function register(app: Express) {
   // PATCH /api/bank/accounts/:id — tenantAnd() enforces ownership
   app.patch('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
     try {
-      const acc = await storage.updateBankAccount(Number(req.params.id), req.body);
+      const id = Number(req.params.id);
+      auditLog("UPDATE_BANK_ACCOUNT", {
+        userId: req.session?.userId,
+        role: req.session?.userRole,
+        entity: "bank_account",
+        entityId: id,
+        details: req.body,
+      });
+      const acc = await storage.updateBankAccount(id, req.body);
       res.json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
@@ -45,7 +60,14 @@ export async function register(app: Express) {
   // DELETE /api/bank/accounts/:id — tenantAnd() enforces ownership
   app.delete('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
     try {
-      await storage.deleteBankAccount(Number(req.params.id));
+      const id = Number(req.params.id);
+      auditLog("DELETE_BANK_ACCOUNT", {
+        userId: req.session?.userId,
+        role: req.session?.userRole,
+        entity: "bank_account",
+        entityId: id,
+      });
+      await storage.deleteBankAccount(id);
       res.json({ success: true });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

@@ -2,12 +2,12 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
+import { auditLog } from "../utils/auditLogger";
 import { z } from "zod";
 
 const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
 
 export function register(app: Express) {
-  // Product Prices
   app.get(api.productPrices.list.path, async (req, res) => {
     try {
       const prices = await storage.getProductPrices();
@@ -22,15 +22,20 @@ export function register(app: Express) {
     res.json(prices);
   });
 
-  app.post(api.productPrices.create.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
+  app.post(api.productPrices.create.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
     try {
-      // Use coercion for numbers coming from form inputs if needed
       const bodySchema = api.productPrices.create.input.extend({
         productId: z.coerce.number(),
         priceGroupId: z.coerce.number(),
-        price: z.string() // numeric handles strings in pg, or convert to string
+        price: z.string()
       });
       const input = bodySchema.parse(req.body);
+      auditLog("CREATE_PRODUCT_PRICE", {
+        userId: req.session?.userId,
+        role: req.session?.userRole,
+        entity: "product_price",
+        details: { productId: input.productId, priceGroupId: input.priceGroupId, price: input.price },
+      });
       const price = await storage.createProductPrice(input as any);
       res.status(201).json(price);
     } catch (err) {
@@ -38,7 +43,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put(api.productPrices.update.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
+  app.put(api.productPrices.update.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
     try {
       const bodySchema = api.productPrices.update.input.extend({
         productId: z.coerce.number().optional(),
@@ -46,6 +51,13 @@ export function register(app: Express) {
         price: z.string().optional()
       });
       const input = bodySchema.parse(req.body);
+      auditLog("UPDATE_PRODUCT_PRICE", {
+        userId: req.session?.userId,
+        role: req.session?.userRole,
+        entity: "product_price",
+        entityId: Number(req.params.id),
+        details: input,
+      });
       const price = await storage.updateProductPrice(Number(req.params.id), input as any);
       res.json(price);
     } catch (err) {
@@ -53,8 +65,15 @@ export function register(app: Express) {
     }
   });
 
-  app.delete(api.productPrices.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
-    await storage.deleteProductPrice(Number(req.params.id));
+  app.delete(api.productPrices.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+    const id = Number(req.params.id);
+    auditLog("DELETE_PRODUCT_PRICE", {
+      userId: req.session?.userId,
+      role: req.session?.userRole,
+      entity: "product_price",
+      entityId: id,
+    });
+    await storage.deleteProductPrice(id);
     res.status(204).end();
   });
 }

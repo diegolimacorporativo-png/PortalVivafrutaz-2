@@ -11,6 +11,7 @@ import { getRequestIdForLog } from "../../core/context/requestContext";
 import { currentTenantId } from "../../core/tenant/context";
 // FASE 9D — safe async observability for afterCreate
 import { logSecurity } from "../../core/security/securityLogger";
+import { auditLog } from "../../utils/auditLogger";
 // FASE NF.7.9.2 — guard de fechamento mensal. Bloqueia mutação em pedido
 // cujo `createdAt` cai num mês já consolidado para a empresa. NÃO altera
 // qualquer caminho de leitura nem a ausência de fechamento (default = aberto).
@@ -1133,6 +1134,13 @@ export class OrdersService {
         orderCode: (data.order as any).orderCode || String(id),
       });
     }
+    auditLog("DELETE_ORDER", {
+      userId: user.id,
+      role: user.role,
+      entity: "order",
+      entityId: id,
+      details: { orderCode: (data.order as any).orderCode, motivo: body.motivo || "Não informado" },
+    });
     await this.repo.createLog({
       action: "ORDER_DELETED",
       description: `Pedido #${(data.order as any).orderCode || id} excluído por ${user.name} (${user.role}). Motivo: ${body.motivo || "Não informado"}`,
@@ -1173,6 +1181,12 @@ export class OrdersService {
         ),
       });
     }
+    auditLog("BULK_DELETE_ORDERS", {
+      userId: user.id,
+      role: user.role,
+      entity: "order",
+      details: { orderIds: ids, count: ids.length, motivo: body.motivo || "Não informado" },
+    });
     await this.repo.createLog({
       action: "BULK_ORDER_DELETE",
       description: `${ids.length} pedido(s) excluído(s) em lote por ${user.name} (${user.role}). Motivo: ${body.motivo || "Não informado"}`,
