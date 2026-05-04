@@ -181,50 +181,66 @@ export default function AiDeveloperPage() {
     setToolErrors(prev => { const n = { ...prev }; delete n[toolName]; return n; });
     addMsg("user", `> ${label}`);
     if (tabSwitch) setActiveTab(tabSwitch);
-    // ETAPA 4 — log de início de carregamento
     console.warn("[AI_DEV_LOAD]", { toolName, isLoading: true, error: null, data: null });
     try {
       const res = await fetchWithAuth(`/api/ai-developer/${toolName}`);
-      // ETAPA 4 — log da resposta da requisição
-      console.warn("[AI_DEV_REQUEST]", { url: `/api/ai-developer/${toolName}`, status: res.status, ok: res.ok });
       if (res.status === 401 || res.status === 403) { setLoadingTool(null); return; }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Erro");
-      // ETAPA 4 — log dos dados recebidos
-      console.warn("[AI_DEV_LOAD]", { toolName, isLoading: false, error: null, data });
-      const norm = normalizeBIResponse(data);
+
+      // ETAPA 1 — log da resposta completa
+      const json = await res.json();
+      console.warn("[AI_DEV_FULL_RESPONSE]", { status: res.status, ok: res.ok, json });
+
+      // ETAPA 2 — erro no backend
+      if (!res.ok) {
+        console.error("[AI_DEV_BACKEND_ERROR]", json);
+        throw new Error(json.message || "Erro");
+      }
+
+      // ETAPA 3 — data vazia
+      if (!json || Object.keys(json).length === 0) {
+        console.warn("[AI_DEV_EMPTY]", { toolName });
+      }
+
+      const norm = normalizeBIResponse(json);
+
+      // ETAPA 4 — antes do setState
+      console.warn("[AI_DEV_BEFORE_SET]", json);
 
       switch (toolName) {
         case "index":
-          setIndexData(data);
-          addMsg("system", `✅ Sistema indexado:\n• ${data.totalFiles} arquivos analisados\n• ${data.totalLines?.toLocaleString?.() ?? 0} linhas de código\n• ${data.totalSizeKB} KB total\n• ${norm.endpoints.length} endpoints de API\n• ${norm.tables.length} tabelas no banco\n• Backend: ${norm.summary.backendFiles} | Frontend: ${norm.summary.frontendFiles} | Services: ${norm.summary.serviceFiles}`);
+          setIndexData(json);
+          console.warn("[AI_DEV_AFTER_SET]", { toolName, state: "indexData", keys: Object.keys(json) });
+          addMsg("system", `✅ Sistema indexado:\n• ${json.totalFiles} arquivos analisados\n• ${json.totalLines?.toLocaleString?.() ?? 0} linhas de código\n• ${json.totalSizeKB} KB total\n• ${norm.endpoints.length} endpoints de API\n• ${norm.tables.length} tabelas no banco\n• Backend: ${norm.summary.backendFiles} | Frontend: ${norm.summary.frontendFiles} | Services: ${norm.summary.serviceFiles}`);
           break;
         case "bugs":
-          setBugsData(data);
+          setBugsData(json);
+          console.warn("[AI_DEV_AFTER_SET]", { toolName, state: "bugsData", keys: Object.keys(json) });
           addMsg("system", `🔍 Análise de bugs concluída:\n• ${norm.summary.total} issues encontrados\n• 🔴 ${norm.summary.critical} Críticos\n• 🟠 ${norm.summary.high} Altos\n• 🟡 ${norm.summary.medium} Médios\n• 🔵 ${norm.summary.low} Baixos\n\n${norm.summary.critical > 0 ? "⚠️ ATENÇÃO: Existem problemas críticos que precisam de correção imediata!" : "✅ Nenhum problema crítico detectado."}`);
           break;
         case "security":
-          setSecurityData(data);
-          addMsg("system", `🔐 Auditoria de segurança:\n• Score: ${data.score}/100\n• ${norm.issues.length} issues encontrados\n• ${norm.issues.filter((i: any) => i.severity === 'CRITICAL').length} críticos\n• ${norm.recommendations.length} recomendações geradas`);
+          setSecurityData(json);
+          console.warn("[AI_DEV_AFTER_SET]", { toolName, state: "securityData", keys: Object.keys(json) });
+          addMsg("system", `🔐 Auditoria de segurança:\n• Score: ${json.score}/100\n• ${norm.issues.length} issues encontrados\n• ${norm.issues.filter((i: any) => i.severity === 'CRITICAL').length} críticos\n• ${norm.recommendations.length} recomendações geradas`);
           break;
         case "performance":
-          setPerfData(data);
-          addMsg("system", `⚡ Análise de performance:\n• Score: ${data.score}/100\n• ${norm.checks.filter((c: any) => c.status === 'OK').length}/${norm.checks.length} checks passaram\n• ${norm.checks.filter((c: any) => c.status === 'WARN').length} avisos\n• ${norm.checks.filter((c: any) => c.status === 'FAIL').length} falhas`);
+          setPerfData(json);
+          console.warn("[AI_DEV_AFTER_SET]", { toolName, state: "perfData", keys: Object.keys(json) });
+          addMsg("system", `⚡ Análise de performance:\n• Score: ${json.score}/100\n• ${norm.checks.filter((c: any) => c.status === 'OK').length}/${norm.checks.length} checks passaram\n• ${norm.checks.filter((c: any) => c.status === 'WARN').length} avisos\n• ${norm.checks.filter((c: any) => c.status === 'FAIL').length} falhas`);
           break;
         case "database":
-          setDbData(data);
+          setDbData(json);
+          console.warn("[AI_DEV_AFTER_SET]", { toolName, state: "dbData", keys: Object.keys(json) });
           addMsg("system", `🗄️ Análise do banco concluída:\n• ${norm.tables.length} tabelas mapeadas\n• ${norm.indexes.length} índices existentes\n• Tamanho do banco: ${norm.database?.db_size || 'N/A'}\n\nMainTables: ${Object.entries(norm.rowCounts).map(([t, c]) => `${t}(${c})`).join(', ')}`);
           break;
         case "deploy":
-          setDeployData(data);
-          setSelectedScript(data[0]);
+          setDeployData(json);
+          setSelectedScript(json[0]);
+          console.warn("[AI_DEV_AFTER_SET]", { toolName, state: "deployData", length: Array.isArray(json) ? json.length : 0 });
           addMsg("system", `⚠️ Este painel mostra apenas exemplos e heurísticas, não um pipeline de deploy real.`);
           break;
       }
     } catch (e: any) {
-      // ETAPA 4 — log de erro
       console.warn("[AI_DEV_LOAD]", { toolName, isLoading: false, error: e.message, data: null });
-      // ETAPA 5 — registra erro para exibir fallback visual na aba
       setToolErrors(prev => ({ ...prev, [toolName]: e.message || "Erro desconhecido" }));
       addMsg("system", `❌ Erro ao executar ${label}: ${e.message}`);
       toast({ title: e.message, variant: "destructive" });
