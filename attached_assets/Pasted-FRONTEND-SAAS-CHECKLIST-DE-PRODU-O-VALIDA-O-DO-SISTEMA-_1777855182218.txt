@@ -1,0 +1,78 @@
+FRONTEND SAAS — CHECKLIST DE PRODUÇÃO (VALIDAÇÃO DO SISTEMA)
+
+OBJETIVO:
+Responder de forma técnica e direta se o frontend atual do projeto atende os critérios de estabilidade para ambiente SaaS em produção.
+
+========================================================
+REGRA
+========================================================
+- NÃO alterar código
+- NÃO sugerir refactor
+- NÃO implementar nada
+- APENAS analisar o estado atual do repositório
+- Basear resposta SOMENTE no código existente
+
+========================================================
+TAREFA
+========================================================
+
+Analisar o frontend e responder cada item abaixo com:
+
+✔ OK (atende)
+⚠️ PARCIAL (funciona mas com risco)
+❌ NÃO ATENDE (quebrado ou inexistente)
+
+========================================================
+CHECKLIST
+
+1. RESILIÊNCIA DE API
+- Uso de safeArray / safeObjectArray
+- Proteção contra undefined/null/string em responses
+- Uso de .filter/.map apenas com validação
+
+2. LOADING & RACE CONDITIONS
+- Estados de loading implementados
+- Estados de error tratados
+- Empty states existem
+
+3. CONSISTÊNCIA DE API
+- Frontend trata respostas inconsistentes (data wrapper, arrays, objetos)
+- Não depende de shape fixo de backend
+
+4. ISOLAMENTO DE ERROS
+- Erros de componente não quebram página inteira
+- Uso de try/catch quando necessário
+
+5. USO DE DADOS
+- Nenhum uso direto de API sem validação
+- Nenhum acesso a propriedades sem fallback seguro
+
+6. SEGURANÇA FRONTEND
+- Frontend não assume confiança total no backend
+- Payload inválido não quebra UI
+
+7. PERFORMANCE BÁSICA
+- Não há loops/filter/map em dados não validados
+- Não há re-render desnecessário crítico
+
+========================================================
+FORMATO DE RESPOSTA
+
+Para cada item:
+- status (✔ ⚠️ ❌)
+- 1 frase explicando evidência no código
+
+Depois finalizar com:
+
+- SCORE GERAL (0–100)
+- STATUS FINAL:
+  - PRONTO PARA PRODUÇÃO
+  - PARCIAL
+  - NÃO PRONTO
+
+========================================================
+IMPORTANTE
+========================================================
+- Não sugerir melhorias
+- Não criar novas features
+- Apenas auditoria do estado atual
