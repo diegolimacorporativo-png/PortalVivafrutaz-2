@@ -5,6 +5,29 @@ import { requireAuth as requireAuthCore, requireRole } from "../core/http/requir
 import { auditLog } from "../utils/auditLogger";
 
 export function register(app: Express) {
+  // ─── PUBLIC ROUTES FIRST (must be registered before the generic :key wildcard) ───
+
+  // Maintenance mode — checked on the login page before auth, must be public
+  app.get('/api/settings/maintenance', async (_req, res) => {
+    try {
+      const val = await storage.getSetting('maintenance_mode');
+      res.json({ enabled: val === 'true' });
+    } catch {
+      res.json({ enabled: false });
+    }
+  });
+
+  // Test mode status — also public read
+  app.get('/api/settings/test-mode', async (_req, res) => {
+    try {
+      const val = await storage.getSetting('test_mode');
+      res.json({ enabled: val === 'true' });
+    } catch {
+      res.json({ enabled: false });
+    }
+  });
+
+  // ─── PROTECTED GENERIC CATCH-ALL (registered after specific public routes) ───
   // System Settings
   app.get('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req, res) => {
     const key = String(req.params.key);
@@ -126,16 +149,7 @@ export function register(app: Express) {
     }
   });
 
-  // --- Test Mode ---
-  app.get('/api/settings/test-mode', async (req, res) => {
-    try {
-      const val = await storage.getSetting('test_mode');
-      res.json({ enabled: val === 'true' });
-    } catch {
-      res.json({ enabled: false });
-    }
-  });
-
+  // --- Test Mode (write — protected) ---
   app.post('/api/settings/test-mode', requireAuthCore, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);
@@ -176,16 +190,7 @@ export function register(app: Express) {
     }
   });
 
-  // --- Maintenance Mode ---
-  app.get('/api/settings/maintenance', async (req, res) => {
-    try {
-      const val = await storage.getSetting('maintenance_mode');
-      res.json({ enabled: val === 'true' });
-    } catch {
-      res.json({ enabled: false });
-    }
-  });
-
+  // --- Maintenance Mode (write — protected) ---
   app.post('/api/settings/maintenance', requireAuthCore, async (req, res) => {
     try {
       const user = await storage.getUser(req.session.userId!);

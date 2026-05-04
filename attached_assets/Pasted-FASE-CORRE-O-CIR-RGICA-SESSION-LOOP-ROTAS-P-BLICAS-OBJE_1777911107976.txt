@@ -1,0 +1,112 @@
+FASE: CORREÇÃO CIRÚRGICA — SESSION LOOP + ROTAS PÚBLICAS
+
+OBJETIVO:
+Eliminar o loop de redirect /login causado por 401 indevido,
+sem alterar comportamento funcional existente.
+
+REGRAS:
+- NÃO refatorar arquitetura
+- NÃO alterar fluxos de auth existentes
+- ALTERAR apenas pontos mínimos necessários
+- manter compatibilidade total
+
+--------------------------------------------------
+ETAPA 1 — FIX sessionVersionGuard (CRÍTICO)
+--------------------------------------------------
+
+Arquivo:
+server/core/security/sessionGuard.ts
+
+ANTES de qualquer verificação de tokenVersion:
+
+const userId = session.userId;
+const companyId = session.companyId;
+
+// IMPORTANTE:
+// Sessões sem autenticação (sem userId e sem companyId)
+// NÃO devem ser tratadas como inválidas
+
+if (!userId && !companyId) {
+  return next();
+}
+
+MANTER o check existente abaixo:
+
+if (session.tokenVersion === undefined) {
+  req.session.destroy(() => {});
+  return res.status(401).json({
+    error: "SESSION_INVALIDATED",
+    reason: "TOKEN_VERSION_MISMATCH"
+  });
+}
+
+OBJETIVO:
+Evitar que sessões não autenticadas sejam tratadas como inválidas.
+
+--------------------------------------------------
+ETAPA 2 — CORRIGIR SHADOW ROUTE
+--------------------------------------------------
+
+Arquivo:
+server/routes/settings.routes.ts
+
+GARANTIR ORDEM DE REGISTRO:
+
+// 1. ROTAS ESPECÍFICAS PRIMEIRO (públicas)
+app.get('/api/settings/maintenance', handlerPublico);
+
+// 2. DEPOIS rotas genéricas (protegidas)
+app.get('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), handler);
+
+OBJETIVO:
+Garantir que /maintenance seja realmente pública e não capturada por :key.
+
+--------------------------------------------------
+ETAPA 3 — fetchWithAuth (DEVICE ID)
+--------------------------------------------------
+
+Arquivo:
+client/src/lib/fetchWithAuth.ts
+
+ANTES de enviar request:
+
+const deviceId = localStorage.getItem("device_id");
+
+headers: {
+  ...headers,
+  "X-Device-Id": deviceId || "web-client"
+}
+
+OBJETIVO:
+Evitar DEVICE_MISMATCH em sessões autenticadas.
+
+--------------------------------------------------
+ETAPA 4 — VALIDAÇÃO (OBRIGATÓRIO)
+--------------------------------------------------
+
+Testar:
+
+1. Acessar /login (sem sessão)
+→ NÃO pode gerar 401 em:
+   /api/company-config/logo
+   /api/settings/maintenance
+
+2. Fazer login
+→ acessar páginas IA / Inteligência
+→ NÃO pode voltar para /login
+
+3. Console:
+→ ZERO SESSION_INVALIDATED em rotas públicas
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ loop infinito /login
+
+DEPOIS:
+→ rotas públicas funcionam sem sessão
+→ login funciona normal
+→ páginas internas não quebram
+→ 401 ocorre apenas quando realmente necessário

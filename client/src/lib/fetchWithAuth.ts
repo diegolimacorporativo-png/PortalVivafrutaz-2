@@ -19,11 +19,13 @@ export async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
+  const deviceId = localStorage.getItem("device_id") || "web-client";
   const res = await fetch(url, {
     ...options,
     credentials: "include",
     headers: {
       ...(options.headers ?? {}),
+      "X-Device-Id": deviceId,
     },
   });
 

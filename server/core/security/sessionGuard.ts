@@ -39,7 +39,14 @@ export async function sessionVersionGuard(
   const session = (req as any).session as Record<string, any> | undefined;
   if (!session) return next();
 
-  // No tokenVersion in session → invalid for authenticated requests
+  const userId: number | undefined = session.userId;
+  const companyId: number | undefined = session.companyId;
+
+  // Unauthenticated sessions (no userId, no companyId) must pass through freely.
+  // They have no tokenVersion and that is expected — do NOT treat them as invalid.
+  if (!userId && !companyId) return next();
+
+  // Authenticated session missing tokenVersion → stale pre-FASE-14.6 session, reject.
   if (session.tokenVersion === undefined) {
     req.session.destroy(() => {});
     res.status(401).json({
@@ -49,10 +56,6 @@ export async function sessionVersionGuard(
     });
     return;
   }
-
-  const userId: number | undefined = session.userId;
-  const companyId: number | undefined = session.companyId;
-  if (!userId && !companyId) return next(); // unauthenticated
 
   const ip = getClientIp(req);
   const requestDeviceId = req.headers["x-device-id"] as string | undefined;
