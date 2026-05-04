@@ -1,11 +1,12 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
-import { tenantContext } from "../middleware/tenant";
+import { requireAuth, requireRole } from "../core/http/requireAuth";
+import { tenantContext, requireTenant } from "../middleware/tenant";
+
+const PLAN_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "OPERATIONS_MANAGER", "PURCHASE_MANAGER"];
 
 export function register(app: Express) {
-  app.get('/api/purchase-planning/forecast', tenantContext, async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
+  app.get('/api/purchase-planning/forecast', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
     try {
       const [allOrders, allProds] = await Promise.all([storage.getOrders(), storage.getProducts()]);
       const prodById = new Map(allProds.map(p => [p.id, p]));
@@ -49,9 +50,7 @@ export function register(app: Express) {
     }
   });
 
-  app.get('/api/purchase-planning', tenantContext, async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
+  app.get('/api/purchase-planning', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
     try {
       // Accept startDate (YYYY-MM-DD) as primary param; auto-compute Mon–Fri range
       const { startDate: rawStart, categoryFilter, sourceFilter } = req.query as Record<string, string>;
@@ -142,7 +141,6 @@ export function register(app: Express) {
               });
             }
             const entry = productMap.get(key)!;
-            // Parse quantity safely — special order qty may be a string like "2kg"
             const rawQty = si.approvedQuantity ?? si.quantity ?? 0;
             const qty = parseFloat(String(rawQty).replace(/[^0-9.]/g, '')) || 0;
             entry.totalQty += qty;
@@ -172,7 +170,7 @@ export function register(app: Express) {
             const deliveryDate = new Date(startD);
             deliveryDate.setDate(startD.getDate() + offset);
             const delivDateStr = deliveryDate.toISOString().substring(0, 10);
-            if (categoryFilter && categoryFilter !== 'all') continue; // scopes don't have category filter here
+            if (categoryFilter && categoryFilter !== 'all') continue;
             const key = `scope__${productName}`;
             if (!productMap.has(key)) {
               productMap.set(key, { productId: scope.productId, productName, totalQty: 0, unit, source: 'scope' as any, companies: [] });
@@ -190,7 +188,7 @@ export function register(app: Express) {
 
       const result = Array.from(productMap.values()).sort((a, b) => b.totalQty - a.totalQty);
 
-      // Attach plan statuses
+      // Attach plan statuses — now scoped to current tenant
       const statuses = await storage.getPurchasePlanStatuses(weekRef);
       const statusMap = new Map(statuses.map(s => [s.productName, s]));
       const enriched = result.map(p => ({ ...p, planStatus: statusMap.get(p.productName) || null }));
@@ -209,7 +207,6 @@ export function register(app: Express) {
               items: [],
             };
           }
-          // Check if this product already in day
           let dayItem = byDay[d]!.items.find(i => i.productName === p.productName && i.source === p.source);
           if (!dayItem) {
             dayItem = { ...p, totalQty: 0, companies: [], planStatus: p.planStatus };
@@ -228,19 +225,15 @@ export function register(app: Express) {
     }
   });
 
-  app.post('/api/purchase-planning/status', async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
-    const user = await storage.getUser(session.userId);
+  app.post('/api/purchase-planning/status', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
+    const user = await storage.getUser(req.userId);
     try {
       const rec = await storage.upsertPurchasePlanStatus({ ...req.body, updatedBy: user?.name || 'Sistema' });
       res.json(rec);
     } catch (e: any) { res.status(400).json({ message: e.message }); }
   });
 
-  app.get('/api/purchase-planning/statuses', async (req, res) => {
-    const session = req.session as any;
-    if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
+  app.get('/api/purchase-planning/statuses', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
     const weekRef = req.query.weekRef as string;
     if (!weekRef) return res.status(400).json({ message: 'weekRef required' });
     const statuses = await storage.getPurchasePlanStatuses(weekRef);

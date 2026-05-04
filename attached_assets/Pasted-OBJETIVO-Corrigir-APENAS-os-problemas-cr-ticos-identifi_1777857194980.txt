@@ -1,0 +1,114 @@
+OBJETIVO:
+Corrigir APENAS os problemas críticos identificados na auditoria (SEÇÃO 8 — BLOCO A).
+
+REGRAS ABSOLUTAS:
+- NÃO criar novas tabelas sem necessidade explícita
+- NÃO refatorar arquitetura
+- NÃO alterar frontend
+- NÃO mudar contratos de API existentes
+- NÃO inventar novos padrões
+- SOMENTE corrigir isolamento de tenant + segurança mínima obrigatória
+- Manter comportamento funcional atual sempre que possível
+
+========================================================
+ESCOPO DE CORREÇÃO (BLOCO A — CRÍTICO)
+========================================================
+
+1. bank_accounts
+2. bank_transactions
+3. fiscal_invoices
+4. waste_control
+5. purchase_plan_status
+
+========================================================
+OBJETIVO TÉCNICO
+========================================================
+
+Para cada tabela acima:
+
+A) GARANTIR ISOLAMENTO DE TENANT REAL
+- Se existir empresa_id → SEMPRE aplicar filtro SQL:
+  WHERE empresa_id = currentTenantId()
+
+- Se NÃO existir empresa_id:
+  → NÃO simular filtro em memória
+  → escolher UMA das opções seguras:
+     1. bloquear acesso (403)
+     2. limitar explicitamente por join com tabela que tenha tenant
+     3. OU documentar e isolar por entidade pai (ex: order → company)
+
+NUNCA usar filter() em memória como solução principal.
+
+========================================================
+B) CORREÇÃO DE ROTAS
+========================================================
+
+Para cada endpoint listado:
+
+- GET → sempre deve retornar SOMENTE dados do tenant
+- POST → deve inserir com empresa_id obrigatório (se existir)
+- DELETE/PUT → deve validar ownership (empresa_id)
+
+Se empresa_id não existir na tabela:
+→ adicionar somente se for necessário e seguro
+→ caso contrário, bloquear operação cross-tenant
+
+========================================================
+C) AUTH MIDDLEWARE
+========================================================
+
+- Substituir qualquer auth manual por:
+  requireAuth
+  requireRole (quando já existir no sistema)
+
+- Remover padrões como:
+  if (!req.session.userId) return 401
+
+========================================================
+D) CASOS ESPECIAIS (OBRIGATÓRIO RESPEITAR)
+========================================================
+
+1. fiscal_invoices
+- NÃO possui empresa_id atualmente
+- NÃO inventar comportamento novo
+- solução permitida:
+  → bloquear leitura cross-tenant OU
+  → vincular via orders.company_id SOMENTE se já existir relação segura
+
+2. bank_accounts
+- NÃO expor dados de outros tenants em hipótese alguma
+- SE não houver empresa_id:
+  → bloquear query global imediatamente
+
+3. nfe_emissoes
+- pode usar orders.company_id como base de isolamento
+- SEM fallback global
+
+========================================================
+EVIDÊNCIA OBRIGATÓRIA
+========================================================
+
+Após cada correção:
+- confirmar que não existe mais:
+  db.select().from(X) SEM WHERE tenant
+- confirmar que não existe:
+  storage.getX() sem tenant param em rotas públicas
+- confirmar que não existe filter() como substituição de SQL
+
+========================================================
+VALIDAÇÃO FINAL
+========================================================
+
+Antes de concluir:
+- listar todas queries alteradas
+- garantir ZERO full-table scan em tabelas críticas
+- garantir que nenhum endpoint crítico retorna cross-tenant data
+
+========================================================
+RESULTADO ESPERADO
+========================================================
+
+- Zero vazamento de dados financeiros
+- Zero acesso cross-tenant em banco e NF-e
+- API continua funcionando sem breaking change
+- Segurança aplicada no nível de query SQL (não em memória)

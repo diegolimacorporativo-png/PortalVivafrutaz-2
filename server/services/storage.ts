@@ -1608,40 +1608,55 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Waste Control ────────────────────────────────────────────
+  // All methods are tenant-scoped: tenantWhere/tenantAnd enforce empresa_id = currentTenantId().
+  // Routes must run tenantContext + requireTenant before calling these methods.
   async getWasteRecords(): Promise<WasteControl[]> {
-    return db.select().from(wasteControl).orderBy(desc(wasteControl.createdAt));
+    return db.select().from(wasteControl).where(tenantWhere(wasteControl)).orderBy(desc(wasteControl.createdAt));
   }
   async createWasteRecord(data: InsertWasteControl): Promise<WasteControl> {
-    const [rec] = await db.insert(wasteControl).values(data).returning();
+    const [rec] = await db.insert(wasteControl).values(withTenant(wasteControl, data as any)).returning();
     return rec;
   }
   async updateWasteRecord(id: number, data: Partial<InsertWasteControl>): Promise<WasteControl> {
-    const [rec] = await db.update(wasteControl).set(data).where(eq(wasteControl.id, id)).returning();
+    const [rec] = await db.update(wasteControl)
+      .set(stripTenantFields(data as any))
+      .where(tenantAnd(wasteControl, eq(wasteControl.id, id)))
+      .returning();
     return rec;
   }
   async deleteWasteRecord(id: number): Promise<void> {
-    await db.delete(wasteControl).where(eq(wasteControl.id, id));
+    await db.delete(wasteControl).where(tenantAnd(wasteControl, eq(wasteControl.id, id)));
   }
 
   // ─── Purchase Plan Status ─────────────────────────────────────
+  // All methods are tenant-scoped via tenantWhere/tenantAnd/withTenant.
   async getPurchasePlanStatuses(weekRef: string): Promise<PurchasePlanStatus[]> {
-    return db.select().from(purchasePlanStatus).where(eq(purchasePlanStatus.weekRef, weekRef)).orderBy(purchasePlanStatus.productName);
+    return db.select().from(purchasePlanStatus)
+      .where(tenantAnd(purchasePlanStatus, eq(purchasePlanStatus.weekRef, weekRef)))
+      .orderBy(purchasePlanStatus.productName);
   }
   async upsertPurchasePlanStatus(data: Partial<InsertPurchasePlanStatus> & { weekRef: string; productName: string }): Promise<PurchasePlanStatus> {
+    const tenantId = requireTenantId();
     const existing = await db.select().from(purchasePlanStatus)
-      .where(and(eq(purchasePlanStatus.weekRef, data.weekRef), eq(purchasePlanStatus.productName, data.productName)));
+      .where(and(
+        eq(purchasePlanStatus.empresaId, tenantId),
+        eq(purchasePlanStatus.weekRef, data.weekRef),
+        eq(purchasePlanStatus.productName, data.productName),
+      ));
     if (existing.length > 0) {
       const [rec] = await db.update(purchasePlanStatus)
-        .set({ ...data, updatedAt: new Date() })
-        .where(eq(purchasePlanStatus.id, existing[0].id))
+        .set({ ...stripTenantFields(data as any), updatedAt: new Date() })
+        .where(tenantAnd(purchasePlanStatus, eq(purchasePlanStatus.id, existing[0].id)))
         .returning();
       return rec;
     }
-    const [rec] = await db.insert(purchasePlanStatus).values({ ...data, updatedAt: new Date() } as any).returning();
+    const [rec] = await db.insert(purchasePlanStatus)
+      .values(withTenant(purchasePlanStatus, { ...data, updatedAt: new Date() } as any))
+      .returning();
     return rec;
   }
   async deletePurchasePlanStatus(id: number): Promise<void> {
-    await db.delete(purchasePlanStatus).where(eq(purchasePlanStatus.id, id));
+    await db.delete(purchasePlanStatus).where(tenantAnd(purchasePlanStatus, eq(purchasePlanStatus.id, id)));
   }
 
   // ─── Inventory Settings ───────────────────────────────────────
@@ -1725,23 +1740,36 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Fiscal Invoices ─────────────────────────────────────────────────────
+  // Reads use currentTenantId() with null-safe fallback (returns [] when no tenant
+  // is pinned — no cross-tenant leak). Writes require requireTenantId() which throws
+  // ForbiddenError if no tenant is active.
   async getFiscalInvoices(): Promise<FiscalInvoice[]> {
-    return db.select().from(fiscalInvoices).orderBy(desc(fiscalInvoices.importedAt));
+    const tenantId = currentTenantId();
+    if (tenantId == null) return [];
+    return db.select().from(fiscalInvoices)
+      .where(eq(fiscalInvoices.empresaId, tenantId))
+      .orderBy(desc(fiscalInvoices.importedAt));
   }
   async getFiscalInvoiceById(id: number): Promise<FiscalInvoice | undefined> {
-    const [r] = await db.select().from(fiscalInvoices).where(eq(fiscalInvoices.id, id));
+    const tenantId = currentTenantId();
+    if (tenantId == null) return undefined;
+    const [r] = await db.select().from(fiscalInvoices)
+      .where(and(eq(fiscalInvoices.id, id), eq(fiscalInvoices.empresaId, tenantId)));
     return r;
   }
   async createFiscalInvoice(data: InsertFiscalInvoice): Promise<FiscalInvoice> {
-    const [r] = await db.insert(fiscalInvoices).values(data as any).returning();
+    const [r] = await db.insert(fiscalInvoices).values(withTenant(fiscalInvoices, data as any)).returning();
     return r;
   }
   async deleteFiscalInvoice(id: number): Promise<void> {
-    await db.delete(fiscalInvoices).where(eq(fiscalInvoices.id, id));
+    await db.delete(fiscalInvoices).where(tenantAnd(fiscalInvoices, eq(fiscalInvoices.id, id)));
   }
   async checkFiscalInvoiceDuplicate(invoiceNumber: string, cnpj?: string): Promise<boolean> {
+    const tenantId = currentTenantId();
+    if (tenantId == null) return false;
     const key = `${invoiceNumber}_${cnpj || ''}`;
-    const [r] = await db.select().from(fiscalInvoices).where(eq(fiscalInvoices.duplicateKey, key));
+    const [r] = await db.select().from(fiscalInvoices)
+      .where(and(eq(fiscalInvoices.duplicateKey, key), eq(fiscalInvoices.empresaId, tenantId)));
     return !!r;
   }
 
@@ -2297,33 +2325,41 @@ export class DatabaseStorage implements IStorage {
     return r;
   }
 
-  // ─── Bank Accounts ──────────────────────────────────────────────────────────
+  // ─── Bank Accounts ───────────────────────────────────────────────────────
+  // All methods tenant-scoped via tenantWhere/tenantAnd/withTenant.
+  // Routes must have tenantContext + requireTenant in the chain.
   async getBankAccounts(): Promise<BankAccount[]> {
-    return db.select().from(bankAccounts).orderBy(desc(bankAccounts.createdAt));
+    return db.select().from(bankAccounts).where(tenantWhere(bankAccounts)).orderBy(desc(bankAccounts.createdAt));
   }
 
   async getBankAccount(id: number): Promise<BankAccount | undefined> {
-    const [r] = await db.select().from(bankAccounts).where(eq(bankAccounts.id, id));
+    const [r] = await db.select().from(bankAccounts).where(tenantAnd(bankAccounts, eq(bankAccounts.id, id)));
     return r;
   }
 
   async createBankAccount(data: InsertBankAccount): Promise<BankAccount> {
-    const [r] = await db.insert(bankAccounts).values(data).returning();
+    const [r] = await db.insert(bankAccounts).values(withTenant(bankAccounts, data as any)).returning();
     return r;
   }
 
   async updateBankAccount(id: number, data: Partial<InsertBankAccount>): Promise<BankAccount> {
-    const [r] = await db.update(bankAccounts).set(data).where(eq(bankAccounts.id, id)).returning();
+    const [r] = await db.update(bankAccounts)
+      .set(stripTenantFields(data as any))
+      .where(tenantAnd(bankAccounts, eq(bankAccounts.id, id)))
+      .returning();
     return r;
   }
 
   async deleteBankAccount(id: number): Promise<void> {
-    await db.delete(bankAccounts).where(eq(bankAccounts.id, id));
+    await db.delete(bankAccounts).where(tenantAnd(bankAccounts, eq(bankAccounts.id, id)));
   }
 
-  // ─── Bank Transactions ──────────────────────────────────────────────────────
+  // ─── Bank Transactions ───────────────────────────────────────────────────
+  // empresa_id is always stamped on insert and always filtered on reads.
   async getBankTransactions(filters?: { bankAccountId?: number; status?: string; from?: string; to?: string }): Promise<BankTransaction[]> {
+    const tenantId = currentTenantId();
     const conds: any[] = [];
+    if (tenantId != null) conds.push(eq(bankTransactions.empresaId, tenantId));
     if (filters?.bankAccountId) conds.push(eq(bankTransactions.bankAccountId, filters.bankAccountId));
     if (filters?.status && filters.status !== 'todos') conds.push(eq(bankTransactions.status, filters.status));
     if (filters?.from) conds.push(gte(bankTransactions.data, filters.from));
@@ -2332,19 +2368,28 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createBankTransaction(data: InsertBankTransaction): Promise<BankTransaction> {
-    const [r] = await db.insert(bankTransactions).values(data).returning();
+    const [r] = await db.insert(bankTransactions).values(withTenant(bankTransactions, data as any)).returning();
     return r;
   }
 
   async updateBankTransaction(id: number, data: Partial<InsertBankTransaction>): Promise<BankTransaction> {
-    const [r] = await db.update(bankTransactions).set(data).where(eq(bankTransactions.id, id)).returning();
+    const [r] = await db.update(bankTransactions)
+      .set(stripTenantFields(data as any))
+      .where(tenantAnd(bankTransactions, eq(bankTransactions.id, id)))
+      .returning();
     return r;
   }
 
   async upsertBankTransaction(externalId: string, bankAccountId: number, data: InsertBankTransaction): Promise<BankTransaction> {
-    const [existing] = await db.select().from(bankTransactions).where(and(eq(bankTransactions.externalId, externalId), eq(bankTransactions.bankAccountId, bankAccountId)));
+    const tenantId = currentTenantId();
+    const conds: any[] = [
+      eq(bankTransactions.externalId, externalId),
+      eq(bankTransactions.bankAccountId, bankAccountId),
+    ];
+    if (tenantId != null) conds.push(eq(bankTransactions.empresaId, tenantId));
+    const [existing] = await db.select().from(bankTransactions).where(and(...conds));
     if (existing) return existing;
-    const [r] = await db.insert(bankTransactions).values(data).returning();
+    const [r] = await db.insert(bankTransactions).values(withTenant(bankTransactions, data as any)).returning();
     return r;
   }
 

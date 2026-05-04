@@ -764,6 +764,7 @@ export type InsertCompanySettings = z.infer<typeof insertCompanySettingsSchema>;
 // ─── Controle de Desperdício ───────────────────────────────────
 export const wasteControl = pgTable("waste_control", {
   id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").references(() => companies.id),
   productId: integer("product_id"),
   productName: text("product_name").notNull(),
   quantity: numeric("quantity", { precision: 10, scale: 3 }).notNull(),
@@ -783,6 +784,7 @@ export type InsertWasteControl = z.infer<typeof insertWasteControlSchema>;
 // ─── Planejamento de Compras — Status de Item ──────────────────
 export const purchasePlanStatus = pgTable("purchase_plan_status", {
   id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").references(() => companies.id),
   weekRef: text("week_ref").notNull(), // e.g. "2026-W12"
   productId: integer("product_id"),
   productName: text("product_name").notNull(),
@@ -895,6 +897,7 @@ export type InsertInventoryPhysicalCount = z.infer<typeof insertInventoryPhysica
 // ─── Notas Fiscais Importadas (OCR) ─────────────────────────────────────────
 export const fiscalInvoices = pgTable("fiscal_invoices", {
   id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").references(() => companies.id),
   // NF-e header info
   invoiceNumber: text("invoice_number").notNull(),
   supplier: text("supplier").notNull(),
@@ -1277,6 +1280,7 @@ export type InsertNfDraft = z.infer<typeof insertNfDraftSchema>;
 // ─── Contas Bancárias ───────────────────────────────────────────────────────
 export const bankAccounts = pgTable("bank_accounts", {
   id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").references(() => companies.id),
   banco: text("banco").notNull(), // "itau" | "bradesco" | "bb" | "santander"
   nome: text("nome").notNull(),
   agencia: text("agencia"),
@@ -1296,6 +1300,7 @@ export type InsertBankAccount = z.infer<typeof insertBankAccountSchema>;
 // ─── Transações Bancárias ───────────────────────────────────────────────────
 export const bankTransactions = pgTable("bank_transactions", {
   id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").references(() => companies.id),
   bankAccountId: integer("bank_account_id").references(() => bankAccounts.id),
   externalId: text("external_id"),
   tipo: text("tipo").notNull(), // credito | debito
