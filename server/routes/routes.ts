@@ -28,6 +28,7 @@ import {
 import { scheduleBackups, runBackup, runBackupSQL, listBackups, getBackupPath, deleteBackup, cleanOldBackups } from "../services/backup.ts";
 import fs from "fs";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 // FASE 7.1 — `path` import removed (0 usages confirmed). bcrypt/fs/db kept (in use).
 import { db } from "../database/db.ts";
 import { uploadInMemory } from "../infra/upload";
@@ -3368,7 +3369,7 @@ export async function registerRoutes(
           companyName: 'Empresa Teste ERP',
           contactName: 'Usuário Teste',
           email: `teste.erp.${Date.now()}@vivafrutaz.com`,
-          password: '123456',
+          password: randomBytes(8).toString('hex'),
           active: true,
           clientType: 'mensal',
           allowedOrderDays: ['Segunda-feira', 'Quarta-feira'],
@@ -3511,10 +3512,11 @@ async function seedDatabase() {
     try {
       const devUser = await storage.getUserByEmail("dev@vivafrutaz.com");
       if (!devUser) {
+        const devPassword = randomBytes(8).toString('hex');
         await storage.createUser({
           name: "Desenvolvedor VF",
           email: "dev@vivafrutaz.com",
-          password: "dev",
+          password: devPassword,
           role: "DEVELOPER",
           active: true,
         });
@@ -3545,27 +3547,31 @@ async function seedDatabase() {
     try {
       const admin = await storage.getUserByEmail("admin@vivafrutaz.com");
       if (!admin) {
+        const adminPassword = randomBytes(8).toString('hex');
+        const opsPassword = randomBytes(8).toString('hex');
+        const buyPassword = randomBytes(8).toString('hex');
         await storage.createUser({
           name: "Admin User",
           email: "admin@vivafrutaz.com",
-          password: "admin",
+          password: adminPassword,
           role: "ADMIN",
           active: true,
         });
         await storage.createUser({
           name: "Operations",
           email: "ops@vivafrutaz.com",
-          password: "ops",
+          password: opsPassword,
           role: "OPERATIONS_MANAGER",
           active: true,
         });
         await storage.createUser({
           name: "Purchasing",
           email: "buy@vivafrutaz.com",
-          password: "buy",
+          password: buyPassword,
           role: "PURCHASE_MANAGER",
           active: true,
         });
+        console.log("[SEED] Usuários admin/ops/buy criados com senhas aleatórias. Redefina via painel.");
       }
     } catch (err: any) {
       logSecurity(`[SYSTEM_SEED_FAILED] step=admin_ops_users | error=${err?.message ?? "unknown"}`);
@@ -3594,7 +3600,7 @@ async function seedDatabase() {
         companyName: "Acme Corp",
         contactName: "John Doe",
         email: "client@acme.com",
-        password: "clientpassword",
+        password: randomBytes(8).toString('hex'),
         priceGroupId: group1.id,
         allowedOrderDays: ["Monday", "Wednesday"],
         active: true
@@ -3687,14 +3693,15 @@ async function seedDatabase() {
     try {
       const nutri = await storage.getUserByEmail('nutri@vivafrutaz.com');
       if (!nutri) {
+        const nutriPassword = randomBytes(8).toString('hex');
         await storage.createUser({
           name: 'Nutricionista Teste',
           email: 'nutri@vivafrutaz.com',
-          password: 'nutri123',
+          password: nutriPassword,
           role: 'NUTRICIONISTA',
           active: true,
         });
-        console.log('[SEED] Usuário NUTRICIONISTA criado: nutri@vivafrutaz.com / nutri123');
+        console.log('[SEED] Usuário NUTRICIONISTA criado: nutri@vivafrutaz.com — senha aleatória definida. Redefina via painel.');
       }
     } catch (nutriErr: any) {
       logSecurity(`[SYSTEM_SEED_FAILED] step=nutricionista_user | error=${nutriErr?.message ?? "unknown"}`);

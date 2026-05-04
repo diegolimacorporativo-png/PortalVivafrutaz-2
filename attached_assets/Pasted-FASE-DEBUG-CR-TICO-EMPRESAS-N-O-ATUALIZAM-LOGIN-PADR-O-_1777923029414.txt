@@ -1,0 +1,128 @@
+FASE: DEBUG CRÍTICO — EMPRESAS NÃO ATUALIZAM + LOGIN PADRÃO INDEVIDO
+
+OBJETIVO:
+Resolver:
+1. Empresa criada não aparece na listagem
+2. Sistema está criando usuário com login/senha fixos (BUG CRÍTICO)
+
+REGRAS:
+- NÃO alterar arquitetura
+- NÃO refatorar sistema
+- APENAS identificar e corrigir causa real
+- manter compatibilidade total
+
+--------------------------------------------------
+ETAPA 1 — VALIDAR RESPONSE DA LISTAGEM
+--------------------------------------------------
+
+Verificar endpoint:
+GET /api/companies
+
+LOGAR no backend:
+
+console.log("[COMPANIES_LIST]", {
+  userId: req.user?.id,
+  role: req.user?.role,
+  tenant: req.user?.companyId,
+  total: result.length
+});
+
+Verificar se empresa recém criada está presente no retorno.
+
+--------------------------------------------------
+ETAPA 2 — VALIDAR FILTRO MULTI-TENANT
+--------------------------------------------------
+
+Localizar query de listagem:
+
+Verificar se existe:
+
+WHERE empresaId = X
+
+Se existir:
+
+Aplicar regra:
+
+Se role ∈ ['MASTER','ADMIN','DIRECTOR']
+→ NÃO aplicar filtro de empresa
+
+--------------------------------------------------
+ETAPA 3 — VALIDAR CREATE COMPANY
+--------------------------------------------------
+
+No endpoint POST /api/companies:
+
+LOGAR:
+
+console.log("[CREATE_COMPANY]", req.body);
+
+Verificar:
+
+- quais campos estão sendo recebidos
+- se email/login está vindo do frontend
+
+--------------------------------------------------
+ETAPA 4 — IDENTIFICAR LOGIN FIXO
+--------------------------------------------------
+
+Buscar no código:
+
+"master"
+"admin"
+"123"
+"default"
+"password"
+
+Especialmente em:
+
+- createCompany
+- user creation
+- seed logic
+
+Se encontrar algo assim:
+
+REMOVER qualquer valor fixo
+
+--------------------------------------------------
+ETAPA 5 — CORRIGIR CRIAÇÃO DE USUÁRIO
+--------------------------------------------------
+
+Garantir:
+
+const password = req.body.password;
+
+Se não existir:
+
+NÃO criar usuário automaticamente
+OU gerar senha aleatória:
+
+crypto.randomBytes(8).toString('hex')
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO FINAL
+--------------------------------------------------
+
+Testar:
+
+1. Criar empresa
+→ deve aparecer imediatamente
+
+2. Ver banco:
+→ usuário NÃO pode ter senha padrão
+
+3. Criar empresa sem login/senha
+→ sistema NÃO deve inventar dados
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ empresa não aparece
+→ login padrão criado
+→ risco de segurança
+
+DEPOIS:
+→ empresa aparece instantaneamente
+→ nenhum login padrão
+→ sistema seguro e previsível

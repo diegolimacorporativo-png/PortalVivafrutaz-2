@@ -27,8 +27,15 @@ export class CompaniesController {
   }
 
   // ── Companies CRUD ─────────────────────────────────────────────────────
-  list = async (_req: Request, res: Response) => {
-    return ok(res, await this.service.list());
+  list = async (req: Request, res: Response) => {
+    const result = await this.service.list();
+    console.log("[COMPANIES_LIST]", {
+      userId: (req as any).session?.userId,
+      role: (req as any).session?.role ?? (req as any).user?.role,
+      tenant: (req as any).empresaId ?? null,
+      total: result.length,
+    });
+    return ok(res, result);
   };
 
   get = async (req: Request, res: Response) => {
