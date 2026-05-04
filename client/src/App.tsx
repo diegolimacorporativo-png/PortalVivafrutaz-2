@@ -227,8 +227,16 @@ function ProtectedRoute({
       console.warn("[REDIRECT_TRIGGER]", { to: "/admin/driver-panel", from: window.location.pathname, source: "ProtectedRoute:MOTORISTA", timestamp: Date.now() });
       return <Redirect to="/admin/driver-panel" />;
     }
-    console.warn("[REDIRECT_TRIGGER]", { to: "/admin", from: window.location.pathname, source: "ProtectedRoute:roleNotAllowed", userRole: user.role, allowedRoles, timestamp: Date.now() });
-    return <Redirect to="/admin" />;
+    console.warn("[ROLE_REDIRECT]", { role: user.role, allowedRoles, currentPath: window.location.pathname });
+    return (
+      <div className="h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
+        <div className="text-5xl">🔒</div>
+        <h2 className="text-xl font-bold text-foreground">Acesso negado</h2>
+        <p className="text-muted-foreground text-sm max-w-sm">
+          Você não tem permissão para acessar esta página. Fale com o administrador do sistema se precisar de acesso.
+        </p>
+      </div>
+    );
   }
 
   if (tabKey && user && user.role !== 'MASTER') {
