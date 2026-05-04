@@ -3,6 +3,7 @@ import { useProducts, useCreateProduct, useUpdateProduct } from "@/hooks/use-cat
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { safeArray } from "@/lib/safeArray";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { format } from "date-fns";
@@ -255,15 +256,7 @@ function PriceAlertsSection() {
     refetchInterval: 60000,
   });
 
-  if (!Array.isArray(alerts)) {
-    console.warn("[ALERTS_FIX] invalid payload received:", alerts);
-  }
-  const safeAlerts = Array.isArray(alerts)
-    ? alerts
-    : Array.isArray((alerts as any)?.data)
-      ? (alerts as any).data
-      : [];
-  const visible = safeAlerts.filter((a: any) => !dismissed.includes(a.product.id));
+  const visible = safeArray(alerts).filter((a: any) => !dismissed.includes(a.product.id));
   if (isLoading || visible.length === 0) return null;
 
   return (

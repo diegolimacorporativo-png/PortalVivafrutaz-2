@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { safeObjectArray } from "@/lib/safeArray";
 import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import {
@@ -123,15 +124,7 @@ export default function IntelligencePage() {
     onError: (e: any) => toast({ title: 'Erro na sincronização', description: e.message, variant: 'destructive' }),
   });
 
-  const rawAlerts = data?.alerts ?? [];
-  if (!Array.isArray(rawAlerts)) {
-    console.warn("[ALERTS_FIX] invalid payload received:", rawAlerts);
-  }
-  const alerts = Array.isArray(rawAlerts)
-    ? rawAlerts
-    : Array.isArray((rawAlerts as any)?.data)
-      ? (rawAlerts as any).data
-      : [];
+  const alerts = safeObjectArray(data, "alerts");
   const summary = data?.summary;
 
   const filtered = alerts.filter(a => {
