@@ -27,7 +27,12 @@ export function useCreateCompany() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to create company");
+      if (!res.ok) {
+        let errorBody: any = null;
+        try { errorBody = await res.json(); } catch { errorBody = null; }
+        console.error("[CREATE_COMPANY_ERROR]", { status: res.status, errorBody });
+        throw new Error(errorBody?.message || errorBody?.error || "Erro ao criar empresa");
+      }
       return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
     },
     onSuccess: () => {

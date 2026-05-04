@@ -1,0 +1,167 @@
+"}
+FASE: DEBUG PROFUNDO — 401 INDEVIDO + LOOP LOGIN + ERRO CREATE COMPANY
+
+OBJETIVO:
+Eliminar redirecionamento indevido para /login
+Corrigir erro "Failed to create company"
+Garantir que 401 seja usado APENAS para sessão inválida
+
+REGRAS:
+- NÃO refatorar arquitetura
+- NÃO alterar regras de negócio
+- APENAS corrigir uso incorreto de status HTTP e tratamento de erro
+
+--------------------------------------------------
+ETAPA 1 — LOG GLOBAL DE RESPOSTAS HTTP
+--------------------------------------------------
+
+No fetchWithAuth.ts adicionar:
+
+console.warn("[HTTP_RESPONSE_DEBUG]", {
+  url,
+  status: res.status,
+  ok: res.ok
+});
+
+E após json:
+
+console.warn("[HTTP_BODY_DEBUG]", {
+  url,
+  body
+});
+
+OBJETIVO:
+Identificar QUAL endpoint está retornando erro
+
+--------------------------------------------------
+ETAPA 2 — CORRIGIR DISPARO DE auth:expired
+--------------------------------------------------
+
+SUBSTITUIR lógica atual por:
+
+const isCritical =
+  body?.error === "SESSION_INVALIDATED" ||
+  body?.error === "SESSION_EXPIRED";
+
+const isAuthRoute = url.startsWith("/api/auth");
+
+const isIgnored =
+  url.includes("/api/company-config") ||
+  url.includes("/api/settings") ||
+  url.includes("/api/ai") ||
+  url.includes("/api/intelligence") ||
+  url.includes("/api/analysis");
+
+if (res.status === 401 && isCritical && !isAuthRoute && !isIgnored) {
+  dispatchAuthExpired();
+}
+
+OBJETIVO:
+Garantir que erro de negócio NÃO derrube sessão
+
+--------------------------------------------------
+ETAPA 3 — BACKEND: CORRIGIR STATUS HTTP
+--------------------------------------------------
+
+Buscar em TODO backend:
+
+res.status(401)
+
+CLASSIFICAR:
+
+SE NÃO FOR autenticação/sessão:
+→ TROCAR PARA:
+
+res.status(400)  // erro de validação
+res.status(403)  // permissão
+res.status(500)  // erro interno
+
+NUNCA usar 401 para:
+- falha ao criar empresa
+- erro de validação
+- erro de banco
+- regra de negócio
+
+OBJETIVO:
+401 só pode significar sessão inválida
+
+--------------------------------------------------
+ETAPA 4 — FIX CREATE COMPANY
+--------------------------------------------------
+
+Arquivo:
+client/src/hooks/use-admin.ts
+
+SUBSTITUIR:
+
+if (!res.ok) throw new Error("Failed to create company");
+
+POR:
+
+if (!res.ok) {
+  let errorBody;
+
+  try {
+    errorBody = await res.json();
+  } catch {
+    errorBody = null;
+  }
+
+  console.error("[CREATE_COMPANY_ERROR]", {
+    status: res.status,
+    errorBody
+  });
+
+  throw new Error(errorBody?.message || "Erro ao criar empresa");
+}
+
+OBJETIVO:
+Expor erro real ao invés de erro genérico
+
+--------------------------------------------------
+ETAPA 5 — VALIDAR ENDPOINT /api/companies
+--------------------------------------------------
+
+No backend:
+
+Verificar:
+
+- rota exige requireAuth?
+- retorna 401 indevidamente?
+- está usando requireTenant sem necessidade?
+
+Adicionar log:
+
+console.warn("[CREATE_COMPANY_BACKEND]", {
+  userId: req.user?.id,
+  role: req.user?.role,
+  body: req.body
+});
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO FINAL
+--------------------------------------------------
+
+Testar:
+
+1. Criar empresa
+→ deve funcionar OU mostrar erro real
+
+2. Navegar IA Developer
+→ NÃO pode voltar pro login
+
+3. Console:
+→ identificar qual endpoint estava retornando 401
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ qualquer erro vira logout
+→ create company quebra sem explicação
+
+DEPOIS:
+→ 401 só ocorre em sessão inválida
+→ erros aparecem corretamente
+→ sistema estáv

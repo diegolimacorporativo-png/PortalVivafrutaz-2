@@ -236,7 +236,10 @@ class AuthCoreService {
         }
       }
 
-      if (!session.deviceId || !requestDeviceId || requestDeviceId !== session.deviceId) {
+      // Device binding: only enforce when BOTH sides advertise a deviceId.
+      // If session.deviceId is undefined (login sent no fingerprint), skip check
+      // so pre-binding sessions and master logins are never kicked by DEVICE_MISMATCH.
+      if (session.deviceId && requestDeviceId && session.deviceId !== requestDeviceId) {
         return { valid: false, reason: "DEVICE_MISMATCH" };
       }
 

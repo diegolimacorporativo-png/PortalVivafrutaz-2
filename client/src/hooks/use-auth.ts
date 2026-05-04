@@ -25,10 +25,14 @@ export function useAuth() {
 
   const loginMutation = useMutation({
     mutationFn: async (data: LoginInput) => {
+      // Attach deviceId so the session is bound to this device from the start.
+      // Sanitize to match the same rules as fetchWithAuth (alphanumeric + - _).
+      let rawDeviceId = localStorage.getItem("device_id") || "web-client";
+      const deviceId = rawDeviceId.replace(/[^a-zA-Z0-9-_]/g, "").slice(0, 50) || "web-client";
       const res = await fetch(api.auth.login.path, {
         method: api.auth.login.method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, deviceId }),
         credentials: "include",
       });
       if (!res.ok) {

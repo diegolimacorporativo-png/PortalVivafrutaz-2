@@ -37,6 +37,11 @@ export class CompaniesController {
   };
 
   create = async (req: Request, res: Response) => {
+    console.warn("[CREATE_COMPANY_BACKEND]", {
+      userId: (req as any).session?.userId,
+      role: (req as any).session?.role ?? (req as any).user?.role,
+      body: req.body,
+    });
     return created(res, await this.service.create(req.body));
   };
 

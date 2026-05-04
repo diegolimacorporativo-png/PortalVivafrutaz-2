@@ -207,7 +207,7 @@ export function validateWebhookSignature(
 ) {
   const signature = getSignatureHeader(req);
   if (!signature) {
-    return res.status(401).json({ error: "Assinatura inválida" });
+    return res.status(400).json({ error: "Assinatura inválida" });
   }
 
   const secret = process.env.BILLING_WEBHOOK_SECRET;
@@ -231,7 +231,7 @@ export function validateWebhookSignature(
   const provided = signature.replace(/^sha256=/, "").trim();
 
   if (!timingSafeEq(expected, provided)) {
-    return res.status(401).json({ error: "Assinatura inválida" });
+    return res.status(400).json({ error: "Assinatura inválida" });
   }
 
   next();

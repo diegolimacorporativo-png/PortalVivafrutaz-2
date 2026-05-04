@@ -1,21 +1,5 @@
 let _hasFired = false;
 
-const CRITICAL_ERRORS = [
-  "SESSION_INVALIDATED",
-  "TOKEN_VERSION_MISMATCH",
-  "SESSION_EXPIRED",
-];
-
-const IGNORE_401_URLS = [
-  "/api/company-config/logo",
-  "/api/settings/maintenance",
-  "/api/notifications",
-  "/api/dashboard",
-  "/api/ai",
-  "/api/intelligence",
-  "/api/analysis",
-];
-
 function dispatchAuthExpired(): void {
   if (_hasFired) return;
   _hasFired = true;
@@ -68,11 +52,11 @@ export async function fetchWithAuth(
     },
   });
 
-  if (
-    (res.status === 401 || res.status === 403) &&
-    !url.startsWith("/api/auth/")
-  ) {
-    // ETAPA 4 — JSON protegido no bloco de 401
+  // ETAPA 1 — log global de resposta HTTP
+  console.warn("[HTTP_RESPONSE_DEBUG]", { url, status: res.status, ok: res.ok });
+
+  if (res.status === 401 && !url.startsWith("/api/auth")) {
+    // JSON protegido no bloco de 401
     let body: any = null;
     try {
       body = await res.clone().json();
@@ -80,22 +64,31 @@ export async function fetchWithAuth(
       console.error("[JSON_PARSE_ERROR]", { url, status: res.status });
     }
 
+    // ETAPA 1 — log do body da resposta
+    console.warn("[HTTP_BODY_DEBUG]", { url, body });
+
     console.warn("[AUTH_401_DEBUG]", {
       url,
       status: res.status,
-      body,
-      isAuthRoute: url.startsWith("/api/auth/"),
-      willDispatch: !IGNORE_401_URLS.some(u => url.includes(u)) && CRITICAL_ERRORS.includes(body?.error),
+      error: body?.error,
     });
 
-    if (IGNORE_401_URLS.some(u => url.includes(u))) {
-      return res;
-    }
+    // ETAPA 2 — disparo APENAS para erros críticos de sessão, nunca erros de negócio
+    const isCritical =
+      body?.error === "SESSION_INVALIDATED" ||
+      body?.error === "SESSION_EXPIRED";
 
-    if (
-      (res.status === 401 || res.status === 403) &&
-      CRITICAL_ERRORS.includes(body?.error)
-    ) {
+    const isIgnored =
+      url.includes("/api/company-config") ||
+      url.includes("/api/settings") ||
+      url.includes("/api/ai") ||
+      url.includes("/api/intelligence") ||
+      url.includes("/api/analysis") ||
+      url.includes("/api/notifications") ||
+      url.includes("/api/dashboard");
+
+    if (isCritical && !isIgnored) {
+      console.warn("[AUTH_EXPIRED_DISPATCH]", { url, error: body?.error });
       dispatchAuthExpired();
     }
   }
