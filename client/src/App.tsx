@@ -213,7 +213,9 @@ function ProtectedRoute({
     return <Redirect to="/admin" />;
   }
 
-  if (allowedRoles && user && user.role !== 'MASTER' && !allowedRoles.includes(user.role)) {
+  const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+
+  if (allowedRoles && user && !FULL_ACCESS_ROLES.includes(user.role) && !allowedRoles.includes(user.role)) {
     fetchWithAuth('/api/auth/log-unauthorized', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -227,7 +229,7 @@ function ProtectedRoute({
       console.warn("[REDIRECT_TRIGGER]", { to: "/admin/driver-panel", from: window.location.pathname, source: "ProtectedRoute:MOTORISTA", timestamp: Date.now() });
       return <Redirect to="/admin/driver-panel" />;
     }
-    console.warn("[ROLE_REDIRECT]", { role: user.role, allowedRoles, currentPath: window.location.pathname });
+    console.warn("[ROLE_BLOCK]", { role: user.role, allowedRoles, path: window.location.pathname });
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
         <div className="text-5xl">🔒</div>

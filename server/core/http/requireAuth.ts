@@ -41,7 +41,8 @@ export function requireRole(allowed: string[]) {
         /* fall through — treated as missing role */
       }
     }
-    if (!role || !allowed.includes(role)) {
+    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+    if (!role || (!FULL_ACCESS_ROLES.includes(role) && !allowed.includes(role))) {
       return next(new ForbiddenError("Sem permissão para esta operação"));
     }
     next();

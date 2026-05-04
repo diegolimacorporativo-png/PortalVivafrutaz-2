@@ -1,0 +1,100 @@
+FASE: LIBERAÇÃO TOTAL PARA SUPER USERS
+OBJETIVO:
+MASTER, ADMIN e DIRECTOR acessam QUALQUER rota, ignorando allowedRoles
+
+--------------------------------------------------
+PARTE 1 — FRONTEND (ProtectedRoute)
+--------------------------------------------------
+
+Arquivo: client/src/App.tsx
+
+LOCAL:
+onde existe validação de allowedRoles
+
+ADICIONAR NO TOPO DO COMPONENTE:
+
+const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+
+SUBSTITUIR CONDIÇÃO ATUAL POR:
+
+if (
+  allowedRoles &&
+  user &&
+  !FULL_ACCESS_ROLES.includes(user.role) &&
+  !allowedRoles.includes(user.role)
+) {
+  console.warn("[ROLE_BLOCK]", {
+    role: user.role,
+    allowedRoles,
+    path: window.location.pathname
+  });
+
+  return (
+    <div className="h-screen flex flex-col items-center justify-center">
+      <h2>Acesso negado</h2>
+      <p>Você não tem permissão para acessar esta página.</p>
+    </div>
+  );
+}
+
+RESULTADO:
+- MASTER / ADMIN / DIRECTOR passam direto
+- outros continuam bloqueados normalmente
+
+--------------------------------------------------
+PARTE 2 — BACKEND (OBRIGATÓRIO)
+--------------------------------------------------
+
+PROCURAR:
+middlewares tipo:
+- requireRole
+- checkRole
+- authorize
+
+AJUSTAR:
+
+ANTES:
+if (!roles.includes(user.role)) {
+  throw new ForbiddenError();
+}
+
+DEPOIS:
+
+const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+
+if (
+  !FULL_ACCESS_ROLES.includes(user.role) &&
+  !roles.includes(user.role)
+) {
+  throw new ForbiddenError();
+}
+
+RESULTADO:
+- garante acesso total também no backend
+- evita erro 403 escondido
+
+--------------------------------------------------
+PARTE 3 — VALIDAÇÃO
+--------------------------------------------------
+
+1. Logar como ADMIN
+→ acessar TODAS páginas:
+   /admin/products
+   /admin/ai-developer
+   /admin/intelligence
+→ NÃO pode aparecer "Acesso negado"
+
+2. Logar como usuário comum
+→ acessar página restrita
+→ deve aparecer "Acesso negado"
+
+--------------------------------------------------
+RESTRIÇÕES
+--------------------------------------------------
+
+- NÃO mexer nas listas allowedRoles
+- NÃO remover validações existentes
+- NÃO alterar fluxo de auth
+- NÃO alterar rotas
+
+APENAS adicionar bypass por role
