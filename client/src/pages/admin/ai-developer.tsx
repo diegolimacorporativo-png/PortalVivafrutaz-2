@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { normalizeBIResponse } from "@/lib/biNormalizer";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -182,27 +183,28 @@ export default function AiDeveloperPage() {
       if (res.status === 401 || res.status === 403) { setLoadingTool(null); return; }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erro");
+      const norm = normalizeBIResponse(data);
 
       switch (toolName) {
         case "index":
           setIndexData(data);
-          addMsg("system", `✅ Sistema indexado:\n• ${data.totalFiles} arquivos analisados\n• ${data.totalLines?.toLocaleString?.() ?? 0} linhas de código\n• ${data.totalSizeKB} KB total\n• ${(data.endpoints ?? []).length} endpoints de API\n• ${(data.tables ?? []).length} tabelas no banco\n• Backend: ${data.summary?.backendFiles} | Frontend: ${data.summary?.frontendFiles} | Services: ${data.summary?.serviceFiles}`);
+          addMsg("system", `✅ Sistema indexado:\n• ${data.totalFiles} arquivos analisados\n• ${data.totalLines?.toLocaleString?.() ?? 0} linhas de código\n• ${data.totalSizeKB} KB total\n• ${norm.endpoints.length} endpoints de API\n• ${norm.tables.length} tabelas no banco\n• Backend: ${norm.summary.backendFiles} | Frontend: ${norm.summary.frontendFiles} | Services: ${norm.summary.serviceFiles}`);
           break;
         case "bugs":
           setBugsData(data);
-          addMsg("system", `🔍 Análise de bugs concluída:\n• ${data.summary.total} issues encontrados\n• 🔴 ${data.summary.critical} Críticos\n• 🟠 ${data.summary.high} Altos\n• 🟡 ${data.summary.medium} Médios\n• 🔵 ${data.summary.low} Baixos\n\n${data.summary.critical > 0 ? "⚠️ ATENÇÃO: Existem problemas críticos que precisam de correção imediata!" : "✅ Nenhum problema crítico detectado."}`);
+          addMsg("system", `🔍 Análise de bugs concluída:\n• ${norm.summary.total} issues encontrados\n• 🔴 ${norm.summary.critical} Críticos\n• 🟠 ${norm.summary.high} Altos\n• 🟡 ${norm.summary.medium} Médios\n• 🔵 ${norm.summary.low} Baixos\n\n${norm.summary.critical > 0 ? "⚠️ ATENÇÃO: Existem problemas críticos que precisam de correção imediata!" : "✅ Nenhum problema crítico detectado."}`);
           break;
         case "security":
           setSecurityData(data);
-          addMsg("system", `🔐 Auditoria de segurança:\n• Score: ${data.score}/100\n• ${(data.issues ?? []).length} issues encontrados\n• ${(data.issues ?? []).filter((i: any) => i.severity === 'CRITICAL').length} críticos\n• ${(data.recommendations ?? []).length} recomendações geradas`);
+          addMsg("system", `🔐 Auditoria de segurança:\n• Score: ${data.score}/100\n• ${norm.issues.length} issues encontrados\n• ${norm.issues.filter((i: any) => i.severity === 'CRITICAL').length} críticos\n• ${norm.recommendations.length} recomendações geradas`);
           break;
         case "performance":
           setPerfData(data);
-          addMsg("system", `⚡ Análise de performance:\n• Score: ${data.score}/100\n• ${(data.checks ?? []).filter((c: any) => c.status === 'OK').length}/${(data.checks ?? []).length} checks passaram\n• ${(data.checks ?? []).filter((c: any) => c.status === 'WARN').length} avisos\n• ${(data.checks ?? []).filter((c: any) => c.status === 'FAIL').length} falhas`);
+          addMsg("system", `⚡ Análise de performance:\n• Score: ${data.score}/100\n• ${norm.checks.filter((c: any) => c.status === 'OK').length}/${norm.checks.length} checks passaram\n• ${norm.checks.filter((c: any) => c.status === 'WARN').length} avisos\n• ${norm.checks.filter((c: any) => c.status === 'FAIL').length} falhas`);
           break;
         case "database":
           setDbData(data);
-          addMsg("system", `🗄️ Análise do banco concluída:\n• ${(data.tables ?? []).length} tabelas mapeadas\n• ${(data.indexes ?? []).length} índices existentes\n• Tamanho do banco: ${(data.database as any)?.db_size || 'N/A'}\n\nMainTables: ${Object.entries(data.rowCounts ?? {}).map(([t, c]) => `${t}(${c})`).join(', ')}`);
+          addMsg("system", `🗄️ Análise do banco concluída:\n• ${norm.tables.length} tabelas mapeadas\n• ${norm.indexes.length} índices existentes\n• Tamanho do banco: ${norm.database?.db_size || 'N/A'}\n\nMainTables: ${Object.entries(norm.rowCounts).map(([t, c]) => `${t}(${c})`).join(', ')}`);
           break;
         case "deploy":
           setDeployData(data);

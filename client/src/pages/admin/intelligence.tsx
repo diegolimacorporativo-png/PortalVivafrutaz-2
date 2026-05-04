@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { safeObjectArray } from "@/lib/safeArray";
+import { normalizeBIResponse } from "@/lib/biNormalizer";
 import { Layout } from "@/components/Layout";
 import { Link } from "wouter";
 import {
@@ -124,7 +124,7 @@ export default function IntelligencePage() {
     onError: (e: any) => toast({ title: 'Erro na sincronização', description: e.message, variant: 'destructive' }),
   });
 
-  const alerts = safeObjectArray(data, "alerts");
+  const alerts = normalizeBIResponse(data).alerts;
   const summary = data?.summary;
 
   const filtered = alerts.filter(a => {

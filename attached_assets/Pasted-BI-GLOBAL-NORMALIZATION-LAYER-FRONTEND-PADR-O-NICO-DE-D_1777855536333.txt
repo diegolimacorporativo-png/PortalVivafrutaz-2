@@ -1,0 +1,127 @@
+BI GLOBAL NORMALIZATION LAYER — FRONTEND (PADRÃO ÚNICO DE DADOS)
+
+OBJETIVO:
+Eliminar completamente a necessidade de:
+- ?? []
+- Array.isArray repetido
+- safeArray espalhado em páginas
+- normalizações locais por arquivo
+
+Substituir tudo por UMA camada única de normalização de BI no frontend.
+
+========================================================
+REGRA ABSOLUTA
+========================================================
+- NÃO alterar backend
+- NÃO alterar APIs
+- NÃO alterar UI visual
+- NÃO mudar layout das páginas
+- APENAS padronizar entrada de dados no frontend
+
+========================================================
+PROBLEMA ATUAL
+========================================================
+Hoje o sistema tem 3 padrões diferentes:
+
+1. (data.x ?? []).map(...)
+2. Array.isArray(data.x) ? data.x : []
+3. safeArray(data.x)
+
+ISSO GERA:
+- duplicação de lógica defensiva
+- inconsistência entre páginas
+- risco de novos crashes em BI
+
+========================================================
+SOLUÇÃO DEFINITIVA
+========================================================
+
+1. CRIAR CAMADA GLOBAL:
+
+client/src/lib/biNormalizer.ts
+
+========================================================
+2. IMPLEMENTAR FUNÇÃO:
+
+export const normalizeBIResponse = (data: any) => {
+  if (!data || typeof data !== "object") return {}
+
+  const safeArray = (v: any) =>
+    Array.isArray(v)
+      ? v
+      : v?.data && Array.isArray(v.data)
+        ? v.data
+        : []
+
+  const safeObject = (v: any) =>
+    v && typeof v === "object" ? v : {}
+
+  return {
+    ...data,
+
+    // padrões comuns BI
+    monthlyRevenue: safeArray(data.monthlyRevenue),
+    topClients: safeArray(data.topClients),
+    ips: safeArray(data.ips),
+    checks: safeArray(data.checks),
+    issues: safeArray(data.issues),
+    recommendations: safeArray(data.recommendations),
+    products: safeArray(data.products),
+    routes: safeArray(data.routes),
+
+    // fallback para objetos aninhados
+    summary: safeObject(data.summary),
+    stats: safeObject(data.stats),
+  }
+}
+
+========================================================
+3. APLICAR EM TODAS AS PÁGINAS BI
+
+ANTES (em cada página):
+const data = useQuery(...)
+
+DEPOIS:
+const rawData = useQuery(...)
+const data = normalizeBIResponse(rawData?.data)
+
+========================================================
+4. REGRA DE USO FINAL
+
+APÓS ISSO, TODAS AS PÁGINAS DEVEM USAR:
+
+data.monthlyRevenue.map(...)
+data.ips.filter(...)
+data.topClients.map(...)
+
+SEM:
+- ??
+- Array.isArray
+- safeArray local
+- fallback manual por página
+
+========================================================
+5. BENEFÍCIOS OBRIGATÓRIOS
+
+- Zero crash por shape de API
+- Zero lógica defensiva duplicada
+- BI consistente em todo sistema
+- Novas páginas BI não precisam de proteção manual
+- Frontend tolerante a backend instável
+
+========================================================
+6. VALIDAÇÃO FINAL
+
+Garantir:
+
+- nenhuma página BI usa ?? [] diretamente
+- nenhuma página BI usa Array.isArray repetidamente
+- todos os dados BI passam por normalizeBIResponse
+- comportamento visual não muda
+
+========================================================
+RESULTADO ESPERADO
+
+Frontend BI com camada única de resiliência,
+sem duplicação de código defensivo,
+e com padrão de ERP SaaS real (estável e previsível).

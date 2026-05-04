@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { normalizeBIResponse } from "@/lib/biNormalizer";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
@@ -209,10 +210,10 @@ function ScoreBar({ score }: { score: number }) {
 // ── In-memory summary cards ───────────────────────────────────────────────────
 
 function SummaryCards({ data }: { data: SecurityAnalysisData }) {
-  const ips = data.ips ?? [];
-  const criticals = ips.filter((ip) => ip.level === "CRITICAL").length;
-  const highs = ips.filter((ip) => ip.level === "HIGH").length;
-  const spikes = ips.filter((ip) => ip.spike).length;
+  const { ips } = normalizeBIResponse(data);
+  const criticals = ips.filter((ip: any) => ip.level === "CRITICAL").length;
+  const highs = ips.filter((ip: any) => ip.level === "HIGH").length;
+  const spikes = ips.filter((ip: any) => ip.spike).length;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -397,7 +398,7 @@ export default function SecurityIntelligencePage() {
   });
 
   const data = response?.data;
-  const ips = data?.ips ?? [];
+  const ips = normalizeBIResponse(data).ips;
   const overview = overviewResponse?.data;
 
   if (isLoading) return <LoadingSkeleton />;
@@ -1138,7 +1139,7 @@ function RiskOverviewSection() {
     refetchInterval: 120_000,
   });
 
-  const results = riskResponse?.data?.results ?? [];
+  const results = normalizeBIResponse(riskResponse?.data).results;
   const generatedAt = riskResponse?.data?.generatedAt;
 
   // Only render the section if we have data or are loading
