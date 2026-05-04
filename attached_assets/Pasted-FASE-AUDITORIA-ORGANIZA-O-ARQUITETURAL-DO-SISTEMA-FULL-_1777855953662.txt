@@ -1,0 +1,113 @@
+FASE: AUDITORIA + ORGANIZAÇÃO ARQUITETURAL DO SISTEMA (FULL REVIEW)
+
+OBJETIVO:
+Mapear, organizar e validar toda a arquitetura atual do sistema (backend + frontend + segurança),
+sem criar novas features, sem refatorações grandes e sem alterar comportamento funcional.
+
+========================================================
+REGRAS CRÍTICAS
+========================================================
+- NÃO criar novas camadas desnecessárias
+- NÃO adicionar novos padrões ou abstrações
+- NÃO refatorar arquitetura ainda
+- NÃO alterar regras de negócio
+- NÃO otimizar performance nesta fase
+- APENAS analisar, mapear e organizar o que já existe
+
+========================================================
+ETAPA 1 — MAPA COMPLETO DO SISTEMA
+========================================================
+
+Mapear claramente:
+
+1. BACKEND
+- módulos existentes
+- repositories
+- routes
+- serviços críticos
+- fluxos de tenant (onde começa e onde termina)
+
+2. FRONTEND
+- páginas principais
+- BI / dashboards
+- páginas críticas de dados
+- consumo de API (useQuery, fetch, mutations)
+
+3. AUTENTICAÇÃO E TENANT
+- como o tenant é definido
+- como é propagado
+- onde pode quebrar isolamento
+
+========================================================
+ETAPA 2 — SEGURANÇA (ANÁLISE REAL)
+========================================================
+
+Identificar e classificar:
+
+- Cross-tenant intencional (LEGÍTIMO)
+- Cross-tenant acidental (BUG)
+- Full-table scans sem filtro de tenant
+- Possíveis IDORs (acesso por ID direto)
+- Writes sem validação de tenant
+- Endpoints sem auth
+- Fallbacks perigosos (null → global data)
+
+Classificar por nível:
+
+- 🔴 CRÍTICO (vazamento de dados entre empresas)
+- 🟠 ALTO (risco de escala ou acesso indevido indireto)
+- 🟡 MÉDIO (problema de arquitetura)
+- 🟢 OK (intencional e seguro)
+
+========================================================
+ETAPA 3 — FLUXOS REAIS (SEM TEORIA)
+========================================================
+
+Descrever fluxos reais como eles funcionam HOJE:
+
+Exemplo:
+Usuário → route → repository → storage → DB
+
+E apontar:
+
+- onde o tenant entra
+- onde ele pode ser perdido
+- onde há fallback inseguro
+- onde há filtro em memória (anti-pattern)
+
+========================================================
+ETAPA 4 — FRONTEND (ROBUSTEZ REAL)
+========================================================
+
+Mapear:
+
+- onde API response quebra UI
+- onde há uso inseguro de:
+  - .map
+  - .filter
+  - .length
+- onde o shape da API é assumido
+- onde ErrorBoundary realmente protege ou não
+
+========================================================
+ETAPA 5 — RESULTADO FINAL (OBRIGATÓRIO)
+========================================================
+
+Entregar:
+
+1. Arquitetura atual (resumo claro)
+2. Lista de riscos reais (sem duplicar)
+3. Top 10 problemas críticos
+4. O que está bom e NÃO deve ser mexido
+5. O que deve ser corrigido primeiro (ordem exata)
+6. Se o sistema está pronto ou não para produção (SIM/NÃO + por quê)
+
+========================================================
+IMPORTANTE
+========================================================
+
+- Não sugerir refatoração gigante
+- Não criar novos padrões
+- Não inventar módulos
+- Não assumir código que não existe
+- Basear tudo APENAS no sistema atual

@@ -1,0 +1,126 @@
+BI CONTRACT LAYER — FRONTEND + BACKEND ALIGNMENT (PADRÃO SAAS)
+
+OBJETIVO:
+Eliminar dependência de normalização defensiva no frontend
+e estabelecer contratos fixos de dados para todas as páginas BI.
+
+========================================================
+REGRA ABSOLUTA
+========================================================
+- NÃO alterar UI/UX visual
+- NÃO quebrar endpoints existentes de forma abrupta
+- NÃO remover funcionalidades
+- EVITAR normalização infinita no frontend
+- PADRONIZAR SHAPE DE DADOS ENTRE BACKEND E FRONTEND
+
+========================================================
+PROBLEMA ATUAL
+========================================================
+Hoje o sistema permite:
+
+- arrays ou objetos inesperados
+- campos opcionais sem padrão fixo
+- respostas inconsistentes entre endpoints BI
+- frontend precisa “adivinhar” formato (normalizeBIResponse)
+
+RESULTADO:
+Frontend está compensando inconsistência do backend.
+
+========================================================
+OBJETIVO FINAL
+========================================================
+Transformar BI em contratos fixos:
+
+Cada endpoint BI deve retornar SEMPRE:
+
+- arrays sempre arrays
+- objetos sempre objetos definidos
+- nunca null para listas
+- nunca variação de estrutura
+
+========================================================
+ETAPA 1 — DEFINIR CONTRATOS BI (TIPAGEM LÓGICA)
+
+Criar padrão interno:
+
+BIResponse<T> = {
+  monthlyRevenue: number[]
+  topClients: Client[]
+  ips: string[]
+  checks: Check[]
+  issues: Issue[]
+  recommendations: string[]
+}
+
+========================================================
+ETAPA 2 — PADRONIZAR BACKEND (SEM QUEBRAR FRONTEND)
+
+Para cada endpoint BI:
+
+ANTES:
+return {
+  data: ...variável dinâmica
+}
+
+DEPOIS:
+return {
+  monthlyRevenue: monthlyRevenue ?? [],
+  topClients: topClients ?? [],
+  ips: ips ?? [],
+  checks: checks ?? [],
+  issues: issues ?? [],
+  recommendations: recommendations ?? [],
+}
+
+REGRAS:
+- nunca retornar undefined em listas
+- nunca retornar null em arrays
+- sempre garantir [] como fallback no backend
+- manter compatibilidade com payload antigo (fase de transição)
+
+========================================================
+ETAPA 3 — REDUZIR DEPENDÊNCIA DO FRONTEND
+
+Após backend estabilizado:
+
+REMOVER gradualmente:
+- normalizeBIResponse em excesso
+- ?? [] redundante
+- Array.isArray defensivo repetido
+
+Frontend deve passar a assumir:
+
+data.monthlyRevenue.map(...)
+data.ips.filter(...)
+data.topClients.map(...)
+
+SEM normalização complexa
+
+========================================================
+ETAPA 4 — MIGRAÇÃO SEGURA
+
+Processo:
+
+1. adicionar contratos no backend sem quebrar endpoints
+2. manter compatibilidade com frontend atual
+3. observar logs de payload inconsistente
+4. ajustar endpoints até 100% consistência
+5. só então simplificar frontend
+
+========================================================
+VALIDAÇÃO FINAL
+
+- todos os endpoints BI retornam shape fixo
+- frontend não precisa mais de normalizeBIResponse complexo
+- zero crashes por formato de dados
+- BI consistente em todas as páginas
+- backend vira fonte única de verdade
+
+========================================================
+RESULTADO ESPERADO
+
+Sistema deixa de ser:
+"frontend corrigindo backend instável"
+
+e vira:
+"contrato de dados previsível estilo SaaS (Omie/Bling/Totvs-like)"
