@@ -255,7 +255,15 @@ function PriceAlertsSection() {
     refetchInterval: 60000,
   });
 
-  const visible = alerts.filter((a: any) => !dismissed.includes(a.product.id));
+  if (!Array.isArray(alerts)) {
+    console.warn("[ALERTS_FIX] invalid payload received:", alerts);
+  }
+  const safeAlerts = Array.isArray(alerts)
+    ? alerts
+    : Array.isArray((alerts as any)?.data)
+      ? (alerts as any).data
+      : [];
+  const visible = safeAlerts.filter((a: any) => !dismissed.includes(a.product.id));
   if (isLoading || visible.length === 0) return null;
 
   return (

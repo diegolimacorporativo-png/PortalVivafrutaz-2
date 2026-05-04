@@ -123,7 +123,15 @@ export default function IntelligencePage() {
     onError: (e: any) => toast({ title: 'Erro na sincronização', description: e.message, variant: 'destructive' }),
   });
 
-  const alerts = data?.alerts ?? [];
+  const rawAlerts = data?.alerts ?? [];
+  if (!Array.isArray(rawAlerts)) {
+    console.warn("[ALERTS_FIX] invalid payload received:", rawAlerts);
+  }
+  const alerts = Array.isArray(rawAlerts)
+    ? rawAlerts
+    : Array.isArray((rawAlerts as any)?.data)
+      ? (rawAlerts as any).data
+      : [];
   const summary = data?.summary;
 
   const filtered = alerts.filter(a => {

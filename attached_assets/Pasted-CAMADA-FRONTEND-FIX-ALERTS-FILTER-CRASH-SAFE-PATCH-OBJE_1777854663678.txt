@@ -1,0 +1,78 @@
+CAMADA FRONTEND FIX — ALERTS FILTER CRASH (SAFE PATCH)
+
+OBJETIVO:
+Corrigir erro runtime no frontend sem alterar arquitetura, sem refatorar UI e sem mudar contratos de API.
+
+ERRO:
+alerts.filter is not a function
+
+========================================================
+REGRA ABSOLUTA
+========================================================
+- NÃO alterar backend
+- NÃO alterar API contract
+- NÃO refatorar componentes
+- NÃO introduzir nova arquitetura de estado
+- SOMENTE correção defensiva local
+
+========================================================
+TAREFA OBRIGATÓRIA
+========================================================
+
+1. Localizar TODOS os pontos onde "alerts.filter" é usado
+
+2. Criar normalização defensiva SEMPRE no ponto de uso (não global state refactor):
+
+const safeAlerts =
+  Array.isArray(alerts)
+    ? alerts
+    : Array.isArray(alerts?.data)
+      ? alerts.data
+      : [];
+
+3. Substituir TODAS as ocorrências:
+
+ANTES:
+alerts.filter(...)
+
+DEPOIS:
+safeAlerts.filter(...)
+
+========================================================
+DEFESA OBRIGATÓRIA (LOG DE DIAGNÓSTICO)
+========================================================
+
+Adicionar apenas 1 log leve por ocorrência inválida:
+
+if (!Array.isArray(alerts)) {
+  console.warn("[ALERTS_FIX] invalid payload received:", alerts);
+}
+
+========================================================
+REGRAS DE SEGURANÇA FRONTEND
+========================================================
+
+- Nunca chamar .filter diretamente em variável incerta
+- Nunca assumir resposta de API como array
+- Sempre proteger render contra undefined/null/object/string
+- Não quebrar tipagem existente (usar any apenas se necessário localmente)
+
+========================================================
+VALIDAÇÃO FINAL
+========================================================
+
+Após fix:
+
+✔ página não pode crashar
+✔ alerts vazios não quebram UI
+✔ API offline não quebra render
+✔ filter nunca recebe undefined/null/object
+✔ comportamento visual permanece igual
+
+========================================================
+RESULTADO ESPERADO
+========================================================
+
+- Erro "alerts.filter is not a function" eliminado
+- UI resiliente a payload inválido
+- Nenhuma mudança estrutural no frontend
