@@ -1,0 +1,110 @@
+CONTEXTO DO PROJETO — ENTENDIMENTO OBRIGATÓRIO (NÃO INVENTAR NADA)
+
+Você está entrando em um sistema SaaS ERP já parcialmente implementado (VivafrutaZ ERP + módulos financeiros, logística, IA “Clara”, NF-e e multi-tenant).
+
+========================================================
+REGRA PRINCIPAL
+========================================================
+- NÃO inventar funcionalidades
+- NÃO assumir arquitetura inexistente
+- NÃO refatorar sem necessidade explícita
+- SEMPRE ler código antes de agir
+- Trabalhar apenas com o que já existe no repositório
+- Se algo não existir no código, considerar como NÃO EXISTE
+
+========================================================
+OBJETIVO DO SISTEMA
+========================================================
+Este sistema é:
+- Um ERP multi-tenant (cada empresa isolada)
+- Com módulos:
+  - pedidos (orders)
+  - usuários
+  - logística
+  - financeiro
+  - NF-e
+  - IA (Clara - parcialmente implementada)
+  - dashboard/admin/BI
+
+Ele NÃO é um sistema novo do zero — já tem regras e padrões definidos.
+
+========================================================
+PADRÃO ARQUITETURAL EXISTENTE (OBRIGATÓRIO RESPEITAR)
+========================================================
+
+1. MULTI-TENANT
+- Toda query deve respeitar tenantId (empresaId/companyId)
+- Uso de currentTenantId() ou withTenantScope
+- tenantWhere() existe e é padrão correto
+
+NUNCA:
+- fazer storage.getOrders() sem filtro
+- fazer full table scan sem motivo explícito
+
+2. CAMADAS DE DADOS
+- TENANT-SAFE (regra padrão)
+- CROSS-TENANT (APENAS ADMIN BI e dashboards globais)
+- SYSTEM (logs, health, jobs)
+
+Cross-tenant só existe se explicitamente documentado.
+
+3. SEGURANÇA
+- requireAuthCore ou requireAuth obrigatório em rotas sensíveis
+- roles MASTER/ADMIN/DIRECTOR têm permissões globais
+- outros roles são sempre escopo de empresa
+
+4. BANCO DE DADOS
+- Drizzle ORM usado
+- filtros devem ser SQL (não filter() em memória)
+- in-memory filtering é considerado RISCO, exceto BI explícito
+
+========================================================
+O QUE JÁ FOI CORRIGIDO (NÃO REVERTER)
+========================================================
+- safeQueryRouter existe e já está ativo
+- tenant isolation foi aplicado em vários módulos
+- storage.getOrders/getUsers/getDrivers/getRoutes foram corrigidos parcialmente
+- auditoria de segurança (logSecurityEvent) existe
+- cross-tenant write crítico já foi eliminado em admin auto-fix
+
+NÃO reintroduzir full-table scans.
+
+========================================================
+COMO VOCÊ DEVE TRABALHAR
+========================================================
+
+ANTES de qualquer mudança:
+
+1. Ler arquivos relevantes
+2. Identificar se é:
+   - tenant-safe
+   - cross-tenant legítimo
+   - bug (violação de tenant)
+3. Confirmar padrão existente no código
+4. Só então propor alteração mínima
+
+========================================================
+PROIBIDO
+========================================================
+- criar nova arquitetura sem pedido
+- adicionar novas camadas desnecessárias
+- mudar fluxos já funcionais
+- "refatorar geral"
+- assumir endpoints inexistentes
+- alterar comportamento sem necessidade
+
+========================================================
+OBJETIVO FINAL
+========================================================
+- sistema está em fase de estabilização
+- foco é corrigir bugs e crashes
+- NÃO evolução funcional neste momento
+- manter compatibilidade total com código existente
+
+========================================================
+REGRA DE OURO
+========================================================
+Se não estiver explicitamente no código:
+→ NÃO EXISTE
+→ NÃO IMPLEMENTAR
+→ NÃO INVENTAR
