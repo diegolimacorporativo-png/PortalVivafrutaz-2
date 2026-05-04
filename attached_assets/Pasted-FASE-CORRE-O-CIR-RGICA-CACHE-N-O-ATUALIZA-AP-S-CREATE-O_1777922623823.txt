@@ -1,0 +1,145 @@
+FASE: CORREÇÃO CIRÚRGICA — CACHE NÃO ATUALIZA APÓS CREATE
+
+OBJETIVO:
+Garantir que listas (ex: empresas) atualizem IMEDIATAMENTE após criação,
+sem depender de reload do app e sem alterar comportamento global.
+
+REGRAS:
+- NÃO alterar queryClient global
+- NÃO remover staleTime: Infinity global
+- NÃO refatorar arquitetura
+- ALTERAR apenas hooks afetados
+- Mudança mínima e segura
+
+--------------------------------------------------
+ETAPA 1 — FORÇAR REFETCH NO HOOK (CRÍTICO)
+--------------------------------------------------
+
+Arquivo:
+client/src/hooks/use-admin.ts
+
+Localizar:
+
+export function useCompanies()
+
+ALTERAR para:
+
+export function useCompanies() {
+  return useQuery({
+    queryKey: [api.companies.list.path],
+    queryFn: async () => { ... },
+
+    // 🔴 CORREÇÃO
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+}
+
+OBJETIVO:
+Forçar o React Query a SEMPRE refazer o fetch ao montar,
+eliminando dependência do estado anterior.
+
+--------------------------------------------------
+ETAPA 2 — GARANTIR REFETCH APÓS CREATE
+--------------------------------------------------
+
+Ainda no mesmo arquivo:
+
+Localizar:
+
+onSuccess: (data) => {
+  queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });
+}
+
+SUBSTITUIR por:
+
+onSuccess: async (data) => {
+  await queryClient.invalidateQueries({
+    queryKey: [api.companies.list.path],
+  });
+
+  await queryClient.refetchQueries({
+    queryKey: [api.companies.list.path],
+  });
+}
+
+OBJETIVO:
+Eliminar race condition e forçar atualização imediata.
+
+--------------------------------------------------
+ETAPA 3 — LOG DE VALIDAÇÃO
+--------------------------------------------------
+
+Adicionar TEMPORARIAMENTE:
+
+onSuccess: async (data) => {
+  console.log("[CREATE_COMPANY_SUCCESS]", data);
+
+  await queryClient.invalidateQueries({
+    queryKey: [api.companies.list.path],
+  });
+
+  console.log("[INVALIDATED]");
+
+  await queryClient.refetchQueries({
+    queryKey: [api.companies.list.path],
+  });
+
+  console.log("[REFETCHED]");
+}
+
+--------------------------------------------------
+ETAPA 4 — TESTE CONTROLADO
+--------------------------------------------------
+
+Testar:
+
+1. Criar nova empresa
+2. NÃO dar reload
+3. Verificar:
+
+→ empresa aparece na lista imediatamente
+
+Console deve mostrar:
+
+[CREATE_COMPANY_SUCCESS]
+[INVALIDATED]
+[REFETCHED]
+[COMPANY_LIST_FETCH]
+
+--------------------------------------------------
+ETAPA 5 — VALIDAÇÃO DE NÃO REGRESSÃO
+--------------------------------------------------
+
+Confirmar que:
+
+- Não houve loop de requests
+- Não houve duplicação de dados
+- Não quebrou outras telas
+- Performance permanece estável
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ precisa fechar app / reload
+→ lista desatualizada
+→ UX ruim
+
+DEPOIS:
+→ criação reflete instantaneamente
+→ sem reload
+→ comportamento consistente
+
+--------------------------------------------------
+OBSERVAÇÃO IMPORTANTE
+--------------------------------------------------
+
+NÃO alterar:
+
+client/src/lib/queryClient.ts
+
+(staleTime global continua Infinity — isso é estratégico)
+
+Correção é LOCAL, não global.

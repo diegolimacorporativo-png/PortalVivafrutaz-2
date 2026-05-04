@@ -16,7 +16,9 @@ export function useCompanies() {
       const data = api.companies.list.responses[200].parse(normalizeList(await res.json()));
       console.log("[COMPANY_LIST_RESULT]", { count: data.length, ts: Date.now() });
       return data;
-    }
+    },
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -41,10 +43,19 @@ export function useCreateCompany() {
       console.log("[CREATE_COMPANY_MUTFN_DONE]", { result, ts: Date.now() });
       return result;
     },
-    onSuccess: (data) => {
-      console.log("[CREATE_COMPANY_SUCCESS]", { data, ts: Date.now() });
-      console.log("[CREATE_COMPANY_INVALIDATING]", { queryKey: api.companies.list.path });
-      queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });
+    onSuccess: async (data) => {
+      console.log("[CREATE_COMPANY_SUCCESS]", data);
+
+      await queryClient.invalidateQueries({
+        queryKey: [api.companies.list.path],
+      });
+      console.log("[INVALIDATED]");
+
+      await queryClient.refetchQueries({
+        queryKey: [api.companies.list.path],
+      });
+      console.log("[REFETCHED]");
+
       toast({ title: "Empresa criada com sucesso!" });
     },
     onError: (err) => {
