@@ -27,9 +27,11 @@ function AuthExpiredHandler() {
   useEffect(() => {
     const handler = () => {
       const currentPath = window.location.pathname;
-      if (currentPath !== "/login" && currentPath !== "/auth") {
-        sessionStorage.setItem("redirect_after_login", currentPath);
+      // 🔒 Guard: never redirect if already on login — prevents infinite loop
+      if (currentPath === "/login" || currentPath === "/auth") {
+        return;
       }
+      sessionStorage.setItem("redirect_after_login", currentPath);
       sessionStorage.setItem("auth_expired", "1");
       console.warn("[REDIRECT_TRIGGER]", { to: "/login", from: currentPath, source: "AuthExpiredHandler", timestamp: Date.now() });
       setLocation("/login");

@@ -1,3 +1,15 @@
+const CRITICAL_ERRORS = ["SESSION_INVALIDATED", "SESSION_EXPIRED"];
+
+const IGNORE_401_URLS = [
+  "/api/company-config/logo",
+  "/api/settings/maintenance",
+  "/api/notifications",
+  "/api/dashboard",
+  "/api/ai",
+  "/api/intelligence",
+  "/api/analysis",
+];
+
 let _hasFired = false;
 
 function dispatchAuthExpired(): void {
@@ -13,7 +25,7 @@ export async function fetchWithAuth(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  // ETAPA 3 — validação de URL antes do fetch
+  // URL validation
   if (!url || typeof url !== "string") {
     console.error("[INVALID_URL]", url);
     throw new Error("Invalid URL");
@@ -23,10 +35,11 @@ export async function fetchWithAuth(
     url = "/" + url;
   }
 
-  // ETAPA 2 — sanitização obrigatória do X-Device-Id
+  // Persistent device ID — generate UUID once and reuse
   let deviceId = localStorage.getItem("device_id");
   if (!deviceId) {
-    deviceId = "web-client";
+    deviceId = crypto.randomUUID();
+    localStorage.setItem("device_id", deviceId);
   }
   const safeDeviceId = deviceId
     .toString()
@@ -35,7 +48,6 @@ export async function fetchWithAuth(
 
   console.warn("[DEVICE_ID_DEBUG]", { original: deviceId, safe: safeDeviceId });
 
-  // ETAPA 1 — log completo antes do fetch
   console.warn("[FETCH_DEBUG]", {
     url,
     method: options.method ?? "GET",
@@ -52,44 +64,36 @@ export async function fetchWithAuth(
     },
   });
 
-  // ETAPA 1 — log global de resposta HTTP
   console.warn("[HTTP_RESPONSE_DEBUG]", { url, status: res.status, ok: res.ok });
 
-  if (res.status === 401 && !url.startsWith("/api/auth")) {
-    // JSON protegido no bloco de 401
+  if ((res.status === 401 || res.status === 403) && !url.startsWith("/api/auth")) {
     let body: any = null;
     try {
       body = await res.clone().json();
-    } catch {
-      console.error("[JSON_PARSE_ERROR]", { url, status: res.status });
-    }
+    } catch (_) {}
 
-    // ETAPA 1 — log do body da resposta
-    console.warn("[HTTP_BODY_DEBUG]", { url, body });
+    const errorCode = body?.error;
+    const isIgnored = IGNORE_401_URLS.some((u) => url.includes(u));
 
-    console.warn("[AUTH_401_DEBUG]", {
+    console.log("[AUTH_401_DEBUG]", {
       url,
       status: res.status,
-      error: body?.error,
+      errorCode,
+      isIgnored,
     });
 
-    // ETAPA 2 — disparo APENAS para erros críticos de sessão, nunca erros de negócio
-    const isCritical =
-      body?.error === "SESSION_INVALIDATED" ||
-      body?.error === "SESSION_EXPIRED";
+    // 🔒 Hard block: ignored endpoints never trigger logout
+    if (isIgnored) {
+      console.warn("[SESSION_DECISION] ignored_401", { url, errorCode });
+      return res;
+    }
 
-    const isIgnored =
-      url.includes("/api/company-config") ||
-      url.includes("/api/settings") ||
-      url.includes("/api/ai") ||
-      url.includes("/api/intelligence") ||
-      url.includes("/api/analysis") ||
-      url.includes("/api/notifications") ||
-      url.includes("/api/dashboard");
-
-    if (isCritical && !isIgnored) {
-      console.warn("[AUTH_EXPIRED_DISPATCH]", { url, error: body?.error });
+    // 🔒 Only dispatch logout for genuinely critical session errors
+    if (CRITICAL_ERRORS.includes(errorCode)) {
+      console.warn("[SESSION_DECISION] real_logout", { errorCode });
       dispatchAuthExpired();
+    } else {
+      console.warn("[SESSION_DECISION] ignored_401", { errorCode });
     }
   }
 

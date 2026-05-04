@@ -96,6 +96,13 @@ export async function sessionVersionGuard(
       metadata: { sessionTokenVersion: session.tokenVersion, requestDeviceId },
     });
 
+    console.error("[SESSION_INVALIDATED]", {
+      reason,
+      userId,
+      companyId,
+      path: req.path,
+    });
+
     req.session.destroy(() => {});
     res.status(401).json({
       error: "SESSION_INVALIDATED",

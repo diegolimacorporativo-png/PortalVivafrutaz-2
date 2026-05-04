@@ -1,0 +1,197 @@
+FASE: BLINDAGEM DE SESSÃO (ANTI-LOGOUT + ANTI-LOOP + CONTROLE TOTAL)
+
+OBJETIVO:
+Eliminar QUALQUER logout indevido, impedir loops de /login e garantir que a sessão só seja invalidada quando realmente necessário.
+
+IMPORTANTE:
+- NÃO refatorar arquitetura
+- NÃO alterar fluxo de login existente
+- NÃO alterar banco de dados
+- NÃO quebrar compatibilidade
+- Alterações mínimas, seguras e isoladas
+
+--------------------------------------------------
+ETAPA 1 — HARD FILTER DE ERROS CRÍTICOS (FRONTEND)
+--------------------------------------------------
+
+Arquivo:
+client/src/lib/fetchWithAuth.ts
+
+SUBSTITUIR qualquer lógica atual de erro por:
+
+const CRITICAL_ERRORS = [
+  "SESSION_INVALIDATED",
+  "SESSION_EXPIRED"
+];
+
+const IGNORE_401_URLS = [
+  "/api/company-config/logo",
+  "/api/settings/maintenance",
+  "/api/notifications",
+  "/api/dashboard",
+  "/api/ai",
+  "/api/intelligence",
+  "/api/analysis"
+];
+
+if (res.status === 401 || res.status === 403) {
+  let body = null;
+
+  try {
+    body = await res.clone().json();
+  } catch (_) {}
+
+  const errorCode = body?.error;
+
+  const isIgnored = IGNORE_401_URLS.some(url => reqUrl.includes(url));
+
+  console.log("[AUTH_401_DEBUG]", {
+    url: reqUrl,
+    status: res.status,
+    errorCode,
+    isIgnored
+  });
+
+  // 🔒 BLOQUEIO TOTAL de logout para rotas ignoradas
+  if (isIgnored) {
+    return res;
+  }
+
+  // 🔒 Só dispara logout para erros realmente críticos
+  if (CRITICAL_ERRORS.includes(errorCode)) {
+    console.warn("[SESSION_DECISION] real_logout", { errorCode });
+    dispatchAuthExpired();
+  } else {
+    console.warn("[SESSION_DECISION] ignored_401", { errorCode });
+  }
+}
+
+--------------------------------------------------
+ETAPA 2 — DEVICE ID CONSISTENTE (FRONTEND)
+--------------------------------------------------
+
+Ainda em:
+client/src/lib/fetchWithAuth.ts
+
+ANTES de enviar a request:
+
+let deviceId = localStorage.getItem("device_id");
+
+if (!deviceId) {
+  deviceId = crypto.randomUUID();
+  localStorage.setItem("device_id", deviceId);
+}
+
+headers: {
+  ...headers,
+  "X-Device-Id": deviceId
+}
+
+--------------------------------------------------
+ETAPA 3 — RELAXAMENTO CONTROLADO DO DEVICE CHECK (BACKEND)
+--------------------------------------------------
+
+Arquivo:
+server/core/auth/authCore.service.ts
+
+LOCALIZAR validação de device:
+
+ANTES (ou equivalente):
+if (!session.deviceId || !requestDeviceId || requestDeviceId !== session.deviceId) {
+  return { valid: false, reason: "DEVICE_MISMATCH" };
+}
+
+SUBSTITUIR POR:
+
+// Só valida se ambos existem
+if (session.deviceId && requestDeviceId) {
+  if (requestDeviceId !== session.deviceId) {
+    console.warn("[SESSION_DECISION] device_mismatch_blocked", {
+      sessionDevice: session.deviceId,
+      requestDevice: requestDeviceId
+    });
+
+    return { valid: false, reason: "DEVICE_MISMATCH" };
+  }
+}
+
+// Se não existe ainda → permite (não quebra sessão)
+return { valid: true };
+
+--------------------------------------------------
+ETAPA 4 — LOG GLOBAL DE DECISÃO DE SESSÃO
+--------------------------------------------------
+
+Arquivo:
+server/core/security/sessionGuard.ts
+
+ANTES de qualquer return 401, adicionar:
+
+console.warn("[SESSION_CHECK]", {
+  userId: session.userId,
+  companyId: session.companyId,
+  tokenVersion: session.tokenVersion,
+  deviceId: session.deviceId,
+  path: req.path
+});
+
+E ao invalidar sessão:
+
+console.error("[SESSION_INVALIDATED]", {
+  reason: "TOKEN_VERSION_MISMATCH",
+  path: req.path
+});
+
+--------------------------------------------------
+ETAPA 5 — PROTEÇÃO EXTRA NO FRONT (LOGIN LOOP)
+--------------------------------------------------
+
+Arquivo:
+client/src/App.tsx
+
+Dentro do AuthExpiredHandler:
+
+ANTES de redirecionar:
+
+if (window.location.pathname === "/login") {
+  return; // 🔒 evita loop infinito
+}
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO FINAL (OBRIGATÓRIO)
+--------------------------------------------------
+
+Testar:
+
+1. Login normal
+→ navegar em várias páginas → NÃO pode voltar pro login
+
+2. Forçar erro em endpoint (ex: IA, dashboard)
+→ NÃO pode derrubar sessão
+
+3. Console:
+→ logs esperados:
+   [SESSION_DECISION] ignored_401
+   [AUTH_401_DEBUG]
+
+→ NÃO pode aparecer:
+   logout sem motivo
+
+4. Trocar device manualmente (simular)
+→ deve invalidar sessão corretamente
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ logout aleatório
+→ loop de login
+→ difícil debugar
+
+DEPOIS:
+→ sessão só cai quando necessário
+→ zero loop
+→ sistema previsível
+→ logs claros de decisão
+→ comportamento nível SaaS maduro
