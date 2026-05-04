@@ -229,7 +229,7 @@ function ProtectedRoute({
       console.warn("[REDIRECT_TRIGGER]", { to: "/admin/driver-panel", from: window.location.pathname, source: "ProtectedRoute:MOTORISTA", timestamp: Date.now() });
       return <Redirect to="/admin/driver-panel" />;
     }
-    console.warn("[ROLE_BLOCK]", { role: user.role, allowedRoles, path: window.location.pathname });
+    console.warn("[ACCESS_DENIED]", { role: user.role, allowedRoles, path: window.location.pathname });
     return (
       <div className="h-screen flex flex-col items-center justify-center gap-4 text-center px-6">
         <div className="text-5xl">🔒</div>
@@ -237,6 +237,12 @@ function ProtectedRoute({
         <p className="text-muted-foreground text-sm max-w-sm">
           Você não tem permissão para acessar esta página. Fale com o administrador do sistema se precisar de acesso.
         </p>
+        <button
+          onClick={() => { window.location.href = "/admin"; }}
+          className="mt-2 px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:opacity-90 transition-opacity"
+        >
+          Voltar ao painel
+        </button>
       </div>
     );
   }

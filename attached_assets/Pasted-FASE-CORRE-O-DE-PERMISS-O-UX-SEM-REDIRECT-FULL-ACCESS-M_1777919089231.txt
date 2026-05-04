@@ -1,0 +1,130 @@
+FASE: CORREÇÃO DE PERMISSÃO + UX (SEM REDIRECT + FULL ACCESS MASTER)
+
+CONTEXTO DO SISTEMA:
+Sistema SaaS multi-tenant com controle de acesso por role no frontend (ProtectedRoute).
+Atualmente existem redirecionamentos indevidos para /login e /admin quando o usuário não tem permissão.
+
+PROBLEMA:
+1. Usuários são redirecionados ao invés de receber feedback visual
+2. MASTER não tem acesso total garantido
+3. UX confusa (parece erro de sistema, mas é permissão)
+
+OBJETIVO:
+- Garantir que MASTER, ADMIN e DIRECTOR tenham acesso TOTAL a todas as rotas
+- Remover redirects automáticos por falta de permissão
+- Exibir tela de "Acesso negado" no lugar
+- NÃO alterar backend
+- NÃO quebrar autenticação existente
+
+REGRAS:
+- Alterar apenas frontend
+- Não refatorar arquitetura
+- Manter comportamento atual de auth (login/logout intacto)
+- Mudanças mínimas e seguras
+
+--------------------------------------------------
+ETAPA 1 — DEFINIR ROLES COM ACESSO TOTAL
+--------------------------------------------------
+
+Arquivo:
+client/src/App.tsx
+
+Adicionar no topo:
+
+const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+
+--------------------------------------------------
+ETAPA 2 — AJUSTAR LÓGICA DE PERMISSÃO
+--------------------------------------------------
+
+Localizar dentro do ProtectedRoute:
+
+if (allowedRoles && user && user.role !== 'MASTER' && !allowedRoles.includes(user.role))
+
+Substituir por:
+
+if (
+  allowedRoles &&
+  user &&
+  !FULL_ACCESS_ROLES.includes(user.role) &&
+  !allowedRoles.includes(user.role)
+)
+
+--------------------------------------------------
+ETAPA 3 — REMOVER REDIRECT AUTOMÁTICO
+--------------------------------------------------
+
+Localizar:
+
+return <Redirect to="/admin" />;
+
+Substituir por:
+
+console.warn("[ACCESS_DENIED]", {
+  role: user.role,
+  allowedRoles,
+  path: window.location.pathname
+});
+
+return (
+  <div style={{
+    height: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center"
+  }}>
+    <div style={{ fontSize: "48px", marginBottom: "10px" }}>🔒</div>
+    <h2>Acesso negado</h2>
+    <p>Você não tem permissão para acessar esta página.</p>
+
+    <button onClick={() => window.location.href = "/admin"}>
+      Voltar ao painel
+    </button>
+  </div>
+);
+
+--------------------------------------------------
+ETAPA 4 — ORDEM CORRETA DOS GUARDS
+--------------------------------------------------
+
+Garantir que o ProtectedRoute siga esta ordem:
+
+1. if (isLoading) → loading
+2. if (!isAuthenticated) → redirect /login
+3. if (sem permissão) → tela de acesso negado (SEM redirect)
+
+--------------------------------------------------
+ETAPA 5 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Usuário MASTER:
+→ acessar qualquer rota → deve funcionar
+
+2. ADMIN / DIRECTOR:
+→ acesso total também
+
+3. Usuário comum:
+→ acessar rota sem permissão → ver tela "Acesso negado"
+
+4. NUNCA deve:
+→ voltar para /login
+→ redirecionar automaticamente
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ redirecionamentos confusos
+→ volta pro login sem motivo
+→ difícil entender erro
+
+DEPOIS:
+→ MASTER com acesso total
+→ UX clara de permissão
+→ zero redirect indevido
+→ sistema com comportamento profissional
