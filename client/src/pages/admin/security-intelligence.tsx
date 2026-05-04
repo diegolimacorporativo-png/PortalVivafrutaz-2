@@ -209,9 +209,10 @@ function ScoreBar({ score }: { score: number }) {
 // ── In-memory summary cards ───────────────────────────────────────────────────
 
 function SummaryCards({ data }: { data: SecurityAnalysisData }) {
-  const criticals = data.ips.filter((ip) => ip.level === "CRITICAL").length;
-  const highs = data.ips.filter((ip) => ip.level === "HIGH").length;
-  const spikes = data.ips.filter((ip) => ip.spike).length;
+  const ips = data.ips ?? [];
+  const criticals = ips.filter((ip) => ip.level === "CRITICAL").length;
+  const highs = ips.filter((ip) => ip.level === "HIGH").length;
+  const spikes = ips.filter((ip) => ip.spike).length;
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">

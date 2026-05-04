@@ -186,7 +186,7 @@ export default function AiDeveloperPage() {
       switch (toolName) {
         case "index":
           setIndexData(data);
-          addMsg("system", `✅ Sistema indexado:\n• ${data.totalFiles} arquivos analisados\n• ${data.totalLines.toLocaleString()} linhas de código\n• ${data.totalSizeKB} KB total\n• ${data.endpoints.length} endpoints de API\n• ${data.tables.length} tabelas no banco\n• Backend: ${data.summary.backendFiles} | Frontend: ${data.summary.frontendFiles} | Services: ${data.summary.serviceFiles}`);
+          addMsg("system", `✅ Sistema indexado:\n• ${data.totalFiles} arquivos analisados\n• ${data.totalLines?.toLocaleString?.() ?? 0} linhas de código\n• ${data.totalSizeKB} KB total\n• ${(data.endpoints ?? []).length} endpoints de API\n• ${(data.tables ?? []).length} tabelas no banco\n• Backend: ${data.summary?.backendFiles} | Frontend: ${data.summary?.frontendFiles} | Services: ${data.summary?.serviceFiles}`);
           break;
         case "bugs":
           setBugsData(data);
@@ -194,15 +194,15 @@ export default function AiDeveloperPage() {
           break;
         case "security":
           setSecurityData(data);
-          addMsg("system", `🔐 Auditoria de segurança:\n• Score: ${data.score}/100\n• ${data.issues.length} issues encontrados\n• ${data.issues.filter((i: any) => i.severity === 'CRITICAL').length} críticos\n• ${data.recommendations.length} recomendações geradas`);
+          addMsg("system", `🔐 Auditoria de segurança:\n• Score: ${data.score}/100\n• ${(data.issues ?? []).length} issues encontrados\n• ${(data.issues ?? []).filter((i: any) => i.severity === 'CRITICAL').length} críticos\n• ${(data.recommendations ?? []).length} recomendações geradas`);
           break;
         case "performance":
           setPerfData(data);
-          addMsg("system", `⚡ Análise de performance:\n• Score: ${data.score}/100\n• ${data.checks.filter((c: any) => c.status === 'OK').length}/${data.checks.length} checks passaram\n• ${data.checks.filter((c: any) => c.status === 'WARN').length} avisos\n• ${data.checks.filter((c: any) => c.status === 'FAIL').length} falhas`);
+          addMsg("system", `⚡ Análise de performance:\n• Score: ${data.score}/100\n• ${(data.checks ?? []).filter((c: any) => c.status === 'OK').length}/${(data.checks ?? []).length} checks passaram\n• ${(data.checks ?? []).filter((c: any) => c.status === 'WARN').length} avisos\n• ${(data.checks ?? []).filter((c: any) => c.status === 'FAIL').length} falhas`);
           break;
         case "database":
           setDbData(data);
-          addMsg("system", `🗄️ Análise do banco concluída:\n• ${data.tables.length} tabelas mapeadas\n• ${data.indexes.length} índices existentes\n• Tamanho do banco: ${(data.database as any)?.db_size || 'N/A'}\n\nMainTables: ${Object.entries(data.rowCounts).map(([t, c]) => `${t}(${c})`).join(', ')}`);
+          addMsg("system", `🗄️ Análise do banco concluída:\n• ${(data.tables ?? []).length} tabelas mapeadas\n• ${(data.indexes ?? []).length} índices existentes\n• Tamanho do banco: ${(data.database as any)?.db_size || 'N/A'}\n\nMainTables: ${Object.entries(data.rowCounts ?? {}).map(([t, c]) => `${t}(${c})`).join(', ')}`);
           break;
         case "deploy":
           setDeployData(data);

@@ -1,0 +1,119 @@
+BI SAFE LAYER — HARDENING FRONTEND (SEM ALTERAR BACKEND)
+
+OBJETIVO:
+Blindar todas as páginas de BI / Intelligence contra crash por shape inconsistente de API.
+
+REGRA ABSOLUTA:
+- NÃO alterar backend
+- NÃO alterar contratos de API
+- NÃO refatorar UI visual
+- NÃO mudar layout
+- APENAS camada defensiva de dados no frontend
+
+========================================================
+ESCOPO
+========================================================
+
+Aplicar em TODAS as páginas de BI / Intelligence:
+
+- financial-intelligence
+- security-intelligence
+- developer
+- ai-developer
+- saas-dashboard (se existir consumo de listas)
+- qualquer página que use data.*.map ou data.*.filter direto
+
+========================================================
+PROBLEMA A CORRIGIR
+========================================================
+
+Atualmente o código assume:
+
+data.monthlyRevenue.map(...)
+data.topClients.map(...)
+data.ips.filter(...)
+syncMutation.data.checks.filter(...)
+
+RISCO:
+- data pode ser undefined
+- data pode ser objeto ao invés de array
+- data pode vir como { data: [] }
+- data pode vir parcialmente quebrado
+
+========================================================
+SOLUÇÃO OBRIGATÓRIA
+========================================================
+
+1. CRIAR PADRÃO LOCAL EM CADA PAGE:
+
+const normalizeBI = (input: any) => {
+  if (!input) return {}
+
+  if (Array.isArray(input)) return input
+
+  if (typeof input === "object") {
+    return input.data
+      ? input.data
+      : input
+  }
+
+  return {}
+}
+
+========================================================
+2. APLICAR EM TODAS AS VARIÁVEIS "data"
+
+ANTES:
+const revenue = data.monthlyRevenue.map(...)
+
+DEPOIS:
+const safe = normalizeBI(data)
+
+const revenue = (safe.monthlyRevenue ?? []).map(...)
+
+========================================================
+3. REGRA DE SEGURANÇA
+
+TODO acesso deve seguir padrão:
+
+(value ?? []).map(...)
+(value ?? []).filter(...)
+(value ?? []).forEach(...)
+
+OU:
+
+Array.isArray(value) ? value : []
+
+========================================================
+4. PROIBIDO
+
+❌ data.monthlyRevenue.map direto
+❌ data.ips.filter direto
+❌ data.checks.filter direto sem fallback
+❌ optional chaining como única proteção (?. NÃO é suficiente)
+
+========================================================
+5. COMPORTAMENTO ESPERADO
+
+- Nenhuma página de BI pode crashar por undefined
+- Nenhum .map/.filter pode quebrar render
+- API offline deve renderizar vazio e não erro
+- Shape inconsistente deve ser ignorado silenciosamente
+
+========================================================
+6. VALIDAÇÃO FINAL
+
+Garantir:
+
+- zero runtime error em BI pages
+- gráficos vazios quando dados inválidos
+- UI continua renderizando mesmo com API quebrada
+
+========================================================
+RESULTADO ESPERADO
+
+BI layer totalmente resiliente
+sem impacto visual
+sem mudança de backend
+sem alteração de UX
+apenas eliminação de crashes estruturais

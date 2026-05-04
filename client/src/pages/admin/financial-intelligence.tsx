@@ -39,7 +39,7 @@ export default function AdminFinancialIntelligence() {
     refetchInterval: 5 * 60 * 1000,
   });
 
-  const maxRevenue = data?.monthlyRevenue ? Math.max(...data.monthlyRevenue.map(m => m.revenue), 1) : 1;
+  const maxRevenue = data?.monthlyRevenue ? Math.max(...(data.monthlyRevenue ?? []).map(m => m.revenue), 1) : 1;
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -121,9 +121,9 @@ export default function AdminFinancialIntelligence() {
               <h2 className="font-bold text-foreground">Faturamento Mensal (últimos 6 meses)</h2>
             </div>
             <div className="flex items-end gap-3 h-36">
-              {data.monthlyRevenue.map((m, i) => {
+              {(data.monthlyRevenue ?? []).map((m, i) => {
                 const heightPct = maxRevenue > 0 ? Math.max((m.revenue / maxRevenue) * 100, 2) : 2;
-                const isCurrentMonth = i === data.monthlyRevenue.length - 1;
+                const isCurrentMonth = i === (data.monthlyRevenue ?? []).length - 1;
                 return (
                   <div key={m.month} className="flex-1 flex flex-col items-center gap-1">
                     <span className="text-xs text-muted-foreground font-mono">
@@ -159,7 +159,7 @@ export default function AdminFinancialIntelligence() {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.topClients.map((c, i) => (
+                  {(data.topClients ?? []).map((c, i) => (
                     <tr key={c.companyId} data-testid={`row-client-${c.companyId}`} className="border-t border-border/50 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                         <span className={`font-bold text-sm ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-muted-foreground'}`}>

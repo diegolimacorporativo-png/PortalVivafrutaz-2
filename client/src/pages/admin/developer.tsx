@@ -1057,16 +1057,16 @@ export default function DeveloperPage() {
                       Sistema: {syncMutation.data.overall === 'OK' ? 'SINCRONIZADO — Nenhum problema encontrado' : syncMutation.data.overall === 'WARN' ? 'SINCRONIZADO COM AVISOS — Verifique os itens abaixo' : 'ERROS DETECTADOS — Ação necessária'}
                     </p>
                     <p className="text-sm font-normal opacity-80">
-                      {syncMutation.data.checks.filter((c: any) => c.status === 'OK').length} verificações OK ·{' '}
-                      {syncMutation.data.checks.filter((c: any) => c.status === 'WARN').length} avisos ·{' '}
-                      {syncMutation.data.checks.filter((c: any) => c.status === 'ERROR').length} erros ·{' '}
+                      {(syncMutation.data.checks ?? []).filter((c: any) => c.status === 'OK').length} verificações OK ·{' '}
+                      {(syncMutation.data.checks ?? []).filter((c: any) => c.status === 'WARN').length} avisos ·{' '}
+                      {(syncMutation.data.checks ?? []).filter((c: any) => c.status === 'ERROR').length} erros ·{' '}
                       {syncMutation.data.autoFixed} item(ns) corrigido(s) automaticamente
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  {syncMutation.data.checks.map((check: any) => {
+                  {(syncMutation.data.checks ?? []).map((check: any) => {
                     const statusStyles = {
                       OK: { bg: 'border-green-200 bg-green-50', icon: <CheckCircle className="w-5 h-5 text-green-600 flex-shrink-0" />, label: 'text-green-700' },
                       WARN: { bg: 'border-orange-200 bg-orange-50', icon: <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0" />, label: 'text-orange-700' },
