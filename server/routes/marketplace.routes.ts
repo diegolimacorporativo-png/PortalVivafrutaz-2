@@ -17,7 +17,7 @@ export function register(app: Express) {
 
   app.post('/api/marketplace/modulos', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
@@ -28,7 +28,7 @@ export function register(app: Express) {
 
   app.patch('/api/marketplace/modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
@@ -39,7 +39,7 @@ export function register(app: Express) {
 
   app.delete('/api/marketplace/modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
@@ -50,7 +50,7 @@ export function register(app: Express) {
 
   app.post('/api/marketplace/seed', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
@@ -85,7 +85,7 @@ export function register(app: Express) {
 
   app.post('/api/marketplace/empresa/:empresaId/instalar/:moduloId', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
@@ -101,7 +101,7 @@ export function register(app: Express) {
 
   app.patch('/api/marketplace/empresa-modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {
@@ -112,7 +112,7 @@ export function register(app: Express) {
 
   app.delete('/api/marketplace/empresa-modulos/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     try {

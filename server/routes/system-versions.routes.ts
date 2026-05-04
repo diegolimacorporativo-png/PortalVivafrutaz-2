@@ -44,7 +44,7 @@ export function register(app: Express) {
 
   app.delete('/api/system/versions/:id', requireAuthCore, async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
-    if (!actor || !['MASTER','ADMIN','DEVELOPER'].includes(actor.role)) {
+    if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
     }
     await storage.deleteSystemVersion(parseInt(req.params.id));

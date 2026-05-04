@@ -131,10 +131,8 @@ export function register(app: Express) {
     }
   });
 
-  // FASE 6.3 — auth centralizado via requireSessionOrCompany (remove check manual).
-  app.get('/api/audit', requireSessionOrCompany, async (req: any, res) => {
-    const user = await storage.getUser(req.session.userId);
-    if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
+  // FASE 6.3 — auth centralizado via requireSessionOrCompany + requireRole.
+  app.get('/api/audit', requireSessionOrCompany, requireRole(['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']), async (req: any, res) => {
     try {
       const allUsers = await storage.getUsers();
       const allCompanies = await storage.getCompanies();

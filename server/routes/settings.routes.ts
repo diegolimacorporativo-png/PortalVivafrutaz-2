@@ -68,8 +68,9 @@ export function register(app: Express) {
 
   app.post('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
-    if (!user || user.role !== 'MASTER') {
-      return res.status(403).json({ message: 'Apenas usuário MASTER pode alterar configurações' });
+    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+    if (!user || !FULL_ACCESS_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: 'Sem permissão para alterar configurações' });
     }
     try {
       const empresaId = Number(req.params.empresaId);
@@ -83,8 +84,9 @@ export function register(app: Express) {
 
   app.put('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId);
-    if (!user || user.role !== 'MASTER') {
-      return res.status(403).json({ message: 'Apenas usuário MASTER pode alterar configurações' });
+    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+    if (!user || !FULL_ACCESS_ROLES.includes(user.role)) {
+      return res.status(403).json({ message: 'Sem permissão para alterar configurações' });
     }
     try {
       const empresaId = Number(req.params.empresaId);
