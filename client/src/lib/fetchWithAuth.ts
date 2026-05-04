@@ -1,19 +1,19 @@
 let _hasFired = false;
 
-const SESSION_ERROR_CODES = new Set([
+const CRITICAL_ERRORS = [
   "SESSION_INVALIDATED",
   "TOKEN_VERSION_MISMATCH",
   "SESSION_EXPIRED",
-]);
+];
 
-// ETAPA 2 — Endpoints secundários que NUNCA devem derrubar a sessão inteira.
-// Um 401 nesses endpoints é tolerável (logo sem logo, notificações vazias, etc.)
-// e não deve disparar o evento global auth:expired.
 const IGNORE_401_URLS = [
   "/api/company-config/logo",
   "/api/settings/maintenance",
   "/api/notifications",
   "/api/dashboard",
+  "/api/ai",
+  "/api/intelligence",
+  "/api/analysis",
 ];
 
 function dispatchAuthExpired(): void {
@@ -46,25 +46,23 @@ export async function fetchWithAuth(
     try {
       const cloned = res.clone();
       const body = await cloned.json();
-      const errorCode: string = body?.error ?? body?.code ?? "";
-      const isIgnored = IGNORE_401_URLS.some(u => url.includes(u));
-      const willDispatch = SESSION_ERROR_CODES.has(errorCode) && !isIgnored;
 
-      // ETAPA 1 — log completo para identificar qual endpoint ainda derruba a sessão
       console.warn("[AUTH_401_DEBUG]", {
         url,
         status: res.status,
         body,
-        errorCode,
-        isIgnored,
         isAuthRoute: url.startsWith("/api/auth/"),
-        willDispatch,
+        willDispatch: !IGNORE_401_URLS.some(u => url.includes(u)) && CRITICAL_ERRORS.includes(body?.error),
       });
 
-      // ETAPA 2 — nunca disparar auth:expired em rotas secundárias
-      if (isIgnored) return res;
+      if (IGNORE_401_URLS.some(u => url.includes(u))) {
+        return res;
+      }
 
-      if (SESSION_ERROR_CODES.has(errorCode)) {
+      if (
+        (res.status === 401 || res.status === 403) &&
+        CRITICAL_ERRORS.includes(body?.error)
+      ) {
         dispatchAuthExpired();
       }
     } catch {
