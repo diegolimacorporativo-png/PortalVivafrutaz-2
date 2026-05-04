@@ -2,6 +2,7 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { AIDeveloper } from "../services/aiDeveloper.ts";
+import { logSecurityEvent } from "../core/audit/security-logger";
 
 const claraIA = new AIDeveloper();
 
@@ -189,7 +190,25 @@ export async function register(app: Express): Promise<void> {
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 
       // Log export
-      await storage.createLog({ action: 'CLARA_EXPORT', description: `Exportação via Clara: tipo=${type}, período=${period}${companyId ? ', empresa=#' + companyId : ''}`, userId: currentUser.id, userEmail: currentUser.email, userRole: currentUser.role, level: 'INFO' });
+      await storage.createLog({ action: 'CLARA_EXPORT', description: `Exportação via Clara: tipo=${type}, período=${period}${exportCompanyId ? ', empresa=#' + exportCompanyId : ''}`, userId: currentUser.id, userEmail: currentUser.email, userRole: currentUser.role, level: 'INFO' });
+      // CAMADA-2: persistent audit record for every data export.
+      logSecurityEvent({
+        userId: currentUser.id,
+        companyId: exportCompanyId,
+        role: currentUser.role,
+        action: 'DATA_EXPORT',
+        resource: '/api/clara/export',
+        tenantScope: exportCompanyId ? 'SINGLE' : 'CROSS',
+        intent: 'EXPORT_DATA',
+        allowed: true,
+        metadata: {
+          format: 'excel',
+          type,
+          period,
+          recordCount: orders.length,
+          filters: { exportCompanyId, status: status ?? null },
+        },
+      });
 
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);

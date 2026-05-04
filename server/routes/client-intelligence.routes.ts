@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { logSecurityEvent } from "../core/audit/security-logger";
 
 export function register(app: Express) {
   // ─── Commercial Intelligence ─────────────────────────────────────────────
@@ -11,6 +12,18 @@ export function register(app: Express) {
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
+      // CAMADA-2: log cross-tenant commercial BI read.
+      logSecurityEvent({
+        userId: user.id,
+        companyId: (user as any).empresaId ?? null,
+        role: user.role,
+        action: 'CROSS_TENANT_READ',
+        resource: '/api/commercial-intelligence',
+        tenantScope: 'CROSS',
+        intent: 'BI_ANALYTICS',
+        allowed: true,
+        metadata: { datasets: ['orders', 'companies'] },
+      });
       const now = Date.now();
       const allOrders = await storage.getOrders();
       const allCompanies = await storage.getCompanies();
@@ -135,6 +148,18 @@ export function register(app: Express) {
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'FINANCEIRO'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
+      // CAMADA-2: log cross-tenant financial BI read.
+      logSecurityEvent({
+        userId: user.id,
+        companyId: (user as any).empresaId ?? null,
+        role: user.role,
+        action: 'CROSS_TENANT_READ',
+        resource: '/api/financial-intelligence',
+        tenantScope: 'CROSS',
+        intent: 'FINANCIAL_REPORT',
+        allowed: true,
+        metadata: { datasets: ['orders', 'companies'] },
+      });
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -220,6 +245,18 @@ export function register(app: Express) {
       if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
+      // CAMADA-2: log cross-tenant logistics BI read.
+      logSecurityEvent({
+        userId: user.id,
+        companyId: (user as any).empresaId ?? null,
+        role: user.role,
+        action: 'CROSS_TENANT_READ',
+        resource: '/api/logistics-intelligence',
+        tenantScope: 'CROSS',
+        intent: 'LOGISTICS_OPTIMIZATION',
+        allowed: true,
+        metadata: { datasets: ['orders', 'routes', 'companies'] },
+      });
       const now = new Date();
       const allOrders = await storage.getOrders();
       const routes = await storage.getRoutes();

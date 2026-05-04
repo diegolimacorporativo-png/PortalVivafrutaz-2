@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { db } from "../database/db.ts";
+import { logSecurityEvent } from "../core/audit/security-logger";
 import { aiInteractions } from "@shared/schema";
 import { tenantContext } from "../middleware/tenant";
 import { tenantWhere } from "../core/tenant/scope";
@@ -61,6 +62,24 @@ export function register(app: Express) {
     // If null, data-fetching intents return [] rather than leaking cross-tenant rows.
     const tenantId: number | null =
       company?.id ?? (company as any)?.empresaId ?? user?.empresaId ?? null;
+
+    // CAMADA-2: log every AI data access for full auditability.
+    logSecurityEvent({
+      userId: user?.id,
+      companyId: tenantId,
+      role: user?.role,
+      action: 'AI_DATA_ACCESS',
+      resource: '/api/assistant/chat',
+      tenantScope: tenantId ? 'SINGLE' : 'CROSS',
+      intent: 'AI_DATA_ACCESS',
+      allowed: true,
+      metadata: {
+        promptType: msg.split(' ').slice(0, 3).join(' '),
+        datasetsUsed: ['orders', 'users', 'routes'],
+        tenantId,
+        isAdmin: isAdmin,
+      },
+    });
 
     // Tenant-safe wrappers — used by every isInternal data-fetching intent below.
     // Returns [] when tenantId is unresolvable so responses degrade gracefully

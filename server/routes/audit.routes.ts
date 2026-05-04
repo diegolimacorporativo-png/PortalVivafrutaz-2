@@ -2,10 +2,25 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { logSecurityEvent } from "../core/audit/security-logger";
 
 export function register(app: Express) {
-  app.get('/api/admin/audit', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req, res) => {
+  app.get('/api/admin/audit', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req: any, res) => {
     try {
+      // CAMADA-2: log cross-tenant system audit access.
+      const auditActor = await storage.getUser(req.session?.userId).catch(() => null);
+      logSecurityEvent({
+        userId: auditActor?.id,
+        companyId: (auditActor as any)?.empresaId ?? null,
+        role: auditActor?.role,
+        action: 'CROSS_TENANT_READ',
+        resource: '/api/admin/audit',
+        tenantScope: 'CROSS',
+        intent: 'AUDIT_SYSTEM',
+        allowed: true,
+        metadata: { datasets: ['users', 'companies', 'orders', 'logs'] },
+      });
+
       const issues: Array<{ severity: string; category: string; message: string }> = [];
       const summary = { totalUsers: 0, activeUsers: 0, totalCompanies: 0, activeCompanies: 0, errors: 0, loginFails: 0 };
       const details: {

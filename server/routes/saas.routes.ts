@@ -10,6 +10,7 @@ import {
   logisticsRoutes as routesTable,
 } from "@shared/schema";
 import { eq, and, gte, sql } from "drizzle-orm";
+import { logSecurityEvent } from "../core/audit/security-logger";
 
 export async function register(app: Express): Promise<void> {
   // ─── SaaS: Bancos de Recebimento ────────────────────────────────────────────
@@ -210,6 +211,18 @@ export async function register(app: Express): Promise<void> {
     }
     try {
       const empresaId = parseInt(req.params.empresaId);
+      // CAMADA-2: log tenant usage metrics read (SINGLE scope — SQL-scoped query).
+      logSecurityEvent({
+        userId: actor.id,
+        companyId: (actor as any).empresaId ?? null,
+        role: actor.role,
+        action: 'CROSS_TENANT_READ',
+        resource: `/api/saas/uso/${empresaId}`,
+        tenantScope: 'SINGLE',
+        intent: 'BI_ANALYTICS',
+        allowed: true,
+        metadata: { targetEmpresaId: empresaId, dataset: 'usage_metrics' },
+      });
       const assinatura = (await storage.getAssinaturas()).find(a => a.companyId === empresaId);
       const plano = assinatura?.planoId ? (await storage.getPlanos()).find(p => p.id === assinatura.planoId) : null;
 

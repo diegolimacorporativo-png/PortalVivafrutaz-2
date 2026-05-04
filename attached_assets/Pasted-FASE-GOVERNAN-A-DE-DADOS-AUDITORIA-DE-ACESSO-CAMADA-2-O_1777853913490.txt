@@ -1,0 +1,190 @@
+FASE: GOVERNANÇA DE DADOS + AUDITORIA DE ACESSO (CAMADA 2)
+
+OBJETIVO:
+Criar rastreabilidade completa de:
+- quem acessou dados
+- quais dados foram acessados
+- em qual contexto (tenant vs cross-tenant)
+- com qual intenção (intent)
+- e se isso foi permitido ou exceção controlada
+
+========================================================
+REGRAS FUNDAMENTAIS (NÃO NEGOCIÁVEIS)
+========================================================
+
+1. TODO acesso a dados sensíveis deve ser logado
+2. TODO acesso cross-tenant deve ser explicitamente marcado
+3. TODO export deve ter registro de auditoria
+4. NENHUM acesso admin pode ocorrer sem trilha de intenção (intent)
+5. FILTER EM MEMÓRIA não substitui auditoria
+
+========================================================
+CAMADA DE LOG — CORE
+========================================================
+
+Criar/usar um sistema central:
+
+logSecurityEvent({
+  userId,
+  companyId,
+  role,
+  action,
+  resource,
+  tenantScope: "SINGLE" | "CROSS",
+  intent: string,
+  allowed: boolean,
+  timestamp,
+  metadata
+})
+
+========================================================
+1. CROSS-TENANT ACCESS TRACKING
+========================================================
+
+QUALQUER query que envolva múltiplos tenants:
+
+- admin-intelligence
+- audit.routes
+- client-intelligence
+- saas.usage
+- clara export global
+
+DEVE gerar log:
+
+logSecurityEvent({
+  action: "CROSS_TENANT_READ",
+  tenantScope: "CROSS",
+  intent: extractedIntent || "UNDEFINED",
+  allowed: true,
+  metadata: {
+    source: routePath,
+    dataset: "orders | users | routes | drivers"
+  }
+})
+
+========================================================
+2. EXPORT TRACKING (CRÍTICO)
+========================================================
+
+TODO export (Excel / CSV / relatório):
+
+logSecurityEvent({
+  action: "DATA_EXPORT",
+  tenantScope: companyId ? "SINGLE" : "CROSS",
+  intent: "EXPORT_REPORT",
+  metadata: {
+    format: "excel | csv | pdf",
+    filters: appliedFilters,
+    recordCount: numberOfRows
+  }
+})
+
+REGRA:
+- EXPORT CROSS-TENANT SEM MASTER = BLOQUEIO + LOG
+- EXPORT SINGLE-TENANT = sempre permitido mas logado
+
+========================================================
+3. INTENT TRACKING (NOVO CONCEITO)
+========================================================
+
+Cada endpoint admin deve definir:
+
+intent:
+- "BI_ANALYTICS"
+- "FINANCIAL_REPORT"
+- "LOGISTICS_OPTIMIZATION"
+- "AUDIT_SYSTEM"
+- "USER_MANAGEMENT"
+- "EXPORT_DATA"
+
+SE intent não existir → assumir "UNKNOWN"
+
+========================================================
+4. ROLE RISK CLASSIFICATION
+========================================================
+
+Criar classificação automática:
+
+HIGH RISK ROLES:
+- MASTER
+- ADMIN
+
+MEDIUM RISK:
+- DIRECTOR
+- OPERATIONS_MANAGER
+
+LOW RISK:
+- LOGISTICS
+- DRIVER
+- USER
+
+REGRA:
+Se LOW/MEDIUM acessar CROSS-TENANT → log obrigatório + flag WARNING
+
+========================================================
+5. DETECÇÃO DE ABUSO INTERNO
+========================================================
+
+Gerar alerta se ocorrer:
+
+- usuário faz > 1000 registros cross-tenant em 1h
+- export repetido de múltiplos tenants
+- acesso a dados financeiros de todos tenants
+- uso de endpoints admin fora de horário normal
+
+logSecurityEvent + flag:
+"ANOMALY_DETECTED"
+
+========================================================
+6. CLARA IA (CRÍTICO)
+========================================================
+
+TODAS as chamadas da Clara IA devem registrar:
+
+logSecurityEvent({
+  action: "AI_DATA_ACCESS",
+  intent: detectedIntent,
+  tenantScope,
+  metadata: {
+    promptType,
+    datasetsUsed: ["orders", "users", "routes"]
+  }
+})
+
+REGRA:
+Clara NUNCA pode acessar cross-tenant sem log explícito.
+
+========================================================
+7. SAÍDA PADRÃO DO SISTEMA DE LOG
+========================================================
+
+Todos os logs devem permitir:
+
+- filtragem por tenant
+- filtragem por usuário
+- filtragem por intent
+- filtragem por cross-tenant access
+- export de auditoria (MASTER only)
+
+========================================================
+CRITÉRIO DE SUCESSO
+========================================================
+
+✔ 100% dos acessos sensíveis logados
+✔ 100% dos cross-tenant acessos rastreáveis
+✔ exportações auditáveis
+✔ nenhuma ação admin sem intent
+✔ detecção de abuso ativa
+
+========================================================
+OBJETIVO FINAL
+========================================================
+
+Transformar o sistema em:
+
+"ERP com governança auditável de nível enterprise (estilo SAP / TOTVS / Oracle Cloud)"
+
+onde TODO dado tem:
+- dono (tenant)
+- motivo de acesso (intent)
+- rastreabilidade (audit log)

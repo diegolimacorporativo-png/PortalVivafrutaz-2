@@ -4,6 +4,7 @@ import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 import { db } from "../database/db";
 import { users as usersTable } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
+import { logSecurityEvent } from "../core/audit/security-logger";
 
 export function register(app: Express) {
   // --- IA Operacional / Central de Inteligência ---
@@ -14,6 +15,18 @@ export function register(app: Express) {
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
+      // CAMADA-2: log cross-tenant BI read with intent.
+      logSecurityEvent({
+        userId: user.id,
+        companyId: (user as any).empresaId ?? null,
+        role: user.role,
+        action: 'CROSS_TENANT_READ',
+        resource: '/api/admin/intelligence',
+        tenantScope: 'CROSS',
+        intent: 'BI_ANALYTICS',
+        allowed: true,
+        metadata: { datasets: ['orders', 'products', 'routes', 'logs'] },
+      });
 
       interface IntelAlert {
         id: string;
@@ -367,6 +380,18 @@ export function register(app: Express) {
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) {
         return res.status(403).json({ message: 'Sem permissão' });
       }
+      // CAMADA-2: log admin write intent before any mutation occurs.
+      logSecurityEvent({
+        userId: user.id,
+        companyId: (user as any).empresaId ?? null,
+        role: user.role,
+        action: 'USER_MANAGEMENT',
+        resource: '/api/admin/intelligence/auto-fix',
+        tenantScope: (user as any).empresaId ? 'SINGLE' : 'CROSS',
+        intent: 'USER_MANAGEMENT',
+        allowed: true,
+        metadata: { targetScope: (user as any).empresaId ? `empresa:${(user as any).empresaId}` : 'ABORTED_NO_TENANT' },
+      });
 
       const actions: Array<{ id: string; category: string; title: string; result: string; status: 'FIXED' | 'WARN' | 'SKIP' }> = [];
 
