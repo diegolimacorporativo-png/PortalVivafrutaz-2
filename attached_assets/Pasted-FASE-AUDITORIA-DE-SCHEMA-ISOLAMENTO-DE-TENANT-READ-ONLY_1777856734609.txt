@@ -1,0 +1,77 @@
+FASE: AUDITORIA DE SCHEMA — ISOLAMENTO DE TENANT (READ-ONLY)
+
+OBJETIVO:
+Identificar todas as tabelas do banco que NÃO possuem isolamento por tenant (empresa_id / company_id)
+e avaliar risco real de vazamento cross-tenant.
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+- NÃO criar migrations
+- NÃO alterar schema
+- NÃO sugerir refatoração estrutural
+- NÃO criar novas tabelas
+- NÃO modificar backend
+- APENAS analisar estrutura existente
+
+========================================================
+ETAPA 1 — MAPEAMENTO DO SCHEMA
+========================================================
+
+Listar TODAS as tabelas existentes e para cada uma:
+
+- nome da tabela
+- se possui campo empresa_id ou company_id
+- tipo de relação com tenant (direta, indireta, nenhuma)
+
+========================================================
+ETAPA 2 — CLASSIFICAÇÃO DE ISOLAMENTO
+========================================================
+
+Classificar cada tabela:
+
+🟢 OK → possui tenant_id obrigatório e usado em queries
+🟡 PARCIAL → possui campo mas não é usado em todas queries
+🔴 CRÍTICO → não possui campo de tenant (empresa_id/company_id)
+
+========================================================
+ETAPA 3 — IMPACTO REAL
+========================================================
+
+Para cada tabela 🔴 CRÍTICA:
+
+- identificar se contém dados sensíveis
+- identificar se já foi usada em endpoints cross-tenant
+- identificar se pode gerar vazamento entre empresas
+- identificar se é usada em BI / export / search
+
+========================================================
+ETAPA 4 — FLUXOS QUE USAM ESSAS TABELAS
+========================================================
+
+Mapear:
+
+- quais routes usam cada tabela
+- se usam filtro de tenant ou não
+- se há full-table scan
+- se há filter() em memória
+
+========================================================
+ETAPA 5 — RESULTADO FINAL
+
+Entregar:
+
+1. Lista completa de tabelas com classificação
+2. Top 10 maiores riscos reais de schema
+3. Tabelas críticas sem tenant isolation
+4. Impacto prático (vazamento real vs teórico)
+5. O que precisa ser corrigido com migration (somente lista, sem executar)
+
+========================================================
+IMPORTANTE
+========================================================
+
+- Não propor arquitetura nova
+- Não criar soluções
+- Não alterar código
+- Apenas diagnóstico de schema e risco real
