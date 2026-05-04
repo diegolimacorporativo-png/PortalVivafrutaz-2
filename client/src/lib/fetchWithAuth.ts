@@ -1,5 +1,11 @@
 let _hasFired = false;
 
+const SESSION_ERROR_CODES = new Set([
+  "SESSION_INVALIDATED",
+  "TOKEN_VERSION_MISMATCH",
+  "SESSION_EXPIRED",
+]);
+
 function dispatchAuthExpired(): void {
   if (_hasFired) return;
   _hasFired = true;
@@ -25,7 +31,16 @@ export async function fetchWithAuth(
     (res.status === 401 || res.status === 403) &&
     !url.startsWith("/api/auth/")
   ) {
-    dispatchAuthExpired();
+    try {
+      const cloned = res.clone();
+      const body = await cloned.json();
+      const errorCode: string = body?.error ?? body?.code ?? "";
+      if (SESSION_ERROR_CODES.has(errorCode)) {
+        dispatchAuthExpired();
+      }
+    } catch {
+      // Se não conseguir parsear o body, não dispara auth:expired
+    }
   }
 
   return res;

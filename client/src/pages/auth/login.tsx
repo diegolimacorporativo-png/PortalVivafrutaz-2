@@ -17,7 +17,7 @@ function usernameFromEmail(email: string): string {
 }
 
 export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {}) {
-  const { login, logout, isLoggingIn, isAuthenticated, isStaff, isClient } = useAuth();
+  const { login, logout, isLoggingIn, isAuthenticated, isStaff, isClient, isLoading } = useAuth();
   const [type, setType] = useState<'admin' | 'company'>(forceAdminTab ? 'admin' : 'company');
   const didAutoLogout = useRef(false);
   const [sessionExpiredBanner, setSessionExpiredBanner] = useState(false);
@@ -64,9 +64,28 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
     }
   }, [forceAdminTab, isAuthenticated, isClient, logout]);
 
+  // Aguarda validação real da sessão antes de redirecionar
+  // Evita loop: cache stale → /admin → auth:expired → /login → cache stale → /admin
+  if (isLoading) {
+    return <div className="h-screen flex items-center justify-center text-primary font-bold text-sm animate-pulse">Carregando...</div>;
+  }
+
   if (isAuthenticated) {
-    if (isStaff) return <Redirect to="/admin" />;
-    if (isClient && !forceAdminTab) return <Redirect to="/client" />;
+    const savedRedirect = sessionStorage.getItem("redirect_after_login");
+    if (isStaff) {
+      if (savedRedirect) {
+        sessionStorage.removeItem("redirect_after_login");
+        return <Redirect to={savedRedirect} />;
+      }
+      return <Redirect to="/admin" />;
+    }
+    if (isClient && !forceAdminTab) {
+      if (savedRedirect) {
+        sessionStorage.removeItem("redirect_after_login");
+        return <Redirect to={savedRedirect} />;
+      }
+      return <Redirect to="/client" />;
+    }
     if (isClient && forceAdminTab) return <div className="h-screen flex items-center justify-center text-primary font-bold text-sm animate-pulse">Redirecionando...</div>;
   }
 

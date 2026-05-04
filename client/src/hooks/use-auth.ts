@@ -40,7 +40,13 @@ export function useAuth() {
     onSuccess: (data) => {
       queryClient.setQueryData([api.auth.me.path], data);
       toast({ title: "Bem-vindo ao VivaFrutaz!" });
-      setLocation("/");
+      const savedRedirect = sessionStorage.getItem("redirect_after_login");
+      if (savedRedirect) {
+        sessionStorage.removeItem("redirect_after_login");
+        setLocation(savedRedirect);
+      } else {
+        setLocation("/");
+      }
     },
     onError: (error: Error) => {
       toast({ title: "Falha no Acesso", description: error.message, variant: "destructive" });
@@ -67,7 +73,7 @@ export function useAuth() {
     isStaff: !!authData?.user,
     isClient: !!authData?.company,
     role: authData?.user?.role,
-    isLoading: meQuery.isLoading,
+    isLoading: meQuery.isPending || meQuery.isFetching,
     login: loginMutation.mutateAsync,
     isLoggingIn: loginMutation.isPending,
     logout: logoutMutation.mutate,

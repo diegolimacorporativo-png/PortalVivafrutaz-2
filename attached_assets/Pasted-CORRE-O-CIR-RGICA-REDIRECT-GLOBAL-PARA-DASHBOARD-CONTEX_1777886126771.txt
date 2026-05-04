@@ -1,0 +1,133 @@
+CORREÇÃO CIRÚRGICA — REDIRECT GLOBAL PARA DASHBOARD
+
+CONTEXTO:
+Existe um bug onde qualquer página acessada redireciona automaticamente para /admin (dashboard).
+A causa já foi identificada:
+
+1) fetchWithAuth dispara auth:expired em QUALQUER 401/403
+2) AuthExpiredHandler redireciona globalmente para /login
+3) login.tsx redireciona automaticamente para /admin devido ao cache do useAuth (stale)
+4) ProtectedRoute usa isLoading incorreto (TanStack Query v5)
+
+OBJETIVO:
+Corrigir o comportamento SEM refatorar arquitetura, SEM remover fluxos existentes.
+
+REGRAS:
+- NÃO criar sistema novo
+- NÃO alterar estrutura de rotas
+- NÃO quebrar login/logout atual
+- Apenas corrigir lógica de decisão
+
+---
+
+ETAPA 1 — fetchWithAuth (CORREÇÃO CRÍTICA)
+
+Arquivo: client/src/lib/fetchWithAuth.ts
+
+PROBLEMA:
+auth:expired está sendo disparado para qualquer 401/403, inclusive erros não relacionados à sessão.
+
+CORREÇÃO:
+Disparar auth:expired SOMENTE quando for erro real de sessão.
+
+IMPLEMENTAÇÃO:
+- Verificar resposta do backend (body ou header)
+- Só disparar auth:expired se:
+  - código indicar SESSION_INVALIDATED OU TOKEN_VERSION_MISMATCH
+- NÃO disparar para outros 401/403
+
+---
+
+ETAPA 2 — AuthExpiredHandler (EVITAR REDIRECT FORÇADO)
+
+Arquivo: client/src/App.tsx
+
+PROBLEMA:
+Redireciona SEMPRE para /login, perdendo contexto.
+
+CORREÇÃO:
+- Salvar rota atual antes do redirect
+
+IMPLEMENTAR:
+const currentPath = window.location.pathname;
+sessionStorage.setItem("redirect_after_login", currentPath);
+
+ANTES de:
+setLocation("/login")
+
+---
+
+ETAPA 3 — login.tsx (CORREÇÃO PRINCIPAL DO LOOP)
+
+Arquivo: client/src/pages/auth/login.tsx
+
+PROBLEMA:
+Login usa cache stale e redireciona imediatamente para /admin.
+
+CORREÇÃO:
+Só redirecionar quando auth estiver realmente validado.
+
+IMPLEMENTAR:
+- usar isFetching OU status === "success"
+- NÃO confiar apenas em isStaff
+
+E:
+- se existir redirect_after_login:
+    → redirecionar para essa rota
+    → limpar sessionStorage
+
+---
+
+ETAPA 4 — use-auth.ts (FIX TANSTACK V5)
+
+Arquivo: client/src/hooks/use-auth.ts
+
+PROBLEMA:
+isLoading está incorreto.
+
+CORREÇÃO:
+Substituir:
+isLoading: meQuery.isLoading
+
+POR:
+isLoading: meQuery.isPending || meQuery.isFetching
+
+---
+
+ETAPA 5 — ProtectedRoute (ANTI-FLASH REDIRECT)
+
+Arquivo: client/src/App.tsx
+
+PROBLEMA:
+Redirect ocorre antes da sessão carregar.
+
+CORREÇÃO:
+ANTES de qualquer redirect:
+if (isLoading) return loading screen;
+
+Só depois:
+if (!isAuthenticated) redirect
+
+---
+
+RESULTADO ESPERADO:
+
+ANTES:
+Qualquer página → /admin
+
+DEPOIS:
+- Usuário permanece na página correta
+- Só vai pra login se sessão realmente expirou
+- Após login → volta para página original
+- Zero redirect em loop
+- Zero bounce automático para dashboard
+
+---
+
+IMPORTANTE:
+- NÃO alterar roles
+- NÃO alterar backend
+- NÃO alterar tenant logic
+- NÃO alterar rotas existentes
+
+Foco 100% em corrigir fluxo de autenticação e navegação.

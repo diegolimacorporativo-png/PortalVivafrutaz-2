@@ -26,6 +26,10 @@ function AuthExpiredHandler() {
   const [, setLocation] = useLocation();
   useEffect(() => {
     const handler = () => {
+      const currentPath = window.location.pathname;
+      if (currentPath !== "/login" && currentPath !== "/auth") {
+        sessionStorage.setItem("redirect_after_login", currentPath);
+      }
       sessionStorage.setItem("auth_expired", "1");
       setLocation("/login");
     };
