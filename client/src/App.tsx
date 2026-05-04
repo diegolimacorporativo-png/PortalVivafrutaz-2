@@ -159,6 +159,8 @@ function MaintenanceScreen() {
   );
 }
 
+const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+
 // Auth Guard Wrapper
 function UnauthorizedModule() {
   return (
@@ -213,8 +215,6 @@ function ProtectedRoute({
     return <Redirect to="/admin" />;
   }
 
-  const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
-
   if (allowedRoles && user && !FULL_ACCESS_ROLES.includes(user.role) && !allowedRoles.includes(user.role)) {
     fetchWithAuth('/api/auth/log-unauthorized', {
       method: 'POST',
@@ -241,7 +241,7 @@ function ProtectedRoute({
     );
   }
 
-  if (tabKey && user && user.role !== 'MASTER') {
+  if (tabKey && user && !FULL_ACCESS_ROLES.includes(user.role)) {
     const tabPerms = (user as any).tabPermissions as string[] | null | undefined;
     if (tabPerms && tabPerms.length > 0 && !tabPerms.includes(tabKey)) {
       return <UnauthorizedModule />;
