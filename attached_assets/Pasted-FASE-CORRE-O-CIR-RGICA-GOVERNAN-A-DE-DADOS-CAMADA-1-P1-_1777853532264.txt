@@ -1,0 +1,104 @@
+FASE: CORREÇÃO CIRÚRGICA — GOVERNANÇA DE DADOS (CAMADA 1 P1)
+
+OBJETIVO:
+Eliminar TODOS os riscos críticos de:
+- cross-tenant WRITE silencioso
+- exportação global sem controle explícito
+- full-table scan em métricas de uso SaaS
+
+REGRAS:
+❌ não refatorar arquitetura
+❌ não criar novos sistemas
+❌ não alterar comportamento funcional legítimo
+✔ apenas corrigir vazamento e isolamento de dados
+✔ manter compatibilidade total
+
+========================================================
+ESCOPO DA CAMADA 1
+========================================================
+
+1. admin-intelligence.routes.ts
+FIX CRÍTICO — AUTO-FIX CROSS-TENANT WRITE
+
+LOCAL:
+POST /api/admin/intelligence/auto-fix
+
+PROBLEMA:
+storage.getUsers() retorna todos os tenants
+updateUser() aplica mudanças sem filtrar empresa
+
+AÇÃO:
+- adicionar filtro explícito por empresaId antes de qualquer write
+- garantir que ONLY users do tenant ativo podem ser mutados
+- NUNCA permitir update cross-tenant mesmo em admin routes
+
+REGRA:
+Se empresaId não existir no contexto → ABORTAR operação
+
+========================================================
+
+2. clara.routes.ts
+FIX CRÍTICO — EXPORT GLOBAL SEM CONTROLE
+
+LOCAL:
+GET /api/clara/export
+
+PROBLEMA:
+storage.getOrders() retorna todos os tenants
+filtro companyId é opcional (query param)
+→ default = vazamento cross-tenant
+
+AÇÃO:
+- tornar companyId OBRIGATÓRIO para usuários não-MASTER
+- se role != MASTER/ADMIN → exigir tenantId automático da sessão
+- remover fallback global implícito
+- garantir que export SEMPRE seja scoped por tenant por padrão
+
+REGRA:
+Cross-tenant export só pode acontecer com role MASTER explícito
+
+========================================================
+
+3. saas.routes.ts
+FIX CRÍTICO — FULL TABLE SCAN EM MÉTRICAS DE USO
+
+LOCAL:
+GET /api/saas/uso/:empresaId
+
+PROBLEMA:
+storage.getUsers/getOrders/getDrivers/getRoutes
+→ carregam TODAS as tabelas do sistema
+→ filtro aplicado em memória
+
+AÇÃO:
+- substituir TODOS os storage.getX() por queries SQL filtradas
+- aplicar WHERE companyId/empresaId diretamente no banco
+- eliminar completamente filter() em memória para tenant separation
+
+REGRA:
+Cada métrica deve vir já filtrada do SQL
+
+========================================================
+
+REGRAS GERAIS DA CAMADA 1
+
+- NUNCA usar storage.getUsers/getOrders globais sem filtro
+- NUNCA usar filter() como substituto de WHERE
+- NUNCA permitir write sem tenantId validado
+- SE tenantId for null → abortar ou retornar []
+
+========================================================
+CRITÉRIO DE ACEITAÇÃO
+========================================================
+
+✔ zero cross-tenant write possível
+✔ zero export global implícito
+✔ zero full-table scan em métricas SaaS
+✔ comportamento dos endpoints admin preservado quando legítimo
+✔ sistema continua rodando sem breaking changes
+
+========================================================
+FINALIDADE
+========================================================
+
+Garantir que o sistema NÃO tenha nenhum vetor crítico de vazamento de dados entre empresas antes de escalar clientes reais.

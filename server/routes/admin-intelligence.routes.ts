@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { db } from "../database/db";
+import { users as usersTable } from "@shared/schema";
+import { eq, sql } from "drizzle-orm";
 
 export function register(app: Express) {
   // --- IA Operacional / Central de Inteligência ---
@@ -381,16 +384,27 @@ export function register(app: Express) {
       }
 
       // 2. Verificar usuários sem role definida
+      // CAMADA-1: write MUST be scoped to actor's tenant — never mutate cross-tenant.
       try {
-        const users = await storage.getUsers();
-        const noRole = users.filter((u: any) => !u.role);
-        if (noRole.length > 0) {
-          for (const u of noRole) {
-            await storage.updateUser(u.id, { role: 'LOGISTICS' });
-          }
-          actions.push({ id: 'fix-roles', category: 'sistema', title: `Role padrão aplicado a ${noRole.length} usuário(s)`, result: 'Role LOGISTICS aplicado a usuários sem cargo', status: 'FIXED' });
+        const actorEmpresaId: number | null = (user as any).empresaId ?? null;
+        if (!actorEmpresaId) {
+          // tenantId unavailable — abort to prevent cross-tenant write.
+          actions.push({ id: 'fix-roles', category: 'sistema', title: 'Roles de usuários — ABORTADO', result: 'Empresa não identificada no contexto. Operação abortada por segurança.', status: 'WARN' });
         } else {
-          actions.push({ id: 'fix-roles', category: 'sistema', title: 'Roles de usuários — OK', result: 'Todos os usuários têm roles definidas', status: 'SKIP' });
+          // SQL-scoped to actor's tenant only — zero cross-tenant risk.
+          const tenantUsers = await db
+            .select({ id: usersTable.id, role: usersTable.role })
+            .from(usersTable)
+            .where(eq(usersTable.empresaId, actorEmpresaId));
+          const noRole = tenantUsers.filter((u) => !u.role);
+          if (noRole.length > 0) {
+            for (const u of noRole) {
+              await storage.updateUser(u.id, { role: 'LOGISTICS' });
+            }
+            actions.push({ id: 'fix-roles', category: 'sistema', title: `Role padrão aplicado a ${noRole.length} usuário(s)`, result: 'Role LOGISTICS aplicado a usuários sem cargo da empresa', status: 'FIXED' });
+          } else {
+            actions.push({ id: 'fix-roles', category: 'sistema', title: 'Roles de usuários — OK', result: 'Todos os usuários têm roles definidas', status: 'SKIP' });
+          }
         }
       } catch (e: any) {
         actions.push({ id: 'fix-roles', category: 'sistema', title: 'Roles de usuários', result: `Erro: ${e.message}`, status: 'WARN' });

@@ -2,6 +2,14 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { checkBoletosVencidos } from "../modules/billing/billing.cron";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { db } from "../database/db";
+import {
+  users as usersTable,
+  orders as ordersTable,
+  logisticsDrivers as driversTable,
+  logisticsRoutes as routesTable,
+} from "@shared/schema";
+import { eq, and, gte, sql } from "drizzle-orm";
 
 export async function register(app: Express): Promise<void> {
   // ─── SaaS: Bancos de Recebimento ────────────────────────────────────────────
@@ -205,21 +213,31 @@ export async function register(app: Express): Promise<void> {
       const assinatura = (await storage.getAssinaturas()).find(a => a.companyId === empresaId);
       const plano = assinatura?.planoId ? (await storage.getPlanos()).find(p => p.id === assinatura.planoId) : null;
 
-      const [usuarios, pedidos, motoristas, rotas] = await Promise.all([
-        storage.getUsers(),
-        storage.getOrders(),
-        storage.getDrivers(),
-        storage.getRoutes(),
-      ]);
-
+      // CAMADA-1: all four metrics are now SQL COUNT queries scoped to empresaId.
+      // Zero full-table scans, zero in-memory tenant filter.
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
+      const [usuariosResult, pedidosResult, motoristasResult, rotasResult] = await Promise.all([
+        db.select({ c: sql<number>`count(*)::int` })
+          .from(usersTable)
+          .where(eq(usersTable.empresaId, empresaId)),
+        db.select({ c: sql<number>`count(*)::int` })
+          .from(ordersTable)
+          .where(and(eq(ordersTable.companyId, empresaId), gte(ordersTable.createdAt, startOfMonth))),
+        db.select({ c: sql<number>`count(*)::int` })
+          .from(driversTable)
+          .where(eq(driversTable.empresaId, empresaId)),
+        db.select({ c: sql<number>`count(*)::int` })
+          .from(routesTable)
+          .where(eq(routesTable.empresaId, empresaId)),
+      ]);
+
       const uso = {
-        usuarios: usuarios.filter(u => (u as any).companyId === empresaId).length,
-        pedidosMes: pedidos.filter(p => (p as any).companyId === empresaId && new Date(p.createdAt) >= startOfMonth).length,
-        motoristas: motoristas.filter(m => (m as any).companyId === empresaId).length,
-        rotas: rotas.filter(r => (r as any).companyId === empresaId).length,
+        usuarios:   usuariosResult[0]?.c   ?? 0,
+        pedidosMes: pedidosResult[0]?.c    ?? 0,
+        motoristas: motoristasResult[0]?.c ?? 0,
+        rotas:      rotasResult[0]?.c      ?? 0,
       };
 
       const limites = {

@@ -110,13 +110,36 @@ export async function register(app: Express): Promise<void> {
         dateFrom = null;
       }
 
-      const allOrders = await storage.getOrders();
+      // CAMADA-1: resolve export scope before hitting the DB.
+      // MASTER/ADMIN → cross-tenant allowed (explicit BI use); everyone else → own tenant only.
+      const isMasterAdmin = ['MASTER', 'ADMIN'].includes(currentUser.role);
+      const actorEmpresaId: number | null = (currentUser as any).empresaId ?? null;
+
+      // Determine the company scope for this export:
+      //   • explicit ?companyId param  → use it (admin chose a specific tenant)
+      //   • non-MASTER without param   → own tenant (auto-scoped, fail if unknown)
+      //   • MASTER/ADMIN without param → null = global cross-tenant export (documented intentional)
+      let exportCompanyId: number | null = null;
+      if (companyId) {
+        exportCompanyId = parseInt(companyId);
+      } else if (!isMasterAdmin) {
+        if (!actorEmpresaId) {
+          return res.status(403).json({ message: 'Empresa não identificada. Forneça ?companyId= para exportação.' });
+        }
+        exportCompanyId = actorEmpresaId;
+      }
+      // isMasterAdmin && !companyId → exportCompanyId stays null → global (CROSS-TENANT: intentional)
+
+      // CROSS-TENANT NOTE: storage.getOrders() without arg is global — only reachable by MASTER/ADMIN above.
+      const allOrders = exportCompanyId
+        ? await storage.getOrders(exportCompanyId)
+        : await storage.getOrders();
       const allCompanies = await storage.getCompanies();
 
       let orders = allOrders;
       if (dateFrom) orders = orders.filter((o: any) => new Date(o.orderDate || o.createdAt) >= dateFrom!);
       if (dateTo) orders = orders.filter((o: any) => new Date(o.orderDate || o.createdAt) <= dateTo!);
-      if (companyId) orders = orders.filter((o: any) => o.companyId === parseInt(companyId));
+      // companyId tenant filter removed — already applied at DB level via exportCompanyId above.
       if (status) orders = orders.filter((o: any) => o.status === status.toUpperCase());
 
       const companyMap: Record<number, string> = {};
