@@ -10,9 +10,12 @@ export function useCompanies() {
   return useQuery({
     queryKey: [api.companies.list.path],
     queryFn: async () => {
+      console.log("[COMPANY_LIST_FETCH]", { queryKey: api.companies.list.path, ts: Date.now() });
       const res = await fetchWithAuth(api.companies.list.path);
       if (!res.ok) throw new Error("Failed to fetch companies");
-      return api.companies.list.responses[200].parse(normalizeList(await res.json()));
+      const data = api.companies.list.responses[200].parse(normalizeList(await res.json()));
+      console.log("[COMPANY_LIST_RESULT]", { count: data.length, ts: Date.now() });
+      return data;
     }
   });
 }
@@ -22,6 +25,7 @@ export function useCreateCompany() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (data: z.infer<typeof api.companies.create.input>) => {
+      console.log("[CREATE_COMPANY_TRIGGER]", { ts: Date.now() });
       const res = await fetchWithAuth(api.companies.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,13 +37,18 @@ export function useCreateCompany() {
         console.error("[CREATE_COMPANY_ERROR]", { status: res.status, errorBody });
         throw new Error(errorBody?.message || errorBody?.error || "Erro ao criar empresa");
       }
-      return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
+      const result = api.companies.create.responses[201].parse(normalizeOne(await res.json()));
+      console.log("[CREATE_COMPANY_MUTFN_DONE]", { result, ts: Date.now() });
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("[CREATE_COMPANY_SUCCESS]", { data, ts: Date.now() });
+      console.log("[CREATE_COMPANY_INVALIDATING]", { queryKey: api.companies.list.path });
       queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });
       toast({ title: "Empresa criada com sucesso!" });
     },
-    onError: () => {
+    onError: (err) => {
+      console.error("[CREATE_COMPANY_ON_ERROR]", { err, ts: Date.now() });
       toast({ title: "Erro ao criar empresa", variant: "destructive" });
     }
   });

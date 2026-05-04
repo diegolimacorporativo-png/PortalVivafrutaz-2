@@ -1,0 +1,165 @@
+FASE: AUDITORIA DE ATUALIZAÇÃO DE DADOS (CACHE / STATE / REFETCH)
+
+OBJETIVO:
+Identificar por que entidades criadas (ex: empresas) NÃO aparecem imediatamente após criação e só atualizam após reload do app.
+
+IMPORTANTE:
+- NÃO corrigir ainda
+- NÃO refatorar nada
+- NÃO alterar comportamento
+- Apenas INVESTIGAR e GERAR RELATÓRIO
+
+--------------------------------------------------
+ESCOPO DA AUDITORIA
+--------------------------------------------------
+
+Focar em:
+
+1. Criação de empresa (create company)
+2. Listagem de empresas
+3. Hooks relacionados (use-admin.ts, useQuery, useMutation)
+4. QueryClient (TanStack Query)
+5. Invalidação de cache
+6. Atualização de estado após mutation
+
+--------------------------------------------------
+ETAPA 1 — MAPEAR FLUXO COMPLETO
+--------------------------------------------------
+
+Rastrear:
+
+1. Onde ocorre o CREATE (mutationFn)
+2. Qual endpoint é chamado (/api/companies)
+3. Qual hook busca a lista (useQuery)
+4. Qual queryKey está sendo usada
+
+Gerar saída:
+
+[FLOW_MAP]
+- mutation: arquivo + função
+- query: arquivo + queryKey
+- endpoint create
+- endpoint list
+
+--------------------------------------------------
+ETAPA 2 — VERIFICAR INVALIDAÇÃO DE CACHE
+--------------------------------------------------
+
+Após mutation de criação, verificar se existe:
+
+queryClient.invalidateQueries(...)
+OU
+queryClient.refetchQueries(...)
+
+Se NÃO existir → marcar como erro crítico
+
+Se existir → verificar se a queryKey bate EXATAMENTE
+
+Gerar saída:
+
+[CACHE_INVALIDATION]
+- existe: sim/não
+- queryKey usada
+- queryKey esperada
+- match: true/false
+
+--------------------------------------------------
+ETAPA 3 — VERIFICAR UPDATE OTIMISTA (SE EXISTE)
+--------------------------------------------------
+
+Checar se existe:
+
+onSuccess
+onSettled
+onMutate
+
+Verificar se algum deles faz:
+
+- setQueryData
+- append manual na lista
+
+Gerar saída:
+
+[OPTIMISTIC_UPDATE]
+- implementado: sim/não
+- método: invalidate | setQueryData | nenhum
+
+--------------------------------------------------
+ETAPA 4 — VERIFICAR STALE TIME E CACHE TIME
+--------------------------------------------------
+
+Localizar useQuery da listagem:
+
+Verificar:
+
+staleTime
+cacheTime
+refetchOnMount
+refetchOnWindowFocus
+
+Gerar saída:
+
+[QUERY_CONFIG]
+- staleTime
+- cacheTime
+- refetchOnMount
+- refetchOnFocus
+
+--------------------------------------------------
+ETAPA 5 — LOG DE EXECUÇÃO REAL
+--------------------------------------------------
+
+Adicionar TEMPORARIAMENTE logs:
+
+NO CREATE:
+
+console.log("[CREATE_COMPANY_TRIGGER]");
+
+NO SUCCESS:
+
+console.log("[CREATE_COMPANY_SUCCESS]", data);
+
+NA LISTAGEM:
+
+console.log("[COMPANY_LIST_FETCH]");
+
+OBJETIVO:
+Confirmar se a lista está sendo reexecutada após criação
+
+--------------------------------------------------
+ETAPA 6 — DIAGNÓSTICO FINAL
+--------------------------------------------------
+
+Classificar o problema em UMA dessas categorias:
+
+1. ❌ Falta de invalidateQueries
+2. ❌ QueryKey inconsistente
+3. ❌ staleTime alto (cache não atualiza)
+4. ❌ refetch desabilitado
+5. ❌ mutation não dispara onSuccess
+6. ❌ erro silencioso na mutation
+7. ❌ múltiplos queryClients
+8. ❌ componente não re-renderiza
+
+--------------------------------------------------
+ENTREGA OBRIGATÓRIA
+--------------------------------------------------
+
+Gerar relatório final no formato:
+
+[AUDIT_RESULT]
+
+CAUSA RAIZ:
+(explicar objetivamente)
+
+PROVA:
+(logs + código encontrado)
+
+LOCAL EXATO:
+(arquivo + linha)
+
+IMPACTO:
+(o que quebra)
+
+NÃO IMPLEMENTAR CORREÇÃO AINDA.
+AGUARDAR PRÓXIMA FASE.
