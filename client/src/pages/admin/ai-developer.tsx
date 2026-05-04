@@ -151,6 +151,8 @@ export default function AiDeveloperPage() {
   const [deployData, setDeployData] = useState<any[]>([]);
   const [selectedScript, setSelectedScript] = useState<any>(null);
   const [loadingTool, setLoadingTool] = useState<string | null>(null);
+  // ETAPA 5 — rastreia erros por ferramenta para exibir fallback visual
+  const [toolErrors, setToolErrors] = useState<Record<string, string>>({});
 
   // AI LAB state
   const [labHealth, setLabHealth] = useState<any>(null);
@@ -176,13 +178,20 @@ export default function AiDeveloperPage() {
   async function runTool(toolName: string, label: string, tabSwitch?: string) {
     if (!isAuthenticated || sessionExpired) { setSessionExpired(true); return; }
     setLoadingTool(toolName);
+    setToolErrors(prev => { const n = { ...prev }; delete n[toolName]; return n; });
     addMsg("user", `> ${label}`);
     if (tabSwitch) setActiveTab(tabSwitch);
+    // ETAPA 4 — log de início de carregamento
+    console.warn("[AI_DEV_LOAD]", { toolName, isLoading: true, error: null, data: null });
     try {
       const res = await fetchWithAuth(`/api/ai-developer/${toolName}`);
+      // ETAPA 4 — log da resposta da requisição
+      console.warn("[AI_DEV_REQUEST]", { url: `/api/ai-developer/${toolName}`, status: res.status, ok: res.ok });
       if (res.status === 401 || res.status === 403) { setLoadingTool(null); return; }
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Erro");
+      // ETAPA 4 — log dos dados recebidos
+      console.warn("[AI_DEV_LOAD]", { toolName, isLoading: false, error: null, data });
       const norm = normalizeBIResponse(data);
 
       switch (toolName) {
@@ -213,6 +222,10 @@ export default function AiDeveloperPage() {
           break;
       }
     } catch (e: any) {
+      // ETAPA 4 — log de erro
+      console.warn("[AI_DEV_LOAD]", { toolName, isLoading: false, error: e.message, data: null });
+      // ETAPA 5 — registra erro para exibir fallback visual na aba
+      setToolErrors(prev => ({ ...prev, [toolName]: e.message || "Erro desconhecido" }));
       addMsg("system", `❌ Erro ao executar ${label}: ${e.message}`);
       toast({ title: e.message, variant: "destructive" });
     } finally {
@@ -543,12 +556,25 @@ export default function AiDeveloperPage() {
               <TabsContent value="index" className="m-0">
                 {!indexData ? (
                   <div className="text-center py-12 text-gray-400">
-                    <Files className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">Execute "Analisar Sistema" para indexar o projeto.</p>
-                      <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("index", "Analisar Sistema", "index")} disabled={loadingTool !== null}>
-                      {loadingTool === "index" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Layers className="w-4 h-4 mr-2" />}
-                      Analisar Sistema
-                    </Button>
+                    {toolErrors["index"] ? (
+                      <>
+                        <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400 opacity-70" />
+                        <p className="text-sm font-medium text-red-500">Erro ao carregar análise — verifique logs</p>
+                        <p className="text-xs text-gray-400 mt-1">{toolErrors["index"]}</p>
+                        <Button type="button" className="mt-3" variant="outline" size="sm" onClick={() => runTool("index", "Analisar Sistema", "index")} disabled={loadingTool !== null}>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1" />Tentar novamente
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Files className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">Execute "Analisar Sistema" para indexar o projeto.</p>
+                        <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("index", "Analisar Sistema", "index")} disabled={loadingTool !== null}>
+                          {loadingTool === "index" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Layers className="w-4 h-4 mr-2" />}
+                          Analisar Sistema
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -616,12 +642,25 @@ export default function AiDeveloperPage() {
               <TabsContent value="bugs" className="m-0">
                 {!bugsData ? (
                   <div className="text-center py-12 text-gray-400">
-                    <Bug className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">Execute "Detectar Bugs" para analisar logs e código.</p>
-                    <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("bugs", "Detectar Bugs", "bugs")} disabled={loadingTool !== null}>
-                      {loadingTool === "bugs" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Bug className="w-4 h-4 mr-2" />}
-                      Detectar Bugs
-                    </Button>
+                    {toolErrors["bugs"] ? (
+                      <>
+                        <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400 opacity-70" />
+                        <p className="text-sm font-medium text-red-500">Erro ao carregar análise — verifique logs</p>
+                        <p className="text-xs text-gray-400 mt-1">{toolErrors["bugs"]}</p>
+                        <Button type="button" className="mt-3" variant="outline" size="sm" onClick={() => runTool("bugs", "Detectar Bugs", "bugs")} disabled={loadingTool !== null}>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1" />Tentar novamente
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Bug className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">Execute "Detectar Bugs" para analisar logs e código.</p>
+                        <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("bugs", "Detectar Bugs", "bugs")} disabled={loadingTool !== null}>
+                          {loadingTool === "bugs" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Bug className="w-4 h-4 mr-2" />}
+                          Detectar Bugs
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -686,12 +725,25 @@ export default function AiDeveloperPage() {
               <TabsContent value="security" className="m-0">
                 {!securityData ? (
                   <div className="text-center py-12 text-gray-400">
-                    <ShieldCheck className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">Execute "Auditoria de Segurança" para verificar vulnerabilidades.</p>
-                    <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("security", "Auditoria de Segurança", "security")} disabled={loadingTool !== null}>
-                      {loadingTool === "security" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
-                      Auditar Segurança
-                    </Button>
+                    {toolErrors["security"] ? (
+                      <>
+                        <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400 opacity-70" />
+                        <p className="text-sm font-medium text-red-500">Erro ao carregar análise — verifique logs</p>
+                        <p className="text-xs text-gray-400 mt-1">{toolErrors["security"]}</p>
+                        <Button type="button" className="mt-3" variant="outline" size="sm" onClick={() => runTool("security", "Auditoria de Segurança", "security")} disabled={loadingTool !== null}>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1" />Tentar novamente
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <ShieldCheck className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">Execute "Auditoria de Segurança" para verificar vulnerabilidades.</p>
+                        <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("security", "Auditoria de Segurança", "security")} disabled={loadingTool !== null}>
+                          {loadingTool === "security" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <ShieldCheck className="w-4 h-4 mr-2" />}
+                          Auditar Segurança
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -733,12 +785,25 @@ export default function AiDeveloperPage() {
               <TabsContent value="performance" className="m-0">
                 {!perfData ? (
                   <div className="text-center py-12 text-gray-400">
-                    <Zap className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">Execute "Analisar Performance" para verificar gargalos.</p>
-                    <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("performance", "Analisar Performance", "performance")} disabled={loadingTool !== null}>
-                      {loadingTool === "performance" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
-                      Analisar Performance
-                    </Button>
+                    {toolErrors["performance"] ? (
+                      <>
+                        <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400 opacity-70" />
+                        <p className="text-sm font-medium text-red-500">Erro ao carregar análise — verifique logs</p>
+                        <p className="text-xs text-gray-400 mt-1">{toolErrors["performance"]}</p>
+                        <Button type="button" className="mt-3" variant="outline" size="sm" onClick={() => runTool("performance", "Analisar Performance", "performance")} disabled={loadingTool !== null}>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1" />Tentar novamente
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Zap className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">Execute "Analisar Performance" para verificar gargalos.</p>
+                        <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("performance", "Analisar Performance", "performance")} disabled={loadingTool !== null}>
+                          {loadingTool === "performance" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
+                          Analisar Performance
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">
@@ -772,12 +837,25 @@ export default function AiDeveloperPage() {
               <TabsContent value="database" className="m-0">
                 {!dbData ? (
                   <div className="text-center py-12 text-gray-400">
-                    <Database className="w-10 h-10 mx-auto mb-2 opacity-40" />
-                    <p className="text-sm">Execute "Analisar Banco de Dados" para inspecionar o PostgreSQL.</p>
-                    <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("database", "Analisar Banco de Dados", "database")} disabled={loadingTool !== null}>
-                      {loadingTool === "database" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
-                      Analisar Banco
-                    </Button>
+                    {toolErrors["database"] ? (
+                      <>
+                        <AlertCircle className="w-10 h-10 mx-auto mb-2 text-red-400 opacity-70" />
+                        <p className="text-sm font-medium text-red-500">Erro ao carregar análise — verifique logs</p>
+                        <p className="text-xs text-gray-400 mt-1">{toolErrors["database"]}</p>
+                        <Button type="button" className="mt-3" variant="outline" size="sm" onClick={() => runTool("database", "Analisar Banco de Dados", "database")} disabled={loadingTool !== null}>
+                          <RefreshCw className="w-3.5 h-3.5 mr-1" />Tentar novamente
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <Database className="w-10 h-10 mx-auto mb-2 opacity-40" />
+                        <p className="text-sm">Execute "Analisar Banco de Dados" para inspecionar o PostgreSQL.</p>
+                        <Button type="button" className="mt-3 bg-violet-600 hover:bg-violet-700 text-white" onClick={() => runTool("database", "Analisar Banco de Dados", "database")} disabled={loadingTool !== null}>
+                          {loadingTool === "database" ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Database className="w-4 h-4 mr-2" />}
+                          Analisar Banco
+                        </Button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-4">

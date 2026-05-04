@@ -1,0 +1,140 @@
+FASE: DEBUG FINAL — AUTH INTERMITENTE + IA DEVELOPER QUEBRADA
+
+OBJETIVO:
+Eliminar redirects intermitentes para /login e restaurar funcionamento da IA Developer,
+sem alterar arquitetura existente.
+
+REGRAS:
+- NÃO refatorar sistema
+- NÃO alterar regras de auth
+- NÃO alterar backend além do necessário
+- APENAS diagnóstico + correções pontuais
+
+--------------------------------------------------
+ETAPA 1 — LOG 401 REAL (CRÍTICO)
+--------------------------------------------------
+
+Arquivo:
+client/src/lib/fetchWithAuth.ts
+
+ADICIONAR LOG COMPLETO:
+
+console.warn("[AUTH_401_DEBUG]", {
+  url,
+  status: res.status,
+  body,
+  isAuthRoute: url.startsWith("/api/auth/"),
+  willDispatch: SESSION_ERROR_CODES.has(body?.error),
+});
+
+OBJETIVO:
+Descobrir QUAL endpoint ainda está derrubando a sessão.
+
+--------------------------------------------------
+ETAPA 2 — BLOQUEAR DISPARO EM ROTAS NÃO CRÍTICAS
+--------------------------------------------------
+
+Ainda em fetchWithAuth:
+
+ANTES de dispatchAuthExpired():
+
+ADICIONAR EXCLUSÃO:
+
+const IGNORE_401_URLS = [
+  "/api/company-config/logo",
+  "/api/settings/maintenance",
+  "/api/notifications",
+  "/api/dashboard",
+];
+
+if (IGNORE_401_URLS.some(u => url.includes(u))) {
+  return res;
+}
+
+OBJETIVO:
+Evitar que endpoints secundários derrubem a sessão inteira.
+
+--------------------------------------------------
+ETAPA 3 — VALIDAR SESSION EM BACKEND
+--------------------------------------------------
+
+Arquivo:
+server/core/security/sessionGuard.ts
+
+ADICIONAR LOG:
+
+console.warn("[SESSION_CHECK]", {
+  userId: session.userId,
+  companyId: session.companyId,
+  tokenVersion: session.tokenVersion
+});
+
+OBJETIVO:
+Confirmar se a sessão está sendo destruída indevidamente.
+
+--------------------------------------------------
+ETAPA 4 — DEBUG IA DEVELOPER
+--------------------------------------------------
+
+Arquivo:
+client/src/pages/admin/ai-developer.tsx (ou equivalente)
+
+ADICIONAR:
+
+console.warn("[AI_DEV_LOAD]", {
+  isLoading,
+  error,
+  data
+});
+
+E no fetch:
+
+console.warn("[AI_DEV_REQUEST]", response);
+
+OBJETIVO:
+Verificar se:
+- request não está sendo feito
+- ou está falhando silenciosamente
+- ou está retornando vazio
+
+--------------------------------------------------
+ETAPA 5 — FALLBACK VISUAL (IA)
+--------------------------------------------------
+
+Se data vier null ou erro:
+
+EXIBIR:
+
+"Erro ao carregar análise — verifique logs"
+
+OBJETIVO:
+Evitar tela morta silenciosa
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO FINAL
+--------------------------------------------------
+
+Testar:
+
+1. Navegar entre páginas rapidamente
+→ NÃO pode voltar pro login
+
+2. Abrir IA Developer
+→ deve:
+   - carregar OU
+   - mostrar erro visível
+
+3. Console:
+→ identificar QUAL endpoint gera 401
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ logout aleatório + IA quebrada
+
+DEPOIS:
+→ sessão estável
+→ IA funcionando ou erro visível
+→ causa raiz identificada via logs

@@ -6,6 +6,16 @@ const SESSION_ERROR_CODES = new Set([
   "SESSION_EXPIRED",
 ]);
 
+// ETAPA 2 — Endpoints secundários que NUNCA devem derrubar a sessão inteira.
+// Um 401 nesses endpoints é tolerável (logo sem logo, notificações vazias, etc.)
+// e não deve disparar o evento global auth:expired.
+const IGNORE_401_URLS = [
+  "/api/company-config/logo",
+  "/api/settings/maintenance",
+  "/api/notifications",
+  "/api/dashboard",
+];
+
 function dispatchAuthExpired(): void {
   if (_hasFired) return;
   _hasFired = true;
@@ -37,12 +47,33 @@ export async function fetchWithAuth(
       const cloned = res.clone();
       const body = await cloned.json();
       const errorCode: string = body?.error ?? body?.code ?? "";
-      console.warn("[AUTH_401_FULL]", { url, status: res.status, body, errorCode, willDispatch: SESSION_ERROR_CODES.has(errorCode) });
+      const isIgnored = IGNORE_401_URLS.some(u => url.includes(u));
+      const willDispatch = SESSION_ERROR_CODES.has(errorCode) && !isIgnored;
+
+      // ETAPA 1 — log completo para identificar qual endpoint ainda derruba a sessão
+      console.warn("[AUTH_401_DEBUG]", {
+        url,
+        status: res.status,
+        body,
+        errorCode,
+        isIgnored,
+        isAuthRoute: url.startsWith("/api/auth/"),
+        willDispatch,
+      });
+
+      // ETAPA 2 — nunca disparar auth:expired em rotas secundárias
+      if (isIgnored) return res;
+
       if (SESSION_ERROR_CODES.has(errorCode)) {
         dispatchAuthExpired();
       }
     } catch {
-      console.warn("[AUTH_401_FULL]", { url, status: res.status, body: "(parse failed)", willDispatch: false });
+      console.warn("[AUTH_401_DEBUG]", {
+        url,
+        status: res.status,
+        body: "(parse failed)",
+        willDispatch: false,
+      });
     }
   }
 
