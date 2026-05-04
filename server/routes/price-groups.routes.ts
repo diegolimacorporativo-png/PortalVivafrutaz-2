@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
+import { requireAuth, requireRole } from "../core/http/requireAuth";
+
+const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
 
 export function register(app: Express) {
   // Price Groups
@@ -9,7 +12,7 @@ export function register(app: Express) {
     res.json(groups);
   });
 
-  app.post(api.priceGroups.create.path, async (req, res) => {
+  app.post(api.priceGroups.create.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       const input = api.priceGroups.create.input.parse(req.body);
       const group = await storage.createPriceGroup(input);
@@ -19,7 +22,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put(api.priceGroups.update.path, async (req, res) => {
+  app.put(api.priceGroups.update.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       const input = api.priceGroups.update.input.parse(req.body);
       const group = await storage.updatePriceGroup(Number(req.params.id), input);
@@ -29,7 +32,7 @@ export function register(app: Express) {
     }
   });
 
-  app.delete(api.priceGroups.delete.path, async (req, res) => {
+  app.delete(api.priceGroups.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       await storage.deletePriceGroup(Number(req.params.id));
       res.status(204).end();

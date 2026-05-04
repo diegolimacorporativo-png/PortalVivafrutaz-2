@@ -1,0 +1,95 @@
+FASE: CORREÇÃO CIRÚRGICA DOS BLOQUEADORES DE PRODUÇÃO (NO REFACTOR)
+
+OBJETIVO:
+Corrigir apenas os problemas bloqueantes de produção identificados na auditoria,
+sem refatorar arquitetura, sem criar novos sistemas, sem reorganizar módulos.
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+- NÃO criar novas camadas
+- NÃO mudar arquitetura atual
+- NÃO alterar frontend
+- NÃO reescrever repositories
+- NÃO otimizar performance
+- NÃO criar abstrações novas
+
+APENAS CORRIGIR:
+
+========================================================
+BLOCO 1 — ROTAS SEM AUTENTICAÇÃO (CRÍTICO)
+========================================================
+
+Adicionar requireAuth + requireRole adequado em:
+
+- POST /api/order-windows
+- PUT /api/order-windows/:id
+- DELETE /api/order-windows/:id
+
+- POST /api/price-groups
+- POST /api/product-prices
+
+REGRA:
+- Somente ADMIN | DIRECTOR | MASTER podem escrever
+
+========================================================
+BLOCO 2 — SEARCH CROSS-TENANT LEAK (CRÍTICO)
+========================================================
+
+Arquivo: search.routes.ts
+
+CORRIGIR:
+- Todas queries devem incluir filtro de tenant:
+
+WHERE empresa_id = currentTenantId()
+
+APLICAR EM:
+- companies search
+- users search
+- fiscal_invoices search
+- products search (se existir)
+
+REGRA:
+- nunca retornar dados de outros tenants
+- nunca usar full-table scan sem WHERE tenant
+
+========================================================
+BLOCO 3 — IDOR (ALTO)
+========================================================
+
+Em todas rotas com:
+
+- DELETE /:id
+- PUT /:id
+
+VALIDAR:
+
+- resource.empresa_id === currentTenantId()
+OU
+- resource.companyId === currentTenantId()
+
+Se não bater:
+→ return 403
+
+Aplicar em:
+- fiscal-invoices
+- bank
+- incidents
+- qualquer rota por ID
+
+========================================================
+VALIDAÇÃO FINAL
+========================================================
+
+- nenhuma rota de escrita sem auth
+- nenhuma query cross-tenant sem filtro
+- nenhum DELETE/PUT sem verificação de ownership
+- zero mudança de frontend
+- zero refatoração estrutural
+
+========================================================
+RESULTADO ESPERADO
+========================================================
+
+Sistema seguro para beta fechado multi-tenant
+sem vazamento entre empresas e sem escrita pública

@@ -1,6 +1,9 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
+import { requireAuth, requireRole } from "../core/http/requireAuth";
+
+const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
 
 export function register(app: Express) {
   // Order Windows
@@ -33,7 +36,7 @@ export function register(app: Express) {
     res.json(window);
   });
 
-  app.post(api.orderWindows.create.path, async (req, res) => {
+  app.post(api.orderWindows.create.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       const { weekReference, orderOpenDate, orderCloseDate, deliveryStartDate, deliveryEndDate, active, forceOpen } = req.body;
       if (!weekReference || !orderOpenDate || !orderCloseDate || !deliveryStartDate || !deliveryEndDate) {
@@ -55,7 +58,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put(api.orderWindows.update.path, async (req, res) => {
+  app.put(api.orderWindows.update.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       const { weekReference, orderOpenDate, orderCloseDate, deliveryStartDate, deliveryEndDate, active, forceOpen } = req.body;
       const updates: any = {};
@@ -74,7 +77,7 @@ export function register(app: Express) {
     }
   });
 
-  app.delete(api.orderWindows.delete.path, async (req, res) => {
+  app.delete(api.orderWindows.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     await storage.deleteOrderWindow(Number(req.params.id));
     res.status(204).end();
   });

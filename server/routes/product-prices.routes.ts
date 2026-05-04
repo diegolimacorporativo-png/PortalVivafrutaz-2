@@ -1,7 +1,10 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
+import { requireAuth, requireRole } from "../core/http/requireAuth";
 import { z } from "zod";
+
+const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
 
 export function register(app: Express) {
   // Product Prices
@@ -19,7 +22,7 @@ export function register(app: Express) {
     res.json(prices);
   });
 
-  app.post(api.productPrices.create.path, async (req, res) => {
+  app.post(api.productPrices.create.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       // Use coercion for numbers coming from form inputs if needed
       const bodySchema = api.productPrices.create.input.extend({
@@ -35,7 +38,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put(api.productPrices.update.path, async (req, res) => {
+  app.put(api.productPrices.update.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     try {
       const bodySchema = api.productPrices.update.input.extend({
         productId: z.coerce.number().optional(),
@@ -50,7 +53,7 @@ export function register(app: Express) {
     }
   });
 
-  app.delete(api.productPrices.delete.path, async (req, res) => {
+  app.delete(api.productPrices.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req, res) => {
     await storage.deleteProductPrice(Number(req.params.id));
     res.status(204).end();
   });
