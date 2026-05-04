@@ -1,0 +1,153 @@
+FASE: DEBUG + CORREÇÃO — ERRO "The string did not match the expected pattern"
+
+OBJETIVO:
+Encontrar e corrigir a origem do erro no frontend (fetch / headers / URL / JSON),
+sem alterar comportamento funcional do sistema.
+
+REGRAS:
+- NÃO refatorar arquitetura
+- NÃO alterar fluxos existentes
+- APENAS corrigir pontos que causam erro
+- ADICIONAR logs claros para diagnóstico
+
+--------------------------------------------------
+ETAPA 1 — MAPEAR ORIGEM DO ERRO
+--------------------------------------------------
+
+Buscar no projeto inteiro por:
+
+1. fetch(
+2. new URL(
+3. headers:
+4. response.json(
+5. X-Device-Id
+
+Adicionar logs ANTES de cada fetch:
+
+console.warn("[FETCH_DEBUG]", {
+  url,
+  headers,
+  method,
+  body
+});
+
+--------------------------------------------------
+ETAPA 2 — PROTEGER X-Device-Id (CRÍTICO)
+--------------------------------------------------
+
+Arquivo:
+client/src/lib/fetchWithAuth.ts
+
+SUBSTITUIR:
+
+const deviceId = localStorage.getItem("device_id");
+
+POR:
+
+let deviceId = localStorage.getItem("device_id");
+
+if (!deviceId) {
+  deviceId = "web-client";
+}
+
+// sanitização obrigatória
+const safeDeviceId = deviceId
+  .toString()
+  .replace(/[^a-zA-Z0-9-_]/g, "")
+  .slice(0, 50);
+
+Adicionar log:
+
+console.warn("[DEVICE_ID_DEBUG]", {
+  original: deviceId,
+  safe: safeDeviceId
+});
+
+E usar:
+
+"X-Device-Id": safeDeviceId
+
+--------------------------------------------------
+ETAPA 3 — PROTEGER URL DO FETCH
+--------------------------------------------------
+
+ANTES de qualquer fetch:
+
+if (!url || typeof url !== "string") {
+  console.error("[INVALID_URL]", url);
+  throw new Error("Invalid URL");
+}
+
+if (!url.startsWith("/") && !url.startsWith("http")) {
+  console.warn("[URL_FIX_APPLIED]", url);
+  url = "/" + url;
+}
+
+--------------------------------------------------
+ETAPA 4 — PROTEGER response.json()
+--------------------------------------------------
+
+SUBSTITUIR:
+
+const data = await response.json();
+
+POR:
+
+let data;
+
+try {
+  data = await response.json();
+} catch (err) {
+  console.error("[JSON_PARSE_ERROR]", {
+    url,
+    status: response.status
+  });
+  throw new Error("Resposta inválida do servidor");
+}
+
+--------------------------------------------------
+ETAPA 5 — LOG COMPLETO DE ERRO
+--------------------------------------------------
+
+No catch global de requests (especialmente AI Developer):
+
+Adicionar:
+
+console.error("[REQUEST_ERROR_FULL]", {
+  message: error.message,
+  stack: error.stack
+});
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Acessar IA Developer
+2. Executar análise
+3. Ver console
+
+Esperado:
+
+- NÃO aparecer mais:
+  "The string did not match the expected pattern"
+
+- Logs devem mostrar:
+  [DEVICE_ID_DEBUG]
+  [FETCH_DEBUG]
+  [JSON_PARSE_ERROR] (se backend estiver errado)
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ erro genérico sem rastreio
+
+DEPOIS:
+→ erro eliminado OU totalmente rastreável
+→ headers seguros
+→ URLs válidas
+→ JSON protegido
+→ sistema estável

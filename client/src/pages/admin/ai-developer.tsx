@@ -186,8 +186,14 @@ export default function AiDeveloperPage() {
       const res = await fetchWithAuth(`/api/ai-developer/${toolName}`);
       if (res.status === 401 || res.status === 403) { setLoadingTool(null); return; }
 
-      // ETAPA 1 — log da resposta completa
-      const json = await res.json();
+      // ETAPA 1 + ETAPA 4 — log da resposta completa com JSON protegido
+      let json: any;
+      try {
+        json = await res.json();
+      } catch (err: any) {
+        console.error("[JSON_PARSE_ERROR]", { url: `/api/ai-developer/${toolName}`, status: res.status, err: err.message });
+        throw new Error("Resposta inválida do servidor");
+      }
       console.warn("[AI_DEV_FULL_RESPONSE]", { status: res.status, ok: res.ok, json });
 
       // ETAPA 2 — erro no backend
@@ -240,6 +246,8 @@ export default function AiDeveloperPage() {
           break;
       }
     } catch (e: any) {
+      // ETAPA 5 — log completo com stack para rastreio total
+      console.error("[REQUEST_ERROR_FULL]", { message: e.message, stack: e.stack });
       console.warn("[AI_DEV_LOAD]", { toolName, isLoading: false, error: e.message, data: null });
       setToolErrors(prev => ({ ...prev, [toolName]: e.message || "Erro desconhecido" }));
       addMsg("system", `❌ Erro ao executar ${label}: ${e.message}`);
