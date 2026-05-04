@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import type { Request, Response } from "express";
 import {
   companiesService,
@@ -44,12 +45,20 @@ export class CompaniesController {
   };
 
   create = async (req: Request, res: Response) => {
+    const temporaryPassword = crypto.randomBytes(8).toString("hex");
+    const body = {
+      ...req.body,
+      password: temporaryPassword,
+      mustChangePassword: true,
+      passwordTemporary: true,
+    };
     console.warn("[CREATE_COMPANY_BACKEND]", {
       userId: (req as any).session?.userId,
       role: (req as any).session?.role ?? (req as any).user?.role,
-      body: req.body,
+      body: { ...body, password: "[REDACTED]" },
     });
-    return created(res, await this.service.create(req.body));
+    const company = await this.service.create(body as any);
+    res.status(201).json({ ...company, temporaryPassword });
   };
 
   update = async (req: Request, res: Response) => {

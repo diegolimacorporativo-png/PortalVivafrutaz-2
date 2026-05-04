@@ -45,6 +45,7 @@ function AuthExpiredHandler() {
 // Page Imports
 import Login from "@/pages/auth/login";
 import ResetPassword from "@/pages/auth/reset-password";
+import ChangePassword from "@/pages/auth/change-password";
 import AdminDashboard from "@/pages/admin/dashboard";
 import AdminCompanies from "@/pages/admin/companies";
 import AdminProducts from "@/pages/admin/products";
@@ -301,6 +302,7 @@ function Router() {
       <Route path="/auth">{() => <Login />}</Route>
       <Route path="/equipe">{() => <Login forceAdminTab />}</Route>
       <Route path="/reset-password">{() => <ResetPassword />}</Route>
+      <Route path="/change-password">{() => <ChangePassword />}</Route>
       <Route path="/os">{() => <Redirect to="/admin/tasks" />}</Route>
       <Route path="/os/:rest*">{() => <Redirect to="/admin/tasks" />}</Route>
       <Route path="/ordem-servico">{() => <Redirect to="/admin/tasks" />}</Route>

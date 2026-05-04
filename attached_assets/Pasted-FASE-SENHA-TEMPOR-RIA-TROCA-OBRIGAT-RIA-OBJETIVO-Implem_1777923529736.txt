@@ -1,0 +1,141 @@
+FASE: SENHA TEMPORÁRIA + TROCA OBRIGATÓRIA
+
+OBJETIVO:
+Implementar fluxo seguro onde:
+- usuário é criado com senha temporária
+- usuário é OBRIGADO a trocar a senha no primeiro login
+- sem quebrar fluxo atual de autenticação
+
+REGRAS:
+- NÃO alterar estrutura principal de auth
+- NÃO remover login atual
+- ALTERAÇÕES mínimas e seguras
+- Compatível com sistema atual
+
+--------------------------------------------------
+ETAPA 1 — BACKEND (CRIAR USUÁRIO)
+--------------------------------------------------
+
+Ao criar usuário (create company ou create user):
+
+1. Gerar senha temporária:
+
+const temporaryPassword = randomBytes(8).toString('hex');
+
+2. Salvar usuário com flag:
+
+mustChangePassword: true
+
+3. Retornar senha no response:
+
+return res.status(201).json({
+  user,
+  company,
+  temporaryPassword
+});
+
+--------------------------------------------------
+ETAPA 2 — FRONTEND (EXIBIR SENHA)
+--------------------------------------------------
+
+Após criação da empresa/usuário:
+
+Mostrar a senha temporária:
+
+toast({
+  title: "Empresa criada com sucesso",
+  description: Senha temporária: ${data.temporaryPassword}
+});
+
+OU preferencial:
+→ modal com botão "copiar senha"
+
+--------------------------------------------------
+ETAPA 3 — LOGIN (BLOQUEIO CONTROLADO)
+--------------------------------------------------
+
+Arquivo:
+client/src/hooks/use-auth.ts OU login.tsx
+
+Após autenticação bem-sucedida:
+
+if (user.mustChangePassword) {
+  window.location.href = "/change-password";
+  return;
+}
+
+IMPORTANTE:
+- NÃO permitir acesso ao sistema antes da troca
+- NÃO redirecionar para /admin
+
+--------------------------------------------------
+ETAPA 4 — NOVA TELA
+--------------------------------------------------
+
+Criar rota:
+
+/change-password
+
+Com formulário:
+
+- senha atual
+- nova senha
+- confirmar senha
+
+--------------------------------------------------
+ETAPA 5 — BACKEND (ALTERAR SENHA)
+--------------------------------------------------
+
+Endpoint:
+
+POST /api/auth/change-password
+
+Lógica:
+
+1. Validar senha atual
+2. Atualizar senha (hash)
+3. Atualizar flag:
+
+mustChangePassword = false
+
+4. Retornar sucesso
+
+--------------------------------------------------
+ETAPA 6 — REDIRECIONAMENTO FINAL
+--------------------------------------------------
+
+Após sucesso:
+
+window.location.href = "/admin";
+
+--------------------------------------------------
+ETAPA 7 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Criar empresa
+→ receber senha temporária
+
+2. Login com essa senha
+→ deve ir para /change-password
+
+3. Trocar senha
+→ deve ir para /admin
+
+4. Login novamente
+→ NÃO deve pedir troca
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ senha fixa ou desconhecida
+→ insegurança ou bloqueio
+
+DEPOIS:
+→ senha temporária segura
+→ usuário define sua própria senha
+→ fluxo profissional de SaaS
+→ zero impacto no restante do sistema

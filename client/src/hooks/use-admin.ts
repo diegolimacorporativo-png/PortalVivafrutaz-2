@@ -56,7 +56,11 @@ export function useCreateCompany() {
       });
       console.log("[REFETCHED]");
 
-      toast({ title: "Empresa criada com sucesso!" });
+      // Toast is intentionally skipped here when temporaryPassword is present.
+      // The companies page shows a dedicated modal with the credential to copy.
+      if (!data.temporaryPassword) {
+        toast({ title: "Empresa criada com sucesso!" });
+      }
     },
     onError: (err) => {
       console.error("[CREATE_COMPANY_ON_ERROR]", { err, ts: Date.now() });

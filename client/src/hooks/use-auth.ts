@@ -35,6 +35,19 @@ export function useAuth() {
         body: JSON.stringify({ ...data, deviceId }),
         credentials: "include",
       });
+
+      // FASE SENHA TEMPORÁRIA — backend returns 403 when mustChangePassword is true.
+      // Redirect to /change-password instead of surfacing an error to the user.
+      if (res.status === 403) {
+        const body = await res.json();
+        if (body?.error === "PASSWORD_CHANGE_REQUIRED") {
+          sessionStorage.setItem("change_password_email", body.email ?? data.email ?? "");
+          setLocation("/change-password");
+          return null as any;
+        }
+        throw new Error(body?.message || "Acesso negado.");
+      }
+
       if (!res.ok) {
         const error = await res.json();
         throw new Error(error.message || "Falha no login");
@@ -42,6 +55,8 @@ export function useAuth() {
       return api.auth.login.responses[200].parse(await res.json());
     },
     onSuccess: (data) => {
+      // data is null when redirected to /change-password — nothing to do.
+      if (!data) return;
       queryClient.setQueryData([api.auth.me.path], data);
       toast({ title: "Bem-vindo ao VivaFrutaz!" });
       const savedRedirect = sessionStorage.getItem("redirect_after_login");
