@@ -1,0 +1,132 @@
+🧠 TAREFA: AUDITORIA DE GOVERNANÇA DE DADOS — SEPARAÇÃO ENTRE TENANT-SAFE E CROSS-TENANT LEGÍTIMO
+
+OBJETIVO:
+Classificar TODO acesso a dados do sistema em duas categorias:
+
+1. TENANT-SAFE (isolamento obrigatório por empresa)
+2. GLOBAL ADMIN / BI (cross-tenant legítimo e controlado)
+
+E identificar qualquer mistura incorreta entre os dois modelos.
+
+========================================================
+REGRAS
+========================================================
+
+❌ Não alterar código
+❌ Não refatorar ainda
+✔ Apenas classificar, mapear e detectar inconsistências
+✔ Foco em intenção de negócio dos endpoints
+
+========================================================
+CONTEXTO ARQUITETURAL
+========================================================
+
+O sistema já possui:
+
+✔ tenant isolation no core (orders/users/logistics)
+✔ admin dashboards globais (audit, intelligence, analytics)
+✔ IA (Clara) agora tenant-safe
+
+AGORA O PROBLEMA NÃO É MAIS SEGURANÇA BRUTA
+É CONSISTÊNCIA DE INTENÇÃO DE DADOS
+
+========================================================
+OBJETIVO DA AUDITORIA
+========================================================
+
+Mapear todos os acessos a dados e classificar como:
+
+🟢 TENANT-SAFE (isolamento obrigatório)
+🟡 CROSS-TENANT LEGÍTIMO (admin / BI / analytics)
+🔴 MISTO INCORRETO (perigo arquitetural)
+
+========================================================
+ESCOPO DE ANÁLISE
+========================================================
+
+1. ADMIN DASHBOARDS
+- audit.routes.ts
+- admin-intelligence.routes.ts
+- client-intelligence.routes.ts
+- clara.routes.ts (exports/admin mode)
+
+2. CORE BUSINESS DATA
+- orders
+- users
+- drivers
+- routes
+- products
+
+3. IA / ASSISTANT LAYER
+- queries usadas para contexto da Clara IA
+
+4. REPORTING / ANALYTICS
+- rankings
+- KPIs
+- financial forecasting
+- logistics intelligence
+
+========================================================
+CRITÉRIOS DE CLASSIFICAÇÃO
+========================================================
+
+🟢 TENANT-SAFE:
+- dados isolados por empresa (companyId / empresaId)
+- usado em operações do cliente
+- nunca mistura empresas
+
+🟡 CROSS-TENANT LEGÍTIMO:
+- dashboards administrativos MASTER/ADMIN
+- BI / analytics globais
+- auditoria de sistema
+- relatórios consolidados
+
+🔴 MISTO INCORRETO:
+- endpoint que mistura tenant + global sem controle
+- filtro parcial em memória após full scan
+- uso de storage.getX() sem intenção clara
+- lógica híbrida não documentada
+
+========================================================
+PONTOS CRÍTICOS DE DETECÇÃO
+========================================================
+
+Identificar especialmente:
+
+🚨 queries que mudam comportamento dependendo do role sem documentação clara
+🚨 uso de storage.getX() dentro de analytics sem explicitar cross-tenant
+🚨 filtros feitos em memória depois de full-table scan
+🚨 endpoints que parecem tenant-safe mas agregam dados globais silenciosamente
+
+========================================================
+FORMATO DE SAÍDA OBRIGATÓRIO
+========================================================
+
+1. MAPA GLOBAL DO SISTEMA
+- lista de módulos classificados por categoria
+
+2. TENANT-SAFE DATA FLOWS
+- fluxo completo de dados isolados
+
+3. CROSS-TENANT LEGÍTIMO
+- dashboards e BI globais aprovados
+
+4. MISTOS INCORRETOS (CRÍTICO)
+- arquivos
+- funções
+- explicação do conflito
+
+5. RISCOS ARQUITETURAIS
+- onde o sistema pode gerar confusão futura
+
+6. RECOMENDAÇÃO DE ARQUITETURA FINAL
+- como separar claramente layers de dados
+
+========================================================
+REGRA FINAL
+
+Se um endpoint:
+
+- parece tenant-safe mas acessa dados globais sem explicitar isso
+
+→ CLASSIFICAR COMO 🔴 MISTO INCORRETO
