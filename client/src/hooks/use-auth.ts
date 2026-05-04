@@ -65,7 +65,16 @@ export function useAuth() {
   });
 
   const authData = meQuery.data;
-  
+
+  console.warn("[AUTH_STATE]", {
+    user: authData?.user ?? null,
+    company: authData?.company ?? null,
+    isPending: meQuery.isPending,
+    isFetching: meQuery.isFetching,
+    isError: meQuery.isError,
+    dataUpdatedAt: meQuery.dataUpdatedAt,
+  });
+
   return {
     user: authData?.user,
     company: authData?.company,

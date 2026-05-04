@@ -1,0 +1,153 @@
+FASE: DEBUG FINAL — REDIRECT INDEVIDO AINDA OCORRENDO
+OBJETIVO: identificar EXATAMENTE qual evento ainda está causando retorno para /admin
+REGRA: NÃO alterar comportamento ainda — apenas rastrear com precisão
+
+--------------------------------------------------
+ETAPA 1 — LOG GLOBAL DE REDIRECT
+--------------------------------------------------
+
+Arquivo: client/src/App.tsx
+
+ANTES de TODO setLocation ou <Redirect />, adicionar:
+
+console.warn("[REDIRECT_TRIGGER]", {
+  to: DESTINO,
+  from: window.location.pathname,
+  timestamp: Date.now()
+});
+
+Aplicar em:
+- AuthExpiredHandler
+- ProtectedRoute
+- HomeRoute
+- Role redirect (allowedRoles)
+- Qualquer navigate()
+
+OBJETIVO:
+- Saber QUEM está redirecionando
+
+--------------------------------------------------
+ETAPA 2 — LOG DE RENDER DO PROTECTED ROUTE
+--------------------------------------------------
+
+Dentro do ProtectedRoute:
+
+console.warn("[PROTECTED_ROUTE]", {
+  path: window.location.pathname,
+  isLoading,
+  isAuthenticated,
+  role: user?.role
+});
+
+OBJETIVO:
+- detectar se o redirect vem por:
+  - auth falsa
+  - loading bug
+  - role inválida
+
+--------------------------------------------------
+ETAPA 3 — LOG DE AUTH STATE REAL
+--------------------------------------------------
+
+Arquivo: use-auth.ts
+
+Após retorno do useQuery:
+
+console.warn("[AUTH_STATE]", {
+  user,
+  isPending: meQuery.isPending,
+  isFetching: meQuery.isFetching,
+  isError: meQuery.isError
+});
+
+OBJETIVO:
+- ver se o user some em algum momento (causando redirect)
+
+--------------------------------------------------
+ETAPA 4 — LOG DE 401 COMPLETO
+--------------------------------------------------
+
+Arquivo: fetchWithAuth.ts
+
+Já existe log — complementar com:
+
+console.warn("[AUTH_401_FULL]", {
+  url,
+  status: res.status,
+  body
+});
+
+OBJETIVO:
+- identificar QUAL endpoint quebra cada tela
+
+--------------------------------------------------
+ETAPA 5 — TESTE CONTROLADO
+--------------------------------------------------
+
+Executar manualmente:
+
+1. Acessar direto:
+   /admin/ai-developer
+   /admin/intelligence
+   /admin/products
+   /admin/logistics
+
+2. Para cada página:
+   - esperar redirect acontecer
+   - capturar logs
+
+--------------------------------------------------
+ETAPA 6 — ANÁLISE (OBRIGATÓRIO)
+--------------------------------------------------
+
+Para cada redirect, responder:
+
+1. Quem disparou?
+   → [REDIRECT_TRIGGER]
+
+2. Estado da auth no momento?
+   → [AUTH_STATE]
+
+3. ProtectedRoute estava como?
+   → [PROTECTED_ROUTE]
+
+4. Houve 401 antes?
+   → [AUTH_401_FULL]
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+Você vai cair em UM desses cenários:
+
+A) Redirect vindo de ROLE
+→ role não bate com allowedRoles
+
+B) Redirect vindo de !isAuthenticated
+→ user undefined momentâneo
+
+C) Redirect vindo de auth:expired
+→ endpoint ainda disparando evento
+
+D) Redirect vindo de rota específica (bug isolado)
+
+--------------------------------------------------
+RESTRIÇÕES
+--------------------------------------------------
+
+- NÃO corrigir ainda
+- NÃO alterar lógica
+- NÃO remover redirect
+- APENAS LOGAR
+
+--------------------------------------------------
+ENTREGA
+--------------------------------------------------
+
+Colar logs de:
+- [REDIRECT_TRIGGER]
+- [AUTH_STATE]
+- [PROTECTED_ROUTE]
+- [AUTH_401_FULL]
+
+Para pelo menos 2 páginas diferentes

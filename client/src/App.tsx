@@ -31,6 +31,7 @@ function AuthExpiredHandler() {
         sessionStorage.setItem("redirect_after_login", currentPath);
       }
       sessionStorage.setItem("auth_expired", "1");
+      console.warn("[REDIRECT_TRIGGER]", { to: "/login", from: currentPath, source: "AuthExpiredHandler", timestamp: Date.now() });
       setLocation("/login");
     };
     window.addEventListener("auth:expired", handler);
@@ -196,10 +197,21 @@ function ProtectedRoute({
     staleTime: 30000,
   });
 
+  console.warn("[PROTECTED_ROUTE]", { path: window.location.pathname, isLoading, isAuthenticated, role: user?.role, allowedRoles });
+
   if (isLoading) return <div className="h-screen flex items-center justify-center text-primary font-bold text-xl animate-pulse">Carregando VivaFrutaz...</div>;
-  if (!isAuthenticated) return <Redirect to="/login" />;
-  if (role === 'admin' && !isStaff) return <Redirect to="/client" />;
-  if (role === 'client' && !isClient) return <Redirect to="/admin" />;
+  if (!isAuthenticated) {
+    console.warn("[REDIRECT_TRIGGER]", { to: "/login", from: window.location.pathname, source: "ProtectedRoute:!isAuthenticated", timestamp: Date.now() });
+    return <Redirect to="/login" />;
+  }
+  if (role === 'admin' && !isStaff) {
+    console.warn("[REDIRECT_TRIGGER]", { to: "/client", from: window.location.pathname, source: "ProtectedRoute:!isStaff", timestamp: Date.now() });
+    return <Redirect to="/client" />;
+  }
+  if (role === 'client' && !isClient) {
+    console.warn("[REDIRECT_TRIGGER]", { to: "/admin", from: window.location.pathname, source: "ProtectedRoute:!isClient", timestamp: Date.now() });
+    return <Redirect to="/admin" />;
+  }
 
   if (allowedRoles && user && user.role !== 'MASTER' && !allowedRoles.includes(user.role)) {
     fetchWithAuth('/api/auth/log-unauthorized', {
@@ -207,8 +219,15 @@ function ProtectedRoute({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ route: location }),
     }).catch(() => {});
-    if (user.role === 'NUTRICIONISTA') return <Redirect to="/admin/sanitary" />;
-    if (user.role === 'MOTORISTA') return <Redirect to="/admin/driver-panel" />;
+    if (user.role === 'NUTRICIONISTA') {
+      console.warn("[REDIRECT_TRIGGER]", { to: "/admin/sanitary", from: window.location.pathname, source: "ProtectedRoute:NUTRICIONISTA", timestamp: Date.now() });
+      return <Redirect to="/admin/sanitary" />;
+    }
+    if (user.role === 'MOTORISTA') {
+      console.warn("[REDIRECT_TRIGGER]", { to: "/admin/driver-panel", from: window.location.pathname, source: "ProtectedRoute:MOTORISTA", timestamp: Date.now() });
+      return <Redirect to="/admin/driver-panel" />;
+    }
+    console.warn("[REDIRECT_TRIGGER]", { to: "/admin", from: window.location.pathname, source: "ProtectedRoute:roleNotAllowed", userRole: user.role, allowedRoles, timestamp: Date.now() });
     return <Redirect to="/admin" />;
   }
 
@@ -232,13 +251,25 @@ function ProtectedRoute({
 
 function HomeRoute() {
   const { isAuthenticated, isStaff, isClient, isLoading, user } = useAuth();
+  console.warn("[HOME_ROUTE]", { path: window.location.pathname, isLoading, isAuthenticated, role: user?.role });
   if (isLoading) return <div className="h-screen flex items-center justify-center text-primary font-bold text-xl animate-pulse">Carregando...</div>;
-  if (!isAuthenticated) return <Redirect to="/login" />;
+  if (!isAuthenticated) {
+    console.warn("[REDIRECT_TRIGGER]", { to: "/login", from: window.location.pathname, source: "HomeRoute:!isAuthenticated", timestamp: Date.now() });
+    return <Redirect to="/login" />;
+  }
   if (isStaff) {
-    if (user?.role === 'NUTRICIONISTA') return <Redirect to="/admin/sanitary" />;
-    if (user?.role === 'MOTORISTA') return <Redirect to="/admin/driver-panel" />;
+    if (user?.role === 'NUTRICIONISTA') {
+      console.warn("[REDIRECT_TRIGGER]", { to: "/admin/sanitary", from: window.location.pathname, source: "HomeRoute:NUTRICIONISTA", timestamp: Date.now() });
+      return <Redirect to="/admin/sanitary" />;
+    }
+    if (user?.role === 'MOTORISTA') {
+      console.warn("[REDIRECT_TRIGGER]", { to: "/admin/driver-panel", from: window.location.pathname, source: "HomeRoute:MOTORISTA", timestamp: Date.now() });
+      return <Redirect to="/admin/driver-panel" />;
+    }
+    console.warn("[REDIRECT_TRIGGER]", { to: "/admin", from: window.location.pathname, source: "HomeRoute:isStaff", timestamp: Date.now() });
     return <Redirect to="/admin" />;
   }
+  console.warn("[REDIRECT_TRIGGER]", { to: "/client", from: window.location.pathname, source: "HomeRoute:isClient", timestamp: Date.now() });
   return <Redirect to="/client" />;
 }
 

@@ -35,11 +35,12 @@ export async function fetchWithAuth(
       const cloned = res.clone();
       const body = await cloned.json();
       const errorCode: string = body?.error ?? body?.code ?? "";
+      console.warn("[AUTH_401_FULL]", { url, status: res.status, body, errorCode, willDispatch: SESSION_ERROR_CODES.has(errorCode) });
       if (SESSION_ERROR_CODES.has(errorCode)) {
         dispatchAuthExpired();
       }
     } catch {
-      // Se não conseguir parsear o body, não dispara auth:expired
+      console.warn("[AUTH_401_FULL]", { url, status: res.status, body: "(parse failed)", willDispatch: false });
     }
   }
 
