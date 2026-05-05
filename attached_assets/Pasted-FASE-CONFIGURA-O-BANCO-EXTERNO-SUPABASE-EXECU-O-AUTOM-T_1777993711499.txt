@@ -1,0 +1,109 @@
+FASE: CONFIGURAÇÃO BANCO EXTERNO (SUPABASE) — EXECUÇÃO AUTOMÁTICA
+
+OBJETIVO:
+Conectar o sistema atual a um banco PostgreSQL externo (Supabase),
+utilizando DATABASE_URL já fornecida, garantindo persistência de dados
+mesmo ao trocar de conta ou agent no Replit.
+
+DATABASE_URL A SER UTILIZADA:
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+REGRAS:
+- NÃO alterar lógica de negócio
+- NÃO modificar controllers/services
+- NÃO alterar schema
+- NÃO refatorar arquitetura
+- Apenas garantir conexão funcional
+
+--------------------------------------------------
+ETAPA 1 — CONFIGURAR CONEXÃO
+--------------------------------------------------
+
+Garantir que o sistema use:
+
+process.env.DATABASE_URL
+
+Localizar arquivo de conexão com banco (ex: db.ts, database.ts, pool.ts)
+
+Garantir uso de Pool (pg) ou equivalente:
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
+
+--------------------------------------------------
+ETAPA 2 — FAIL FAST
+--------------------------------------------------
+
+Se DATABASE_URL não existir:
+
+throw new Error("DATABASE_URL não configurada");
+
+--------------------------------------------------
+ETAPA 3 — LOG DE CONEXÃO
+--------------------------------------------------
+
+Ao iniciar servidor:
+
+console.log("[DB] Conectando ao Supabase...");
+console.log("[DB] DATABASE_URL presente:", !!process.env.DATABASE_URL);
+
+--------------------------------------------------
+ETAPA 4 — GARANTIR USO GLOBAL
+--------------------------------------------------
+
+Verificar que TODAS as queries usam o client configurado
+
+Não permitir múltiplas conexões paralelas conflitantes
+
+--------------------------------------------------
+ETAPA 5 — MIGRAÇÃO
+--------------------------------------------------
+
+Executar:
+
+npm run db:push
+
+Garantir:
+- tabelas criadas no Supabase
+- sem erro de conexão
+- sem timeout
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Criar empresa
+→ deve persistir no banco
+
+2. Recarregar aplicação
+→ dados continuam (não podem sumir)
+
+3. Console:
+→ nenhum erro de conexão
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ dados perdidos ao trocar ambiente
+
+DEPOIS:
+→ banco persistente externo (Supabase)
+→ sistema funciona em qualquer conta Replit
+→ dados mantidos permanentemente
+
+--------------------------------------------------
+OBSERVAÇÃO IMPORTANTE
+--------------------------------------------------
+
+O agent NÃO deve salvar a DATABASE_URL no código.
+Deve assumir que ela será configurada via Secrets do Replit.
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
