@@ -33,6 +33,8 @@ router.post("/reset-password", loginIpLimiter, asyncHandler(authController.reset
 router.post("/log-unauthorized", asyncHandler(authController.logUnauthorized));
 // FASE 14.5 — mandatory first-login password change for provisioned accounts
 router.post("/force-password-change", asyncHandler(authController.forcePasswordChange));
+// FASE CONFIGURAÇÕES — authenticated user changes their own password voluntarily
+router.post("/change-password", requireAuth, asyncHandler(authController.changePasswordSelf));
 // FASE 14.6 — revoke all sessions for the caller's account (increment tokenVersion)
 // C3-FIX: was public — requires active session (admin or company).
 router.post("/revoke-sessions", requireAuth, asyncHandler(authController.revokeAllSessions));

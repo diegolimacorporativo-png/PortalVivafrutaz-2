@@ -699,6 +699,53 @@ export class AuthService {
     return { ok: true };
   }
 
+  // ── Voluntary password change by authenticated user (FASE CONFIGURAÇÕES) ─
+  async changePasswordSelf(
+    userId: number,
+    currentPassword: string,
+    newPassword: string,
+    ip: string,
+  ): Promise<{ ok: true } | { ok: false; status: number; error: string; message: string }> {
+    const user = await this.repo.getUser(userId);
+    if (!user) {
+      return { ok: false, status: 404, error: "USER_NOT_FOUND", message: "Usuário não encontrado." };
+    }
+
+    if (newPassword.length < 8) {
+      return { ok: false, status: 422, error: "PASSWORD_TOO_SHORT", message: "A nova senha deve ter pelo menos 8 caracteres." };
+    }
+
+    const currentMatch = await this.verifyAndMaybeUpgradeUserPassword(userId, currentPassword, user.password);
+    if (!currentMatch) {
+      return { ok: false, status: 400, error: "INVALID_CURRENT_PASSWORD", message: "Senha atual incorreta." };
+    }
+
+    const isSame = await bcrypt.compare(newPassword, user.password);
+    if (isSame) {
+      return { ok: false, status: 422, error: "SAME_PASSWORD", message: "A nova senha não pode ser igual à senha atual." };
+    }
+
+    await this.repo.updateUser(userId, {
+      password: newPassword,
+      mustChangePassword: false,
+      passwordTemporary: false,
+    } as any);
+
+    console.warn("[PASSWORD_CHANGED]", { userId, role: user.role });
+
+    await this.repo.log({
+      action: "PASSWORD_CHANGED",
+      description: `Usuário "${user.email}" (${user.role}) alterou a própria senha via Configurações.`,
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      level: "INFO",
+      ip,
+    });
+
+    return { ok: true };
+  }
+
   // ── Revoke all sessions (FASE 14.6) ────────────────────────────────────
   /**
    * Invalidates ALL active sessions for a company or user by incrementing

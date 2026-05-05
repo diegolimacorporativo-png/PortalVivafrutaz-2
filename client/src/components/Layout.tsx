@@ -159,6 +159,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/marketplace', label: 'Loja de Módulos', icon: Package, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'marketplace', category: 'SaaS' },
     { href: '/admin/white-label', label: 'White Label', icon: Palette, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'white-label', category: 'SaaS' },
     { href: '/admin/system-updates', label: 'Atualizações do Sistema', icon: RefreshCw, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'system-updates', category: 'SaaS' },
+    { href: '/admin/settings', label: 'Minha Conta', icon: UserCircle, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'PURCHASE_MANAGER', 'NUTRICIONISTA', 'MOTORISTA'], tabKey: 'settings', category: 'Conta' },
   ];
 
   const isContratual = company?.clientType === 'contratual';

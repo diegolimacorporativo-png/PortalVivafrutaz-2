@@ -215,6 +215,46 @@ export class AuthController {
     res.json({ ok: true, message: "Senha alterada com sucesso. Você já pode fazer login." });
   };
 
+  // ── POST /api/auth/change-password (FASE CONFIGURAÇÕES) ───────────────
+  /**
+   * Authenticated internal user voluntarily changes their own password.
+   * Distinct from force-password-change: requires an active session (requireAuth),
+   * does NOT touch companies, and does NOT need a tempPassword token — only the
+   * current password to prove ownership.
+   */
+  changePasswordSelf = async (req: Request, res: Response): Promise<void> => {
+    const session = req.session as unknown as SessionPayload;
+    const userId = session.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Não autenticado." });
+      return;
+    }
+
+    const { currentPassword, newPassword } = req.body as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
+
+    if (!currentPassword || !newPassword) {
+      res.status(400).json({ message: "Os campos currentPassword e newPassword são obrigatórios." });
+      return;
+    }
+
+    const ip =
+      ((req.headers["x-forwarded-for"] as string) || "").split(",")[0] ||
+      req.socket.remoteAddress ||
+      "";
+
+    const result = await this.service.changePasswordSelf(userId, currentPassword, newPassword, ip);
+
+    if (!result.ok) {
+      res.status(result.status).json({ error: result.error, message: result.message });
+      return;
+    }
+
+    res.json({ ok: true, message: "Senha alterada com sucesso." });
+  };
+
   // ── POST /api/auth/revoke-sessions (FASE 14.6) ────────────────────────
   /**
    * Revoke all active sessions for the currently logged-in company or user by

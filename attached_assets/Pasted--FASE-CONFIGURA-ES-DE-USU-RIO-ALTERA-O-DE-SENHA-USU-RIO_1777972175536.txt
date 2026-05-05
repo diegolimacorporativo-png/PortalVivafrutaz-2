@@ -1,0 +1,152 @@
+}
+FASE: CONFIGURAÇÕES DE USUÁRIO — ALTERAÇÃO DE SENHA (USUÁRIOS INTERNOS)
+
+OBJETIVO:
+Criar uma tela de configurações onde usuários internos possam alterar a própria senha,
+sem afetar o fluxo de clientes.
+
+REGRAS:
+- NÃO alterar fluxo de clientes (companies)
+- NÃO alterar login existente
+- NÃO quebrar /change-password
+- Apenas adicionar funcionalidade nova para users (tabela users)
+
+--------------------------------------------------
+ETAPA 1 — BACKEND (NOVO ENDPOINT)
+--------------------------------------------------
+
+Criar endpoint protegido:
+
+POST /api/auth/change-password
+
+Requer:
+- usuário autenticado (req.user.id)
+
+Body:
+{
+  currentPassword: string,
+  newPassword: string
+}
+
+Lógica:
+
+1. Buscar usuário pelo id
+2. Validar senha atual:
+   comparePassword(currentPassword, user.password)
+
+3. Se inválida:
+   return 400 { error: "INVALID_CURRENT_PASSWORD" }
+
+4. Se válida:
+   const hashed = await hashPassword(newPassword)
+
+   UPDATE users SET:
+     password = hashed,
+     mustChangePassword = false,
+     passwordTemporary = false
+
+5. Retornar:
+   { success: true }
+
+--------------------------------------------------
+ETAPA 2 — SEGURANÇA
+--------------------------------------------------
+
+- Não permitir senha < 8 caracteres
+- Não permitir senha igual à atual
+- Opcional: log
+
+console.warn("[PASSWORD_CHANGED]", {
+  userId,
+  role
+});
+
+--------------------------------------------------
+ETAPA 3 — FRONTEND (NOVA PÁGINA)
+--------------------------------------------------
+
+Criar:
+
+client/src/pages/admin/settings.tsx
+
+UI:
+
+Campos:
+- Senha atual
+- Nova senha
+- Confirmar nova senha
+
+Validações:
+- mínimo 8 caracteres
+- senhas iguais
+
+Botão:
+"Alterar senha"
+
+--------------------------------------------------
+ETAPA 4 — INTEGRAÇÃO
+--------------------------------------------------
+
+Criar hook:
+
+useChangePassword()
+
+fetch:
+POST /api/auth/change-password
+
+Tratamento:
+
+- sucesso → toast "Senha alterada com sucesso"
+- erro → exibir mensagem
+
+--------------------------------------------------
+ETAPA 5 — CONTROLE DE ACESSO
+--------------------------------------------------
+
+Somente usuários internos:
+
+allowedRoles:
+['MASTER','ADMIN','DIRECTOR','DEVELOPER','OPERATIONS_MANAGER','FINANCEIRO','LOGISTICS']
+
+Clientes NÃO acessam essa rota
+
+--------------------------------------------------
+ETAPA 6 — ROTEAMENTO
+--------------------------------------------------
+
+Adicionar rota:
+
+/admin/settings
+
+E adicionar no menu lateral:
+"Configurações"
+
+--------------------------------------------------
+ETAPA 7 — NÃO ALTERAR
+--------------------------------------------------
+
+Manter intacto:
+
+- /change-password (primeiro login)
+- fluxo de companies
+- criação de usuários
+- autenticação
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+USUÁRIO INTERNO:
+→ acessa Configurações
+→ troca senha quando quiser
+
+PRIMEIRO LOGIN:
+→ continua obrigatório via /change-password
+
+CLIENTES:
+→ fluxo atual permanece igual (sem acesso a settings)
+
+SEGURANÇA:
+→ senha nunca exposta
+→ validação correta
+→ sistema consistent
