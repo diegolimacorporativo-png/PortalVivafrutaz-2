@@ -453,6 +453,19 @@ export class AuthService {
         notifyLockout: () => this.notifyAdminsOfLockout(email, "usuário interno", ip),
 
         onSuccess: async () => {
+          // FASE SENHA TEMPORÁRIA — gate for admin users (mirrors company flow)
+          if ((user as any).mustChangePassword) {
+            await this.repo.log({
+              action: "LOGIN_BLOCKED_TEMP_PASSWORD",
+              description: `Login bloqueado: usuário interno "${user.email}" (${user.role}) deve trocar senha temporária antes de acessar o sistema.`,
+              userId: user.id,
+              userEmail: email,
+              level: "WARN",
+              ip,
+            });
+            return { kind: "password-change-required", userId: user.id, email: user.email };
+          }
+
           // L1 reset + L2 record — done inside onSuccess so admin and company
           // can independently decide when to commit these side-effects.
           recordUserLoginSuccess(`user:${user.id}`);
@@ -608,29 +621,66 @@ export class AuthService {
     tempPassword: string,
     newPassword: string,
     ip: string,
-  ): Promise<{ ok: true; company: import("./auth.types").Company } | { ok: false; status: number; message: string }> {
-    const company = await this.repo.getCompanyByEmail(email.toLowerCase().trim());
-    if (!company) {
-      return { ok: false, status: 404, message: "Empresa não encontrada." };
-    }
-    if (!(company as any).mustChangePassword) {
-      return { ok: false, status: 400, message: "Esta conta não requer troca de senha." };
-    }
-
-    const passwordMatch = await this.verifyAndMaybeUpgradeCompanyPassword(
-      company.id,
-      tempPassword,
-      company.password,
-    );
-    if (!passwordMatch) {
-      return { ok: false, status: 401, message: "Senha temporária incorreta." };
-    }
+  ): Promise<{ ok: true } | { ok: false; status: number; message: string }> {
+    const normalizedEmail = email.toLowerCase().trim();
 
     if (newPassword.length < 8) {
       return { ok: false, status: 422, message: "A nova senha deve ter pelo menos 8 caracteres." };
     }
 
-    const updated = await this.repo.updateCompany(company.id, {
+    // ── 1. Try company account first ────────────────────────────────────
+    const company = await this.repo.getCompanyByEmail(normalizedEmail);
+    if (company) {
+      if (!(company as any).mustChangePassword) {
+        return { ok: false, status: 400, message: "Esta conta não requer troca de senha." };
+      }
+
+      const passwordMatch = await this.verifyAndMaybeUpgradeCompanyPassword(
+        company.id,
+        tempPassword,
+        company.password,
+      );
+      if (!passwordMatch) {
+        return { ok: false, status: 401, message: "Senha temporária incorreta." };
+      }
+
+      await this.repo.updateCompany(company.id, {
+        password: newPassword,
+        mustChangePassword: false,
+        passwordTemporary: false,
+      } as any);
+
+      await this.repo.log({
+        action: "PASSWORD_CHANGED",
+        description: `Senha temporária trocada com sucesso pela empresa "${company.companyName}" no primeiro login.`,
+        companyId: company.id,
+        userEmail: company.email,
+        level: "INFO",
+        ip,
+      });
+
+      return { ok: true };
+    }
+
+    // ── 2. Try admin user ────────────────────────────────────────────────
+    const user = await this.repo.getUserByEmail(normalizedEmail);
+    if (!user) {
+      return { ok: false, status: 404, message: "Conta não encontrada." };
+    }
+    if (!(user as any).mustChangePassword) {
+      return { ok: false, status: 400, message: "Esta conta não requer troca de senha." };
+    }
+
+    const passwordMatch = await this.verifyAndMaybeUpgradeUserPassword(
+      user.id,
+      tempPassword,
+      user.password,
+    );
+    if (!passwordMatch) {
+      return { ok: false, status: 401, message: "Senha temporária incorreta." };
+    }
+
+    await this.repo.updateUser(user.id, {
       password: newPassword,
       mustChangePassword: false,
       passwordTemporary: false,
@@ -638,14 +688,15 @@ export class AuthService {
 
     await this.repo.log({
       action: "PASSWORD_CHANGED",
-      description: `Senha temporária trocada com sucesso pela empresa "${company.companyName}" no primeiro login.`,
-      companyId: company.id,
-      userEmail: company.email,
+      description: `Senha temporária trocada com sucesso pelo usuário interno "${user.email}" (${user.role}).`,
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
       level: "INFO",
       ip,
     });
 
-    return { ok: true, company: updated };
+    return { ok: true };
   }
 
   // ── Revoke all sessions (FASE 14.6) ────────────────────────────────────

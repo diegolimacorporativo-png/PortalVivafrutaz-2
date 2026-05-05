@@ -212,9 +212,7 @@ export class AuthController {
       return;
     }
 
-    // Password changed — strip password hash before responding
-    const { password: _pw, ...companySafe } = result.company as Record<string, unknown> & { password?: unknown };
-    res.json({ ok: true, message: "Senha alterada com sucesso. Você já pode fazer login.", company: companySafe });
+    res.json({ ok: true, message: "Senha alterada com sucesso. Você já pode fazer login." });
   };
 
   // ── POST /api/auth/revoke-sessions (FASE 14.6) ────────────────────────

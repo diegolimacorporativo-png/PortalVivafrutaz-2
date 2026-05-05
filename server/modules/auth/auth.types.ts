@@ -32,8 +32,8 @@ export interface LoginInput {
 export type LoginOutcome =
   | { kind: "admin-success"; user: User }
   | { kind: "company-success"; company: Company }
-  /** FASE 14.5 — company authenticated but must change temporary password before proceeding */
-  | { kind: "password-change-required"; companyId: number; email: string }
+  /** FASE 14.5 — account authenticated but must change temporary password before proceeding */
+  | { kind: "password-change-required"; companyId?: number; userId?: number; email: string }
   | { kind: "failure"; status: number; message: string };
 
 /** Outcome for the `/me` endpoint — same reasoning as above. */

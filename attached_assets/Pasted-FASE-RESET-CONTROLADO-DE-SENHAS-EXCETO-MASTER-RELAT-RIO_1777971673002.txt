@@ -1,0 +1,124 @@
+FASE: RESET CONTROLADO DE SENHAS (EXCETO MASTER) + RELATÓRIO
+
+OBJETIVO:
+- Gerar nova senha temporária para TODOS os usuários do sistema
+- EXCETO usuário MASTER
+- Marcar todos para troca obrigatória de senha
+- Gerar relatório completo com as novas senhas
+- NÃO quebrar autenticação
+- NÃO afetar sessão ativa do MASTER
+
+REGRAS:
+- NÃO alterar estrutura de auth existente
+- NÃO modificar lógica de login além do necessário
+- NÃO logar senha em plaintext em logs permanentes
+- Relatório deve ser exibido apenas uma vez (console controlado)
+
+--------------------------------------------------
+ETAPA 1 — IDENTIFICAR USUÁRIOS
+--------------------------------------------------
+
+Arquivo:
+user.repository / user.service
+
+Buscar:
+
+SELECT id, email, role
+FROM users
+WHERE role != 'MASTER';
+
+--------------------------------------------------
+ETAPA 2 — GERAR SENHAS SEGURAS
+--------------------------------------------------
+
+Para cada usuário:
+
+const newPassword = randomBytes(8).toString('hex');
+
+const hashedPassword = await hashPassword(newPassword);
+
+--------------------------------------------------
+ETAPA 3 — ATUALIZAR USUÁRIOS
+--------------------------------------------------
+
+Para cada usuário:
+
+UPDATE users SET:
+  password = hashedPassword,
+  mustChangePassword = true,
+  passwordTemporary = true
+
+--------------------------------------------------
+ETAPA 4 — GERAR RELATÓRIO EM MEMÓRIA
+--------------------------------------------------
+
+Criar estrutura:
+
+const report = [];
+
+Para cada usuário:
+
+report.push({
+  email: user.email,
+  role: user.role,
+  temporaryPassword: newPassword
+});
+
+--------------------------------------------------
+ETAPA 5 — OUTPUT CONTROLADO
+--------------------------------------------------
+
+APÓS finalizar:
+
+console.warn("======= PASSWORD RESET REPORT =======");
+console.table(report);
+console.warn("====================================");
+
+IMPORTANTE:
+- NÃO salvar isso no banco
+- NÃO enviar via API pública
+- Apenas log temporário
+
+--------------------------------------------------
+ETAPA 6 — SEGURANÇA
+--------------------------------------------------
+
+Após execução:
+
+- NÃO manter função exposta em rota pública
+- Rodar script apenas uma vez
+- Opcional: comentar ou remover script após uso
+
+--------------------------------------------------
+ETAPA 7 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Usuário comum:
+→ login com nova senha
+→ deve ir para /change-password
+
+2. MASTER:
+→ login normal (sem alteração)
+
+3. Troca de senha:
+→ mustChangePassword deve virar false
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ senhas desconhecidas ou inseguras
+→ inconsistência de acesso
+
+DEPOIS:
+→ todas contas padronizadas
+→ senha temporária segura
+→ troca obrigatória no primeiro login
+→ controle total do sistema
+
+RELATÓRIO FINAL:
+→ lista completa de emails + novas senhas
+→ usado para distribuição manual controlada

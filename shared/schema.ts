@@ -20,6 +20,9 @@ export const users = pgTable("users", {
   lastLoginAttempt: timestamp("last_login_attempt"),
   // FASE 14.6 — session invalidation: increment to kick all active sessions
   tokenVersion: integer("token_version").default(0).notNull(),
+  // FASE SENHA TEMPORÁRIA — forced password change on first login
+  mustChangePassword: boolean("must_change_password").default(false).notNull(),
+  passwordTemporary: boolean("password_temporary").default(false).notNull(),
 }, (table) => ({
   empresaIdIdx: index("users_empresa_id_idx").on(table.empresaId),
 }));
