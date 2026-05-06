@@ -1,0 +1,109 @@
+FASE: CONEXÃO COM BANCO EXTERNO (SUPABASE) — MODO SEGURO
+
+OBJETIVO:
+Garantir que o sistema utilize EXCLUSIVAMENTE o banco Supabase via variável SUPABASE_DATABASE_URL, sem depender do banco interno do Replit.
+
+IMPORTANTE:
+- NÃO quebrar funcionamento atual
+- NÃO rodar migrations destrutivas
+- NÃO sobrescrever DATABASE_URL
+- NÃO remover fallback existente
+- Apenas ajustar a conexão de forma segura e auditável
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY (LEITURA)
+--------------------------------------------------
+
+1. Ler arquivo:
+   - server/database/db.ts (ou equivalente)
+
+2. Identificar:
+   - Como a conexão é criada
+   - Se usa process.env.DATABASE_URL
+   - Se já existe suporte a SUPABASE_DATABASE_URL
+   - Se SSL está configurado
+
+--------------------------------------------------
+ETAPA 2 — IMPLEMENTAÇÃO SEGURA
+--------------------------------------------------
+
+Ajustar a conexão para seguir EXATAMENTE esta prioridade:
+
+1. Se existir SUPABASE_DATABASE_URL:
+   → usar ela como conexão principal
+
+2. Caso contrário:
+   → fallback para DATABASE_URL (Replit/local)
+
+--------------------------------------------------
+
+Implementar lógica equivalente a:
+
+const connectionString =
+  process.env.SUPABASE_DATABASE_URL ||
+  process.env.DATABASE_URL;
+
+--------------------------------------------------
+
+Se a conexão for Supabase:
+- Ativar SSL com:
+
+ssl: {
+  rejectUnauthorized: false
+}
+
+--------------------------------------------------
+ETAPA 3 — LOGS OBRIGATÓRIOS
+--------------------------------------------------
+
+Adicionar logs claros na inicialização:
+
+Se SUPABASE_DATABASE_URL estiver presente:
+
+[DB] SUPABASE_DATABASE_URL presente: true
+[DB] Conectando ao Supabase (SSL ativado)...
+
+Se NÃO estiver:
+
+[DB] SUPABASE_DATABASE_URL presente: false
+[DB] Conectando ao banco local (Replit)...
+
+--------------------------------------------------
+ETAPA 4 — FAIL-SAFE (IMPORTANTE)
+--------------------------------------------------
+
+Se NODE_ENV === "production" E SUPABASE_DATABASE_URL NÃO existir:
+
+→ lançar erro explícito:
+
+throw new Error("SUPABASE_DATABASE_URL não configurada em produção");
+
+--------------------------------------------------
+ETAPA 5 — VALIDAÇÃO
+--------------------------------------------------
+
+Após aplicar:
+
+1. Reiniciar servidor
+2. Verificar logs de inicialização
+3. Confirmar que aparece:
+
+[DB] Conectando ao Supabase
+
+4. Garantir que NÃO aparece:
+
+Conectando ao banco local
+
+--------------------------------------------------
+REGRAS FINAIS
+--------------------------------------------------
+
+- NÃO rodar db:push automaticamente
+- NÃO modificar schema
+- NÃO criar tabelas ainda
+- NÃO tocar em migrations
+- NÃO alterar outras partes do sistema
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
