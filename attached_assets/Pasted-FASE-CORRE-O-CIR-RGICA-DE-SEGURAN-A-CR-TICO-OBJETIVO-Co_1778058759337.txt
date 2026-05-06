@@ -1,0 +1,188 @@
+FASE: CORREÇÃO CIRÚRGICA DE SEGURANÇA (CRÍTICO)
+
+OBJETIVO:
+Corrigir vulnerabilidades críticas identificadas na auditoria SEM alterar arquitetura, SEM quebrar comportamento atual.
+
+REGRAS:
+- NÃO refatorar sistema
+- NÃO alterar fluxo de negócio
+- ALTERAR apenas pontos críticos identificados
+- manter compatibilidade total
+- mudanças mínimas e seguras
+
+--------------------------------------------------
+ETAPA 1 — PROTEGER ROTA LEGADA /api/orders
+--------------------------------------------------
+
+Arquivo:
+server/routes/routes.ts
+
+LOCAL:
+Linha aproximada 502
+
+ANTES:
+
+app.get(api.orders.list.path, async (req, res) => {
+  const orders = await storage.getOrders(Number(req.query.empresaId));
+  res.json(orders);
+});
+
+DEPOIS:
+
+app.get(
+  api.orders.list.path,
+  requireAuth,
+  async (req, res) => {
+    const orders = await storage.getOrders(Number(req.query.empresaId));
+    res.json(orders);
+  }
+);
+
+OBJETIVO:
+Eliminar acesso público implícito e garantir proteção explícita.
+
+--------------------------------------------------
+ETAPA 2 — CORRIGIR writeGate EM COMPANIES
+--------------------------------------------------
+
+Arquivo:
+server/modules/companies/companies.routes.ts
+
+LOCAL:
+Definição de writeGate
+
+ANTES:
+
+const writeGate = [tenantContext] as const;
+
+DEPOIS:
+
+const writeGate = [requireAuthOrService, tenantContext] as const;
+
+OBJETIVO:
+Garantir que endpoints POST/PUT/DELETE de companies EXIJAM autenticação.
+
+--------------------------------------------------
+ETAPA 3 — REMOVER VAZAMENTO DE TOKEN DE RESET
+--------------------------------------------------
+
+Arquivo:
+server/modules/auth/auth.service.ts
+
+LOCAL:
+Linha aproximada 171
+
+ANTES:
+
+console.log(    ${baseUrl}/reset-password?token=${token});
+
+DEPOIS:
+
+// Removido log sensível em produção
+if (process.env.NODE_ENV === "development") {
+  console.log("[RESET_LINK_DEV]", ${baseUrl}/reset-password?token=${token});
+}
+
+OBJETIVO:
+Evitar vazamento de token em logs de produção.
+
+--------------------------------------------------
+ETAPA 4 — CONFIGURAR CORS SEGURO
+--------------------------------------------------
+
+Arquivo:
+server/index.ts OU server/app.ts
+
+ADICIONAR:
+
+import cors from "cors";
+
+app.use(cors({
+  origin: [
+    "http://localhost:3000",
+    "https://SEU-DOMINIO.com"
+  ],
+  credentials: true
+}));
+
+OBJETIVO:
+Restringir acesso apenas a origens confiáveis.
+
+--------------------------------------------------
+ETAPA 5 — REDUZIR LOG FLOOD (SESSION_CHECK)
+--------------------------------------------------
+
+Arquivo:
+server/core/security/sessionGuard.ts
+
+LOCAL:
+Log [SESSION_CHECK]
+
+ANTES:
+
+console.warn("[SESSION_CHECK]", { ... });
+
+DEPOIS:
+
+if (process.env.NODE_ENV === "development") {
+  console.warn("[SESSION_CHECK]", { ... });
+}
+
+OBJETIVO:
+Evitar poluição massiva de logs em produção.
+
+--------------------------------------------------
+ETAPA 6 — FAIL-SAFE BANCO (ANTI FALLBACK SILENCIOSO)
+--------------------------------------------------
+
+Arquivo:
+server/database/db.ts
+
+ADICIONAR validação:
+
+if (process.env.NODE_ENV === "production" && !process.env.SUPABASE_DATABASE_URL) {
+  throw new Error("[DB] SUPABASE_DATABASE_URL obrigatória em produção");
+}
+
+OBJETIVO:
+Evitar uso acidental de banco local em produção.
+
+--------------------------------------------------
+ETAPA 7 — VALIDAÇÃO FINAL (OBRIGATÓRIO)
+--------------------------------------------------
+
+Testar:
+
+1. GET /api/orders sem login
+→ deve retornar 401
+
+2. POST /api/companies sem login
+→ deve retornar 401
+
+3. Reset de senha
+→ NÃO deve logar token no console
+
+4. Logs:
+→ SEM spam de [SESSION_CHECK] em produção
+
+5. CORS:
+→ requests externas não autorizadas devem falhar
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ vulnerabilidades críticas
+→ risco de acesso indevido
+→ vazamento de token
+
+DEPOIS:
+→ rotas protegidas corretamente
+→ endpoints críticos seguros
+→ logs limpos
+→ sistema pronto para produção interna
+
+--------------------------------------------------
+FIM
+--------------------------------------------------

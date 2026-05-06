@@ -68,11 +68,11 @@ const router = Router();
 // `X-Empresa-Id`/`?empresaId=` channel.
 const readGate = [requireAuthOrService, tenantContext] as const;
 
-// Mutating endpoints reject service callers entirely. We intentionally do
-// NOT include `requireAuthOrService` so that `tenantContext` falls into its
-// session-only branch and throws 401 for any caller that doesn't have a
-// real human session. This is the "writes require a human" guarantee.
-const writeGate = [tenantContext] as const;
+// Mutating endpoints require explicit authentication. requireAuthOrService
+// ensures only authenticated sessions (or service tokens) reach tenantContext,
+// which then enforces session-only access for writes. This makes the protection
+// explicit and auditable rather than relying on tenantContext's implicit behavior.
+const writeGate = [requireAuthOrService, tenantContext] as const;
 
 // ── Literals BEFORE /:id ───────────────────────────────────────────────
 // Read — usable by service callers (e.g. logistics map needs to enumerate

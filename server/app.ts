@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
+import cors from "cors";
 import path from "path";
 import fs from "fs";
 import { registerModules, registerV1Modules, registerV2Modules } from "./modules";
@@ -30,6 +31,27 @@ export async function buildApp(): Promise<BuildAppResult> {
   enforceSchemaContract();
   const app = express();
   const httpServer = createServer(app);
+
+  // CORS — permite origens do Replit dev e domínio de produção
+  const allowedOrigins = [
+    /\.replit\.dev$/,
+    /\.replit\.app$/,
+    /^http:\/\/localhost(:\d+)?$/,
+  ];
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // sem origin (server-to-server, curl, mobile apps) — permitido
+        if (!origin) return callback(null, true);
+        const allowed = allowedOrigins.some((pattern) =>
+          typeof pattern === "string" ? origin === pattern : pattern.test(origin),
+        );
+        if (allowed) return callback(null, true);
+        return callback(new Error(`CORS: origem não permitida — ${origin}`));
+      },
+      credentials: true,
+    }),
+  );
 
   app.use(requestIdMiddleware);
   app.use(requestContextMiddleware);

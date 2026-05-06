@@ -61,14 +61,17 @@ export async function sessionVersionGuard(
   const requestDeviceId = req.headers["x-device-id"] as string | undefined;
 
   // ETAPA 3 — log para confirmar estado da sessão em cada requisição autenticada
-  console.warn("[SESSION_CHECK]", {
-    userId,
-    companyId,
-    tokenVersion: session.tokenVersion,
-    deviceId: session.deviceId,
-    requestDeviceId,
-    path: req.path,
-  });
+  // (restrito a development para evitar flood de logs em produção)
+  if (process.env.NODE_ENV === "development") {
+    console.warn("[SESSION_CHECK]", {
+      userId,
+      companyId,
+      tokenVersion: session.tokenVersion,
+      deviceId: session.deviceId,
+      requestDeviceId,
+      path: req.path,
+    });
+  }
 
   // Delegate validation to AuthCoreService
   const validation = await authCoreService.validateSession(

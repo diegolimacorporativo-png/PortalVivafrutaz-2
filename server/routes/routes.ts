@@ -499,7 +499,7 @@ export async function registerRoutes(
   // DELETE api.orderWindows.delete.path
 
   // Orders
-  app.get(api.orders.list.path, async (req, res) => {
+  app.get(api.orders.list.path, requireAuthCore, async (req, res) => {
     const orders = await storage.getOrders(Number(req.query.empresaId));
     res.json(orders);
   });

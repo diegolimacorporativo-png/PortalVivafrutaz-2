@@ -7,6 +7,13 @@ dotenv.config();
 
 const { Pool } = pg;
 
+// Em produção, exigir banco externo (Supabase) para evitar uso acidental do banco local.
+if (process.env.NODE_ENV === "production" && !process.env.SUPABASE_DATABASE_URL) {
+  throw new Error(
+    "[DB] SUPABASE_DATABASE_URL é obrigatória em produção. Configure o secret antes de iniciar.",
+  );
+}
+
 // Prefer SUPABASE_DATABASE_URL (external/persistent) over the Replit-managed DATABASE_URL.
 const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
 

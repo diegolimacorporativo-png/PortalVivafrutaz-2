@@ -162,12 +162,12 @@ export class AuthService {
     });
 
     // DEV MODE — log reset link to console instead of sending email
-    if (process.env.NODE_ENV !== "production") {
+    if (process.env.NODE_ENV === "development") {
       const baseUrl = process.env.REPLIT_DEV_DOMAIN
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
         : "http://localhost:5000";
       console.log("\n========================================");
-      console.log("🔑  PASSWORD RESET LINK (dev only)");
+      console.log("[RESET_LINK_DEV] PASSWORD RESET LINK");
       console.log(`    ${baseUrl}/reset-password?token=${token}`);
       console.log(`    Account: ${normalised}`);
       console.log(`    Expires: ${expiresAt.toISOString()}`);
