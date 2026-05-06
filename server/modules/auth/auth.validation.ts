@@ -20,7 +20,9 @@ import { api } from "@shared/routes";
 export const loginSchema = api.auth.login.input;
 
 export const forgotPasswordSchema = z.object({
-  email: z.string().email(),
+  // Accept full email OR bare username (no "@") — the service applies
+  // the @vivafrutaz.com legacy fallback when the input is a username.
+  email: z.string().min(1, "Email ou usuário é obrigatório"),
 });
 
 export const resetPasswordSchema = z.object({

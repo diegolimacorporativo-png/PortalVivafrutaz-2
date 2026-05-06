@@ -4,16 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Redirect, Link } from "wouter";
 import { Leaf, Building2, UserCircle, KeyRound, ArrowLeft, CheckCircle2, Wrench, ShieldCheck } from "lucide-react";
 
-const DOMAIN = "@vivafrutaz.com";
-
-function normalizeToFullEmail(username: string): string {
-  const clean = username.trim().toLowerCase();
-  if (clean.endsWith(DOMAIN)) return clean;
-  return clean + DOMAIN;
-}
-
-function usernameFromEmail(email: string): string {
-  return email.trim().toLowerCase().replace(new RegExp(`${DOMAIN.replace(/\./g, "\\.")}$`, "i"), "");
+/**
+ * Normalise a raw login identifier before sending to the backend.
+ * Trim whitespace and lowercase — do NOT append any domain.
+ * The backend service handles the legacy @vivafrutaz.com fallback
+ * transparently so existing users who type just a username still work.
+ */
+function prepareIdentifier(raw: string): string {
+  return raw.trim().toLowerCase();
 }
 
 export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {}) {
@@ -47,13 +45,14 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
   });
   const maintenanceActive = maintenanceData?.enabled ?? false;
 
-  // Both tabs use username only — @vivafrutaz.com is added automatically
-  const [companyUsername, setCompanyUsername] = useState("");
-  const [adminUsername, setAdminUsername] = useState("");
-
+  const [companyIdentifier, setCompanyIdentifier] = useState("");
+  const [adminIdentifier, setAdminIdentifier] = useState("");
   const [password, setPassword] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
   const [showForgot, setShowForgot] = useState(false);
-  const [forgotUsername, setForgotUsername] = useState("");
+  const [forgotIdentifier, setForgotIdentifier] = useState("");
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [forgotMessage, setForgotMessage] = useState("");
 
@@ -64,8 +63,6 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
     }
   }, [forceAdminTab, isAuthenticated, isClient, logout]);
 
-  // Aguarda validação real da sessão antes de redirecionar
-  // Evita loop: cache stale → /admin → auth:expired → /login → cache stale → /admin
   if (isLoading) {
     return <div className="h-screen flex items-center justify-center text-primary font-bold text-sm animate-pulse">Carregando...</div>;
   }
@@ -91,9 +88,20 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const email = type === 'admin'
-      ? normalizeToFullEmail(adminUsername)
-      : normalizeToFullEmail(companyUsername);
+    setFieldError(null);
+    setPasswordError(null);
+
+    const rawIdentifier = type === 'admin' ? adminIdentifier : companyIdentifier;
+    if (!rawIdentifier.trim()) {
+      setFieldError("Email ou usuário é obrigatório");
+      return;
+    }
+    if (!password) {
+      setPasswordError("Senha é obrigatória");
+      return;
+    }
+
+    const email = prepareIdentifier(rawIdentifier);
     try {
       await login({ email, password, type });
     } catch {
@@ -105,7 +113,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
     e.preventDefault();
     setForgotStatus('loading');
     try {
-      const email = normalizeToFullEmail(forgotUsername);
+      const email = prepareIdentifier(forgotIdentifier);
       const res = await fetch('/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -199,7 +207,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-foreground">Esqueci minha senha</h3>
-                  <p className="text-xs text-muted-foreground">Informe seu email cadastrado</p>
+                  <p className="text-xs text-muted-foreground">Informe seu email ou nome de usuário</p>
                 </div>
               </div>
 
@@ -219,20 +227,16 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
               ) : (
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">Usuário de acesso</label>
-                    <div className="flex items-center border-2 border-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all bg-background">
-                      <input
-                        type="text"
-                        required
-                        value={forgotUsername}
-                        onChange={e => setForgotUsername(usernameFromEmail(e.target.value))}
-                        className="flex-1 px-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none min-w-0"
-                        placeholder="empresa01"
-                      />
-                      <span className="px-3 py-3 text-sm font-semibold text-primary/80 bg-primary/5 border-l border-border/50 whitespace-nowrap select-none">
-                        @vivafrutaz.com
-                      </span>
-                    </div>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Email ou usuário de acesso</label>
+                    <input
+                      type="text"
+                      required
+                      value={forgotIdentifier}
+                      onChange={e => setForgotIdentifier(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+                      placeholder="Digite seu email ou usuário"
+                      data-testid="input-forgot-identifier"
+                    />
                   </div>
 
                   {forgotStatus === 'error' && (
@@ -269,7 +273,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                 <div className="flex p-1 space-x-1 bg-muted/50 rounded-xl mb-8">
                   <button
                     data-testid="tab-company"
-                    onClick={() => setType('company')}
+                    onClick={() => { setType('company'); setFieldError(null); setPasswordError(null); }}
                     className={`flex-1 flex justify-center items-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${
                       type === 'company' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
@@ -278,7 +282,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                   </button>
                   <button
                     data-testid="tab-admin"
-                    onClick={() => setType('admin')}
+                    onClick={() => { setType('admin'); setFieldError(null); setPasswordError(null); }}
                     className={`flex-1 flex justify-center items-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${
                       type === 'admin' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
@@ -291,49 +295,41 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
               <form className="space-y-6" onSubmit={handleSubmit}>
                 {type === 'admin' ? (
                   <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">Usuário</label>
-                    <div className="flex items-center border-2 border-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all bg-background">
-                      <input
-                        ref={inputRef}
-                        data-testid="input-username"
-                        type="text"
-                        required
-                        value={adminUsername}
-                        onChange={e => setAdminUsername(usernameFromEmail(e.target.value))}
-                        autoComplete="username"
-                        className="flex-1 px-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none min-w-0"
-                        placeholder="seu.nome"
-                      />
-                      <span className="px-3 py-3 text-sm font-semibold text-primary/80 bg-primary/5 border-l border-border/50 whitespace-nowrap select-none">
-                        @vivafrutaz.com
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      O domínio @vivafrutaz.com é adicionado automaticamente.
-                    </p>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Email ou usuário</label>
+                    <input
+                      ref={inputRef}
+                      data-testid="input-username"
+                      type="text"
+                      value={adminIdentifier}
+                      onChange={e => { setAdminIdentifier(e.target.value); setFieldError(null); }}
+                      autoComplete="username"
+                      className={`w-full px-4 py-3 rounded-xl bg-background border-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all ${
+                        fieldError ? 'border-red-400 focus:border-red-400' : 'border-border focus:border-primary'
+                      }`}
+                      placeholder="Digite seu email ou usuário"
+                    />
+                    {fieldError && (
+                      <p className="text-xs text-red-600 font-semibold mt-1.5" data-testid="error-field">{fieldError}</p>
+                    )}
                   </div>
                 ) : (
                   <div>
-                    <label className="block text-sm font-semibold text-foreground mb-2">Usuário de acesso</label>
-                    <div className="flex items-center border-2 border-border rounded-xl overflow-hidden focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/10 transition-all bg-background">
-                      <input
-                        ref={inputRef}
-                        data-testid="input-email"
-                        type="text"
-                        required
-                        value={companyUsername}
-                        onChange={e => setCompanyUsername(usernameFromEmail(e.target.value))}
-                        autoComplete="username"
-                        className="flex-1 px-4 py-3 bg-transparent text-foreground placeholder:text-muted-foreground outline-none min-w-0"
-                        placeholder="empresa01"
-                      />
-                      <span className="px-3 py-3 text-sm font-semibold text-primary/80 bg-primary/5 border-l border-border/50 whitespace-nowrap select-none">
-                        @vivafrutaz.com
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1.5">
-                      Digite apenas o nome de usuário — o domínio é adicionado automaticamente.
-                    </p>
+                    <label className="block text-sm font-semibold text-foreground mb-2">Email ou usuário de acesso</label>
+                    <input
+                      ref={inputRef}
+                      data-testid="input-email"
+                      type="text"
+                      value={companyIdentifier}
+                      onChange={e => { setCompanyIdentifier(e.target.value); setFieldError(null); }}
+                      autoComplete="username"
+                      className={`w-full px-4 py-3 rounded-xl bg-background border-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all ${
+                        fieldError ? 'border-red-400 focus:border-red-400' : 'border-border focus:border-primary'
+                      }`}
+                      placeholder="Digite seu email ou usuário"
+                    />
+                    {fieldError && (
+                      <p className="text-xs text-red-600 font-semibold mt-1.5" data-testid="error-field">{fieldError}</p>
+                    )}
                   </div>
                 )}
 
@@ -341,10 +337,17 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                   <label className="block text-sm font-semibold text-foreground mb-2">Senha</label>
                   <input
                     data-testid="input-password"
-                    type="password" required value={password} onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-background border-2 border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
+                    type="password"
+                    value={password}
+                    onChange={e => { setPassword(e.target.value); setPasswordError(null); }}
+                    className={`w-full px-4 py-3 rounded-xl bg-background border-2 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-4 focus:ring-primary/10 transition-all ${
+                      passwordError ? 'border-red-400 focus:border-red-400' : 'border-border focus:border-primary'
+                    }`}
                     placeholder="••••••••"
                   />
+                  {passwordError && (
+                    <p className="text-xs text-red-600 font-semibold mt-1.5" data-testid="error-password">{passwordError}</p>
+                  )}
                 </div>
 
                 <button
@@ -358,7 +361,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
 
               {type === 'company' && (
                 <div className="mt-6 text-center">
-                  <button onClick={() => { setShowForgot(true); setForgotUsername(companyUsername); }}
+                  <button onClick={() => { setShowForgot(true); setForgotIdentifier(companyIdentifier); }}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium flex items-center gap-1.5 mx-auto">
                     <KeyRound className="w-3.5 h-3.5" />
                     Esqueci minha senha

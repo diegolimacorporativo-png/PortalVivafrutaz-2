@@ -121,6 +121,26 @@ export class AuthService {
       : this.attemptCompanyLogin(normalizedEmail, input.password, ip);
   }
 
+  // ── Legacy-compatible lookups ───────────────────────────────────────────
+  /**
+   * Try exact email match first. If not found and the input has no "@"
+   * (i.e. it looks like a bare username), retry with the legacy
+   * @vivafrutaz.com suffix so users who saved "empresa01" as their
+   * credential continue to work even after the domain was removed from
+   * the login form.
+   */
+  private async lookupUserFallback(input: string) {
+    const user = await this.repo.getUserByEmail(input);
+    if (user || input.includes("@")) return user;
+    return this.repo.getUserByEmail(input + "@vivafrutaz.com");
+  }
+
+  private async lookupCompanyFallback(input: string) {
+    const company = await this.repo.getCompanyByEmail(input);
+    if (company || input.includes("@")) return company;
+    return this.repo.getCompanyByEmail(input + "@vivafrutaz.com");
+  }
+
   // ── /me ────────────────────────────────────────────────────────────────
   async resolveSession(session: SessionPayload | null | undefined): Promise<MeOutcome> {
     if (!session) return { kind: "unauthenticated" };
@@ -140,9 +160,11 @@ export class AuthService {
   async requestPasswordReset(email: string): Promise<ForgotPasswordOutcome> {
     const normalised = email.toLowerCase().trim();
 
-    // Look up in both tables — admin users take precedence
-    const user = await this.repo.getUserByEmail(normalised);
-    const company = !user ? await this.repo.getCompanyByEmail(normalised) : null;
+    // Look up in both tables — admin users take precedence.
+    // lookupUserFallback / lookupCompanyFallback transparently retry with
+    // @vivafrutaz.com when the input is a bare username (no "@").
+    const user = await this.lookupUserFallback(normalised);
+    const company = !user ? await this.lookupCompanyFallback(normalised) : null;
 
     // SECURITY: always return the same 200 message — never reveal email existence
     const SAFE_MESSAGE =
@@ -406,7 +428,7 @@ export class AuthService {
     password: string,
     ip: string,
   ): Promise<LoginOutcome> {
-    const user = await this.repo.getUserByEmail(email);
+    const user = await this.lookupUserFallback(email);
     if (!user) {
       await this.repo.log({
         action: "LOGIN_FAILED",
@@ -518,7 +540,7 @@ export class AuthService {
       return { kind: "failure", status: 503, message: "MAINTENANCE_MODE" };
     }
 
-    const company = await this.repo.getCompanyByEmail(email);
+    const company = await this.lookupCompanyFallback(email);
     if (!company) {
       await this.repo.log({
         action: "LOGIN_FAILED",

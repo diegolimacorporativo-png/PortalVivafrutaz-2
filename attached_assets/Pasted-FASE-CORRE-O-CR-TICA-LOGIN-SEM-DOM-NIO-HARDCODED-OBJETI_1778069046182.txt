@@ -1,0 +1,148 @@
+FASE: CORREÇÃO CRÍTICA — LOGIN SEM DOMÍNIO HARDCODED
+
+OBJETIVO:
+Remover o domínio fixo (@vivafrutaz.com) do login e permitir autenticação com:
+
+- email completo (cliente@empresa.com)
+- OU username (compatibilidade com legado)
+
+SEM quebrar o sistema atual de autenticação.
+
+IMPORTANTE:
+- NÃO quebrar login existente
+- NÃO alterar sessão
+- NÃO alterar lógica de auth backend além do necessário
+- NÃO remover compatibilidade com usuários atuais
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY
+--------------------------------------------------
+
+1. Ler:
+   - client/src/pages/auth/login.tsx
+   - use-auth.ts
+   - auth.controller.ts
+   - auth.service.ts
+
+2. Identificar:
+   - onde está:
+     const DOMAIN = "@vivafrutaz.com"
+   - como o login monta o email
+   - se backend espera email completo ou username
+
+--------------------------------------------------
+ETAPA 2 — FRONTEND (INPUT FLEXÍVEL)
+--------------------------------------------------
+
+Alterar o campo de login para aceitar:
+
+1. Se usuário digitar:
+   contém "@"
+   → tratar como email completo
+
+2. Se NÃO contém "@":
+   → tratar como username (modo legado)
+
+Remover:
+
+const DOMAIN = "@vivafrutaz.com"
+
+--------------------------------------------------
+ETAPA 3 — NORMALIZAÇÃO NO FRONTEND
+--------------------------------------------------
+
+Antes de enviar para API:
+
+const loginValue = input.trim().toLowerCase();
+
+Enviar:
+
+{
+  email: loginValue
+}
+
+IMPORTANTE:
+- NÃO concatenar domínio automaticamente
+- NÃO alterar formato
+
+--------------------------------------------------
+ETAPA 4 — BACKEND (COMPATIBILIDADE)
+--------------------------------------------------
+
+No auth.service:
+
+Garantir que login aceite:
+
+1. email completo:
+   where email = input
+
+2. fallback:
+   se não encontrar
+   → tentar username (se existir no sistema)
+
+Exemplo lógico:
+
+find user where:
+  email = input
+  OR username = input
+
+--------------------------------------------------
+ETAPA 5 — UX (MELHORIA)
+--------------------------------------------------
+
+Atualizar placeholder do campo:
+
+ANTES:
+"empresa01"
+
+DEPOIS:
+"Digite seu email ou usuário"
+
+Remover qualquer badge fixo de domínio.
+
+--------------------------------------------------
+ETAPA 6 — MENSAGENS DE ERRO
+--------------------------------------------------
+
+Melhorar validação:
+
+Se campo vazio:
+→ "Email ou usuário é obrigatório"
+
+Se senha vazia:
+→ "Senha é obrigatória"
+
+NÃO usar apenas:
+"Usuário ou senha incorretos"
+
+--------------------------------------------------
+ETAPA 7 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Login com email completo
+→ deve funcionar
+
+2. Login com username antigo
+→ deve continuar funcionando
+
+3. Login inválido
+→ mensagem clara
+
+4. Campo vazio
+→ erro específico
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+- Login funciona com qualquer domínio
+- White-label liberado
+- Compatível com usuários antigos
+- UX mais clara
+- Nenhuma quebra de autenticação
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
