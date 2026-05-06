@@ -1,5 +1,5 @@
 import { productRepository, type IProductRepository, type SystemLogEntry } from "./products.repository";
-import type { Product, CreateProductInput, UpdateProductInput } from "./products.types";
+import type { Product, CreateProductInput, UpdateProductInput, NormalizedProduct } from "./products.types";
 import type {
   Product as SchemaProduct,
   ProductSubCategory,
@@ -67,23 +67,29 @@ const ALERT_THRESHOLD = 0.20;
 export class ProductService {
   constructor(private readonly repo: IProductRepository = productRepository) {}
 
-  async listProducts(): Promise<Product[]> {
-    const products = await this.repo.findAll();
-    return products.map(p => ({ ...p, basePrice: p.basePrice ?? "0" }));
+  private normalize(p: Product): NormalizedProduct {
+    return { ...p, basePrice: p.basePrice !== null ? Number(p.basePrice) : null };
   }
 
-  async getProduct(id: number): Promise<Product> {
+  async listProducts(): Promise<NormalizedProduct[]> {
+    const products = await this.repo.findAll();
+    return products.map(p => this.normalize(p));
+  }
+
+  async getProduct(id: number): Promise<NormalizedProduct> {
     const product = await this.repo.findById(id);
     if (!product) throw Object.assign(new Error("Produto não encontrado."), { status: 404 });
-    return { ...product, basePrice: product.basePrice ?? "0" };
+    return this.normalize(product);
   }
 
-  async createProduct(input: CreateProductInput): Promise<Product> {
-    return this.repo.create(input);
+  async createProduct(input: CreateProductInput): Promise<NormalizedProduct> {
+    const product = await this.repo.create(input);
+    return this.normalize(product);
   }
 
-  async updateProduct(id: number, input: UpdateProductInput): Promise<Product> {
-    return this.repo.update(id, input);
+  async updateProduct(id: number, input: UpdateProductInput): Promise<NormalizedProduct> {
+    const product = await this.repo.update(id, input);
+    return this.normalize(product);
   }
 
   async deleteProduct(id: number): Promise<void> {

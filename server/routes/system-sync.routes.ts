@@ -58,7 +58,7 @@ export function register(app: Express) {
       try {
         const products = await storage.getProducts();
         const active = products.filter((p: any) => p.active);
-        const noPrice = active.filter((p: any) => !p.basePrice || Number(p.basePrice) <= 0);
+        const noPrice = active.filter((p: any) => p.basePrice == null || Number(p.basePrice) <= 0);
         if (noPrice.length > 0) {
           checks.push({ id: 'products_price', label: 'Preços dos Produtos', status: 'WARN', detail: `${noPrice.length} produto(s) ativo(s) sem preço base: ${noPrice.slice(0, 3).map((p: any) => p.name).join(', ')}${noPrice.length > 3 ? '...' : ''}` });
         } else {

@@ -38,7 +38,7 @@ function formatDate(iso: string) {
 type AuditIssue = { severity: string; category: string; message: string };
 type AuditDetails = {
   inactiveCompanies: { id: number; companyName: string; cnpj: string | null; city: string | null; email: string | null; registeredAt: string | null; responsible: string | null; lastOrderDate: string | null; daysSinceOrder: number | null; active: boolean }[];
-  inactiveProducts: { id: number; name: string; category: string | null; active: boolean; basePrice: string | null; createdAt: string | null }[];
+  inactiveProducts: { id: number; name: string; category: string | null; active: boolean; basePrice: number | null; createdAt: string | null }[];
   loginFails: { id: number; email: string; createdAt: string; ip: string | null; description: string }[];
   systemErrors: { id: number; action: string; description: string; level: string; createdAt: string; userEmail: string | null }[];
 };

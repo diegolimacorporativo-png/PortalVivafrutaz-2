@@ -5,8 +5,8 @@ import { useState } from "react";
 import { Building2, DollarSign, TrendingUp, Percent, Info, Package } from "lucide-react";
 import type { Company } from "@shared/schema";
 
-function calcFinalPrice(basePrice: string | null, adminFee: string | null): number | null {
-  if (!basePrice) return null;
+function calcFinalPrice(basePrice: number | string | null, adminFee: string | null): number | null {
+  if (basePrice == null) return null;
   const base = Number(basePrice);
   const fee = Number(adminFee || 0);
   return base * (1 + fee / 100);
@@ -21,7 +21,7 @@ export default function PriceGroupsPage() {
   const { data: products } = useProducts();
   const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
 
-  const activeProducts = products?.filter(p => p.active && p.basePrice) || [];
+  const activeProducts = products?.filter(p => p.active && p.basePrice != null) || [];
 
   return (
     <Layout>

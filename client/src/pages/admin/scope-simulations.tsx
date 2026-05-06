@@ -67,7 +67,7 @@ type Product = {
   name: string;
   category: string;
   unit: string;
-  basePrice: string | null;
+  basePrice: number | null;
   active: boolean;
   outOfSeason: boolean;
 };
@@ -236,8 +236,8 @@ export default function ScopeSimulationsPage() {
     setNewItem((prev) => ({
       ...prev,
       productId: p.id,
-      unitPrice: p.basePrice ? parseFloat(p.basePrice) : 0,
-      avgCost: p.basePrice ? parseFloat(p.basePrice) * 0.6 : 0,
+      unitPrice: p.basePrice ?? 0,
+      avgCost: (p.basePrice ?? 0) * 0.6,
     }));
   }
 

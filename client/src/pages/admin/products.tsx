@@ -85,7 +85,7 @@ function productToForm(p: Product): typeof emptyForm {
   const inferredMode: PricingMode =
     persistedMode === "base" || persistedMode === "category"
       ? persistedMode
-      : p.basePrice
+      : p.basePrice != null
         ? "base"
         : "category";
 
@@ -93,7 +93,7 @@ function productToForm(p: Product): typeof emptyForm {
     name: p.name,
     unit: p.unit,
     active: p.active,
-    basePrice: p.basePrice ? String(p.basePrice) : "",
+    basePrice: p.basePrice != null ? String(p.basePrice) : "",
     isIndustrialized: p.isIndustrialized ?? false,
     isSeasonal: p.isSeasonal ?? false,
     outOfSeason: (p as any).outOfSeason ?? false,
@@ -757,7 +757,7 @@ export default function ProductsPage() {
       active: formData.active,
       // basePrice só vai ao backend quando o modo é "base"; em "category"
       // enviamos null para deixar explícito que o produto não tem base.
-      basePrice: formData.pricingMode === "base" ? String(priceNum) : null,
+      basePrice: formData.pricingMode === "base" ? priceNum : null,
       isIndustrialized: formData.isIndustrialized,
       isSeasonal: formData.isSeasonal,
       outOfSeason: formData.outOfSeason,
@@ -1033,7 +1033,7 @@ export default function ProductsPage() {
               const sourceLabel =
                 source === "contract" ? "contrato" : source === "subcategory" ? "categoria" : "base";
 
-              if (!product.basePrice && resolved === 0) {
+              if (product.basePrice == null && resolved === 0) {
                 return (
                   <div className="mt-3 px-4 py-2 bg-orange-50 rounded-xl border border-orange-200" data-testid={`price-missing-${product.id}`}>
                     <p className="text-xs font-bold text-orange-600">Preço base não definido</p>

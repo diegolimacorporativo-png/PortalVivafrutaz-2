@@ -44,7 +44,7 @@ export default function EditOrderPage() {
   const availableProducts = useMemo(() => {
     if (!products || !company) return [];
     return products
-      .filter(p => p.active && p.basePrice)
+      .filter(p => p.active && p.basePrice != null)
       .map(product => {
         const price = resolvePrice({
           basePrice: product.basePrice,

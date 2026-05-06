@@ -83,13 +83,13 @@ export function register(app: Express) {
         const allOrders = await storage.getOrders();
         const inactive = products.filter((p: any) => !p.active);
         if (inactive.length > 0) issues.push({ severity: 'INFO', category: 'Produtos', message: `${inactive.length} produto(s) inativo(s) no catálogo.` });
-        const noPrice = products.filter((p: any) => !p.basePrice);
+        const noPrice = products.filter((p: any) => p.basePrice == null);
         if (noPrice.length > 0) issues.push({ severity: 'WARN', category: 'Produtos', message: `${noPrice.length} produto(s) sem preço base definido.` });
 
         details.inactiveProducts = await Promise.all(inactive.map(async (p: any) => {
           return {
             id: p.id, name: p.name, category: p.category || null, active: p.active,
-            basePrice: p.basePrice || null, createdAt: p.createdAt || null,
+            basePrice: p.basePrice ?? null, createdAt: p.createdAt || null,
           };
         }));
       } catch (e: any) {

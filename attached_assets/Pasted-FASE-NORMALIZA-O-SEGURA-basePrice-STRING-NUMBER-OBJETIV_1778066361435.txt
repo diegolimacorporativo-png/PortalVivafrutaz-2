@@ -1,0 +1,137 @@
+FASE: NORMALIZAÇÃO SEGURA — basePrice STRING → NUMBER
+
+OBJETIVO:
+Converter basePrice para número (number) em toda a aplicação sem quebrar compatibilidade atual.
+
+IMPORTANTE:
+- NÃO quebrar frontend existente
+- NÃO alterar banco de forma destrutiva
+- NÃO assumir que todos os pontos já usam number
+- Implementar transição segura (backward compatible)
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY
+--------------------------------------------------
+
+1. Mapear onde basePrice é usado:
+   - products.service
+   - products.controller
+   - schema (Drizzle/Zod)
+   - frontend (pages + utils como priceResolver)
+
+2. Identificar:
+   - onde está como string
+   - onde já é tratado como number
+
+--------------------------------------------------
+ETAPA 2 — BACKEND NORMALIZAÇÃO (PRINCIPAL)
+--------------------------------------------------
+
+No service (listProducts, getProduct, etc):
+
+Substituir:
+
+basePrice: product.basePrice ?? "0"
+
+Por:
+
+basePrice: Number(product.basePrice ?? 0)
+
+IMPORTANTE:
+- Garantir que sempre retorna NUMBER
+- Nunca retornar string
+
+--------------------------------------------------
+ETAPA 3 — CONTROLLER (ENTRADA SEGURA)
+--------------------------------------------------
+
+Ao receber dados de create/update:
+
+Normalizar entrada:
+
+const basePrice = data.basePrice !== undefined
+  ? Number(data.basePrice)
+  : undefined;
+
+Validar:
+
+- não pode ser NaN
+- deve ser >= 0
+
+Se inválido:
+
+return 400:
+"Preço base deve ser um número válido maior ou igual a zero"
+
+--------------------------------------------------
+ETAPA 4 — FRONTEND (COMPATIBILIDADE)
+--------------------------------------------------
+
+No frontend:
+
+Garantir que todos os usos façam:
+
+Number(basePrice)
+
+ou já assumam number.
+
+No priceResolver:
+
+Aceitar ambos (temporário):
+
+Number(value ?? 0)
+
+IMPORTANTE:
+- NÃO quebrar caso ainda venha string em algum ponto
+
+--------------------------------------------------
+ETAPA 5 — TYPES (TIPAGEM SEGURA)
+--------------------------------------------------
+
+Atualizar types:
+
+basePrice: number
+
+Mas permitir fallback temporário:
+
+basePrice: number | string  (transição)
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. GET produtos
+→ basePrice deve vir como number
+
+2. Criar produto com:
+   - "10" → deve virar 10
+   - 10 → deve continuar 10
+   - "-1" → rejeitar
+   - "abc" → rejeitar
+
+3. Frontend:
+→ não pode quebrar renderização
+
+--------------------------------------------------
+ETAPA 7 — LIMPEZA FUTURA (NÃO FAZER AGORA)
+--------------------------------------------------
+
+Após estabilizar:
+
+- remover suporte a string
+- fixar tipo 100% number
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+- basePrice padronizado como number
+- compatível com código antigo
+- pronto para cálculos financeiros
+- zero quebra de sistema
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
