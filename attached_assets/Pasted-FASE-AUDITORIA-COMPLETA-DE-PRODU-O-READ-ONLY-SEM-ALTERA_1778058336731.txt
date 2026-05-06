@@ -1,0 +1,173 @@
+FASE: AUDITORIA COMPLETA DE PRODUÇÃO (READ-ONLY — SEM ALTERAÇÕES)
+
+OBJETIVO:
+Realizar auditoria técnica completa do sistema para validar se está apto para uso em produção interna.
+
+IMPORTANTE:
+- NÃO alterar código
+- NÃO aplicar correções
+- NÃO criar arquivos novos
+- NÃO rodar migrations destrutivas
+- Apenas LER, ANALISAR e REPORTAR
+
+--------------------------------------------------
+METODOLOGIA OBRIGATÓRIA
+--------------------------------------------------
+
+Seguir estritamente:
+
+1. DISCOVERY (Mapeamento)
+2. VERIFICATION (Validação técnica)
+3. RISK ANALYSIS (Riscos reais)
+4. FINAL REPORT (Relatório executivo)
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY (MAPEAR SISTEMA)
+--------------------------------------------------
+
+Mapear e listar:
+
+1. Estrutura backend
+   - modules/
+   - routes/
+   - services/
+   - core/
+
+2. Sistema de autenticação
+   - login
+   - sessão
+   - middleware auth
+   - sessionGuard
+   - deviceId
+
+3. Banco de dados
+   - conexão (db.ts)
+   - uso de DATABASE_URL / SUPABASE_DATABASE_URL
+   - ORM (drizzle ou outro)
+
+4. Frontend
+   - ProtectedRoute
+   - fetchWithAuth
+   - tratamento de 401/403
+
+5. Logs
+   - [AUDIT]
+   - [AUTH]
+   - [SESSION]
+   - [ERROR]
+
+--------------------------------------------------
+ETAPA 2 — VERIFICATION (VALIDAÇÃO TÉCNICA)
+--------------------------------------------------
+
+VALIDAR:
+
+AUTH:
+- Sessão não é invalidada indevidamente
+- SESSION_INVALIDATED ocorre apenas quando necessário
+- DEVICE_MISMATCH está correto
+- login/logout funcionando sem loop
+
+PERMISSÕES:
+- FULL_ACCESS_ROLES funcionando
+- MASTER/ADMIN/DIRECTOR têm acesso total
+- usuários restritos NÃO são redirecionados → recebem "Acesso negado"
+
+FRONTEND:
+- fetchWithAuth NÃO dispara logout em 401 não críticos
+- IGNORE_401_URLS funcionando
+- erro de permissão NÃO redireciona para /login
+
+BANCO:
+- conexão usando SUPABASE_DATABASE_URL
+- SSL ativo
+- sem fallback indevido para banco local
+- migrations aplicadas
+
+CACHE:
+- queries com refetch correto após mutation
+- sem stale infinito problemático
+- UI atualiza sem reload
+
+SEGURANÇA:
+- senhas com hash (bcrypt/argon2)
+- nenhuma senha hardcoded
+- secrets NÃO expostos no código
+- validação de input básica
+
+--------------------------------------------------
+ETAPA 3 — RISK ANALYSIS
+--------------------------------------------------
+
+Classificar problemas encontrados em:
+
+CRÍTICO:
+- pode derrubar sistema
+- pode causar perda de dados
+- falha de segurança
+
+ALTO:
+- impacto direto no usuário
+- comportamento inconsistente
+
+MÉDIO:
+- bugs controláveis
+- UX ruim
+
+BAIXO:
+- melhorias
+
+Para cada problema informar:
+
+- arquivo
+- linha aproximada
+- causa raiz
+- impacto real
+
+--------------------------------------------------
+ETAPA 4 — TESTES LÓGICOS (SIMULAÇÃO)
+--------------------------------------------------
+
+Simular mentalmente:
+
+1. Usuário não logado acessando rota pública
+2. Usuário logado navegando sistema
+3. Usuário sem permissão acessando rota restrita
+4. Sessão expirada
+5. Criação de empresa
+6. Atualização de dados
+
+Apontar onde pode quebrar.
+
+--------------------------------------------------
+ETAPA 5 — FINAL REPORT
+--------------------------------------------------
+
+Gerar relatório estruturado:
+
+1. RESUMO EXECUTIVO
+   - sistema estável? (SIM / PARCIAL / NÃO)
+
+2. PONTOS FORTES
+
+3. PONTOS CRÍTICOS
+
+4. RISCOS DE PRODUÇÃO
+
+5. PRONTIDÃO PARA PRODUÇÃO INTERNA
+   - NOTA: 0 a 10
+   - JUSTIFICATIVA
+
+--------------------------------------------------
+REGRAS FINAIS
+--------------------------------------------------
+
+- NÃO sugerir código ainda
+- NÃO corrigir nada
+- NÃO modificar arquivos
+- NÃO simplificar análise
+- Ser direto, técnico e objetivo
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
