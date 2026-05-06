@@ -1,0 +1,130 @@
+FASE: CONFIGURAÇÃO SEGURA DO BANCO EXTERNO (SUPABASE)
+
+OBJETIVO:
+Conectar o sistema ao banco externo do Supabase utilizando variável de ambiente segura, sem hardcode e sem quebrar fallback local.
+
+REGRAS:
+- NÃO hardcodar credenciais
+- NÃO remover suporte ao DATABASE_URL atual
+- NÃO alterar lógica de negócio
+- ALTERAR apenas conexão do banco (db.ts)
+- Garantir compatibilidade total
+
+--------------------------------------------------
+ETAPA 1 — VERIFICAR db.ts
+--------------------------------------------------
+
+Arquivo:
+server/database/db.ts
+
+OBJETIVO:
+Garantir que o sistema prioriza SUPABASE_DATABASE_URL.
+
+Procurar criação da conexão e ajustar para:
+
+const databaseUrl =
+  process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+
+if (!databaseUrl) {
+  throw new Error("[DB] Nenhuma DATABASE_URL configurada");
+}
+
+--------------------------------------------------
+ETAPA 2 — SSL OBRIGATÓRIO (SUPABASE)
+--------------------------------------------------
+
+Adicionar detecção automática:
+
+const isSupabase = databaseUrl.includes("supabase");
+
+const client = new Pool({
+  connectionString: databaseUrl,
+  ssl: isSupabase
+    ? { rejectUnauthorized: false }
+    : false,
+});
+
+--------------------------------------------------
+ETAPA 3 — LOGS DE DIAGNÓSTICO
+--------------------------------------------------
+
+Adicionar logs ao iniciar:
+
+console.log("[DB] SUPABASE_DATABASE_URL presente:", !!process.env.SUPABASE_DATABASE_URL);
+
+if (process.env.SUPABASE_DATABASE_URL) {
+  console.log("[DB] Conectando ao Supabase (SSL ativado)...");
+} else {
+  console.log("[DB] Usando banco local (Replit)");
+}
+
+--------------------------------------------------
+ETAPA 4 — CONFIGURAR SECRET
+--------------------------------------------------
+
+NO REPLIT:
+
+Abrir:
+Tools → Secrets (ícone de cadeado)
+
+Criar:
+
+KEY:
+SUPABASE_DATABASE_URL
+
+VALUE:
+postgresql://postgres.kqvutmzqwgrcntpivnhy:SUA_SENHA@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+IMPORTANTE:
+- Substituir SUA_SENHA pela senha criada
+- NÃO usar colchetes [ ]
+- NÃO deixar espaços
+
+--------------------------------------------------
+ETAPA 5 — REINICIAR WORKFLOW
+--------------------------------------------------
+
+Reiniciar o servidor após salvar o secret.
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO (OBRIGATÓRIO)
+--------------------------------------------------
+
+Verificar logs:
+
+DEVE aparecer:
+
+[DB] SUPABASE_DATABASE_URL presente: true
+[DB] Conectando ao Supabase (SSL ativado)...
+
+NÃO pode aparecer erro de conexão.
+
+--------------------------------------------------
+ETAPA 7 — SCHEMA (SE NECESSÁRIO)
+--------------------------------------------------
+
+Se banco estiver vazio:
+
+Rodar:
+
+npm run db:push
+
+OU
+
+drizzle-kit push
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ banco local do Replit
+
+DEPOIS:
+→ banco Supabase conectado
+→ dados persistentes fora do ambiente
+→ seguro para troca de agent/conta
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
