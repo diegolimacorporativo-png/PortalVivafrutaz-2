@@ -1,0 +1,99 @@
+FASE: PRÉ-CORREÇÃO — AUDITORIA DE ESTADO ATUAL
+
+OBJETIVO:
+Validar o estado real do sistema antes de qualquer alteração, evitando regressão após troca de agent.
+
+IMPORTANTE:
+- NÃO alterar código
+- NÃO corrigir nada
+- NÃO criar arquivos
+- Apenas LER e REPORTAR
+
+--------------------------------------------------
+ETAPA 1 — VALIDAÇÃO DO AMBIENTE
+--------------------------------------------------
+
+Verificar:
+
+- servidor está rodando?
+- existe erro no console?
+- build frontend ok?
+
+--------------------------------------------------
+ETAPA 2 — BANCO DE DADOS
+--------------------------------------------------
+
+Verificar:
+
+- SUPABASE_DATABASE_URL está presente?
+- conexão ativa?
+- logs mostram conexão com Supabase?
+- tabelas existem?
+
+Confirmar:
+- users
+- companies
+- products
+- sessions
+
+--------------------------------------------------
+ETAPA 3 — AUTH E SESSÃO
+--------------------------------------------------
+
+Validar:
+
+- login funcionando
+- sessão persistindo
+- logout funcionando
+- change-password funcionando
+
+--------------------------------------------------
+ETAPA 4 — ROTAS CRÍTICAS
+--------------------------------------------------
+
+Testar:
+
+GET /api/companies
+GET /api/products
+POST /api/auth/login
+
+Confirmar:
+
+- autenticado → 200
+- não autenticado → 401
+- nunca retornar HTML
+
+--------------------------------------------------
+ETAPA 5 — FRONTEND
+--------------------------------------------------
+
+Validar:
+
+- login abre corretamente
+- dashboard carrega
+- não existe tela branca
+
+--------------------------------------------------
+ETAPA 6 — PROBLEMAS CONHECIDOS
+--------------------------------------------------
+
+Verificar se ainda existem:
+
+- produtos sem preço (basePrice null)
+- login com domínio fixo
+- API retornando HTML
+
+--------------------------------------------------
+RELATÓRIO FINAL
+--------------------------------------------------
+
+Responder:
+
+1. Sistema está estável? (SIM / NÃO)
+2. Banco conectado? (SIM / NÃO)
+3. Auth funcionando? (SIM / NÃO)
+4. Problemas ainda presentes (lista)
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
