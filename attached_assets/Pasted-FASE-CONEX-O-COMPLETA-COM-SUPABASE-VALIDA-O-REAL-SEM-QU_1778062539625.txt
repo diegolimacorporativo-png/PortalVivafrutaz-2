@@ -1,0 +1,121 @@
+FASE: CONEXÃO COMPLETA COM SUPABASE + VALIDAÇÃO REAL (SEM QUEBRAR NADA)
+
+OBJETIVO:
+Conectar o sistema ao banco Supabase usando SUPABASE_DATABASE_URL e VALIDAR que a conexão está realmente ativa (não fallback).
+
+IMPORTANTE:
+- NÃO alterar schema
+- NÃO rodar migrations destrutivas
+- NÃO modificar lógica de negócio
+- NÃO remover fallback para DATABASE_URL
+- Apenas garantir conexão + validação real
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY
+--------------------------------------------------
+
+1. Ler:
+   - server/database/db.ts
+
+2. Confirmar:
+   - Uso de:
+     process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL
+   - SSL ativo para Supabase
+   - Logs [DB] presentes
+
+Se já estiver correto → NÃO alterar código
+
+--------------------------------------------------
+ETAPA 2 — CONFIGURAÇÃO DO SECRET
+--------------------------------------------------
+
+Verificar se existe o secret:
+
+SUPABASE_DATABASE_URL
+
+Se NÃO existir:
+→ Criar automaticamente no ambiente com o valor:
+
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+(sem colchetes, sem placeholders)
+
+--------------------------------------------------
+ETAPA 3 — RESTART CONTROLADO
+--------------------------------------------------
+
+1. Reiniciar o servidor
+2. Garantir que não existe conflito de porta
+3. Subir ambiente limpo
+
+--------------------------------------------------
+ETAPA 4 — VALIDAÇÃO DE CONEXÃO (OBRIGATÓRIO)
+--------------------------------------------------
+
+Verificar logs de inicialização:
+
+DEVE aparecer:
+
+[DB] SUPABASE_DATABASE_URL presente: true
+[DB] Conectando ao Supabase (SSL ativado)...
+
+NÃO pode aparecer:
+
+Conectando ao banco local Replit
+
+--------------------------------------------------
+ETAPA 5 — VALIDAÇÃO REAL NO BANCO
+--------------------------------------------------
+
+Executar query simples via código:
+
+SELECT table_name
+FROM information_schema.tables
+WHERE table_schema = 'public';
+
+Validar:
+
+- Retorna lista de tabelas
+- Conexão está funcional
+- Sem erro de SSL ou auth
+
+--------------------------------------------------
+ETAPA 6 — TESTE DE ESCRITA (SEM ALTERAR DADOS REAIS)
+--------------------------------------------------
+
+Executar operação segura:
+
+SELECT 1;
+
+ou equivalente via ORM
+
+Confirmar:
+
+- Query executa com sucesso
+- Sem timeout
+- Sem erro de conexão
+
+--------------------------------------------------
+ETAPA 7 — LOG FINAL
+--------------------------------------------------
+
+Exibir:
+
+[DB_CHECK] Conexão com Supabase OK
+[DB_CHECK] Total de tabelas encontradas: X
+[DB_CHECK] Ambiente usando banco externo com sucesso
+
+--------------------------------------------------
+REGRAS FINAIS
+--------------------------------------------------
+
+- NÃO rodar db:push automaticamente
+- NÃO criar tabelas
+- NÃO deletar nada
+- NÃO alterar schema
+- NÃO mexer em migrations
+- NÃO tocar em outras partes do sistema
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
