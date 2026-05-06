@@ -49,22 +49,21 @@ Preferred communication style: Simple, everyday language.
 - Session-based authentication with `express-session` backed by PostgreSQL (`connect-pg-simple`).
 - Role-based access control for `admin` and `company` user types, enforced by `ProtectedRoute` and `tabPermissions`.
 - Account lockout mechanism after failed login attempts.
-- **Security audit fixes applied (FASE 14.X):**
-  - C1: `GET /api/admin/logs` now requires `requireAuth + requireRole(['MASTER','ADMIN','DEVELOPER','DIRECTOR'])`.
-  - C2: All `/api/v1/users` CRUD routes now require `requireAuth + requireRole(['MASTER','ADMIN'])`.
-  - C3: `POST /api/auth/revoke-sessions` now requires `requireAuth`.
-  - BUG-01: `isLocked` check moved **before** L1/L2 rate-limit consumption in both admin and company login flows.
-  - BUG-02: Admin unblock endpoint now also resets `isLocked + loginAttempts` on `users`/`companies` tables.
-  - BUG-03: `security.blocker.ts::blockUser` converted to `async` with static import and awaited DB write.
-  - BUG-04: Company login now emits `logAuthEvent` for `LOGIN_BLOCKED_LOCKED` and `LOGIN_BLOCKED_INACTIVE`.
-  - BUG-05: Device-binding enforcement now activates for client-sent `X-Device-Id` headers (sessions with `srv-*` server-generated IDs remain unenforced for backward compat).
-  - BUG-06: `validateSession` catch block is now **fail-closed** (`{ valid: false }` on DB error).
-  - BUG-07: `getCompanySecurityProfile` no longer issues a second global `getAuthAttempts` query; brute-force signal derived from already-fetched company rows.
-  - BUG-08: NF-e period-closure guard is now **fail-closed** (returns HTTP 503 on internal error instead of bypassing the fiscal check).
-  - BUG-09: On startup, any NF-e stuck in `fiscal_status='enviando'` is recovered to `'erro'` (crash-safe reset).
-  - BUG-10: ViaCEP IBGE lookup catch block now emits a structured `console.warn` instead of silently swallowing errors.
-  - N+1 `/api/nfe/eligible`: replaced per-row `canEmitNFe` calls (500 SQL JOINs) with one batch JOIN + JS-level `getFaturamentoContext`.
-  - N+1 `billing.service.ts`: replaced per-item `db.query.products.findFirst` loop with single `inArray` batch query + Map lookup.
+- **Security hardening (FASE AUDITORIA + HARDENING SaaS):**
+  - `GET /api/orders` legado agora tem `requireAuthCore` explícito (linha 505 routes.ts).
+  - `writeGate` em `companies.routes.ts` agora inclui `requireAuthOrService` (antes só `tenantContext`).
+  - Token de reset de senha só é logado quando `NODE_ENV === "development"` (era `!== "production"`).
+  - CORS configurado com allowlist: `*.replit.dev`, `*.replit.app`, `localhost` — origens externas bloqueadas.
+  - `[SESSION_CHECK]` suprimido fora de `NODE_ENV === "development"` (evita flood de logs em produção).
+  - `db.ts`: fail-hard com mensagem clara se `SUPABASE_DATABASE_URL` ausente em `NODE_ENV === "production"`.
+  - **Rate limit IP+email combinado** (`loginEmailIpLimiter`): 5 tentativas / 15 min por combinação IP:email — aplicado em `/login` junto com o IP-only limiter existente.
+  - **`/api/auth/force-password-change`** agora tem `loginIpLimiter` (estava sem proteção).
+  - **Session rotation**: `session.regenerate()` chamado após login bem-sucedido (gateado por `SECURITY_FLAGS.SESSION_ROTATION`).
+  - **`SECURITY_FLAGS`**: feature toggles em `server/core/security/securityFlags.ts` — `RATE_LIMIT`, `AUDIT_LOG`, `ANOMALY_DETECTION`, `SESSION_ROTATION`, `SECURITY_ALERTS`. Desabilitáveis via env sem deploy.
+  - **`auditLogger.ts` com persistência em DB**: `auditLog()` e `auditSecurity()` agora persistem no banco via `storage.createLog()` (fire-and-forget), além do `console.warn` original. Gateado por `SECURITY_FLAGS.AUDIT_LOG`.
+  - **Hooks de auditoria em auth**: `auditSecurity("LOGIN_SUCCESS"/"LOGIN_FAILURE")` chamados em todos os pontos de login admin e empresa em `auth.service.ts`.
+  - **Central de Segurança** (`/admin/security`): página unificada com KPIs (logins 24h, falhas, alertas, anomalias), IPs suspeitos, alertas recentes, atividade de autenticação, links para security-audit e security-intelligence.
+  - BUG-01…BUG-10: correções de segurança de fases anteriores (ver histórico de commits).
 
 ### Core Features
 - **Dual Portal System**: Separate interfaces for client companies and internal administration.

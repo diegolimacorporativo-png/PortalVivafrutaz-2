@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { auditSecurity } from "../../utils/auditLogger";
 import { authRepository, AuthRepository } from "./auth.repository";
 import type {
   ForgotPasswordOutcome,
@@ -414,6 +415,7 @@ export class AuthService {
         level: "WARN",
         ip,
       });
+      auditSecurity("LOGIN_FAILURE", { userId: undefined, role: undefined, ip, details: { email, reason: "user_not_found" } });
       return { kind: "failure", status: 401, message: "Usuário ou senha incorretos." };
     }
 
@@ -490,6 +492,7 @@ export class AuthService {
             userId: refreshed.id,
             metadata: { email: refreshed.email, role: refreshed.role },
           });
+          auditSecurity("LOGIN_SUCCESS", { userId: refreshed.id, role: refreshed.role, ip, details: { email: refreshed.email } });
           return { kind: "admin-success", user: refreshed };
         },
       },
@@ -524,6 +527,7 @@ export class AuthService {
         level: "WARN",
         ip,
       });
+      auditSecurity("LOGIN_FAILURE", { userId: undefined, role: "CLIENT", ip, details: { email, reason: "company_not_found" } });
       return {
         kind: "failure",
         status: 401,
@@ -607,6 +611,7 @@ export class AuthService {
             companyId: refreshed.id,
             metadata: { email: refreshed.email },
           });
+          auditSecurity("LOGIN_SUCCESS", { userId: undefined, empresaId: refreshed.id, role: "CLIENT", ip, details: { email: refreshed.email } });
           return { kind: "company-success", company: refreshed };
         },
       },

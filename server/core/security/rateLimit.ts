@@ -279,3 +279,76 @@ export function criticalActionLogger(
 
   next();
 }
+
+// ── IP + Email combined login limiter ─────────────────────────────────────────
+
+/**
+ * loginEmailIpLimiter — rate limiter combinado por IP + email.
+ *
+ * Complementa o loginIpLimiter (por IP isolado) adicionando dimensão por
+ * conta: bloqueia ataques distribuídos que tentam a mesma conta de múltiplos
+ * IPs dentro de um proxy compartilhado / NAT.
+ *
+ * Janela: 15 min | Limite: 5 tentativas por combinação ip:email
+ */
+export const loginEmailIpLimiter = (function () {
+  const store = new Map<string, RateWindow>();
+  const MAX = 5;
+  const WINDOW_MS = 15 * 60_000;
+
+  const timer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, win] of store) {
+      if (now > win.resetAt) store.delete(key);
+    }
+  }, 5 * 60_000);
+  if (timer.unref) timer.unref();
+
+  return function loginEmailIpLimiterMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void {
+    const ip = getClientIp(req);
+    const email = (
+      typeof req.body?.email === "string" ? req.body.email : ""
+    ).toLowerCase().trim();
+
+    if (!email) { next(); return; }
+
+    const key = `${ip}:${email}`;
+    const now = Date.now();
+    let win = store.get(key);
+
+    if (!win || now > win.resetAt) {
+      store.set(key, { count: 1, resetAt: now + WINDOW_MS });
+      next();
+      return;
+    }
+
+    win.count += 1;
+
+    if (win.count > MAX) {
+      const retryAfter = Math.ceil((win.resetAt - now) / 1000);
+      const rid = getRequestId(req);
+      logSecurity(
+        `[SECURITY] RATE_LIMITED | ip=${ip} | email=${email} | path=${req.path} | requestId=${rid}`,
+      );
+      logSecurityEvent({
+        type: "RATE_LIMITED",
+        ip,
+        path: req.originalUrl,
+        requestId: rid,
+      });
+      console.warn("[RATE_LIMIT]", { ip, email, path: req.path, timestamp: new Date().toISOString() });
+      res.setHeader("Retry-After", String(retryAfter));
+      res.status(429).json({
+        message: `Muitas tentativas. Aguarde ${Math.ceil(WINDOW_MS / 60_000)} minutos e tente novamente.`,
+        code: "RATE_LIMIT_EXCEEDED",
+      });
+      return;
+    }
+
+    next();
+  };
+})();

@@ -69,6 +69,7 @@ import AdminAnnouncements from "@/pages/admin/announcements";
 import AdminSystemHealth from "@/pages/admin/system-health";
 import AdminSecurityAudit from "@/pages/admin/security-audit";
 import AdminSecurityIntelligence from "@/pages/admin/security-intelligence";
+import SecurityDashboard from "@/pages/admin/security-dashboard";
 import GovernanceDashboard from "@/pages/admin/governance-dashboard";
 
 import AdminTasks from "@/pages/admin/tasks";
@@ -355,6 +356,9 @@ function Router() {
       </Route>
       <Route path="/admin/system-health">
         {() => <ProtectedRoute component={AdminSystemHealth} role="admin" allowedRoles={['ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="system-health" />}
+      </Route>
+      <Route path="/admin/security">
+        {() => <ProtectedRoute component={SecurityDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN']} tabKey="security" />}
       </Route>
       <Route path="/admin/security-audit">
         {() => <ProtectedRoute component={AdminSecurityAudit} role="admin" allowedRoles={['MASTER']} tabKey="security-audit" />}

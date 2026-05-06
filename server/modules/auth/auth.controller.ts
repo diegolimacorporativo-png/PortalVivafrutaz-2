@@ -70,6 +70,24 @@ export class AuthController {
     // Success — write session, persist it, then respond. Saving before the
     // response is critical because the frontend immediately fires GET /me
     // after login and expects the cookie to be valid.
+
+    // Session rotation — prevents session fixation attacks by issuing a new
+    // session ID on every successful login (SECURITY_FLAGS.SESSION_ROTATION).
+    const { SECURITY_FLAGS } = await import("../../core/security/securityFlags");
+    if (SECURITY_FLAGS.SESSION_ROTATION) {
+      let regenerateError: Error | null = null;
+      await new Promise<void>((resolve) => {
+        req.session.regenerate((err) => {
+          regenerateError = err ?? null;
+          resolve();
+        });
+      });
+      if (regenerateError) {
+        res.status(500).json({ message: "Erro ao processar login. Tente novamente." });
+        return;
+      }
+    }
+
     const session = req.session as unknown as SessionPayload;
     // FASE 14.6 — deviceId from client (fingerprint) or generate a fallback UUID
     const deviceId = (req.body as any)?.deviceId;

@@ -1,0 +1,270 @@
+FASE: HARDENING DE SEGURANÇA (NÍVEL SAAS PAGO)
+
+OBJETIVO:
+Elevar o sistema de seguro (8.5/10) para nível profissional (9.5/10+), adicionando camadas de proteção, auditoria persistente e resposta a incidentes.
+
+REGRAS:
+- NÃO quebrar fluxos existentes
+- NÃO refatorar arquitetura
+- ADICIONAR camadas (não substituir)
+- Tudo deve ser incremental e reversível
+- Feature flags quando aplicável
+
+--------------------------------------------------
+ETAPA 1 — RATE LIMIT INTELIGENTE (ANTI BRUTE FORCE)
+--------------------------------------------------
+
+OBJETIVO:
+Proteger login e endpoints sensíveis contra abuso.
+
+AÇÕES:
+
+1. Criar middleware rateLimiter (server/core/security/rateLimiter.ts)
+
+Regras:
+- IP + email combinados
+- janela: 15 min
+- limite: 5 tentativas falhas
+
+2. Aplicar em:
+- POST /api/auth/login
+- POST /api/auth/force-password-change
+- POST /api/auth/reset-password
+
+3. Em caso de bloqueio:
+- retornar 429 com code: "RATE_LIMIT_EXCEEDED"
+
+4. Logar:
+console.warn("[RATE_LIMIT]", { ip, email, path })
+
+--------------------------------------------------
+ETAPA 2 — AUDITORIA PERSISTENTE (DATABASE)
+--------------------------------------------------
+
+OBJETIVO:
+Registrar eventos críticos no banco (não só console).
+
+AÇÕES:
+
+1. Criar tabela audit_logs:
+- id
+- userId
+- companyId
+- action
+- entity
+- entityId
+- metadata (jsonb)
+- createdAt
+
+2. Criar helper:
+server/core/audit/auditLogger.ts
+
+Função:
+logAudit({ userId, action, entity, metadata })
+
+3. Registrar eventos:
+
+AUTH:
+- LOGIN_SUCCESS
+- LOGIN_FAILURE
+- PASSWORD_CHANGED
+
+EMPRESA:
+- COMPANY_CREATED
+- COMPANY_UPDATED
+
+SEGURANÇA:
+- SESSION_INVALIDATED
+- RATE_LIMIT_EXCEEDED
+
+--------------------------------------------------
+ETAPA 3 — DETECÇÃO DE ATIVIDADE SUSPEITA
+--------------------------------------------------
+
+OBJETIVO:
+Identificar comportamento anômalo automaticamente.
+
+AÇÕES:
+
+1. Criar detector:
+server/core/security/anomalyDetector.ts
+
+Regras iniciais:
+
+- múltiplos logins falhos (>=5)
+- mudança de deviceId frequente
+- acesso a múltiplas empresas em sequência
+
+2. Ao detectar:
+- logar [SECURITY_ALERT]
+- registrar em audit_logs
+- opcional: invalidar sessão
+
+--------------------------------------------------
+ETAPA 4 — SESSION HARDENING
+--------------------------------------------------
+
+OBJETIVO:
+Fortalecer segurança de sessão.
+
+AÇÕES:
+
+1. Definir TTL de sessão:
+- ex: 12h ou 24h
+
+2. Rotacionar session token ao login
+
+3. Invalidar sessão automaticamente quando:
+- password alterada
+- deviceId muda (se binding ativo)
+
+4. Garantir:
+- cookie httpOnly
+- secure (produção)
+- sameSite = "lax" ou "strict"
+
+--------------------------------------------------
+ETAPA 5 — DASHBOARD DE SEGURANÇA (ADMIN)
+--------------------------------------------------
+
+OBJETIVO:
+Dar visibilidade operacional.
+
+AÇÕES:
+
+Criar endpoint:
+GET /api/admin/security/overview
+
+Retornar:
+- total logins (24h)
+- falhas de login
+- rate limits disparados
+- sessões ativas
+- eventos críticos recentes
+
+Frontend:
+- criar página simples /admin/security
+- tabela de eventos (audit_logs)
+
+--------------------------------------------------
+ETAPA 6 — ALERTAS (BASE INICIAL)
+--------------------------------------------------
+
+OBJETIVO:
+Notificar eventos críticos.
+
+AÇÕES:
+
+1. Criar serviço:
+server/services/alerts.service.ts
+
+2. Disparar alertas em:
+- RATE_LIMIT_EXCEEDED
+- LOGIN_FAILURE em massa
+- tentativa de acesso não autorizado
+
+3. Inicial:
+- console.warn estruturado
+Futuro:
+- email / webhook
+
+--------------------------------------------------
+ETAPA 7 — INPUT VALIDATION HARDENING
+--------------------------------------------------
+
+OBJETIVO:
+Evitar entrada de dados inválidos/maliciosos.
+
+AÇÕES:
+
+1. Garantir uso consistente de:
+- zod / schema validation
+
+2. Validar:
+- email
+- senha (mín 8, regra básica)
+- campos numéricos
+- IDs
+
+3. Sanitizar:
+- strings de entrada
+
+--------------------------------------------------
+ETAPA 8 — FEATURE FLAGS DE SEGURANÇA
+--------------------------------------------------
+
+OBJETIVO:
+Permitir ativar/desativar sem deploy.
+
+AÇÕES:
+
+Criar config:
+
+SECURITY_FLAGS = {
+  RATE_LIMIT: true,
+  AUDIT_LOG: true,
+  ANOMALY_DETECTION: true
+}
+
+Aplicar checks antes de executar cada módulo.
+
+--------------------------------------------------
+ETAPA 9 — LOG ESTRUTURADO
+--------------------------------------------------
+
+OBJETIVO:
+Padronizar logs para produção.
+
+AÇÕES:
+
+Padronizar formato:
+
+console.log("[SECURITY]", {
+  type: "...",
+  userId,
+  path,
+  timestamp
+});
+
+Evitar logs soltos.
+
+--------------------------------------------------
+ETAPA 10 — VALIDAÇÃO FINAL
+--------------------------------------------------
+
+TESTAR:
+
+1. 6 tentativas de login inválido
+→ deve bloquear
+
+2. Login normal
+→ deve registrar audit log
+
+3. Criar empresa
+→ audit log registrado
+
+4. Sessão expirada
+→ invalidada corretamente
+
+5. Dashboard security
+→ retorna dados reais
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+ANTES:
+→ sistema seguro básico (8.5)
+
+DEPOIS:
+→ sistema com:
+- prevenção
+- detecção
+- resposta
+- rastreabilidade
+
+→ nível SaaS profissional (9.5+)
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
