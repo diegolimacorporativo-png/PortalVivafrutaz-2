@@ -1,0 +1,231 @@
+FASE: AUDITORIA DE FLUXO REAL (USUÁRIO FINAL)
+
+OBJETIVO:
+Testar o sistema como um usuário real (não como dev), validando UX, regras de negócio e consistência dos fluxos.
+
+IMPORTANTE:
+- NÃO alterar código
+- NÃO corrigir ainda
+- NÃO focar em backend
+- foco total em experiência real de uso
+
+--------------------------------------------------
+METODOLOGIA
+--------------------------------------------------
+
+Simular uso real completo do sistema:
+
+1. Criar conta / empresa
+2. Fazer login
+3. Navegar sistema
+4. Executar ações reais
+5. Validar comportamento
+
+--------------------------------------------------
+CENÁRIO 1 — ADMIN CRIANDO EMPRESA
+--------------------------------------------------
+
+PASSOS:
+
+1. Acessar painel admin
+2. Ir para "Empresas"
+3. Criar nova empresa
+
+VALIDAR:
+
+- formulário é claro?
+- existe campo desnecessário?
+- erro aparece corretamente?
+- após criar → aparece na lista?
+- senha temporária aparece corretamente?
+- mensagem é compreensível?
+
+CLASSIFICAR:
+- FLUXO OK
+- CONFUSO
+- QUEBRADO
+
+--------------------------------------------------
+CENÁRIO 2 — PRIMEIRO LOGIN DO CLIENTE
+--------------------------------------------------
+
+PASSOS:
+
+1. Usar email da empresa criada
+2. Login com senha temporária
+
+VALIDAR:
+
+- redireciona para troca de senha?
+- mensagem explica o motivo?
+- erro aparece se senha errada?
+- UX é clara ou confusa?
+
+CLASSIFICAR:
+- OK
+- CONFUSO
+- QUEBRADO
+
+--------------------------------------------------
+CENÁRIO 3 — TROCA DE SENHA
+--------------------------------------------------
+
+PASSOS:
+
+1. Inserir senha temporária
+2. Criar nova senha
+
+VALIDAR:
+
+- validação funciona?
+- erro de confirmação aparece?
+- senha fraca é bloqueada?
+- após sucesso → fluxo continua?
+
+CLASSIFICAR:
+- OK
+- CONFUSO
+- QUEBRADO
+
+--------------------------------------------------
+CENÁRIO 4 — LOGIN NORMAL
+--------------------------------------------------
+
+PASSOS:
+
+1. Login com nova senha
+
+VALIDAR:
+
+- entra direto?
+- mantém sessão?
+- recarregar página mantém login?
+
+CLASSIFICAR:
+- OK
+- PROBLEMA DE SESSÃO
+
+--------------------------------------------------
+CENÁRIO 5 — PERMISSÕES
+--------------------------------------------------
+
+PASSOS:
+
+1. Logar com usuário restrito
+2. Acessar rota proibida
+
+VALIDAR:
+
+- aparece "Acesso negado"?
+- NÃO redireciona pro login?
+- botão "voltar" funciona?
+
+CLASSIFICAR:
+- OK
+- CONFUSO
+- QUEBRADO
+
+--------------------------------------------------
+CENÁRIO 6 — CRUD REAL (EX: EMPRESAS / PRODUTOS)
+--------------------------------------------------
+
+PASSOS:
+
+1. Criar item
+2. Editar item
+3. Excluir item
+
+VALIDAR:
+
+- aparece imediatamente na tela?
+- precisa atualizar página?
+- mensagens são claras?
+- erros são compreensíveis?
+
+CLASSIFICAR:
+- OK
+- DELAY / CACHE BUG
+- QUEBRADO
+
+--------------------------------------------------
+CENÁRIO 7 — NAVEGAÇÃO GERAL
+--------------------------------------------------
+
+VALIDAR:
+
+- menu é intuitivo?
+- nomes fazem sentido?
+- fluxo segue lógica?
+- existe tela "morta"?
+
+CLASSIFICAR:
+- BOA UX
+- CONFUSA
+- RUIM
+
+--------------------------------------------------
+CENÁRIO 8 — ERROS DO SISTEMA
+--------------------------------------------------
+
+FORÇAR ERROS:
+
+- enviar formulário vazio
+- acessar rota inválida
+- perder sessão
+
+VALIDAR:
+
+- erro aparece?
+- mensagem é clara?
+- usuário entende o que fazer?
+
+CLASSIFICAR:
+- OK
+- RUIM
+- CRÍTICO
+
+--------------------------------------------------
+RELATÓRIO FINAL
+--------------------------------------------------
+
+GERAR:
+
+1. FLUXOS FUNCIONANDO BEM
+2. FLUXOS CONFUSOS
+3. FLUXOS QUEBRADOS
+4. BUGS VISUAIS
+5. PROBLEMAS DE UX
+6. PRIORIDADE DE CORREÇÃO
+
+FORMATO:
+
+ITEM | STATUS | IMPACTO | DESCRIÇÃO
+-----------------------------------
+
+Exemplo:
+
+Criar empresa | OK | BAIXO | fluxo claro
+Login cliente | CONFUSO | MÉDIO | não explica troca de senha
+Lista empresas | DELAY | ALTO | não atualiza automaticamente
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+Identificar:
+
+- problemas reais de uso
+- falhas de UX
+- inconsistências de fluxo
+
+--------------------------------------------------
+REGRAS FINAIS
+--------------------------------------------------
+
+- NÃO corrigir ainda
+- NÃO focar em código
+- pensar como usuário leigo
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
