@@ -1,0 +1,124 @@
+FASE: CORREÇÃO CRÍTICA — PRODUTOS SEM PREÇO (basePrice)
+
+OBJETIVO:
+Resolver o problema onde produtos possuem basePrice = NULL, garantindo que:
+
+- Nenhum produto fique sem preço utilizável
+- O sistema não quebre visualmente
+- Não haja alteração destrutiva no banco
+- Não quebrar fluxos existentes
+
+IMPORTANTE:
+- NÃO rodar migrations destrutivas
+- NÃO deletar dados
+- NÃO alterar estrutura de tabelas
+- NÃO alterar outras partes do sistema
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY
+--------------------------------------------------
+
+1. Ler:
+   - schema de products (Drizzle)
+   - repository/service de products
+   - endpoints de listagem de produtos
+   - frontend onde exibe preço
+
+2. Confirmar:
+   - campo: basePrice (não price)
+   - aceitar NULL atualmente
+
+--------------------------------------------------
+ETAPA 2 — BACKEND (SAFE FALLBACK)
+--------------------------------------------------
+
+No ponto de retorno dos produtos (service ou controller):
+
+Garantir que:
+
+Se basePrice === null:
+→ retornar 0 como fallback
+
+Exemplo lógico:
+
+basePrice: product.basePrice ?? 0
+
+IMPORTANTE:
+- NÃO alterar valor no banco ainda
+- Apenas garantir resposta consistente na API
+
+--------------------------------------------------
+ETAPA 3 — FRONTEND (DEFENSIVO)
+--------------------------------------------------
+
+Na tela de listagem de produtos:
+
+Garantir:
+
+- Se preço for null/undefined:
+  → exibir "R$ 0,00" OU "Sem preço"
+
+- NÃO exibir undefined
+- NÃO quebrar layout
+
+--------------------------------------------------
+ETAPA 4 — VALIDAÇÃO NA CRIAÇÃO/EDIÇÃO
+--------------------------------------------------
+
+Ao criar ou editar produto:
+
+- Tornar basePrice obrigatório
+- Validar:
+
+basePrice >= 0
+
+Se não informado:
+→ retornar erro claro:
+
+"Preço base é obrigatório"
+
+--------------------------------------------------
+ETAPA 5 — FIX OPCIONAL (SEM RISCO)
+--------------------------------------------------
+
+Criar script seguro (NÃO automático):
+
+Atualizar apenas produtos com NULL:
+
+UPDATE products
+SET base_price = 0
+WHERE base_price IS NULL;
+
+IMPORTANTE:
+- NÃO executar automaticamente
+- Apenas deixar pronto
+
+--------------------------------------------------
+ETAPA 6 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. Listar produtos
+→ todos devem ter preço (0 ou valor real)
+
+2. Criar produto sem preço
+→ deve bloquear
+
+3. Criar produto com preço
+→ deve salvar corretamente
+
+4. UI não deve exibir undefined/null
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+- Sistema nunca mais retorna produto sem preço
+- UI consistente
+- Nenhum dado perdido
+- Correção sem impacto estrutural
+
+--------------------------------------------------
+FIM
+--------------------------------------------------

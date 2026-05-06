@@ -42,6 +42,13 @@ export class ProductController {
   async create(req: Request, res: Response, _next: NextFunction): Promise<void> {
     try {
       const input = createProductSchema.parse(req.body);
+      if (input.basePrice !== null && input.basePrice !== undefined && input.basePrice !== "") {
+        const price = Number(input.basePrice);
+        if (!Number.isFinite(price) || price < 0) {
+          res.status(400).json({ message: "Preço base é obrigatório e deve ser maior ou igual a zero" });
+          return;
+        }
+      }
       const product = await productService.createProduct(input);
       res.status(201).json(product);
     } catch (err) {
@@ -58,6 +65,13 @@ export class ProductController {
         return;
       }
       const input = updateProductSchema.parse(req.body);
+      if (input.basePrice !== null && input.basePrice !== undefined && input.basePrice !== "") {
+        const price = Number(input.basePrice);
+        if (!Number.isFinite(price) || price < 0) {
+          res.status(400).json({ message: "Preço base é obrigatório e deve ser maior ou igual a zero" });
+          return;
+        }
+      }
       const product = await productService.updateProduct(id, input);
       res.json(product);
     } catch (err) {

@@ -68,13 +68,14 @@ export class ProductService {
   constructor(private readonly repo: IProductRepository = productRepository) {}
 
   async listProducts(): Promise<Product[]> {
-    return this.repo.findAll();
+    const products = await this.repo.findAll();
+    return products.map(p => ({ ...p, basePrice: p.basePrice ?? "0" }));
   }
 
   async getProduct(id: number): Promise<Product> {
     const product = await this.repo.findById(id);
     if (!product) throw Object.assign(new Error("Produto não encontrado."), { status: 404 });
-    return product;
+    return { ...product, basePrice: product.basePrice ?? "0" };
   }
 
   async createProduct(input: CreateProductInput): Promise<Product> {
