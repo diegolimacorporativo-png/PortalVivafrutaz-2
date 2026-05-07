@@ -33,6 +33,7 @@
 - Production DB requires `SUPABASE_DATABASE_URL`; dev uses Replit's `DATABASE_URL`
 - Module system: v1/v2 API versioning with `registerModules`, `registerV1Modules`, `registerV2Modules`
 - Background workers (outbox, auto-dispatch, billing cron, faturamento, analytics, alerts) start on server boot
+- **API 404 guard placement**: `vite.middlewares` (Connect server) swallows ALL unmatched requests — Express middleware registered after `registerRoutes()` in `buildApp()` is never reached for unmatched routes. Guard must live in `server/vite.ts` **before** `app.use(vite.middlewares)` (dev) and inside the `/{*path}` handler in `server/static.ts` (prod).
 
 ## Product
 - Multi-tenant ERP for fruit distribution companies

@@ -143,6 +143,15 @@ export async function buildApp(): Promise<BuildAppResult> {
   registerModules(app);
   await registerRoutes(httpServer, app);
 
+  // NOTE: an API 404 guard is NOT registered here because Vite's Connect
+  // server (app.use(vite.middlewares) in server/vite.ts) intercepts every
+  // unmatched request internally before Express can evaluate any middleware
+  // added after registerRoutes(). The guard lives in server/vite.ts,
+  // immediately before app.use(vite.middlewares), where it reliably fires
+  // for every /api/* path that has no real route handler.
+  // In production (server/static.ts) the equivalent guard is inside the
+  // /{*path} catch-all that replaces vite.middlewares.
+
   app.use((err: unknown, req: Request, res: Response, next: NextFunction) =>
     errorHandler(err, req, res, next),
   );

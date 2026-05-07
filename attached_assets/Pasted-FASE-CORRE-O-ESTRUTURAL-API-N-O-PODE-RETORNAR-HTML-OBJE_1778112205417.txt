@@ -1,0 +1,125 @@
+FASE: CORREÇÃO ESTRUTURAL — API NÃO PODE RETORNAR HTML
+
+OBJETIVO:
+Garantir que QUALQUER rota /api/* inexistente retorne JSON correto (404) e NUNCA caia no fallback do Vite retornando index.html.
+
+IMPORTANTE:
+- NÃO quebrar frontend SPA
+- NÃO alterar rotas existentes válidas
+- NÃO mexer no auth
+- NÃO mexer no Vite middleware além do necessário
+
+--------------------------------------------------
+ETAPA 1 — DISCOVERY
+--------------------------------------------------
+
+Ler:
+
+- server/app.ts
+- server/routes/*
+- configuração do Vite middleware
+- fallback final do Express
+
+Identificar:
+
+1. Onde:
+   app.use("*", ...)
+
+2. Onde:
+   vite.middlewares
+
+3. Ordem de:
+   registerRoutes()
+   setupVite()
+
+--------------------------------------------------
+ETAPA 2 — IDENTIFICAR O PROBLEMA
+--------------------------------------------------
+
+Confirmar:
+
+Hoje:
+- rota API inexistente
+→ cai no fallback SPA
+→ retorna index.html
+→ status 200
+
+Exemplo:
+
+GET /api/v1/inventory/products
+→ HTML
+
+Isso é incorreto.
+
+--------------------------------------------------
+ETAPA 3 — CORREÇÃO ESTRUTURAL
+--------------------------------------------------
+
+ANTES do fallback do Vite:
+
+Adicionar handler global:
+
+app.use("/api", (req, res) => {
+  return res.status(404).json({
+    success: false,
+    error: "API route not found",
+    path: req.originalUrl,
+  });
+});
+
+IMPORTANTE:
+- Deve vir DEPOIS de todas as rotas API reais
+- Deve vir ANTES do fallback SPA/Vite
+
+--------------------------------------------------
+ETAPA 4 — NÃO QUEBRAR SPA
+--------------------------------------------------
+
+Garantir:
+
+Frontend continua:
+
+/dashboard
+/admin
+/client
+/login
+
+→ retornando index.html normalmente
+
+Apenas /api/* inexistente deve retornar JSON.
+
+--------------------------------------------------
+ETAPA 5 — VALIDAÇÃO
+--------------------------------------------------
+
+Testar:
+
+1. GET /api/rota-inexistente
+→ 404 JSON
+
+2. GET /api/v1/inventory/products
+(se rota realmente não existir)
+→ 404 JSON
+
+3. GET /login
+→ HTML SPA normal
+
+4. GET /admin/dashboard
+→ HTML SPA normal
+
+5. Rotas API reais
+→ continuam funcionando
+
+--------------------------------------------------
+RESULTADO ESPERADO
+--------------------------------------------------
+
+- APIs nunca retornam HTML
+- frontend SPA continua funcionando
+- integrações ficam previsíveis
+- debugging melhora
+- comportamento REST correto
+
+--------------------------------------------------
+FIM
+--------------------------------------------------
