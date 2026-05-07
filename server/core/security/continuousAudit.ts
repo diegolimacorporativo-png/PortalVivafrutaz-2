@@ -94,10 +94,36 @@ async function scanForMultiTenantRisk(): Promise<AuditFinding[]> {
   return [];
 }
 
-function applyFindings(findings: AuditFinding[]): void {
+/**
+ * F1-E7: deduplicate before persisting.
+ * Query system_alerts for an active (unresolved) alert of the same type
+ * within the last 24 h. If one exists, skip DB insertion — only update the
+ * in-memory state so the UI still reflects the live finding.
+ *
+ * This stops the ~15-min scheduler from flood-inserting duplicate rows into
+ * system_alerts (previously growing indefinitely, 2 rows per run).
+ */
+async function applyFindings(findings: AuditFinding[]): Promise<void> {
   const current = systemState.get();
   const alerts: ActiveAlert[] = [...current.alerts];
+
   for (const finding of findings) {
+    // Check DB for an existing active alert of the same type in the last 24 h
+    let alreadyPersisted = false;
+    try {
+      const existing = await db.execute(sql`
+        SELECT id FROM system_alerts
+        WHERE type = ${finding.type}
+          AND resolved_at IS NULL
+          AND created_at >= NOW() - INTERVAL '24 hours'
+        LIMIT 1
+      `);
+      alreadyPersisted = (existing.rows?.length ?? 0) > 0;
+    } catch {
+      // If the check fails, proceed with insertion to avoid suppressing real alerts
+      alreadyPersisted = false;
+    }
+
     const alert = {
       id: randomUUID(),
       type: finding.type,
@@ -108,20 +134,23 @@ function applyFindings(findings: AuditFinding[]): void {
       message: finding.message,
     };
     alerts.unshift(alert);
-    void eventRepository.saveAlert({
-      id: alert.id,
-      type: alert.type,
-      severity: alert.severity,
-      entityType: null,
-      entityId: null,
-      metadata: {
-        title: finding.title,
-        message: finding.message,
-        actionsTriggered: finding.actionsTriggered,
-        source: "continuous_audit",
-      },
-      tenantId: null,
-    });
+
+    if (!alreadyPersisted) {
+      void eventRepository.saveAlert({
+        id: alert.id,
+        type: alert.type,
+        severity: alert.severity,
+        entityType: null,
+        entityId: null,
+        metadata: {
+          title: finding.title,
+          message: finding.message,
+          actionsTriggered: finding.actionsTriggered,
+          source: "continuous_audit",
+        },
+        tenantId: null,
+      });
+    }
   }
   systemState.updateRisk(current.risk, current.anomalies, current.recommendation);
   systemState.get().alerts.splice(0, systemState.get().alerts.length, ...alerts.slice(0, 50));
@@ -141,7 +170,7 @@ export async function runContinuousAudit(): Promise<{ findings: AuditFinding[]; 
     ]).sort((a, b) => severityRank(b.severity) - severityRank(a.severity));
 
     if (findings.length > 0) {
-      applyFindings(findings);
+      await applyFindings(findings);
       logSecurity(`[AUDIT] CONTINUOUS_SCAN | findings=${findings.length} | severity=${findings[0].severity}`);
     }
 

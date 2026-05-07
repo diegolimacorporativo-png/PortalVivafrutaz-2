@@ -12,19 +12,21 @@
  */
 import { Router } from "express";
 import { productController } from "./products.controller";
+// F1-E2: close public GET endpoints — require any valid session (admin or company portal)
+import { requireSession } from "../../core/http/requireAuth";
 
 const router = Router();
 
 // ── Static GET routes (must precede /:id) ──────────────────────────────
-router.get("/safra-alerts", (req, res) => productController.safraAlerts(req, res));
-router.get("/next-code", (req, res, next) => productController.nextCode(req, res, next));
-router.get("/check-code", (req, res) => productController.checkCode(req, res));
-router.get("/check-duplicate", (req, res) => productController.checkDuplicate(req, res));
-router.get("/price-alerts", (req, res) => productController.priceAlerts(req, res));
+router.get("/safra-alerts", requireSession, (req, res) => productController.safraAlerts(req, res));
+router.get("/next-code", requireSession, (req, res, next) => productController.nextCode(req, res, next));
+router.get("/check-code", requireSession, (req, res) => productController.checkCode(req, res));
+router.get("/check-duplicate", requireSession, (req, res) => productController.checkDuplicate(req, res));
+router.get("/price-alerts", requireSession, (req, res) => productController.priceAlerts(req, res));
 
 // ── List + CRUD by id ──────────────────────────────────────────────────
-router.get("/", (req, res, next) => productController.list(req, res, next));
-router.get("/:id", (req, res, next) => productController.getById(req, res, next));
+router.get("/", requireSession, (req, res, next) => productController.list(req, res, next));
+router.get("/:id", requireSession, (req, res, next) => productController.getById(req, res, next));
 router.post("/", (req, res, next) => productController.create(req, res, next));
 router.put("/:id", (req, res, next) => productController.update(req, res, next));
 router.delete("/:id", (req, res, next) => productController.remove(req, res, next));

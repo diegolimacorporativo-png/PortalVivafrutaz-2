@@ -466,7 +466,8 @@ export class AuthService {
           });
           await this.repo.log({
             action: "LOGIN_FAILED",
-            description: `Senha incorreta para usuário interno: ${email} — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
+            // F1-E5: PII removed — email must not appear in logs
+            description: `Falha de autenticação — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
             userId: user.id,
             userEmail: email,
             level: "WARN",
@@ -584,7 +585,8 @@ export class AuthService {
           } as any);
           await this.repo.log({
             action: "LOGIN_FAILED",
-            description: `Senha incorreta para empresa: ${email} — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
+            // F1-E5: PII removed — email must not appear in logs
+            description: `Falha de autenticação — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
             companyId: company.id,
             userEmail: email,
             level: "WARN",

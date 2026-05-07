@@ -1,18 +1,18 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
-import { requireAuth, requireRole } from "../core/http/requireAuth";
+import { requireAuth, requireRole, requireSession } from "../core/http/requireAuth";
 
 const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
 
 export function register(app: Express) {
-  // Order Windows
-  app.get(api.orderWindows.list.path, async (req, res) => {
+  // Order Windows — F1-E2: GET routes were unauthenticated, now require session
+  app.get(api.orderWindows.list.path, requireSession, async (req, res) => {
     const windows = await storage.getOrderWindows();
     res.json(windows);
   });
 
-  app.get(api.orderWindows.active.path, async (req, res) => {
+  app.get(api.orderWindows.active.path, requireSession, async (req, res) => {
     // Check global orders enabled setting first
     const ordersEnabled = await storage.getSetting('orders_enabled');
     if (ordersEnabled === 'false') {

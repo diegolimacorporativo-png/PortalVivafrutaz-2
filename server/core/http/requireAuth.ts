@@ -17,6 +17,23 @@ export function requireAuth(req: Request, _res: Response, next: NextFunction) {
 }
 
 /**
+ * Session guard — accepts any authenticated session (admin userId OR company
+ * companyId). Use this on endpoints accessible to both staff and portal users.
+ * Distinct from requireAuth which only passes admin sessions (userId present).
+ *
+ * CONTENÇÃO F1-E2/E3: added to close public GET endpoints that were
+ * reachable without any session. Does not alter response shape or business
+ * logic — purely an authentication gate.
+ */
+export function requireSession(req: Request, _res: Response, next: NextFunction) {
+  const session = (req as any).session;
+  if (!session?.userId && !session?.companyId) {
+    return next(new UnauthorizedError());
+  }
+  next();
+}
+
+/**
  * Restrict an endpoint to a set of roles. Composes after requireAuth.
  * Usage: router.delete('/:id', requireAuth, requireRole(['ADMIN', 'DIRECTOR']), handler)
  *

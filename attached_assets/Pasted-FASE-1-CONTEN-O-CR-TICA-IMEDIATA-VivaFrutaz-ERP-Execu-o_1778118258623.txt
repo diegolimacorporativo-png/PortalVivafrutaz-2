@@ -1,0 +1,263 @@
+FASE 1 — CONTENÇÃO CRÍTICA IMEDIATA
+VivaFrutaz ERP — Execução Cirúrgica
+
+REGRAS OBRIGATÓRIAS
+- NÃO refatorar arquitetura.
+- NÃO alterar regra de negócio.
+- NÃO renomear tabelas.
+- NÃO mudar frontend.
+- NÃO quebrar rotas existentes.
+- NÃO remover funcionalidades.
+- NÃO executar db push automático.
+- NÃO executar migration destrutiva.
+- NÃO alterar comportamento operacional além do necessário para segurança.
+- TODA alteração deve ser mínima e reversível.
+- GERAR RELATÓRIO FINAL COM:
+  - arquivos alterados;
+  - linhas modificadas;
+  - risco mitigado;
+  - evidência da correção;
+  - impacto esperado.
+
+====================================================================
+ETAPA 1 — BLOQUEIO IMEDIATO DO POSTGREST PÚBLICO (CRÍTICO)
+====================================================================
+
+OBJETIVO:
+Impedir acesso público direto ao banco Supabase via REST API.
+
+PROBLEMA:
+RLS desabilitado em 101/101 tabelas + grants totais para anon/authenticated.
+
+RISCO:
+Qualquer pessoa pode acessar:
+https://<project>.supabase.co/rest/v1/
+
+AÇÃO:
+NÃO implementar RLS ainda.
+Nesta fase apenas REMOVER grants perigosos.
+
+EXECUTAR:
+- Inventariar grants atuais.
+- Revogar TODOS os privilégios da role anon em TODAS as tabelas public.
+- Revogar INSERT/UPDATE/DELETE/TRUNCATE da role authenticated nas tabelas operacionais.
+- Manter service_role intacto.
+- NÃO alterar schema auth.
+- NÃO alterar tabelas Supabase internas.
+
+GERAR:
+- Script SQL reversível.
+- Antes/depois dos grants.
+- Lista de tabelas afetadas.
+
+IMPORTANTE:
+NÃO quebrar backend Express.
+O backend usa service_role/server connection.
+
+====================================================================
+ETAPA 2 — PROTEGER ROTAS PÚBLICAS SEM AUTH
+====================================================================
+
+OBJETIVO:
+Fechar endpoints expostos publicamente.
+
+ROTAS CRÍTICAS:
+- /api/products
+- /api/categories
+- /api/price-groups
+- /api/order-windows
+- /api/order-windows/active
+
+AÇÃO:
+Adicionar middleware requireAuth SOMENTE nas rotas GET públicas vulneráveis.
+
+REGRAS:
+- NÃO alterar controllers.
+- NÃO alterar services.
+- NÃO mudar payloads.
+- NÃO alterar resposta de sucesso.
+- Apenas exigir autenticação.
+
+VALIDAR:
+ANTES:
+GET sem token → 200
+
+DEPOIS:
+GET sem token → 401
+
+COM TOKEN:
+→ continuar funcionando normalmente.
+
+GERAR:
+- lista exata de rotas alteradas;
+- middleware aplicado;
+- evidência HTTP antes/depois.
+
+====================================================================
+ETAPA 3 — PROTEGER /api/auth/log-unauthorized
+====================================================================
+
+OBJETIVO:
+Impedir poluição do audit trail.
+
+AÇÃO:
+Adicionar requireAuth na rota:
+POST /api/auth/log-unauthorized
+
+REGRAS:
+- manter funcionalidade original;
+- frontend autenticado deve continuar funcionando;
+- usuários sem sessão devem receber 401;
+- não alterar estrutura do log.
+
+VALIDAR:
+SEM sessão:
+→ 401
+
+COM sessão:
+→ 200
+
+====================================================================
+ETAPA 4 — CORRIGIR VAZAMENTO CORS + X-POWERED-BY
+====================================================================
+
+OBJETIVO:
+Eliminar fingerprinting e erro HTTP incorreto.
+
+AÇÃO 1:
+No app.ts:
+- adicionar:
+app.disable('x-powered-by')
+
+AÇÃO 2:
+Interceptar erro CORS corretamente.
+
+COMPORTAMENTO NOVO:
+Origin inválido:
+→ HTTP 403
+→ sem stack
+→ sem INTERNAL_ERROR
+→ sem origin refletido no body
+
+NÃO:
+- expor domínio bloqueado;
+- lançar erro genérico 500;
+- retornar detalhes internos.
+
+VALIDAR:
+Origin malicioso:
+ANTES:
+500 + INTERNAL_ERROR
+
+DEPOIS:
+403 Forbidden
+
+VALIDAR headers:
+X-Powered-By deve desaparecer.
+
+====================================================================
+ETAPA 5 — HARDENING MÍNIMO DE LOGS
+====================================================================
+
+OBJETIVO:
+Parar vazamento de PII em logs de auth.
+
+AÇÃO:
+Substituir mensagens:
+"Senha incorreta para empresa: email@cliente.com"
+
+POR:
+"Falha de autenticação"
+
+REGRAS:
+- NÃO remover logs;
+- NÃO alterar sistema antifraude;
+- NÃO alterar contador de tentativas;
+- apenas anonimizar PII.
+
+VALIDAR:
+Nenhum email deve aparecer em:
+- system_logs
+- security logs
+- auth_attempts descriptions
+
+====================================================================
+ETAPA 6 — PADRONIZAÇÃO HTTP MÍNIMA
+====================================================================
+
+OBJETIVO:
+Corrigir status HTTP incorretos sem refatorar errorHandler global.
+
+AÇÃO:
+Login inválido:
+400 → 401
+
+APENAS ISSO.
+NÃO mexer ainda no envelope completo de erros.
+
+VALIDAR:
+POST /api/auth/login inválido
+→ HTTP 401
+
+====================================================================
+ETAPA 7 — CONTER CRESCIMENTO INFINITO DE ALERTAS
+====================================================================
+
+OBJETIVO:
+Parar flood de system_alerts.
+
+AÇÃO:
+No continuousAudit.ts:
+
+ANTES de inserir novo alerta:
+verificar se já existe alerta ativo do mesmo tipo nas últimas 24h.
+
+SE EXISTIR:
+não inserir duplicado.
+
+NÃO:
+- remover histórico;
+- alterar risk engine;
+- alterar severidade;
+- apagar registros antigos ainda.
+
+VALIDAR:
+Execuções repetidas não devem gerar duplicatas infinitas.
+
+====================================================================
+ETAPA 8 — RELATÓRIO FINAL OBRIGATÓRIO
+====================================================================
+
+GERAR RELATÓRIO COMPLETO CONTENDO:
+
+1. Arquivos alterados
+2. Linhas modificadas
+3. SQL executado
+4. Evidência antes/depois
+5. Rotas protegidas
+6. Headers removidos
+7. Grants removidos
+8. Riscos mitigados
+9. Impacto esperado
+10. Possíveis efeitos colaterais
+11. Rollback seguro de cada alteração
+
+CLASSIFICAR:
+- concluído;
+- parcial;
+- pendente;
+- bloqueado.
+
+NÃO EXECUTAR:
+- refatorações;
+- migrations amplas;
+- RLS completo;
+- reestruturação multi-tenant;
+- mudanças NF-e;
+- mudanças billing;
+- mudanças frontend;
+- limpeza de schema;
+- padronização global de erros.
+
+FOCO TOTAL:
+CONTENÇÃO IMEDIATA DOS RISCOS CRÍTICOS.

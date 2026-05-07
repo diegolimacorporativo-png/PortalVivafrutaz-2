@@ -30,6 +30,8 @@ export interface BuildAppResult {
 export async function buildApp(): Promise<BuildAppResult> {
   enforceSchemaContract();
   const app = express();
+  // F1-E4: remove Express fingerprint header
+  app.disable("x-powered-by");
   const httpServer = createServer(app);
 
   // CORS — permite origens do Replit dev e domínio de produção
@@ -38,6 +40,24 @@ export async function buildApp(): Promise<BuildAppResult> {
     /\.replit\.app$/,
     /^http:\/\/localhost(:\d+)?$/,
   ];
+
+  // F1-E4: Block invalid origins with 403 BEFORE cors() processes them.
+  // Previously a callback(new Error(...)) propagated to the global error
+  // handler and returned 500 + internal error detail. Now invalid origins
+  // are rejected here cleanly — no stack trace, no origin reflected in body.
+  app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    if (
+      origin &&
+      !allowedOrigins.some((p) =>
+        typeof p === "string" ? origin === p : p.test(origin),
+      )
+    ) {
+      return res.status(403).json({ message: "Acesso negado" });
+    }
+    next();
+  });
+
   app.use(
     cors({
       origin: (origin, callback) => {
@@ -47,7 +67,9 @@ export async function buildApp(): Promise<BuildAppResult> {
           typeof pattern === "string" ? origin === pattern : pattern.test(origin),
         );
         if (allowed) return callback(null, true);
-        return callback(new Error(`CORS: origem não permitida — ${origin}`));
+        // Pre-middleware above already rejected unknown origins with 403;
+        // this path is a safety fallback — deny without throwing.
+        return callback(null, false);
       },
       credentials: true,
     }),

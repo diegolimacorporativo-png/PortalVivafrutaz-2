@@ -38,7 +38,8 @@ export class AuthController {
       input = loginSchema.parse(req.body);
     } catch (err) {
       if (err instanceof ZodError) {
-        res.status(400).json({ message: "Usuário ou senha incorretos." });
+        // F1-E6: was 400 — credentials endpoint must return 401 per RFC 7235
+        res.status(401).json({ message: "Usuário ou senha incorretos." });
         return;
       }
       throw err;

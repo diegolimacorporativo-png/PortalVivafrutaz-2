@@ -8,10 +8,12 @@
  */
 import { Router } from "express";
 import { productController } from "./products.controller";
+// F1-E2: close public GET endpoint
+import { requireSession } from "../../core/http/requireAuth";
 
 const router = Router();
 
-router.get("/", (req, res) => productController.listCategories(req, res));
+router.get("/", requireSession, (req, res) => productController.listCategories(req, res));
 router.post("/", (req, res) => productController.createCategory(req, res));
 router.put("/:id", (req, res) => productController.updateCategory(req, res));
 router.delete("/:id", (req, res) => productController.deleteCategory(req, res));

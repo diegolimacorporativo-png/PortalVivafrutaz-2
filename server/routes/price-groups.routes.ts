@@ -1,13 +1,14 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
-import { requireAuth, requireRole } from "../core/http/requireAuth";
+import { requireAuth, requireRole, requireSession } from "../core/http/requireAuth";
 import { auditLog } from "../utils/auditLogger";
 
 const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
 
 export function register(app: Express) {
-  app.get(api.priceGroups.list.path, async (req, res) => {
+  // F1-E2: was unauthenticated — now requires any valid session
+  app.get(api.priceGroups.list.path, requireSession, async (req, res) => {
     const groups = await storage.getPriceGroups();
     res.json(groups);
   });
