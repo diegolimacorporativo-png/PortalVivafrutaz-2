@@ -45,8 +45,8 @@
 _Populate as you build_
 
 ## Gotchas
-- `tsx` must be invoked via `npx tsx` (not `node_modules/.bin/tsx`) for the Replit shell PATH
-- Production mode enforces `SUPABASE_DATABASE_URL` — will throw on startup without it
+- `tsx` is installed locally — use `tsx` directly (not `npx tsx`) in scripts
+- Production mode enforces `SUPABASE_DATABASE_URL` — will throw on startup without it; use Replit's `DATABASE_URL` for dev
 - SMTP config is loaded from DB first, env vars as fallback
 - VAPID keys missing = push notifications silently disabled (logged at startup)
 
