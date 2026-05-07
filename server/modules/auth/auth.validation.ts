@@ -22,7 +22,9 @@ export const loginSchema = api.auth.login.input;
 export const forgotPasswordSchema = z.object({
   // Accept full email OR bare username (no "@") — the service applies
   // the @vivafrutaz.com legacy fallback when the input is a username.
-  email: z.string().min(1, "Email ou usuário é obrigatório"),
+  // Requires at least 3 chars after trimming to block empty / trivially
+  // invalid inputs without rejecting legitimate short usernames.
+  email: z.string().trim().min(3, "Informe um email ou usuário válido"),
 });
 
 export const resetPasswordSchema = z.object({
