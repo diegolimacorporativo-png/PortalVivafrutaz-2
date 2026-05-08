@@ -150,7 +150,9 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── MASTER: Módulos do Sistema (catálogo) ────────────────────────────────────
-  app.get('/api/master/modulos-sistema', requireAuthCore, async (req: any, res) => {
+  // MT-3C — requireRole added for consistency: the module catalog is an internal
+  // admin resource and must not be readable by unauthenticated or low-privilege users.
+  app.get('/api/master/modulos-sistema', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req: any, res) => {
     try {
       const MODULOS = [
         { chave: 'dashboard',    nome: 'Dashboard',          categoria: 'geral',      icone: 'LayoutDashboard', descricao: 'Painel executivo e KPIs' },

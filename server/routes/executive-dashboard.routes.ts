@@ -4,6 +4,7 @@ import { db } from "../database/db.ts";
 import { orders, orderItems } from "@shared/schema";
 import { gte } from "drizzle-orm";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { crossTenant } from "../core/tenant/scope";
 
 export function register(app: Express) {
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
@@ -15,6 +16,10 @@ export function register(app: Express) {
     requireRole(['MASTER'], { strict: true }),
     async (req, res) => {
     try {
+      // MT-3C — explicit audit marker: cross-tenant reads below are intentional.
+      // This endpoint is MASTER-only (requireRole strict above). No tenantContext
+      // applied — executive overview aggregates data across all empresas.
+      void crossTenant();
       const { period = 'month' } = req.query;
       const now = new Date();
       let startDate: Date;

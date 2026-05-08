@@ -51,3 +51,4 @@ expertMode = true
 [userenv.shared]
 NFE_SEFAZ_MODE = "mock"
 NODE_ENV = "development"
+SUPABASE_DATABASE_URL = "postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres"

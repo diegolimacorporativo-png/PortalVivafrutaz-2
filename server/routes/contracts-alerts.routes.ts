@@ -1,11 +1,16 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { ok, fail } from "../core/http/apiResponse";
-import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { crossTenant } from "../core/tenant/scope";
 
 export function register(app: Express) {
-  app.get('/api/contracts/alerts', requireAuthCore, async (req, res) => {
+  // MT-3C — requireRole added: this endpoint calls storage.getCompanies() (cross-tenant)
+  // and must not be reachable by FINANCEIRO, LOGISTICS, DRIVER, or other per-tenant roles.
+  // crossTenant() marks the intentional global read; restricted to MASTER/ADMIN/DIRECTOR.
+  app.get('/api/contracts/alerts', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DIRECTOR']), async (req, res) => {
     try {
+      void crossTenant(); // intentional: scans all empresas for contract deadlines
       const companies = await storage.getCompanies();
       const now = new Date();
       const alerts: any[] = [];

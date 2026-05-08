@@ -1,0 +1,225 @@
+PHASE MT-3C — HARDENING FINAL DO CICLO MULTI-TENANT (SEM INVENTAR NOVAS FASES)
+
+CONTEXTO OBRIGATÓRIO
+Você está trabalhando no VivaFrutaz ERP.
+
+FASES JÁ CONCLUÍDAS:
+- FASE 1 = contenção crítica
+- PHASE 2.0 = auditoria estrutural
+- MT-3A = correções críticas (C1/C2/C3/H1/M2)
+- MT-3B = correções médias restantes (M1/H2/M3/M4)
+
+NÃO INVENTAR:
+- SaaS público
+- RLS completo
+- Microserviços
+- Refactors arquiteturais
+- Novas abstrações
+- Novos padrões
+- Mudanças cosméticas
+- Mudanças desnecessárias
+
+OBJETIVO AGORA:
+Encerrar o ciclo MT atual com HARDENING + VALIDAÇÃO REAL + AUDITORIA FINAL.
+
+NÃO IMPLEMENTAR NADA FORA DO ESCOPO ABAIXO.
+
+========================================================
+ESCOPO EXATO DA MT-3C
+========================================================
+
+EXECUTAR APENAS ESTES ITENS:
+
+1. AUDITORIA FINAL DE TENANT LEAKS
+--------------------------------------------------------
+
+Fazer grep completo procurando:
+
+- db.select().from(
+- db.update(
+- db.delete(
+- storage.get*
+- storage.list*
+- raw SQL
+- execute(sql`
+- joins sem tenantWhere
+- routes sem tenantContext
+- requireAuth sem requireRole
+- qualquer query cross-tenant sem:
+  - tenantWhere()
+  - tenantAnd()
+  - validateOrderTenant()
+  - crossTenant()
+
+OBJETIVO:
+Encontrar leaks restantes reais.
+
+NÃO alterar nada ainda.
+Primeiro gerar lista estruturada.
+
+========================================================
+
+2. VALIDAR TODOS OS CROSS-TENANT LEGÍTIMOS
+--------------------------------------------------------
+
+Verificar TODOS os usos de:
+
+crossTenant()
+
+Confirmar:
+- se são legítimos
+- se possuem gate de role
+- se possuem comentário explicando por que são globais
+- se estão auditáveis via grep
+
+Se faltar comentário:
+ADICIONAR comentário curto e cirúrgico.
+
+NÃO refatorar.
+
+========================================================
+
+3. VALIDAR TENANTCONTEXT EM TODAS AS ROTAS CRÍTICAS
+--------------------------------------------------------
+
+Verificar:
+- pedidos
+- produtos
+- financeiro
+- logística
+- fiscal
+- assistant
+- importação
+- dashboard
+- notificações
+- cron handlers
+
+OBJETIVO:
+Confirmar que qualquer rota tenant-sensitive:
+- usa tenantContext
+OU
+- usa validação explícita equivalente
+
+Gerar relatório.
+
+Corrigir apenas gaps reais.
+
+========================================================
+
+4. AUDITORIA DE workflowEvents
+--------------------------------------------------------
+
+SEM migration.
+
+Objetivo:
+Mapear TODOS os pontos que:
+- INSERT workflowEvents
+- SELECT workflowEvents
+- processam outboxPayload.companyId
+
+Validar:
+- se sempre existe companyId
+- se existe algum path sem companyId
+- se há risco real de cross-tenant
+
+Adicionar comentários de segurança APENAS se faltar.
+
+========================================================
+
+5. HARDENING FINAL DO requireRole()
+--------------------------------------------------------
+
+Verificar:
+- bypass MASTER/ADMIN/DIRECTOR
+- strict mode
+- todas as rotas MASTER-only
+
+Confirmar:
+- nenhuma rota sensível ficou acessível por bypass implícito
+
+NÃO refatorar.
+Somente corrigir exposições reais.
+
+========================================================
+
+6. EXECUTAR VALIDAÇÕES REAIS
+--------------------------------------------------------
+
+Executar testes reais:
+
+ANON:
+- deve receber 401
+
+ADMIN:
+- deve receber apenas dados do tenant dele
+
+MASTER:
+- deve acessar global quando esperado
+
+Validar:
+- /api/nfe
+- /api/orders
+- /api/products
+- /api/executive-dashboard
+- /api/assistant/*
+- imports
+- workflow
+- cron history
+
+========================================================
+
+7. GERAR RELATÓRIO FINAL MT
+--------------------------------------------------------
+
+Gerar relatório estruturado contendo:
+
+- findings restantes
+- severidade
+- o que foi corrigido
+- o que foi apenas documentado
+- leaks reais restantes
+- endpoints auditados
+- crossTenant legítimos
+- status do isolamento multi-tenant
+- riscos residuais
+- readiness para operação interna real
+
+OBRIGATÓRIO:
+Separar:
+- CRÍTICO
+- ALTO
+- MÉDIO
+- BAIXO
+- ACEITÁVEL
+
+========================================================
+
+REGRAS ABSOLUTAS
+========================================================
+
+- ZERO refactors desnecessários
+- ZERO mudanças cosméticas
+- ZERO mudanças fora do escopo
+- NÃO criar abstrações novas
+- NÃO reescrever módulos inteiros
+- NÃO migrar schema
+- NÃO tocar frontend
+- NÃO implementar RLS
+- NÃO quebrar compatibilidade
+- NÃO inventar backlog novo
+
+========================================================
+
+MODO DE EXECUÇÃO
+========================================================
+
+1. Ler tudo primeiro
+2. Analisar
+3. Mostrar findings
+4. Corrigir APENAS leaks reais
+5. Validar
+6. Relatório final
+
+SEM modificar antes da leitura completa.
+
+EXECUÇÃO CIRÚRGICA.

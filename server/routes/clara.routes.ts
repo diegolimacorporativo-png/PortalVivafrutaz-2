@@ -220,7 +220,10 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── Clara Training ───────────────────────────────────────────────────────
-  app.get('/api/clara-training', requireAuthCore, async (req: any, res) => {
+  // MT-3C H5 — requireRole added: training Q&A must not be readable by company
+  // portal sessions or lower-privilege roles. Write endpoints already had inline
+  // role checks; the GET was missing middleware-level enforcement.
+  app.get('/api/clara-training', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), async (req: any, res) => {
     try {
       const trainings = await storage.getClaraTrainings();
       res.json(trainings);

@@ -1416,8 +1416,11 @@ export async function registerRoutes(
     // N+1-FIX: replaced 500x canEmitNFe (one JOIN query each) with a single
     // batch JOIN that fetches all candidate data at once. getFaturamentoContext
     // runs in JS for each row — zero additional DB round-trips.
-    app.get('/api/nfe/eligible', requireAuthCore, requireRole(["ADMIN", "FISCAL", "DIRECTOR"]), async (req: any, res) => {
+    // MT-3C — tenantContext added: ADMIN/FISCAL/DIRECTOR are per-tenant roles;
+    // without scoping they could see eligible orders from other tenants.
+    app.get('/api/nfe/eligible', requireAuthCore, requireRole(["ADMIN", "FISCAL", "DIRECTOR"]), tenantContext, async (req: any, res) => {
       try {
+        const tenantId = requireTenantId();
         // One query — same JOIN as canEmitNFe but for all candidates at once.
         const raw = await db.execute(sql`
           SELECT
@@ -1436,6 +1439,7 @@ export async function registerRoutes(
           WHERE o.status != 'CANCELLED'
             AND o.fiscal_status = 'nota_liberada'
             AND o.delivery_date IS NOT NULL
+            AND o.company_id = ${tenantId}
           LIMIT 100
         `);
 
@@ -1576,12 +1580,15 @@ export async function registerRoutes(
     // STEP 9.3F.3 — Auditoria de alertas disparados.
     // STEP 9.3F.4 — Migrado de memória para banco (cron_alert_logs). Mantém o
     // mesmo shape consumido por client/src/pages/admin/faturamento.tsx.
+    // MT-3C — cron_alert_logs is a system-level table (no tenant column);
+    // cross-tenant by design, gated MASTER/ADMIN/DIRECTOR only.
     app.get(
       '/api/cron/alerts/logs',
       requireAuthCore,
       requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
       async (_req: any, res) => {
         try {
+          void crossTenant(); // MT-3C: system-level log, no tenant discriminator
           const rows = await db
             .select()
             .from(cronAlertLogs)
@@ -1610,12 +1617,15 @@ export async function registerRoutes(
     // STEP 9.3F.5 — Analytics dos alertas persistidos.
     // GET /api/cron/alerts/analytics?days=N (1..90, default 7)
     // Retorna contadores normalizados (number, nunca string) e arrays consistentes.
+    // MT-3C — cron_alert_logs is a system-level table with no tenant column;
+    // these reads are intentionally cross-tenant (MASTER/ADMIN/DIRECTOR only).
     app.get(
       '/api/cron/alerts/analytics',
       requireAuthCore,
       requireRole(['MASTER', 'ADMIN', 'DIRECTOR']),
       async (req: any, res) => {
         try {
+          void crossTenant(); // MT-3C: system-level log, no tenant discriminator
           const rawDays = Number(req.query.days ?? 7);
           const days = Math.min(90, Math.max(1, Number.isFinite(rawDays) ? rawDays : 7));
           const cutoff = new Date();
