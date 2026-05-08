@@ -1,0 +1,269 @@
+FASE 2.0 — PLANEJAMENTO ESTRUTURAL DE ISOLAMENTO MULTI-TENANT (READ-ONLY + ZERO BREAKING CHANGES)
+
+OBJETIVO:
+NÃO implementar RLS ainda.
+NÃO alterar comportamento do sistema ainda.
+NÃO executar migrations destrutivas.
+
+Esta fase existe APENAS para:
+- mapear isolamento real do sistema
+- classificar tabelas
+- descobrir dependências
+- localizar queries inseguras
+- preparar implementação futura de RLS sem quebrar produção
+
+REGRA ABSOLUTA:
+ZERO mudanças destrutivas.
+ZERO DROP.
+ZERO ALTER TABLE crítico.
+ZERO ENABLE RLS.
+ZERO POLICY.
+ZERO refactor de domínio.
+ZERO mudança de regra de negócio.
+
+Pode:
+- ler arquivos
+- analisar services
+- analisar queries
+- analisar middlewares
+- analisar schema
+- gerar relatórios
+- criar scripts DRY-RUN não executados
+- gerar plano de implementação futura
+
+========================================================
+ETAPA 2.1 — CLASSIFICAÇÃO COMPLETA DAS 101 TABELAS
+========================================================
+
+Classifique TODAS as tabelas public em:
+
+1. TENANT_SCOPED
+Dados pertencem obrigatoriamente a uma empresa.
+
+Ex:
+orders
+products
+deliveries
+financial_transactions
+
+2. GLOBAL_SHARED
+Dados globais compartilhados entre tenants.
+
+Ex:
+planos
+modulos_sistema
+
+3. SYSTEM_INTERNAL
+Infraestrutura interna do sistema.
+
+Ex:
+audit_logs
+workflow_events
+cron_alert_logs
+
+4. PUBLIC_READ
+Dados públicos intencionais.
+
+Ex:
+about_us
+
+5. SENSITIVE_CRITICAL
+Dados críticos que exigirão RLS rigoroso.
+
+Ex:
+users
+financial
+contracts
+nf-e
+
+Entregar:
+- tabela
+- classificação
+- justificativa
+- tenant key atual
+- risco atual
+- recomendação futura
+
+========================================================
+ETAPA 2.2 — MAPA DE TENANT KEYS
+========================================================
+
+Inventariar:
+- company_id
+- empresa_id
+- tenant_id
+- variações similares
+
+Gerar:
+
+1. Tabelas usando company_id
+2. Tabelas usando empresa_id
+3. Tabelas usando tenant_id
+4. Tabelas SEM tenant key
+5. Tabelas com múltiplas tenant keys
+6. Tabelas com tenant key nullable
+7. Inconsistências de naming
+
+Detectar:
+- joins perigosos
+- inconsistência de tipos
+- nullable indevido
+- ausência de FK
+
+NÃO corrigir ainda.
+
+========================================================
+ETAPA 2.3 — MAPA DE ACESSO OPERACIONAL
+========================================================
+
+Mapear quem acessa o quê:
+
+- admin interno
+- usuário interno
+- portal empresa
+- scheduler
+- cron
+- jobs
+- workers
+- automações
+- service_role
+- integrações
+- módulos fiscais
+- auditoria
+
+Para cada módulo:
+- origem da sessão
+- middleware usado
+- requireAuth vs requireSession
+- existência de filtro tenant
+- risco cross-tenant
+
+========================================================
+ETAPA 2.4 — AUDITORIA DE QUERIES
+========================================================
+
+Localizar queries potencialmente perigosas:
+
+1. SELECT sem company_id
+2. UPDATE sem tenant filter
+3. DELETE sem tenant filter
+4. JOINs sem isolamento
+5. SELECT *
+6. Queries raw SQL
+7. db.execute(sql``)
+8. Drizzle sem where()
+9. findMany() sem tenant
+10. Services reutilizados cross-context
+
+Classificar:
+- baixo risco
+- médio risco
+- alto risco
+- crítico
+
+IMPORTANTE:
+NÃO alterar queries ainda.
+Somente mapear.
+
+========================================================
+ETAPA 2.5 — DRY RUN DE RLS (NÃO EXECUTAR)
+========================================================
+
+Gerar APENAS blueprint futuro:
+
+1. Quais tabelas podem receber RLS imediatamente
+2. Quais quebrariam o sistema
+3. Quais dependem de scheduler
+4. Quais dependem de service_role
+5. Quais precisam bypass administrativo
+6. Quais precisam policies compostas
+7. Quais NÃO devem usar RLS
+
+Gerar:
+- ordem futura de implementação
+- matriz de impacto
+- risco operacional
+- plano de rollback futuro
+
+NÃO EXECUTAR:
+ALTER TABLE ENABLE RLS
+CREATE POLICY
+FORCE ROW LEVEL SECURITY
+
+========================================================
+ETAPA 2.6 — INVENTÁRIO DE SERVICES CRÍTICOS
+========================================================
+
+Identificar:
+- auth
+- financial
+- orders
+- inventory
+- logistics
+- nf-e
+- contracts
+- audit
+- notifications
+
+Mapear:
+- dependência de session
+- dependência de company_id
+- queries internas
+- risco de vazamento cross-tenant
+- compatibilidade futura com RLS
+
+========================================================
+ETAPA 2.7 — DETECÇÃO DE PONTOS DE QUEBRA
+========================================================
+
+Detectar tudo que provavelmente quebrará quando RLS for ativado:
+
+- cron jobs
+- dashboards
+- workers
+- auditoria
+- event store
+- notifications
+- exports
+- reports
+- background jobs
+- métricas SaaS
+- aggregations
+
+Gerar lista de:
+- bypass necessários
+- service_role obrigatório
+- queries administrativas
+- riscos de lock operacional
+
+========================================================
+ETAPA 2.8 — RELATÓRIO EXECUTIVO FINAL
+========================================================
+
+Gerar relatório EXTREMAMENTE DETALHADO contendo:
+
+1. Classificação completa das tabelas
+2. Mapa real de isolamento
+3. Estado atual multi-tenant
+4. Queries inseguras
+5. Services críticos
+6. Riscos reais
+7. Ordem correta futura de implementação
+8. Estratégia recomendada de RLS
+9. Estratégia de rollout gradual
+10. Estratégia de rollback
+11. Tabelas prontas para RLS
+12. Tabelas perigosas para RLS
+13. Dependências ocultas encontradas
+14. Pontos de vazamento detectados
+15. Score de maturidade multi-tenant
+
+IMPORTANTE:
+A FASE 2.0 É APENAS PLANEJAMENTO ESTRUTURAL.
+NÃO IMPLEMENTAR RLS AINDA.
+NÃO MODIFICAR COMPORTAMENTO DO SISTEMA.
+NÃO EXECUTAR SQL DE POLICY.
+NÃO EXECUTAR ENABLE RLS.
+
+Objetivo:
+preparar implementação futura SEM quebrar o ERP.
