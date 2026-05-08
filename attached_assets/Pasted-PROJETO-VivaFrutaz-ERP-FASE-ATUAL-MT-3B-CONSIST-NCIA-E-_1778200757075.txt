@@ -1,0 +1,201 @@
+PROJETO: VivaFrutaz ERP
+FASE ATUAL: MT-3B — CONSISTÊNCIA E AUDITABILIDADE MULTI-TENANT
+STATUS: Sistema já passou pelas fases críticas de contenção e remediação estrutural.
+
+========================================================
+CONTEXTO OBRIGATÓRIO DO PROJETO
+========================================================
+
+Este é um ERP multi-tenant desenvolvido do zero em aproximadamente 2 meses.
+
+Arquitetura atual:
+- Node.js + Express
+- TypeScript
+- Drizzle ORM
+- PostgreSQL (Supabase)
+- AsyncLocalStorage para propagação de tenant
+- Estrutura modular
+- Backend já funcional
+
+IMPORTANTE:
+O sistema NÃO está em fase de criação inicial.
+Ele está em fase de endurecimento estrutural multi-tenant.
+
+NÃO inventar:
+- microserviços
+- kubernetes
+- CQRS
+- event sourcing
+- refactors gigantes
+- novas arquiteturas
+- mudanças desnecessárias
+
+A prioridade absoluta é:
+CONSISTÊNCIA + SEGURANÇA + AUDITABILIDADE.
+
+========================================================
+SEQUÊNCIA OBRIGATÓRIA DO PROJETO
+========================================================
+
+A sequência abaixo é FIXA e NÃO deve ser alterada:
+
+1. MT-3B
+   - consistência estrutural
+   - padronização de tenant flow
+   - auditabilidade
+   - hardening leve
+
+2. Operação interna real
+   - múltiplas empresas reais
+   - fluxo operacional real
+   - testes reais de uso
+
+3. Observabilidade
+   - logs
+   - métricas
+   - tracing
+   - monitoramento
+
+4. RLS (Row Level Security)
+
+5. SaaS público
+
+NÃO antecipar RLS.
+NÃO iniciar SaaS público.
+NÃO criar arquitetura nova.
+
+========================================================
+O QUE JÁ FOI CONCLUÍDO
+========================================================
+
+FASE 1:
+- bloqueio PostgREST público
+- proteção de rotas GET sem auth
+- hardening CORS
+- remoção de X-Powered-By
+- anonimização parcial de PII
+- contenção de flood de alertas
+
+PHASE 2.0:
+- auditoria estrutural multi-tenant
+- identificação de vazamentos cross-tenant
+- análise completa de AsyncLocalStorage
+- mapeamento de tenant flow
+
+PHASE 3A:
+- correção crítica GET /api/nfe
+- correção resolveTenant() dead letter
+- executive-dashboard restrito via strict role
+- tenantContext aplicado corretamente
+- validações 12/12 PASS
+
+========================================================
+OBJETIVO DA FASE MT-3B
+========================================================
+
+Resolver APENAS:
+
+- M1
+- H2
+- M3
+- M4
+
+Nada além disso.
+
+========================================================
+ESCOPO DA MT-3B
+========================================================
+
+M1:
+assistant.routes.ts usa resolução manual de tenant.
+Migrar para tenantContext oficial.
+
+H2:
+pricing.service.ts possui reads cross-tenant.
+Aplicar tenantWhere() corretamente.
+
+M3:
+workflowEvents não possui tenant direto.
+Mapear query-sites.
+Documentar risco estrutural.
+Adicionar comentários de segurança.
+NÃO fazer migration ainda.
+
+M4:
+fallbacks cross-tenant sem marker explícito.
+Adicionar crossTenant() onde o acesso global for legítimo.
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+- NÃO implementar RLS
+- NÃO alterar frontend
+- NÃO quebrar APIs
+- NÃO alterar comportamento de negócio
+- NÃO criar abstrações novas
+- NÃO fazer migrations destrutivas
+- NÃO alterar schema sem necessidade extrema
+- Fazer apenas correções cirúrgicas
+- Todas as alterações devem ser reversíveis
+- Validar tudo após mudanças
+
+========================================================
+PADRÃO OBRIGATÓRIO
+========================================================
+
+Usar SEMPRE:
+- tenantContext
+- requireTenantId()
+- tenantWhere()
+- withTenant()
+- crossTenant()
+
+NÃO usar:
+- resolveTenant()
+- filtros manuais improvisados
+- req.user.companyId direto
+- bypasses fora do padrão oficial
+
+========================================================
+CONECTAR NO SUPABASE
+========================================================
+
+Vou fornecer agora:
+- SUPABASE_URL
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- SUPABASE_DATABASE_URL
+
+Objetivo:
+- conectar no banco correto
+- validar schema real
+- executar auditorias
+- validar queries reais
+- confirmar isolamento multi-tenant
+
+IMPORTANTE:
+Antes de qualquer alteração:
+- ler schema completo
+- verificar tenant columns
+- confirmar conexão correta
+- validar ambiente atual
+- verificar se o servidor está usando SUPABASE_DATABASE_URL
+
+========================================================
+ENTREGÁVEL OBRIGATÓRIO
+========================================================
+
+Sempre gerar:
+- relatório técnico estruturado
+- arquivos alterados
+- before/after
+- evidências HTTP
+- evidências SQL
+- riscos mitigados
+- riscos residuais
+- rollback
+- impacto operacional
+- validação final
+
+NÃO encerrar antes de validar tudo.

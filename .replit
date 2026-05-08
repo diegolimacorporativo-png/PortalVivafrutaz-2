@@ -45,3 +45,9 @@ waitForPort = 5000
 [agent]
 stack = "FULLSTACK_JS"
 expertMode = true
+
+[userenv]
+
+[userenv.shared]
+NFE_SEFAZ_MODE = "mock"
+NODE_ENV = "development"
