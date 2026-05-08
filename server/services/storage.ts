@@ -376,7 +376,8 @@ export interface IStorage {
   getAccountReceivableByOrderId(orderId: number): Promise<AccountReceivable | undefined>;
 
   // NF-e Emissões
-  getNfeEmissoes(filters?: { orderId?: number; status?: string }): Promise<NfeEmissao[]>;
+  // FASE MT-3A (C1): companyId filters via subquery JOIN orders.company_id
+  getNfeEmissoes(filters?: { orderId?: number; status?: string; companyId?: number }): Promise<NfeEmissao[]>;
   getNfeEmissao(id: number): Promise<NfeEmissao | undefined>;
   getNfeEmissaoByOrderId(orderId: number): Promise<NfeEmissao | undefined>;
   createNfeEmissao(data: InsertNfeEmissao): Promise<NfeEmissao>;
@@ -2192,8 +2193,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── NF-e Emissões ──────────────────────────────────────────────────────────
-  async getNfeEmissoes(filters?: { orderId?: number; status?: string }): Promise<NfeEmissao[]> {
+  // FASE MT-3A (C1): companyId scopes via subquery — nfeEmissoes has no direct
+  // tenant column; ownership is expressed through orders.company_id.
+  // When companyId is provided the query becomes:
+  //   WHERE order_id IN (SELECT id FROM orders WHERE company_id = ?)
+  // When companyId is null/undefined (MASTER cross-tenant view) no extra
+  // predicate is added — intentional and matches the existing MASTER pattern.
+  async getNfeEmissoes(filters?: { orderId?: number; status?: string; companyId?: number }): Promise<NfeEmissao[]> {
     const conds: any[] = [];
+    if (filters?.companyId) {
+      conds.push(
+        inArray(
+          nfeEmissoes.orderId,
+          db.select({ id: orders.id }).from(orders).where(eq(orders.companyId, filters.companyId)),
+        ),
+      );
+    }
     if (filters?.orderId) conds.push(eq(nfeEmissoes.orderId, filters.orderId));
     if (filters?.status && filters.status !== 'todos') conds.push(eq(nfeEmissoes.status, filters.status));
     return db.select().from(nfeEmissoes).where(conds.length ? and(...conds) : undefined).orderBy(desc(nfeEmissoes.createdAt));

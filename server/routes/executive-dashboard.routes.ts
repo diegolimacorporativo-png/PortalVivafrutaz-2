@@ -8,11 +8,11 @@ import { requireAuth as requireAuthCore, requireRole } from "../core/http/requir
 export function register(app: Express) {
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
   // SECURITY: Cross-tenant by design (executive overview spans all empresas).
-  // Locked behind requireAuth + requireRole — only admin-level roles can read.
-  // Direct db.select() below is intentional and gated by the role check.
+  // FASE MT-3A (C3): Restricted to MASTER only — ADMIN/DIRECTOR/FINANCEIRO/
+  // DEVELOPER are per-tenant roles and must NOT see other tenants' revenue data.
   app.get('/api/executive-dashboard',
     requireAuthCore,
-    requireRole(['MASTER', 'ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER']),
+    requireRole(['MASTER'], { strict: true }),
     async (req, res) => {
     try {
       const { period = 'month' } = req.query;

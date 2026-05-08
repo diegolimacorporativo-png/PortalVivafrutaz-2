@@ -1,0 +1,187 @@
+PHASE 3A — REMEDIAÇÃO CRÍTICA MULTI-TENANT (C1, C2, C3, H1, M2)
+
+REGRAS ABSOLUTAS:
+- NÃO implementar RLS
+- NÃO fazer refactors grandes
+- NÃO alterar arquitetura fora do escopo
+- NÃO criar novas abstrações
+- NÃO mexer em frontend
+- NÃO alterar comportamento de negócio
+- NÃO corrigir findings fora desta lista
+- Fazer apenas correções cirúrgicas mínimas
+- Todas as alterações devem ser reversíveis
+- Validar cada etapa antes de prosseguir
+- Gerar relatório final completo com evidências HTTP/SQL
+
+ESCOPO EXCLUSIVO:
+- C1
+- C2
+- C3
+- H1
+- M2
+
+========================================================
+ETAPA 1 — REMOVER FALSA SEGURANÇA resolveTenant()
+========================================================
+
+OBJETIVO:
+Eliminar dependência de resolveTenant(req) nas rotas críticas.
+
+IMPORTANTE:
+resolveTenant() NÃO chama runWithTenant().
+Ela NÃO cria contexto AsyncLocalStorage.
+Ela NÃO fornece isolamento real.
+
+AÇÃO:
+- localizar call-sites críticos
+- substituir por tenantContext middleware real onde necessário
+- remover falsa sensação de tenant isolation
+
+ROTAS PRIORITÁRIAS:
+- GET /api/nfe
+- GET /api/nfe/:id
+- GET /api/nfe/cron/history
+
+VALIDAR:
+- tenantContext está realmente executando
+- requireTenantId() funciona corretamente
+- AsyncLocalStorage possui tenant ativo
+
+========================================================
+ETAPA 2 — CORRIGIR GET /api/nfe (C1)
+========================================================
+
+PROBLEMA:
+storage.getNfeEmissoes() lista NF-e sem filtro tenant.
+
+RISCO:
+cross-tenant fiscal data leak.
+
+AÇÃO:
+- aplicar tenant isolation REAL
+- usar JOIN com orders
+- filtrar por orders.company_id usando tenant context
+- usar helpers oficiais do sistema quando possível
+
+PROIBIDO:
+- filtros manuais improvisados
+- req.user.companyId direto
+- bypass do mecanismo oficial
+- hardcode
+
+VALIDAR:
+- tenant A NÃO vê NF-e tenant B
+- MASTER continua funcionando
+- query continua performática
+- sem regressão funcional
+
+========================================================
+ETAPA 3 — CORRIGIR GET /api/nfe/:id (H1)
+========================================================
+
+PROBLEMA:
+rota atualmente “segura por acidente”.
+
+AÇÃO:
+- adicionar tenantContext real
+- garantir ownership validation explícita
+- impedir bypass quando orderId == null
+- garantir scoping ANTES do retorno
+
+VALIDAR:
+- acesso cross-tenant bloqueado
+- sem UnauthorizedError acidental
+- sem dependência implícita de exceptions
+
+========================================================
+ETAPA 4 — CONTER EXECUTIVE DASHBOARD (C3)
+========================================================
+
+OBJETIVO:
+Containment imediato.
+
+AÇÃO:
+restringir:
+GET /api/executive-dashboard
+
+para:
+requireRole(['MASTER'])
+
+IMPORTANTE:
+- NÃO criar versão tenant-scoped agora
+- NÃO expandir escopo
+- apenas bloquear acesso indevido
+
+VALIDAR:
+- ADMIN comum recebe 403
+- MASTER continua funcionando
+
+========================================================
+ETAPA 5 — PROTEGER NFE CRON HISTORY (M2)
+========================================================
+
+AÇÃO:
+Adicionar role gate explícito:
+requireRole(['MASTER', 'ADMIN', 'DEVELOPER'])
+
+Revisar necessidade de tenant scoping.
+
+VALIDAR:
+- usuários comuns NÃO acessam
+- MASTER acessa normalmente
+- sem vazamento cross-tenant
+
+========================================================
+ETAPA 6 — VALIDAÇÃO FINAL OBRIGATÓRIA
+========================================================
+
+EXECUTAR TESTES REAIS:
+
+TESTE A:
+Tenant A tentando acessar NF-e do Tenant B
+
+TESTE B:
+GET /api/nfe cross-tenant
+
+TESTE C:
+GET /api/nfe/:id cross-tenant
+
+TESTE D:
+GET /api/executive-dashboard como ADMIN comum
+
+TESTE E:
+GET /api/executive-dashboard como MASTER
+
+TESTE F:
+GET /api/nfe/cron/history sem role permitida
+
+VALIDAR:
+- zero leaks cross-tenant
+- zero regressões
+- zero 500 inesperado
+- zero requireTenantId failures
+- servidor operacional
+
+========================================================
+ENTREGÁVEL OBRIGATÓRIO
+========================================================
+
+Gerar relatório completo contendo:
+
+- arquivos alterados
+- linhas modificadas
+- before/after técnico
+- evidências HTTP
+- evidências SQL
+- riscos mitigados
+- riscos residuais
+- rollback detalhado
+- impacto operacional
+- status final de cada finding:
+  - C1
+  - C2
+  - C3
+  - H1
+  - M2
+
+Não encerrar antes de validar tudo.

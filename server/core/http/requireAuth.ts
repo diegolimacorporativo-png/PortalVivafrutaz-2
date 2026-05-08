@@ -42,8 +42,13 @@ export function requireSession(req: Request, _res: Response, next: NextFunction)
  * keeps long-lived sessions working across the rollout. The looked-up role
  * is then written back into the session so subsequent requests are fast.
  * Company-portal sessions (no userId) cannot satisfy any role check.
+ *
+ * opts.strict — when true, disables the FULL_ACCESS_ROLES bypass and checks
+ * exclusively against the `allowed` list. Use on cross-tenant endpoints where
+ * ADMIN/DIRECTOR must be explicitly excluded (e.g. executive-dashboard).
+ * FASE MT-3A (C3): added strict mode to close the FULL_ACCESS_ROLES bypass.
  */
-export function requireRole(allowed: string[]) {
+export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
   return async (req: Request, _res: Response, next: NextFunction) => {
     const session = (req as any).session;
     let role: string | undefined = session?.userRole;
@@ -58,8 +63,10 @@ export function requireRole(allowed: string[]) {
         /* fall through — treated as missing role */
       }
     }
-    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
-    if (!role || (!FULL_ACCESS_ROLES.includes(role) && !allowed.includes(role))) {
+    const passes = opts?.strict
+      ? (!!role && allowed.includes(role))
+      : (!!role && (['MASTER', 'ADMIN', 'DIRECTOR'].includes(role) || allowed.includes(role)));
+    if (!passes) {
       return next(new ForbiddenError("Sem permissão para esta operação"));
     }
     next();

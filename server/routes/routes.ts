@@ -1207,34 +1207,39 @@ export async function registerRoutes(
     const { buildNFeInput } = await import('../modules/nfe/nfe-input.builder.ts');
 
     // GET /api/nfe — list
-    app.get('/api/nfe', requireAuthCore, async (req: any, res) => {
+    // FASE MT-3A (C1+C2): tenantContext pins empresaId via AsyncLocalStorage;
+    // currentTenantId() is passed to getNfeEmissoes which applies a subquery
+    // JOIN on orders.company_id. MASTER without ?empresaId sees all (intentional).
+    app.get('/api/nfe', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
-        resolveTenant(req);
         logSecurityEvent({ type: "NFE_LIST", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
         const { status, orderId } = req.query;
-        const data = await storage.getNfeEmissoes({ status: status as string, orderId: orderId ? Number(orderId) : undefined });
+        const companyId = currentTenantId() ?? undefined;
+        const data = await storage.getNfeEmissoes({ status: status as string, orderId: orderId ? Number(orderId) : undefined, companyId });
         res.json(data);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
     // GET /api/nfe/:id
-    app.get('/api/nfe/:id', requireAuthCore, async (req: any, res) => {
+    // FASE MT-3A (H1): tenantContext pins empresaId; validateOrderTenant now
+    // has a real AsyncLocalStorage context to call requireTenantId() against.
+    // orderId == null is treated as forbidden (no ownership proof available).
+    app.get('/api/nfe/:id', requireAuthCore, tenantContext, async (req: any, res) => {
       try {
-        resolveTenant(req);
         logSecurityEvent({ type: "NFE_GET", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { id: req.params.id } });
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
-        // FASE 6 — multi-tenant hardening: NF-e carrega orderId; valida tenant
-        // antes de retornar o registro. Mesmo padrão de /api/nfe/:id/danfe.
-        if (nfe.orderId) {
-          try {
-            await validateOrderTenant(nfe.orderId);
-          } catch (e: any) {
-            if (e instanceof AppError) {
-              return res.status(e.status).json({ message: e.message });
-            }
-            throw e;
+        // NF-e sem orderId não tem prova de ownership — bloqueia.
+        if (!nfe.orderId) {
+          return res.status(403).json({ message: 'NF-e sem pedido associado — acesso negado' });
+        }
+        try {
+          await validateOrderTenant(nfe.orderId);
+        } catch (e: any) {
+          if (e instanceof AppError) {
+            return res.status(e.status).json({ message: e.message });
           }
+          throw e;
         }
         res.json(nfe);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
@@ -1508,7 +1513,9 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/cron/history — STEP 9.3E: últimas 50 execuções do cron de faturamento
-    app.get('/api/nfe/cron/history', requireAuthCore, async (req: any, res) => {
+    // FASE MT-3A (M2): role gate added — cron history reveals orderId/timing
+    // of NF-e batches across tenants; restrict to admin roles only.
+    app.get('/api/nfe/cron/history', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req: any, res) => {
       try {
         const rows = await db
           .select()
