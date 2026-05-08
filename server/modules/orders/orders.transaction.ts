@@ -530,6 +530,10 @@ export async function executeWorkflowTransaction(
       },
     };
 
+    // MT-3B M3 — STRUCTURAL RISK: workflow_events has no direct tenantId/empresaId column.
+    // Tenant identity is embedded in outboxPayload.companyId. The outbox worker reads
+    // this field to establish tenant context before processing each event.
+    // Future: add a tenant column for DB-level isolation (not MT-3B scope — no migration here).
     await tx.insert(workflowEvents).values({
       orderId,
       eventType: "TRANSITION",

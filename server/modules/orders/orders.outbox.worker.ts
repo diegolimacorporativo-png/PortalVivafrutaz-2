@@ -69,6 +69,12 @@ async function processBatch(): Promise<void> {
   //
   // FOR UPDATE SKIP LOCKED: multiple workers/replicas each get their own
   // exclusive subset of events — no duplicate processing, no blocking.
+  // MT-3B M3 — STRUCTURAL RISK: workflow_events has no direct tenantId/empresaId column.
+  // Tenant identity is embedded in payload.companyId (WorkflowEventPayload).
+  // This SELECT is intentionally cross-tenant: the background worker must process ALL
+  // pending events and extracts the tenant from each event's payload below.
+  // Fail-safe: events without payload.companyId are skipped (line 97).
+  // Future: add a direct tenant column to enable DB-level tenant filtering (not MT-3B scope).
   const { rows: events } = await pool.query<{
     id: number;
     order_id: number;

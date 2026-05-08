@@ -40,6 +40,8 @@ import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { resolveTenant } from "../core/tenant/context";
+// MT-3B M4 — crossTenant() marks intentional global reads; greppable audit trail.
+import { crossTenant } from "../core/tenant/scope";
 import { logSecurityEvent } from "../core/security/securityLogger";
 import {
   requireActiveSubscription,
@@ -1051,10 +1053,13 @@ export async function registerRoutes(
       const { rows, mode } = req.body as { rows: Record<string, any>[]; mode: 'products' | 'orders' | 'clients' | 'auto' };
       const results = { created: 0, skipped: 0, errors: [] as string[] };
 
+      // MT-3B M4 — intentional cross-tenant reads: import dedup uses the global catalog.
+      void crossTenant();
       const existingProducts = await storage.getProducts();
       const productCodeMap = Object.fromEntries(existingProducts.map((p: any) => [String(p.productCode || p.code || '').toLowerCase(), p]));
       const productNameMap = Object.fromEntries(existingProducts.map((p: any) => [String(p.name || '').toLowerCase(), p]));
 
+      void crossTenant();
       const existingCompanies = await storage.getCompanies();
       const companyCnpjMap = Object.fromEntries(existingCompanies.filter((c: any) => c.cnpj).map((c: any) => [String(c.cnpj).replace(/\D/g, ''), c]));
       const companyNameMap = Object.fromEntries(existingCompanies.map((c: any) => [(c.companyName || c.name || '').toLowerCase(), c]));

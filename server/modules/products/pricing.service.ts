@@ -26,6 +26,9 @@ import {
   priceAdjustmentSnapshots,
   type PriceAdjustmentSnapshot,
 } from "@shared/schema";
+// MT-3B H2 — products and productSubCategories both carry empresaId; all catalog reads
+// must be scoped to the current tenant via tenantWhere (AsyncLocalStorage).
+import { tenantWhere } from "../../core/tenant/scope";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -102,9 +105,11 @@ export async function adjustPrices(
   }
 
   // ── Fetch in bulk (no queries inside loops) ────────────────────────────────
+  // MT-3B H2 — tenantWhere scopes both reads to the current tenant's catalog.
+  // Auto-detects the empresaId column on each table via AsyncLocalStorage.
   const [allProducts, allSubs] = await Promise.all([
-    target === "subcategory" ? Promise.resolve([]) : db.select().from(products),
-    target === "base" ? Promise.resolve([]) : db.select().from(productSubCategories),
+    target === "subcategory" ? Promise.resolve([]) : db.select().from(products).where(tenantWhere(products)),
+    target === "base" ? Promise.resolve([]) : db.select().from(productSubCategories).where(tenantWhere(productSubCategories)),
   ]);
 
   const idFilter = productIds && productIds.length > 0 ? new Set(productIds) : null;

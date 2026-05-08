@@ -4,7 +4,7 @@ import { db } from "../database/db.ts";
 import { logSecurityEvent } from "../core/audit/security-logger";
 import { aiInteractions } from "@shared/schema";
 import { tenantContext } from "../middleware/tenant";
-import { tenantWhere } from "../core/tenant/scope";
+import { tenantWhere, crossTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { desc } from "drizzle-orm";
 import { fireNotification } from "../services/pushService";
@@ -39,7 +39,10 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/assistant/chat', async (req: any, res) => {
+  // MT-3B M1 — tenantContext middleware pins the request's tenant to AsyncLocalStorage,
+  // replacing the manual derivation that followed. Fail-closed: unauthenticated calls
+  // still reach the explicit 401 guard inside the handler.
+  app.post('/api/assistant/chat', tenantContext, async (req: any, res) => {
     const isUser = !!req.session?.userId;
     const isCompany = !!req.session?.companyId;
     if (!isUser && !isCompany) return res.status(401).json({ message: 'Não autenticado' });
@@ -57,11 +60,15 @@ export function register(app: Express) {
     const isAdmin = user && ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role);
     const isInternal = !!user;
 
-    // FASE MT-1 — resolve tenant from request context (never falls back to global).
-    // Internal users: user.empresaId; portal companies: company.id.
-    // If null, data-fetching intents return [] rather than leaking cross-tenant rows.
-    const tenantId: number | null =
-      company?.id ?? (company as any)?.empresaId ?? user?.empresaId ?? null;
+    // MT-3B M1 — tenant resolved from official AsyncLocalStorage context set by
+    // tenantContext middleware (eliminates manual derivation from session fields
+    // that could diverge from the authoritative middleware resolution).
+    const tenantId = currentTenantId();
+
+    // MT-3B M4 — admin intents that follow (companies, products, inventory, orders)
+    // perform intentional cross-tenant reads when MASTER/ADMIN has no empresaId.
+    // Explicit marker so grep for crossTenant() surfaces every legitimate bypass.
+    if (isInternal) void crossTenant();
 
     // CAMADA-2: log every AI data access for full auditability.
     logSecurityEvent({
