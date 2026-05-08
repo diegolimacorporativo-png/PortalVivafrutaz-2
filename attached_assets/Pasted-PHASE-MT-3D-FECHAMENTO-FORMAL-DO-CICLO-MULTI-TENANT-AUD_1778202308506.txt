@@ -1,0 +1,190 @@
+PHASE MT-3D — FECHAMENTO FORMAL DO CICLO MULTI-TENANT (AUDITORIA FINAL + BASELINE)
+
+OBJETIVO:
+Executar a auditoria final completa do sistema após MT-3A → MT-3B → MT-3C, garantindo que:
+- não existam mais vazamentos cross-tenant não documentados
+- todos os acessos globais legítimos estejam explicitamente marcados
+- toda leitura multi-tenant siga o padrão oficial
+- nenhum endpoint crítico tenha ficado fora da cadeia tenantContext
+- o sistema esteja pronto para OPERAÇÃO INTERNA REAL
+
+IMPORTANTE:
+- NÃO criar features novas
+- NÃO criar dashboard novo
+- NÃO criar sistema novo
+- NÃO alterar frontend
+- NÃO fazer refactors grandes
+- NÃO mudar arquitetura
+- NÃO iniciar RLS
+- NÃO iniciar SaaS
+- NÃO criar observabilidade avançada ainda
+- NÃO fazer migrations estruturais desnecessárias
+- NÃO inventar novas fases
+
+ESTA FASE É APENAS:
+AUDITORIA FINAL + HARDENING FINAL + BASELINE OFICIAL.
+
+========================================================
+ESCOPO EXATO DA MT-3D
+========================================================
+
+EXECUTAR SOMENTE:
+
+[1] INVENTÁRIO FINAL DE TENANT SAFETY
+
+Gerar relatório completo contendo:
+
+- todos endpoints autenticados
+- quais usam tenantContext
+- quais usam requireRole
+- quais usam crossTenant()
+- quais acessam tabelas sem tenant direto
+- quais usam raw SQL
+- quais usam tenantWhere()/tenantAnd()
+- quais ainda usam filtros manuais
+- quais acessam workflowEvents
+- quais acessam nfeEmissoes
+- quais acessam systemAlerts/systemPolicies/auditLogs
+
+Objetivo:
+garantir que nenhum endpoint crítico ficou fora do padrão oficial.
+
+========================================================
+
+[2] GREP GLOBAL DE RISCO
+
+Executar busca completa por:
+
+resolveTenant(
+SELECT *
+db.execute(sql`
+raw sql
+getCompanies(
+getProducts(
+.from(
+crossTenant(
+tenantWhere(
+tenantAnd(
+requireAuthCore
+requireRole(
+tenantContext
+
+E gerar:
+- lista consolidada
+- classificação de risco
+- endpoints suspeitos
+- queries suspeitas
+- locais sem tenantContext
+- locais sem requireRole
+
+========================================================
+
+[3] VALIDAÇÃO DE CONSISTÊNCIA DO PADRÃO
+
+Verificar:
+
+- todas rotas cross-tenant legítimas possuem crossTenant()
+- todos crossTenant() possuem requireRole
+- nenhuma rota tenant-scoped usa fallback global acidental
+- nenhuma query raw SQL crítica está sem filtro tenant
+- nenhum endpoint financeiro ficou fora do tenantContext
+- nenhum endpoint NF-e ficou sem isolamento
+- nenhum módulo administrativo possui bypass indevido
+
+========================================================
+
+[4] AUDITORIA DE TABELAS SEM TENANT DIRETO
+
+Validar explicitamente:
+
+workflowEvents
+nfeEmissoes
+cronAlertLogs
+systemAlerts
+systemPolicies
+auditLogs
+
+Documentar:
+- como cada uma é protegida
+- qual endpoint acessa
+- qual mecanismo de isolamento existe
+- qual risco residual permanece
+
+NÃO alterar schema.
+NÃO criar migration.
+
+========================================================
+
+[5] BASELINE FINAL DO SISTEMA
+
+Gerar documento oficial contendo:
+
+- arquitetura final de isolamento
+- fluxo oficial tenantContext
+- padrão obrigatório de repositories
+- padrão obrigatório de rotas
+- padrão obrigatório para raw SQL
+- padrão obrigatório para crossTenant()
+- lista de exceções legítimas
+- riscos residuais conhecidos
+- próximos passos autorizados
+
+========================================================
+
+[6] VALIDAÇÃO OPERACIONAL FINAL
+
+Executar:
+- typecheck
+- restart server
+- validação endpoints críticos
+- validação auth
+- validação tenant isolation
+- validação MASTER strict routes
+
+Confirmar:
+- zero regressões
+- zero novos erros TS
+- servidor operacional
+
+========================================================
+
+FORMATO OBRIGATÓRIO DA ENTREGA
+========================================================
+
+ENTREGAR:
+
+1. RELATÓRIO MT-3D COMPLETO
+2. INVENTÁRIO DE ROTAS
+3. INVENTÁRIO DE QUERIES
+4. INVENTÁRIO crossTenant()
+5. RISCOS RESIDUAIS
+6. EVIDÊNCIAS HTTP
+7. EVIDÊNCIAS SQL
+8. ARQUITETURA FINAL
+9. STATUS FINAL DO CICLO MT-3
+
+========================================================
+
+REGRAS ABSOLUTAS
+========================================================
+
+- leitura massiva primeiro
+- entender tudo antes de alterar qualquer linha
+- mudanças mínimas e cirúrgicas
+- zero refactors grandes
+- zero mudanças fora do escopo
+- zero feature nova
+- preservar funcionamento atual
+- preservar arquitetura atual
+- não quebrar frontend
+- não criar abstrações novas
+- não improvisar
+
+========================================================
+
+OBJETIVO FINAL
+========================================================
+
+Ao final da MT-3D o sistema deve estar oficialmente:
+
+“PRONTO PARA OPERAÇÃO INTERNA REAL COM ISOLAMENTO MULTI-TENANT AUDITADO”.
