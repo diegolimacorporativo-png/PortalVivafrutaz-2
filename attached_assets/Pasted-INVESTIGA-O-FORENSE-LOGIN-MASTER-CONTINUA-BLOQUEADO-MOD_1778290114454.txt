@@ -1,0 +1,126 @@
+INVESTIGAÇÃO FORENSE — LOGIN MASTER CONTINUA BLOQUEADO
+MODO: READ-ONLY PRIMEIRO → CORREÇÃO CIRÚRGICA APENAS APÓS IDENTIFICAR A CAUSA
+
+IMPORTANTE:
+NÃO assumir nada.
+NÃO resetar aleatoriamente.
+NÃO alterar auth inteiro.
+NÃO mexer em JWT/session/global auth.
+
+OBJETIVO:
+Descobrir EXATAMENTE por que o usuário MASTER continua recebendo:
+
+"Conta temporariamente bloqueada por segurança"
+
+MESMO com:
+- is_locked = false
+- login_attempts = 0
+- security_blocked_users vazio
+
+========================================================
+FASE 1 — INVESTIGAÇÃO COMPLETA (READ ONLY)
+========================================================
+
+Ler e mapear COMPLETAMENTE:
+
+- auth middleware
+- login route
+- rate-limit
+- brute-force protection
+- bloqueios temporários
+- cache
+- memória
+- session store
+- Redis (se existir)
+- AsyncLocalStorage
+- security middleware
+- login service
+- auth service
+- verifyPassword
+- session validation
+- IP blocking
+- device blocking
+- fingerprint blocking
+- in-memory maps
+- failedAttempts maps
+- cooldown timers
+- lockout services
+- security_blocked_users
+- any Map()/Set() in auth flow
+
+========================================================
+VALIDAR COM EVIDÊNCIA
+========================================================
+
+Encontrar:
+- qual condição EXATA dispara:
+  "Conta temporariamente bloqueada por segurança"
+
+Mostrar:
+- arquivo
+- linha aproximada
+- variável
+- condição IF
+- origem do bloqueio
+- tempo do bloqueio
+- se é memória/processo
+- se é DB
+- se é cache
+- se depende de IP
+
+========================================================
+FASE 2 — IDENTIFICAR O ESTADO REAL
+========================================================
+
+Validar em runtime:
+
+- IP atual bloqueado?
+- sessão atual bloqueada?
+- rate-limit ativo?
+- memória interna ainda viva?
+- cooldown ativo?
+- mapa de tentativas ainda carregado?
+- bloqueio por device?
+- fingerprint?
+- cache stale?
+
+========================================================
+FASE 3 — CORREÇÃO CIRÚRGICA
+========================================================
+
+APENAS APÓS descobrir a causa real:
+
+Executar SOMENTE:
+- limpeza do bloqueio específico
+OU
+- reset da estrutura específica
+
+SEM:
+- remover segurança
+- desativar rate-limit
+- quebrar auth
+- apagar proteção brute-force
+
+========================================================
+VALIDAÇÃO FINAL
+========================================================
+
+Executar:
+
+1. Login MASTER
+2. Verificar sucesso
+3. Verificar que segurança continua ativa
+4. Verificar que usuário errado ainda bloqueia corretamente
+
+========================================================
+ENTREGA OBRIGATÓRIA
+========================================================
+
+Relatório contendo:
+
+- causa raiz real
+- onde estava o bloqueio
+- como foi corrigido
+- evidência da correção
+- evidência do login funcionando
+- confirmação que segurança continua ativa
