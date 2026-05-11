@@ -1,0 +1,139 @@
+FASE 3.5 — RESTORE SAFE MODE + DISASTER RECOVERY HARDENING
+MODO: OPERACIONAL + FORENSE + ZERO RESTORE DIRETO EM PRODUÇÃO
+
+REGRAS ABSOLUTAS
+
+PROIBIDO:
+- restore direto em produção
+- truncate automático
+- replay automático sem validação
+- sobrescrever banco ativo
+- alterar multi-tenant core
+- criar arquitetura nova
+- refatorar módulos fora do escopo
+- quebrar workers
+- quebrar observability
+
+SEQUÊNCIA OBRIGATÓRIA
+
+1. LER TUDO
+2. MAPEAR FLUXO DE BACKUP
+3. VALIDAR RISCOS
+4. IMPLEMENTAR SAFE MODE
+5. VALIDAR SANDBOX
+6. GERAR RELATÓRIO FINAL
+
+OBJETIVO DA FASE
+
+Criar:
+- restore dry-run
+- restore sandbox
+- restore planner
+- safeguards operacionais
+- disaster recovery seguro
+
+SEM RESTORE REAL EM PRODUÇÃO.
+
+ESCOPO OBRIGATÓRIO
+
+AUDITAR:
+- server/backup.ts
+- backup.routes.ts
+- workflow_events
+- workers
+- jobs
+- queues
+- observability
+- tenant system
+- sequences
+- foreign keys
+- uploads
+- filesystem
+- Supabase usage
+- transaction boundaries
+
+IMPLEMENTAR
+
+T501 — RESTORE DRY-RUN
+- ler backup
+- validar integridade
+- validar JSON/SQL
+- validar tabelas críticas
+- validar IDs
+- validar foreign keys
+- validar tenant collisions
+- validar sequences
+- gerar relatório completo
+- ZERO writes no banco
+
+T502 — RESTORE SANDBOX
+- restore apenas em ambiente temporário
+- nunca no banco de produção
+- validar:
+  - users
+  - companies
+  - orders
+  - products
+  - workflow_events
+  - financeiro
+  - NF-e
+- validar isolamento multi-tenant
+
+T503 — RESTORE PLANNER
+Gerar plano antes de qualquer restore:
+- total de tenants
+- total de tabelas
+- total de registros
+- conflitos
+- tabelas críticas
+- tamanho
+- duração estimada
+- risco operacional
+
+T504 — SAFEGUARDS OPERACIONAIS
+Obrigatório:
+- MASTER only
+- audit logs
+- correlationId
+- maintenance mode
+- restore lock global
+- impedir restore simultâneo
+- bloquear workers/jobs durante restore
+- observability integration
+
+VALIDAÇÕES OBRIGATÓRIAS
+
+- app continua funcionando
+- zero quebra tenantContext
+- zero quebra observability
+- zero quebra jobs
+- zero quebra auth
+- TypeScript sem novos erros
+- endpoints protegidos
+- dry-run funcional
+- sandbox funcional
+
+IMPORTANTE
+
+NÃO IMPLEMENTAR:
+- restore real em produção
+- replay automático
+- truncate de tabelas reais
+- overwrite automático
+
+FOCAR SOMENTE EM:
+SAFE RESTORE
+VALIDAÇÃO
+DISASTER RECOVERY
+SEGURANÇA OPERACIONAL.
+
+ENTREGA FINAL
+
+Gerar relatório completo contendo:
+- auditoria
+- riscos encontrados
+- safeguards implementados
+- validações executadas
+- evidências
+- riscos residuais
+- readiness operacional

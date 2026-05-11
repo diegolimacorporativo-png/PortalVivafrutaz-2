@@ -1,6 +1,7 @@
 import cron from "node-cron";
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import { db } from "./database/db";
 import { logSecurity } from "./core/security/securityLogger";
 import { registerJob, startJobRun, finishJobRun } from "./core/jobs/job-registry";
@@ -555,4 +556,527 @@ export function scheduleBackups() {
     }
   });
   console.log("[BACKUP] Backup automático agendado para 17:00 diariamente.");
+}
+
+// ═══════════════════════════════════════════════════════════════
+// FASE 3.5 — RESTORE SAFE MODE + DISASTER RECOVERY HARDENING
+// ═══════════════════════════════════════════════════════════════
+
+const RESTORE_DRY_RUN_JOB = "restore-dry-run";
+const RESTORE_SANDBOX_JOB  = "restore-sandbox";
+const RESTORE_PLANNER_JOB  = "restore-planner";
+registerJob(RESTORE_DRY_RUN_JOB);
+registerJob(RESTORE_SANDBOX_JOB);
+registerJob(RESTORE_PLANNER_JOB);
+
+// ─── T504: Restore Lock ────────────────────────────────────────
+// Global in-memory lock: only one restore-related op at a time.
+let _restoreLockHolder: string | null = null;
+let _restoreLockAcquiredAt: number | null = null;
+
+export function acquireRestoreLock(correlationId: string): boolean {
+  if (_restoreLockHolder !== null) return false;
+  _restoreLockHolder    = correlationId;
+  _restoreLockAcquiredAt = Date.now();
+  logSecurity(`[RESTORE_LOCK] acquired | correlationId=${correlationId}`);
+  return true;
+}
+
+export function releaseRestoreLock(correlationId: string): void {
+  if (_restoreLockHolder === correlationId) {
+    logSecurity(`[RESTORE_LOCK] released | correlationId=${correlationId}`);
+    _restoreLockHolder    = null;
+    _restoreLockAcquiredAt = null;
+  }
+}
+
+export function isRestoreLocked(): boolean { return _restoreLockHolder !== null; }
+
+export function getRestoreLockState(): { locked: boolean; holder: string | null; acquiredAt: string | null } {
+  return {
+    locked:     _restoreLockHolder !== null,
+    holder:     _restoreLockHolder,
+    acquiredAt: _restoreLockAcquiredAt ? new Date(_restoreLockAcquiredAt).toISOString() : null,
+  };
+}
+
+// ─── Shared: parse JSON backup ─────────────────────────────────
+function parseJsonBackup(filepath: string): { ok: true; data: any } | { ok: false; error: string } {
+  try {
+    const raw = fs.readFileSync(filepath, "utf-8");
+    const data = JSON.parse(raw);
+    return { ok: true, data };
+  } catch (e: any) {
+    return { ok: false, error: e?.message ?? "parse error" };
+  }
+}
+
+// ─── FK map: table → list of { field, refsTable } ─────────────
+const FK_MAP: Record<string, Array<{ field: string; refsTable: string; refsField: string }>> = {
+  orders:               [{ field: "companyId",  refsTable: "companies",        refsField: "id" }],
+  orderItems:           [{ field: "orderId",    refsTable: "orders",           refsField: "id" },
+                         { field: "productId",  refsTable: "products",         refsField: "id" }],
+  productPrices:        [{ field: "productId",  refsTable: "products",         refsField: "id" }],
+  companyQuotations:    [{ field: "companyId",  refsTable: "companies",        refsField: "id" }],
+  specialOrderRequests: [{ field: "companyId",  refsTable: "companies",        refsField: "id" }],
+  tasks:                [{ field: "companyId",  refsTable: "companies",        refsField: "id" }],
+  clientIncidents:      [{ field: "companyId",  refsTable: "companies",        refsField: "id" }],
+  logisticsRoutes:      [{ field: "driverId",   refsTable: "logisticsDrivers", refsField: "id" },
+                         { field: "vehicleId",  refsTable: "logisticsVehicles",refsField: "id" }],
+  logisticsMaintenance: [{ field: "vehicleId",  refsTable: "logisticsVehicles",refsField: "id" }],
+};
+
+// Topological restore order (FK-safe)
+const RESTORE_ORDER = [
+  "users", "companies", "priceGroups", "categories", "products",
+  "productPrices", "orderWindows", "orderExceptions", "orders", "orderItems",
+  "systemSettings", "specialOrderRequests", "tasks", "clientIncidents",
+  "internalIncidents", "logisticsDrivers", "logisticsVehicles",
+  "logisticsRoutes", "logisticsMaintenance", "companyQuotations",
+];
+
+// ─── T502: Restore Sandbox ─────────────────────────────────────
+export interface RestoreSandboxResult {
+  correlationId: string;
+  filename: string;
+  ranAt: string;
+  format: "json" | "sql" | "unknown";
+  tableCounts: Record<string, number>;
+  totalRecords: number;
+  fkIssues: string[];
+  fkWarnings: string[];
+  duplicateIdIssues: string[];
+  tenants: Array<{ id: number; name: string }>;
+  restoreOrder: string[];
+  safeToSimulate: boolean;
+  summary: string;
+}
+
+export function restoreSandbox(filename: string): RestoreSandboxResult {
+  const correlationId = randomUUID();
+  const ranAt = new Date().toISOString();
+  const filepath = getBackupPath(filename);
+
+  const base: RestoreSandboxResult = {
+    correlationId, filename, ranAt, format: "unknown",
+    tableCounts: {}, totalRecords: 0,
+    fkIssues: [], fkWarnings: [], duplicateIdIssues: [],
+    tenants: [], restoreOrder: RESTORE_ORDER,
+    safeToSimulate: false, summary: "",
+  };
+
+  if (!filepath) {
+    base.fkIssues.push("Arquivo não encontrado.");
+    base.summary = "FALHOU — arquivo não encontrado";
+    return base;
+  }
+
+  if (!filename.endsWith(".json")) {
+    base.format = filename.endsWith(".sql") ? "sql" : "unknown";
+    base.fkWarnings.push("Análise FK interna disponível apenas para backups JSON. SQL não tem estrutura relacional parseável offline.");
+    base.safeToSimulate = true;
+    base.summary = "AVISO — análise FK não disponível para formato SQL";
+    return base;
+  }
+
+  const parsed = parseJsonBackup(filepath);
+  if (!parsed.ok) {
+    base.format = "json";
+    base.fkIssues.push(`JSON inválido: ${parsed.error}`);
+    base.summary = "FALHOU — JSON corrompido";
+    return base;
+  }
+
+  base.format = "json";
+  const tables = parsed.data?.tables ?? {};
+
+  // Build table counts and index sets for FK lookup
+  const indexSets: Record<string, Set<number>> = {};
+  for (const [tbl, rows] of Object.entries(tables)) {
+    const arr = Array.isArray(rows) ? rows as any[] : [];
+    base.tableCounts[tbl] = arr.length;
+    base.totalRecords += arr.length;
+    indexSets[tbl] = new Set(arr.map((r: any) => r.id).filter((id: any) => id != null));
+  }
+
+  // Duplicate IDs per table
+  for (const [tbl, rows] of Object.entries(tables)) {
+    const arr = Array.isArray(rows) ? rows as any[] : [];
+    const seen = new Set<number>();
+    const dups: number[] = [];
+    for (const row of arr) {
+      if (row.id != null) {
+        if (seen.has(row.id)) dups.push(row.id);
+        seen.add(row.id);
+      }
+    }
+    if (dups.length > 0) {
+      base.duplicateIdIssues.push(`Tabela '${tbl}': IDs duplicados [${dups.slice(0, 5).join(", ")}${dups.length > 5 ? ` +${dups.length - 5} mais` : ""}]`);
+    }
+  }
+
+  // FK integrity within backup
+  for (const [tbl, fks] of Object.entries(FK_MAP)) {
+    const rows: any[] = Array.isArray(tables[tbl]) ? tables[tbl] : [];
+    if (rows.length === 0) continue;
+    for (const { field, refsTable, refsField: _rf } of fks) {
+      const refSet = indexSets[refsTable];
+      if (!refSet) {
+        base.fkWarnings.push(`FK ${tbl}.${field} → ${refsTable}: tabela referenciada não encontrada no backup.`);
+        continue;
+      }
+      const broken: any[] = [];
+      for (const row of rows) {
+        const val = row[field];
+        if (val != null && !refSet.has(val)) broken.push(val);
+      }
+      if (broken.length > 0) {
+        const sample = [...new Set(broken)].slice(0, 5).join(", ");
+        base.fkIssues.push(`FK ${tbl}.${field} → ${refsTable}: ${broken.length} referência(s) quebrada(s) [${sample}${broken.length > 5 ? "..." : ""}]`);
+      }
+    }
+  }
+
+  // Tenants
+  const companiesArr: any[] = Array.isArray(tables.companies) ? tables.companies : [];
+  base.tenants = companiesArr.map((c: any) => ({ id: c.id, name: c.name ?? c.tradeName ?? `ID ${c.id}` }));
+
+  base.safeToSimulate = base.fkIssues.length === 0 && base.duplicateIdIssues.length === 0;
+  const problems = base.fkIssues.length + base.duplicateIdIssues.length;
+  base.summary = base.safeToSimulate
+    ? `OK — ${Object.keys(base.tableCounts).length} tabelas, ${base.totalRecords.toLocaleString()} registros, ${base.tenants.length} tenant(s), integridade FK íntegra`
+    : `PROBLEMAS — ${problems} problema(s) de integridade FK encontrado(s)`;
+
+  return base;
+}
+
+// ─── T501: Restore Dry-Run ─────────────────────────────────────
+// Reads backup + queries live DB (READ ONLY). ZERO writes.
+export interface RestoreDryRunResult {
+  correlationId: string;
+  filename: string;
+  format: "json" | "sql" | "unknown";
+  ranAt: string;
+  // Structural
+  structuralValid: boolean;
+  structuralIssues: string[];
+  // Sandbox (in-memory FK)
+  fkIssues: string[];
+  fkWarnings: string[];
+  duplicateIdIssues: string[];
+  // Live DB conflict (read-only queries)
+  tenantCollisions: Array<{ id: number; name: string }>;
+  idConflicts: Record<string, { backupCount: number; conflicts: number[] }>;
+  sequenceMaxes: Record<string, number>;
+  backupMaxes: Record<string, number>;
+  // Tenant summary
+  tenantsInBackup: number;
+  tenantNames: string[];
+  // Table summary
+  tableCounts: Record<string, number>;
+  totalRecords: number;
+  // Risk
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  riskReasons: string[];
+  safeToRestore: boolean;
+  // Output
+  summary: string;
+  recommendations: string[];
+}
+
+export async function restoreDryRun(filename: string): Promise<RestoreDryRunResult> {
+  const correlationId = randomUUID();
+  const ranAt = new Date().toISOString();
+  const filepath = getBackupPath(filename);
+
+  const base: RestoreDryRunResult = {
+    correlationId, filename, ranAt, format: "unknown",
+    structuralValid: false, structuralIssues: [],
+    fkIssues: [], fkWarnings: [], duplicateIdIssues: [],
+    tenantCollisions: [], idConflicts: {},
+    sequenceMaxes: {}, backupMaxes: {},
+    tenantsInBackup: 0, tenantNames: [],
+    tableCounts: {}, totalRecords: 0,
+    riskLevel: "CRITICAL", riskReasons: [],
+    safeToRestore: false, summary: "", recommendations: [],
+  };
+
+  if (!filepath) {
+    base.structuralIssues.push("Arquivo não encontrado ou nome inválido.");
+    base.riskReasons.push("Arquivo de backup inacessível.");
+    base.summary = "FALHOU — arquivo não encontrado";
+    base.recommendations.push("Verifique se o arquivo de backup existe e o nome está correto.");
+    return base;
+  }
+
+  // ── 1. Run sandbox (structural + FK, no DB) ──────────────────
+  const sandbox = restoreSandbox(filename);
+  base.format         = sandbox.format as any;
+  base.tableCounts    = sandbox.tableCounts;
+  base.totalRecords   = sandbox.totalRecords;
+  base.fkIssues       = sandbox.fkIssues;
+  base.fkWarnings     = sandbox.fkWarnings;
+  base.duplicateIdIssues = sandbox.duplicateIdIssues;
+  base.tenantsInBackup   = sandbox.tenants.length;
+  base.tenantNames       = sandbox.tenants.map(t => t.name);
+
+  // ── 2. Structural validation ─────────────────────────────────
+  const validation = validateBackup(filename);
+  base.structuralValid  = validation.valid;
+  base.structuralIssues = validation.issues;
+
+  // ── 3. Live DB conflict analysis (READ ONLY) ──────────────────
+  try {
+    const [liveCompanies, liveUsers, liveOrders, liveProducts] = await Promise.all([
+      db.select({ id: companies.id, name: companies.name }).from(companies),
+      db.select({ id: users.id }).from(users),
+      db.select({ id: orders.id }).from(orders),
+      db.select({ id: products.id }).from(products),
+    ]);
+
+    const liveCompanyIds = new Set(liveCompanies.map(c => c.id));
+    const liveUserIds    = new Set(liveUsers.map(u => u.id));
+    const liveOrderIds   = new Set(liveOrders.map(o => o.id));
+    const liveProductIds = new Set(liveProducts.map(p => p.id));
+
+    // Sequence maxes from live DB
+    base.sequenceMaxes = {
+      companies: liveCompanies.length > 0 ? Math.max(...liveCompanies.map(c => c.id)) : 0,
+      users:     liveUsers.length > 0     ? Math.max(...liveUsers.map(u => u.id))     : 0,
+      orders:    liveOrders.length > 0    ? Math.max(...liveOrders.map(o => o.id))    : 0,
+      products:  liveProducts.length > 0  ? Math.max(...liveProducts.map(p => p.id))  : 0,
+    };
+
+    // Backup max IDs
+    if (base.format === "json" && filepath) {
+      const parsed = parseJsonBackup(filepath);
+      if (parsed.ok) {
+        const t = parsed.data?.tables ?? {};
+        const maxId = (arr: any[]) => arr.length > 0 ? Math.max(...arr.map((r: any) => r.id ?? 0).filter((id: any) => typeof id === "number")) : 0;
+        base.backupMaxes = {
+          companies: maxId(Array.isArray(t.companies) ? t.companies : []),
+          users:     maxId(Array.isArray(t.users)     ? t.users     : []),
+          orders:    maxId(Array.isArray(t.orders)    ? t.orders    : []),
+          products:  maxId(Array.isArray(t.products)  ? t.products  : []),
+        };
+
+        // Tenant collisions
+        const backupCompanies: any[] = Array.isArray(t.companies) ? t.companies : [];
+        for (const bc of backupCompanies) {
+          if (liveCompanyIds.has(bc.id)) {
+            base.tenantCollisions.push({ id: bc.id, name: bc.name ?? bc.tradeName ?? `ID ${bc.id}` });
+          }
+        }
+
+        // ID conflicts per critical table
+        const checkConflicts = (tblName: string, backupArr: any[], liveSet: Set<number>) => {
+          const conflicts = backupArr.map((r: any) => r.id).filter((id: any) => typeof id === "number" && liveSet.has(id));
+          if (conflicts.length > 0 || backupArr.length > 0) {
+            base.idConflicts[tblName] = { backupCount: backupArr.length, conflicts: conflicts.slice(0, 20) };
+          }
+        };
+        checkConflicts("companies", backupCompanies, liveCompanyIds);
+        checkConflicts("users",    Array.isArray(t.users)    ? t.users    : [], liveUserIds);
+        checkConflicts("orders",   Array.isArray(t.orders)   ? t.orders   : [], liveOrderIds);
+        checkConflicts("products", Array.isArray(t.products) ? t.products : [], liveProductIds);
+      }
+    }
+  } catch (e: any) {
+    base.structuralIssues.push(`Erro ao consultar banco de dados: ${e?.message ?? "desconhecido"}`);
+    base.recommendations.push("Verificar conectividade com o banco de dados antes de prosseguir.");
+  }
+
+  // ── 4. Risk assessment ────────────────────────────────────────
+  const riskFactors: string[] = [];
+
+  if (!base.structuralValid) riskFactors.push("Backup estruturalmente inválido.");
+  if (base.tenantCollisions.length > 0) riskFactors.push(`${base.tenantCollisions.length} tenant(s) já existe(m) no banco — colisão de dados.`);
+  if (base.fkIssues.length > 0) riskFactors.push(`${base.fkIssues.length} FK quebrada(s) no backup.`);
+  if (base.duplicateIdIssues.length > 0) riskFactors.push(`IDs duplicados encontrados no backup.`);
+
+  const totalConflicts = Object.values(base.idConflicts).reduce((s, v) => s + v.conflicts.length, 0);
+  if (totalConflicts > 0) riskFactors.push(`${totalConflicts} conflito(s) de ID com banco de produção.`);
+
+  base.riskReasons = riskFactors;
+
+  if (riskFactors.length === 0) {
+    base.riskLevel = "LOW";
+  } else if (base.tenantCollisions.length > 0 || !base.structuralValid) {
+    base.riskLevel = "CRITICAL";
+  } else if (totalConflicts > 0 || base.fkIssues.length > 0) {
+    base.riskLevel = "HIGH";
+  } else {
+    base.riskLevel = "MEDIUM";
+  }
+
+  base.safeToRestore = base.riskLevel === "LOW";
+
+  // ── 5. Recommendations ───────────────────────────────────────
+  const recs: string[] = [];
+  if (base.tenantCollisions.length > 0) recs.push("NÃO restaurar em produção — tenant collision detectada. Limpe os tenants conflitantes antes.");
+  if (!base.structuralValid) recs.push("Corrija os erros estruturais no backup antes de prosseguir.");
+  if (base.fkIssues.length > 0) recs.push("Corrija as integridades referenciais no backup antes de restaurar.");
+  if (totalConflicts > 0) recs.push("IDs em conflito exigem truncate das tabelas afetadas ou uso de ON CONFLICT DO NOTHING (já presente no SQL).");
+  if (recs.length === 0) recs.push("Backup parece seguro para restore em ambiente vazio. Sempre valide em sandbox primeiro.");
+  recs.push("NUNCA execute um restore diretamente em produção sem dry-run e sandbox prévios.");
+  base.recommendations = recs;
+
+  const riskLabel = { LOW: "BAIXO", MEDIUM: "MÉDIO", HIGH: "ALTO", CRITICAL: "CRÍTICO" }[base.riskLevel];
+  base.summary = `Risco ${riskLabel} — ${base.tenantsInBackup} tenant(s), ${base.totalRecords.toLocaleString()} registros, ${base.tenantCollisions.length} colisão(ões) de tenant, ${totalConflicts} conflito(s) de ID`;
+
+  return base;
+}
+
+// ─── T503: Restore Planner ─────────────────────────────────────
+export interface RestoreStep {
+  order: number;
+  table: string;
+  records: number;
+  dependsOn: string[];
+  riskNote: string;
+  estimatedSeconds: number;
+}
+
+export interface RestorePlan {
+  correlationId: string;
+  filename: string;
+  generatedAt: string;
+  format: "json" | "sql" | "unknown";
+  // Overview
+  totalTenants: number;
+  tenantNames: string[];
+  totalTables: number;
+  totalRecords: number;
+  backupSizeBytes: number;
+  backupGeneratedAt: string | null;
+  // Conflict summary
+  tenantCollisions: number;
+  idConflicts: number;
+  fkIssues: number;
+  // Steps
+  steps: RestoreStep[];
+  estimatedDurationSeconds: number;
+  // Risk
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  operationalRisk: string;
+  // Checklist
+  preRestoreChecklist: string[];
+  postRestoreChecklist: string[];
+  // Block verdict
+  blockers: string[];
+  canProceed: boolean;
+}
+
+export async function restorePlanner(filename: string): Promise<RestorePlan> {
+  const correlationId = randomUUID();
+  const generatedAt = new Date().toISOString();
+  const filepath = getBackupPath(filename);
+
+  const base: RestorePlan = {
+    correlationId, filename, generatedAt, format: "unknown",
+    totalTenants: 0, tenantNames: [], totalTables: 0, totalRecords: 0,
+    backupSizeBytes: 0, backupGeneratedAt: null,
+    tenantCollisions: 0, idConflicts: 0, fkIssues: 0,
+    steps: [], estimatedDurationSeconds: 0,
+    riskLevel: "CRITICAL", operationalRisk: "Arquivo não encontrado.",
+    preRestoreChecklist: [], postRestoreChecklist: [],
+    blockers: [], canProceed: false,
+  };
+
+  if (!filepath) {
+    base.blockers.push("Arquivo de backup não encontrado.");
+    return base;
+  }
+
+  const stat = fs.statSync(filepath);
+  base.backupSizeBytes = stat.size;
+  base.format = filename.endsWith(".json") ? "json" : filename.endsWith(".sql") ? "sql" : "unknown";
+
+  // Run dry-run for full analysis (read-only)
+  const dryRun = await restoreDryRun(filename);
+  base.totalTenants       = dryRun.tenantsInBackup;
+  base.tenantNames        = dryRun.tenantNames;
+  base.totalTables        = Object.keys(dryRun.tableCounts).length;
+  base.totalRecords       = dryRun.totalRecords;
+  base.tenantCollisions   = dryRun.tenantCollisions.length;
+  base.idConflicts        = Object.values(dryRun.idConflicts).reduce((s, v) => s + v.conflicts.length, 0);
+  base.fkIssues           = dryRun.fkIssues.length;
+  base.riskLevel          = dryRun.riskLevel;
+  base.backupGeneratedAt  = filename.endsWith(".json") && filepath ? (() => {
+    try {
+      const p = parseJsonBackup(filepath);
+      return p.ok ? (p.data?.generatedAt ?? null) : null;
+    } catch { return null; }
+  })() : null;
+
+  // Build restore steps
+  const tableCounts = dryRun.tableCounts;
+  const depMap: Record<string, string[]> = {
+    orders:               ["companies"],
+    orderItems:           ["orders", "products"],
+    productPrices:        ["products", "priceGroups"],
+    orderWindows:         ["companies"],
+    orderExceptions:      ["companies", "products"],
+    companyQuotations:    ["companies"],
+    specialOrderRequests: ["companies"],
+    tasks:                ["companies"],
+    clientIncidents:      ["companies"],
+    logisticsRoutes:      ["logisticsDrivers", "logisticsVehicles"],
+    logisticsMaintenance: ["logisticsVehicles"],
+  };
+
+  const steps: RestoreStep[] = [];
+  for (const [idx, tbl] of RESTORE_ORDER.entries()) {
+    const records = tableCounts[tbl] ?? 0;
+    const deps = depMap[tbl] ?? [];
+    const est = Math.max(1, Math.ceil(records / 500)); // ~500 rows/sec estimate
+    let riskNote = "Sem dependências externas — seguro para restaurar primeiro.";
+    if (deps.length > 0) riskNote = `Depende de: ${deps.join(", ")}. Restaurar apenas após estas tabelas.`;
+    if (tbl === "users") riskNote = "Contém credenciais — verificar collisions de e-mail antes do restore.";
+    if (tbl === "companies") riskNote = "Âncora multi-tenant — colisões aqui bloqueiam toda a restauração.";
+    steps.push({ order: idx + 1, table: tbl, records, dependsOn: deps, riskNote, estimatedSeconds: est });
+  }
+  base.steps = steps;
+  base.estimatedDurationSeconds = steps.reduce((s, st) => s + st.estimatedSeconds, 0) + 30; // +30s overhead
+
+  // Risk description
+  const riskDesc = {
+    LOW:      "Backup íntegro, sem conflitos. Restore seguro em ambiente vazio.",
+    MEDIUM:   "Alguns avisos encontrados. Revisar warnings antes de prosseguir.",
+    HIGH:     "Conflitos de ID ou FK quebradas. Restore requer intervenção manual.",
+    CRITICAL: "Colisão de tenants ou backup inválido. NÃO restaurar sem correção.",
+  };
+  base.operationalRisk = riskDesc[base.riskLevel];
+
+  // Blockers
+  if (!dryRun.structuralValid) base.blockers.push("Backup estruturalmente inválido.");
+  if (base.tenantCollisions > 0) base.blockers.push(`${base.tenantCollisions} tenant(s) já existe(m) no banco de produção.`);
+  if (base.fkIssues > 0) base.blockers.push(`${base.fkIssues} integridade(s) FK quebrada(s) dentro do backup.`);
+  base.canProceed = base.blockers.length === 0;
+
+  // Checklists
+  base.preRestoreChecklist = [
+    "[ ] Confirmar que o ambiente de destino está em modo de manutenção.",
+    "[ ] Pausar todos os workers: outbox, auto-dispatch, billing, faturamento, alertas.",
+    "[ ] Fazer backup do banco atual ANTES do restore.",
+    "[ ] Verificar que nenhum outro restore está em andamento (restore lock).",
+    "[ ] Confirmar dry-run sem blockers (tenantCollisions=0, fkIssues=0).",
+    "[ ] Checar disponibilidade de espaço em disco para o restore.",
+    "[ ] Notificar equipe de operações com antecedência.",
+    base.format === "sql"
+      ? "[ ] Executar o SQL em uma transação explícita (BEGIN/COMMIT já incluídos)."
+      : "[ ] Usar script de restore JSON com replay em ordem de dependência FK.",
+  ];
+  base.postRestoreChecklist = [
+    "[ ] Verificar integridade referencial (SELECT COUNT das tabelas críticas).",
+    "[ ] Resetar sequences do PostgreSQL para max(id)+1 em cada tabela restaurada.",
+    "[ ] Desativar modo de manutenção.",
+    "[ ] Retomar workers: outbox, auto-dispatch, billing, faturamento, alertas.",
+    "[ ] Testar login de cada tenant restaurado.",
+    "[ ] Verificar que pedidos recentes foram preservados.",
+    "[ ] Criar novo backup imediatamente após o restore bem-sucedido.",
+    "[ ] Registrar o restore no log de auditoria com correlationId.",
+  ];
+
+  return base;
 }
