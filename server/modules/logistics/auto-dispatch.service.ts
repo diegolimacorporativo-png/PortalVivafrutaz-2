@@ -41,6 +41,11 @@ import {
 // scoped não vazem dados entre empresas durante o dispatch automático.
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
 import { logSecurity } from "../../core/security/securityLogger";
+import { registerJob, startJobRun, finishJobRun, recoverStaleJob } from "../../core/jobs/job-registry";
+import { incJobFailures } from "../../core/observability/metrics";
+
+const JOB_NAME = "auto-dispatch";
+registerJob(JOB_NAME);
 
 const TICK_MS = 10_000;
 
@@ -352,11 +357,20 @@ export function startAutoDispatchWorker(): void {
   console.log(`[AUTO-DISPATCH] Worker started (poll=${TICK_MS}ms)`);
 
   workerTimer = setInterval(async () => {
+    // FASE 3.1 — stale lock recovery (defensive, in case of prior crash)
+    recoverStaleJob(JOB_NAME, 5 * 60_000); // 5 min max for a dispatch tick
+    if (!startJobRun(JOB_NAME)) {
+      console.warn("[AUTO-DISPATCH] Tick skipped — previous run still in progress");
+      return;
+    }
     try {
       await autoDispatchReadyOrders();
+      finishJobRun(JOB_NAME, true);
     } catch (err: any) {
       logSecurity(`[LOGISTICS_DISPATCH_FAILED] step=worker_tick | error=${err?.message ?? "unknown"}`);
       console.error("[AUTO-DISPATCH] Unexpected worker error:", err);
+      finishJobRun(JOB_NAME, false, err?.message);
+      incJobFailures();
     }
   }, TICK_MS);
 

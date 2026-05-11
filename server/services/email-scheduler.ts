@@ -19,6 +19,11 @@ import { sendClientPush } from "./pushService";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import * as cron from "node-cron";
+import { registerJob, startJobRun, finishJobRun } from "../core/jobs/job-registry";
+import { incJobFailures } from "../core/observability/metrics";
+
+const EMAIL_JOB = "email-scheduler";
+registerJob(EMAIL_JOB);
 
 const sentWindowReminders = new Set<number>();
 
@@ -46,6 +51,11 @@ function requiresMonthlyThrottle(clientType: string | null | undefined): boolean
 }
 
 async function runSchedulerTick() {
+  // FASE 3.1 — anti-overlap guard: skip if previous tick still running
+  if (!startJobRun(EMAIL_JOB)) {
+    console.warn("[EMAIL-SCHEDULER] Tick skipped — previous run still in progress");
+    return;
+  }
   try {
     const now = new Date();
     const currentDow = now.getDay();

@@ -6,6 +6,11 @@ import type { Assinatura } from "@shared/schema";
 // updateAssinatura rode com currentTenantId() correto, sem mistura entre
 // tenants e sem o overhead de criar um frame ALS por item.
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
+import { registerJob, startJobRun, finishJobRun } from "../../core/jobs/job-registry";
+import { incJobFailures } from "../../core/observability/metrics";
+
+const BILLING_JOB = "billing-check-boletos";
+registerJob(BILLING_JOB);
 
 export interface CheckBoletosResult {
   atrasadas: number;
@@ -87,13 +92,20 @@ export function startBillingCron(): void {
   cronStarted = true;
 
   cron.schedule("0 2 * * *", async () => {
+    if (!startJobRun(BILLING_JOB)) {
+      console.warn("[BILLING-CRON] Tick skipped — previous run still in progress");
+      return;
+    }
     try {
       const result = await checkBoletosVencidos();
       console.log(
         `[BILLING-CRON] check-boletos: ${result.atrasadas} atrasadas, ${result.downgrades} downgrades`,
       );
+      finishJobRun(BILLING_JOB, true);
     } catch (err: any) {
       console.error("[BILLING-CRON] check-boletos error:", err.message);
+      finishJobRun(BILLING_JOB, false, err?.message);
+      incJobFailures();
     }
   });
 

@@ -13,6 +13,8 @@
 
 import cron from "node-cron";
 import { randomUUID } from "crypto";
+import { registerJob, startJobRun, finishJobRun } from "../core/jobs/job-registry";
+import { incJobFailures } from "../core/observability/metrics";
 import { db } from "../database/db";
 import { sql } from "drizzle-orm";
 import { storage } from "../services/storage";
@@ -426,16 +428,26 @@ export function startFaturamentoCron(): void {
   if (cronStarted) return;
   cronStarted = true;
 
+  const FATURAMENTO_JOB = "faturamento-cron";
+  registerJob(FATURAMENTO_JOB);
+
   // Roda todo dia às 08:00
   cron.schedule("0 8 * * *", async () => {
+    if (!startJobRun(FATURAMENTO_JOB)) {
+      console.warn("[CRON_FATURAMENTO] Tick skipped — previous run still in progress");
+      return;
+    }
     try {
       const result = await runFaturamentoCron();
       console.log(
         `[CRON_FATURAMENTO] executado em ${result.executadoEm.toISOString()} — emitidas=${result.emitidas} bloqueadas=${result.bloqueadas} erros=${result.erros}`,
       );
+      finishJobRun(FATURAMENTO_JOB, true);
     } catch (err: any) {
       logSecurity(`[BILLING_CRON_FAILED] step=scheduled_run | error=${err?.message ?? "unknown"}`);
       console.error("[CRON_FATURAMENTO] erro fatal:", err.message);
+      finishJobRun(FATURAMENTO_JOB, false, err?.message);
+      incJobFailures();
     }
   });
 

@@ -1,0 +1,167 @@
+FASE 3 — ESTABILIDADE OPERACIONAL
+MODO: CIRÚRGICO + ZERO REFATORAÇÃO + PRESERVAR ARQUITETURA
+
+IMPORTANTE:
+NÃO inventar novas arquiteturas.
+NÃO reescrever módulos.
+NÃO alterar fluxo de negócio.
+NÃO refatorar sistema inteiro.
+NÃO mudar tenant architecture.
+NÃO quebrar MT-3A/B/C/D.
+NÃO alterar frontend sem necessidade operacional real.
+
+Objetivo:
+endurecer estabilidade operacional do VivaFrutaz ERP para operação interna real.
+
+========================================================
+ORDEM OBRIGATÓRIA
+========================================================
+
+1. CRON PROTECTION
+2. RETRY QUEUES
+3. BACKUP AUTOMÁTICO
+4. RESTORE VALIDATION
+5. MONITORAMENTO SUPABASE
+
+NÃO pular etapas.
+
+========================================================
+FASE 3.1 — CRON PROTECTION
+========================================================
+
+Auditar TODOS os:
+- cron jobs
+- workers
+- schedulers
+- loops
+- interval jobs
+- retry jobs
+- outbox jobs
+
+Validar:
+- overlap
+- concorrência
+- dupla execução
+- race conditions
+- jobs infinitos
+- jobs órfãos
+- memory growth
+- crash recovery
+
+Implementar APENAS o necessário:
+
+- anti-overlap lock
+- execution state
+- timeout protection
+- stale lock recovery
+- safe retry control
+- last execution tracking
+
+Regras:
+- preservar jobs existentes
+- não alterar regras de negócio
+- não mudar payloads
+- não quebrar workers
+
+========================================================
+FASE 3.2 — RETRY QUEUES
+========================================================
+
+Mapear integrações críticas:
+- NF-e
+- email
+- webhooks
+- billing
+- dispatch
+- assistant jobs
+- outbox
+
+Validar:
+- falha silenciosa
+- retry inexistente
+- loops infinitos
+- perda de evento
+- retry sem limite
+- ausência de dead-letter
+
+Implementar:
+- retry exponencial
+- max retries
+- dead-letter state
+- retry tracking
+- failure reason
+- observabilidade integrada
+
+========================================================
+FASE 3.3 — BACKUP
+========================================================
+
+Validar:
+- estratégia atual do Supabase
+- retenção
+- risco de perda
+- export manual
+- restore possível
+
+Implementar:
+- backup automático
+- export DB seguro
+- retenção mínima
+- logs de backup
+
+========================================================
+FASE 3.4 — RESTORE VALIDATION
+========================================================
+
+Executar:
+- restore test
+- integridade pós-restore
+- validação de schema
+- validação tenant
+- validação sessões
+- validação índices
+
+NÃO alterar produção sem validação.
+
+========================================================
+FASE 3.5 — MONITORAMENTO SUPABASE
+========================================================
+
+Auditar:
+- conexões
+- pool
+- locks
+- queries lentas
+- índices
+- crescimento DB
+- storage
+- CPU
+- memória
+- WAL growth
+
+Implementar:
+- painel operacional
+- alertas básicos
+- métricas críticas
+- health checks
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+ANTES DE QUALQUER ALTERAÇÃO:
+1. ler tudo
+2. mapear
+3. validar
+4. só então modificar
+
+Obrigatório:
+- typecheck
+- validação live
+- logs
+- evidências
+- relatório final
+
+NÃO criar arquitetura enterprise desnecessária.
+Objetivo:
+estabilidade operacional REAL para uso interno.

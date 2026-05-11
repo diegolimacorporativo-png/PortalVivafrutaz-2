@@ -3,6 +3,11 @@ import fs from "fs";
 import path from "path";
 import { db } from "./database/db";
 import { logSecurity } from "./core/security/securityLogger";
+import { registerJob, startJobRun, finishJobRun } from "./core/jobs/job-registry";
+import { incJobFailures } from "./core/observability/metrics";
+
+const BACKUP_JOB = "backup-daily";
+registerJob(BACKUP_JOB);
 import {
   users, companies, priceGroups, categories, products, productPrices,
   orderWindows, orderExceptions, orders, orderItems, systemSettings,
@@ -315,17 +320,29 @@ export async function sendBackupEmail(filename: string): Promise<boolean> {
 }
 
 // ─── Schedule Daily Backup ─────────────────────────────────────
+let backupScheduled = false; // FASE 3.1 — prevent double-scheduling
+
 export function scheduleBackups() {
+  if (backupScheduled) return; // FASE 3.1 — idempotent guard
+  backupScheduled = true;
+
   ensureBackupDir();
   cron.schedule("0 17 * * *", async () => {
+    if (!startJobRun(BACKUP_JOB)) {
+      console.warn("[BACKUP] Tick skipped — previous backup still in progress");
+      return;
+    }
     try {
       console.log("[BACKUP] Iniciando backup automático diário (17:00)...");
       const filename = await runBackup();
       console.log(`[BACKUP] Backup concluído: ${filename}`);
       sendBackupEmail(filename).catch(e => console.error("[BACKUP] Erro no email:", e));
+      finishJobRun(BACKUP_JOB, true);
     } catch (err: any) {
       logSecurity(`[BACKUP_FAILED] step=scheduled_run | error=${err?.message ?? "unknown"}`);
       console.error("[BACKUP] Erro no backup automático:", err);
+      finishJobRun(BACKUP_JOB, false, err?.message);
+      incJobFailures();
     }
   });
   console.log("[BACKUP] Backup automático agendado para 17:00 diariamente.");
