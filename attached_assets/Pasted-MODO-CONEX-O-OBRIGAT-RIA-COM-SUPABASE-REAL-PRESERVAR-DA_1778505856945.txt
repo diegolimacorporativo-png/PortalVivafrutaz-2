@@ -1,0 +1,145 @@
+MODO: CONEXÃO OBRIGATÓRIA COM SUPABASE REAL + PRESERVAR DADOS
+EXECUÇÃO CIRÚRGICA — ZERO RESET — ZERO MIGRATION AUTOMÁTICA
+
+IMPORTANTE:
+Este projeto VivaFrutaz ERP DEVE utilizar o banco PostgreSQL real do Supabase.
+
+NÃO usar:
+- banco temporário do Replit
+- DATABASE_URL fallback local
+- banco efêmero
+- postgres interno do ambiente
+- banco vazio de teste
+
+OBRIGATÓRIO:
+usar EXCLUSIVAMENTE o banco Supabase oficial do projeto.
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+PROIBIDO:
+- resetar banco
+- apagar dados
+- rodar migrations automáticas
+- executar drizzle push automático
+- alterar schema sem autorização
+- sobrescrever tabelas
+- recriar banco
+- limpar usuários
+- limpar tenants
+- alterar senhas
+- alterar ENV sem validação
+- trocar provider do banco
+
+NÃO criar banco novo.
+NÃO usar fallback local.
+
+========================================================
+OBJETIVO
+========================================================
+
+Conectar o sistema ao banco REAL do Supabase utilizado pelo VivaFrutaz ERP.
+
+========================================================
+EXECUÇÃO OBRIGATÓRIA
+========================================================
+
+1. Ler:
+- db.ts
+- storage.ts
+- drizzle config
+- env handling
+- database bootstrap
+
+2. Identificar:
+- prioridade entre DATABASE_URL e SUPABASE_DATABASE_URL
+- provider atual
+- host atual
+- SSL
+- pool
+- runtime connection
+
+3. Solicitar explicitamente a secret:
+SUPABASE_DATABASE_URL
+
+Formato esperado:
+postgresql://USER:PASSWORD@HOST:PORT/DATABASE
+
+4. Após receber:
+- configurar APENAS SUPABASE_DATABASE_URL
+- garantir que ela tenha prioridade absoluta
+- validar SSL
+- validar conexão real
+
+========================================================
+VALIDAÇÃO OBRIGATÓRIA
+========================================================
+
+Após conectar:
+
+VALIDAR:
+- companies
+- users
+- orders
+- nfe
+- logistics
+- observability
+- pricing
+- assistant
+- workflowEvents
+
+Confirmar:
+- dados reais existem
+- tenants reais existem
+- usuários reais existem
+- sistema está lendo produção corretamente
+
+========================================================
+PROIBIDO APÓS CONEXÃO
+========================================================
+
+NÃO:
+- rodar seed
+- recriar admin
+- alterar master
+- trocar senha
+- executar migrations
+- executar drizzle-kit push
+- sincronizar schema automaticamente
+
+========================================================
+VALIDAÇÃO FINAL
+========================================================
+
+Informar claramente:
+
+1. Banco conectado:
+- provider
+- host
+- SSL
+- database
+
+2. Env utilizada:
+- SUPABASE_DATABASE_URL
+
+3. Confirmação:
+“O VivaFrutaz ERP está conectado ao banco Supabase real.”
+
+4. Validar:
+- login funcionando
+- tenants existentes
+- tabelas reais carregadas
+
+========================================================
+IMPORTANTE FINAL
+========================================================
+
+Objetivo:
+USAR O BANCO REAL DO VIVAFRUTAZ ERP.
+
+Sem banco temporário.
+Sem fallback.
+Sem reset.
+Sem migrations automáticas.
+Sem perda de dados.
