@@ -319,6 +319,215 @@ export async function sendBackupEmail(filename: string): Promise<boolean> {
   }
 }
 
+// ─── Backup Stats ──────────────────────────────────────────────
+export interface BackupStats {
+  totalBackups: number;
+  jsonCount: number;
+  sqlCount: number;
+  totalSizeBytes: number;
+  lastBackup: { filename: string; size: number; createdAt: string; format: string } | null;
+  oldestBackup: { filename: string; createdAt: string } | null;
+}
+
+export function getBackupStats(): BackupStats {
+  ensureBackupDir();
+  const files = listBackups();
+  const jsonFiles = files.filter(f => f.format === "json");
+  const sqlFiles = files.filter(f => f.format === "sql");
+  const totalSizeBytes = files.reduce((sum, f) => sum + f.size, 0);
+  const sorted = [...files].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
+  const oldest = [...files].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  return {
+    totalBackups: files.length,
+    jsonCount: jsonFiles.length,
+    sqlCount: sqlFiles.length,
+    totalSizeBytes,
+    lastBackup: sorted[0] ?? null,
+    oldestBackup: oldest[0] ? { filename: oldest[0].filename, createdAt: oldest[0].createdAt } : null,
+  };
+}
+
+// ─── Validate Backup ───────────────────────────────────────────
+export interface BackupValidationResult {
+  valid: boolean;
+  format: "json" | "sql" | "unknown";
+  filename: string;
+  sizeBytes: number;
+  generatedAt: string | null;
+  tableCounts: Record<string, number>;
+  totalRecords: number;
+  issues: string[];
+  warnings: string[];
+  summary: string;
+}
+
+const CRITICAL_TABLES_JSON = ["users", "companies", "orders", "products"];
+const CRITICAL_TABLES_SQL = ["users", "companies", "orders", "order_items"];
+
+export function validateBackup(filename: string): BackupValidationResult {
+  const filepath = getBackupPath(filename);
+  const issues: string[] = [];
+  const warnings: string[] = [];
+
+  if (!filepath) {
+    return {
+      valid: false, format: "unknown", filename, sizeBytes: 0,
+      generatedAt: null, tableCounts: {}, totalRecords: 0,
+      issues: ["Arquivo não encontrado ou nome inválido."],
+      warnings: [],
+      summary: "FALHOU — arquivo não encontrado",
+    };
+  }
+
+  const stat = fs.statSync(filepath);
+  const sizeBytes = stat.size;
+
+  if (sizeBytes === 0) {
+    return {
+      valid: false, format: "unknown", filename, sizeBytes: 0,
+      generatedAt: null, tableCounts: {}, totalRecords: 0,
+      issues: ["Arquivo está vazio (0 bytes)."],
+      warnings: [],
+      summary: "FALHOU — arquivo vazio",
+    };
+  }
+
+  // ── JSON Backup ──────────────────────────────────────────────
+  if (filename.endsWith(".json")) {
+    try {
+      const raw = fs.readFileSync(filepath, "utf-8");
+      let parsed: any;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return {
+          valid: false, format: "json", filename, sizeBytes,
+          generatedAt: null, tableCounts: {}, totalRecords: 0,
+          issues: ["JSON inválido — arquivo corrompido ou truncado."],
+          warnings: [],
+          summary: "FALHOU — JSON corrompido",
+        };
+      }
+
+      const generatedAt: string | null = parsed.generatedAt ?? null;
+
+      if (!parsed.tables || typeof parsed.tables !== "object") {
+        issues.push("Campo 'tables' ausente ou inválido.");
+      }
+      if (!parsed.version) warnings.push("Campo 'version' ausente.");
+      if (!parsed.generatedBy) warnings.push("Campo 'generatedBy' ausente.");
+
+      const tableCounts: Record<string, number> = {};
+      let totalRecords = 0;
+
+      if (parsed.tables && typeof parsed.tables === "object") {
+        for (const [tbl, rows] of Object.entries(parsed.tables)) {
+          const count = Array.isArray(rows) ? rows.length : 0;
+          tableCounts[tbl] = count;
+          totalRecords += count;
+        }
+      }
+
+      for (const crit of CRITICAL_TABLES_JSON) {
+        if (!(crit in tableCounts)) {
+          issues.push(`Tabela crítica ausente: '${crit}'.`);
+        } else if (tableCounts[crit] === 0) {
+          warnings.push(`Tabela crítica vazia: '${crit}'.`);
+        }
+      }
+
+      if (totalRecords === 0) {
+        issues.push("Backup não contém registros (todas as tabelas estão vazias).");
+      }
+
+      const valid = issues.length === 0;
+      const summary = valid
+        ? `OK — ${Object.keys(tableCounts).length} tabelas, ${totalRecords.toLocaleString()} registros`
+        : `FALHOU — ${issues.length} problema(s) encontrado(s)`;
+
+      return { valid, format: "json", filename, sizeBytes, generatedAt, tableCounts, totalRecords, issues, warnings, summary };
+    } catch (e: any) {
+      return {
+        valid: false, format: "json", filename, sizeBytes,
+        generatedAt: null, tableCounts: {}, totalRecords: 0,
+        issues: [`Erro ao validar JSON: ${e?.message ?? "desconhecido"}`],
+        warnings: [],
+        summary: "FALHOU — erro de leitura",
+      };
+    }
+  }
+
+  // ── SQL Backup ───────────────────────────────────────────────
+  if (filename.endsWith(".sql")) {
+    try {
+      const raw = fs.readFileSync(filepath, "utf-8");
+      const lines = raw.split("\n");
+      const tableCounts: Record<string, number> = {};
+      let totalRecords = 0;
+      let hasBegin = false;
+      let hasCommit = false;
+      let generatedAt: string | null = null;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("-- Gerado em:")) {
+          generatedAt = trimmed.replace("-- Gerado em:", "").trim();
+        }
+        if (trimmed === "BEGIN;") hasBegin = true;
+        if (trimmed === "COMMIT;") hasCommit = true;
+        if (trimmed.startsWith("INSERT INTO ")) {
+          const match = trimmed.match(/^INSERT INTO (\w+)/);
+          if (match) {
+            const tbl = match[1];
+            tableCounts[tbl] = (tableCounts[tbl] ?? 0) + 1;
+            totalRecords++;
+          }
+        }
+      }
+
+      if (!hasBegin) issues.push("Instrução BEGIN ausente — SQL pode não ser atômico.");
+      if (!hasCommit) issues.push("Instrução COMMIT ausente — transação incompleta.");
+
+      for (const crit of CRITICAL_TABLES_SQL) {
+        if (!(crit in tableCounts)) {
+          warnings.push(`Tabela '${crit}' não tem INSERTs — pode estar vazia.`);
+        }
+      }
+
+      if (totalRecords === 0) {
+        issues.push("Nenhum INSERT encontrado — backup não contém dados.");
+      }
+
+      const valid = issues.length === 0;
+      const summary = valid
+        ? `OK — ${Object.keys(tableCounts).length} tabelas, ${totalRecords.toLocaleString()} INSERTs`
+        : `FALHOU — ${issues.length} problema(s) encontrado(s)`;
+
+      return { valid, format: "sql", filename, sizeBytes, generatedAt, tableCounts, totalRecords, issues, warnings, summary };
+    } catch (e: any) {
+      return {
+        valid: false, format: "sql", filename, sizeBytes,
+        generatedAt: null, tableCounts: {}, totalRecords: 0,
+        issues: [`Erro ao validar SQL: ${e?.message ?? "desconhecido"}`],
+        warnings: [],
+        summary: "FALHOU — erro de leitura",
+      };
+    }
+  }
+
+  return {
+    valid: false, format: "unknown", filename, sizeBytes,
+    generatedAt: null, tableCounts: {}, totalRecords: 0,
+    issues: ["Formato de arquivo não reconhecido (esperado .json ou .sql)."],
+    warnings: [],
+    summary: "FALHOU — formato desconhecido",
+  };
+}
+
 // ─── Schedule Daily Backup ─────────────────────────────────────
 let backupScheduled = false; // FASE 3.1 — prevent double-scheduling
 

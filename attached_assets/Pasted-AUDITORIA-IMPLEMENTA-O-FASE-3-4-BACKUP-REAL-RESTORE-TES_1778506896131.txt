@@ -1,0 +1,133 @@
+AUDITORIA + IMPLEMENTAÇÃO — FASE 3.4
+BACKUP REAL + RESTORE TEST + DISASTER RECOVERY
+MODO: CIRÚRGICO + OPERACIONAL + ZERO REFATORAÇÃO DESNECESSÁRIA
+
+REGRAS ABSOLUTAS
+
+NÃO:
+- inventar arquitetura nova
+- refatorar sistema inteiro
+- alterar multi-tenant core
+- mexer em auth sem necessidade
+- criar microserviços
+- mudar stack
+- criar abstrações desnecessárias
+- alterar frontend fora do escopo
+- quebrar fluxo operacional
+
+SEQUÊNCIA OBRIGATÓRIA
+
+1. LER TUDO PRIMEIRO
+2. MAPEAR BACKUPS ATUAIS
+3. VALIDAR RISCOS
+4. IMPLEMENTAR CIRURGICAMENTE
+5. VALIDAR RESTORE
+6. GERAR RELATÓRIO FINAL
+
+OBJETIVO DA FASE
+
+Implementar:
+- backup real
+- restore validado
+- disaster recovery básico
+- painel operacional
+- rastreabilidade de backup
+
+ESCOPO OBRIGATÓRIO
+
+AUDITAR:
+- server/services/backup.ts
+- jobs/cron
+- Supabase backup flow
+- dumps
+- storage
+- retention
+- restore viability
+- observability
+- logs
+- filesystem usage
+- upload persistence
+- schema consistency
+
+IMPLEMENTAR
+
+T401 — BACKUP REAL
+- backup PostgreSQL real
+- usar banco Supabase REAL
+- garantir uso de SUPABASE_DATABASE_URL
+- gerar dumps válidos
+- compressão
+- retention policy
+- logs operacionais
+- status tracking
+
+T402 — RESTORE TEST
+- processo de restore validado
+- ambiente temporário
+- validação de integridade
+- validar tenants
+- validar usuários
+- validar pedidos
+- validar NF-e
+- validar workflow_events
+
+T403 — PAINEL OPERACIONAL
+MASTER-only:
+- último backup
+- tamanho
+- duração
+- status
+- restore history
+- health
+- retenção
+- falhas
+
+T404 — DISASTER RECOVERY
+Simular:
+- restore parcial
+- restore total
+- rollback operacional
+- perda de tenant
+- recovery timing
+
+REGRAS DE SEGURANÇA
+
+- SEMPRE usar SUPABASE_DATABASE_URL real
+- NÃO usar banco local
+- NÃO usar heliumdb
+- VALIDAR conexão ativa do Supabase antes de qualquer operação
+- registrar logs completos
+- nunca apagar backups automaticamente sem retention explícita
+
+VALIDAÇÕES OBRIGATÓRIAS
+
+- app continua funcionando
+- workers continuam funcionando
+- zero quebra de tenantContext
+- zero quebra de observability
+- zero quebra de auth
+- zero quebra de jobs
+- TypeScript sem novos erros
+- endpoints protegidos
+- restore validado
+
+ENTREGA FINAL
+
+Gerar relatório completo contendo:
+- o que foi auditado
+- o que foi implementado
+- riscos encontrados
+- restore evidence
+- backup evidence
+- disaster recovery evidence
+- riscos residuais
+- próximos passos reais
+
+IMPORTANTE FINAL
+
+NÃO INVENTAR NADA FORA DESSA FASE.
+FOCAR SOMENTE EM:
+BACKUP
+RESTORE
+DISASTER RECOVERY
+ESTABILIDADE OPERACIONAL.

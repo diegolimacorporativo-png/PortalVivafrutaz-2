@@ -9,6 +9,7 @@ import { startFaturamentoCron } from "./jobs/faturamento.cron";
 import { startAnalyticsWorker } from "./core/events/event-analytics.worker";
 import { startProactiveAlertsScheduler } from "./services/alerts.proactive";
 import { initSchedulers } from "./bootstrap/scheduler";
+import { scheduleBackups } from "./backup";
 import { pool } from "./database/db";
 import { sql } from "drizzle-orm";
 import { db } from "./database/db";
@@ -55,6 +56,7 @@ async function recoverStuckNFes(): Promise<void> {
   startFaturamentoCron();
   startProactiveAlertsScheduler();
   initSchedulers();
+  scheduleBackups();
   setInterval(() => {
     const m = process.memoryUsage();
     console.log(`[MEMORY] RSS: ${(m.rss / 1024 / 1024).toFixed(2)}MB, Heap Used: ${(m.heapUsed / 1024 / 1024).toFixed(2)}MB, Heap Total: ${(m.heapTotal / 1024 / 1024).toFixed(2)}MB`);

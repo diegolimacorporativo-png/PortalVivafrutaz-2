@@ -1,7 +1,16 @@
 import type { Express } from "express";
 import fs from "fs";
 import { storage } from "../services/storage.ts";
-import { runBackup, runBackupSQL, listBackups, getBackupPath, deleteBackup, cleanOldBackups } from "../services/backup.ts";
+import {
+  runBackup,
+  runBackupSQL,
+  listBackups,
+  getBackupPath,
+  deleteBackup,
+  cleanOldBackups,
+  getBackupStats,
+  validateBackup,
+} from "../backup";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 import { requireRole } from "../core/http/requireAuth";
 
@@ -14,6 +23,15 @@ export async function register(app: Express): Promise<void> {
       res.json(backups);
     } catch (err) {
       res.status(500).json({ message: "Erro ao listar backups" });
+    }
+  });
+
+  app.get('/api/admin/backups/stats', requireSessionOrCompany, requireRole(BACKUP_ROLES), async (_req, res) => {
+    try {
+      const stats = getBackupStats();
+      res.json({ success: true, data: stats });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message ?? "Erro ao obter stats de backup" });
     }
   });
 
@@ -36,6 +54,25 @@ export async function register(app: Express): Promise<void> {
       res.status(201).json({ filename, message: "Backup SQL criado com sucesso." });
     } catch (err: any) {
       res.status(500).json({ message: "Erro ao criar backup SQL: " + err?.message });
+    }
+  });
+
+  app.post('/api/admin/backups/:filename/validate', requireSessionOrCompany, requireRole(['MASTER']), async (req: any, res) => {
+    try {
+      const user = await storage.getUser(req.session.userId!);
+      const filename = req.params.filename;
+      const result = validateBackup(filename);
+      await storage.createLog({
+        action: 'BACKUP_VALIDATED',
+        description: `Validação de backup: ${filename} — ${result.summary}`,
+        userId: user?.id,
+        userEmail: user?.email,
+        userRole: user?.role,
+        level: result.valid ? 'INFO' : 'WARN',
+      });
+      res.json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message ?? "Erro ao validar backup" });
     }
   });
 

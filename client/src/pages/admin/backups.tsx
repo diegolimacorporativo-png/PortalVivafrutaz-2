@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import {
   HardDrive, Plus, Download, RefreshCw, CheckCircle, WifiOff,
-  Trash2, Send, AlertTriangle, Mail, X, Database, FileCode2, Loader2
+  Trash2, Send, AlertTriangle, Mail, X, Database, FileCode2, Loader2,
+  ShieldCheck, Clock, BarChart3, CheckCircle2, XCircle, Info
 } from "lucide-react";
 
 function formatBytes(bytes: number) {
@@ -22,11 +24,49 @@ function formatDate(iso: string) {
   });
 }
 
+function timeAgo(iso: string) {
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const h = Math.floor(diffMs / 3600000);
+  const d = Math.floor(diffMs / 86400000);
+  if (d >= 1) return `há ${d} dia${d !== 1 ? "s" : ""}`;
+  if (h >= 1) return `há ${h}h`;
+  return "há menos de 1h";
+}
+
 type Backup = { filename: string; size: number; createdAt: string; format: string };
 
+interface BackupStats {
+  totalBackups: number;
+  jsonCount: number;
+  sqlCount: number;
+  totalSizeBytes: number;
+  lastBackup: { filename: string; size: number; createdAt: string; format: string } | null;
+  oldestBackup: { filename: string; createdAt: string } | null;
+}
+
+interface ValidationResult {
+  valid: boolean;
+  format: "json" | "sql" | "unknown";
+  filename: string;
+  sizeBytes: number;
+  generatedAt: string | null;
+  tableCounts: Record<string, number>;
+  totalRecords: number;
+  issues: string[];
+  warnings: string[];
+  summary: string;
+}
+
 export default function BackupsPage() {
+  const { user } = useAuth();
+  const isMaster = user?.role === "MASTER";
+
   const { data: backups, isLoading, refetch } = useQuery<Backup[]>({
     queryKey: ['/api/admin/backups'],
+  });
+  const { data: statsData } = useQuery<{ success: boolean; data: BackupStats }>({
+    queryKey: ['/api/admin/backups/stats'],
+    refetchInterval: 30000,
   });
   const { data: mailerStatus } = useQuery<{ configured: boolean; smtp: string | null; from: string }>({
     queryKey: ['/api/admin/mailer-status'],
@@ -39,6 +79,10 @@ export default function BackupsPage() {
   const [showSmtpTest, setShowSmtpTest] = useState(false);
   const [smtpTestEmail, setSmtpTestEmail] = useState("");
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [validatingFile, setValidatingFile] = useState<string | null>(null);
+
+  const stats = statsData?.data;
 
   // ─── Mutations ────────────────────────────────────────────────
   const createJsonBackup = useMutation({
@@ -49,6 +93,7 @@ export default function BackupsPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/backups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/backups/stats'] });
       toast({ title: `Backup JSON criado: ${data.filename}` });
     },
     onError: (e: any) => toast({ title: e.message || "Erro ao criar backup JSON.", variant: "destructive" }),
@@ -62,6 +107,7 @@ export default function BackupsPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/backups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/backups/stats'] });
       toast({ title: `Backup SQL criado: ${data.filename}` });
     },
     onError: (e: any) => toast({ title: e.message || "Erro ao criar backup SQL.", variant: "destructive" }),
@@ -73,8 +119,9 @@ export default function BackupsPage() {
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
       return res.json();
     },
-    onSuccess: (_, filename) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/backups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/backups/stats'] });
       setDeleteConfirm(null);
       toast({ title: `Backup excluído com sucesso.` });
     },
@@ -89,6 +136,7 @@ export default function BackupsPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/backups'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/backups/stats'] });
       setShowCleanConfirm(false);
       toast({ title: data.message || `${data.removed} backup(s) antigos removidos.` });
     },
@@ -114,14 +162,12 @@ export default function BackupsPage() {
     onError: (e: any) => toast({ title: e.message || "Erro ao enviar e-mail de teste.", variant: "destructive" }),
   });
 
-  // ─── Download via fetch+blob (reliable, avoids frontend router interception) ──
+  // ─── Download via fetch+blob ───────────────────────────────────
   const downloadBackup = async (filename: string) => {
     if (downloadingFile) return;
     setDownloadingFile(filename);
     try {
-      const res = await fetchWithAuth(`/api/admin/backups/${encodeURIComponent(filename)}`, {
-        method: 'GET',
-      });
+      const res = await fetchWithAuth(`/api/admin/backups/${encodeURIComponent(filename)}`, { method: 'GET' });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         throw new Error(d.message || 'Arquivo não encontrado');
@@ -143,11 +189,27 @@ export default function BackupsPage() {
     }
   };
 
+  // ─── Validate Backup (MASTER only) ────────────────────────────
+  const validateBackup = async (filename: string) => {
+    if (validatingFile) return;
+    setValidatingFile(filename);
+    try {
+      const res = await fetchWithAuth(`/api/admin/backups/${encodeURIComponent(filename)}/validate`, { method: 'POST' });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || 'Erro ao validar');
+      setValidationResult(d.data);
+    } catch (err: any) {
+      toast({ title: err.message || 'Erro ao validar backup', variant: 'destructive' });
+    } finally {
+      setValidatingFile(null);
+    }
+  };
+
   const isCreating = createJsonBackup.isPending || createSqlBackup.isPending;
 
   return (
     <Layout>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Backup do Sistema</h1>
           <p className="text-muted-foreground mt-1">
@@ -155,7 +217,7 @@ export default function BackupsPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => refetch()} title="Atualizar lista" className="flex items-center gap-2 px-4 py-2.5 border-2 border-border rounded-xl text-sm font-bold hover:bg-muted transition-colors">
+          <button onClick={() => { refetch(); queryClient.invalidateQueries({ queryKey: ['/api/admin/backups/stats'] }); }} title="Atualizar lista" className="flex items-center gap-2 px-4 py-2.5 border-2 border-border rounded-xl text-sm font-bold hover:bg-muted transition-colors">
             <RefreshCw className="w-4 h-4" /> Atualizar
           </button>
           <button
@@ -185,6 +247,60 @@ export default function BackupsPage() {
           </button>
         </div>
       </div>
+
+      {/* ── Stats Cards (MASTER: operational dashboard) ─────────────── */}
+      {stats && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-card border border-border/50 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <HardDrive className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total de backups</p>
+              <p className="text-2xl font-bold text-foreground" data-testid="stat-total-backups">{stats.totalBackups}</p>
+              <p className="text-xs text-muted-foreground">{stats.jsonCount} JSON · {stats.sqlCount} SQL</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border/50 rounded-2xl p-4 flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Tamanho total</p>
+              <p className="text-xl font-bold text-foreground" data-testid="stat-total-size">{formatBytes(stats.totalSizeBytes)}</p>
+            </div>
+          </div>
+          <div className="bg-card border border-border/50 rounded-2xl p-4 flex items-center gap-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${stats.lastBackup ? 'bg-green-100 dark:bg-green-900/30' : 'bg-orange-100 dark:bg-orange-900/30'}`}>
+              <Clock className={`w-5 h-5 ${stats.lastBackup ? 'text-green-600 dark:text-green-400' : 'text-orange-600 dark:text-orange-400'}`} />
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Último backup</p>
+              {stats.lastBackup ? (
+                <>
+                  <p className="text-sm font-bold text-foreground" data-testid="stat-last-backup">{timeAgo(stats.lastBackup.createdAt)}</p>
+                  <p className="text-xs text-muted-foreground">{formatBytes(stats.lastBackup.size)}</p>
+                </>
+              ) : (
+                <p className="text-sm font-bold text-orange-600">Nenhum</p>
+              )}
+            </div>
+          </div>
+          <div className={`border rounded-2xl p-4 flex items-center gap-3 ${stats.totalBackups > 0 ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-900/10 border-orange-200 dark:border-orange-800'}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${stats.totalBackups > 0 ? 'bg-green-100 dark:bg-green-900/30' : 'bg-orange-100 dark:bg-orange-900/30'}`}>
+              {stats.totalBackups > 0
+                ? <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                : <AlertTriangle className="w-5 h-5 text-orange-600 dark:text-orange-400" />}
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Status</p>
+              <p className={`text-sm font-bold ${stats.totalBackups > 0 ? 'text-green-700 dark:text-green-400' : 'text-orange-700 dark:text-orange-400'}`} data-testid="stat-health">
+                {stats.totalBackups > 0 ? "Operacional" : "Sem backups"}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Email Status Card */}
       <div className={`mb-4 p-5 rounded-2xl border-2 flex items-center gap-4 ${mailerStatus?.configured ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'}`}>
@@ -222,6 +338,12 @@ export default function BackupsPage() {
           <span className="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">SQL</span>
           Backup com INSERTs SQL (restauração direta no PostgreSQL)
         </div>
+        {isMaster && (
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-bold text-xs">MASTER</span>
+            Validação de integridade disponível
+          </div>
+        )}
       </div>
 
       {/* Backups list */}
@@ -245,6 +367,7 @@ export default function BackupsPage() {
             {backups.map((b) => {
               const isSQL = b.format === 'sql' || b.filename.endsWith('.sql');
               const isDownloading = downloadingFile === b.filename;
+              const isValidating = validatingFile === b.filename;
               return (
                 <li key={b.filename} data-testid={`row-backup-${b.filename}`}
                   className="p-4 flex items-center justify-between hover:bg-muted/10 transition-colors">
@@ -266,6 +389,21 @@ export default function BackupsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    {isMaster && (
+                      <button
+                        data-testid={`button-validate-backup-${b.filename}`}
+                        onClick={() => validateBackup(b.filename)}
+                        disabled={isValidating || !!validatingFile}
+                        className="flex items-center gap-2 px-3 py-2 rounded-xl border-2 border-purple-200 text-purple-700 text-sm font-bold hover:bg-purple-50 transition-colors disabled:opacity-50"
+                        title="Validar integridade do backup"
+                      >
+                        {isValidating
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <ShieldCheck className="w-4 h-4" />
+                        }
+                        {isValidating ? 'Validando...' : 'Validar'}
+                      </button>
+                    )}
                     <button
                       data-testid={`button-download-backup-${b.filename}`}
                       onClick={() => downloadBackup(b.filename)}
@@ -309,6 +447,120 @@ export default function BackupsPage() {
           </ul>
         )}
       </div>
+
+      {/* ── Validation Result Modal ───────────────────────────────── */}
+      {validationResult && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-card rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
+            <div className={`p-5 flex items-start gap-3 ${validationResult.valid ? 'bg-green-50 dark:bg-green-900/20 border-b border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-900/20 border-b border-red-200 dark:border-red-800'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${validationResult.valid ? 'bg-green-100 dark:bg-green-900/40' : 'bg-red-100 dark:bg-red-900/40'}`}>
+                {validationResult.valid
+                  ? <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                  : <XCircle className="w-5 h-5 text-red-600 dark:text-red-400" />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="font-bold text-lg text-foreground">
+                  Validação de Backup — {validationResult.valid ? "Íntegro" : "Problemas encontrados"}
+                </h3>
+                <p className="text-sm text-muted-foreground mt-0.5 truncate">{validationResult.filename}</p>
+              </div>
+              <button onClick={() => setValidationResult(null)} className="text-muted-foreground hover:text-foreground flex-shrink-0">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+              {/* Summary */}
+              <div className={`p-3 rounded-xl border text-sm font-medium ${validationResult.valid ? 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800 text-green-800 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 text-red-800 dark:text-red-300'}`}>
+                {validationResult.summary}
+              </div>
+
+              {/* Metadata */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">Formato</p>
+                  <p className="text-sm font-bold text-foreground uppercase">{validationResult.format}</p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">Tamanho</p>
+                  <p className="text-sm font-bold text-foreground">{formatBytes(validationResult.sizeBytes)}</p>
+                </div>
+                <div className="bg-muted/50 rounded-xl p-3">
+                  <p className="text-xs text-muted-foreground">Total de registros</p>
+                  <p className="text-sm font-bold text-foreground">{validationResult.totalRecords.toLocaleString()}</p>
+                </div>
+                {validationResult.generatedAt && (
+                  <div className="bg-muted/50 rounded-xl p-3 col-span-2 sm:col-span-3">
+                    <p className="text-xs text-muted-foreground">Gerado em</p>
+                    <p className="text-sm font-bold text-foreground">{validationResult.generatedAt}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Issues */}
+              {validationResult.issues.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-red-700 dark:text-red-400 mb-2 flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" /> Problemas críticos ({validationResult.issues.length})
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {validationResult.issues.map((issue, i) => (
+                      <li key={i} className="text-sm text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">
+                        {issue}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Warnings */}
+              {validationResult.warnings.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-2 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4" /> Avisos ({validationResult.warnings.length})
+                  </h4>
+                  <ul className="space-y-1.5">
+                    {validationResult.warnings.map((w, i) => (
+                      <li key={i} className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2">
+                        {w}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Table counts */}
+              {Object.keys(validationResult.tableCounts).length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                    <Info className="w-4 h-4 text-muted-foreground" /> Registros por tabela
+                  </h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {Object.entries(validationResult.tableCounts)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([tbl, count]) => (
+                        <div key={tbl} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-1.5 text-xs">
+                          <span className="font-mono text-muted-foreground truncate">{tbl}</span>
+                          <span className="font-bold text-foreground ml-2">{count.toLocaleString()}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-border flex justify-end">
+              <button
+                onClick={() => setValidationResult(null)}
+                data-testid="button-close-validation"
+                className="px-6 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-sm hover:opacity-90 transition-opacity"
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Clean old backups modal */}
       {showCleanConfirm && (
