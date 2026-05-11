@@ -1,0 +1,113 @@
+Você é um novo agent entrando no projeto VivaFrutaz ERP.
+
+ANTES DE QUALQUER ALTERAÇÃO:
+
+1. Conecte obrigatoriamente no banco REAL Supabase usando a env:
+SUPABASE_DATABASE_URL
+
+2. Verifique:
+- conexão Drizzle
+- workers ativos
+- startup limpo
+- app respondendo
+- sessões funcionando
+- tenantContext funcionando
+- observability funcionando
+
+3. Faça AUDITORIA COMPLETA antes de escrever qualquer linha:
+- leia auth
+- leia seeds
+- leia observability
+- leia routes.ts
+- leia backup.ts
+- leia session.ts
+- leia rateLimit
+- leia tenantContext
+- leia requireRole
+- leia app.ts
+- leia workers
+- leia NFe sender
+- leia middleware de segurança
+- leia backup/restore
+
+REGRAS ABSOLUTAS:
+
+NÃO quebrar:
+- multi-tenant
+- observability
+- workers
+- retry
+- dead-letter
+- backups
+- restore planner
+- cron jobs
+- sessão
+- login
+- NF-e
+- Supabase connection
+
+NÃO:
+- recriar banco
+- resetar banco
+- truncar tabelas
+- fazer restore real
+- alterar dados reais
+- remover tenants
+- mexer em migrations antigas
+- alterar arquitetura
+- mudar fluxo operacional
+- adicionar frameworks novos
+
+CRÍTICO:
+EXISTE um usuário MASTER atual no banco REAL.
+VOCÊ NÃO PODE:
+- alterar a senha atual
+- resetar senha
+- recriar usuário MASTER
+- alterar hash existente
+- invalidar sessões
+- trocar credenciais do usuário atual
+
+O QUE DEVE SER FEITO:
+Corrigir APENAS o seed inseguro hardcoded.
+
+Hoje existe algo parecido com:
+password: "Master@2026!"
+
+Você deve:
+- remover a senha hardcoded do source
+- impedir futuras recriações inseguras
+- gerar senha aleatória APENAS para NOVOS ambientes
+- manter 100% intacto o usuário MASTER já existente no Supabase
+
+IMPORTANTE:
+Se o usuário MASTER já existir:
+→ NÃO TOCAR NELE.
+
+Também implementar SOMENTE:
+FASE 4.1 — Critical Security Hardening
+
+Corrigir:
+C1 — hardcoded MASTER seed
+C2 — proteger endpoints NF-e públicos
+H1 — remover hashes/passwords dos backups
+H2 — adicionar CSP header
+H3 — revisar rejectUnauthorized=false sem quebrar Supabase/Replit
+H4 — adicionar requireAuthCore em substitute-item
+H5 — adicionar requireRole em orders list antiga
+
+OBRIGATÓRIO:
+- primeiro AUDITAR
+- depois MAPEAR impactos
+- depois IMPLEMENTAR cirurgicamente
+- depois VALIDAR
+- depois TYPECHECK
+- depois TESTE REAL
+- depois RELATÓRIO FINAL
+
+NÃO inventar features novas.
+NÃO refatorar sistema inteiro.
+NÃO mudar comportamento de negócio.
+
+Objetivo:
+security hardening sem alterar operação real do ERP.
