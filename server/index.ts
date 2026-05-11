@@ -16,6 +16,39 @@ import { db } from "./database/db";
 
 dotenv.config();
 
+// T906 — Production Safe Mode: fail-fast on critical misconfigurations.
+// These checks run before any server is created so startup fails loudly
+// instead of silently degrading in production.
+(function validateProductionEnv() {
+  const isProd = process.env.NODE_ENV === "production";
+
+  // Block unknown NODE_ENV values — a typo (e.g. "prod") silently disables
+  // all production guards across the codebase.
+  const validEnvs = ["development", "production", "test"];
+  if (process.env.NODE_ENV && !validEnvs.includes(process.env.NODE_ENV)) {
+    throw new Error(
+      `NODE_ENV inválido: "${process.env.NODE_ENV}". Valores aceitos: ${validEnvs.join(", ")}`,
+    );
+  }
+
+  // In production, require the external Supabase DB URL.
+  // dev uses Replit's DATABASE_URL (auto-set).
+  if (isProd && !process.env.SUPABASE_DATABASE_URL) {
+    throw new Error(
+      "SUPABASE_DATABASE_URL é obrigatório em produção. Configure a variável de ambiente antes de iniciar.",
+    );
+  }
+
+  // Block DEBUG=* in production — it floods logs with internal Express
+  // routing details and can expose middleware internals.
+  if (isProd && process.env.DEBUG) {
+    console.warn(
+      `[T906][PROD_SAFE] DEBUG="${process.env.DEBUG}" detectado em produção — removido para evitar vazamento de internals.`,
+    );
+    delete process.env.DEBUG;
+  }
+})();
+
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;

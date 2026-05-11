@@ -1,0 +1,207 @@
+FASE 4.3 — AUDITORIA FINAL + FECHAMENTO DE RISCOS OPERACIONAIS
+
+IMPORTANTE:
+Antes de escrever qualquer linha de código:
+
+1. reinicie o workflow
+2. valide conexão ativa com SUPABASE_DATABASE_URL
+3. confirme workers ativos
+4. faça auditoria COMPLETA dos arquivos envolvidos
+5. NÃO altere arquitetura
+6. NÃO criar novos módulos gigantes
+7. NÃO quebrar multi-tenant
+8. NÃO alterar sessões/logins existentes
+9. NÃO alterar usuário MASTER atual do banco
+10. NÃO alterar business rules
+11. todas as mudanças devem ser CIRÚRGICAS
+
+OBJETIVO:
+Fechar os últimos riscos operacionais reais do sistema antes de avançar para SaaS público.
+
+==================================================
+T901 — BACKUP DURABILITY VISIBILITY
+==================================================
+
+Criar endpoint MASTER-only:
+
+GET /api/admin/observability/backup-durability
+
+Retornar:
+
+- backupDir
+- totalFiles
+- totalSizeMb
+- latestBackup
+- oldestBackup
+- storageMode ("LOCAL_EPHEMERAL")
+- riskLevel ("HIGH")
+- productionWarning
+- recommendation
+
+Frontend:
+Adicionar card na tela /admin/observability mostrando:
+
+- status do backup
+- risco operacional
+- quantidade de backups
+- último backup
+- alerta visual vermelho/amarelo
+
+IMPORTANTE:
+NÃO implementar S3 ainda.
+Somente visibilidade operacional.
+
+==================================================
+T902 — SESSION SECURITY AUDIT
+==================================================
+
+Auditar:
+
+- session.ts
+- authCore.service.ts
+- sessionVersionGuard.ts
+- device binding
+- cookie flags
+- logout flow
+- session invalidation
+- session fixation risks
+
+Objetivo:
+Confirmar que:
+
+- sessões antigas invalidam corretamente
+- login simultâneo está controlado
+- session hijack não possui brecha óbvia
+- cookies estão seguros em produção
+
+Implementar SOMENTE ajustes pequenos e seguros se necessário.
+
+==================================================
+T903 — ADMIN ENDPOINT COVERAGE AUDIT
+==================================================
+
+Fazer varredura COMPLETA em:
+
+/api/admin/*
+/api/security/*
+/api/backup/*
+/api/observability/*
+/api/nfe/*
+/api/ai-developer/*
+/api/saas/*
+
+Detectar endpoints sem:
+
+- requireAuthCore
+- requireRole
+- rate limiter
+- tenant enforcement
+
+Corrigir SOMENTE gaps reais encontrados.
+
+NÃO duplicar middleware.
+NÃO quebrar endpoints existentes.
+
+==================================================
+T904 — QUERY ABUSE AUDIT
+==================================================
+
+Auditar:
+
+- storage.ts
+- repositories
+- exports
+- reports
+- analytics
+- dashboards
+
+Objetivo:
+
+Encontrar:
+- SELECT sem LIMIT
+- ORDER BY sem índice provável
+- loops N+1 restantes
+- joins perigosos
+- queries full-table
+
+Corrigir APENAS riscos reais.
+Mudanças cirúrgicas.
+
+==================================================
+T905 — OBSERVABILITY FINAL HARDENING
+==================================================
+
+Adicionar no painel:
+
+- uptime do processo
+- uso de memória
+- heap usage
+- event loop lag simples
+- total active sessions
+- total tenants ativos
+- total workers running
+- health geral do sistema
+
+Tudo somente leitura.
+
+Polling leve.
+Sem websocket.
+
+==================================================
+T906 — PRODUÇÃO SAFE MODE
+==================================================
+
+Adicionar proteções finais:
+
+- impedir logs verbosos em produção
+- impedir stacktrace exposto
+- impedir DEBUG=true em produção
+- validar NODE_ENV
+- validar SESSION_SECRET forte
+- validar SUPABASE_DATABASE_URL presente em produção
+
+Fail-fast somente para erros críticos.
+
+==================================================
+REGRAS ABSOLUTAS
+==================================================
+
+PROIBIDO:
+- alterar banco
+- migrations
+- truncate
+- restore real
+- mexer em NF-e core
+- alterar tenantContext
+- alterar autenticação principal
+- alterar business rules
+- alterar frontend comercial
+- quebrar workers
+
+OBRIGATÓRIO:
+- auditoria antes de qualquer mudança
+- validar impacto
+- validar startup limpo
+- validar endpoints
+- validar auth
+- validar workers
+- validar observability
+- validar Supabase conectado
+
+==================================================
+ENTREGA OBRIGATÓRIA
+==================================================
+
+No final gerar relatório COMPLETO:
+
+- riscos encontrados
+- riscos corrigidos
+- evidências
+- endpoints protegidos
+- métricas adicionadas
+- queries otimizadas
+- riscos residuais
+- o que ainda falta antes do SaaS público
+
+SEM resumir.
+SEM omitir detalhes.

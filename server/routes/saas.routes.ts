@@ -323,7 +323,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Módulos do Sistema ────────────────────────────────────────────────
-  app.get('/api/saas/modulos', async (req: any, res) => {
+  app.get('/api/saas/modulos', requireAuthCore, async (req: any, res) => {
     try {
       const modulos = await storage.getModulosSistema();
       res.json(modulos);
@@ -358,7 +358,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── SaaS: Plano × Módulos ───────────────────────────────────────────────────
-  app.get('/api/saas/planos/:id/modulos', async (req: any, res) => {
+  app.get('/api/saas/planos/:id/modulos', requireAuthCore, async (req: any, res) => {
     try {
       const modulos = await storage.getModulosByPlano(parseInt(req.params.id));
       res.json(modulos);

@@ -92,7 +92,8 @@ function _captureError(
       statusCode,
       severity,
       message: e?.message ?? "Unknown error",
-      stack: e?.stack,
+      // T906 — suppress full stack traces in production; stack is a dev/debug tool only
+      stack: process.env.NODE_ENV !== "production" ? e?.stack : undefined,
       tenantId: ctx?.tenantId,
       actorId: ctx?.actorId,
       role: ctx?.role,

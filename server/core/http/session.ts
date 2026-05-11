@@ -27,6 +27,9 @@ export function createSessionMiddleware() {
   if (!process.env.SESSION_SECRET) {
     throw new Error("SESSION_SECRET não configurado");
   }
+  if (process.env.SESSION_SECRET.length < 32) {
+    throw new Error("SESSION_SECRET deve ter no mínimo 32 caracteres para garantir segurança adequada");
+  }
   const isProduction = process.env.NODE_ENV === "production";
   const options: SessionOptions = {
     secret: process.env.SESSION_SECRET,

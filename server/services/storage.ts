@@ -984,7 +984,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrdersByCompanyId(companyId: number): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.companyId, companyId)).orderBy(desc(orders.orderDate));
+    return await db.select().from(orders).where(eq(orders.companyId, companyId)).orderBy(desc(orders.orderDate)).limit(1000);
   }
 
   async updateOrderItems(orderId: number, newItems: { productId: number; quantity: number; unitPrice: string; totalPrice: string; subCategoryId?: number | null; subCategoryName?: string | null }[]): Promise<void> {
@@ -1098,7 +1098,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompanyOrders(companyId: number): Promise<Order[]> {
-    return await db.select().from(orders).where(eq(orders.companyId, companyId)).orderBy(desc(orders.orderDate));
+    return await db.select().from(orders).where(eq(orders.companyId, companyId)).orderBy(desc(orders.orderDate)).limit(1000);
   }
 
   async createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order> {
@@ -1136,7 +1136,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrderExceptions(): Promise<OrderException[]> {
-    return await db.select().from(orderExceptions).orderBy(desc(orderExceptions.createdAt));
+    return await db.select().from(orderExceptions).orderBy(desc(orderExceptions.createdAt)).limit(200);
   }
 
   async createOrderException(exc: InsertOrderException): Promise<OrderException> {
@@ -1253,7 +1253,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPasswordResetRequests(): Promise<PasswordResetRequest[]> {
-    return await db.select().from(passwordResetRequests).orderBy(desc(passwordResetRequests.createdAt));
+    return await db.select().from(passwordResetRequests).orderBy(desc(passwordResetRequests.createdAt)).limit(200);
   }
 
   async createPasswordResetRequest(companyId: number): Promise<PasswordResetRequest> {
@@ -1267,11 +1267,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSpecialOrderRequests(): Promise<SpecialOrderRequest[]> {
-    return await db.select().from(specialOrderRequests).orderBy(desc(specialOrderRequests.createdAt));
+    return await db.select().from(specialOrderRequests).orderBy(desc(specialOrderRequests.createdAt)).limit(500);
   }
 
   async getSpecialOrderRequestsByCompany(companyId: number): Promise<SpecialOrderRequest[]> {
-    return await db.select().from(specialOrderRequests).where(eq(specialOrderRequests.companyId, companyId)).orderBy(desc(specialOrderRequests.createdAt));
+    return await db.select().from(specialOrderRequests).where(eq(specialOrderRequests.companyId, companyId)).orderBy(desc(specialOrderRequests.createdAt)).limit(200);
   }
 
   async createSpecialOrderRequest(data: { companyId: number; requestedDay: string; requestedDate?: string | null; description: string; quantity: string; observations?: string | null; items?: any; estimatedDeliveryDate?: string | null }): Promise<SpecialOrderRequest> {
@@ -1358,11 +1358,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getTasks(): Promise<Task[]> {
-    return db.select().from(tasks).orderBy(desc(tasks.createdAt));
+    return db.select().from(tasks).orderBy(desc(tasks.createdAt)).limit(500);
   }
 
   async getTasksByUser(userId: number): Promise<Task[]> {
-    return db.select().from(tasks).where(eq(tasks.assignedToId, userId)).orderBy(desc(tasks.createdAt));
+    return db.select().from(tasks).where(eq(tasks.assignedToId, userId)).orderBy(desc(tasks.createdAt)).limit(200);
   }
 
   async updateTask(id: number, updates: Partial<{ title: string; description: string; assignedToId: number; assignedToName: string; deadline: string; priority: string; status: string; updatedAt: Date }>): Promise<Task> {
@@ -1381,7 +1381,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientIncidents(): Promise<ClientIncident[]> {
-    return db.select().from(clientIncidents).orderBy(desc(clientIncidents.createdAt));
+    return db.select().from(clientIncidents).orderBy(desc(clientIncidents.createdAt)).limit(500);
   }
 
   async getClientIncident(id: number): Promise<ClientIncident | undefined> {
@@ -1390,7 +1390,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientIncidentsByCompany(companyId: number): Promise<ClientIncident[]> {
-    return db.select().from(clientIncidents).where(eq(clientIncidents.companyId, companyId)).orderBy(desc(clientIncidents.createdAt));
+    return db.select().from(clientIncidents).where(eq(clientIncidents.companyId, companyId)).orderBy(desc(clientIncidents.createdAt)).limit(200);
   }
 
   async updateClientIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null }): Promise<ClientIncident> {
@@ -1450,7 +1450,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getInternalIncidents(): Promise<InternalIncident[]> {
-    return db.select().from(internalIncidents).orderBy(desc(internalIncidents.createdAt));
+    return db.select().from(internalIncidents).orderBy(desc(internalIncidents.createdAt)).limit(200);
   }
 
   async updateInternalIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number; assignedToName?: string }): Promise<InternalIncident> {
@@ -1634,7 +1634,7 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Cotação de Empresas ──────────────────────────────────────
   async getQuotations(): Promise<CompanyQuotation[]> {
-    return db.select().from(companyQuotations).orderBy(desc(companyQuotations.createdAt));
+    return db.select().from(companyQuotations).orderBy(desc(companyQuotations.createdAt)).limit(200);
   }
   async createQuotation(data: Partial<CompanyQuotation>): Promise<CompanyQuotation> {
     const [q] = await db.insert(companyQuotations).values({ status: 'PENDING', ...data } as any).returning();
@@ -1650,7 +1650,7 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Announcements ────────────────────────────────────────────
   async getAnnouncements(): Promise<Announcement[]> {
-    return db.select().from(announcements).orderBy(desc(announcements.createdAt));
+    return db.select().from(announcements).orderBy(desc(announcements.createdAt)).limit(200);
   }
 
   async getActiveAnnouncementsForCompany(companyId: number): Promise<Announcement[]> {

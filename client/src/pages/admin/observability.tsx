@@ -27,10 +27,13 @@ import {
   BarChart3,
   CheckCircle2,
   Clock,
+  Database,
+  HardDrive,
   Loader2,
   RefreshCw,
   RotateCcw,
   Server,
+  Shield,
   Skull,
   Timer,
   Trash2,
@@ -245,6 +248,16 @@ export default function AdminObservability() {
     refetchInterval: 10000,
   });
 
+  const healthQ = useQuery<{ success: boolean; data: any }>({
+    queryKey: ["/api/admin/observability/health"],
+    refetchInterval: 30000,
+  });
+
+  const backupQ = useQuery<{ success: boolean; data: any }>({
+    queryKey: ["/api/admin/observability/backup-durability"],
+    refetchInterval: 60000,
+  });
+
   const clearMut = useMutation({
     mutationFn: () => apiRequest("DELETE", "/api/admin/observability/errors"),
     onSuccess: () => {
@@ -429,6 +442,15 @@ export default function AdminObservability() {
                 {slowJobsMeta.runningCount}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="health" data-testid="tab-health">
+            <Server className="w-4 h-4 mr-1.5" />
+            Saúde do Sistema
+          </TabsTrigger>
+          <TabsTrigger value="backup" data-testid="tab-backup">
+            <Database className="w-4 h-4 mr-1.5" />
+            Backup
+            <Badge className="ml-1.5 text-xs h-4 px-1.5 bg-red-500 text-white">RISCO</Badge>
           </TabsTrigger>
         </TabsList>
 
@@ -1071,6 +1093,262 @@ export default function AdminObservability() {
               Painel atualiza automaticamente a cada 10 segundos.
             </p>
           </div>
+        </TabsContent>
+
+        {/* ── Tab 5: Saúde do Sistema (T905) ──────────────────────────── */}
+        <TabsContent value="health" className="space-y-4">
+          {healthQ.isLoading ? (
+            <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando dados de saúde...
+            </div>
+          ) : !healthQ.data?.data ? (
+            <div className="p-6 text-sm text-muted-foreground">Dados indisponíveis.</div>
+          ) : (() => {
+            const h = healthQ.data.data;
+            return (
+              <div className="space-y-4">
+                {/* Status Banner */}
+                <div className={`flex items-center gap-3 p-4 rounded-xl border ${
+                  h.healthStatus === "OK" ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800"
+                  : h.healthStatus === "DEGRADED" ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800"
+                  : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
+                }`} data-testid="status-health-banner">
+                  <Shield className={`w-5 h-5 flex-shrink-0 ${h.healthStatus === "OK" ? "text-green-600" : h.healthStatus === "DEGRADED" ? "text-yellow-600" : "text-red-600"}`} />
+                  <div className="flex-1">
+                    <span className="font-semibold text-foreground">
+                      Status geral:{" "}
+                      <Badge className={`${h.healthStatus === "OK" ? "bg-green-100 text-green-800 border-green-200" : h.healthStatus === "DEGRADED" ? "bg-yellow-100 text-yellow-800 border-yellow-200" : "bg-red-100 text-red-800 border-red-200"}`}>
+                        {h.healthStatus}
+                      </Badge>
+                    </span>
+                    <span className="ml-3 text-sm text-muted-foreground">
+                      Node: {h.nodeVersion} · Env: {h.env} · Verificado: {new Date(h.checkedAt).toLocaleString("pt-BR")}
+                    </span>
+                  </div>
+                </div>
+
+                {/* KPI Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <Card data-testid="card-uptime">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Clock className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs text-muted-foreground">Uptime</span>
+                      </div>
+                      <div className="text-2xl font-bold text-foreground" data-testid="text-uptime">{h.uptimeHuman}</div>
+                      <div className="text-xs text-muted-foreground">{h.uptimeSeconds.toLocaleString()}s</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card data-testid="card-memory-heap">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <HardDrive className="w-4 h-4 text-purple-500" />
+                        <span className="text-xs text-muted-foreground">Heap usado</span>
+                      </div>
+                      <div className="text-2xl font-bold text-foreground" data-testid="text-memory-heap">
+                        {h.memory.heapUsedMb} MB
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-1.5 mt-2">
+                        <div
+                          className={`h-1.5 rounded-full ${h.memory.heapUsedPct > 80 ? "bg-red-500" : h.memory.heapUsedPct > 60 ? "bg-yellow-500" : "bg-green-500"}`}
+                          style={{ width: `${Math.min(h.memory.heapUsedPct, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1" data-testid="text-memory-heap-pct">{h.memory.heapUsedPct}% de {h.memory.heapTotalMb} MB</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card data-testid="card-memory-rss">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Server className="w-4 h-4 text-orange-500" />
+                        <span className="text-xs text-muted-foreground">RSS total</span>
+                      </div>
+                      <div className="text-2xl font-bold text-foreground" data-testid="text-memory-rss">
+                        {h.memory.rssMb} MB
+                      </div>
+                      <div className="text-xs text-muted-foreground">Externo: {h.memory.externalMb} MB</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card data-testid="card-active-tenants">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Users className="w-4 h-4 text-green-500" />
+                        <span className="text-xs text-muted-foreground">Tenants ativos</span>
+                      </div>
+                      <div className="text-2xl font-bold text-foreground" data-testid="text-active-tenants">
+                        {h.tenants.active}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Desde o boot do servidor</div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Workers */}
+                <Card data-testid="card-workers-health">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                        <Activity className="w-4 h-4" />
+                        Workers Background
+                      </CardTitle>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <span className="text-green-600 font-medium">{h.workers.running} rodando</span>
+                        {h.workers.errored > 0 && <span className="text-red-600 font-medium">{h.workers.errored} em erro</span>}
+                        <span>/ {h.workers.total} total</span>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-4 gap-3">
+                      {[
+                        { label: "Total", value: h.workers.total, color: "bg-muted/50" },
+                        { label: "Rodando", value: h.workers.running, color: "bg-blue-50 dark:bg-blue-950/30" },
+                        { label: "OK", value: h.workers.ok, color: "bg-green-50 dark:bg-green-950/30" },
+                        { label: "Erro", value: h.workers.errored, color: h.workers.errored > 0 ? "bg-red-50 dark:bg-red-950/30" : "bg-muted/50" },
+                      ].map((w) => (
+                        <div key={w.label} className={`text-center p-3 rounded-lg ${w.color}`} data-testid={`text-workers-${w.label.toLowerCase()}`}>
+                          <div className="text-2xl font-bold text-foreground">{w.value}</div>
+                          <div className="text-xs text-muted-foreground">{w.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Request metrics */}
+                <Card data-testid="card-request-metrics">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4" />
+                      Requisições &amp; Falhas
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                      {[
+                        { label: "Total", value: h.requests.total.toLocaleString(), testId: "text-total-requests" },
+                        { label: "Erros", value: h.requests.errors.toLocaleString(), testId: "text-total-errors", warn: h.requests.errors > 0 },
+                        { label: "Taxa erro", value: `${h.requests.errorRatePct}%`, testId: "text-error-rate", warn: h.requests.errorRatePct > 5 },
+                        { label: "Falhas NF-e", value: h.requests.nfeFailures.toLocaleString(), testId: "text-nfe-failures", warn: h.requests.nfeFailures > 0 },
+                        { label: "Dead Letters", value: h.requests.deadLetterCount.toLocaleString(), testId: "text-dead-letter-count", warn: h.requests.deadLetterCount > 0 },
+                      ].map((m) => (
+                        <div key={m.label} className={`text-center p-3 rounded-lg ${m.warn ? "bg-red-50 dark:bg-red-950/30" : "bg-muted/50"}`}>
+                          <div className={`text-xl font-bold ${m.warn ? "text-red-600 dark:text-red-400" : "text-foreground"}`} data-testid={m.testId}>
+                            {m.value}
+                          </div>
+                          <div className="text-xs text-muted-foreground">{m.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <p className="text-xs text-center text-muted-foreground">
+                  Dados em memória · Reset no restart do servidor · Atualização automática a cada 30s
+                </p>
+              </div>
+            );
+          })()}
+        </TabsContent>
+
+        {/* ── Tab 6: Backup Durabilidade (T901) ───────────────────────── */}
+        <TabsContent value="backup" className="space-y-4">
+          {backupQ.isLoading ? (
+            <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin" /> Carregando dados de backup...
+            </div>
+          ) : !backupQ.data?.data ? (
+            <div className="p-6 text-sm text-muted-foreground">Dados indisponíveis.</div>
+          ) : (() => {
+            const b = backupQ.data.data;
+            return (
+              <div className="space-y-4">
+                {/* Risk Banner */}
+                <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30" data-testid="card-backup-warning-banner">
+                  <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-foreground text-sm" data-testid="text-backup-warning">
+                      {b.productionWarning}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1" data-testid="text-backup-recommendation">
+                      <span className="font-medium text-foreground">Recomendação:</span> {b.recommendation}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Storage Mode */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card data-testid="card-storage-mode">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Database className="w-4 h-4 text-red-500" />
+                        <span className="text-xs text-muted-foreground">Modo de armazenamento</span>
+                      </div>
+                      <div className="text-lg font-bold text-red-600 dark:text-red-400" data-testid="text-storage-mode">
+                        {b.storageMode}
+                      </div>
+                      <Badge className="mt-2 bg-red-100 text-red-800 border-red-200">Risco: {b.riskLevel}</Badge>
+                    </CardContent>
+                  </Card>
+
+                  <Card data-testid="card-backup-files">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <HardDrive className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs text-muted-foreground">Arquivos de backup</span>
+                      </div>
+                      <div className="text-2xl font-bold text-foreground" data-testid="text-backup-total">
+                        {b.totalFiles}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        JSON: {b.jsonCount} · SQL: {b.sqlCount} · Total: {b.totalSizeMb} MB
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card data-testid="card-backup-latest">
+                    <CardContent className="p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Clock className="w-4 h-4 text-green-500" />
+                        <span className="text-xs text-muted-foreground">Último backup</span>
+                      </div>
+                      {b.latestBackup ? (
+                        <>
+                          <div className="text-sm font-semibold text-foreground" data-testid="text-backup-latest">
+                            {new Date(b.latestBackup.createdAt).toLocaleString("pt-BR")}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate mt-1">
+                            {b.latestBackup.filename}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-sm text-muted-foreground" data-testid="text-backup-latest">
+                          Nenhum backup encontrado
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Directory */}
+                <div className="p-3 bg-muted/50 rounded-xl border border-border">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Diretório local:</span>{" "}
+                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs" data-testid="text-backup-dir">
+                      {b.backupDir}
+                    </code>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    ⚠ Este diretório é <strong>efêmero</strong> em ambientes Replit Autoscale/Deploy. Todos os backups são perdidos a cada redeploy ou reinício de instância.
+                    Para resiliência real, conecte um storage externo (S3, Supabase Storage ou GCS) antes de ir para produção.
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
     </div>
