@@ -1,0 +1,215 @@
+VIVAFRUTAZ ERP — CONTINUIDADE OFICIAL PÓS MT-3D
+
+MODO:
+IMPLEMENTAÇÃO CONTROLADA + HARDENING OPERACIONAL + EVOLUÇÃO GRADUAL
+
+IMPORTANTE:
+Você NÃO deve reinventar arquitetura.
+Você NÃO deve criar novos sistemas paralelos.
+Você NÃO deve refatorar o projeto inteiro.
+Você NÃO deve alterar o tenant system já estabilizado.
+Você NÃO deve criar microserviços.
+Você NÃO deve migrar stack.
+Você NÃO deve introduzir complexidade desnecessária.
+
+O sistema já passou pelas fases:
+- MT-3A
+- MT-3B
+- MT-3C
+- MT-3D
+
+Todos os gaps CRITICAL/HIGH já foram corrigidos.
+
+Agora o foco é:
+ESTABILIZAÇÃO REAL + HARDENING + OPERAÇÃO INTERNA.
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+1. PRESERVAR ARQUITETURA ATUAL
+O projeto continua:
+- monolítico
+- modular
+- AsyncLocalStorage multi-tenant
+- Drizzle ORM
+- Supabase PostgreSQL
+- React frontend
+- Express backend
+
+2. NÃO INVENTAR NOVOS SISTEMAS
+Não criar:
+- microservices
+- event bus complexo
+- CQRS
+- Kafka
+- Redis cluster
+- Kubernetes
+- multi-db
+- arquitetura enterprise artificial
+
+3. ALTERAÇÕES DEVEM SER CIRÚRGICAS
+Toda mudança deve:
+- resolver risco real
+- manter compatibilidade
+- preservar comportamento atual
+- minimizar impacto
+
+4. EXECUÇÃO OBRIGATÓRIA
+Sempre seguir:
+1. LEITURA
+2. MAPEAMENTO
+3. VALIDAÇÃO
+4. IMPLEMENTAÇÃO
+5. TESTE
+6. RELATÓRIO
+
+NUNCA modificar antes de entender COMPLETAMENTE o fluxo.
+
+5. USAR SUPABASE OFICIAL
+O banco oficial é:
+SUPABASE_DATABASE_URL
+
+Ignorar qualquer resquício legado:
+- heliumdb
+- bancos antigos
+- mocks antigos
+
+Toda validação deve ocorrer no banco Supabase real.
+
+========================================================
+SEQUÊNCIA OFICIAL — NÃO ALTERAR
+========================================================
+
+FASE 1 — HARDENING FINAL MT-3D
+
+OBJETIVO:
+Fechar resíduos restantes identificados na auditoria final.
+
+EXECUTAR APENAS:
+
+1. logistics tenant hardening
+- validar route ownership
+- aplicar tenantWhere/company filters
+- revisar raw SQL da logística
+- impedir routeId cross-tenant
+
+2. reports hardening
+- remover confiança em companyId vindo da request
+- usar currentTenantId()
+- validar overrides MASTER explicitamente
+
+3. raw SQL validation pass
+- revisar TODOS raw SQL restantes
+- validar tenant filters
+- validar requireRole
+- validar ownership checks
+- validar parâmetros inseguros
+
+IMPORTANTE:
+NÃO criar novas features.
+NÃO alterar frontend sem necessidade.
+NÃO criar migrations desnecessárias.
+
+========================================================
+FASE 2 — OBSERVABILIDADE
+========================================================
+
+OBJETIVO:
+Transformar o sistema em operacionalmente rastreável.
+
+IMPLEMENTAR APENAS:
+
+4. request tracing
+5. correlationId/requestId
+6. painel de erros administrativos
+7. logs centralizados
+8. métricas operacionais
+
+IMPORTANTE:
+Toda observabilidade deve:
+- incluir tenantId
+- incluir requestId
+- incluir actorId
+- incluir role
+- preservar privacidade
+
+NÃO criar stack enterprise complexa.
+
+========================================================
+FASE 3 — ESTABILIDADE
+========================================================
+
+IMPLEMENTAR APENAS:
+
+9. cron overlap protection
+10. retry queues simples
+11. backup automático
+12. restore validation
+13. monitoramento Supabase
+
+IMPORTANTE:
+Soluções simples e robustas.
+Sem overengineering.
+
+========================================================
+FASE 4 — OPERAÇÃO INTERNA REAL
+========================================================
+
+OBJETIVO:
+Rodar a empresa usando o ERP real.
+
+EXECUTAR:
+- validação operacional
+- correção de gargalos reais
+- UX operacional
+- performance real
+- estabilidade diária
+
+Priorizar:
+- fluxo de pedidos
+- NF-e
+- logística
+- financeiro
+- estoque
+
+========================================================
+FASE 5 — SAAS FUTURO
+========================================================
+
+AINDA NÃO IMPLEMENTAR.
+
+Apenas documentar.
+
+Inclui:
+- onboarding multiempresa
+- billing
+- quotas
+- provisioning
+- observabilidade enterprise
+
+========================================================
+IMPORTANTE FINAL
+========================================================
+
+O foco agora NÃO é:
+“criar novas funcionalidades”.
+
+O foco é:
+- estabilidade
+- segurança
+- rastreabilidade
+- operação real
+- confiabilidade
+- previsibilidade
+- hardening
+
+O sistema já possui arquitetura suficientemente madura para operação interna.
+
+Toda decisão deve priorizar:
+- simplicidade
+- segurança
+- estabilidade
+- clareza
+- auditabilidade
+- isolamento multi-tenant

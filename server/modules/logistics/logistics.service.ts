@@ -16,6 +16,7 @@ import {
   BadRequestError,
   NotFoundError,
 } from "../../shared/errors/AppError";
+import { currentTenantId } from "../../core/tenant/context";
 import type {
   ActorRef,
   CalculateDistanceInput,
@@ -39,7 +40,8 @@ export class LogisticsService {
 
   // ─── DRIVERS ──────────────────────────────────────────────────────────
   listDrivers() {
-    return this.repo.getDrivers();
+    const tid = currentTenantId();
+    return tid ? this.repo.getDriversSafe(tid) : this.repo.getDrivers();
   }
 
   async createDriver(
@@ -68,16 +70,19 @@ export class LogisticsService {
   }
 
   updateDriver(id: number, body: any) {
-    return this.repo.updateDriver(id, body);
+    const tid = currentTenantId();
+    return tid ? this.repo.updateDriverOwned(id, tid, body) : this.repo.updateDriver(id, body);
   }
 
   deleteDriver(id: number) {
-    return this.repo.deleteDriver(id);
+    const tid = currentTenantId();
+    return tid ? this.repo.deleteDriverOwned(id, tid) : this.repo.deleteDriver(id);
   }
 
   // ─── VEHICLES ─────────────────────────────────────────────────────────
   listVehicles() {
-    return this.repo.getVehicles();
+    const tid = currentTenantId();
+    return tid ? this.repo.getVehiclesSafe(tid) : this.repo.getVehicles();
   }
 
   async createVehicle(
@@ -109,16 +114,19 @@ export class LogisticsService {
   }
 
   updateVehicle(id: number, body: any) {
-    return this.repo.updateVehicle(id, body);
+    const tid = currentTenantId();
+    return tid ? this.repo.updateVehicleOwned(id, tid, body) : this.repo.updateVehicle(id, body);
   }
 
   deleteVehicle(id: number) {
-    return this.repo.deleteVehicle(id);
+    const tid = currentTenantId();
+    return tid ? this.repo.deleteVehicleOwned(id, tid) : this.repo.deleteVehicle(id);
   }
 
   // ─── ROUTES ───────────────────────────────────────────────────────────
   listRoutes() {
-    return this.repo.getRoutes();
+    const tid = currentTenantId();
+    return tid ? this.repo.getRoutesSafe(tid) : this.repo.getRoutes();
   }
 
   async createRoute(body: any, actor: ActorRef): Promise<LogisticsRoute> {
@@ -158,16 +166,19 @@ export class LogisticsService {
   }
 
   updateRoute(id: number, body: any) {
-    return this.repo.updateRoute(id, body);
+    const tid = currentTenantId();
+    return tid ? this.repo.updateRouteOwned(id, tid, body) : this.repo.updateRoute(id, body);
   }
 
   deleteRoute(id: number) {
-    return this.repo.deleteRoute(id);
+    const tid = currentTenantId();
+    return tid ? this.repo.deleteRouteOwned(id, tid) : this.repo.deleteRoute(id);
   }
 
   // ─── MAINTENANCE ──────────────────────────────────────────────────────
   listMaintenance() {
-    return this.repo.getMaintenances();
+    const tid = currentTenantId();
+    return tid ? this.repo.getMaintenancesSafe(tid) : this.repo.getMaintenances();
   }
 
   async createMaintenance(
@@ -206,11 +217,13 @@ export class LogisticsService {
   }
 
   updateMaintenance(id: number, body: any) {
-    return this.repo.updateMaintenance(id, body);
+    const tid = currentTenantId();
+    return tid ? this.repo.updateMaintenanceOwned(id, tid, body) : this.repo.updateMaintenance(id, body);
   }
 
   deleteMaintenance(id: number) {
-    return this.repo.deleteMaintenance(id);
+    const tid = currentTenantId();
+    return tid ? this.repo.deleteMaintenanceOwned(id, tid) : this.repo.deleteMaintenance(id);
   }
 
   // ─── ROUTE ASSISTANT ──────────────────────────────────────────────────

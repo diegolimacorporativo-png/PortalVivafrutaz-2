@@ -276,6 +276,18 @@ export interface IStorage {
   createMaintenance(data: Partial<LogisticsMaintenance>): Promise<LogisticsMaintenance>;
   updateMaintenance(id: number, data: Partial<LogisticsMaintenance>): Promise<LogisticsMaintenance>;
   deleteMaintenance(id: number): Promise<void>;
+  // FASE MT-3D — Safe list variants (tenant-scoped)
+  getVehiclesSafe(empresaId: number): Promise<LogisticsVehicle[]>;
+  getMaintenancesSafe(empresaId: number): Promise<LogisticsMaintenance[]>;
+  // FASE MT-3D — Owned update/delete: AND empresa_id guard prevents cross-tenant writes
+  updateRouteOwned(id: number, empresaId: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute | null>;
+  deleteRouteOwned(id: number, empresaId: number): Promise<boolean>;
+  updateDriverOwned(id: number, empresaId: number, data: Partial<LogisticsDriver>): Promise<LogisticsDriver | null>;
+  deleteDriverOwned(id: number, empresaId: number): Promise<boolean>;
+  updateVehicleOwned(id: number, empresaId: number, data: Partial<LogisticsVehicle>): Promise<LogisticsVehicle | null>;
+  deleteVehicleOwned(id: number, empresaId: number): Promise<boolean>;
+  updateMaintenanceOwned(id: number, empresaId: number, data: Partial<LogisticsMaintenance>): Promise<LogisticsMaintenance | null>;
+  deleteMaintenanceOwned(id: number, empresaId: number): Promise<boolean>;
   // Quotations
   getQuotations(): Promise<CompanyQuotation[]>;
   createQuotation(data: Partial<CompanyQuotation>): Promise<CompanyQuotation>;
@@ -1529,6 +1541,88 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteMaintenance(id: number): Promise<void> {
     await db.delete(logisticsMaintenance).where(eq(logisticsMaintenance.id, id));
+  }
+
+  // FASE MT-3D — Safe list variants (tenant-scoped)
+  async getVehiclesSafe(empresaId: number): Promise<LogisticsVehicle[]> {
+    return db
+      .select()
+      .from(logisticsVehicles)
+      .where(eq(logisticsVehicles.empresaId, empresaId))
+      .orderBy(logisticsVehicles.plate);
+  }
+  async getMaintenancesSafe(empresaId: number): Promise<LogisticsMaintenance[]> {
+    return db
+      .select()
+      .from(logisticsMaintenance)
+      .where(eq(logisticsMaintenance.empresaId, empresaId))
+      .orderBy(desc(logisticsMaintenance.createdAt));
+  }
+
+  // FASE MT-3D — Owned update/delete: AND empresa_id prevents cross-tenant writes
+  async updateRouteOwned(id: number, empresaId: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute | null> {
+    const [r] = await db
+      .update(logisticsRoutes)
+      .set(data as any)
+      .where(and(eq(logisticsRoutes.id, id), eq(logisticsRoutes.empresaId, empresaId)))
+      .returning();
+    if (r?.empresaId) invalidateUsageCache(r.empresaId);
+    return r ?? null;
+  }
+  async deleteRouteOwned(id: number, empresaId: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(logisticsRoutes)
+      .where(and(eq(logisticsRoutes.id, id), eq(logisticsRoutes.empresaId, empresaId)))
+      .returning();
+    if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
+    return !!deleted;
+  }
+  async updateDriverOwned(id: number, empresaId: number, data: Partial<LogisticsDriver>): Promise<LogisticsDriver | null> {
+    const [d] = await db
+      .update(logisticsDrivers)
+      .set(data as any)
+      .where(and(eq(logisticsDrivers.id, id), eq(logisticsDrivers.empresaId, empresaId)))
+      .returning();
+    if (d?.empresaId) invalidateUsageCache(d.empresaId);
+    return d ?? null;
+  }
+  async deleteDriverOwned(id: number, empresaId: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(logisticsDrivers)
+      .where(and(eq(logisticsDrivers.id, id), eq(logisticsDrivers.empresaId, empresaId)))
+      .returning();
+    if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
+    return !!deleted;
+  }
+  async updateVehicleOwned(id: number, empresaId: number, data: Partial<LogisticsVehicle>): Promise<LogisticsVehicle | null> {
+    const [v] = await db
+      .update(logisticsVehicles)
+      .set(data as any)
+      .where(and(eq(logisticsVehicles.id, id), eq(logisticsVehicles.empresaId, empresaId)))
+      .returning();
+    return v ?? null;
+  }
+  async deleteVehicleOwned(id: number, empresaId: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(logisticsVehicles)
+      .where(and(eq(logisticsVehicles.id, id), eq(logisticsVehicles.empresaId, empresaId)))
+      .returning();
+    return !!deleted;
+  }
+  async updateMaintenanceOwned(id: number, empresaId: number, data: Partial<LogisticsMaintenance>): Promise<LogisticsMaintenance | null> {
+    const [m] = await db
+      .update(logisticsMaintenance)
+      .set(data as any)
+      .where(and(eq(logisticsMaintenance.id, id), eq(logisticsMaintenance.empresaId, empresaId)))
+      .returning();
+    return m ?? null;
+  }
+  async deleteMaintenanceOwned(id: number, empresaId: number): Promise<boolean> {
+    const [deleted] = await db
+      .delete(logisticsMaintenance)
+      .where(and(eq(logisticsMaintenance.id, id), eq(logisticsMaintenance.empresaId, empresaId)))
+      .returning();
+    return !!deleted;
   }
 
   // ─── Cotação de Empresas ──────────────────────────────────────
