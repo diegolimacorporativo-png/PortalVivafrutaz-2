@@ -410,7 +410,9 @@ export async function registerRoutes(
   // rotas de pedido (`api.orders.get` linha ~1707): bloqueia cross-tenant
   // antes de tocar o controller. Erros propagam via `next` para o
   // errorHandler central (AppError → status correto).
-  app.post('/api/orders/:orderId/substitute-item', async (req: Request, res: Response, next: NextFunction) => {
+  // H4-FIX: requireAuthCore added — unauthenticated callers were able to reach
+  // the tenant guard and controller without a valid session.
+  app.post('/api/orders/:orderId/substitute-item', requireAuthCore, async (req: Request, res: Response, next: NextFunction) => {
     try {
       await validateOrderTenant(Number(req.params.orderId));
       await ordersController.substituteItem(req, res);
@@ -503,7 +505,9 @@ export async function registerRoutes(
   // DELETE api.orderWindows.delete.path
 
   // Orders
-  app.get(api.orders.list.path, requireAuthCore, async (req, res) => {
+  // H5-FIX: requireRole added — staff/client sessions could query any company's
+  // orders by passing empresaId. Restricted to internal privileged roles only.
+  app.get(api.orders.list.path, requireAuthCore, requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]), async (req, res) => {
     const orders = await storage.getOrders(Number(req.query.empresaId));
     res.json(orders);
   });
@@ -1878,7 +1882,9 @@ export async function registerRoutes(
     );
 
     // GET /api/nfe/dry-run/metrics — STEP 9.2Z.1C/1D: métricas em memória dos bloqueios simulados
-    app.get('/api/nfe/dry-run/metrics', (req: any, res) => {
+    // C2-FIX: requireAuthCore + requireRole added — endpoints were publicly accessible
+    // exposing internal fiscal idempotency telemetry without authentication.
+    app.get('/api/nfe/dry-run/metrics', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), (req: any, res) => {
       const base = getDryRunMetrics();
       return res.json({
         ...base,
@@ -1888,7 +1894,8 @@ export async function registerRoutes(
 
     // GET /api/nfe/dry-run/metrics/window — STEP 9.2Z.1E: métricas filtradas por janela de tempo
     // Query: ?hours=24 (default 24h)
-    app.get('/api/nfe/dry-run/metrics/window', (req: any, res) => {
+    // C2-FIX: requireAuthCore + requireRole added — same rationale as above.
+    app.get('/api/nfe/dry-run/metrics/window', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']), (req: any, res) => {
       const hours = Number(req.query.hours || 24);
       const base = getDryRunMetricsWindow(hours);
       return res.json({
@@ -3551,17 +3558,23 @@ async function seedDatabase() {
     }
 
     // Ensure default MASTER user always exists
+    // C1-FIX: Password is NEVER hardcoded. For new environments a cryptographically
+    // secure random password is generated ONCE and printed to the server log so the
+    // operator can capture it. Existing users in Supabase/production are NEVER touched
+    // (the `if (!masterUser)` guard above this block ensures that).
     try {
       const masterUser = await storage.getUserByEmail("master@vivafrutaz.com");
       if (!masterUser) {
+        const masterPassword = randomBytes(16).toString("hex");
         await storage.createUser({
           name: "Master VivaFrutaz",
           email: "master@vivafrutaz.com",
-          password: "Master@2026!",
+          password: masterPassword,
           role: "MASTER",
           active: true,
         });
-        console.log("[SEED] Usuário MASTER criado: master@vivafrutaz.com / Master@2026!");
+        console.log("[SEED] Usuário MASTER criado: master@vivafrutaz.com — senha aleatória gerada. Capture-a agora nos logs de inicialização e redefina via painel.");
+        console.log(`[SEED_MASTER_SENHA] ${masterPassword}`);
       }
     } catch (err: any) {
       logSecurity(`[SYSTEM_SEED_FAILED] step=master_user | error=${err?.message ?? "unknown"}`);

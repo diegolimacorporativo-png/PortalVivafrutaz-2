@@ -95,6 +95,25 @@ export async function buildApp(): Promise<BuildAppResult> {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    // H2-FIX: Content-Security-Policy header added.
+    // Restricts resource origins to self + CDN fonts + inline scripts/styles
+    // required by Vite HMR in dev. In production, unsafe-eval and unsafe-inline
+    // can be tightened further once a nonce strategy is in place.
+    res.setHeader(
+      "Content-Security-Policy",
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com data:",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' wss: ws:",
+        "object-src 'none'",
+        "frame-ancestors 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
+      ].join("; "),
+    );
     if (req.path.startsWith("/api")) {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");

@@ -26,6 +26,24 @@ export function ensureBackupDir() {
   }
 }
 
+// ─── H1-FIX: Sensitive field scrubber ─────────────────────────
+// Strips password hashes (and other secrets) from backup rows before they are
+// written to disk. The scrubbed field is replaced with a sentinel string so the
+// row shape is preserved and the backup file remains structurally valid, but no
+// credential can be extracted from the file even if it leaks.
+const SCRUBBED_FIELDS = new Set(["password"]);
+function scrubRows<T extends Record<string, unknown>>(rows: T[]): T[] {
+  return rows.map(row => {
+    const clean = { ...row } as Record<string, unknown>;
+    for (const field of SCRUBBED_FIELDS) {
+      if (field in clean) {
+        clean[field] = "[REDACTED]";
+      }
+    }
+    return clean as T;
+  });
+}
+
 // ─── SQL value serializer ──────────────────────────────────────
 function toSqlValue(val: any): string {
   if (val === null || val === undefined) return "NULL";
@@ -104,8 +122,8 @@ export async function runBackup(): Promise<string> {
     generatedAt: date.toISOString(),
     generatedBy: "VivaFrutaz Backup System",
     tables: {
-      users: data.usersData,
-      companies: data.companiesData,
+      users: scrubRows(data.usersData),
+      companies: scrubRows(data.companiesData),
       priceGroups: data.priceGroupsData,
       categories: data.categoriesData,
       products: data.productsData,
@@ -164,8 +182,8 @@ export async function runBackupSQL(): Promise<string> {
     ``,
     `BEGIN;`,
     ``,
-    tableToInserts("users", data.usersData),
-    tableToInserts("companies", data.companiesData),
+    tableToInserts("users", scrubRows(data.usersData)),
+    tableToInserts("companies", scrubRows(data.companiesData)),
     tableToInserts("price_groups", data.priceGroupsData),
     tableToInserts("categories", data.categoriesData),
     tableToInserts("products", data.productsData),

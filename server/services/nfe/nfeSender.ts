@@ -229,8 +229,16 @@ export async function enviarNFeSEFAZ(
     }
   }
 
+  // H3-FIX: rejectUnauthorized is now env-controlled.
+  // SEFAZ government servers use ICP-Brasil root CAs not bundled with Node.js,
+  // so disabling server cert validation is sometimes required in practice.
+  // In production the operator can opt-in to strict validation by setting
+  // NFE_TLS_STRICT=true once their CA bundle includes the ICP-Brasil chain.
+  // Default: false (preserves existing behaviour, never breaks Supabase/Replit
+  // since this agent is only used for SEFAZ SOAP calls — not DB connections).
+  const nfeTlsStrict = process.env.NFE_TLS_STRICT === "true";
   const httpsAgent = pem && key
-    ? new (require('https').Agent)({ cert: pem, key, rejectUnauthorized: false })
+    ? new (require('https').Agent)({ cert: pem, key, rejectUnauthorized: nfeTlsStrict })
     : undefined;
 
   // FASE 3.2 — retry com backoff exponencial para chamadas SEFAZ.
