@@ -1,0 +1,175 @@
+CONTEXTO OBRIGATÓRIO — VIVAFRUTAZ ERP
+
+Você está trabalhando no VivaFrutaz ERP.
+
+ANTES DE QUALQUER ALTERAÇÃO:
+1. Ler completamente o código relacionado
+2. Mapear impacto
+3. Validar arquitetura existente
+4. Só depois implementar
+
+NUNCA:
+- inventar arquitetura nova
+- refatorar sem necessidade
+- trocar padrões existentes
+- quebrar multi-tenant
+- alterar auth sem necessidade
+- alterar AsyncLocalStorage
+- alterar tenantContext
+- alterar requireAuth/requireRole
+- alterar observabilidade existente
+- criar soluções “genéricas”
+- aplicar mudanças fora do escopo
+
+==================================================
+ESTADO ATUAL DO SISTEMA
+==================================================
+
+O sistema já possui:
+
+✅ Multi-tenant hardened
+✅ AsyncLocalStorage funcional
+✅ tenantContext funcional
+✅ observabilidade operacional
+✅ requestId/correlationId
+✅ painel de observabilidade
+✅ error store
+✅ métricas
+✅ dead-letter queue
+✅ retry exponencial
+✅ workers protegidos
+✅ cron protection
+✅ backup real
+✅ restore dry-run
+✅ restore planner
+✅ restore sandbox
+✅ Supabase conectado e operacional
+✅ NF-e timing metrics
+✅ eliminação de N+1 crítico
+✅ job registry
+✅ dead-letter UI
+✅ restore lock
+✅ tracing operacional
+
+Arquitetura atual NÃO deve ser quebrada.
+
+==================================================
+REGRA ABSOLUTA
+==================================================
+
+O sistema USA SUPABASE REAL.
+
+Você DEVE obrigatoriamente:
+
+1. verificar se SUPABASE_DATABASE_URL existe
+2. garantir que a aplicação está conectada ao Supabase real
+3. validar logs de conexão
+4. validar queries reais
+5. validar workers reais
+6. validar startup completo
+
+SE NÃO ESTIVER CONECTADO:
+- solicitar SUPABASE_DATABASE_URL imediatamente
+- NÃO usar banco mock
+- NÃO usar banco local
+- NÃO usar fallback fake
+
+==================================================
+PRÓXIMA FASE — OPERAÇÃO ASSISTIDA
+==================================================
+
+Objetivo:
+melhorar monitoramento operacional real SEM inventar arquitetura nova.
+
+==================================================
+ESCOPO DESTA FASE
+==================================================
+
+IMPLEMENTAR APENAS:
+
+T701 — Slow Jobs Monitoring
+
+Criar endpoint:
+
+GET /api/admin/observability/slow-jobs
+
+Objetivo:
+monitorar jobs/workers lentos operacionalmente.
+
+O endpoint deve mostrar:
+
+- jobName
+- avgDurationMs
+- p95DurationMs
+- slowRuns
+- totalRuns
+- lastDurationMs
+- lastStartedAt
+- lastFinishedAt
+- currentlyRunning
+- lastError
+- tenantId (se existir)
+- correlationId (se existir)
+
+==================================================
+REGRAS TÉCNICAS
+==================================================
+
+1. NÃO quebrar job registry existente
+2. NÃO alterar workers desnecessariamente
+3. reutilizar métricas existentes
+4. reutilizar observability existente
+5. reutilizar AsyncLocalStorage
+6. reutilizar logger atual
+7. manter tudo MASTER-only
+8. zero impacto nos fluxos NF-e
+9. zero impacto multi-tenant
+10. zero breaking changes
+
+==================================================
+EXECUÇÃO OBRIGATÓRIA
+==================================================
+
+FASE 1 — AUDITORIA
+Ler:
+- observability.routes.ts
+- metrics.ts
+- logger.ts
+- job-registry.ts
+- workers
+- cron jobs
+- observability frontend
+
+FASE 2 — MAPEAMENTO
+Mapear:
+- como medir duração
+- como detectar “slow”
+- quais métricas já existem
+- quais jobs já reportam status
+
+FASE 3 — IMPLEMENTAÇÃO CIRÚRGICA
+Adicionar apenas o necessário.
+
+FASE 4 — VALIDAÇÃO
+Validar:
+- app startup
+- Supabase conectado
+- workers vivos
+- endpoint funcionando
+- auth funcionando
+- TypeScript sem novos erros
+- observabilidade intacta
+
+==================================================
+IMPORTANTE
+==================================================
+
+NÃO criar overengineering.
+NÃO criar sistema novo.
+NÃO criar microserviços.
+NÃO trocar arquitetura.
+
+Apenas evoluir a operação assistida existente.
+
+Objetivo:
+transformar o VivaFrutaz em um ERP operacional robusto para uso real interno e futura evolução SaaS.

@@ -15,7 +15,7 @@ import { requireAuth, requireRole } from "../core/http/requireAuth";
 import { getErrors, clearErrors, errorCount } from "../core/observability/error-store";
 import { getMetrics, resetMetrics } from "../core/observability/metrics";
 import { getDeadLetterEvents, requeueDeadLetterEvent } from "../modules/orders/orders.outbox.worker";
-import { getJobRegistry } from "../core/jobs/job-registry";
+import { getJobRegistry, getSlowJobsReport } from "../core/jobs/job-registry";
 
 export function register(app: Express): void {
   // ── GET /api/admin/observability/errors ─────────────────────────────
@@ -80,6 +80,29 @@ export function register(app: Express): void {
     requireRole(["MASTER"]),
     (_req, res) => {
       return res.json({ success: true, data: getJobRegistry() });
+    },
+  );
+
+  // ── GET /api/admin/observability/slow-jobs ───────────────────────────
+  // T701 — Todos os jobs com métricas de latência (avg, p95), contagem de
+  // execuções lentas, estado atual e metadados de contexto.
+  // Ordenado por slowRuns desc para que os piores offenders apareçam primeiro.
+  app.get(
+    "/api/admin/observability/slow-jobs",
+    requireAuth,
+    requireRole(["MASTER"]),
+    (_req, res) => {
+      const data = getSlowJobsReport();
+      return res.json({
+        success: true,
+        data,
+        meta: {
+          total: data.length,
+          slowJobsCount: data.filter((j) => j.slowRuns > 0).length,
+          runningCount:  data.filter((j) => j.currentlyRunning).length,
+          slowThresholdMs: 60_000,
+        },
+      });
     },
   );
 
