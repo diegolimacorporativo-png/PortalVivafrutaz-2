@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { recordNfeEmissionDuration, incNfeFailures } from '../../core/observability/metrics';
 
 export type NFeStatus = 'autorizada' | 'rejeitada' | 'denegada' | 'pendente' | 'erro';
 
@@ -237,34 +238,49 @@ export async function enviarNFeSEFAZ(
   // ser retryados (cStat 2xx = rejeição definitiva da SEFAZ, não de infra).
   const { withRetry } = await import('../../core/retry/withRetry');
 
-  const { result: responseData } = await withRetry(
-    async () => {
-      const res = await axios.post(url, soap, {
-        headers: {
-          'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote"',
+  const _emissionStart = Date.now();
+  let responseData: any;
+  try {
+    const { result } = await withRetry(
+      async () => {
+        const res = await axios.post(url, soap, {
+          headers: {
+            'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote"',
+          },
+          httpsAgent,
+          timeout: 30000,
+        });
+        return res.data;
+      },
+      {
+        maxAttempts: 3,
+        baseDelayMs: 2_000,
+        maxDelayMs: 15_000,
+        retryable: (err: unknown) => {
+          if (axios.isAxiosError(err) && err.response) return false;
+          return true;
         },
-        httpsAgent,
-        timeout: 30000,
-      });
-      return res.data;
-    },
-    {
-      maxAttempts: 3,
-      baseDelayMs: 2_000,
-      maxDelayMs: 15_000,
-      // Não retry em erros de status HTTP (SEFAZ respondeu com erro de aplicação)
-      retryable: (err: unknown) => {
-        if (axios.isAxiosError(err) && err.response) return false;
-        return true; // timeout, rede, ECONNREFUSED → retry
+        onRetry: (attempt, err, delayMs) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.warn(`[NFE_SEFAZ_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${msg}`);
+        },
       },
-      onRetry: (attempt, err, delayMs) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[NFE_SEFAZ_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${msg}`);
-      },
-    },
-  );
+    );
+    responseData = result;
+  } catch (err) {
+    incNfeFailures();
+    throw err;
+  }
 
-  return parseSefazResponse(responseData);
+  const emissionMs = Date.now() - _emissionStart;
+  const parsed = parseSefazResponse(responseData);
+  // T602 — track emission duration and failure count
+  recordNfeEmissionDuration(emissionMs);
+  if (parsed.status !== 'autorizada') {
+    incNfeFailures();
+  }
+  console.info(`[NFE_SEFAZ_TIMING] status=${parsed.status} durationMs=${emissionMs}`);
+  return parsed;
 }
 
 export async function consultarStatusSEFAZ(uf: string, ambiente: '1' | '2'): Promise<{ online: boolean; xMotivo: string }> {

@@ -25,13 +25,18 @@ export interface JobRecord {
   isRunning: boolean;
   lastStarted?: number;
   lastFinished?: number;
+  lastDurationMs?: number;
   lastStatus: JobStatus;
   lastError?: string;
   totalRuns: number;
   totalErrors: number;
+  slowRunCount: number;
 }
 
 const registry = new Map<string, JobRecord>();
+
+/** Jobs running longer than this threshold are flagged as slow. */
+const SLOW_JOB_THRESHOLD_MS = 60_000;
 
 function ensure(name: string): JobRecord {
   if (!registry.has(name)) {
@@ -41,6 +46,7 @@ function ensure(name: string): JobRecord {
       lastStatus: "idle",
       totalRuns: 0,
       totalErrors: 0,
+      slowRunCount: 0,
     });
   }
   return registry.get(name)!;
@@ -69,9 +75,16 @@ export function startJobRun(name: string): boolean {
 export function finishJobRun(name: string, ok: boolean, error?: string): void {
   try {
     const rec = ensure(name);
+    const now = Date.now();
+    const durationMs = rec.lastStarted ? now - rec.lastStarted : undefined;
     rec.isRunning = false;
-    rec.lastFinished = Date.now();
+    rec.lastFinished = now;
+    rec.lastDurationMs = durationMs;
     rec.totalRuns += 1;
+    if (durationMs !== undefined && durationMs > SLOW_JOB_THRESHOLD_MS) {
+      rec.slowRunCount += 1;
+      console.warn(`[JOB_REGISTRY] Slow job detected: ${name} took ${Math.round(durationMs / 1000)}s (threshold ${SLOW_JOB_THRESHOLD_MS / 1000}s)`);
+    }
     if (ok) {
       rec.lastStatus = "ok";
       rec.lastError = undefined;
@@ -81,6 +94,17 @@ export function finishJobRun(name: string, ok: boolean, error?: string): void {
       rec.totalErrors += 1;
     }
   } catch { /* never throw */ }
+}
+
+/** Return all jobs that had at least one slow run, sorted by slowRunCount desc. */
+export function getSlowJobs(): JobRecord[] {
+  try {
+    return [...registry.values()]
+      .filter((r) => r.slowRunCount > 0)
+      .sort((a, b) => b.slowRunCount - a.slowRunCount);
+  } catch {
+    return [];
+  }
 }
 
 /** Returns true if the job is currently executing. */

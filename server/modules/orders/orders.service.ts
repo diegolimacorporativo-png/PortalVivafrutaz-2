@@ -169,8 +169,6 @@ export class OrdersService {
       const ar = await this.repo.getAccountReceivableByOrderId(orderId);
       if (!ar) return { isPaid: false, paidAt: null };
       const isPaid = ar.status === "pago";
-      // `pagoEm` é `timestamp` no Drizzle → vem como Date | null. Defensivo
-      // para o caso de o driver entregar string em algum cenário legado.
       const raw = (ar as any).pagoEm;
       const paidAt =
         raw instanceof Date ? raw : raw ? new Date(raw) : null;
@@ -184,15 +182,37 @@ export class OrdersService {
     }
   }
 
+  /**
+   * T604 — Batch version of getPaymentProjection.
+   * Fetches all AR rows for the given orders in ONE query, then enriches
+   * each order in-memory. Complexity: O(1) query + O(N) map lookups.
+   * Fail-safe: any DB error falls through to isPaid=false for every row.
+   */
+  private async enrichWithPaymentProjectionsBulk(orders: any[]): Promise<any[]> {
+    if (orders.length === 0) return [];
+    try {
+      const ids = orders.map((o) => o.id as number);
+      const arMap = await this.repo.getAccountReceivablesByOrderIds(ids);
+      return orders.map((o) => {
+        const ar = arMap[o.id];
+        if (!ar) return { ...o, isPaid: false, paidAt: null };
+        const isPaid = ar.status === "pago";
+        const raw = ar.pagoEm;
+        const paidAt = raw instanceof Date ? raw : raw ? new Date(raw) : null;
+        return { ...o, isPaid, paidAt };
+      });
+    } catch (err) {
+      console.warn("[FIN.2] enrichWithPaymentProjectionsBulk falhou (fail-safe)", {
+        err: (err as Error)?.message,
+      });
+      return orders.map((o) => ({ ...o, isPaid: false, paidAt: null }));
+    }
+  }
+
   async list(filter: OrdersListFilter = {}): Promise<Order[]> {
     const orders = await this.repo.list(filter);
-    // FASE FIN.2 — enriquece cada pedido com a projeção de pagamento.
-    // Promise.all paraleliza as N consultas. Fail-safe → nunca quebra
-    // a listagem, no pior caso devolve `isPaid:false, paidAt:null`.
-    const projections = await Promise.all(
-      (orders as any[]).map((o) => this.getPaymentProjection(o.id)),
-    );
-    return (orders as any[]).map((o, i) => ({ ...o, ...projections[i] }));
+    // T604 — Replace N per-order AR lookups with a single batch query.
+    return this.enrichWithPaymentProjectionsBulk(orders as any[]);
   }
 
   async get(id: number): Promise<OrderDetail> {
@@ -212,10 +232,8 @@ export class OrdersService {
 
   async listByCompany(companyId: number): Promise<Order[]> {
     const orders = await this.repo.listByCompany(companyId);
-    const projections = await Promise.all(
-      (orders as any[]).map((o) => this.getPaymentProjection(o.id)),
-    );
-    return (orders as any[]).map((o, i) => ({ ...o, ...projections[i] }));
+    // T604 — batch AR lookup instead of N per-order queries.
+    return this.enrichWithPaymentProjectionsBulk(orders as any[]);
   }
 
   async listReopenRequests(actor: ActorContext): Promise<Order[]> {
@@ -274,26 +292,30 @@ export class OrdersService {
       }
     }
 
-    return Promise.all(
-      filtered.map(async (order) => {
-        const company = (allCompanies as any[]).find(
-          (c) => c.id === order.companyId,
-        );
-        let items: any[] = [];
-        try {
-          const detail = await this.repo.get(order.id);
-          items = detail?.items || [];
-        } catch {
-          /* swallow per legacy */
-        }
+    // T604 — Batch-fetch all items for filtered orders in ONE query.
+    // Previously: N calls to repo.get(order.id) inside Promise.all → N+1.
+    // Now: 1 bulk query → O(1) DB round-trip regardless of result set size.
+    const filteredIds = filtered.map((o: any) => o.id as number);
+    let itemsByOrderId: Record<number, any[]> = {};
+    try {
+      itemsByOrderId = await this.repo.getItemsByOrderIds(filteredIds);
+    } catch {
+      /* fail-safe: itemsByOrderId stays empty, items arrays will be [] */
+    }
+
+    // Build lookup maps for O(1) joins in memory.
+    const companyMap = new Map((allCompanies as any[]).map((c) => [c.id, c]));
+    const productMap = new Map((allProducts as any[]).map((p) => [p.id, p]));
+
+    return filtered.map((order) => {
+        const company = companyMap.get(order.companyId);
+        const items: any[] = itemsByOrderId[order.id] ?? [];
         return {
           ...order,
           companyName: company?.companyName || `Empresa #${order.companyId}`,
           clientType: company?.clientType || "",
           items: items.map((item: any) => {
-            const product = (allProducts as any[]).find(
-              (p) => p.id === item.productId,
-            );
+            const product = productMap.get(item.productId);
             return {
               ...item,
               productName: product?.name || `Produto #${item.productId}`,
@@ -302,8 +324,7 @@ export class OrdersService {
             };
           }),
         };
-      }),
-    );
+      });
   }
 
   // ╔══════════════════════════════════════════════════════════════════╗

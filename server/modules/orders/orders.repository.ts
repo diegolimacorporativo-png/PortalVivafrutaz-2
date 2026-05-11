@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "../../database/db";
-import { orders, orderItems } from "@shared/schema";
+import { orders, orderItems, accountsReceivable } from "@shared/schema";
 import { storage } from "../../services/storage";
 import {
   tenantWhere,
@@ -297,6 +297,45 @@ export class OrdersRepository {
 
   getAccountReceivableByOrderId(orderId: number) {
     return storage.getAccountReceivableByOrderId(orderId);
+  }
+
+  /**
+   * T604 — Batch fetch: retrieve order items for multiple orders in ONE query.
+   * Returns a map of orderId → items[]. Replaces the N per-order `get()` calls
+   * in `export()`.
+   */
+  async getItemsByOrderIds(orderIds: number[]): Promise<Record<number, any[]>> {
+    if (orderIds.length === 0) return {};
+    const rows = await db
+      .select()
+      .from(orderItems)
+      .where(inArray(orderItems.orderId, orderIds));
+    const map: Record<number, any[]> = {};
+    for (const row of rows) {
+      if (!map[row.orderId]) map[row.orderId] = [];
+      map[row.orderId].push(row);
+    }
+    return map;
+  }
+
+  /**
+   * T604 — Batch fetch: retrieve accounts receivable for multiple orders in ONE
+   * query. Returns a map of orderId → AR row. Replaces the N per-order AR
+   * lookups in `list()` / `listByCompany()`.
+   */
+  async getAccountReceivablesByOrderIds(
+    orderIds: number[],
+  ): Promise<Record<number, any>> {
+    if (orderIds.length === 0) return {};
+    const rows = await db
+      .select()
+      .from(accountsReceivable)
+      .where(inArray(accountsReceivable.orderId, orderIds));
+    const map: Record<number, any> = {};
+    for (const row of rows) {
+      if (row.orderId != null) map[row.orderId] = row;
+    }
+    return map;
   }
 
   createAccountReceivable(data: any) {

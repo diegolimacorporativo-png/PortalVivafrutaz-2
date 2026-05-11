@@ -45,7 +45,7 @@ import { type WorkflowEventPayload } from "@shared/schema";
 import { ordersRepository } from "./orders.repository";
 import { fireNotification } from "../../services/pushService";
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
-import { incJobFailures } from "../../core/observability/metrics";
+import { incJobFailures, incDeadLetterCount } from "../../core/observability/metrics";
 import { computeNextRetryAt } from "../../core/retry/withRetry";
 
 const POLL_INTERVAL_MS = 5_000;
@@ -137,6 +137,7 @@ async function processBatch(): Promise<void> {
               [newRetryCount, message.slice(0, 1000), event.id],
             );
             incJobFailures();
+            incDeadLetterCount();
           } else {
             // FASE 3.2 — RETRY com backoff exponencial
             const nextRetryAt = computeNextRetryAt(newRetryCount);
