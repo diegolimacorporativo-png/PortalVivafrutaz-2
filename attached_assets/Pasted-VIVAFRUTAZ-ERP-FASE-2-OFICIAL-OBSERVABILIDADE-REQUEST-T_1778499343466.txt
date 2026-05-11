@@ -1,0 +1,232 @@
+VIVAFRUTAZ ERP — FASE 2 OFICIAL
+OBSERVABILIDADE + REQUEST TRACING + RASTREABILIDADE OPERACIONAL
+
+MODO:
+IMPLEMENTAÇÃO CIRÚRGICA + ZERO OVERENGINEERING + PRESERVAR ARQUITETURA ATUAL
+
+IMPORTANTE:
+NÃO reinventar arquitetura.
+NÃO criar microserviços.
+NÃO criar observabilidade enterprise complexa.
+NÃO criar dependências desnecessárias.
+NÃO migrar stack.
+NÃO alterar tenant system.
+NÃO alterar comportamento funcional do ERP.
+
+O objetivo é:
+AUMENTAR RASTREABILIDADE OPERACIONAL
+sem quebrar estabilidade.
+
+========================================================
+CONTEXTO OFICIAL
+========================================================
+
+O sistema já concluiu:
+- MT-3A
+- MT-3B
+- MT-3C
+- MT-3D
+- HARDENING FINAL MT-3D (Fase 1)
+
+Todos os gaps CRITICAL/HIGH multi-tenant já foram tratados.
+
+Agora o foco é:
+OBSERVABILIDADE REAL PARA OPERAÇÃO INTERNA.
+
+Stack atual deve ser preservada:
+- Express
+- React
+- Drizzle
+- Supabase PostgreSQL
+- AsyncLocalStorage
+- Multi-tenant via tenantContext
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+1. EXECUÇÃO OBRIGATÓRIA
+Seguir SEMPRE:
+1. LEITURA
+2. MAPEAMENTO
+3. VALIDAÇÃO
+4. IMPLEMENTAÇÃO
+5. TESTES
+6. RELATÓRIO FINAL
+
+2. NÃO MODIFICAR SEM ENTENDER
+Antes de alterar:
+- ler middleware
+- ler logger atual
+- ler AsyncLocalStorage
+- ler fluxo auth
+- ler tratamento de erro
+- ler workers
+- ler cron jobs
+
+3. MANTER COMPATIBILIDADE
+Não quebrar:
+- rotas
+- frontend
+- workers
+- jobs
+- auth
+- tenant propagation
+
+4. TUDO DEVE SER TENANT-AWARE
+Logs devem carregar:
+- tenantId
+- requestId
+- actorId
+- role
+
+Sempre que disponível.
+
+========================================================
+OBJETIVOS DA FASE 2
+========================================================
+
+IMPLEMENTAR APENAS:
+
+1. REQUEST ID GLOBAL
+Criar requestId/correlationId único por request.
+
+O requestId deve:
+- nascer no middleware global
+- propagar via AsyncLocalStorage
+- aparecer em logs
+- aparecer em erros
+- aparecer em auditoria
+
+2. EXPANDIR ASYNCLOCALSTORAGE
+Atualmente ele já propaga tenant.
+
+Expandir para carregar:
+- requestId
+- actorId
+- role
+- ip
+- userAgent
+- requestStartTime
+
+Sem quebrar tenant propagation existente.
+
+3. LOGGER CENTRALIZADO
+Criar logger padronizado.
+
+Categorias:
+- INFO
+- WARN
+- ERROR
+- SECURITY
+- AUDIT
+
+Todo log deve suportar:
+- requestId
+- tenantId
+- actorId
+- role
+- endpoint
+
+IMPORTANTE:
+Não criar stack complexa.
+Usar solução simples e robusta.
+
+4. PAINEL ADMINISTRATIVO DE ERROS
+Criar painel interno administrativo para rastrear erros operacionais.
+
+Mostrar:
+- requestId
+- endpoint
+- tenantId
+- actorId
+- role
+- stacktrace
+- timestamp
+- severity
+
+Acesso:
+MASTER apenas.
+
+5. MÉTRICAS OPERACIONAIS BÁSICAS
+Implementar métricas simples:
+
+- requests totais
+- erros por rota
+- latência
+- falhas NF-e
+- jobs falhando
+- requests por tenant
+
+Sem Prometheus/Kubernetes/etc.
+Tudo simples e operacional.
+
+========================================================
+IMPORTANTE
+========================================================
+
+NÃO implementar:
+- OpenTelemetry complexo
+- microservices
+- Kafka
+- Grafana
+- Kubernetes
+- distributed tracing enterprise
+
+O foco é:
+rastreabilidade operacional simples e eficiente.
+
+========================================================
+VALIDAÇÕES OBRIGATÓRIAS
+========================================================
+
+Após implementação:
+
+1. Validar propagação do requestId
+2. Validar tenantId nos logs
+3. Validar actorId nos logs
+4. Validar erros capturados
+5. Validar painel administrativo
+6. Validar workers/cron jobs
+7. Validar que nada quebrou
+8. Validar typecheck
+9. Validar runtime real
+
+========================================================
+FORMATO FINAL OBRIGATÓRIO
+========================================================
+
+Entregar:
+
+1. O que foi implementado
+2. Arquivos alterados
+3. Evidências de funcionamento
+4. Evidências de propagação
+5. Evidências HTTP
+6. Evidências de logs
+7. Evidências do painel
+8. Typecheck final
+9. Riscos residuais
+
+========================================================
+IMPORTANTE FINAL
+========================================================
+
+O foco NÃO é criar features novas.
+
+O foco é:
+- rastreabilidade
+- auditabilidade
+- debugging
+- estabilidade operacional
+- previsibilidade
+- suporte futuro
+- operação interna robusta
+
+Todas as mudanças devem ser:
+- simples
+- auditáveis
+- previsíveis
+- reversíveis
+- compatíveis
+- estáveis

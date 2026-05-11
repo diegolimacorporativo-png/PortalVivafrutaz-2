@@ -1,6 +1,9 @@
 import type { Request, Response, NextFunction } from "express";
 import { ZodError } from "zod";
 import { AppError } from "../../shared/errors/AppError";
+import { recordError } from "../observability/error-store";
+import { incTotalErrors, incErrorsByRoute, incNfeFailures } from "../observability/metrics";
+import { getRequestContext } from "../context/requestContext";
 
 /**
  * Central error-handling middleware.
@@ -9,12 +12,12 @@ import { AppError } from "../../shared/errors/AppError";
  * here so every module gets consistent error semantics for free. Unknown
  * errors are logged and returned as 500 — never silently swallowed.
  *
- * Mount this LAST in app.ts, after every router.
+ * FASE 2: 5xx errors are now recorded into the operational error store
+ * and metrics counters are incremented. Observability is best-effort —
+ * errors inside the recording path are swallowed to guarantee the
+ * response always reaches the client.
  *
- * Every operational error in the codebase extends `AppError` from
- * `server/shared/errors/AppError.ts` — the single source of truth. The
- * `instanceof AppError` check below is therefore reliable across all
- * modules and preserves `status`, `code`, and `details` consistently.
+ * Mount this LAST in app.ts, after every router.
  */
 export function errorHandler(
   err: unknown,
@@ -44,23 +47,66 @@ export function errorHandler(
     };
     if (err.details !== undefined) body.details = err.details;
 
+    // Record 5xx AppErrors into the error store
+    if (err.status >= 500) {
+      _captureError(err, req, err.status, "ERROR");
+    }
+
     return res.status(err.status).json({ success: false, error: body });
   }
 
   // ── Unknown / unexpected error ──────────────────────────────────────
-  const e = err as { status?: number; statusCode?: number; message?: string };
+  const e = err as { status?: number; statusCode?: number; message?: string; stack?: string };
   const status = e?.status || e?.statusCode || 500;
   const message = e?.message || "Erro interno do servidor";
 
   if (status >= 500) {
-    // Same volume as before (5xx-only) but enriched with `req.requestId` so
-    // a single failed call can be correlated against the controller logs
-    // and the upstream client's bug report.
     console.error(`[${req.requestId}] [errorHandler] unhandled error:`, err);
+    _captureError(err, req, status, "ERROR");
   }
 
   return res.status(status).json({
     success: false,
     error: { message, code: "INTERNAL_ERROR" },
   });
+}
+
+/**
+ * Best-effort capture of a request error into the operational store.
+ * Never throws — observability must not interrupt the response path.
+ */
+function _captureError(
+  err: unknown,
+  req: Request,
+  statusCode: number,
+  severity: "ERROR" | "WARN",
+): void {
+  try {
+    const e = err as { message?: string; stack?: string };
+    const ctx = getRequestContext();
+
+    recordError({
+      requestId: req.requestId ?? "unknown",
+      endpoint: req.path,
+      method: req.method,
+      statusCode,
+      severity,
+      message: e?.message ?? "Unknown error",
+      stack: e?.stack,
+      tenantId: ctx?.tenantId,
+      actorId: ctx?.actorId,
+      role: ctx?.role,
+      ip: ctx?.ip,
+    });
+
+    incTotalErrors();
+    incErrorsByRoute(req.path);
+
+    // Increment NF-e failure counter for fiscal/nfe routes
+    if (req.path.includes("/nfe") || req.path.includes("/fiscal")) {
+      incNfeFailures();
+    }
+  } catch {
+    // never break the response path
+  }
 }

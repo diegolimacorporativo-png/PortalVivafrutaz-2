@@ -114,6 +114,7 @@ import AdminSanitary from "@/pages/admin/sanitary";
 import AdminImportData from "@/pages/admin/import-data";
 import ControlCenter from "@/pages/admin/control-center";
 import AdminSettings from "@/pages/admin/settings";
+import AdminObservability from "@/pages/admin/observability";
 
 import ClientDashboard from "@/pages/client/dashboard";
 import ClientCreateOrder from "@/pages/client/create-order";
@@ -506,6 +507,9 @@ function Router() {
       </Route>
       <Route path="/admin/settings">
         {() => <ProtectedRoute component={AdminSettings} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'PURCHASE_MANAGER', 'NUTRICIONISTA', 'MOTORISTA']} tabKey="settings" />}
+      </Route>
+      <Route path="/admin/observability">
+        {() => <ProtectedRoute component={AdminObservability} role="admin" allowedRoles={['MASTER']} tabKey="observability" />}
       </Route>
 
       {/* Client Routes */}

@@ -155,6 +155,7 @@ import { register as certificatesRegister } from './certificates.routes';
 import { register as adminIntelligenceRegister } from './admin-intelligence.routes';
 import { register as smtpTestRegister } from './smtp-test.routes';
 import { register as bankRegister } from './bank.routes';
+import { register as observabilityRegister } from './observability.routes';
 import {
   validateCceLimit,
   validateCceTimeWindow,
@@ -262,6 +263,7 @@ export async function registerRoutes(
   await certificatesRegister(app);
   adminIntelligenceRegister(app);
   smtpTestRegister(app);
+  observabilityRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups

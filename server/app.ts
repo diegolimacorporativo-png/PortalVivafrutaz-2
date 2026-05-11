@@ -21,6 +21,8 @@ import {
 } from "./core/security/rateLimit";
 import { sessionVersionGuard } from "./core/security/sessionGuard";
 import { enforceSchemaContract } from "./core/security/schemaEnforcement";
+import { enrichRequestContext } from "./core/context/requestContext";
+import { incTotalRequests, incRequestsByTenant, recordLatency } from "./core/observability/metrics";
 
 export interface BuildAppResult {
   app: Express;
@@ -143,6 +145,44 @@ export async function buildApp(): Promise<BuildAppResult> {
 
   app.use(createSessionMiddleware());
   app.use(sessionVersionGuard);
+
+  // FASE 2 — Enrich request context with actor/tenant from session.
+  // Runs after session middleware so session fields are populated.
+  // Best-effort: never throws, never alters response.
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    try {
+      const session = (req as any).session;
+      if (session?.userId) {
+        enrichRequestContext({
+          actorId: session.userId,
+          role: session.userRole ?? undefined,
+          tenantId: session.empresaId ?? undefined,
+        });
+      } else if (session?.companyId) {
+        enrichRequestContext({ tenantId: session.companyId });
+      }
+    } catch {
+      // observability must never disrupt the request path
+    }
+    next();
+  });
+
+  // FASE 2 — Request metrics. Runs after session so tenant is available.
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    try {
+      incTotalRequests();
+      const session = (req as any).session;
+      const tenantId = session?.companyId ?? session?.empresaId;
+      if (tenantId) incRequestsByTenant(tenantId);
+      const start = Date.now();
+      res.on("finish", () => {
+        try { recordLatency(req.path, Date.now() - start); } catch { /* */ }
+      });
+    } catch {
+      // never disrupt the request path
+    }
+    next();
+  });
   app.use("/api/orders", apiLimiter);
   app.use("/api/v1/orders", apiLimiter);
   app.use("/api/v2/orders", apiLimiter);
