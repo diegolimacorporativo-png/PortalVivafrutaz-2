@@ -1,0 +1,246 @@
+FASE 3.3 — DEAD-LETTER PANEL + BACKUP/RESTORE VALIDATION
+MODO: OPERACIONAL + CIRÚRGICO + ZERO REFATORAÇÃO GLOBAL
+
+CONTEXTO
+========================================================
+
+Projeto:
+VivaFrutaz ERP
+
+Stack:
+- Node.js
+- TypeScript
+- Express
+- Drizzle ORM
+- PostgreSQL/Supabase
+- React
+- AsyncLocalStorage
+- Multi-tenant
+- Workers
+- Cron jobs
+- Observabilidade
+- Retry system
+- Dead-letter backend já implementado
+
+FASES JÁ CONCLUÍDAS
+========================================================
+
+MT-3A → MT-3D:
+- hardening multi-tenant
+- auditoria
+- observabilidade
+- tracing
+- anti-overlap
+- retry/backoff
+- dead-letter backend
+- metrics
+- error store
+- job registry
+
+FASE ATUAL
+========================================================
+
+FASE 3.3:
+- operação assistida
+- recovery operacional
+- backup safety
+- restore validation
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+NÃO:
+- reescrever arquitetura
+- criar microserviços
+- alterar tenant architecture
+- alterar AsyncLocalStorage
+- alterar regras de negócio
+- quebrar jobs existentes
+- criar abstrações enterprise desnecessárias
+- alterar schema sem necessidade real
+- resetar banco
+- executar migrations destrutivas
+
+OBRIGATÓRIO:
+- ler tudo antes
+- mapear antes
+- validar antes
+- implementar cirurgicamente
+- preservar comportamento atual
+
+========================================================
+FASE 1 — AUDITORIA
+========================================================
+
+Ler e mapear completamente:
+
+- workflow_events
+- retry system
+- dead_letter
+- observability routes
+- observability panel
+- backup scripts
+- Supabase backup flow
+- storage local
+- uploads
+- cron jobs
+- restore paths
+- environment handling
+
+Mapear:
+- como dead-letter funciona hoje
+- como requeue funciona
+- quais jobs geram dead-letter
+- riscos de retry infinito
+- riscos de replay duplicado
+- pontos sem recovery operacional
+- estado atual de backup
+
+NÃO modificar nada antes do mapeamento completo.
+
+========================================================
+FASE 2 — DEAD-LETTER PANEL
+========================================================
+
+Implementar painel operacional MASTER-only.
+
+Objetivo:
+permitir recovery operacional SEM DB manual.
+
+Painel deve mostrar:
+
+- event id
+- event type
+- tenant/company
+- attempts
+- createdAt
+- nextRetryAt
+- deadLetter reason
+- stack resumida
+- payload resumido
+- status
+- last error
+
+Ações:
+- requeue
+- marcar resolvido
+- copiar payload
+- visualizar detalhes
+
+========================================================
+REGRAS DO PAINEL
+========================================================
+
+OBRIGATÓRIO:
+- MASTER only
+- paginação
+- filtros
+- loading states
+- confirmação antes de requeue
+- nunca executar replay automático
+- evitar double-click replay
+
+NÃO:
+- alterar payload
+- editar eventos
+- apagar eventos automaticamente
+
+========================================================
+FASE 3 — BACKUP AUDIT
+========================================================
+
+Auditar completamente:
+
+- backups atuais
+- Supabase backup strategy
+- uploads/assets
+- restore paths
+- env persistence
+- secrets
+- cron backup
+- export flows
+
+Identificar:
+- gaps
+- risco de perda
+- restore inexistente
+- pontos sem cobertura
+- risco operacional
+
+========================================================
+FASE 4 — RESTORE TEST
+========================================================
+
+Executar validação REAL de restore.
+
+SEM afetar produção.
+
+Validar:
+- dump integrity
+- restore integrity
+- schema consistency
+- tenant integrity
+- users
+- orders
+- NF-e
+- workflow_events
+- observability
+- logistics
+
+Confirmar:
+- sistema sobe corretamente após restore
+- login funciona
+- tenants continuam íntegros
+- relações continuam válidas
+
+========================================================
+FASE 5 — OBSERVABILIDADE
+========================================================
+
+Integrar:
+
+- dead-letter panel
+- requestId
+- metrics
+- logger
+- observability panel
+
+Toda ação operacional deve gerar:
+- actorId
+- requestId
+- timestamp
+- tenantId
+- audit log
+
+========================================================
+FASE 6 — VALIDAÇÃO FINAL
+========================================================
+
+Executar:
+- typecheck
+- live validation
+- retry validation
+- dead-letter validation
+- requeue validation
+- backup validation
+- restore validation
+- auth validation
+- overlap validation
+
+========================================================
+IMPORTANTE FINAL
+========================================================
+
+Objetivo:
+OPERAÇÃO INTERNA CONFIÁVEL.
+
+Prioridade:
+- recuperação operacional
+- estabilidade
+- segurança de dados
+- continuidade operacional
+
+NÃO aumentar complexidade sem necessidade.
+NÃO transformar em arquitetura enterprise artificial.
+Preservar o monólito operacional estável.

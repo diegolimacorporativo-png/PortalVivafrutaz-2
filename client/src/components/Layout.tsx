@@ -154,6 +154,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/security-intelligence', label: 'Security Intelligence', icon: ShieldCheck, roles: ['MASTER', 'ADMIN'], tabKey: 'security-intelligence', category: 'Sistema' },
     { href: '/admin/developer', label: 'Área do Desenvolvedor', icon: ShieldCheck, roles: ['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER'], tabKey: 'developer', category: 'Sistema' },
     { href: '/admin/master-control', label: 'Painel MASTER', icon: ShieldCheck, roles: ['MASTER'], tabKey: 'master-control', category: 'Sistema' },
+    { href: '/admin/observability', label: 'Observabilidade', icon: Activity, roles: ['MASTER'], tabKey: 'observability', category: 'Sistema' },
     { href: '/admin/saas-dashboard', label: 'Gestão SaaS', icon: ShieldCheck, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS'], tabKey: 'saas-dashboard', category: 'SaaS' },
     { href: '/admin/saas-financeiro', label: 'Painel Financeiro SaaS', icon: TrendingUp, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS'], tabKey: 'saas-financeiro', category: 'SaaS' },
     { href: '/admin/marketplace', label: 'Loja de Módulos', icon: Package, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'marketplace', category: 'SaaS' },
