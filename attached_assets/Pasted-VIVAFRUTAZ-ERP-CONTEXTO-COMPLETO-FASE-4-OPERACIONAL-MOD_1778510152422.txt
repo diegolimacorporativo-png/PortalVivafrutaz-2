@@ -1,0 +1,255 @@
+VIVAFRUTAZ ERP — CONTEXTO COMPLETO + FASE 4 OPERACIONAL
+MODO: CONTINUIDADE TOTAL DO PROJETO + SUPABASE OBRIGATÓRIO
+
+IMPORTANTE:
+Você está entrando em um projeto ERP multi-tenant já avançado.
+
+ANTES DE QUALQUER ALTERAÇÃO:
+- ler tudo
+- entender arquitetura
+- entender tenant system
+- entender observability
+- entender workers/jobs
+- entender backup/restore
+- entender operação real
+
+NÃO inventar arquitetura nova.
+NÃO quebrar o que já existe.
+NÃO refatorar sem necessidade real.
+NÃO criar microserviços.
+NÃO mudar stack.
+
+========================================================
+CONTEXTO DO PROJETO
+========================================================
+
+Projeto:
+VivaFrutaz ERP
+
+Stack:
+- Node.js
+- TypeScript
+- Express
+- Drizzle ORM
+- PostgreSQL
+- Supabase
+- React
+- Vite
+- Tailwind
+- AsyncLocalStorage
+- Multi-tenant architecture
+
+O sistema já possui:
+
+✅ multi-tenant hardening
+✅ tenantContext
+✅ AsyncLocalStorage
+✅ tenantWhere
+✅ crossTenant
+✅ requireRole
+✅ observability
+✅ request tracing
+✅ correlationId
+✅ logs estruturados
+✅ dead-letter queue
+✅ retry/backoff
+✅ workers protegidos
+✅ cron protection
+✅ backup real
+✅ restore dry-run
+✅ restore sandbox
+✅ restore planner
+✅ disaster recovery safeguards
+✅ audit trail
+✅ MASTER operational panel
+
+========================================================
+REGRA ABSOLUTA — SUPABASE
+========================================================
+
+OBRIGATÓRIO:
+Conectar o projeto ao banco REAL do Supabase.
+
+NÃO usar banco mock.
+NÃO usar banco local.
+NÃO usar heliumdb.
+NÃO usar fallback local.
+
+O projeto DEVE usar:
+SUPABASE_DATABASE_URL
+
+PASSOS OBRIGATÓRIOS:
+
+1. Verificar ENV:
+- SUPABASE_DATABASE_URL
+- DATABASE_URL
+- SESSION_SECRET
+
+2. Confirmar no log:
+[DB] Conectando ao Supabase
+
+3. Confirmar queries reais:
+- users
+- companies
+- orders
+- workflow_events
+
+4. Confirmar que:
+- workers iniciaram
+- cron iniciou
+- observability iniciou
+- backup scheduler iniciou
+
+5. Validar:
+- login funcionando
+- tenantContext funcionando
+- workers funcionando
+- jobs funcionando
+
+NÃO continuar se o Supabase não estiver conectado.
+
+========================================================
+FASE ATUAL
+========================================================
+
+FASE 4 — OPERAÇÃO INTERNA REAL
+
+FOCO:
+- estabilidade
+- UX operacional
+- performance real
+- gargalos reais
+- observabilidade operacional
+- uso real da empresa
+
+NÃO focar em SaaS agora.
+NÃO criar billing SaaS.
+NÃO criar onboarding enterprise.
+NÃO criar arquitetura nova.
+
+========================================================
+SEQUÊNCIA OBRIGATÓRIA
+========================================================
+
+1. LER TUDO
+2. MAPEAR OPERAÇÃO
+3. VALIDAR SUPABASE
+4. VALIDAR WORKERS
+5. VALIDAR JOBS
+6. VALIDAR OBSERVABILITY
+7. IDENTIFICAR GARGALOS
+8. IMPLEMENTAR AJUSTES CIRÚRGICOS
+9. VALIDAR ESTABILIDADE
+10. GERAR RELATÓRIO FINAL
+
+========================================================
+ESCOPO OBRIGATÓRIO
+========================================================
+
+AUDITAR:
+- pedidos
+- estoque
+- logística
+- NF-e
+- financeiro
+- assistant
+- Clara AI
+- workers
+- cron
+- observability
+- performance
+- frontend
+- UX operacional
+- formulários
+- filtros
+- tabelas
+- queries
+- raw SQL
+- jobs
+- filas
+- retry system
+- dead-letter
+- backup
+- restore safe mode
+
+========================================================
+IMPLEMENTAR
+========================================================
+
+T601 — OPERAÇÃO ASSISTIDA
+- validar fluxos reais
+- validar emissão NF-e
+- validar pedidos reais
+- validar logística
+- validar estoque
+- validar faturamento
+
+T602 — OBSERVABILIDADE OPERACIONAL
+Adicionar métricas:
+- tempo emissão NF-e
+- tempo fechamento pedido
+- jobs lentos
+- workers lentos
+- falhas por endpoint
+- uso por tenant
+- erros recorrentes
+
+T603 — HARDENING UX
+Corrigir:
+- excesso de cliques
+- fluxo ruim
+- validações ruins
+- retrabalho
+- telas lentas
+- problemas operacionais reais
+
+T604 — PERFORMANCE REAL
+Validar:
+- queries lentas
+- gargalos DB
+- gargalos frontend
+- gargalos backend
+- workers lentos
+- jobs problemáticos
+
+========================================================
+VALIDAÇÕES OBRIGATÓRIAS
+========================================================
+
+- app inicia sem erro
+- Supabase conectado
+- workers ativos
+- cron ativo
+- observability ativa
+- backup scheduler ativo
+- login funcionando
+- tenant isolation intacta
+- zero regressão
+- TypeScript sem novos erros
+- endpoints protegidos
+
+========================================================
+IMPORTANTE FINAL
+========================================================
+
+FOCAR:
+USO REAL DA EMPRESA.
+
+O objetivo agora NÃO é criar funcionalidades gigantes.
+
+O objetivo é:
+- estabilidade
+- confiabilidade
+- UX operacional
+- performance real
+- redução de erro humano
+- operação contínua
+
+NO FINAL:
+Gerar relatório completo contendo:
+- gargalos encontrados
+- métricas coletadas
+- melhorias aplicadas
+- riscos residuais
+- readiness operacional
+- próximos passos reais.
