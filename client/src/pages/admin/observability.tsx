@@ -32,6 +32,7 @@ import {
   RotateCcw,
   Server,
   Skull,
+  Timer,
   Trash2,
   Users,
   Zap,
@@ -87,6 +88,28 @@ interface JobRecord {
   totalErrors: number;
 }
 
+interface SlowJobReport {
+  jobName: string;
+  avgDurationMs: number | null;
+  p95DurationMs: number | null;
+  slowRuns: number;
+  totalRuns: number;
+  lastDurationMs: number | null;
+  lastStartedAt: string | null;
+  lastFinishedAt: string | null;
+  currentlyRunning: boolean;
+  lastError: string | null;
+  tenantId: number | null;
+  correlationId: string | null;
+}
+
+interface SlowJobsMeta {
+  total: number;
+  slowJobsCount: number;
+  runningCount: number;
+  slowThresholdMs: number;
+}
+
 function formatTs(ts: number) {
   return new Date(ts).toLocaleString("pt-BR", {
     day: "2-digit",
@@ -124,6 +147,51 @@ function uptimeFmt(since: number) {
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
   return `${h}h ${m}m`;
+}
+
+function formatMs(ms: number | null): string {
+  if (ms === null) return "—";
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60000);
+  const s = Math.round((ms % 60000) / 1000);
+  return `${m}m ${s}s`;
+}
+
+function SlowJobHealthBadge({ job }: { job: SlowJobReport }) {
+  if (job.currentlyRunning) {
+    return (
+      <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 gap-1">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        Executando
+      </Badge>
+    );
+  }
+  if (job.lastError) {
+    return (
+      <Badge variant="destructive" className="text-xs gap-1">
+        <AlertTriangle className="w-3 h-3" />
+        Erro
+      </Badge>
+    );
+  }
+  if (job.slowRuns > 0) {
+    return (
+      <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1">
+        <Clock className="w-3 h-3" />
+        Lento
+      </Badge>
+    );
+  }
+  if (job.totalRuns === 0) {
+    return <Badge variant="secondary" className="text-xs">Aguardando</Badge>;
+  }
+  return (
+    <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 gap-1">
+      <CheckCircle2 className="w-3 h-3" />
+      Saudável
+    </Badge>
+  );
 }
 
 function JobStatusBadge({ status, isRunning }: { status: JobStatus; isRunning: boolean }) {
@@ -172,6 +240,11 @@ export default function AdminObservability() {
     refetchInterval: 10000,
   });
 
+  const slowJobsQ = useQuery<{ data: SlowJobReport[]; meta: SlowJobsMeta }>({
+    queryKey: ["/api/admin/observability/slow-jobs"],
+    refetchInterval: 10000,
+  });
+
   const clearMut = useMutation({
     mutationFn: () => apiRequest("DELETE", "/api/admin/observability/errors"),
     onSuccess: () => {
@@ -205,6 +278,8 @@ export default function AdminObservability() {
   const metrics = metricsQ.data?.data;
   const deadLetterEvents = deadLetterQ.data?.data ?? [];
   const jobs = jobsQ.data?.data ?? [];
+  const slowJobs = slowJobsQ.data?.data ?? [];
+  const slowJobsMeta = slowJobsQ.data?.meta;
 
   const filtered =
     severityFilter === "ALL"
@@ -247,6 +322,7 @@ export default function AdminObservability() {
             metricsQ.refetch();
             deadLetterQ.refetch();
             jobsQ.refetch();
+            slowJobsQ.refetch();
           }}
         >
           <RefreshCw className="w-4 h-4 mr-1" />
@@ -337,6 +413,20 @@ export default function AdminObservability() {
             {jobs.length > 0 && (
               <Badge variant="secondary" className="ml-1.5 text-xs h-4 px-1.5">
                 {jobs.length}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="slow-jobs" data-testid="tab-slow-jobs">
+            <Timer className="w-4 h-4 mr-1.5" />
+            Slow Jobs
+            {slowJobsMeta && slowJobsMeta.slowJobsCount > 0 && (
+              <Badge className="ml-1.5 text-xs h-4 px-1.5 bg-amber-500 text-white">
+                {slowJobsMeta.slowJobsCount}
+              </Badge>
+            )}
+            {slowJobsMeta && slowJobsMeta.runningCount > 0 && (
+              <Badge className="ml-1.5 text-xs h-4 px-1.5 bg-blue-500 text-white">
+                {slowJobsMeta.runningCount}
               </Badge>
             )}
           </TabsTrigger>
@@ -791,6 +881,194 @@ export default function AdminObservability() {
             <p className="text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Nota:</span> Os contadores são em memória e resetam com cada reinicialização do processo.
               O painel é atualizado automaticamente a cada 10 segundos.
+            </p>
+          </div>
+        </TabsContent>
+
+        {/* ── Tab 4: Slow Jobs ───────────────────────────────────────── */}
+        <TabsContent value="slow-jobs" className="space-y-4">
+          {/* summary strip */}
+          {slowJobsMeta && (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                    <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Total de jobs</p>
+                    <p className="text-xl font-bold text-foreground" data-testid="slowjobs-total">{slowJobsMeta.total}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
+                    <Timer className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Jobs lentos</p>
+                    <p className="text-xl font-bold text-foreground" data-testid="slowjobs-slow-count">{slowJobsMeta.slowJobsCount}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
+                    <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Executando agora</p>
+                    <p className="text-xl font-bold text-foreground" data-testid="slowjobs-running-count">{slowJobsMeta.runningCount}</p>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-3 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
+                    <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">Limite lento</p>
+                    <p className="text-xl font-bold text-foreground">{formatMs(slowJobsMeta.slowThresholdMs)}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <Timer className="w-4 h-4 text-amber-600" />
+                    Monitoramento de Jobs
+                    {slowJobsMeta && (
+                      <Badge variant="secondary" className="text-xs ml-1">
+                        {slowJobsMeta.total} job{slowJobsMeta.total !== 1 ? "s" : ""}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Latência média, p95 e histórico de execuções lentas por worker/cron.
+                    Threshold: {slowJobsMeta ? formatMs(slowJobsMeta.slowThresholdMs) : "60s"}.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 text-xs"
+                  data-testid="button-refresh-slow-jobs"
+                  onClick={() => slowJobsQ.refetch()}
+                  disabled={slowJobsQ.isFetching}
+                >
+                  <RefreshCw className={`w-3 h-3 mr-1 ${slowJobsQ.isFetching ? "animate-spin" : ""}`} />
+                  Atualizar
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {slowJobsQ.isLoading ? (
+                <div className="p-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Carregando jobs...
+                </div>
+              ) : slowJobs.length === 0 ? (
+                <div className="p-8 flex flex-col items-center justify-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <p className="text-sm font-medium text-foreground">Nenhum job registrado</p>
+                  <p className="text-xs text-muted-foreground">Os workers se registram automaticamente ao iniciar.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Job</TableHead>
+                        <TableHead className="text-xs w-28">Saúde</TableHead>
+                        <TableHead className="text-xs w-24">Avg</TableHead>
+                        <TableHead className="text-xs w-24">p95</TableHead>
+                        <TableHead className="text-xs w-24">Última dur.</TableHead>
+                        <TableHead className="text-xs w-20">Lentas</TableHead>
+                        <TableHead className="text-xs w-20">Total runs</TableHead>
+                        <TableHead className="text-xs w-36">Iniciado em</TableHead>
+                        <TableHead className="text-xs w-36">Concluído em</TableHead>
+                        <TableHead className="text-xs">Último erro</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {slowJobs.map((job) => (
+                        <TableRow
+                          key={job.jobName}
+                          data-testid={`row-slow-job-${job.jobName}`}
+                          className={job.currentlyRunning ? "bg-blue-50/40 dark:bg-blue-900/10" : job.lastError ? "bg-red-50/40 dark:bg-red-900/10" : job.slowRuns > 0 ? "bg-amber-50/40 dark:bg-amber-900/10" : ""}
+                        >
+                          <TableCell className="text-xs font-mono font-medium text-foreground">
+                            {job.jobName}
+                          </TableCell>
+                          <TableCell>
+                            <SlowJobHealthBadge job={job} />
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {job.avgDurationMs !== null ? (
+                              <span className={job.avgDurationMs > 60000 ? "text-amber-600 dark:text-amber-400 font-semibold" : ""}>
+                                {formatMs(job.avgDurationMs)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {job.p95DurationMs !== null ? (
+                              <span className={job.p95DurationMs > 60000 ? "text-red-600 dark:text-red-400 font-semibold" : ""}>
+                                {formatMs(job.p95DurationMs)}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {job.lastDurationMs !== null ? formatMs(job.lastDurationMs) : <span className="text-muted-foreground/50">—</span>}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {job.slowRuns > 0 ? (
+                              <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                                {job.slowRuns}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">0</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs font-mono">
+                            {job.totalRuns.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDate(job.lastStartedAt)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDate(job.lastFinishedAt)}
+                          </TableCell>
+                          <TableCell className="text-xs text-red-600 dark:text-red-400 max-w-[220px] truncate">
+                            {job.lastError ?? <span className="text-muted-foreground/50">—</span>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <div className="mt-3 p-3 bg-muted/50 border border-border rounded-xl">
+            <p className="text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">Nota:</span> Jobs classificados como lentos
+              quando excedem {slowJobsMeta ? formatMs(slowJobsMeta.slowThresholdMs) : "60s"} por execução.
+              Avg e p95 são calculados sobre as últimas 100 execuções (janela deslizante).
+              Painel atualiza automaticamente a cada 10 segundos.
             </p>
           </div>
         </TabsContent>

@@ -1,0 +1,137 @@
+CONTEXTO OBRIGATÓRIO — VIVAFRUTAZ ERP
+
+Você está trabalhando no VivaFrutaz ERP.
+
+ANTES DE QUALQUER ALTERAÇÃO:
+1. Ler completamente o código relacionado
+2. Mapear impacto
+3. Validar arquitetura existente
+4. Só depois implementar
+
+NUNCA:
+- inventar arquitetura nova
+- quebrar observabilidade existente
+- alterar multi-tenant
+- alterar workers sem necessidade
+- criar polling agressivo
+- criar websocket novo
+- criar dashboards paralelos
+- criar métricas duplicadas
+- refatorar sem necessidade
+
+==================================================
+ESTADO ATUAL
+==================================================
+
+Já existe:
+
+✅ GET /api/admin/observability/slow-jobs
+✅ job-registry com durationSamples
+✅ avgDurationMs
+✅ p95DurationMs
+✅ slowRuns
+✅ observability panel
+✅ metrics panel
+✅ dead-letter panel
+✅ jobs registry
+✅ request tracing
+✅ correlationId
+✅ error store
+✅ Supabase conectado e operacional
+
+==================================================
+OBJETIVO DA FASE
+==================================================
+
+FASE T702 — Slow Jobs Operational Panel
+
+Criar visualização operacional REAL no frontend.
+
+==================================================
+ESCOPO
+==================================================
+
+Implementar APENAS:
+
+1. Nova aba no painel:
+   /admin/observability
+
+Aba:
+- “Slow Jobs”
+
+2. Consumir:
+GET /api/admin/observability/slow-jobs
+
+3. Exibir:
+
+Por job:
+
+- jobName
+- avgDurationMs
+- p95DurationMs
+- slowRuns
+- totalRuns
+- lastDurationMs
+- currentlyRunning
+- lastStartedAt
+- lastFinishedAt
+- lastError
+
+4. Indicadores visuais:
+
+- badge verde → saudável
+- badge amarelo → lento
+- badge vermelho → erro
+- badge azul → executando
+
+5. Regras:
+
+- polling leve (10s no máximo)
+- MASTER-only
+- reutilizar componentes UI existentes
+- reutilizar cards/tables existentes
+- NÃO criar nova arquitetura frontend
+
+==================================================
+REGRAS TÉCNICAS
+==================================================
+
+1. NÃO alterar backend
+2. NÃO alterar endpoint
+3. NÃO criar websocket
+4. NÃO criar cache paralelo
+5. NÃO duplicar métricas
+6. NÃO quebrar observability.tsx
+7. NÃO remover nada existente
+
+==================================================
+EXECUÇÃO OBRIGATÓRIA
+==================================================
+
+FASE 1 — AUDITORIA
+Ler:
+- observability.tsx
+- componentes existentes
+- query hooks
+- patterns de polling
+- cards/tables atuais
+
+FASE 2 — IMPLEMENTAÇÃO CIRÚRGICA
+Adicionar somente a aba necessária.
+
+FASE 3 — VALIDAÇÃO
+Validar:
+
+- app startup
+- Supabase conectado
+- endpoint funcionando
+- polling funcionando
+- TypeScript sem novos erros
+- painel operacional íntegro
+- auth funcionando
+
+==================================================
+OBJETIVO FINAL
+==================================================
+
+Transformar o VivaFrutaz em um ERP operacional robusto para operação real diária com observabilidade administrativa completa.
