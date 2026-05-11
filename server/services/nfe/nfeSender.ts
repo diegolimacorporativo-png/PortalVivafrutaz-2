@@ -232,15 +232,39 @@ export async function enviarNFeSEFAZ(
     ? new (require('https').Agent)({ cert: pem, key, rejectUnauthorized: false })
     : undefined;
 
-  const response = await axios.post(url, soap, {
-    headers: {
-      'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote"',
-    },
-    httpsAgent,
-    timeout: 30000,
-  });
+  // FASE 3.2 — retry com backoff exponencial para chamadas SEFAZ.
+  // Erros de rede/timeout são retryable; erros de validação/schema não devem
+  // ser retryados (cStat 2xx = rejeição definitiva da SEFAZ, não de infra).
+  const { withRetry } = await import('../../core/retry/withRetry');
 
-  return parseSefazResponse(response.data);
+  const { result: responseData } = await withRetry(
+    async () => {
+      const res = await axios.post(url, soap, {
+        headers: {
+          'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote"',
+        },
+        httpsAgent,
+        timeout: 30000,
+      });
+      return res.data;
+    },
+    {
+      maxAttempts: 3,
+      baseDelayMs: 2_000,
+      maxDelayMs: 15_000,
+      // Não retry em erros de status HTTP (SEFAZ respondeu com erro de aplicação)
+      retryable: (err: unknown) => {
+        if (axios.isAxiosError(err) && err.response) return false;
+        return true; // timeout, rede, ECONNREFUSED → retry
+      },
+      onRetry: (attempt, err, delayMs) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[NFE_SEFAZ_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${msg}`);
+      },
+    },
+  );
+
+  return parseSefazResponse(responseData);
 }
 
 export async function consultarStatusSEFAZ(uf: string, ambiente: '1' | '2'): Promise<{ online: boolean; xMotivo: string }> {
@@ -275,9 +299,29 @@ export async function cancelarNFe(
   const xml = `<cancNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><infCancNFe Id="ID${chaveNFe}"><tpAmb>${ambiente}</tpAmb><xServ>CANCELAR</xServ><chNFe>${chaveNFe}</chNFe><dhEvento>${now}</dhEvento><nSeqEvento>1</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00"><descEvento>Cancelamento</descEvento><nProt>${protocolo}</nProt><xJust>${xJust.slice(0, 255)}</xJust></detEvento></infCancNFe></cancNFe>`;
   const soap = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${xml}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 
-  const response = await axios.post(url, soap, {
-    headers: { 'Content-Type': 'application/soap+xml;charset=UTF-8' },
-    timeout: 30000,
-  });
-  return parseSefazResponse(response.data);
+  // FASE 3.2 — retry com backoff exponencial para cancelamento SEFAZ.
+  const { withRetry } = await import('../../core/retry/withRetry');
+  const { result: cancelData } = await withRetry(
+    async () => {
+      const res = await axios.post(url, soap, {
+        headers: { 'Content-Type': 'application/soap+xml;charset=UTF-8' },
+        timeout: 30000,
+      });
+      return res.data;
+    },
+    {
+      maxAttempts: 3,
+      baseDelayMs: 2_000,
+      maxDelayMs: 15_000,
+      retryable: (err: unknown) => {
+        if (axios.isAxiosError(err) && err.response) return false;
+        return true;
+      },
+      onRetry: (attempt, err, delayMs) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[NFE_CANCEL_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${msg}`);
+      },
+    },
+  );
+  return parseSefazResponse(cancelData);
 }

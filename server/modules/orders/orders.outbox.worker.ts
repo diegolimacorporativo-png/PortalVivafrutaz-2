@@ -14,9 +14,19 @@
  *      race on the same event — each worker gets its own exclusive batch.
  *   3. Executes the side effects: push notification + audit log.
  *   4. On success: sets processedAt = NOW().
- *   5. On failure: increments retryCount and stores the errorMessage.
- *      After MAX_RETRIES failures the event is left with its last error for
+ *   5. On failure: increments retryCount, computes next_retry_at with exponential
+ *      backoff, stores the errorMessage.
+ *      After MAX_RETRIES failures the event is marked dead_letter = true for
  *      manual inspection — it is never silently dropped.
+ *
+ * ─── FASE 3.2 — Retry + Resiliência ─────────────────────────────────────────
+ *
+ * - Exponential backoff via next_retry_at: events are not retried immediately
+ *   after failure — the worker skips them until their next_retry_at window opens.
+ * - Dead-letter: after MAX_RETRIES consecutive failures, dead_letter = true.
+ *   Dead-letter events are excluded from normal polling and exposed via the
+ *   observability panel for manual inspection or re-queue.
+ * - observability: incJobFailures() on batch-level errors.
  *
  * ─── Horizontal scaling ──────────────────────────────────────────────────────
  *
@@ -34,16 +44,13 @@ import { pool } from "../../database/db";
 import { type WorkflowEventPayload } from "@shared/schema";
 import { ordersRepository } from "./orders.repository";
 import { fireNotification } from "../../services/pushService";
-// FASE 8.6J — isolamento multi-tenant: cada evento do outbox é processado
-// dentro de runWithTenant(...) com um principal sintético "admin/SERVICE"
-// pinado no companyId do payload. Garante que dispatchEvent (push + audit log)
-// e qualquer chamada interna que dependa de currentTenantId() rode no
-// contexto da empresa correta, sem mistura entre tenants.
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
+import { incJobFailures } from "../../core/observability/metrics";
+import { computeNextRetryAt } from "../../core/retry/withRetry";
 
-const POLL_INTERVAL_MS = 5_000;   // check every 5 seconds
-const BATCH_SIZE       = 10;      // events per tick
-const MAX_RETRIES      = 5;       // give up after this many consecutive failures
+const POLL_INTERVAL_MS = 5_000;
+const BATCH_SIZE       = 10;
+const MAX_RETRIES      = 5;
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_APPROVAL: "Aguardando aprovação",
@@ -57,24 +64,12 @@ const STATUS_LABELS: Record<string, string> = {
 
 // ─── Worker loop ──────────────────────────────────────────────────────────────
 
-/**
- * Processes one batch of pending outbox events inside independent transactions.
- * Each event is committed (or retried) separately so one failing event does not
- * block healthy ones.
- */
 async function processBatch(): Promise<void> {
-  // Claim a batch of events atomically using pool.query() directly.
-  // pool.query() always returns { rows: [...] } — no ambiguity with Drizzle's
-  // top-level db.execute() which returns the full QueryResult outside a tx.
-  //
-  // FOR UPDATE SKIP LOCKED: multiple workers/replicas each get their own
-  // exclusive subset of events — no duplicate processing, no blocking.
-  // MT-3B M3 — STRUCTURAL RISK: workflow_events has no direct tenantId/empresaId column.
-  // Tenant identity is embedded in payload.companyId (WorkflowEventPayload).
-  // This SELECT is intentionally cross-tenant: the background worker must process ALL
-  // pending events and extracts the tenant from each event's payload below.
-  // Fail-safe: events without payload.companyId are skipped (line 97).
-  // Future: add a direct tenant column to enable DB-level tenant filtering (not MT-3B scope).
+  // FASE 3.2 — filtra por:
+  //   1. processedAt IS NULL (pendente)
+  //   2. dead_letter = false (não esgotou retries)
+  //   3. next_retry_at IS NULL OR next_retry_at <= NOW() (janela de retry aberta)
+  // Isso evita flood ao banco: eventos falhos só são reprocessados após backoff.
   const { rows: events } = await pool.query<{
     id: number;
     order_id: number;
@@ -85,21 +80,17 @@ async function processBatch(): Promise<void> {
     `SELECT   id, order_id, event_type, payload, retry_count
      FROM     workflow_events
      WHERE    processed_at IS NULL
-       AND    retry_count  < $1
+       AND    dead_letter   = false
+       AND    (next_retry_at IS NULL OR next_retry_at <= NOW())
      ORDER BY created_at
-     LIMIT    $2
+     LIMIT    $1
      FOR UPDATE SKIP LOCKED`,
-    [MAX_RETRIES, BATCH_SIZE],
+    [BATCH_SIZE],
   );
 
   for (const event of events) {
-    // FASE 8.6J — extrai companyId do payload do evento. O outbox grava o
-    // payload tipado como WorkflowEventPayload, que sempre traz companyId
-    // (ver orders.outbox no executeWorkflowTransaction). O cast defensivo
-    // protege contra eventuais eventos legados.
     const companyId = (event.payload as any)?.companyId;
 
-    // fail-safe — não processa evento sem tenant alvo seguro
     if (!companyId) {
       console.warn("[OUTBOX] Evento sem companyId — ignorado por segurança");
       continue;
@@ -121,21 +112,46 @@ async function processBatch(): Promise<void> {
           await pool.query(
             `UPDATE workflow_events
              SET    processed_at  = NOW(),
-                    error_message = NULL
+                    error_message = NULL,
+                    next_retry_at = NULL
              WHERE  id            = $1`,
             [event.id],
           );
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
-          console.error(`[OUTBOX] Event #${event.id} (order ${event.order_id}) failed: ${message}`);
+          const newRetryCount = event.retry_count + 1;
+          const isDeadLetter = newRetryCount >= MAX_RETRIES;
 
-          await pool.query(
-            `UPDATE workflow_events
-             SET    retry_count   = retry_count + 1,
-                    error_message = $1
-             WHERE  id            = $2`,
-            [message.slice(0, 1000), event.id],
-          );
+          if (isDeadLetter) {
+            // FASE 3.2 — DEAD LETTER: esgotou MAX_RETRIES, marcar permanentemente
+            console.error(
+              `[OUTBOX_DEAD_LETTER] Event #${event.id} (order ${event.order_id}) permanently failed after ${newRetryCount} attempts. Reason: ${message}`,
+            );
+            await pool.query(
+              `UPDATE workflow_events
+               SET    retry_count   = $1,
+                      error_message = $2,
+                      dead_letter   = true,
+                      next_retry_at = NULL
+               WHERE  id            = $3`,
+              [newRetryCount, message.slice(0, 1000), event.id],
+            );
+            incJobFailures();
+          } else {
+            // FASE 3.2 — RETRY com backoff exponencial
+            const nextRetryAt = computeNextRetryAt(newRetryCount);
+            console.error(
+              `[OUTBOX] Event #${event.id} (order ${event.order_id}) failed (attempt ${newRetryCount}/${MAX_RETRIES}). Next retry: ${nextRetryAt.toISOString()}. Error: ${message}`,
+            );
+            await pool.query(
+              `UPDATE workflow_events
+               SET    retry_count   = $1,
+                      error_message = $2,
+                      next_retry_at = $3
+               WHERE  id            = $4`,
+              [newRetryCount, message.slice(0, 1000), nextRetryAt, event.id],
+            );
+          }
         }
       },
     );
@@ -172,7 +188,6 @@ async function handleTransitionEvent(p: WorkflowEventPayload): Promise<void> {
       },
     );
   } catch (pushErr) {
-    // Push failures are non-fatal — log and continue to audit log.
     console.warn("[OUTBOX] Push notification failed:", pushErr);
   }
 
@@ -203,37 +218,94 @@ async function handleTransitionEvent(p: WorkflowEventPayload): Promise<void> {
 
 let workerTimer: ReturnType<typeof setInterval> | null = null;
 
-/**
- * Start the outbox worker. Safe to call multiple times — subsequent calls
- * are no-ops if the worker is already running.
- */
 export function startOutboxWorker(): void {
   if (workerTimer !== null) return;
 
   console.log(
-    `[OUTBOX] Worker started (poll=${POLL_INTERVAL_MS}ms, batch=${BATCH_SIZE}, maxRetries=${MAX_RETRIES})`,
+    `[OUTBOX] Worker started (poll=${POLL_INTERVAL_MS}ms, batch=${BATCH_SIZE}, maxRetries=${MAX_RETRIES}, backoff=exponencial)`,
   );
 
   workerTimer = setInterval(async () => {
     try {
       await processBatch();
     } catch (err) {
-      // processBatch itself should not throw, but guard anyway.
       console.error("[OUTBOX] Unexpected worker error:", err);
+      incJobFailures();
     }
   }, POLL_INTERVAL_MS);
 
-  // Allow Node.js to exit cleanly even if the interval is active.
   workerTimer.unref();
 }
 
-/**
- * Stop the outbox worker (used in tests and graceful shutdown).
- */
 export function stopOutboxWorker(): void {
   if (workerTimer !== null) {
     clearInterval(workerTimer);
     workerTimer = null;
     console.log("[OUTBOX] Worker stopped.");
   }
+}
+
+/**
+ * FASE 3.2 — Re-enfileira um evento dead-letter para reprocessamento.
+ * Limpa dead_letter, zerando retry_count e next_retry_at.
+ * Deve ser chamado apenas por rota administrativa (MASTER).
+ */
+export async function requeueDeadLetterEvent(eventId: number): Promise<void> {
+  await pool.query(
+    `UPDATE workflow_events
+     SET    dead_letter   = false,
+            retry_count   = 0,
+            error_message = NULL,
+            next_retry_at = NULL
+     WHERE  id            = $1
+       AND  dead_letter   = true
+       AND  processed_at  IS NULL`,
+    [eventId],
+  );
+}
+
+/**
+ * FASE 3.2 — Lista todos os eventos em dead-letter (para o painel operacional).
+ */
+export async function getDeadLetterEvents(): Promise<Array<{
+  id: number;
+  orderId: number;
+  eventType: string;
+  retryCount: number;
+  errorMessage: string | null;
+  createdAt: Date;
+  companyId: number | null;
+}>> {
+  const { rows } = await pool.query<{
+    id: number;
+    order_id: number;
+    event_type: string;
+    retry_count: number;
+    error_message: string | null;
+    created_at: Date;
+    company_id: number | null;
+  }>(
+    `SELECT id,
+            order_id,
+            event_type,
+            retry_count,
+            error_message,
+            created_at,
+            (payload->>'companyId')::int AS company_id
+     FROM   workflow_events
+     WHERE  dead_letter  = true
+       AND  processed_at IS NULL
+     ORDER BY created_at DESC
+     LIMIT 200`,
+  );
+
+  return rows.map((r) => ({
+    id:           r.id,
+    orderId:      r.order_id,
+    eventType:    r.event_type,
+    retryCount:   r.retry_count,
+    errorMessage: r.error_message,
+    createdAt:    r.created_at,
+    companyId:    r.company_id,
+  }));
 }

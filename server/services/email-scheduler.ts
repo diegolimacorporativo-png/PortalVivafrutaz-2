@@ -196,7 +196,17 @@ async function runSchedulerTick() {
   } catch (err: any) {
     logSecurity(`[EMAIL_SCHEDULER_TICK_FAILED] job=emailScheduler | error=${err?.message ?? "unknown"}`);
     console.error('[EMAIL-SCHEDULER] Error during tick:', err);
+    // FASE 3.2 — FIX CRÍTICO: finishJobRun DEVE ser chamado no catch para que o
+    // job-registry libere o lock. Sem isso, isRunning fica true para sempre e
+    // todos os ticks subsequentes são silenciosamente ignorados (dead scheduler).
+    finishJobRun(EMAIL_JOB, false, err?.message);
+    return;
   }
+  // FASE 3.2 — FIX CRÍTICO: marcar job como concluído com sucesso.
+  // Sem este call, isRunning permanece true após o primeiro tick e o scheduler
+  // para de executar silenciosamente (todos os ticks subsequentes são descartados
+  // por startJobRun retornar false).
+  finishJobRun(EMAIL_JOB, true);
 }
 
 export function startEmailScheduler() {

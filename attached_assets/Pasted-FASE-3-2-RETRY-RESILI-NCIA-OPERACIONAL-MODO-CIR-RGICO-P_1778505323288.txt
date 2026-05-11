@@ -1,0 +1,213 @@
+FASE 3.2 — RETRY + RESILIÊNCIA OPERACIONAL
+MODO: CIRÚRGICO + PRESERVAR ARQUITETURA + ZERO REFATORAÇÃO GERAL
+
+CONTEXTO DO PROJETO
+========================================================
+
+Projeto:
+VivaFrutaz ERP
+
+Stack:
+- Node.js
+- TypeScript
+- Express
+- Drizzle ORM
+- PostgreSQL/Supabase
+- AsyncLocalStorage
+- Multi-tenant
+- Workers
+- Cron jobs
+- Observabilidade já implementada
+
+FASES JÁ CONCLUÍDAS
+========================================================
+
+MT-3A:
+- hardening multi-tenant
+- requireRole
+- tenantContext
+- tenantWhere
+- crossTenant markers
+
+MT-3B:
+- assistant
+- pricing
+- reports
+- logistics hardening
+
+MT-3C:
+- observabilidade
+- requestId
+- tracing
+- metrics
+- error store
+- observability panel
+
+MT-3D:
+- auditoria final
+- inventário
+- baseline arquitetural
+
+FASE ATUAL:
+========================================================
+
+FASE 3 — ESTABILIDADE OPERACIONAL
+
+3.1:
+- cron protection
+- anti-overlap
+- job registry
+- scheduler hardening
+
+EM ANDAMENTO:
+3.2 — RETRY + RESILIÊNCIA
+
+========================================================
+REGRAS ABSOLUTAS
+========================================================
+
+NÃO:
+- criar microserviços
+- introduzir RabbitMQ/Kafka
+- reescrever arquitetura
+- refatorar módulos inteiros
+- alterar regras de negócio
+- quebrar workers existentes
+- alterar tenant architecture
+- alterar AsyncLocalStorage
+- alterar frontend sem necessidade operacional
+
+OBRIGATÓRIO:
+- ler tudo antes
+- mapear antes
+- validar antes
+- implementar cirurgicamente
+- preservar comportamento atual
+
+========================================================
+OBJETIVO
+========================================================
+
+Implementar resiliência operacional REAL para:
+
+- NF-e
+- email
+- dispatch
+- webhook
+- billing
+- workers
+- cron jobs
+- assistant jobs
+- integrações
+
+========================================================
+FASE 1 — AUDITORIA
+========================================================
+
+Mapear TODOS:
+- workers
+- schedulers
+- cron jobs
+- filas internas
+- retries existentes
+- falhas silenciosas
+- loops infinitos
+- dead jobs
+- loss paths
+- integrations
+
+Identificar:
+- jobs sem retry
+- retries infinitos
+- falhas sem tracking
+- perda de evento
+- loops perigosos
+- ausência de dead-letter
+- ausência de maxRetries
+
+NÃO modificar nada antes do mapeamento completo.
+
+========================================================
+FASE 2 — RETRY SYSTEM
+========================================================
+
+Implementar APENAS o necessário:
+
+- retry exponencial
+- max retries
+- nextRetryAt
+- failure reason
+- attempt counter
+- dead-letter state
+- stale retry protection
+- observability integration
+
+Requisitos:
+- idempotente
+- sem loops infinitos
+- sem flood
+- sem duplicação
+- sem quebrar jobs existentes
+
+========================================================
+FASE 3 — DEAD LETTER
+========================================================
+
+Quando exceder max retries:
+
+- marcar failed permanently
+- registrar causa
+- registrar timestamp
+- registrar stack resumida
+- registrar tenant
+- registrar actor
+- expor no painel operacional
+
+========================================================
+FASE 4 — OBSERVABILIDADE
+========================================================
+
+Integrar com:
+- requestId
+- logger
+- metrics
+- observability panel
+- error store
+
+Toda falha deve possuir:
+- requestId
+- tenantId
+- actorId
+- role
+- endpoint/job
+- attempts
+- retry state
+- severity
+
+========================================================
+FASE 5 — VALIDAÇÃO
+========================================================
+
+Executar:
+- typecheck
+- validação live
+- testes reais
+- simulação de falha
+- validação retry
+- validação dead-letter
+- validação overlap
+- validação métricas
+
+========================================================
+IMPORTANTE FINAL
+========================================================
+
+Objetivo:
+RESILIÊNCIA OPERACIONAL REAL.
+
+NÃO criar arquitetura enterprise desnecessária.
+NÃO aumentar complexidade sem necessidade.
+NÃO reescrever o sistema.
+
+Prioridade:
+estabilidade, recuperação e operação interna confiável.

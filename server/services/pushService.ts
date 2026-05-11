@@ -186,7 +186,9 @@ export async function sendClientPush(
   try {
     const subs = await getActiveSubscriptions("company", companyId);
     for (const sub of subs) {
-      sendPushToSubscription(sub, payload);
+      // FASE 3.2 — await: garantir que erros de envio individual não sejam
+      // silenciosamente engolidos. Sem await, falhas de push são fire-and-forget.
+      await sendPushToSubscription(sub, payload);
     }
   } catch (err: any) {
     logSecurity(`[PUSH_NOTIFICATION_FAILED] step=client_push | companyId=${companyId} | error=${err?.message ?? "unknown"}`);

@@ -1835,6 +1835,9 @@ export const workflowEvents = pgTable("workflow_events", {
   errorMessage: text("error_message"),              // last error (if any)
   retryCount:   integer("retry_count").default(0).notNull(),
   createdAt:    timestamp("created_at").defaultNow().notNull(),
+  // FASE 3.2 — resiliência operacional
+  nextRetryAt:  timestamp("next_retry_at"),         // backoff exponencial; NULL = pode processar agora
+  deadLetter:   boolean("dead_letter").default(false).notNull(), // true = excedeu max retries, aguarda intervenção manual
 });
 export type WorkflowEvent = typeof workflowEvents.$inferSelect;
 

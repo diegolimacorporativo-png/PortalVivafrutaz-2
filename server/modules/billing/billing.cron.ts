@@ -63,17 +63,29 @@ export async function checkBoletosVencidos(): Promise<CheckBoletosResult> {
           if (a.status !== "ativa" && a.status !== "trial") continue;
           if (!a.dataVencimento || new Date(a.dataVencimento) >= now) continue;
 
-          await storage.updateAssinatura(a.id, { status: "atrasada" });
-          atrasadas++;
+          // FASE 3.2 — isolamento de erro por assinatura: um updateAssinatura
+          // com falha não aborta o processamento das demais assinaturas da empresa.
+          try {
+            await storage.updateAssinatura(a.id, { status: "atrasada" });
+            atrasadas++;
 
-          if (planFree) {
-            await storage.updateAssinatura(a.id, {
-              planoId: planFree.id,
-              status: "inadimplente",
-            });
-            downgrades++;
+            if (planFree) {
+              await storage.updateAssinatura(a.id, {
+                planoId: planFree.id,
+                status: "inadimplente",
+              });
+              downgrades++;
+              detalhes.push(
+                `Empresa ${a.companyId} movida para plano free por inadimplência`,
+              );
+            }
+          } catch (subErr: any) {
+            console.error(
+              `[BILLING-CRON] Falha ao processar assinatura #${a.id} (empresa ${a.companyId}):`,
+              subErr?.message ?? subErr,
+            );
             detalhes.push(
-              `Empresa ${a.companyId} movida para plano free por inadimplência`,
+              `Erro ao processar assinatura #${a.id} da empresa ${a.companyId}: ${subErr?.message ?? "erro desconhecido"}`,
             );
           }
           // ↑↑↑ LÓGICA EXISTENTE INALTERADA ↑↑↑

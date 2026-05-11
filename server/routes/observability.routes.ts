@@ -14,6 +14,8 @@ import type { Express } from "express";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
 import { getErrors, clearErrors, errorCount } from "../core/observability/error-store";
 import { getMetrics, resetMetrics } from "../core/observability/metrics";
+import { getDeadLetterEvents, requeueDeadLetterEvent } from "../modules/orders/orders.outbox.worker";
+import { getJobRegistry } from "../core/jobs/job-registry";
 
 export function register(app: Express): void {
   // ── GET /api/admin/observability/errors ─────────────────────────────
@@ -67,6 +69,59 @@ export function register(app: Express): void {
     (_req, res) => {
       resetMetrics();
       return res.json({ success: true, message: "Metrics reset" });
+    },
+  );
+
+  // ── GET /api/admin/observability/jobs ────────────────────────────────
+  // Lista todos os jobs registrados e seu estado atual (running, ok, error…)
+  app.get(
+    "/api/admin/observability/jobs",
+    requireAuth,
+    requireRole(["MASTER"]),
+    (_req, res) => {
+      return res.json({ success: true, data: getJobRegistry() });
+    },
+  );
+
+  // ── GET /api/admin/observability/dead-letter ─────────────────────────
+  // FASE 3.2 — eventos de outbox que excederam MAX_RETRIES e aguardam
+  // intervenção manual. Expostos aqui para visualização e re-enfileiramento.
+  app.get(
+    "/api/admin/observability/dead-letter",
+    requireAuth,
+    requireRole(["MASTER"]),
+    async (_req, res) => {
+      try {
+        const events = await getDeadLetterEvents();
+        return res.json({
+          success: true,
+          data: events,
+          meta: { total: events.length },
+        });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message ?? "Erro interno" });
+      }
+    },
+  );
+
+  // ── POST /api/admin/observability/dead-letter/:id/requeue ────────────
+  // FASE 3.2 — re-enfileira um evento dead-letter para reprocessamento.
+  // Limpa dead_letter=false, retry_count=0, next_retry_at=NULL.
+  app.post(
+    "/api/admin/observability/dead-letter/:id/requeue",
+    requireAuth,
+    requireRole(["MASTER"]),
+    async (req, res) => {
+      try {
+        const id = Number(req.params.id);
+        if (!id || isNaN(id)) {
+          return res.status(400).json({ success: false, error: "ID inválido" });
+        }
+        await requeueDeadLetterEvent(id);
+        return res.json({ success: true, message: `Evento #${id} re-enfileirado` });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message ?? "Erro interno" });
+      }
     },
   );
 }
