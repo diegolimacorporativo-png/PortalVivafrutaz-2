@@ -1,0 +1,331 @@
+MANDATORY FULL SECURITY + OPERATIONS AUDIT — VIVAFRUTAZ ERP
+READ-ONLY AUDIT ONLY. DO NOT MODIFY ANY CODE UNTIL THE ENTIRE AUDIT IS FINISHED.
+
+You are performing a COMPLETE production-grade audit of the VivaFrutaz ERP.
+
+CRITICAL RULES:
+- FIRST: READ EVERYTHING
+- SECOND: MAP EVERYTHING
+- THIRD: AUDIT EVERYTHING
+- ONLY AFTER FULL AUDIT → produce findings
+- DO NOT implement fixes automatically
+- DO NOT refactor
+- DO NOT invent architecture
+- DO NOT change business rules
+- DO NOT change flows
+- DO NOT simplify security
+- DO NOT touch tenant isolation behavior
+- DO NOT create SaaS features
+- DO NOT change auth behavior
+- DO NOT touch billing logic
+- DO NOT touch NF-e fiscal rules
+
+ABSOLUTE PRIORITY:
+Find REAL risks, REAL gaps, REAL operational dangers, REAL security holes, REAL multi-tenant vulnerabilities, REAL production instability.
+
+==================================================
+MANDATORY CONTEXT — CURRENT SYSTEM STATE
+==================================================
+
+The system already has:
+
+PHASE MT-3D COMPLETE:
+- tenant hardening
+- logistics hardening
+- reports hardening
+- raw SQL audit
+
+PHASE 2 COMPLETE:
+- request tracing
+- correlationId
+- observability
+- centralized error panel
+- metrics
+- request context
+- audit logging
+- slow jobs monitoring
+
+PHASE 3 COMPLETE:
+- cron protection
+- retry queues
+- dead-letter queue
+- backup scheduler
+- backup validation
+- restore dry-run
+- restore sandbox
+- restore planner
+- restore lock
+- operational observability panels
+
+PHASE 4 STARTED:
+- N+1 elimination
+- operational metrics
+- Supabase production connection
+- performance instrumentation
+
+IMPORTANT:
+The project is connected to the REAL SUPABASE DATABASE.
+
+The audit MUST use the REAL production-connected architecture.
+
+==================================================
+MANDATORY AUDIT ORDER
+==================================================
+
+PHASE A — DATABASE + CONNECTION AUDIT
+
+1. Verify:
+- Supabase connection
+- pool usage
+- connection leaks
+- transaction safety
+- long-running queries
+- missing indexes
+- sequential scans risks
+- unbounded queries
+- unsafe deletes
+- missing FK protections
+- sequence mismatch risks
+- migration inconsistencies
+
+2. Validate:
+- DATABASE_URL usage
+- environment fallback behavior
+- accidental local DB usage
+- unsafe fallback logic
+
+3. Search ALL raw SQL:
+- verify empresa_id filters
+- verify tenant isolation
+- verify update/delete protections
+- verify admin bypasses
+- verify joins do not leak tenants
+
+==================================================
+PHASE B — AUTH + SECURITY AUDIT
+==================================================
+
+Audit FULL authentication stack:
+
+1. Login flow
+2. Session handling
+3. Passport config
+4. Cookie config
+5. Session fixation risks
+6. CSRF risks
+7. Rate limiting
+8. Password hashing
+9. Temporary password flow
+10. Password reset flow
+11. MASTER bypasses
+12. Role escalation risks
+13. Direct route access
+14. Unsafe public endpoints
+15. Missing auth middleware
+16. Broken permission checks
+17. Unsafe uploads
+18. Sensitive logs exposure
+19. Stacktrace leaks
+20. Unsafe error messages
+
+MANDATORY:
+Search every route for:
+- missing requireAuth
+- missing requireRole
+- unsafe query params
+- direct companyId trust
+- tenant bypass possibilities
+
+==================================================
+PHASE C — MULTI-TENANT AUDIT
+==================================================
+
+FULL tenant isolation audit.
+
+Search:
+- every repository
+- every service
+- every route
+- every raw SQL
+- every cron
+- every worker
+- every export
+- every report
+- every dashboard
+- every analytics query
+
+Find:
+- cross-tenant reads
+- cross-tenant writes
+- missing empresa_id filters
+- MASTER leaks
+- unsafe joins
+- bulk operations without tenant filters
+- report aggregation leaks
+- cache contamination
+- async context leaks
+- tenantContext bypasses
+
+MANDATORY:
+Verify AsyncLocalStorage propagation.
+
+==================================================
+PHASE D — OPERATIONS + OBSERVABILITY AUDIT
+==================================================
+
+Verify:
+- all workers registered
+- all crons protected
+- anti-overlap working
+- retry logic functioning
+- dead-letter behavior
+- observability endpoints
+- metrics correctness
+- slow jobs tracking
+- memory leaks
+- unbounded buffers
+- logger performance
+- circular buffers
+- polling pressure
+- request tracing continuity
+- correlationId propagation
+
+Search for:
+- silent catches
+- swallowed exceptions
+- fire-and-forget async
+- missing await
+- unhandled promises
+
+==================================================
+PHASE E — BACKUP + RECOVERY AUDIT
+==================================================
+
+Verify:
+- backup scheduler
+- backup generation
+- JSON validity
+- SQL validity
+- restore planner
+- restore dry-run
+- restore sandbox
+- restore lock
+- operational safety
+
+Search:
+- unsafe restore possibilities
+- accidental overwrite risk
+- missing rollback logic
+- restore race conditions
+- filesystem persistence risks
+- backup corruption risks
+
+==================================================
+PHASE F — PERFORMANCE AUDIT
+==================================================
+
+Search:
+- N+1 queries
+- repeated joins
+- duplicate selects
+- unnecessary Promise.all
+- large in-memory maps
+- missing pagination
+- huge JSON payloads
+- synchronous loops
+- expensive report generation
+- blocking operations
+- large exports
+- heavy dashboards
+- inefficient polling
+
+MANDATORY:
+List TOP 20 worst performance risks.
+
+==================================================
+PHASE G — FRONTEND SECURITY AUDIT
+==================================================
+
+Audit:
+- route guards
+- role guards
+- MASTER-only pages
+- hidden-but-accessible pages
+- direct API calls
+- unsafe localStorage usage
+- token exposure
+- query param trust
+- upload vulnerabilities
+- XSS risks
+- dangerouslySetInnerHTML
+- unescaped rendering
+
+==================================================
+PHASE H — NF-E + FISCAL AUDIT
+==================================================
+
+Verify:
+- retry logic
+- duplicate emission protection
+- timeout handling
+- SEFAZ failures
+- cancellation consistency
+- invoice concurrency
+- dead-letter integration
+- audit logging
+- tenant isolation
+- XML storage safety
+
+==================================================
+FINAL REPORT FORMAT (MANDATORY)
+==================================================
+
+Return ONLY:
+
+1. EXECUTIVE SUMMARY
+- production readiness score (0-100)
+- security score
+- operational stability score
+- multi-tenant safety score
+- performance score
+
+2. CRITICAL RISKS
+ONLY real critical issues.
+
+3. HIGH RISKS
+
+4. MEDIUM RISKS
+
+5. LOW RISKS
+
+6. FALSE POSITIVES
+Things investigated that are SAFE.
+
+7. TOP 20 FILES WITH HIGHEST RISK
+
+8. TOP 20 PERFORMANCE BOTTLENECKS
+
+9. MULTI-TENANT SAFETY VERDICT
+
+10. PRODUCTION READINESS VERDICT
+
+11. EXACT NEXT STEPS
+ONLY real necessary steps.
+NO invented architecture.
+NO SaaS expansion.
+NO feature creep.
+
+MANDATORY:
+- cite exact files
+- cite exact methods
+- cite exact routes
+- cite exact risks
+- explain exploit scenarios
+- explain operational impact
+- explain severity
+- explain likelihood
+
+FINAL RULE:
+DO NOT FIX ANYTHING.
+AUDIT ONLY.
+READ EVERYTHING FIRST.
