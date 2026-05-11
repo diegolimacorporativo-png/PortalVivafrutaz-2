@@ -1,0 +1,144 @@
+MANDATORY EXECUTION ORDER — READ EVERYTHING FIRST, MAP EVERYTHING, THEN IMPLEMENT.  
+DO NOT WRITE A SINGLE LINE OF CODE BEFORE THE FULL AUDIT IS COMPLETE.
+
+You are continuing the VivaFrutaz ERP operational hardening phase.
+
+CURRENT STATUS (ALREADY IMPLEMENTED — DO NOT BREAK):
+
+- Supabase production database connected and running
+- Multi-tenant isolation active via AsyncLocalStorage
+- Job registry + observability + dead-letter operational
+- Retry/backoff infrastructure operational
+- Backup validation / sandbox / planner implemented
+- Slow-jobs monitoring implemented
+- MASTER hardcoded password REMOVED safely
+- Existing MASTER user/password in Supabase MUST NEVER be modified
+- NF-e public metrics endpoints secured
+- Backup password hashes scrubbed
+- CSP added
+- Legacy auth gaps fixed
+- RBAC tightened
+- Workers and cron jobs stable
+
+ABSOLUTE RULES:
+
+- DO NOT modify existing MASTER credentials
+- DO NOT reset sessions
+- DO NOT run destructive migrations
+- DO NOT truncate tables
+- DO NOT implement automatic restore
+- DO NOT disable tenant isolation
+- DO NOT break observability/workers
+- DO NOT refactor architecture unnecessarily
+- DO NOT change business logic
+- DO NOT change NF-e operational behavior
+- DO NOT touch production data
+- ALL CHANGES MUST BE SURGICAL
+
+MANDATORY EXECUTION FLOW:
+
+1. FULL AUDIT FIRST
+Read ALL relevant files in parallel before touching code:
+- app.ts
+- database/db.ts
+- rateLimit.ts
+- security middleware
+- backup.ts
+- ai-developer routes
+- routes.ts
+- observability
+- storage/services
+- frontend logs/debug
+- pagination hotspots
+- heavy queries
+- pool configuration
+- timeout handling
+
+2. MAP EVERYTHING BEFORE IMPLEMENTING
+Produce a structured operational risk map before code edits.
+
+3. ONLY THEN IMPLEMENT.
+
+PHASE 4.2 — OPERATIONAL HARDENING
+
+Implement ALL items surgically:
+
+T801 — Persistent Rate-Limit Hardening
+- Audit all critical mutation endpoints
+- Add missing limiter coverage
+- Prepare abstraction layer for future Redis migration
+- Preserve existing auth behavior
+
+T802 — PostgreSQL Pool Protection
+In database/db.ts:
+- add:
+  - max pool size
+  - idleTimeoutMillis
+  - connectionTimeoutMillis
+- add safe statement timeout handling
+- DO NOT break Supabase compatibility
+
+T803 — Path Traversal Hardening
+Fix /api/ai-developer/file:
+- replace naive ".." replacement
+- use path.resolve + path.relative validation
+- ensure resolved path stays inside project root
+- preserve allowlist logic
+
+T804 — Production Log Cleanup
+Remove or DEV-gate:
+- frontend console warnings
+- noisy protected route logs
+- debug operational logs
+DO NOT remove critical operational logs.
+
+T805 — Pagination Hardening
+Audit:
+- getProducts
+- getCategories
+- getPriceGroups
+- large list endpoints
+Add:
+- safe pagination defaults
+- max limits
+- bounded queries
+WITHOUT breaking frontend compatibility.
+
+T806 — Backup Durability Audit
+Audit backup persistence risks:
+- filesystem persistence
+- Replit deployment behavior
+- storage lifecycle
+Add:
+- explicit operational warnings
+- observability warnings
+- audit notes in backup UI
+DO NOT implement S3 yet.
+
+T807 — Slow Query / Abuse Protection
+Add:
+- slow query timing metrics where missing
+- request timing protection
+- operational abuse visibility
+WITHOUT introducing heavy instrumentation overhead.
+
+T808 — Final Operational Validation
+After implementation:
+- verify app startup
+- verify Supabase connection
+- verify all workers
+- verify observability
+- verify auth
+- verify tenant isolation
+- verify backups
+- verify no new type errors in modified files
+
+IMPORTANT:
+If typecheck shows errors outside modified files, explicitly mark them as PRE-EXISTING.
+
+At the end provide:
+- COMPLETE operational audit report
+- all risks fixed
+- remaining accepted risks
+- evidence of safe startup
+- evidence no production credentials/data were modified

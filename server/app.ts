@@ -16,6 +16,9 @@ import {
   adminLimiter,
   publicLimiter,
   searchLimiter,
+  fileLimiter,
+  aiLimiter,
+  saasMutationLimiter,
   highRiskActionLogger,
   criticalActionLogger,
 } from "./core/security/rateLimit";
@@ -218,6 +221,13 @@ export async function buildApp(): Promise<BuildAppResult> {
   app.use("/api/health", publicLimiter);
   // Search limiter — 7 SQL queries per request, authenticated users not exempt
   app.use("/api/search", searchLimiter);
+  // T801 — File upload limiter (CPU/memory-heavy parsing endpoints)
+  app.use("/api/fiscal-invoices", fileLimiter);
+  app.use("/api/import/preview", fileLimiter);
+  // T801 — AI Developer limiter (filesystem scans + DB introspection)
+  app.use("/api/ai-developer", aiLimiter);
+  // T801 — SaaS/billing mutation limiter
+  app.use("/api/saas", saasMutationLimiter);
 
   registerV2Modules(app);
   registerV1Modules(app);

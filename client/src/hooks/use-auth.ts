@@ -85,14 +85,17 @@ export function useAuth() {
 
   const authData = meQuery.data;
 
-  console.warn("[AUTH_STATE]", {
-    user: authData?.user ?? null,
-    company: authData?.company ?? null,
-    isPending: meQuery.isPending,
-    isFetching: meQuery.isFetching,
-    isError: meQuery.isError,
-    dataUpdatedAt: meQuery.dataUpdatedAt,
-  });
+  // T804 — DEV-only: avoid leaking auth state into prod console on every query refetch.
+  if (import.meta.env.DEV) {
+    console.warn("[AUTH_STATE]", {
+      user: authData?.user ?? null,
+      company: authData?.company ?? null,
+      isPending: meQuery.isPending,
+      isFetching: meQuery.isFetching,
+      isError: meQuery.isError,
+      dataUpdatedAt: meQuery.dataUpdatedAt,
+    });
+  }
 
   return {
     user: authData?.user,

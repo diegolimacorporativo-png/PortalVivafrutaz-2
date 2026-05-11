@@ -3453,17 +3453,28 @@ export async function registerRoutes(
       try {
         const { path: filePath } = req.query as { path: string };
         if (!filePath) return res.status(400).json({ message: 'path obrigatório' });
-        // Security: only allow reading files in project dir, not system files
-        const normalized = filePath.replace(/\.\./g, '').replace(/^\//, '');
+        // T803 — Path traversal fix: resolve the requested path relative to the
+        // project root, then verify the result still lives inside the project root.
+        // The previous naive .replace(/\.\./g,'') could be bypassed with "....//".
+        const nodePath = await import('path');
+        const projectRoot = nodePath.resolve(process.cwd());
+        const resolved = nodePath.resolve(projectRoot, filePath);
+        const relative = nodePath.relative(projectRoot, resolved);
+        // Reject if resolved path escapes project root (relative starts with "..")
+        // or is an absolute path (path.relative returns absolute when drives differ on Windows).
+        if (relative.startsWith('..') || nodePath.isAbsolute(relative)) {
+          return res.status(403).json({ message: 'Acesso negado ao caminho solicitado' });
+        }
+        // Allowlist: only serve files under permitted directories/files.
         const allowed = ['server/', 'client/', 'shared/', 'package.json', 'drizzle.config'];
-        if (!allowed.some(a => normalized.startsWith(a))) {
+        if (!allowed.some(a => relative.startsWith(a) || relative === a.replace(/\/$/, ''))) {
           return res.status(403).json({ message: 'Acesso negado ao caminho solicitado' });
         }
         const fs = await import('fs');
-        if (!fs.existsSync(normalized)) return res.status(404).json({ message: 'Arquivo não encontrado' });
-        const content = fs.readFileSync(normalized, 'utf-8');
+        if (!fs.existsSync(resolved)) return res.status(404).json({ message: 'Arquivo não encontrado' });
+        const content = fs.readFileSync(resolved, 'utf-8');
         const lines = content.split('\n').length;
-        res.json({ path: normalized, content: content.slice(0, 50000), lines, truncated: content.length > 50000 });
+        res.json({ path: relative, content: content.slice(0, 50000), lines, truncated: content.length > 50000 });
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
   }

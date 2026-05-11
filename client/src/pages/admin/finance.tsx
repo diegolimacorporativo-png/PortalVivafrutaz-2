@@ -640,7 +640,7 @@ export default function FinancePage() {
     queryKey: ['/api/finance/accounts-receivable', filterAR],
     queryFn: () => fetchWithAuth(`/api/finance/accounts-receivable?status=${filterAR}`).then(r => r.json()),
   });
-  console.log('[finance] AR response shape:', arRaw);
+  if (import.meta.env.DEV) console.log('[finance] AR response shape:', arRaw);
   const arList: AR[] = Array.isArray(arRaw)
     ? (arRaw as AR[])
     : Array.isArray((arRaw as any)?.data)
@@ -650,7 +650,7 @@ export default function FinancePage() {
     queryKey: ['/api/finance/accounts-payable', filterAP],
     queryFn: () => fetchWithAuth(`/api/finance/accounts-payable?status=${filterAP}`).then(r => r.json()),
   });
-  console.log('[finance] AP response shape:', apRaw);
+  if (import.meta.env.DEV) console.log('[finance] AP response shape:', apRaw);
   const apList: AP[] = Array.isArray(apRaw)
     ? (apRaw as AP[])
     : Array.isArray((apRaw as any)?.data)
@@ -660,7 +660,7 @@ export default function FinancePage() {
     queryKey: ['/api/finance/cashflow', cfFrom, cfTo],
     queryFn: () => fetchWithAuth(`/api/finance/cashflow?from=${cfFrom}&to=${cfTo}`).then(r => r.json()),
   });
-  console.log('[finance] Cashflow response shape:', cfRaw);
+  if (import.meta.env.DEV) console.log('[finance] Cashflow response shape:', cfRaw);
   const cashflow: FT[] = Array.isArray(cfRaw)
     ? (cfRaw as FT[])
     : Array.isArray((cfRaw as any)?.data)

@@ -10,12 +10,9 @@ export function useCompanies() {
   return useQuery({
     queryKey: [api.companies.list.path],
     queryFn: async () => {
-      console.log("[COMPANY_LIST_FETCH]", { queryKey: api.companies.list.path, ts: Date.now() });
       const res = await fetchWithAuth(api.companies.list.path);
       if (!res.ok) throw new Error("Failed to fetch companies");
-      const data = api.companies.list.responses[200].parse(normalizeList(await res.json()));
-      console.log("[COMPANY_LIST_RESULT]", { count: data.length, ts: Date.now() });
-      return data;
+      return api.companies.list.responses[200].parse(normalizeList(await res.json()));
     },
     staleTime: 0,
     refetchOnMount: "always",
@@ -27,7 +24,6 @@ export function useCreateCompany() {
   const { toast } = useToast();
   return useMutation({
     mutationFn: async (data: z.infer<typeof api.companies.create.input>) => {
-      console.log("[CREATE_COMPANY_TRIGGER]", { ts: Date.now() });
       const res = await fetchWithAuth(api.companies.create.path, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -39,22 +35,15 @@ export function useCreateCompany() {
         console.error("[CREATE_COMPANY_ERROR]", { status: res.status, errorBody });
         throw new Error(errorBody?.message || errorBody?.error || "Erro ao criar empresa");
       }
-      const result = api.companies.create.responses[201].parse(normalizeOne(await res.json()));
-      console.log("[CREATE_COMPANY_MUTFN_DONE]", { result, ts: Date.now() });
-      return result;
+      return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
     },
     onSuccess: async (data) => {
-      console.log("[CREATE_COMPANY_SUCCESS]", data);
-
       await queryClient.invalidateQueries({
         queryKey: [api.companies.list.path],
       });
-      console.log("[INVALIDATED]");
-
       await queryClient.refetchQueries({
         queryKey: [api.companies.list.path],
       });
-      console.log("[REFETCHED]");
 
       // Toast is intentionally skipped here when temporaryPassword is present.
       // The companies page shows a dedicated modal with the credential to copy.

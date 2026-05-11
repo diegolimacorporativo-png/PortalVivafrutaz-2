@@ -178,6 +178,39 @@ export const healthTestLimiter = createRateLimiter(
   "Muitas requisições de diagnóstico. Aguarde antes de tentar novamente.",
 );
 
+/**
+ * T801 — File upload limiter — expensive multipart/OCR endpoints:
+ *   POST /api/fiscal-invoices/parse-pdf — in-memory PDF parsing
+ *   POST /api/import/preview            — spreadsheet parsing
+ * 10 req/min per IP; intentionally tight (file parsing is CPU/memory-heavy).
+ */
+export const fileLimiter = createRateLimiter(
+  10,
+  60_000,
+  "Muitas requisições de upload. Aguarde antes de tentar novamente.",
+);
+
+/**
+ * T801 — AI developer limiter — analysis/indexing endpoints run expensive
+ * filesystem scans and DB introspection queries.
+ * 20 req/min per IP.
+ */
+export const aiLimiter = createRateLimiter(
+  20,
+  60_000,
+  "Muitas requisições ao AI Developer. Aguarde antes de tentar novamente.",
+);
+
+/**
+ * T801 — SaaS mutation limiter — billing/contract/subscription mutations.
+ * 30 req/min per IP; tighter than general API but less than file uploads.
+ */
+export const saasMutationLimiter = createRateLimiter(
+  30,
+  60_000,
+  "Muitas requisições de billing. Aguarde antes de tentar novamente.",
+);
+
 // ── High-risk action detector (ETAPA 4) ──────────────────────────────────────
 
 /**

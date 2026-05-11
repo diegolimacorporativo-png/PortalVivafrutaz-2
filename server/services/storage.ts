@@ -727,17 +727,19 @@ export class DatabaseStorage implements IStorage {
     return newRecord;
   }
 
-  async getPriceGroups(empresaId?: number): Promise<PriceGroup[]> {
+  async getPriceGroups(empresaId?: number, limit = 500): Promise<PriceGroup[]> {
+    // T805 — Bounded LIMIT (default 500) prevents unbounded full-table scans.
     try {
       const query = db.select().from(priceGroups);
       if (empresaId) {
         query.where(eq(priceGroups.empresaId, empresaId));
       }
+      query.limit(Math.min(limit, 500));
       return await query;
     } catch (err: any) {
       logSecurity(`[STORAGE_WRITE_FAILED] step=getPriceGroups | reason=empresa_id_column_missing | error=${err?.message ?? "unknown"}`);
       console.warn('[STORAGE] getPriceGroups: coluna empresa_id pode não existir, retornando sem filtro');
-      return await db.select().from(priceGroups);
+      return await db.select().from(priceGroups).limit(500);
     }
   }
 
@@ -755,11 +757,13 @@ export class DatabaseStorage implements IStorage {
     await db.delete(priceGroups).where(eq(priceGroups.id, id));
   }
 
-  async getCategories(empresaId?: number): Promise<Category[]> {
+  async getCategories(empresaId?: number, limit = 500): Promise<Category[]> {
+    // T805 — Bounded LIMIT (default 500) prevents unbounded full-table scans.
     const query = db.select().from(categories).orderBy(categories.name);
     if (empresaId) {
       query.where(eq(categories.empresaId, empresaId));
     }
+    query.limit(Math.min(limit, 500));
     return await query;
   }
 
@@ -812,11 +816,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(products).where(eq(products.id, id));
   }
 
-  async getProductPrices(empresaId?: number): Promise<ProductPrice[]> {
+  async getProductPrices(empresaId?: number, limit = 2000): Promise<ProductPrice[]> {
+    // T805 — Bounded LIMIT (default 2000, higher than categories/priceGroups
+    // because price entries are 1:n with products). Prevents OOM on large catalogs.
     const query = db.select().from(productPrices);
     if (empresaId) {
       query.where(eq(productPrices.empresaId, empresaId));
     }
+    query.limit(Math.min(limit, 2000));
     return await query;
   }
 

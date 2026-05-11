@@ -20,6 +20,34 @@ import {
 const BACKUP_DIR = path.join(process.cwd(), "backups");
 const MAX_BACKUPS = 30;
 
+// T806 — Durability audit: /backups is on the local filesystem.
+// In Replit Deployments (Autoscale), each instance has its own ephemeral
+// filesystem — backups are NOT shared across instances and are lost on
+// redeploy or instance restart. For persistent backup storage, integrate
+// an external object store (S3, Supabase Storage, etc.).
+// This warning fires once at module load time so it appears in startup logs.
+if (process.env.NODE_ENV === "production") {
+  console.warn(
+    "[BACKUP][DURABILITY_RISK] Backups are written to the local filesystem" +
+    ` (${BACKUP_DIR}). In Replit Autoscale deployments this storage is` +
+    " ephemeral and lost on redeploy/restart. Configure an external store" +
+    " (S3/Supabase Storage) before using backups as a recovery mechanism.",
+  );
+}
+
+// T807 — Slow operation guard: log a warning when a backup phase exceeds the
+// threshold. This surfaces performance regressions and DB overload in ops logs
+// without adding instrumentation overhead on every route.
+const SLOW_OP_THRESHOLD_MS = 5_000;
+function warnSlowOp(label: string, durationMs: number): void {
+  if (durationMs > SLOW_OP_THRESHOLD_MS) {
+    console.warn(
+      `[BACKUP][SLOW_OP] ${label} took ${durationMs}ms (threshold: ${SLOW_OP_THRESHOLD_MS}ms).` +
+      " Consider DB indexing or reducing concurrent backup frequency.",
+    );
+  }
+}
+
 export function ensureBackupDir() {
   if (!fs.existsSync(BACKUP_DIR)) {
     fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -68,6 +96,10 @@ function tableToInserts(tableName: string, rows: any[]): string {
 }
 
 async function fetchAllData() {
+  // T807 — Track how long the parallel query fan-out takes. 20 concurrent
+  // queries; on a loaded Supabase instance this can exceed 5s and starve
+  // other pool connections.
+  const t0 = Date.now();
   const [
     usersData, companiesData, priceGroupsData, categoriesData,
     productsData, productPricesData, orderWindowsData, orderExceptionsData,
@@ -96,6 +128,8 @@ async function fetchAllData() {
     db.select().from(logisticsMaintenance),
     db.select().from(companyQuotations),
   ]);
+  // T807 — Emit slow-op warning if the fan-out exceeded the threshold.
+  warnSlowOp("fetchAllData (20 parallel queries)", Date.now() - t0);
   return {
     usersData, companiesData, priceGroupsData, categoriesData,
     productsData, productPricesData, orderWindowsData, orderExceptionsData,
