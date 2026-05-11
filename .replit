@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "web", "bash", "postgresql-16"]
+modules = ["nodejs-20", "web", "bash"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
@@ -51,4 +51,3 @@ expertMode = true
 [userenv.shared]
 NFE_SEFAZ_MODE = "mock"
 NODE_ENV = "development"
-SUPABASE_DATABASE_URL = "postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres"

@@ -4,8 +4,8 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "tsx script/build.ts",
+    "dev": "NODE_ENV=development node_modules/.bin/tsx server/index.ts",
+    "build": "node_modules/.bin/tsx script/build.ts",
     "start": "NODE_ENV=production node --max-old-space-size=2048 dist/index.cjs",
     "check": "tsc",
     "check:strict": "node script/check-strict.mjs",
