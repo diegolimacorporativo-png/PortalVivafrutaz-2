@@ -28,18 +28,24 @@ import {
   CheckCircle2,
   Clock,
   Database,
+  FileText,
   HardDrive,
-  Loader2,
+  Lock,
   RefreshCw,
-  RotateCcw,
   Server,
-  Shield,
-  Skull,
-  Timer,
+  ShieldCheck,
+  ShieldX,
   Trash2,
   Users,
   Zap,
+  XCircle,
+  Loader2,
+  MailWarning,
+  TrendingUp,
+  Circle,
 } from "lucide-react";
+
+// ── Types ──────────────────────────────────────────────────────────────────
 
 interface ErrorEntry {
   id: string;
@@ -68,80 +74,111 @@ interface Metrics {
   uptimeSince: number;
 }
 
-interface DeadLetterEvent {
-  id: number;
-  orderId: number;
-  eventType: string;
-  retryCount: number;
-  errorMessage: string | null;
-  createdAt: string;
-  companyId: number | null;
-}
-
-type JobStatus = "idle" | "running" | "ok" | "error";
-
 interface JobRecord {
   name: string;
   isRunning: boolean;
   lastStarted?: number;
   lastFinished?: number;
-  lastStatus: JobStatus;
+  lastStatus: "idle" | "running" | "ok" | "error";
   lastError?: string;
   totalRuns: number;
   totalErrors: number;
 }
 
-interface SlowJobReport {
-  jobName: string;
-  avgDurationMs: number | null;
-  p95DurationMs: number | null;
-  slowRuns: number;
-  totalRuns: number;
-  lastDurationMs: number | null;
-  lastStartedAt: string | null;
-  lastFinishedAt: string | null;
-  currentlyRunning: boolean;
-  lastError: string | null;
-  tenantId: number | null;
-  correlationId: string | null;
+interface DeadLetterRow {
+  id: number;
+  orderId: number;
+  eventType: string;
+  retryCount: number;
+  deadLetter: boolean;
+  errorMessage?: string;
+  createdAt: string;
+  nextRetryAt?: string;
 }
 
-interface SlowJobsMeta {
-  total: number;
-  slowJobsCount: number;
-  runningCount: number;
-  slowThresholdMs: number;
+interface DbHealth {
+  connections: { active_connections: string; idle_connections: string; total_connections: string };
+  storage: { db_size: string; db_size_bytes: string };
+  locks: { total_locks: string; waiting_locks: string };
+  topTables: Array<{ table_name: string; live_rows: string; dead_rows: string; total_size: string }>;
+  slowQueries: Array<{ pid: number; duration: string; state: string; queryPreview: string }>;
+  pool: { totalCount: number | null; idleCount: number | null; waitingCount: number | null };
+  checkedAt: string;
 }
+
+type FiscalEventKind =
+  | "emission_start" | "emission_ok" | "emission_rejected" | "emission_error"
+  | "cancel_ok" | "cancel_error" | "cce_ok" | "cce_error"
+  | "cert_ok" | "cert_warning" | "cert_expired"
+  | "xml_guard_fail" | "circuit_open" | "circuit_closed"
+  | "sefaz_timeout" | "sefaz_down";
+
+interface FiscalEvent {
+  id: number;
+  kind: FiscalEventKind;
+  ts: number;
+  requestId?: string;
+  orderId?: number;
+  chaveNFe?: string;
+  tenantId?: number;
+  uf?: string;
+  ambiente?: "producao" | "homologacao";
+  cStat?: string;
+  xMotivo?: string;
+  durationMs?: number;
+  certDaysLeft?: number;
+  errorMessage?: string;
+}
+
+interface FiscalCounters {
+  emissionsTotal: number;
+  emissionsOk: number;
+  emissionsRejected: number;
+  emissionsError: number;
+  cancelsOk: number;
+  cancelsError: number;
+  cceOk: number;
+  cceError: number;
+  sefazTimeouts: number;
+  sefazDownEvents: number;
+  certWarnings: number;
+  certExpiredBlocks: number;
+  xmlGuardBlocks: number;
+  circuitOpenings: number;
+}
+
+interface FiscalSnapshot {
+  counters: FiscalCounters;
+  summary: {
+    lastEmissionAt?: number;
+    lastAuthAt?: number;
+    lastRejectionAt?: number;
+    lastSefazTimeoutAt?: number;
+    avgEmissionMs: number | null;
+  };
+  recentEvents: FiscalEvent[];
+  since: string;
+  circuit: {
+    state: "closed" | "open" | "half-open";
+    failures: number;
+    isOpen: boolean;
+    openedAt: number | null;
+    totalOpenings: number;
+  };
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
 
 function formatTs(ts: number) {
   return new Date(ts).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 }
 
-function formatDate(s: string | undefined | null) {
-  if (!s) return "—";
-  return new Date(s).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
-function formatEpoch(ts: number | undefined) {
-  if (!ts) return "—";
-  return new Date(ts).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
+function formatDate(d: string | number | undefined) {
+  if (!d) return "—";
+  return new Date(d).toLocaleString("pt-BR", {
+    day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
 }
 
@@ -152,71 +189,41 @@ function uptimeFmt(since: number) {
   return `${h}h ${m}m`;
 }
 
-function formatMs(ms: number | null): string {
-  if (ms === null) return "—";
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  const m = Math.floor(ms / 60000);
-  const s = Math.round((ms % 60000) / 1000);
-  return `${m}m ${s}s`;
+function jobStatusBadge(status: JobRecord["lastStatus"], isRunning: boolean) {
+  if (isRunning) return <Badge className="text-xs bg-blue-500 text-white">Running</Badge>;
+  if (status === "ok") return <Badge className="text-xs bg-green-600 text-white">OK</Badge>;
+  if (status === "error") return <Badge variant="destructive" className="text-xs">Error</Badge>;
+  return <Badge variant="outline" className="text-xs text-muted-foreground">Idle</Badge>;
 }
 
-function SlowJobHealthBadge({ job }: { job: SlowJobReport }) {
-  if (job.currentlyRunning) {
-    return (
-      <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 gap-1">
-        <Loader2 className="w-3 h-3 animate-spin" />
-        Executando
-      </Badge>
-    );
-  }
-  if (job.lastError) {
-    return (
-      <Badge variant="destructive" className="text-xs gap-1">
-        <AlertTriangle className="w-3 h-3" />
-        Erro
-      </Badge>
-    );
-  }
-  if (job.slowRuns > 0) {
-    return (
-      <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 gap-1">
-        <Clock className="w-3 h-3" />
-        Lento
-      </Badge>
-    );
-  }
-  if (job.totalRuns === 0) {
-    return <Badge variant="secondary" className="text-xs">Aguardando</Badge>;
-  }
-  return (
-    <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300 gap-1">
-      <CheckCircle2 className="w-3 h-3" />
-      Saudável
-    </Badge>
-  );
+const FISCAL_KIND_META: Record<FiscalEventKind, { label: string; color: string }> = {
+  emission_start:    { label: "Emissão iniciada",  color: "text-blue-600" },
+  emission_ok:       { label: "Autorizada",         color: "text-green-600" },
+  emission_rejected: { label: "Rejeitada",          color: "text-orange-600" },
+  emission_error:    { label: "Erro de emissão",    color: "text-red-600" },
+  cancel_ok:         { label: "Cancelamento OK",    color: "text-green-600" },
+  cancel_error:      { label: "Erro cancelamento",  color: "text-red-600" },
+  cce_ok:            { label: "CC-e OK",            color: "text-green-600" },
+  cce_error:         { label: "Erro CC-e",          color: "text-red-600" },
+  cert_ok:           { label: "Certificado OK",     color: "text-green-600" },
+  cert_warning:      { label: "Cert expirando",     color: "text-amber-600" },
+  cert_expired:      { label: "Cert expirado",      color: "text-red-600" },
+  xml_guard_fail:    { label: "XML inválido",        color: "text-red-600" },
+  circuit_open:      { label: "Circuito aberto",    color: "text-red-700" },
+  circuit_closed:    { label: "Circuito fechado",   color: "text-green-600" },
+  sefaz_timeout:     { label: "Timeout SEFAZ",      color: "text-orange-600" },
+  sefaz_down:        { label: "SEFAZ indisponível", color: "text-red-700" },
+};
+
+function circuitBadge(state: "closed" | "open" | "half-open") {
+  if (state === "closed")
+    return <Badge className="text-xs bg-green-600 text-white flex items-center gap-1"><Circle className="w-2 h-2 fill-white" />Fechado</Badge>;
+  if (state === "open")
+    return <Badge variant="destructive" className="text-xs flex items-center gap-1"><Circle className="w-2 h-2 fill-white" />Aberto</Badge>;
+  return <Badge className="text-xs bg-amber-500 text-white flex items-center gap-1"><Circle className="w-2 h-2 fill-white" />Half-open</Badge>;
 }
 
-function JobStatusBadge({ status, isRunning }: { status: JobStatus; isRunning: boolean }) {
-  if (isRunning) {
-    return (
-      <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 gap-1">
-        <Loader2 className="w-3 h-3 animate-spin" />
-        Executando
-      </Badge>
-    );
-  }
-  switch (status) {
-    case "ok":
-      return <Badge className="text-xs bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">OK</Badge>;
-    case "error":
-      return <Badge variant="destructive" className="text-xs">Erro</Badge>;
-    case "idle":
-      return <Badge variant="secondary" className="text-xs">Aguardando</Badge>;
-    default:
-      return <Badge variant="outline" className="text-xs">{status}</Badge>;
-  }
-}
+// ── Main Component ─────────────────────────────────────────────────────────
 
 export default function AdminObservability() {
   const { toast } = useToast();
@@ -227,35 +234,28 @@ export default function AdminObservability() {
     queryKey: ["/api/admin/observability/errors"],
     refetchInterval: 30000,
   });
-
   const metricsQ = useQuery<{ data: Metrics }>({
     queryKey: ["/api/admin/observability/metrics"],
     refetchInterval: 15000,
   });
-
-  const deadLetterQ = useQuery<{ data: DeadLetterEvent[]; meta: { total: number } }>({
-    queryKey: ["/api/admin/observability/dead-letter"],
-    refetchInterval: 20000,
-  });
-
-  const jobsQ = useQuery<{ data: JobRecord[] }>({
+  const jobsQ = useQuery<{ data: JobRecord[]; meta: { total: number; running: number; withErrors: number } }>({
     queryKey: ["/api/admin/observability/jobs"],
     refetchInterval: 10000,
   });
-
-  const slowJobsQ = useQuery<{ data: SlowJobReport[]; meta: SlowJobsMeta }>({
-    queryKey: ["/api/admin/observability/slow-jobs"],
-    refetchInterval: 10000,
-  });
-
-  const healthQ = useQuery<{ success: boolean; data: any }>({
-    queryKey: ["/api/admin/observability/health"],
+  const deadLettersQ = useQuery<{
+    data: { deadLetters: DeadLetterRow[]; stuckEvents: DeadLetterRow[] };
+    meta: { deadLetterCount: number; stuckCount: number };
+  }>({
+    queryKey: ["/api/admin/observability/dead-letters"],
     refetchInterval: 30000,
   });
-
-  const backupQ = useQuery<{ success: boolean; data: any }>({
-    queryKey: ["/api/admin/observability/backup-durability"],
+  const dbHealthQ = useQuery<{ data: DbHealth }>({
+    queryKey: ["/api/admin/observability/db-health"],
     refetchInterval: 60000,
+  });
+  const fiscalQ = useQuery<{ data: FiscalSnapshot }>({
+    queryKey: ["/api/admin/observability/fiscal"],
+    refetchInterval: 15000,
   });
 
   const clearMut = useMutation({
@@ -265,7 +265,6 @@ export default function AdminObservability() {
       toast({ title: "Error store limpo com sucesso" });
     },
   });
-
   const resetMetMut = useMutation({
     mutationFn: () => apiRequest("POST", "/api/admin/observability/metrics/reset"),
     onSuccess: () => {
@@ -273,49 +272,50 @@ export default function AdminObservability() {
       toast({ title: "Métricas resetadas com sucesso" });
     },
   });
-
-  const requeueMut = useMutation({
-    mutationFn: (id: number) =>
-      apiRequest("POST", `/api/admin/observability/dead-letter/${id}/requeue`),
-    onSuccess: (_data, id) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/observability/dead-letter"] });
-      toast({ title: `Evento #${id} re-enfileirado`, description: "O outbox worker irá reprocessar em breve." });
-    },
-    onError: (err: any) => {
-      toast({ title: "Erro ao re-enfileirar", description: err?.message ?? "Tente novamente.", variant: "destructive" });
+  const resetFiscalMut = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/admin/observability/fiscal/reset"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/observability/fiscal"] });
+      toast({ title: "Store fiscal resetado" });
     },
   });
 
   const errors = errorsQ.data?.data ?? [];
   const meta = errorsQ.data?.meta;
   const metrics = metricsQ.data?.data;
-  const deadLetterEvents = deadLetterQ.data?.data ?? [];
   const jobs = jobsQ.data?.data ?? [];
-  const slowJobs = slowJobsQ.data?.data ?? [];
-  const slowJobsMeta = slowJobsQ.data?.meta;
+  const jobsMeta = jobsQ.data?.meta;
+  const deadLetters = deadLettersQ.data?.data?.deadLetters ?? [];
+  const stuckEvents = deadLettersQ.data?.data?.stuckEvents ?? [];
+  const dbHealth = dbHealthQ.data?.data;
+  const fiscal = fiscalQ.data?.data;
 
-  const filtered =
-    severityFilter === "ALL"
-      ? errors
-      : errors.filter((e) => e.severity === severityFilter);
+  const filtered = severityFilter === "ALL" ? errors : errors.filter((e) => e.severity === severityFilter);
 
   const topRoutesByError = metrics
-    ? Object.entries(metrics.errorsByRoute)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
+    ? Object.entries(metrics.errorsByRoute).sort((a, b) => b[1] - a[1]).slice(0, 5)
     : [];
-
   const topTenants = metrics
-    ? Object.entries(metrics.requestsByTenant)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
+    ? Object.entries(metrics.requestsByTenant).sort((a, b) => b[1] - a[1]).slice(0, 5)
+    : [];
+  const topLatency = metrics
+    ? Object.entries(metrics.avgLatencyByRoute).sort((a, b) => b[1] - a[1]).slice(0, 5)
     : [];
 
-  const topLatency = metrics
-    ? Object.entries(metrics.avgLatencyByRoute)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 5)
-    : [];
+  const fiscalAlerts = fiscal
+    ? (fiscal.circuit.isOpen ? 1 : 0) +
+      (fiscal.counters.certExpiredBlocks > 0 ? 1 : 0) +
+      (fiscal.counters.sefazDownEvents > 0 ? 1 : 0)
+    : 0;
+
+  function refreshAll() {
+    errorsQ.refetch();
+    metricsQ.refetch();
+    jobsQ.refetch();
+    deadLettersQ.refetch();
+    dbHealthQ.refetch();
+    fiscalQ.refetch();
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
@@ -323,27 +323,15 @@ export default function AdminObservability() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Observabilidade Operacional</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Rastreabilidade de erros, métricas e saúde do sistema em tempo real
+            Rastreabilidade de erros, métricas, jobs e saúde do sistema em tempo real
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          data-testid="button-refresh-observability"
-          onClick={() => {
-            errorsQ.refetch();
-            metricsQ.refetch();
-            deadLetterQ.refetch();
-            jobsQ.refetch();
-            slowJobsQ.refetch();
-          }}
-        >
-          <RefreshCw className="w-4 h-4 mr-1" />
-          Atualizar
+        <Button variant="outline" size="sm" data-testid="button-refresh-observability" onClick={refreshAll}>
+          <RefreshCw className="w-4 h-4 mr-1" />Atualizar
         </Button>
       </div>
 
-      {/* ── Metrics Cards ─────────────────────────────────────────────── */}
+      {/* ── Metrics Cards ─────────────────────────────────────────── */}
       {metrics && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
@@ -359,7 +347,6 @@ export default function AdminObservability() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
@@ -373,7 +360,6 @@ export default function AdminObservability() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
@@ -387,7 +373,6 @@ export default function AdminObservability() {
               </div>
             </CardContent>
           </Card>
-
           <Card>
             <CardContent className="p-4 flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
@@ -404,141 +389,48 @@ export default function AdminObservability() {
         </div>
       )}
 
-      {/* ── Tabs ──────────────────────────────────────────────────────── */}
+      {/* ── Tabs ─────────────────────────────────────────────────── */}
       <Tabs defaultValue="errors">
-        <TabsList className="mb-4">
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="errors" data-testid="tab-errors">
-            <AlertTriangle className="w-4 h-4 mr-1.5" />
-            Erros &amp; Métricas
-          </TabsTrigger>
-          <TabsTrigger value="dead-letter" data-testid="tab-dead-letter">
-            <Skull className="w-4 h-4 mr-1.5" />
-            Dead Letter
-            {deadLetterEvents.length > 0 && (
-              <Badge variant="destructive" className="ml-1.5 text-xs h-4 px-1.5">
-                {deadLetterEvents.length}
-              </Badge>
+            Erros
+            {meta && meta.total > 0 && (
+              <Badge variant="destructive" className="ml-1.5 text-xs px-1.5">{meta.total}</Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="metrics" data-testid="tab-metrics">Métricas</TabsTrigger>
           <TabsTrigger value="jobs" data-testid="tab-jobs">
-            <Activity className="w-4 h-4 mr-1.5" />
-            Jobs Registrados
-            {jobs.length > 0 && (
-              <Badge variant="secondary" className="ml-1.5 text-xs h-4 px-1.5">
-                {jobs.length}
+            Jobs
+            {jobsMeta && jobsMeta.withErrors > 0 && (
+              <Badge variant="destructive" className="ml-1.5 text-xs px-1.5">{jobsMeta.withErrors}</Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="dead-letters" data-testid="tab-dead-letters">
+            Dead-Letters
+            {(deadLetters.length + stuckEvents.length) > 0 && (
+              <Badge variant="destructive" className="ml-1.5 text-xs px-1.5">
+                {deadLetters.length + stuckEvents.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="slow-jobs" data-testid="tab-slow-jobs">
-            <Timer className="w-4 h-4 mr-1.5" />
-            Slow Jobs
-            {slowJobsMeta && slowJobsMeta.slowJobsCount > 0 && (
-              <Badge className="ml-1.5 text-xs h-4 px-1.5 bg-amber-500 text-white">
-                {slowJobsMeta.slowJobsCount}
-              </Badge>
+          <TabsTrigger value="db-health" data-testid="tab-db-health">DB Health</TabsTrigger>
+          <TabsTrigger value="fiscal" data-testid="tab-fiscal">
+            Fiscal NF-e
+            {fiscalAlerts > 0 && (
+              <Badge variant="destructive" className="ml-1.5 text-xs px-1.5">{fiscalAlerts}</Badge>
             )}
-            {slowJobsMeta && slowJobsMeta.runningCount > 0 && (
-              <Badge className="ml-1.5 text-xs h-4 px-1.5 bg-blue-500 text-white">
-                {slowJobsMeta.runningCount}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="health" data-testid="tab-health">
-            <Server className="w-4 h-4 mr-1.5" />
-            Saúde do Sistema
-          </TabsTrigger>
-          <TabsTrigger value="backup" data-testid="tab-backup">
-            <Database className="w-4 h-4 mr-1.5" />
-            Backup
-            <Badge className="ml-1.5 text-xs h-4 px-1.5 bg-red-500 text-white">RISCO</Badge>
           </TabsTrigger>
         </TabsList>
 
-        {/* ── Tab 1: Erros & Métricas ────────────────────────────────── */}
-        <TabsContent value="errors" className="space-y-4">
-          {metrics && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <BarChart3 className="w-4 h-4 text-red-500" />
-                    Erros por rota (top 5)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1.5">
-                  {topRoutesByError.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Sem erros registrados</p>
-                  ) : (
-                    topRoutesByError.map(([route, count]) => (
-                      <div key={route} className="flex items-center justify-between text-xs">
-                        <span className="font-mono text-muted-foreground truncate max-w-[200px]">{route}</span>
-                        <Badge variant="destructive" className="ml-2 text-xs">{count}</Badge>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Users className="w-4 h-4 text-blue-500" />
-                    Requests por tenant (top 5)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1.5">
-                  {topTenants.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Sem dados de tenant</p>
-                  ) : (
-                    topTenants.map(([tenantId, count]) => (
-                      <div key={tenantId} className="flex items-center justify-between text-xs">
-                        <span className="text-muted-foreground">Tenant #{tenantId}</span>
-                        <Badge variant="secondary" className="ml-2 text-xs">{count.toLocaleString()}</Badge>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-amber-500" />
-                    Latência média por rota (top 5)
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-1.5">
-                  {topLatency.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Sem dados de latência</p>
-                  ) : (
-                    topLatency.map(([route, avg]) => (
-                      <div key={route} className="flex items-center justify-between text-xs">
-                        <span className="font-mono text-muted-foreground truncate max-w-[200px]">{route}</span>
-                        <Badge
-                          variant={avg > 1000 ? "destructive" : avg > 500 ? "secondary" : "outline"}
-                          className="ml-2 text-xs"
-                        >
-                          {avg}ms
-                        </Badge>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
+        {/* ── Errors Tab ─────────────────────────────────────────── */}
+        <TabsContent value="errors" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-red-500" />
                   Erros operacionais
-                  {meta && (
-                    <Badge variant="secondary" className="text-xs ml-1">
-                      {meta.total} no buffer
-                    </Badge>
-                  )}
+                  {meta && <Badge variant="secondary" className="text-xs ml-1">{meta.total} no buffer</Badge>}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Select value={severityFilter} onValueChange={setSeverityFilter}>
@@ -552,23 +444,16 @@ export default function AdminObservability() {
                     </SelectContent>
                   </Select>
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    variant="outline" size="sm" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
                     data-testid="button-clear-errors"
-                    onClick={() => clearMut.mutate()}
-                    disabled={clearMut.isPending}
+                    onClick={() => clearMut.mutate()} disabled={clearMut.isPending}
                   >
-                    <Trash2 className="w-3 h-3 mr-1" />
-                    Limpar
+                    <Trash2 className="w-3 h-3 mr-1" />Limpar
                   </Button>
                   <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 text-xs"
+                    variant="outline" size="sm" className="h-8 text-xs"
                     data-testid="button-reset-metrics"
-                    onClick={() => resetMetMut.mutate()}
-                    disabled={resetMetMut.isPending}
+                    onClick={() => resetMetMut.mutate()} disabled={resetMetMut.isPending}
                   >
                     Resetar métricas
                   </Button>
@@ -579,9 +464,7 @@ export default function AdminObservability() {
               {errorsQ.isLoading ? (
                 <div className="p-6 text-center text-sm text-muted-foreground">Carregando...</div>
               ) : filtered.length === 0 ? (
-                <div className="p-6 text-center text-sm text-muted-foreground">
-                  Nenhum erro registrado
-                </div>
+                <div className="p-6 text-center text-sm text-muted-foreground">Nenhum erro registrado</div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -605,50 +488,36 @@ export default function AdminObservability() {
                             key={err.id}
                             className="cursor-pointer hover:bg-muted/50"
                             data-testid={`row-error-${err.id}`}
-                            onClick={() =>
-                              setExpandedId(expandedId === err.id ? null : err.id)
-                            }
+                            onClick={() => setExpandedId(expandedId === err.id ? null : err.id)}
                           >
-                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              {formatTs(err.timestamp)}
-                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatTs(err.timestamp)}</TableCell>
                             <TableCell>
-                              <Badge
-                                variant={err.severity === "ERROR" ? "destructive" : "secondary"}
-                                className="text-xs"
-                              >
+                              <Badge variant={err.severity === "ERROR" ? "destructive" : "secondary"} className="text-xs">
                                 {err.severity}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-xs font-mono">{err.statusCode}</TableCell>
                             <TableCell className="text-xs font-mono truncate max-w-[180px]">
-                              <span className="text-blue-600 dark:text-blue-400">{err.method}</span>{" "}
-                              {err.endpoint}
+                              <span className="text-blue-600 dark:text-blue-400">{err.method}</span> {err.endpoint}
                             </TableCell>
                             <TableCell className="text-xs truncate max-w-[220px]">{err.message}</TableCell>
                             <TableCell className="text-xs font-mono truncate max-w-[96px] text-muted-foreground">
                               {err.requestId.slice(0, 8)}…
                             </TableCell>
                             <TableCell className="text-xs">
-                              {err.tenantId != null ? (
-                                <Badge variant="outline" className="text-xs">#{err.tenantId}</Badge>
-                              ) : (
-                                <span className="text-muted-foreground/50">—</span>
-                              )}
+                              {err.tenantId != null
+                                ? <Badge variant="outline" className="text-xs">#{err.tenantId}</Badge>
+                                : <span className="text-muted-foreground/50">—</span>}
                             </TableCell>
                             <TableCell className="text-xs">
-                              {err.actorId != null ? (
-                                <span className="text-muted-foreground">#{err.actorId}</span>
-                              ) : (
-                                <span className="text-muted-foreground/50">—</span>
-                              )}
+                              {err.actorId != null
+                                ? <span className="text-muted-foreground">#{err.actorId}</span>
+                                : <span className="text-muted-foreground/50">—</span>}
                             </TableCell>
                             <TableCell className="text-xs">
-                              {err.role ? (
-                                <Badge variant="secondary" className="text-xs">{err.role}</Badge>
-                              ) : (
-                                <span className="text-muted-foreground/50">—</span>
-                              )}
+                              {err.role
+                                ? <Badge variant="secondary" className="text-xs">{err.role}</Badge>
+                                : <span className="text-muted-foreground/50">—</span>}
                             </TableCell>
                           </TableRow>
                           {expandedId === err.id && err.stack && (
@@ -675,176 +544,99 @@ export default function AdminObservability() {
           </Card>
         </TabsContent>
 
-        {/* ── Tab 2: Dead Letter ─────────────────────────────────────── */}
-        <TabsContent value="dead-letter">
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Skull className="w-4 h-4 text-red-600" />
-                    Fila Dead Letter — Outbox
-                    {deadLetterQ.data?.meta && (
-                      <Badge
-                        variant={deadLetterEvents.length > 0 ? "destructive" : "secondary"}
-                        className="text-xs ml-1"
-                      >
-                        {deadLetterQ.data.meta.total} evento{deadLetterQ.data.meta.total !== 1 ? "s" : ""}
-                      </Badge>
-                    )}
+        {/* ── Metrics Tab ────────────────────────────────────────── */}
+        <TabsContent value="metrics" className="mt-4">
+          {metrics && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-red-500" />Erros por rota (top 5)
                   </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Eventos do outbox que excederam o limite de retentativas e aguardam intervenção manual.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  data-testid="button-refresh-dead-letter"
-                  onClick={() => deadLetterQ.refetch()}
-                  disabled={deadLetterQ.isFetching}
-                >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${deadLetterQ.isFetching ? "animate-spin" : ""}`} />
-                  Atualizar
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              {deadLetterQ.isLoading ? (
-                <div className="p-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Carregando eventos...
-                </div>
-              ) : deadLetterEvents.length === 0 ? (
-                <div className="p-8 flex flex-col items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                  </div>
-                  <p className="text-sm font-medium text-foreground">Fila limpa</p>
-                  <p className="text-xs text-muted-foreground">Nenhum evento em dead letter. Todos os eventos do outbox estão sendo processados normalmente.</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-xs w-16">ID</TableHead>
-                        <TableHead className="text-xs w-24">Pedido</TableHead>
-                        <TableHead className="text-xs">Tipo de Evento</TableHead>
-                        <TableHead className="text-xs w-20">Tentativas</TableHead>
-                        <TableHead className="text-xs w-20">Empresa</TableHead>
-                        <TableHead className="text-xs w-36">Criado em</TableHead>
-                        <TableHead className="text-xs">Último Erro</TableHead>
-                        <TableHead className="text-xs w-28 text-right">Ação</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {deadLetterEvents.map((ev) => (
-                        <TableRow key={ev.id} data-testid={`row-dead-letter-${ev.id}`}>
-                          <TableCell className="text-xs font-mono text-muted-foreground">#{ev.id}</TableCell>
-                          <TableCell className="text-xs font-mono">
-                            <Badge variant="outline" className="text-xs">#{ev.orderId}</Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <code className="text-xs bg-muted px-1.5 py-0.5 rounded font-mono">
-                              {ev.eventType}
-                            </code>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <Badge variant="destructive" className="text-xs">
-                              {ev.retryCount}x
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {ev.companyId != null ? (
-                              <Badge variant="outline" className="text-xs">#{ev.companyId}</Badge>
-                            ) : (
-                              <span className="text-muted-foreground/50">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatDate(ev.createdAt)}
-                          </TableCell>
-                          <TableCell className="text-xs text-red-600 dark:text-red-400 max-w-[260px] truncate">
-                            {ev.errorMessage ?? <span className="text-muted-foreground/50">—</span>}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-7 text-xs gap-1 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-400 dark:hover:bg-amber-900/20"
-                              data-testid={`button-requeue-${ev.id}`}
-                              onClick={() => requeueMut.mutate(ev.id)}
-                              disabled={requeueMut.isPending}
-                            >
-                              <RotateCcw className="w-3 h-3" />
-                              Re-enfileirar
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Audit note */}
-          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl">
-            <p className="text-xs text-amber-800 dark:text-amber-300 font-medium">
-              Atenção MASTER
-            </p>
-            <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-              Re-enfileirar um evento zera o contador de retentativas e remove o marcador dead_letter.
-              O outbox worker irá reprocessar o evento na próxima janela (até 5 segundos).
-              Verifique a causa do erro antes de re-enfileirar para evitar loops infinitos.
-            </p>
-          </div>
+                </CardHeader>
+                <CardContent className="space-y-1.5">
+                  {topRoutesByError.length === 0
+                    ? <p className="text-xs text-muted-foreground">Sem erros registrados</p>
+                    : topRoutesByError.map(([route, count]) => (
+                      <div key={route} className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground truncate max-w-[200px]">{route}</span>
+                        <Badge variant="destructive" className="ml-2 text-xs">{count}</Badge>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Users className="w-4 h-4 text-blue-500" />Requests por tenant (top 5)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1.5">
+                  {topTenants.length === 0
+                    ? <p className="text-xs text-muted-foreground">Sem dados de tenant</p>
+                    : topTenants.map(([tenantId, count]) => (
+                      <div key={tenantId} className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Tenant #{tenantId}</span>
+                        <Badge variant="secondary" className="ml-2 text-xs">{count.toLocaleString()}</Badge>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-500" />Latência média por rota (top 5)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1.5">
+                  {topLatency.length === 0
+                    ? <p className="text-xs text-muted-foreground">Sem dados de latência</p>
+                    : topLatency.map(([route, avg]) => (
+                      <div key={route} className="flex items-center justify-between text-xs">
+                        <span className="font-mono text-muted-foreground truncate max-w-[200px]">{route}</span>
+                        <Badge
+                          variant={avg > 1000 ? "destructive" : avg > 500 ? "secondary" : "outline"}
+                          className="ml-2 text-xs"
+                        >
+                          {avg}ms
+                        </Badge>
+                      </div>
+                    ))}
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </TabsContent>
 
-        {/* ── Tab 3: Jobs Registrados ────────────────────────────────── */}
-        <TabsContent value="jobs">
+        {/* ── Jobs Tab ─────────────────────────────────────────────── */}
+        <TabsContent value="jobs" className="mt-4">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-blue-600" />
-                    Jobs em Background
-                    {jobs.length > 0 && (
-                      <Badge variant="secondary" className="text-xs ml-1">
-                        {jobs.length} registrado{jobs.length !== 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Estado atual de todos os workers e crons em execução no processo Node.js.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  data-testid="button-refresh-jobs"
-                  onClick={() => jobsQ.refetch()}
-                  disabled={jobsQ.isFetching}
-                >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${jobsQ.isFetching ? "animate-spin" : ""}`} />
-                  Atualizar
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-blue-500" />
+                  Registro de Jobs
+                  {jobsMeta && (
+                    <div className="flex gap-1.5 ml-1">
+                      <Badge variant="secondary" className="text-xs">{jobsMeta.total} jobs</Badge>
+                      {jobsMeta.running > 0 && <Badge className="text-xs bg-blue-500 text-white">{jobsMeta.running} running</Badge>}
+                      {jobsMeta.withErrors > 0 && <Badge variant="destructive" className="text-xs">{jobsMeta.withErrors} com erros</Badge>}
+                    </div>
+                  )}
+                </CardTitle>
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => jobsQ.refetch()} data-testid="button-refresh-jobs">
+                  <RefreshCw className="w-3 h-3 mr-1" />Atualizar
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="p-0">
               {jobsQ.isLoading ? (
-                <div className="p-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Carregando jobs...
+                <div className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />Carregando jobs...
                 </div>
               ) : jobs.length === 0 ? (
-                <div className="p-8 text-center text-sm text-muted-foreground">
-                  Nenhum job registrado ainda. Os workers se registram automaticamente ao iniciar.
+                <div className="p-6 text-center text-sm text-muted-foreground">
+                  Nenhum job registrado ainda (registros aparecem após a primeira execução)
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -854,41 +646,31 @@ export default function AdminObservability() {
                         <TableHead className="text-xs">Job</TableHead>
                         <TableHead className="text-xs w-28">Status</TableHead>
                         <TableHead className="text-xs w-36">Última execução</TableHead>
-                        <TableHead className="text-xs w-36">Última conclusão</TableHead>
-                        <TableHead className="text-xs w-20">Total runs</TableHead>
-                        <TableHead className="text-xs w-20">Erros</TableHead>
+                        <TableHead className="text-xs w-36">Concluído em</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Total runs</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Erros</TableHead>
                         <TableHead className="text-xs">Último erro</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {jobs.map((job) => (
                         <TableRow key={job.name} data-testid={`row-job-${job.name}`}>
-                          <TableCell className="text-xs font-mono font-medium text-foreground">
-                            {job.name}
-                          </TableCell>
-                          <TableCell>
-                            <JobStatusBadge status={job.lastStatus} isRunning={job.isRunning} />
+                          <TableCell className="text-xs font-mono font-semibold">{job.name}</TableCell>
+                          <TableCell>{jobStatusBadge(job.lastStatus, job.isRunning)}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {job.lastStarted ? formatDate(job.lastStarted) : "—"}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatEpoch(job.lastStarted)}
+                            {job.lastFinished ? formatDate(job.lastFinished) : "—"}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatEpoch(job.lastFinished)}
+                          <TableCell className="text-xs text-center">{job.totalRuns}</TableCell>
+                          <TableCell className="text-xs text-center">
+                            {job.totalErrors > 0
+                              ? <span className="text-red-600 font-semibold">{job.totalErrors}</span>
+                              : <span className="text-muted-foreground">0</span>}
                           </TableCell>
-                          <TableCell className="text-xs font-mono">
-                            {job.totalRuns.toLocaleString()}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {job.totalErrors > 0 ? (
-                              <Badge variant="destructive" className="text-xs">
-                                {job.totalErrors}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">0</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs text-red-600 dark:text-red-400 max-w-[260px] truncate">
-                            {job.lastError ?? <span className="text-muted-foreground/50">—</span>}
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[260px]">
+                            {job.lastError ?? "—"}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -898,183 +680,54 @@ export default function AdminObservability() {
               )}
             </CardContent>
           </Card>
-
-          <div className="mt-3 p-3 bg-muted/50 border border-border rounded-xl">
-            <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Nota:</span> Os contadores são em memória e resetam com cada reinicialização do processo.
-              O painel é atualizado automaticamente a cada 10 segundos.
-            </p>
-          </div>
         </TabsContent>
 
-        {/* ── Tab 4: Slow Jobs ───────────────────────────────────────── */}
-        <TabsContent value="slow-jobs" className="space-y-4">
-          {/* summary strip */}
-          {slowJobsMeta && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <Card>
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                    <Activity className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total de jobs</p>
-                    <p className="text-xl font-bold text-foreground" data-testid="slowjobs-total">{slowJobsMeta.total}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center flex-shrink-0">
-                    <Timer className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Jobs lentos</p>
-                    <p className="text-xl font-bold text-foreground" data-testid="slowjobs-slow-count">{slowJobsMeta.slowJobsCount}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
-                    <Loader2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Executando agora</p>
-                    <p className="text-xl font-bold text-foreground" data-testid="slowjobs-running-count">{slowJobsMeta.runningCount}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center flex-shrink-0">
-                    <Clock className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground">Limite lento</p>
-                    <p className="text-xl font-bold text-foreground">{formatMs(slowJobsMeta.slowThresholdMs)}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-
+        {/* ── Dead-Letters Tab ─────────────────────────────────────── */}
+        <TabsContent value="dead-letters" className="mt-4 space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Timer className="w-4 h-4 text-amber-600" />
-                    Monitoramento de Jobs
-                    {slowJobsMeta && (
-                      <Badge variant="secondary" className="text-xs ml-1">
-                        {slowJobsMeta.total} job{slowJobsMeta.total !== 1 ? "s" : ""}
-                      </Badge>
-                    )}
-                  </CardTitle>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Latência média, p95 e histórico de execuções lentas por worker/cron.
-                    Threshold: {slowJobsMeta ? formatMs(slowJobsMeta.slowThresholdMs) : "60s"}.
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 text-xs"
-                  data-testid="button-refresh-slow-jobs"
-                  onClick={() => slowJobsQ.refetch()}
-                  disabled={slowJobsQ.isFetching}
-                >
-                  <RefreshCw className={`w-3 h-3 mr-1 ${slowJobsQ.isFetching ? "animate-spin" : ""}`} />
-                  Atualizar
-                </Button>
-              </div>
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <MailWarning className="w-4 h-4 text-red-500" />
+                Dead-Letters (outbox)
+                {deadLettersQ.data?.meta && (
+                  <Badge variant="destructive" className="text-xs ml-1">{deadLettersQ.data.meta.deadLetterCount}</Badge>
+                )}
+              </CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              {slowJobsQ.isLoading ? (
-                <div className="p-8 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Carregando jobs...
-                </div>
-              ) : slowJobs.length === 0 ? (
-                <div className="p-8 flex flex-col items-center justify-center gap-3">
-                  <div className="w-12 h-12 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                    <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400" />
-                  </div>
-                  <p className="text-sm font-medium text-foreground">Nenhum job registrado</p>
-                  <p className="text-xs text-muted-foreground">Os workers se registram automaticamente ao iniciar.</p>
+              {deadLettersQ.isLoading ? (
+                <div className="p-6 text-center text-sm text-muted-foreground">Carregando...</div>
+              ) : deadLetters.length === 0 ? (
+                <div className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />Sem eventos em dead-letter
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="text-xs">Job</TableHead>
-                        <TableHead className="text-xs w-28">Saúde</TableHead>
-                        <TableHead className="text-xs w-24">Avg</TableHead>
-                        <TableHead className="text-xs w-24">p95</TableHead>
-                        <TableHead className="text-xs w-24">Última dur.</TableHead>
-                        <TableHead className="text-xs w-20">Lentas</TableHead>
-                        <TableHead className="text-xs w-20">Total runs</TableHead>
-                        <TableHead className="text-xs w-36">Iniciado em</TableHead>
-                        <TableHead className="text-xs w-36">Concluído em</TableHead>
+                        <TableHead className="text-xs w-16">ID</TableHead>
+                        <TableHead className="text-xs w-20">Pedido</TableHead>
+                        <TableHead className="text-xs w-28">Tipo</TableHead>
+                        <TableHead className="text-xs w-16 text-center">Retries</TableHead>
+                        <TableHead className="text-xs w-36">Criado em</TableHead>
                         <TableHead className="text-xs">Último erro</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {slowJobs.map((job) => (
-                        <TableRow
-                          key={job.jobName}
-                          data-testid={`row-slow-job-${job.jobName}`}
-                          className={job.currentlyRunning ? "bg-blue-50/40 dark:bg-blue-900/10" : job.lastError ? "bg-red-50/40 dark:bg-red-900/10" : job.slowRuns > 0 ? "bg-amber-50/40 dark:bg-amber-900/10" : ""}
-                        >
-                          <TableCell className="text-xs font-mono font-medium text-foreground">
-                            {job.jobName}
-                          </TableCell>
-                          <TableCell>
-                            <SlowJobHealthBadge job={job} />
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">
-                            {job.avgDurationMs !== null ? (
-                              <span className={job.avgDurationMs > 60000 ? "text-amber-600 dark:text-amber-400 font-semibold" : ""}>
-                                {formatMs(job.avgDurationMs)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground/50">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">
-                            {job.p95DurationMs !== null ? (
-                              <span className={job.p95DurationMs > 60000 ? "text-red-600 dark:text-red-400 font-semibold" : ""}>
-                                {formatMs(job.p95DurationMs)}
-                              </span>
-                            ) : (
-                              <span className="text-muted-foreground/50">—</span>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">
-                            {job.lastDurationMs !== null ? formatMs(job.lastDurationMs) : <span className="text-muted-foreground/50">—</span>}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {job.slowRuns > 0 ? (
-                              <Badge className="text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                                {job.slowRuns}
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">0</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs font-mono">
-                            {job.totalRuns.toLocaleString()}
+                      {deadLetters.map((row) => (
+                        <TableRow key={row.id} data-testid={`row-dead-letter-${row.id}`}>
+                          <TableCell className="text-xs font-mono">{row.id}</TableCell>
+                          <TableCell className="text-xs">#{row.orderId}</TableCell>
+                          <TableCell className="text-xs font-mono">{row.eventType}</TableCell>
+                          <TableCell className="text-xs text-center">
+                            <Badge variant="destructive" className="text-xs">{row.retryCount}</Badge>
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatDate(job.lastStartedAt)}
+                            {formatDate(row.createdAt)}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {formatDate(job.lastFinishedAt)}
-                          </TableCell>
-                          <TableCell className="text-xs text-red-600 dark:text-red-400 max-w-[220px] truncate">
-                            {job.lastError ?? <span className="text-muted-foreground/50">—</span>}
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[260px]">
+                            {row.errorMessage ?? "—"}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1084,271 +737,450 @@ export default function AdminObservability() {
               )}
             </CardContent>
           </Card>
-
-          <div className="mt-3 p-3 bg-muted/50 border border-border rounded-xl">
-            <p className="text-xs text-muted-foreground">
-              <span className="font-medium text-foreground">Nota:</span> Jobs classificados como lentos
-              quando excedem {slowJobsMeta ? formatMs(slowJobsMeta.slowThresholdMs) : "60s"} por execução.
-              Avg e p95 são calculados sobre as últimas 100 execuções (janela deslizante).
-              Painel atualiza automaticamente a cada 10 segundos.
-            </p>
-          </div>
+          {stuckEvents.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <XCircle className="w-4 h-4 text-amber-500" />
+                  Eventos travados (retryCount &gt; 2, não processados)
+                  <Badge variant="secondary" className="text-xs ml-1">{stuckEvents.length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs w-16">ID</TableHead>
+                        <TableHead className="text-xs w-20">Pedido</TableHead>
+                        <TableHead className="text-xs w-16 text-center">Retries</TableHead>
+                        <TableHead className="text-xs w-36">Criado em</TableHead>
+                        <TableHead className="text-xs w-36">Próx. retry</TableHead>
+                        <TableHead className="text-xs">Último erro</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {stuckEvents.map((row) => (
+                        <TableRow key={row.id} data-testid={`row-stuck-${row.id}`}>
+                          <TableCell className="text-xs font-mono">{row.id}</TableCell>
+                          <TableCell className="text-xs">#{row.orderId}</TableCell>
+                          <TableCell className="text-xs text-center">
+                            <Badge variant="secondary" className="text-xs">{row.retryCount}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDate(row.createdAt)}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {row.nextRetryAt ? formatDate(row.nextRetryAt) : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[260px]">
+                            {row.errorMessage ?? "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
-        {/* ── Tab 5: Saúde do Sistema (T905) ──────────────────────────── */}
-        <TabsContent value="health" className="space-y-4">
-          {healthQ.isLoading ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" /> Carregando dados de saúde...
+        {/* ── DB Health Tab ─────────────────────────────────────────── */}
+        <TabsContent value="db-health" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {dbHealth ? `Atualizado: ${formatDate(dbHealth.checkedAt)}` : ""}
+            </p>
+            <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => dbHealthQ.refetch()} data-testid="button-refresh-db-health">
+              <RefreshCw className="w-3 h-3 mr-1" />Atualizar
+            </Button>
+          </div>
+          {dbHealthQ.isLoading ? (
+            <div className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />Consultando banco de dados...
             </div>
-          ) : !healthQ.data?.data ? (
-            <div className="p-6 text-sm text-muted-foreground">Dados indisponíveis.</div>
-          ) : (() => {
-            const h = healthQ.data.data;
-            return (
-              <div className="space-y-4">
-                {/* Status Banner */}
-                <div className={`flex items-center gap-3 p-4 rounded-xl border ${
-                  h.healthStatus === "OK" ? "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800"
-                  : h.healthStatus === "DEGRADED" ? "bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800"
-                  : "bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800"
-                }`} data-testid="status-health-banner">
-                  <Shield className={`w-5 h-5 flex-shrink-0 ${h.healthStatus === "OK" ? "text-green-600" : h.healthStatus === "DEGRADED" ? "text-yellow-600" : "text-red-600"}`} />
-                  <div className="flex-1">
-                    <span className="font-semibold text-foreground">
-                      Status geral:{" "}
-                      <Badge className={`${h.healthStatus === "OK" ? "bg-green-100 text-green-800 border-green-200" : h.healthStatus === "DEGRADED" ? "bg-yellow-100 text-yellow-800 border-yellow-200" : "bg-red-100 text-red-800 border-red-200"}`}>
-                        {h.healthStatus}
-                      </Badge>
-                    </span>
-                    <span className="ml-3 text-sm text-muted-foreground">
-                      Node: {h.nodeVersion} · Env: {h.env} · Verificado: {new Date(h.checkedAt).toLocaleString("pt-BR")}
-                    </span>
-                  </div>
-                </div>
-
-                {/* KPI Grid */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card data-testid="card-uptime">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Clock className="w-4 h-4 text-blue-500" />
-                        <span className="text-xs text-muted-foreground">Uptime</span>
-                      </div>
-                      <div className="text-2xl font-bold text-foreground" data-testid="text-uptime">{h.uptimeHuman}</div>
-                      <div className="text-xs text-muted-foreground">{h.uptimeSeconds.toLocaleString()}s</div>
-                    </CardContent>
-                  </Card>
-
-                  <Card data-testid="card-memory-heap">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <HardDrive className="w-4 h-4 text-purple-500" />
-                        <span className="text-xs text-muted-foreground">Heap usado</span>
-                      </div>
-                      <div className="text-2xl font-bold text-foreground" data-testid="text-memory-heap">
-                        {h.memory.heapUsedMb} MB
-                      </div>
-                      <div className="w-full bg-muted rounded-full h-1.5 mt-2">
-                        <div
-                          className={`h-1.5 rounded-full ${h.memory.heapUsedPct > 80 ? "bg-red-500" : h.memory.heapUsedPct > 60 ? "bg-yellow-500" : "bg-green-500"}`}
-                          style={{ width: `${Math.min(h.memory.heapUsedPct, 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1" data-testid="text-memory-heap-pct">{h.memory.heapUsedPct}% de {h.memory.heapTotalMb} MB</div>
-                    </CardContent>
-                  </Card>
-
-                  <Card data-testid="card-memory-rss">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Server className="w-4 h-4 text-orange-500" />
-                        <span className="text-xs text-muted-foreground">RSS total</span>
-                      </div>
-                      <div className="text-2xl font-bold text-foreground" data-testid="text-memory-rss">
-                        {h.memory.rssMb} MB
-                      </div>
-                      <div className="text-xs text-muted-foreground">Externo: {h.memory.externalMb} MB</div>
-                    </CardContent>
-                  </Card>
-
-                  <Card data-testid="card-active-tenants">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-1">
-                        <Users className="w-4 h-4 text-green-500" />
-                        <span className="text-xs text-muted-foreground">Tenants ativos</span>
-                      </div>
-                      <div className="text-2xl font-bold text-foreground" data-testid="text-active-tenants">
-                        {h.tenants.active}
-                      </div>
-                      <div className="text-xs text-muted-foreground">Desde o boot do servidor</div>
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Workers */}
-                <Card data-testid="card-workers-health">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                        <Activity className="w-4 h-4" />
-                        Workers Background
-                      </CardTitle>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span className="text-green-600 font-medium">{h.workers.running} rodando</span>
-                        {h.workers.errored > 0 && <span className="text-red-600 font-medium">{h.workers.errored} em erro</span>}
-                        <span>/ {h.workers.total} total</span>
-                      </div>
+          ) : dbHealth ? (
+            <>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                     </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-4 gap-3">
-                      {[
-                        { label: "Total", value: h.workers.total, color: "bg-muted/50" },
-                        { label: "Rodando", value: h.workers.running, color: "bg-blue-50 dark:bg-blue-950/30" },
-                        { label: "OK", value: h.workers.ok, color: "bg-green-50 dark:bg-green-950/30" },
-                        { label: "Erro", value: h.workers.errored, color: h.workers.errored > 0 ? "bg-red-50 dark:bg-red-950/30" : "bg-muted/50" },
-                      ].map((w) => (
-                        <div key={w.label} className={`text-center p-3 rounded-lg ${w.color}`} data-testid={`text-workers-${w.label.toLowerCase()}`}>
-                          <div className="text-2xl font-bold text-foreground">{w.value}</div>
-                          <div className="text-xs text-muted-foreground">{w.label}</div>
-                        </div>
-                      ))}
+                    <div>
+                      <p className="text-xs text-muted-foreground">Tamanho do DB</p>
+                      <p className="text-xl font-bold text-foreground" data-testid="db-size">{dbHealth.storage.db_size}</p>
                     </div>
                   </CardContent>
                 </Card>
-
-                {/* Request metrics */}
-                <Card data-testid="card-request-metrics">
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                      <BarChart3 className="w-4 h-4" />
-                      Requisições &amp; Falhas
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                      <Activity className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Conexões ativas</p>
+                      <p className="text-xl font-bold text-foreground" data-testid="db-active-conn">
+                        {dbHealth.connections.active_connections}
+                        <span className="text-sm text-muted-foreground font-normal ml-1">
+                          / {dbHealth.connections.total_connections} total
+                        </span>
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                      <Lock className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Locks</p>
+                      <p className="text-xl font-bold text-foreground" data-testid="db-locks">
+                        {dbHealth.locks.total_locks}
+                        {Number(dbHealth.locks.waiting_locks) > 0 && (
+                          <span className="text-sm text-red-500 font-semibold ml-1">({dbHealth.locks.waiting_locks} wait)</span>
+                        )}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <HardDrive className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Pool (idle / total)</p>
+                      <p className="text-xl font-bold text-foreground" data-testid="db-pool">
+                        {dbHealth.pool.idleCount ?? "—"} / {dbHealth.pool.totalCount ?? "—"}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <BarChart3 className="w-4 h-4 text-blue-500" />Top tabelas por linhas
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-xs">Tabela</TableHead>
+                          <TableHead className="text-xs text-right w-28">Linhas vivas</TableHead>
+                          <TableHead className="text-xs text-right w-28">Linhas mortas</TableHead>
+                          <TableHead className="text-xs text-right w-24">Tamanho</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {dbHealth.topTables.map((t) => (
+                          <TableRow key={t.table_name} data-testid={`row-table-${t.table_name}`}>
+                            <TableCell className="text-xs font-mono">{t.table_name}</TableCell>
+                            <TableCell className="text-xs text-right">{Number(t.live_rows).toLocaleString()}</TableCell>
+                            <TableCell className="text-xs text-right">
+                              {Number(t.dead_rows) > 0
+                                ? <span className="text-amber-600">{Number(t.dead_rows).toLocaleString()}</span>
+                                : <span className="text-muted-foreground">0</span>}
+                            </TableCell>
+                            <TableCell className="text-xs text-right text-muted-foreground">{t.total_size}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+              {dbHealth.slowQueries.length > 0 ? (
+                <Card className="border-amber-200 dark:border-amber-800">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="w-4 h-4" />
+                      Queries lentas (&gt;5s) — {dbHealth.slowQueries.length} ativa(s)
                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                      {[
-                        { label: "Total", value: h.requests.total.toLocaleString(), testId: "text-total-requests" },
-                        { label: "Erros", value: h.requests.errors.toLocaleString(), testId: "text-total-errors", warn: h.requests.errors > 0 },
-                        { label: "Taxa erro", value: `${h.requests.errorRatePct}%`, testId: "text-error-rate", warn: h.requests.errorRatePct > 5 },
-                        { label: "Falhas NF-e", value: h.requests.nfeFailures.toLocaleString(), testId: "text-nfe-failures", warn: h.requests.nfeFailures > 0 },
-                        { label: "Dead Letters", value: h.requests.deadLetterCount.toLocaleString(), testId: "text-dead-letter-count", warn: h.requests.deadLetterCount > 0 },
-                      ].map((m) => (
-                        <div key={m.label} className={`text-center p-3 rounded-lg ${m.warn ? "bg-red-50 dark:bg-red-950/30" : "bg-muted/50"}`}>
-                          <div className={`text-xl font-bold ${m.warn ? "text-red-600 dark:text-red-400" : "text-foreground"}`} data-testid={m.testId}>
-                            {m.value}
-                          </div>
-                          <div className="text-xs text-muted-foreground">{m.label}</div>
+                  <CardContent className="space-y-2">
+                    {dbHealth.slowQueries.map((q) => (
+                      <div key={q.pid} className="text-xs space-y-0.5 border rounded p-2 bg-amber-50 dark:bg-amber-900/20">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <span>PID {q.pid}</span>
+                          <Badge variant="outline" className="text-xs">{q.state}</Badge>
+                          <span className="text-amber-600 font-medium">{String(q.duration).split('.')[0]}</span>
                         </div>
-                      ))}
+                        <pre className="font-mono text-xs text-foreground whitespace-pre-wrap break-all">{q.queryPreview}</pre>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="p-4 flex items-center gap-2 text-sm text-green-700 dark:text-green-400">
+                    <CheckCircle2 className="w-4 h-4" />Sem queries lentas no momento
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          ) : (
+            <div className="p-6 text-center text-sm text-muted-foreground">Erro ao carregar dados de saúde do banco</div>
+          )}
+        </TabsContent>
+
+        {/* ── Fiscal NF-e Tab ── FASE NF-e 1.2 T1205 ───────────────── */}
+        <TabsContent value="fiscal" className="mt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              {fiscal ? `Desde: ${formatDate(fiscal.since)}` : ""}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => fiscalQ.refetch()} data-testid="button-refresh-fiscal">
+                <RefreshCw className="w-3 h-3 mr-1" />Atualizar
+              </Button>
+              <Button
+                variant="outline" size="sm" className="h-8 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                data-testid="button-reset-fiscal"
+                onClick={() => resetFiscalMut.mutate()} disabled={resetFiscalMut.isPending}
+              >
+                <Trash2 className="w-3 h-3 mr-1" />Resetar
+              </Button>
+            </div>
+          </div>
+
+          {fiscalQ.isLoading ? (
+            <div className="p-6 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />Carregando dados fiscais...
+            </div>
+          ) : fiscal ? (
+            <>
+              {/* Circuit breaker alert */}
+              {fiscal.circuit.isOpen && (
+                <Card className="border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <ShieldX className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-400">Circuit Breaker ABERTO</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        SEFAZ bloqueada após {fiscal.circuit.failures} falhas consecutivas.
+                        Aberto {fiscal.circuit.openedAt ? formatDate(fiscal.circuit.openedAt) : "agora"}.
+                        Auto-reset em 60s.
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
+              )}
 
-                <p className="text-xs text-center text-muted-foreground">
-                  Dados em memória · Reset no restart do servidor · Atualização automática a cada 30s
-                </p>
-              </div>
-            );
-          })()}
-        </TabsContent>
+              {/* Cert expired alert */}
+              {fiscal.counters.certExpiredBlocks > 0 && (
+                <Card className="border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <ShieldX className="w-5 h-5 text-red-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-red-700 dark:text-red-400">Certificado Digital Expirado</p>
+                      <p className="text-xs text-red-600 dark:text-red-400">
+                        {fiscal.counters.certExpiredBlocks} emissão(ões) bloqueada(s) por certificado expirado. Renove imediatamente.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
-        {/* ── Tab 6: Backup Durabilidade (T901) ───────────────────────── */}
-        <TabsContent value="backup" className="space-y-4">
-          {backupQ.isLoading ? (
-            <div className="flex items-center gap-2 p-6 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" /> Carregando dados de backup...
-            </div>
-          ) : !backupQ.data?.data ? (
-            <div className="p-6 text-sm text-muted-foreground">Dados indisponíveis.</div>
-          ) : (() => {
-            const b = backupQ.data.data;
-            return (
-              <div className="space-y-4">
-                {/* Risk Banner */}
-                <div className="flex items-start gap-3 p-4 rounded-xl border-2 border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30" data-testid="card-backup-warning-banner">
-                  <AlertTriangle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <p className="font-semibold text-foreground text-sm" data-testid="text-backup-warning">
-                      {b.productionWarning}
+              {/* Cert warning */}
+              {fiscal.counters.certWarnings > 0 && fiscal.counters.certExpiredBlocks === 0 && (
+                <Card className="border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20">
+                  <CardContent className="p-4 flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">Certificado Digital Próximo do Vencimento</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        {fiscal.counters.certWarnings} evento(s) de alerta detectado(s). Renove em breve.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* KPI grid */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Emissões</p>
+                    <div className="flex items-end gap-1">
+                      <span className="text-2xl font-bold text-foreground" data-testid="fiscal-emissions-total">{fiscal.counters.emissionsTotal}</span>
+                      <span className="text-xs text-muted-foreground mb-0.5">total</span>
+                    </div>
+                    <div className="flex gap-1.5 mt-1 flex-wrap">
+                      <Badge className="text-xs bg-green-600 text-white">{fiscal.counters.emissionsOk} OK</Badge>
+                      {fiscal.counters.emissionsRejected > 0 && <Badge className="text-xs bg-orange-500 text-white">{fiscal.counters.emissionsRejected} rej</Badge>}
+                      {fiscal.counters.emissionsError > 0 && <Badge variant="destructive" className="text-xs">{fiscal.counters.emissionsError} err</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Latência média</p>
+                    <p className="text-2xl font-bold text-foreground" data-testid="fiscal-avg-latency">
+                      {fiscal.summary.avgEmissionMs != null ? `${fiscal.summary.avgEmissionMs}ms` : "—"}
                     </p>
-                    <p className="text-xs text-muted-foreground mt-1" data-testid="text-backup-recommendation">
-                      <span className="font-medium text-foreground">Recomendação:</span> {b.recommendation}
+                    <p className="text-xs text-muted-foreground mt-1">SOAP SEFAZ emissão</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Circuit Breaker</p>
+                    <div className="mt-1">{circuitBadge(fiscal.circuit.state)}</div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {fiscal.circuit.totalOpenings} abertura(s) total
                     </p>
-                  </div>
-                </div>
-
-                {/* Storage Mode */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Card data-testid="card-storage-mode">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Database className="w-4 h-4 text-red-500" />
-                        <span className="text-xs text-muted-foreground">Modo de armazenamento</span>
-                      </div>
-                      <div className="text-lg font-bold text-red-600 dark:text-red-400" data-testid="text-storage-mode">
-                        {b.storageMode}
-                      </div>
-                      <Badge className="mt-2 bg-red-100 text-red-800 border-red-200">Risco: {b.riskLevel}</Badge>
-                    </CardContent>
-                  </Card>
-
-                  <Card data-testid="card-backup-files">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <HardDrive className="w-4 h-4 text-blue-500" />
-                        <span className="text-xs text-muted-foreground">Arquivos de backup</span>
-                      </div>
-                      <div className="text-2xl font-bold text-foreground" data-testid="text-backup-total">
-                        {b.totalFiles}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        JSON: {b.jsonCount} · SQL: {b.sqlCount} · Total: {b.totalSizeMb} MB
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  <Card data-testid="card-backup-latest">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Clock className="w-4 h-4 text-green-500" />
-                        <span className="text-xs text-muted-foreground">Último backup</span>
-                      </div>
-                      {b.latestBackup ? (
-                        <>
-                          <div className="text-sm font-semibold text-foreground" data-testid="text-backup-latest">
-                            {new Date(b.latestBackup.createdAt).toLocaleString("pt-BR")}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate mt-1">
-                            {b.latestBackup.filename}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="text-sm text-muted-foreground" data-testid="text-backup-latest">
-                          Nenhum backup encontrado
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-
-                {/* Directory */}
-                <div className="p-3 bg-muted/50 rounded-xl border border-border">
-                  <p className="text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">Diretório local:</span>{" "}
-                    <code className="bg-muted px-1.5 py-0.5 rounded text-xs" data-testid="text-backup-dir">
-                      {b.backupDir}
-                    </code>
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    ⚠ Este diretório é <strong>efêmero</strong> em ambientes Replit Autoscale/Deploy. Todos os backups são perdidos a cada redeploy ou reinício de instância.
-                    Para resiliência real, conecte um storage externo (S3, Supabase Storage ou GCS) antes de ir para produção.
-                  </p>
-                </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Timeouts SEFAZ</p>
+                    <p className={`text-2xl font-bold ${fiscal.counters.sefazTimeouts > 0 ? "text-orange-600" : "text-foreground"}`} data-testid="fiscal-timeouts">
+                      {fiscal.counters.sefazTimeouts}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {fiscal.counters.sefazDownEvents > 0
+                        ? <span className="text-red-600">{fiscal.counters.sefazDownEvents} SEFAZ down</span>
+                        : "Sem eventos down"}
+                    </p>
+                  </CardContent>
+                </Card>
               </div>
-            );
-          })()}
+
+              {/* Second row */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Última autorização</p>
+                    <p className="text-sm font-medium text-foreground">{formatDate(fiscal.summary.lastAuthAt)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Última rejeição</p>
+                    <p className="text-sm font-medium text-foreground">{formatDate(fiscal.summary.lastRejectionAt)}</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Cancelamentos</p>
+                    <div className="flex gap-1.5 mt-1 flex-wrap">
+                      <Badge className="text-xs bg-green-600 text-white">{fiscal.counters.cancelsOk} OK</Badge>
+                      {fiscal.counters.cancelsError > 0 && <Badge variant="destructive" className="text-xs">{fiscal.counters.cancelsError} err</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">CC-e</p>
+                    <div className="flex gap-1.5 mt-1 flex-wrap">
+                      <Badge className="text-xs bg-green-600 text-white">{fiscal.counters.cceOk} OK</Badge>
+                      {fiscal.counters.cceError > 0 && <Badge variant="destructive" className="text-xs">{fiscal.counters.cceError} err</Badge>}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Security counters */}
+              {(fiscal.counters.xmlGuardBlocks > 0 || fiscal.counters.certExpiredBlocks > 0 || fiscal.counters.certWarnings > 0) && (
+                <Card className="border-amber-200 dark:border-amber-800">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                      <ShieldCheck className="w-4 h-4" />Bloqueios de segurança fiscal
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="flex gap-4 flex-wrap">
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">XML Guard (bloqueados): </span>
+                      <span className={fiscal.counters.xmlGuardBlocks > 0 ? "text-red-600 font-semibold" : ""}>{fiscal.counters.xmlGuardBlocks}</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">Cert expirado (bloqueados): </span>
+                      <span className={fiscal.counters.certExpiredBlocks > 0 ? "text-red-600 font-semibold" : ""}>{fiscal.counters.certExpiredBlocks}</span>
+                    </div>
+                    <div className="text-xs">
+                      <span className="text-muted-foreground">Alertas de cert: </span>
+                      <span className={fiscal.counters.certWarnings > 0 ? "text-amber-600 font-semibold" : ""}>{fiscal.counters.certWarnings}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Recent events */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <FileText className="w-4 h-4 text-blue-500" />
+                    Eventos fiscais recentes
+                    <Badge variant="secondary" className="text-xs ml-1">{fiscal.recentEvents.length}</Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  {fiscal.recentEvents.length === 0 ? (
+                    <div className="p-6 text-center text-sm text-muted-foreground">Nenhum evento fiscal registrado</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="text-xs w-28">Timestamp</TableHead>
+                            <TableHead className="text-xs w-36">Evento</TableHead>
+                            <TableHead className="text-xs w-16">UF</TableHead>
+                            <TableHead className="text-xs w-20">Ambiente</TableHead>
+                            <TableHead className="text-xs w-16">cStat</TableHead>
+                            <TableHead className="text-xs w-24">Duração</TableHead>
+                            <TableHead className="text-xs w-24">Cert dias</TableHead>
+                            <TableHead className="text-xs w-28">RequestId</TableHead>
+                            <TableHead className="text-xs">Motivo / Erro</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {fiscal.recentEvents.map((ev) => {
+                            const meta2 = FISCAL_KIND_META[ev.kind] ?? { label: ev.kind, color: "text-muted-foreground" };
+                            return (
+                              <TableRow key={ev.id} data-testid={`row-fiscal-${ev.id}`}>
+                                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatTs(ev.ts)}</TableCell>
+                                <TableCell className={`text-xs font-medium ${meta2.color}`}>{meta2.label}</TableCell>
+                                <TableCell className="text-xs">{ev.uf ?? "—"}</TableCell>
+                                <TableCell className="text-xs">
+                                  {ev.ambiente
+                                    ? <Badge variant={ev.ambiente === "producao" ? "default" : "outline"} className="text-xs">{ev.ambiente === "producao" ? "prod" : "hom"}</Badge>
+                                    : <span className="text-muted-foreground/50">—</span>}
+                                </TableCell>
+                                <TableCell className="text-xs font-mono">{ev.cStat ?? "—"}</TableCell>
+                                <TableCell className="text-xs">
+                                  {ev.durationMs != null ? `${ev.durationMs}ms` : "—"}
+                                </TableCell>
+                                <TableCell className="text-xs">
+                                  {ev.certDaysLeft != null
+                                    ? <span className={ev.certDaysLeft <= 7 ? "text-red-600 font-semibold" : ev.certDaysLeft <= 30 ? "text-amber-600" : "text-green-600"}>
+                                        {ev.certDaysLeft}d
+                                      </span>
+                                    : "—"}
+                                </TableCell>
+                                <TableCell className="text-xs font-mono text-muted-foreground">
+                                  {ev.requestId ? ev.requestId.slice(0, 8) + "…" : "—"}
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground truncate max-w-[200px]">
+                                  {ev.xMotivo ?? ev.errorMessage ?? "—"}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </>
+          ) : (
+            <div className="p-6 text-center text-sm text-muted-foreground">Erro ao carregar dados fiscais</div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

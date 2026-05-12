@@ -1,0 +1,213 @@
+FASE NF-e 1.2 — HARDENING FISCAL + HOMOLOGAÇÃO REAL
+
+REGRAS ABSOLUTAS
+1. READ-ONLY AUDIT COMPLETO antes de qualquer alteração
+2. NÃO alterar arquitetura
+3. NÃO quebrar mock/homologação atual
+4. NÃO alterar multi-tenant
+5. NÃO alterar sequência NF-e
+6. NÃO alterar regras fiscais existentes
+7. Todas alterações devem ser cirúrgicas
+8. ZERO fallback silencioso
+9. Qualquer bloqueio fiscal deve gerar erro explícito e log estruturado
+
+OBJETIVO
+Transformar o pipeline atual em um fluxo pronto para:
+- homologação SEFAZ pesada
+- operação contínua
+- observabilidade fiscal real
+- resiliência operacional
+
+==================================================
+T1201 — AUDITORIA TOTAL DE HARDENING
+==================================================
+
+Ler COMPLETAMENTE:
+
+- nfeSender.ts
+- nfeSoap.ts
+- nfeGenerator.ts
+- nfeSignature.ts
+- nfeCert.ts
+- nfeCertDynamic.ts
+- nfeValidator.ts
+- routes.ts (TODOS endpoints NF-e)
+- observability routes
+- backup/logging/error handler
+- cron NF-e
+- retry logic
+- certificate repository
+- storage NF-e
+- companyConfig schema
+
+MAPEAR:
+- todos pontos sem validação forte
+- XMLs enviados sem schema validation
+- pontos sem timeout explícito
+- pontos sem correlation/requestId
+- logs inconsistentes
+- retries perigosos
+- pontos sem bloqueio de certificado expirado
+- pontos sem validação de UF
+- fluxos sem observabilidade
+
+NÃO ESCREVER código antes do mapa completo.
+
+==================================================
+T1202 — XML VALIDATION REAL
+==================================================
+
+OBJETIVO:
+Validar XML NF-e, CC-e e cancelamento ANTES da transmissão.
+
+IMPLEMENTAR:
+- validação contra schema XSD oficial
+- validação estrutural
+- validação assinatura
+- bloqueio de XML vazio
+- bloqueio de XML malformado
+
+REGRAS:
+- qualquer XML inválido → bloquear transmissão
+- logs:
+  [NFE_XML_INVALID]
+  [NFE_XML_VALID]
+- incluir requestId
+- erro claro para operador
+
+NÃO permitir envio parcial.
+
+==================================================
+T1203 — CERTIFICADO HARDENING
+==================================================
+
+OBJETIVO:
+Bloquear operação fiscal com certificado inválido.
+
+IMPLEMENTAR:
+- validação de:
+  - expiração
+  - cadeia
+  - senha inválida
+  - certificado vazio
+- warning antecipado:
+  - 30 dias
+  - 15 dias
+  - 7 dias
+- endpoint observabilidade certificado
+
+REGRAS:
+- certificado expirado → bloquear emissão
+- logs:
+  [NFE_CERT_OK]
+  [NFE_CERT_WARNING]
+  [NFE_CERT_EXPIRED]
+- requestId obrigatório
+
+==================================================
+T1204 — SOAP HARDENING
+==================================================
+
+IMPLEMENTAR:
+- timeout explícito
+- retry exponencial controlado
+- circuit-breaker simples
+- logs estruturados
+- métricas de latência
+- detectar timeout vs rejeição fiscal
+
+REGRAS:
+- NÃO retry em rejeição SEFAZ funcional
+- retry apenas em:
+  - timeout
+  - ECONNRESET
+  - 5xx
+  - indisponibilidade
+- logs:
+  [SEFAZ_TIMEOUT]
+  [SEFAZ_RETRY]
+  [SEFAZ_DOWN]
+
+==================================================
+T1205 — OBSERVABILIDADE FISCAL
+==================================================
+
+CRIAR:
+GET /api/admin/observability/fiscal
+
+RETORNAR:
+- status SEFAZ
+- última emissão
+- última autorização
+- última rejeição
+- certificados expirando
+- fila pendente
+- retries ativos
+- erros fiscais recentes
+- latência média SOAP
+- taxa sucesso/rejeição
+
+FRONTEND:
+Adicionar aba "Fiscal" no observability dashboard.
+
+REGRAS:
+- MASTER only
+- auto refresh 30s
+- sem dados sensíveis
+- requestId visível
+
+==================================================
+T1206 — CORRELATION / AUDIT
+==================================================
+
+IMPLEMENTAR:
+- requestId obrigatório em TODOS eventos fiscais:
+  emissão
+  cancelamento
+  CC-e
+  retry
+  timeout
+  rejeição
+  SOAP
+
+PERSISTIR:
+- requestId
+- timestamp
+- tenant
+- UF
+- ambiente
+- chaveNFe
+- cStat
+
+==================================================
+T1207 — VALIDAÇÃO FINAL
+==================================================
+
+EXECUTAR:
+- typecheck
+- startup
+- emissão mock
+- cancelamento mock
+- CC-e mock
+- retry simulation
+- timeout simulation
+- certificado inválido
+- XML inválido
+- observabilidade
+- tenant isolation
+- concorrência
+
+VALIDAR:
+- zero regressões
+- zero endpoints públicos
+- zero fallback silencioso
+- zero XML inválido transmitido
+
+ENTREGAR:
+1. relatório técnico completo
+2. arquivos alterados
+3. endpoints novos
+4. métricas adicionadas
+5. gaps restantes para produção total
+6. confirmação explícita:
+   “Pipeline fiscal endurecido para homologação SEFAZ.”

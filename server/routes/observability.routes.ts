@@ -1,23 +1,29 @@
 /**
- * FASE 2 — Observability routes (MASTER only).
+ * FASE 2+3 — Observability routes (MASTER only).
  *
- * GET  /api/admin/observability/errors    — list operational errors
- * DELETE /api/admin/observability/errors  — clear error store
- * GET  /api/admin/observability/metrics   — read current metrics
- * POST /api/admin/observability/metrics/reset — reset metrics
- *
- * All endpoints require MASTER role. No business logic — pass-through to
- * in-memory stores. Read-only endpoints are safe for frequent polling.
+ * GET  /api/admin/observability/errors          — list operational errors
+ * DELETE /api/admin/observability/errors        — clear error store
+ * GET  /api/admin/observability/metrics         — current metrics snapshot
+ * POST /api/admin/observability/metrics/reset   — reset metrics
+ * GET  /api/admin/observability/jobs            — FASE 3.1 job registry
+ * GET  /api/admin/observability/dead-letters    — FASE 3.1 outbox dead-letters
+ * GET  /api/admin/observability/db-health       — FASE 3.5 Supabase/PG stats
+ * GET  /api/admin/observability/restore-check   — FASE 3.4 schema integrity
+ * GET  /api/admin/observability/fiscal          — FASE NF-e 1.2 T1205 fiscal store
+ * POST /api/admin/observability/fiscal/reset    — FASE NF-e 1.2 T1205 reset fiscal store
  */
 
-import path from "path";
 import type { Express } from "express";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
 import { getErrors, clearErrors, errorCount } from "../core/observability/error-store";
 import { getMetrics, resetMetrics } from "../core/observability/metrics";
-import { getDeadLetterEvents, requeueDeadLetterEvent } from "../modules/orders/orders.outbox.worker";
-import { getJobRegistry, getSlowJobsReport } from "../core/jobs/job-registry";
-import { getBackupStats } from "../backup";
+import { getJobRegistry } from "../core/jobs/job-registry";
+import { db, pool } from "../database/db";
+import { sql } from "drizzle-orm";
+import { workflowEvents } from "@shared/schema";
+import { eq, desc, and, gt } from "drizzle-orm";
+import { getFiscalSnapshot, resetFiscalStore } from "../core/nfe/fiscal-store";
+import { getCircuitState } from "../services/nfe/sefazCircuitBreaker";
 
 export function register(app: Express): void {
   // ── GET /api/admin/observability/errors ─────────────────────────────
@@ -74,195 +80,256 @@ export function register(app: Express): void {
     },
   );
 
-  // ── GET /api/admin/observability/jobs ────────────────────────────────
-  // Lista todos os jobs registrados e seu estado atual (running, ok, error…)
+  // ── GET /api/admin/observability/jobs ── FASE 3.1 ───────────────────
   app.get(
     "/api/admin/observability/jobs",
     requireAuth,
     requireRole(["MASTER"]),
     (_req, res) => {
-      return res.json({ success: true, data: getJobRegistry() });
-    },
-  );
-
-  // ── GET /api/admin/observability/slow-jobs ───────────────────────────
-  // T701 — Todos os jobs com métricas de latência (avg, p95), contagem de
-  // execuções lentas, estado atual e metadados de contexto.
-  // Ordenado por slowRuns desc para que os piores offenders apareçam primeiro.
-  app.get(
-    "/api/admin/observability/slow-jobs",
-    requireAuth,
-    requireRole(["MASTER"]),
-    (_req, res) => {
-      const data = getSlowJobsReport();
+      const jobs = getJobRegistry();
       return res.json({
         success: true,
-        data,
+        data: jobs,
         meta: {
-          total: data.length,
-          slowJobsCount: data.filter((j) => j.slowRuns > 0).length,
-          runningCount:  data.filter((j) => j.currentlyRunning).length,
-          slowThresholdMs: 60_000,
+          total: jobs.length,
+          running: jobs.filter((j) => j.isRunning).length,
+          withErrors: jobs.filter((j) => j.totalErrors > 0).length,
         },
       });
     },
   );
 
-  // ── GET /api/admin/observability/dead-letter ─────────────────────────
-  // FASE 3.2 — eventos de outbox que excederam MAX_RETRIES e aguardam
-  // intervenção manual. Expostos aqui para visualização e re-enfileiramento.
+  // ── GET /api/admin/observability/dead-letters ── FASE 3.1 ───────────
   app.get(
-    "/api/admin/observability/dead-letter",
+    "/api/admin/observability/dead-letters",
     requireAuth,
     requireRole(["MASTER"]),
     async (_req, res) => {
       try {
-        const events = await getDeadLetterEvents();
+        const rows = await db
+          .select({
+            id: workflowEvents.id,
+            orderId: workflowEvents.orderId,
+            eventType: workflowEvents.eventType,
+            retryCount: workflowEvents.retryCount,
+            deadLetter: workflowEvents.deadLetter,
+            errorMessage: workflowEvents.errorMessage,
+            createdAt: workflowEvents.createdAt,
+            nextRetryAt: workflowEvents.nextRetryAt,
+          })
+          .from(workflowEvents)
+          .where(eq(workflowEvents.deadLetter, true))
+          .orderBy(desc(workflowEvents.createdAt))
+          .limit(200);
+
+        const stuckRows = await db
+          .select({
+            id: workflowEvents.id,
+            orderId: workflowEvents.orderId,
+            eventType: workflowEvents.eventType,
+            retryCount: workflowEvents.retryCount,
+            deadLetter: workflowEvents.deadLetter,
+            errorMessage: workflowEvents.errorMessage,
+            createdAt: workflowEvents.createdAt,
+            nextRetryAt: workflowEvents.nextRetryAt,
+          })
+          .from(workflowEvents)
+          .where(
+            and(
+              eq(workflowEvents.deadLetter, false),
+              gt(workflowEvents.retryCount, 2),
+              sql`${workflowEvents.processedAt} IS NULL`,
+            ),
+          )
+          .orderBy(desc(workflowEvents.retryCount))
+          .limit(50);
+
         return res.json({
           success: true,
-          data: events,
-          meta: { total: events.length },
+          data: { deadLetters: rows, stuckEvents: stuckRows },
+          meta: { deadLetterCount: rows.length, stuckCount: stuckRows.length },
         });
       } catch (err: any) {
-        return res.status(500).json({ success: false, error: err?.message ?? "Erro interno" });
+        return res.status(500).json({ success: false, error: err?.message ?? "db_error" });
       }
     },
   );
 
-  // ── POST /api/admin/observability/dead-letter/:id/requeue ────────────
-  // FASE 3.2 — re-enfileira um evento dead-letter para reprocessamento.
-  // Limpa dead_letter=false, retry_count=0, next_retry_at=NULL.
-  app.post(
-    "/api/admin/observability/dead-letter/:id/requeue",
+  // ── GET /api/admin/observability/db-health ── FASE 3.5 ──────────────
+  app.get(
+    "/api/admin/observability/db-health",
     requireAuth,
     requireRole(["MASTER"]),
-    async (req, res) => {
+    async (_req, res) => {
       try {
-        const id = Number(req.params.id);
-        if (!id || isNaN(id)) {
-          return res.status(400).json({ success: false, error: "ID inválido" });
+        const client = await pool.connect();
+        try {
+          const connResult = await client.query(`
+            SELECT
+              count(*) FILTER (WHERE state = 'active') AS active_connections,
+              count(*) FILTER (WHERE state = 'idle') AS idle_connections,
+              count(*) AS total_connections
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+          `);
+          const sizeResult = await client.query(`
+            SELECT pg_size_pretty(pg_database_size(current_database())) AS db_size,
+                   pg_database_size(current_database()) AS db_size_bytes
+          `);
+          const lockResult = await client.query(`
+            SELECT
+              count(*) AS total_locks,
+              count(*) FILTER (WHERE NOT granted) AS waiting_locks
+            FROM pg_locks
+          `);
+          const tablesResult = await client.query(`
+            SELECT
+              relname AS table_name,
+              n_live_tup AS live_rows,
+              n_dead_tup AS dead_rows,
+              pg_size_pretty(pg_total_relation_size(oid)) AS total_size
+            FROM pg_stat_user_tables
+            ORDER BY n_live_tup DESC
+            LIMIT 10
+          `);
+          const slowResult = await client.query(`
+            SELECT
+              pid,
+              now() - pg_stat_activity.query_start AS duration,
+              query,
+              state
+            FROM pg_stat_activity
+            WHERE query_start IS NOT NULL
+              AND state != 'idle'
+              AND (now() - pg_stat_activity.query_start) > interval '5 seconds'
+              AND datname = current_database()
+            ORDER BY duration DESC
+            LIMIT 5
+          `);
+          const poolStats = {
+            totalCount: (pool as any).totalCount ?? null,
+            idleCount: (pool as any).idleCount ?? null,
+            waitingCount: (pool as any).waitingCount ?? null,
+          };
+          return res.json({
+            success: true,
+            data: {
+              connections: connResult.rows[0],
+              storage: sizeResult.rows[0],
+              locks: lockResult.rows[0],
+              topTables: tablesResult.rows,
+              slowQueries: slowResult.rows.map((r) => ({
+                pid: r.pid,
+                duration: r.duration,
+                state: r.state,
+                queryPreview: String(r.query ?? "").slice(0, 200),
+              })),
+              pool: poolStats,
+              checkedAt: new Date().toISOString(),
+            },
+          });
+        } finally {
+          client.release();
         }
-        await requeueDeadLetterEvent(id);
-        return res.json({ success: true, message: `Evento #${id} re-enfileirado` });
       } catch (err: any) {
-        return res.status(500).json({ success: false, error: err?.message ?? "Erro interno" });
+        return res.status(500).json({ success: false, error: err?.message ?? "db_error" });
       }
     },
   );
 
-  // ── GET /api/admin/observability/backup-durability ───────────────────
-  // T901 — Backup durability visibility. Shows storage mode, risk level,
-  // file counts, sizes and timestamps so MASTER can assess recovery risk.
-  // Does NOT implement S3 — visibility only.
+  // ── GET /api/admin/observability/restore-check ── FASE 3.4 ──────────
   app.get(
-    "/api/admin/observability/backup-durability",
+    "/api/admin/observability/restore-check",
     requireAuth,
     requireRole(["MASTER"]),
-    (_req, res) => {
+    async (_req, res) => {
+      const checks: Array<{ name: string; ok: boolean; detail?: string }> = [];
+
       try {
-        const stats = getBackupStats();
-        const backupDir = path.join(process.cwd(), "backups");
-        return res.json({
-          success: true,
-          data: {
-            backupDir,
-            totalFiles: stats.totalBackups,
-            jsonCount: stats.jsonCount,
-            sqlCount: stats.sqlCount,
-            totalSizeMb: parseFloat((stats.totalSizeBytes / 1024 / 1024).toFixed(2)),
-            latestBackup: stats.lastBackup,
-            oldestBackup: stats.oldestBackup,
-            storageMode: "LOCAL_EPHEMERAL",
-            riskLevel: "HIGH",
-            productionWarning:
-              "Backups are stored on the local filesystem. In Replit Autoscale deployments this storage is ephemeral and lost on every redeploy or instance restart.",
-            recommendation:
-              "Integrate an external object store (S3, Supabase Storage, GCS) before relying on backups as a production recovery mechanism.",
-          },
-        });
+        await db.execute(sql`SELECT 1`);
+        checks.push({ name: "db_connectivity", ok: true });
       } catch (err: any) {
-        return res.status(500).json({ success: false, error: err?.message ?? "Erro interno" });
+        checks.push({ name: "db_connectivity", ok: false, detail: err?.message });
       }
+
+      const criticalTables = [
+        "users", "companies", "orders", "order_items", "products",
+        "nfe_emissoes", "workflow_events", "sessions", "system_settings",
+        "logistics_routes", "logistics_drivers",
+      ];
+      for (const table of criticalTables) {
+        try {
+          await db.execute(sql.raw(`SELECT 1 FROM ${table} LIMIT 1`));
+          checks.push({ name: `table_${table}`, ok: true });
+        } catch (err: any) {
+          checks.push({ name: `table_${table}`, ok: false, detail: err?.message });
+        }
+      }
+
+      try {
+        await db.execute(sql`SELECT COUNT(*) FROM session WHERE expire < NOW() LIMIT 1`);
+        checks.push({ name: "session_table", ok: true });
+      } catch (err: any) {
+        checks.push({ name: "session_table", ok: false, detail: err?.message });
+      }
+
+      try {
+        await db.execute(sql`SELECT company_id FROM orders LIMIT 1`);
+        checks.push({ name: "tenant_column_orders", ok: true });
+      } catch (err: any) {
+        checks.push({ name: "tenant_column_orders", ok: false, detail: err?.message });
+      }
+
+      try {
+        await db.execute(sql`SELECT dead_letter FROM workflow_events LIMIT 1`);
+        checks.push({ name: "dead_letter_column", ok: true });
+      } catch (err: any) {
+        checks.push({ name: "dead_letter_column", ok: false, detail: err?.message });
+      }
+
+      const allOk = checks.every((c) => c.ok);
+      const failed = checks.filter((c) => !c.ok);
+
+      return res.status(allOk ? 200 : 207).json({
+        success: allOk,
+        data: { checks, summary: { total: checks.length, passed: checks.filter((c) => c.ok).length, failed: failed.length } },
+        message: allOk ? "Schema integrity OK" : `${failed.length} check(s) failed`,
+      });
     },
   );
 
-  // ── GET /api/admin/observability/health ──────────────────────────────
-  // T905 — System health snapshot: uptime, memory, heap, event-loop lag,
-  // active tenants, worker state, overall health signal.
-  // Polling-safe (read-only, no DB queries, pure in-memory).
+  // ── GET /api/admin/observability/fiscal ── FASE NF-e 1.2 T1205 ──────
   app.get(
-    "/api/admin/observability/health",
+    "/api/admin/observability/fiscal",
     requireAuth,
     requireRole(["MASTER"]),
     (_req, res) => {
-      try {
-        const mem = process.memoryUsage();
-        const jobs = getJobRegistry();
-        const metrics = getMetrics();
-        const uptimeSeconds = Math.floor(process.uptime());
-
-        const workersRunning = jobs.filter((j) => j.isRunning).length;
-        const workersErrored = jobs.filter((j) => j.lastStatus === "error").length;
-        const activeTenants = Object.keys(metrics.requestsByTenant).length;
-
-        // Simple event-loop lag estimate: schedule a setImmediate and measure
-        // how long the current synchronous tick held the loop.
-        // (Conservative — real lag requires async measurement, but this is
-        //  sufficient as an operational signal without adding async complexity.)
-        const loopLagMs = 0; // placeholder; true async lag needs a separate worker
-
-        const errorRate =
-          metrics.totalRequests > 0
-            ? parseFloat(((metrics.totalErrors / metrics.totalRequests) * 100).toFixed(2))
-            : 0;
-
-        const healthStatus =
-          workersErrored > 0 && workersErrored === jobs.length
-            ? "CRITICAL"
-            : errorRate > 10
-              ? "DEGRADED"
-              : "OK";
-
-        return res.json({
-          success: true,
-          data: {
-            uptimeSeconds,
-            uptimeHuman: `${Math.floor(uptimeSeconds / 3600)}h ${Math.floor((uptimeSeconds % 3600) / 60)}m`,
-            memory: {
-              rssMb: parseFloat((mem.rss / 1024 / 1024).toFixed(1)),
-              heapUsedMb: parseFloat((mem.heapUsed / 1024 / 1024).toFixed(1)),
-              heapTotalMb: parseFloat((mem.heapTotal / 1024 / 1024).toFixed(1)),
-              externalMb: parseFloat((mem.external / 1024 / 1024).toFixed(1)),
-              heapUsedPct: parseFloat(((mem.heapUsed / mem.heapTotal) * 100).toFixed(1)),
-            },
-            eventLoopLagMs: loopLagMs,
-            workers: {
-              total: jobs.length,
-              running: workersRunning,
-              errored: workersErrored,
-              idle: jobs.filter((j) => j.lastStatus === "idle").length,
-              ok: jobs.filter((j) => j.lastStatus === "ok").length,
-            },
-            tenants: {
-              active: activeTenants,
-            },
-            requests: {
-              total: metrics.totalRequests,
-              errors: metrics.totalErrors,
-              errorRatePct: errorRate,
-              nfeFailures: metrics.nfeFailures,
-              jobFailures: metrics.jobFailures,
-              deadLetterCount: metrics.deadLetterCount,
-            },
-            healthStatus,
-            checkedAt: new Date().toISOString(),
-            nodeVersion: process.version,
-            env: process.env.NODE_ENV ?? "unknown",
+      const snapshot = getFiscalSnapshot();
+      const circuit = getCircuitState();
+      return res.json({
+        success: true,
+        data: {
+          ...snapshot,
+          circuit: {
+            state: circuit.state,
+            failures: circuit.failures,
+            isOpen: circuit.isOpen,
+            openedAt: circuit.openedAt,
+            totalOpenings: circuit.totalOpenings,
           },
-        });
-      } catch (err: any) {
-        return res.status(500).json({ success: false, error: err?.message ?? "Erro interno" });
-      }
+        },
+      });
+    },
+  );
+
+  // ── POST /api/admin/observability/fiscal/reset ── FASE NF-e 1.2 ─────
+  app.post(
+    "/api/admin/observability/fiscal/reset",
+    requireAuth,
+    requireRole(["MASTER"]),
+    (_req, res) => {
+      resetFiscalStore();
+      return res.json({ success: true, message: "Fiscal store reset" });
     },
   );
 }

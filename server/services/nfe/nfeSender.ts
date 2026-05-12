@@ -1,5 +1,25 @@
+/**
+ * NF-e SEFAZ Sender
+ *
+ * FASE NF-e 1.2 hardening (T1202–T1206):
+ *  T1202 — XML Guard: valida XML assinado antes de cada transmissão
+ *  T1203 — Cert Guard: verifica expiração do certificado antes de usar
+ *  T1204 — SOAP: [SEFAZ_TIMEOUT] / [SEFAZ_DOWN] labels + circuit breaker
+ *  T1205 — Fiscal Store: todos os eventos fiscais registrados em memória
+ *  T1206 — Correlação: fiscalRequestId gerado por chamada, propagado em todos os logs
+ */
 import axios from 'axios';
+import { randomUUID } from 'node:crypto';
 import { recordNfeEmissionDuration, incNfeFailures } from '../../core/observability/metrics';
+import { validateXmlBeforeSend } from './nfeXmlGuard';
+import {
+  checkCircuit,
+  recordCircuitFailure,
+  recordCircuitSuccess,
+  classifyAxiosError,
+} from './sefazCircuitBreaker';
+import { emitFiscalEvent } from '../../core/nfe/fiscal-store';
+import { validateCertExpiry } from './nfeCertGuard';
 
 export type NFeStatus = 'autorizada' | 'rejeitada' | 'denegada' | 'pendente' | 'erro';
 
@@ -21,7 +41,6 @@ export interface EventoRetornoSEFAZ {
 }
 
 // SEFAZ URLs por UF (webservice NFeAutorizacao 4.00)
-// FASE NF.7.4 — expansão multi-UF incremental. SP + default mantidos intactos.
 const SEFAZ_URL: Record<string, { homologacao: string; producao: string }> = {
   SP: {
     homologacao: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
@@ -95,26 +114,17 @@ function getEventoUrl(uf: string, ambiente: '1' | '2'): string {
   return ambiente === '1' ? urls.producao : urls.homologacao;
 }
 
-/**
- * FASE NF.7.2 — leitura defensiva do tpAmb a partir do XML assinado.
- */
 function detectarAmbienteFromXml(xml: string): '1' | '2' | null {
   const m = xml.match(/<tpAmb>\s*([12])\s*<\/tpAmb>/);
   if (!m) return null;
   return m[1] === '1' ? '1' : '2';
 }
 
-/**
- * FASE NF.7.3 — leitura da UF do EMITENTE direto do XML assinado.
- */
 function detectarUfFromXml(xml: string): string | null {
   const match = xml.match(/<emit>[\s\S]*?<UF>\s*([A-Z]{2})\s*<\/UF>/);
   return match ? match[1] : null;
 }
 
-/**
- * FASE NF.7.2 — resposta MOCK padronizada nesta camada.
- */
 function mockResponse(): NFeRetornoSEFAZ {
   return {
     status: 'autorizada',
@@ -129,7 +139,6 @@ function buildSoap(xmlNFe: string, idLote: string): string {
   return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Header><nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><cUF>35</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap12:Header><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><enviNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${xmlNFe}</enviNFe></nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 }
 
-// T1102/T1103 — SOAP envelope para NFeRecepcaoEvento4
 function buildEventoSoap(xmlEvento: string): string {
   return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${xmlEvento}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 }
@@ -155,9 +164,7 @@ function parseSefazResponse(responseXml: string): NFeRetornoSEFAZ {
   return { status, cStat, xMotivo, protocolo, chaveNFe, dataAutorizacao };
 }
 
-// T1102/T1103 — parser para retorno do evento (infEvento aninhado)
 function parseEventoResponse(responseXml: string): EventoRetornoSEFAZ {
-  // Extrai o bloco infEvento interno (nível de retorno do evento, não do lote)
   const infEventoMatch = responseXml.match(/<infEvento[\s\S]*?<\/infEvento>/);
   const infEventoXml = infEventoMatch?.[0] ?? responseXml;
 
@@ -168,7 +175,7 @@ function parseEventoResponse(responseXml: string): EventoRetornoSEFAZ {
   return { cStat, xMotivo, protocolo, xmlEvento: responseXml };
 }
 
-// T1102/T1103 — carrega certificado para mTLS (DB → env, mesma cadeia de enviarNFeSEFAZ)
+// T1102/T1103 — carrega certificado para mTLS
 async function resolverHttpsAgent(): Promise<any> {
   const nfeTlsStrict = process.env.NFE_TLS_STRICT === 'true';
   try {
@@ -196,7 +203,7 @@ async function resolverHttpsAgent(): Promise<any> {
   return undefined;
 }
 
-// T1102/T1103 — assina XML de evento (infEvento reference)
+// T1102/T1103 — assina XML de evento
 async function assinarEventoXml(xmlEvento: string): Promise<string> {
   const { assinarEvento } = await import('./nfeSignature');
   try {
@@ -219,6 +226,32 @@ async function assinarEventoXml(xmlEvento: string): Promise<string> {
   throw new Error('Certificado digital não configurado. Configure CERT_PATH e CERT_PASSWORD.');
 }
 
+// ── T1204: Classify + log structured error ─────────────────────────────────
+
+function logSefazError(
+  err: unknown,
+  label: string,
+  fiscalRequestId: string,
+  context: Record<string, unknown>,
+): void {
+  const errType = classifyAxiosError(err);
+  const msg = err instanceof Error ? err.message : String(err);
+
+  if (errType === 'timeout') {
+    console.error('[SEFAZ_TIMEOUT]', { fiscalRequestId, label, error: msg, ...context });
+    emitFiscalEvent({ kind: 'sefaz_timeout', requestId: fiscalRequestId, errorMessage: msg, ...context as any });
+  } else if (errType === 'connection') {
+    console.error('[SEFAZ_DOWN]', { fiscalRequestId, label, errorType: errType, error: msg, ...context });
+    emitFiscalEvent({ kind: 'sefaz_down', requestId: fiscalRequestId, errorMessage: msg, ...context as any });
+  } else {
+    console.error(`[${label}_ERROR]`, { fiscalRequestId, errorType: errType, error: msg, ...context });
+  }
+
+  recordCircuitFailure(err);
+}
+
+// ── enviarNFeSEFAZ ─────────────────────────────────────────────────────────
+
 export async function enviarNFeSEFAZ(
   xmlAssinado: string,
   uf: string,
@@ -226,16 +259,32 @@ export async function enviarNFeSEFAZ(
   certPem?: string,
   certKey?: string
 ): Promise<NFeRetornoSEFAZ> {
+  // T1206 — fiscal correlation ID for all logs in this call
+  const fiscalRequestId = randomUUID();
+
   const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
   if (sefazMode === 'mock') {
-    console.info('[NFE_SEFAZ_MOCK]', { uf, ambienteRequest: ambiente });
-    return mockResponse();
+    console.info('[NFE_SEFAZ_MOCK]', { fiscalRequestId, uf, ambienteRequest: ambiente });
+    const mock = mockResponse();
+    emitFiscalEvent({ kind: 'emission_ok', requestId: fiscalRequestId, uf, ambiente: ambiente === '1' ? 'producao' : 'homologacao', cStat: mock.cStat, xMotivo: mock.xMotivo, durationMs: 0 });
+    return mock;
   }
+
+  // T1204 — circuit breaker check
+  checkCircuit();
+
+  // T1202 — validate XML before transmission (guard #1: signed XML must be valid)
+  validateXmlBeforeSend(xmlAssinado, {
+    kind: 'nfe',
+    requestId: fiscalRequestId,
+    context: `uf=${uf} amb=${ambiente}`,
+  });
 
   const ambienteXml = detectarAmbienteFromXml(xmlAssinado);
   const ambienteFinal: '1' | '2' = ambienteXml ?? ambiente;
   if (ambienteXml && ambienteXml !== ambiente) {
     console.warn('[NFE_SEFAZ_AMBIENTE_DIVERGENTE]', {
+      fiscalRequestId,
       ambienteParametro: ambiente,
       ambienteXml,
       decisao: `usando tpAmb do XML (${ambienteFinal})`,
@@ -246,6 +295,7 @@ export async function enviarNFeSEFAZ(
   const ufFinal = (ufXml || uf || 'SP').toUpperCase();
   if (ufXml && uf && ufXml.toUpperCase() !== uf.toUpperCase()) {
     console.warn('[NFE_SEFAZ_UF_DIVERGENTE]', {
+      fiscalRequestId,
       ufParametro: uf,
       ufXml,
       decisao: `usando UF do XML (${ufXml})`,
@@ -253,16 +303,24 @@ export async function enviarNFeSEFAZ(
   }
 
   if (!SEFAZ_URL[ufFinal]) {
-    console.warn('[NFE_SEFAZ_FALLBACK_UF]', { uf: ufFinal, usando: 'default (GO)' });
+    console.warn('[NFE_SEFAZ_FALLBACK_UF]', { fiscalRequestId, uf: ufFinal, usando: 'default (GO)' });
   }
 
   const url = getSefazUrl(ufFinal, ambienteFinal);
   if (!url) throw new Error(`SEFAZ não configurada para UF: ${ufFinal}`);
 
   console.info('[NFE_SEFAZ_DISPATCH]', {
+    fiscalRequestId,
     uf: ufFinal,
     ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
     url,
+  });
+
+  emitFiscalEvent({
+    kind: 'emission_start',
+    requestId: fiscalRequestId,
+    uf: ufFinal,
+    ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
   });
 
   const idLote = String(Date.now()).slice(-15);
@@ -280,10 +338,10 @@ export async function enviarNFeSEFAZ(
         const bundle = getCertificado({ pfxBuffer: dynamic.pfx, password: dynamic.passphrase, source: 'database' });
         pem = bundle.certPem;
         key = bundle.keyPem;
-        console.info('[NFE_CERT_FROM_DB]', { tenantId: dynamic.tenantId });
+        console.info('[NFE_CERT_FROM_DB]', { fiscalRequestId, tenantId: dynamic.tenantId });
       }
     } catch (e: any) {
-      console.warn('[NFE_CERT_DB_LOAD_FAIL]', { error: e?.message });
+      console.warn('[NFE_CERT_DB_LOAD_FAIL]', { fiscalRequestId, error: e?.message });
     }
   }
 
@@ -293,9 +351,41 @@ export async function enviarNFeSEFAZ(
       const bundle = getCertificado();
       pem = bundle.certPem;
       key = bundle.keyPem;
-      console.info('[NFE_SEFAZ_CERT_FROM_ENV]', { source: bundle.source });
+      console.info('[NFE_SEFAZ_CERT_FROM_ENV]', { fiscalRequestId, source: bundle.source });
     } catch (e: any) {
-      console.warn('[NFE_SEFAZ_CERT_LOAD_FAIL]', { error: e?.message });
+      console.warn('[NFE_SEFAZ_CERT_LOAD_FAIL]', { fiscalRequestId, error: e?.message });
+    }
+  }
+
+  // T1203 — cert expiry check before using the cert
+  if (pem) {
+    try {
+      const certInfo = validateCertExpiry(pem, fiscalRequestId, `uf=${ufFinal}`);
+      if (certInfo.willExpireSoon) {
+        emitFiscalEvent({
+          kind: 'cert_warning',
+          requestId: fiscalRequestId,
+          uf: ufFinal,
+          certDaysLeft: certInfo.daysLeft,
+        });
+      } else {
+        emitFiscalEvent({
+          kind: 'cert_ok',
+          requestId: fiscalRequestId,
+          uf: ufFinal,
+          certDaysLeft: certInfo.daysLeft,
+        });
+      }
+    } catch (certErr: any) {
+      if (certErr?.message === 'NFE_CERT_EXPIRED') {
+        emitFiscalEvent({
+          kind: 'cert_expired',
+          requestId: fiscalRequestId,
+          uf: ufFinal,
+          errorMessage: certErr.message,
+        });
+      }
+      throw certErr;
     }
   }
 
@@ -330,21 +420,68 @@ export async function enviarNFeSEFAZ(
         },
         onRetry: (attempt, err, delayMs) => {
           const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[NFE_SEFAZ_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${msg}`);
+          const errType = classifyAxiosError(err);
+          if (errType === 'timeout') {
+            console.warn(`[SEFAZ_TIMEOUT]`, { fiscalRequestId, attempt, delayMs, error: msg });
+            emitFiscalEvent({ kind: 'sefaz_timeout', requestId: fiscalRequestId, uf: ufFinal, errorMessage: msg });
+          } else {
+            console.warn(`[NFE_SEFAZ_RETRY]`, { fiscalRequestId, attempt, delayMs, errorType: errType, error: msg });
+          }
         },
       },
     );
     responseData = result;
   } catch (err) {
+    const durationMs = Date.now() - _emissionStart;
     incNfeFailures();
+    logSefazError(err, 'NFE_SEFAZ_DISPATCH', fiscalRequestId, { uf: ufFinal, durationMs });
+    emitFiscalEvent({
+      kind: 'emission_error',
+      requestId: fiscalRequestId,
+      uf: ufFinal,
+      ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
+      durationMs,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
     throw err;
   }
 
   const emissionMs = Date.now() - _emissionStart;
   const parsed = parseSefazResponse(responseData);
   recordNfeEmissionDuration(emissionMs);
-  if (parsed.status !== 'autorizada') incNfeFailures();
-  console.info(`[NFE_SEFAZ_TIMING] status=${parsed.status} durationMs=${emissionMs}`);
+  recordCircuitSuccess();
+
+  if (parsed.status !== 'autorizada') {
+    incNfeFailures();
+    emitFiscalEvent({
+      kind: 'emission_rejected',
+      requestId: fiscalRequestId,
+      uf: ufFinal,
+      ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
+      cStat: parsed.cStat,
+      xMotivo: parsed.xMotivo,
+      chaveNFe: parsed.chaveNFe,
+      durationMs: emissionMs,
+    });
+  } else {
+    emitFiscalEvent({
+      kind: 'emission_ok',
+      requestId: fiscalRequestId,
+      uf: ufFinal,
+      ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
+      cStat: parsed.cStat,
+      xMotivo: parsed.xMotivo,
+      chaveNFe: parsed.chaveNFe,
+      durationMs: emissionMs,
+    });
+  }
+
+  console.info('[NFE_SEFAZ_TIMING]', {
+    fiscalRequestId,
+    status: parsed.status,
+    cStat: parsed.cStat,
+    durationMs: emissionMs,
+  });
   return parsed;
 }
 
@@ -371,11 +508,6 @@ export async function consultarStatusSEFAZ(uf: string, ambiente: '1' | '2'): Pro
 
 /**
  * T1102 — Cancelamento REAL na SEFAZ (NFeRecepcaoEvento4, tpEvento=110111).
- *
- * Mock mode: NFE_SEFAZ_MODE !== 'production' retorna cStat=135 imediatamente.
- * Production mode: constrói envEvento, assina, envia via mTLS, parseia resposta.
- *
- * cStat de sucesso: 135 (vinculado), 155 (cancelamento homologação).
  */
 export async function cancelarNFe(
   chaveNFe: string,
@@ -385,10 +517,12 @@ export async function cancelarNFe(
   cnpjEmit: string,
   ambiente: '1' | '2',
 ): Promise<EventoRetornoSEFAZ> {
-  // T1102 — mock mode preserva comportamento atual quando não está em produção
+  const fiscalRequestId = randomUUID();
+
   const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
   if (sefazMode !== 'production') {
-    console.info('[NFE_CANCEL_MOCK]', { chaveNFe: chaveNFe.slice(0, 8) + '...', uf, ambiente });
+    console.info('[NFE_CANCEL_MOCK]', { fiscalRequestId, chaveNFe: chaveNFe.slice(0, 8) + '...', uf, ambiente });
+    emitFiscalEvent({ kind: 'cancel_ok', requestId: fiscalRequestId, chaveNFe, uf, ambiente: ambiente === '1' ? 'producao' : 'homologacao', cStat: '135' });
     return {
       cStat: '135',
       xMotivo: 'Evento registrado e vinculado a NF-e [MOCK]',
@@ -397,11 +531,13 @@ export async function cancelarNFe(
     };
   }
 
-  // Monta envEvento para cancelamento (tpEvento=110111)
+  // T1204 — circuit breaker
+  checkCircuit();
+
   const now = new Date().toISOString().replace('Z', '-03:00').slice(0, 25);
   const nSeqEvento = '01';
   const tpEvento = '110111';
-  const cOrgao = chaveNFe.slice(0, 2); // cUF da chave
+  const cOrgao = chaveNFe.slice(0, 2);
   const infEventoId = `ID${tpEvento}${chaveNFe}${nSeqEvento}`;
   const cnpjLimpo = cnpjEmit.replace(/\D/g, '');
 
@@ -429,7 +565,6 @@ export async function cancelarNFe(
     `<evento versao="1.00">${infEventoXml}</evento>` +
     `</envEvento>`;
 
-  // Assina o evento (infEvento reference, mesma cadeia cert DB → env)
   let xmlAssinado: string;
   try {
     xmlAssinado = await assinarEventoXml(xmlEvento);
@@ -437,43 +572,85 @@ export async function cancelarNFe(
     throw new Error(`NFE_CANCEL_SIGN_FAIL: ${e.message}`);
   }
 
+  // T1202 — validate signed event XML before transmission
+  validateXmlBeforeSend(xmlAssinado, {
+    kind: 'evento',
+    requestId: fiscalRequestId,
+    context: `chaveNFe=${chaveNFe.slice(0, 8)}... cancel`,
+  });
+
   const url = getEventoUrl(uf, ambiente);
   const soap = buildEventoSoap(xmlAssinado);
   const httpsAgent = await resolverHttpsAgent();
 
-  console.info('[NFE_CANCEL_DISPATCH]', { uf, ambiente: ambiente === '1' ? 'producao' : 'homologacao', url });
+  console.info('[NFE_CANCEL_DISPATCH]', {
+    fiscalRequestId,
+    uf,
+    ambiente: ambiente === '1' ? 'producao' : 'homologacao',
+    url,
+  });
 
   const { withRetry } = await import('../../core/retry/withRetry');
-  const { result } = await withRetry(
-    async () => {
-      const res = await axios.post(url, soap, {
-        headers: {
-          'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"',
-        },
-        httpsAgent,
-        timeout: 30000,
-      });
-      return res.data;
-    },
-    {
-      maxAttempts: 3,
-      baseDelayMs: 2_000,
-      maxDelayMs: 15_000,
-      retryable: (err: unknown) => !(axios.isAxiosError(err) && err.response),
-      onRetry: (attempt, err, delayMs) => {
-        console.warn(`[NFE_CANCEL_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${err instanceof Error ? err.message : String(err)}`);
+  const _start = Date.now();
+  try {
+    const { result } = await withRetry(
+      async () => {
+        const res = await axios.post(url, soap, {
+          headers: {
+            'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"',
+          },
+          httpsAgent,
+          timeout: 30000,
+        });
+        return res.data;
       },
-    },
-  );
-
-  return parseEventoResponse(result as string);
+      {
+        maxAttempts: 3,
+        baseDelayMs: 2_000,
+        maxDelayMs: 15_000,
+        retryable: (err: unknown) => !(axios.isAxiosError(err) && err.response),
+        onRetry: (attempt, err, delayMs) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          const errType = classifyAxiosError(err);
+          if (errType === 'timeout') {
+            console.warn('[SEFAZ_TIMEOUT]', { fiscalRequestId, label: 'cancel', attempt, delayMs, error: msg });
+          } else {
+            console.warn('[NFE_CANCEL_RETRY]', { fiscalRequestId, attempt, delayMs, error: msg });
+          }
+        },
+      },
+    );
+    const durationMs = Date.now() - _start;
+    const parsed = parseEventoResponse(result as string);
+    recordCircuitSuccess();
+    emitFiscalEvent({
+      kind: 'cancel_ok',
+      requestId: fiscalRequestId,
+      chaveNFe,
+      uf,
+      ambiente: ambiente === '1' ? 'producao' : 'homologacao',
+      cStat: parsed.cStat,
+      xMotivo: parsed.xMotivo,
+      durationMs,
+    });
+    return parsed;
+  } catch (err) {
+    const durationMs = Date.now() - _start;
+    logSefazError(err, 'NFE_CANCEL_DISPATCH', fiscalRequestId, { uf, durationMs });
+    emitFiscalEvent({
+      kind: 'cancel_error',
+      requestId: fiscalRequestId,
+      chaveNFe,
+      uf,
+      durationMs,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
 
 /**
  * T1103 — CC-e REAL na SEFAZ (NFeRecepcaoEvento4, tpEvento=110110).
- *
- * Mock mode: NFE_SEFAZ_MODE !== 'production' retorna cStat=135 imediatamente.
- * Production mode: constrói envEvento, assina, envia via mTLS, parseia resposta.
  */
 export async function enviarCCe(
   chaveNFe: string,
@@ -483,9 +660,12 @@ export async function enviarCCe(
   cnpjEmit: string,
   ambiente: '1' | '2',
 ): Promise<EventoRetornoSEFAZ> {
+  const fiscalRequestId = randomUUID();
+
   const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
   if (sefazMode !== 'production') {
-    console.info('[NFE_CCE_MOCK]', { chaveNFe: chaveNFe.slice(0, 8) + '...', uf, sequencia });
+    console.info('[NFE_CCE_MOCK]', { fiscalRequestId, chaveNFe: chaveNFe.slice(0, 8) + '...', uf, sequencia });
+    emitFiscalEvent({ kind: 'cce_ok', requestId: fiscalRequestId, chaveNFe, uf, cStat: '135' });
     return {
       cStat: '135',
       xMotivo: 'Evento registrado e vinculado a NF-e [MOCK]',
@@ -494,7 +674,9 @@ export async function enviarCCe(
     };
   }
 
-  // Monta envEvento para CC-e (tpEvento=110110)
+  // T1204 — circuit breaker
+  checkCircuit();
+
   const now = new Date().toISOString().replace('Z', '-03:00').slice(0, 25);
   const nSeqEvento = String(sequencia).padStart(2, '0');
   const tpEvento = '110110';
@@ -502,7 +684,6 @@ export async function enviarCCe(
   const infEventoId = `ID${tpEvento}${chaveNFe}${nSeqEvento}`;
   const cnpjLimpo = cnpjEmit.replace(/\D/g, '');
 
-  // Condição de uso obrigatória pelo Manual de Orientações da SEFAZ
   const xCondUso =
     'A Carta de Correcao e disciplinada pelo paragrafo 1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 e pode ser utilizada para regularizacao de erro ocorrido na emissao de documento fiscal, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da operacao ou da prestacao; II - a correcao de dados cadastrais que implique mudanca do remetente ou do destinatario; III - a data de emissao ou de saida.';
 
@@ -537,34 +718,80 @@ export async function enviarCCe(
     throw new Error(`NFE_CCE_SIGN_FAIL: ${e.message}`);
   }
 
+  // T1202 — validate signed event XML before transmission
+  validateXmlBeforeSend(xmlAssinado, {
+    kind: 'evento',
+    requestId: fiscalRequestId,
+    context: `chaveNFe=${chaveNFe.slice(0, 8)}... cce seq=${sequencia}`,
+  });
+
   const url = getEventoUrl(uf, ambiente);
   const soap = buildEventoSoap(xmlAssinado);
   const httpsAgent = await resolverHttpsAgent();
 
-  console.info('[NFE_CCE_DISPATCH]', { uf, ambiente: ambiente === '1' ? 'producao' : 'homologacao', url, sequencia });
+  console.info('[NFE_CCE_DISPATCH]', {
+    fiscalRequestId,
+    uf,
+    ambiente: ambiente === '1' ? 'producao' : 'homologacao',
+    url,
+    sequencia,
+  });
 
   const { withRetry } = await import('../../core/retry/withRetry');
-  const { result } = await withRetry(
-    async () => {
-      const res = await axios.post(url, soap, {
-        headers: {
-          'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"',
-        },
-        httpsAgent,
-        timeout: 30000,
-      });
-      return res.data;
-    },
-    {
-      maxAttempts: 3,
-      baseDelayMs: 2_000,
-      maxDelayMs: 15_000,
-      retryable: (err: unknown) => !(axios.isAxiosError(err) && err.response),
-      onRetry: (attempt, err, delayMs) => {
-        console.warn(`[NFE_CCE_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${err instanceof Error ? err.message : String(err)}`);
+  const _start = Date.now();
+  try {
+    const { result } = await withRetry(
+      async () => {
+        const res = await axios.post(url, soap, {
+          headers: {
+            'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"',
+          },
+          httpsAgent,
+          timeout: 30000,
+        });
+        return res.data;
       },
-    },
-  );
-
-  return parseEventoResponse(result as string);
+      {
+        maxAttempts: 3,
+        baseDelayMs: 2_000,
+        maxDelayMs: 15_000,
+        retryable: (err: unknown) => !(axios.isAxiosError(err) && err.response),
+        onRetry: (attempt, err, delayMs) => {
+          const msg = err instanceof Error ? err.message : String(err);
+          const errType = classifyAxiosError(err);
+          if (errType === 'timeout') {
+            console.warn('[SEFAZ_TIMEOUT]', { fiscalRequestId, label: 'cce', attempt, delayMs, error: msg });
+          } else {
+            console.warn('[NFE_CCE_RETRY]', { fiscalRequestId, attempt, delayMs, error: msg });
+          }
+        },
+      },
+    );
+    const durationMs = Date.now() - _start;
+    const parsed = parseEventoResponse(result as string);
+    recordCircuitSuccess();
+    emitFiscalEvent({
+      kind: 'cce_ok',
+      requestId: fiscalRequestId,
+      chaveNFe,
+      uf,
+      ambiente: ambiente === '1' ? 'producao' : 'homologacao',
+      cStat: parsed.cStat,
+      xMotivo: parsed.xMotivo,
+      durationMs,
+    });
+    return parsed;
+  } catch (err) {
+    const durationMs = Date.now() - _start;
+    logSefazError(err, 'NFE_CCE_DISPATCH', fiscalRequestId, { uf, sequencia, durationMs });
+    emitFiscalEvent({
+      kind: 'cce_error',
+      requestId: fiscalRequestId,
+      chaveNFe,
+      uf,
+      durationMs,
+      errorMessage: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
+  }
 }
