@@ -1,0 +1,275 @@
+FASE 1 — EXECUÇÃO OPERACIONAL FISCAL REAL (HOMOLOGAÇÃO SEFAZ)
+
+You are now entering the REAL fiscal operation phase of the VivaFrutaz ERP.
+
+The NF-e infrastructure is already implemented and operational:
+- XML generation
+- digital signature
+- SOAP transport
+- DANFE
+- cancellation
+- CC-e
+- retries
+- observability
+- circuit breaker
+- concurrency
+- idempotency
+- Supabase persistence
+- workers
+- fiscal audit logs
+
+Your mission now is NOT to build a new fiscal engine.
+
+Your mission is:
+PARAMETRIZE AND VALIDATE REAL HOMOLOGATION OPERATION.
+
+━━━━━━━━━━━━━━━━━━━
+ABSOLUTE EXECUTION RULES
+━━━━━━━━━━━━━━━━━━━
+
+1. NO DESTRUCTIVE ACTIONS
+Forbidden:
+- DROP
+- TRUNCATE
+- mass DELETE
+- recreating users
+- overwriting MASTER
+- resetting passwords
+- resetting sequences
+- force schema recreation
+
+2. FULL READ-ONLY AUDIT FIRST
+Before any write:
+- read all related fiscal files
+- read schema
+- read company_config usage
+- read certificate flows
+- read NF-e builder
+- read transmission flow
+- read validation logic
+
+3. NO ASSUMPTIONS
+Never assume:
+- schema columns
+- fiscal fields
+- companyConfig structure
+- certificate structure
+- CRT mapping
+- CFOP defaults
+- tax behavior
+
+4. PRESERVE:
+- multi-tenant isolation
+- Supabase connection
+- observability
+- workers
+- retries
+- circuit breaker
+- sequence integrity
+- idempotency
+- concurrency locks
+
+━━━━━━━━━━━━━━━━━━━
+CURRENT REAL BLOCKERS
+━━━━━━━━━━━━━━━━━━━
+
+The audit already confirmed:
+
+1. company_config is empty
+→ buildNFeInput fails
+
+2. company_certificates is empty
+→ XML signing impossible
+
+3. companies table lacks fiscal data
+→ SEFAZ rejection guaranteed
+
+4. orders/order_items empty
+→ nothing emitable
+
+5. NFE_SEFAZ_MODE currently mock
+→ real homologation disabled
+
+━━━━━━━━━━━━━━━━━━━
+OBJECTIVE
+━━━━━━━━━━━━━━━━━━━
+
+Prepare the ENTIRE system for the FIRST REAL NF-e emission in SEFAZ HOMOLOGATION.
+
+━━━━━━━━━━━━━━━━━━━
+EXECUTION ORDER
+━━━━━━━━━━━━━━━━━━━
+
+STEP 1 — FULL FISCAL AUDIT
+Read in parallel:
+- NF-e routes
+- company_config schema
+- companies schema
+- certificate repository
+- buildNFeInput
+- XML generator
+- sender
+- DANFE
+- validators
+- order schema
+- product schema
+- fiscal config usage
+
+Do NOT write code before audit completion.
+
+━━━━━━━━━━━━━━━━━━━
+STEP 2 — COMPANY CONFIG VALIDATION
+Audit:
+- required fiscal fields
+- CRT handling
+- ambiente_fiscal
+- CSC/CSC-ID usage
+- state/UF handling
+- IE handling
+- CNPJ handling
+
+Map:
+- which fields are mandatory
+- which validations already exist
+- which validations are missing
+
+━━━━━━━━━━━━━━━━━━━
+STEP 3 — CERTIFICATE PIPELINE VALIDATION
+Validate:
+- PFX upload flow
+- base64 handling
+- password decrypt
+- certificate loading
+- expiration validation
+- signing compatibility
+- mTLS compatibility
+- homologation compatibility
+
+Do NOT bypass cert validation.
+
+━━━━━━━━━━━━━━━━━━━
+STEP 4 — HOMOLOGATION READINESS CHECK
+Create a complete readiness report:
+
+CHECKLIST:
+- company_config completeness
+- company fiscal completeness
+- product fiscal completeness
+- NCM presence
+- CFOP presence
+- CST/CSOSN presence
+- certificate readiness
+- homologation routing
+- tpAmb handling
+- DANFE generation
+- XML validation
+- SOAP compatibility
+
+━━━━━━━━━━━━━━━━━━━
+STEP 5 — SAFE PARAMETRIZATION
+ONLY AFTER AUDIT:
+
+Safely configure:
+- fiscal company data
+- homologation environment
+- certificate storage
+- test order
+- test product
+- minimal valid fiscal scenario
+
+Preserve:
+- existing tenants
+- existing users
+- MASTER account
+- production isolation
+
+━━━━━━━━━━━━━━━━━━━
+STEP 6 — HOMOLOGATION ACTIVATION
+ONLY after all validations pass:
+
+Activate:
+NFE_SEFAZ_MODE=production
+
+BUT:
+tpAmb MUST remain:
+2 (homologação)
+
+DO NOT activate real production emission.
+
+━━━━━━━━━━━━━━━━━━━
+STEP 7 — FIRST REAL EMISSION TEST
+Execute complete flow:
+
+pedido
+→ build fiscal
+→ XML
+→ assinatura
+→ SOAP
+→ envio
+→ retorno
+→ protocolo
+→ XML autorizado
+→ DANFE
+
+Capture:
+- requestId
+- cStat
+- xMotivo
+- latency
+- SOAP response
+- protocol
+- SEFAZ UF endpoint
+- retry behavior
+
+━━━━━━━━━━━━━━━━━━━
+STEP 8 — CONTROLLED FAILURE TESTS
+Intentionally test:
+- invalid IE
+- invalid NCM
+- invalid CFOP
+- invalid CST
+- expired certificate
+- timeout
+- retry
+- circuit breaker
+
+Validate:
+- observability
+- logs
+- retries
+- failure persistence
+- audit trail
+
+━━━━━━━━━━━━━━━━━━━
+MANDATORY REPORT FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+Always report:
+
+1. Audit findings
+2. Blockers
+3. Risks
+4. Files changed
+5. Exact behavior before/after
+6. Validation results
+7. Fiscal impacts
+8. Multi-tenant impacts
+9. Remaining gaps
+10. Safe next step
+
+━━━━━━━━━━━━━━━━━━━
+IMPORTANT
+━━━━━━━━━━━━━━━━━━━
+
+DO NOT optimize for speed.
+
+Optimize for:
+- fiscal correctness
+- SEFAZ compatibility
+- production safety
+- traceability
+- auditability
+- operational stability
+
+Start NOW with:
+FULL PARALLEL READ-ONLY AUDIT of all homologation-related fiscal files before writing any code.
