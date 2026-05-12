@@ -1,0 +1,166 @@
+FASE NF-e 1.0 — Correção dos Bloqueadores Críticos de Produção
+
+REGRAS ABSOLUTAS:
+- NÃO alterar usuários
+- NÃO alterar autenticação
+- NÃO alterar sessões
+- NÃO alterar multi-tenant
+- NÃO alterar faturamento
+- NÃO alterar frontend visual
+- NÃO alterar DANFE ainda
+- NÃO alterar schema além do necessário para sequência NF-e
+- NÃO quebrar homologação/mock atual
+- Fazer auditoria completa antes de escrever código
+- Todas alterações devem ser cirúrgicas
+- Manter compatibilidade com banco atual
+- Sem regressões
+
+OBJETIVO:
+Resolver os 2 bloqueadores críticos identificados na auditoria NF-e:
+
+BUG 1:
+getNextNfeNumero() não é atômico e pode gerar duplicidade em emissão concorrente/lote.
+
+BUG 2:
+UF está hardcoded para 'SP' no envio SEFAZ.
+
+EXECUTAR NA ORDEM:
+
+==================================================
+T1001 — AUDITORIA COMPLETA
+==================================================
+
+Ler completamente em paralelo:
+- storage.ts
+- nfeSender.ts
+- nfeUrl.ts
+- routes.ts
+- schema.ts
+- migrations existentes
+- nfe-concurrency.lock.ts
+- nfe-idempotency.guard.ts
+
+Mapear:
+- todos os pontos que chamam getNextNfeNumero()
+- todos os pontos que usam ambienteFiscal/UF
+- todos os lugares onde numero NF-e é criado
+- impactos de sequência PostgreSQL
+- compatibilidade com registros antigos
+
+NÃO ESCREVER CÓDIGO ANTES DA AUDITORIA.
+
+==================================================
+T1002 — NUMERAÇÃO NF-e ATÔMICA
+==================================================
+
+Implementar sequência PostgreSQL real para NF-e.
+
+OBJETIVO:
+Eliminar completamente condição de corrida.
+
+IMPLEMENTAÇÃO:
+- criar migration segura
+- criar sequence:
+  nfe_numero_seq
+
+Inicializar sequence com:
+MAX(numero)+1 existente em nfe_emissoes
+
+Depois:
+- alterar getNextNfeNumero()
+- usar SELECT nextval('nfe_numero_seq')
+- remover cálculo MAX(numero)+1 da aplicação
+
+REGRAS:
+- compatível com dados atuais
+- sem resetar numeração
+- sem quebrar histórico
+- sem truncar tabela
+- sem alterar chaves existentes
+
+VALIDAR:
+- concorrência
+- Promise.all
+- emissão em lote
+- cron
+- múltiplas empresas
+
+==================================================
+T1003 — UF DINÂMICA REAL
+==================================================
+
+Corrigir envio SEFAZ.
+
+PROBLEMA:
+routes.ts usa:
+const uf = 'SP'
+
+IMPLEMENTAÇÃO:
+- obter UF real da empresa
+- usar:
+companyConfig.uf
+OU
+company.addressState
+OU equivalente já existente
+
+Mapear estrutura correta antes de alterar.
+
+VALIDAR:
+- SP
+- MG
+- RJ
+- PR
+- RS
+- SC
+
+Garantir:
+nfeUrl.ts receba UF real.
+
+==================================================
+T1004 — HARDENING
+==================================================
+
+Adicionar:
+- validação de UF inválida
+- logs estruturados
+- fallback seguro
+- mensagens claras de erro
+
+NÃO permitir:
+- enviar com UF undefined
+- enviar com UF inválida
+- fallback silencioso para SP
+
+==================================================
+T1005 — TESTES
+==================================================
+
+Executar:
+- typecheck
+- startup
+- emissão mock
+- emissão lote
+- concorrência
+- preflight
+- cron eligibility
+- idempotência
+
+VALIDAR:
+- zero regressões
+- workers funcionando
+- observabilidade intacta
+- tenant isolation intacta
+
+==================================================
+T1006 — RELATÓRIO FINAL
+==================================================
+
+Entregar:
+- arquivos alterados
+- migration criada
+- validações executadas
+- riscos eliminados
+- compatibilidade preservada
+- impactos ZERO em usuários/sessões/auth
+- confirmação explícita:
+“numeração NF-e agora é atomicamente segura”

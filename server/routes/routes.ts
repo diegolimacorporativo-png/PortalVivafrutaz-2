@@ -2706,8 +2706,24 @@ export async function registerRoutes(
           });
         }
 
-        const uf = nfe.ambienteFiscal === 'producao' ? 'SP' : 'SP';
+        // T1003 — UF dinâmica real do emitente (companyConfig.state).
+        // T1004 — rejeita envio com UF ausente ou inválida; sem fallback silencioso.
+        const emitConfig = await storage.getCompanyConfig();
+        const ufRaw = (emitConfig?.state ?? '').trim().toUpperCase();
+        if (!ufRaw || !/^[A-Z]{2}$/.test(ufRaw)) {
+          console.error(
+            `[NFE_UF_MISSING] requestId=${getRequestIdForLog()} | nfeId=${nfe.id} | orderId=${nfe.orderId} | state=${JSON.stringify(emitConfig?.state)}`,
+          );
+          return res.status(400).json({
+            message: 'UF do emitente não configurada ou inválida. Acesse Configurações Fiscais e informe o estado (UF) da empresa emissora.',
+            campo: 'state',
+          });
+        }
+        const uf = ufRaw;
         const tpAmb = nfe.ambienteFiscal === 'producao' ? '1' : '2';
+        console.info(
+          `[NFE_ENVIAR] requestId=${getRequestIdForLog()} | nfeId=${nfe.id} | uf=${uf} | tpAmb=${tpAmb} | orderId=${nfe.orderId}`,
+        );
         const retorno = await enviarNFeSEFAZ(xmlParaEnviar, uf, tpAmb);
 
         const updates: any = { status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo };
@@ -2997,9 +3013,14 @@ export async function registerRoutes(
       try {
         const config = await storage.getCompanyConfig();
         const tpAmb = config?.ambienteFiscal === 'producao' ? '1' : '2';
-        const uf = config?.state || 'SP';
-        const result = await consultarStatusSEFAZ(uf, tpAmb as '1' | '2');
-        res.json({ ...result, uf, ambiente: tpAmb === '1' ? 'producao' : 'homologacao' });
+        // T1003/T1004 — usar UF real do emitente; fallback para SP apenas
+        // neste endpoint de status (somente leitura, sem impacto fiscal).
+        const ufStatus = (config?.state ?? '').trim().toUpperCase() || 'SP';
+        if (!/^[A-Z]{2}$/.test(ufStatus)) {
+          return res.status(400).json({ message: 'UF do emitente inválida. Configure o estado em Configurações Fiscais.', online: false });
+        }
+        const result = await consultarStatusSEFAZ(ufStatus, tpAmb as '1' | '2');
+        res.json({ ...result, uf: ufStatus, ambiente: tpAmb === '1' ? 'producao' : 'homologacao' });
       } catch (e: any) { res.status(500).json({ message: e.message, online: false }); }
     });
 

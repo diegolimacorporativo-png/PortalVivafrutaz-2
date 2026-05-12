@@ -2336,8 +2336,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getNextNfeNumero(): Promise<number> {
-    const [result] = await db.select({ max: sql<string>`coalesce(max(numero::integer), 0)` }).from(nfeEmissoes);
-    return parseInt(result.max) + 1;
+    // T1002 — atomic PostgreSQL sequence (replaces non-atomic MAX+1).
+    // nextval() is guaranteed unique even under concurrent calls and
+    // Promise.all batch emission.  The sequence was created by migration
+    // 20260512_nfe_numero_seq.sql, initialised from MAX(numero)+1.
+    const result = await db.execute(sql`SELECT nextval('nfe_numero_seq') AS numero`);
+    const row = (result as any).rows?.[0];
+    const num = Number(row?.numero);
+    if (!Number.isInteger(num) || num <= 0) {
+      throw new Error(`[NFE_SEQ] nextval retornou valor inválido: ${row?.numero}`);
+    }
+    return num;
   }
 
   // ─── NF-e Training Logs ─────────────────────────────────────────────────────

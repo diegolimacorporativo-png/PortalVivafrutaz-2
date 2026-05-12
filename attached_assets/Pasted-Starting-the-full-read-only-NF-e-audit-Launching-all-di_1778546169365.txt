@@ -1,0 +1,155 @@
+Starting the full read-only NF-e audit. Launching all discovery searches in parallel across the entire codebase.
+Restarting workflow while reading all NF-e core files in parallel.
+Reading all NF-e core files in parallel across every layer.
+Continuing the parallel deep-read of all remaining NF-e layers.
+Continuing the deep parallel read of all remaining NF-e layers.
+Continuing the deep parallel read of remaining NF-e layers — schema, routes, cron, outbox, storage, and frontend.
+Reading the remaining unread NF-e files in parallel — routes, schema NF-e tables, fiscal controller, frontend, storage layer, and error handling.
+Reading the remaining NF-e routes, frontend pages, and storage details in parallel.
+Continuing — reading NF-e route registrations, frontend pages, and storage interface details in parallel.
+Continuing with the final batch of NF-e audit reads — routes continuation, certificates, fiscal-invoices, and frontend pages.
+Continuing the final parallel audit reads — SEFAZ send/cancel/CCe routes, storage NF-e methods, certificate repository, and frontend hooks.
+Reading the final batch — SEFAZ send, cancel, CCe, diagnostics, and storage getNextNfeNumero critical details.
+The read-only audit is now complete. Compiling the full findings.
+The audit is complete. Here is the full report.
+
+NF-e Full Audit — Complete Findings
+INVENTORY: What exists today
+Core pipeline (all in server-side TypeScript, fully wired):
+
+Layer	File	Status
+XML Generator	nfeGenerator.ts	✅ Complete — ICMS CRT-aware (Simples/CST), interestadual rates (7/12/18%), importado=4%, PIS/COFINS NT
+Input Builder	nfe-input.builder.ts	✅ Complete — reads order + company + companyConfig
+Validator	nfeValidator.ts	✅ Complete
+Signer	nfeSignature.ts / nfeSigner.ts	✅ Complete — RSA-SHA256 via node-forge + xml-crypto
+DANFE	danfeGenerator.ts	✅ Complete — pdfkit
+SOAP	nfeSoap.ts	✅ Complete
+URL map	nfeUrl.ts	✅ Complete — SP/MG/RJ/RS/PR/SC + default
+SEFAZ sender	nfeSender.ts	✅ Complete — cert chain, retry, cancellation (enviarCancelamentoNFe exists)
+Mock transmit	nfe-transmit.service.ts	✅ Mock only — explicitly throws NFE_SEFAZ_PRODUCTION_NOT_IMPLEMENTED
+Cert loader (env)	nfeCert.ts	✅ env → base64 → file
+Cert loader (DB)	nfeCertDynamic.ts	✅ per-tenant from DB, decrypts enc:v1: format
+Idempotency guard	nfe-idempotency.guard.ts	✅ hasBlockingNFe — pg query, blocks duplicates
+Concurrency lock	nfe-concurrency.lock.ts	✅ pg_advisory_lock — per (tenantId, orderId)
+Faturamento engine	faturamento.engine.ts	✅ IMEDIATO/SEMANAL/MENSAL/CONTRATUAL/PONTUAL
+Faturamento guard	faturamento.guard.ts	✅ canEmitNFe
+Cron	jobs/faturamento.cron.ts	✅ daily 08:00, AUTO_FATURAMENTO flag, batch=5
+Error handler	nfeErrorHandler.ts	✅ cStat 533/215/539/110 → RECALCULAR/VALIDAR_XML/REEMITIR/MANUAL
+Auto-correct	nfeAutoCorrect.ts	✅ pure, sums vBC/vICMS for cStat 533 audit only
+CC-e rules	nfe-cce-rules.service.ts	✅ limit=20, 30-day window, status=autorizada, motivo≥10
+CC-e audit	nfe-cce-audit.service.ts	✅ fire-and-forget DB audit trail
+ICMS summary	icms-summary.service.ts	✅ XML regex parser, importado vs normal buckets
+NF Draft engine	nf.draft.ts	✅ STANDARD/CONTRACT_OPEN/CONTRACT_AVERAGE
+Fiscal closure	fiscal-closure.service.ts	✅ isPeriodClosed blocks emission into closed months
+Cert repository	companyCertificate.repository.ts	✅ upsert/get/delete/audit/migrate — encrypts password
+API routes (all inline in routes.ts):
+
+GET /api/nfe → list (tenant-scoped via orders subquery)
+GET /api/nfe/:id → detail + tenant check
+GET /api/nfe/can-emit/:orderId → pre-check
+GET /api/nfe/preflight/:orderId → dry-run (no DB writes)
+GET /api/nfe/eligible → candidates for cron
+GET /api/nfe/cron/status|history + POST .../run → cron management
+POST /api/nfe/emitir → XML gen + DB persist (no SEFAZ send)
+POST /api/nfe/emitir-lote → batch (up to orderIds array, concurrency=5 via lock)
+POST /api/nfe/:orderId/reenviar → re-emit (for rejeitada/erro/denegada)
+POST /api/nfe/:orderId/corrigir-reenviar → semi-auto (only cStat 533/539)
+GET /api/nfe/:orderId/historico → full attempt history
+POST /api/nfe/:id/enviar → SEFAZ transmit (see critical issues below)
+GET /api/nfe/:id/danfe → PDF
+GET /api/nfe/:id/xml → XML download
+DELETE /api/nfe/:id → cancel (see critical issues below)
+POST /api/nfe/:id/cce + GET history → CC-e (see important issues below)
+GET /api/nfe/sefaz/status → SEFAZ ping
+GET /api/nfe/fiscal-data/:orderId → completeness check
+GET /api/nfe/diagnostics/:orderId + training logs + patterns
+/api/fiscal/drafts/* → NF draft CRUD
+/api/fiscal/icms-summary, export, export-xlsx → ICMS reporting
+/api/fiscal/close-period + /closures → fiscal month closure
+/api/company/certificate POST/GET/DELETE + admin audit/migrate
+DB schema (nfe_emissoes): id, orderId, numero, serie, chaveNFe, status, xmlGerado, xmlAutorizado, protocolo, dataEmissao, dataAutorizacao, ambienteFiscal, danfePath, motivoCancelamento, cStat, xMotivo — unique index on (serie, numero), check constraint on status. No tenantId column — all tenant scoping done via JOIN to orders.companyId.
+
+CRITICAL BUGS (must fix before any production use)
+BUG 1 — getNextNfeNumero() is non-atomic (race condition → duplicate numbers)
+
+storage.ts:2339 does:
+
+SELECT COALESCE(MAX(numero::integer), 0) FROM nfe_emissoes
+then adds +1 in application code and inserts. Under concurrent emissão (emitir-lote batches 5 items in Promise.all, cron batches up to 500), two processes race and both read the same MAX. Both attempt to insert the same numero. The unique index on (serie, numero) catches this and throws a DB error — but it means the second NF-e fails completely. This is a hard blocker for any multi-order batch in production.
+
+Fix options:
+
+Correct: Use a PostgreSQL sequence — CREATE SEQUENCE nfe_numero_seq; DEFAULT nextval('nfe_numero_seq') on numero
+Acceptable: Wrap in a pg_advisory_xact_lock around a transaction: lock → read MAX → insert → release
+BUG 2 — UF hardcoded to 'SP' in production send path
+
+routes.ts:2709:
+
+const uf = nfe.ambienteFiscal === 'producao' ? 'SP' : 'SP';
+Both branches return 'SP'. For any emitter in MG, RJ, RS, PR, SC, or any other UF, the NF-e is sent to SP's SEFAZ URLs — which will reject it. The URL map in nfeUrl.ts already knows all UFs; it just never receives the right one. Must read cfg.uf or cfg.addressState from companyConfig.
+
+IMPORTANT GAPS (features missing for complete SEFAZ compliance)
+GAP 1 — Cancel NF-e sends nothing to SEFAZ
+
+DELETE /api/nfe/:id only does storage.updateNfeEmissao(id, { status: 'cancelada' }). The enviarCancelamentoNFe() function already exists in nfeSender.ts but is never called from the cancel route. SEFAZ requires a formal CAN-NF-e event within 24h of authorization for authorized notes. Without it, the SEFAZ still considers the NF-e valid — the cancellation only exists locally.
+
+GAP 2 — CC-e sends nothing to SEFAZ
+
+POST /api/nfe/:id/cce creates a DB record and passes all business rules (limit, time window, status, motivo length) but never generates or transmits a CC-e XML to SEFAZ. The note is correct at SEFAZ until the CC-e is transmitted.
+
+GAP 3 — No NF-e inutilização endpoint
+
+SEFAZ requires inutilização when a number range is skipped without being used. There is no endpoint for this.
+
+GAP 4 — nfe-transmit.service.ts production path throws immediately
+
+Even if NFE_SEFAZ_MODE=production is set, the transmit service throws NFE_SEFAZ_PRODUCTION_NOT_IMPLEMENTED. The only working production path is the legacy one gated by CERT_PATH + CERT_PASSWORD env vars — which has BUG 2 above.
+
+GAP 5 — DANFE reflects current order state, not emission-time state
+
+GET /api/nfe/:id/danfe calls buildNFeInput(orderId) at download time rather than using the stored xmlGerado / xmlAutorizado. If the order is modified after emission, the DANFE will not match the transmitted XML. The correct approach is to parse the stored authorized XML, or render the DANFE from the stored XML content.
+
+MODERATE ISSUES
+M1 — nfeEmissoes has no tenantId column
+
+Tenant scope is applied via subquery JOIN through orders.companyId. NF-es with orderId = NULL (if any are ever created directly) have no tenant scope and fall through to all tenants. Low risk today since all current paths require an orderId, but creates a subtle invariant to maintain.
+
+M2 — Fiscal status transition to nota_liberada is implicit
+
+The cron and /api/nfe/eligible both require orders.fiscal_status = 'nota_liberada'. The schema comment only documents nota_pendente | nota_exportada | nota_emitida | nota_cancelada — nota_liberada is missing from the comment. The actual transition that sets nota_liberada needs to be explicitly identified and documented to avoid it becoming an invisible manual step.
+
+M3 — Two production send paths with inconsistent logic
+
+Path A: NFE_SEFAZ_MODE != 'production' → transmitirNFe() → mock (or throws in production)
+Path B: CERT_PATH + CERT_PASSWORD set → direct enviarNFeSEFAZ() → real SEFAZ (but UF='SP' bug)
+These two paths were built at different times and are not unified. When real production is wired, one path should be the canonical implementation.
+
+M4 — cStat column missing in some status update paths
+
+The reenviar and corrigir-reenviar routes call storage.createNfeEmissao() to create a new NF-e but never write back cStat/xMotivo for the old rejected NF-e. The old record stays with whatever cStat it had at rejection, which is correct, but the new record starts with no cStat — fine until SEFAZ responds.
+
+IMPLEMENTATION READINESS ASSESSMENT
+Capability	Readiness
+XML generation (homologação)	✅ Ready — solid, tested via mock flow
+Digital signing (A1 cert)	✅ Ready — node-forge RSA-SHA256
+DANFE PDF	✅ Ready
+Mock/test flow end-to-end	✅ Ready
+Idempotency and concurrency	✅ Ready — pg_advisory_lock + hasBlockingNFe
+Multi-tenant isolation	✅ Ready — validateOrderTenant on all paths
+Fiscal period closure	✅ Ready
+Per-tenant A1 certificate	✅ Ready — encrypted in DB
+Real SEFAZ transmission	❌ 2 critical bugs (race condition + UF='SP')
+Real NF-e cancellation	❌ Missing SEFAZ CAN-NF-e dispatch
+Real CC-e transmission	❌ Missing SEFAZ CC-e XML + dispatch
+Number inutilização	❌ Not implemented
+RECOMMENDED IMPLEMENTATION ORDER
+Fix BUG 1 (getNextNfeNumero race condition) — use a PostgreSQL sequence. This is a prerequisite for everything else. One DB migration: CREATE SEQUENCE nfe_numero_seq START WITH (SELECT COALESCE(MAX(numero::integer)+1,1) FROM nfe_emissoes) and change getNextNfeNumero() to call nextval.
+Fix BUG 2 (UF hardcoded to SP) — read companyConfig.uf or companyConfig.addressState in the /enviar route.
+Wire GAP 1 (real cancel) — call enviarCancelamentoNFe() from nfeSender.ts in the DELETE /api/nfe/:id handler after status guard.
+Wire GAP 2 (real CC-e) — generate CC-e XML and transmit from the CCe route.
+Fix GAP 5 (DANFE from stored XML) — parse xmlAutorizado || xmlGerado for DANFE rendering instead of rebuilding from order state.
+Unify production send path — consolidate Path A/B into nfe-transmit.service.ts with the UF fix.
+Add GAP 3 (inutilização) — implement after the above are stable.
+The codebase is very well structured for this work. All the supporting infrastructure (cert loading, signing, SOAP, URL map, idempotency, concurrency, guards, tenant isolation) is solid. The two critical bugs are surgical one-line fixes each. The three main gaps (cancel, CC-e, DANFE) have supporting code already in nfeSender.ts that just needs to be called. The path to a production-capable NF-e module is clear and bounded.
+
+Next, I can implement Fix BUG 1 (atomic NF-e number sequence via PostgreSQL nextval) and Fix BUG 2 (UF read from companyConfig), as these are prerequisites for all real SEFAZ transmission. Would you like me to do that?
