@@ -1,0 +1,236 @@
+ABSOLUTE EXECUTION RULES — VIVAFRUTAZ ERP
+
+You are operating inside a production-capable ERP with real fiscal infrastructure, Supabase persistence, and NF-e modules already implemented.
+
+You MUST follow these rules with ZERO deviation.
+
+━━━━━━━━━━━━━━━━━━━
+CORE EXECUTION RULES
+━━━━━━━━━━━━━━━━━━━
+
+1. NEVER WRITE CODE BEFORE FULL AUDIT
+Before touching a single line:
+- read all related files
+- map dependencies
+- identify risks
+- identify side effects
+- identify tenant impacts
+- identify fiscal impacts
+- identify auth/session impacts
+
+Always perform:
+READ-ONLY PARALLEL AUDIT FIRST.
+
+2. NO ASSUMPTIONS
+Never assume:
+- schema names
+- column names
+- routes
+- env vars
+- workers
+- NF-e structure
+- companyConfig shape
+- certificate flow
+
+Read the real implementation first.
+
+3. NEVER BREAK EXISTING FLOWS
+Preserve:
+- multi-tenant isolation
+- auth/session
+- observability
+- workers
+- retries
+- outbox
+- fiscal integrity
+- sequence integrity
+- idempotency
+- concurrency locks
+
+4. NO DESTRUCTIVE ACTIONS
+Forbidden unless explicitly authorized:
+- DROP
+- TRUNCATE
+- DELETE mass operations
+- reset seeds
+- recreate users
+- overwrite MASTER
+- password resets
+- force migrations
+- schema recreation
+
+5. ALL CHANGES MUST BE SURGICAL
+Prefer:
+- minimal edits
+- isolated changes
+- backward compatibility
+- idempotent migrations
+- zero regression risk
+
+6. ALWAYS VALIDATE AFTER IMPLEMENTATION
+Mandatory after changes:
+- typecheck
+- startup validation
+- health endpoint
+- log verification
+- tenant verification
+- NF-e flow validation
+- no new TypeScript errors
+
+7. NEVER HIDE RISKS
+If a risk exists:
+- stop
+- explain clearly
+- classify severity
+- propose safest path
+
+━━━━━━━━━━━━━━━━━━━
+CURRENT SYSTEM STATE
+━━━━━━━━━━━━━━━━━━━
+
+Environment:
+- Supabase connected correctly
+- SSL/TLS active through pooler
+- Workers operational
+- MASTER account intact
+- Production-safe environment
+
+NF-e Core already exists:
+- XML generation
+- digital signature
+- DANFE
+- SOAP
+- certificate loading
+- CC-e
+- cancellation
+- retries
+- observability
+- circuit breaker
+- idempotency
+- concurrency locks
+- fiscal logs
+- atomic sequence
+
+━━━━━━━━━━━━━━━━━━━
+CURRENT OFFICIAL PHASE
+━━━━━━━━━━━━━━━━━━━
+
+FASE 1 — HOMOLOGAÇÃO FISCAL REAL
+
+Primary objective:
+Emit the first REAL NF-e in SEFAZ homologation environment with full stability.
+
+━━━━━━━━━━━━━━━━━━━
+OFFICIAL EXECUTION ORDER
+━━━━━━━━━━━━━━━━━━━
+
+STEP 1 — Full audit
+Read ALL fiscal files in parallel before coding.
+
+STEP 2 — Certificate validation
+Validate:
+- A1 upload
+- password
+- expiration
+- chain
+- mTLS
+- signing
+
+STEP 3 — Real homologation company validation
+Validate:
+- CNPJ
+- IE
+- CRT
+- address
+- NCM
+- CFOP
+- fiscal completeness
+
+STEP 4 — First real homologation emission
+Full flow:
+Pedido
+→ XML
+→ assinatura
+→ transmissão
+→ autorização
+→ protocolo
+→ XML autorizado
+→ DANFE
+
+STEP 5 — Controlled rejection testing
+Intentionally provoke:
+- 204
+- 215
+- 225
+- 539
+- invalid IE
+- invalid CFOP
+- invalid NCM
+- invalid CST
+
+STEP 6 — Real cancellation validation
+Validate:
+- event 110111
+- protocol
+- XML response
+- persistence
+- legal window
+
+STEP 7 — Real CC-e validation
+Validate:
+- event 110110
+- sequence
+- protocol
+- persistence
+
+STEP 8 — Stress fiscal tests
+Validate:
+- concurrency
+- retries
+- timeout recovery
+- SEFAZ offline
+- circuit breaker
+- recovery
+
+━━━━━━━━━━━━━━━━━━━
+MANDATORY REPORT FORMAT
+━━━━━━━━━━━━━━━━━━━
+
+Always report:
+
+1. Audit findings
+2. Risks found
+3. Files changed
+4. Exact behavior before/after
+5. Validation results
+6. Side-effect analysis
+7. Remaining gaps
+8. Safe next step
+
+━━━━━━━━━━━━━━━━━━━
+IMPORTANT ACTIVE RISKS
+━━━━━━━━━━━━━━━━━━━
+
+1. drizzle.config.ts still points to DATABASE_URL instead of SUPABASE_DATABASE_URL
+→ db:push risk
+
+2. login_attempts vs failedLoginAttempts possible schema drift
+→ auth consistency risk
+
+These must be preserved and audited carefully.
+
+━━━━━━━━━━━━━━━━━━━
+FINAL RULE
+━━━━━━━━━━━━━━━━━━━
+
+Do NOT optimize for speed.
+Optimize for:
+- fiscal correctness
+- production stability
+- zero regression
+- operational safety
+- traceability
+- auditability
+
+Start now with:
+FULL PARALLEL READ-ONLY AUDIT of all NF-e homologation related files before writing any code.
