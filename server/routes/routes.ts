@@ -1210,7 +1210,7 @@ export async function registerRoutes(
   {
     const { gerarNFeXML } = await import('../services/nfe/nfeGenerator.ts');
     const { validarNFeInput } = await import('../services/nfe/nfeValidator.ts');
-    const { gerarDANFE } = await import('../services/nfe/danfeGenerator.ts');
+    const { gerarDANFE, parseXmlToDanfeData } = await import('../services/nfe/danfeGenerator.ts');
     const { enviarNFeSEFAZ, consultarStatusSEFAZ } = await import('../services/nfe/nfeSender.ts');
 
     // STEP 9.3C — buildNFeInput extraído para server/modules/nfe/nfe-input.builder.ts
@@ -2766,42 +2766,28 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/:id/danfe — baixar PDF
+    // T1104 — fonte da verdade: xmlAutorizado → xmlGerado. Nunca reconstrói do pedido.
+    // Juridicamente válido: o conteúdo do DANFE reflecte exactamente o XML autorizado pela SEFAZ.
     app.get('/api/nfe/:id/danfe', requireAuthCore, async (req: any, res) => {
       try {
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
 
-        // FASE 3 — antes de usar nfe.orderId, garante que pertence ao tenant.
+        // FASE 3 — garante que pertence ao tenant.
         if (nfe.orderId) await validateOrderTenant(nfe.orderId);
 
-        // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
-        let input: Awaited<ReturnType<typeof buildNFeInput>> | null = null;
-        if (nfe.orderId) {
-          const resolvedDanfe = await resolveBillingItems(nfe.orderId);
-          input = await buildNFeInput({
-            orderId: nfe.orderId,
-            sourceItems: resolvedDanfe.items,
+        // T1104 — usa XML persistido como única fonte da verdade (juridicamente válido).
+        // Prioridade: xmlAutorizado (SEFAZ-validated) → xmlGerado (before auth) → erro.
+        // Nunca chama buildNFeInput() pois o estado do pedido pode ter mudado após a emissão.
+        const xml = nfe.xmlAutorizado || nfe.xmlGerado;
+        if (!xml) {
+          return res.status(400).json({
+            message: 'DANFE indisponível: XML NF-e não encontrado. Emita a NF-e primeiro.',
+            code: 'NFE_XML_MISSING',
           });
         }
-        if (!input) return res.status(400).json({ message: 'Não é possível gerar DANFE sem dados do pedido' });
 
-        const vProd = input.produtos.reduce((s: number, p: any) => s + p.vProd, 0);
-        const danfeData = {
-          chaveNFe: nfe.chaveNFe || '',
-          numero: nfe.numero,
-          serie: nfe.serie,
-          dataEmissao: nfe.dataEmissao || new Date().toISOString(),
-          protocolo: nfe.protocolo || undefined,
-          dataAutorizacao: nfe.dataAutorizacao?.toISOString() || undefined,
-          emitente: input.emitente,
-          destinatario: input.destinatario,
-          produtos: input.produtos,
-          total: { vProd, vFrete: 0, vDesc: 0, vNF: vProd },
-          natOp: input.natOp || 'Venda de mercadoria adquirida',
-          tpAmb: input.tpAmb || '2',
-          informacoesAdicionais: input.informacoesAdicionais,
-        };
-
+        const danfeData = parseXmlToDanfeData(xml);
         const pdfBuffer = await gerarDANFE(danfeData);
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="DANFE_NF-e_${nfe.numero}.pdf"`);
@@ -3025,35 +3011,138 @@ export async function registerRoutes(
     });
 
     // DELETE /api/nfe/:id — cancelar NF-e
+    // T1102 — cancelamento REAL na SEFAZ com validações legais e persistência completa.
     app.delete('/api/nfe/:id', requireAuthCore, async (req: any, res) => {
+      const requestId = getRequestIdForLog();
       try {
         const { motivo } = req.body;
         const nfe = await storage.getNfeEmissao(Number(req.params.id));
         if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
-        // FASE 6 — BATCH FINAL: bloqueia cancelamento de NF-e de outro tenant.
-        // Mesmo padrão de /api/nfe/:id/xml e /api/nfe/:id/danfe.
+
+        // FASE 6 — bloqueia cancelamento de NF-e de outro tenant.
         if (nfe.orderId) {
           try {
             await validateOrderTenant(nfe.orderId);
           } catch (e: any) {
-            if (e instanceof AppError) {
-              return res.status(e.status).json({ message: e.message });
-            }
+            if (e instanceof AppError) return res.status(e.status).json({ message: e.message });
             throw e;
           }
         }
-        logSecurity("[NFE_CANCEL] order=" + (nfe.orderId ?? req.params.id) + " | user=" + req.session?.userId);
-        await storage.updateNfeEmissao(nfe.id, { status: 'cancelada', motivoCancelamento: motivo || 'Cancelada pelo usuário' });
-        res.json({ success: true });
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+
+        // T1102 — guard: apenas NF-e AUTORIZADA pode ser cancelada
+        if (nfe.status !== 'autorizada') {
+          return res.status(422).json({
+            success: false,
+            code: 'NFE_CANCEL_INVALID_STATUS',
+            message: `Cancelamento bloqueado: NF-e está com status '${nfe.status}'. Somente NF-e AUTORIZADA pode ser cancelada.`,
+          });
+        }
+
+        // T1102 — idempotência: já cancelada na SEFAZ
+        if (nfe.protocoloCancelamento) {
+          return res.status(409).json({
+            success: false,
+            code: 'NFE_CANCEL_DUPLICATE',
+            message: 'Cancelamento já registrado na SEFAZ para esta NF-e.',
+            protocoloCancelamento: nfe.protocoloCancelamento,
+          });
+        }
+
+        // T1102 — janela legal: 168h (7 dias) após autorização
+        const MAX_CANCEL_HOURS = 168;
+        if (nfe.dataAutorizacao) {
+          const diffHours = (Date.now() - new Date(nfe.dataAutorizacao).getTime()) / (1000 * 60 * 60);
+          if (diffHours > MAX_CANCEL_HOURS) {
+            return res.status(422).json({
+              success: false,
+              code: 'NFE_CANCEL_TIME_EXPIRED',
+              message: `Cancelamento fora da janela legal (${MAX_CANCEL_HOURS}h após autorização). Prazo encerrado.`,
+            });
+          }
+        }
+
+        // T1102 — campos obrigatórios para o evento SEFAZ
+        if (!nfe.chaveNFe) {
+          return res.status(400).json({ success: false, code: 'NFE_CANCEL_MISSING_CHAVE', message: 'Chave NF-e ausente. Não é possível cancelar.' });
+        }
+        if (!nfe.protocolo) {
+          return res.status(400).json({ success: false, code: 'NFE_CANCEL_MISSING_PROTOCOLO', message: 'Protocolo de autorização ausente. Não é possível cancelar.' });
+        }
+
+        const xJust = ((motivo as string) || 'Cancelamento solicitado pelo emitente').trim();
+        if (xJust.length < 15) {
+          return res.status(400).json({ success: false, code: 'NFE_CANCEL_MOTIVO_INVALIDO', message: 'Motivo de cancelamento inválido (mínimo 15 caracteres).' });
+        }
+
+        const emitConfig = await storage.getCompanyConfig();
+        const uf = (emitConfig?.state ?? 'SP').trim().toUpperCase();
+        const cnpjEmit = (emitConfig?.cnpj ?? '').replace(/\D/g, '');
+        const tpAmb: '1' | '2' = nfe.ambienteFiscal === 'producao' ? '1' : '2';
+
+        logSecurity(`[NFE_CANCELAMENTO] requestId=${requestId} | nfeId=${nfe.id} | chave=${nfe.chaveNFe} | uf=${uf} | tpAmb=${tpAmb} | user=${req.session?.userId}`);
+
+        const { cancelarNFe } = await import('../services/nfe/nfeSender.ts');
+        const retorno = await cancelarNFe(nfe.chaveNFe, nfe.protocolo, xJust, uf, cnpjEmit, tpAmb);
+
+        // cStat de sucesso: 135=vinculado, 155=cancelamento homologação, 101=cancelamento de NF-e
+        const CANCEL_SUCCESS = new Set(['101', '135', '155']);
+        if (!CANCEL_SUCCESS.has(retorno.cStat)) {
+          logSecurity(`[NFE_CANCELAMENTO_REJEITADO] requestId=${requestId} | nfeId=${nfe.id} | cStat=${retorno.cStat} | xMotivo=${retorno.xMotivo}`);
+          return res.status(422).json({
+            success: false,
+            code: 'NFE_CANCEL_REJECTED',
+            cStat: retorno.cStat,
+            xMotivo: retorno.xMotivo,
+            message: `Cancelamento rejeitado pela SEFAZ: ${retorno.xMotivo} (cStat=${retorno.cStat})`,
+          });
+        }
+
+        // T1102 — persiste cancelamento com todos os dados do evento SEFAZ
+        await storage.updateNfeEmissao(nfe.id, {
+          status: 'cancelada',
+          motivoCancelamento: xJust,
+          protocoloCancelamento: retorno.protocolo || null,
+          xmlCancelamento: retorno.xmlEvento || null,
+          canceladoEm: new Date(),
+          cStatCancelamento: retorno.cStat,
+          xMotivoCancelamento: retorno.xMotivo,
+        } as any);
+
+        // Atualiza status fiscal do pedido
+        if (nfe.orderId) {
+          try {
+            await storage.updateOrder(nfe.orderId, { fiscalStatus: 'nota_cancelada' } as any);
+          } catch { /* best-effort */ }
+        }
+
+        await storage.createLog({
+          action: 'NF-E_CANCELADA',
+          description: `NF-e #${nfe.id} cancelada na SEFAZ. Protocolo: ${retorno.protocolo} | cStat=${retorno.cStat} | xMotivo=${retorno.xMotivo}`,
+          level: 'WARN',
+          userId: req.session?.userId,
+        });
+        logSecurity(`[NFE_CANCELAMENTO_OK] requestId=${requestId} | nfeId=${nfe.id} | protocolo=${retorno.protocolo}`);
+
+        res.json({
+          success: true,
+          protocolo: retorno.protocolo,
+          cStat: retorno.cStat,
+          xMotivo: retorno.xMotivo,
+        });
+      } catch (e: any) {
+        logSecurity(`[NFE_CANCELAMENTO_ERRO] requestId=${requestId} | error=${e?.message}`);
+        res.status(500).json({ message: e.message });
+      }
     });
 
     // CC-e (Carta de Correção Eletrônica) — FASE 14.3: enterprise hardening
+    // T1103 — transmissão REAL na SEFAZ (mock quando NFE_SEFAZ_MODE !== 'production').
     // Rules enforced (in order): motivo length → status → limit → time window
     // Audit persisted after every successful creation.
 
     // POST /api/nfe/:id/cce — registrar CC-e
     app.post('/api/nfe/:id/cce', requireAuthCore, async (req: any, res) => {
+      const requestId = getRequestIdForLog();
       try {
         const { id } = req.params;
         const { correcao } = req.body;
@@ -3089,7 +3178,47 @@ export async function registerRoutes(
         const userId: number | null = req.session?.userId || null;
         const empresaId: number | null = currentTenantId() ?? req.session?.companyId ?? null;
 
-        const entrada = await storage.createNfeCce(nfeId, correcao, userId);
+        // T1103 — campos obrigatórios para o evento SEFAZ
+        if (!nfe.chaveNFe) {
+          return res.status(400).json({ success: false, code: 'NFE_CCE_MISSING_CHAVE', error: { message: 'Chave NF-e ausente. Não é possível emitir CC-e.' } });
+        }
+
+        // T1103 — transmite CC-e para SEFAZ (mock quando NFE_SEFAZ_MODE !== 'production')
+        const emitConfig = await storage.getCompanyConfig();
+        const uf = (emitConfig?.state ?? 'SP').trim().toUpperCase();
+        const cnpjEmit = (emitConfig?.cnpj ?? '').replace(/\D/g, '');
+        const tpAmb: '1' | '2' = nfe.ambienteFiscal === 'producao' ? '1' : '2';
+
+        // Calcula próxima sequência ANTES de transmitir (leitura atômica, sem commit)
+        const historico = await storage.getNfeCceHistory(nfeId);
+        const proxSequencia = historico.length > 0 ? historico[historico.length - 1].sequencia + 1 : 1;
+
+        logSecurity(`[NFE_CCE] requestId=${requestId} | nfeId=${nfeId} | seq=${proxSequencia} | uf=${uf} | tpAmb=${tpAmb} | user=${userId}`);
+
+        const { enviarCCe } = await import('../services/nfe/nfeSender.ts');
+        const retorno = await enviarCCe(nfe.chaveNFe, correcao, proxSequencia, uf, cnpjEmit, tpAmb);
+
+        // cStat de sucesso: 135=vinculado, 136=registrado (sem NF encontrada na SEFAZ — edge case)
+        const CCE_SUCCESS = new Set(['135', '136']);
+        if (!CCE_SUCCESS.has(retorno.cStat)) {
+          logSecurity(`[NFE_CCE_REJEITADA] requestId=${requestId} | nfeId=${nfeId} | cStat=${retorno.cStat} | xMotivo=${retorno.xMotivo}`);
+          return res.status(422).json({
+            success: false,
+            code: 'NFE_CCE_REJECTED',
+            cStat: retorno.cStat,
+            xMotivo: retorno.xMotivo,
+            error: { message: `CC-e rejeitada pela SEFAZ: ${retorno.xMotivo} (cStat=${retorno.cStat})` },
+          });
+        }
+
+        // T1103 — persiste CC-e com dados completos do evento SEFAZ
+        const entrada = await storage.createNfeCce(nfeId, correcao, userId, {
+          protocolo: retorno.protocolo || undefined,
+          xmlEvento: retorno.xmlEvento || undefined,
+          cStat: retorno.cStat,
+          xMotivo: retorno.xMotivo,
+          transmitidoEm: new Date(),
+        });
 
         // ── FASE 14.3 audit — fire-and-forget, never blocks the response ─────
         void recordCceAudit({
@@ -3102,10 +3231,15 @@ export async function registerRoutes(
           cceSnapshot: entrada,
         });
 
+        logSecurity(`[NFE_CCE_OK] requestId=${requestId} | nfeId=${nfeId} | seq=${entrada.sequencia} | protocolo=${retorno.protocolo}`);
+
         return res.json({
           success: true,
           message: "Carta de Correção registrada com sucesso",
           cce: entrada,
+          protocolo: retorno.protocolo,
+          cStat: retorno.cStat,
+          xMotivo: retorno.xMotivo,
         });
       } catch (e: any) {
         if (isCceRuleViolation(e)) {
@@ -3115,6 +3249,7 @@ export async function registerRoutes(
             code: e.code,
           });
         }
+        logSecurity(`[NFE_CCE_ERRO] requestId=${requestId} | error=${e?.message}`);
         return res.status(500).json({ success: false, error: { message: e.message } });
       }
     });

@@ -106,3 +106,40 @@ export function getCertPathFromEnv(): { path?: string; senha?: string } {
     senha: process.env.CERT_PASSWORD,
   };
 }
+
+/**
+ * T1102/T1103 — Assina XML de evento SEFAZ (cancelamento ou CC-e).
+ * Idêntico a assinarXML mas referencia `infEvento` em vez de `infNFe`.
+ * O padrão de assinatura segue a NT 2011/004 do Manual de Integração NF-e 4.0.
+ */
+export async function assinarEvento(xml: string, pfxPathOrBase64: string, senha: string): Promise<AssinaturaResult> {
+  const { pem, certPem, info } = loadPfx(pfxPathOrBase64, senha);
+
+  const certDer = certPem
+    .replace('-----BEGIN CERTIFICATE-----', '')
+    .replace('-----END CERTIFICATE-----', '')
+    .replace(/\n/g, '');
+
+  const sig = new (SignedXml as any).SignedXml({
+    privateKey: pem,
+    publicCert: certPem,
+  });
+
+  sig.addReference({
+    xpath: "//*[local-name(.)='infEvento']",
+    transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/2001/10/xml-exc-c14n#'],
+    digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256',
+  });
+
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/2001/10/xml-exc-c14n#';
+  sig.signatureAlgorithm = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+  sig.keyInfoProvider = {
+    getKeyInfo: () => `<X509Data><X509Certificate>${certDer}</X509Certificate></X509Data>`,
+    getKey: () => Buffer.from(pem),
+  };
+
+  sig.computeSignature(xml, { location: { reference: "//*[local-name(.)='infEvento']", action: 'append' } });
+  const xmlAssinado = sig.getSignedXml();
+
+  return { xmlAssinado, certInfo: info };
+}

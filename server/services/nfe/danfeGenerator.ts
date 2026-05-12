@@ -55,6 +55,104 @@ export interface DanfeData {
   informacoesAdicionais?: string;
 }
 
+/**
+ * T1104 — Extrai DanfeData a partir do XML NF-e autorizado (xmlAutorizado ou xmlGerado).
+ * Fonte da verdade é sempre o XML persistido — nunca reconstrói do estado atual do pedido.
+ * Usa regex determinístico (mesmo padrão de parseSefazResponse em nfeSender.ts).
+ */
+export function parseXmlToDanfeData(xml: string): DanfeData {
+  const tag = (name: string, src: string): string =>
+    src.match(new RegExp(`<${name}[^>]*>([^<]*)</${name}>`))?.[1]?.trim() ?? '';
+
+  const block = (name: string, src: string): string =>
+    src.match(new RegExp(`<${name}[\\s\\S]*?</${name}>`))?.[0] ?? '';
+
+  // Protocolo — vem do nfeProc wrapper (quando xmlAutorizado da SEFAZ)
+  const protNFe = block('protNFe', xml);
+  const protocolo = tag('nProt', protNFe) || undefined;
+  const dhRegistro = tag('dhRecbto', protNFe) || undefined;
+
+  // Blocos principais
+  const infNFe = block('infNFe', xml);
+  const ide = block('ide', infNFe);
+  const emit = block('emit', infNFe);
+  const dest = block('dest', infNFe);
+  const icmsTot = block('ICMSTot', infNFe);
+  const infAdic = block('infAdic', infNFe);
+
+  // Chave de acesso — extraída do atributo Id="NFe..." do infNFe
+  const chaveMatch = xml.match(/Id="NFe(\d{44})"/);
+  const chaveNFe = chaveMatch?.[1] ?? '';
+
+  // Emitente + endereço
+  const emitEnder = block('enderEmit', emit);
+
+  // Destinatário + endereço
+  const destEnder = block('enderDest', dest);
+
+  // Produtos — cada bloco <det>
+  const detBlocks = xml.match(/<det[\s\S]*?<\/det>/g) ?? [];
+  const produtos = detBlocks.map((det) => {
+    const prod = block('prod', det);
+    return {
+      cProd: tag('cProd', prod),
+      xProd: tag('xProd', prod),
+      ncm: tag('NCM', prod),
+      cfop: tag('CFOP', prod),
+      uCom: tag('uCom', prod),
+      qCom: parseFloat(tag('qCom', prod)) || 0,
+      vUnCom: parseFloat(tag('vUnCom', prod)) || 0,
+      vProd: parseFloat(tag('vProd', prod)) || 0,
+    };
+  });
+
+  const vProd = parseFloat(tag('vProd', icmsTot)) || produtos.reduce((s, p) => s + p.vProd, 0);
+  const vFrete = parseFloat(tag('vFrete', icmsTot)) || 0;
+  const vDesc = parseFloat(tag('vDesc', icmsTot)) || 0;
+  const vNF = parseFloat(tag('vNF', icmsTot)) || vProd;
+
+  const tpAmb = tag('tpAmb', ide) === '1' ? '1' : '2';
+
+  return {
+    chaveNFe,
+    numero: tag('nNF', ide),
+    serie: tag('serie', ide),
+    dataEmissao: tag('dhEmi', ide) || tag('dEmi', ide),
+    protocolo,
+    dataAutorizacao: dhRegistro,
+    emitente: {
+      cnpj: tag('CNPJ', emit),
+      xNome: tag('xNome', emit),
+      xFant: tag('xFant', emit) || undefined,
+      logradouro: tag('xLgr', emitEnder),
+      numero: tag('nro', emitEnder) || undefined,
+      bairro: tag('xBairro', emitEnder) || undefined,
+      xMun: tag('xMun', emitEnder),
+      uf: tag('UF', emitEnder),
+      cep: tag('CEP', emitEnder),
+      ie: tag('IE', emit),
+      fone: tag('fone', emit) || undefined,
+    },
+    destinatario: {
+      cnpj: tag('CNPJ', dest) || undefined,
+      cpf: tag('CPF', dest) || undefined,
+      xNome: tag('xNome', dest),
+      logradouro: tag('xLgr', destEnder),
+      numero: tag('nro', destEnder) || undefined,
+      bairro: tag('xBairro', destEnder) || undefined,
+      xMun: tag('xMun', destEnder),
+      uf: tag('UF', destEnder),
+      cep: tag('CEP', destEnder),
+      ie: tag('IE', dest) || undefined,
+    },
+    produtos,
+    total: { vProd, vFrete, vDesc, vNF },
+    natOp: tag('natOp', ide),
+    tpAmb: tpAmb as '1' | '2',
+    informacoesAdicionais: tag('infCpl', infAdic) || undefined,
+  };
+}
+
 function fmtBrl(v: number): string {
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }

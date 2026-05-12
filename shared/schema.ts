@@ -1160,6 +1160,12 @@ export const nfeEmissoes = pgTable("nfe_emissoes", {
   ambienteFiscal: text("ambiente_fiscal").default("homologacao"),
   danfePath: text("danfe_path"),
   motivoCancelamento: text("motivo_cancelamento"),
+  // T1102 — Cancelamento REAL na SEFAZ
+  protocoloCancelamento: text("protocolo_cancelamento"),
+  xmlCancelamento: text("xml_cancelamento"),
+  canceladoEm: timestamp("cancelado_em"),
+  cStatCancelamento: text("c_stat_cancelamento"),
+  xMotivoCancelamento: text("x_motivo_cancelamento"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 },
 (t) => ({
@@ -1208,6 +1214,12 @@ export const nfeCce = pgTable("nfe_cce", {
   correcao: text("correcao").notNull(),
   createdByUserId: integer("created_by_user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  // T1103 — Transmissão REAL CC-e na SEFAZ
+  protocolo: text("protocolo"),
+  xmlEvento: text("xml_evento"),
+  cStat: text("c_stat"),
+  xMotivo: text("x_motivo"),
+  transmitidoEm: timestamp("transmitido_em"),
 });
 export type NfeCce = typeof nfeCce.$inferSelect;
 export const insertNfeCceSchema = createInsertSchema(nfeCce).omit({ id: true, createdAt: true });

@@ -1,0 +1,194 @@
+FASE NF-e 1.1 — CANCELAMENTO REAL + CC-e REAL + DANFE VIA XML AUTORIZADO
+
+REGRAS ABSOLUTAS ANTES DE QUALQUER ALTERAÇÃO
+1. READ-ONLY AUDIT COMPLETO antes de escrever qualquer linha
+2. Ler TODOS os fluxos NF-e relacionados simultaneamente
+3. NÃO alterar arquitetura
+4. NÃO quebrar compatibilidade com mock/homologação
+5. NÃO alterar multi-tenant
+6. NÃO alterar autenticação/sessões
+7. NÃO alterar faturamento
+8. NÃO alterar sequência NF-e recém implementada
+9. Todas alterações devem ser cirúrgicas
+10. ZERO fallback silencioso
+
+OBJETIVO DESTA FASE
+Implementar:
+1. Cancelamento REAL na SEFAZ
+2. CC-e REAL na SEFAZ
+3. DANFE renderizado do XML autorizado salvo
+sem quebrar nenhum fluxo existente.
+
+==================================================
+T1101 — AUDITORIA TOTAL NF-e
+==================================================
+
+Ler COMPLETAMENTE em paralelo:
+
+- server/services/nfe/nfeSender.ts
+- server/services/nfe/nfeSoap.ts
+- server/services/nfe/nfeSignature.ts
+- server/services/nfe/nfeSigner.ts
+- server/services/nfe/nfeGenerator.ts
+- server/services/nfe/danfeGenerator.ts
+- server/services/nfe/nfeUrl.ts
+- server/services/nfe/nfeCertDynamic.ts
+- server/services/nfe/nfeCert.ts
+- server/services/nfe/nfe-cce-rules.service.ts
+- server/services/nfe/nfe-cce-audit.service.ts
+- server/routes/routes.ts (TODAS rotas /api/nfe)
+- schema NF-e
+- storage NF-e methods
+- qualquer método existente:
+  - enviarCancelamentoNFe
+  - gerarEventoCCe
+  - enviarCCe
+  - parse XML
+  - render DANFE
+
+MAPEAR:
+- tudo que já existe pronto
+- tudo que já está parcialmente implementado
+- tudo que falta
+- contratos atuais
+- side effects
+- logs
+- persistência
+- guards
+- status transitions
+
+NÃO ESCREVER CÓDIGO antes do mapa completo.
+
+==================================================
+T1102 — CANCELAMENTO REAL NF-e
+==================================================
+
+OBJETIVO:
+DELETE /api/nfe/:id deve:
+1. validar status
+2. gerar XML CAN-NF-e
+3. assinar
+4. enviar para SEFAZ
+5. persistir:
+   - protocolo cancelamento
+   - XML cancelamento
+   - data cancelamento
+   - cStat
+   - xMotivo
+6. atualizar status somente após autorização SEFAZ
+
+REGRAS:
+- cancelar apenas NF autorizada
+- bloquear cancelamento duplicado
+- validar janela legal
+- logs estruturados:
+  [NFE_CANCELAMENTO]
+  [NFE_CANCELAMENTO_ERRO]
+- idempotência obrigatória
+- preserve compatibilidade homologação/mock
+
+NÃO remover comportamento antigo até o novo estar funcional.
+
+==================================================
+T1103 — CC-e REAL
+==================================================
+
+OBJETIVO:
+POST /api/nfe/:id/cce deve:
+1. validar regras existentes
+2. gerar XML CC-e
+3. assinar
+4. transmitir
+5. persistir:
+   - protocolo
+   - XML evento
+   - cStat
+   - xMotivo
+   - timestamp
+6. manter histórico completo
+
+REGRAS:
+- máximo 20 CC-e
+- somente NF autorizada
+- validar janela legal
+- motivo mínimo já existente deve permanecer
+- logs:
+  [NFE_CCE]
+  [NFE_CCE_ERRO]
+
+IMPORTANTE:
+NÃO remover o audit trail existente.
+A nova transmissão deve complementar o sistema atual.
+
+==================================================
+T1104 — DANFE VIA XML AUTORIZADO
+==================================================
+
+OBJETIVO:
+GET /api/nfe/:id/danfe deve renderizar:
+1. xmlAutorizado
+2. fallback xmlGerado
+3. NUNCA rebuild pelo pedido atual
+
+PROBLEMA ATUAL:
+buildNFeInput(orderId) recompõe o estado atual do pedido,
+o que quebra validade jurídica se o pedido mudou após emissão.
+
+IMPLEMENTAR:
+- parser XML seguro
+- DANFE gerado diretamente do XML persistido
+- compatibilidade total com DANFE atual
+
+REGRAS:
+- se xmlAutorizado existir → usar SEMPRE
+- se não existir → fallback xmlGerado
+- se nenhum existir → erro claro
+- logs:
+  [DANFE_XML]
+  [DANFE_XML_MISSING]
+
+==================================================
+T1105 — HARDENING
+==================================================
+
+Adicionar:
+- validação de schema XML antes de transmissão
+- validação de certificado expirado
+- timeout explícito SOAP
+- retry controlado
+- logs estruturados
+- requestId em todos eventos fiscais
+- bloquear envio sem UF válida
+- bloquear XML vazio
+- bloquear CC-e/cancelamento em status inválido
+
+==================================================
+T1106 — VALIDAÇÃO FINAL
+==================================================
+
+Executar:
+- typecheck
+- startup
+- emissão mock
+- cancelamento mock
+- CC-e mock
+- geração DANFE
+- concorrência
+- observabilidade
+- logs
+- guards auth
+- tenant isolation
+
+VALIDAR:
+- zero regressões
+- zero novas falhas
+- zero rotas públicas
+- zero quebra no fluxo atual
+
+ENTREGAR:
+1. relatório técnico completo
+2. arquivos alterados
+3. fluxos antigos vs novos
+4. gaps restantes para produção fiscal total
+5. confirmação explícita:
+   “NF-e pipeline agora suporta cancelamento e CC-e reais.”

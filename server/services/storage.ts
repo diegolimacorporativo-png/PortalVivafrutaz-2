@@ -400,7 +400,12 @@ export interface IStorage {
   createNfeTrainingLog(data: InsertNfeTrainingLog): Promise<NfeTrainingLog>;
   updateNfeTrainingLog(id: number, data: Partial<InsertNfeTrainingLog>): Promise<NfeTrainingLog>;
   // CC-e (Carta de Correção Eletrônica) — FASE 14.2
-  createNfeCce(nfeId: number, correcao: string, createdByUserId: number | null): Promise<NfeCce>;
+  createNfeCce(
+    nfeId: number,
+    correcao: string,
+    createdByUserId: number | null,
+    sefaz?: { protocolo?: string; xmlEvento?: string; cStat?: string; xMotivo?: string; transmitidoEm?: Date },
+  ): Promise<NfeCce>;
   getNfeCceHistory(nfeId: number): Promise<NfeCce[]>;
   // Logistics Audit Logs
   createLogisticsAudit(data: InsertLogisticsAuditLog): Promise<LogisticsAuditLog>;
@@ -2368,10 +2373,25 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── CC-e (Carta de Correção Eletrônica) — FASE 14.2 ─────────────────────
-  async createNfeCce(nfeId: number, correcao: string, createdByUserId: number | null): Promise<NfeCce> {
+  async createNfeCce(
+    nfeId: number,
+    correcao: string,
+    createdByUserId: number | null,
+    sefaz?: { protocolo?: string; xmlEvento?: string; cStat?: string; xMotivo?: string; transmitidoEm?: Date },
+  ): Promise<NfeCce> {
     const existing = await db.select().from(nfeCce).where(eq(nfeCce.nfeId, nfeId)).orderBy(desc(nfeCce.sequencia));
     const sequencia = existing.length > 0 ? existing[0].sequencia + 1 : 1;
-    const [r] = await db.insert(nfeCce).values({ nfeId, sequencia, correcao, createdByUserId }).returning();
+    const [r] = await db.insert(nfeCce).values({
+      nfeId,
+      sequencia,
+      correcao,
+      createdByUserId,
+      protocolo: sefaz?.protocolo ?? null,
+      xmlEvento: sefaz?.xmlEvento ?? null,
+      cStat: sefaz?.cStat ?? null,
+      xMotivo: sefaz?.xMotivo ?? null,
+      transmitidoEm: sefaz?.transmitidoEm ?? null,
+    }).returning();
     return r;
   }
 

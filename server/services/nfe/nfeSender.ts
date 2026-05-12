@@ -13,9 +13,15 @@ export interface NFeRetornoSEFAZ {
   xmlAutorizado?: string;
 }
 
+export interface EventoRetornoSEFAZ {
+  cStat: string;
+  xMotivo: string;
+  protocolo: string;
+  xmlEvento: string;
+}
+
 // SEFAZ URLs por UF (webservice NFeAutorizacao 4.00)
 // FASE NF.7.4 — expansão multi-UF incremental. SP + default mantidos intactos.
-// Estados não mapeados continuam caindo no `default` (GO/SVRS-like).
 const SEFAZ_URL: Record<string, { homologacao: string; producao: string }> = {
   SP: {
     homologacao: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nfeautorizacao4.asmx',
@@ -47,17 +53,50 @@ const SEFAZ_URL: Record<string, { homologacao: string; producao: string }> = {
   },
 };
 
+// T1102/T1103 — URLs para NFeRecepcaoEvento4 (cancelamento + CC-e)
+const SEFAZ_EVENTO_URL: Record<string, { homologacao: string; producao: string }> = {
+  SP: {
+    homologacao: 'https://homologacao.nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx',
+    producao: 'https://nfe.fazenda.sp.gov.br/ws/nferecepcaoevento4.asmx',
+  },
+  MG: {
+    homologacao: 'https://hnfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4',
+    producao: 'https://nfe.fazenda.mg.gov.br/nfe2/services/NFeRecepcaoEvento4',
+  },
+  RJ: {
+    homologacao: 'https://homologacao.nfe.fazenda.rj.gov.br/ws/NFeRecepcaoEvento4',
+    producao: 'https://nfe.fazenda.rj.gov.br/ws/NFeRecepcaoEvento4',
+  },
+  RS: {
+    homologacao: 'https://hom.svrs.rs.gov.br/ws/recepcaoEvento/recepcaoEvento.asmx',
+    producao: 'https://nfe.svrs.rs.gov.br/ws/recepcaoEvento/recepcaoEvento.asmx',
+  },
+  PR: {
+    homologacao: 'https://homologacao.nfe.sefa.pr.gov.br/nfe/NFeRecepcaoEvento4',
+    producao: 'https://nfe.sefa.pr.gov.br/nfe/NFeRecepcaoEvento4',
+  },
+  SC: {
+    homologacao: 'https://homologacao.nfe.svrs.rs.gov.br/ws/recepcaoEvento/recepcaoEvento.asmx',
+    producao: 'https://nfe.svrs.rs.gov.br/ws/recepcaoEvento/recepcaoEvento.asmx',
+  },
+  default: {
+    homologacao: 'https://hom.svrs.rs.gov.br/ws/recepcaoEvento/recepcaoEvento.asmx',
+    producao: 'https://nfe.svrs.rs.gov.br/ws/recepcaoEvento/recepcaoEvento.asmx',
+  },
+};
+
 function getSefazUrl(uf: string, ambiente: '1' | '2'): string {
   const urls = SEFAZ_URL[uf.toUpperCase()] || SEFAZ_URL.default;
   return ambiente === '1' ? urls.producao : urls.homologacao;
 }
 
+function getEventoUrl(uf: string, ambiente: '1' | '2'): string {
+  const urls = SEFAZ_EVENTO_URL[uf.toUpperCase()] || SEFAZ_EVENTO_URL.default;
+  return ambiente === '1' ? urls.producao : urls.homologacao;
+}
+
 /**
  * FASE NF.7.2 — leitura defensiva do tpAmb a partir do XML assinado.
- * O XML é a fonte da verdade (já assinado); se o caller passar um ambiente
- * divergente, prevalece o que está no XML para evitar enviar para o ambiente
- * errado (ex.: XML tpAmb=2 indo para URL de produção).
- * Retorna null quando o XML não traz <tpAmb> reconhecível.
  */
 function detectarAmbienteFromXml(xml: string): '1' | '2' | null {
   const m = xml.match(/<tpAmb>\s*([12])\s*<\/tpAmb>/);
@@ -67,10 +106,6 @@ function detectarAmbienteFromXml(xml: string): '1' | '2' | null {
 
 /**
  * FASE NF.7.3 — leitura da UF do EMITENTE direto do XML assinado.
- * Olha apenas dentro do bloco <emit>...</emit> para evitar pegar a UF do
- * destinatário por engano. O XML é a fonte da verdade — a URL do webservice
- * SEFAZ é por estado do EMITENTE. Retorna null quando o bloco não existir
- * ou não contiver <UF> reconhecível (2 letras maiúsculas).
  */
 function detectarUfFromXml(xml: string): string | null {
   const match = xml.match(/<emit>[\s\S]*?<UF>\s*([A-Z]{2})\s*<\/UF>/);
@@ -79,8 +114,6 @@ function detectarUfFromXml(xml: string): string | null {
 
 /**
  * FASE NF.7.2 — resposta MOCK padronizada nesta camada.
- * Mantém o fallback seguro mesmo se a rota legada for chamada
- * com NFE_SEFAZ_MODE=mock (preserva o comportamento atual).
  */
 function mockResponse(): NFeRetornoSEFAZ {
   return {
@@ -96,8 +129,12 @@ function buildSoap(xmlNFe: string, idLote: string): string {
   return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Header><nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><cUF>35</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap12:Header><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><enviNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${xmlNFe}</enviNFe></nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 }
 
+// T1102/T1103 — SOAP envelope para NFeRecepcaoEvento4
+function buildEventoSoap(xmlEvento: string): string {
+  return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${xmlEvento}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
+}
+
 function parseSefazResponse(responseXml: string): NFeRetornoSEFAZ {
-  // Extract cStat
   const cStatMatch = responseXml.match(/<cStat>(\d+)<\/cStat>/);
   const xMotivoMatch = responseXml.match(/<xMotivo>([^<]+)<\/xMotivo>/);
   const nProtoMatch = responseXml.match(/<nProt>(\d+)<\/nProt>/);
@@ -118,6 +155,70 @@ function parseSefazResponse(responseXml: string): NFeRetornoSEFAZ {
   return { status, cStat, xMotivo, protocolo, chaveNFe, dataAutorizacao };
 }
 
+// T1102/T1103 — parser para retorno do evento (infEvento aninhado)
+function parseEventoResponse(responseXml: string): EventoRetornoSEFAZ {
+  // Extrai o bloco infEvento interno (nível de retorno do evento, não do lote)
+  const infEventoMatch = responseXml.match(/<infEvento[\s\S]*?<\/infEvento>/);
+  const infEventoXml = infEventoMatch?.[0] ?? responseXml;
+
+  const cStat = infEventoXml.match(/<cStat>(\d+)<\/cStat>/)?.[1] ?? '999';
+  const xMotivo = infEventoXml.match(/<xMotivo>([^<]+)<\/xMotivo>/)?.[1] ?? 'Sem resposta';
+  const protocolo = infEventoXml.match(/<nProt>(\d+)<\/nProt>/)?.[1] ?? '';
+
+  return { cStat, xMotivo, protocolo, xmlEvento: responseXml };
+}
+
+// T1102/T1103 — carrega certificado para mTLS (DB → env, mesma cadeia de enviarNFeSEFAZ)
+async function resolverHttpsAgent(): Promise<any> {
+  const nfeTlsStrict = process.env.NFE_TLS_STRICT === 'true';
+  try {
+    const { getCertificadoDinamico } = await import('./nfeCertDynamic');
+    const dynamic = await getCertificadoDinamico();
+    if (dynamic) {
+      const { getCertificado } = await import('./nfeCert');
+      const bundle = getCertificado({ pfxBuffer: dynamic.pfx, password: dynamic.passphrase, source: 'database' });
+      return new (require('https').Agent)({ cert: bundle.certPem, key: bundle.keyPem, rejectUnauthorized: nfeTlsStrict });
+    }
+  } catch (e: any) {
+    console.warn('[NFE_EVENTO_CERT_DB_FAIL]', e?.message);
+  }
+  const certPath = process.env.NFE_CERT_PATH || process.env.CERT_PATH;
+  const certPwd = process.env.NFE_CERT_PASSWORD || process.env.CERT_PASSWORD;
+  if (certPath && certPwd) {
+    try {
+      const { getCertificado } = await import('./nfeCert');
+      const bundle = getCertificado();
+      return new (require('https').Agent)({ cert: bundle.certPem, key: bundle.keyPem, rejectUnauthorized: nfeTlsStrict });
+    } catch (e: any) {
+      console.warn('[NFE_EVENTO_CERT_ENV_FAIL]', e?.message);
+    }
+  }
+  return undefined;
+}
+
+// T1102/T1103 — assina XML de evento (infEvento reference)
+async function assinarEventoXml(xmlEvento: string): Promise<string> {
+  const { assinarEvento } = await import('./nfeSignature');
+  try {
+    const { getCertificadoDinamico } = await import('./nfeCertDynamic');
+    const dynamic = await getCertificadoDinamico();
+    if (dynamic) {
+      const pfxB64 = dynamic.pfx.toString('base64');
+      const { xmlAssinado } = await assinarEvento(xmlEvento, pfxB64, dynamic.passphrase);
+      return xmlAssinado;
+    }
+  } catch (e: any) {
+    console.warn('[NFE_EVENTO_SIGN_DB_FAIL]', e?.message);
+  }
+  const certPath = process.env.NFE_CERT_PATH || process.env.CERT_PATH;
+  const certPwd = process.env.NFE_CERT_PASSWORD || process.env.CERT_PASSWORD;
+  if (certPath && certPwd) {
+    const { xmlAssinado } = await assinarEvento(xmlEvento, certPath, certPwd);
+    return xmlAssinado;
+  }
+  throw new Error('Certificado digital não configurado. Configure CERT_PATH e CERT_PASSWORD.');
+}
+
 export async function enviarNFeSEFAZ(
   xmlAssinado: string,
   uf: string,
@@ -125,17 +226,12 @@ export async function enviarNFeSEFAZ(
   certPem?: string,
   certKey?: string
 ): Promise<NFeRetornoSEFAZ> {
-  // FASE NF.7.2 — fallback MOCK preservado nesta camada.
-  // Quando NFE_SEFAZ_MODE=mock, NÃO chama SEFAZ real, retorna autorização
-  // simulada. Mantém o comportamento atual mesmo se chamado pela rota legada.
   const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
   if (sefazMode === 'mock') {
     console.info('[NFE_SEFAZ_MOCK]', { uf, ambienteRequest: ambiente });
     return mockResponse();
   }
 
-  // FASE NF.7.2 — reconciliação de ambiente: o XML é a fonte da verdade
-  // (já assinado). Se vier divergente do parâmetro, usa o do XML e loga.
   const ambienteXml = detectarAmbienteFromXml(xmlAssinado);
   const ambienteFinal: '1' | '2' = ambienteXml ?? ambiente;
   if (ambienteXml && ambienteXml !== ambiente) {
@@ -146,12 +242,7 @@ export async function enviarNFeSEFAZ(
     });
   }
 
-  // FASE NF.7.3 — reconciliação da UF do EMITENTE: o XML é a fonte da verdade.
-  // Permite multi-UF sem mudar a assinatura da função nem os callers atuais.
-  // Fallback triplo garante zero regressão: XML → parâmetro → "SP".
   const ufXml = detectarUfFromXml(xmlAssinado);
-  // Usa `||` (não `??`) para tratar também string vazia como ausência:
-  // garante o fallback "SP" mesmo se o caller passar `uf=""`.
   const ufFinal = (ufXml || uf || 'SP').toUpperCase();
   if (ufXml && uf && ufXml.toUpperCase() !== uf.toUpperCase()) {
     console.warn('[NFE_SEFAZ_UF_DIVERGENTE]', {
@@ -161,21 +252,13 @@ export async function enviarNFeSEFAZ(
     });
   }
 
-  // FASE NF.7.4 — log de monitoramento quando a UF cai no fallback `default`.
-  // Útil para detectar emitentes em estados ainda não mapeados em SEFAZ_URL
-  // e priorizar a próxima leva de URLs oficiais.
   if (!SEFAZ_URL[ufFinal]) {
-    console.warn('[NFE_SEFAZ_FALLBACK_UF]', {
-      uf: ufFinal,
-      usando: 'default (GO)',
-    });
+    console.warn('[NFE_SEFAZ_FALLBACK_UF]', { uf: ufFinal, usando: 'default (GO)' });
   }
 
-  // FASE NF.7.2/7.3 — resolução estrita da URL por UF + ambiente.
   const url = getSefazUrl(ufFinal, ambienteFinal);
-  if (!url) {
-    throw new Error(`SEFAZ não configurada para UF: ${ufFinal}`);
-  }
+  if (!url) throw new Error(`SEFAZ não configurada para UF: ${ufFinal}`);
+
   console.info('[NFE_SEFAZ_DISPATCH]', {
     uf: ufFinal,
     ambiente: ambienteFinal === '1' ? 'producao' : 'homologacao',
@@ -185,28 +268,16 @@ export async function enviarNFeSEFAZ(
   const idLote = String(Date.now()).slice(-15);
   const soap = buildSoap(xmlAssinado, idLote);
 
-  // FASE 3 / FASE 3.2 — cadeia de resolução do certificado A1, em ordem:
-  //   1. Manual: certPem/certKey passados pelo caller (mantém comportamento legado).
-  //   2. Banco (FASE 3.2): tabela `company_certificates` para o tenant ativo
-  //      (resolvido via AsyncLocalStorage). Multi-tenant real.
-  //   3. Env (FASE 3): NFE_CERT_PATH / NFE_CERT_BASE64 / CERT_PATH (legacy).
-  // Se nenhuma das três fontes resolver, mantém o comportamento atual: tenta
-  // POST sem mTLS (a SEFAZ recusará — comportamento inalterado).
   let pem = certPem;
   let key = certKey;
 
-  // 2. Cert do banco (per-tenant)
   if (!pem || !key) {
     try {
       const { getCertificadoDinamico } = await import('./nfeCertDynamic');
       const dynamic = await getCertificadoDinamico();
       if (dynamic) {
         const { getCertificado } = await import('./nfeCert');
-        const bundle = getCertificado({
-          pfxBuffer: dynamic.pfx,
-          password: dynamic.passphrase,
-          source: 'database',
-        });
+        const bundle = getCertificado({ pfxBuffer: dynamic.pfx, password: dynamic.passphrase, source: 'database' });
         pem = bundle.certPem;
         key = bundle.keyPem;
         console.info('[NFE_CERT_FROM_DB]', { tenantId: dynamic.tenantId });
@@ -216,7 +287,6 @@ export async function enviarNFeSEFAZ(
     }
   }
 
-  // 3. Cert do env (fallback)
   if ((!pem || !key) && (process.env.NFE_CERT_PATH || process.env.NFE_CERT_BASE64 || process.env.CERT_PATH)) {
     try {
       const { getCertificado } = await import('./nfeCert');
@@ -229,21 +299,11 @@ export async function enviarNFeSEFAZ(
     }
   }
 
-  // H3-FIX: rejectUnauthorized is now env-controlled.
-  // SEFAZ government servers use ICP-Brasil root CAs not bundled with Node.js,
-  // so disabling server cert validation is sometimes required in practice.
-  // In production the operator can opt-in to strict validation by setting
-  // NFE_TLS_STRICT=true once their CA bundle includes the ICP-Brasil chain.
-  // Default: false (preserves existing behaviour, never breaks Supabase/Replit
-  // since this agent is only used for SEFAZ SOAP calls — not DB connections).
-  const nfeTlsStrict = process.env.NFE_TLS_STRICT === "true";
+  const nfeTlsStrict = process.env.NFE_TLS_STRICT === 'true';
   const httpsAgent = pem && key
     ? new (require('https').Agent)({ cert: pem, key, rejectUnauthorized: nfeTlsStrict })
     : undefined;
 
-  // FASE 3.2 — retry com backoff exponencial para chamadas SEFAZ.
-  // Erros de rede/timeout são retryable; erros de validação/schema não devem
-  // ser retryados (cStat 2xx = rejeição definitiva da SEFAZ, não de infra).
   const { withRetry } = await import('../../core/retry/withRetry');
 
   const _emissionStart = Date.now();
@@ -282,18 +342,17 @@ export async function enviarNFeSEFAZ(
 
   const emissionMs = Date.now() - _emissionStart;
   const parsed = parseSefazResponse(responseData);
-  // T602 — track emission duration and failure count
   recordNfeEmissionDuration(emissionMs);
-  if (parsed.status !== 'autorizada') {
-    incNfeFailures();
-  }
+  if (parsed.status !== 'autorizada') incNfeFailures();
   console.info(`[NFE_SEFAZ_TIMING] status=${parsed.status} durationMs=${emissionMs}`);
   return parsed;
 }
 
 export async function consultarStatusSEFAZ(uf: string, ambiente: '1' | '2'): Promise<{ online: boolean; xMotivo: string }> {
   const urlBase = (SEFAZ_URL[uf.toUpperCase()] || SEFAZ_URL.default);
-  const statusUrl = ambiente === '1' ? urlBase.producao.replace('NfeAutorizacao4', 'NfeStatusServico4') : urlBase.homologacao.replace('NfeAutorizacao4', 'NfeStatusServico4');
+  const statusUrl = ambiente === '1'
+    ? urlBase.producao.replace('NfeAutorizacao4', 'NfeStatusServico4')
+    : urlBase.homologacao.replace('NfeAutorizacao4', 'NfeStatusServico4');
 
   const soap = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeStatusServico4"><consStatServ versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><tpAmb>${ambiente}</tpAmb><cUF>${(SEFAZ_URL[uf.toUpperCase()] ? uf.toUpperCase() : 'SP')}</cUF><xServ>STATUS</xServ></consStatServ></nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 
@@ -310,25 +369,88 @@ export async function consultarStatusSEFAZ(uf: string, ambiente: '1' | '2'): Pro
   }
 }
 
+/**
+ * T1102 — Cancelamento REAL na SEFAZ (NFeRecepcaoEvento4, tpEvento=110111).
+ *
+ * Mock mode: NFE_SEFAZ_MODE !== 'production' retorna cStat=135 imediatamente.
+ * Production mode: constrói envEvento, assina, envia via mTLS, parseia resposta.
+ *
+ * cStat de sucesso: 135 (vinculado), 155 (cancelamento homologação).
+ */
 export async function cancelarNFe(
   chaveNFe: string,
   protocolo: string,
   xJust: string,
   uf: string,
   cnpjEmit: string,
-  ambiente: '1' | '2'
-): Promise<NFeRetornoSEFAZ> {
-  const url = getSefazUrl(uf, ambiente);
-  const now = new Date().toISOString().replace('Z', '-03:00');
-  const xml = `<cancNFe versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe"><infCancNFe Id="ID${chaveNFe}"><tpAmb>${ambiente}</tpAmb><xServ>CANCELAR</xServ><chNFe>${chaveNFe}</chNFe><dhEvento>${now}</dhEvento><nSeqEvento>1</nSeqEvento><verEvento>1.00</verEvento><detEvento versao="1.00"><descEvento>Cancelamento</descEvento><nProt>${protocolo}</nProt><xJust>${xJust.slice(0, 255)}</xJust></detEvento></infCancNFe></cancNFe>`;
-  const soap = `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${xml}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
+  ambiente: '1' | '2',
+): Promise<EventoRetornoSEFAZ> {
+  // T1102 — mock mode preserva comportamento atual quando não está em produção
+  const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
+  if (sefazMode !== 'production') {
+    console.info('[NFE_CANCEL_MOCK]', { chaveNFe: chaveNFe.slice(0, 8) + '...', uf, ambiente });
+    return {
+      cStat: '135',
+      xMotivo: 'Evento registrado e vinculado a NF-e [MOCK]',
+      protocolo: `MOCK-CAN-${Date.now()}`,
+      xmlEvento: '',
+    };
+  }
 
-  // FASE 3.2 — retry com backoff exponencial para cancelamento SEFAZ.
+  // Monta envEvento para cancelamento (tpEvento=110111)
+  const now = new Date().toISOString().replace('Z', '-03:00').slice(0, 25);
+  const nSeqEvento = '01';
+  const tpEvento = '110111';
+  const cOrgao = chaveNFe.slice(0, 2); // cUF da chave
+  const infEventoId = `ID${tpEvento}${chaveNFe}${nSeqEvento}`;
+  const cnpjLimpo = cnpjEmit.replace(/\D/g, '');
+
+  const infEventoXml =
+    `<infEvento Id="${infEventoId}">` +
+    `<cOrgao>${cOrgao}</cOrgao>` +
+    `<tpAmb>${ambiente}</tpAmb>` +
+    `<CNPJ>${cnpjLimpo}</CNPJ>` +
+    `<chNFe>${chaveNFe}</chNFe>` +
+    `<dhEvento>${now}</dhEvento>` +
+    `<tpEvento>${tpEvento}</tpEvento>` +
+    `<nSeqEvento>${nSeqEvento}</nSeqEvento>` +
+    `<verEvento>1.00</verEvento>` +
+    `<detEvento versao="1.00">` +
+    `<descEvento>Cancelamento</descEvento>` +
+    `<nProt>${protocolo}</nProt>` +
+    `<xJust>${xJust.slice(0, 255)}</xJust>` +
+    `</detEvento>` +
+    `</infEvento>`;
+
+  const idLote = String(Date.now()).slice(-15);
+  const xmlEvento =
+    `<envEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">` +
+    `<idLote>${idLote}</idLote>` +
+    `<evento versao="1.00">${infEventoXml}</evento>` +
+    `</envEvento>`;
+
+  // Assina o evento (infEvento reference, mesma cadeia cert DB → env)
+  let xmlAssinado: string;
+  try {
+    xmlAssinado = await assinarEventoXml(xmlEvento);
+  } catch (e: any) {
+    throw new Error(`NFE_CANCEL_SIGN_FAIL: ${e.message}`);
+  }
+
+  const url = getEventoUrl(uf, ambiente);
+  const soap = buildEventoSoap(xmlAssinado);
+  const httpsAgent = await resolverHttpsAgent();
+
+  console.info('[NFE_CANCEL_DISPATCH]', { uf, ambiente: ambiente === '1' ? 'producao' : 'homologacao', url });
+
   const { withRetry } = await import('../../core/retry/withRetry');
-  const { result: cancelData } = await withRetry(
+  const { result } = await withRetry(
     async () => {
       const res = await axios.post(url, soap, {
-        headers: { 'Content-Type': 'application/soap+xml;charset=UTF-8' },
+        headers: {
+          'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"',
+        },
+        httpsAgent,
         timeout: 30000,
       });
       return res.data;
@@ -337,15 +459,112 @@ export async function cancelarNFe(
       maxAttempts: 3,
       baseDelayMs: 2_000,
       maxDelayMs: 15_000,
-      retryable: (err: unknown) => {
-        if (axios.isAxiosError(err) && err.response) return false;
-        return true;
-      },
+      retryable: (err: unknown) => !(axios.isAxiosError(err) && err.response),
       onRetry: (attempt, err, delayMs) => {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[NFE_CANCEL_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${msg}`);
+        console.warn(`[NFE_CANCEL_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${err instanceof Error ? err.message : String(err)}`);
       },
     },
   );
-  return parseSefazResponse(cancelData);
+
+  return parseEventoResponse(result as string);
+}
+
+/**
+ * T1103 — CC-e REAL na SEFAZ (NFeRecepcaoEvento4, tpEvento=110110).
+ *
+ * Mock mode: NFE_SEFAZ_MODE !== 'production' retorna cStat=135 imediatamente.
+ * Production mode: constrói envEvento, assina, envia via mTLS, parseia resposta.
+ */
+export async function enviarCCe(
+  chaveNFe: string,
+  correcao: string,
+  sequencia: number,
+  uf: string,
+  cnpjEmit: string,
+  ambiente: '1' | '2',
+): Promise<EventoRetornoSEFAZ> {
+  const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
+  if (sefazMode !== 'production') {
+    console.info('[NFE_CCE_MOCK]', { chaveNFe: chaveNFe.slice(0, 8) + '...', uf, sequencia });
+    return {
+      cStat: '135',
+      xMotivo: 'Evento registrado e vinculado a NF-e [MOCK]',
+      protocolo: `MOCK-CCE-${Date.now()}`,
+      xmlEvento: '',
+    };
+  }
+
+  // Monta envEvento para CC-e (tpEvento=110110)
+  const now = new Date().toISOString().replace('Z', '-03:00').slice(0, 25);
+  const nSeqEvento = String(sequencia).padStart(2, '0');
+  const tpEvento = '110110';
+  const cOrgao = chaveNFe.slice(0, 2);
+  const infEventoId = `ID${tpEvento}${chaveNFe}${nSeqEvento}`;
+  const cnpjLimpo = cnpjEmit.replace(/\D/g, '');
+
+  // Condição de uso obrigatória pelo Manual de Orientações da SEFAZ
+  const xCondUso =
+    'A Carta de Correcao e disciplinada pelo paragrafo 1o-A do art. 7o do Convenio S/N, de 15 de dezembro de 1970 e pode ser utilizada para regularizacao de erro ocorrido na emissao de documento fiscal, desde que o erro nao esteja relacionado com: I - as variaveis que determinam o valor do imposto tais como: base de calculo, aliquota, diferenca de preco, quantidade, valor da operacao ou da prestacao; II - a correcao de dados cadastrais que implique mudanca do remetente ou do destinatario; III - a data de emissao ou de saida.';
+
+  const infEventoXml =
+    `<infEvento Id="${infEventoId}">` +
+    `<cOrgao>${cOrgao}</cOrgao>` +
+    `<tpAmb>${ambiente}</tpAmb>` +
+    `<CNPJ>${cnpjLimpo}</CNPJ>` +
+    `<chNFe>${chaveNFe}</chNFe>` +
+    `<dhEvento>${now}</dhEvento>` +
+    `<tpEvento>${tpEvento}</tpEvento>` +
+    `<nSeqEvento>${nSeqEvento}</nSeqEvento>` +
+    `<verEvento>1.00</verEvento>` +
+    `<detEvento versao="1.00">` +
+    `<descEvento>Carta de Correcao</descEvento>` +
+    `<xCorrecao>${correcao.slice(0, 1000)}</xCorrecao>` +
+    `<xCondUso>${xCondUso}</xCondUso>` +
+    `</detEvento>` +
+    `</infEvento>`;
+
+  const idLote = String(Date.now()).slice(-15);
+  const xmlEvento =
+    `<envEvento versao="1.00" xmlns="http://www.portalfiscal.inf.br/nfe">` +
+    `<idLote>${idLote}</idLote>` +
+    `<evento versao="1.00">${infEventoXml}</evento>` +
+    `</envEvento>`;
+
+  let xmlAssinado: string;
+  try {
+    xmlAssinado = await assinarEventoXml(xmlEvento);
+  } catch (e: any) {
+    throw new Error(`NFE_CCE_SIGN_FAIL: ${e.message}`);
+  }
+
+  const url = getEventoUrl(uf, ambiente);
+  const soap = buildEventoSoap(xmlAssinado);
+  const httpsAgent = await resolverHttpsAgent();
+
+  console.info('[NFE_CCE_DISPATCH]', { uf, ambiente: ambiente === '1' ? 'producao' : 'homologacao', url, sequencia });
+
+  const { withRetry } = await import('../../core/retry/withRetry');
+  const { result } = await withRetry(
+    async () => {
+      const res = await axios.post(url, soap, {
+        headers: {
+          'Content-Type': 'application/soap+xml;charset=UTF-8;action="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4/nfeRecepcaoEvento"',
+        },
+        httpsAgent,
+        timeout: 30000,
+      });
+      return res.data;
+    },
+    {
+      maxAttempts: 3,
+      baseDelayMs: 2_000,
+      maxDelayMs: 15_000,
+      retryable: (err: unknown) => !(axios.isAxiosError(err) && err.response),
+      onRetry: (attempt, err, delayMs) => {
+        console.warn(`[NFE_CCE_RETRY] tentativa ${attempt} falhou, aguardando ${delayMs}ms. Erro: ${err instanceof Error ? err.message : String(err)}`);
+      },
+    },
+  );
+
+  return parseEventoResponse(result as string);
 }
