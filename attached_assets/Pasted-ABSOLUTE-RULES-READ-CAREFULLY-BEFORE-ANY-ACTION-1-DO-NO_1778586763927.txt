@@ -1,0 +1,102 @@
+ABSOLUTE RULES — READ CAREFULLY BEFORE ANY ACTION
+
+1. DO NOT write a single line of code before a full environment audit.
+2. DO NOT run migrations.
+3. DO NOT run db:push.
+4. DO NOT seed users.
+5. DO NOT recreate MASTER users.
+6. DO NOT touch authentication or passwords.
+7. DO NOT fall back to Replit local database silently.
+8. DO NOT modify any data until Supabase connection is fully validated.
+
+MISSION
+The system is accidentally connected to the Replit local PostgreSQL database.
+You must reconnect the project to the real Supabase production database safely.
+
+PRIMARY OBJECTIVE
+Force the app to use SUPABASE_DATABASE_URL instead of DATABASE_URL.
+
+PHASE 1 — READ-ONLY ENVIRONMENT AUDIT
+Run ALL checks in parallel before touching anything:
+
+- Verify if SUPABASE_DATABASE_URL exists
+- Verify if DATABASE_URL still points to Replit local DB
+- Read server/database/db.ts
+- Confirm connection priority logic
+- Confirm SSL activation logic
+- Confirm current connected database hostname
+- Confirm whether app is connected to:
+  - localhost / heliumdb / Replit
+  OR
+  - aws-*.pooler.supabase.com
+
+MANDATORY VALIDATION:
+The startup logs MUST show:
+
+[DB] SUPABASE_DATABASE_URL presente: true
+[DB] Conectando ao Supabase (SSL ativado)...
+
+If this exact behavior does not happen:
+STOP IMMEDIATELY.
+
+PHASE 2 — SAFE RECONNECTION
+If SUPABASE_DATABASE_URL is missing:
+
+- STOP
+- Ask for the secret
+- DO NOT continue
+- DO NOT use local DB
+
+If the secret exists but is not injected:
+- restart workflow
+- force environment reload
+- re-read process.env
+- verify propagation
+
+PHASE 3 — PRODUCTION DATABASE VALIDATION (READ-ONLY)
+ONLY AFTER Supabase connection is confirmed:
+
+Run all validations in parallel:
+
+- SELECT current_database()
+- SELECT version()
+- Verify SSL
+- Count users
+- Count companies
+- Verify MASTER account exists
+- Verify MASTER account lock status
+- Verify workers started correctly
+- Verify observability routes
+- Verify tenant structure
+- Verify orders table
+- Verify products table
+
+PHASE 4 — CRITICAL SAFETY AUDIT
+Audit BEFORE any future coding:
+
+- Check if startup seed runs automatically
+- Check if any seed can overwrite MASTER users
+- Check drizzle.config.ts target
+- Check pending migrations
+- Check destructive scripts
+- Check auth/session safety
+
+CRITICAL:
+No schema changes.
+No password resets.
+No account recreation.
+No data modifications.
+
+FINAL REPORT FORMAT REQUIRED
+
+1. Current DB identity
+2. Connected host
+3. SSL status
+4. Supabase validation
+5. MASTER account status
+6. Workers status
+7. Risks found
+8. Safe next steps
+
+The previous environment accidentally connected to Replit local heliumdb instead of Supabase production.
+This MUST be corrected first before any other task.
