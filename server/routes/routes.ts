@@ -2685,25 +2685,60 @@ export async function registerRoutes(
           }
         }
 
-        const certPath = process.env.CERT_PATH;
-        const certPwd = process.env.CERT_PASSWORD;
-        let xmlParaEnviar = nfe.xmlGerado;
+        // Resolve certificado: banco (company_certificates) > CERT_PATH env > CERT_PASSWORD env
+        let certBase64ForSign: string | null = null;
+        let certPwdForSign: string | null = null;
 
-        if (certPath && certPwd) {
-          try {
-            const { assinarXML } = await import('../services/nfe/nfeSignature.ts');
-            const { xmlAssinado } = await assinarXML(nfe.xmlGerado, certPath, certPwd);
-            xmlParaEnviar = xmlAssinado;
-            await storage.updateNfeEmissao(nfe.id, { status: 'assinada', xmlGerado: xmlParaEnviar });
-          } catch (sigErr: any) {
-            return res.status(400).json({ message: `Erro na assinatura digital: ${sigErr.message}. Verifique CERT_PATH e CERT_PASSWORD.` });
+        // Fonte 1: certificado salvo no banco via interface (POST /api/company/certificate)
+        try {
+          const { companyCertificateRepository } = await import('../modules/companies/companyCertificate.repository.ts');
+          const { decryptOrPassthrough } = await import('../utils/crypto.ts');
+          // Resolve companyId: do pedido vinculado ou do tenant da sessão
+          let companyIdForCert: number | null = null;
+          if (nfe.orderId) {
+            const orderRow = await storage.getOrder(nfe.orderId);
+            companyIdForCert = (orderRow?.order as any)?.companyId ?? null;
           }
-        } else {
+          if (!companyIdForCert) companyIdForCert = (req.session as any)?.companyId ?? null;
+          if (companyIdForCert) {
+            const certRow = await companyCertificateRepository.getByCompanyId(companyIdForCert);
+            if (certRow?.certBase64) {
+              certBase64ForSign = certRow.certBase64;
+              certPwdForSign = decryptOrPassthrough(certRow.certPassword);
+              console.info(`[NFE_CERT_SOURCE] banco | nfeId=${nfe.id} | companyId=${companyIdForCert}`);
+            }
+          }
+        } catch (dbCertErr: any) {
+          console.warn('[NFE_CERT_DB_FAIL]', dbCertErr?.message);
+        }
+
+        // Fonte 2: env vars (CERT_PATH aceita caminho em disco OU string base64)
+        if (!certBase64ForSign) {
+          const envPath = process.env.CERT_PATH;
+          const envPwd = process.env.CERT_PASSWORD;
+          if (envPath && envPwd) {
+            certBase64ForSign = envPath;
+            certPwdForSign = envPwd;
+            console.info(`[NFE_CERT_SOURCE] env | nfeId=${nfe.id}`);
+          }
+        }
+
+        if (!certBase64ForSign || !certPwdForSign) {
           return res.status(400).json({
-            message: 'Certificado digital não configurado. Defina as variáveis CERT_PATH e CERT_PASSWORD para transmitir ao SEFAZ.',
+            message: 'Certificado digital não configurado. Carregue o arquivo .pfx em Configurações Fiscais ou defina as variáveis CERT_PATH e CERT_PASSWORD.',
             nfe,
-            dica: 'Para homologação, configure um certificado A1 (.pfx) e defina as env vars CERT_PATH e CERT_PASSWORD.'
+            dica: 'Acesse Configurações Fiscais → Certificado Digital A1 e carregue o arquivo .pfx emitido pela ICP-Brasil.',
           });
+        }
+
+        let xmlParaEnviar = nfe.xmlGerado;
+        try {
+          const { assinarXML } = await import('../services/nfe/nfeSignature.ts');
+          const { xmlAssinado } = await assinarXML(nfe.xmlGerado, certBase64ForSign, certPwdForSign);
+          xmlParaEnviar = xmlAssinado;
+          await storage.updateNfeEmissao(nfe.id, { status: 'assinada', xmlGerado: xmlParaEnviar });
+        } catch (sigErr: any) {
+          return res.status(400).json({ message: `Erro na assinatura digital: ${sigErr.message}. Verifique o certificado e a senha.` });
         }
 
         // T1003 — UF dinâmica real do emitente (companyConfig.state).
