@@ -81,6 +81,18 @@ export interface FiscalDiagnostics {
   };
   pendingIssues: Array<{ severity: DiagStatus; campo: string; mensagem: string }>;
   readyForProduction: boolean;
+  operationalMetrics: {
+    status: DiagStatus;
+    message: string;
+    orderPipeline: Array<{ status: string; count: number; fiscalStatus?: string }>;
+    nfePipeline: Array<{ status: string; count: number }>;
+    arSummary: Array<{ status: string; count: number; total: string }>;
+    apSummary: Array<{ status: string; count: number; total: string }>;
+    inventoryMovements30d: number;
+    totalOrderValue30d: string;
+    totalARPendente: string;
+    totalAPPendente: string;
+  };
 }
 
 // Extrai linhas de um resultado db.execute() de forma segura (Drizzle + PG)
@@ -476,6 +488,118 @@ async function buildDiagnostics(): Promise<FiscalDiagnostics> {
     addIssue("error", "workers", workersCheck.message);
   }
 
+  // ── 11. Métricas Operacionais ───────────────────────────────────────────────
+  let operationalMetrics: FiscalDiagnostics["operationalMetrics"] = {
+    status: "ok",
+    message: "Métricas operacionais carregadas",
+    orderPipeline: [],
+    nfePipeline: [],
+    arSummary: [],
+    apSummary: [],
+    inventoryMovements30d: 0,
+    totalOrderValue30d: "0.00",
+    totalARPendente: "0.00",
+    totalAPPendente: "0.00",
+  };
+  try {
+    // Order pipeline by workflow_status
+    const ordersByStatus = extractRows(await db.execute(sql`
+      SELECT workflow_status as status, COUNT(*) as count
+      FROM orders
+      GROUP BY workflow_status
+      ORDER BY count DESC
+    `));
+
+    // Orders with fiscal_status breakdown
+    const ordersByFiscal = extractRows(await db.execute(sql`
+      SELECT fiscal_status as status, COUNT(*) as count
+      FROM orders
+      WHERE workflow_status NOT IN ('CANCELLED')
+      GROUP BY fiscal_status
+      ORDER BY count DESC
+    `));
+
+    // Total order value last 30 days
+    const orderValue30d = extractRows(await db.execute(sql`
+      SELECT COALESCE(SUM(total_value::numeric), 0)::text as total
+      FROM orders
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+        AND workflow_status NOT IN ('CANCELLED')
+    `));
+
+    // NF-e pipeline by status
+    const nfeByStatus = extractRows(await db.execute(sql`
+      SELECT status, COUNT(*) as count
+      FROM nfe_emissoes
+      GROUP BY status
+      ORDER BY count DESC
+    `));
+
+    // AR by status with totals
+    const arByStatus = extractRows(await db.execute(sql`
+      SELECT status, COUNT(*) as count, COALESCE(SUM(valor::numeric), 0)::text as total
+      FROM accounts_receivable
+      WHERE empresa_id = 1
+      GROUP BY status
+      ORDER BY count DESC
+    `));
+
+    // AP by status with totals
+    const apByStatus = extractRows(await db.execute(sql`
+      SELECT status, COUNT(*) as count, COALESCE(SUM(valor::numeric), 0)::text as total
+      FROM accounts_payable
+      WHERE empresa_id = 1
+      GROUP BY status
+      ORDER BY count DESC
+    `));
+
+    // AR pendente total
+    const arPendente = extractRows(await db.execute(sql`
+      SELECT COALESCE(SUM(valor::numeric), 0)::text as total
+      FROM accounts_receivable
+      WHERE empresa_id = 1 AND status IN ('pendente', 'vencido')
+    `));
+
+    // AP pendente total
+    const apPendente = extractRows(await db.execute(sql`
+      SELECT COALESCE(SUM(valor::numeric), 0)::text as total
+      FROM accounts_payable
+      WHERE empresa_id = 1 AND status IN ('pendente', 'vencido')
+    `));
+
+    // Inventory movements last 30 days
+    const invMov30d = extractRows(await db.execute(sql`
+      SELECT COUNT(*) as count FROM inventory_movements
+      WHERE empresa_id = 1 AND date >= CURRENT_DATE - INTERVAL '30 days'
+    `));
+
+    operationalMetrics = {
+      status: "ok",
+      message: "Métricas operacionais em tempo real",
+      orderPipeline: ordersByStatus.map(r => ({ status: String(r.status), count: parseInt(String(r.count)) })),
+      nfePipeline: nfeByStatus.map(r => ({ status: String(r.status), count: parseInt(String(r.count)) })),
+      arSummary: arByStatus.map(r => ({ status: String(r.status), count: parseInt(String(r.count)), total: String(r.total) })),
+      apSummary: apByStatus.map(r => ({ status: String(r.status), count: parseInt(String(r.count)), total: String(r.total) })),
+      inventoryMovements30d: parseInt(String(invMov30d[0]?.count ?? "0")),
+      totalOrderValue30d: String(orderValue30d[0]?.total ?? "0.00"),
+      totalARPendente: String(arPendente[0]?.total ?? "0.00"),
+      totalAPPendente: String(apPendente[0]?.total ?? "0.00"),
+    };
+    console.info("[FISCAL_DIAGNOSTIC] [operational-metrics]", {
+      orders: ordersByStatus.length,
+      nfe: nfeByStatus.length,
+      arPendente: arPendente[0]?.total,
+      apPendente: apPendente[0]?.total,
+    });
+  } catch (e: any) {
+    operationalMetrics = {
+      ...operationalMetrics,
+      status: "warning",
+      message: `Erro ao carregar métricas operacionais: ${e.message}`,
+    };
+    console.warn("[FISCAL_DIAGNOSTIC] [operational-metrics] erro:", e.message);
+  }
+
   // ── Resultado final ────────────────────────────────────────────────────────
   const errorCount = pendingIssues.filter(i => i.severity === "error").length;
   const readyForProduction = errorCount === 0 && sefazMode === "production";
@@ -501,6 +625,7 @@ async function buildDiagnostics(): Promise<FiscalDiagnostics> {
     circuitBreaker: circuitBreakerCheck,
     xmlGuards: xmlGuardsCheck,
     workers: workersCheck,
+    operationalMetrics,
     pendingIssues,
     readyForProduction,
   };

@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   RefreshCw, CheckCircle2, XCircle, AlertTriangle, ShieldCheck,
   KeyRound, Building2, Package, Zap, Cpu, Server, GitBranch,
-  FileText, Activity, Clock, ChevronDown, ChevronUp
+  FileText, Activity, Clock, ChevronDown, ChevronUp,
+  TrendingUp, TrendingDown, BarChart3, ArrowRight, Boxes
 } from "lucide-react";
 import { useState } from "react";
 
@@ -50,6 +51,18 @@ interface FiscalDiagnostics {
     openedAt?: string | null;
   };
   xmlGuards: DiagCheck;
+  operationalMetrics: {
+    status: DiagStatus;
+    message: string;
+    orderPipeline: Array<{ status: string; count: number }>;
+    nfePipeline: Array<{ status: string; count: number }>;
+    arSummary: Array<{ status: string; count: number; total: string }>;
+    apSummary: Array<{ status: string; count: number; total: string }>;
+    inventoryMovements30d: number;
+    totalOrderValue30d: string;
+    totalARPendente: string;
+    totalAPPendente: string;
+  };
   workers: DiagCheck & {
     jobs?: Array<{
       name: string;
@@ -340,6 +353,145 @@ export default function AdminFiscalDiagnostics() {
               </div>
             )}
           </DiagCard>
+
+          {/* Métricas Operacionais */}
+          {diag.operationalMetrics && (
+            <div className="border border-border rounded-xl overflow-hidden bg-card" data-testid="card-operational-metrics">
+              <div className="px-4 py-3 border-b border-border bg-muted/30">
+                <div className="flex items-center gap-2">
+                  <BarChart3 size={16} className="text-primary" />
+                  <span className="font-semibold text-sm text-foreground">Operação em Tempo Real</span>
+                </div>
+              </div>
+              <div className="p-4 space-y-4">
+                {/* KPIs em linha */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-muted/40 rounded-lg p-3 text-center" data-testid="kpi-order-value">
+                    <p className="text-xs text-muted-foreground mb-1">Volume 30 dias</p>
+                    <p className="text-lg font-bold text-foreground">
+                      {parseFloat(diag.operationalMetrics.totalOrderValue30d).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </p>
+                  </div>
+                  <div className={`rounded-lg p-3 text-center ${parseFloat(diag.operationalMetrics.totalARPendente) > 0 ? "bg-amber-50 dark:bg-amber-950/20" : "bg-muted/40"}`} data-testid="kpi-ar-pendente">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
+                      <TrendingUp size={10} className="text-emerald-500" /> A Receber
+                    </p>
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                      {parseFloat(diag.operationalMetrics.totalARPendente).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </p>
+                  </div>
+                  <div className={`rounded-lg p-3 text-center ${parseFloat(diag.operationalMetrics.totalAPPendente) > 0 ? "bg-red-50 dark:bg-red-950/20" : "bg-muted/40"}`} data-testid="kpi-ap-pendente">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
+                      <TrendingDown size={10} className="text-red-500" /> A Pagar
+                    </p>
+                    <p className="text-lg font-bold text-red-600 dark:text-red-400">
+                      {parseFloat(diag.operationalMetrics.totalAPPendente).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                    </p>
+                  </div>
+                  <div className="bg-muted/40 rounded-lg p-3 text-center" data-testid="kpi-inventory-movements">
+                    <p className="text-xs text-muted-foreground mb-1 flex items-center justify-center gap-1">
+                      <Boxes size={10} /> Mov. Estoque 30d
+                    </p>
+                    <p className="text-lg font-bold text-foreground">{diag.operationalMetrics.inventoryMovements30d}</p>
+                  </div>
+                </div>
+
+                {/* Pipeline de Pedidos */}
+                {diag.operationalMetrics.orderPipeline.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Pipeline de Pedidos</p>
+                    <div className="flex flex-wrap gap-2">
+                      {diag.operationalMetrics.orderPipeline.map(p => {
+                        const colors: Record<string, string> = {
+                          CREATED: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                          APPROVED: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400",
+                          INVOICED: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+                          DELIVERED: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                          CANCELLED: "bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400",
+                          SHIPPED: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400",
+                          PENDING_APPROVAL: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                        };
+                        const cls = colors[p.status] ?? "bg-muted text-muted-foreground";
+                        return (
+                          <div key={p.status} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cls}`} data-testid={`badge-order-status-${p.status}`}>
+                            <span>{p.status}</span>
+                            <span className="font-bold">{p.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Pipeline NF-e */}
+                {diag.operationalMetrics.nfePipeline.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Pipeline NF-e</p>
+                    <div className="flex flex-wrap gap-2">
+                      {diag.operationalMetrics.nfePipeline.map(p => {
+                        const colors: Record<string, string> = {
+                          autorizada: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
+                          gerada: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                          rejeitada: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                          cancelada: "bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400",
+                          erro: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+                          enviada: "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400",
+                        };
+                        const cls = colors[p.status] ?? "bg-muted text-muted-foreground";
+                        return (
+                          <div key={p.status} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cls}`} data-testid={`badge-nfe-status-${p.status}`}>
+                            <FileText size={10} />
+                            <span>{p.status}</span>
+                            <span className="font-bold">{p.count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* AR Summary */}
+                {diag.operationalMetrics.arSummary.length > 0 && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Contas a Receber</p>
+                      <div className="space-y-1">
+                        {diag.operationalMetrics.arSummary.map(s => (
+                          <div key={s.status} className="flex items-center justify-between text-xs" data-testid={`row-ar-${s.status}`}>
+                            <span className="text-muted-foreground capitalize">{s.status}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground text-[10px]">({s.count}x)</span>
+                              <span className={`font-semibold ${s.status === "vencido" ? "text-red-600" : s.status === "pago" ? "text-emerald-600" : "text-foreground"}`}>
+                                {parseFloat(s.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {diag.operationalMetrics.apSummary.length > 0 && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Contas a Pagar</p>
+                        <div className="space-y-1">
+                          {diag.operationalMetrics.apSummary.map(s => (
+                            <div key={s.status} className="flex items-center justify-between text-xs" data-testid={`row-ap-${s.status}`}>
+                              <span className="text-muted-foreground capitalize">{s.status}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground text-[10px]">({s.count}x)</span>
+                                <span className={`font-semibold ${s.status === "vencido" ? "text-red-600" : s.status === "pago" ? "text-emerald-600" : "text-foreground"}`}>
+                                  {parseFloat(s.total).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Workers */}
           <DiagCard icon={Cpu} title="Workers / Background Jobs" check={diag.workers}>
