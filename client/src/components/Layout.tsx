@@ -128,6 +128,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/financial', label: 'Painel Financeiro', icon: PieChart, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'financial', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/fiscal', label: 'Gestão de Notas Fiscais', icon: Receipt, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/fiscal-config', label: 'Configurações Fiscais', icon: Settings, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal-config', category: 'Financeiro', moduloChave: 'fiscal' },
+    { href: '/admin/fiscal-diagnostics', label: 'Diagnóstico Fiscal', icon: Activity, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal-diagnostics', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/finance', label: 'Contas & Caixa', icon: DollarSign, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'finance', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/nfe', label: 'Emissão de NF-e', icon: ReceiptText, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'nfe', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/banco', label: 'Integração Bancária', icon: Landmark, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'banco', category: 'Financeiro', moduloChave: 'financeiro' },

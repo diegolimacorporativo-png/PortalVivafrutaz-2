@@ -1,0 +1,197 @@
+FASE 1.1 — Painel de Diagnóstico Fiscal (pré-produção NF-e)
+
+REGRAS ABSOLUTAS:
+- NÃO quebrar nenhum fluxo existente
+- NÃO alterar comportamento fiscal já validado
+- NÃO modificar assinatura XML
+- NÃO alterar geração da chave NF-e
+- NÃO tocar em DANFE
+- NÃO alterar multi-tenant
+- NÃO alterar autenticação
+- NÃO remover logs existentes
+- Tudo deve ser incremental e observável
+
+OBJETIVO:
+Criar um Painel de Diagnóstico Fiscal completo para validar visualmente TODOS os pré-requisitos antes da emissão real SEFAZ.
+
+==================================================
+STEP 1 — AUDITORIA READ-ONLY
+==================================================
+
+Antes de escrever código:
+- Ler toda infraestrutura fiscal atual
+- Ler:
+  - nfeSender
+  - nfeSignature
+  - nfeCertGuard
+  - nfeXmlGuard
+  - fiscal-store
+  - company_config
+  - company_certificates
+  - observability routes
+  - frontend fiscal settings
+  - rota /api/nfe/:id/enviar
+  - schema NF-e
+- NÃO escrever nada antes do mapa completo
+
+==================================================
+STEP 2 — BACKEND STATUS SERVICE
+==================================================
+
+Criar endpoint:
+
+GET /api/admin/fiscal/diagnostics
+
+Resposta deve retornar:
+
+{
+  sefazMode,
+  ambienteFiscal,
+  certificado,
+  companyConfig,
+  emitente,
+  produtos,
+  subscriptions,
+  sequenciaNFe,
+  circuitBreaker,
+  xmlGuards,
+  workers,
+  pendingIssues,
+  readyForProduction
+}
+
+==================================================
+STEP 3 — CHECKS OBRIGATÓRIOS
+==================================================
+
+Implementar verificações:
+
+CERTIFICADO:
+- existe?
+- expira em quantos dias?
+- senha válida?
+- consegue carregar PFX?
+- subject CN
+- issuer
+- serial
+- validade
+
+COMPANY CONFIG:
+- CNPJ válido
+- IE preenchida
+- CRT válido
+- endereço completo
+- UF válida
+- CEP válido
+
+PRODUTOS:
+- todos possuem:
+  - NCM
+  - CFOP
+  - unidade comercial
+  - empresa_id
+
+EMPRESA DESTINATÁRIA:
+- CNPJ válido
+- endereço válido
+
+NF-e:
+- nfe_numero_seq existe
+- última numeração
+- próxima numeração
+
+WORKERS:
+- outbox
+- billing
+- backup
+- alerts
+- dispatch
+
+SEFAZ:
+- ambiente atual
+- homologação/produção
+- URL atual
+- status endpoint
+- circuit breaker state
+
+==================================================
+STEP 4 — STATUS VISUAL
+==================================================
+
+Cada item deve retornar:
+
+{
+  status: "ok" | "warning" | "error",
+  message,
+  details
+}
+
+==================================================
+STEP 5 — FRONTEND
+==================================================
+
+Criar página:
+
+/admin/fiscal-diagnostics
+
+Adicionar:
+- cards visuais
+- indicadores verdes/amarelos/vermelhos
+- tabela de pendências
+- botão "Atualizar Diagnóstico"
+- seção:
+  - Certificado
+  - Emitente
+  - Produtos
+  - SEFAZ
+  - Workers
+  - NF-e
+  - Ambiente
+
+==================================================
+STEP 6 — HARDENING
+==================================================
+
+NÃO permitir:
+- crash se certificado inválido
+- crash se company_config vazio
+- crash se products vazios
+
+Tudo deve responder com diagnóstico seguro.
+
+==================================================
+STEP 7 — OBSERVABILIDADE
+==================================================
+
+Adicionar logs estruturados:
+
+[FISCAL_DIAGNOSTIC]
+[fiscal-cert-check]
+[fiscal-config-check]
+
+==================================================
+STEP 8 — TYPECHECK
+==================================================
+
+Executar:
+- npm run typecheck
+- validar logs
+- validar startup
+- validar rota
+- validar frontend
+
+==================================================
+STEP 9 — RELATÓRIO FINAL
+==================================================
+
+Entregar:
+- arquivos alterados
+- checks implementados
+- pendências restantes
+- status READY/NOT READY para produção SEFAZ
+
+IMPORTANTE:
+NÃO ativar produção.
+NÃO enviar NF-e real.
+NÃO alterar NFE_SEFAZ_MODE.
+Apenas diagnóstico operacional seguro.

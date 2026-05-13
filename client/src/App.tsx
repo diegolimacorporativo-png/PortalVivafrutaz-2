@@ -83,6 +83,7 @@ import AdminPurchasePlanning from "@/pages/admin/purchase-planning";
 import AdminInventory from "@/pages/admin/inventory";
 import AdminFiscal from "@/pages/admin/fiscal";
 import AdminFiscalConfig from "@/pages/admin/fiscal-config";
+import AdminFiscalDiagnostics from "@/pages/admin/fiscal-diagnostics";
 import AdminContracts from "@/pages/admin/contracts";
 import AdminEmailManagement from "@/pages/admin/email-management";
 import AdminAboutUs from "@/pages/admin/about-us";
@@ -417,6 +418,9 @@ function Router() {
       </Route>
       <Route path="/admin/fiscal-config">
         {() => <ProtectedRoute component={AdminFiscalConfig} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER']} tabKey="fiscal-config" />}
+      </Route>
+      <Route path="/admin/fiscal-diagnostics">
+        {() => <ProtectedRoute component={AdminFiscalDiagnostics} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER']} tabKey="fiscal-diagnostics" />}
       </Route>
       <Route path="/admin/contracts">
         {() => <ProtectedRoute component={AdminContracts} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER']} tabKey="contracts" />}
