@@ -116,6 +116,7 @@ import AdminImportData from "@/pages/admin/import-data";
 import ControlCenter from "@/pages/admin/control-center";
 import AdminSettings from "@/pages/admin/settings";
 import AdminObservability from "@/pages/admin/observability";
+import OperationsTimeline from "@/pages/admin/operations-timeline";
 
 import ClientDashboard from "@/pages/client/dashboard";
 import ClientCreateOrder from "@/pages/client/create-order";
@@ -517,6 +518,12 @@ function Router() {
       </Route>
       <Route path="/admin/observability">
         {() => <ProtectedRoute component={AdminObservability} role="admin" allowedRoles={['MASTER']} tabKey="observability" />}
+      </Route>
+      <Route path="/admin/operations/timeline/:orderId">
+        {() => <ProtectedRoute component={OperationsTimeline} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="operations-timeline" />}
+      </Route>
+      <Route path="/admin/operations/timeline">
+        {() => <ProtectedRoute component={OperationsTimeline} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="operations-timeline" />}
       </Route>
 
       {/* Client Routes */}
