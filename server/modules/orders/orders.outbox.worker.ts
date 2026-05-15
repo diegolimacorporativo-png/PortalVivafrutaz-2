@@ -47,10 +47,19 @@ import { fireNotification } from "../../services/pushService";
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
 import { incJobFailures, incDeadLetterCount } from "../../core/observability/metrics";
 import { computeNextRetryAt } from "../../core/retry/withRetry";
+import {
+  registerJob,
+  startJobRun,
+  finishJobRun,
+  recoverStaleJob,
+} from "../../core/jobs/job-registry";
 
 const POLL_INTERVAL_MS = 5_000;
 const BATCH_SIZE       = 10;
 const MAX_RETRIES      = 5;
+const JOB_NAME         = "outbox-worker";
+
+registerJob(JOB_NAME);
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_APPROVAL: "Aguardando aprovação",
@@ -227,11 +236,16 @@ export function startOutboxWorker(): void {
   );
 
   workerTimer = setInterval(async () => {
+    recoverStaleJob(JOB_NAME, 2 * 60_000); // stale lock after 2 min (5s poll × safety margin)
+    if (!startJobRun(JOB_NAME)) return;    // skip if previous tick still running
     try {
       await processBatch();
+      finishJobRun(JOB_NAME, true);
     } catch (err) {
-      console.error("[OUTBOX] Unexpected worker error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("[OUTBOX] Unexpected worker error:", msg);
       incJobFailures();
+      finishJobRun(JOB_NAME, false, msg);
     }
   }, POLL_INTERVAL_MS);
 

@@ -1,29 +1,33 @@
 /**
- * FASE 2+3 — Observability routes (MASTER only).
+ * FASE 2+3+1.4 — Observability routes (MASTER only).
  *
- * GET  /api/admin/observability/errors          — list operational errors
- * DELETE /api/admin/observability/errors        — clear error store
- * GET  /api/admin/observability/metrics         — current metrics snapshot
- * POST /api/admin/observability/metrics/reset   — reset metrics
- * GET  /api/admin/observability/jobs            — FASE 3.1 job registry
- * GET  /api/admin/observability/dead-letters    — FASE 3.1 outbox dead-letters
- * GET  /api/admin/observability/db-health       — FASE 3.5 Supabase/PG stats
- * GET  /api/admin/observability/restore-check   — FASE 3.4 schema integrity
- * GET  /api/admin/observability/fiscal          — FASE NF-e 1.2 T1205 fiscal store
- * POST /api/admin/observability/fiscal/reset    — FASE NF-e 1.2 T1205 reset fiscal store
+ * GET  /api/admin/observability/errors                    — list operational errors
+ * DELETE /api/admin/observability/errors                  — clear error store
+ * GET  /api/admin/observability/metrics                   — current metrics snapshot
+ * POST /api/admin/observability/metrics/reset             — reset metrics
+ * GET  /api/admin/observability/jobs                      — FASE 3.1 job registry
+ * GET  /api/admin/observability/jobs/slow-report          — FASE 1.4 P95/avg slow-jobs report
+ * GET  /api/admin/observability/dead-letters              — FASE 3.1 outbox dead-letters
+ * POST /api/admin/observability/dead-letters/:id/requeue  — FASE 1.4 manual DLQ requeue
+ * GET  /api/admin/observability/health-summary            — FASE 1.4 consolidated health (green/yellow/red)
+ * GET  /api/admin/observability/db-health                 — FASE 3.5 Supabase/PG stats
+ * GET  /api/admin/observability/restore-check             — FASE 3.4 schema integrity
+ * GET  /api/admin/observability/fiscal                    — FASE NF-e 1.2 T1205 fiscal store
+ * POST /api/admin/observability/fiscal/reset              — FASE NF-e 1.2 T1205 reset fiscal store
  */
 
 import type { Express } from "express";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
 import { getErrors, clearErrors, errorCount } from "../core/observability/error-store";
 import { getMetrics, resetMetrics } from "../core/observability/metrics";
-import { getJobRegistry } from "../core/jobs/job-registry";
+import { getJobRegistry, getSlowJobsReport } from "../core/jobs/job-registry";
 import { db, pool } from "../database/db";
 import { sql } from "drizzle-orm";
 import { workflowEvents } from "@shared/schema";
 import { eq, desc, and, gt } from "drizzle-orm";
 import { getFiscalSnapshot, resetFiscalStore } from "../core/nfe/fiscal-store";
 import { getCircuitState } from "../services/nfe/sefazCircuitBreaker";
+import { requeueDeadLetterEvent } from "../modules/orders/orders.outbox.worker";
 
 export function register(app: Express): void {
   // ── GET /api/admin/observability/errors ─────────────────────────────
@@ -94,6 +98,121 @@ export function register(app: Express): void {
           total: jobs.length,
           running: jobs.filter((j) => j.isRunning).length,
           withErrors: jobs.filter((j) => j.totalErrors > 0).length,
+        },
+      });
+    },
+  );
+
+  // ── GET /api/admin/observability/jobs/slow-report ── FASE 1.4 ───────
+  app.get(
+    "/api/admin/observability/jobs/slow-report",
+    requireAuth,
+    requireRole(["MASTER"]),
+    (_req, res) => {
+      const report = getSlowJobsReport();
+      return res.json({
+        success: true,
+        data: report,
+        meta: {
+          total: report.length,
+          slowJobs: report.filter((j) => j.slowRuns > 0).length,
+          currentlyRunning: report.filter((j) => j.currentlyRunning).length,
+        },
+      });
+    },
+  );
+
+  // ── POST /api/admin/observability/dead-letters/:id/requeue ── FASE 1.4 ──
+  app.post(
+    "/api/admin/observability/dead-letters/:id/requeue",
+    requireAuth,
+    requireRole(["MASTER"]),
+    async (req, res) => {
+      const id = parseInt(String(req.params.id), 10);
+      if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ success: false, error: "ID inválido" });
+      }
+      try {
+        await requeueDeadLetterEvent(id);
+        console.log(`[DLQ_REQUEUE] Event #${id} requeued by actor ${(req as any).session?.userId ?? "unknown"}`);
+        return res.json({ success: true, message: `Evento #${id} reenfileirado para reprocessamento` });
+      } catch (err: any) {
+        return res.status(500).json({ success: false, error: err?.message ?? "requeue_error" });
+      }
+    },
+  );
+
+  // ── GET /api/admin/observability/health-summary ── FASE 1.4 ─────────
+  // Retorna status consolidado: green | yellow | red, com razões.
+  app.get(
+    "/api/admin/observability/health-summary",
+    requireAuth,
+    requireRole(["MASTER"]),
+    async (_req, res) => {
+      const issues: string[] = [];
+      const warnings: string[] = [];
+
+      // 1. DB ping
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch {
+        issues.push("DB inacessível");
+      }
+
+      // 2. Dead-letters
+      try {
+        const { rows } = await pool.query<{ cnt: string }>(
+          `SELECT count(*) AS cnt FROM workflow_events WHERE dead_letter = true AND processed_at IS NULL`,
+        );
+        const dlCount = parseInt(rows[0]?.cnt ?? "0", 10);
+        if (dlCount > 0) warnings.push(`${dlCount} evento(s) em dead-letter`);
+      } catch {
+        warnings.push("Não foi possível verificar dead-letters");
+      }
+
+      // 3. Circuit breaker
+      try {
+        const circuit = getCircuitState();
+        if (circuit.isOpen) issues.push("Circuit Breaker SEFAZ ABERTO");
+        else if (circuit.state === "half-open") warnings.push("Circuit Breaker SEFAZ em half-open");
+      } catch {
+        // non-fatal
+      }
+
+      // 4. Jobs com erros recentes
+      const jobs = getJobRegistry();
+      const jobsWithErrors = jobs.filter((j) => j.totalErrors > 0 && j.lastStatus === "error");
+      if (jobsWithErrors.length > 0) {
+        warnings.push(`${jobsWithErrors.length} job(s) com erro recente: ${jobsWithErrors.map((j) => j.name).join(", ")}`);
+      }
+
+      // 5. Memória RSS
+      const memMb = Math.round(process.memoryUsage().rss / 1024 / 1024);
+      if (memMb > 800) issues.push(`Memória RSS elevada: ${memMb}MB`);
+      else if (memMb > 512) warnings.push(`Memória RSS: ${memMb}MB`);
+
+      // 6. Métricas: erros acima de 5% do total
+      const m = getMetrics();
+      if (m.totalRequests > 100) {
+        const errRate = m.totalErrors / m.totalRequests;
+        if (errRate > 0.1) issues.push(`Taxa de erro elevada: ${(errRate * 100).toFixed(1)}%`);
+        else if (errRate > 0.05) warnings.push(`Taxa de erro: ${(errRate * 100).toFixed(1)}%`);
+      }
+
+      const status: "green" | "yellow" | "red" =
+        issues.length > 0 ? "red" : warnings.length > 0 ? "yellow" : "green";
+
+      return res.json({
+        success: true,
+        data: {
+          status,
+          issues,
+          warnings,
+          checkedAt: new Date().toISOString(),
+          memoryMb: memMb,
+          uptimeSince: m.uptimeSince,
+          jobCount: jobs.length,
+          runningJobs: jobs.filter((j) => j.isRunning).length,
         },
       });
     },

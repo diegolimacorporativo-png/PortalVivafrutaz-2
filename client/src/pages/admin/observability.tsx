@@ -79,10 +79,35 @@ interface JobRecord {
   isRunning: boolean;
   lastStarted?: number;
   lastFinished?: number;
+  lastDurationMs?: number;
   lastStatus: "idle" | "running" | "ok" | "error";
   lastError?: string;
   totalRuns: number;
   totalErrors: number;
+  slowRunCount: number;
+}
+
+interface SlowJobReport {
+  jobName: string;
+  avgDurationMs: number | null;
+  p95DurationMs: number | null;
+  slowRuns: number;
+  totalRuns: number;
+  lastDurationMs: number | null;
+  lastStartedAt: string | null;
+  currentlyRunning: boolean;
+  lastError: string | null;
+}
+
+interface HealthSummary {
+  status: "green" | "yellow" | "red";
+  issues: string[];
+  warnings: string[];
+  checkedAt: string;
+  memoryMb: number;
+  uptimeSince: number;
+  jobCount: number;
+  runningJobs: number;
 }
 
 interface DeadLetterRow {
@@ -258,11 +283,33 @@ export default function AdminObservability() {
     refetchInterval: 15000,
   });
 
+  const healthQ = useQuery<{ data: HealthSummary }>({
+    queryKey: ["/api/admin/observability/health-summary"],
+    refetchInterval: 20000,
+  });
+  const slowReportQ = useQuery<{ data: SlowJobReport[]; meta: { total: number; slowJobs: number } }>({
+    queryKey: ["/api/admin/observability/jobs/slow-report"],
+    refetchInterval: 30000,
+  });
+
   const clearMut = useMutation({
     mutationFn: () => apiRequest("DELETE", "/api/admin/observability/errors"),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/observability/errors"] });
       toast({ title: "Error store limpo com sucesso" });
+    },
+  });
+
+  const requeueMut = useMutation({
+    mutationFn: (id: number) =>
+      apiRequest("POST", `/api/admin/observability/dead-letters/${id}/requeue`),
+    onSuccess: (_data, id) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/observability/dead-letters"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/observability/health-summary"] });
+      toast({ title: `Evento #${id} reenfileirado`, description: "Será reprocessado na próxima janela do worker." });
+    },
+    onError: (_err, id) => {
+      toast({ title: `Falha ao reenfileirar evento #${id}`, variant: "destructive" });
     },
   });
   const resetMetMut = useMutation({
@@ -289,6 +336,8 @@ export default function AdminObservability() {
   const stuckEvents = deadLettersQ.data?.data?.stuckEvents ?? [];
   const dbHealth = dbHealthQ.data?.data;
   const fiscal = fiscalQ.data?.data;
+  const health = healthQ.data?.data;
+  const slowReport = slowReportQ.data?.data ?? [];
 
   const filtered = severityFilter === "ALL" ? errors : errors.filter((e) => e.severity === severityFilter);
 
@@ -315,6 +364,8 @@ export default function AdminObservability() {
     deadLettersQ.refetch();
     dbHealthQ.refetch();
     fiscalQ.refetch();
+    healthQ.refetch();
+    slowReportQ.refetch();
   }
 
   return (
@@ -330,6 +381,56 @@ export default function AdminObservability() {
           <RefreshCw className="w-4 h-4 mr-1" />Atualizar
         </Button>
       </div>
+
+      {/* ── Health Summary Banner ─────────────────────────────────── */}
+      {health && (
+        <div
+          data-testid="health-summary-banner"
+          className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${
+            health.status === "green"
+              ? "bg-green-50 border-green-200 dark:bg-green-900/20 dark:border-green-800"
+              : health.status === "yellow"
+              ? "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800"
+              : "bg-red-50 border-red-300 dark:bg-red-900/20 dark:border-red-800"
+          }`}
+        >
+          {health.status === "green" && <CheckCircle2 className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />}
+          {health.status === "yellow" && <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />}
+          {health.status === "red" && <ShieldX className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`text-sm font-semibold ${
+                health.status === "green" ? "text-green-800 dark:text-green-300"
+                : health.status === "yellow" ? "text-amber-800 dark:text-amber-300"
+                : "text-red-800 dark:text-red-300"
+              }`}>
+                {health.status === "green" ? "Sistema saudável" : health.status === "yellow" ? "Atenção requerida" : "Problema crítico"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {health.runningJobs > 0 ? `${health.runningJobs} job(s) em execução · ` : ""}{health.memoryMb}MB RSS · Atualizado {new Date(health.checkedAt).toLocaleTimeString("pt-BR")}
+              </span>
+            </div>
+            {health.issues.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {health.issues.map((issue, i) => (
+                  <li key={i} className="text-xs text-red-700 dark:text-red-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 inline-block" />{issue}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {health.warnings.length > 0 && (
+              <ul className="mt-1 space-y-0.5">
+                {health.warnings.map((w, i) => (
+                  <li key={i} className="text-xs text-amber-700 dark:text-amber-400 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />{w}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Metrics Cards ─────────────────────────────────────────── */}
       {metrics && (
@@ -646,9 +747,10 @@ export default function AdminObservability() {
                         <TableHead className="text-xs">Job</TableHead>
                         <TableHead className="text-xs w-28">Status</TableHead>
                         <TableHead className="text-xs w-36">Última execução</TableHead>
-                        <TableHead className="text-xs w-36">Concluído em</TableHead>
-                        <TableHead className="text-xs w-20 text-center">Total runs</TableHead>
+                        <TableHead className="text-xs w-24 text-right">Duração</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Runs</TableHead>
                         <TableHead className="text-xs w-20 text-center">Erros</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Lentos</TableHead>
                         <TableHead className="text-xs">Último erro</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -660,8 +762,10 @@ export default function AdminObservability() {
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {job.lastStarted ? formatDate(job.lastStarted) : "—"}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {job.lastFinished ? formatDate(job.lastFinished) : "—"}
+                          <TableCell className="text-xs text-right text-muted-foreground">
+                            {job.lastDurationMs != null
+                              ? <span className={job.lastDurationMs > 60000 ? "text-amber-600 font-medium" : ""}>{job.lastDurationMs < 1000 ? `${job.lastDurationMs}ms` : `${(job.lastDurationMs / 1000).toFixed(1)}s`}</span>
+                              : "—"}
                           </TableCell>
                           <TableCell className="text-xs text-center">{job.totalRuns}</TableCell>
                           <TableCell className="text-xs text-center">
@@ -669,7 +773,12 @@ export default function AdminObservability() {
                               ? <span className="text-red-600 font-semibold">{job.totalErrors}</span>
                               : <span className="text-muted-foreground">0</span>}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground truncate max-w-[260px]">
+                          <TableCell className="text-xs text-center">
+                            {job.slowRunCount > 0
+                              ? <Badge variant="secondary" className="text-xs text-amber-700">{job.slowRunCount}</Badge>
+                              : <span className="text-muted-foreground">0</span>}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[200px]">
                             {job.lastError ?? "—"}
                           </TableCell>
                         </TableRow>
@@ -680,6 +789,59 @@ export default function AdminObservability() {
               )}
             </CardContent>
           </Card>
+
+          {/* Slow-report card below jobs table */}
+          {slowReport.filter((j) => j.slowRuns > 0).length > 0 && (
+            <Card className="mt-4 border-amber-200 dark:border-amber-800">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                  <TrendingUp className="w-4 h-4" />
+                  Jobs lentos (P95 &gt; 60s)
+                  <Badge variant="secondary" className="text-xs ml-1">{slowReport.filter((j) => j.slowRuns > 0).length}</Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs">Job</TableHead>
+                        <TableHead className="text-xs w-24 text-right">Avg</TableHead>
+                        <TableHead className="text-xs w-24 text-right">P95</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Runs lentos</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Total runs</TableHead>
+                        <TableHead className="text-xs w-20 text-center">Running</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {slowReport.filter((j) => j.slowRuns > 0).map((j) => (
+                        <TableRow key={j.jobName} data-testid={`row-slow-${j.jobName}`}>
+                          <TableCell className="text-xs font-mono font-semibold">{j.jobName}</TableCell>
+                          <TableCell className="text-xs text-right text-muted-foreground">
+                            {j.avgDurationMs != null ? (j.avgDurationMs < 1000 ? `${j.avgDurationMs}ms` : `${(j.avgDurationMs / 1000).toFixed(1)}s`) : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-right">
+                            {j.p95DurationMs != null
+                              ? <span className="text-amber-600 font-medium">{j.p95DurationMs < 1000 ? `${j.p95DurationMs}ms` : `${(j.p95DurationMs / 1000).toFixed(1)}s`}</span>
+                              : "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-center">
+                            <Badge variant="secondary" className="text-xs text-amber-700">{j.slowRuns}</Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-center text-muted-foreground">{j.totalRuns}</TableCell>
+                          <TableCell className="text-xs text-center">
+                            {j.currentlyRunning
+                              ? <Badge className="text-xs bg-blue-500 text-white">Running</Badge>
+                              : <span className="text-muted-foreground/50">—</span>}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* ── Dead-Letters Tab ─────────────────────────────────────── */}
@@ -712,6 +874,7 @@ export default function AdminObservability() {
                         <TableHead className="text-xs w-16 text-center">Retries</TableHead>
                         <TableHead className="text-xs w-36">Criado em</TableHead>
                         <TableHead className="text-xs">Último erro</TableHead>
+                        <TableHead className="text-xs w-24 text-center">Ação</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -726,8 +889,22 @@ export default function AdminObservability() {
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                             {formatDate(row.createdAt)}
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground truncate max-w-[260px]">
+                          <TableCell className="text-xs text-muted-foreground truncate max-w-[220px]">
                             {row.errorMessage ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-center">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-6 text-xs px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
+                              data-testid={`button-requeue-${row.id}`}
+                              disabled={requeueMut.isPending}
+                              onClick={() => requeueMut.mutate(row.id)}
+                            >
+                              {requeueMut.isPending && requeueMut.variables === row.id
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : "Requeue"}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
