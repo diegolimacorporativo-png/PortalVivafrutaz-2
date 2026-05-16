@@ -1,0 +1,135 @@
+FASE 1.7 — PRIMEIRA TRANSMISSÃO REAL SEFAZ HOMOLOGAÇÃO
+
+REGRAS OBRIGATÓRIAS:
+- executar auditoria READ ONLY primeiro
+- NÃO usar executeSql/heliumdb
+- usar exclusivamente SUPABASE_DATABASE_URL via Node.js pg
+- NÃO alterar schema
+- NÃO criar migrations
+- NÃO alterar tabelas sem necessidade
+- NÃO tocar produção real (tpAmb deve permanecer 2)
+- execução incremental
+- validar cada etapa antes da próxima
+- logs estruturados obrigatórios
+- rollback lógico obrigatório em qualquer falha
+
+OBJETIVO:
+Executar a PRIMEIRA transmissão REAL para SEFAZ HOMOLOGAÇÃO usando o certificado A1 já validado.
+
+ETAPA 1 — AUDITORIA READ ONLY
+Validar em paralelo:
+- company_config
+- certificado_a1_base64
+- certificado_a1_senha
+- ambienteFiscal
+- NFE_SEFAZ_MODE
+- pedidos aptos para emissão
+- produtos com NCM/CFOP
+- workers ativos
+- circuit breaker status
+- endpoint SEFAZ da UF
+- status do XML signer
+- status do sender
+
+RELATÓRIO OBRIGATÓRIO:
+- pedido candidato
+- ambiente
+- UF
+- endpoint homologação
+- status do certificado
+- validade restante
+- riscos identificados
+
+ETAPA 2 — PREPARAÇÃO CONTROLADA
+Selecionar SOMENTE 1 pedido:
+preferência:
+- fiscal_status='nota_liberada'
+- status operacional consistente
+- sem NF-e autorizada previamente
+
+NÃO reutilizar NF-e já autorizada.
+
+ETAPA 3 — GERAÇÃO REAL
+Executar pipeline completo:
+resolveBillingItems
+→ buildNFeInput
+→ validarNFeInput
+→ gerarNFeXML
+→ assinarXML
+
+VALIDAR:
+- chave 44 dígitos
+- Signature
+- DigestValue
+- X509Certificate
+- XML íntegro
+- XML sem NaN
+- XML sem undefined
+
+ETAPA 4 — TRANSMISSÃO REAL HOMOLOGAÇÃO
+ATIVAR:
+NFE_SEFAZ_MODE=production
+
+MAS:
+- tpAmb DEVE continuar = 2
+- endpoint obrigatoriamente homologação
+
+Executar:
+enviarNFeSEFAZ()
+
+CAPTURAR:
+- SOAP request
+- SOAP response
+- cStat
+- xMotivo
+- protocolo
+- recibo
+- tempo resposta
+- rejeições
+
+NÃO ocultar erros.
+
+ETAPA 5 — PERSISTÊNCIA
+Se autorizado:
+- salvar XML autorizado
+- salvar protocolo
+- salvar recibo
+- salvar cStat
+- salvar chaveNFe
+- atualizar status fiscal
+
+Se rejeitado:
+- persistir rejeição completa
+- NÃO apagar XML
+- NÃO apagar tentativa
+- salvar retorno integral
+
+ETAPA 6 — PÓS-VALIDAÇÃO
+Validar:
+- XML autorizado íntegro
+- assinatura preservada
+- protocolo persistido
+- timeline operacional criada
+- observabilidade registrou evento
+- dead-letter não acionado
+- retries corretos
+- circuit breaker saudável
+
+ETAPA 7 — RELATÓRIO FINAL
+Entregar:
+- resultado completo
+- XML tamanho
+- tempo resposta SEFAZ
+- protocolo
+- cStat
+- motivo
+- chaveNFe
+- status final
+- riscos restantes
+- readiness real da homologação
+
+CRÍTICO:
+NÃO SIMULAR.
+NÃO MOCKAR.
+NÃO FINGIR SUCESSO.
+A transmissão deve tocar o endpoint REAL de homologação SEFAZ.

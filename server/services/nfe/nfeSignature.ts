@@ -82,7 +82,9 @@ export async function assinarXML(xml: string, pfxPathOrBase64: string, senha: st
     getKey: () => Buffer.from(pem),
   };
 
-  sig.computeSignature(xml, { location: { reference: "//*[local-name(.)='infNFe']", action: 'append' } });
+  // NF-e 4.00 XSD: <Signature> deve ser APÓS </infNFe>, como irmão dentro de <NFe>
+  // action:'after' insere FORA de infNFe (correto); 'append' inseria dentro (violava o schema)
+  sig.computeSignature(xml, { location: { reference: "//*[local-name(.)='infNFe']", action: 'after' } });
   const xmlAssinado = sig.getSignedXml();
 
   return { xmlAssinado, certInfo: info };

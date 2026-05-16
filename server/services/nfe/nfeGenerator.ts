@@ -389,11 +389,16 @@ export async function gerarNFeXML(
   const xNomeDest = escapeXml(input.destinatario.xNome);
 
   // FASE NF.2.1 — ETAPA 4: tags opcionais NUNCA são emitidas vazias.
-  // Verifica string trim()-eada antes de incluir, evitando <IE></IE>, <email></email>, etc.
+  // Schema NF-e 4.00: <indIEDest> é obrigatório no <dest>:
+  //   1 = Contribuinte ICMS (IE válida)
+  //   2 = Contribuinte isento (IE=ISENTO + indIEDest=2)
+  //   9 = Não Contribuinte (sem IE)
   const ieDestRaw = (input.destinatario.ie ?? '').toString().trim();
-  const ieDest = ieDestRaw
-    ? `<IE>${escapeXml(ieDestRaw)}</IE>`
-    : '<indIEDest>9</indIEDest>';
+  const ieDestUpper = ieDestRaw.toUpperCase();
+  const isIsento = !ieDestRaw || ieDestUpper === 'ISENTO' || ieDestUpper === 'NAO CONTRIBUINTE';
+  const ieDest = isIsento
+    ? '<indIEDest>9</indIEDest>'
+    : `<indIEDest>1</indIEDest><IE>${escapeXml(ieDestRaw)}</IE>`;
 
   const emailDestRaw = (input.destinatario.email ?? '').toString().trim();
   const emailDest = emailDestRaw ? `<email>${escapeXml(emailDestRaw)}</email>` : '';
