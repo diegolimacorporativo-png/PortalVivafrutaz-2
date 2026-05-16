@@ -1,0 +1,136 @@
+FASE 1.8 — CONTINUAÇÃO DO RESUMO FINAL
+
+2. nfeGenerator.ts — bug crítico corrigido
+
+BUG REAL IDENTIFICADO PELO XSD:
+001
+
+Violava o pattern oficial NF-e 4.00:
+0|[1-9]{1}[0-9]{0,2}
+
+RESULTADO:
+SEFAZ retornava:
+cStat=225 — Falha no Schema XML
+
+CORREÇÃO:
+A série agora é serializada como:
+1
+
+Sem zeros à esquerda.
+
+VALIDAÇÃO:
+✓ serie=001 → XSD falha corretamente
+✓ serie=1 → XSD aprova corretamente
+
+3. Integração no pipeline real de emissão
+
+nfeSender.ts agora executa:
+
+1. gerar XML
+2. assinar XML
+3. validar contra XSD oficial NF-e 4.00
+4. SOMENTE então transmitir ao SEFAZ
+
+Se o XSD falhar:
+✓ transmissão é abortada localmente
+✓ não consome tentativa no SEFAZ
+✓ salva artifacts completos
+✓ retorna linha/coluna + mensagem exata do schema
+
+4. Logging operacional avançado
+
+Novos logs:
+
+[NFE_XSD_PATCHED]
+[NFE_XSD_LOADED]
+[NFE_XSD_WARMUP_OK]
+[NFE_XSD_VALIDATION_OK]
+[NFE_XSD_VALIDATION_FAILED]
+
+Artifacts automáticos:
+/tmp/nfe-debug/
+
+Arquivos:
+
+- signed-nfe.xml
+- soap-request.xml
+- soap-response.xml
+- xsd-errors.json
+
+5. Compatibilidade ESM corrigida
+
+Problema:
+__dirname is not defined in ES module scope
+
+Correção:
+migração completa para:
+import.meta.url
+fileURLToPath()
+createRequire()
+
+Compatível com:
+"type": "module"
+
+6. Testes executados
+
+✓ Warmup XSD no boot do servidor
+✓ Validação real com libxmljs2
+✓ Resolução de imports XSD via file:// absolutos
+✓ Captura de linha/coluna dos erros
+✓ XML NF-e válido aprovado
+✓ XML inválido rejeitado
+✓ Bug real do cStat=225 identificado e corrigido
+
+IMPACTO REAL NO SISTEMA
+
+ANTES:
+XML inválido chegava ao SEFAZ
+↓
+SEFAZ retornava cStat=225
+↓
+debug extremamente difícil
+
+AGORA:
+XML inválido é bloqueado LOCALMENTE
+↓
+erro exato exibido antes da transmissão
+↓
+diagnóstico imediato
+↓
+economia de chamadas SEFAZ
+↓
+pipeline fiscal muito mais confiável
+
+STATUS FINAL
+
+✓ Certificado A1 validado
+✓ Assinatura RSA-SHA256 funcionando
+✓ SOAP corrigido
+✓ XML declaration corrigida
+✓ Signature posicionada corretamente
+✓ cUF dinâmico
+✓ Logging completo
+✓ Validação XSD oficial local
+✓ Bug real do cStat=225 corrigido
+✓ Pipeline NF-e homologação praticamente pronto para operação real
+
+PRÓXIMO PASSO RECOMENDADO (FASE 1.9)
+
+Executar transmissão real homologação end-to-end novamente agora com:
+
+- XSD local ativo
+- série corrigida
+- SOAP corrigido
+- assinatura corrigida
+
+Objetivo:
+obter:
+cStat=100 — AUTORIZADO
+
+e persistir:
+
+- protocolo
+- recibo
+- XML autorizado
+- DANFE
+- timeline operacional completai
