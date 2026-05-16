@@ -226,11 +226,15 @@ export async function gerarNFeXML(
   if (!input.emitente.xNome?.trim()) throw new Error('NFE_XML_EMPTY_EMITENTE_NOME');
   if (!input.destinatario.xNome?.trim()) throw new Error('NFE_XML_EMPTY_DESTINATARIO');
 
-  const now = new Date();
+  const utcNow = new Date();
+  // BRT = UTC-3. O servidor roda em UTC; ajustar antes de formatar.
+  // Sem isso, getHours() retorna hora UTC e o sufixo "-03:00" faz o XML
+  // parecer 3h no futuro para o SEFAZ → cStat=703.
+  const brtNow = new Date(utcNow.getTime() - 3 * 60 * 60 * 1000);
   const tzOffset = '-03:00';
   const pad2 = (n: number) => pad(n, 2);
-  const dhEmi = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}T${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}${tzOffset}`;
-  const aamm = `${String(now.getFullYear()).slice(2)}${pad2(now.getMonth() + 1)}`;
+  const dhEmi = `${brtNow.getFullYear()}-${pad2(brtNow.getMonth() + 1)}-${pad2(brtNow.getDate())}T${pad2(brtNow.getHours())}:${pad2(brtNow.getMinutes())}:${pad2(brtNow.getSeconds())}${tzOffset}`;
+  const aamm = `${String(brtNow.getFullYear()).slice(2)}${pad2(brtNow.getMonth() + 1)}`;
 
   const serie = input.serie || '001';
   const tpAmb = input.tpAmb || '2'; // 2=homologação por padrão
@@ -386,7 +390,11 @@ export async function gerarNFeXML(
   const natOp = escapeXml(input.natOp || 'Venda de mercadoria adquirida');
   const xNomeEmit = escapeXml(input.emitente.xNome);
   const xFantEmit = escapeXml(input.emitente.xFant || input.emitente.xNome);
-  const xNomeDest = escapeXml(input.destinatario.xNome);
+  // NT 2014.002 — tpAmb=2: xNome do destinatário DEVE ser o texto padrão de homologação.
+  // SEFAZ SP (e demais) rejeitam NF-e em homologação com xNome real do cliente.
+  const xNomeDest = tpAmb === '2'
+    ? 'NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL'
+    : escapeXml(input.destinatario.xNome);
 
   // FASE NF.2.1 — ETAPA 4: tags opcionais NUNCA são emitidas vazias.
   // Schema NF-e 4.00: <indIEDest> é obrigatório no <dest>:
@@ -408,7 +416,19 @@ export async function gerarNFeXML(
     ? `<infAdic><infCpl>${escapeXml(infCplRaw)}</infCpl></infAdic>`
     : '';
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${parseInt(serie, 10)}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${escapeXml(input.emitente.logradouro)}</xLgr><nro>${escapeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${escapeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${escapeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${escapeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${escapeXml(input.destinatario.logradouro)}</xLgr><nro>${escapeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${escapeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${escapeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>${totalvBC.toFixed(2)}</vBC><vICMS>${totalvICMS.toFixed(2)}</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${safeNumber(vProd, 'total.vProd')}</vProd><vFrete>${safeNumber(vFrete, 'total.vFrete')}</vFrete><vSeg>${safeNumber(vSeg, 'total.vSeg')}</vSeg><vDesc>${safeNumber(vDesc, 'total.vDesc')}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${safeNumber(vNF, 'total.vNF')}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag><detPag><tPag>99</tPag><vPag>${safeNumber(vNF, 'pag.vPag')}</vPag></detPag></pag>${infAdic}</infNFe></NFe>`;
+  // NT 2014.002 + NF-e 4.00 XSD: quando tPag=99 (outros), xPag é OBRIGATÓRIO (cStat=441).
+  // Os demais meios de pagamento (01=Dinheiro, 15=Boleto, 03=Cartão, etc) não exigem xPag.
+  const pagamentos = input.pagamentos && input.pagamentos.length > 0
+    ? input.pagamentos
+    : [{ tPag: '99', xPag: 'Outros', vPag: vNF }];
+  const pagXml = pagamentos.map((p: { tPag: string; xPag?: string; vPag: number }) => {
+    const xPagXml = p.tPag === '99'
+      ? `<xPag>${escapeXml(p.xPag || 'Outros')}</xPag>`
+      : (p.xPag ? `<xPag>${escapeXml(p.xPag)}</xPag>` : '');
+    return `<detPag><tPag>${p.tPag}</tPag>${xPagXml}<vPag>${safeNumber(p.vPag, 'pag.vPag')}</vPag></detPag>`;
+  }).join('');
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><NFe xmlns="http://www.portalfiscal.inf.br/nfe"><infNFe versao="4.00" Id="NFe${chaveNFe}"><ide><cUF>${cUF}</cUF><cNF>${cNF}</cNF><natOp>${natOp}</natOp><mod>55</mod><serie>${parseInt(serie, 10)}</serie><nNF>${Number(nNF)}</nNF><dhEmi>${dhEmi}</dhEmi><tpNF>1</tpNF><idDest>${idDestOp}</idDest><cMunFG>${cMunEmit}</cMunFG><tpImp>1</tpImp><tpEmis>1</tpEmis><cDV>${chaveNFe.slice(-1)}</cDV><tpAmb>${tpAmb}</tpAmb><finNFe>1</finNFe><indFinal>1</indFinal><indPres>1</indPres><procEmi>0</procEmi><verProc>VivaFrutaz 1.0</verProc></ide><emit><CNPJ>${cnpjEmit}</CNPJ><xNome>${xNomeEmit}</xNome><xFant>${xFantEmit}</xFant><enderEmit><xLgr>${escapeXml(input.emitente.logradouro)}</xLgr><nro>${escapeXml(input.emitente.numero || 'S/N')}</nro><xBairro>${escapeXml(input.emitente.bairro || 'Centro')}</xBairro><cMun>${cMunEmit}</cMun><xMun>${escapeXml(input.emitente.xMun)}</xMun><UF>${uf}</UF><CEP>${input.emitente.cep.replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.emitente.fone ? `<fone>${input.emitente.fone.replace(/\D/g, '')}</fone>` : ''}</enderEmit><IE>${escapeXml(input.emitente.ie)}</IE><CRT>${crt}</CRT></emit><dest>${docDestXml}<xNome>${xNomeDest}</xNome><enderDest><xLgr>${escapeXml(input.destinatario.logradouro)}</xLgr><nro>${escapeXml(input.destinatario.numero || 'S/N')}</nro><xBairro>${escapeXml(input.destinatario.bairro || 'Centro')}</xBairro><cMun>${cMunDest}</cMun><xMun>${escapeXml(input.destinatario.xMun)}</xMun><UF>${ufDest}</UF><CEP>${(input.destinatario.cep || '00000000').replace(/\D/g, '').padStart(8, '0')}</CEP><cPais>1058</cPais><xPais>Brasil</xPais>${input.destinatario.fone ? `<fone>${input.destinatario.fone.replace(/\D/g, '')}</fone>` : ''}</enderDest>${ieDest}${emailDest}</dest>${itenXml}<total><ICMSTot><vBC>${totalvBC.toFixed(2)}</vBC><vICMS>${totalvICMS.toFixed(2)}</vICMS><vICMSDeson>0.00</vICMSDeson><vFCP>0.00</vFCP><vBCST>0.00</vBCST><vST>0.00</vST><vFCPST>0.00</vFCPST><vFCPSTRet>0.00</vFCPSTRet><vProd>${safeNumber(vProd, 'total.vProd')}</vProd><vFrete>${safeNumber(vFrete, 'total.vFrete')}</vFrete><vSeg>${safeNumber(vSeg, 'total.vSeg')}</vSeg><vDesc>${safeNumber(vDesc, 'total.vDesc')}</vDesc><vII>0.00</vII><vIPI>0.00</vIPI><vIPIDevol>0.00</vIPIDevol><vPIS>0.00</vPIS><vCOFINS>0.00</vCOFINS><vOutro>0.00</vOutro><vNF>${safeNumber(vNF, 'total.vNF')}</vNF><vTotTrib>0.00</vTotTrib></ICMSTot></total><transp><modFrete>9</modFrete></transp><pag>${pagXml}</pag>${infAdic}</infNFe></NFe>`;
 
   // FASE NF.2 — ETAPA 5: validação estrutural do XML gerado
   if (!xml || typeof xml !== 'string') throw new Error('NFE_XML_EMPTY');

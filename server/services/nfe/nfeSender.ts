@@ -9,6 +9,7 @@
  *  T1206 — Correlação: fiscalRequestId gerado por chamada, propagado em todos os logs
  */
 import axios from 'axios';
+import https from 'https';
 import { randomUUID } from 'node:crypto';
 import { recordNfeEmissionDuration, incNfeFailures } from '../../core/observability/metrics';
 import { validateXmlBeforeSend } from './nfeXmlGuard';
@@ -155,14 +156,23 @@ function buildEventoSoap(xmlEvento: string): string {
 }
 
 function parseSefazResponse(responseXml: string): NFeRetornoSEFAZ {
-  const cStatMatch = responseXml.match(/<cStat>(\d+)<\/cStat>/);
-  const xMotivoMatch = responseXml.match(/<xMotivo>([^<]+)<\/xMotivo>/);
-  const nProtoMatch = responseXml.match(/<nProt>(\d+)<\/nProt>/);
-  const chNFeMatch = responseXml.match(/<chNFe>(\d{44})<\/chNFe>/);
-  const dhReciMatch = responseXml.match(/<dhRecbto>([^<]+)<\/dhRecbto>/);
+  // A resposta SEFAZ tem dois níveis de cStat:
+  //   1) <retEnviNFe><cStat>104</cStat>  — código do LOTE (104=processado, 106=rejeitado, etc.)
+  //   2) <protNFe><infProt><cStat>100</cStat>  — código da NF-e individual (100=autorizada)
+  // Regex simples captura o PRIMEIRO match (nível lote), ignorando o resultado real da NF-e.
+  // Fix: extrair infProt primeiro e ler cStat/xMotivo/nProt de dentro dele.
+  const infProtMatch = responseXml.match(/<infProt[\s\S]*?<\/infProt>/);
+  const infProtXml = infProtMatch?.[0] ?? responseXml;
 
-  const cStat = cStatMatch?.[1] || '999';
-  const xMotivo = xMotivoMatch?.[1] || 'Sem resposta';
+  const cStatMatch = infProtXml.match(/<cStat>(\d+)<\/cStat>/);
+  const xMotivoMatch = infProtXml.match(/<xMotivo>([^<]+)<\/xMotivo>/);
+  const nProtoMatch = infProtXml.match(/<nProt>(\d+)<\/nProt>/);
+  const chNFeMatch = infProtXml.match(/<chNFe>(\d{44})<\/chNFe>/);
+  const dhReciMatch = infProtXml.match(/<dhRecbto>([^<]+)<\/dhRecbto>/);
+
+  // Se não há infProt (ex: rejeição de lote), ler nível raiz como fallback
+  const cStat = cStatMatch?.[1] || responseXml.match(/<cStat>(\d+)<\/cStat>/)?.[1] || '999';
+  const xMotivo = xMotivoMatch?.[1] || responseXml.match(/<xMotivo>([^<]+)<\/xMotivo>/)?.[1] || 'Sem resposta';
   const protocolo = nProtoMatch?.[1];
   const chaveNFe = chNFeMatch?.[1];
   const dataAutorizacao = dhReciMatch?.[1];
@@ -463,7 +473,7 @@ export async function enviarNFeSEFAZ(
 
   const nfeTlsStrict = process.env.NFE_TLS_STRICT === 'true';
   const httpsAgent = pem && key
-    ? new (require('https').Agent)({ cert: pem, key, rejectUnauthorized: nfeTlsStrict })
+    ? new https.Agent({ cert: pem, key, rejectUnauthorized: nfeTlsStrict })
     : undefined;
 
   const { withRetry } = await import('../../core/retry/withRetry');

@@ -1,4 +1,6 @@
-import * as forge from 'node-forge';
+import * as forgeNs from 'node-forge';
+// ESM/CJS shim: in ESM context with tsx, node-forge exports via .default
+const forge: typeof forgeNs = (forgeNs as any).default ?? forgeNs;
 import * as SignedXml from 'xml-crypto';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -69,14 +71,20 @@ export async function assinarXML(xml: string, pfxPathOrBase64: string, senha: st
     publicCert: certPem,
   });
 
+  // NF-e 4.00 XSD (xmldsig-core-schema_v1.01.xsd) exige valores FIXOS de algoritmo:
+  //   CanonicalizationMethod: http://www.w3.org/TR/2001/REC-xml-c14n-20010315 (C14N padrão, NÃO exclusivo)
+  //   SignatureMethod:        http://www.w3.org/2000/09/xmldsig#rsa-sha1       (RSA-SHA1, NÃO SHA-256)
+  //   DigestMethod:           http://www.w3.org/2000/09/xmldsig#sha1           (SHA-1, NÃO SHA-256)
+  //   Transform[1]:           http://www.w3.org/TR/2001/REC-xml-c14n-20010315 (C14N padrão)
+  // Fonte: NT 2014.002 / Manual de Integração NF-e 4.00 / xmldsig spec SEFAZ
   sig.addReference({
     xpath: "//*[local-name(.)='infNFe']",
-    transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/2001/10/xml-exc-c14n#'],
-    digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256',
+    transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
+    digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
   });
 
-  sig.canonicalizationAlgorithm = 'http://www.w3.org/2001/10/xml-exc-c14n#';
-  sig.signatureAlgorithm = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
+  sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
   sig.keyInfoProvider = {
     getKeyInfo: () => `<X509Data><X509Certificate>${certDer}</X509Certificate></X509Data>`,
     getKey: () => Buffer.from(pem),
@@ -127,14 +135,15 @@ export async function assinarEvento(xml: string, pfxPathOrBase64: string, senha:
     publicCert: certPem,
   });
 
+  // NT 2011/004 + Manual NF-e 4.00: mesmos algoritmos fixos do xmldsig SEFAZ (SHA-1 + C14N padrão)
   sig.addReference({
     xpath: "//*[local-name(.)='infEvento']",
-    transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/2001/10/xml-exc-c14n#'],
-    digestAlgorithm: 'http://www.w3.org/2001/04/xmlenc#sha256',
+    transforms: ['http://www.w3.org/2000/09/xmldsig#enveloped-signature', 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315'],
+    digestAlgorithm: 'http://www.w3.org/2000/09/xmldsig#sha1',
   });
 
-  sig.canonicalizationAlgorithm = 'http://www.w3.org/2001/10/xml-exc-c14n#';
-  sig.signatureAlgorithm = 'http://www.w3.org/2001/04/xmldsig-more#rsa-sha256';
+  sig.canonicalizationAlgorithm = 'http://www.w3.org/TR/2001/REC-xml-c14n-20010315';
+  sig.signatureAlgorithm = 'http://www.w3.org/2000/09/xmldsig#rsa-sha1';
   sig.keyInfoProvider = {
     getKeyInfo: () => `<X509Data><X509Certificate>${certDer}</X509Certificate></X509Data>`,
     getKey: () => Buffer.from(pem),

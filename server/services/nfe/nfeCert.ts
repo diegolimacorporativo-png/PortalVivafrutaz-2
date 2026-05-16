@@ -18,7 +18,9 @@
  */
 
 import fs from 'fs';
-import * as forge from 'node-forge';
+import * as forgeNs from 'node-forge';
+// ESM/CJS shim: in ESM context with tsx, node-forge exports via .default
+const forge: typeof forgeNs = (forgeNs as any).default ?? forgeNs;
 
 export type CertSource =
   | 'NFE_CERT_PATH'

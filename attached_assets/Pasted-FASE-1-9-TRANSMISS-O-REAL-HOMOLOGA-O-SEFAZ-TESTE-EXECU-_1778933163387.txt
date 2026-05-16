@@ -1,0 +1,145 @@
+FASE 1.9 — TRANSMISSÃO REAL HOMOLOGAÇÃO (SEFAZ TESTE) — EXECUÇÃO CONTROLADA
+
+IMPORTANTE — REGRAS OBRIGATÓRIAS
+
+ESTA ETAPA É EXCLUSIVAMENTE EM HOMOLOGAÇÃO.
+
+NÃO alterar:
+- tpAmb=2
+- ambienteFiscal=homologacao
+
+PROIBIDO:
+- tpAmb=1
+- produção
+- emissão fiscal real
+- inutilização em produção
+- qualquer transmissão para ambiente oficial produtivo
+
+OBJETIVO:
+executar transmissão REAL apenas no ambiente de HOMOLOGAÇÃO SEFAZ para validar o pipeline completo.
+
+GARANTIAS ESPERADAS:
+- NF-e NÃO possui validade fiscal real
+- NF-e NÃO gera obrigação tributária
+- NF-e NÃO possui valor contábil
+- NF-e NÃO entra em escrituração oficial
+- ambiente deve permanecer:
+  tpAmb=2
+
+EXECUTAR EM ETAPAS:
+
+ETAPA 1 — AUDITORIA READ ONLY
+
+Validar:
+- NFE_SEFAZ_MODE atual
+- tpAmb do XML
+- ambienteFiscal da company_config
+- pedido escolhido
+- status atual da nfe_emissoes
+- certificado A1 válido
+
+CONFIRMAR EXPLICITAMENTE:
+- ambiente = homologação
+- tpAmb=2
+- endpoint homologação
+- nenhuma URL de produção sendo usada
+
+ETAPA 2 — SNAPSHOT COMPLETO
+
+ANTES de transmitir:
+salvar artifacts completos:
+
+/tmp/nfe-debug/
+
+Arquivos obrigatórios:
+- unsigned.xml
+- signed.xml
+- soap-request.xml
+- soap-response.xml
+- xsd-errors.json
+- parsed-response.json
+
+NÃO remover artifacts após execução.
+
+ETAPA 3 — VALIDAÇÃO LOCAL XSD
+
+Executar:
+- gerar XML
+- assinar XML
+- validar contra XSD oficial NF-e 4.00
+
+SE houver erro:
+- abortar transmissão
+- mostrar linha/coluna
+- mostrar elemento inválido
+- NÃO transmitir ao SEFAZ
+
+ETAPA 4 — TRANSMISSÃO HOMOLOGAÇÃO
+
+Usar:
+- endpoint HOMOLOGAÇÃO SP
+- certificado A1 real
+- SOAP corrigido
+- XML sem declaration interna
+- Signature correta
+- serie sem zeros à esquerda
+
+LOGS OBRIGATÓRIOS:
+- [NFE_SOAP_PREVIEW]
+- [NFE_SEFAZ_RAW_RESPONSE]
+- tempo de resposta
+- HTTP status
+- cStat lote
+- cStat NF-e
+
+ETAPA 5 — RESULTADO
+
+SE cStat=100:
+persistir:
+- protocolo
+- recibo
+- XML autorizado
+- metadata completa
+
+SE rejeição:
+mostrar:
+- cStat
+- xMotivo
+- trecho XML relevante
+- diagnóstico técnico
+
+ETAPA 6 — SEGURANÇA
+
+PROIBIDO:
+- alterar produção
+- mudar tpAmb=1
+- usar endpoint produção
+- sobrescrever emissões anteriores
+- deletar NF-es existentes
+- alterar numeração oficial
+
+USAR:
+- série teste
+- pedido seed
+- homologação apenas
+
+PEDIDOS RECOMENDADOS:
+- order_id=13
+- order_id=14
+- order_id=18
+
+OBJETIVO FINAL:
+obter:
+cStat=100 — AUTORIZADO (HOMOLOGAÇÃO)
+
+SEM qualquer validade fiscal real.
+
+RELATÓRIO FINAL OBRIGATÓRIO:
+- endpoint utilizado
+- tpAmb final
+- URL SEFAZ utilizada
+- cStat final
+- protocolo
+- chave NF-e
+- confirmação explícita:
+  “NF-e emitida apenas em HOMOLOGAÇÃO sem validade fiscal real”
