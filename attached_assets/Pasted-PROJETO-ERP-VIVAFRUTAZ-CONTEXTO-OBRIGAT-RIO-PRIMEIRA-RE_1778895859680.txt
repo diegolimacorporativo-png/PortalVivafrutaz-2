@@ -1,0 +1,142 @@
+PROJETO ERP VIVAFRUTAZ — CONTEXTO OBRIGATÓRIO
+
+PRIMEIRA REGRA CRÍTICA:
+NÃO usar banco local do Replit (heliumdb/executeSql).
+NÃO criar banco novo.
+NÃO usar database interno do Replit.
+
+O projeto DEVE conectar DIRETAMENTE ao banco REAL Supabase usando:
+SUPABASE_DATABASE_URL
+
+Logo no início:
+- pedir a SUPABASE_DATABASE_URL
+- configurar a env/secrets
+- validar conexão direta no Supabase
+- confirmar host:
+aws-1-us-east-1.pooler.supabase.com:6543
+
+VALIDAÇÃO OBRIGATÓRIA:
+Executar via Node.js + pg:
+- current_database()
+- current_user
+- version()
+- contagem de tabelas principais
+
+Confirmar estes dados:
+- companies ≈ 7
+- orders ≈ 19
+- nfe_emissoes ≈ 5
+- company_config ≈ 1
+- products ≈ 4
+
+SE aparecer:
+- heliumdb
+- banco vazio
+- Acme seed isolado
+- executeSql local
+
+ENTÃO ESTÁ NO BANCO ERRADO.
+
+REGRAS ABSOLUTAS:
+- SEMPRE auditar antes de escrever código
+- SEMPRE executar leitura paralela massiva antes de alterações
+- NUNCA alterar comportamento sem validar fluxo real
+- NUNCA quebrar fluxo existente
+- NUNCA assumir schema — sempre verificar o schema real
+- SEMPRE fazer mudanças cirúrgicas
+- SEMPRE validar TypeScript após alterações
+- SEMPRE verificar logs após restart
+- SEMPRE preservar compatibilidade multi-tenant
+- SEMPRE trabalhar primeiro backend → depois frontend
+- SEMPRE priorizar observabilidade e segurança operacional
+
+STACK:
+- Replit
+- Node.js + TypeScript
+- React frontend
+- Supabase PostgreSQL
+- NF-e 4.00
+- Certificado A1
+- Workers/outbox/dead-letter
+- Observabilidade operacional
+
+BANCO REAL:
+SUPABASE_DATABASE_URL
+
+NUNCA usar:
+- executeSql
+- heliumdb
+- banco local Replit
+- fallback local
+
+Sempre usar:
+Node.js + pg diretamente no Supabase.
+
+ESTADO ATUAL CONFIRMADO:
+- 7 empresas
+- 19 pedidos
+- 5 NF-e homologação
+- Certificado A1 válido presente em company_config.certificado_a1_base64
+- Ambiente homologação ativo
+- tpAmb=2
+- Comunicação real com SEFAZ funcionando
+- mTLS funcionando
+- Assinatura RSA-SHA256 funcionando
+- XML gerando corretamente
+- SOAP chegando no SEFAZ real
+
+STATUS DA HOMOLOGAÇÃO:
+O sistema já:
+- gera XML
+- assina XML
+- transmite ao SEFAZ
+- recebe retorno oficial
+
+Último status:
+HTTP 200
+cStat=104 (lote processado)
+cStat interno=225 (falha schema XML)
+
+BUGS JÁ IDENTIFICADOS E CORRIGIDOS:
+- XML declaration dentro do SOAP
+- Signature dentro de infNFe
+- enviNFe versao=1.00
+- ausência de indIEDest
+- serie com zeros à esquerda
+
+ESTADO ATUAL:
+Ainda existe alguma incompatibilidade fina no schema NF-e 4.00.
+Provável causa restante:
+- ordem de tags
+- grupo pagamento
+- namespace
+- wrapper SOAP
+- encoding
+- elemento obrigatório específico SP
+
+OBJETIVO IMEDIATO:
+Continuar exclusivamente o diagnóstico do cStat=225 até obter autorização homologação real do SEFAZ.
+
+IMPORTANTE:
+- NÃO refatorar arquitetura
+- NÃO criar novos sistemas paralelos
+- NÃO mexer em multi-tenant
+- NÃO alterar regras fiscais existentes sem auditoria
+- NÃO trocar bibliotecas sem motivo crítico
+
+FLUXO OBRIGATÓRIO:
+1. Conectar no Supabase REAL
+2. Validar identidade do banco
+3. Auditoria READ ONLY
+4. Mapear schema/fluxo real
+5. Identificar causa exata
+6. Correção mínima cirúrgica
+7. Teste homologação
+8. Validar logs/resposta SEFAZ
+9. Relatório final
+
+OBJETIVO FINAL:
+Obter:
+cStat=100
+“Autorizado o uso da NF-e”
+em homologação real.
