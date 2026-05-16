@@ -2801,7 +2801,18 @@ export async function registerRoutes(
         }
 
         res.json({ success: retorno.status === 'autorizada', retorno, nfe: await storage.getNfeEmissao(nfe.id) });
-      } catch (e: any) { res.status(500).json({ message: e.message }); }
+      } catch (e: any) {
+        // FASE 1.8 — Erro de validação XSD local: retorna 422 com todos os detalhes
+        if (e?.code === 'NFE_XSD_INVALID') {
+          return res.status(422).json({
+            message: 'Falha na validação do schema NF-e 4.00 (XML inválido — transmissão bloqueada)',
+            code: 'NFE_XSD_INVALID',
+            xsdErrors: e.xsdErrors ?? [],
+            hint: 'Verifique os erros XSD em /tmp/nfe-debug/xsd-errors.json',
+          });
+        }
+        res.status(500).json({ message: e.message });
+      }
     });
 
     // GET /api/nfe/:id/danfe — baixar PDF

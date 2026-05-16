@@ -82,6 +82,13 @@ async function recoverStuckNFes(): Promise<void> {
     const { setupVite } = await import("./vite");
     await setupVite(httpServer, app);
   }
+  // FASE 1.8 — Pré-aquecer cache do XSD NF-e 4.00 no boot
+  // Evita latência na primeira emissão e revela problemas de inicialização cedo.
+  import('./services/nfe/nfeXsdValidator').then(({ warmupXsdCache }) => {
+    warmupXsdCache();
+  }).catch((err) => {
+    console.warn('[NFE_XSD_WARMUP_IMPORT_FAIL]', err?.message);
+  });
   startOutboxWorker();
   startAutoDispatchWorker();
   startBillingCron();

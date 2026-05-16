@@ -1,0 +1,144 @@
+FASE 1.8 — VALIDAÇÃO XSD LOCAL NF-e 4.00
+
+OBJETIVO:
+Implementar validação LOCAL do XML NF-e contra os XSD oficiais da SEFAZ ANTES da transmissão.
+
+CONTEXTO CRÍTICO:
+O sistema já:
+- gera XML
+- assina XML
+- transmite ao SEFAZ real
+- recebe resposta real
+- mTLS OK
+- SOAP OK
+- certificado A1 OK
+- assinatura RSA-SHA256 OK
+
+STATUS ATUAL:
+HTTP 200
+cStat=104 (lote processado)
+cStat interno=225 (falha schema XML)
+
+Ou seja:
+o problema restante é incompatibilidade fina de schema NF-e 4.00.
+
+OBJETIVO DESTA FASE:
+Parar de usar o SEFAZ como “validador XSD”.
+O sistema deve detectar erros de schema LOCALMENTE antes da transmissão.
+
+REGRAS ABSOLUTAS:
+- NÃO refatorar arquitetura
+- NÃO trocar bibliotecas fiscais atuais sem necessidade
+- NÃO alterar regras tributárias existentes
+- NÃO quebrar assinatura digital
+- NÃO alterar fluxo de transmissão
+- NÃO remover logs existentes
+- NÃO usar banco local Replit
+- SEMPRE usar SUPABASE_DATABASE_URL
+- SEMPRE auditar antes de alterar
+
+ETAPA 1 — AUDITORIA READ ONLY
+Antes de escrever código:
+- mapear pipeline completo:
+  gerarNFeXML()
+  assinarXML()
+  nfeXmlGuard()
+  buildSoap()
+  enviarNFeSEFAZ()
+
+- identificar:
+  onde inserir validação XSD
+  onde salvar artifacts
+  onde retornar erros estruturados
+
+ETAPA 2 — BAIXAR XSDs OFICIAIS
+Baixar os XSD oficiais NF-e 4.00:
+
+- enviNFe_v4.00.xsd
+- leiauteNFe_v4.00.xsd
+- tiposBasico_v4.00.xsd
+- xmldsig-core-schema_v1.01.xsd
+
+Salvar em:
+server/services/nfe/xsd/
+
+Preservar imports/includes relativos.
+
+ETAPA 3 — IMPLEMENTAR VALIDATOR SERVICE
+Criar serviço:
+server/services/nfe/nfeXsdValidator.ts
+
+Interface esperada:
+
+validateNFeSchema(xml: string): {
+  valid: boolean;
+  errors: Array<{
+    message: string;
+    line?: number;
+    column?: number;
+    xpath?: string;
+  }>;
+}
+
+REQUISITOS:
+- validar XML ASSINADO
+- suportar namespaces NF-e 4.00
+- suportar xmldsig
+- capturar TODOS os erros XSD
+- retornar erros legíveis
+- nunca lançar exception não tratada
+
+ETAPA 4 — INTEGRAÇÃO NO PIPELINE
+Fluxo obrigatório:
+
+1. gerar XML
+2. assinar XML
+3. validar XSD LOCAL
+4. somente então transmitir ao SEFAZ
+
+Se validation.valid === false:
+- NÃO transmitir
+- logar erro estruturado
+- salvar artifacts
+- retornar detalhes completos
+
+ETAPA 5 — LOGS OPERACIONAIS
+Adicionar logs:
+
+[NFE_XSD_VALIDATION_START]
+[NFE_XSD_VALIDATION_OK]
+[NFE_XSD_VALIDATION_FAILED]
+
+Quando falhar:
+- logar erro exato
+- linha
+- coluna
+- xpath
+- trecho XML relevante
+
+ETAPA 6 — ARTIFACTS DEBUG
+Salvar automaticamente:
+
+/tmp/nfe-debug/
+- signed-nfe.xml
+- soap-request.xml
+- soap-response.xml
+- xsd-errors.json
+
+IMPORTANTE:
+Nunca salvar senha do certificado.
+
+ETAPA 7 — RELATÓRIO FINAL
+Ao terminar:
+- mostrar erros XSD reais encontrados
+- mostrar linha/tag problemática
+- confirmar se schema local passou
+- informar se pronto para nova transmissão homologação
+
+OBJETIVO FINAL:
+Obter:
+XSD LOCAL = válido
++
+cStat=100
+“Autorizado o uso da NF-e”
+em homologação real.

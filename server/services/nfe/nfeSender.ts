@@ -291,6 +291,52 @@ export async function enviarNFeSEFAZ(
     context: `uf=${uf} amb=${ambiente}`,
   });
 
+  // FASE 1.8 — Validação XSD LOCAL contra schema NF-e 4.00 oficial.
+  // Roda ANTES do SOAP e da transmissão — evita usar SEFAZ como validador.
+  // Se inválido: salva artifacts, loga erros, lança erro estruturado (não transmite).
+  console.info('[NFE_XSD_VALIDATION_START]', { fiscalRequestId });
+  try {
+    const { validateNFeSchema, saveNFeDebugArtifacts } = await import('./nfeXsdValidator');
+    const xsdResult = validateNFeSchema(xmlAssinado);
+
+    // Salvar signed-nfe.xml e xsd-errors.json independente do resultado
+    void saveNFeDebugArtifacts({ signedXml: xmlAssinado, xsdResult });
+
+    if (xsdResult.valid) {
+      console.info('[NFE_XSD_VALIDATION_OK]', {
+        fiscalRequestId,
+        durationMs: xsdResult.durationMs,
+        xmlLength: xmlAssinado.length,
+      });
+    } else {
+      console.error('[NFE_XSD_VALIDATION_FAILED]', {
+        fiscalRequestId,
+        durationMs: xsdResult.durationMs,
+        errorCount: xsdResult.errors.length,
+        errors: xsdResult.errors.map(e => ({
+          msg: e.message.substring(0, 200),
+          line: e.line,
+          col: e.column,
+        })),
+      });
+      // NÃO transmite — lança erro estruturado que a rota captura
+      const firstError = xsdResult.errors[0];
+      const err = new Error(
+        `NFE_XSD_INVALID: ${firstError?.message ?? 'Schema NF-e 4.00 inválido'} (${xsdResult.errors.length} erro(s))`,
+      );
+      (err as any).code = 'NFE_XSD_INVALID';
+      (err as any).xsdErrors = xsdResult.errors;
+      throw err;
+    }
+  } catch (xsdErr: any) {
+    if (xsdErr?.code === 'NFE_XSD_INVALID') throw xsdErr;
+    // Falha na inicialização do validator — logar e continuar (fail-open)
+    console.warn('[NFE_XSD_VALIDATOR_UNAVAILABLE]', {
+      fiscalRequestId,
+      error: xsdErr?.message,
+    });
+  }
+
   const ambienteXml = detectarAmbienteFromXml(xmlAssinado);
   const ambienteFinal: '1' | '2' = ambienteXml ?? ambiente;
   if (ambienteXml && ambienteXml !== ambiente) {
@@ -345,6 +391,12 @@ export async function enviarNFeSEFAZ(
     soapLength: soap.length,
     soapHead: soap.substring(0, 600),
   });
+
+  // FASE 1.8 — Salvar artifact soap-request.xml para debug
+  try {
+    const { saveNFeDebugArtifacts } = await import('./nfeXsdValidator');
+    void saveNFeDebugArtifacts({ soapRequest: soap });
+  } catch { /* best-effort */ }
 
   let pem = certPem;
   let key = certKey;
@@ -478,6 +530,12 @@ export async function enviarNFeSEFAZ(
     responseLength: rawStr.length,
     responsePreview: rawStr.substring(0, 2000),
   });
+
+  // FASE 1.8 — Salvar artifact soap-response.xml para debug
+  try {
+    const { saveNFeDebugArtifacts } = await import('./nfeXsdValidator');
+    void saveNFeDebugArtifacts({ soapResponse: rawStr });
+  } catch { /* best-effort */ }
 
   const parsed = parseSefazResponse(responseData);
   recordNfeEmissionDuration(emissionMs);
