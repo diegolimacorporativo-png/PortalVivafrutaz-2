@@ -136,11 +136,22 @@ function mockResponse(): NFeRetornoSEFAZ {
 }
 
 function buildSoap(xmlNFe: string, idLote: string): string {
-  return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Header><nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><cUF>35</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap12:Header><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${xmlNFe}</enviNFe></nfeDadosMsg></soap12:Body></soap12:Envelope>`;
+  // FIX: Declaração XML NÃO pode aparecer dentro de elemento SOAP.
+  // O envelope SOAP já tem sua própria <?xml?> na raiz.
+  // Remover antes de embedar em <enviNFe>.
+  const nfeBody = xmlNFe.replace(/^<\?xml[^?]*\?>\s*/i, '');
+
+  // FIX: cUF dinâmico — extraído do próprio XML em vez de hardcoded (35/SP).
+  const cUFMatch = nfeBody.match(/<cUF>(\d+)<\/cUF>/);
+  const cUF = cUFMatch?.[1] ?? '35';
+
+  return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Header><nfeCabecMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><cUF>${cUF}</cUF><versaoDados>4.00</versaoDados></nfeCabecMsg></soap12:Header><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4"><enviNFe versao="4.00" xmlns="http://www.portalfiscal.inf.br/nfe"><idLote>${idLote}</idLote><indSinc>1</indSinc>${nfeBody}</enviNFe></nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 }
 
 function buildEventoSoap(xmlEvento: string): string {
-  return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${xmlEvento}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
+  // FIX: Remover declaração XML do evento antes de embedar em SOAP.
+  const eventoBody = xmlEvento.replace(/^<\?xml[^?]*\?>\s*/i, '');
+  return `<?xml version="1.0" encoding="utf-8"?><soap12:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:soap12="http://www.w3.org/2003/05/soap-envelope"><soap12:Body><nfeDadosMsg xmlns="http://www.portalfiscal.inf.br/nfe/wsdl/NFeRecepcaoEvento4">${eventoBody}</nfeDadosMsg></soap12:Body></soap12:Envelope>`;
 }
 
 function parseSefazResponse(responseXml: string): NFeRetornoSEFAZ {
@@ -326,6 +337,15 @@ export async function enviarNFeSEFAZ(
   const idLote = String(Date.now()).slice(-15);
   const soap = buildSoap(xmlAssinado, idLote);
 
+  // LOG: preview do SOAP enviado (sem certificado/chave — apenas estrutura XML)
+  // Essencial para diagnosticar cStat=225 (falha schema). Log truncado para
+  // não expor dados fiscais completos em produção.
+  console.info('[NFE_SOAP_PREVIEW]', {
+    fiscalRequestId,
+    soapLength: soap.length,
+    soapHead: soap.substring(0, 600),
+  });
+
   let pem = certPem;
   let key = certKey;
 
@@ -447,6 +467,18 @@ export async function enviarNFeSEFAZ(
   }
 
   const emissionMs = Date.now() - _emissionStart;
+
+  // LOG: resposta bruta do SEFAZ — indispensável para diagnosticar cStat=225.
+  // Truncado em 2000 chars para não poluir logs em respostas longas.
+  const rawStr = typeof responseData === 'string'
+    ? responseData
+    : JSON.stringify(responseData);
+  console.info('[NFE_SEFAZ_RAW_RESPONSE]', {
+    fiscalRequestId,
+    responseLength: rawStr.length,
+    responsePreview: rawStr.substring(0, 2000),
+  });
+
   const parsed = parseSefazResponse(responseData);
   recordNfeEmissionDuration(emissionMs);
   recordCircuitSuccess();
