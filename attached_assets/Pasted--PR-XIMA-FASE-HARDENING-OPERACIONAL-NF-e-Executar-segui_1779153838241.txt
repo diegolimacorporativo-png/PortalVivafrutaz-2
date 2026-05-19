@@ -1,0 +1,165 @@
+# PRÓXIMA FASE — HARDENING OPERACIONAL NF-e
+
+Executar seguindo:
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Fortalecer o fluxo NF-e homologação já funcional,
+focando em:
+
+- estabilidade
+- rastreabilidade
+- idempotência
+- concorrência
+- recuperação de falhas
+- consistência transacional
+- observabilidade
+
+SEM alterar arquitetura principal.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS OBRIGATÓRIAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+MANTER:
+- tpAmb=2
+- homologação
+- SEM VALOR FISCAL
+- XSD ativo
+- assinatura ativa
+- SOAP real
+- Supabase real
+- multi-tenant
+
+PROIBIDO:
+- tpAmb=1
+- produção
+- mocks
+- banco local
+- refactor massivo
+- quebrar compatibilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA DE CONCORRÊNCIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Verificar:
+
+- duplo clique
+- múltiplas emissões simultâneas
+- race conditions
+- repetição de número NF-e
+- retry duplicado
+- timeout com reenvio
+- inconsistência entre pedido e nfe_emissoes
+
+Validar:
+- locks
+- idempotência
+- integridade numeração
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — IDPOTÊNCIA FISCAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir que:
+
+o mesmo pedido NÃO possa:
+- emitir duas NF-e
+- consumir duas numerações
+- gerar duas transmissões simultâneas
+
+Implementar:
+- lock transacional
+- verificação pré-emissão
+- controle de retry seguro
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — FAIL SAFETY AVANÇADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir recuperação segura em:
+
+- timeout SEFAZ
+- SOAP inválido
+- queda conexão
+- erro DB após autorização
+- falha persistência XML
+- falha parcial
+
+Obrigatório:
+- rollback seguro
+- persistência de artifacts
+- logs completos
+- retry rastreável
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — OBSERVABILIDADE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar:
+
+- requestId fiscal
+- duração por etapa
+- correlationId
+- tracing emissão
+- logs estruturados completos
+
+Criar timeline:
+
+XML
+→ assinatura
+→ XSD
+→ SOAP
+→ retorno
+→ persistência
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — CONSISTÊNCIA BANCO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+- constraints
+- índices
+- unicidade chave NF-e
+- unicidade protocolo
+- numeração
+- foreign keys
+
+SEM migrations destrutivas.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — TESTE STRESS HOMOLOGAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+- emissões sequenciais
+- retries
+- falhas simuladas
+- timeout
+- concorrência controlada
+
+Validar:
+- integridade
+- estabilidade
+- rastreabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- riscos encontrados
+- race conditions eliminadas
+- locks adicionados
+- validações adicionadas
+- logs adicionados
+- proteções adicionadas
+- fluxo final
+- pontos pendentes
+
+EXECUTAR AGORA.

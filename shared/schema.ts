@@ -1171,10 +1171,15 @@ export const nfeEmissoes = pgTable("nfe_emissoes", {
 (t) => ({
   serieNumeroUnique: uniqueIndex("idx_nfe_serie_numero_unique")
     .on(t.serie, t.numero),
+  // ETAPA 5 hardening: unicidade da chave NF-e (44 dígitos) garante que
+  // nunca haverá dois registros com a mesma chave de acesso.
+  // NULLs são excluídos automaticamente pelo PostgreSQL — seguro com dados existentes.
+  chaveUniqueIdx: uniqueIndex("idx_nfe_chave_unique").on(t.chaveNFe),
   checkStatus: check("check_nfe_status",
     sql`status IN (
       'gerada',
       'assinada',
+      'enviando',
       'enviada',
       'autorizada',
       'rejeitada',

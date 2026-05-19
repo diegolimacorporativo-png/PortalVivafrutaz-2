@@ -2052,9 +2052,9 @@ export async function registerRoutes(
         if (erros.length > 0) return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
 
         const numero = await storage.getNextNfeNumero();
-        console.log('[NFE_START]', { company_id: tenantId, order_id: orderId, ambiente: input.tpAmb === '1' ? 'producao' : 'homologacao', ts: Date.now() });
+        console.log('[NFE_START]', { requestId: getRequestIdForLog(), company_id: tenantId, order_id: orderId, ambiente: input.tpAmb === '1' ? 'producao' : 'homologacao', ts: Date.now() });
         const gerada = await gerarNFeXML(input, numero);
-        console.log('[NFE_XML_CREATED]', { company_id: tenantId, order_id: orderId, chave: gerada.chaveNFe, numero, ts: Date.now() });
+        console.log('[NFE_XML_CREATED]', { requestId: getRequestIdForLog(), company_id: tenantId, order_id: orderId, chave: gerada.chaveNFe, numero, ts: Date.now() });
 
         const nfe = await storage.createNfeEmissao({
           orderId: Number(orderId),
@@ -2071,6 +2071,12 @@ export async function registerRoutes(
         // O status do pedido só é atualizado APÓS autorização confirmada pelo SEFAZ.
         const sefazModeEmit = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
         if (sefazModeEmit !== 'mock') {
+          // ETAPA 4 hardening: correlationId + per-step timing para observabilidade completa.
+          // _nfeCorrId = requestId HTTP (mesmo ID usado em [NFE_START]/[NFE_XML_CREATED]).
+          // Todos os logs do fluxo unificado carregam corrId para rastrear a emissão end-to-end.
+          const _nfeTs0 = Date.now();
+          const _nfeCorrId = getRequestIdForLog();
+          let _nfeTs2: number | null = null; // timestamp após assinatura
           // 1. Resolver certificado: banco → env vars
           let certBase64ForSign: string | null = null;
           let certPwdForSign: string | null = null;
@@ -2111,7 +2117,8 @@ export async function registerRoutes(
             const { xmlAssinado } = await assinarXML(gerada.xmlGerado, certBase64ForSign, certPwdForSign);
             xmlParaEnviar = xmlAssinado;
             await storage.updateNfeEmissao(nfe.id, { status: 'assinada', xmlGerado: xmlParaEnviar });
-            console.log('[NFE_SIGNED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, ts: Date.now() });
+            _nfeTs2 = Date.now();
+            console.log('[NFE_SIGNED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, stepMs: _nfeTs2 - _nfeTs0 });
           } catch (sigErr: any) {
             await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
             console.error('[NFE_SIGN_FAILED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, error: sigErr?.message });
@@ -2126,12 +2133,14 @@ export async function registerRoutes(
             return res.status(400).json({ message: 'UF do emitente não configurada ou inválida. Acesse Configurações Fiscais e informe o estado (UF) da empresa emissora.', nfe, campo: 'state' });
           }
           const tpAmbEnviar = nfe.ambienteFiscal === 'producao' ? '1' : '2';
-          console.log('[NFE_SOAP_SENT]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, uf: ufRaw, tpAmb: tpAmbEnviar, ts: Date.now() });
+          console.log('[NFE_SOAP_SENT]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, uf: ufRaw, tpAmb: tpAmbEnviar, ts: Date.now() });
 
           try {
             const { enviarNFeSEFAZ } = await import('../services/nfe/nfeSender.ts');
+            const _nfeTs3 = Date.now();
             const retorno = await enviarNFeSEFAZ(xmlParaEnviar, ufRaw, tpAmbEnviar);
-            console.log('[NFE_SEFAZ_RESPONSE]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo, protocolo: retorno.protocolo, ts: Date.now() });
+            const _nfeSefazMs = Date.now() - _nfeTs3;
+            console.log('[NFE_SEFAZ_RESPONSE]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo, protocolo: retorno.protocolo, sefazMs: _nfeSefazMs });
 
             const updates: Record<string, any> = { status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo };
             if (retorno.status === 'autorizada') {
@@ -2140,12 +2149,43 @@ export async function registerRoutes(
               updates.xmlAutorizado = retorno.xmlAutorizado || xmlParaEnviar;
               // Atualizar pedido SOMENTE após autorização SEFAZ confirmada
               await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
-              console.log('[NFE_AUTHORIZED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, cStat: retorno.cStat, protocolo: retorno.protocolo, ambiente: nfe.ambienteFiscal });
+              console.log('[NFE_AUTHORIZED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, cStat: retorno.cStat, protocolo: retorno.protocolo, ambiente: nfe.ambienteFiscal, totalMs: Date.now() - _nfeTs0 });
             } else {
-              console.log('[NFE_REJECTED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo });
+              console.log('[NFE_REJECTED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo, sefazMs: _nfeSefazMs });
             }
-            await storage.updateNfeEmissao(nfe.id, updates);
-            console.log('[NFE_DB_PERSISTED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, status: retorno.status });
+
+            // ETAPA 3 hardening — FAIL-SAFE pós-autorização.
+            // Se updateNfeEmissao lançar APÓS o SEFAZ ter autorizado a nota,
+            // a NF-e está registrada no fisco mas não no banco. Logar TODOS os dados
+            // para recuperação manual. Nunca silenciar esta falha.
+            try {
+              await storage.updateNfeEmissao(nfe.id, updates);
+              console.log('[NFE_DB_PERSISTED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, status: retorno.status, totalMs: Date.now() - _nfeTs0 });
+            } catch (persistErr: any) {
+              console.error('[NFE_PERSIST_CRITICAL_ALERT]', {
+                corrId: _nfeCorrId,
+                ACAO_NECESSARIA: 'Recuperação manual obrigatória — NF-e autorizada pelo SEFAZ mas não persisitida no banco',
+                company_id: tenantId,
+                order_id: orderId,
+                nfe_id: nfe.id,
+                chave: gerada.chaveNFe,
+                protocolo: retorno.protocolo,
+                cStat: retorno.cStat,
+                xMotivo: retorno.xMotivo,
+                status: retorno.status,
+                dataAutorizacao: retorno.dataAutorizacao,
+                xmlAutorizadoLen: (retorno.xmlAutorizado || xmlParaEnviar)?.length,
+                persistError: persistErr?.message,
+              });
+              return res.status(201).json({
+                success: retorno.status === 'autorizada',
+                nfe: { ...nfe, status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo, protocolo: retorno.protocolo },
+                retorno: { status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo, protocolo: retorno.protocolo, chaveNFe: retorno.chaveNFe || gerada.chaveNFe },
+                mensagem: `NF-e ${retorno.status === 'autorizada' ? 'autorizada' : retorno.status} pelo SEFAZ mas falhou ao persistir. Acione o suporte com corrId=${_nfeCorrId}`,
+                persistWarning: true,
+              });
+            }
+
             await storage.createLog({
               action: retorno.status === 'autorizada' ? 'NF-E_AUTORIZADA' : 'NF-E_REJEITADA',
               description: `NF-e nº ${numero} ${retorno.status === 'autorizada' ? 'autorizada' : 'rejeitada'} pelo SEFAZ. Pedido #${orderId}. cStat=${retorno.cStat}. ${retorno.xMotivo}`,
@@ -2171,6 +2211,23 @@ export async function registerRoutes(
                 console.error('[EMAIL] Falha ao enviar email NF-e autorizada:', emailErr.message);
               }
             }
+
+            // ETAPA 4 hardening — Timeline summary: duração de cada etapa do fluxo unificado.
+            console.log('[NFE_EMISSION_TIMELINE]', {
+              corrId: _nfeCorrId,
+              company_id: tenantId,
+              order_id: orderId,
+              nfe_id: nfe.id,
+              chave: gerada.chaveNFe,
+              status: retorno.status,
+              ambiente: nfe.ambienteFiscal,
+              timings: {
+                xmlMs: _nfeTs2 != null ? _nfeTs2 - _nfeTs0 : null,
+                signMs: _nfeTs2 != null ? _nfeTs3 - _nfeTs2 : null,
+                sefazMs: _nfeSefazMs,
+                totalMs: Date.now() - _nfeTs0,
+              },
+            });
 
             const nfeAtualizada = await storage.getNfeEmissao(nfe.id);
             return res.status(201).json({
@@ -2198,7 +2255,7 @@ export async function registerRoutes(
               });
             }
             await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
-            console.error('[NFE_SEFAZ_SEND_FAILED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, error: sefazErr?.message });
+            console.error('[NFE_SEFAZ_SEND_FAILED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, error: sefazErr?.message, totalMs: Date.now() - _nfeTs0 });
             return res.status(500).json({ message: `Falha ao transmitir ao SEFAZ: ${sefazErr.message}`, nfe });
           }
         }
