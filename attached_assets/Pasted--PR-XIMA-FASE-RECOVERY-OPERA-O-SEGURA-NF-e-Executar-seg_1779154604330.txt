@@ -1,0 +1,271 @@
+# PRÓXIMA FASE — RECOVERY + OPERAÇÃO SEGURA NF-e
+
+Executar seguindo RIGOROSAMENTE o protocolo:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+SEM refatoração massiva.
+SEM quebrar fluxo atual.
+SEM alterar homologação.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O projeto JÁ ESTÁ:
+
+✅ conectado EXCLUSIVAMENTE ao Supabase real  
+✅ usando apenas:
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- usar banco Replit
+- sqlite
+- memória
+- fallback local
+- mocks de banco
+
+Connection string oficial:
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+Ambiente fiscal ATUAL:
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal
+- emissão válida
+- alterar ambiente
+- remover homologação
+
+Toda NF-e deve continuar:
+“SEM VALOR FISCAL”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar sistema de RECOVERY operacional NF-e.
+
+Criar endpoint:
+
+/api/admin/nfe/recovery
+
+para identificar:
+- NF-es travadas
+- emissões órfãs
+- assinadas sem autorização
+- falhas mid-flight
+- timeout
+- crash durante persistência
+- inconsistências operacionais
+
+SEM perder rastreabilidade.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mapear COMPLETAMENTE:
+
+- tabela nfe_emissoes
+- statuses existentes
+- advisory locks
+- retry system
+- circuit breaker
+- fluxo emitir/enviar
+- persistência XML
+- persistência SOAP
+- persistência protocolo
+- logs estruturados
+- idempotência
+- fail-safe atual
+
+Validar:
+- nenhum bypass
+- nenhum mock
+- nenhum fluxo paralelo
+- nenhum status inconsistente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — DEFINIR REGRAS DE RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Definir estados recuperáveis:
+
+EXEMPLOS:
+- assinada > 10 min sem autorização
+- enviando > 10 min
+- SOAP enviado sem persistência final
+- autorizada sem protocolo salvo
+- rejeitada sem motivo
+- XML ausente
+- chave ausente
+- persistência parcial
+
+Classificar:
+- RECOVERABLE
+- MANUAL_ACTION_REQUIRED
+- CRITICAL
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — ENDPOINT REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar:
+
+GET /api/admin/nfe/recovery
+
+Resposta deve incluir:
+
+- order_id
+- nfe_id
+- status
+- chave
+- protocolo
+- cStat
+- idade
+- ultimo_update
+- ambiente
+- recovery_type
+- risco
+- recomendacao
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — REPROCESSAMENTO CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar endpoint seguro:
+
+POST /api/admin/nfe/recovery/:id/reprocess
+
+COM:
+- advisory lock
+- idempotência
+- logs
+- retry seguro
+- validação status
+
+PROIBIDO:
+- reenviar NF-e autorizada
+- duplicar chave
+- quebrar sequência numérica
+- ignorar lock
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — CANCELAMENTO OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar endpoint:
+
+POST /api/admin/nfe/recovery/:id/mark-error
+
+Para casos:
+- XML corrompido
+- emissão impossível
+- erro manual
+- inconsistência irreparável
+
+Deve:
+- preservar XML
+- preservar logs
+- preservar SOAP
+- preservar protocolo parcial
+- marcar status seguro
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — LOGS OBRIGATÓRIOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar logs estruturados:
+
+[NFE_RECOVERY_SCAN]
+[NFE_RECOVERY_FOUND]
+[NFE_RECOVERY_REPROCESS]
+[NFE_RECOVERY_SUCCESS]
+[NFE_RECOVERY_FAILED]
+[NFE_RECOVERY_MANUAL]
+[NFE_RECOVERY_CRITICAL]
+
+Todos com:
+- corrId
+- company_id
+- order_id
+- nfe_id
+- chave
+- status
+- duração
+- ambiente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — FAIL SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- nunca perder XML
+- nunca perder protocolo
+- nunca remover rastros
+- nunca apagar SOAP
+- nunca sobrescrever autorização válida
+- nunca reenviar autorizada
+- nunca quebrar multi-tenant
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — TESTE CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS em homologação:
+
+Simular:
+- timeout
+- persistência parcial
+- envio interrompido
+- assinada órfã
+- rejeição sem persistência
+
+Validar:
+- recovery detecta
+- recovery bloqueia duplicidade
+- recovery mantém rastreabilidade
+- recovery não quebra locks
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- arquivos alterados
+- endpoints criados
+- regras recovery
+- bugs encontrados
+- fixes aplicados
+- logs adicionados
+- testes executados
+- riscos restantes
+- próximos passos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- usar banco local
+- usar mocks
+- quebrar homologação
+- alterar tpAmb
+- refatorar arquitetura inteira
+- remover XSD
+- remover assinatura
+- remover logs
+- criar bypass fiscal
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- reversíveis
+- auditáveis
+- seguras
+
+EXECUTAR AGORA.

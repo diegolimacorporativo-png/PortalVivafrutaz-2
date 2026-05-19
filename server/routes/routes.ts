@@ -3238,6 +3238,242 @@ export async function registerRoutes(
       }
     });
 
+    // ════════════════════════════════════════════════════════════════════════
+    // RECOVERY — identificação e recuperação operacional de NF-es travadas
+    //   GET  /api/admin/nfe/recovery                  — scan read-only
+    //   POST /api/admin/nfe/recovery/:id/reprocess    — reenvio seguro
+    //   POST /api/admin/nfe/recovery/:id/mark-error   — marcar erro seguro
+    // ════════════════════════════════════════════════════════════════════════
+
+    app.get('/api/admin/nfe/recovery', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req: any, res) => {
+      const corrId = getRequestIdForLog();
+      try {
+        const { scanForRecovery } = await import('../modules/nfe/nfe-recovery.service.ts');
+        const result = await scanForRecovery();
+        console.log('[NFE_RECOVERY_SCAN]', {
+          corrId,
+          total: result.total,
+          by_risco: result.by_risco,
+          scanned_at: result.scanned_at,
+        });
+        // [NFE_RECOVERY_FOUND] — um log por item encontrado (spec ETAPA 6)
+        for (const item of result.items) {
+          const label = item.risco === 'CRITICAL' ? '[NFE_RECOVERY_CRITICAL]' : '[NFE_RECOVERY_FOUND]';
+          console.log(label, {
+            corrId,
+            nfe_id: item.nfe_id,
+            order_id: item.order_id,
+            chave: item.chave,
+            status: item.status,
+            recovery_type: item.recovery_type,
+            risco: item.risco,
+            idade_min: item.idade_min,
+            ambiente: item.ambiente,
+          });
+        }
+        res.json({ ok: true, ...result });
+      } catch (err: any) {
+        console.error('[NFE_RECOVERY_SCAN_ERROR]', { corrId, error: err?.message });
+        res.status(500).json({ ok: false, message: err?.message });
+      }
+    });
+
+    // POST /api/admin/nfe/recovery/:id/reprocess
+    // Reenvia ao SEFAZ uma NF-e travada em 'assinada' ou 'enviando' com XML disponível.
+    // Protegido por: advisory lock + idempotência + validação de status.
+    // PROIBIDO: reenviar autorizada, duplicar chave, alterar ambiente.
+    app.post('/api/admin/nfe/recovery/:id/reprocess', requireAuthCore, requireRole(['MASTER', 'ADMIN']), async (req: any, res) => {
+      const corrId = getRequestIdForLog();
+      const nfeId = Number(req.params.id);
+      if (!Number.isFinite(nfeId) || nfeId <= 0) {
+        return res.status(400).json({ ok: false, message: 'nfeId inválido' });
+      }
+      let lock: OrderLockHandle | null = null;
+      let lockOrderId: number | null = null;
+      let lockTenantId: number | null = null;
+      try {
+        const nfe = await storage.getNfeEmissao(nfeId);
+        if (!nfe) return res.status(404).json({ ok: false, message: 'NF-e não encontrada' });
+
+        // ETAPA 7 — Fail safety: nunca reprocessar autorizada/cancelada/denegada
+        if (['autorizada', 'cancelada', 'denegada'].includes(nfe.status)) {
+          return res.status(409).json({
+            ok: false,
+            message: `NF-e em status "${nfe.status}" não é reprocessável. Dados fiscais imutáveis.`,
+          });
+        }
+        // Apenas assinada/enviando têm XML assinado pronto para reenvio
+        if (!['assinada', 'enviando'].includes(nfe.status)) {
+          return res.status(409).json({
+            ok: false,
+            message: `Status "${nfe.status}" não é recuperável via reprocess. Use /mark-error e reemita pelo fluxo normal.`,
+          });
+        }
+        if (!nfe.xmlGerado) {
+          return res.status(422).json({
+            ok: false,
+            message: 'XML assinado ausente. Não é possível reprocessar sem XML. Use /mark-error e reemita.',
+          });
+        }
+
+        // Obter tenantId via order.companyId para lock consistente com o fluxo normal
+        const orderData = await storage.getOrder(nfe.orderId);
+        const tenantId: number = (orderData?.order as any)?.companyId ?? 0;
+        if (!Number.isInteger(tenantId) || tenantId <= 0) {
+          return res.status(400).json({ ok: false, message: 'Não foi possível determinar tenant para lock.' });
+        }
+        lockOrderId = nfe.orderId;
+        lockTenantId = tenantId;
+
+        // ETAPA 4 — Advisory lock antes de qualquer escrita
+        lock = await acquireOrderLock(tenantId, nfe.orderId);
+        if (!lock) {
+          console.warn('[NFE_RECOVERY_LOCK_SKIPPED]', { corrId, nfe_id: nfeId, order_id: nfe.orderId, tenantId });
+          return res.status(409).json({ ok: false, message: 'Pedido em processamento — lock não adquirido. Tente novamente em instantes.' });
+        }
+        console.log('[NFE_RECOVERY_REPROCESS]', {
+          corrId, nfe_id: nfeId, order_id: nfe.orderId, status: nfe.status,
+          chave: nfe.chaveNFe, tenantId, userId: req.session?.userId,
+        });
+
+        // Verificar idempotência: existe autorização para este pedido?
+        const existing = await storage.getNfeEmissaoByOrderId(nfe.orderId);
+        if (existing && existing.id !== nfeId && existing.status === 'autorizada') {
+          console.warn('[NFE_RECOVERY_IDEM_BLOCKED]', { corrId, nfe_id: nfeId, existing_id: existing.id, order_id: nfe.orderId });
+          return res.status(409).json({
+            ok: false,
+            message: `Pedido já possui NF-e autorizada (id=${existing.id}, chave=${existing.chaveNFe}). Reprocessamento bloqueado.`,
+          });
+        }
+
+        // Obter UF do emitente
+        const config = await storage.getCompanyConfig();
+        const ufRaw = (config?.state ?? '').trim().toUpperCase();
+        if (!ufRaw || !/^[A-Z]{2}$/.test(ufRaw)) {
+          return res.status(400).json({ ok: false, message: 'UF do emitente não configurada em Configurações Fiscais.' });
+        }
+        const tpAmb: '1' | '2' = nfe.ambienteFiscal === 'producao' ? '1' : '2';
+
+        // Marcar enviando antes de transmitir
+        await storage.updateNfeEmissao(nfeId, { status: 'enviando' });
+
+        const { enviarNFeSEFAZ } = await import('../services/nfe/nfeSender.ts');
+        const _t0 = Date.now();
+        const retorno = await enviarNFeSEFAZ(nfe.xmlGerado, ufRaw, tpAmb);
+        const sefazMs = Date.now() - _t0;
+
+        const updates: Record<string, any> = { status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo };
+        if (retorno.status === 'autorizada') {
+          updates.protocolo = retorno.protocolo;
+          updates.dataAutorizacao = retorno.dataAutorizacao ? new Date(retorno.dataAutorizacao) : new Date();
+          updates.xmlAutorizado = retorno.xmlAutorizado || nfe.xmlGerado;
+          await storage.updateOrder(nfe.orderId, { fiscalStatus: 'nota_emitida' });
+        }
+
+        // ETAPA 3 fail-safe: catch isolado pós-autorização para não perder dados
+        try {
+          await storage.updateNfeEmissao(nfeId, updates);
+        } catch (persistErr: any) {
+          console.error('[NFE_RECOVERY_PERSIST_CRITICAL]', {
+            corrId, nfe_id: nfeId, order_id: nfe.orderId,
+            chave: nfe.chaveNFe, protocolo: retorno.protocolo,
+            cStat: retorno.cStat, status: retorno.status,
+            ACAO_NECESSARIA: 'Persistência falhou após autorização — recuperação manual',
+            persistError: persistErr?.message,
+          });
+        }
+
+        const logLabel = retorno.status === 'autorizada' ? '[NFE_RECOVERY_SUCCESS]' : '[NFE_RECOVERY_REPROCESS]';
+        console.log(logLabel, {
+          corrId, nfe_id: nfeId, order_id: nfe.orderId,
+          chave: nfe.chaveNFe, status: retorno.status,
+          cStat: retorno.cStat, protocolo: retorno.protocolo,
+          sefazMs, ambiente: nfe.ambienteFiscal,
+        });
+
+        await storage.createLog({
+          action: retorno.status === 'autorizada' ? 'NFE_RECOVERY_SUCCESS' : 'NFE_RECOVERY_REPROCESS',
+          description: `Recovery NF-e id=${nfeId} pedido #${nfe.orderId}: ${retorno.status} (cStat=${retorno.cStat})`,
+          level: retorno.status === 'autorizada' ? 'INFO' : 'WARN',
+          userId: req.session?.userId,
+        });
+
+        const nfeAtualizada = await storage.getNfeEmissao(nfeId);
+        return res.status(200).json({
+          ok: true,
+          success: retorno.status === 'autorizada',
+          nfe: nfeAtualizada,
+          retorno: { status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo, protocolo: retorno.protocolo, chaveNFe: retorno.chaveNFe || nfe.chaveNFe },
+          mensagem: `Recovery: NF-e ${retorno.status === 'autorizada' ? 'autorizada' : retorno.status} (cStat=${retorno.cStat})`,
+        });
+      } catch (err: any) {
+        try { await storage.updateNfeEmissao(nfeId, { status: 'erro' }); } catch {}
+        console.error('[NFE_RECOVERY_FAILED]', { corrId, nfe_id: nfeId, error: err?.message });
+        return res.status(500).json({ ok: false, message: `Falha no recovery: ${err?.message}` });
+      } finally {
+        if (lock) {
+          await releaseOrderLock(lock);
+          console.log('[NFE_RECOVERY_LOCK_RELEASED]', { corrId, nfe_id: nfeId, order_id: lockOrderId, tenantId: lockTenantId });
+        }
+      }
+    });
+
+    // POST /api/admin/nfe/recovery/:id/mark-error
+    // Marca NF-e como erro de forma segura, preservando TODOS os dados existentes.
+    // PROIBIDO: usar em autorizada/cancelada. Preserva XML, protocolo, cStat, SOAP.
+    app.post('/api/admin/nfe/recovery/:id/mark-error', requireAuthCore, requireRole(['MASTER', 'ADMIN']), async (req: any, res) => {
+      const corrId = getRequestIdForLog();
+      const nfeId = Number(req.params.id);
+      if (!Number.isFinite(nfeId) || nfeId <= 0) {
+        return res.status(400).json({ ok: false, message: 'nfeId inválido' });
+      }
+      try {
+        const nfe = await storage.getNfeEmissao(nfeId);
+        if (!nfe) return res.status(404).json({ ok: false, message: 'NF-e não encontrada' });
+
+        // ETAPA 7 — Imutabilidade: nunca sobrescrever autorizada/cancelada/denegada
+        if (['autorizada', 'cancelada', 'denegada'].includes(nfe.status)) {
+          return res.status(409).json({
+            ok: false,
+            message: `NF-e em status "${nfe.status}" não pode ser marcada como erro. Dados fiscais imutáveis.`,
+          });
+        }
+
+        const { motivo } = req.body as { motivo?: string };
+        const motivoFinal = motivo?.trim() || `Marcada como erro manualmente via recovery (corrId=${corrId})`;
+
+        // Preserva XML, protocolo, c_stat, chave — apenas muda status e xMotivo
+        await storage.updateNfeEmissao(nfeId, {
+          status: 'erro',
+          xMotivo: motivoFinal,
+        });
+
+        console.log('[NFE_RECOVERY_MANUAL]', {
+          corrId, nfe_id: nfeId, order_id: nfe.orderId,
+          chave: nfe.chaveNFe, status_anterior: nfe.status,
+          motivo: motivoFinal, userId: req.session?.userId,
+          ambiente: nfe.ambienteFiscal,
+        });
+
+        await storage.createLog({
+          action: 'NFE_RECOVERY_MANUAL_ERROR',
+          description: `Recovery mark-error NF-e id=${nfeId} pedido #${nfe.orderId}: ${nfe.status} → erro. Motivo: ${motivoFinal}`,
+          level: 'WARN',
+          userId: req.session?.userId,
+        });
+
+        const nfeAtualizada = await storage.getNfeEmissao(nfeId);
+        return res.status(200).json({
+          ok: true,
+          nfe: nfeAtualizada,
+          mensagem: `NF-e marcada como erro. Status anterior: ${nfe.status}.`,
+        });
+      } catch (err: any) {
+        console.error('[NFE_RECOVERY_MARK_ERROR_FAILED]', { corrId, nfe_id: nfeId, error: err?.message });
+        return res.status(500).json({ ok: false, message: err?.message });
+      }
+    });
+
     // GET /api/nfe/sefaz/status — status do serviço SEFAZ
     app.get('/api/nfe/sefaz/status', requireAuthCore, async (req: any, res) => {
       try {
