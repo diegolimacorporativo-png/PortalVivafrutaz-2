@@ -1,0 +1,231 @@
+# PRÓXIMA FASE — INTEGRAÇÃO REAL DO FLUXO NF-e AO ERP
+
+Executar seguindo rigorosamente o protocolo:
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Integrar a emissão NF-e homologação REAL ao fluxo oficial do ERP/painel.
+
+O botão:
+"Emitir NF-e"
+
+deve:
+1. gerar XML
+2. assinar
+3. validar XSD local
+4. transmitir ao SEFAZ homologação
+5. persistir protocolo
+6. persistir chave NF-e
+7. salvar XML autorizado
+8. atualizar status do pedido
+9. registrar logs completos
+
+SEM mocks.
+SEM bypass.
+SEM fluxo paralelo.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRA CRÍTICA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+AMBIENTE OBRIGATÓRIO:
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+PROIBIDO:
+- produção real
+- tpAmb=1
+- emissão fiscal válida
+- alterar ambiente
+- remover XSD validation
+- remover assinatura
+- remover logs
+
+Toda NF-e deve continuar:
+"SEM VALOR FISCAL"
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mapear COMPLETAMENTE:
+
+- rota do botão emitir NF-e
+- controller fiscal
+- services envolvidos
+- persistência nfe_emissoes
+- geração XML
+- assinatura
+- envio SOAP
+- atualização do pedido
+- logs
+- tratamento de erro
+
+Confirmar:
+- nenhum mock ativo
+- nenhum bypass
+- nenhum retorno fake
+- nenhum modo híbrido
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — MAPEAR STATUS FISCAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Documentar fluxo oficial:
+
+nota_pendente
+→ nota_liberada
+→ nota_emitida
+→ nota_autorizada
+→ nota_rejeitada
+→ nota_cancelada
+
+Validar:
+- transições corretas
+- persistência correta
+- rollback seguro
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — PERSISTÊNCIA REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir persistência REAL em nfe_emissoes:
+
+Obrigatório salvar:
+- chNFe
+- nProt
+- cStat
+- xMotivo
+- recibo
+- XML assinado
+- XML autorizado
+- SOAP request
+- SOAP response
+- protocolo completo
+- timestamps
+- ambiente
+- número NF-e
+- série
+
+SEM perder rastreabilidade.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — INTEGRAÇÃO DO BOTÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O botão do painel deve:
+
+1. bloquear múltiplos cliques
+2. exibir loading
+3. mostrar progresso
+4. exibir rejeição real SEFAZ
+5. exibir chave autorizada
+6. exibir protocolo
+7. atualizar status em tempo real
+
+Sem refresh manual.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — LOGS OBRIGATÓRIOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar logs estruturados:
+
+[NFE_START]
+[NFE_XML_CREATED]
+[NFE_SIGNED]
+[NFE_XSD_OK]
+[NFE_SOAP_SENT]
+[NFE_SEFAZ_RESPONSE]
+[NFE_AUTHORIZED]
+[NFE_REJECTED]
+[NFE_DB_PERSISTED]
+
+Logs devem conter:
+- company_id
+- order_id
+- chave
+- cStat
+- duração
+- ambiente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — FAIL SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Se ocorrer:
+- erro XSD
+- erro assinatura
+- timeout
+- rejeição
+- SOAP inválido
+- falha persistência
+
+Então:
+- NÃO atualizar pedido como autorizado
+- NÃO perder XML
+- NÃO perder logs
+- registrar erro completo
+- manter rastreabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — TESTE END-TO-END
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar emissão REAL homologação usando:
+- pedido nota_liberada
+- ambiente homologação
+- certificado real atual
+
+Validar:
+- XML
+- assinatura
+- XSD
+- transmissão
+- retorno
+- persistência
+- atualização UI
+
+Esperado:
+cStat=100
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório completo contendo:
+
+- arquivos alterados
+- fluxo final
+- bugs encontrados
+- fixes aplicados
+- logs adicionados
+- validações executadas
+- resultado SEFAZ
+- dados persistidos
+- riscos restantes
+- próximos passos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# IMPORTANTE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- criar arquitetura nova
+- refatorar massivamente
+- quebrar multi-tenant
+- alterar schema sem auditoria
+- remover compatibilidade
+- usar banco local
+- usar mocks
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- auditáveis
+- reversíveis
+- seguras
+
+EXECUTAR AGORA.

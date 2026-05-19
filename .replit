@@ -49,5 +49,5 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
-NFE_SEFAZ_MODE = "mock"
+NFE_SEFAZ_MODE = "homologacao"
 NODE_ENV = "development"

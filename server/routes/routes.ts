@@ -2052,7 +2052,9 @@ export async function registerRoutes(
         if (erros.length > 0) return res.status(422).json({ message: 'Dados fiscais incompletos', erros });
 
         const numero = await storage.getNextNfeNumero();
+        console.log('[NFE_START]', { company_id: tenantId, order_id: orderId, ambiente: input.tpAmb === '1' ? 'producao' : 'homologacao', ts: Date.now() });
         const gerada = await gerarNFeXML(input, numero);
+        console.log('[NFE_XML_CREATED]', { company_id: tenantId, order_id: orderId, chave: gerada.chaveNFe, numero, ts: Date.now() });
 
         const nfe = await storage.createNfeEmissao({
           orderId: Number(orderId),
@@ -2065,12 +2067,146 @@ export async function registerRoutes(
           ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
         });
 
-        // Atualizar status fiscal do pedido
+        // FLUXO UNIFICADO: quando não é mock, assina + valida XSD + transmite SEFAZ tudo aqui.
+        // O status do pedido só é atualizado APÓS autorização confirmada pelo SEFAZ.
+        const sefazModeEmit = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
+        if (sefazModeEmit !== 'mock') {
+          // 1. Resolver certificado: banco → env vars
+          let certBase64ForSign: string | null = null;
+          let certPwdForSign: string | null = null;
+          try {
+            const { companyCertificateRepository } = await import('../modules/companies/companyCertificate.repository.ts');
+            const { decryptOrPassthrough } = await import('../utils/crypto.ts');
+            const orderRow = await storage.getOrder(Number(orderId));
+            const companyIdForCert: number | null = (orderRow?.order as any)?.companyId ?? (req.session as any)?.companyId ?? null;
+            if (companyIdForCert) {
+              const certRow = await companyCertificateRepository.getByCompanyId(companyIdForCert);
+              if (certRow?.certBase64) {
+                certBase64ForSign = certRow.certBase64;
+                certPwdForSign = decryptOrPassthrough(certRow.certPassword);
+                console.info(`[NFE_CERT_SOURCE] banco | nfeId=${nfe.id} | companyId=${companyIdForCert}`);
+              }
+            }
+          } catch (dbCertErr: any) {
+            console.warn('[NFE_CERT_DB_FAIL_EMITIR]', dbCertErr?.message);
+          }
+          if (!certBase64ForSign) {
+            const envPath = process.env.CERT_PATH;
+            const envPwd = process.env.CERT_PASSWORD;
+            if (envPath && envPwd) {
+              certBase64ForSign = envPath;
+              certPwdForSign = envPwd;
+              console.info(`[NFE_CERT_SOURCE] env | nfeId=${nfe.id}`);
+            }
+          }
+          if (!certBase64ForSign || !certPwdForSign) {
+            await storage.createLog({ action: 'NF-E_GERADA', description: `NF-e nº ${numero} gerada p/ pedido #${orderId} (sem cert — assinar manualmente).`, level: 'WARN', userId: req.session.userId });
+            return res.status(201).json({ success: false, nfe, requiresCert: true, mensagem: 'XML NF-e gerado. Certificado digital não configurado — carregue o .pfx em Configurações Fiscais para assinar e transmitir ao SEFAZ.' });
+          }
+
+          // 2. Assinar XML
+          let xmlParaEnviar = gerada.xmlGerado;
+          try {
+            const { assinarXML } = await import('../services/nfe/nfeSignature.ts');
+            const { xmlAssinado } = await assinarXML(gerada.xmlGerado, certBase64ForSign, certPwdForSign);
+            xmlParaEnviar = xmlAssinado;
+            await storage.updateNfeEmissao(nfe.id, { status: 'assinada', xmlGerado: xmlParaEnviar });
+            console.log('[NFE_SIGNED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, ts: Date.now() });
+          } catch (sigErr: any) {
+            await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
+            console.error('[NFE_SIGN_FAILED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, error: sigErr?.message });
+            return res.status(400).json({ message: `Erro na assinatura digital: ${sigErr.message}. Verifique o certificado e a senha.`, nfe });
+          }
+
+          // 3. Obter UF e transmitir ao SEFAZ (XSD local → SOAP → retry)
+          const emitConfig = await storage.getCompanyConfig();
+          const ufRaw = (emitConfig?.state ?? '').trim().toUpperCase();
+          if (!ufRaw || !/^[A-Z]{2}$/.test(ufRaw)) {
+            await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
+            return res.status(400).json({ message: 'UF do emitente não configurada ou inválida. Acesse Configurações Fiscais e informe o estado (UF) da empresa emissora.', nfe, campo: 'state' });
+          }
+          const tpAmbEnviar = nfe.ambienteFiscal === 'producao' ? '1' : '2';
+          console.log('[NFE_SOAP_SENT]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, uf: ufRaw, tpAmb: tpAmbEnviar, ts: Date.now() });
+
+          try {
+            const { enviarNFeSEFAZ } = await import('../services/nfe/nfeSender.ts');
+            const retorno = await enviarNFeSEFAZ(xmlParaEnviar, ufRaw, tpAmbEnviar);
+            console.log('[NFE_SEFAZ_RESPONSE]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo, protocolo: retorno.protocolo, ts: Date.now() });
+
+            const updates: Record<string, any> = { status: retorno.status, cStat: retorno.cStat, xMotivo: retorno.xMotivo };
+            if (retorno.status === 'autorizada') {
+              updates.protocolo = retorno.protocolo;
+              updates.dataAutorizacao = retorno.dataAutorizacao ? new Date(retorno.dataAutorizacao) : new Date();
+              updates.xmlAutorizado = retorno.xmlAutorizado || xmlParaEnviar;
+              // Atualizar pedido SOMENTE após autorização SEFAZ confirmada
+              await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
+              console.log('[NFE_AUTHORIZED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, cStat: retorno.cStat, protocolo: retorno.protocolo, ambiente: nfe.ambienteFiscal });
+            } else {
+              console.log('[NFE_REJECTED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo });
+            }
+            await storage.updateNfeEmissao(nfe.id, updates);
+            console.log('[NFE_DB_PERSISTED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, status: retorno.status });
+            await storage.createLog({
+              action: retorno.status === 'autorizada' ? 'NF-E_AUTORIZADA' : 'NF-E_REJEITADA',
+              description: `NF-e nº ${numero} ${retorno.status === 'autorizada' ? 'autorizada' : 'rejeitada'} pelo SEFAZ. Pedido #${orderId}. cStat=${retorno.cStat}. ${retorno.xMotivo}`,
+              level: retorno.status === 'autorizada' ? 'INFO' : 'WARN',
+              userId: req.session.userId,
+            });
+
+            // Email automático após autorização
+            if (retorno.status === 'autorizada') {
+              try {
+                const { sendNFeAutorizadaEmail } = await import('../services/mailer.ts');
+                const orderData = await storage.getOrder(Number(orderId));
+                const config = await storage.getCompanyConfig();
+                const destinos: string[] = [];
+                if (config?.email) destinos.push(config.email);
+                const orderCompany = orderData ? await storage.getCompany((orderData.order as any).companyId) : null;
+                if (orderCompany?.email) destinos.push(orderCompany.email);
+                const xmlContent = retorno.xmlAutorizado || xmlParaEnviar;
+                for (const email of destinos) {
+                  await sendNFeAutorizadaEmail({ toEmail: email, nfeNumero: Number(nfe.numero), chaveNFe: nfe.chaveNFe || '', protocolo: retorno.protocolo || '', orderId: Number(orderId), xmlContent });
+                }
+              } catch (emailErr: any) {
+                console.error('[EMAIL] Falha ao enviar email NF-e autorizada:', emailErr.message);
+              }
+            }
+
+            const nfeAtualizada = await storage.getNfeEmissao(nfe.id);
+            return res.status(201).json({
+              success: retorno.status === 'autorizada',
+              nfe: nfeAtualizada,
+              retorno: {
+                status: retorno.status,
+                cStat: retorno.cStat,
+                xMotivo: retorno.xMotivo,
+                protocolo: retorno.protocolo,
+                chaveNFe: retorno.chaveNFe || gerada.chaveNFe,
+              },
+              mensagem: retorno.status === 'autorizada'
+                ? `NF-e nº ${numero} autorizada pelo SEFAZ (cStat=${retorno.cStat})`
+                : `NF-e nº ${numero} ${retorno.status} pelo SEFAZ: ${retorno.xMotivo} (cStat=${retorno.cStat})`,
+            });
+          } catch (sefazErr: any) {
+            if (sefazErr?.code === 'NFE_XSD_INVALID') {
+              await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
+              return res.status(422).json({
+                message: 'Falha na validação do schema NF-e 4.00 (XML inválido — transmissão bloqueada)',
+                code: 'NFE_XSD_INVALID',
+                xsdErrors: sefazErr.xsdErrors ?? [],
+                nfe,
+              });
+            }
+            await storage.updateNfeEmissao(nfe.id, { status: 'erro' });
+            console.error('[NFE_SEFAZ_SEND_FAILED]', { company_id: tenantId, order_id: orderId, nfe_id: nfe.id, error: sefazErr?.message });
+            return res.status(500).json({ message: `Falha ao transmitir ao SEFAZ: ${sefazErr.message}`, nfe });
+          }
+        }
+
+        // MODO MOCK: atualiza pedido imediatamente, sem transmissão real
         await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
-
         await storage.createLog({ action: 'NF-E_GERADA', description: `NF-e nº ${numero} gerada para pedido #${orderId}. Chave: ${gerada.chaveNFe}`, level: 'INFO', userId: req.session.userId });
-
-        res.status(201).json({ success: true, nfe, mensagem: 'XML NF-e gerado. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.' });
+        res.status(201).json({ success: true, nfe, mensagem: 'XML NF-e gerado [MOCK]. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.' });
       } catch (e: any) {
         // FASE NF.4.3 — tradução de erro fiscal para mensagem amigável.
         // Mantém status 500 (rule 4) e preserva o erro técnico no log.
@@ -2650,9 +2786,10 @@ export async function registerRoutes(
         // FASE 3 — bloqueia transmissão de NF de outro tenant antes de qualquer ação.
         if (nfe.orderId) await validateOrderTenant(nfe.orderId);
 
-        // FASE NF.3 — modo controlado (mock por padrão; production usa o handler legado abaixo).
+        // FASE NF.3 — modo controlado: 'mock' usa transmissor simulado; qualquer outro valor
+        // ('homologacao', 'producao') usa o fluxo real de assinatura + XSD + SOAP SEFAZ.
         const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
-        if (sefazMode !== 'production') {
+        if (sefazMode === 'mock') {
           const { transmitirNFe } = await import('../modules/nfe/nfe-transmit.service.ts');
           try {
             const result = await transmitirNFe(nfe.id);

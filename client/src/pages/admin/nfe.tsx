@@ -234,7 +234,7 @@ const TUTORIAL_STEPS = [
   {
     num: 5,
     title: "Gere o XML e Envie ao SEFAZ",
-    desc: "Com todos os dados OK, clique em 'Gerar XML'. O sistema assina digitalmente e envia ao SEFAZ. Após autorização, o XML e o email são enviados automaticamente.",
+    desc: "Com todos os dados OK, clique em 'Emitir NF-e'. O sistema gera o XML, assina digitalmente e envia ao SEFAZ em uma única operação. Após autorização, o XML e o email são enviados automaticamente.",
     icon: Award,
     color: "bg-green-100 text-green-700",
     link: null,
@@ -449,8 +449,8 @@ function SelectedOrderEmitRow({
             title={blocked ? blockReason : hasPreflightError ? "Corrija os erros do preflight antes de emitir" : "Gerar XML"}
             className={`bg-emerald-600 hover:bg-emerald-700 text-white ${justUnlocked ? "unlock-highlight" : ""} ${isShaking ? "shake-horizontal" : ""} ${(blocked || hasPreflightError) ? "opacity-70 cursor-not-allowed" : ""}`}
           >
-            {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <FileText className="w-4 h-4 mr-2" />}
-            Gerar XML
+            {emitirMutation.isPending ? <RefreshCw className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+            {emitirMutation.isPending ? "Emitindo..." : "Emitir NF-e"}
           </Button>
           <Button type="button" variant="ghost" size="sm" onClick={onClear}>
             <XCircle className="w-4 h-4" />
@@ -644,7 +644,25 @@ export default function NfePage() {
     mutationFn: (orderId: number) => apiRequest("POST", "/api/nfe/emitir", { orderId }),
     onSuccess: async (res) => {
       const data = await res.json();
-      toast({ title: `NF-e gerada com sucesso!`, description: `Chave: ${(data.nfe?.chaveNFe || "").slice(0, 22)}...` });
+      if (data.retorno) {
+        const ok = data.retorno.status === "autorizada";
+        const chave = (data.retorno.chaveNFe || data.nfe?.chaveNFe || "").slice(0, 22);
+        toast({
+          title: ok ? "NF-e autorizada pelo SEFAZ!" : `SEFAZ: ${data.retorno.xMotivo}`,
+          description: ok
+            ? `cStat=${data.retorno.cStat} | Protocolo: ${data.retorno.protocolo || "—"} | Chave: ${chave}...`
+            : `cStat=${data.retorno.cStat} — ${data.retorno.xMotivo}`,
+          variant: ok ? "default" : "destructive",
+        });
+      } else if (data.requiresCert) {
+        toast({
+          title: "XML gerado — certificado necessário",
+          description: data.mensagem || "Carregue o certificado .pfx em Configurações Fiscais para transmitir ao SEFAZ.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "NF-e gerada!", description: `Chave: ${(data.nfe?.chaveNFe || "").slice(0, 22)}...` });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/nfe"] });
       queryClient.invalidateQueries({ queryKey: ["/api/orders"] });
       queryClient.invalidateQueries({ queryKey: ["/api/nfe/diagnostics", selectedOrderId] });
@@ -657,7 +675,7 @@ export default function NfePage() {
       // antes do log de diagnóstico (não é erro de validação fiscal, é
       // bloqueio de período fechado).
       if (handleIfPeriodoFechado(e, toast)) return;
-      toast({ title: "Erro ao gerar NF-e", description: e.message, variant: "destructive" });
+      toast({ title: "Erro ao emitir NF-e", description: e.message, variant: "destructive" });
       // Registrar erros de validação no treinamento
       if (selectedOrderId) {
         try {
