@@ -1,0 +1,251 @@
+# PROMPT MASTER — MODO OPERACIONAL OFICIAL DO PROJETO + SUPABASE ONLY
+
+Você está entrando em um projeto ERP SaaS multi-tenant com módulo fiscal NF-e real.
+
+Antes de QUALQUER alteração:
+LEIA E OBEDEÇA TODAS AS REGRAS ABAIXO.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRA CRÍTICA — BANCO DE DADOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema deve operar EXCLUSIVAMENTE usando PostgreSQL externo Supabase.
+
+É PROIBIDO:
+- usar banco local Replit
+- usar SQLite
+- usar Replit DB
+- usar fallback local
+- usar mock database
+- usar in-memory database
+- usar executeSql local
+- criar adapters alternativos
+- criar banco temporário
+- iniciar servidor sem Supabase
+
+DATABASE OFICIAL:
+
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+Toda persistência deve ocorrer SOMENTE nesse banco.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# MODO OPERACIONAL OFICIAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Você DEVE operar seguindo ESTE fluxo:
+
+1. AUDITORIA READ ONLY
+2. MAPEAMENTO COMPLETO
+3. IDENTIFICAÇÃO DE IMPACTOS
+4. IMPLEMENTAÇÃO CIRÚRGICA
+5. VALIDAÇÃO
+6. TESTE CONTROLADO
+7. RELATÓRIO FINAL
+
+NUNCA:
+- alterar arquivos às cegas
+- fazer refatoração massiva
+- mudar arquitetura sem necessidade
+- criar sistemas paralelos
+- remover código antigo sem auditoria
+- quebrar compatibilidade existente
+- pular etapas
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+ANTES de editar:
+- localizar arquivos reais
+- entender fluxo completo
+- verificar dependências
+- verificar impacto multi-tenant
+- verificar impacto fiscal
+- verificar impacto NF-e
+- verificar ambiente atual
+
+OBRIGATÓRIO:
+- mudanças mínimas
+- mudanças cirúrgicas
+- preservar comportamento existente
+- preservar compatibilidade
+- preservar schema
+- preservar fluxo operacional
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# MODO DE IMPLEMENTAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Você deve SEMPRE:
+
+- executar etapas em paralelo quando possível
+- validar antes de alterar
+- testar após alterar
+- reportar causas raiz reais
+- identificar bugs estruturais
+- evitar soluções paliativas
+- preferir correção definitiva
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# MULTI-TENANT — REGRA CRÍTICA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema é multi-tenant SaaS.
+
+NUNCA:
+- misturar empresas
+- cruzar dados de tenants
+- ignorar company_id
+- ignorar isolamento
+- quebrar auditoria
+- desabilitar proteções
+
+Toda query deve respeitar:
+- tenant
+- company_id
+- isolamento fiscal
+- segurança operacional
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# MODO NF-e
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema possui emissão NF-e REAL homologação já funcional.
+
+ESTADO ATUAL:
+- assinatura A1 funcionando
+- XML funcionando
+- XSD local funcionando
+- transmissão SOAP funcionando
+- SEFAZ homologação funcionando
+- cStat=100 já obtido
+- protocolo retornando
+
+AMBIENTE ATUAL:
+tpAmb=2 (HOMOLOGAÇÃO)
+
+IMPORTANTE:
+- NÃO ativar produção real
+- NÃO usar tpAmb=1
+- NÃO emitir nota fiscal real
+- NÃO usar ambiente produção
+- NÃO mudar ambiente sem autorização explícita
+
+Toda emissão atual:
+- SEM VALOR FISCAL
+- apenas homologação
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS FISCAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NUNCA:
+- inventar regras fiscais
+- hardcodar CFOP errado
+- alterar assinatura ICP sem auditoria
+- alterar XML sem validar XSD
+- alterar SOAP sem logs
+- ignorar retorno SEFAZ
+
+SEMPRE:
+- validar via XSD antes de transmitir
+- salvar XML assinado
+- salvar SOAP request/response
+- salvar protocolo
+- salvar chave NF-e
+- registrar cStat/xMotivo
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ORDEM OFICIAL DE EVOLUÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Seguir EXATAMENTE esta sequência:
+
+1. estabilidade backend
+2. observabilidade
+3. integração painel emissão
+4. persistência fiscal completa
+5. DANFE
+6. consulta situação
+7. cancelamento
+8. numeração robusta
+9. contingência
+10. produção real
+
+NÃO pular etapas.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# LOGS E AUDITORIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Sempre gerar:
+- relatório final
+- causa raiz
+- arquivos alterados
+- impacto técnico
+- impacto fiscal
+- validações executadas
+- testes executados
+- resultado final
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# FAIL FAST
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Se detectar:
+- fallback local
+- banco Replit
+- SQLite
+- mock fiscal
+- bypass segurança
+- quebra multi-tenant
+- risco fiscal
+
+→ PARAR EXECUÇÃO
+→ REPORTAR PROBLEMA
+→ NÃO CONTINUAR
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Transformar o sistema em:
+- ERP SaaS multi-tenant real
+- emissão NF-e robusta
+- operação auditável
+- arquitetura estável
+- pronto para produção futura
+
+SEM quebrar:
+- fiscal
+- multi-tenant
+- segurança
+- auditoria
+- rastreabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# EXECUTE AGORA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1:
+Auditoria READ ONLY completa do ambiente.
+
+ETAPA 2:
+Confirmar conexão EXCLUSIVA ao Supabase.
+
+ETAPA 3:
+Mapear:
+- banco
+- backend
+- fiscal
+- emissão
+- multi-tenant
+- storage
+- certificados
+- observabilidade
+
+ETAPA 4:
+Somente depois iniciar alterações cirúrgicas.
+
+Nenhuma mudança destrutiva permitida.
