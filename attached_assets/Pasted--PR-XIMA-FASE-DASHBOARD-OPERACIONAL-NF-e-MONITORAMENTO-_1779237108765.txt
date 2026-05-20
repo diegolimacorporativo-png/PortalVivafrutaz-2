@@ -1,0 +1,264 @@
+# PRÓXIMA FASE — DASHBOARD OPERACIONAL NF-e + MONITORAMENTO EM TEMPO REAL
+
+Executar seguindo RIGOROSAMENTE o protocolo:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+SEM refatoração massiva.
+SEM alterar homologação.
+SEM quebrar fluxo atual.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Projeto já conectado EXCLUSIVAMENTE ao Supabase real:
+
+SUPABASE_DATABASE_URL
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+PROIBIDO:
+- Replit DB
+- sqlite
+- memória
+- fallback local
+- mocks
+
+Ambiente fiscal OBRIGATÓRIO:
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal
+- emissão válida
+- alterar ambiente
+- remover homologação
+
+Toda NF-e deve continuar:
+“SEM VALOR FISCAL”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar dashboard operacional NF-e em tempo real para monitoramento do sistema fiscal homologação.
+
+Objetivo:
+- visualizar saúde operacional
+- identificar gargalos
+- acompanhar rejeições
+- monitorar autorizações
+- acompanhar recovery
+- visualizar timeline fiscal
+- detectar falhas rapidamente
+
+SEM alterar o core fiscal já validado.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mapear COMPLETAMENTE:
+
+- frontend admin atual
+- rotas admin
+- query patterns
+- dashboard cards existentes
+- padrões visuais
+- logs estruturados NF-e
+- tabela nfe_emissoes
+- statuses
+- recovery endpoints
+- tempos de emissão
+- persistência SOAP/XML
+
+Validar:
+- nenhum mock
+- nenhum bypass
+- nenhum fluxo paralelo
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — ENDPOINTS OPERACIONAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar endpoints READ ONLY:
+
+GET /api/admin/nfe/metrics
+GET /api/admin/nfe/timeline
+GET /api/admin/nfe/recent-errors
+
+Todos protegidos por:
+MASTER / ADMIN / DEVELOPER
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — MÉTRICAS OBRIGATÓRIAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+/metrics deve retornar:
+
+- total_emitidas
+- total_autorizadas
+- total_rejeitadas
+- total_em_processamento
+- total_recovery
+- taxa_autorizacao
+- tempo_medio_sefaz_ms
+- tempo_medio_total_ms
+- ultima_autorizada
+- ultima_rejeitada
+- ambiente
+- uptime_operacional
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — TIMELINE OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+/timeline deve retornar últimos eventos NF-e:
+
+- emissão iniciada
+- XML criado
+- assinatura
+- XSD OK
+- SOAP enviado
+- resposta SEFAZ
+- autorizada
+- rejeitada
+- recovery
+- erro crítico
+
+Ordenado por:
+timestamp DESC
+
+Limite:
+últimos 100 eventos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — FRONTEND DASHBOARD
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar página:
+
+/admin/nfe/dashboard
+
+Com:
+
+1. Cards operacionais
+2. Timeline em tempo real
+3. Gráfico autorização/rejeição
+4. Alertas críticos
+5. Últimas NF-es
+6. Últimos recovery
+7. Últimos erros
+8. Indicador homologação SEM VALOR FISCAL
+9. Auto-refresh inteligente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — AUTO REFRESH
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar:
+
+- refresh 15s
+- pause quando aba inativa
+- refetch manual
+- sem flood no backend
+- sem polling agressivo
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — ALERTAS CRÍTICOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Exibir alerta visual para:
+
+- rejeições consecutivas
+- tempo SEFAZ alto
+- recovery pendente
+- falha persistência
+- circuit breaker aberto
+- NF-e travada
+- CRITICAL recovery
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — LOGS FRONTEND
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar logs:
+
+[NFE_UI_DASHBOARD_LOAD]
+[NFE_UI_DASHBOARD_REFRESH]
+[NFE_UI_DASHBOARD_ERROR]
+[NFE_UI_DASHBOARD_ALERT]
+[NFE_UI_TIMELINE_OPEN]
+
+Com:
+- corrId
+- user
+- timestamp
+- duração
+- ambiente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — FAIL SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- dashboard nunca altera NF-e
+- endpoints READ ONLY
+- sem risco fiscal
+- sem reprocess automático
+- sem escrita operacional
+- sem bypass segurança
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 10 — TESTE CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+
+- dashboard carrega
+- auto-refresh funciona
+- auth funciona
+- métricas corretas
+- timeline correta
+- alertas corretos
+- performance aceitável
+- sem memory leak
+- sem flood API
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 11 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- arquivos alterados
+- endpoints criados
+- métricas implementadas
+- logs adicionados
+- testes executados
+- riscos restantes
+- próximos passos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- alterar tpAmb
+- usar produção
+- quebrar homologação
+- remover logs
+- remover XSD
+- remover assinatura
+- alterar fluxo fiscal validado
+- criar bypass
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- auditáveis
+- reversíveis
+- seguras
+
+EXECUTAR AGORA.

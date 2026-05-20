@@ -115,6 +115,7 @@ import { register as passwordResetRequestsRegister } from './password-reset-requ
 import { register as orderCleanupRegister } from './order-cleanup.routes';
 import { register as aboutUsRegister } from './about-us.routes';
 import { register as securityRegister } from './security.routes';
+import { register as nfeDashboardRegister } from './nfe-dashboard.routes';
 import { register as securityEventsRegister } from './security-events.routes';
 import { register as securityAnalysisRegister } from './security-analysis.routes';
 import { register as securityAlertsRegister } from './security-alerts.routes';
@@ -228,6 +229,7 @@ export async function registerRoutes(
   orderCleanupRegister(app);
   aboutUsRegister(app);
   securityRegister(app);
+  nfeDashboardRegister(app);      // NF-e Dashboard READ ONLY (GET /api/admin/nfe/metrics|timeline|recent-errors)
   securityEventsRegister(app);    // FASE 7.1 — in-memory security event stream
   securityAnalysisRegister(app);  // FASE 7.2 — per-IP risk analysis + spike detection
   securityAlertsRegister(app);    // FASE 11 — operational alert engine (GET /api/admin/security/alerts)

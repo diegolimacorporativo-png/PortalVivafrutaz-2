@@ -131,6 +131,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/fiscal-diagnostics', label: 'Diagnóstico Fiscal', icon: Activity, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal-diagnostics', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/finance', label: 'Contas & Caixa', icon: DollarSign, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'finance', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/nfe', label: 'Emissão de NF-e', icon: ReceiptText, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'nfe', category: 'Financeiro', moduloChave: 'fiscal' },
+    { href: '/admin/nfe/dashboard', label: 'Dashboard NF-e', icon: BarChart3, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'nfe-dashboard', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/nfe/recovery', label: 'Recovery NF-e', icon: RotateCcw, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'nfe-recovery', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/banco', label: 'Integração Bancária', icon: Landmark, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'banco', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/tasks', label: 'Tarefas', icon: ClipboardList, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'], tabKey: 'tasks', category: 'Gestão' },

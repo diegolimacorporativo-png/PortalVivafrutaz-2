@@ -95,6 +95,7 @@ import AdminFinancialIntelligence from "@/pages/admin/financial-intelligence";
 import AdminFinance from "@/pages/admin/finance";
 import AdminNfe from "@/pages/admin/nfe";
 import AdminNfeRecovery from "@/pages/admin/nfe-recovery";
+import AdminNfeDashboard from "@/pages/admin/nfe-dashboard";
 import CentralFaturamento from "@/pages/admin/faturamento";
 import InsertNfManual from "@/pages/admin/insert-nf-manual";
 import AdminBanco from "@/pages/admin/banco";
@@ -447,6 +448,9 @@ function Router() {
       </Route>
       <Route path="/admin/finance">
         {() => <ProtectedRoute component={AdminFinance} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR']} tabKey="finance" />}
+      </Route>
+      <Route path="/admin/nfe/dashboard">
+        {() => <ProtectedRoute component={AdminNfeDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DEVELOPER']} tabKey="nfe-dashboard" />}
       </Route>
       <Route path="/admin/nfe/recovery">
         {() => <ProtectedRoute component={AdminNfeRecovery} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DEVELOPER']} tabKey="nfe-recovery" />}
