@@ -1,0 +1,227 @@
+# CONTEXTO GERAL — ERP NF-e | OPERAÇÃO OFICIAL
+
+Você está assumindo um projeto ERP fiscal já em operação.
+
+ANTES DE QUALQUER ALTERAÇÃO:
+EXECUTE O PROTOCOLO OBRIGATÓRIO:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+NUNCA pule etapas.
+NUNCA faça refatoração massiva.
+NUNCA altere arquitetura inteira.
+NUNCA invente fluxo paralelo.
+NUNCA use mocks escondidos.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# BANCO DE DADOS — REGRA ABSOLUTA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema DEVE usar EXCLUSIVAMENTE o banco Supabase REAL.
+
+PROIBIDO:
+- Replit DB
+- SQLite
+- banco local
+- memória
+- fallback local
+- banco híbrido
+- dual database
+- qualquer persistência fora do Supabase
+
+CONNECTION STRING OFICIAL:
+
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONFIGURAÇÃO OBRIGATÓRIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Usar APENAS:
+
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- DATABASE_URL do Replit
+- fallback automático
+- env duplicada
+- pool secundário
+- conexão temporária local
+
+ANTES DE QUALQUER COISA:
+1. auditar drizzle.config.ts
+2. auditar db.ts
+3. auditar pool postgres
+4. auditar migrations
+5. confirmar runtime usando Supabase REAL
+6. confirmar TODAS queries indo para Supabase
+
+VALIDAR:
+SELECT current_database();
+SELECT version();
+
+E confirmar:
+- conexão ativa Supabase
+- nenhuma conexão local
+- nenhuma persistência Replit
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# AMBIENTE FISCAL — REGRA CRÍTICA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema está EXCLUSIVAMENTE em:
+
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+TODAS as NF-es:
+“SEM VALOR FISCAL”
+
+PROIBIDO:
+- tpAmb=1
+- produção
+- emissão fiscal válida
+- alterar ambiente
+- remover homologação
+- mudar URLs SEFAZ produção
+
+NÃO EXISTE autorização para produção ainda.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ESTADO ATUAL DO SISTEMA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema JÁ POSSUI:
+
+✅ assinatura digital funcionando
+✅ certificado A1 funcionando
+✅ transmissão real SEFAZ homologação
+✅ cStat=100 obtido
+✅ XSD local ativo
+✅ SOAP real funcionando
+✅ advisory locks
+✅ retry/backoff
+✅ circuit breaker
+✅ idempotência
+✅ recovery operacional
+✅ dashboard operacional
+✅ logs estruturados
+✅ frontend recovery
+✅ frontend dashboard
+✅ multi-tenant
+✅ persistência real Supabase
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS DE OPERAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Toda mudança deve ser:
+
+- mínima
+- cirúrgica
+- reversível
+- auditável
+- segura
+- compatível com multi-tenant
+
+ANTES DE IMPLEMENTAR:
+- mapear fluxo completo
+- identificar pontos exatos
+- validar impacto
+- evitar duplicação
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS FISCAIS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- remover XSD
+- remover assinatura
+- remover logs
+- quebrar rastreabilidade
+- apagar XML
+- apagar SOAP
+- sobrescrever protocolo
+- reenviar NF-e autorizada
+- quebrar sequência numérica
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# LOGS OBRIGATÓRIOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Sempre usar logs estruturados:
+
+[NFE_*]
+
+Com:
+- corrId
+- company_id
+- order_id
+- chave
+- status
+- duração
+- ambiente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# FLUXO OFICIAL DO PROJETO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+SEMPRE seguir:
+
+1. AUDITORIA READ ONLY
+2. MAPEAMENTO COMPLETO
+3. IMPLEMENTAÇÃO CIRÚRGICA
+4. TESTE CONTROLADO
+5. RELATÓRIO FINAL
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# PROIBIÇÕES ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- criar arquitetura nova
+- trocar ORM
+- trocar banco
+- criar microserviços
+- criar fila paralela
+- alterar tpAmb
+- usar produção
+- usar banco Replit
+- usar mocks
+- usar bypass
+- usar fallback local
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO ATUAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Foco atual do projeto:
+
+ESTABILIDADE OPERACIONAL + PREPARAÇÃO SEGURA PARA PRODUÇÃO FUTURA
+
+Prioridades:
+1. operação segura
+2. observabilidade
+3. rastreabilidade
+4. consistência fiscal
+5. UX operacional
+6. robustez multi-tenant
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBRIGAÇÃO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Antes de qualquer implementação:
+
+GERAR RELATÓRIO DE AUDITORIA contendo:
+- conexão banco ativa
+- confirmação Supabase
+- confirmação sem Replit DB
+- tpAmb atual
+- status operacional NF-e
+- endpoints existentes
+- riscos encontrados
+- plano cirúrgico
+
+SÓ ENTÃO começar alterações.
+
+EXECUTAR AGORA.
