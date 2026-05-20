@@ -1,0 +1,287 @@
+# PRÓXIMA FASE — FRONTEND OPERACIONAL NF-e (RECOVERY + MONITORAMENTO)
+
+Executar seguindo RIGOROSAMENTE o protocolo:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+SEM refatoração massiva.
+SEM quebrar homologação.
+SEM alterar backend fiscal já validado.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema JÁ ESTÁ:
+
+✅ conectado EXCLUSIVAMENTE ao Supabase real  
+✅ usando apenas:
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- banco Replit
+- sqlite
+- memória
+- fallback local
+- mocks
+
+Connection string oficial:
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+Ambiente fiscal atual:
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal
+- emissão válida
+- alterar ambiente
+- remover homologação
+
+Toda NF-e deve continuar:
+“SEM VALOR FISCAL”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar interface operacional REAL para monitoramento NF-e recovery.
+
+Criar página:
+
+/admin/nfe/recovery
+
+integrada diretamente aos endpoints já implementados:
+
+GET /api/admin/nfe/recovery
+POST /api/admin/nfe/recovery/:id/reprocess
+POST /api/admin/nfe/recovery/:id/mark-error
+
+SEM mocks.
+SEM dados fake.
+SEM frontend paralelo.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mapear COMPLETAMENTE:
+
+- estrutura frontend atual
+- router
+- auth guards
+- padrão visual
+- tabelas administrativas
+- componentes de badge/status
+- sistema de toast
+- loading states
+- hooks API
+- React Query/SWR
+- permissões ADMIN/MASTER
+- páginas fiscais existentes
+
+Validar:
+- nenhum bypass auth
+- nenhum mock
+- nenhum polling inseguro
+- nenhuma chamada fora do backend oficial
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — TELA OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar página:
+
+/admin/nfe/recovery
+
+A página deve mostrar:
+
+- total problemas
+- quantidade por risco
+- lista completa recovery
+- filtros
+- busca
+- atualização manual
+
+Tabela deve conter:
+
+- order_id
+- nfe_id
+- status
+- recovery_type
+- risco
+- chave
+- protocolo
+- cStat
+- idade
+- ambiente
+- recomendacao
+- ultimo_update
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — BADGES OPERACIONAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar badges visuais:
+
+RISCO:
+- CRITICAL
+- MANUAL_ACTION_REQUIRED
+- RECOVERABLE
+
+STATUS:
+- gerada
+- assinada
+- enviando
+- enviada
+- autorizada
+- rejeitada
+- erro
+- cancelada
+
+AMBIENTE:
+- HOMOLOGAÇÃO
+
+SEM mencionar produção.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — AÇÕES CONTROLADAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar ações seguras:
+
+BOTÃO:
+“Reprocessar”
+
+→ chama:
+POST /api/admin/nfe/recovery/:id/reprocess
+
+Com:
+- confirmação modal
+- loading
+- bloqueio duplo clique
+- feedback visual
+- tratamento erro real
+
+BOTÃO:
+“Marcar Erro”
+
+→ chama:
+POST /api/admin/nfe/recovery/:id/mark-error
+
+Com:
+- modal obrigatório
+- motivo obrigatório
+- confirmação explícita
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — FAIL SAFETY FRONTEND
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- nunca esconder erro SEFAZ
+- nunca perder resposta backend
+- nunca duplicar clique
+- nunca reenviar automaticamente
+- nunca mascarar status crítico
+
+Se backend retornar:
+persistWarning=true
+
+mostrar alerta visual CRÍTICO.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — TEMPO REAL CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar atualização segura:
+
+- refresh manual
+- auto refresh controlado (30s)
+- pause quando aba inativa
+- evitar flood API
+
+PROIBIDO:
+- polling agressivo
+- websocket desnecessário
+- loops infinitos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — LOGS FRONTEND
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar logs cliente:
+
+[NFE_UI_RECOVERY_LOAD]
+[NFE_UI_REPROCESS_CLICK]
+[NFE_UI_REPROCESS_SUCCESS]
+[NFE_UI_REPROCESS_FAILED]
+[NFE_UI_MARK_ERROR]
+[NFE_UI_REFRESH]
+
+Com:
+- corrId
+- nfe_id
+- order_id
+- duração
+- ambiente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — TESTE END-TO-END
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+
+- listagem real Supabase
+- filtros
+- badges
+- loading
+- refresh
+- reprocess
+- mark-error
+- bloqueio duplo clique
+- tratamento 401
+- tratamento 409
+- tratamento persistWarning
+
+Executar usando:
+dados REAIS homologação.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- arquivos alterados
+- componentes criados
+- rotas frontend
+- hooks criados
+- logs adicionados
+- testes executados
+- riscos restantes
+- próximos passos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- usar mocks
+- usar banco local
+- quebrar multi-tenant
+- alterar backend fiscal
+- alterar tpAmb
+- remover homologação
+- refatorar arquitetura inteira
+- criar sistema paralelo
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- auditáveis
+- reversíveis
+- seguras
+
+EXECUTAR AGORA.
