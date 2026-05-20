@@ -37,6 +37,13 @@ export async function buildApp(): Promise<BuildAppResult> {
   const app = express();
   // F1-E4: remove Express fingerprint header
   app.disable("x-powered-by");
+
+  // Trust the first hop of X-Forwarded-For (Replit proxy / load balancer).
+  // Without this, req.ip returns the proxy's internal address and
+  // rate limiters keyed on getClientIp() are trivially bypassed by spoofing
+  // X-Forwarded-For. Value "1" trusts exactly one upstream proxy.
+  app.set("trust proxy", 1);
+
   const httpServer = createServer(app);
 
   // CORS — permite origens do Replit dev e domínio de produção
@@ -98,6 +105,11 @@ export async function buildApp(): Promise<BuildAppResult> {
     res.setHeader("X-Frame-Options", "SAMEORIGIN");
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    // HSTS — tell browsers to use HTTPS only for 1 year.
+    // Only set in production because Replit dev uses HTTP on localhost.
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
     // H2-FIX: Content-Security-Policy header added.
     // Restricts resource origins to self + CDN fonts + inline scripts/styles
     // required by Vite HMR in dev. In production, unsafe-eval and unsafe-inline

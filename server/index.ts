@@ -22,26 +22,37 @@ const _env = process.env.NODE_ENV ?? "development";
 // T906 — Production Safe Mode: fail-fast on critical misconfigurations.
 (function validateProductionEnv() {
   const isProd = process.env.NODE_ENV === "production";
+  const fails: string[] = [];
+  const warns: string[] = [];
 
   const validEnvs = ["development", "production", "test"];
   if (process.env.NODE_ENV && !validEnvs.includes(process.env.NODE_ENV)) {
-    throw new Error(
-      `NODE_ENV inválido: "${process.env.NODE_ENV}". Valores aceitos: ${validEnvs.join(", ")}`,
-    );
+    fails.push(`NODE_ENV inválido: "${process.env.NODE_ENV}". Valores aceitos: ${validEnvs.join(", ")}`);
   }
 
   if (isProd && !process.env.SUPABASE_DATABASE_URL) {
-    throw new Error(
-      "SUPABASE_DATABASE_URL é obrigatório em produção. Configure a variável de ambiente antes de iniciar.",
-    );
+    fails.push("SUPABASE_DATABASE_URL é obrigatório em produção.");
   }
 
   if (isProd && process.env.DEBUG) {
-    console.warn(
-      `[T906][PROD_SAFE] DEBUG="${process.env.DEBUG}" detectado em produção — removido para evitar vazamento de internals.`,
-    );
+    warns.push(`DEBUG="${process.env.DEBUG}" detectado em produção — removido.`);
     delete process.env.DEBUG;
   }
+
+  if (fails.length > 0) {
+    console.error("[BOOT_VALIDATION_FAIL]", { fails, env: process.env.NODE_ENV, ts: new Date().toISOString() });
+    throw new Error(`Boot validation failed:\n${fails.join("\n")}`);
+  }
+
+  if (warns.length > 0) {
+    warns.forEach(w => console.warn(`[T906][PROD_SAFE] ${w}`));
+  }
+
+  console.log("[BOOT_VALIDATION_OK]", {
+    env: process.env.NODE_ENV ?? "development",
+    supabase: !!process.env.SUPABASE_DATABASE_URL,
+    ts: new Date().toISOString(),
+  });
 })();
 
 declare module "http" {
@@ -142,21 +153,25 @@ process.on("uncaughtException", (err: Error) => {
   initSchedulers();
   scheduleBackups();
 
-  // Memory monitoring — log warning when heap exceeds 85% of total.
-  const MEM_WARN_RATIO = 0.95;
+  // Memory monitoring — log [MEMORY_WARNING] when RSS exceeds 1 GB.
+  // RSS is the real OS-level memory consumption; heapPct is misleading because
+  // V8 grows heapTotal lazily (97% heap before a GC cycle is normal behaviour,
+  // not OOM). A 1 GB RSS threshold catches actual memory pressure.
+  const RSS_WARN_MB = 1024;
   setInterval(() => {
     const m = process.memoryUsage();
-    const heapRatio = m.heapUsed / m.heapTotal;
     const rssMB = (m.rss / 1024 / 1024).toFixed(2);
     const heapUsedMB = (m.heapUsed / 1024 / 1024).toFixed(2);
     const heapTotalMB = (m.heapTotal / 1024 / 1024).toFixed(2);
-    console.log(`[MEMORY] RSS: ${rssMB}MB, Heap Used: ${heapUsedMB}MB, Heap Total: ${heapTotalMB}MB`);
-    if (heapRatio > MEM_WARN_RATIO) {
+    const heapPct = ((m.heapUsed / m.heapTotal) * 100).toFixed(1) + "%";
+    console.log(`[MEMORY] RSS: ${rssMB}MB, Heap: ${heapUsedMB}/${heapTotalMB}MB (${heapPct})`);
+    if (m.rss / 1024 / 1024 > RSS_WARN_MB) {
       console.warn("[MEMORY_WARNING]", {
+        rssMB,
         heapUsedMB,
         heapTotalMB,
-        heapRatioPct: (heapRatio * 100).toFixed(1) + "%",
-        rssMB,
+        heapPct,
+        thresholdMB: RSS_WARN_MB,
         uptime: process.uptime().toFixed(1),
         env: _env,
         ts: new Date().toISOString(),

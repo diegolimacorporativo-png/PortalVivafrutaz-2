@@ -159,6 +159,7 @@ import { register as bankRegister } from './bank.routes';
 import { register as observabilityRegister } from './observability.routes';
 import { register as operationsRegister } from './operations.routes';
 import { register as fiscalDiagnosticsRegister } from './fiscal-diagnostics.routes';
+import { register as systemStatusRegister } from './system-status.routes';
 import {
   validateCceLimit,
   validateCceTimeWindow,
@@ -270,6 +271,7 @@ export async function registerRoutes(
   observabilityRegister(app);
   operationsRegister(app);
   fiscalDiagnosticsRegister(app);
+  systemStatusRegister(app);
 
   // --- Backup Routes — MOVED TO backup.routes.ts ---
   // GET    /api/admin/backups

@@ -1,0 +1,294 @@
+# PRÓXIMA FASE — PRÉ-PRODUÇÃO CONTROLADA (GO-LIVE HARDENING)
+
+Executar RIGOROSAMENTE:
+
+AUDITORIA → VALIDAÇÃO → HARDENING CIRÚRGICO → TESTES REAIS → RELATÓRIO
+
+SEM refatoração massiva.
+SEM criar arquitetura nova.
+SEM alterar homologação.
+SEM quebrar fluxo atual.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema JÁ ESTÁ:
+
+✅ usando EXCLUSIVAMENTE Supabase
+✅ conectado via:
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- DATABASE_URL local
+- sqlite
+- memória
+- fallback local
+- banco Replit
+
+Connection string oficial já obrigatória:
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+Ambiente fiscal ATUAL:
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal real
+- emissão válida
+- alterar ambiente
+- remover homologação
+- remover “SEM VALOR FISCAL”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar HARDENING FINAL de PRÉ-PRODUÇÃO:
+
+- estabilidade operacional
+- segurança
+- observabilidade
+- integridade multi-tenant
+- resiliência
+- deploy safety
+- readiness SaaS
+
+SEM mudar regras de negócio.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mapear COMPLETAMENTE:
+
+- server/index.ts
+- bootstrap do app
+- middlewares globais
+- auth/session
+- Supabase pool
+- workers
+- cron jobs
+- recovery jobs
+- rate limiters
+- upload/temp dirs
+- logs
+- health checks
+- protected routes
+- CORS
+- trust proxy
+- headers segurança
+- memória
+- polling
+- retry loops
+- timers órfãos
+
+Validar:
+- nenhum mock ativo
+- nenhum fallback local
+- nenhum DATABASE_URL legado
+- nenhum bypass auth
+- nenhum bypass tenant
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — SEGURANÇA HTTP
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar e corrigir:
+
+- helmet
+- CORS seguro
+- trust proxy
+- secure headers
+- request size limit
+- upload limit
+- compression
+- cookies seguras
+- no-cache em endpoints críticos
+
+Garantir:
+- stack traces não vazam
+- erros internos não expõem secrets
+- nenhum endpoint admin público
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — MULTI-TENANT HARDENING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+
+- tenantWhere()
+- requireTenantId()
+- AsyncLocalStorage
+- workers multi-tenant
+- joins indiretos
+- queries raw SQL
+- endpoints admin
+
+Garantir:
+- impossível cruzar dados entre empresas
+- impossível escrita sem tenant
+- impossível query global acidental
+
+Adicionar logs:
+[TENANT_CONTEXT_OK]
+[TENANT_CONTEXT_MISSING]
+[TENANT_CONTEXT_BLOCKED]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — RATE LIMIT + ANTI-SPAM
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar TODOS:
+
+- login
+- emissão NF-e
+- recovery
+- dashboard
+- uploads
+- APIs públicas
+
+Garantir:
+- limites reais
+- bloqueio burst
+- headers corretos
+- retry-after
+- sem DOS trivial
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — OBSERVABILIDADE FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar endpoint:
+
+GET /api/admin/system-status
+
+READ ONLY.
+
+Retornar:
+
+- uptime
+- heap
+- rss
+- event loop lag
+- postgres latency
+- total conexões
+- workers ativos
+- locks ativos
+- queue backlog
+- env
+- tpAmb
+- build timestamp
+- versão app
+
+Adicionar logs:
+
+[SYSTEM_STATUS]
+[DB_LATENCY_WARN]
+[EVENT_LOOP_LAG]
+[QUEUE_BACKLOG_WARN]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — DEPLOY SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- fail-fast sem SUPABASE_DATABASE_URL
+- fail-fast se tpAmb=1
+- fail-fast sem XSD
+- fail-fast sem certificado
+- fail-fast sem secrets críticas
+
+Adicionar:
+
+[BOOT_VALIDATION_OK]
+[BOOT_VALIDATION_FAIL]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — PERFORMANCE HARDENING
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+
+- seq scans
+- queries lentas
+- memory leaks
+- polling excessivo
+- loops sem await
+- timers órfãos
+- reconnect loops
+
+Garantir:
+- workers estáveis
+- sem flood no Supabase
+- sem reconnect infinito
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — TESTE CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS:
+
+- restart controlado
+- perda temporária Postgres
+- timeout Supabase
+- worker restart
+- recovery NF-e
+- login burst
+- emissão concorrente
+- memory stability
+- readiness/liveness
+
+Validar:
+- app recupera sozinho
+- sem corrupção
+- sem duplicidade
+- sem vazamento tenant
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório COMPLETO contendo:
+
+- arquivos alterados
+- hardening aplicados
+- vulnerabilidades encontradas
+- fixes aplicados
+- endpoints adicionados
+- logs adicionados
+- testes executados
+- riscos restantes
+- readiness final
+
+Classificar:
+
+- NÃO PRONTO
+- PRONTO PARA TESTE CONTROLADO
+- PRONTO PARA OPERAÇÃO INTERNA
+- PRONTO PARA ESCALA SaaS
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- alterar arquitetura inteira
+- quebrar homologação
+- ativar produção fiscal
+- remover logs
+- remover XSD
+- remover assinatura
+- usar banco local
+- criar bypass
+- mudar regras de negócio
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- reversíveis
+- auditáveis
+- seguras
+
+EXECUTAR AGORA.

@@ -51,7 +51,9 @@ function checkMemory(): { ok: boolean; heapPct: string; rssMB: string; message: 
   const ratio = m.heapUsed / m.heapTotal;
   const heapPct = (ratio * 100).toFixed(1) + "%";
   const rssMB = (m.rss / 1024 / 1024).toFixed(1) + "MB";
-  const ok = ratio < 0.95;
+  // Warn on RSS > 1 GB (consistent with server/index.ts RSS_WARN_MB threshold).
+  const rssMBNum = m.rss / 1024 / 1024;
+  const ok = rssMBNum < 1024;
   return {
     ok,
     heapPct,
