@@ -1,0 +1,176 @@
+# PRÓXIMA FASE — FAIL-FAST SUPABASE + BLOQUEIO TOTAL DE FALLBACK
+
+Executar seguindo RIGOROSAMENTE:
+
+AUDITORIA → VALIDAÇÃO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+SEM refatoração massiva.
+SEM alterar arquitetura.
+SEM tocar no core fiscal.
+SEM alterar tpAmb.
+SEM criar novas features.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Eliminar QUALQUER possibilidade de fallback silencioso para banco Replit/local.
+
+O sistema deve:
+- subir APENAS com SUPABASE_DATABASE_URL
+- falhar imediatamente sem ele
+- ignorar DATABASE_URL legado
+- logar claramente o motivo do bloqueio
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+PROIBIDO:
+- usar DATABASE_URL como fallback
+- usar heliumdb
+- usar sqlite
+- usar MockStorage
+- usar memória
+- alterar tpAmb
+- tocar na NF-e
+- tocar nos workers fiscais
+- alterar recovery
+- alterar multi-tenant
+
+tpAmb DEVE permanecer:
+2 — HOMOLOGAÇÃO
+
+“NÃO EXISTE PRODUÇÃO FISCAL.”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+- server/db.ts
+- bootstrap do app
+- env loaders
+- qualquer uso de:
+  - DATABASE_URL
+  - heliumdb
+  - sqlite
+  - localhost postgres
+  - memory storage
+  - MockStorage
+
+Mapear:
+- prioridade de env vars
+- ordem de inicialização
+- comportamento atual sem SUPABASE_DATABASE_URL
+- qualquer fallback implícito
+
+NÃO alterar nada ainda.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — IMPLEMENTAÇÃO CIRÚRGICA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar FAIL-FAST obrigatório:
+
+Se SUPABASE_DATABASE_URL ausente:
+- logar [BOOT_VALIDATION_FAIL]
+- explicar motivo
+- process.exit(1)
+
+DATABASE_URL deve:
+- ser ignorado
+- nunca usado automaticamente
+- nunca assumir prioridade
+
+Adicionar logs estruturados:
+
+[SUPABASE_REQUIRED]
+[BOOT_VALIDATION_FAIL]
+[BOOT_VALIDATION_OK]
+[DB_PROVIDER_SELECTED]
+
+Todos com:
+- env
+- pid
+- ts
+- uptime
+- provider
+- source
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — HARDENING EXTRA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar validações:
+
+- bloquear sqlite
+- bloquear localhost postgres
+- bloquear :memory:
+- bloquear URLs inválidas
+- bloquear protocolo não-postgresql
+
+Se detectar:
+- log crítico
+- abortar boot
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — TESTES REAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+
+1. Boot normal com SUPABASE_DATABASE_URL
+→ deve subir
+
+2. Remover SUPABASE_DATABASE_URL
+→ deve falhar imediatamente
+
+3. Deixar apenas DATABASE_URL
+→ deve falhar
+
+4. Testar URL inválida
+→ deve falhar
+
+5. Confirmar:
+SELECT current_database()
+
+6. Confirmar:
+PostgreSQL Supabase ativo
+
+7. Confirmar:
+tpAmb continua 2
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- arquivos alterados
+- fallbacks eliminados
+- validações adicionadas
+- testes executados
+- logs adicionados
+- riscos restantes
+- confirmação explícita:
+  “Sistema NÃO usa mais banco Replit”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS FINAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- reversíveis
+- auditáveis
+- seguras
+
+NÃO criar features novas.
+NÃO mexer em NF-e.
+NÃO alterar homologação.
+NÃO tocar em tpAmb.
+
+EXECUTAR AGORA.

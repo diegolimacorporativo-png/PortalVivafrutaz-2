@@ -1,0 +1,126 @@
+PROJETO: VivaFrutaz ERP
+MODO: CONTINUIDADE OPERACIONAL — FOCO TOTAL EM ESTABILIDADE E PRODUÇÃO CONTROLADA
+
+EXECUTAR RIGOROSAMENTE:
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+━━━━━━━━━━━━━━━━━━━━━━━
+CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema JÁ ESTÁ:
+
+✅ conectado EXCLUSIVAMENTE ao Supabase
+✅ usando:
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- DATABASE_URL/Replit
+- heliumdb
+- sqlite
+- memória
+- fallback local
+- mock database
+
+NÃO alterar:
+- db.ts
+- arquitetura principal
+- multi-tenant
+- recovery NF-e
+- workers
+- locks
+- observabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+REGRAS FISCAIS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+AMBIENTE FIXO:
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal
+- emissão fiscal válida
+- autorização real
+- alterar ambienteFiscal para producao
+- qualquer bypass fiscal
+
+Toda NF-e deve continuar:
+“SEM VALOR FISCAL”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+FOCO TOTAL:
+ESTABILIDADE + OPERAÇÃO + PRODUÇÃO CONTROLADA
+
+NÃO criar:
+- dashboards desnecessários
+- novas páginas cosméticas
+- gráficos
+- features inventadas
+- automações novas sem necessidade operacional
+
+PRIORIZAR:
+- estabilidade
+- segurança
+- performance
+- integridade
+- rastreabilidade
+- operação contínua
+- fail safety
+
+━━━━━━━━━━━━━━━━━━━━━━━
+VALIDAÇÕES OBRIGATÓRIAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Antes de qualquer alteração validar:
+
+1. SELECT current_database() = postgres
+2. Supabase ativo
+3. tpAmb = 2
+4. NFE_SEFAZ_MODE = homologacao
+5. Sem fallback local
+6. Workers operacionais
+7. Recovery operacional
+8. Healthchecks funcionando
+9. Multi-tenant íntegro
+10. Nenhuma NF-e real habilitada
+
+━━━━━━━━━━━━━━━━━━━━━━━
+MODO DE IMPLEMENTAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mudanças devem ser:
+- mínimas
+- cirúrgicas
+- reversíveis
+- auditáveis
+- seguras
+
+PROIBIDO:
+- refatoração massiva
+- alterar arquitetura inteira
+- remover logs
+- remover XSD
+- remover assinatura
+- quebrar rotas existentes
+- criar dependências pesadas
+
+━━━━━━━━━━━━━━━━━━━━━━━
+FORMATO FINAL OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ao finalizar gerar relatório contendo:
+
+- arquivos alterados
+- validações executadas
+- testes realizados
+- riscos encontrados
+- fixes aplicados
+- impacto operacional
+- próximos passos críticos
+
+EXECUTAR AGORA.

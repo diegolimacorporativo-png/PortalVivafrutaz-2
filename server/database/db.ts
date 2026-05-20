@@ -7,44 +7,81 @@ dotenv.config();
 
 const { Pool } = pg;
 
-// Em produção, exigir banco externo (Supabase) para evitar uso acidental do banco local.
-if (process.env.NODE_ENV === "production" && !process.env.SUPABASE_DATABASE_URL) {
-  throw new Error(
-    "[DB] SUPABASE_DATABASE_URL é obrigatória em produção. Configure o secret antes de iniciar.",
-  );
+const _pid = process.pid;
+const _env = process.env.NODE_ENV ?? "development";
+const _ts = () => new Date().toISOString();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAIL-FAST: SUPABASE_DATABASE_URL é obrigatória em TODOS os ambientes.
+// DATABASE_URL (Replit/heliumdb) NUNCA é usado como fallback.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+
+if (!supabaseUrl) {
+  console.error("[SUPABASE_REQUIRED]", {
+    reason: "SUPABASE_DATABASE_URL não configurada. O sistema não pode iniciar sem ela.",
+    fallback_used: "nenhum — fallback para DATABASE_URL é proibido",
+    action: "Configure o secret SUPABASE_DATABASE_URL e reinicie.",
+    env: _env,
+    pid: _pid,
+    ts: _ts(),
+  });
+  console.error("[BOOT_VALIDATION_FAIL]", {
+    fails: ["SUPABASE_DATABASE_URL ausente"],
+    env: _env,
+    pid: _pid,
+    ts: _ts(),
+  });
+  process.exit(1);
 }
 
-// Prefer SUPABASE_DATABASE_URL (external/persistent) over the Replit-managed DATABASE_URL.
-const connectionString = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+// Validações de hardening: bloquear URLs proibidas
+const BLOCKED_PATTERNS: Array<{ pattern: RegExp | string; reason: string }> = [
+  { pattern: /^sqlite/i,                      reason: "SQLite proibido" },
+  { pattern: /:memory:/i,                     reason: "banco em memória proibido" },
+  { pattern: /heliumdb/i,                     reason: "banco Replit (heliumdb) proibido" },
+  { pattern: /localhost.*543[0-9]/,           reason: "PostgreSQL local proibido" },
+  { pattern: /127\.0\.0\.1.*543[0-9]/,        reason: "PostgreSQL local proibido" },
+  { pattern: /^(?!postgresql:\/\/|postgres:\/\/)/, reason: "protocolo não-PostgreSQL proibido" },
+];
 
-console.log("[DB] DATABASE_URL presente:", !!process.env.DATABASE_URL);
-console.log("[DB] SUPABASE_DATABASE_URL presente:", !!process.env.SUPABASE_DATABASE_URL);
+for (const { pattern, reason } of BLOCKED_PATTERNS) {
+  const matched = typeof pattern === "string"
+    ? supabaseUrl.includes(pattern)
+    : pattern.test(supabaseUrl);
 
-if (!connectionString) {
-  throw new Error(
-    "DATABASE_URL não configurada. Configure SUPABASE_DATABASE_URL ou DATABASE_URL.",
-  );
+  if (matched) {
+    console.error("[BOOT_VALIDATION_FAIL]", {
+      reason,
+      pattern: pattern.toString(),
+      env: _env,
+      pid: _pid,
+      ts: _ts(),
+    });
+    process.exit(1);
+  }
 }
 
-const isSupabase =
-  !!process.env.SUPABASE_DATABASE_URL ||
-  (connectionString.includes("supabase") || connectionString.includes("pooler.supabase"));
+console.log("[DB_PROVIDER_SELECTED]", {
+  provider: "supabase",
+  source: "SUPABASE_DATABASE_URL",
+  ssl: true,
+  env: _env,
+  pid: _pid,
+  ts: _ts(),
+});
 
-if (isSupabase) {
-  console.log("[DB] Conectando ao Supabase (SSL ativado)...");
-} else {
-  console.log("[DB] Conectando ao banco local Replit...");
-}
+console.log("[BOOT_VALIDATION_OK]", {
+  provider: "supabase",
+  env: _env,
+  pid: _pid,
+  ts: _ts(),
+});
 
-// T802 — Pool protection: cap connections, prevent idle leaks, fail fast on
-// connection exhaustion so the app surfaces errors early instead of queueing
-// requests indefinitely. Values are conservative defaults compatible with
-// Supabase's pooler (max 10 per app instance) and Replit's Postgres.
-// idleTimeoutMillis: close idle connections after 30s to release Supabase slots.
-// connectionTimeoutMillis: fail within 5s rather than hanging indefinitely.
 export const pool = new Pool({
-  connectionString,
-  ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
+  connectionString: supabaseUrl,
+  ssl: { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,

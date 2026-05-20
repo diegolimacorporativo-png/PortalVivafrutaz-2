@@ -19,7 +19,9 @@ dotenv.config();
 const _bootAt = Date.now();
 const _env = process.env.NODE_ENV ?? "development";
 
-// T906 — Production Safe Mode: fail-fast on critical misconfigurations.
+// T906 — Safe Mode: fail-fast on critical misconfigurations in ALL environments.
+// SUPABASE_DATABASE_URL is mandatory regardless of NODE_ENV — no fallback to
+// the Replit-managed DATABASE_URL (heliumdb) is ever permitted.
 (function validateProductionEnv() {
   const isProd = process.env.NODE_ENV === "production";
   const fails: string[] = [];
@@ -30,8 +32,9 @@ const _env = process.env.NODE_ENV ?? "development";
     fails.push(`NODE_ENV inválido: "${process.env.NODE_ENV}". Valores aceitos: ${validEnvs.join(", ")}`);
   }
 
-  if (isProd && !process.env.SUPABASE_DATABASE_URL) {
-    fails.push("SUPABASE_DATABASE_URL é obrigatório em produção.");
+  // Obrigatório em TODOS os ambientes — não apenas produção.
+  if (!process.env.SUPABASE_DATABASE_URL) {
+    fails.push("SUPABASE_DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
   }
 
   if (isProd && process.env.DEBUG) {
@@ -40,7 +43,13 @@ const _env = process.env.NODE_ENV ?? "development";
   }
 
   if (fails.length > 0) {
-    console.error("[BOOT_VALIDATION_FAIL]", { fails, env: process.env.NODE_ENV, ts: new Date().toISOString() });
+    console.error("[BOOT_VALIDATION_FAIL]", {
+      fails,
+      env: process.env.NODE_ENV,
+      pid: process.pid,
+      uptime: process.uptime().toFixed(1),
+      ts: new Date().toISOString(),
+    });
     throw new Error(`Boot validation failed:\n${fails.join("\n")}`);
   }
 
@@ -50,7 +59,9 @@ const _env = process.env.NODE_ENV ?? "development";
 
   console.log("[BOOT_VALIDATION_OK]", {
     env: process.env.NODE_ENV ?? "development",
-    supabase: !!process.env.SUPABASE_DATABASE_URL,
+    provider: "supabase",
+    supabase: true,
+    pid: process.pid,
     ts: new Date().toISOString(),
   });
 })();
