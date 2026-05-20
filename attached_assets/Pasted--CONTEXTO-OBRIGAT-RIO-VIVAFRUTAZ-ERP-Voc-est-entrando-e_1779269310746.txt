@@ -1,0 +1,201 @@
+# CONTEXTO OBRIGATÓRIO — VIVAFRUTAZ ERP
+
+Você está entrando em um projeto ERP SaaS multi-tenant já operacional em HOMOLOGAÇÃO CONTROLADA.
+
+ANTES de qualquer alteração, seguir RIGOROSAMENTE:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTE → RELATÓRIO
+
+PROIBIDO:
+- refatoração massiva
+- alterar arquitetura sem necessidade
+- criar mocks
+- criar fallback local
+- usar sqlite
+- usar memória
+- usar banco Replit
+- usar DATABASE_URL do Replit
+- alterar tpAmb
+- ativar produção fiscal
+- remover logs
+- remover XSD
+- quebrar multi-tenant
+- quebrar workers
+- quebrar observabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# BANCO DE DADOS — REGRA ABSOLUTA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema DEVE operar EXCLUSIVAMENTE usando:
+
+SUPABASE_DATABASE_URL
+
+CONNECTION STRING OFICIAL:
+
+postgresql://postgres.kqvutmzqwgrcntpivnhy:JavisSenha2026@aws-1-us-east-1.pooler.supabase.com:6543/postgres
+
+OBRIGATÓRIO:
+1. Configurar o secret SUPABASE_DATABASE_URL imediatamente
+2. Validar conexão REAL com Supabase
+3. Executar:
+   SELECT current_database()
+4. Confirmar PostgreSQL Supabase ativo
+5. Rodar schema/migrations no Supabase
+6. Confirmar que NÃO existe mais uso do banco Replit
+
+PROIBIDO:
+- DATABASE_URL do Replit
+- heliumdb
+- fallback automático
+- dual database
+- MockStorage
+- SQLite
+- memória
+
+Se encontrar QUALQUER uso de banco local:
+PARAR
+LOGAR
+CORRIGIR
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ESTADO ATUAL DO SISTEMA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema já possui:
+
+✅ Supabase PostgreSQL 17
+✅ Multi-tenant via AsyncLocalStorage
+✅ tenantWhere()
+✅ requireTenantId()
+✅ Advisory locks PG
+✅ Idempotência NF-e
+✅ Recovery NF-e
+✅ Dashboard operacional
+✅ Healthchecks reais
+✅ Readiness/Liveness
+✅ Structured logs
+✅ Recovery de crash
+✅ Workers ativos
+✅ XSD NF-e 4.00
+✅ tpAmb=2 homologação
+✅ Recovery operacional
+✅ Circuit breaker
+✅ Retry exponencial
+✅ Observabilidade
+✅ Rate limit
+✅ Headers de segurança
+✅ Recovery de NF-es travadas
+✅ Logs com correlationId
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS FISCAIS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema NÃO pode emitir NF-e real.
+
+OBRIGATÓRIO:
+tpAmb = 2
+
+HOMOLOGAÇÃO APENAS.
+
+Toda NF-e deve permanecer:
+“SEM VALOR FISCAL”
+
+PROIBIDO:
+- tpAmb=1
+- produção SEFAZ real
+- emissão fiscal válida
+- alteração automática de ambiente
+- bypass fiscal
+
+Se encontrar qualquer possibilidade de tpAmb=1:
+BLOQUEAR
+LOGAR
+REPORTAR
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS DE IMPLEMENTAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Toda mudança deve ser:
+- mínima
+- cirúrgica
+- reversível
+- auditável
+- segura
+
+ANTES DE ESCREVER:
+- auditar
+- mapear impacto
+- validar fluxo existente
+
+DEPOIS:
+- testar
+- validar logs
+- validar workers
+- validar multi-tenant
+- validar Supabase
+- validar tpAmb=2
+- gerar relatório final
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# PADRÕES OBRIGATÓRIOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Sempre usar:
+- logs estruturados
+- correlationId
+- advisory lock em operações críticas
+- idempotência
+- fail-safe
+- retry controlado
+- guards de autenticação
+- validação multi-tenant
+
+NUNCA:
+- apagar XML
+- apagar SOAP
+- sobrescrever autorização
+- reenviar NF autorizada
+- quebrar rastreabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# PROTOCOLO DE EXECUÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Sempre responder no formato:
+
+1. AUDITORIA
+2. MAPEAMENTO
+3. IMPLEMENTAÇÃO
+4. TESTES
+5. VALIDAÇÃO
+6. RELATÓRIO FINAL
+
+Com:
+- arquivos alterados
+- riscos encontrados
+- fixes aplicados
+- testes executados
+- validações Supabase
+- validações tpAmb
+- impacto operacional
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# PRIMEIRA AÇÃO OBRIGATÓRIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+ANTES DE QUALQUER COISA:
+
+1. Configurar SUPABASE_DATABASE_URL
+2. Confirmar conexão Supabase real
+3. Validar:
+   SELECT current_database()
+4. Confirmar:
+   NÃO existe uso do banco Replit
+5. Confirmar:
+   tpAmb = 2 homologação
+6. Gerar relatório inicial de auditoria
+
+EXECUTAR AGORA.
