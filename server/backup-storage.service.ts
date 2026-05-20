@@ -269,7 +269,7 @@ export async function runBackupStoragePipeline(
   await recordBackupHistory({
     filename, sizeBytes, sha256, storageProvider: "supabase",
     storagePath, uploadStatus, verifyStatus, createdBy,
-    notes: null,
+    notes: undefined,
   });
 
   console.info("[BACKUP_CLEANUP]", { filename, action: "local-rotation-safe", uploadVerified: true, ts: new Date().toISOString() });

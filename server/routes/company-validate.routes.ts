@@ -5,7 +5,7 @@ import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 export function register(app: Express) {
   app.get('/api/admin/companies/validate', requireAuthCore, async (req, res) => {
     try {
-      const user = await storage.getUser(req.session.userId);
+      const user = await storage.getUser(req.session.userId!);
       if (!user || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
 
       const companies = await storage.getCompanies();

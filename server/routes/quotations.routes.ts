@@ -4,13 +4,13 @@ import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   app.get('/api/quotations', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try { res.json(await storage.getQuotations()); } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });
 
   app.post('/api/quotations', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const { companyName, contactName, contactPhone, email, cnpj, address, city, state, estimatedVolume, productInterest, logisticsNote, priceGroupId, priceGroupName, status, deliveryWindowsJson, deliveryWindowsRespondedBy, deliveryWindowsRespondedAt } = req.body;
@@ -23,14 +23,14 @@ export function register(app: Express) {
   });
 
   app.patch('/api/quotations/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const data = { ...req.body };
       if (data.deliveryWindowsRespondedAt && typeof data.deliveryWindowsRespondedAt === 'string') {
         data.deliveryWindowsRespondedAt = new Date(data.deliveryWindowsRespondedAt);
       }
-      const q = await storage.updateQuotation(parseInt(req.params.id), data);
+      const q = await storage.updateQuotation(parseInt(String(req.params.id)), data);
       const hasWindows = req.body.deliveryWindowsJson;
       const logDesc = hasWindows
         ? `Logística definiu janelas de entrega na cotação #${req.params.id} (${user.name || user.email})`
@@ -41,8 +41,8 @@ export function register(app: Express) {
   });
 
   app.delete('/api/quotations/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) return res.status(403).json({ message: 'Sem permissão' });
-    try { await storage.deleteQuotation(parseInt(req.params.id)); res.json({ ok: true }); } catch (e) { res.status(500).json({ message: 'Erro' }); }
+    try { await storage.deleteQuotation(parseInt(String(req.params.id))); res.json({ ok: true }); } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });
 }

@@ -1947,6 +1947,7 @@ export type InsertUserNotificationPreference =
 export type UserNotificationPreference =
   typeof userNotificationPreferences.$inferSelect;
 
+export const insertSystemSettingsSchema = createInsertSchema(systemSettings);
 export type SystemSettings = typeof systemSettings.$inferSelect;
 export type InsertSystemSettings = z.infer<typeof insertSystemSettingsSchema>;
 

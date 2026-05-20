@@ -1,0 +1,305 @@
+# CONTINUIDADE OPERACIONAL — AUDITORIA TOTAL + SUPABASE EXCLUSIVO
+
+PROTOCOLO OBRIGATÓRIO:
+AUDITORIA → MAPEAMENTO → VALIDAÇÃO → HARDENING CIRÚRGICO → TESTES → RELATÓRIO
+
+EXECUTAR LENTO.
+SEM REFATORAÇÃO MASSIVA.
+SEM REESCREVER O SISTEMA.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO FIXO DO PROJETO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Sistema ERP multi-tenant já operacional.
+
+REGRAS ABSOLUTAS:
+
+- Banco EXCLUSIVO:
+  → Supabase PostgreSQL 17
+  → via SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- DATABASE_URL
+- heliumdb
+- Replit DB
+- sqlite
+- fallback local
+- mock database
+
+Se SUPABASE_DATABASE_URL não existir:
+→ FAIL FAST
+→ process.exit(1)
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS FISCAIS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema DEVE permanecer:
+
+- tpAmb=2
+- NFE_SEFAZ_MODE=homologacao
+- HOMOLOGAÇÃO APENAS
+- SEM produção fiscal
+
+PROIBIDO:
+- tpAmb=1
+- produção SEFAZ
+- emissão fiscal real
+- alterar ambienteFiscal para producao
+- remover guards fiscais
+
+O sistema já possui:
+- homologation.guard.ts
+- bloqueios de produção
+- monitor fiscal
+- alertas fiscais
+- runtime monitor
+
+NÃO remover nada disso.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar AUDITORIA TOTAL do sistema visando:
+
+- estabilidade
+- bugs reais
+- memory leaks
+- gargalos
+- race conditions
+- workers travando
+- filas acumulando
+- problemas multi-tenant
+- problemas de auth
+- falhas silenciosas
+- inconsistências
+- endpoints quebrados
+- riscos operacionais
+- riscos de crash
+- riscos de perda de dados
+- problemas de observabilidade
+- erros TypeScript reais
+- imports quebrados
+- loops perigosos
+- timers perigosos
+- leaks de listeners
+- leaks de interval
+- problemas de pool postgres
+- queries lentas
+- riscos de concorrência
+- riscos de backup
+- riscos de restore
+- problemas de healthcheck
+- problemas de alert engine
+- problemas de workers
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+- server/
+- shared/
+- workers/
+- routes/
+- observability/
+- alerts/
+- backup/
+- health/
+- auth/
+- tenant/
+- storage/
+- postgres/
+- nfe/
+- schedulers/
+- queues/
+- outbox/
+- analytics/
+- memory/
+- event loop/
+- circuit breaker/
+- upload/
+- logs/
+- drizzle config
+- environment
+- secrets
+
+Mapear:
+- erros críticos
+- riscos médios
+- débitos técnicos
+- bugs reais
+- código morto
+- duplicações perigosas
+- riscos de produção
+- riscos de estabilidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — SUPABASE EXCLUSIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+
+- app usa SOMENTE SUPABASE_DATABASE_URL
+- drizzle.config.ts usa SUPABASE_DATABASE_URL
+- nenhum fallback DATABASE_URL
+- nenhum fallback heliumdb
+- nenhum sqlite
+- nenhum mock storage
+
+Se SUPABASE_DATABASE_URL não estiver configurado:
+→ solicitar a string de conexão Supabase
+
+Validar:
+SELECT current_database()
+SELECT version()
+
+Confirmar:
+- PostgreSQL 17
+- Supabase ativo
+- SSL ativo
+- pool saudável
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — VALIDAÇÃO FISCAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Confirmar:
+
+- tpAmb=2
+- ambienteFiscal=homologacao
+- NFE_SEFAZ_MODE=homologacao
+- guards ativos
+- bloqueios de produção ativos
+- nenhuma URL SEFAZ produção ativa
+- nenhum bypass fiscal
+
+PROIBIDO:
+- alterar tpAmb
+- alterar homologação
+- tocar emissão real
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — AUDITORIA OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+
+- workers
+- backup pipeline
+- alert engine
+- healthchecks
+- queue backlog
+- postgres latency
+- memory rss
+- event loop lag
+- circuit breaker
+- upload verify
+- restore-check
+- operational alerts
+- dedup/cooldown
+- cleanup de memória
+- timers
+- intervals
+- listeners
+
+Identificar:
+- leaks
+- flood
+- polling agressivo
+- loops perigosos
+- crescimento infinito
+- risco de crash
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — TESTES CONTROLADOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS CONTROLADOS:
+
+- boot
+- workers
+- health
+- readiness
+- auth
+- tenant isolation
+- backup
+- restore-check
+- alerts
+- queues
+- postgres
+- memory
+- event loop
+- crash handlers
+
+Validar:
+- zero emissão fiscal real
+- zero tpAmb=1
+- zero fallback DB
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — HARDENING CIRÚRGICO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir APENAS:
+- bugs reais
+- riscos reais
+- falhas reais
+- memory leaks
+- race conditions
+- crash risks
+
+SEM:
+- refatoração gigante
+- arquitetura nova
+- dashboards
+- novas features
+- Redis
+- Kafka
+- microserviços
+
+Mudanças:
+- pequenas
+- auditáveis
+- reversíveis
+- seguras
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório COMPLETO:
+
+- estado do sistema
+- riscos críticos
+- riscos médios
+- bugs encontrados
+- bugs corrigidos
+- arquivos alterados
+- workers
+- postgres
+- backup
+- observabilidade
+- alert engine
+- memory
+- performance
+- multi-tenant
+- auth
+- health
+- readiness
+- queues
+- circuit breaker
+- status fiscal
+
+Confirmar explicitamente:
+
+- “Sistema permanece em HOMOLOGAÇÃO”
+- “tpAmb=2 confirmado”
+- “Nenhuma emissão fiscal real possível”
+- “Supabase exclusivo ativo”
+- “Nenhum fallback local permitido”
+
+EXECUTAR AGORA.

@@ -4,7 +4,7 @@ import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   app.post('/api/admin/companies/:id/unlock', requireAuthCore, async (req, res) => {
-    const actor = await storage.getUser(req.session.userId);
+    const actor = await storage.getUser(req.session.userId!);
     if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão para desbloquear contas.' });
     try {
       const id = Number(req.params.id);
@@ -20,7 +20,7 @@ export function register(app: Express) {
   });
 
   app.get('/api/security-logs', requireAuthCore, async (req, res) => {
-    const actor = await storage.getUser(req.session.userId);
+    const actor = await storage.getUser(req.session.userId!);
     if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão.' });
     try {
       const limit = Math.min(Number(req.query.limit) || 200, 500);
@@ -32,7 +32,7 @@ export function register(app: Express) {
   });
 
   app.get('/api/security/locked-accounts', requireAuthCore, async (req, res) => {
-    const actor = await storage.getUser(req.session.userId);
+    const actor = await storage.getUser(req.session.userId!);
     if (!actor || !['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(actor.role)) return res.status(403).json({ message: 'Sem permissão.' });
     try {
       const allUsers = await storage.getUsers();

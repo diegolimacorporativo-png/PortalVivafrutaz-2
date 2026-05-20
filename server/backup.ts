@@ -893,7 +893,7 @@ export async function restoreDryRun(filename: string): Promise<RestoreDryRunResu
   // ── 3. Live DB conflict analysis (READ ONLY) ──────────────────
   try {
     const [liveCompanies, liveUsers, liveOrders, liveProducts] = await Promise.all([
-      db.select({ id: companies.id, name: companies.name }).from(companies),
+      db.select({ id: companies.id, name: companies.companyName }).from(companies),
       db.select({ id: users.id }).from(users),
       db.select({ id: orders.id }).from(orders),
       db.select({ id: products.id }).from(products),

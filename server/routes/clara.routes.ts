@@ -74,7 +74,7 @@ export async function register(app: Express): Promise<void> {
 
   app.get('/api/clara/recall/:key', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
-      const knowledge = await claraIA.recallKnowledge(req.params.key);
+      const knowledge = await claraIA.recallKnowledge(String(req.params.key));
       res.json({ knowledge });
     } catch (err: any) {
       res.status(500).json({ message: err.message });

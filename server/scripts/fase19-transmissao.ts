@@ -214,7 +214,7 @@ async function main() {
 
   if (!xsdResult.valid) {
     console.error('\n[ETAPA7] ❌ XSD INVÁLIDO — ERROS:');
-    xsdResult.errors.forEach((e: string, i: number) => console.error(`  [${i+1}] ${e}`));
+    xsdResult.errors.forEach((e, i) => console.error(`  [${i+1}] ${(e as any).message ?? String(e)}`));
     writeFileSync(`${DEBUG_DIR}/fase19-xsd-errors.json`, JSON.stringify(xsdResult.errors, null, 2), 'utf-8');
     throw new Error(`XML falhou na validação XSD: ${xsdResult.errors.length} erro(s). Ver ${DEBUG_DIR}/fase19-xsd-errors.json`);
   }

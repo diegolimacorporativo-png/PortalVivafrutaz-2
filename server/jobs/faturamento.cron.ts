@@ -177,7 +177,7 @@ export async function runFaturamentoCron(
   // Prefixo `cron-` permite distinguir de requests HTTP nos logs.
   const requestId = `cron-${randomUUID()}`;
 
-  return runWithRequestContext(requestId, async () => {
+  return runWithRequestContext({ requestId, ip: "cron", userAgent: "cron", startTime: Date.now() }, async () => {
   const executadoEm = new Date();
   const autoMode = AUTO_FATURAMENTO;
 

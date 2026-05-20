@@ -165,7 +165,7 @@ export class FinanceRepository {
           data: today,
           referenciaTipo: "receivable",
           referenciaId: id,
-        }),
+        }) as any,
       );
 
       // FASE 6.3 — quebra contábil de juros / multa / desconto vindos do
@@ -192,7 +192,7 @@ export class FinanceRepository {
             data: today,
             referenciaTipo: "receivable",
             referenciaId: id,
-          }),
+          }) as any,
         );
       }
 
@@ -206,7 +206,7 @@ export class FinanceRepository {
             data: today,
             referenciaTipo: "receivable",
             referenciaId: id,
-          }),
+          }) as any,
         );
       }
 
@@ -220,7 +220,7 @@ export class FinanceRepository {
             data: today,
             referenciaTipo: "receivable",
             referenciaId: id,
-          }),
+          }) as any,
         );
       }
 

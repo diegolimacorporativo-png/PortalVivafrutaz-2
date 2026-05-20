@@ -75,7 +75,7 @@ export function register(app: Express) {
   });
 
   app.patch('/api/company-config', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
@@ -118,7 +118,7 @@ export function register(app: Express) {
   });
 
   app.post('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
     if (!user || !FULL_ACCESS_ROLES.includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão para alterar configurações' });
@@ -141,7 +141,7 @@ export function register(app: Express) {
   });
 
   app.put('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
     if (!user || !FULL_ACCESS_ROLES.includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão para alterar configurações' });

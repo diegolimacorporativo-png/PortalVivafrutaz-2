@@ -139,7 +139,7 @@ export async function register(app: Express): Promise<void> {
       }
       if (!orderData || !orderData.order) return res.status(404).json({ message: 'Pedido não encontrado' });
       const order = orderData.order;
-      const company = await storage.getCompany(order.companyId);
+      const company = await storage.getCompany(order.companyId as number);
       if (!company) return res.status(404).json({ message: 'Empresa não encontrada' });
 
       // Get contact email for this company (from users)
@@ -148,26 +148,26 @@ export async function register(app: Express): Promise<void> {
       const toEmail = companyUser?.email;
       if (!toEmail) return res.status(400).json({ message: 'Cliente não possui e-mail cadastrado' });
 
-      const vfCode = order.orderCode || `VF-${new Date().getFullYear()}-${String(order.id).padStart(6, '0')}`;
-      const deliveryDate = order.deliveryDate ? new Date(order.deliveryDate).toLocaleDateString('pt-BR') : '—';
+      const vfCode = (order.orderCode as string | null) || `VF-${new Date().getFullYear()}-${String(order.id as number).padStart(6, '0')}`;
+      const deliveryDate = order.deliveryDate ? new Date(order.deliveryDate as string | number | Date).toLocaleDateString('pt-BR') : '—';
 
       let result;
       if (type === 'confirmed') {
         const items = orderData.items || [];
         result = await sendOrderConfirmedEmail({
           toEmail,
-          companyName: company.companyName,
+          companyName: company.companyName as string,
           vfCode,
           deliveryDate,
           totalItems: items.length,
-          adminNote: order.adminNote || undefined,
+          adminNote: (order.adminNote as string | undefined) || undefined,
         });
       } else if (type === 'rejected') {
         result = await sendOrderRejectedEmail({
           toEmail,
-          companyName: company.companyName,
+          companyName: company.companyName as string,
           vfCode,
-          reason: req.body.reason || order.adminNote || 'Sem motivo informado',
+          reason: req.body.reason || (order.adminNote as string | undefined) || 'Sem motivo informado',
         });
       } else {
         return res.status(400).json({ message: 'type deve ser "confirmed" ou "rejected"' });
@@ -176,9 +176,9 @@ export async function register(app: Express): Promise<void> {
       await storage.createEmailLog({
         type: `order_${type}`,
         toEmail,
-        toName: company.companyName,
-        companyId: order.companyId,
-        orderId: order.id,
+        toName: company.companyName as string,
+        companyId: order.companyId as number,
+        orderId: order.id as number,
         subject: type === 'confirmed' ? `Pedido ${vfCode} confirmado` : `Pedido ${vfCode} cancelado`,
         status: result.sent ? 'sent' : 'failed',
         errorMessage: result.sent ? null : (result.reason || null),

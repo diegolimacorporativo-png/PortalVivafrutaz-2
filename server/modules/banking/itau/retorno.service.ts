@@ -29,6 +29,8 @@ import { parseItauRetornoCnab240 } from "./retorno.parser";
 
 export interface ProcessarRetornoResult {
   success: boolean;
+  /** Parcialmente processado — algumas baixas OK, outras com erro. */
+  partial?: boolean;
   /** Mensagem opcional — populada quando `success: false` (BANCO.6). */
   message?: string;
   /** Hash SHA-256 do arquivo já existente (apenas em duplicidade). */

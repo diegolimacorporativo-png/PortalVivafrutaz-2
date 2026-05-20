@@ -94,6 +94,7 @@ export interface NFeInput {
   informacoesAdicionais?: string;
   orderId?: number;
   orderCode?: string;
+  pagamentos?: Array<{ tPag: string; xPag?: string; vPag: number }>;
 }
 
 /**

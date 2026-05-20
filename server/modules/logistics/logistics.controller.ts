@@ -38,6 +38,7 @@ import { sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import { calculateETA, summariseETA } from "./eta.service";
 import { LogisticsService, logisticsService } from "./logistics.service";
+import { resolveOwnDriverId } from "./driver.access";
 import {
   LOGISTICS_ADMIN_ROLES,
   LOGISTICS_AUTH_ROLES,

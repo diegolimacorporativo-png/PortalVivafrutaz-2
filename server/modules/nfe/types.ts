@@ -78,4 +78,7 @@ export type NFeInput = {
 
   /** Texto livre ("informacoesAdicionais" + "Pedido: <code>"). */
   informacoesAdicionais?: string;
+
+  /** Itens de pagamento (NT 2014.002 + NF-e 4.00). Se ausente, gerador usa tPag=99 (Outros). */
+  pagamentos?: Array<{ tPag: string; xPag?: string; vPag: number }>;
 };

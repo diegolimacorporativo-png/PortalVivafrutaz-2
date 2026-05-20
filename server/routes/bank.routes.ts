@@ -142,7 +142,8 @@ export async function register(app: Express) {
   // POST /api/bank/reconciliar — reconciliar com AR/AP
   app.post('/api/bank/reconciliar', requireAuthCore, tenantContext, async (req: any, res) => {
     try {
-      const result = await reconciliarTransacoes(req.body);
+      const { bankTransactions = [], arItems = [], apItems = [] } = req.body;
+      const result = reconciliarTransacoes(bankTransactions, arItems, apItems);
       res.json(result);
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });

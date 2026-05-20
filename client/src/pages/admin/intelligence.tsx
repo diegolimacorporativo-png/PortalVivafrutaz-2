@@ -124,7 +124,7 @@ export default function IntelligencePage() {
     onError: (e: any) => toast({ title: 'Erro na sincronização', description: e.message, variant: 'destructive' }),
   });
 
-  const alerts = normalizeBIResponse(data).alerts;
+  const alerts = normalizeBIResponse(data).alerts as IntelAlert[];
   const summary = data?.summary;
 
   const filtered = alerts.filter(a => {
@@ -512,7 +512,7 @@ export default function IntelligencePage() {
           </div>
         ) : (
           <div className="space-y-3">
-            {filtered.map(alert => {
+            {filtered.map((alert: IntelAlert) => {
               const sev = SEV_CONFIG[alert.severity];
               const cat = CAT_CONFIG[alert.category];
               const SevIcon = sev.icon;

@@ -38,6 +38,7 @@ const COOLDOWN_MS: Record<AlertSeverity, number> = {
 // ─── In-memory store ───────────────────────────────────────────
 const _alerts = new Map<string, ActiveAlert>();
 const MAX_RESOLVED_RETENTION_MS = 2 * 60 * 60_000; // keep resolved 2h for audit
+const MAX_ALERTS_MAP_SIZE = 500; // cap to prevent unbounded memory growth
 
 // ─── Emit ──────────────────────────────────────────────────────
 export function emitAlert(
@@ -145,6 +146,7 @@ function pruneResolved() {
 // ──────────────────────────────────────────────────────────────
 
 let _monitorStarted = false;
+let _monitorInterval: ReturnType<typeof setInterval> | null = null;
 
 export function startOperationalMonitor(intervalMs = 60_000): void {
   if (_monitorStarted) return;
@@ -159,6 +161,16 @@ export function startOperationalMonitor(intervalMs = 60_000): void {
       await probeWorkers();
       await probeBackup();
 
+      // Cap Map size to prevent unbounded memory growth from unique alert keys
+      if (_alerts.size > MAX_ALERTS_MAP_SIZE) {
+        pruneResolved();
+        if (_alerts.size > MAX_ALERTS_MAP_SIZE) {
+          const toDelete = [..._alerts.keys()].slice(0, _alerts.size - MAX_ALERTS_MAP_SIZE);
+          toDelete.forEach(k => _alerts.delete(k));
+          console.warn("[ALERT_MAP_CAPPED]", { removed: toDelete.length, remaining: _alerts.size, ts: new Date().toISOString() });
+        }
+      }
+
       console.debug("[ALERT_PROBE]", {
         active: getActiveAlerts().length,
         total: getAllAlerts().length,
@@ -169,9 +181,19 @@ export function startOperationalMonitor(intervalMs = 60_000): void {
     }
   };
 
-  setInterval(run, intervalMs);
+  _monitorInterval = setInterval(run, intervalMs);
+  if (typeof _monitorInterval.unref === "function") _monitorInterval.unref();
   run().catch(() => {});
   console.info("[OPERATIONAL_MONITOR_START]", { intervalMs, ts: new Date().toISOString() });
+}
+
+export function stopOperationalMonitor(): void {
+  if (_monitorInterval) {
+    clearInterval(_monitorInterval);
+    _monitorInterval = null;
+    _monitorStarted = false;
+    console.info("[OPERATIONAL_MONITOR_STOP]", { ts: new Date().toISOString() });
+  }
 }
 
 // ─── Probes ───────────────────────────────────────────────────

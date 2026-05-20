@@ -34,12 +34,12 @@ export function register(app: Express) {
 
   // PATCH — admin users only
   app.patch('/api/client-incidents/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const { status, adminNote } = req.body;
       const resolvedAt = status === 'RESOLVED' ? new Date() : undefined;
       const updated = await storage.updateClientIncident(id, { status, adminNote, ...(resolvedAt !== undefined ? { resolvedAt } : {}) });
@@ -50,12 +50,12 @@ export function register(app: Express) {
 
   // DELETE — admin users only
   app.delete('/api/client-incidents/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão - apenas administradores podem excluir ocorrências' });
     }
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const incident = await storage.getClientIncident(id);
       if (!incident) return res.status(404).json({ message: 'Ocorrência não encontrada' });
       await storage.deleteClientIncident(id);
@@ -66,12 +66,12 @@ export function register(app: Express) {
 
   // POST respond — admin users only
   app.post('/api/client-incidents/:id/respond', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const { responseMessage } = req.body;
       if (!responseMessage || !responseMessage.trim()) return res.status(400).json({ message: 'Mensagem de resposta obrigatória' });
       const updated = await storage.respondToClientIncident(id, responseMessage.trim(), user.name);
@@ -130,7 +130,7 @@ export function register(app: Express) {
 
   // ─── OCORRÊNCIAS INTERNAS ─────────────────────────────────────
   app.get('/api/internal-incidents', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
@@ -141,7 +141,7 @@ export function register(app: Express) {
   });
 
   app.post('/api/internal-incidents', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
       const { title, description, category, assignedToId, assignedToName, priority } = req.body;
@@ -153,10 +153,10 @@ export function register(app: Express) {
   });
 
   app.patch('/api/internal-incidents/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const updates = req.body;
       const resolvedAt = updates.status === 'RESOLVED' ? new Date() : null;
       const updated = await storage.updateInternalIncident(id, { ...updates, ...(resolvedAt !== undefined ? { resolvedAt } : {}) });
@@ -166,12 +166,12 @@ export function register(app: Express) {
   });
 
   app.delete('/api/internal-incidents/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
     try {
-      await storage.deleteInternalIncident(parseInt(req.params.id));
+      await storage.deleteInternalIncident(parseInt(String(req.params.id)));
       await storage.createLog({ action: 'INTERNAL_INCIDENT_DELETED', description: `Ocorrência interna #${req.params.id} excluída`, userId: user.id, userEmail: user.email, userRole: user.role });
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: 'Error deleting internal incident' }); }

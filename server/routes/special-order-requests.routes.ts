@@ -61,7 +61,7 @@ export function register(app: Express) {
   // Admin: approve/reject — admin users only
   app.put('/api/special-order-requests/:id', requireAuthCore, async (req, res) => {
     try {
-      const actingUser = await storage.getUser(req.session.userId);
+      const actingUser = await storage.getUser(req.session.userId!);
       if (!actingUser || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(actingUser.role)) {
         return res.status(403).json({ message: 'Apenas Administrador, Diretor ou Desenvolvedor podem aprovar/recusar pedidos pontuais.' });
       }

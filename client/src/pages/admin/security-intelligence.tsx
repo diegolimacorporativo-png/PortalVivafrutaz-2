@@ -398,7 +398,7 @@ export default function SecurityIntelligencePage() {
   });
 
   const data = response?.data;
-  const ips = normalizeBIResponse(data).ips;
+  const ips = normalizeBIResponse(data).ips as IPScore[];
   const overview = overviewResponse?.data;
 
   if (isLoading) return <LoadingSkeleton />;
@@ -1139,7 +1139,7 @@ function RiskOverviewSection() {
     refetchInterval: 120_000,
   });
 
-  const results = normalizeBIResponse(riskResponse?.data).results;
+  const results = normalizeBIResponse(riskResponse?.data).results as RiskResult[];
   const generatedAt = riskResponse?.data?.generatedAt;
 
   // Only render the section if we have data or are loading

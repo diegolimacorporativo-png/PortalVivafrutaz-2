@@ -17,6 +17,7 @@ import { assertFiscalBootSafe, startFiscalRuntimeMonitor } from "./core/fiscal/h
 import { ensureStorageBucket, backupMonitorStatus } from "./backup-storage.service";
 import {
   startOperationalMonitor,
+  stopOperationalMonitor,
   alertUncaughtException,
   alertUnhandledRejection,
 } from "./core/alerts/operational-alerts.service";
@@ -241,7 +242,8 @@ process.on("uncaughtException", (err: Error) => {
     try {
       stopOutboxWorker();
       stopAutoDispatchWorker();
-      console.log("[WORKER_STOP]", { workers: ["outbox", "auto-dispatch"], ts: new Date().toISOString() });
+      stopOperationalMonitor();
+      console.log("[WORKER_STOP]", { workers: ["outbox", "auto-dispatch", "operational-monitor"], ts: new Date().toISOString() });
     } catch (err) {
       console.error("[WORKER_STOP_ERROR]", err instanceof Error ? err.message : String(err));
     }

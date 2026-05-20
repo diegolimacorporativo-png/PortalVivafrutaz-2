@@ -456,7 +456,7 @@ export class AuthService {
           this.verifyAndMaybeUpgradeUserPassword(user.id, submitted, user.password),
 
         logEvent: (action, description, level) =>
-          this.repo.log({ action, description, userId: user.id, userEmail: email, level, ip }),
+          this.repo.log({ action, description, userId: user.id, userEmail: email, level, ip }) as Promise<void>,
 
         updateAttempts: async (newAttempts, willLock) => {
           await this.repo.updateUser(user.id, {
@@ -575,7 +575,7 @@ export class AuthService {
           this.verifyAndMaybeUpgradeCompanyPassword(company.id, submitted, company.password),
 
         logEvent: (action, description, level) =>
-          this.repo.log({ action, description, companyId: company.id, userEmail: email, level, ip }),
+          this.repo.log({ action, description, companyId: company.id, userEmail: email, level, ip }) as Promise<void>,
 
         updateAttempts: async (newAttempts, willLock) => {
           await this.repo.updateCompany(company.id, {
@@ -735,7 +735,7 @@ export class AuthService {
     newPassword: string,
     ip: string,
   ): Promise<{ ok: true } | { ok: false; status: number; error: string; message: string }> {
-    const user = await this.repo.getUser(userId);
+    const user = await this.repo.getUserById(userId);
     if (!user) {
       return { ok: false, status: 404, error: "USER_NOT_FOUND", message: "Usuário não encontrado." };
     }

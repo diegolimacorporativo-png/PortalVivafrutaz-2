@@ -4,7 +4,7 @@ import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   app.get('/api/tasks', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
       let result;
@@ -18,7 +18,7 @@ export function register(app: Express) {
   });
 
   app.post('/api/tasks', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
@@ -34,10 +34,10 @@ export function register(app: Express) {
   });
 
   app.patch('/api/tasks/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(401).json({ message: 'Not authenticated' });
     try {
-      const id = parseInt(req.params.id);
+      const id = parseInt(String(req.params.id));
       const raw = req.body;
       const updates: Record<string, any> = {};
       if (raw.title !== undefined) updates.title = raw.title;
@@ -54,12 +54,12 @@ export function register(app: Express) {
   });
 
   app.delete('/api/tasks/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId);
+    const user = await storage.getUser(req.session.userId!);
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
     try {
-      await storage.deleteTask(parseInt(req.params.id));
+      await storage.deleteTask(parseInt(String(req.params.id)));
       await storage.createLog({ action: 'TASK_DELETED', description: `Tarefa #${req.params.id} excluída`, userId: user.id, userEmail: user.email, userRole: user.role });
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: 'Error deleting task' }); }

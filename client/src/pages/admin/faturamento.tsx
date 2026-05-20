@@ -965,7 +965,7 @@ export default function CentralFaturamento() {
               <Activity className="w-4 h-4 text-indigo-600" />
               Analytics de alertas
               <Badge variant="secondary" className="ml-1" data-testid="badge-analytics-window">
-                Últimos {analyticsDays} {analyticsDays === 1 ? "dia" : "dias"}
+                Últimos {analyticsDays} dias
               </Badge>
             </CardTitle>
             <div className="flex items-center gap-1" role="group" aria-label="Janela de análise">
