@@ -21,6 +21,7 @@ import {
   alertUncaughtException,
   alertUnhandledRejection,
 } from "./core/alerts/operational-alerts.service";
+import { authService } from "./modules/auth/auth.service";
 
 dotenv.config();
 
@@ -153,6 +154,11 @@ process.on("uncaughtException", (err: Error) => {
   }
 
   await recoverStuckNFes();
+
+  // ETAPA 2 — DESBLOQUEIO IMEDIATO: reset is_locked + login_attempts for all
+  // MASTER/ADMIN/DIRECTOR/DEVELOPER accounts and pre-register their emails in
+  // the loginEmailIpLimiter bypass set. Fail-safe — never throws.
+  await authService.unlockStrategicAccounts();
   app.get("/user", getUser);
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);

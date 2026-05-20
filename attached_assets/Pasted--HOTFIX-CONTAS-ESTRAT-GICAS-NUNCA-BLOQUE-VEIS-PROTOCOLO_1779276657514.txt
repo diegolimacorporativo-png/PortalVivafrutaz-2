@@ -1,0 +1,172 @@
+# HOTFIX — CONTAS ESTRATÉGICAS NUNCA BLOQUEÁVEIS
+
+PROTOCOLO:
+AUDITORIA → IDENTIFICAÇÃO → PATCH CIRÚRGICO → TESTE → RELATÓRIO
+
+EXECUTAR LENTO.
+SEM REFATORAÇÃO.
+SEM ALTERAR AUTH PRINCIPAL.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRA ABSOLUTA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+As contas abaixo NUNCA podem ser bloqueadas automaticamente:
+
+- MASTER
+- ADMIN
+- DIRECTOR
+- DEVELOPER
+
+Inclui:
+- lockout
+- brute force lock
+- disabled
+- suspended
+- blocked
+- login attempts
+- auto-ban
+- antifraud
+- security cooldown
+- auth limiter persistente
+
+Essas contas:
+- SEMPRE devem conseguir login
+- SEMPRE devem ignorar bloqueio automático
+- SEMPRE devem ignorar antifraude automático
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar completamente:
+
+- auth service
+- login limiter
+- brute force protection
+- antifraud
+- session middleware
+- user status
+- account locks
+- disabled flags
+- blocked flags
+- cooldown system
+- login attempts
+- auth tables
+- security middleware
+
+Identificar:
+- onde ocorre bloqueio
+- onde ocorre disable
+- onde ocorre auto-ban
+- onde incrementa login attempts
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — DESBLOQUEIO IMEDIATO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Localizar no banco:
+- MASTER
+- ADMIN
+- DIRECTOR
+- DEVELOPER
+
+Validar:
+- blocked
+- disabled
+- suspended
+- login_attempts
+- locked_until
+- antifraud flags
+
+Desbloquear imediatamente.
+
+Resetar:
+- attempts
+- cooldown
+- lock timers
+- blocked flags
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — PROTEÇÃO PERMANENTE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar bypass permanente:
+
+IF role IN (
+  MASTER,
+  ADMIN,
+  DIRECTOR,
+  DEVELOPER
+)
+
+THEN:
+- nunca bloquear
+- nunca suspender
+- nunca auto-banir
+- nunca aplicar antifraud lock
+- nunca aplicar brute-force lock
+
+MAS:
+- manter logs
+- manter auditoria
+- manter tracking
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — SENHA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Se a senha estiver desconhecida:
+- gerar senha temporária forte
+- atualizar hash corretamente
+- validar login real
+
+Incluir no relatório:
+- email/login
+- senha temporária
+- role
+
+SEM expor hashes.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — TESTES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+- login MASTER
+- login ADMIN
+- login DIRECTOR
+- login DEVELOPER
+
+Simular:
+- múltiplas tentativas erradas
+- antifraud
+- brute force
+
+Validar:
+- contas nunca bloqueiam
+- contas continuam autenticando
+- logs continuam funcionando
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — RELATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Relatório completo:
+
+- contas corrigidas
+- flags removidas
+- arquivos alterados
+- regras permanentes
+- testes executados
+- credenciais temporárias
+- confirmação de bypass permanente
+
+SEM:
+- alterar tpAmb
+- tocar NF-e
+- tocar homologação
+- tocar Supabase
+- tocar multi-tenant
+
+EXECUTAR AGORA.

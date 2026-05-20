@@ -15,12 +15,26 @@ import {
 } from "../../core/security/userRateLimit";
 // FASE 14.7 — AuthCoreService: DB-backed L2 rate limit + unified logging pipeline
 import { authCoreService, AUTH_EVENTS } from "../../core/auth/authCore.service";
+// STRATEGIC BYPASS — email IP+limiter bypass for MASTER/ADMIN/DIRECTOR/DEVELOPER
+import { markEmailAsStrategic } from "../../core/security/rateLimit";
+// Direct DB access for startup unlock of strategic accounts
+import { db } from "../../database/db";
+import { users as usersTable, authAttempts } from "@shared/schema";
+import { eq, inArray } from "drizzle-orm";
 
 /** Number of failed attempts before an account is auto-locked. */
 const MAX_ATTEMPTS = 3;
 
 /** Roles that get notified when any account is auto-locked. */
 const LOCKOUT_NOTIFY_ROLES = ["ADMIN", "DIRECTOR", "DEVELOPER"] as const;
+
+/**
+ * STRATEGIC ROLES — accounts in these roles must NEVER be blocked automatically.
+ * Applies to: isLocked (DB flag), L2 rate limit (auth_attempts), willLock gate,
+ * and loginEmailIpLimiter (via markEmailAsStrategic).
+ * Logs and audit trails are ALWAYS preserved — only blocking is suppressed.
+ */
+const STRATEGIC_ROLES = new Set(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]);
 
 // ── Auth Decision Delegate ─────────────────────────────────────────────────
 /**
@@ -52,6 +66,8 @@ interface AuthDelegate {
   readonly isLocked: boolean;
   readonly isActive: boolean;
   readonly loginAttempts: number;
+  /** User role — present only for admin delegates; used for strategic bypass. */
+  readonly role?: string;
   /** Entity-specific bcrypt comparison (admin may auto-upgrade plaintext). */
   verifyPassword(submitted: string): Promise<boolean>;
   /**
@@ -315,19 +331,39 @@ export class AuthService {
         ? { userId: delegate.id }
         : { companyId: delegate.id };
 
+    // STRATEGIC accounts (MASTER/ADMIN/DIRECTOR/DEVELOPER) bypass all automatic
+    // blocking. Logs and audit are always preserved.
+    const isStrategic = delegate.kind === "admin" && STRATEGIC_ROLES.has(delegate.role ?? "");
+
     // ── 1. Account state: locked ───────────────────────────────────────
     if (delegate.isLocked) {
-      await delegate.logEvent(
-        "LOGIN_BLOCKED",
-        `Tentativa de acesso a conta bloqueada: ${delegate.email}`,
-        "ERROR",
-      );
-      authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, ...entityId });
-      return {
-        kind: "failure",
-        status: 423,
-        message: "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
-      };
+      if (isStrategic) {
+        // Log for audit but do NOT block — clear the DB lock in background
+        await delegate.logEvent(
+          "STRATEGIC_LOCK_BYPASS",
+          `[CONTA ESTRATÉGICA] Bloqueio automático ignorado para role ${delegate.role}: ${delegate.email} — lock removido`,
+          "WARN",
+        );
+        authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, ...entityId });
+        // Clear the persisted lock immediately (fire-and-forget, fail-safe)
+        db.update(usersTable)
+          .set({ isLocked: false, loginAttempts: 0 })
+          .where(eq(usersTable.id, delegate.id))
+          .catch(() => {});
+        // Continue auth flow — do NOT return early
+      } else {
+        await delegate.logEvent(
+          "LOGIN_BLOCKED",
+          `Tentativa de acesso a conta bloqueada: ${delegate.email}`,
+          "ERROR",
+        );
+        authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, ...entityId });
+        return {
+          kind: "failure",
+          status: 423,
+          message: "Conta temporariamente bloqueada por segurança.\nEntre em contato com o administrador.",
+        };
+      }
     }
 
     // ── 2. Account state: inactive ─────────────────────────────────────
@@ -351,19 +387,26 @@ export class AuthService {
     // ── 3. L2 DB rate limit — SOLE AUTHORITATIVE GATE ─────────────────
     // Runs after state checks (BUG-01 fix): locked / inactive accounts do not
     // consume rate-limit windows; the state check is free (pre-loaded data).
-    const dbRateCheck = await authCoreService.checkDbRateLimit(delegate.dbRateLimitParams);
-    if (!dbRateCheck.allowed) {
-      const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
-      authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
-        ip,
-        ...entityId,
-        metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
-      });
-      return {
-        kind: "failure",
-        status: 429,
-        message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
-      };
+    // STRATEGIC accounts bypass this gate entirely — auth_attempts records
+    // are still written for audit but never used to block their login.
+    let dbRateCheck: import("../../core/auth/authCore.service").RateCheckResult;
+    if (isStrategic) {
+      dbRateCheck = { allowed: true, recentFailures: 0, riskScore: 0 };
+    } else {
+      dbRateCheck = await authCoreService.checkDbRateLimit(delegate.dbRateLimitParams);
+      if (!dbRateCheck.allowed) {
+        const retryAfterSec = Math.ceil((dbRateCheck.retryAfterMs ?? 0) / 1000);
+        authCoreService.logAuthEvent(AUTH_EVENTS.RATE_LIMITED, {
+          ip,
+          ...entityId,
+          metadata: { layer: "L2", retryAfterMs: dbRateCheck.retryAfterMs, riskScore: dbRateCheck.riskScore },
+        });
+        return {
+          kind: "failure",
+          status: 429,
+          message: `Muitas tentativas de login. Aguarde ${retryAfterSec} segundo(s) e tente novamente.`,
+        };
+      }
     }
 
     // ── 4. Credential validation ───────────────────────────────────────
@@ -372,7 +415,10 @@ export class AuthService {
     // ── 5a. Wrong password ─────────────────────────────────────────────
     if (!passwordMatch) {
       const newAttempts = delegate.loginAttempts + 1;
-      const willLock = newAttempts >= MAX_ATTEMPTS;
+      // STRATEGIC accounts never lock: willLock is forced false so updateAttempts
+      // never writes isLocked=true to the DB. loginAttempts is still incremented
+      // for tracking purposes (preserved per protocol).
+      const willLock = !isStrategic && newAttempts >= MAX_ATTEMPTS;
 
       // Entity-specific: update DB row + write LOGIN_FAILED log entry
       await delegate.updateAttempts(newAttempts, willLock);
@@ -441,6 +487,13 @@ export class AuthService {
       return { kind: "failure", status: 401, message: "Usuário ou senha incorretos." };
     }
 
+    // STRATEGIC BYPASS — register the email so loginEmailIpLimiter never blocks
+    // this account. Done before _runAuthFlow so even the very first attempt is
+    // already exempt. Fail-safe: only marks, never throws.
+    if (STRATEGIC_ROLES.has(user.role)) {
+      markEmailAsStrategic(email);
+    }
+
     return this._runAuthFlow(
       {
         kind: "admin",
@@ -451,6 +504,7 @@ export class AuthService {
         isLocked: user.isLocked,
         isActive: user.active,
         loginAttempts: user.loginAttempts || 0,
+        role: user.role,
 
         verifyPassword: (submitted) =>
           this.verifyAndMaybeUpgradeUserPassword(user.id, submitted, user.password),
@@ -856,6 +910,91 @@ export class AuthService {
     if (stored !== submitted) return false;
     await this.repo.updateCompany(companyId, { password: submitted } as any);
     return true;
+  }
+
+  // ── ETAPA 2 — Startup unlock of strategic accounts ─────────────────────────
+  /**
+   * Runs once at server boot. Resets any strategic role accounts that were
+   * incorrectly locked (isLocked=true or loginAttempts>0) by a previous
+   * automatic mechanism, and pre-registers their emails in the loginEmailIpLimiter
+   * bypass set so they are protected from the first request onwards.
+   *
+   * Operations performed per strategic account found locked:
+   *   1. Reset is_locked=false and login_attempts=0 in DB
+   *   2. Delete auth_attempts rows for that userId (L2 rate-limit reset)
+   *   3. Call markEmailAsStrategic(email) (L1 email+IP limiter bypass)
+   *
+   * Logs [STRATEGIC_UNLOCK_BOOT] for each account modified.
+   * Fail-safe: individual errors are caught and logged without throwing.
+   */
+  async unlockStrategicAccounts(): Promise<void> {
+    try {
+      const strategicRoles = Array.from(STRATEGIC_ROLES);
+      // Load all strategic-role users in one query
+      const strategicUsers = await db
+        .select({
+          id: usersTable.id,
+          email: usersTable.email,
+          role: usersTable.role,
+          isLocked: usersTable.isLocked,
+          loginAttempts: usersTable.loginAttempts,
+          active: usersTable.active,
+        })
+        .from(usersTable)
+        .where(inArray(usersTable.role, strategicRoles));
+
+      if (strategicUsers.length === 0) {
+        console.log("[STRATEGIC_UNLOCK_BOOT] Nenhuma conta estratégica encontrada.");
+        return;
+      }
+
+      let unlockedCount = 0;
+      for (const u of strategicUsers) {
+        // Always register in bypass set regardless of lock state
+        if (u.email) markEmailAsStrategic(u.email);
+
+        // Only modify DB if the account is actually locked or has failed attempts
+        if (!u.isLocked && (u.loginAttempts ?? 0) === 0) continue;
+
+        try {
+          await db
+            .update(usersTable)
+            .set({ isLocked: false, loginAttempts: 0 })
+            .where(eq(usersTable.id, u.id));
+
+          // Clear L2 auth_attempts for this user (rate limit reset)
+          await db
+            .delete(authAttempts)
+            .where(eq(authAttempts.userId, u.id));
+
+          unlockedCount++;
+          console.warn("[STRATEGIC_UNLOCK_BOOT]", {
+            userId: u.id,
+            role: u.role,
+            wasLocked: u.isLocked,
+            hadAttempts: u.loginAttempts,
+            active: u.active,
+            ts: new Date().toISOString(),
+          });
+        } catch (err: any) {
+          console.error("[STRATEGIC_UNLOCK_BOOT_FAIL]", {
+            userId: u.id,
+            role: u.role,
+            error: err?.message ?? String(err),
+          });
+        }
+      }
+
+      console.log("[STRATEGIC_UNLOCK_BOOT_DONE]", {
+        total: strategicUsers.length,
+        unlocked: unlockedCount,
+        bypassed: strategicUsers.filter(u => u.email).length,
+        ts: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      // Never throw — a DB error at boot must not prevent the server from starting
+      console.error("[STRATEGIC_UNLOCK_BOOT_ERROR]", err?.message ?? String(err));
+    }
   }
 
   /**

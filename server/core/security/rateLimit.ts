@@ -313,6 +313,37 @@ export function criticalActionLogger(
   next();
 }
 
+// ── Strategic account bypass ──────────────────────────────────────────────────
+//
+// MASTER / ADMIN / DIRECTOR / DEVELOPER accounts must NEVER be blocked by any
+// automated rate limiter. The auth service calls markEmailAsStrategic() once
+// it identifies a strategic role, ensuring all subsequent login attempts from
+// that email address bypass the combined IP+email limiter entirely.
+//
+// Audit is preserved — logSecurity() still fires even for bypassed emails.
+//
+const _strategicEmailLoginSet = new Set<string>();
+// Shared store for loginEmailIpLimiter — module-level so markEmailAsStrategic
+// can clear entries without needing access to the IIFE-scoped Map.
+const _loginEmailIpStore = new Map<string, RateWindow>();
+
+/**
+ * Mark an email as belonging to a strategic role (MASTER/ADMIN/DIRECTOR/DEVELOPER).
+ * - Adds to the bypass set (rate-limit middleware will skip counting).
+ * - Clears any active IP+email rate-limit windows for this email so a previously
+ *   rate-limited strategic account can log in immediately after being identified.
+ * Called by auth service in attemptAdminLogin.
+ */
+export function markEmailAsStrategic(email: string): void {
+  const key = (email ?? "").toLowerCase().trim();
+  if (!key) return;
+  _strategicEmailLoginSet.add(key);
+  // Remove all ip:email entries that match this email suffix
+  for (const k of _loginEmailIpStore.keys()) {
+    if (k.endsWith(`:${key}`)) _loginEmailIpStore.delete(k);
+  }
+}
+
 // ── IP + Email combined login limiter ─────────────────────────────────────────
 
 /**
@@ -323,9 +354,13 @@ export function criticalActionLogger(
  * IPs dentro de um proxy compartilhado / NAT.
  *
  * Janela: 15 min | Limite: 5 tentativas por combinação ip:email
+ *
+ * Bypass: contas estratégicas (MASTER/ADMIN/DIRECTOR/DEVELOPER) são
+ * identificadas pelo auth service e adicionadas ao _strategicEmailLoginSet —
+ * a partir desse momento nunca são bloqueadas por este limiter.
  */
 export const loginEmailIpLimiter = (function () {
-  const store = new Map<string, RateWindow>();
+  const store = _loginEmailIpStore; // shared module-level store
   const MAX = 5;
   const WINDOW_MS = 15 * 60_000;
 
@@ -348,6 +383,16 @@ export const loginEmailIpLimiter = (function () {
     ).toLowerCase().trim();
 
     if (!email) { next(); return; }
+
+    // STRATEGIC BYPASS: accounts identified as strategic role pass through
+    // without counting or blocking. Audit log preserved for tracking.
+    if (_strategicEmailLoginSet.has(email)) {
+      logSecurity(
+        `[SECURITY] STRATEGIC_BYPASS | ip=${ip} | email=${email} | path=${req.path} | requestId=${getRequestId(req)}`,
+      );
+      next();
+      return;
+    }
 
     const key = `${ip}:${email}`;
     const now = Date.now();
