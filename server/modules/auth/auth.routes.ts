@@ -3,7 +3,7 @@ import { asyncHandler } from "../../core/http/asyncHandler";
 import { authController } from "./auth.controller";
 // FASE 7 — IP-based brute-force guard on login (5 attempts / 5 min per IP).
 // Complements the per-account lockout in AuthService (MAX_ATTEMPTS=3).
-import { loginIpLimiter, loginEmailIpLimiter } from "../../core/security/rateLimit";
+import { loginIpLimiter, loginIpStrategicLimiter, loginEmailIpLimiter } from "../../core/security/rateLimit";
 // C3-FIX: revoke-sessions must require an authenticated session.
 import { requireAuth } from "../../core/http/requireAuth";
 
@@ -25,7 +25,7 @@ import { requireAuth } from "../../core/http/requireAuth";
  */
 const router = Router();
 
-router.post("/login", loginIpLimiter, loginEmailIpLimiter, asyncHandler(authController.login));
+router.post("/login", loginIpStrategicLimiter, loginEmailIpLimiter, asyncHandler(authController.login));
 router.get("/me", asyncHandler(authController.me));
 router.post("/logout", authController.logout);
 router.post("/forgot-password", loginIpLimiter, asyncHandler(authController.forgotPassword));

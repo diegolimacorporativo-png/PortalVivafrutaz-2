@@ -344,6 +344,82 @@ export function markEmailAsStrategic(email: string): void {
   }
 }
 
+// ── Strategic IP limiter (login route only) ───────────────────────────────────
+
+/**
+ * loginIpStrategicLimiter — drop-in replacement for loginIpLimiter on the
+ * POST /login route only.
+ *
+ * Identical IP-based throttle (IP_LOGIN_RATE_LIMIT config) but adds the
+ * strategic account bypass: if req.body.email is already in
+ * _strategicEmailLoginSet (populated by unlockStrategicAccounts() at boot
+ * and by markEmailAsStrategic() on first successful strategic login), the
+ * request is never counted or blocked.
+ *
+ * All other routes (forgot-password, reset-password, force-password-change)
+ * continue to use the plain loginIpLimiter — those flows don't need
+ * a bypass because strategic accounts use their known permanent password.
+ */
+export const loginIpStrategicLimiter = (function () {
+  const store = new Map<string, RateWindow>();
+  const { maxRequests, windowMs } = IP_LOGIN_RATE_LIMIT;
+  const message = `Muitas tentativas de login. Aguarde ${windowMs / 60_000} minutos e tente novamente.`;
+
+  const timer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, win] of store) {
+      if (now > win.resetAt) store.delete(key);
+    }
+  }, 5 * 60_000);
+  if (timer.unref) timer.unref();
+
+  return function loginIpStrategicLimiterMiddleware(
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void {
+    const ip = getClientIp(req);
+    const email = (
+      typeof req.body?.email === "string" ? req.body.email : ""
+    ).toLowerCase().trim();
+
+    // STRATEGIC BYPASS: emails registered at boot (MASTER/ADMIN/DIRECTOR/DEVELOPER)
+    // pass through without consuming from the IP window.
+    if (email && _strategicEmailLoginSet.has(email)) {
+      logSecurity(
+        `[SECURITY] STRATEGIC_BYPASS_IP | ip=${ip} | email=${email} | path=${req.path} | requestId=${getRequestId(req)}`,
+      );
+      next();
+      return;
+    }
+
+    const now = Date.now();
+    let win = store.get(ip);
+
+    if (!win || now > win.resetAt) {
+      store.set(ip, { count: 1, resetAt: now + windowMs });
+      next();
+      return;
+    }
+
+    win.count += 1;
+
+    if (win.count > maxRequests) {
+      const retryAfter = Math.ceil((win.resetAt - now) / 1000);
+      const rid = getRequestId(req);
+      logSecurity(
+        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${req.path} | requestId=${rid}`,
+      );
+      logSecurityEvent({ type: "RATE_LIMITED", ip, path: req.originalUrl, requestId: rid });
+      res.setHeader("Retry-After", String(retryAfter));
+      res.status(429).json({ message });
+      return;
+    }
+
+    next();
+  };
+})();
+
 // ── IP + Email combined login limiter ─────────────────────────────────────────
 
 /**

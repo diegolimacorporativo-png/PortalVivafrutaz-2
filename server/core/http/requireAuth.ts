@@ -63,9 +63,12 @@ export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
         /* fall through — treated as missing role */
       }
     }
+    // FULL_ACCESS_ROLES: strategic accounts bypass per-endpoint role requirements
+    // unless the endpoint uses strict mode. DEVELOPER added per HOTFIX protocol.
+    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'];
     const passes = opts?.strict
       ? (!!role && allowed.includes(role))
-      : (!!role && (['MASTER', 'ADMIN', 'DIRECTOR'].includes(role) || allowed.includes(role)));
+      : (!!role && (FULL_ACCESS_ROLES.includes(role) || allowed.includes(role)));
     if (!passes) {
       return next(new ForbiddenError("Sem permissão para esta operação"));
     }

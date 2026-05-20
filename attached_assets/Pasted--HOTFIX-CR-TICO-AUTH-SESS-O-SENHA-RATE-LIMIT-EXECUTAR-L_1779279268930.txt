@@ -1,0 +1,232 @@
+# HOTFIX CRÍTICO — AUTH + SESSÃO + SENHA + RATE LIMIT
+# EXECUTAR LENTO, CIRÚRGICO E SEM REFATORAÇÃO
+
+PROTOCOLO:
+AUDITORIA → MAPEAMENTO → HOTFIX → TESTES → RELATÓRIO
+
+NÃO ALTERAR:
+- core fiscal
+- tpAmb
+- homologação
+- workers
+- multi-tenant
+- Supabase
+- emissão NF-e
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir DEFINITIVAMENTE:
+
+1. senha estratégica não funcionando
+2. sessão inválida / 401 Não autenticado
+3. “Sem permissão” em pré-nota
+4. lock/cooldown atrapalhando operação
+5. inconsistência RBAC
+6. sessão perdida após restart
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+CONTAS:
+MASTER
+ADMIN
+DIRECTOR
+DEVELOPER
+
+NUNCA podem:
+- bloquear
+- entrar em cooldown
+- sofrer rate limit
+- sofrer lockout automático
+
+Senha definitiva obrigatória:
+VivaFrutaz@2026!
+
+NÃO usar senha temporária.
+NÃO gerar senha randômica.
+NÃO pedir reset por email.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA AUTH
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar completamente:
+
+- auth.service.ts
+- session middleware
+- login routes
+- cookie/session config
+- passport/session serialize
+- RBAC
+- permission middleware
+- pre-nota route
+- emissão NF-e route
+- strategic bypass
+- rateLimit.ts
+- loginIpLimiter
+- loginEmailIpLimiter
+- auth_attempts
+- users.is_locked
+- users.active
+
+Mapear:
+- por que ocorre 401 Não autenticado
+- por que ocorre “Sem permissão”
+- por que senha não autentica
+- por que sessão perde persistência
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — SENHA DEFINITIVA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Aplicar DEFINITIVAMENTE:
+
+Senha:
+VivaFrutaz@2026!
+
+Para contas:
+- MASTER
+- ADMIN
+- DIRECTOR
+- DEVELOPER
+
+Validar:
+- hash correto
+- bcrypt correto
+- login real funcionando
+- persistência após restart
+
+PROIBIDO:
+- senha temporária
+- reset token
+- email reset
+- senha randômica
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — DESBLOQUEIO DEFINITIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- users.is_locked = false
+- failed attempts resetadas
+- auth_attempts removidas
+- cooldown removido
+- bypass permanente
+
+MASTER/ADMIN/DIRECTOR/DEV:
+- nunca bloqueiam
+- nunca entram em timeout
+- nunca sofrem rate limit
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — RATE LIMIT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Remover completamente cooldown de 5 minutos
+APENAS para contas estratégicas.
+
+Manter proteção para usuários comuns.
+
+Implementar:
+- bypass por role
+OU
+- bypass por email estratégico
+
+Garantir:
+- zero espera para login estratégico
+- sem bloquear operação interna
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — CORREÇÃO 401
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir definitivamente:
+
+Erro:
+401 {"error":"Não autenticado"}
+
+Auditar:
+- cookie
+- session store
+- secure cookies
+- sameSite
+- session persistence
+- req.user
+- req.session
+- deserializeUser
+- auth middleware
+
+Validar:
+- login
+- refresh
+- restart workflow
+- emissão NF-e
+- geração pré-nota
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — CORREÇÃO “SEM PERMISSÃO”
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir RBAC/pre-nota.
+
+MASTER/ADMIN/DIRECTOR devem:
+- gerar pré-nota
+- emitir NF-e homologação
+- validar NF-e
+- exportar XML
+- acessar pedidos
+
+Auditar:
+- middleware role
+- permission checks
+- tenant validation
+- empresa_id
+- ownership validation
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — TESTES REAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS:
+
+T1 login MASTER
+T2 login ADMIN
+T3 refresh página
+T4 restart workflow
+T5 emitir NF-e homologação
+T6 gerar pré-nota
+T7 validar NF-e
+T8 exportar XML
+T9 múltiplos logins sem cooldown
+T10 tentativas erradas não bloqueiam estratégico
+
+Validar:
+- sem 401
+- sem “Sem permissão”
+- sem lockout
+- sem cooldown
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório completo:
+
+- arquivos alterados
+- root cause
+- senha aplicada
+- lockouts removidos
+- RBAC corrigido
+- sessão corrigida
+- endpoints corrigidos
+- testes executados
+
+Confirmar explicitamente:
+
+“MASTER/ADMIN/DIRECTOR/DEV agora possuem bypass permanente de lockout e cooldown. A senha VivaFrutaz@2026! está aplicada definitivamente e validada em login real.”
+
+EXECUTAR AGORA.
