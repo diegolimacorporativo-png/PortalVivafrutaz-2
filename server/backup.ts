@@ -6,6 +6,7 @@ import { db } from "./database/db";
 import { logSecurity } from "./core/security/securityLogger";
 import { registerJob, startJobRun, finishJobRun } from "./core/jobs/job-registry";
 import { incJobFailures } from "./core/observability/metrics";
+import { runBackupStoragePipeline, ensureStorageBucket, backupMonitorStatus } from "./backup-storage.service";
 
 const BACKUP_JOB = "backup-daily";
 registerJob(BACKUP_JOB);
@@ -189,6 +190,12 @@ export async function runBackup(): Promise<string> {
 
   fs.writeFileSync(filepath, JSON.stringify(backup, null, 2), "utf-8");
   const sizeMb = (fs.statSync(filepath).size / 1024 / 1024).toFixed(2);
+
+  // BACKUP PERSISTENTE — upload para Supabase Storage após escrita local
+  runBackupStoragePipeline(filepath, filename, "scheduled").catch(e =>
+    console.error("[BACKUP_STORAGE_PIPELINE_FAIL]", e?.message)
+  );
+
   rotateBackups();
   return filename;
 }
@@ -243,6 +250,12 @@ export async function runBackupSQL(): Promise<string> {
 
   fs.writeFileSync(filepath, sqlContent, "utf-8");
   const sizeMb = (fs.statSync(filepath).size / 1024 / 1024).toFixed(2);
+
+  // BACKUP PERSISTENTE — upload para Supabase Storage após escrita local
+  runBackupStoragePipeline(filepath, filename, "scheduled").catch(e =>
+    console.error("[BACKUP_STORAGE_PIPELINE_FAIL]", e?.message)
+  );
+
   rotateBackups();
   return filename;
 }

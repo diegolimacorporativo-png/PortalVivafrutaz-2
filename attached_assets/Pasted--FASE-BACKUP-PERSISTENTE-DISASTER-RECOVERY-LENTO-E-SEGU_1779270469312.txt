@@ -1,0 +1,272 @@
+# FASE — BACKUP PERSISTENTE + DISASTER RECOVERY (LENTO E SEGURO)
+
+EXECUTAR RIGOROSAMENTE NO PROTOCOLO:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → RELATÓRIO
+
+SEM refatoração massiva.
+SEM alterar arquitetura principal.
+SEM tocar no core fiscal.
+SEM alterar homologação.
+SEM ativar produção fiscal.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema opera EXCLUSIVAMENTE:
+
+- Supabase PostgreSQL 17
+- SUPABASE_DATABASE_URL
+- tpAmb=2
+- NFE_SEFAZ_MODE=homologacao
+
+PROIBIDO:
+- DATABASE_URL
+- heliumdb
+- sqlite
+- fallback local
+- tpAmb=1
+- produção SEFAZ
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Eliminar o MAIOR risco operacional restante:
+
+BACKUP EFÊMERO LOCAL.
+
+Implementar:
+- backup persistente
+- disaster recovery básico
+- retenção segura
+- validação de integridade
+- restore auditável
+
+SEM quebrar o backup atual.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+- backup.ts
+- cron backup
+- local de armazenamento
+- retenção atual
+- restore planner
+- export JSON
+- export SQL
+- arquivos gerados
+- tamanho médio
+- uso de filesystem
+- uso de temp
+- restore workflow
+- cleanup workflow
+
+Validar:
+- nenhum backup corrompido
+- nenhum delete perigoso
+- nenhum overwrite silencioso
+- nenhuma dependência de disco efêmero
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — MAPEAMENTO STORAGE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Preparar integração com:
+
+SUPABASE STORAGE
+
+Criar bucket:
+
+erp-backups
+
+Regras:
+- privado
+- sem acesso público
+- versionado se possível
+- uploads auditáveis
+
+PROIBIDO:
+- bucket público
+- URL pública
+- exposure de backup
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — UPLOAD PERSISTENTE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Após backup local:
+
+Fazer upload automático para Supabase Storage.
+
+Fluxo obrigatório:
+
+1. gerar backup local
+2. validar integridade
+3. calcular hash SHA256
+4. upload Supabase Storage
+5. validar upload
+6. registrar metadata
+7. só então cleanup local
+
+Logs obrigatórios:
+
+[BACKUP_START]
+[BACKUP_LOCAL_OK]
+[BACKUP_HASH_OK]
+[BACKUP_UPLOAD_OK]
+[BACKUP_VERIFY_OK]
+[BACKUP_CLEANUP]
+[BACKUP_FAILED]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — TABELA DE METADATA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar tabela:
+
+backup_history
+
+Campos:
+
+- id
+- created_at
+- filename
+- size_bytes
+- sha256
+- storage_provider
+- storage_path
+- upload_status
+- verify_status
+- retention_until
+- created_by
+- environment
+- restore_tested
+- notes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — FAIL SAFETY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- nunca deletar backup sem upload validado
+- nunca sobrescrever backup
+- nunca apagar último backup válido
+- nunca limpar local sem hash OK
+- nunca marcar sucesso sem verify
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — RESTORE SAFE MODE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar endpoint READ ONLY:
+
+GET /api/admin/backups
+
+Retornar:
+- backups disponíveis
+- tamanho
+- hash
+- status
+- retention
+- restore_tested
+
+Criar endpoint DRY RUN:
+
+POST /api/admin/backups/:id/restore-check
+
+NÃO restaurar de verdade.
+APENAS validar:
+- integridade
+- presença
+- parse
+- estrutura
+
+PROIBIDO:
+- restore automático
+- overwrite banco
+- restore real
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — MONITORAMENTO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar monitoramento:
+
+- último backup
+- tempo desde último backup
+- falhas consecutivas
+- upload pendente
+- storage indisponível
+
+Logs:
+
+[BACKUP_MONITOR]
+[BACKUP_ALERT]
+[BACKUP_STORAGE_UNAVAILABLE]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — TESTES CONTROLADOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS:
+
+Simular:
+- falha upload
+- arquivo corrompido
+- storage offline
+- hash inválido
+- cleanup interrompido
+
+Validar:
+- backup local preservado
+- upload retry
+- logs corretos
+- metadata consistente
+- nenhum backup perdido
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- arquivos alterados
+- bucket criado
+- metadata criada
+- logs adicionados
+- fluxos protegidos
+- testes executados
+- riscos restantes
+- retenção configurada
+- confirmação:
+
+“BACKUP NÃO DEPENDE MAIS DE STORAGE EFÊMERO”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- ativar produção fiscal
+- alterar tpAmb
+- tocar emissão NF-e
+- remover backup atual
+- sobrescrever backups
+- usar bucket público
+- quebrar restore planner
+- remover logs
+
+Mudanças:
+- mínimas
+- reversíveis
+- auditáveis
+- seguras
+- graduais
+
+EXECUTAR AGORA.

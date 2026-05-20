@@ -1,7 +1,10 @@
 import { defineConfig } from "drizzle-kit";
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL, ensure the database is provisioned");
+// Prefer SUPABASE_DATABASE_URL (production Supabase) over DATABASE_URL (Replit local).
+// This ensures db:push targets the correct database.
+const dbUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+if (!dbUrl) {
+  throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL must be set");
 }
 
 export default defineConfig({
@@ -9,6 +12,7 @@ export default defineConfig({
   schema: "./shared/schema.ts",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    url: dbUrl,
+    ssl: !!process.env.SUPABASE_DATABASE_URL,
   },
 });

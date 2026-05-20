@@ -14,6 +14,7 @@ import { pool } from "./database/db";
 import { sql } from "drizzle-orm";
 import { db } from "./database/db";
 import { assertFiscalBootSafe, startFiscalRuntimeMonitor } from "./core/fiscal/homologation.guard";
+import { ensureStorageBucket, backupMonitorStatus } from "./backup-storage.service";
 
 dotenv.config();
 
@@ -168,6 +169,10 @@ process.on("uncaughtException", (err: Error) => {
   startProactiveAlertsScheduler();
   initSchedulers();
   scheduleBackups();
+
+  // BACKUP PERSISTENTE — inicializa bucket Supabase e status do monitor.
+  ensureStorageBucket().catch(e => console.warn("[BACKUP_STORAGE_INIT_FAIL]", e?.message));
+  backupMonitorStatus().catch(e => console.warn("[BACKUP_MONITOR_INIT_FAIL]", e?.message));
 
   // Memory monitoring — log [MEMORY_WARNING] when RSS exceeds 1 GB.
   // RSS is the real OS-level memory consumption; heapPct is misleading because

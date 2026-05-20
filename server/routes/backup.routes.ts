@@ -17,6 +17,11 @@ import {
   releaseRestoreLock,
   getRestoreLockState,
 } from "../backup";
+import {
+  listBackupHistory,
+  backupMonitorStatus,
+  storageAvailable,
+} from "../backup-storage.service";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 import { requireRole } from "../core/http/requireAuth";
 import { logSecurity } from "../core/security/securityLogger";
@@ -34,6 +39,86 @@ async function auditLog(req: any, action: string, description: string, level: st
 }
 
 export async function register(app: Express): Promise<void> {
+
+  // ── Backup History (persistente, banco de dados) ──────────────
+  app.get('/api/admin/backups/history', requireSessionOrCompany, requireRole(BACKUP_ROLES), async (_req, res) => {
+    try {
+      const rows = await listBackupHistory(100);
+      res.json({ success: true, data: rows, storageConfigured: storageAvailable() });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message ?? "Erro ao listar histórico" });
+    }
+  });
+
+  // ── Backup Monitor ────────────────────────────────────────────
+  app.get('/api/admin/backups/monitor', requireSessionOrCompany, requireRole(BACKUP_ROLES), async (_req, res) => {
+    try {
+      const status = await backupMonitorStatus();
+      res.json({ success: true, data: status });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err?.message ?? "Erro no monitor" });
+    }
+  });
+
+  // ── Restore Check (dry-run por ID do histórico) ───────────────
+  // Valida integridade e estrutura sem tocar no banco.
+  // NÃO faz restore real. NÃO sobrescreve dados.
+  app.post('/api/admin/backups/:id/restore-check', requireSessionOrCompany, requireRole(MASTER_ONLY), async (req: any, res) => {
+    const { id } = req.params;
+    const corrId = `restore-check-${Date.now()}`;
+
+    const rows = await listBackupHistory(200);
+    const record = rows.find(r => String(r.id) === String(id));
+    if (!record) {
+      return res.status(404).json({ success: false, message: `Backup ID ${id} não encontrado no histórico.` });
+    }
+
+    if (!acquireRestoreLock(corrId)) {
+      const lockState = getRestoreLockState();
+      return res.status(409).json({
+        success: false,
+        message: `Restore em andamento (correlationId: ${lockState.holder}). Aguarde antes de iniciar outro.`,
+      });
+    }
+
+    if (!startJobRun("restore-dry-run")) {
+      releaseRestoreLock(corrId);
+      return res.status(409).json({ success: false, message: "Job restore-dry-run já em execução." });
+    }
+
+    try {
+      logSecurity(`[RESTORE_CHECK] started | id=${id} | file=${record.filename} | correlationId=${corrId}`);
+
+      // Validação de integridade + estrutura (sandbox)
+      const sandbox = restoreSandbox(record.filename);
+      // Análise de conflitos com banco atual (dry-run)
+      const dryRun = await restoreDryRun(record.filename);
+
+      await auditLog(req, 'RESTORE_CHECK', `Restore-check id=${id} arquivo=${record.filename} — risco=${dryRun.riskLevel}`, 'INFO');
+      finishJobRun("restore-dry-run", true);
+
+      res.json({
+        success: true,
+        data: {
+          record,
+          sandbox,
+          dryRun,
+          verdict: dryRun.riskLevel === "LOW" && sandbox.safeToSimulate
+            ? "SAFE_TO_RESTORE"
+            : dryRun.riskLevel === "CRITICAL"
+            ? "BLOCKED"
+            : "REVIEW_REQUIRED",
+        },
+      });
+    } catch (err: any) {
+      logSecurity(`[RESTORE_CHECK] error | id=${id} | correlationId=${corrId} | err=${err?.message}`);
+      finishJobRun("restore-dry-run", false, err?.message);
+      incJobFailures();
+      res.status(500).json({ success: false, message: err?.message ?? "Erro no restore-check" });
+    } finally {
+      releaseRestoreLock(corrId);
+    }
+  });
 
   // ── List & Stats ─────────────────────────────────────────────
   app.get('/api/admin/backups', requireSessionOrCompany, requireRole(BACKUP_ROLES), async (_req, res) => {

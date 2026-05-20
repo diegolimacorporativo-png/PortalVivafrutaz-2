@@ -2069,6 +2069,31 @@ export const authAttempts = pgTable("auth_attempts", {
 }));
 export type AuthAttempt = typeof authAttempts.$inferSelect;
 
+// ─── Backup History ────────────────────────────────────────────
+// Metadata persistente de todos os backups gerados (local + cloud).
+// storageProvider: "local" | "supabase"
+// uploadStatus / verifyStatus: "pending" | "ok" | "failed" | "skipped"
+export const backupHistory = pgTable("backup_history", {
+  id: serial("id").primaryKey(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  filename: text("filename").notNull(),
+  sizeBytes: integer("size_bytes").notNull(),
+  sha256: text("sha256").notNull(),
+  storageProvider: text("storage_provider").notNull().default("local"),
+  storagePath: text("storage_path"),
+  uploadStatus: text("upload_status").notNull().default("pending"),
+  verifyStatus: text("verify_status").notNull().default("pending"),
+  retentionUntil: timestamp("retention_until"),
+  createdBy: text("created_by").notNull().default("system"),
+  environment: text("environment").notNull().default("development"),
+  restoreTested: boolean("restore_tested").notNull().default(false),
+  notes: text("notes"),
+});
+
+export const insertBackupHistorySchema = createInsertSchema(backupHistory).omit({ id: true, createdAt: true });
+export type InsertBackupHistory = z.infer<typeof insertBackupHistorySchema>;
+export type BackupHistory = typeof backupHistory.$inferSelect;
+
 export function validateSchemaIntegrity(): void {
   const tables = [
     users,
@@ -2168,6 +2193,7 @@ export function validateSchemaIntegrity(): void {
     authAttempts,
     accountsPayable,
     accountsReceivable,
+    backupHistory,
   ];
 
   if (!tables.length) {
