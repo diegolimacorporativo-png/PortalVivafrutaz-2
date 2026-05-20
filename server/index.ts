@@ -15,6 +15,11 @@ import { sql } from "drizzle-orm";
 import { db } from "./database/db";
 import { assertFiscalBootSafe, startFiscalRuntimeMonitor } from "./core/fiscal/homologation.guard";
 import { ensureStorageBucket, backupMonitorStatus } from "./backup-storage.service";
+import {
+  startOperationalMonitor,
+  alertUncaughtException,
+  alertUnhandledRejection,
+} from "./core/alerts/operational-alerts.service";
 
 dotenv.config();
 
@@ -99,12 +104,14 @@ async function recoverStuckNFes(): Promise<void> {
 // Logs structured info WITHOUT crashing for unhandledRejection (recoverable);
 // flushes logs and exits for uncaughtException (process state is undefined).
 process.on("unhandledRejection", (reason: unknown) => {
+  const msg = reason instanceof Error ? reason.message : String(reason);
   console.error("[UNHANDLED_REJECTION]", {
-    reason: reason instanceof Error ? reason.message : String(reason),
+    reason: msg,
     stack: reason instanceof Error ? reason.stack : undefined,
     uptime: process.uptime().toFixed(1),
     env: _env,
   });
+  try { alertUnhandledRejection(msg); } catch {}
 });
 
 process.on("uncaughtException", (err: Error) => {
@@ -114,6 +121,7 @@ process.on("uncaughtException", (err: Error) => {
     uptime: process.uptime().toFixed(1),
     env: _env,
   });
+  try { alertUncaughtException(err.message); } catch {}
   // uncaughtException leaves the process in an undefined state — exit safely.
   process.exit(1);
 });
@@ -173,6 +181,10 @@ process.on("uncaughtException", (err: Error) => {
   // BACKUP PERSISTENTE — inicializa bucket Supabase e status do monitor.
   ensureStorageBucket().catch(e => console.warn("[BACKUP_STORAGE_INIT_FAIL]", e?.message));
   backupMonitorStatus().catch(e => console.warn("[BACKUP_MONITOR_INIT_FAIL]", e?.message));
+
+  // ALERTAS OPERACIONAIS — probe periódico a cada 60s: DB, fila, memória,
+  // circuit breaker, workers, backup. Dedup + cooldown em memória.
+  startOperationalMonitor(60_000);
 
   // Memory monitoring — log [MEMORY_WARNING] when RSS exceeds 1 GB.
   // RSS is the real OS-level memory consumption; heapPct is misleading because

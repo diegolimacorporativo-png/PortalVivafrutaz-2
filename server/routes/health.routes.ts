@@ -6,6 +6,7 @@ import { logSecurityEvent } from "../core/security/securityLogger";
 import { pool } from "../database/db";
 import fs from "fs";
 import path from "path";
+import { alertReadinessFail } from "../core/alerts/operational-alerts.service";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 let healthTestRunning = false;
@@ -135,6 +136,11 @@ export async function register(app: Express): Promise<void> {
         env: _env,
         ts: new Date().toISOString(),
       });
+      try {
+        alertReadinessFail({ postgres: dbCheck.ok, xsd: xsdCheck.ok, memory: memCheck.ok, filesystem: fsCheck.ok });
+      } catch {}
+    } else {
+      try { alertReadinessFail({ postgres: true, xsd: true, memory: true, filesystem: true }); } catch {}
     }
 
     res.status(httpStatus).json({

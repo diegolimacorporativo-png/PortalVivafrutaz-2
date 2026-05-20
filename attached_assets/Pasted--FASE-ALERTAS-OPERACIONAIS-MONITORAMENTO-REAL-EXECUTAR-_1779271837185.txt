@@ -1,0 +1,266 @@
+# FASE — ALERTAS OPERACIONAIS + MONITORAMENTO REAL
+# EXECUTAR LENTO, CIRÚRGICO E SEM REFATORAÇÃO
+
+PROTOCOLO OBRIGATÓRIO:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → RELATÓRIO
+
+NÃO alterar:
+- arquitetura principal
+- core fiscal
+- tpAmb
+- homologação
+- fluxo NF-e
+- multi-tenant
+- auth
+- workers
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO FIXO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema deve permanecer:
+
+- Supabase PostgreSQL 17
+- SUPABASE_DATABASE_URL
+- tpAmb=2
+- NFE_SEFAZ_MODE=homologacao
+- SEM produção fiscal
+
+PROIBIDO:
+- tpAmb=1
+- produção SEFAZ
+- fallback Replit DB
+- DATABASE_URL
+- sqlite
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Transformar o sistema em:
+- operacionalmente monitorável
+- auto-alertável
+- previsível
+- auditável em tempo real
+
+SEM adicionar complexidade desnecessária.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar completamente:
+
+- logs estruturados
+- system-status.routes.ts
+- health.routes.ts
+- backup monitor
+- queue monitor
+- workers
+- circuit breaker
+- postgres pool
+- memory monitor
+- event loop monitor
+- alert services existentes
+- cron jobs
+- observability/*
+- analytics worker
+
+Mapear:
+- quais alertas já existem
+- quais são falsos positivos
+- quais riscos ainda não geram alerta
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — MATRIZ DE ALERTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar matriz operacional:
+
+EVENTO → SEVERIDADE → AÇÃO
+
+Obrigatórios:
+
+- postgres latency > 1000ms
+- postgres unavailable
+- heap rss > 1GB
+- event loop lag > 100ms
+- outbox backlog > 100
+- backup > 26h sem sucesso
+- 3 falhas consecutivas backup
+- worker parado
+- circuit breaker OPEN
+- NF-es travadas > threshold
+- restore-check FAILED
+- storage upload FAILED
+- readiness FAIL
+- unhandledRejection
+- uncaughtException
+
+Classificar:
+INFO / WARN / ERROR / CRITICAL
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — ALERT ENGINE CENTRAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar serviço central:
+
+server/core/alerts/operational-alerts.service.ts
+
+Responsabilidades:
+- deduplicação
+- cooldown
+- severity
+- correlationId
+- throttle
+- agrupamento
+- emissão estruturada
+
+PROIBIDO:
+- spam de logs
+- alert loop
+- flood
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — DEDUP + COOLDOWN
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar:
+
+- mesmo alerta não pode disparar infinitamente
+- cooldown padrão: 15 min
+- CRITICAL: repetir a cada 5 min
+- INFO: máximo 1/h
+
+Persistir em memória:
+- active alerts
+- last emit
+- occurrences
+
+Logs:
+[ALERT_EMIT]
+[ALERT_SUPPRESSED]
+[ALERT_RESOLVED]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — INTEGRAÇÃO COM SISTEMA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Integrar alert engine com:
+
+- backup monitor
+- system-status
+- healthcheck
+- workers
+- postgres probe
+- queue monitor
+- circuit breaker
+- runtime fiscal monitor
+- memory warning
+- event loop warning
+
+SEM quebrar logs existentes.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — ENDPOINT OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar endpoint:
+
+GET /api/admin/operational-alerts
+
+Acesso:
+MASTER | ADMIN | DIRECTOR
+
+Retornar:
+- alertas ativos
+- severidade
+- tempo ativo
+- occurrences
+- resolvedAt
+- correlationId
+
+READ ONLY.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — AUTO-RESOLUTION
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Quando problema normalizar:
+
+Emitir:
+[ALERT_RESOLVED]
+
+Exemplos:
+- postgres voltou
+- backup voltou
+- heap normalizou
+- queue esvaziou
+- circuit breaker fechou
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — TESTES CONTROLADOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Simular:
+
+- postgres timeout
+- backup fail
+- queue backlog
+- worker stop
+- circuit breaker open
+- heap warning
+- event loop lag
+- repeated same alert
+
+Validar:
+- dedup funciona
+- cooldown funciona
+- resolve funciona
+- sem flood
+- sem memory leak
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório completo:
+
+- arquivos alterados
+- alertas implementados
+- severidades
+- cooldowns
+- deduplicação
+- endpoints
+- testes
+- riscos restantes
+
+Confirmar:
+
+“O sistema agora possui monitoramento operacional ativo com deduplicação, cooldown e resolução automática.”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- ativar produção fiscal
+- alterar tpAmb
+- tocar emissão real
+- remover logs
+- criar polling agressivo
+- adicionar Redis
+- adicionar Kafka
+- adicionar serviços externos
+- criar arquitetura nova
+
+Mudanças:
+- pequenas
+- auditáveis
+- reversíveis
+- seguras
+- sem refatoração massiva
+
+EXECUTAR AGORA.

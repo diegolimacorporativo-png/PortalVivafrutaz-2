@@ -108,7 +108,7 @@ let _monitorInterval: ReturnType<typeof setInterval> | null = null;
 export function startFiscalRuntimeMonitor(intervalMs = 300_000): void {
   if (_monitorInterval) return;
 
-  _monitorInterval = setInterval(() => {
+  _monitorInterval = setInterval(async () => {
     const mode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
     const isProducao = mode === 'production';
 
@@ -119,6 +119,10 @@ export function startFiscalRuntimeMonitor(intervalMs = 300_000): void {
         pid: _pid,
         ts: _ts(),
       });
+      try {
+        const { alertFiscalProduction } = await import('../alerts/operational-alerts.service');
+        alertFiscalProduction('fiscal-runtime-monitor');
+      } catch {}
     } else {
       console.log('[FISCAL_RUNTIME_CHECK]', {
         NFE_SEFAZ_MODE: mode,

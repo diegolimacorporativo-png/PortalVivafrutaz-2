@@ -16,6 +16,7 @@ import { sql } from "drizzle-orm";
 import { performance } from "perf_hooks";
 import { getJobRegistry } from "../core/jobs/job-registry";
 import { getCircuitState } from "../services/nfe/sefazCircuitBreaker";
+import { alertEventLoopLag, emitAlert, resolveAlert } from "../core/alerts/operational-alerts.service";
 
 const _bootAt = Date.now();
 
@@ -37,6 +38,17 @@ async function measurePostgresLatency(): Promise<{ ok: boolean; latencyMs: numbe
     const latencyMs = parseFloat((performance.now() - t0).toFixed(2));
     if (latencyMs > 1000) {
       console.warn("[DB_LATENCY_WARN]", { latencyMs, ts: new Date().toISOString() });
+      try {
+        emitAlert(
+          "postgres.latency.high",
+          latencyMs > 3000 ? "CRITICAL" : "WARN",
+          "Latência PostgreSQL alta",
+          `Supabase respondeu em ${latencyMs.toFixed(0)}ms (threshold: 1000ms)`,
+          { latencyMs: Math.round(latencyMs), source: "system-status" },
+        );
+      } catch {}
+    } else {
+      try { resolveAlert("postgres.latency.high", `latência OK: ${latencyMs.toFixed(0)}ms`); } catch {}
     }
     return { ok: true, latencyMs, message: "OK" };
   } catch (err) {
@@ -171,6 +183,7 @@ export function register(app: Express): void {
       if (evtLoopLag > 100) {
         console.warn("[EVENT_LOOP_LAG]", { lagMs: evtLoopLag, uptime: uptimeSec, ts: payload.ts });
       }
+      try { alertEventLoopLag(evtLoopLag); } catch {}
 
       res.status(200).json({ success: true, data: payload });
     },
