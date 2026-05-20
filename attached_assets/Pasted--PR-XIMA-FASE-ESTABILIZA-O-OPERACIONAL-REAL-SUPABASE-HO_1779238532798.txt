@@ -1,0 +1,252 @@
+# PRÓXIMA FASE — ESTABILIZAÇÃO OPERACIONAL REAL (SUPABASE + HOMOLOGAÇÃO)
+
+Executar seguindo RIGOROSAMENTE:
+
+AUDITORIA → TESTE → CORREÇÃO CIRÚRGICA → VALIDAÇÃO → RELATÓRIO
+
+SEM criar novas features.
+SEM dashboards novos.
+SEM gráficos.
+SEM arquitetura nova.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema AGORA opera EXCLUSIVAMENTE no:
+
+SUPABASE REAL
+(PostgreSQL 17)
+
+Connection:
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- Replit DB
+- DATABASE_URL local
+- sqlite
+- fallback
+- dual database
+- persistência híbrida
+
+VALIDAR no runtime:
+SELECT current_database();
+SELECT version();
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRA FISCAL ABSOLUTA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Continuar EXCLUSIVAMENTE em:
+
+tpAmb = 2 (HOMOLOGAÇÃO)
+
+Todas as NF-es:
+“SEM VALOR FISCAL”
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal
+- emissão válida
+- remover homologação
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO REAL DA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir que o ERP suporte OPERAÇÃO CONTÍNUA REAL em homologação com:
+
+✅ estabilidade
+✅ rastreabilidade
+✅ recovery
+✅ multi-tenant seguro
+✅ persistência íntegra
+✅ emissão consistente
+✅ UX operacional segura
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+- pool postgres
+- conexões Supabase
+- retry system
+- circuit breaker
+- advisory locks
+- idempotência
+- recovery
+- persistência XML
+- persistência protocolo
+- filas/workers
+- polling frontend
+- queries pesadas
+- logs estruturados
+- multi-tenant filters
+
+Validar:
+- nenhum fallback local
+- nenhuma query sem tenant
+- nenhum bypass
+- nenhuma emissão produção
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — TESTE OPERACIONAL REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar emissão REAL em homologação:
+
+TESTES:
+1. 5 emissões sequenciais
+2. 3 emissões simultâneas
+3. retry controlado
+4. timeout controlado
+5. rejeição controlada
+6. recovery controlado
+
+Validar:
+- locks liberam
+- XML persiste
+- SOAP persiste
+- protocolo persiste
+- status consistente
+- sem duplicidade
+- sem deadlock
+- sem race condition
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — AUDITORIA MULTI-TENANT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+
+- isolamento tenant
+- queries filtradas
+- locks por tenant
+- recovery isolado
+- dashboard isolado
+- acesso cruzado impossível
+
+Executar testes reais.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — AUDITORIA SUPABASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+
+- índices
+- constraints
+- performance
+- locks órfãos
+- conexões abertas
+- slow queries
+- duplicidade
+- XML órfão
+- protocolo órfão
+
+Validar:
+- zero chave duplicada
+- zero protocolo perdido
+- zero XML perdido
+- zero advisory lock preso
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — UX OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar fluxo ERP real:
+
+- loading states
+- double click protection
+- feedback erro SEFAZ
+- atualização tempo real
+- status visual
+- retry visual
+- recovery visual
+- mensagens operacionais
+
+Corrigir SOMENTE:
+- bugs reais
+- inconsistências
+- travamentos
+- race conditions
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — CONTINUOUS_SCAN
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Investigar:
+[AUDIT] CONTINUOUS_SCAN severity=HIGH
+
+OBRIGATÓRIO:
+READ ONLY primeiro.
+
+Identificar:
+- origem exata
+- módulo
+- regra
+- falso positivo ou real
+- impacto real
+- risco operacional
+
+PROIBIDO:
+- sair corrigindo cegamente
+- alterar segurança sem auditoria
+- refatorar sistema inteiro
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — HARDENING CIRÚRGICO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Aplicar APENAS:
+- correções mínimas
+- fixes operacionais
+- melhorias estabilidade
+- melhorias rastreabilidade
+
+PROIBIDO:
+- novas features cosméticas
+- novas páginas
+- novos dashboards
+- novas arquiteturas
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- testes executados
+- throughput homologação
+- tempos médios
+- locks
+- retries
+- recovery
+- integridade Supabase
+- riscos encontrados
+- fixes aplicados
+- readiness operacional
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# RESULTADO ESPERADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ao final o sistema deve estar:
+
+✅ estável operacionalmente
+✅ pronto para operação interna contínua
+✅ resiliente
+✅ auditável
+✅ rastreável
+✅ multi-tenant seguro
+✅ sem perda fiscal
+✅ sem duplicidade
+
+AINDA:
+❌ SEM produção fiscal
+❌ SEM tpAmb=1
+❌ SEM validade fiscal
+
+EXECUTAR AGORA.

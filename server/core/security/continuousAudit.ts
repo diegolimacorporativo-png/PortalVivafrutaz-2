@@ -48,18 +48,20 @@ async function scanForUnprotectedEndpoints(): Promise<AuditFinding[]> {
 }
 
 async function scanForSchemaRisks(): Promise<AuditFinding[]> {
+  // This system uses empresa_id (42 tables), company_id (25 tables), and tenant_id (4 tables)
+  // as tenant isolation columns. Count ALL variants to accurately assess coverage.
   const result = await db.execute(sql`
     SELECT COUNT(*)::int AS count
     FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND column_name = 'tenant_id'
+      AND column_name IN ('tenant_id', 'empresa_id', 'company_id')
   `);
   const tenantColumns = Number((result.rows?.[0] as any)?.count ?? 0);
   if (tenantColumns < 5) {
     return [
       {
         title: "Tenant coverage incomplete",
-        message: "Some public tables may still lack tenant_id coverage for strict isolation checks.",
+        message: "Some public tables may still lack tenant isolation column coverage (empresa_id / company_id / tenant_id).",
         severity: "HIGH",
         type: "AUDIT_SCHEMA_TENANT_COVERAGE",
         actionsTriggered: ["review_schema_only"],
@@ -74,17 +76,26 @@ async function scanForDuplicateLogic(): Promise<AuditFinding[]> {
 }
 
 async function scanForMultiTenantRisk(): Promise<AuditFinding[]> {
+  // Exclude system/audit alert types that are intentionally global (not tenant-scoped by design).
+  // Counting them would create a self-referential loop: this scan creates AUDIT_* alerts with
+  // tenant_id=NULL, which the next scan sees, generating more AUDIT_GLOBAL_ALERTS indefinitely.
+  const SYSTEM_TYPES = [
+    'AUDIT_SCHEMA_TENANT_COVERAGE',
+    'AUDIT_GLOBAL_ALERTS',
+    'SECURITY_THREAT',
+  ];
   const result = await db.execute(sql`
     SELECT COUNT(*)::int AS count
     FROM system_alerts
     WHERE tenant_id IS NULL
+      AND type NOT IN (${sql.join(SYSTEM_TYPES.map(t => sql`${t}`), sql`, `)})
   `);
   const globalAlerts = Number((result.rows?.[0] as any)?.count ?? 0);
   if (globalAlerts > 0) {
     return [
       {
         title: "Global alerts present",
-        message: `${globalAlerts} system alerts are not tenant-scoped and should be reviewed manually.`,
+        message: `${globalAlerts} business alerts are not tenant-scoped and should be reviewed manually.`,
         severity: "MEDIUM",
         type: "AUDIT_GLOBAL_ALERTS",
         actionsTriggered: ["review_manual_only"],

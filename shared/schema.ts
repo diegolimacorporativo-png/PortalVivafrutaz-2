@@ -1175,6 +1175,9 @@ export const nfeEmissoes = pgTable("nfe_emissoes", {
   // nunca haverá dois registros com a mesma chave de acesso.
   // NULLs são excluídos automaticamente pelo PostgreSQL — seguro com dados existentes.
   chaveUniqueIdx: uniqueIndex("idx_nfe_chave_unique").on(t.chaveNFe),
+  // Performance indexes: order_id for tenant-join queries; status for worker/dashboard filters
+  orderIdIdx: index("idx_nfe_order_id").on(t.orderId),
+  statusIdx: index("idx_nfe_status").on(t.status),
   checkStatus: check("check_nfe_status",
     sql`status IN (
       'gerada',
