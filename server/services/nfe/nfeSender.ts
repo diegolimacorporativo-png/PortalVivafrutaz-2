@@ -280,6 +280,11 @@ export async function enviarNFeSEFAZ(
   certPem?: string,
   certKey?: string
 ): Promise<NFeRetornoSEFAZ> {
+  // HOMOLOGATION GUARD — bloqueia qualquer tentativa de transmissão real ao SEFAZ.
+  // Deve ser a PRIMEIRA verificação antes de qualquer lógica de transmissão.
+  const { validateFiscalHomologationLock } = await import('../../core/fiscal/homologation.guard');
+  validateFiscalHomologationLock(ambiente, undefined, 'enviarNFeSEFAZ');
+
   // T1206 — fiscal correlation ID for all logs in this call
   const fiscalRequestId = randomUUID();
 

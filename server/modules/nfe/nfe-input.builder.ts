@@ -387,7 +387,15 @@ export async function buildNFeInput(args: BuildNFeInputOpts): Promise<NFeInput> 
     destinatario,
     produtos: normalizedProdutos,
     natOp: safeStr(config.defaultNatureza, "Venda de mercadoria adquirida"),
-    tpAmb: (config.ambienteFiscal === "producao" ? "1" : "2") as "1" | "2",
+    tpAmb: ((): "1" | "2" => {
+      const resolved = config.ambienteFiscal === "producao" ? "1" : "2";
+      // HOMOLOGATION GUARD — bloqueia se ambienteFiscal=producao tentou gerar tpAmb=1
+      if (resolved === "1") {
+        const { validateFiscalHomologationLock } = require("../../core/fiscal/homologation.guard");
+        validateFiscalHomologationLock(resolved, config.ambienteFiscal, "nfe-input.builder");
+      }
+      return resolved;
+    })(),
     orderId,
     orderCode: safeOptional((orderData.order as any).orderCode),
     informacoesAdicionais: config.informacoesAdicionais

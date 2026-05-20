@@ -13,6 +13,7 @@ import { scheduleBackups } from "./backup";
 import { pool } from "./database/db";
 import { sql } from "drizzle-orm";
 import { db } from "./database/db";
+import { assertFiscalBootSafe, startFiscalRuntimeMonitor } from "./core/fiscal/homologation.guard";
 
 dotenv.config();
 
@@ -36,6 +37,9 @@ const _env = process.env.NODE_ENV ?? "development";
   if (!process.env.SUPABASE_DATABASE_URL) {
     fails.push("SUPABASE_DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
   }
+
+  // FISCAL BOOT SAFE — bloqueia NFE_SEFAZ_MODE=production antes de qualquer worker.
+  assertFiscalBootSafe();
 
   if (isProd && process.env.DEBUG) {
     warns.push(`DEBUG="${process.env.DEBUG}" detectado em produção — removido.`);
@@ -155,6 +159,7 @@ process.on("uncaughtException", (err: Error) => {
   });
 
   console.log("[WORKER_START]", { workers: ["outbox", "auto-dispatch", "billing", "faturamento", "proactive-alerts", "schedulers", "backup"], ts: new Date().toISOString() });
+  startFiscalRuntimeMonitor(300_000);
   startOutboxWorker();
   startAutoDispatchWorker();
   startBillingCron();

@@ -1,0 +1,264 @@
+# FASE — HARDENING FINAL DE HOMOLOGAÇÃO + BLOQUEIO ABSOLUTO DE PRODUÇÃO
+
+EXECUTAR OBRIGATORIAMENTE NO PROTOCOLO:
+
+AUDITORIA → VALIDAÇÃO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → RELATÓRIO
+
+SEM refatoração massiva.
+SEM alterar arquitetura.
+SEM quebrar fluxos atuais.
+SEM tocar em emissão real.
+SEM ativar produção fiscal.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRA ABSOLUTA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O SISTEMA DEVE PERMANECER 100% EM HOMOLOGAÇÃO.
+
+PROIBIDO:
+- tpAmb=1
+- produção SEFAZ
+- emissão fiscal válida
+- envio fiscal real
+- alteração automática de ambiente
+- fallback para produção
+- bypass fiscal
+
+Toda NF-e deve continuar:
+“HOMOLOGAÇÃO — SEM VALOR FISCAL”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Banco obrigatório:
+SUPABASE_DATABASE_URL
+
+PROIBIDO:
+- DATABASE_URL
+- heliumdb
+- sqlite
+- memory storage
+- fallback local
+
+Ambiente atual:
+NFE_SEFAZ_MODE=homologacao
+tpAmb=2
+
+Sistema já possui:
+✅ recovery NF-e
+✅ dashboard operacional
+✅ healthchecks
+✅ observabilidade
+✅ workers
+✅ multi-tenant
+✅ circuit breaker
+✅ advisory locks
+✅ retry/idempotência
+✅ Supabase PostgreSQL 17
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar HARDENING FINAL DE HOMOLOGAÇÃO.
+
+Garantir que:
+- nenhuma emissão real aconteça acidentalmente
+- nenhuma configuração force tpAmb=1
+- nenhuma empresa consiga mudar para produção
+- nenhum endpoint permita produção
+- nenhum worker altere ambiente
+- nenhum fallback bypass aconteça
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+- todos os usos de tpAmb
+- todos os usos de ambienteFiscal
+- todos os usos de "producao"
+- todos os usos de NFE_SEFAZ_MODE
+- todos os serviços SEFAZ
+- todos os endpoints admin fiscal
+- workers fiscais
+- recovery NF-e
+- dashboard NF-e
+- transmissão SOAP
+- builder XML
+- assinatura digital
+
+Validar:
+- nenhum tpAmb hardcoded = 1
+- nenhuma mudança automática para produção
+- nenhum bypass oculto
+- nenhuma env production habilitando SEFAZ real
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — BLOQUEIO ABSOLUTO DE PRODUÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar GUARDA GLOBAL.
+
+Criar proteção centralizada:
+
+validateFiscalHomologationLock()
+
+A regra deve:
+
+SE:
+- tpAmb === "1"
+OU
+- ambienteFiscal === "producao"
+OU
+- NFE_SEFAZ_MODE === "production"
+
+ENTÃO:
+- LOG CRÍTICO
+- bloquear execução
+- throw fatal error
+- impedir transmissão
+
+Logs obrigatórios:
+
+[FISCAL_PRODUCTION_BLOCKED]
+[FISCAL_HOMOLOGATION_LOCK]
+[FISCAL_ENV_VALIDATED]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — HARDENING DE CONFIGURAÇÃO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir:
+
+- qualquer tentativa de usar produção falha no boot
+- process.exit(1) se detectar modo produção fiscal
+- startup não sobe em tpAmb=1
+
+Validar:
+- env
+- database
+- runtime
+- workers
+- rotas admin
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — HARDENING API
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar endpoints:
+
+/api/nfe/*
+/api/admin/*
+/api/fiscal/*
+
+Garantir:
+- nenhum endpoint altera ambiente fiscal
+- nenhum endpoint habilita produção
+- nenhum endpoint escreve "producao"
+
+Se existir:
+- bloquear
+- logar
+- retornar 403
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — HARDENING BANCO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar tabelas:
+
+companies
+nfe_emissoes
+fiscal_config
+qualquer tabela fiscal
+
+Validar:
+- ambienteFiscal default = homologacao
+- nenhum registro em produção
+- nenhum trigger alterando ambiente
+
+Se encontrar:
+- reportar
+- NÃO alterar silenciosamente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — MONITORAMENTO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Adicionar monitoramento contínuo:
+
+Verificar periodicamente:
+- tpAmb runtime
+- env runtime
+- configs fiscais
+- workers fiscais
+
+Logs:
+
+[FISCAL_RUNTIME_CHECK]
+[FISCAL_RUNTIME_OK]
+[FISCAL_RUNTIME_ALERT]
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — TESTES CONTROLADOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS:
+
+Simular:
+- tpAmb=1
+- ambienteFiscal=producao
+- env production fiscal
+- request tentando mudar ambiente
+
+Validar:
+- bloqueio imediato
+- HTTP 403
+- startup fail-fast
+- logs críticos
+- sistema continua íntegro
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- arquivos auditados
+- arquivos alterados
+- proteções criadas
+- bypasses encontrados
+- riscos restantes
+- testes executados
+- evidências do bloqueio
+- confirmação explícita:
+
+“PRODUÇÃO FISCAL BLOQUEADA”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- ativar produção
+- emitir NF-e válida
+- remover homologação
+- alterar arquitetura
+- remover logs
+- quebrar recovery
+- quebrar workers
+- quebrar dashboard
+- usar banco local
+
+MUDANÇAS:
+- mínimas
+- reversíveis
+- auditáveis
+- seguras
+- cirúrgicas
+
+EXECUTAR AGORA.

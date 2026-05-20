@@ -79,6 +79,20 @@ export function register(app: Express) {
     if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }
+    // HOMOLOGATION GUARD — bloqueia escrita de ambienteFiscal=producao via API.
+    if (req.body?.ambienteFiscal === 'producao' || req.body?.ambiente_fiscal === 'producao') {
+      console.error('[FISCAL_PRODUCTION_BLOCKED]', {
+        reason: 'Tentativa de escrita ambienteFiscal=producao via PATCH /api/company-config bloqueada',
+        userId: user?.id,
+        role: user?.role,
+        source: 'settings.routes/company-config',
+        ts: new Date().toISOString(),
+      });
+      return res.status(403).json({
+        message: 'Ambiente fiscal de produção não pode ser ativado. Sistema permanece em HOMOLOGAÇÃO.',
+        code: 'FISCAL_PRODUCTION_BLOCKED',
+      });
+    }
     try {
       auditLog("UPDATE_COMPANY_CONFIG", {
         userId: user.id,
