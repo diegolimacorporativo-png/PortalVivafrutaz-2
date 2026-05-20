@@ -1,0 +1,277 @@
+# PRÓXIMA FASE — DEPLOY + OPERAÇÃO CONTÍNUA REAL
+
+Executar seguindo RIGOROSAMENTE:
+
+AUDITORIA → HARDENING → TESTE → VALIDAÇÃO → RELATÓRIO
+
+SEM criar features novas.
+SEM dashboards.
+SEM páginas cosméticas.
+SEM alterar fluxo fiscal.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Sistema opera EXCLUSIVAMENTE:
+
+✅ Supabase REAL
+✅ PostgreSQL 17
+✅ tpAmb=2 HOMOLOGAÇÃO
+✅ NF-e SEM VALOR FISCAL
+
+PROIBIDO:
+- tpAmb=1
+- produção fiscal
+- fallback local
+- banco híbrido
+- remover homologação
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Preparar o ERP para:
+
+✅ operação contínua real
+✅ deploy seguro
+✅ restart seguro
+✅ crash recovery
+✅ estabilidade runtime
+✅ observabilidade
+✅ backup
+✅ restore
+✅ healthcheck
+✅ readiness check
+✅ operação resiliente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA DEPLOY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+- build frontend
+- build backend
+- vite
+- websocket
+- runtime node
+- workers
+- PM2/process manager
+- environment variables
+- memory usage
+- restart behavior
+- unhandledRejection
+- uncaughtException
+- graceful shutdown
+- reconnect postgres
+- reconnect workers
+- retry loops
+- logs persistentes
+- uploads/temp
+- SSL
+- CORS
+- compression
+- rate limit
+- readiness endpoints
+- health endpoints
+
+Validar:
+- nenhum crash loop
+- nenhum memory leak óbvio
+- nenhum worker órfão
+- nenhuma reconexão infinita
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — HEALTHCHECKS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar endpoints REAIS:
+
+GET /api/health/live
+GET /api/health/ready
+
+OBRIGATÓRIO:
+
+/live:
+- processo vivo
+- uptime
+- event loop ativo
+
+/ready:
+- postgres OK
+- Supabase OK
+- workers OK
+- XSD carregado
+- filesystem OK
+- memória aceitável
+
+NÃO:
+- mockar status
+- retornar 200 fake
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — GRACEFUL SHUTDOWN
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Implementar shutdown seguro:
+
+SIGTERM
+SIGINT
+uncaughtException
+unhandledRejection
+
+Garantir:
+
+- fechar pool postgres
+- liberar advisory locks
+- finalizar workers
+- flush logs
+- impedir corrupção
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — CRASH RECOVERY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar recuperação automática após:
+
+- restart servidor
+- queda processo
+- timeout postgres
+- restart workers
+- queda websocket
+
+Garantir:
+- recoverStuckNFes()
+- reconnect seguro
+- retry seguro
+- sem duplicidade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — BACKUP & RESTORE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+
+- estratégia backup Supabase
+- frequência
+- retenção
+- restore procedure
+- exports XML
+- retenção SOAP
+- retenção protocolo
+
+Documentar:
+- recovery manual
+- recovery desastre
+- recovery parcial
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — PERFORMANCE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+
+- slow queries
+- event loop blocking
+- payloads gigantes
+- leaks websocket
+- polling excessivo
+- workers pesados
+- queries N+1
+- uso CPU
+- uso memória
+
+Corrigir APENAS:
+- gargalos reais
+- vazamentos reais
+- loops perigosos
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — OBSERVABILIDADE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Garantir logs estruturados:
+
+[APP_BOOT]
+[APP_READY]
+[APP_SHUTDOWN]
+[DB_CONNECTED]
+[DB_RECONNECT]
+[WORKER_START]
+[WORKER_STOP]
+[WORKER_CRASH]
+[HEALTHCHECK_FAIL]
+[READINESS_FAIL]
+[MEMORY_WARNING]
+[CPU_WARNING]
+
+Todos contendo:
+- corrId
+- uptime
+- ambiente
+- memória
+- timestamp
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — TESTES REAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+
+1. restart controlado
+2. restart durante emissão
+3. crash worker
+4. reconnect postgres
+5. múltiplas emissões contínuas
+6. restart frontend/backend
+7. teste readiness
+8. teste health
+9. teste memory stability
+
+Validar:
+- sem perda XML
+- sem perda protocolo
+- sem NF-e duplicada
+- sem lock preso
+- sem corrupção estado
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 9 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório contendo:
+
+- riscos deploy
+- fixes aplicados
+- runtime final
+- memória
+- CPU
+- uptime esperado
+- recovery validado
+- readiness validado
+- backup strategy
+- restore strategy
+- estabilidade geral
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# RESULTADO ESPERADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Ao final o sistema deve estar:
+
+✅ operacional continuamente
+✅ resiliente a restart
+✅ resiliente a crash
+✅ resiliente a timeout
+✅ pronto para deploy controlado
+✅ rastreável
+✅ observável
+✅ recuperável
+
+AINDA:
+❌ SEM produção fiscal
+❌ SEM tpAmb=1
+❌ SEM validade fiscal
+
+EXECUTAR AGORA.

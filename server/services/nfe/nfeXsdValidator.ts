@@ -59,6 +59,11 @@ export interface XsdValidationResult {
 let _xsdDocCache: any = null;
 let _xsdInitError: string | null = null;
 
+/** Returns true once warmupXsdCache() has run successfully. */
+export function isXsdReady(): boolean {
+  return _xsdDocCache !== null && _xsdInitError === null;
+}
+
 /**
  * Copia os XSD para /tmp com schemaLocation em paths absolutos (file://).
  * libxml2 não consegue resolver imports relativos sem o url base funcionar;
