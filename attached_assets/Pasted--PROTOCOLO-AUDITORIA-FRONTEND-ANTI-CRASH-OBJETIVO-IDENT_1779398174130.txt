@@ -1,0 +1,224 @@
+# PROTOCOLO — AUDITORIA FRONTEND ANTI-CRASH
+# OBJETIVO: IDENTIFICAR TODOS OS PONTOS DO FRONTEND QUE PODEM QUEBRAR COM undefined/null
+
+Você está executando uma auditoria estrutural completa do frontend React/TypeScript do VivaFrutaz ERP.
+
+==================================================================
+OBJETIVO PRINCIPAL
+==================================================================
+
+Mapear TODOS os pontos do frontend que podem gerar:
+
+- Cannot read properties of undefined
+- Cannot read properties of null
+- .map undefined
+- .length undefined
+- .total undefined
+- render crashes
+- hydration crashes
+- React tree crash
+- white screen
+- plugin runtime error
+- blank page
+- edge-case crash
+
+NÃO corrigir parcialmente.
+Fazer auditoria COMPLETA.
+
+==================================================================
+REGRAS OBRIGATÓRIAS
+==================================================================
+
+NÃO:
+- criar componentes novos
+- fazer refactor gigante
+- mudar arquitetura
+- alterar design
+- mudar layout
+- mudar fluxo backend
+- inventar abstrações
+
+SIM:
+- blindar renderização
+- adicionar guards defensivos
+- adicionar fallback seguro
+- impedir crash do React
+- impedir undefined access
+
+==================================================================
+MAPEAMENTO OBRIGATÓRIO
+==================================================================
+
+Auditar TODOS os arquivos frontend procurando:
+
+1. Acessos inseguros:
+obj.prop.prop
+obj.array.map()
+obj.length
+obj.total
+obj.data.items
+obj.company.name
+
+2. Destructuring perigoso:
+const { resumo } = diagnostic;
+const { items } = data;
+
+sem fallback seguro.
+
+3. map() sem fallback:
+items.map(...)
+orders.map(...)
+alerts.map(...)
+
+4. length sem proteção:
+items.length
+errors.length
+
+5. Render antes do loading:
+renderizar antes do fetch terminar
+
+6. Hooks sem estado defensivo:
+useQuery
+useEffect
+useState
+React Query
+SWR
+
+7. Componentes que assumem payload perfeito:
+resumo.total
+dashboard.stats.orders
+user.company.name
+
+8. Arrays vindos da API sem validação
+
+9. Responses nullable do backend
+
+10. Pages críticas:
+- NF-e
+- pedidos
+- dashboard
+- financeiro
+- estoque
+- logística
+- auth
+- admin
+
+==================================================================
+PADRÃO OBRIGATÓRIO DE CORREÇÃO
+==================================================================
+
+Substituir padrões inseguros por:
+
+OPTIONAL CHAINING:
+obj?.prop?.value
+
+NULLISH FALLBACK:
+value ?? 0
+
+DEFAULT OBJECTS:
+const data = response || {}
+
+DEFAULT ARRAYS:
+const items = response?.items || []
+
+SAFE DESTRUCTURING:
+const {
+  resumo = { total: 0 },
+  erros = [],
+} = diagnostic || {}
+
+SAFE MAP:
+(items || []).map(...)
+
+SAFE LENGTH:
+(items?.length ?? 0)
+
+==================================================================
+OBRIGATÓRIO IMPLEMENTAR
+==================================================================
+
+1. Error Boundaries globais
+2. Fallback visual de erro
+3. Loading states seguros
+4. Skeletons onde necessário
+5. Empty states
+6. Guards de renderização
+7. Proteção de React tree crash
+
+==================================================================
+FOCO PRINCIPAL
+==================================================================
+
+O backend do sistema já está avançado.
+O objetivo agora é:
+
+- robustez visual
+- estabilidade operacional
+- UX defensiva
+- impedir white screen
+- impedir crash total da aplicação
+
+==================================================================
+PROTOCOLO DE EXECUÇÃO
+==================================================================
+
+AUDITORIA
+→ MAPEAMENTO
+→ CLASSIFICAÇÃO DE RISCO
+→ IMPLEMENTAÇÃO CIRÚRGICA
+→ TESTES REAIS
+→ VALIDAÇÃO
+→ RELATÓRIO FINAL
+
+==================================================================
+CLASSIFICAÇÃO DE RISCO
+==================================================================
+
+CRÍTICO:
+Quebra página inteira
+
+ALTO:
+Quebra componente principal
+
+MÉDIO:
+Erro visual parcial
+
+BAIXO:
+Edge case raro
+
+==================================================================
+RELATÓRIO FINAL OBRIGATÓRIO
+==================================================================
+
+Gerar:
+
+1. Quantidade de crashes encontrados
+2. Arquivos afetados
+3. Componentes críticos
+4. Rotas vulneráveis
+5. Padrões inseguros encontrados
+6. Correções aplicadas
+7. Testes executados
+8. Regressões verificadas
+9. Status TypeScript
+10. Status final do frontend
+
+==================================================================
+OBJETIVO FINAL
+==================================================================
+
+Transformar o frontend do VivaFrutaz ERP em um frontend:
+
+- fail-safe
+- anti-crash
+- resiliente
+- defensivo
+- operacionalmente estável
+
+Mesmo quando:
+- API falhar
+- payload vier incompleto
+- backend estiver lento
+- response vier null
+- arrays vierem vazios
+- hooks carregarem parcialmente

@@ -930,7 +930,8 @@ export class AuthService {
   async unlockStrategicAccounts(): Promise<void> {
     try {
       const strategicRoles = Array.from(STRATEGIC_ROLES);
-      // Load all strategic-role users in one query (include password for hash check)
+      // Load all strategic-role users in one query (no password field needed —
+      // boot must NEVER overwrite user-set passwords).
       const strategicUsers = await db
         .select({
           id: usersTable.id,
@@ -939,7 +940,6 @@ export class AuthService {
           isLocked: usersTable.isLocked,
           loginAttempts: usersTable.loginAttempts,
           active: usersTable.active,
-          password: usersTable.password,
         })
         .from(usersTable)
         .where(inArray(usersTable.role, strategicRoles));
@@ -949,58 +949,34 @@ export class AuthService {
         return;
       }
 
-      // Hash the definitive password ONCE for all strategic accounts.
-      // Cost 10 (≈80ms): fast enough for startup, strong enough for production.
-      const DEFINITIVE_PASSWORD = "VivaFrutaz@2026!";
-      const definitiveHash = await bcrypt.hash(DEFINITIVE_PASSWORD, 10);
-
       let unlockedCount = 0;
-      let passwordCount = 0;
       for (const u of strategicUsers) {
         // Always register in bypass set regardless of lock state
         if (u.email) markEmailAsStrategic(u.email);
 
-        // Check if definitive password already matches stored hash
-        const passwordOk = u.password
-          ? await bcrypt.compare(DEFINITIVE_PASSWORD, u.password).catch(() => false)
-          : false;
-
-        // Determine what DB updates are needed
+        // Only unlock if actually locked or has failed attempts — never touch password
         const needsUnlock = u.isLocked || (u.loginAttempts ?? 0) > 0;
-        const needsPassword = !passwordOk;
 
-        if (!needsUnlock && !needsPassword) continue;
+        if (!needsUnlock) continue;
 
         try {
-          const updates: Record<string, unknown> = {};
-          if (needsUnlock) {
-            updates.isLocked = false;
-            updates.loginAttempts = 0;
-          }
-          if (needsPassword) {
-            updates.password = definitiveHash;
-          }
-
           await db
             .update(usersTable)
-            .set(updates as any)
+            .set({ isLocked: false, loginAttempts: 0 } as any)
             .where(eq(usersTable.id, u.id));
 
-          if (needsUnlock) {
-            // Clear L2 auth_attempts for this user (rate limit reset)
-            await db
-              .delete(authAttempts)
-              .where(eq(authAttempts.userId, u.id));
-            unlockedCount++;
-          }
-          if (needsPassword) passwordCount++;
+          // Clear L2 auth_attempts for this user (rate limit reset)
+          await db
+            .delete(authAttempts)
+            .where(eq(authAttempts.userId, u.id));
+
+          unlockedCount++;
 
           console.warn("[STRATEGIC_UNLOCK_BOOT]", {
             userId: u.id,
             role: u.role,
             wasLocked: u.isLocked,
             hadAttempts: u.loginAttempts,
-            passwordReset: needsPassword,
             active: u.active,
             ts: new Date().toISOString(),
           });
@@ -1016,7 +992,6 @@ export class AuthService {
       console.log("[STRATEGIC_UNLOCK_BOOT_DONE]", {
         total: strategicUsers.length,
         unlocked: unlockedCount,
-        passwordsApplied: passwordCount,
         bypassed: strategicUsers.filter(u => u.email).length,
         ts: new Date().toISOString(),
       });

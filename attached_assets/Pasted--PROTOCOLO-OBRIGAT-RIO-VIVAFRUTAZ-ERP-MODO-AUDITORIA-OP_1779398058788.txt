@@ -1,0 +1,251 @@
+# PROTOCOLO OBRIGATÓRIO — VIVAFRUTAZ ERP
+# MODO: AUDITORIA + OPERAÇÃO REAL + SUPABASE EXCLUSIVO
+
+Projeto:
+https://github.com/diegolimacorporativo-png/PortalVivafrutaz-2.git
+
+Você está trabalhando em um ERP brasileiro real chamado VivaFrutaz ERP.
+
+REGRAS ABSOLUTAS E OBRIGATÓRIAS:
+
+==================================================================
+1. SUPABASE É O ÚNICO BANCO PERMITIDO
+==================================================================
+
+O sistema DEVE usar exclusivamente o banco Supabase conectado via:
+
+SUPABASE_DATABASE_URL
+
+É PROIBIDO:
+- usar banco local
+- usar SQLite
+- usar banco do Replit
+- usar memória temporária
+- usar fallback automático
+- criar mocks persistentes
+- usar DATABASE_URL alternativa
+- criar fallback silencioso
+
+Qualquer tentativa de fallback deve:
+- gerar erro fatal
+- abortar o boot
+- registrar log crítico
+
+Objetivo:
+garantir persistência REAL e permanente no Supabase.
+
+==================================================================
+2. TODA ALTERAÇÃO DE SENHA DEVE PERSISTIR NO SUPABASE
+==================================================================
+
+BUG ATUAL IDENTIFICADO:
+
+Ao alterar senha:
+- a senha muda temporariamente
+- porém no reboot volta para senha antiga
+
+Você DEVE:
+- localizar TODA lógica que sobrescreve senha no boot
+- localizar qualquer "password migration"
+- localizar qualquer "strategic unlock boot"
+- localizar qualquer reset automático
+- localizar DEFINITIVE_PASSWORD hardcoded
+- localizar qualquer sincronização indevida
+
+IMPORTANTE:
+A senha alterada pelo usuário DEVE:
+- persistir permanentemente no banco Supabase
+- sobreviver reinícios
+- sobreviver deploys
+- sobreviver restart do servidor
+
+É PROIBIDO:
+- sobrescrever senha no startup
+- resetar senha automaticamente
+- aplicar senha hardcoded no boot
+- recriar hashes automáticos
+
+==================================================================
+3. AUDITORIA OBRIGATÓRIA ANTES DE ALTERAR QUALQUER COISA
+==================================================================
+
+Antes de modificar:
+- mapear fluxo completo
+- identificar root cause real
+- validar impacto
+- verificar tenancy
+- verificar fiscal
+- verificar auth
+- verificar workers
+- verificar race conditions
+
+NUNCA:
+- aplicar hotfix cego
+- refatorar sem necessidade
+- mudar arquitetura sem motivo
+- inventar abstrações
+
+==================================================================
+4. O SISTEMA É MULTI-TENANT REAL
+==================================================================
+
+O sistema possui:
+- AsyncLocalStorage tenant context
+- requireTenantId()
+- tenant validation
+- RBAC
+- audit logs
+
+É PROIBIDO:
+- quebrar isolamento tenant
+- remover validação
+- usar companyId vindo do frontend sem validação
+- bypass tenant security
+
+==================================================================
+5. SISTEMA FISCAL — REGRAS CRÍTICAS
+==================================================================
+
+O sistema possui:
+- NF-e
+- assinatura digital
+- XSD
+- SEFAZ
+- advisory locks
+- idempotência
+- rollback transacional
+
+REGRAS:
+- NUNCA ativar produção fiscal
+- tpAmb DEVE continuar = 2
+- homologação DEVE permanecer travada
+- não emitir NF real
+- não alterar certificados
+- não alterar série fiscal
+- não alterar fluxo fiscal sem auditoria completa
+
+==================================================================
+6. O SISTEMA JÁ POSSUI:
+==================================================================
+
+- workers reais
+- cron jobs
+- observabilidade
+- memory monitor
+- health checks
+- advisory locks
+- rollback fiscal
+- transactional persistence
+- outbox pattern
+- rate limit multicamada
+- strategic accounts
+- graceful shutdown
+
+NÃO REMOVER:
+- locks
+- fail-safe
+- observabilidade
+- runtime guards
+- fiscal guards
+- workers supervision
+
+==================================================================
+7. PADRÃO OBRIGATÓRIO DE EXECUÇÃO
+==================================================================
+
+SEMPRE seguir:
+
+AUDITORIA
+→ MAPEAMENTO
+→ ROOT CAUSE
+→ IMPLEMENTAÇÃO CIRÚRGICA
+→ TESTES REAIS
+→ VALIDAÇÃO
+→ RELATÓRIO FINAL
+
+==================================================================
+8. RELATÓRIO FINAL OBRIGATÓRIO
+==================================================================
+
+Toda alteração deve terminar com:
+
+- arquivos alterados
+- root cause
+- impacto
+- risco
+- validação
+- testes executados
+- regressões verificadas
+- status TypeScript
+- status Supabase
+- status tenancy
+- status fiscal
+
+==================================================================
+9. PROIBIDO:
+==================================================================
+
+- mocks escondidos
+- fallback silencioso
+- refatoração desnecessária
+- remover logs críticos
+- quebrar observabilidade
+- quebrar workers
+- criar arquitetura nova sem necessidade
+- alterar estrutura fiscal sem auditoria
+- usar banco temporário
+
+==================================================================
+10. OBJETIVO REAL DO SISTEMA
+==================================================================
+
+O VivaFrutaz ERP NÃO é mais um CRUD simples.
+
+Hoje ele é:
+- ERP operacional
+- multi-tenant
+- fiscalmente estruturado
+- em homologação avançada
+- preparado para operação real interna
+
+O foco atual é:
+- estabilidade
+- consistência
+- persistência real
+- segurança operacional
+- modularização gradual
+- redução de débito técnico
+- confiabilidade
+
+NÃO priorizar:
+- features cosméticas
+- dashboards novos
+- overengineering
+- microservices
+- abstrações exageradas
+
+==================================================================
+11. BUG PRIORITÁRIO ATUAL
+==================================================================
+
+Resolver DEFINITIVAMENTE:
+
+"senhas alteradas voltam após restart"
+
+Isso deve incluir:
+- auditoria completa do auth boot
+- startup hooks
+- strategic unlock
+- migrations automáticas
+- password resets automáticos
+- persistência Supabase
+- fluxo completo de hash/password
+- validação após reboot
+
+A correção deve:
+- persistir 100% no Supabase
+- sobreviver restart
+- sobreviver deploy
+- sobreviver hot reload
+- não depender de memória
+- não depender de variáveis hardcoded
