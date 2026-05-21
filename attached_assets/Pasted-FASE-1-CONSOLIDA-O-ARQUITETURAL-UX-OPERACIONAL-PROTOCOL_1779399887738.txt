@@ -1,0 +1,297 @@
+FASE 1 — CONSOLIDAÇÃO ARQUITETURAL + UX OPERACIONAL
+PROTOCOLO OBRIGATÓRIO:
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → VALIDAÇÃO → RELATÓRIO
+
+OBJETIVO:
+Executar a FASE 1 COMPLETA da consolidação arquitetural do frontend SEM alterar regras de negócio, SEM alterar backend, SEM alterar Supabase, SEM refatoração pesada.
+
+====================================================================
+ESCOPO DA FASE 1 (RISCO ZERO)
+====================================================================
+
+IMPLEMENTAR:
+
+1. Adicionar páginas órfãs críticas ao sidebar
+2. Corrigir rota fantasma
+3. Remover rota de teste exposta
+4. Criar padrão universal de navegação
+5. Aplicar BackHeader nas páginas críticas
+6. Padronizar UX operacional
+7. Preservar contexto de navegação
+8. NÃO quebrar nenhuma rota existente
+
+====================================================================
+ETAPA 1 — AUDITORIA FINAL ANTES DA ALTERAÇÃO
+====================================================================
+
+Antes de alterar:
+
+Mapear:
+- Layout.tsx
+- sidebar/adminLinks
+- App.tsx
+- rotas privadas
+- wrappers de layout
+- estrutura atual de navegação
+- páginas fullscreen
+- páginas já com back
+- páginas com breadcrumbs
+- páginas órfãs
+
+Gerar tabela final:
+
+| Página | Sidebar | Back atual | Precisa BackHeader? | Tipo |
+
+NÃO IMPLEMENTAR AINDA.
+
+====================================================================
+ETAPA 2 — CORREÇÕES CRÍTICAS DE SIDEBAR
+====================================================================
+
+Adicionar no menu/sidebar:
+
+1. /admin/faturamento
+2. /admin/security
+
+Validar:
+- role permissions
+- ícones corretos
+- categoria correta
+- mobile menu
+- responsive sidebar
+- breadcrumbs
+- active state
+
+IMPORTANTE:
+NÃO duplicar categorias.
+Integrar corretamente no domínio existente.
+
+====================================================================
+ETAPA 3 — REMOVER ROTAS PROBLEMÁTICAS
+====================================================================
+
+1. Remover /test-clara da produção
+OU
+proteger atrás de:
+- NODE_ENV=development
+OU
+- MASTER only hidden route
+
+2. Corrigir client/quotations.tsx
+
+Atualmente:
+- rota fantasma
+- redirect inútil
+
+Decidir:
+- remover rota
+OU
+- implementar página real
+OU
+- integrar corretamente ao fluxo cliente
+
+NÃO deixar redirect fantasma.
+
+====================================================================
+ETAPA 4 — CRIAR PADRÃO GLOBAL DE NAVEGAÇÃO
+====================================================================
+
+Criar componente reutilizável:
+
+components/navigation/BackHeader.tsx
+
+PADRÃO OBRIGATÓRIO:
+
+- seta voltar padrão
+- título da página
+- subtítulo opcional
+- breadcrumb opcional
+- preserveFilters opcional
+- fallback seguro
+- mobile friendly
+- sticky opcional
+- suporte fullscreen pages
+
+API esperada:
+
+<BackHeader
+  title=""
+  subtitle=""
+  fallback="/admin"
+  preserveSearch={true}
+  breadcrumb={[...]}
+/>
+
+====================================================================
+REGRAS CRÍTICAS
+====================================================================
+
+O botão voltar deve:
+
+1. tentar history.back()
+2. validar origem
+3. se não houver histórico válido:
+   usar fallback
+4. preservar querystring quando necessário
+5. preservar filtros
+6. preservar contexto operacional
+
+NÃO usar apenas:
+navigate(-1)
+
+Precisa fallback seguro.
+
+====================================================================
+ETAPA 5 — IMPLEMENTAR NAS PÁGINAS CRÍTICAS
+====================================================================
+
+Aplicar BackHeader PRIORITARIAMENTE em:
+
+ALTA PRIORIDADE:
+- faturamento.tsx
+- fiscal-config.tsx
+- fiscal-diagnostics.tsx
+- nfe-dashboard.tsx
+- nfe-recovery.tsx
+- insert-nf-manual.tsx
+- reports/purchasing.tsx
+- reports/industrialized.tsx
+- reports/financial.tsx
+- commercial-intelligence.tsx
+- financial-intelligence.tsx
+- client/create-order.tsx
+- client/special-order.tsx
+- security-intelligence.tsx
+- logistics-intelligence.tsx
+
+MÉDIA PRIORIDADE:
+- inventory.tsx
+- logistics.tsx
+- finance.tsx
+- fiscal.tsx
+- intelligence.tsx
+- ai-developer.tsx
+- developer.tsx
+- observability.tsx
+
+====================================================================
+ETAPA 6 — BREADCRUMB PADRONIZADO
+====================================================================
+
+O componente breadcrumb.tsx já existe.
+
+Auditar:
+- por que nunca foi usado
+- compatibilidade
+- props
+- integração
+
+Aplicar breadcrumb SOMENTE onde fizer sentido:
+
+EXEMPLOS:
+
+Financeiro > Fiscal > Recovery
+Compras > Relatórios > Industrializados
+Sistema > Segurança > Intelligence
+
+NÃO exagerar breadcrumb em telas simples.
+
+====================================================================
+ETAPA 7 — TESTES OPERACIONAIS
+====================================================================
+
+Validar:
+
+- Desktop
+- Mobile
+- Sidebar expandida
+- Sidebar collapsed
+- Rotas profundas
+- Refresh da página
+- Back após refresh
+- Query params
+- Filtros
+- Navegação entre módulos
+- Navegação por URL direta
+- Role permissions
+- Fullscreen pages
+
+TESTAR:
+- history vazio
+- abertura em nova aba
+- deep links
+- fallback routes
+
+====================================================================
+ETAPA 8 — VALIDAÇÃO ANTI-REGRESSÃO
+====================================================================
+
+Confirmar:
+
+- zero quebra de rotas
+- zero quebra de auth
+- zero quebra tenant
+- zero quebra mobile
+- zero TypeScript errors
+- zero warnings críticos
+- zero loops de navegação
+- zero redirects quebrados
+
+====================================================================
+ETAPA 9 — RELATÓRIO FINAL OBRIGATÓRIO
+====================================================================
+
+Gerar relatório COMPLETO:
+
+1. Arquivos alterados
+2. Rotas adicionadas ao sidebar
+3. Rotas removidas
+4. Páginas com BackHeader
+5. Breadcrumbs aplicados
+6. Componentes criados
+7. Páginas ainda pendentes
+8. Riscos residuais
+9. Melhorias futuras
+10. Resultado UX final
+
+MÉTRICAS:
+
+- quantas páginas agora possuem navegação consistente
+- quantas ainda faltam
+- quantas rotas órfãs sobraram
+- redução de inconsistência UX
+- cobertura do padrão BackHeader
+
+====================================================================
+REGRAS ABSOLUTAS
+====================================================================
+
+NÃO:
+- refatorar lógica de negócio
+- mover backend
+- alterar Supabase
+- alterar APIs
+- alterar workflows fiscais
+- alterar auth
+- alterar tenancy
+- criar novas arquiteturas complexas
+
+SIM:
+- melhorias cirúrgicas
+- padronização visual
+- UX operacional
+- consistência
+- navegação profissional
+- redução de confusão operacional
+
+====================================================================
+OBJETIVO FINAL
+====================================================================
+
+Transformar o frontend de:
+“muitas páginas isoladas”
+
+para:
+“plataforma operacional consistente e navegável”
+
+SEM reescrever o sistema.

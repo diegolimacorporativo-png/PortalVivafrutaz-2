@@ -50,6 +50,8 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function FiscalConfigPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -177,6 +179,7 @@ export default function FiscalConfigPage() {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <BackHeader fallback="/admin/fiscal" breadcrumb={[{label:"Gestão Fiscal",href:"/admin/fiscal"},{label:"Configurações Fiscais"}]} />
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">

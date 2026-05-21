@@ -127,6 +127,8 @@ const QUICK_COMMANDS = [
   { icon: FlaskConical, label: "AI LAB", cmd: "abrir ai lab", tab: "ailab" },
 ];
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AiDeveloperPage() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading: authLoading, user } = useAuth();
@@ -392,6 +394,7 @@ export default function AiDeveloperPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col p-4 gap-3">
+      <BackHeader fallback="/admin/developer" breadcrumb={[{label:"Desenvolvedor",href:"/admin/developer"},{label:"AI Developer"}]} className="pb-2 mb-0 border-b border-border/40" />
       {/* Session expired banner */}
       {sessionExpired && (
         <div

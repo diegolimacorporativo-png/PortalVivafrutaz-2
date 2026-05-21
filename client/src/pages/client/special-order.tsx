@@ -59,6 +59,8 @@ function CompanyMissing() {
   );
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function SpecialOrderPage() {
   const { company, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -142,6 +144,7 @@ export default function SpecialOrderPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/client" breadcrumb={[{label:"Início",href:"/client"},{label:"Pedido Pontual"}]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Pedido Pontual</h1>

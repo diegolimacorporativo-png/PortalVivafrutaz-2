@@ -157,6 +157,8 @@ function ProductDetailModal({
 }
 
 // ─── Main Page ─────────────────────────────────────────────────
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function PurchasingPage() {
   const { data: companies } = useCompanies();
   const { data: products } = useProducts();
@@ -194,6 +196,7 @@ export default function PurchasingPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin/purchase-planning" breadcrumb={[{label:"Compras",href:"/admin/purchase-planning"},{label:"Relatório de Compras"}]} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>

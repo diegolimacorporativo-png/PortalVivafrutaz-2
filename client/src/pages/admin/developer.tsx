@@ -160,6 +160,8 @@ function HealthTab() {
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function DeveloperPage() {
   const [levelFilter, setLevelFilter] = useState<string>("ALL");
   const [actionFilter, setActionFilter] = useState<string>("");
@@ -296,6 +298,7 @@ export default function DeveloperPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{label:"Sistema",href:"/admin"},{label:"Área do Desenvolvedor"}]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Área do Desenvolvedor</h1>

@@ -373,6 +373,8 @@ function LoadingSkeleton() {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function SecurityIntelligencePage() {
   const [, navigate] = useLocation();
 
@@ -413,6 +415,7 @@ export default function SecurityIntelligencePage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+      <BackHeader fallback="/admin/security" breadcrumb={[{label:"Segurança",href:"/admin/security"},{label:"Security Intelligence"}]} />
 
       {/* ── Header ───────────────────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

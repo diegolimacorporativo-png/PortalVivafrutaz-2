@@ -571,6 +571,8 @@ function NfeHistoricoPanel({ orderId, open }: { orderId: number; open: boolean }
   );
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function FinancePage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -692,6 +694,7 @@ export default function FinancePage() {
 
   return (
     <div className="p-4 sm:p-6 max-w-6xl mx-auto space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{label:"Painel",href:"/admin"},{label:"Contas & Caixa"}]} />
       {pixModal && <PixModal ar={pixModal} onClose={() => setPixModal(null)} />}
       {breakdownModal && <BreakdownModal ar={breakdownModal} onClose={() => setBreakdownModal(null)} />}
 

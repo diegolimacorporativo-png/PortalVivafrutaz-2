@@ -55,6 +55,8 @@ function fmtBRL(n: number) {
 
 const ORDER_NOTE_PLACEHOLDER = "Ex: Bananas mais verdes, solicito produto que não está na planilha (informar nome), entregar antes das 9h...";
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function CreateOrderPage() {
   const { company, isLoading: authLoading } = useAuth();
   const { data: activeWindow, isLoading: windowLoading } = useActiveOrderWindow();
@@ -435,6 +437,7 @@ export default function CreateOrderPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/client" breadcrumb={[{label:"Início",href:"/client"},{label:"Novo Pedido"}]} />
       {/* Reopen (SOLICITAR ALTERAÇÃO) modal */}
       {showReopenModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">

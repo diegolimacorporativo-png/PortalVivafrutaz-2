@@ -163,6 +163,8 @@ function FieldRow({ label, value, ok }: { label: string; value: string | null; o
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AdminFiscalDiagnostics() {
   const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<{ success: boolean; data: FiscalDiagnostics }>({
     queryKey: ["/api/admin/fiscal/diagnostics"],
@@ -182,6 +184,7 @@ export default function AdminFiscalDiagnostics() {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
+      <BackHeader fallback="/admin/fiscal" breadcrumb={[{label:"Gestão Fiscal",href:"/admin/fiscal"},{label:"Diagnóstico Fiscal"}]} />
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>

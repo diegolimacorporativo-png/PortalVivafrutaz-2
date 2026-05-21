@@ -75,6 +75,8 @@ interface AiSyncResult {
   results: Array<{ modulo: string; acao: string; status: string; detalhes: string }>;
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function IntelligencePage() {
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -151,6 +153,7 @@ export default function IntelligencePage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{label:"Painel",href:"/admin"},{label:"IA Operacional"}]} />
       <div className="space-y-6">
         {/* ── Header ── */}
         <div className="flex items-start justify-between gap-4">

@@ -8,7 +8,8 @@ import {
   CalendarDays, ShoppingCart, BarChart3, PieChart, LogOut, Receipt,
   ShieldCheck, Factory, FolderOpen, KeyRound, Star, UserCog, HardDrive, FlaskConical,
   ClipboardList, AlertTriangle, Building2, Truck, FileText, TrendingUp, UserCircle, Megaphone, TrendingDown, ShoppingBag, Warehouse, Mail, Settings, Brain, GraduationCap, DollarSign, Route, Menu, X, Bell, BookOpen,
-  Search, ScrollText, Activity, Landmark, ReceiptText, Bot, RefreshCw, Palette, Upload, RotateCcw
+  Search, ScrollText, Activity, Landmark, ReceiptText, Bot, RefreshCw, Palette, Upload, RotateCcw,
+  Zap, Shield
 } from 'lucide-react';
 
 import { VirtualAssistant } from './VirtualAssistant';
@@ -133,6 +134,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/nfe', label: 'Emissão de NF-e', icon: ReceiptText, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'nfe', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/nfe/dashboard', label: 'Dashboard NF-e', icon: BarChart3, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'nfe-dashboard', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/nfe/recovery', label: 'Recovery NF-e', icon: RotateCcw, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'nfe-recovery', category: 'Financeiro', moduloChave: 'fiscal' },
+    { href: '/admin/faturamento', label: 'Central de Faturamento', icon: Zap, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'faturamento', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/banco', label: 'Integração Bancária', icon: Landmark, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'banco', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/tasks', label: 'Tarefas', icon: ClipboardList, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'], tabKey: 'tasks', category: 'Gestão' },
     { href: '/admin/client-incidents', label: 'Ocorrências de Clientes', icon: Building2, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'], tabKey: 'incidents', category: 'Gestão' },
@@ -154,6 +156,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/about-us', label: 'Quem Somos Nós', icon: Building2, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'], tabKey: 'about-us', category: 'Sistema' },
     { href: '/admin/support', label: 'Configuração de Suporte', icon: ShieldCheck, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'support', category: 'Sistema' },
     { href: '/admin/ai-developer', label: 'AI Developer', icon: Bot, roles: ['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER'], tabKey: 'ai-developer', category: 'Sistema' },
+    { href: '/admin/security', label: 'Central de Segurança', icon: Shield, roles: ['MASTER', 'ADMIN'], tabKey: 'security', category: 'Sistema' },
     { href: '/admin/security-intelligence', label: 'Security Intelligence', icon: ShieldCheck, roles: ['MASTER', 'ADMIN'], tabKey: 'security-intelligence', category: 'Sistema' },
     { href: '/admin/developer', label: 'Área do Desenvolvedor', icon: ShieldCheck, roles: ['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER'], tabKey: 'developer', category: 'Sistema' },
     { href: '/admin/master-control', label: 'Painel MASTER', icon: ShieldCheck, roles: ['MASTER'], tabKey: 'master-control', category: 'Sistema' },

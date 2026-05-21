@@ -34,6 +34,8 @@ function formatCurrency(v: number) {
   return `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AdminFinancialIntelligence() {
   const { data, isLoading, refetch, isFetching } = useQuery<FinancialData>({
     queryKey: ['/api/financial-intelligence'],
@@ -45,6 +47,7 @@ export default function AdminFinancialIntelligence() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
+      <BackHeader fallback="/admin/intelligence" breadcrumb={[{label:"Inteligência",href:"/admin/intelligence"},{label:"Inteligência Financeira"}]} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

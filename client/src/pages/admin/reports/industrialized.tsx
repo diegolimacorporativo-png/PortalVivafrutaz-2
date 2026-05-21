@@ -50,6 +50,8 @@ async function exportExcel(rows: ReportRow[]) {
   XLSX.writeFile(wb, `VivaFrutaz_Industrializados_${new Date().toISOString().split('T')[0]}.xlsx`);
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function IndustrializedPage() {
   const { data: companies } = useCompanies();
   const { data: allProducts } = useProducts();
@@ -77,6 +79,7 @@ export default function IndustrializedPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin/purchase-planning" breadcrumb={[{label:"Compras",href:"/admin/purchase-planning"},{label:"Industrializados"}]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Controle de Industrializados</h1>

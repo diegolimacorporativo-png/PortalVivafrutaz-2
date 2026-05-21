@@ -42,6 +42,8 @@ function fmtDate(d: string | null) {
   return new Date(d).toLocaleDateString('pt-BR');
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function FiscalManagement() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -286,6 +288,7 @@ export default function FiscalManagement() {
 
   return (
     <div className="space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{label:"Painel",href:"/admin"},{label:"Gestão de Notas Fiscais"}]} />
       <ContextualTip
         tipId="fiscal-management-intro"
         variant="info"

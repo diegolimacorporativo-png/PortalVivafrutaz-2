@@ -16,6 +16,8 @@ interface Produto {
   unidade: string;
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function InsertNfManual() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -101,6 +103,7 @@ export default function InsertNfManual() {
 
   return (
     <div className="container mx-auto p-6">
+      <BackHeader fallback="/admin/nfe" breadcrumb={[{label:"Emissão de NF-e",href:"/admin/nfe"},{label:"Inserção Manual NF"}]} />
       <Card>
         <CardHeader>
           <CardTitle>Inserir Nota Fiscal Manual</CardTitle>

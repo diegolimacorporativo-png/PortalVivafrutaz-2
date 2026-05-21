@@ -48,6 +48,8 @@ const riskBadgeVariants: Record<string, 'destructive' | 'secondary' | 'default'>
 
 const riskLabels = { high: 'Alto Risco', medium: 'Risco Médio', low: 'Baixo Risco' };
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AdminCommercialIntelligence() {
   const { data, isLoading, refetch, isFetching } = useQuery<CommercialData>({
     queryKey: ['/api/commercial-intelligence'],
@@ -61,6 +63,7 @@ export default function AdminCommercialIntelligence() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8">
+      <BackHeader fallback="/admin/intelligence" breadcrumb={[{label:"Inteligência",href:"/admin/intelligence"},{label:"Inteligência Comercial"}]} />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">

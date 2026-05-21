@@ -1429,12 +1429,15 @@ function SmartSearchPanel() {
   );
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AdminLogisticsIntelligence() {
   const [tab, setTab] = useState('overview');
   const [, navigate] = useLocation();
 
   return (
     <div className="space-y-6">
+      <BackHeader fallback="/admin/logistics" breadcrumb={[{label:"Logística",href:"/admin/logistics"},{label:"Inteligência Logística"}]} />
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg">

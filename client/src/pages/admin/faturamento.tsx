@@ -220,6 +220,8 @@ function StatusIcon({ status }: { status: string }) {
   return <AlertCircle className="w-4 h-4 text-red-500" />;
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function CentralFaturamento() {
   const { toast } = useToast();
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -448,6 +450,7 @@ export default function CentralFaturamento() {
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <BackHeader fallback="/admin/nfe" breadcrumb={[{label:"Emissão de NF-e",href:"/admin/nfe"},{label:"Central de Faturamento"}]} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

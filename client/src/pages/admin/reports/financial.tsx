@@ -38,6 +38,8 @@ const FILTER_LABELS: Record<DateFilter, string> = {
   custom: 'Período Personalizado',
 };
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function FinancialReportPage() {
   const { data: report, isLoading } = useFinancialReport();
   const { data: orders = [] } = useQuery<any[]>({ queryKey: ['/api/orders'], select: normalizeList });
@@ -106,6 +108,7 @@ export default function FinancialReportPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin/finance" breadcrumb={[{label:"Financeiro",href:"/admin/finance"},{label:"Painel Financeiro"}]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Painel Financeiro</h1>

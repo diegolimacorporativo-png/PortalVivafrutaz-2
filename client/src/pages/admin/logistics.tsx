@@ -1512,6 +1512,8 @@ function SmartIntelligenceTab() {
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function LogisticsPage() {
   const { data: drivers = [] } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'] });
   const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'] });
@@ -1523,6 +1525,7 @@ export default function LogisticsPage() {
 
   return (
     <div className="space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{label:"Painel",href:"/admin"},{label:"Logística"}]} />
       <div>
         <h1 className="text-2xl font-bold text-foreground">Logística</h1>
         <p className="text-sm text-muted-foreground mt-1">Gerencie motoristas, veículos, rotas, manutenção e cotações</p>

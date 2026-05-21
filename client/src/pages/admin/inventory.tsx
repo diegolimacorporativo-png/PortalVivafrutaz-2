@@ -66,6 +66,8 @@ function movementLabel(type: string) {
   }
 }
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function InventoryPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("panel");
@@ -225,6 +227,7 @@ export default function InventoryPage() {
 
   return (
     <div className="p-6 space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{label:"Painel",href:"/admin"},{label:"Estoque & Inventário"}]} />
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center gap-4 justify-between">
         <div className="flex items-center gap-3">

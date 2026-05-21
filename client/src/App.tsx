@@ -510,7 +510,7 @@ function Router() {
         {() => <DriverMap />}
       </Route>
       <Route path="/test-clara">
-        {() => <TestClaraPage />}
+        {() => <ProtectedRoute component={TestClaraPage} role="admin" allowedRoles={['MASTER']} tabKey="test-clara" />}
       </Route>
       <Route path="/admin/intelligence">
         {() => <ProtectedRoute component={AdminIntelligence} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="intelligence" />}
@@ -554,7 +554,7 @@ function Router() {
         {() => <ProtectedRoute component={ClientIncidents} role="client" />}
       </Route>
       <Route path="/client/quotations">
-        {() => <Redirect to="/client" />}
+        {() => <ProtectedRoute component={ClientQuotations} role="client" />}
       </Route>
       <Route path="/client/profile">
         {() => <ProtectedRoute component={ClientProfile} role="client" />}

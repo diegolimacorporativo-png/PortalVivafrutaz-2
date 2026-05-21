@@ -134,6 +134,8 @@ function MiniBar({ label, value, max, color }: { label: string; value: number; m
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function NfeDashboardPage() {
   const { toast } = useToast();
   const loadedRef = useRef(false);
@@ -228,6 +230,7 @@ export default function NfeDashboardPage() {
 
   return (
     <div className="space-y-5 p-1">
+      <BackHeader fallback="/admin/nfe" breadcrumb={[{label:"Emissão de NF-e",href:"/admin/nfe"},{label:"Dashboard NF-e"}]} />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

@@ -131,6 +131,8 @@ function AmbienteBadge() {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function NfeRecoveryPage() {
   const { toast } = useToast();
 
@@ -255,6 +257,7 @@ export default function NfeRecoveryPage() {
 
   return (
     <div className="space-y-5 p-1">
+      <BackHeader fallback="/admin/nfe" breadcrumb={[{label:"Emissão de NF-e",href:"/admin/nfe"},{label:"Recovery NF-e"}]} />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

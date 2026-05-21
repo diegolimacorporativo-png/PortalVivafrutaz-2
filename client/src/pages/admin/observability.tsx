@@ -250,6 +250,8 @@ function circuitBadge(state: "closed" | "open" | "half-open") {
 
 // ── Main Component ─────────────────────────────────────────────────────────
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AdminObservability() {
   const { toast } = useToast();
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
@@ -370,6 +372,7 @@ export default function AdminObservability() {
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+      <BackHeader fallback="/admin/master-control" breadcrumb={[{label:"MASTER",href:"/admin/master-control"},{label:"Observabilidade"}]} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Observabilidade Operacional</h1>
