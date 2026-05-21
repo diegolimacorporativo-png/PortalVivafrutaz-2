@@ -1,0 +1,251 @@
+# FASE — TRANSAÇÃO ATÔMICA NF-e + CONSISTÊNCIA FISCAL FINAL
+# EXECUTAR LENTO, CIRÚRGICO E SEM REFATORAÇÃO
+
+PROTOCOLO OBRIGATÓRIO:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → VALIDAÇÃO → RELATÓRIO
+
+NÃO alterar:
+- arquitetura principal
+- tpAmb
+- homologação
+- multi-tenant
+- auth
+- workers
+- Supabase
+- fluxo SEFAZ externo
+- schemas fiscais
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# CONTEXTO FIXO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema deve permanecer:
+
+- Supabase PostgreSQL 17
+- SUPABASE_DATABASE_URL
+- tpAmb=2
+- NFE_SEFAZ_MODE=homologacao
+- AUTO_FATURAMENTO=false
+- SEM produção fiscal
+
+PROIBIDO:
+- tpAmb=1
+- produção SEFAZ
+- fallback DATABASE_URL
+- sqlite
+- Redis
+- Kafka
+- refatoração massiva
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Eliminar o último risco MÉDIO operacional identificado na auditoria:
+
+PARTIAL WRITE NA EMISSÃO NF-e
+
+Garantir consistência entre:
+- createNfeEmissao
+- update fiscalStatus do pedido
+- create workflow/log/audit
+
+SEM alterar a lógica fiscal existente.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA READ ONLY
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar completamente:
+
+- nfeSender.ts
+- nfe.service.ts
+- nfe.repository.ts
+- createNfeEmissao
+- updateOrder fiscalStatus
+- workflow_events
+- system_logs
+- advisory locks NF-e
+- hasBlockingNFe
+- retries fiscais
+- rollback atual
+- ordem das operações
+
+Mapear exatamente:
+- onde ocorre partial write
+- quais writes ficam órfãos
+- quais operações já usam db.transaction
+- quais writes precisam ser atomicamente consistentes
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — MAPEAMENTO TRANSACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Mapear:
+
+SEFAZ CALL
+↓
+createNfeEmissao
+↓
+update order fiscalStatus
+↓
+workflow event
+↓
+system log
+↓
+audit
+
+Definir:
+
+O que entra na transaction
+O que NÃO pode entrar na transaction
+O que depende da resposta externa SEFAZ
+
+IMPORTANTE:
+
+NUNCA manter transação aberta durante chamada HTTP externa SEFAZ.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — IMPLEMENTAÇÃO CIRÚRGICA
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Criar padrão:
+
+1. chamada externa SEFAZ
+2. validar retorno
+3. abrir db.transaction
+4. persistir TODOS os writes internos
+5. commit único
+
+Garantir atomicidade para:
+
+- nfe_emissoes
+- orders.fiscal_status
+- workflow_events
+- system_logs
+- audit trail
+
+Se qualquer write falhar:
+- rollback total
+- zero estado parcial
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — IDMPOTÊNCIA E LOCKS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Preservar:
+- hasBlockingNFe
+- advisory lock
+- anti-dupla-emissão
+- anti-replay
+
+Validar:
+- retry não duplica NF-e
+- rollback não cria lixo fiscal
+- status não fica inconsistente
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — TESTES CONTROLADOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Simular:
+
+1.
+Falha no create workflow_events
+
+Esperado:
+- rollback total
+- nfe_emissoes NÃO persiste
+- order NÃO muda status
+
+2.
+Falha no updateOrder
+
+Esperado:
+- rollback total
+
+3.
+Falha no system_logs
+
+Esperado:
+- rollback total
+
+4.
+Emissão concorrente dupla
+
+Esperado:
+- advisory lock mantém integridade
+
+5.
+Retry após rollback
+
+Esperado:
+- emissão única válida
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — VALIDAÇÃO OPERACIONAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+
+- TypeScript check
+- boot completo
+- emissão homologação
+- healthchecks
+- workers
+- system-status
+- operational-alerts
+- stress leve NF-e
+
+Confirmar:
+- zero regressão
+- tpAmb continua 2
+- homologação intacta
+- zero emissão duplicada
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório completo:
+
+- arquivos alterados
+- fluxo antigo
+- fluxo novo
+- pontos atomicamente protegidos
+- rollback validado
+- testes executados
+- riscos residuais
+- impacto no runtime
+- impacto no Supabase
+- impacto no advisory lock
+
+Confirmar explicitamente:
+
+“O fluxo fiscal interno agora é atomicamente consistente após retorno SEFAZ.”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- refatorar arquitetura
+- alterar XML
+- alterar assinatura
+- alterar tpAmb
+- criar filas novas
+- criar microserviços
+- adicionar Redis/Kafka
+- alterar tenancy
+- alterar auth
+
+Mudanças:
+- pequenas
+- auditáveis
+- reversíveis
+- cirúrgicas
+- seguras
+- zero downtime
+
+EXECUTAR AGORA.

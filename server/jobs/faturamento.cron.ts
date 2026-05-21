@@ -30,6 +30,7 @@ import {
   type OrderLockHandle,
 } from "../modules/nfe/nfe-concurrency.lock";
 import { buildNFeInput } from "../modules/nfe/nfe-input.builder";
+import { commitNfeCreation } from "../modules/nfe/nfe-persist.transaction";
 // FASE 8.4 — call-site agora orquestra: resolveBillingItems → buildNFeInput.
 import { resolveBillingItems } from "../modules/billing/billing.service";
 import { AUTO_FATURAMENTO, ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
@@ -331,23 +332,26 @@ export async function runFaturamentoCron(
           const numero = await storage.getNextNfeNumero();
           const gerada = await gerarNFeXML(input, numero);
 
-          await storage.createNfeEmissao({
+          // INSERT nfe_emissoes + UPDATE orders + INSERT system_logs atomicamente.
+          await commitNfeCreation({
+            nfeData: {
+              orderId,
+              numero: gerada.numero,
+              serie: gerada.serie,
+              chaveNFe: gerada.chaveNFe,
+              status: "gerada",
+              xmlGerado: gerada.xmlGerado,
+              dataEmissao: gerada.dataEmissao,
+              ambienteFiscal: input.tpAmb === "1" ? "producao" : "homologacao",
+            },
             orderId,
-            numero: gerada.numero,
-            serie: gerada.serie,
-            chaveNFe: gerada.chaveNFe,
-            status: "gerada",
-            xmlGerado: gerada.xmlGerado,
-            dataEmissao: gerada.dataEmissao,
-            ambienteFiscal: input.tpAmb === "1" ? "producao" : "homologacao",
-          });
-
-          await storage.updateOrder(orderId, { fiscalStatus: "nota_emitida" });
-          await storage.createLog({
-            action: "NF-E_CRON_GERADA",
-            description: `NF-e nº ${numero} gerada automaticamente pelo cron para pedido #${orderId}.`,
-            level: "INFO",
-            userId: null as any,
+            fiscalStatus: "nota_emitida",
+            log: {
+              action: "NF-E_CRON_GERADA",
+              description: `NF-e nº ${numero} gerada automaticamente pelo cron para pedido #${orderId}.`,
+              level: "INFO",
+              userId: null,
+            },
           });
 
           console.log(`[CRON_FATURAMENTO] pedido #${orderId} emitido (NF nº ${numero})`);

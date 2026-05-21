@@ -83,6 +83,11 @@ import {
   getUserPreferences,
   upsertUserPreference,
 } from "../modules/nfe/nfe.dependencies";
+import {
+  commitNfeCreation,
+  commitNfeSefazResult,
+  commitNfeMockResult,
+} from "../modules/nfe/nfe-persist.transaction";
 import { requireTenantId } from "../core/tenant/context";
 import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 // N+1-FIX: getFaturamentoContext is used in the /api/nfe/eligible batch query
@@ -2159,24 +2164,37 @@ export async function registerRoutes(
               updates.protocolo = retorno.protocolo;
               updates.dataAutorizacao = retorno.dataAutorizacao ? new Date(retorno.dataAutorizacao) : new Date();
               updates.xmlAutorizado = retorno.xmlAutorizado || xmlParaEnviar;
-              // Atualizar pedido SOMENTE após autorização SEFAZ confirmada
-              await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
               console.log('[NFE_AUTHORIZED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, chave: gerada.chaveNFe, cStat: retorno.cStat, protocolo: retorno.protocolo, ambiente: nfe.ambienteFiscal, totalMs: Date.now() - _nfeTs0 });
             } else {
               console.log('[NFE_REJECTED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, cStat: retorno.cStat, xMotivo: retorno.xMotivo, sefazMs: _nfeSefazMs });
             }
 
-            // ETAPA 3 hardening — FAIL-SAFE pós-autorização.
-            // Se updateNfeEmissao lançar APÓS o SEFAZ ter autorizado a nota,
-            // a NF-e está registrada no fisco mas não no banco. Logar TODOS os dados
+            // ETAPA 3 hardening — FAIL-SAFE pós-autorização + TRANSAÇÃO ATÔMICA.
+            // commitNfeSefazResult agrupa em db.transaction:
+            //   UPDATE nfe_emissoes (status/protocolo/xml)
+            //   UPDATE orders (fiscalStatus) — somente se autorizada
+            //   INSERT system_logs (auditoria)
+            // Se o SEFAZ autorizou mas o commit falhar, logar TODOS os dados
             // para recuperação manual. Nunca silenciar esta falha.
+            let nfeAtual: any = nfe;
             try {
-              await storage.updateNfeEmissao(nfe.id, updates);
+              nfeAtual = await commitNfeSefazResult({
+                nfeId: nfe.id,
+                nfeUpdates: updates as any,
+                orderId: Number(orderId),
+                fiscalStatus: retorno.status === 'autorizada' ? 'nota_emitida' : null,
+                log: {
+                  action: retorno.status === 'autorizada' ? 'NF-E_AUTORIZADA' : 'NF-E_REJEITADA',
+                  description: `NF-e nº ${numero} ${retorno.status === 'autorizada' ? 'autorizada' : 'rejeitada'} pelo SEFAZ. Pedido #${orderId}. cStat=${retorno.cStat}. ${retorno.xMotivo}`,
+                  level: retorno.status === 'autorizada' ? 'INFO' : 'WARN',
+                  userId: req.session.userId,
+                },
+              });
               console.log('[NFE_DB_PERSISTED]', { corrId: _nfeCorrId, company_id: tenantId, order_id: orderId, nfe_id: nfe.id, status: retorno.status, totalMs: Date.now() - _nfeTs0 });
             } catch (persistErr: any) {
               console.error('[NFE_PERSIST_CRITICAL_ALERT]', {
                 corrId: _nfeCorrId,
-                ACAO_NECESSARIA: 'Recuperação manual obrigatória — NF-e autorizada pelo SEFAZ mas não persisitida no banco',
+                ACAO_NECESSARIA: 'Recuperação manual obrigatória — NF-e autorizada pelo SEFAZ mas não persistida no banco',
                 company_id: tenantId,
                 order_id: orderId,
                 nfe_id: nfe.id,
@@ -2197,13 +2215,6 @@ export async function registerRoutes(
                 persistWarning: true,
               });
             }
-
-            await storage.createLog({
-              action: retorno.status === 'autorizada' ? 'NF-E_AUTORIZADA' : 'NF-E_REJEITADA',
-              description: `NF-e nº ${numero} ${retorno.status === 'autorizada' ? 'autorizada' : 'rejeitada'} pelo SEFAZ. Pedido #${orderId}. cStat=${retorno.cStat}. ${retorno.xMotivo}`,
-              level: retorno.status === 'autorizada' ? 'INFO' : 'WARN',
-              userId: req.session.userId,
-            });
 
             // Email automático após autorização
             if (retorno.status === 'autorizada') {
@@ -2272,9 +2283,14 @@ export async function registerRoutes(
           }
         }
 
-        // MODO MOCK: atualiza pedido imediatamente, sem transmissão real
-        await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
-        await storage.createLog({ action: 'NF-E_GERADA', description: `NF-e nº ${numero} gerada para pedido #${orderId}. Chave: ${gerada.chaveNFe}`, level: 'INFO', userId: req.session.userId });
+        // MODO MOCK: UPDATE orders + INSERT system_logs atomicamente.
+        // createNfeEmissao já foi feito acima (necessário para o path SEFAZ ter nfe.id).
+        await commitNfeMockResult({
+          nfeId: nfe.id,
+          orderId: Number(orderId),
+          fiscalStatus: 'nota_emitida',
+          log: { action: 'NF-E_GERADA', description: `NF-e nº ${numero} gerada para pedido #${orderId}. Chave: ${gerada.chaveNFe}`, level: 'INFO', userId: req.session.userId },
+        });
         res.status(201).json({ success: true, nfe, mensagem: 'XML NF-e gerado [MOCK]. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.' });
       } catch (e: any) {
         // FASE NF.4.3 — tradução de erro fiscal para mensagem amigável.
@@ -2416,24 +2432,26 @@ export async function registerRoutes(
         const numero = await storage.getNextNfeNumero();
         const gerada = await gerarNFeXML(input, numero);
 
-        const nfe = await storage.createNfeEmissao({
+        // INSERT nfe_emissoes + UPDATE orders + INSERT system_logs atomicamente.
+        const nfe = await commitNfeCreation({
+          nfeData: {
+            orderId,
+            numero: gerada.numero,
+            serie: gerada.serie,
+            chaveNFe: gerada.chaveNFe,
+            status: 'gerada',
+            xmlGerado: gerada.xmlGerado,
+            dataEmissao: gerada.dataEmissao,
+            ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+          },
           orderId,
-          numero: gerada.numero,
-          serie: gerada.serie,
-          chaveNFe: gerada.chaveNFe,
-          status: 'gerada',
-          xmlGerado: gerada.xmlGerado,
-          dataEmissao: gerada.dataEmissao,
-          ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
-        });
-
-        await storage.updateOrder(orderId, { fiscalStatus: 'nota_emitida' });
-
-        await storage.createLog({
-          action: 'NF-E_REENVIADA',
-          description: `NF-e nº ${numero} reemitida para pedido #${orderId} (substitui NF #${(ultima as any)?.id} status=${ultimoStatus}). Chave: ${gerada.chaveNFe}`,
-          level: 'INFO',
-          userId: req.session.userId,
+          fiscalStatus: 'nota_emitida',
+          log: {
+            action: 'NF-E_REENVIADA',
+            description: `NF-e nº ${numero} reemitida para pedido #${orderId} (substitui NF #${(ultima as any)?.id} status=${ultimoStatus}). Chave: ${gerada.chaveNFe}`,
+            level: 'INFO',
+            userId: req.session.userId,
+          },
         });
 
         res.status(201).json({
@@ -2608,30 +2626,32 @@ export async function registerRoutes(
         const numero = await storage.getNextNfeNumero();
         const gerada = await gerarNFeXML(input, numero);
 
-        const nfe = await storage.createNfeEmissao({
+        // INSERT nfe_emissoes + UPDATE orders + INSERT system_logs atomicamente.
+        const nfe = await commitNfeCreation({
+          nfeData: {
+            orderId,
+            numero: gerada.numero,
+            serie: gerada.serie,
+            chaveNFe: gerada.chaveNFe,
+            status: 'gerada',
+            xmlGerado: gerada.xmlGerado,
+            dataEmissao: gerada.dataEmissao,
+            ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+          },
           orderId,
-          numero: gerada.numero,
-          serie: gerada.serie,
-          chaveNFe: gerada.chaveNFe,
-          status: 'gerada',
-          xmlGerado: gerada.xmlGerado,
-          dataEmissao: gerada.dataEmissao,
-          ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
-        });
-
-        await storage.updateOrder(orderId, { fiscalStatus: 'nota_emitida' });
-
-        await storage.createLog({
-          action: 'NF-E_CORRIGIDA_REENVIADA',
-          description:
-            `NF-e nº ${numero} reemitida (correção semi-automática tipo=${sugestao.tipo}, cStat=${ultimoCStat}) para pedido #${orderId}. ` +
-            `Substitui NF #${(ultima as any)?.id} status=${ultimoStatus}. ` +
-            (totaisAuditados
-              ? `Auditoria ICMS: vBC=${totaisAuditados.vBC} vICMS=${totaisAuditados.vICMS}. `
-              : '') +
-            `Chave: ${gerada.chaveNFe}`,
-          level: 'INFO',
-          userId: req.session.userId,
+          fiscalStatus: 'nota_emitida',
+          log: {
+            action: 'NF-E_CORRIGIDA_REENVIADA',
+            description:
+              `NF-e nº ${numero} reemitida (correção semi-automática tipo=${sugestao.tipo}, cStat=${ultimoCStat}) para pedido #${orderId}. ` +
+              `Substitui NF #${(ultima as any)?.id} status=${ultimoStatus}. ` +
+              (totaisAuditados
+                ? `Auditoria ICMS: vBC=${totaisAuditados.vBC} vICMS=${totaisAuditados.vICMS}. `
+                : '') +
+              `Chave: ${gerada.chaveNFe}`,
+            level: 'INFO',
+            userId: req.session.userId,
+          },
         });
 
         res.status(201).json({
@@ -2792,19 +2812,22 @@ export async function registerRoutes(
               const numero = await storage.getNextNfeNumero();
               const gerada = await gerarNFeXML(input, numero);
 
-              const nfe = await storage.createNfeEmissao({
+              // INSERT nfe_emissoes + UPDATE orders + INSERT system_logs atomicamente.
+              const nfe = await commitNfeCreation({
+                nfeData: {
+                  orderId: Number(orderId),
+                  numero: gerada.numero,
+                  serie: gerada.serie,
+                  chaveNFe: gerada.chaveNFe,
+                  status: 'gerada',
+                  xmlGerado: gerada.xmlGerado,
+                  dataEmissao: gerada.dataEmissao,
+                  ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+                },
                 orderId: Number(orderId),
-                numero: gerada.numero,
-                serie: gerada.serie,
-                chaveNFe: gerada.chaveNFe,
-                status: 'gerada',
-                xmlGerado: gerada.xmlGerado,
-                dataEmissao: gerada.dataEmissao,
-                ambienteFiscal: input.tpAmb === '1' ? 'producao' : 'homologacao',
+                fiscalStatus: 'nota_emitida',
+                log: { action: 'NF-E_LOTE_GERADA', description: `NF-e nº ${numero} gerada em lote para pedido #${orderId}.`, level: 'INFO', userId: req.session.userId },
               });
-
-              await storage.updateOrder(Number(orderId), { fiscalStatus: 'nota_emitida' });
-              await storage.createLog({ action: 'NF-E_LOTE_GERADA', description: `NF-e nº ${numero} gerada em lote para pedido #${orderId}.`, level: 'INFO', userId: req.session.userId });
 
               return { orderId, status: 'success', nfe };
             } catch (e: any) {
@@ -2977,8 +3000,15 @@ export async function registerRoutes(
           updates.dataAutorizacao = retorno.dataAutorizacao ? new Date(retorno.dataAutorizacao) : new Date();
           updates.xmlAutorizado = retorno.xmlAutorizado || xmlParaEnviar;
         }
-        await storage.updateNfeEmissao(nfe.id, updates);
-        await storage.createLog({ action: 'NF-E_ENVIADA', description: `NF-e #${nfe.id} enviada ao SEFAZ. Status: ${retorno.status} (${retorno.cStat}) - ${retorno.xMotivo}`, level: retorno.status === 'autorizada' ? 'INFO' : 'WARN', userId: req.session.userId });
+        // UPDATE nfe_emissoes + INSERT system_logs atomicamente.
+        // Nota: este endpoint não atualiza orders.fiscal_status (nfe já existente).
+        await commitNfeSefazResult({
+          nfeId: nfe.id,
+          nfeUpdates: updates,
+          orderId: nfe.orderId,
+          fiscalStatus: null,
+          log: { action: 'NF-E_ENVIADA', description: `NF-e #${nfe.id} enviada ao SEFAZ. Status: ${retorno.status} (${retorno.cStat}) - ${retorno.xMotivo}`, level: retorno.status === 'autorizada' ? 'INFO' : 'WARN', userId: req.session.userId },
+        });
 
         // Envio automático de email com XML após autorização SEFAZ
         if (retorno.status === 'autorizada' && nfe.orderId) {
@@ -3379,12 +3409,24 @@ export async function registerRoutes(
           updates.protocolo = retorno.protocolo;
           updates.dataAutorizacao = retorno.dataAutorizacao ? new Date(retorno.dataAutorizacao) : new Date();
           updates.xmlAutorizado = retorno.xmlAutorizado || nfe.xmlGerado;
-          await storage.updateOrder(nfe.orderId, { fiscalStatus: 'nota_emitida' });
         }
 
-        // ETAPA 3 fail-safe: catch isolado pós-autorização para não perder dados
+        // ETAPA 3 fail-safe + TRANSAÇÃO ATÔMICA pós-SEFAZ recovery.
+        // commitNfeSefazResult agrupa: UPDATE nfe_emissoes + UPDATE orders + INSERT system_logs.
+        // Se falhar após autorização SEFAZ, logar para recuperação manual.
         try {
-          await storage.updateNfeEmissao(nfeId, updates);
+          await commitNfeSefazResult({
+            nfeId,
+            nfeUpdates: updates as any,
+            orderId: nfe.orderId,
+            fiscalStatus: retorno.status === 'autorizada' ? 'nota_emitida' : null,
+            log: {
+              action: retorno.status === 'autorizada' ? 'NFE_RECOVERY_SUCCESS' : 'NFE_RECOVERY_REPROCESS',
+              description: `Recovery NF-e id=${nfeId} pedido #${nfe.orderId}: ${retorno.status} (cStat=${retorno.cStat})`,
+              level: retorno.status === 'autorizada' ? 'INFO' : 'WARN',
+              userId: req.session?.userId,
+            },
+          });
         } catch (persistErr: any) {
           console.error('[NFE_RECOVERY_PERSIST_CRITICAL]', {
             corrId, nfe_id: nfeId, order_id: nfe.orderId,
@@ -3401,13 +3443,6 @@ export async function registerRoutes(
           chave: nfe.chaveNFe, status: retorno.status,
           cStat: retorno.cStat, protocolo: retorno.protocolo,
           sefazMs, ambiente: nfe.ambienteFiscal,
-        });
-
-        await storage.createLog({
-          action: retorno.status === 'autorizada' ? 'NFE_RECOVERY_SUCCESS' : 'NFE_RECOVERY_REPROCESS',
-          description: `Recovery NF-e id=${nfeId} pedido #${nfe.orderId}: ${retorno.status} (cStat=${retorno.cStat})`,
-          level: retorno.status === 'autorizada' ? 'INFO' : 'WARN',
-          userId: req.session?.userId,
         });
 
         const nfeAtualizada = await storage.getNfeEmissao(nfeId);
