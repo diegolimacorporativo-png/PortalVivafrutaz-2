@@ -14,7 +14,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Building2, TrendingUp, FileText, AlertTriangle, CheckCircle2, XCircle,
   Banknote, CreditCard, Plus, Pencil, Trash2, RefreshCw, BarChart3,
-  Users, Package, Truck, Route, Shield, Puzzle, Star, Zap, QrCode, Copy, MapPin, ToggleLeft, ToggleRight,
+  Users, Package, Truck, Route, Shield, Puzzle, Star, Zap, QrCode, Copy, MapPin, ToggleLeft, ToggleRight, AlertCircle,
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 
@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function DashboardTab() {
-  const { data: stats, isLoading } = useQuery<any>({ queryKey: ['/api/saas/dashboard'] });
+  const { data: stats, isLoading, isError, refetch } = useQuery<any>({ queryKey: ['/api/saas/dashboard'] });
   const { data: companies } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { toast } = useToast();
 
@@ -68,6 +68,19 @@ function DashboardTab() {
   const [ipca, setIpca] = useState('4.62');
 
   if (isLoading) return <div className="text-center py-12 text-muted-foreground">Carregando dashboard...</div>;
+  if (isError) return (
+    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3" data-testid="error-saas-dashboard">
+      <AlertCircle className="w-8 h-8 text-destructive mx-auto opacity-70" />
+      <div>
+        <p className="font-semibold text-destructive">Erro ao carregar dashboard SaaS</p>
+        <p className="text-sm text-muted-foreground mt-1">Não foi possível buscar os dados do painel. Verifique a conexão e tente novamente.</p>
+      </div>
+      <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+        <RefreshCw className="w-4 h-4" />
+        Tentar novamente
+      </Button>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -211,7 +224,7 @@ function DashboardTab() {
 
 function ContratosTab() {
   const { toast } = useToast();
-  const { data: contratos = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
+  const { data: contratos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const { data: bancos = [] } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'] });
@@ -293,6 +306,14 @@ function ContratosTab() {
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando contratos...</div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-saas-contratos">
+          <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+          <p className="font-semibold text-destructive text-sm">Erro ao carregar contratos</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Tentar novamente
+          </Button>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -425,7 +446,7 @@ function ContratosTab() {
 
 function FaturasTab() {
   const { toast } = useToast();
-  const { data: faturas = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/saas/faturas'] });
+  const { data: faturas = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/faturas'] });
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: contratos = [] } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
   const [showForm, setShowForm] = useState(false);
@@ -467,6 +488,14 @@ function FaturasTab() {
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando faturas...</div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-saas-faturas">
+          <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+          <p className="font-semibold text-destructive text-sm">Erro ao carregar faturas</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Tentar novamente
+          </Button>
+        </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -572,7 +601,7 @@ function FaturasTab() {
 
 function BancosTab() {
   const { toast } = useToast();
-  const { data: bancos = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'] });
+  const { data: bancos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'] });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ nomeBanco: '', tipoIntegracao: 'manual', agencia: '', conta: '', chavePix: '', status: 'ativo' });
@@ -627,6 +656,14 @@ function BancosTab() {
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando bancos...</div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-saas-bancos">
+          <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+          <p className="font-semibold text-destructive text-sm">Erro ao carregar configurações bancárias</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Tentar novamente
+          </Button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {bancos.map((b: any) => (
@@ -724,7 +761,7 @@ function BancosTab() {
 
 function ModulosTab() {
   const { toast } = useToast();
-  const { data: modulos = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/saas/modulos'] });
+  const { data: modulos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/modulos'] });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const [selectedPlano, setSelectedPlano] = useState<string>('none');
   const { data: planoModulos = [], refetch: refetchPlanoModulos } = useQuery<any[]>({
@@ -800,6 +837,14 @@ function ModulosTab() {
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-saas-modulos">
+          <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+          <p className="font-semibold text-destructive text-sm">Erro ao carregar módulos</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Tentar novamente
+          </Button>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {(modulos as any[]).map((m: any) => (
@@ -940,7 +985,7 @@ function ModulosTab() {
 
 function AssinaturasTab() {
   const { toast } = useToast();
-  const { data: assinaturas = [], isLoading, refetch } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'] });
+  const { data: assinaturas = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'] });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const [showForm, setShowForm] = useState(false);
@@ -1016,6 +1061,14 @@ function AssinaturasTab() {
 
       {isLoading ? (
         <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-saas-assinaturas">
+          <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+          <p className="font-semibold text-destructive text-sm">Erro ao carregar assinaturas</p>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" /> Tentar novamente
+          </Button>
+        </div>
       ) : (
         <div className="space-y-3">
           {(assinaturas as any[]).map((a: any) => {

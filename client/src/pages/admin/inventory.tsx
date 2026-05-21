@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Warehouse, Plus, Trash2, AlertTriangle, TrendingUp, TrendingDown,
   CheckCircle2, Package, ArrowUpCircle, ArrowDownCircle, RefreshCw,
-  Filter, Download, Pencil, ClipboardCheck, FileText, ChevronRight
+  Filter, Download, Pencil, ClipboardCheck, FileText, ChevronRight, AlertCircle
 } from "lucide-react";
 import type { InventorySettings, InventoryEntry, InventoryMovement, InventoryPhysicalCount } from "@shared/schema";
 
@@ -96,19 +96,19 @@ export default function InventoryPage() {
   const [countForm, setCountForm] = useState({ productName: "", unit: "kg", physicalStock: "", notes: "", date: today() });
 
   // ─── Queries ──────────────────────────────────────────────────
-  const { data: settings = [], isLoading: loadingSettings } = useQuery<InventorySettings[]>({
+  const { data: settings = [], isLoading: loadingSettings, isError: errorSettings, refetch: refetchSettings } = useQuery<InventorySettings[]>({
     queryKey: ["/api/inventory/settings"],
   });
 
-  const { data: entries = [], isLoading: loadingEntries } = useQuery<InventoryEntry[]>({
+  const { data: entries = [], isLoading: loadingEntries, isError: errorEntries, refetch: refetchEntries } = useQuery<InventoryEntry[]>({
     queryKey: ["/api/inventory/entries"],
   });
 
-  const { data: movements = [], isLoading: loadingMovements } = useQuery<InventoryMovement[]>({
+  const { data: movements = [], isLoading: loadingMovements, isError: errorMovements, refetch: refetchMovements } = useQuery<InventoryMovement[]>({
     queryKey: ["/api/inventory/movements"],
   });
 
-  const { data: counts = [] } = useQuery<InventoryPhysicalCount[]>({
+  const { data: counts = [], isError: errorCounts, refetch: refetchCounts } = useQuery<InventoryPhysicalCount[]>({
     queryKey: ["/api/inventory/physical-counts"],
   });
 
@@ -329,6 +329,17 @@ export default function InventoryPage() {
           {/* Table */}
           {loadingSettings ? (
             <div className="text-center py-12 text-muted-foreground">Carregando...</div>
+          ) : errorSettings ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-inventory-settings">
+              <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+              <div>
+                <p className="font-semibold text-destructive text-sm">Erro ao carregar painel de estoque</p>
+                <p className="text-xs text-muted-foreground mt-1">Não foi possível carregar os dados do inventário.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetchSettings()} className="gap-2">
+                <RefreshCw className="w-4 h-4" /> Tentar novamente
+              </Button>
+            </div>
           ) : filteredSettings.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Warehouse className="w-8 h-8 mx-auto mb-3 opacity-40" />
@@ -444,6 +455,17 @@ export default function InventoryPage() {
 
           {loadingEntries ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : errorEntries ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-inventory-entries">
+              <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+              <div>
+                <p className="font-semibold text-destructive text-sm">Erro ao carregar entradas</p>
+                <p className="text-xs text-muted-foreground mt-1">Não foi possível carregar o histórico de entradas.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetchEntries()} className="gap-2">
+                <RefreshCw className="w-4 h-4" /> Tentar novamente
+              </Button>
+            </div>
           ) : entries.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <ArrowUpCircle className="w-8 h-8 mx-auto mb-3 opacity-40" />
@@ -541,6 +563,17 @@ export default function InventoryPage() {
 
           {loadingMovements ? (
             <div className="text-center py-8 text-muted-foreground">Carregando...</div>
+          ) : errorMovements ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-inventory-movements">
+              <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+              <div>
+                <p className="font-semibold text-destructive text-sm">Erro ao carregar movimentações</p>
+                <p className="text-xs text-muted-foreground mt-1">Não foi possível carregar o histórico de movimentações.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetchMovements()} className="gap-2">
+                <RefreshCw className="w-4 h-4" /> Tentar novamente
+              </Button>
+            </div>
           ) : filteredMovements.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <RefreshCw className="w-8 h-8 mx-auto mb-3 opacity-40" />
@@ -604,7 +637,18 @@ export default function InventoryPage() {
             </Button>
           </div>
 
-          {counts.length === 0 ? (
+          {errorCounts ? (
+            <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-6 text-center space-y-3" data-testid="error-inventory-counts">
+              <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+              <div>
+                <p className="font-semibold text-destructive text-sm">Erro ao carregar conferências físicas</p>
+                <p className="text-xs text-muted-foreground mt-1">Não foi possível carregar o histórico de contagens.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => refetchCounts()} className="gap-2">
+                <RefreshCw className="w-4 h-4" /> Tentar novamente
+              </Button>
+            </div>
+          ) : counts.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <ClipboardCheck className="w-8 h-8 mx-auto mb-3 opacity-40" />
               <p>Nenhuma conferência registrada ainda.</p>

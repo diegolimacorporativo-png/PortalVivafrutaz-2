@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { normalizeBIResponse } from '@/lib/biNormalizer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { TrendingUp, TrendingDown, DollarSign, RefreshCw, Trophy, BarChart3, AlertTriangle } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, RefreshCw, Trophy, BarChart3, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 interface MonthlyRevenue {
   month: string;
@@ -37,7 +38,7 @@ function formatCurrency(v: number) {
 import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function AdminFinancialIntelligence() {
-  const { data, isLoading, refetch, isFetching } = useQuery<FinancialData>({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<FinancialData>({
     queryKey: ['/api/financial-intelligence'],
     refetchInterval: 5 * 60 * 1000,
   });
@@ -73,9 +74,24 @@ export default function AdminFinancialIntelligence() {
       </div>
 
       {isLoading ? (
-        <div className="text-center py-20 text-muted-foreground">
-          <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
-          <p>Calculando inteligência financeira...</p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-2xl" />)}
+          </div>
+          <Skeleton className="h-48 w-full rounded-2xl" />
+          <Skeleton className="h-64 w-full rounded-2xl" />
+        </div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3" data-testid="error-financial-intelligence">
+          <AlertCircle className="w-8 h-8 text-destructive mx-auto opacity-70" />
+          <div>
+            <p className="font-semibold text-destructive">Erro ao carregar inteligência financeira</p>
+            <p className="text-sm text-muted-foreground mt-1">Não foi possível buscar os dados de faturamento. Verifique a conexão e tente novamente.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Tentar novamente
+          </Button>
         </div>
       ) : data ? (
         <>
@@ -125,6 +141,12 @@ export default function AdminFinancialIntelligence() {
               <BarChart3 className="w-5 h-5 text-primary" />
               <h2 className="font-bold text-foreground">Faturamento Mensal (últimos 6 meses)</h2>
             </div>
+            {norm.monthlyRevenue.length === 0 ? (
+              <div className="flex items-center justify-center h-36 text-muted-foreground text-sm gap-2">
+                <BarChart3 className="w-6 h-6 opacity-30" />
+                <span>Nenhum faturamento registrado nos últimos meses.</span>
+              </div>
+            ) : (
             <div className="flex items-end gap-3 h-36">
               {norm.monthlyRevenue.map((m: any, i: number) => {
                 const heightPct = maxRevenue > 0 ? Math.max((m.revenue / maxRevenue) * 100, 2) : 2;
@@ -144,6 +166,7 @@ export default function AdminFinancialIntelligence() {
                 );
               })}
             </div>
+            )}
           </section>
 
           {/* Top Clients */}
@@ -164,7 +187,14 @@ export default function AdminFinancialIntelligence() {
                   </tr>
                 </thead>
                 <tbody>
-                  {norm.topClients.map((c: any, i: number) => (
+                  {norm.topClients.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 py-8 text-center text-muted-foreground text-sm">
+                        <Trophy className="w-6 h-6 mx-auto mb-2 opacity-30" />
+                        <p>Nenhum cliente com faturamento registrado neste período.</p>
+                      </td>
+                    </tr>
+                  ) : norm.topClients.map((c: any, i: number) => (
                     <tr key={c.companyId} data-testid={`row-client-${c.companyId}`} className="border-t border-border/50 hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-3">
                         <span className={`font-bold text-sm ${i === 0 ? 'text-yellow-500' : i === 1 ? 'text-gray-400' : i === 2 ? 'text-orange-400' : 'text-muted-foreground'}`}>
@@ -190,9 +220,7 @@ export default function AdminFinancialIntelligence() {
             </div>
           </div>
         </>
-      ) : (
-        <div className="text-center py-12 text-muted-foreground">Não foi possível carregar os dados financeiros.</div>
-      )}
+      ) : null}
     </div>
   );
 }

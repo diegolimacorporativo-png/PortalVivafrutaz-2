@@ -37,6 +37,7 @@ import {
   Trash2,
   Save,
   BellRing,
+  AlertCircle,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -227,7 +228,7 @@ export default function CentralFaturamento() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [loteResult, setLoteResult] = useState<LoteResponse | null>(null);
 
-  const { data: eligible = [], isLoading, refetch } = useQuery<EligibleOrder[]>({
+  const { data: eligible = [], isLoading, isError: eligibleError, refetch } = useQuery<EligibleOrder[]>({
     queryKey: ["/api/nfe/eligible"],
   });
 
@@ -1245,6 +1246,22 @@ export default function CentralFaturamento() {
               {[1, 2, 3].map((i) => (
                 <Skeleton key={i} className="h-14 w-full rounded-lg" />
               ))}
+            </div>
+          ) : eligibleError ? (
+            <div className="p-6 text-center space-y-3" data-testid="error-faturamento-eligible">
+              <AlertCircle className="w-7 h-7 text-destructive mx-auto opacity-70" />
+              <div>
+                <p className="font-semibold text-destructive text-sm">Erro ao carregar pedidos elegíveis</p>
+                <p className="text-xs text-muted-foreground mt-1">Não foi possível buscar os pedidos disponíveis para faturamento.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="text-xs text-primary underline"
+                data-testid="button-retry-eligible"
+              >
+                Tentar novamente
+              </button>
             </div>
           ) : eligible.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-14 text-gray-400">

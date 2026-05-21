@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from 'wouter';
-import { AlertTriangle, TrendingDown, ShoppingBag, Users, Lightbulb, RefreshCw, ArrowRight, Clock } from 'lucide-react';
+import { AlertTriangle, TrendingDown, ShoppingBag, Users, Lightbulb, RefreshCw, ArrowRight, Clock, AlertCircle } from 'lucide-react';
 
 interface ClientRisk {
   companyId: number;
@@ -51,7 +51,7 @@ const riskLabels = { high: 'Alto Risco', medium: 'Risco Médio', low: 'Baixo Ris
 import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function AdminCommercialIntelligence() {
-  const { data, isLoading, refetch, isFetching } = useQuery<CommercialData>({
+  const { data, isLoading, isError, refetch, isFetching } = useQuery<CommercialData>({
     queryKey: ['/api/commercial-intelligence'],
     refetchInterval: 5 * 60 * 1000,
   });
@@ -114,6 +114,18 @@ export default function AdminCommercialIntelligence() {
         <div className="text-center py-20 text-muted-foreground">
           <RefreshCw className="w-8 h-8 mx-auto mb-3 animate-spin opacity-40" />
           <p>Analisando comportamento de compra...</p>
+        </div>
+      ) : isError ? (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center space-y-3" data-testid="error-commercial-intelligence">
+          <AlertCircle className="w-8 h-8 text-destructive mx-auto opacity-70" />
+          <div>
+            <p className="font-semibold text-destructive">Erro ao carregar inteligência comercial</p>
+            <p className="text-sm text-muted-foreground mt-1">Não foi possível analisar o comportamento de compra dos clientes.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-2">
+            <RefreshCw className="w-4 h-4" />
+            Tentar novamente
+          </Button>
         </div>
       ) : (
         <>

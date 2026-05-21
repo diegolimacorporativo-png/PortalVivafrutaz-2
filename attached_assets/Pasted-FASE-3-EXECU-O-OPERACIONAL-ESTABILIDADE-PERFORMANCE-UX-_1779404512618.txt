@@ -1,0 +1,282 @@
+FASE 3 — EXECUÇÃO OPERACIONAL (ESTABILIDADE + PERFORMANCE + UX)
+PROJETO: VivaFrutaz ERP SaaS
+REPOSITÓRIO:
+https://github.com/diegolimacorporativo-png/PortalVivafrutaz-2.git
+
+====================================================================
+CONTEXTO OBRIGATÓRIO
+====================================================================
+
+Você está trabalhando em um ERP SaaS multi-tenant de produção real.
+
+Stack:
+- React + TypeScript
+- Wouter
+- TanStack Query
+- Node.js
+- PostgreSQL Supabase
+- Replit Deploy
+- Multi-tenant
+- Sistema fiscal NF-e
+- Dashboard analytics
+- Logística
+- Compras
+- Financeiro
+- SaaS admin
+
+REGRAS ABSOLUTAS:
+- NÃO quebrar comportamento existente
+- NÃO criar mocks
+- NÃO usar banco local/Replit
+- TODOS os dados DEVEM vir do Supabase
+- NÃO remover funcionalidades
+- NÃO refatorar arquitetura sem auditoria
+- SEM simplificações destrutivas
+- SEM hardcode
+- SEM alterar fiscal/NF-e sem extremo cuidado
+- NÃO alterar tenancy/security
+- SEM regressões
+
+====================================================================
+STATUS ATUAL DO SISTEMA
+====================================================================
+
+O sistema já passou por:
+- Auditoria profunda frontend
+- Auditoria estrutural arquitetural
+- Correção de crashes
+- Correção de undefined/null crashes
+- Implementação BackHeader
+- Correção de páginas órfãs
+- Correção de persistência de senha Supabase
+- Consolidação parcial de navegação
+
+Já foram identificados:
+- 83 páginas
+- ~51 mil linhas frontend
+- ~18 mil linhas redundantes
+- excesso de dashboards
+- queries excessivas
+- páginas sem loading/error/empty state
+- páginas sem paginação
+- hooks pesados
+- componentes gigantes
+
+====================================================================
+OBJETIVO AGORA — FASE 3
+====================================================================
+
+Executar SOMENTE:
+
+ESTABILIDADE
++
+PERFORMANCE
++
+UX OPERACIONAL
+
+SEM reorganização arquitetural profunda ainda.
+
+====================================================================
+EXECUTAR AGORA — PRIORIDADE P1
+====================================================================
+
+FAZER AUDITORIA E IMPLEMENTAÇÃO COMPLETA DOS:
+
+1. LOADING STATES
+2. ERROR STATES
+3. EMPTY STATES
+
+EM TODAS AS PÁGINAS CRÍTICAS.
+
+====================================================================
+PÁGINAS PRIORITÁRIAS
+====================================================================
+
+- orders.tsx
+- logistics.tsx
+- saas-dashboard.tsx
+- fiscal.tsx
+- nfe.tsx
+- finance.tsx
+- products.tsx
+- companies.tsx
+- inventory.tsx
+- intelligence.tsx
+- logistics-intelligence.tsx
+- commercial-intelligence.tsx
+- financial-intelligence.tsx
+- observability.tsx
+- developer.tsx
+- ai-developer.tsx
+- faturamento.tsx
+
+====================================================================
+O QUE AUDITAR
+====================================================================
+
+Para cada página:
+
+VERIFICAR:
+- loading infinito
+- query sem fallback
+- tela branca
+- render sem feedback
+- spinner ausente
+- erro silencioso
+- empty state inexistente
+- tabela vazia sem mensagem
+- timeout sem feedback
+- retry inexistente
+- suspense quebrado
+- skeleton inexistente
+- query concorrente excessiva
+
+====================================================================
+IMPLEMENTAR PADRÃO GLOBAL
+====================================================================
+
+PADRÃO OBRIGATÓRIO:
+
+LOADING:
+- skeleton
+OU
+- spinner profissional
+OU
+- loading contextual
+
+ERROR:
+- card de erro amigável
+- botão tentar novamente
+- mensagem operacional clara
+- log seguro no console
+
+EMPTY:
+- mensagem contextual
+- ícone
+- CTA quando aplicável
+
+====================================================================
+REGRAS DE IMPLEMENTAÇÃO
+====================================================================
+
+- NÃO usar alert()
+- NÃO usar fallback genérico feio
+- NÃO quebrar layout
+- NÃO alterar lógica de negócio
+- NÃO mover componentes ainda
+- NÃO refatorar estrutura inteira
+- NÃO alterar APIs
+- NÃO alterar banco
+- NÃO alterar auth
+- NÃO alterar tenancy
+
+====================================================================
+TAMBÉM EXECUTAR
+====================================================================
+
+AUDITORIA DE PERFORMANCE:
+
+Mapear:
+- páginas com queries excessivas
+- hooks duplicados
+- renders desnecessários
+- useEffect perigosos
+- queries paralelas gigantes
+- tabelas sem paginação
+- listas sem memo
+- filtros pesados client-side
+
+Gerar ranking:
+
+| Página | Queries | useState | useEffect | Risco | Prioridade |
+
+====================================================================
+IDENTIFICAR PRINCIPAIS GARGALOS
+====================================================================
+
+Especial atenção:
+
+- saas-dashboard.tsx
+- logistics.tsx
+- orders.tsx
+
+Mapear:
+- quantas queries simultâneas
+- quantos estados
+- quantos renders
+- riscos de freeze
+- riscos de timeout
+- riscos mobile
+
+====================================================================
+MOBILE
+====================================================================
+
+Validar:
+- overflow horizontal
+- cards quebrados
+- tabelas impossíveis
+- botões pequenos
+- headers gigantes
+- navegação ruim no mobile
+- BackHeader funcionando
+
+====================================================================
+ENTREGÁVEIS OBRIGATÓRIOS
+====================================================================
+
+1. IMPLEMENTAÇÃO REAL DOS ESTADOS
+2. RELATÓRIO FINAL COMPLETO
+3. TABELA DE PERFORMANCE
+4. TABELA DE PÁGINAS INSTÁVEIS
+5. TABELA DE QUERIES EXCESSIVAS
+6. RANKING DAS PIORES PÁGINAS
+7. ESTIMATIVA DE GANHO DE PERFORMANCE
+8. ESTIMATIVA DE REDUÇÃO DE CRASHES
+9. LISTA DE PRÓXIMAS REFATORAÇÕES
+
+====================================================================
+MODO DE EXECUÇÃO
+====================================================================
+
+OBRIGATÓRIO:
+- Ler antes de alterar
+- Auditar antes de modificar
+- Corrigir cirurgicamente
+- Validar hot reload
+- Validar TypeScript
+- Validar mobile
+- Validar desktop
+- Confirmar zero regressões
+
+====================================================================
+PROIBIDO
+====================================================================
+
+- refatorar sistema inteiro
+- criar nova arquitetura
+- mover domínios
+- criar novos frameworks
+- trocar router
+- trocar state manager
+- quebrar APIs
+- alterar Supabase
+- alterar tenancy
+- alterar fiscal
+- remover funcionalidades
+
+====================================================================
+OBJETIVO FINAL
+====================================================================
+
+Transformar o sistema em:
+
+- estável
+- sem tela branca
+- sem crashes
+- sem undefined
+- com UX operacional profissional
+- com feedback visual consistente
+- utilizável em mobile
+- resiliente a falhas de API
+- preparado para próxima fase de consolidação estrutural
