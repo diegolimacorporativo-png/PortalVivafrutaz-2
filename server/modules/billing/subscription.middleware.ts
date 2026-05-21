@@ -50,10 +50,17 @@ async function resolveCompanyId(req: any): Promise<{ companyId: number | null; b
   if (req.session?.userId) {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) return { companyId: null, bypass: false };
-    if (BYPASS_ROLES.has(actor.role) && isInternalCall) {
-      return { companyId: null, bypass: true };
+    // Privileged roles bypass subscription checks:
+    //  - Always when request is internal (worker/cron via X-Internal-Call header).
+    //  - Also when the actor has no empresaId association (cross-tenant admin)
+    //    making a request from the web UI — they manage the system globally.
+    if (BYPASS_ROLES.has(actor.role)) {
+      const empresaId = (actor as any).empresaId ?? (actor as any).companyId;
+      if (isInternalCall || !empresaId) {
+        return { companyId: null, bypass: true };
+      }
     }
-    const cid = (actor as any).companyId;
+    const cid = (actor as any).empresaId ?? (actor as any).companyId;
     return { companyId: cid ? Number(cid) : null, bypass: false };
   }
   return { companyId: null, bypass: false };

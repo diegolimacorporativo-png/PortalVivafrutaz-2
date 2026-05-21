@@ -464,9 +464,26 @@ export class OrdersService {
     }
 
     // 5) persist
+    // Auto-normalise items: compute totalPrice = unitPrice × quantity if absent.
+    // This guards against API callers that provide unitPrice+quantity but omit
+    // totalPrice — the DB column is NOT NULL so an absent value causes a 500.
+    const normalisedItems = (items || []).map((it: any) => {
+      if (it.totalPrice != null && it.totalPrice !== "") return it;
+      const tp = (Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2);
+      return { ...it, totalPrice: tp };
+    });
+    // Auto-compute totalValue from normalised items when the caller omits it.
+    const normalisedTotal =
+      order.totalValue != null && order.totalValue !== ""
+        ? String(order.totalValue)
+        : String(
+            normalisedItems
+              .reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0)
+              .toFixed(2),
+          );
     const newOrder = await this.repo.create(
-      { ...order, status: "CONFIRMED" },
-      items,
+      { ...order, status: "CONFIRMED", totalValue: normalisedTotal },
+      normalisedItems,
     );
 
     // 6) fire-and-forget side-effects — FASE 9D: safe async wrapper with

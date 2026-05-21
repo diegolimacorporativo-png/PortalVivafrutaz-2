@@ -1,0 +1,177 @@
+# FASE — OPERAÇÃO REAL CONTROLADA + STRESS OPERACIONAL
+# EXECUTAR LENTO, READ-FIRST, SEM FEATURE NOVA
+
+PROTOCOLO:
+AUDITORIA → EXECUÇÃO REAL → STRESS CONTROLADO → BUG REPORT → HOTFIXES → RELATÓRIO
+
+PROIBIDO:
+- criar dashboard
+- criar módulos
+- criar endpoints novos
+- refatorar arquitetura
+- alterar fluxo fiscal
+- ativar produção
+- tpAmb=1
+- alterar Supabase
+- criar novas features
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Usar o sistema como ERP real e encontrar:
+- bugs reais
+- race conditions
+- leaks
+- travamentos
+- erros de sessão
+- erros de permissão
+- falhas multi-tenant
+- problemas runtime
+- queue stuck
+- inconsistências de dados
+
+SEM criar funcionalidades novas.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — VALIDAÇÃO DE LOGIN
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+
+- MASTER
+- ADMIN
+- DEVELOPER
+- usuário comum
+
+Fluxos:
+- login
+- logout
+- refresh
+- troca de aba
+- expiração de sessão
+- restart do servidor
+
+Confirmar:
+- sem lockout
+- sem 401 falsos
+- sem 403 falsos
+- sem perda de sessão
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — OPERAÇÃO REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar fluxo operacional real:
+
+- criar pedidos
+- editar pedidos
+- cancelar pedidos
+- gerar pré-nota
+- gerar XML
+- emitir homologação
+- exportar DANFE
+- atualizar status
+- fluxo financeiro
+- backup manual
+- restore-check
+- troca de empresa
+
+Executar múltiplas vezes.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — STRESS CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Simular:
+
+- múltiplos logins simultâneos
+- múltiplas abas
+- requests paralelas
+- workers simultâneos
+- queue alta
+- restart durante jobs
+- reconnect Supabase
+- reconnect sessão
+
+Monitorar:
+- RSS
+- heap
+- event loop lag
+- postgres latency
+- workers
+- alert engine
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — AUDITORIA DE RUNTIME
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar:
+
+- intervals duplicados
+- workers duplicados
+- listeners duplicados
+- queues travadas
+- memory growth
+- promise leaks
+- stale jobs
+- zombie timers
+
+Uptime mínimo:
+- 2h observação contínua
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — BUG REPORT
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar lista:
+
+BUG-001
+BUG-002
+BUG-003
+
+Para cada bug:
+- reprodução
+- impacto
+- frequência
+- risco
+- stacktrace
+- rota
+- usuário afetado
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — HOTFIXES CIRÚRGICOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir APENAS:
+- bugs reais encontrados
+- crashes
+- vazamentos
+- problemas auth
+- problemas runtime
+- problemas multi-tenant
+
+PROIBIDO:
+- refatoração massiva
+- arquitetura nova
+- dashboard
+- feature nova
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Confirmar explicitamente:
+
+- tpAmb continua 2
+- homologação permanece ativa
+- Supabase exclusivo
+- sem fallback local
+- strategic accounts OK
+- workers OK
+- queues OK
+- runtime OK
+- sem leaks encontrados
+- bugs corrigidos
+
+Executar agora.

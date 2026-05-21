@@ -78,11 +78,14 @@ async function getTpAmb(): Promise<string> {
 
 async function getQueueBacklog(): Promise<{ pending: number; deadLetter: number }> {
   try {
+    // workflow_events is the real transactional outbox table.
+    // pending  = not yet processed (processed_at IS NULL) and not dead-lettered.
+    // dead_letter = permanently failed events (dead_letter=true column).
     const result = await db.execute(sql`
       SELECT
-        COUNT(*) FILTER (WHERE status = 'pending') AS pending,
-        COUNT(*) FILTER (WHERE status = 'dead_letter') AS dead_letter
-      FROM outbox_events
+        COUNT(*) FILTER (WHERE processed_at IS NULL AND dead_letter = false) AS pending,
+        COUNT(*) FILTER (WHERE dead_letter = true)                           AS dead_letter
+      FROM workflow_events
     `);
     const row = (result as any).rows?.[0] ?? {};
     const pending = parseInt(row.pending ?? "0", 10);
