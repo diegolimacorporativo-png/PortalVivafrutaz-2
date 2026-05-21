@@ -1,0 +1,303 @@
+PROJETO: VIVAFRUTAZ ERP — CONTEXTO COMPLETO PARA NOVO AGENT
+
+====================================================================
+VISÃO GERAL DO PROJETO
+====================================================================
+
+Este projeto NÃO é mais um protótipo simples.
+
+O sistema evoluiu durante ~2 meses de desenvolvimento contínuo assistido por IA e hoje já opera como um ERP operacional real multi-módulo.
+
+Objetivo original:
+substituir processos internos feitos em Excel e reduzir dependência do Bling.
+
+Estado atual:
+o sistema já possui arquitetura de ERP completa, incluindo:
+
+- multi-tenant
+- autenticação
+- controle de usuários e roles
+- pedidos
+- contratos
+- financeiro
+- faturamento
+- NF-e
+- automação fiscal
+- logística
+- estoque
+- compras
+- IA operacional
+- observabilidade
+- auditoria
+- antifraude
+- workers
+- cron jobs
+- backups
+- healthchecks
+- SaaS-ready
+
+====================================================================
+STACK E INFRAESTRUTURA
+====================================================================
+
+Frontend:
+- React
+- TypeScript
+- Wouter
+- Tailwind
+- shadcn/ui
+
+Backend:
+- Node.js
+- Express
+- TypeScript
+
+Banco:
+- PostgreSQL Supabase
+- DATABASE_URL REAL
+- Banco OFICIAL é Supabase
+- NÃO usar banco local do Replit
+- NÃO usar memória/local storage como persistência principal
+
+ORM:
+- Drizzle ORM
+
+Infra:
+- Replit
+- Supabase PostgreSQL 17
+- Workers internos
+- Cron jobs internos
+
+====================================================================
+REGRA ABSOLUTA DE DADOS
+====================================================================
+
+TODO dado persistente DEVE salvar no Supabase.
+
+É PROIBIDO:
+- usar banco interno do Replit
+- persistir estado crítico apenas em memória
+- usar mocks permanentes
+- usar fallback local silencioso
+- sobrescrever estado do usuário no boot
+
+Problema crítico já resolvido anteriormente:
+o sistema sobrescrevia senhas no boot via unlockStrategicAccounts().
+Isso foi removido.
+
+Hoje:
+- senhas persistem corretamente no Supabase
+- qualquer alteração de senha DEVE sobreviver restart/deploy
+
+====================================================================
+ARQUITETURA OPERACIONAL
+====================================================================
+
+O sistema segue uma estratégia de evolução em fases.
+
+Sequência estratégica atual:
+
+1. estabilização operacional
+2. observabilidade
+3. hardening
+4. consolidação arquitetural frontend
+5. redução de redundâncias
+6. UX operacional
+7. somente depois → SaaS público
+
+NÃO criar arquiteturas novas fora dessa linha.
+
+====================================================================
+MULTI-TENANT
+====================================================================
+
+O sistema é multi-tenant REAL.
+
+Regras críticas:
+
+- isolamento tenant obrigatório
+- fail-closed
+- AsyncLocalStorage TenantContext
+- requireTenantId()
+- jamais vazar dados cross-tenant
+- jamais remover proteções tenant
+- toda query deve respeitar empresa/company_id
+
+====================================================================
+FISCAL / NF-E
+====================================================================
+
+O sistema possui emissão NF-e REAL.
+
+STATUS ATUAL:
+- tpAmb=2 (HOMOLOGAÇÃO)
+- emissão produção BLOQUEADA
+- certificado real da empresa existe
+- CNPJ real existe
+
+IMPORTANTE:
+NÃO ativar produção fiscal.
+NÃO mudar tpAmb.
+NÃO emitir NF-e reais.
+NÃO remover locks fiscais.
+
+Já existem:
+- advisory locks
+- idempotência
+- recovery
+- retries
+- transaction helpers
+- persistência transacional NF-e
+
+====================================================================
+AUDITORIAS JÁ EXECUTADAS
+====================================================================
+
+O projeto já passou por auditorias profundas de:
+
+- memory leaks
+- race conditions
+- SQL indexes
+- timeouts
+- observabilidade
+- frontend anti-crash
+- redundância arquitetural
+- navegação
+- UX operacional
+- páginas órfãs
+- transações fiscais
+
+Já foram corrigidos:
+- leaks reais
+- partial writes NF-e
+- crashes frontend
+- overwrites de senha
+- timeout gaps
+- páginas sem navegação
+- rotas órfãs
+
+====================================================================
+ESTADO ATUAL DO FRONTEND
+====================================================================
+
+O frontend tinha crescimento orgânico:
+cada feature virou uma nova rota.
+
+Auditoria encontrou:
+- 83 páginas
+- 62 entradas no sidebar
+- 35% de redundância arquitetural
+- múltiplos dashboards sobrepostos
+- múltiplos hubs redundantes
+
+FASE 1 de consolidação já executada:
+
+✅ BackHeader global criado
+✅ navegação padronizada
+✅ páginas órfãs adicionadas ao sidebar
+✅ breadcrumbs introduzidos
+✅ rotas fantasmas corrigidas
+✅ /test-clara protegido
+✅ 23 páginas já usam BackHeader
+
+Componente criado:
+client/src/components/navigation/BackHeader.tsx
+
+====================================================================
+DIRETRIZES DE IMPLEMENTAÇÃO
+====================================================================
+
+SEMPRE seguir:
+
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → VALIDAÇÃO → RELATÓRIO
+
+NUNCA:
+- sair implementando direto
+- refatorar sem auditoria
+- alterar arquitetura sem mapear impacto
+- quebrar comportamento existente
+
+====================================================================
+ESTILO DE ALTERAÇÃO
+====================================================================
+
+Preferência do projeto:
+- mudanças cirúrgicas
+- reversíveis
+- sem regressão
+- sem reescrita massiva
+- sem “reinventar arquitetura”
+- preservar comportamento existente
+
+Prioridade:
+- estabilidade
+- UX operacional
+- consolidação
+- observabilidade
+- padronização
+- redução de complexidade
+
+====================================================================
+REGRAS ABSOLUTAS
+====================================================================
+
+NÃO:
+- remover proteções fiscais
+- remover locks
+- remover idempotência
+- alterar tenancy
+- usar banco local
+- criar mock persistente
+- quebrar auth
+- quebrar workers
+- alterar Supabase sem necessidade
+- ativar produção fiscal
+- simplificar segurança “temporariamente”
+
+SIM:
+- melhorias incrementais
+- consolidação arquitetural
+- padronização visual
+- UX operacional
+- centralização de módulos
+- redução de redundâncias
+- observabilidade
+- segurança
+
+====================================================================
+PRÓXIMA DIREÇÃO ARQUITETURAL
+====================================================================
+
+Próxima consolidação recomendada:
+
+CENTRAL DEV / OBSERVABILIDADE
+
+Consolidar:
+- developer.tsx
+- ai-developer.tsx
+- system-health.tsx
+- observability.tsx
+
+Objetivo:
+transformar múltiplas páginas técnicas redundantes em uma única central com abas.
+
+====================================================================
+EXPECTATIVA DO PROJETO
+====================================================================
+
+Este sistema NÃO deve ser tratado como:
+- toy project
+- CRUD simples
+- MVP descartável
+
+Hoje ele já possui:
+- domínio operacional real
+- workflows reais
+- arquitetura backend madura
+- multi-tenant
+- fiscal
+- automações
+- observabilidade
+- hardening
+
+Qualquer alteração deve respeitar isso.
