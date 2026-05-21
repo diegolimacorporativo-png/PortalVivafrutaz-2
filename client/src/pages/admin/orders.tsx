@@ -1940,12 +1940,14 @@ export default function OrdersPage() {
   };
 
   const saveNote = async (note: string) => {
-    await patchOrder(noteOrder!.id, { adminNote: note });
+    if (!noteOrder) return;
+    await patchOrder(noteOrder.id, { adminNote: note });
     toast({ title: "Observação salva com sucesso!" });
   };
 
   const cancelOrderFn = async () => {
-    await patchOrder(cancelOrder!.id, { status: 'CANCELLED' });
+    if (!cancelOrder) return;
+    await patchOrder(cancelOrder.id, { status: 'CANCELLED' });
     toast({ title: "Pedido cancelado.", variant: "destructive" });
   };
 
@@ -2021,14 +2023,15 @@ export default function OrdersPage() {
   };
 
   const saveItems = async (items: any[]) => {
-    const res = await fetchWithAuth(`/api/orders/${editOrder!.id}/items`, {
+    if (!editOrder) return;
+    const res = await fetchWithAuth(`/api/orders/${editOrder.id}/items`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ items }),
     });
     if (!res.ok) throw new Error('Failed to update items');
     queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
-    queryClient.invalidateQueries({ queryKey: [api.orders.get.path, editOrder!.id] });
+    queryClient.invalidateQueries({ queryKey: [api.orders.get.path, editOrder.id] });
     toast({ title: "Itens do pedido atualizados!" });
   };
 
@@ -2080,7 +2083,7 @@ export default function OrdersPage() {
 
       {/* ─── Dedicated Reopen Requests Panel ─────────────────────── */}
       {counts.reopenRequested > 0 && (() => {
-        const pendingOrders = orders!.filter(o => o.status === 'REOPEN_REQUESTED');
+        const pendingOrders = (orders ?? []).filter(o => o.status === 'REOPEN_REQUESTED');
         return (
           <div className="mb-6 bg-orange-50 border-2 border-orange-200 rounded-2xl overflow-hidden">
             <div className="p-4 border-b border-orange-200 bg-orange-100 flex items-center gap-3">

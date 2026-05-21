@@ -338,8 +338,9 @@ export default function CreateOrderPage() {
         orderCode: result.orderCode || `VF-${new Date().getFullYear()}-${String(result.id).padStart(6, '0')}`,
         total: cartTotal,
       });
-    } catch {
+    } catch (err: any) {
       setSubmitting(false);
+      toast({ title: err?.message || "Erro ao enviar pedido. Tente novamente.", variant: "destructive" });
     }
   };
 

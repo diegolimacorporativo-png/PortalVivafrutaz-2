@@ -86,7 +86,7 @@ function TaskForm({ onClose, users, editTask }: { onClose: () => void; users: an
               <SelectValue placeholder="Selecionar usuário" />
             </SelectTrigger>
             <SelectContent>
-              {users.map(u => (
+              {(users ?? []).map(u => (
                 <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
               ))}
             </SelectContent>

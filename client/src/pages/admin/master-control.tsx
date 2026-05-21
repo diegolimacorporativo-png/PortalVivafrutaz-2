@@ -662,20 +662,20 @@ export default function MasterControl() {
     );
   }
 
-  const filteredUsers = users.filter(u =>
+  const filteredUsers = (users ?? []).filter(u =>
     u.name.toLowerCase().includes(search.toLowerCase()) ||
     u.email.toLowerCase().includes(search.toLowerCase()) ||
     u.role.toLowerCase().includes(search.toLowerCase())
   );
-  const masterLogs = logs.filter((l: any) => l.action?.startsWith('MASTER_'));
+  const masterLogs = (logs ?? []).filter((l: any) => l.action?.startsWith('MASTER_'));
 
   // Map companyId → company name
   const companyMap: Record<number, string> = {};
-  companies.forEach((c: Company) => { companyMap[c.id] = c.companyName; });
+  (companies ?? []).forEach((c: Company) => { companyMap[c.id] = c.companyName; });
 
   // Map planoId → plano nome
   const planoMap: Record<number, string> = {};
-  planos.forEach((p: Plano) => { planoMap[p.id] = p.nome; });
+  (planos ?? []).forEach((p: Plano) => { planoMap[p.id] = p.nome; });
 
   return (
     <div className="space-y-6">

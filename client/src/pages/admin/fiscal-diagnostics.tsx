@@ -348,7 +348,7 @@ export default function AdminFiscalDiagnostics() {
           <DiagCard icon={Zap} title="Validadores XML" check={diag.xmlGuards}>
             {Array.isArray(diag.xmlGuards.details?.guards) && (
               <div className="mt-2 flex flex-wrap gap-1">
-                {(diag.xmlGuards.details!.guards as string[]).map(g => (
+                {(diag.xmlGuards.details?.guards as string[] ?? []).map(g => (
                   <span key={g} className="text-xs bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-mono">
                     {g}
                   </span>

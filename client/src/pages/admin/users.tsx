@@ -199,7 +199,7 @@ export default function UsersAdminPage() {
   const save = useMutation({
     mutationFn: async () => {
       const isEdit = !!modal.editing;
-      const url = isEdit ? `/api/users/${modal.editing!.id}` : '/api/users';
+      const url = isEdit ? `/api/users/${modal.editing?.id}` : '/api/users';
       const res = await fetchWithAuth(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },

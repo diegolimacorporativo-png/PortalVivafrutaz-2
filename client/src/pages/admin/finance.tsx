@@ -732,8 +732,8 @@ export default function FinancePage() {
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-red-700 dark:text-red-400">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" />
           <span>
-            {(dash?.vencidosAR ?? 0) > 0 && <><strong>{fmt(dash!.vencidosAR)}</strong> a receber vencido. </>}
-            {(dash?.vencidosAP ?? 0) > 0 && <><strong>{fmt(dash!.vencidosAP)}</strong> a pagar vencido.</>}
+            {(dash?.vencidosAR ?? 0) > 0 && <><strong>{fmt(dash?.vencidosAR ?? 0)}</strong> a receber vencido. </>}
+            {(dash?.vencidosAP ?? 0) > 0 && <><strong>{fmt(dash?.vencidosAP ?? 0)}</strong> a pagar vencido.</>}
           </span>
         </div>
       )}

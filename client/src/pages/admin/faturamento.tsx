@@ -895,7 +895,7 @@ export default function CentralFaturamento() {
                 <div>
                   <div className="text-xs font-medium text-gray-600 mb-2">Observações</div>
                   <ul className="space-y-2">
-                    {insightsData!.insights.map((it, idx) => {
+                    {(insightsData?.insights ?? []).map((it, idx) => {
                       const cls =
                         it.level === "critical"
                           ? "bg-red-100 text-red-800"
@@ -926,10 +926,10 @@ export default function CentralFaturamento() {
               {(anomalies?.anomalies?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-medium text-gray-600 mb-2">
-                    Anomalias detectadas (atual vs baseline {anomalies!.baselineDays}d)
+                    Anomalias detectadas (atual vs baseline {anomalies?.baselineDays}d)
                   </div>
                   <ul className="divide-y divide-gray-100 border rounded">
-                    {anomalies!.anomalies.map((a, idx) => {
+                    {(anomalies?.anomalies ?? []).map((a, idx) => {
                       const cls =
                         a.level === "critical"
                           ? "bg-red-100 text-red-800"

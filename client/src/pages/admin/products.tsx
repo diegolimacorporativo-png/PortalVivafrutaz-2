@@ -482,11 +482,11 @@ function ProductCategorySelector({
                   <span className="text-xs font-bold text-muted-foreground">R$</span>
                   <input
                     type="number" step="0.01" min="0"
-                    value={sel!.price}
+                    value={sel?.price ?? ''}
                     onChange={e => setPrice(cat.name, e.target.value)}
                     data-testid={`input-price-category-${cat.id}`}
                     className={`w-28 px-2 py-1.5 rounded-lg border-2 outline-none text-sm font-bold text-right transition-colors ${
-                      sel!.price && Number(sel!.price) > 0
+                      sel?.price && Number(sel.price) > 0
                         ? 'border-primary/40 focus:border-primary'
                         : 'border-red-300 focus:border-red-400 bg-red-50'
                     }`}
@@ -495,7 +495,7 @@ function ProductCategorySelector({
                 </div>
               )}
             </div>
-            {isSelected && (!sel!.price || Number(sel!.price) <= 0) && (
+            {isSelected && (!sel?.price || Number(sel.price) <= 0) && (
               <div className="px-4 pb-2">
                 <p className="text-xs text-red-600 flex items-center gap-1">
                   <AlertTriangle className="w-3 h-3" /> Informe o preço para esta categoria
@@ -540,7 +540,7 @@ export default function ProductsPage() {
   const { data: editingSubCats = [] } = useQuery<any[]>({
     queryKey: ['/api/products', editingProduct?.id, 'sub-categories'],
     queryFn: async () => {
-      const r = await fetchWithAuth(`/api/products/${editingProduct!.id}/sub-categories`);
+      const r = await fetchWithAuth(`/api/products/${editingProduct?.id}/sub-categories`);
       return r.json();
     },
     enabled: !!editingProduct,

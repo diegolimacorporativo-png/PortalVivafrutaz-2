@@ -1110,7 +1110,7 @@ export default function AiDeveloperPage() {
                           {[
                             { label: "Total Rotas", value: labTestData.summary?.total ?? 0, color: "text-gray-700" },
                             { label: "Tempo Médio", value: `${labTestData.summary?.avgMs ?? 0}ms`, color: "text-blue-600" },
-                            { label: "Taxa OK", value: `${(labTestData.summary?.total ?? 0) > 0 ? Math.round(((labTestData.summary?.ok ?? 0) / labTestData.summary!.total) * 100) : 0}%`, color: "text-green-600" },
+                            { label: "Taxa OK", value: `${(labTestData.summary?.total ?? 0) > 0 ? Math.round(((labTestData.summary?.ok ?? 0) / (labTestData.summary?.total ?? 1)) * 100) : 0}%`, color: "text-green-600" },
                           ].map(m => (
                             <div key={m.label} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
                               <p className={`text-base font-bold ${m.color}`}>{m.value}</p>

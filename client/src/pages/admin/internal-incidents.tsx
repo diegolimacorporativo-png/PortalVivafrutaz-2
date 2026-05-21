@@ -112,7 +112,7 @@ function IncidentForm({ onClose, users, editIncident }: { onClose: () => void; u
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="none">Nenhum</SelectItem>
-            {users.map(u => (
+            {(users ?? []).map(u => (
               <SelectItem key={u.id} value={u.id.toString()}>{u.name}</SelectItem>
             ))}
           </SelectContent>

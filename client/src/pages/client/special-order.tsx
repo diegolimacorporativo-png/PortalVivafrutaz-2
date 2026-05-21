@@ -89,7 +89,7 @@ export default function SpecialOrderPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          companyId: company!.id,
+          companyId: company?.id,
           requestedDay,
           requestedDate: requestedDate || null,
           observations,
