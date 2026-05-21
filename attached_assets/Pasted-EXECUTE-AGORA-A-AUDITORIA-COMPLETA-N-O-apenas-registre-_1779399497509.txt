@@ -1,0 +1,94 @@
+EXECUTE AGORA A AUDITORIA COMPLETA.
+
+NÃO apenas registre a etapa.
+
+Quero execução REAL da auditoria arquitetural do frontend.
+
+====================================================================
+OBJETIVO
+====================================================================
+
+Mapear:
+
+1. páginas duplicadas
+2. telas redundantes
+3. módulos que fazem a mesma função
+4. páginas que deveriam ser unificadas
+5. páginas sem botão voltar
+6. fluxos inconsistentes
+7. excesso de categorias separadas
+8. menus inflados
+9. analytics duplicados
+10. dashboards redundantes
+
+====================================================================
+EXECUTAR AUDITORIA REAL
+====================================================================
+
+Faça scan completo de:
+
+- client/src/pages
+- client/src/components
+- client/src/modules
+- client/src/routes
+- sidebar/menu/navigation
+- dashboards
+- analytics
+- intelligence pages
+- operational pages
+
+====================================================================
+IDENTIFICAR
+====================================================================
+
+1. Páginas que fazem praticamente a mesma coisa
+2. Telas que poderiam virar abas internas
+3. Dashboards redundantes
+4. Relatórios redundantes
+5. Inteligências separadas desnecessariamente
+6. Fluxos quebrados
+7. Falta de padronização visual
+8. Falta de navegação consistente
+9. Páginas órfãs
+10. Rotas sem uso real
+
+====================================================================
+NAVEGAÇÃO
+====================================================================
+
+Auditar:
+
+- páginas sem botão voltar
+- páginas sem breadcrumb
+- páginas que obrigam uso do botão do navegador
+- perda de contexto ao voltar
+- páginas que abrem sem fluxo consistente
+
+====================================================================
+GERAR RELATÓRIO FINAL COMPLETO
+====================================================================
+
+Quero tabelas:
+
+| Página | Categoria | Redundante? | Pode unificar? | Problema UX | Prioridade |
+
+| Grupo de telas | Sugestão de unificação |
+
+| Página | Possui voltar? | Breadcrumb? | Fluxo quebrado? |
+
+====================================================================
+IMPORTANTE
+====================================================================
+
+NÃO implementar ainda.
+
+Apenas:
+
+- mapear
+- auditar
+- identificar redundâncias
+- propor arquitetura mais limpa
+- propor consolidação de módulos
+
+Objetivo:
+reduzir complexidade do frontend e transformar o sistema em uma plataforma mais limpa, consistente e profissional.
