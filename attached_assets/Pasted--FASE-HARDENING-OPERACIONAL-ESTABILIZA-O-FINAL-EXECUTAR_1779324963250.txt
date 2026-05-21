@@ -1,0 +1,284 @@
+# FASE — HARDENING OPERACIONAL + ESTABILIZAÇÃO FINAL
+# EXECUTAR LENTO, CIRÚRGICO E SEM FEATURE NOVA
+
+PROTOCOLO OBRIGATÓRIO:
+
+AUDITORIA → MAPEAMENTO → TESTES REAIS → HOTFIXES CIRÚRGICOS → VALIDAÇÃO → RELATÓRIO
+
+NÃO:
+- criar dashboard
+- criar frontend novo
+- criar websocket
+- criar Redis
+- criar Kafka
+- criar microserviços
+- alterar arquitetura
+- criar automações novas
+- alterar fluxo fiscal
+- alterar tenancy
+- alterar workers principais
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO DESTA FASE
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Entrar em:
+- estabilização operacional
+- hardening real
+- prevenção de bugs futuros
+- consistência runtime
+- preparação para uptime longo
+
+O foco NÃO é feature.
+
+O foco é:
+- robustez
+- previsibilidade
+- estabilidade
+- integridade
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA DE MEMORY LEAKS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar profundamente:
+
+- Maps
+- caches
+- listeners
+- EventEmitter
+- setInterval
+- setTimeout
+- workers
+- cron jobs
+- queues
+- AsyncLocalStorage
+- session cache
+- dedup stores
+- retry stores
+- pending requests
+- singleton services
+
+Verificar:
+- crescimento infinito
+- ausência de cleanup
+- intervals sem unref()
+- listeners duplicados
+- objetos nunca removidos
+- references persistentes
+
+Mapear:
+- risco BAIXO / MÉDIO / ALTO
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — AUDITORIA DE RACE CONDITIONS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar concorrência real em:
+
+- pedidos
+- faturamento
+- workflow_events
+- geração NF-e
+- retries
+- login simultâneo
+- tokenVersion
+- queues
+- jobs
+- circuit breaker
+- backup jobs
+
+Testar:
+- requisições paralelas
+- inserts simultâneos
+- retries simultâneos
+- double-submit
+- idempotência
+- stale recovery
+
+Identificar:
+- race conditions reais
+- inserts duplicados
+- inconsistência de estado
+- lock incorreto
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — AUDITORIA DE TRANSAÇÕES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+- begin/commit/rollback
+- inserts órfãos
+- partial writes
+- rollback incompleto
+- inconsistência cross-table
+
+Especial atenção:
+- pedidos
+- itens pedido
+- faturamento
+- workflow_events
+- logs fiscais
+- backups
+
+Validar:
+- atomicidade real
+- rollback funcional
+- consistência após falha
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — AUDITORIA SQL + ÍNDICES
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar:
+- queries lentas
+- scans completos
+- joins pesados
+- ORDER BY sem índice
+- filtros sem índice
+- índices redundantes
+- índices faltando
+
+Validar:
+- PostgreSQL 17
+- Supabase remoto
+- latência real
+
+Gerar:
+- lista de índices recomendados
+- impacto esperado
+- risco da alteração
+
+NÃO aplicar índices automaticamente sem validar impacto.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — AUDITORIA DE TIMEOUTS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Verificar:
+- requests pendurados
+- long transactions
+- workers travados
+- DB timeout
+- fetch sem timeout
+- retries infinitos
+- promises sem await
+- deadlocks silenciosos
+
+Validar:
+- graceful shutdown
+- timeout recovery
+- stale job recovery
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — TESTE DE UPTIME CONTROLADO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Simular:
+- operação contínua
+- múltiplos ciclos de worker
+- múltiplos logins
+- stress moderado contínuo
+- crescimento de memória
+- crescimento de logs
+- crescimento de Maps
+
+Validar:
+- heap estável
+- RSS estável
+- event loop saudável
+- pool saudável
+- sem crescimento infinito
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — HOTFIXES CIRÚRGICOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Aplicar SOMENTE:
+- bugs reais
+- leaks reais
+- race conditions reais
+- inconsistências reais
+- timeouts reais
+
+PROIBIDO:
+- refatoração massiva
+- reescrever módulos
+- trocar arquitetura
+- “melhorias subjetivas”
+
+Mudanças:
+- pequenas
+- reversíveis
+- auditáveis
+- seguras
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 8 — VALIDAÇÃO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+
+- TypeScript check
+- stress controlado
+- login simultâneo
+- workers simultâneos
+- queue validation
+- backup validation
+- monitor validation
+- operational alerts validation
+
+Confirmar:
+- zero regressão
+- zero quebra fiscal
+- zero quebra multi-tenant
+- zero quebra auth
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# RELATÓRIO FINAL OBRIGATÓRIO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório completo contendo:
+
+- leaks encontrados
+- races encontrados
+- índices recomendados
+- timeouts encontrados
+- hotfixes aplicados
+- arquivos alterados
+- riscos restantes
+- métricas runtime
+- saúde do pool
+- saúde dos workers
+- status Supabase
+- status fiscal
+- status tenancy
+- status observabilidade
+
+Confirmar explicitamente:
+
+“O sistema encontra-se operacionalmente estável para continuidade da homologação controlada.”
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS ABSOLUTAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+NÃO:
+- ativar produção fiscal
+- alterar tpAmb
+- alterar homologação
+- adicionar serviços externos
+- adicionar dependências pesadas
+- alterar arquitetura principal
+- criar dashboard
+- criar frontend novo
+- criar microserviços
+
+Tudo deve permanecer:
+- Supabase PostgreSQL 17
+- SUPABASE_DATABASE_URL
+- tpAmb=2
+- NFE_SEFAZ_MODE=homologacao
+- homologação travada
+
+EXECUTAR AGORA.

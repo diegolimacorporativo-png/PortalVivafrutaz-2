@@ -70,6 +70,19 @@ export interface EmitAlertInput {
 
 const lastSent = new Map<string, number>();
 
+// Prune lastSent entries older than 2× rate-limit window to prevent unbounded
+// growth. A process running for weeks would otherwise accumulate every unique
+// alert key ever emitted.  Guard prevents duplicate intervals on tsx hot-reload.
+if (!(globalThis as any).__alertLastSentPruneStarted) {
+  (globalThis as any).__alertLastSentPruneStarted = true;
+  setInterval(() => {
+    const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS * 2;
+    for (const [key, ts] of lastSent) {
+      if (ts < cutoff) lastSent.delete(key);
+    }
+  }, RATE_LIMIT_WINDOW_MS).unref();
+}
+
 function isRateLimited(key: string): boolean {
   const last = lastSent.get(key);
   if (!last) return false;
@@ -209,18 +222,26 @@ async function sendSlack(
     ? "\n```" + JSON.stringify(context, null, 2) + "```"
     : "";
   const text = `${tag}\n*${title}*\n${message}${ctxBlock}`;
+  // AbortController with 10 s timeout — a slow Slack response must never
+  // block the worker/request indefinitely.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text }),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     if (!res.ok) {
       return { ok: false, reason: `HTTP ${res.status}` };
     }
     return { ok: true };
   } catch (err: any) {
-    return { ok: false, reason: err?.message || "fetch falhou" };
+    clearTimeout(timer);
+    const reason = controller.signal.aborted ? "timeout (10s)" : (err?.message || "fetch falhou");
+    return { ok: false, reason };
   }
 }
 

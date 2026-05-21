@@ -34,6 +34,28 @@ interface UserRateEntry {
 
 const store = new Map<string, UserRateEntry>();
 
+// Background pruner — removes stale entries whose block has expired and have
+// zero consecutive failures (i.e. they will never block future requests).
+// Runs every 15 min to keep memory bounded even under distributed bruteforce.
+// Guard prevents duplicate intervals on tsx hot-reload.
+if (!(globalThis as any).__userRateLimitPruneStarted) {
+  (globalThis as any).__userRateLimitPruneStarted = true;
+  const PRUNE_INTERVAL_MS = 15 * 60 * 1000;
+  setInterval(() => {
+    const now = Date.now();
+    let pruned = 0;
+    for (const [key, entry] of store) {
+      if (entry.blockedUntil <= now && entry.consecutiveFails === 0) {
+        store.delete(key);
+        pruned++;
+      }
+    }
+    if (pruned > 0) {
+      console.log("[USER_RATE_LIMIT_PRUNED]", { pruned, remaining: store.size, ts: new Date().toISOString() });
+    }
+  }, PRUNE_INTERVAL_MS).unref();
+}
+
 function computeCooldown(consecutiveFails: number): number {
   for (const tier of RATE_LIMIT_SCHEDULE) {
     if (consecutiveFails >= tier.minFails) return tier.cooldownMs;

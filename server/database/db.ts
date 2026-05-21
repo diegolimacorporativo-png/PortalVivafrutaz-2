@@ -87,4 +87,17 @@ export const pool = new Pool({
   connectionTimeoutMillis: 5_000,
 });
 
+// Apply statement_timeout on every new connection so no query can hang
+// indefinitely and block a pool slot. 30 s covers all legitimate use cases
+// (including backup reads and NF-e status queries); adjust per heavy path if
+// needed.  This does NOT affect Supabase serverless — only our pool.
+pool.on("connect", (client) => {
+  client.query("SET statement_timeout = '30s'").catch((err) => {
+    console.warn("[DB_STATEMENT_TIMEOUT_SET_FAILED]", {
+      error: err?.message,
+      ts: new Date().toISOString(),
+    });
+  });
+});
+
 export const db = drizzle(pool, { schema });
