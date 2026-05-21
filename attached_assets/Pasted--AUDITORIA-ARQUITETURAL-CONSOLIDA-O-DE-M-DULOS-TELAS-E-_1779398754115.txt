@@ -1,0 +1,228 @@
+# AUDITORIA ARQUITETURAL — CONSOLIDAÇÃO DE MÓDULOS, TELAS E DOMÍNIOS
+
+OBJETIVO:
+Executar uma auditoria arquitetural PROFUNDA do frontend e da navegação do sistema inteiro para identificar:
+
+- páginas duplicadas
+- módulos redundantes
+- dashboards sobrepostos
+- telas que fazem praticamente a mesma coisa
+- domínios fragmentados
+- rotas que deveriam ser tabs internas
+- features experimentais que viraram permanentes
+- analytics espalhados
+- páginas administrativas redundantes
+- oportunidades reais de consolidação
+
+IMPORTANTE:
+NÃO criar novas features.
+NÃO criar dashboards novos.
+NÃO refatorar ainda.
+NÃO mover arquivos ainda.
+NÃO alterar comportamento operacional.
+
+Primeiro:
+AUDITAR → MAPEAR → CLASSIFICAR → AGRUPAR → PROPOR CONSOLIDAÇÃO.
+
+====================================================================
+ETAPA 1 — INVENTÁRIO COMPLETO
+====================================================================
+
+Mapear TODAS as páginas/rotas do frontend:
+
+- pages/
+- routes/
+- app.tsx
+- router configs
+- sidebars
+- menus
+- navigation trees
+- lazy imports
+- protected routes
+- admin routes
+- operational routes
+
+Gerar lista completa contendo:
+
+| Página | Rota | Domínio | Responsabilidade | Tamanho | APIs usadas |
+
+Exemplo:
+
+| ai-developer.tsx | /ai/developer | IA/diagnóstico | monitoramento técnico |
+| logistics-intelligence.tsx | /logistics/intelligence | logística | analytics logística |
+
+====================================================================
+ETAPA 2 — DETECÇÃO DE REDUNDÂNCIA FUNCIONAL
+====================================================================
+
+Identificar páginas que fazem funções semelhantes ou sobrepostas.
+
+Exemplos de padrões:
+
+- dashboards mostrando métricas parecidas
+- páginas de analytics duplicadas
+- monitoramentos separados sem necessidade
+- páginas administrativas redundantes
+- intelligence / diagnostics / analytics espalhados
+- módulos que só mudam o filtro
+- páginas que poderiam ser tabs
+- páginas que só diferem visualmente
+- telas criadas em fases antigas mas substituídas depois
+
+Classificar:
+
+| Grupo | Páginas | Similaridade | Pode consolidar? |
+
+====================================================================
+ETAPA 3 — CONSOLIDAÇÃO POR DOMÍNIO
+====================================================================
+
+Agrupar o sistema por DOMÍNIO REAL.
+
+Exemplo esperado:
+
+- Fiscal
+- Logística
+- Pedidos
+- Financeiro
+- Compras
+- Analytics
+- Operacional
+- Administração
+- IA/Diagnóstico
+- Estoque
+- Cadastros
+
+Identificar:
+
+- quantas páginas existem por domínio
+- quais estão fragmentadas
+- quais deveriam virar um único módulo
+- quais deveriam ser tabs internas
+
+====================================================================
+ETAPA 4 — DETECÇÃO DE "PÁGINAS ÓRFÃS"
+====================================================================
+
+Identificar:
+
+- páginas sem uso real
+- páginas experimentais
+- páginas de debug
+- páginas não acessadas pelo menu
+- páginas duplicadas antigas
+- páginas desconectadas da operação
+- páginas técnicas sem necessidade operacional
+
+Classificar:
+
+| Página | Motivo | Pode remover? | Risco |
+
+====================================================================
+ETAPA 5 — ANÁLISE DE UX OPERACIONAL
+====================================================================
+
+Auditar:
+
+- excesso de menus
+- excesso de rotas
+- excesso de dashboards
+- rotas profundas demais
+- fragmentação operacional
+- dificuldade de navegação
+- módulos espalhados
+- páginas com mesma função em lugares diferentes
+
+Responder:
+
+1. O sistema está fragmentado?
+2. O menu está grande demais?
+3. Existem módulos que deveriam ser centralizados?
+4. Existem dashboards redundantes?
+5. Existem páginas que deveriam ser tabs?
+6. Existem domínios quebrados em páginas demais?
+
+====================================================================
+ETAPA 6 — PROPOSTA DE CONSOLIDAÇÃO
+====================================================================
+
+Gerar proposta arquitetural SEM IMPLEMENTAR.
+
+Formato obrigatório:
+
+DOMÍNIO:
+- páginas atuais
+- problemas
+- proposta de consolidação
+- impacto
+- risco
+- complexidade
+
+Exemplo:
+
+DOMÍNIO: LOGÍSTICA
+
+Páginas atuais:
+- logistics.tsx
+- logistics-intelligence.tsx
+- driver-map.tsx
+- operations-timeline.tsx
+
+Problema:
+analytics e operação fragmentados
+
+Proposta:
+Central Logística
+- TAB mapa
+- TAB analytics
+- TAB timeline
+- TAB entregas
+
+Impacto:
+redução de 4 rotas → 1 módulo consolidado
+
+====================================================================
+ETAPA 7 — MAPA FINAL
+====================================================================
+
+Gerar:
+
+1. Quantidade total de páginas
+2. Quantidade estimada após consolidação
+3. Quantidade de dashboards redundantes
+4. Quantidade de páginas órfãs
+5. Quantidade de módulos fragmentados
+6. Domínios mais críticos
+7. Ordem recomendada de consolidação
+
+====================================================================
+REGRAS OBRIGATÓRIAS
+====================================================================
+
+- NÃO implementar nada ainda
+- NÃO mover arquivos
+- NÃO quebrar rotas
+- NÃO criar arquitetura nova
+- NÃO alterar backend
+- NÃO alterar APIs
+- NÃO alterar tenancy
+- NÃO alterar auth
+- NÃO alterar fiscal
+- NÃO alterar workers
+
+Apenas:
+AUDITORIA ARQUITETURAL PROFUNDA.
+
+====================================================================
+OBJETIVO FINAL
+====================================================================
+
+Transformar o frontend de:
+"muitas páginas espalhadas"
+
+para:
+"domínios organizados e operacionais"
+
+sem perder funcionalidades.
+
+Executar auditoria completa e gerar RELATÓRIO FINAL DETALHADO.
