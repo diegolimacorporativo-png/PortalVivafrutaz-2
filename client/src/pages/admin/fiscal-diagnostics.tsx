@@ -176,8 +176,8 @@ export default function AdminFiscalDiagnostics() {
   });
 
   const diag = data?.data;
-  const errorCount = diag?.pendingIssues.filter(i => i.severity === "error").length ?? 0;
-  const warnCount = diag?.pendingIssues.filter(i => i.severity === "warning").length ?? 0;
+  const errorCount = diag?.pendingIssues?.filter(i => i.severity === "error").length ?? 0;
+  const warnCount = diag?.pendingIssues?.filter(i => i.severity === "warning").length ?? 0;
   const lastUpdated = dataUpdatedAt ? new Date(dataUpdatedAt).toLocaleTimeString("pt-BR") : null;
 
   return (

@@ -177,11 +177,11 @@ export default function PurchasingPage() {
   const [expandedShoppingList, setExpandedShoppingList] = useState(true);
   const [exporting, setExporting] = useState(false);
 
-  const totalQty = useMemo(() => data?.products.reduce((s, p) => s + p.totalQuantity, 0) || 0, [data]);
-  const totalValue = useMemo(() => data?.rawOrders.reduce((s, r) => s + r.totalPrice, 0) || 0, [data]);
+  const totalQty = useMemo(() => data?.products?.reduce((s, p) => s + p.totalQuantity, 0) || 0, [data]);
+  const totalValue = useMemo(() => data?.rawOrders?.reduce((s, r) => s + r.totalPrice, 0) || 0, [data]);
 
   const handleExport = async () => {
-    if (!data?.rawOrders.length) return;
+    if (!data?.rawOrders?.length) return;
     setExporting(true);
     try {
       await exportToExcel(data.rawOrders, filters);
@@ -203,7 +203,7 @@ export default function PurchasingPage() {
         <button
           data-testid="button-export-excel"
           onClick={handleExport}
-          disabled={exporting || !data?.rawOrders.length}
+          disabled={exporting || !data?.rawOrders?.length}
           className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-colors shadow-lg disabled:opacity-50"
         >
           <FileSpreadsheet className="w-4 h-4" />
@@ -219,7 +219,7 @@ export default function PurchasingPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Produtos Diferentes</p>
-            <p className="text-2xl font-display font-bold text-foreground mt-0.5">{data?.products.length || 0}</p>
+            <p className="text-2xl font-display font-bold text-foreground mt-0.5">{data?.products?.length || 0}</p>
           </div>
         </div>
         <div className="bg-card rounded-2xl p-5 border border-border/50 premium-shadow flex items-center gap-4">
@@ -330,7 +330,7 @@ export default function PurchasingPage() {
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
               <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Carregando dados reais...</td></tr>
-            ) : !data?.products.length ? (
+            ) : !data?.products?.length ? (
               <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Nenhum dado para os filtros selecionados</td></tr>
             ) : (
               data.products.map(p => {
@@ -398,7 +398,7 @@ export default function PurchasingPage() {
 
         {expandedShoppingList && (
           <div className="p-6">
-            {!data?.products.length ? (
+            {!data?.products?.length ? (
               <p className="text-center text-muted-foreground py-4">Nenhum produto encontrado para o período</p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">

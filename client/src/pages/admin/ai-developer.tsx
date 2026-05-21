@@ -1095,9 +1095,9 @@ export default function AiDeveloperPage() {
                             <Play className="w-4 h-4 text-blue-500" />Testes de Rotas
                           </h3>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{labTestData.summary.ok} OK</span>
-                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">{labTestData.summary.warn} Aviso</span>
-                            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">{labTestData.summary.fail} Falha</span>
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{labTestData.summary?.ok ?? 0} OK</span>
+                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-bold">{labTestData.summary?.warn ?? 0} Aviso</span>
+                            <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">{labTestData.summary?.fail ?? 0} Falha</span>
                             <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={handleLabTestRoutes} disabled={loadingTool !== null}>
                               <RefreshCw className="w-3 h-3 mr-1" />Retestar
                             </Button>
@@ -1105,9 +1105,9 @@ export default function AiDeveloperPage() {
                         </div>
                         <div className="grid grid-cols-3 gap-2 mb-2">
                           {[
-                            { label: "Total Rotas", value: labTestData.summary.total, color: "text-gray-700" },
-                            { label: "Tempo Médio", value: `${labTestData.summary.avgMs}ms`, color: "text-blue-600" },
-                            { label: "Taxa OK", value: `${Math.round((labTestData.summary.ok / labTestData.summary.total) * 100)}%`, color: "text-green-600" },
+                            { label: "Total Rotas", value: labTestData.summary?.total ?? 0, color: "text-gray-700" },
+                            { label: "Tempo Médio", value: `${labTestData.summary?.avgMs ?? 0}ms`, color: "text-blue-600" },
+                            { label: "Taxa OK", value: `${(labTestData.summary?.total ?? 0) > 0 ? Math.round(((labTestData.summary?.ok ?? 0) / labTestData.summary!.total) * 100) : 0}%`, color: "text-green-600" },
                           ].map(m => (
                             <div key={m.label} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
                               <p className={`text-base font-bold ${m.color}`}>{m.value}</p>
@@ -1116,7 +1116,7 @@ export default function AiDeveloperPage() {
                           ))}
                         </div>
                         <div className="space-y-1 max-h-72 overflow-y-auto">
-                          {labTestData.results.map((r: any, i: number) => (
+                          {(labTestData.results ?? []).map((r: any, i: number) => (
                             <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${r.status === 'OK' ? 'bg-green-50 border-green-200 dark:bg-green-900/10' : r.status === 'WARN' ? 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/10' : 'bg-red-50 border-red-200 dark:bg-red-900/10'}`}>
                               {r.status === 'OK' ? <CheckCheck className="w-3.5 h-3.5 text-green-600 flex-shrink-0" /> : r.status === 'WARN' ? <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
                               <span className={`w-10 font-bold text-center font-mono ${r.status === 'OK' ? 'text-green-700' : r.status === 'WARN' ? 'text-yellow-700' : 'text-red-700'}`}>{r.httpStatus || '—'}</span>
@@ -1140,7 +1140,7 @@ export default function AiDeveloperPage() {
                             <RefreshCw className="w-3 h-3 mr-1" />Re-analisar
                           </Button>
                         </div>
-                        {labAutoFixData.fixes.length === 0 ? (
+                        {(labAutoFixData.fixes?.length ?? 0) === 0 ? (
                           <div className="text-center py-8">
                             <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-green-500 opacity-70" />
                             <p className="text-sm font-medium text-gray-600">Nenhum issue crítico encontrado!</p>
@@ -1148,7 +1148,7 @@ export default function AiDeveloperPage() {
                           </div>
                         ) : (
                           <div className="space-y-2 max-h-80 overflow-y-auto">
-                            {labAutoFixData.fixes.map((fix: any, i: number) => {
+                            {(labAutoFixData.fixes ?? []).map((fix: any, i: number) => {
                               const sevColor: Record<string, string> = {
                                 CRITICAL: 'border-red-300 bg-red-50', HIGH: 'border-orange-300 bg-orange-50',
                                 MEDIUM: 'border-yellow-300 bg-yellow-50', LOW: 'border-blue-200 bg-blue-50',
@@ -1187,14 +1187,14 @@ export default function AiDeveloperPage() {
                             <Globe className="w-4 h-4 text-cyan-500" />Simulação de Uso
                           </h3>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{labSimulateData.summary.ok}/{labSimulateData.summary.total} OK</span>
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">{labSimulateData.summary?.ok ?? 0}/{labSimulateData.summary?.total ?? 0} OK</span>
                             <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={handleLabSimulate} disabled={loadingTool !== null}>
                               <RefreshCw className="w-3 h-3 mr-1" />Re-simular
                             </Button>
                           </div>
                         </div>
                         <div className="space-y-1.5 max-h-80 overflow-y-auto">
-                          {labSimulateData.steps.map((step: any, i: number) => (
+                          {(labSimulateData.steps ?? []).map((step: any, i: number) => (
                             <div key={i} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs border ${step.status === 'OK' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
                               {step.status === 'OK' ? <CheckCheck className="w-3.5 h-3.5 text-green-600 flex-shrink-0" /> : <XCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />}
                               <span className="flex-1 text-gray-700 font-medium">{step.label}</span>
@@ -1207,9 +1207,9 @@ export default function AiDeveloperPage() {
                         </div>
                         <div className="grid grid-cols-3 gap-2">
                           {[
-                            { label: "Passos OK", value: labSimulateData.summary.ok, color: "text-green-600" },
-                            { label: "Falhas", value: labSimulateData.summary.fail, color: "text-red-600" },
-                            { label: "Tempo total", value: `${labSimulateData.summary.totalMs}ms`, color: "text-blue-600" },
+                            { label: "Passos OK", value: labSimulateData.summary?.ok ?? 0, color: "text-green-600" },
+                            { label: "Falhas", value: labSimulateData.summary?.fail ?? 0, color: "text-red-600" },
+                            { label: "Tempo total", value: `${labSimulateData.summary?.totalMs ?? 0}ms`, color: "text-blue-600" },
                           ].map(m => (
                             <div key={m.label} className="bg-gray-50 dark:bg-gray-800 rounded-lg p-2 text-center">
                               <p className={`text-base font-bold ${m.color}`}>{m.value}</p>

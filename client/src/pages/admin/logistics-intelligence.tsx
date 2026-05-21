@@ -1180,10 +1180,10 @@ function ReportsPanel() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[
-              { label: 'Total', value: reportData.summary.total, color: 'text-foreground' },
-              { label: 'Entregues', value: reportData.summary.entregues, color: 'text-green-600' },
-              { label: 'Pendentes', value: reportData.summary.pendentes, color: 'text-yellow-600' },
-              { label: 'Taxa de Entrega', value: `${reportData.taxaEntrega}%`, color: 'text-blue-600' },
+              { label: 'Total', value: reportData.summary?.total ?? 0, color: 'text-foreground' },
+              { label: 'Entregues', value: reportData.summary?.entregues ?? 0, color: 'text-green-600' },
+              { label: 'Pendentes', value: reportData.summary?.pendentes ?? 0, color: 'text-yellow-600' },
+              { label: 'Taxa de Entrega', value: `${reportData.taxaEntrega ?? 0}%`, color: 'text-blue-600' },
             ].map((s, i) => (
               <div key={i} className="bg-card rounded-xl border border-border/50 p-4 text-center">
                 <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
@@ -1193,7 +1193,7 @@ function ReportsPanel() {
           </div>
 
           {/* Driver performance */}
-          {Object.keys(reportData.driverStats).length > 0 && (
+          {Object.keys(reportData.driverStats ?? {}).length > 0 && (
             <div className="bg-card rounded-2xl border border-border/50 p-5">
               <h3 className="font-semibold text-foreground mb-3 flex items-center gap-2">
                 <User className="w-4 h-4 text-primary" />

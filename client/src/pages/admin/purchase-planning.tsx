@@ -193,7 +193,7 @@ export default function PurchasePlanningPage() {
 
   // Stock deficit alerts — compare demand vs current inventory
   const stockAlerts = useMemo(() => {
-    if (!data?.items.length || !inventorySettings.length) return [];
+    if (!data?.items?.length || !inventorySettings.length) return [];
     const alerts: { productName: string; demand: number; currentStock: number; unit: string }[] = [];
     for (const item of data.items) {
       const inv = inventorySettings.find((s: any) =>
@@ -210,7 +210,7 @@ export default function PurchasePlanningPage() {
   }, [data, inventorySettings]);
 
   const variationAlerts = useMemo(() => {
-    if (!data || !forecastData?.forecast.length) return [];
+    if (!data || !forecastData?.forecast?.length) return [];
     const alerts: { productName: string; currentTotal: number; avgWeekly: number; pct: number }[] = [];
     for (const item of data.items) {
       const fc = forecastData.forecast.find(f => f.productName === item.productName);
@@ -601,7 +601,7 @@ export default function PurchasePlanningPage() {
               <div className="p-8 text-center text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="w-4 h-4 animate-spin" /> Analisando histórico de pedidos...
               </div>
-            ) : !forecastData?.forecast.length ? (
+            ) : !forecastData?.forecast?.length ? (
               <div className="p-8 text-center text-muted-foreground">
                 <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-30" />
                 <p>Histórico insuficiente para gerar previsão.</p>

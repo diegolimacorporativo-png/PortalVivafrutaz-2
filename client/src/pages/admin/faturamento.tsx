@@ -877,7 +877,7 @@ export default function CentralFaturamento() {
               <Skeleton className="h-16 rounded" />
               <Skeleton className="h-24 rounded" />
             </div>
-          ) : (insightsData?.insights.length ?? 0) === 0 && (anomalies?.anomalies.length ?? 0) === 0 ? (
+          ) : (insightsData?.insights?.length ?? 0) === 0 && (anomalies?.anomalies?.length ?? 0) === 0 ? (
             <div
               className="px-2 py-6 text-sm text-emerald-700 text-center flex items-center justify-center gap-2"
               data-testid="text-intel-empty"
@@ -888,7 +888,7 @@ export default function CentralFaturamento() {
           ) : (
             <div className="space-y-5">
               {/* Insights */}
-              {(insightsData?.insights.length ?? 0) > 0 && (
+              {(insightsData?.insights?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-medium text-gray-600 mb-2">Observações</div>
                   <ul className="space-y-2">
@@ -920,7 +920,7 @@ export default function CentralFaturamento() {
               )}
 
               {/* Anomalias (resumo compacto) */}
-              {(anomalies?.anomalies.length ?? 0) > 0 && (
+              {(anomalies?.anomalies?.length ?? 0) > 0 && (
                 <div>
                   <div className="text-xs font-medium text-gray-600 mb-2">
                     Anomalias detectadas (atual vs baseline {anomalies!.baselineDays}d)

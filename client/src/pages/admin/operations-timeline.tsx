@@ -440,7 +440,7 @@ export default function OperationsTimeline() {
   const data = timelineQ.data?.data;
 
   // Compute category counts
-  const counts: Record<string, number> = { all: data?.events.length ?? 0 };
+  const counts: Record<string, number> = { all: data?.events?.length ?? 0 };
   if (data) {
     for (const ev of data.events) {
       counts[ev.categoria] = (counts[ev.categoria] ?? 0) + 1;
@@ -448,7 +448,7 @@ export default function OperationsTimeline() {
   }
 
   // Filter events
-  const visibleEvents = data?.events.filter((ev) => {
+  const visibleEvents = data?.events?.filter((ev) => {
     if (activeFilter === "all") return true;
     const cats = CATEGORY_FILTER[activeFilter];
     return cats ? cats.includes(ev.categoria) : true;

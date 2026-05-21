@@ -184,8 +184,8 @@ export default function DriverMap() {
     [stopMarkers],
   );
 
-  const completed = data?.deliveries.filter((d) => d.status === "entregue").length ?? 0;
-  const total = data?.deliveries.length ?? 0;
+  const completed = data?.deliveries?.filter((d) => d.status === "entregue").length ?? 0;
+  const total = data?.deliveries?.length ?? 0;
   const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
   return (

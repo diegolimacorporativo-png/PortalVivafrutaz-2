@@ -274,7 +274,7 @@ export default function IntelligencePage() {
               </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {aiSyncResult.results.map((r, i) => (
+              {(aiSyncResult.results ?? []).map((r, i) => (
                 <div key={i} className="flex items-start gap-3 p-3 bg-white dark:bg-blue-950/40 rounded-xl border border-blue-100 dark:border-blue-800">
                   <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
