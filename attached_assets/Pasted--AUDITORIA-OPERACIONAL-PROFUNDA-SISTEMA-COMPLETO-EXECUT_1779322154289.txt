@@ -1,0 +1,289 @@
+# AUDITORIA OPERACIONAL PROFUNDA — SISTEMA COMPLETO
+# EXECUTAR LENTO, CIRÚRGICO E READ-FIRST
+
+PROTOCOLO OBRIGATÓRIO:
+AUDITORIA → MAPEAMENTO → VALIDAÇÃO → HOTFIXES REAIS → TESTES → RELATÓRIO
+
+NÃO FAZER:
+- refatoração massiva
+- novas features
+- dashboards
+- novas arquiteturas
+- Redis
+- Kafka
+- microservices
+- produção fiscal
+- tpAmb=1
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# OBJETIVO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar uma auditoria operacional completa do sistema inteiro.
+
+Objetivo:
+identificar:
+- bugs reais
+- vazamentos
+- gargalos
+- riscos de produção
+- falhas silenciosas
+- inconsistências
+- race conditions
+- memory leaks
+- problemas multi-tenant
+- falhas de auth
+- falhas de workers
+- falhas de observabilidade
+- endpoints quebrados
+- sessões inválidas
+- regressões
+
+FOCO:
+ESTABILIDADE OPERACIONAL.
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# REGRAS FIXAS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+O sistema DEVE permanecer:
+
+- Supabase PostgreSQL 17
+- SUPABASE_DATABASE_URL
+- tpAmb=2
+- NFE_SEFAZ_MODE=homologacao
+- homologação apenas
+- sem emissão real
+
+PROIBIDO:
+- DATABASE_URL
+- sqlite
+- heliumdb
+- produção fiscal
+- fallback local
+- remover proteções
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 1 — AUDITORIA GLOBAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Auditar COMPLETAMENTE:
+
+CORE:
+- server/index.ts
+- app.ts
+- workers
+- boot sequence
+- shutdown sequence
+- runtime monitors
+- cron jobs
+- memory monitor
+- event loop monitor
+- queue monitor
+
+AUTH:
+- auth.service.ts
+- session middleware
+- cookies
+- RBAC
+- strategic bypass
+- lockouts
+- rate limits
+- serialize/deserialize
+
+MULTI-TENANT:
+- empresa_id
+- isolation
+- read leaks
+- write leaks
+- joins
+- repositories
+- withTenant()
+
+NF-E:
+- tpAmb
+- homologação lock
+- guards
+- XML builder
+- transmission
+- queue
+- retry
+- DANFE
+- pre-nota
+
+DATABASE:
+- connection pool
+- idle connections
+- long queries
+- indexes
+- schema drift
+- missing constraints
+- deadlocks
+- N+1 queries
+
+OBSERVABILIDADE:
+- alert engine
+- structured logs
+- cooldown
+- probes
+- health routes
+- readiness
+- operational alerts
+
+BACKUP:
+- backup pipeline
+- storage upload
+- verify
+- restore-check
+- retention
+
+FRONTEND:
+- endpoints quebrados
+- 401
+- 403
+- stale sessions
+- invalid permissions
+- loading deadlocks
+- race conditions
+- request retry loops
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 2 — MAPA DE RISCO
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Classificar tudo:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+Mapear:
+- impacto
+- frequência
+- risco operacional
+- risco de perda de dados
+- risco fiscal
+- risco multi-tenant
+- risco auth
+- risco memória
+- risco crash
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 3 — VALIDAÇÃO REAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar testes REAIS:
+
+- login
+- refresh
+- restart
+- workers
+- emissão homologação
+- pré-nota
+- exportação XML
+- backup
+- restore-check
+- filas
+- alertas
+- shutdown
+- reconnect postgres
+- reconnect session
+- role validation
+- multi-tenant access
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 4 — TYPECHECK + RUNTIME
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Executar:
+
+- TypeScript full check
+- runtime validation
+- imports órfãos
+- intervals sem cleanup
+- event listeners sem cleanup
+- timers
+- memory growth
+- unhandled promises
+- uncaught exceptions
+- duplicated workers
+- duplicated intervals
+
+Mapear:
+- memory leaks
+- resource leaks
+- listener leaks
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 5 — HOTFIXES CIRÚRGICOS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Corrigir APENAS:
+- bugs reais
+- riscos reais
+- crashes
+- vazamentos
+- inconsistências operacionais
+
+PROIBIDO:
+- refatorar sistema inteiro
+- alterar arquitetura
+- criar novos módulos desnecessários
+
+Mudanças:
+- mínimas
+- auditáveis
+- reversíveis
+- seguras
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 6 — TESTES FINAIS
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Validar novamente:
+
+- boot limpo
+- shutdown limpo
+- sem leaks
+- sem flood
+- sem 401
+- sem 403
+- sem queue stuck
+- sem worker duplicado
+- sem reconnect infinito
+- sem lockout estratégico
+- sem perda de sessão
+
+━━━━━━━━━━━━━━━━━━━━━━━
+# ETAPA 7 — RELATÓRIO FINAL
+━━━━━━━━━━━━━━━━━━━━━━━
+
+Gerar relatório COMPLETO:
+
+1. Arquivos auditados
+2. Bugs encontrados
+3. Bugs corrigidos
+4. Vazamentos encontrados
+5. Vazamentos corrigidos
+6. Riscos restantes
+7. Status dos workers
+8. Status do Supabase
+9. Status fiscal
+10. Status auth
+11. Status multi-tenant
+12. Status observabilidade
+13. Status backup
+14. Status memória
+15. Status runtime
+
+CONFIRMAR EXPLICITAMENTE:
+
+- tpAmb continua 2
+- homologação permanece ativa
+- nenhuma emissão real habilitada
+- Supabase continua exclusivo
+- contas estratégicas continuam desbloqueadas
+- sistema operacionalmente estável
+
+EXECUTAR AGORA.

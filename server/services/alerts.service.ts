@@ -37,7 +37,7 @@ if (!(globalThis as any).__alertPruneStarted) {
   (globalThis as any).__alertPruneStarted = true;
   setInterval(() => {
     void pruneOldAlertLogs(ALERT_PRUNE_DAYS);
-  }, ALERT_PRUNE_INTERVAL_MS);
+  }, ALERT_PRUNE_INTERVAL_MS).unref();
   console.log("[ALERT_PRUNE_SCHEDULED]", {
     everyMs: ALERT_PRUNE_INTERVAL_MS,
     keepDays: ALERT_PRUNE_DAYS,

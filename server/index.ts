@@ -217,7 +217,7 @@ process.on("uncaughtException", (err: Error) => {
         ts: new Date().toISOString(),
       });
     }
-  }, 60_000);
+  }, 60_000).unref();
 
   const port = parseInt(process.env.PORT || "5000", 10);
   httpServer.listen({ port, host: "0.0.0.0" }, () => {

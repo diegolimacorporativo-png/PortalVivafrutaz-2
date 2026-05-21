@@ -564,7 +564,15 @@ export async function registerRoutes(
   });
 
   // In-memory duplicate protection (companyId+day → timestamp)
+  // TTL cleanup every 5 min — prunes entries older than the 60s dedup window
+  // to prevent unbounded Map growth over long uptimes.
   const recentOrders = new Map<string, number>();
+  setInterval(() => {
+    const cutoff = Date.now() - 60_000;
+    for (const [k, ts] of recentOrders) {
+      if (ts < cutoff) recentOrders.delete(k);
+    }
+  }, 5 * 60_000).unref();
 
   app.post(api.orders.create.path, requireActiveSubscription, checkPlanLimit('pedidos'), async (req, res) => {
     try {

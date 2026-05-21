@@ -63,7 +63,7 @@ export async function sessionVersionGuard(
   // ETAPA 3 — log para confirmar estado da sessão em cada requisição autenticada
   // (restrito a development para evitar flood de logs em produção)
   if (process.env.NODE_ENV === "development") {
-    console.warn("[SESSION_CHECK]", {
+    console.debug("[SESSION_CHECK]", {
       userId,
       companyId,
       tokenVersion: session.tokenVersion,
