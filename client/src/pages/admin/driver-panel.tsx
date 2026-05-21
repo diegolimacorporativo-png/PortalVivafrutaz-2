@@ -189,8 +189,8 @@ function GpsMap({ deliveries }: { deliveries: DeliveryItem[] }) {
       if (deliveriesWithCoords.length > 0) {
         const bounds: [number, number][] = [];
         deliveriesWithCoords.forEach((d, idx) => {
-          const lat = parseFloat(d.latitude!);
-          const lng = parseFloat(d.longitude!);
+          const lat = parseFloat(d.latitude ?? '0');
+          const lng = parseFloat(d.longitude ?? '0');
           if (!isNaN(lat) && !isNaN(lng)) {
             bounds.push([lat, lng]);
             const color = d.status === 'entregue' ? '#16a34a' : d.status === 'em_rota' ? '#2563eb' : '#d97706';

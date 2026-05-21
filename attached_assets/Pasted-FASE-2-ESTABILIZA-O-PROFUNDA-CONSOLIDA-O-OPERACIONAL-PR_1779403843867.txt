@@ -1,0 +1,218 @@
+FASE 2 — ESTABILIZAÇÃO PROFUNDA + CONSOLIDAÇÃO OPERACIONAL
+PROTOCOLO OBRIGATÓRIO:
+AUDITORIA → MAPEAMENTO → IMPLEMENTAÇÃO CIRÚRGICA → TESTES → VALIDAÇÃO → RELATÓRIO
+
+REGRAS ABSOLUTAS:
+- NÃO criar novas features
+- NÃO adicionar novos módulos
+- NÃO mudar arquitetura fiscal
+- NÃO alterar tenancy
+- NÃO alterar auth flow
+- NÃO tocar em tpAmb=2
+- NÃO usar banco local/Replit
+- TODAS as leituras/escritas DEVEM usar Supabase/PostgreSQL real
+- NÃO fazer refatoração estética
+- NÃO mover arquivos sem necessidade
+- NÃO quebrar rotas existentes
+- NÃO remover lógica operacional existente
+
+OBJETIVO:
+Entrar em modo ERP enterprise stabilization.
+
+====================================================================
+ETAPA 1 — AUDITORIA PROFUNDA DE COMPLEXIDADE
+====================================================================
+
+Auditar o sistema inteiro procurando:
+
+1. COMPONENTES DUPLICADOS
+- tabelas repetidas
+- cards repetidos
+- KPIs repetidos
+- filtros repetidos
+- modais repetidos
+- hooks repetidos
+- loading states repetidos
+- telas analytics repetidas
+- formulários parecidos
+
+Gerar tabela:
+
+| Componente | Onde aparece | Duplicação | Pode unificar? | Risco |
+
+====================================================================
+
+2. APIs REDUNDANTES
+Mapear:
+- endpoints que fazem a mesma coisa
+- endpoints com mesma query SQL
+- rotas com payloads parecidos
+- analytics repetidos
+- múltiplos endpoints para mesma entidade
+
+Gerar tabela:
+
+| Endpoint | Domínio | Sobreposição | Pode consolidar? |
+
+====================================================================
+
+3. PÁGINAS SUPER INFLADAS
+Identificar páginas:
+- acima de 800 linhas
+- acima de 1200 linhas
+- com múltiplas responsabilidades
+- que deveriam virar tabs internas
+- que misturam analytics + CRUD + config
+
+Classificar:
+- risco
+- complexidade
+- prioridade de modularização
+
+====================================================================
+
+4. ESTADOS FRONTEND FRÁGEIS
+Auditar:
+- useState excessivos
+- props drilling
+- useEffect perigosos
+- race conditions
+- loading inconsistente
+- páginas sem skeleton/loading
+- páginas sem empty-state
+- páginas sem error-state
+- páginas sem retry
+
+Gerar relatório.
+
+====================================================================
+
+5. RUNTIME SAFETY GLOBAL
+Continuar auditoria anti-crash:
+
+Encontrar:
+- .map sem guard
+- .filter sem guard
+- .reduce sem guard
+- non-null assertions !
+- any perigosos
+- accesses tipo:
+  data.foo.bar
+  response.items.length
+  summary.total
+sem optional chaining.
+
+VALIDAR:
+- MASTER
+- ADMIN
+- OPERATIONAL
+- CLIENT
+
+====================================================================
+
+6. UX OPERACIONAL
+Auditar:
+- telas lentas
+- excesso de informação
+- duplicidade visual
+- menus confusos
+- fluxos quebrados
+- páginas sem contexto
+- formulários sem cancelar/voltar
+- telas fullscreen sem navegação
+
+====================================================================
+
+7. SIDEBAR / NAVEGAÇÃO
+Validar:
+- links órfãos
+- rotas inacessíveis
+- rotas mortas
+- redirects fantasmas
+- menus duplicados
+- páginas escondidas
+- páginas sem contexto operacional
+
+====================================================================
+
+8. BANCO DE DADOS / PERSISTÊNCIA
+VALIDAR:
+- tudo persiste no Supabase
+- nenhum fallback local
+- nenhum cache sobrescrevendo DB
+- nenhum mock ativo em produção
+- nenhuma senha sobrescrevendo no boot
+- nenhuma escrita parcial restante
+
+====================================================================
+
+9. PERFORMANCE
+Auditar:
+- páginas com render excessivo
+- queries duplicadas
+- requests paralelos desnecessários
+- loops de render
+- componentes gigantes rerenderizando
+- maps enormes sem memo
+- tabelas sem paginação
+
+====================================================================
+
+10. PADRONIZAÇÃO VISUAL
+Validar:
+- BackHeader aplicado corretamente
+- páginas sem breadcrumb
+- inconsistência de spacing
+- cards diferentes para mesma função
+- botões inconsistentes
+- loading inconsistente
+- toasts inconsistentes
+
+====================================================================
+IMPORTANTE
+====================================================================
+
+NÃO IMPLEMENTAR CONSOLIDAÇÕES AINDA.
+
+Nesta fase:
+- APENAS estabilização
+- APENAS auditoria profunda
+- APENAS hardening
+- APENAS correções cirúrgicas
+- APENAS eliminação de risco operacional
+
+====================================================================
+OBRIGATÓRIO NO FINAL
+====================================================================
+
+Gerar:
+
+1. Ranking das páginas mais perigosas
+2. Ranking das páginas mais infladas
+3. Ranking dos maiores riscos operacionais
+4. Ranking das redundâncias
+5. Ranking das futuras consolidações
+6. Ranking dos gargalos de UX
+7. Ranking dos gargalos de performance
+
+E entregar:
+
+- plano da Fase 3
+- ordem segura de execução
+- risco por domínio
+- impacto esperado
+- estimativa de redução de complexidade
+
+====================================================================
+PRIORIDADE ABSOLUTA
+====================================================================
+
+1. Estabilidade
+2. Persistência correta
+3. Runtime safety
+4. UX operacional
+5. Performance
+6. Consolidação
+7. Novas features
+
+Nenhuma nova feature deve ser criada antes da estabilização completa do ERP.
