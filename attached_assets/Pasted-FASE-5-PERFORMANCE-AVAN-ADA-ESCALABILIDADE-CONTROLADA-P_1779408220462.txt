@@ -1,0 +1,275 @@
+FASE 5 — PERFORMANCE AVANÇADA + ESCALABILIDADE CONTROLADA
+PROJETO: VivaFrutaz ERP SaaS
+REPOSITÓRIO:
+https://github.com/diegolimacorporativo-png/PortalVivafrutaz-2.git
+
+====================================================================
+CONTEXTO OBRIGATÓRIO
+====================================================================
+
+O sistema já passou por:
+
+✅ Hardening frontend
+✅ Correção de crashes
+✅ Error/loading/empty states
+✅ Auditoria estrutural
+✅ BackHeader global
+✅ Correções multi-tenant
+✅ Estabilização Supabase
+✅ Auditoria profunda de performance
+✅ Paginação planejada
+✅ UX operacional estabilizada
+
+Agora a prioridade é:
+
+PERFORMANCE REAL
++
+ESCALABILIDADE
++
+REDUÇÃO DE CUSTO DE RENDER
++
+OTIMIZAÇÃO DE QUERIES
+
+SEM REFAZER O SISTEMA.
+
+====================================================================
+OBJETIVO DA FASE 5
+====================================================================
+
+Executar otimizações REAIS e mensuráveis:
+
+1. Lazy queries
+2. Query deduplication
+3. Memoização inteligente
+4. Redução de render massivo
+5. Virtualização onde necessário
+6. Cache correto
+7. Otimização mobile
+8. Controle de DOM gigante
+
+====================================================================
+PRIORIDADE ABSOLUTA
+====================================================================
+
+PÁGINAS MAIS PESADAS IDENTIFICADAS:
+
+1. saas-dashboard.tsx
+- 43+ queries simultâneas
+- múltiplas tabs
+- alto custo de mount
+
+2. orders.tsx
+- 2284 linhas
+- estados massivos
+- render gigante
+- filtros pesados
+
+3. companies.tsx
+- 2419 linhas
+- tabelas grandes
+- render completo
+- múltiplos contextos
+
+4. logistics.tsx
+- mapas + listas
+- filtros derivados
+- render concorrente
+
+====================================================================
+EXECUTAR AGORA — LAZY QUERIES
+====================================================================
+
+OBJETIVO:
+Parar carregamento simultâneo desnecessário.
+
+Implementar:
+- queries sob demanda
+- carregar por TAB
+- carregar somente quando visível
+- manter cache TanStack Query
+
+Aplicar principalmente:
+- saas-dashboard.tsx
+- intelligence.tsx
+- logistics-intelligence.tsx
+
+====================================================================
+REGRAS IMPORTANTES
+====================================================================
+
+- NÃO quebrar UX
+- NÃO criar loading infinito
+- NÃO perder cache
+- NÃO duplicar request
+- NÃO criar race condition
+- NÃO alterar API backend
+
+====================================================================
+EXECUTAR — QUERY DEDUPLICATION
+====================================================================
+
+AUDITAR:
+- hooks repetidos
+- chamadas duplicadas
+- requests iguais simultâneos
+- refetch desnecessário
+- polling excessivo
+- invalidates exagerados
+
+Gerar relatório:
+
+| Página | Query duplicada | Impacto | Solução |
+
+====================================================================
+EXECUTAR — MEMOIZAÇÃO
+====================================================================
+
+Adicionar useMemo/useCallback SOMENTE onde existe ganho real.
+
+MAPEAR:
+- reduce pesado
+- sort pesado
+- filters grandes
+- arrays derivados
+- agrupamentos
+- métricas
+- cálculos em render
+
+Aplicar principalmente:
+- orders.tsx
+- logistics.tsx
+- saas-dashboard.tsx
+- logistics-intelligence.tsx
+- observability.tsx
+
+====================================================================
+EXECUTAR — CONTROLE DE DOM
+====================================================================
+
+AUDITAR:
+- tabelas gigantes
+- cards massivos
+- grids enormes
+- listas renderizando tudo
+
+VALIDAR:
+- DOM size
+- repaint
+- re-render
+- mobile freeze
+
+====================================================================
+MOBILE — PRIORIDADE ALTA
+====================================================================
+
+VALIDAR:
+
+- scroll horizontal
+- tabelas quebradas
+- cards gigantes
+- botões pequenos
+- grids ruins
+- mapas pesados
+- filtros ruins no touch
+- overflow escondido
+
+Especial atenção:
+- orders
+- logistics
+- inventory
+- companies
+
+====================================================================
+VALIDAR CACHE
+====================================================================
+
+Mapear:
+- staleTime
+- cacheTime
+- refetchOnWindowFocus
+- invalidates
+- queries eternas
+- queries sem cache
+
+Objetivo:
+evitar request desnecessário.
+
+====================================================================
+VALIDAR RE-RENDER
+====================================================================
+
+Identificar:
+- componentes rerenderizando sem necessidade
+- props instáveis
+- callbacks recriados
+- dependências erradas
+- effects perigosos
+
+====================================================================
+PROIBIDO
+====================================================================
+
+- refatorar arquitetura inteira
+- trocar framework
+- trocar React Query
+- trocar router
+- alterar tenancy
+- alterar fiscal
+- alterar Supabase
+- quebrar APIs
+- remover funcionalidades
+
+====================================================================
+ENTREGÁVEIS OBRIGATÓRIOS
+====================================================================
+
+1. Lazy queries funcionando
+2. Memoização aplicada
+3. Query deduplication aplicada
+4. Relatório de performance antes/depois
+5. Ranking de render cost
+6. Ranking de queries
+7. Ranking mobile risk
+8. Estimativa de ganho real
+9. Lista de próximos gargalos
+
+====================================================================
+VALIDAÇÃO FINAL OBRIGATÓRIA
+====================================================================
+
+- TypeScript
+- HMR
+- Mobile
+- Desktop
+- Multi-tenant
+- Auth
+- Filtros
+- Busca
+- Sorting
+- Exportações
+- Retry
+- Error states
+- Loading states
+
+====================================================================
+OBJETIVO FINAL
+====================================================================
+
+Preparar o ERP para:
+
+- milhares de registros
+- múltiplos tenants simultâneos
+- uso operacional contínuo
+- mobile real
+- crescimento de base
+- dashboards pesados
+- uso corporativo diário
+
+Com:
+- render estável
+- scroll fluido
+- queries controladas
+- UX rápida
+- sem freeze
+- sem explosão de DOM
+- sem timeout visual

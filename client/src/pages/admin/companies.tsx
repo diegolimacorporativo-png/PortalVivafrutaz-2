@@ -575,6 +575,8 @@ function ContractScopeManager({ company, contractModel, hiddenIds, onDelete,
       return normalizeList(await res.json());
     },
     enabled: !!company?.id,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   // Products filtered by selected category (category name matches product.category field)

@@ -44,7 +44,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function DashboardTab() {
-  const { data: stats, isLoading, isError, refetch } = useQuery<any>({ queryKey: ['/api/saas/dashboard'] });
+  const { data: stats, isLoading, isError, refetch } = useQuery<any>({ queryKey: ['/api/saas/dashboard'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: companies } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { toast } = useToast();
 
@@ -224,7 +224,7 @@ function DashboardTab() {
 
 function ContratosTab() {
   const { toast } = useToast();
-  const { data: contratos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
+  const { data: contratos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const { data: bancos = [] } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'] });
@@ -446,7 +446,7 @@ function ContratosTab() {
 
 function FaturasTab() {
   const { toast } = useToast();
-  const { data: faturas = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/faturas'] });
+  const { data: faturas = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/faturas'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const { data: contratos = [] } = useQuery<any[]>({ queryKey: ['/api/saas/contratos'] });
   const [showForm, setShowForm] = useState(false);
@@ -601,7 +601,7 @@ function FaturasTab() {
 
 function BancosTab() {
   const { toast } = useToast();
-  const { data: bancos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'] });
+  const { data: bancos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/bancos'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ nomeBanco: '', tipoIntegracao: 'manual', agencia: '', conta: '', chavePix: '', status: 'ativo' });
@@ -761,7 +761,7 @@ function BancosTab() {
 
 function ModulosTab() {
   const { toast } = useToast();
-  const { data: modulos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/modulos'] });
+  const { data: modulos = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/saas/modulos'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const [selectedPlano, setSelectedPlano] = useState<string>('none');
   const { data: planoModulos = [], refetch: refetchPlanoModulos } = useQuery<any[]>({
@@ -985,7 +985,7 @@ function ModulosTab() {
 
 function AssinaturasTab() {
   const { toast } = useToast();
-  const { data: assinaturas = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'] });
+  const { data: assinaturas = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
   const { data: companies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
   const [showForm, setShowForm] = useState(false);
@@ -1309,9 +1309,9 @@ function AssinaturasTab() {
 
 function GpsTab() {
   const { toast } = useToast();
-  const { data: companies = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
-  const { data: assinaturas = [] } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'] });
-  const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'] });
+  const { data: companies = [], isLoading } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList, staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: assinaturas = [] } = useQuery<any[]>({ queryKey: ['/api/master/assinaturas'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: planos = [] } = useQuery<any[]>({ queryKey: ['/api/master/planos'], staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false });
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});
 
   const toggleGps = useMutation({

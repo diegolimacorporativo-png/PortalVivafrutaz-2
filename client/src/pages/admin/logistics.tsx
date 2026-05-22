@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -66,7 +66,7 @@ function DriversTab() {
   const [editItem, setEditItem] = useState<LogisticsDriver | undefined>();
   const [form, setForm] = useState({ name: '', cpf: '', phone: '', email: '', licenseNumber: '', notes: '' });
 
-  const { data: drivers = [], isLoading } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'] });
+  const { data: drivers = [], isLoading } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
 
   const saveMut = useMutation({
     mutationFn: (data: any) => editItem
@@ -155,7 +155,7 @@ function VehiclesTab() {
   const [editItem, setEditItem] = useState<LogisticsVehicle | undefined>();
   const [form, setForm] = useState({ plate: '', model: '', brand: '', year: '', type: 'VAN', capacity: '', notes: '' });
 
-  const { data: vehicles = [], isLoading } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'] });
+  const { data: vehicles = [], isLoading } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
 
   const saveMut = useMutation({
     mutationFn: (data: any) => editItem
@@ -255,10 +255,10 @@ function RoutesTab() {
   const [form, setForm] = useState({ name: '', driverId: '', driverName: '', vehicleId: '', vehiclePlate: '', deliveryDate: '', notes: '', companyNames: '', startTime: '', endTime: '' });
   const [companyPickerVal, setCompanyPickerVal] = useState('_none');
 
-  const { data: routes = [], isLoading } = useQuery<LogisticsRoute[]>({ queryKey: ['/api/logistics/routes'] });
-  const { data: drivers = [] } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'] });
-  const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'] });
-  const { data: allCompanies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList });
+  const { data: routes = [], isLoading } = useQuery<LogisticsRoute[]>({ queryKey: ['/api/logistics/routes'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: drivers = [] } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: allCompanies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList, staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
 
   const saveMut = useMutation({
     mutationFn: (data: any) => editItem
@@ -281,11 +281,11 @@ function RoutesTab() {
   const openCreate = () => { setEditItem(undefined); setForm({ name: '', driverId: '', driverName: '', vehicleId: '', vehiclePlate: '', deliveryDate: '', notes: '', companyNames: '', startTime: '', endTime: '' }); setCompanyPickerVal('_none'); setShowForm(true); };
   const openEdit = (r: LogisticsRoute) => { setEditItem(r); setForm({ name: r.name, driverId: r.driverId?.toString() || '', driverName: r.driverName || '', vehicleId: r.vehicleId?.toString() || '', vehiclePlate: r.vehiclePlate || '', deliveryDate: r.deliveryDate || '', notes: r.notes || '', companyNames: r.companyNames || '', startTime: r.startTime || '', endTime: r.endTime || '' }); setCompanyPickerVal('_none'); setShowForm(true); };
 
-  const filtered = routes.filter(r => {
+  const filtered = useMemo(() => routes.filter(r => {
     if (filterDriver !== 'ALL' && r.driverId?.toString() !== filterDriver) return false;
     if (filterDate && r.deliveryDate !== filterDate) return false;
     return true;
-  });
+  }), [routes, filterDriver, filterDate]);
 
   const exportRoutes = () => exportToCSV(filtered.map(r => ({ Rota: r.name, Motorista: r.driverName, Veículo: r.vehiclePlate, 'Data Entrega': r.deliveryDate, Status: STATUS_LABEL[r.status], Empresas: r.companyNames, Início: r.startTime, Fim: r.endTime })), 'rotas.csv');
 
@@ -444,8 +444,8 @@ function MaintenanceTab() {
   const [editItem, setEditItem] = useState<LogisticsMaintenance | undefined>();
   const [form, setForm] = useState({ vehicleId: '', vehiclePlate: '', type: 'PREVENTIVE', description: '', cost: '', scheduledDate: '', notes: '' });
 
-  const { data: maintenances = [], isLoading } = useQuery<LogisticsMaintenance[]>({ queryKey: ['/api/logistics/maintenance'] });
-  const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'] });
+  const { data: maintenances = [], isLoading } = useQuery<LogisticsMaintenance[]>({ queryKey: ['/api/logistics/maintenance'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
 
   const saveMut = useMutation({
     mutationFn: (data: any) => editItem
@@ -597,7 +597,7 @@ function CotacoesTab() {
   const [deliveryWindows, setDeliveryWindows] = useState<DeliveryWindow[]>([]);
   const [form, setForm] = useState({ companyName: '', contactName: '', contactPhone: '', email: '', cnpj: '', city: '', state: '', estimatedVolume: '', productInterest: '', logisticsNote: '' });
 
-  const { data: quotations = [], isLoading } = useQuery<CompanyQuotation[]>({ queryKey: ['/api/quotations'] });
+  const { data: quotations = [], isLoading } = useQuery<CompanyQuotation[]>({ queryKey: ['/api/quotations'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
 
   const canDelete = ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user?.role || '');
   const canEditWindows = ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS'].includes(user?.role || '');
@@ -641,11 +641,11 @@ function CotacoesTab() {
   const updateWindow = (i: number, field: 'startTime' | 'endTime', value: string) =>
     setDeliveryWindows(w => w.map((win, idx) => idx === i ? { ...win, [field]: value } : win));
 
-  const filtered = quotations.filter(q => {
+  const filtered = useMemo(() => quotations.filter(q => {
     const matchSearch = !search || q.companyName.toLowerCase().includes(search.toLowerCase()) || q.contactName.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'ALL' || q.status === statusFilter;
     return matchSearch && matchStatus;
-  });
+  }), [quotations, search, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -1080,8 +1080,8 @@ function RouteAssistantTab() {
     onError: (e: any) => toast({ title: e?.message || 'Erro ao criar rota', variant: 'destructive' }),
   });
 
-  const withOrders = companies.filter(c => c.hasOrderForDate === true);
-  const withoutOrders = companies.filter(c => c.hasOrderForDate === false);
+  const withOrders = useMemo(() => companies.filter(c => c.hasOrderForDate === true), [companies]);
+  const withoutOrders = useMemo(() => companies.filter(c => c.hasOrderForDate === false), [companies]);
 
   return (
     <div className="space-y-5">

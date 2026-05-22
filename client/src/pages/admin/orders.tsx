@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useOrders, useOrderDetail } from "@/hooks/use-ordering";
 import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
@@ -1900,7 +1900,7 @@ export default function OrdersPage() {
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
-  const filtered = orders?.filter(o => {
+  const filtered = useMemo(() => orders?.filter(o => {
     const company = companies?.find(c => c.id === o.companyId);
     const code = (o as any).orderCode || '';
     const matchSearch = !search ||
@@ -1910,23 +1910,17 @@ export default function OrdersPage() {
     const matchFiscal = filterFiscal === 'ALL' ||
       (filterFiscal === 'nota_pendente' && !o.fiscalStatus) ||
       o.fiscalStatus === filterFiscal;
-    // FASE FIN.5 — predicate aditivo de pagamento.
-    // `isPaid` é exposto pelo backend (FIN.2) como boolean opcional;
-    // pendente = qualquer coisa que não seja `true` (inclui ausência).
     const isPaid = (o as any).isPaid === true;
     const matchPayment =
       paymentFilter === 'all' ||
       (paymentFilter === 'paid' && isPaid) ||
       (paymentFilter === 'pending' && !isPaid);
     return matchSearch && matchStatus && matchFiscal && matchPayment;
-  });
+  }), [orders, companies, search, filterStatus, filterFiscal, paymentFilter]);
 
   // FASE FIN.5 — contadores informativos para os chips de pagamento.
-  // Calculados sobre TODOS os pedidos retornados pelo backend (não respeitam
-  // os outros filtros, intencionalmente — funcionam como contador absoluto
-  // de carteira). Aditivo, sem refatorar nada.
-  const paidCount = orders?.filter(o => (o as any).isPaid === true).length ?? 0;
-  const pendingCount = (orders?.length ?? 0) - paidCount;
+  const paidCount = useMemo(() => orders?.filter(o => (o as any).isPaid === true).length ?? 0, [orders]);
+  const pendingCount = useMemo(() => (orders?.length ?? 0) - paidCount, [orders, paidCount]);
   const totalCount = orders?.length ?? 0;
 
   const patchOrder = async (id: number, updates: any) => {

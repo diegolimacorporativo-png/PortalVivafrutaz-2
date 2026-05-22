@@ -236,6 +236,8 @@ function SimulationPanel() {
     queryKey: ['/api/logistics/day-orders', simDate],
     queryFn: () => fetchWithAuth(`/api/logistics/day-orders?date=${simDate}`).then(r => r.json()),
     enabled: !!simDate,
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   async function runSimulation() {
@@ -616,6 +618,8 @@ function DeliveriesPanel() {
       if (filterDate) params.set('date', filterDate);
       return fetch(`/api/deliveries?${params}`).then(r => r.json());
     },
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const updateStatusMutation = useMutation({
@@ -888,7 +892,9 @@ const OVERLOAD_THRESHOLD = 5;
 function OverviewPanel() {
   const { data, isLoading, refetch, isFetching } = useQuery<LogisticsData>({
     queryKey: ['/api/logistics-intelligence'],
+    staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const schedule = data?.deliverySchedule || [];
@@ -990,7 +996,7 @@ function ReportsPanel() {
   const [dayReport, setDayReport] = useState<any>(null);
   const [dayReportLoading, setDayReportLoading] = useState(false);
 
-  const driversQuery = useQuery<any[]>({ queryKey: ['/api/logistics/drivers'] });
+  const driversQuery = useQuery<any[]>({ queryKey: ['/api/logistics/drivers'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
   const drivers = driversQuery.data || [];
 
   async function loadDayReport() {
