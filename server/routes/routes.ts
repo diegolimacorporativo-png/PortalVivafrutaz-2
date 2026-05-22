@@ -521,6 +521,16 @@ export async function registerRoutes(
   // H5-FIX: requireRole added — staff/client sessions could query any company's
   // orders by passing empresaId. Restricted to internal privileged roles only.
   app.get(api.orders.list.path, requireAuthCore, requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]), async (req, res) => {
+    if (req.query.page !== undefined) {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 25));
+      const search = req.query.search as string | undefined;
+      const status = req.query.status as string | undefined;
+      const fiscalStatus = req.query.fiscalStatus as string | undefined;
+      const empresaId = req.query.empresaId ? Number(req.query.empresaId) : undefined;
+      const result = await storage.getOrdersPaginated({ page, limit, search, status, fiscalStatus, empresaId });
+      return res.json(result);
+    }
     const orders = await storage.getOrders(Number(req.query.empresaId));
     res.json(orders);
   });

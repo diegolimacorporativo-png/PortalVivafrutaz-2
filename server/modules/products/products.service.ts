@@ -1,4 +1,5 @@
 import { productRepository, type IProductRepository, type SystemLogEntry } from "./products.repository";
+import { storage } from "../../services/storage";
 import type { Product, CreateProductInput, UpdateProductInput, NormalizedProduct } from "./products.types";
 import type {
   Product as SchemaProduct,
@@ -74,6 +75,14 @@ export class ProductService {
   async listProducts(): Promise<NormalizedProduct[]> {
     const products = await this.repo.findAll();
     return products.map(p => this.normalize(p));
+  }
+
+  async listProductsPaginated(params: {
+    page?: number; limit?: number; search?: string;
+    category?: string; status?: string; onlyImportados?: boolean;
+  }): Promise<{ data: NormalizedProduct[]; total: number; page: number; limit: number; totalPages: number }> {
+    const { data, ...meta } = await storage.getProductsPaginated(params);
+    return { ...meta, data: data.map(p => this.normalize(p)) };
   }
 
   async getProduct(id: number): Promise<NormalizedProduct> {

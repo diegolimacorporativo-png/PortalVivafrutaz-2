@@ -29,6 +29,15 @@ export class CompaniesController {
 
   // ── Companies CRUD ─────────────────────────────────────────────────────
   list = async (req: Request, res: Response) => {
+    if ((req.query as any).page !== undefined) {
+      const page = Math.max(1, Number(req.query.page) || 1);
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 25));
+      const search = req.query.search as string | undefined;
+      const status = req.query.status as string | undefined;
+      const clientType = req.query.clientType as string | undefined;
+      const result = await this.service.listPaginated({ page, limit, search, status, clientType });
+      return ok(res, result);
+    }
     const result = await this.service.list();
     console.log("[COMPANIES_LIST]", {
       userId: (req as any).session?.userId,

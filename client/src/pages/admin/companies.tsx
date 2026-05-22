@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
-import { useCompanies, useCreateCompany, useUpdateCompany, usePriceGroups } from "@/hooks/use-admin";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useCompanies, useCompaniesPaginated, useCreateCompany, useUpdateCompany, usePriceGroups } from "@/hooks/use-admin";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import {
@@ -1300,20 +1301,23 @@ export default function CompaniesPage() {
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterType, setFilterType] = useState("ALL");
 
-  const filtered = useMemo(() => {
-    return (companies || []).filter(c => {
-      const q = search.toLowerCase();
-      const matchSearch = !q ||
-        c.companyName.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.contactName.toLowerCase().includes(q);
-      const matchStatus = filterStatus === 'ALL' ||
-        (filterStatus === 'ACTIVE' && c.active) ||
-        (filterStatus === 'INACTIVE' && !c.active);
-      const matchType = filterType === 'ALL' || c.clientType === filterType;
-      return matchSearch && matchStatus && matchType;
-    });
-  }, [companies, search, filterStatus, filterType]);
+  // FASE 6.1 — paginação server-side
+  const [page, setPage] = useState(1);
+  const limit = 25;
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => { setPage(1); }, [filterStatus, filterType]);
+
+  const { data: pagedCompanies, isLoading: isPagedLoading } = useCompaniesPaginated({
+    page, limit, search: debouncedSearch, status: filterStatus, clientType: filterType,
+  });
+
+  const filtered = pagedCompanies?.data ?? [];
 
   return (
     <Layout>
@@ -1383,7 +1387,7 @@ export default function CompaniesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {isLoading ? (
+              {isPagedLoading ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Carregando...</td></tr>
               ) : filtered?.length === 0 ? (
                 <tr><td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">Nenhuma empresa encontrada.</td></tr>
@@ -1486,6 +1490,17 @@ export default function CompaniesPage() {
             </tbody>
           </table>
         </div>
+        {/* FASE 6.1 — paginação */}
+        {pagedCompanies && (
+          <PaginationBar
+            page={page}
+            totalPages={pagedCompanies.totalPages}
+            total={pagedCompanies.total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setPage(1); }}
+          />
+        )}
       </div>
 
       {/* Create / Edit Modal */}

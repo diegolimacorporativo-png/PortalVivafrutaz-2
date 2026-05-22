@@ -14,8 +14,45 @@ export function useCompanies() {
       if (!res.ok) throw new Error("Failed to fetch companies");
       return api.companies.list.responses[200].parse(normalizeList(await res.json()));
     },
-    staleTime: 0,
+    staleTime: 30_000,
     refetchOnMount: "always",
+  });
+}
+
+export interface CompaniesPaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  clientType?: string;
+}
+
+export type CompaniesPaginatedResponse = {
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export function useCompaniesPaginated(params: CompaniesPaginationParams = {}) {
+  const { page = 1, limit = 25, search = "", status = "ALL", clientType = "ALL" } = params;
+  return useQuery<CompaniesPaginatedResponse>({
+    queryKey: [api.companies.list.path, "paginated", page, limit, search, status, clientType],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search) qs.set("search", search);
+      if (status && status !== "ALL") qs.set("status", status);
+      if (clientType && clientType !== "ALL") qs.set("clientType", clientType);
+      const res = await fetchWithAuth(`${api.companies.list.path}?${qs}`);
+      if (!res.ok) throw new Error("Failed to fetch companies");
+      const json = await res.json();
+      return { ...json, data: normalizeList(json.data ?? json) };
+    },
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+    refetchOnMount: "always",
+    retry: 2,
   });
 }
 

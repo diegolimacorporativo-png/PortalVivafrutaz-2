@@ -78,7 +78,7 @@ import {
   sanitaryEvaluationItems, type SanitaryEvaluationItem, type InsertSanitaryEvaluationItem,
   cnabImportHistory, type CnabImportHistory, type InsertCnabImportHistory,
 } from "@shared/schema";
-import { eq, and, desc, gte, lte, sql, inArray } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, inArray, or, ilike, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // BANCO.5 — CNAB import history (auditoria de uploads de retorno)
@@ -2991,6 +2991,142 @@ export class DatabaseStorage implements IStorage {
   async bulkCreateSanitaryEvaluationItems(items: InsertSanitaryEvaluationItem[]): Promise<SanitaryEvaluationItem[]> {
     if (items.length === 0) return [];
     return db.insert(sanitaryEvaluationItems).values(items).returning();
+  }
+
+  // ── FASE 6.1 — Server-side pagination ──────────────────────────────────────
+
+  async getOrdersPaginated(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    fiscalStatus?: string;
+    empresaId?: number;
+  }): Promise<{ data: Order[]; total: number; page: number; limit: number; totalPages: number }> {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(200, Math.max(1, params.limit ?? 25));
+    const offset = (page - 1) * limit;
+    const empresa = params.empresaId ?? currentTenantId();
+
+    const conds: any[] = [];
+    if (empresa != null) conds.push(eq(orders.companyId, empresa));
+    if (params.status && params.status !== 'ALL') conds.push(eq(orders.status, params.status));
+    if (params.fiscalStatus && params.fiscalStatus !== 'ALL') {
+      if (params.fiscalStatus === 'nota_pendente') {
+        conds.push(or(isNull(orders.fiscalStatus), eq(orders.fiscalStatus, 'nota_pendente'))!);
+      } else {
+        conds.push(eq(orders.fiscalStatus, params.fiscalStatus));
+      }
+    }
+    if (params.search) {
+      conds.push(ilike(orders.orderCode, `%${params.search}%`));
+    }
+
+    const where = conds.length > 0 ? and(...conds) : undefined;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`cast(count(*) as integer)` })
+      .from(orders)
+      .where(where);
+
+    const total = countRow?.total ?? 0;
+    const data = await db
+      .select()
+      .from(orders)
+      .where(where)
+      .orderBy(desc(orders.orderDate))
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getProductsPaginated(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    category?: string;
+    status?: string;
+    onlyImportados?: boolean;
+    empresaId?: number;
+  }): Promise<{ data: Product[]; total: number; page: number; limit: number; totalPages: number }> {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(200, Math.max(1, params.limit ?? 50));
+    const offset = (page - 1) * limit;
+
+    const conds: any[] = [];
+    if (params.empresaId) conds.push(eq(products.empresaId, params.empresaId));
+    if (params.status && params.status !== 'ALL') {
+      if (params.status === 'ACTIVE') conds.push(eq(products.active, true));
+      else if (params.status === 'INACTIVE') conds.push(eq(products.active, false));
+    }
+    if (params.category && params.category !== 'ALL') conds.push(eq(products.category, params.category));
+    if (params.onlyImportados) conds.push(eq(products.importado, true));
+    if (params.search) {
+      const q = `%${params.search}%`;
+      conds.push(or(ilike(products.name, q), ilike(products.category, q))!);
+    }
+
+    const where = conds.length > 0 ? and(...conds) : undefined;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`cast(count(*) as integer)` })
+      .from(products)
+      .where(where);
+
+    const total = countRow?.total ?? 0;
+    const data = await db
+      .select()
+      .from(products)
+      .where(where)
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+  }
+
+  async getCompaniesPaginated(params: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+    clientType?: string;
+  }): Promise<{ data: Company[]; total: number; page: number; limit: number; totalPages: number }> {
+    const page = Math.max(1, params.page ?? 1);
+    const limit = Math.min(200, Math.max(1, params.limit ?? 25));
+    const offset = (page - 1) * limit;
+
+    const conds: any[] = [];
+    if (params.status && params.status !== 'ALL') {
+      if (params.status === 'ACTIVE') conds.push(eq(companies.active, true));
+      else if (params.status === 'INACTIVE') conds.push(eq(companies.active, false));
+    }
+    if (params.clientType && params.clientType !== 'ALL') conds.push(eq(companies.clientType, params.clientType));
+    if (params.search) {
+      const q = `%${params.search}%`;
+      conds.push(or(
+        ilike(companies.companyName, q),
+        ilike(companies.email, q),
+        ilike(companies.contactName, q)
+      )!);
+    }
+
+    const where = conds.length > 0 ? and(...conds) : undefined;
+
+    const [countRow] = await db
+      .select({ total: sql<number>`cast(count(*) as integer)` })
+      .from(companies)
+      .where(where);
+
+    const total = countRow?.total ?? 0;
+    const data = await db
+      .select()
+      .from(companies)
+      .where(where)
+      .limit(limit)
+      .offset(offset);
+
+    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 }
 

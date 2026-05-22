@@ -133,7 +133,43 @@ export function useOrders() {
       const res = await fetchWithAuth(api.orders.list.path);
       if (!res.ok) throw new Error("Failed to fetch orders");
       return normalizeList<OrderRow>(await res.json());
-    }
+    },
+    staleTime: 30_000,
+  });
+}
+
+export interface OrdersPaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  status?: string;
+  fiscalStatus?: string;
+}
+
+export type OrdersPaginatedResponse = {
+  data: OrderRow[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export function useOrdersPaginated(params: OrdersPaginationParams = {}) {
+  const { page = 1, limit = 25, search = "", status = "ALL", fiscalStatus = "ALL" } = params;
+  return useQuery<OrdersPaginatedResponse>({
+    queryKey: [api.orders.list.path, "paginated", page, limit, search, status, fiscalStatus],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search) qs.set("search", search);
+      if (status && status !== "ALL") qs.set("status", status);
+      if (fiscalStatus && fiscalStatus !== "ALL") qs.set("fiscalStatus", fiscalStatus);
+      const res = await fetchWithAuth(`${api.orders.list.path}?${qs}`);
+      if (!res.ok) throw new Error("Failed to fetch orders");
+      return res.json();
+    },
+    staleTime: 30_000,
+    placeholderData: (prev) => prev,
+    retry: 2,
   });
 }
 

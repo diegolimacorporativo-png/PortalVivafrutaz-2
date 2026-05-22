@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, lazy, Suspense } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -16,15 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Pencil, Trash2, Truck, User, Wrench, MapPin, Download, CheckCircle2, Clock, XCircle, FileText, Search, Phone, Mail, Building2, RefreshCw, Navigation, ArrowUp, ArrowDown, Printer, Sparkles, CalendarDays, AlertTriangle, Map } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { LogisticsDriver, LogisticsVehicle, LogisticsRoute, LogisticsMaintenance, CompanyQuotation } from '@shared/schema';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-});
+// FASE 6.2 — Leaflet carregado sob demanda (lazy) para não bloquear o bundle inicial.
+const LeafletRouteMap = lazy(() => import('@/components/map/LeafletRouteMap'));
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371;
@@ -904,32 +897,7 @@ function CotacoesTab() {
 }
 
 // ─── Leaflet Map Component ────────────────────────────────────────────────────
-type RouteCompanyLite = { id: number; companyName: string; latitude: string | null; longitude: string | null; deliveryWindow: { startTime: string; endTime: string } | null; hasOrderForDate: boolean | null };
-
-function LeafletMap({ companies }: { companies: RouteCompanyLite[] }) {
-  const withCoords = companies.filter(c => c.latitude && c.longitude);
-  if (withCoords.length === 0) return null;
-  const avgLat = withCoords.reduce((s, c) => s + Number(c.latitude), 0) / withCoords.length;
-  const avgLon = withCoords.reduce((s, c) => s + Number(c.longitude), 0) / withCoords.length;
-  const positions: [number, number][] = withCoords.map(c => [Number(c.latitude), Number(c.longitude)]);
-  return (
-    <MapContainer center={[avgLat, avgLon]} zoom={11} style={{ height: '380px', width: '100%' }} scrollWheelZoom={false}>
-      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' />
-      {withCoords.map((c, i) => (
-        <Marker key={c.id} position={[Number(c.latitude), Number(c.longitude)]}>
-          <Popup>
-            <div className="text-sm">
-              <p className="font-bold">{i + 1}. {c.companyName}</p>
-              {c.deliveryWindow && <p className="text-xs text-gray-600">🕐 {c.deliveryWindow.startTime} – {c.deliveryWindow.endTime}</p>}
-              {c.hasOrderForDate && <p className="text-xs text-green-700 font-bold">✔ Pedido confirmado</p>}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-      {positions.length > 1 && <Polyline positions={positions} color="#15803d" weight={2} dashArray="6 4" />}
-    </MapContainer>
-  );
-}
+// FASE 6.2 — Componente real movido para LeafletRouteMap.tsx (lazy import acima).
 
 // ─── Assistente de Rota ──────────────────────────────────────────────────────
 const WEEK_DAYS_ASSIST = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -1202,7 +1170,9 @@ function RouteAssistantTab() {
                   </div>
                 </div>
                 <div className="relative bg-muted/10" style={{ height: 380 }}>
-                  <LeafletMap companies={withCoords} />
+                  <Suspense fallback={<div className="flex items-center justify-center h-full text-muted-foreground text-sm">Carregando mapa...</div>}>
+                    <LeafletRouteMap companies={withCoords} />
+                  </Suspense>
                 </div>
               </div>
             );

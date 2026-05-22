@@ -1,5 +1,6 @@
-import { useState, useMemo, useEffect } from "react";
-import { useProducts, useCreateProduct, useUpdateProduct } from "@/hooks/use-catalog";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { useProducts, useProductsPaginated, useCreateProduct, useUpdateProduct } from "@/hooks/use-catalog";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -511,7 +512,7 @@ function ProductCategorySelector({
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
-  const { data: products, isLoading } = useProducts();
+  const { data: products } = useProducts();
   const { data: categories = [] } = useCategories();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
@@ -526,6 +527,22 @@ export default function ProductsPage() {
   // FASE NF.7.8.3 — toggle "Apenas importados". Estado local apenas;
   // não toca query/endpoint. Default false = lista completa preservada.
   const [onlyImportados, setOnlyImportados] = useState(false);
+
+  // FASE 6.1 — paginação server-side
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(50);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => { setPage(1); }, [filterCat, filterStatus, onlyImportados]);
+
+  const { data: paginatedProducts, isLoading } = useProductsPaginated({
+    page, limit, search: debouncedSearch, category: filterCat, status: filterStatus, onlyImportados,
+  });
   const [priceError, setPriceError] = useState(false);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
@@ -822,25 +839,13 @@ export default function ProductsPage() {
 
 
 
-  const uniqueCategories = useMemo(() => {
-    const cats = new Set<string>();
-    products?.forEach(p => cats.add(p.category));
-    return Array.from(cats).sort();
-  }, [products]);
+  // FASE 6.1 — categorias vêm do endpoint /api/categories (já buscado via useCategories)
+  const uniqueCategories = useMemo(() =>
+    (categories as any[]).map(c => c.name).sort()
+  , [categories]);
 
-  const filtered = useMemo(() => {
-    return (products || []).filter(p => {
-      const q = search.toLowerCase();
-      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
-      const matchCat = filterCat === 'ALL' || p.category === filterCat;
-      const matchStatus = filterStatus === 'ALL' || (filterStatus === 'ACTIVE' ? p.active : !p.active);
-      // FASE NF.7.8.3 — filtro aditivo "Apenas importados".
-      // Comparação === true evita falso positivo de truthy values e
-      // mantém o filtro 100% inerte quando o toggle está desligado.
-      const matchImportado = !onlyImportados || (p as any).importado === true;
-      return matchSearch && matchCat && matchStatus && matchImportado;
-    });
-  }, [products, search, filterCat, filterStatus, onlyImportados]);
+  // FASE 6.1 — lista paginada vinda do servidor (filtros aplicados server-side)
+  const filtered = paginatedProducts?.data ?? [];
 
   return (
     <Layout>
@@ -901,7 +906,9 @@ export default function ProductsPage() {
         >
           Apenas importados
         </button>
-        <span className="text-xs text-muted-foreground font-medium">{filtered.length} produto{filtered.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs text-muted-foreground font-medium">
+          {paginatedProducts ? `${paginatedProducts.total} produto${paginatedProducts.total !== 1 ? 's' : ''}` : ''}
+        </span>
       </div>
 
       {/* Products grid */}
@@ -1078,6 +1085,20 @@ export default function ProductsPage() {
           </div>
         ))}
       </div>
+
+      {/* FASE 6.1 — paginação */}
+      {paginatedProducts && (
+        <div className="mt-6">
+          <PaginationBar
+            page={page}
+            totalPages={paginatedProducts.totalPages}
+            total={paginatedProducts.total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={(l) => { setLimit(l); setPage(1); }}
+          />
+        </div>
+      )}
 
       {/* Modal Create / Edit */}
       <Modal

@@ -3,6 +3,7 @@ import {
   BadRequestError,
   ForbiddenError,
 } from "../../shared/errors/AppError";
+import { storage } from "../../services/storage";
 import {
   companiesRepository,
   CompaniesRepository,
@@ -37,6 +38,12 @@ export class CompaniesService {
   // ── Companies CRUD ─────────────────────────────────────────────────────
   list(): Promise<Company[]> {
     return this.repo.list();
+  }
+
+  listPaginated(params: {
+    page?: number; limit?: number; search?: string; status?: string; clientType?: string;
+  }): Promise<{ data: Company[]; total: number; page: number; limit: number; totalPages: number }> {
+    return storage.getCompaniesPaginated(params);
   }
 
   async get(id: number): Promise<Company> {

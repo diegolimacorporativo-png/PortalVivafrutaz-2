@@ -12,7 +12,45 @@ export function useProducts() {
       const res = await fetchWithAuth(api.products.list.path);
       if (!res.ok) throw new Error("Failed to fetch products");
       return api.products.list.responses[200].parse(await res.json());
-    }
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface ProductsPaginationParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  category?: string;
+  status?: string;
+  onlyImportados?: boolean;
+}
+
+export type ProductsPaginatedResponse = {
+  data: any[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+export function useProductsPaginated(params: ProductsPaginationParams = {}) {
+  const { page = 1, limit = 50, search = "", category = "ALL", status = "ALL", onlyImportados = false } = params;
+  return useQuery<ProductsPaginatedResponse>({
+    queryKey: [api.products.list.path, "paginated", page, limit, search, category, status, onlyImportados],
+    queryFn: async () => {
+      const qs = new URLSearchParams({ page: String(page), limit: String(limit) });
+      if (search) qs.set("search", search);
+      if (category && category !== "ALL") qs.set("category", category);
+      if (status && status !== "ALL") qs.set("status", status);
+      if (onlyImportados) qs.set("onlyImportados", "true");
+      const res = await fetchWithAuth(`${api.products.list.path}?${qs}`);
+      if (!res.ok) throw new Error("Failed to fetch products");
+      return res.json();
+    },
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+    retry: 2,
   });
 }
 

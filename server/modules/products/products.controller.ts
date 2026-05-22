@@ -22,6 +22,17 @@ function getClientIp(req: Request): string {
 export class ProductController {
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      if (req.query.page !== undefined) {
+        const page = Math.max(1, Number(req.query.page) || 1);
+        const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+        const search = req.query.search as string | undefined;
+        const category = req.query.category as string | undefined;
+        const status = req.query.status as string | undefined;
+        const onlyImportados = req.query.onlyImportados === 'true';
+        const result = await productService.listProductsPaginated({ page, limit, search, category, status, onlyImportados });
+        res.json(result);
+        return;
+      }
       const products = await productService.listProducts();
       res.json(products);
     } catch (err) {

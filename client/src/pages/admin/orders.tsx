@@ -1,5 +1,6 @@
-import { useState, useMemo } from "react";
-import { useOrders, useOrderDetail } from "@/hooks/use-ordering";
+import { useState, useMemo, useEffect, useCallback, memo } from "react";
+import { useOrders, useOrdersPaginated, useOrderDetail } from "@/hooks/use-ordering";
+import { PaginationBar } from "@/components/ui/PaginationBar";
 import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
@@ -1043,7 +1044,7 @@ function DanfePanel({ order, company, products, queryClient }: { order: Order; c
 }
 
 // ─── Order Row ────────────────────────────────────────────────
-function OrderRow({
+const OrderRow = memo(function OrderRow({
   order, company, companyName, products, onNoteEdit, onEdit, onCancel, onRestore, onPatchNimbi, onApproveReopen, onDenyReopen, onBlingExport, onTransition
 }: {
   order: Order;
@@ -1413,7 +1414,7 @@ function OrderRow({
       )}
     </>
   );
-}
+}); // FASE 6.3 — memo() evita re-renders ao paginar
 
 // ─── Export Orders Modal ──────────────────────────────────────
 const ORDER_TYPE_OPTIONS = [
@@ -1878,7 +1879,7 @@ function DeleteHistoryModal({ orders, companies, onClose, onDeleted }: {
 
 // ─── Main Page ─────────────────────────────────────────────────
 export default function OrdersPage() {
-  const { data: orders, isLoading } = useOrders();
+  const { data: orders, isLoading: isAllOrdersLoading } = useOrders();
   const { data: companies } = useCompanies();
   const { data: products } = useProducts();
   const { toast } = useToast();
@@ -1900,23 +1901,31 @@ export default function OrdersPage() {
   const [showDeleteHistory, setShowDeleteHistory] = useState(false);
   const [showExport, setShowExport] = useState(false);
 
-  const filtered = useMemo(() => orders?.filter(o => {
-    const company = companies?.find(c => c.id === o.companyId);
-    const code = (o as any).orderCode || '';
-    const matchSearch = !search ||
-      company?.companyName.toLowerCase().includes(search.toLowerCase()) ||
-      code.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === 'ALL' || o.status === filterStatus;
-    const matchFiscal = filterFiscal === 'ALL' ||
-      (filterFiscal === 'nota_pendente' && !o.fiscalStatus) ||
-      o.fiscalStatus === filterFiscal;
-    const isPaid = (o as any).isPaid === true;
-    const matchPayment =
-      paymentFilter === 'all' ||
-      (paymentFilter === 'paid' && isPaid) ||
-      (paymentFilter === 'pending' && !isPaid);
-    return matchSearch && matchStatus && matchFiscal && matchPayment;
-  }), [orders, companies, search, filterStatus, filterFiscal, paymentFilter]);
+  // FASE 6.1 — paginação server-side
+  const [page, setPage] = useState(1);
+  const limit = 25;
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  useEffect(() => { setPage(1); }, [filterStatus, filterFiscal]);
+
+  const { data: pagedOrders, isLoading } = useOrdersPaginated({
+    page, limit, search: debouncedSearch, status: filterStatus, fiscalStatus: filterFiscal,
+  });
+
+  // paymentFilter é client-side (campo isPaid já vem no payload paginado)
+  const filtered = useMemo(() => {
+    const rows = pagedOrders?.data ?? [];
+    if (paymentFilter === 'all') return rows;
+    return rows.filter(o => {
+      const isPaid = (o as any).isPaid === true;
+      return paymentFilter === 'paid' ? isPaid : !isPaid;
+    });
+  }, [pagedOrders, paymentFilter]);
 
   // FASE FIN.5 — contadores informativos para os chips de pagamento.
   const paidCount = useMemo(() => orders?.filter(o => (o as any).isPaid === true).length ?? 0, [orders]);
@@ -1945,12 +1954,12 @@ export default function OrdersPage() {
     toast({ title: "Pedido cancelado.", variant: "destructive" });
   };
 
-  const saveNimbi = async (id: number, date: string) => {
+  const saveNimbi = useCallback(async (id: number, date: string) => {
     await patchOrder(id, { nimbiExpiration: date || null });
     toast({ title: date ? "Data de exportação Bling salva!" : "Data de exportação Bling removida." });
-  };
+  }, [patchOrder, toast]);
 
-  const blingExport = async (order: Order) => {
+  const blingExport = useCallback(async (order: Order) => {
     try {
       const res = await fetchWithAuth(`/api/orders/${order.id}/bling-export`, {
         method: 'POST',
@@ -1967,14 +1976,14 @@ export default function OrdersPage() {
     } catch (e: any) {
       toast({ title: e.message || "Erro ao exportar para Bling", variant: "destructive" });
     }
-  };
+  }, [toast, queryClient]);
 
-  const restoreOrder = async (order: Order) => {
+  const restoreOrder = useCallback(async (order: Order) => {
     await patchOrder(order.id, { status: 'ACTIVE' });
     toast({ title: "Pedido restaurado!" });
-  };
+  }, [patchOrder, toast]);
 
-  const approveReopen = async (order: Order) => {
+  const approveReopen = useCallback(async (order: Order) => {
     try {
       const res = await fetchWithAuth(`/api/orders/${order.id}/approve-reopen`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1983,9 +1992,9 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
       toast({ title: "Reabertura aprovada! Pedido em edição pelo cliente." });
     } catch (e: any) { toast({ title: e.message || "Erro", variant: "destructive" }); }
-  };
+  }, [toast, queryClient]);
 
-  const denyReopen = async (order: Order) => {
+  const denyReopen = useCallback(async (order: Order) => {
     try {
       const res = await fetchWithAuth(`/api/orders/${order.id}/deny-reopen`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -1994,9 +2003,9 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
       toast({ title: "Reabertura negada. Pedido confirmado." });
     } catch (e: any) { toast({ title: e.message || "Erro", variant: "destructive" }); }
-  };
+  }, [toast, queryClient]);
 
-  const transitionOrder = async (order: Order, to: string, label: string) => {
+  const transitionOrder = useCallback(async (order: Order, to: string, label: string) => {
     try {
       const res = await fetchWithAuth(`/api/orders/${order.id}/transition`, {
         method: 'POST',
@@ -2014,7 +2023,7 @@ export default function OrdersPage() {
       if (handleIfPeriodoFechado(e, toast)) return;
       toast({ title: e.message || "Erro ao atualizar etapa", variant: "destructive" });
     }
-  };
+  }, [toast, queryClient]);
 
   const saveItems = async (items: any[]) => {
     if (!editOrder) return;
@@ -2267,6 +2276,17 @@ export default function OrdersPage() {
             </tbody>
           </table>
         </div>
+        {/* FASE 6.1 — paginação */}
+        {pagedOrders && (
+          <PaginationBar
+            page={page}
+            totalPages={pagedOrders.totalPages}
+            total={pagedOrders.total}
+            limit={limit}
+            onPageChange={setPage}
+            onLimitChange={() => { setPage(1); }}
+          />
+        )}
       </div>
 
       {/* Modals */}

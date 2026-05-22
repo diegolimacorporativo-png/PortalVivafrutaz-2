@@ -1,0 +1,263 @@
+FASE 6 — ESTABILIZAÇÃO FINAL E FECHAMENTO DA ARQUITETURA
+EXECUTAR EXATAMENTE NESTA ORDEM.
+NÃO CRIAR NOVAS FEATURES.
+NÃO CRIAR NOVAS ROTAS.
+NÃO MUDAR REGRA DE NEGÓCIO.
+FOCO: FINALIZAR PERFORMANCE + UX + ESCALABILIDADE.
+
+====================================================================
+OBJETIVO FINAL
+Transformar o ERP em estado operacional estável para produção real:
+
+- performance previsível
+- navegação consistente
+- listas escaláveis
+- queries controladas
+- UX estável
+- redução de travamentos
+- redução de renders
+- redução de requests
+- padronização visual
+- preparação para crescimento da base
+
+====================================================================
+REGRA ABSOLUTA
+ANTES DE CADA ALTERAÇÃO:
+
+1. AUDITAR
+2. MAPEAR IMPACTO
+3. IMPLEMENTAR
+4. VALIDAR TYPESCRIPT
+5. VALIDAR RUNTIME
+6. VALIDAR UI
+7. GERAR RELATÓRIO
+
+NÃO PULAR ETAPAS.
+
+====================================================================
+FASE 6.1 — PAGINAÇÃO SERVER-SIDE (PRIORIDADE CRÍTICA)
+
+OBJETIVO:
+Eliminar renderização de listas completas.
+
+PÁGINAS:
+
+- orders.tsx
+- companies.tsx
+- products.tsx
+- nfe.tsx
+- logistics.tsx
+- inventory.tsx
+
+IMPLEMENTAR:
+
+Backend:
+- limit
+- offset
+- total
+- totalPages
+
+Frontend:
+- paginação visual
+- seletor de página
+- seletor de itens por página
+- loading entre páginas
+- preservação de filtros
+- preservação de busca
+- preservação de ordenação
+
+IMPORTANTE:
+NÃO usar paginação fake no frontend.
+A paginação deve ser REAL no backend.
+
+VALIDAR:
+- queries SQL
+- payload reduzido
+- tempo de resposta
+- memória do browser
+- scroll performance
+
+GERAR TABELA:
+
+| Página | Antes registros | Depois registros | Ganho estimado |
+
+====================================================================
+FASE 6.2 — LAZY LOAD PESADO
+
+OBJETIVO:
+Evitar carregamento desnecessário de componentes grandes.
+
+IMPLEMENTAR:
+
+- dynamic import em mapas Leaflet
+- lazy loading em gráficos pesados
+- lazy loading em tabs do saas-dashboard
+- lazy loading em dashboards secundários
+- suspense fallback padrão
+
+PÁGINAS:
+
+- logistics.tsx
+- logistics-intelligence.tsx
+- saas-dashboard.tsx
+- observability.tsx
+- executive-dashboard.tsx
+
+VALIDAR:
+
+- bundle split
+- tempo de mount
+- first paint
+- mobile responsiveness
+
+====================================================================
+FASE 6.3 — MEMOIZAÇÃO E RENDER CONTROL
+
+OBJETIVO:
+Eliminar renders desnecessários.
+
+IMPLEMENTAR:
+
+- React.memo
+- useMemo
+- useCallback
+- memoização de tabelas
+- memoização de charts
+- memoização de filtros
+- memoização de colunas
+
+PÁGINAS CRÍTICAS:
+
+- orders.tsx
+- companies.tsx
+- logistics.tsx
+- saas-dashboard.tsx
+- finance.tsx
+
+IDENTIFICAR:
+
+- funções recriadas por render
+- arrays recriados
+- objetos inline
+- filtros inline
+- maps pesados
+
+====================================================================
+FASE 6.4 — PADRONIZAÇÃO FINAL DE NAVEGAÇÃO
+
+OBJETIVO:
+FINALIZAR o problema de navegação inconsistente.
+
+IMPLEMENTAR EM TODAS AS PÁGINAS:
+
+- BackHeader
+- breadcrumb
+- fallback route
+- preserve search params
+- preserve filtros
+- preserve contexto
+
+VALIDAR:
+
+- botão voltar
+- histórico
+- navegação entre tabs
+- deep pages
+- páginas órfãs
+
+PÁGINAS OBRIGATÓRIAS:
+Todas as páginas admin e client.
+
+====================================================================
+FASE 6.5 — CONSOLIDAÇÃO VISUAL
+
+OBJETIVO:
+Eliminar aparência fragmentada.
+
+PADRONIZAR:
+
+- headers
+- spacing
+- cards
+- tabelas
+- loading states
+- empty states
+- error states
+- retry buttons
+- scroll areas
+- sticky headers
+
+CRIAR PADRÃO GLOBAL.
+
+====================================================================
+FASE 6.6 — AUDITORIA FINAL DE REQUESTS
+
+OBJETIVO:
+Encontrar excesso de requests restantes.
+
+MAPEAR:
+
+- queries duplicadas
+- queries sem staleTime
+- refetch desnecessário
+- loops de render
+- mounts duplicados
+- chamadas em tabs ocultas
+
+GERAR RANKING:
+
+| Query | Quantidade | Problema | Correção |
+
+====================================================================
+FASE 6.7 — HARDENING FINAL
+
+OBJETIVO:
+Fechar crashes silenciosos restantes.
+
+PROCURAR:
+
+- non-null assertions (!)
+- map sem guard
+- reduce sem guard
+- undefined access
+- optional chaining ausente
+- loading sem fallback
+- error sem retry
+
+VALIDAR:
+ZERO crashes runtime.
+
+====================================================================
+FASE 6.8 — RELATÓRIO FINAL EXECUTIVO
+
+GERAR RELATÓRIO COMPLETO COM:
+
+1. páginas otimizadas
+2. requests reduzidos
+3. renderizações reduzidas
+4. payload reduzido
+5. páginas estabilizadas
+6. memória economizada
+7. tempo de carregamento
+8. páginas ainda críticas
+9. próximos gargalos futuros
+10. score final do sistema
+
+GERAR:
+
+| Métrica | Antes | Depois | Ganho |
+
+====================================================================
+IMPORTANTE
+NÃO iniciar novas arquiteturas.
+NÃO criar novos módulos.
+NÃO reorganizar domínio.
+NÃO fazer refatoração estrutural grande.
+
+FOCO:
+FINALIZAR.
+ESTABILIZAR.
+ESCALAR.
+PROFISSIONALIZAR.
+
+EXECUTAR EM LOTES PEQUENOS E VALIDAR CADA ETAPA.
