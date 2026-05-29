@@ -1,0 +1,152 @@
+Vamos iniciar a FASE FINAL DE CONSOLIDAÇÃO começando pelo maior gargalo estrutural do sistema:
+
+TARGET
+
+orders.tsx
+
+====================================================================
+OBJETIVO
+
+Executar uma MODULARIZAÇÃO COMPLETA do orders.tsx sem alterar comportamento funcional.
+
+O objetivo NÃO é criar feature nova.
+
+O objetivo é:
+
+* reduzir complexidade
+* separar responsabilidades
+* melhorar manutenção
+* reduzir risco de regressão
+* preparar virtualização futura
+* estabilizar performance
+* tornar o domínio sustentável
+
+====================================================================
+REGRAS ABSOLUTAS
+
+NÃO:
+
+* alterar regras comerciais
+* alterar regras fiscais
+* alterar comportamento de pedidos
+* alterar APIs
+* alterar fluxo operacional
+* alterar UX existente
+* criar nova página
+* criar novo dashboard
+
+====================================================================
+PROCESSO OBRIGATÓRIO
+
+ANTES de editar:
+
+1. AUDITAR COMPLETAMENTE orders.tsx
+2. MAPEAR:
+    * hooks
+    * estados
+    * queries
+    * dialogs
+    * tabelas
+    * filtros
+    * exports
+    * actions
+    * side-effects
+    * blocos fiscais
+    * blocos financeiros
+3. IDENTIFICAR:
+    * partes acopladas
+    * riscos
+    * dependências cruzadas
+    * componentes extraíveis
+4. SÓ ENTÃO IMPLEMENTAR
+
+====================================================================
+OBJETIVO DE ARQUITETURA
+
+orders.tsx deve virar apenas:
+
+* orchestration layer
+* state composition
+* query composition
+
+Toda UI pesada deve ser extraída.
+
+====================================================================
+ESTRUTURA ESPERADA
+
+Criar estrutura modular semelhante a:
+
+orders/
+components/
+hooks/
+dialogs/
+tables/
+filters/
+cards/
+actions/
+utils/
+types/
+
+====================================================================
+COMPONENTES ESPERADOS
+
+Extrair prioritariamente:
+
+* OrdersTable
+* OrderRow
+* OrdersFilters
+* OrdersHeader
+* OrdersStatsCards
+* OrdersActionsBar
+* OrdersPagination
+* OrderDialogs
+* OrderFiscalSection
+* OrderFinancialSection
+
+====================================================================
+HOOKS ESPERADOS
+
+Extrair:
+
+* useOrdersFilters
+* useOrdersActions
+* useOrdersSelection
+* useOrdersExport
+* useOrdersStats
+
+====================================================================
+META
+
+Meta ideal:
+
+orders.tsx:
+de ~2000+ linhas
+→ < 700 linhas
+
+====================================================================
+OBRIGATÓRIO APÓS CADA LOTE
+
+Após cada lote:
+
+* validar TypeScript
+* validar runtime
+* validar queries
+* validar paginação
+* validar filtros
+* validar exportações
+* validar dialogs
+* validar performance
+* gerar relatório parcial
+
+====================================================================
+IMPORTANTE
+
+Executar em LOTES PEQUENOS.
+
+Primeiro:
+AUDITORIA COMPLETA.
+
+Somente depois:
+IMPLEMENTAÇÃO GRADUAL.
+
+Comece agora pela auditoria profunda do orders.tsx.
