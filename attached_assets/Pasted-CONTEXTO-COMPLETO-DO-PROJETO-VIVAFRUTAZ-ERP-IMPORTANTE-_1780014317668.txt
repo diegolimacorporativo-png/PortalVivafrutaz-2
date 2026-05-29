@@ -1,0 +1,375 @@
+CONTEXTO COMPLETO DO PROJETO — VIVAFRUTAZ ERP
+
+IMPORTANTE
+
+ANTES DE QUALQUER ALTERAÇÃO:
+
+1. AUDITAR
+2. MAPEAR IMPACTO
+3. IMPLEMENTAR
+4. VALIDAR TYPESCRIPT
+5. VALIDAR RUNTIME
+6. VALIDAR UI
+7. GERAR RELATÓRIO
+
+NUNCA PULAR ETAPAS.
+
+NÃO fazer mudanças arquiteturais sem auditoria prévia.
+
+====================================================================
+ESTADO ATUAL DO PROJETO
+
+O sistema NÃO está mais em fase MVP.
+
+O projeto já é um ERP operacional grande com:
+
+* multi-tenant
+* fiscal
+* financeiro
+* logística
+* pedidos
+* estoque
+* inteligência
+* SaaS
+* observabilidade
+* segurança
+* automações
+* dashboards
+* analytics
+
+O frontend possui ~83 páginas mapeadas.
+O sistema já passou por múltiplas fases de hardening e estabilização.
+
+====================================================================
+O QUE JÁ FOI FEITO
+
+FASE 1 — HARDENING INICIAL
+
+Concluído:
+
+* guards contra undefined
+* remoção de non-null assertions perigosas
+* error states
+* loading states
+* retry states
+* empty states
+* correção de crashes runtime
+* BackHeader parcial
+* navegação estabilizada
+
+====================================================================
+
+FASE 2 — AUDITORIA ARQUITETURAL
+
+Mapeado:
+
+* páginas órfãs
+* dashboards redundantes
+* domínios fragmentados
+* gargalos de performance
+* UX inconsistente
+* páginas gigantes
+* rotas duplicadas
+* excesso de analytics
+* problemas de navegação
+
+Detectado:
+
+* 10 dashboards redundantes
+* domínio fiscal excessivamente fragmentado
+* páginas > 2000 linhas
+* frontend inchado
+
+====================================================================
+
+FASE 3 — UX E ESTABILIZAÇÃO
+
+Implementado:
+
+* retry buttons
+* loading skeletons
+* empty states
+* fallback visual
+* error handling consistente
+* padronização parcial de navegação
+
+====================================================================
+
+FASE 4/5 — PERFORMANCE
+
+Implementado:
+
+TanStack Query hardening
+
+* staleTime
+* refetchOnWindowFocus false
+* cache de queries
+* deduplicação
+
+Memoização
+
+* useMemo
+* useCallback
+* React.memo
+
+Lazy load
+
+* Leaflet lazy
+* Suspense fallback
+* bundle splitting parcial
+
+Paginação server-side REAL
+
+Implementado em:
+
+* orders
+* companies
+* products
+
+Com:
+
+* limit
+* offset
+* total
+* totalPages
+
+PaginationBar reutilizável
+
+Já existe.
+
+====================================================================
+ESTADO ATUAL DA ARQUITETURA
+
+O sistema funciona.
+
+Os maiores problemas AGORA são:
+
+1. complexidade acumulada
+2. páginas gigantes
+3. frontend inchado
+4. excesso de dashboards
+5. fragmentação de domínio
+6. listas muito grandes
+7. custo de manutenção
+
+NÃO estamos mais corrigindo crashes básicos.
+
+Agora estamos:
+
+* consolidando
+* modularizando
+* escalando
+* endurecendo arquitetura
+
+====================================================================
+REGRAS ABSOLUTAS
+
+NÃO FAZER
+
+NÃO:
+
+* criar novas páginas
+* criar novos dashboards
+* criar novos módulos IA
+* criar novas rotas
+* criar novas arquiteturas paralelas
+* duplicar domínio
+* criar nova central redundante
+* quebrar compatibilidade
+* alterar regra fiscal/comercial
+
+====================================================================
+
+OBRIGATÓRIO
+
+Sempre:
+
+* reutilizar componentes existentes
+* reutilizar hooks existentes
+* preservar backward compatibility
+* validar TypeScript
+* validar runtime
+* validar UI
+* validar queries
+* validar performance
+
+====================================================================
+PRÓXIMA FASE CORRETA
+
+O projeto agora entrou na:
+
+FASE FINAL — CONSOLIDAÇÃO E MODULARIZAÇÃO
+
+====================================================================
+
+PRIORIDADE MÁXIMA
+
+Modularização pesada
+
+Quebrar:
+
+* orders.tsx
+* companies.tsx
+* logistics.tsx
+* saas-dashboard.tsx
+
+Objetivo:
+nenhum arquivo acima de ~800 linhas.
+
+Extrair:
+
+* tabs
+* hooks
+* tables
+* filters
+* dialogs
+* analytics
+* cards
+* charts
+
+====================================================================
+
+PRIORIDADE ALTA
+
+Virtualização
+
+Implementar:
+
+* TanStack Virtual
+    ou
+* react-window
+
+Em:
+
+* pedidos
+* empresas
+* estoque
+* NFs
+
+====================================================================
+
+PRIORIDADE ALTA
+
+Consolidação de dashboards
+
+Meta:
+10 dashboards → 3
+
+Final:
+
+* Dashboard Operacional
+* Dashboard Executivo
+* Dashboard Sistema/Master
+
+====================================================================
+
+PRIORIDADE ALTA
+
+Consolidação fiscal
+
+Hoje existem muitas telas:
+
+* fiscal
+* nfe
+* faturamento
+* diagnostics
+* recovery
+* analytics
+
+Meta:
+1 central fiscal com tabs.
+
+====================================================================
+
+PRIORIDADE ALTA
+
+Consolidação inteligência
+
+Meta:
+1 central de inteligência com tabs:
+
+* operacional
+* comercial
+* financeiro
+* logística
+* AI lab
+
+====================================================================
+
+PRIORIDADE MÉDIA
+
+Backend aggregation
+
+Mover cálculos pesados do frontend para backend:
+
+* KPIs
+* analytics
+* rankings
+* métricas
+
+====================================================================
+
+PRIORIDADE FINAL
+
+Hardening multi-tenant
+
+Antes do SaaS público:
+
+* validar tenant isolation
+* revisar tenantId
+* revisar permissions
+* revisar RLS
+* revisar auditoria
+
+====================================================================
+ESTADO TÉCNICO ATUAL
+
+Frontend:
+🟡 funcional porém inchado
+
+Backend:
+🟢 forte
+
+Performance:
+🟡 muito melhor após paginação e cache
+
+UX:
+🟡 parcialmente consolidada
+
+Escalabilidade:
+🟢 potencial real
+
+Maior risco atual:
+🟠 complexidade acumulada
+
+====================================================================
+OBJETIVO FINAL
+
+Transformar o sistema em:
+
+* ERP operacional escalável
+* SaaS multiempresa estável
+* frontend sustentável
+* arquitetura modular
+* performance previsível
+* manutenção profissional
+
+====================================================================
+INSTRUÇÃO FINAL
+
+NÃO sair criando feature nova.
+
+O foco agora é:
+
+* modularizar
+* consolidar
+* estabilizar
+* reduzir complexidade
+* escalar corretamente
+
+Sempre trabalhar em LOTES PEQUENOS com:
+
+* auditoria
+* implementação
+* validação
+* relatório
