@@ -1,0 +1,137 @@
+Excelente. A modularização do orders.tsx foi validada com sucesso.
+
+Agora vamos reutilizar EXATAMENTE o mesmo padrão arquitetural no próximo monólito.
+
+TARGET
+
+companies.tsx
+
+====================================================================
+OBJETIVO
+
+Executar modularização completa do companies.tsx preservando:
+
+* comportamento
+* queries
+* UX
+* rotas
+* APIs
+* fluxo operacional
+* multi-tenant
+* paginação server-side já implementada
+
+====================================================================
+REGRAS
+
+NÃO:
+
+* criar feature nova
+* alterar comportamento
+* alterar regras comerciais
+* alterar APIs
+* alterar filtros
+* alterar paginação
+* alterar UX
+
+====================================================================
+PROCESSO OBRIGATÓRIO
+
+1. AUDITAR COMPLETAMENTE companies.tsx
+2. MAPEAR:
+    * tabelas
+    * modais
+    * forms
+    * hooks
+    * filtros
+    * dialogs
+    * actions
+    * analytics
+    * cards
+    * queries
+3. IDENTIFICAR:
+    * componentes extraíveis
+    * responsabilidades misturadas
+    * side-effects
+    * blocos pesados
+4. SÓ ENTÃO IMPLEMENTAR
+
+====================================================================
+OBJETIVO FINAL
+
+Transformar companies.tsx em:
+
+* orchestration layer
+* state composition
+* query composition
+
+Toda UI pesada deve ser extraída.
+
+====================================================================
+ESTRUTURA ESPERADA
+
+companies/
+components/
+dialogs/
+hooks/
+tables/
+filters/
+cards/
+actions/
+utils/
+types/
+
+====================================================================
+COMPONENTES ESPERADOS
+
+Extrair prioritariamente:
+
+* CompaniesTable
+* CompanyRow
+* CompaniesFilters
+* CompaniesHeader
+* CompaniesStatsCards
+* CompaniesPagination
+* CompanyDialogs
+* CompanyFinancialSection
+* CompanyFiscalSection
+* CompanyContractsSection
+
+====================================================================
+HOOKS ESPERADOS
+
+Extrair:
+
+* useCompaniesFilters
+* useCompaniesActions
+* useCompaniesSelection
+* useCompaniesStats
+
+====================================================================
+META
+
+companies.tsx:
+de ~2400 linhas
+→ < 700 linhas
+
+====================================================================
+OBRIGATÓRIO
+
+Após cada lote:
+
+* validar TypeScript
+* validar runtime
+* validar paginação
+* validar filtros
+* validar dialogs
+* validar queries
+* validar performance
+* gerar relatório parcial
+
+====================================================================
+IMPORTANTE
+
+Reutilizar o padrão arquitetural já validado no módulo orders.
+
+NÃO reinventar estrutura.
+
+Comece agora pela auditoria profunda completa do companies.tsx antes de qualquer alteração.
