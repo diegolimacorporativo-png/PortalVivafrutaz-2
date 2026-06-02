@@ -1,0 +1,185 @@
+FASE 7 — AUDITORIA DE REGRESSÃO COMPLETA (OBRIGATÓRIA)
+
+IMPORTANTE:
+
+NÃO IMPLEMENTAR NOVAS FEATURES.
+NÃO CRIAR NOVAS TELAS.
+NÃO CRIAR NOVOS DASHBOARDS.
+NÃO MODULARIZAR MAIS NADA.
+NÃO ALTERAR ARQUITETURA.
+
+OBJETIVO:
+
+Validar que as refatorações já executadas em:
+
+* Orders
+* Companies
+* Paginação
+* Cache
+* Memoização
+* Lazy Load
+* Hardening
+
+não introduziram regressões funcionais.
+
+EXECUTAR EM MODO AUDITORIA.
+
+⸻
+
+ETAPA 1 — AUDITORIA ORDERS
+
+Validar 100% dos fluxos:
+
+✓ Listagem de pedidos
+✓ Paginação
+✓ Busca
+✓ Filtro status
+✓ Filtro fiscal
+✓ Filtro pagamento
+✓ Abrir pedido
+✓ Expandir OrderRow
+✓ Editar itens
+✓ Nota administrativa
+✓ Cancelamento
+✓ DANFE
+✓ NF-e
+✓ Histórico
+✓ Exportação CSV
+✓ Exportação Excel
+✓ Exportação PDF
+
+Gerar relatório:
+
+PASSOU / FALHOU
+
+para cada fluxo.
+
+⸻
+
+ETAPA 2 — AUDITORIA COMPANIES
+
+Validar:
+
+✓ Listagem
+✓ Paginação
+✓ Busca
+✓ Filtros
+✓ Criar empresa
+✓ Editar empresa
+✓ Modal completo
+✓ Tab Básico
+✓ Tab Configuração
+✓ Tab Financeiro
+✓ Tab Fiscal
+✓ Tab Contrato
+✓ Tab Entrega
+✓ Tab Endereços
+✓ Senha temporária
+✓ Escopos contratuais
+✓ Endereços múltiplos
+
+Gerar relatório:
+
+PASSOU / FALHOU
+
+para cada fluxo.
+
+⸻
+
+ETAPA 3 — PAGINAÇÃO SERVER SIDE
+
+Validar:
+
+orders
+products
+companies
+
+Confirmar:
+
+✓ page
+✓ limit
+✓ total
+✓ totalPages
+
+Confirmar que:
+
+* filtros continuam funcionando
+* busca continua funcionando
+* paginação não perde dados
+
+Medir:
+
+antes vs depois
+
+payload retornado.
+
+⸻
+
+ETAPA 4 — CACHE E STALETIME
+
+Validar:
+
+✓ companies
+✓ logistics
+✓ logistics-intelligence
+✓ saas-dashboard
+
+Confirmar:
+
+* cache hit
+* cache miss
+* staleTime ativo
+* refetchOnWindowFocus desativado
+
+Medir requests reais.
+
+⸻
+
+ETAPA 5 — PERFORMANCE
+
+Gerar ranking atualizado:
+
+TOP 10 maiores arquivos
+TOP 10 páginas mais pesadas
+TOP 10 queries mais caras
+TOP 10 componentes com mais renders
+
+NÃO OTIMIZAR.
+
+APENAS AUDITAR.
+
+⸻
+
+ETAPA 6 — REGRESSÕES
+
+Localizar:
+
+* imports quebrados
+* rotas órfãs
+* componentes não utilizados
+* hooks não utilizados
+* código morto
+* queries duplicadas
+* estados inúteis
+
+NÃO REMOVER.
+
+APENAS LISTAR.
+
+⸻
+
+ENTREGA FINAL
+
+Gerar relatório executivo contendo:
+
+1. Status Orders
+2. Status Companies
+3. Status Paginação
+4. Status Cache
+5. Status Performance
+6. Lista de regressões encontradas
+7. Risco operacional atual
+
+PROIBIDO IMPLEMENTAR QUALQUER ALTERAÇÃO.
+
+FASE 7 É SOMENTE AUDITORIA E VALIDAÇÃO.
