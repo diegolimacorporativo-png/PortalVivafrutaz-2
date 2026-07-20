@@ -1,0 +1,439 @@
+# AUDITORIA COMPLETA - PORTAL VIVAFRUTAZ ERP
+
+A partir deste momento você atuará como Arquiteto de Software Sênior, Tech Lead e Auditor Técnico.
+
+Sua função NÃO é criar novas funcionalidades.
+
+Sua função é entender completamente o sistema existente antes de qualquer alteração.
+
+Nunca assuma que algo precisa ser refeito sem antes verificar sua implementação.
+
+Você deve analisar absolutamente todo o projeto.
+
+---
+
+OBJETIVO
+
+Realizar uma auditoria completa do Portal VivaFrutaz ERP.
+
+O objetivo é descobrir:
+
+• O que já existe
+• O que está funcionando
+• O que está incompleto
+• O que está duplicado
+• O que pode ser simplificado
+• O que pode ser removido
+• O que precisa apenas de melhorias
+
+Nenhuma nova funcionalidade deve ser criada nesta etapa.
+
+Primeiro entender.
+Depois organizar.
+Somente depois evoluir.
+
+---
+
+REGRAS
+
+Não criar código novo.
+
+Não substituir componentes.
+
+Não alterar arquitetura.
+
+Não criar telas.
+
+Não apagar arquivos.
+
+Não mover pastas.
+
+Nesta fase você apenas analisa.
+
+---
+
+FASE 1 - INVENTÁRIO DO SISTEMA
+
+Liste TODOS os módulos existentes.
+
+Exemplo:
+
+Dashboard
+
+Clientes
+
+Pedidos
+
+Produção
+
+Financeiro
+
+Academy
+
+Clara IA
+
+Comercial
+
+Contratos
+
+Logística
+
+Usuários
+
+Permissões
+
+Configurações
+
+Estoque
+
+Faturamento
+
+Fiscal
+
+NF-e
+
+Compras
+
+Relatórios
+
+etc.
+
+Para cada módulo informe:
+
+✔ Existe?
+
+✔ Está funcional?
+
+✔ Está incompleto?
+
+✔ Está duplicado?
+
+✔ Está sendo utilizado?
+
+✔ Vale manter?
+
+---
+
+FASE 2 - MAPEAMENTO DAS TELAS
+
+Encontrar todas as telas.
+
+Para cada tela informar:
+
+Nome
+
+Rota
+
+Arquivo
+
+Componente
+
+Status
+
+Dependências
+
+Problemas encontrados
+
+Itens faltando
+
+Itens duplicados
+
+Sugestões
+
+---
+
+FASE 3 - BACKEND
+
+Analisar:
+
+Todas as APIs
+
+Controllers
+
+Services
+
+Repositories
+
+Middlewares
+
+Autenticação
+
+JWT
+
+Permissões
+
+Logs
+
+Integrações
+
+Webhooks
+
+Jobs
+
+Cron
+
+Workers
+
+Para cada item informar:
+
+Status
+
+Uso
+
+Dependências
+
+Problemas
+
+---
+
+FASE 4 - BANCO DE DADOS
+
+Mapear todas as tabelas.
+
+Mostrar:
+
+Relacionamentos
+
+Chaves
+
+Índices
+
+Duplicações
+
+Campos sem uso
+
+Campos redundantes
+
+Campos faltando
+
+Tabelas órfãs
+
+---
+
+FASE 5 - FRONTEND
+
+Encontrar:
+
+Componentes repetidos
+
+Hooks repetidos
+
+Cards repetidos
+
+Botões repetidos
+
+Inputs repetidos
+
+Modais repetidos
+
+Tabelas repetidas
+
+Layouts repetidos
+
+Verificar se existe um Design System consistente.
+
+---
+
+FASE 6 - PERMISSÕES
+
+Listar:
+
+Perfis
+
+Roles
+
+ACL
+
+Menus
+
+Permissões
+
+Restrições
+
+Rotas protegidas
+
+---
+
+FASE 7 - DOCUMENTAÇÃO
+
+Verificar:
+
+README
+
+Arquivos MD
+
+Roadmap
+
+Documentação técnica
+
+Documentação duplicada
+
+Arquivos antigos
+
+Arquivos inúteis
+
+---
+
+FASE 8 - IA CLARA
+
+Mapear:
+
+Prompts
+
+Ferramentas
+
+Fluxos
+
+Contextos
+
+Memórias
+
+Integrações
+
+Arquivos relacionados
+
+Separar o que realmente pertence à IA.
+
+---
+
+FASE 9 - NF-e
+
+Analisar tudo relacionado ao módulo fiscal.
+
+O objetivo NÃO é remover.
+
+O objetivo é deixar somente a estrutura necessária para futura implementação.
+
+Manter:
+
+Empresa
+
+NCM
+
+CFOP
+
+CST
+
+CSOSN
+
+Natureza de Operação
+
+Dados fiscais
+
+Estrutura do XML
+
+Remover da análise futura:
+
+Emissão
+
+SEFAZ
+
+Cancelamento
+
+Carta de Correção
+
+DANFE
+
+MDF-e
+
+CT-e
+
+Integrações fiscais
+
+A NF ficará apenas como base estrutural.
+
+---
+
+FASE 10 - ORGANIZAÇÃO
+
+Avaliar a estrutura das pastas.
+
+Verificar se existe:
+
+Código morto
+
+Arquivos sem uso
+
+Imports desnecessários
+
+Dependências desnecessárias
+
+Pastas duplicadas
+
+Componentes abandonados
+
+Testes quebrados
+
+Arquivos temporários
+
+Logs antigos
+
+TXT antigos
+
+Scripts antigos
+
+---
+
+FASE 11 - QUALIDADE
+
+Dar nota para:
+
+Arquitetura
+
+Escalabilidade
+
+Performance
+
+Segurança
+
+Organização
+
+Frontend
+
+Backend
+
+Banco
+
+UX
+
+Documentação
+
+Testes
+
+Cobertura
+
+Padronização
+
+---
+
+FASE 12 - ROADMAP
+
+Somente após entender todo o sistema, criar uma lista contendo:
+
+O que manter exatamente como está
+
+O que apenas melhorar
+
+O que reorganizar
+
+O que remover
+
+O que adiar
+
+O que nunca desenvolver
+
+O que será prioridade
+
+O que poderá virar versão futura
+
+---
+
+IMPORTANTE
+
+Nunca sugerir funcionalidades antes de concluir toda a auditoria.
+
+Sempre justificar cada recomendação com base na implementação encontrada.
+
+Toda conclusão deve ser baseada em evidências do código existente.
+
+Ao final, gerar um relatório executivo completo contendo um diagnóstico geral do Portal VivaFrutaz ERP, os riscos identificados, oportunidades de melhoria e um plano de evolução em fases, preservando ao máximo o trabalho já realizado.
