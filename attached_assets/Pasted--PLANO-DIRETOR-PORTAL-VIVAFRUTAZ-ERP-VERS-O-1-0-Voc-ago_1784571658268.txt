@@ -1,0 +1,331 @@
+# PLANO DIRETOR - PORTAL VIVAFRUTAZ ERP
+## VERSÃO 1.0
+
+Você agora atua como CTO, Product Owner, Arquiteto de Software e Consultor de Processos.
+
+Você possui acesso aos seguintes documentos produzidos anteriormente:
+
+- AUDITORIA_VIVAFRUTAZ_ERP.md
+- AUDITORIA_FUNCIONAL_VIVAFRUTAZ_ERP.md
+- AUDITORIA_PRODUTO_VIVAFRUTAZ_ERP.md
+- GAP_MAP_VIVAFRUTAZ_ERP.md
+
+Utilize TODOS eles como fonte de informação.
+
+NÃO faça uma nova auditoria.
+
+NÃO escreva código.
+
+NÃO implemente funcionalidades.
+
+Sua missão é consolidar todas as descobertas em um único documento estratégico.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+Criar o Plano Diretor do Portal VivaFrutaz.
+
+Este documento será a referência oficial para toda evolução futura do sistema.
+
+Toda decisão deve ser baseada nas auditorias realizadas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 1
+
+VISÃO DO PRODUTO
+
+Responder:
+
+Qual é a missão do Portal?
+
+Qual problema ele resolve?
+
+Quem são seus usuários?
+
+Quais processos ele cobre?
+
+Quais processos NÃO fazem parte da V1?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 2
+
+ESCOPO OFICIAL DA VERSÃO 1
+
+Definir oficialmente que o Portal será focado em:
+
+✔ Operação interna da VivaFrutaz
+
+✔ Comercial
+
+✔ CRM
+
+✔ Clientes
+
+✔ Contratos
+
+✔ Pedidos
+
+✔ Planejamento
+
+✔ Produção
+
+✔ Separação
+
+✔ Conferência
+
+✔ Logística
+
+✔ Entregas
+
+✔ Dashboard
+
+✔ Academy
+
+✔ Clara IA
+
+✔ Portal do Cliente
+
+Tudo o que não estiver nesta lista deverá ser classificado como "fora do escopo da V1".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 3
+
+MÓDULOS CONGELADOS
+
+Listar todos os módulos existentes que permanecerão no código, porém ficarão ocultos.
+
+Exemplo:
+
+Fiscal
+
+NF-e
+
+SEFAZ
+
+CT-e
+
+MDF-e
+
+Gateway de pagamento
+
+PIX
+
+Boletos
+
+Billing
+
+Marketplace
+
+SaaS
+
+Explicar por que estão congelados.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 4
+
+DESTINO DE CADA MÓDULO
+
+Para TODOS os módulos preencher:
+
+Nome
+
+Objetivo
+
+Status atual
+
+Valor para a operação
+
+Destino
+
+Manter
+
+Melhorar
+
+Reorganizar
+
+Ocultar
+
+Descontinuar
+
+Justificar todas as decisões.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 5
+
+BACKLOG ESTRATÉGICO
+
+Utilizando o GAP MAP, organizar os gaps por prioridade.
+
+Não criar funcionalidades novas.
+
+Apenas organizar.
+
+Categorias:
+
+Eliminar Excel
+
+Eliminar WhatsApp
+
+Eliminar Papel
+
+Eliminar Retrabalho
+
+Melhorar UX
+
+Automatizar Processo
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 6
+
+REGRAS DE EVOLUÇÃO
+
+Criar regras obrigatórias para qualquer desenvolvimento futuro.
+
+Exemplo:
+
+Nenhuma funcionalidade poderá ser criada sem resolver um problema real.
+
+Não duplicar módulos.
+
+Reutilizar componentes existentes.
+
+Não criar telas sem necessidade.
+
+Toda nova funcionalidade deve eliminar um processo externo.
+
+Toda nova funcionalidade deve possuir dono.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 7
+
+ARQUITETURA FUNCIONAL
+
+Descrever como o Portal deve ser organizado.
+
+Fluxo principal:
+
+Comercial
+
+↓
+
+Cliente
+
+↓
+
+Contrato
+
+↓
+
+Pedido
+
+↓
+
+Planejamento
+
+↓
+
+Produção
+
+↓
+
+Conferência
+
+↓
+
+Logística
+
+↓
+
+Entrega
+
+↓
+
+Indicadores
+
+↓
+
+Renovação
+
+Explicar como cada módulo conversa com os demais.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 8
+
+ROADMAP
+
+Dividir a evolução em fases.
+
+FASE 1
+
+Consolidar operação.
+
+FASE 2
+
+Eliminar controles paralelos.
+
+FASE 3
+
+Portal do Cliente.
+
+FASE 4
+
+Clara IA integrada.
+
+FASE 5
+
+Fiscal (opcional).
+
+FASE 6
+
+Financeiro avançado (opcional).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CAPÍTULO 9
+
+DECISÕES OFICIAIS
+
+Registrar decisões de arquitetura (ADR).
+
+Exemplo:
+
+ADR-001
+
+O Portal será focado exclusivamente na operação da VivaFrutaz.
+
+ADR-002
+
+NF-e permanecerá congelada.
+
+ADR-003
+
+Integrações bancárias permanecerão congeladas.
+
+ADR-004
+
+O Portal deverá eliminar gradualmente Excel, WhatsApp e papel.
+
+ADR-005
+
+O Portal do Cliente faz parte da V1.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENTREGA
+
+Gerar um documento chamado:
+
+PLANO_DIRETOR_PORTAL_VIVAFRUTAZ_V1.md
+
+Este documento será considerado a referência oficial do projeto.
+
+Nenhum desenvolvimento futuro deverá ser iniciado sem respeitar as decisões definidas neste plano.
