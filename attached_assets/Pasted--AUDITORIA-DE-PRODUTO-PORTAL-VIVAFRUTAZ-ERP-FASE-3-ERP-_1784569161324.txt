@@ -1,0 +1,322 @@
+# AUDITORIA DE PRODUTO - PORTAL VIVAFRUTAZ ERP
+## FASE 3 - ERP ESPECIALIZADO NA OPERAÇÃO DA VIVAFRUTAZ
+
+Você agora assume o papel de Product Manager, Analista de Negócios, Consultor ERP e Arquiteto de Produto.
+
+IMPORTANTE:
+
+Você NÃO é um programador nesta etapa.
+
+Você NÃO deve escrever código.
+
+Você NÃO deve criar novas funcionalidades.
+
+Você NÃO deve modificar arquivos.
+
+Sua missão é responder apenas uma pergunta:
+
+"O Portal VivaFrutaz representa fielmente a operação real da VivaFrutaz?"
+
+Toda análise deve ser baseada exclusivamente no código existente.
+
+Nunca faça suposições.
+
+Caso algo não exista no sistema, apenas registre.
+
+──────────────────────────────────────
+
+OBJETIVO
+
+Descobrir se o Portal foi construído de acordo com os processos reais da empresa.
+
+Entender onde existe excesso.
+
+Onde existe falta.
+
+Onde existe desperdício.
+
+Onde existe retrabalho.
+
+Quais módulos realmente agregam valor.
+
+Quais módulos podem ficar ocultos.
+
+Quais funcionalidades nunca serão utilizadas.
+
+──────────────────────────────────────
+
+ETAPA 1 — MAPA DA EMPRESA
+
+Reconstruir o funcionamento da VivaFrutaz apenas através do código.
+
+Responder:
+
+Como nasce um cliente?
+
+Como nasce um contrato?
+
+Como nasce um pedido?
+
+Como funciona a produção?
+
+Como funciona a logística?
+
+Como ocorre a entrega?
+
+Como ocorre o faturamento?
+
+Como ocorre a cobrança?
+
+Como ocorre a renovação?
+
+Gerar um fluxograma completo da operação encontrada.
+
+──────────────────────────────────────
+
+ETAPA 2 — JORNADA DOS USUÁRIOS
+
+Identificar todos os perfis existentes.
+
+Para cada perfil responder:
+
+O que ele faz?
+
+Quais telas utiliza?
+
+Quais menus acessa?
+
+Quais permissões possui?
+
+Quais tarefas executa?
+
+Quanto tempo passa em cada módulo?
+
+Existe retrabalho?
+
+Existe navegação desnecessária?
+
+──────────────────────────────────────
+
+ETAPA 3 — AUDITORIA DE CADA MÓDULO
+
+Para TODOS os módulos responder:
+
+Objetivo
+
+Usuário responsável
+
+Fluxo atual
+
+Integrações
+
+Dependências
+
+Pontos fortes
+
+Pontos fracos
+
+Complexidade
+
+Necessidade real para a VivaFrutaz
+
+Classificação:
+
+🟢 Essencial
+
+🟡 Importante
+
+🟠 Opcional
+
+⚫ Futuro
+
+❌ Sem valor para a operação atual
+
+──────────────────────────────────────
+
+ETAPA 4 — PROCESSOS PARALELOS
+
+Descobrir quais atividades ainda dependem de:
+
+Excel
+
+Google Sheets
+
+WhatsApp
+
+Telefone
+
+E-mail
+
+Papel
+
+Assinatura manual
+
+Anotações
+
+Planilhas pessoais
+
+Responder exatamente onde isso acontece.
+
+──────────────────────────────────────
+
+ETAPA 5 — DUPLICIDADE
+
+Encontrar:
+
+Processos duplicados
+
+Cadastros duplicados
+
+Telas duplicadas
+
+APIs duplicadas
+
+Componentes duplicados
+
+Fluxos duplicados
+
+Regras de negócio duplicadas
+
+──────────────────────────────────────
+
+ETAPA 6 — GAPS
+
+Responder:
+
+O que o usuário precisa fazer fora do sistema?
+
+Quais informações ainda precisam ser digitadas manualmente?
+
+Onde ocorre retrabalho?
+
+Quais informações são perdidas?
+
+Onde existem gargalos?
+
+──────────────────────────────────────
+
+ETAPA 7 — UX OPERACIONAL
+
+Avaliar cada módulo como usuário final.
+
+Responder:
+
+A tela é intuitiva?
+
+Existe excesso de informação?
+
+Existem botões desnecessários?
+
+Existem menus escondidos?
+
+Existe clique demais?
+
+Existe navegação confusa?
+
+Existe tela que poderia ser unificada?
+
+──────────────────────────────────────
+
+ETAPA 8 — MATRIZ DE VALOR
+
+Para cada módulo preencher:
+
+Nome
+
+É utilizado diariamente?
+
+É utilizado semanalmente?
+
+É utilizado raramente?
+
+Quem utiliza?
+
+Quanto valor gera?
+
+Quanto esforço exige para manutenção?
+
+Pode ficar oculto?
+
+Pode ser removido da interface?
+
+Deve permanecer?
+
+──────────────────────────────────────
+
+ETAPA 9 — ERP ESPECIALIZADO
+
+Responder:
+
+Se o Portal fosse desenvolvido hoje do zero exclusivamente para a VivaFrutaz...
+
+Quais módulos permaneceriam exatamente iguais?
+
+Quais módulos seriam simplificados?
+
+Quais módulos seriam reorganizados?
+
+Quais módulos ficariam ocultos?
+
+Quais módulos não fariam parte da primeira versão?
+
+Não criar novas funcionalidades.
+
+Responder apenas com base na análise.
+
+──────────────────────────────────────
+
+ETAPA 10 — RELATÓRIO EXECUTIVO
+
+Gerar um relatório contendo:
+
+Resumo Executivo
+
+Mapa completo da operação da VivaFrutaz
+
+Mapa dos usuários
+
+Mapa dos módulos
+
+Fluxos encontrados
+
+Fluxos desnecessários
+
+Fluxos ausentes
+
+Retrabalhos
+
+Dependências externas
+
+Excel utilizado
+
+WhatsApp utilizado
+
+E-mails utilizados
+
+Gargalos
+
+Matriz de Valor
+
+Classificação dos módulos
+
+Lista de módulos essenciais
+
+Lista de módulos secundários
+
+Lista de módulos para ocultar
+
+Lista de módulos futuros
+
+Conclusão final
+
+──────────────────────────────────────
+
+REGRA FINAL
+
+Não sugerir desenvolvimento.
+
+Não escrever código.
+
+Não criar funcionalidades.
+
+O objetivo é produzir um diagnóstico de produto que servirá como base para transformar o Portal VivaFrutaz em um ERP especializado exclusivamente na operação da VivaFrutaz.
