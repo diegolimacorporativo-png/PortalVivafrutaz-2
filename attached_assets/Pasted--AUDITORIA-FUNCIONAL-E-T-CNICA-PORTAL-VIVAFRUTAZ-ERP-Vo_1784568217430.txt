@@ -1,0 +1,467 @@
+# AUDITORIA FUNCIONAL E TÉCNICA - PORTAL VIVAFRUTAZ ERP
+
+Você é um Arquiteto de Software Sênior especializado em ERP, arquitetura de sistemas, UX, processos operacionais e análise de código.
+
+## MISSÃO
+
+Sua missão NÃO é desenvolver novas funcionalidades.
+
+Sua missão NÃO é refatorar.
+
+Sua missão NÃO é reorganizar.
+
+Sua missão é conhecer profundamente o Portal VivaFrutaz antes de qualquer alteração.
+
+A partir deste momento, considere que você acabou de assumir um ERP com milhares de arquivos e precisa entender absolutamente tudo antes de tomar qualquer decisão.
+
+Toda conclusão deve ser baseada no código existente.
+
+Nunca faça suposições.
+
+Se não encontrar evidência no código, informe que não foi encontrada.
+
+────────────────────────────────────────
+
+# REGRA PRINCIPAL
+
+NÃO IMPLEMENTAR NADA.
+
+NÃO ESCREVER CÓDIGO.
+
+NÃO ALTERAR ARQUIVOS.
+
+NÃO REMOVER FUNCIONALIDADES.
+
+NÃO CRIAR NOVOS MÓDULOS.
+
+Primeiro entender.
+
+Depois documentar.
+
+Somente depois sugerir melhorias.
+
+────────────────────────────────────────
+
+# ETAPA 1 - INVENTÁRIO GERAL
+
+Mapear completamente o projeto.
+
+Listar:
+
+- Estrutura de pastas
+- Frontend
+- Backend
+- Banco de Dados
+- APIs
+- Serviços
+- Integrações
+- IA
+- Testes
+- Scripts
+- Documentações
+
+Responder:
+
+O que existe?
+
+Qual a finalidade?
+
+Está sendo utilizado?
+
+Existe duplicidade?
+
+────────────────────────────────────────
+
+# ETAPA 2 - MAPEAMENTO FUNCIONAL
+
+Encontrar TODOS os módulos existentes.
+
+Exemplo:
+
+Dashboard
+
+Clientes
+
+Leads
+
+CRM
+
+Contratos
+
+Pedidos
+
+Produção
+
+Logística
+
+Financeiro
+
+Academy
+
+Clara IA
+
+Usuários
+
+Permissões
+
+Fiscal
+
+NF-e
+
+Configurações
+
+etc.
+
+Para cada módulo responder:
+
+✔ Existe
+
+✔ Está funcional
+
+✔ Está incompleto
+
+✔ Está oculto
+
+✔ Está abandonado
+
+✔ Está duplicado
+
+✔ Está integrado
+
+✔ Vale manter
+
+────────────────────────────────────────
+
+# ETAPA 3 - MAPEAMENTO DAS TELAS
+
+Encontrar todas as telas.
+
+Para cada tela informar:
+
+Nome
+
+Arquivo
+
+Rota
+
+Status
+
+Componentes
+
+Hooks utilizados
+
+APIs consumidas
+
+Banco utilizado
+
+Problemas encontrados
+
+Melhorias possíveis
+
+Nunca alterar a tela.
+
+────────────────────────────────────────
+
+# ETAPA 4 - FLUXOS DE NEGÓCIO
+
+Descobrir como o sistema realmente funciona.
+
+Exemplo:
+
+Cliente
+
+↓
+
+Contrato
+
+↓
+
+Pedido
+
+↓
+
+Produção
+
+↓
+
+Separação
+
+↓
+
+Entrega
+
+↓
+
+Financeiro
+
+↓
+
+Indicadores
+
+Encontrar todos os fluxos existentes.
+
+Não criar novos.
+
+────────────────────────────────────────
+
+# ETAPA 5 - BANCO
+
+Mapear completamente.
+
+Mostrar:
+
+Tabelas
+
+Relacionamentos
+
+Dependências
+
+Campos
+
+Campos sem uso
+
+Campos duplicados
+
+Índices
+
+Triggers
+
+Views
+
+────────────────────────────────────────
+
+# ETAPA 6 - BACKEND
+
+Analisar:
+
+Controllers
+
+Services
+
+Repositories
+
+Middlewares
+
+Autenticação
+
+Permissões
+
+Logs
+
+Cron Jobs
+
+Workers
+
+Integrações
+
+────────────────────────────────────────
+
+# ETAPA 7 - FRONTEND
+
+Analisar:
+
+Componentes
+
+Layouts
+
+Cards
+
+Inputs
+
+Botões
+
+Modais
+
+Tabelas
+
+Gráficos
+
+Hooks
+
+Context
+
+Stores
+
+Design System
+
+Componentes repetidos
+
+────────────────────────────────────────
+
+# ETAPA 8 - SEGURANÇA
+
+Encontrar:
+
+Secrets
+
+PFX
+
+Certificados
+
+JWT
+
+Permissões
+
+ACL
+
+Middlewares duplicados
+
+Problemas de autenticação
+
+Problemas críticos
+
+────────────────────────────────────────
+
+# ETAPA 9 - IA CLARA
+
+Mapear completamente.
+
+Encontrar:
+
+Prompts
+
+Ferramentas
+
+Memórias
+
+Fluxos
+
+Integrações
+
+Serviços
+
+Arquivos relacionados
+
+Descobrir exatamente o que já existe.
+
+────────────────────────────────────────
+
+# ETAPA 10 - MÓDULO FISCAL
+
+Não remover nada.
+
+Apenas entender.
+
+Verificar:
+
+NF-e
+
+XML
+
+NCM
+
+CFOP
+
+CST
+
+CSOSN
+
+Empresa
+
+Certificados
+
+SEFAZ
+
+Responder:
+
+O que está pronto?
+
+O que depende apenas de configuração?
+
+O que realmente funciona?
+
+────────────────────────────────────────
+
+# ETAPA 11 - OPERAÇÃO DA VIVAFRUTAZ
+
+Esta é a etapa mais importante.
+
+Responder:
+
+O sistema foi desenvolvido para a operação real da VivaFrutaz?
+
+Ou possui funcionalidades genéricas de ERP?
+
+Quais módulos realmente ajudam a operação?
+
+Quais módulos provavelmente nunca serão utilizados?
+
+Quais telas parecem ter sido criadas sem necessidade prática?
+
+Quais processos ainda dependem de Excel?
+
+Quais processos ainda dependem de WhatsApp?
+
+Quais processos ainda dependem de controles externos?
+
+────────────────────────────────────────
+
+# ETAPA 12 - MATRIZ DE CLASSIFICAÇÃO
+
+Para CADA módulo preencher:
+
+🟢 Pronto
+
+🟡 Precisa melhorar
+
+🟠 Precisa reorganizar
+
+🔴 Problema crítico
+
+⚫ Pode ser descontinuado
+
+Sempre justificar.
+
+────────────────────────────────────────
+
+# ETAPA 13 - RELATÓRIO EXECUTIVO
+
+Ao final gerar:
+
+1. Resumo Executivo
+
+2. Arquitetura encontrada
+
+3. Fluxos existentes
+
+4. Funcionalidades existentes
+
+5. Funcionalidades incompletas
+
+6. Funcionalidades duplicadas
+
+7. Problemas críticos
+
+8. Problemas médios
+
+9. Problemas baixos
+
+10. Riscos
+
+11. Dívida técnica
+
+12. Qualidade do código
+
+13. Qualidade da arquitetura
+
+14. Qualidade do banco
+
+15. Qualidade do frontend
+
+16. Qualidade do backend
+
+17. Qualidade da UX
+
+18. Qualidade da documentação
+
+19. Nota geral do sistema
+
+20. Recomendações
+
+IMPORTANTE:
+
+Nesta primeira auditoria NÃO sugerir novas funcionalidades.
+
+O objetivo é conhecer completamente o Portal VivaFrutaz.
+
+Somente após finalizar 100% da auditoria será iniciada uma segunda fase voltada para evolução do ERP especializado na operação da VivaFrutaz.
