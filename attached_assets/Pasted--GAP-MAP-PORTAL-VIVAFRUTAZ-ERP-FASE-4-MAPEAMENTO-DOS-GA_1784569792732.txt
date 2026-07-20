@@ -1,0 +1,406 @@
+# GAP MAP - PORTAL VIVAFRUTAZ ERP
+## FASE 4 - MAPEAMENTO DOS GAPS OPERACIONAIS
+
+Você agora assume o papel de Consultor Lean, Product Owner, Especialista em Processos e Arquiteto de ERP.
+
+Sua missão NÃO é criar funcionalidades.
+
+Sua missão NÃO é escrever código.
+
+Sua missão NÃO é sugerir melhorias imediatamente.
+
+Sua missão é descobrir TODOS os momentos em que um usuário precisa sair do Portal VivaFrutaz para concluir seu trabalho.
+
+Todo gap encontrado deve possuir evidência no código ou na arquitetura existente.
+
+Nunca faça suposições.
+
+Se não encontrar evidência suficiente, registre como "Não encontrado".
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+Construir o GAP MAP completo da operação da VivaFrutaz.
+
+Responder uma única pergunta:
+
+"Por que o usuário fecha o Portal?"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1
+
+Mapear TODOS os usuários existentes.
+
+Exemplo
+
+Administrador
+
+Comercial
+
+Financeiro
+
+Produção
+
+Compras
+
+Logística
+
+Motorista
+
+RH
+
+Diretoria
+
+Academy
+
+Clara IA
+
+Configurações
+
+Para cada usuário descobrir exatamente como trabalha.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 2
+
+Reconstruir um dia completo de trabalho para cada perfil.
+
+Exemplo
+
+08:00
+
+Login
+
+↓
+
+Dashboard
+
+↓
+
+Clientes
+
+↓
+
+Pedidos
+
+↓
+
+Produção
+
+↓
+
+etc.
+
+Mostrar exatamente quais módulos são utilizados.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 3
+
+Identificar TODOS os momentos em que o usuário sai do Portal.
+
+Exemplos
+
+Excel
+
+Google Sheets
+
+WhatsApp
+
+Telefone
+
+Email
+
+Calculadora
+
+Bloco de notas
+
+PDF
+
+Papel
+
+Sistema bancário
+
+Portal do fornecedor
+
+Portal da transportadora
+
+SEFAZ
+
+Outlook
+
+Google Drive
+
+Assinatura manual
+
+Impressão
+
+Registrar TODOS.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 4
+
+Para cada saída responder:
+
+Qual usuário?
+
+Qual módulo?
+
+Por que saiu?
+
+Qual tarefa precisava concluir?
+
+Essa saída acontece diariamente?
+
+Semanalmente?
+
+Mensalmente?
+
+Quanto tempo gera de retrabalho?
+
+Quantas pessoas fazem isso?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 5
+
+Encontrar GAPS.
+
+Exemplos
+
+Pedido de Compra
+
+Ocorrência
+
+Romaneio
+
+Conciliação
+
+Fornecedor
+
+Etiqueta
+
+Checklist
+
+Fotos
+
+Confirmação
+
+Aprovação
+
+Histórico
+
+Dashboard
+
+Sempre justificar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 6
+
+Encontrar DUPLICIDADES.
+
+Exemplo
+
+Mesmo cadastro em dois lugares.
+
+Mesmo relatório.
+
+Mesmo dashboard.
+
+Mesmo botão.
+
+Mesmo fluxo.
+
+Mesmo processo.
+
+Mesmo documento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 7
+
+Encontrar GARGALOS.
+
+Onde usuários ficam esperando?
+
+Onde existe aprovação manual?
+
+Onde existe digitação repetida?
+
+Onde existem informações duplicadas?
+
+Onde existem etapas desnecessárias?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 8
+
+Encontrar PROCESSOS QUE PODEM SER ELIMINADOS.
+
+Responder:
+
+Se o Portal fosse utilizado corretamente...
+
+Qual processo deixaria de existir?
+
+Qual planilha desapareceria?
+
+Qual grupo de WhatsApp deixaria de ser necessário?
+
+Qual documento nunca mais precisaria ser impresso?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 9
+
+Construir uma MATRIZ DE GAPS.
+
+Para cada GAP informar:
+
+Nome
+
+Usuário
+
+Módulo
+
+Frequência
+
+Impacto
+
+Tempo perdido
+
+Quantidade de pessoas afetadas
+
+Complexidade de solução
+
+Prioridade
+
+Classificação
+
+🔴 Crítico
+
+🟠 Alto
+
+🟡 Médio
+
+🟢 Baixo
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 10
+
+BACKLOG DE GAPS.
+
+Criar um backlog.
+
+NÃO criar funcionalidades.
+
+Criar apenas problemas.
+
+Exemplo
+
+GAP-001
+
+Conciliação bancária manual.
+
+Impacto:
+
+Financeiro.
+
+Prioridade:
+
+Crítica.
+
+----------------------------
+
+GAP-002
+
+Pedido de Compra feito por Excel.
+
+----------------------------
+
+GAP-003
+
+Motorista usa WhatsApp para ocorrência.
+
+----------------------------
+
+GAP-004
+
+Romaneio impresso.
+
+----------------------------
+
+etc.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 11
+
+MATRIZ DE GANHO.
+
+Para cada GAP calcular qualitativamente:
+
+Tempo economizado
+
+Redução de retrabalho
+
+Redução de erros
+
+Redução de uso do WhatsApp
+
+Redução de uso do Excel
+
+Ganho operacional
+
+Valor para a VivaFrutaz
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 12
+
+RELATÓRIO FINAL
+
+Gerar um documento executivo contendo:
+
+Resumo Executivo
+
+Mapa dos usuários
+
+Mapa da operação
+
+Mapa dos Gaps
+
+Mapa dos Gargalos
+
+Mapa das Duplicidades
+
+Mapa dos Processos Externos
+
+Mapa dos Retrabalhos
+
+Backlog de Gaps
+
+Matriz de Prioridade
+
+Matriz de Valor
+
+Conclusão
+
+IMPORTANTE
+
+Não sugerir implementação.
+
+Não escrever código.
+
+Não criar telas.
+
+Não criar APIs.
+
+O objetivo desta fase é descobrir exatamente por que a operação ainda depende de ferramentas externas.
+
+O Portal VivaFrutaz será considerado maduro quando toda a operação puder ser executada dentro dele, sem necessidade de Excel, WhatsApp, papel ou controles paralelos.
