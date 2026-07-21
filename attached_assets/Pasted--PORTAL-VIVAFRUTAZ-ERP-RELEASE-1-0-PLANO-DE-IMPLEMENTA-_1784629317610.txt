@@ -1,0 +1,209 @@
+# PORTAL VIVAFRUTAZ ERP
+# RELEASE 1.0 - PLANO DE IMPLEMENTAÇÃO
+
+Você agora deixa de ser um analista.
+
+Você passa a atuar como CTO, Tech Lead e Product Owner do Portal VivaFrutaz.
+
+Você possui como base:
+
+- AUDITORIA_VIVAFRUTAZ_ERP.md
+- AUDITORIA_FUNCIONAL_VIVAFRUTAZ_ERP.md
+- AUDITORIA_PRODUTO_VIVAFRUTAZ_ERP.md
+- GAP_MAP_VIVAFRUTAZ_ERP.md
+- PLANO_DIRETOR_PORTAL_VIVAFRUTAZ_V1.md
+- MASTER_BACKLOG_PORTAL_VIVAFRUTAZ.md
+
+IMPORTANTE
+
+Não criar novas funcionalidades.
+
+Não alterar o escopo.
+
+Não inventar módulos.
+
+Utilizar EXCLUSIVAMENTE o backlog existente.
+
+A missão agora é transformar o backlog em um plano real de desenvolvimento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1
+
+Organizar todas as FEATURES por dependência técnica.
+
+Mostrar quais precisam existir antes das outras.
+
+Gerar um grafo de dependências.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 2
+
+Transformar o backlog em Releases.
+
+Release 1.0
+
+Release 1.1
+
+Release 1.2
+
+Release 2.0
+
+Justificar cada uma.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 3
+
+Criar Sprints.
+
+Cada Sprint deverá conter:
+
+Objetivo
+
+Features
+
+Tasks
+
+Critério de aceite
+
+Tempo estimado
+
+Riscos
+
+Dependências
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 4
+
+Identificar bloqueadores.
+
+Quais tarefas impedem outras?
+
+Quais módulos precisam ser reorganizados antes?
+
+Quais refatorações são obrigatórias?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 5
+
+Criar a ordem ideal de desenvolvimento.
+
+Exemplo:
+
+Sprint 1
+
+Segurança
+
+Login
+
+Permissões
+
+Sprint 2
+
+Pedidos
+
+Sprint 3
+
+Planejamento
+
+Sprint 4
+
+Produção
+
+Sprint 5
+
+Conferência
+
+...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 6
+
+Para cada Sprint gerar:
+
+Objetivo
+
+Arquivos afetados
+
+Banco envolvido
+
+APIs
+
+Frontend
+
+Backend
+
+Testes
+
+Critério de aceite
+
+Checklist de QA
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 7
+
+Criar um ROADMAP VISUAL.
+
+Exemplo:
+
+██████████ Sprint 1
+
+██████████ Sprint 2
+
+██████████ Sprint 3
+
+...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGRAS
+
+Considerar oficialmente que:
+
+- NF-e está congelada.
+- Financeiro avançado está congelado.
+- PIX está congelado.
+- Gateway de pagamento está congelado.
+- SaaS está congelado.
+- Marketplace está congelado.
+- White Label está congelado.
+
+O foco da Release 1 é exclusivamente:
+
+✔ Comercial
+
+✔ CRM
+
+✔ Clientes
+
+✔ Contratos
+
+✔ Pedidos
+
+✔ Planejamento
+
+✔ Produção
+
+✔ Conferência
+
+✔ Logística
+
+✔ Motoristas
+
+✔ Dashboard
+
+✔ Clara IA
+
+✔ Academy
+
+✔ Portal do Cliente
+
+Ao final gerar:
+
+RELEASE_1_IMPLEMENTATION_PLAN.md
