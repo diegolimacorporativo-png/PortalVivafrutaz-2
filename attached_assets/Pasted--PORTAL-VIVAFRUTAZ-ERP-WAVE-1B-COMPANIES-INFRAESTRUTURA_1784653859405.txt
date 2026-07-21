@@ -1,0 +1,170 @@
+# PORTAL VIVAFRUTAZ ERP
+# WAVE 1B — COMPANIES + INFRAESTRUTURA COMPARTILHADA
+
+A Wave 1A foi aprovada.
+
+O documento oficial:
+
+docs/architecture/REPOSITORY_STANDARD.md
+
+passa a ser a norma obrigatória para qualquer novo Repository.
+
+======================================================
+
+MISSÃO
+
+Executar a Wave 1B.
+
+Extrair o domínio Companies.
+
+Durante esta Wave criar apenas a infraestrutura compartilhada aprovada no Gate.
+
+NÃO implementar nada além disso.
+
+======================================================
+
+FASE 1
+
+Criar infraestrutura compartilhada.
+
+Criar:
+
+server/shared/repositories/
+
+repository.utils.ts
+
+Implementar:
+
+expectOne()
+
+outros helpers aprovados no Repository Standard.
+
+Criar:
+
+server/shared/types/
+
+log.types.ts
+
+Mover LogEntry para este local.
+
+Todos os repositories deverão utilizar este tipo compartilhado.
+
+======================================================
+
+FASE 2
+
+Extrair Companies.
+
+Criar:
+
+server/modules/companies/
+
+interfaces/
+
+types/
+
+companies.repository.ts
+
+index.ts
+
+Seguir integralmente o padrão definido em:
+
+docs/architecture/REPOSITORY_STANDARD.md
+
+======================================================
+
+FASE 3
+
+DatabaseStorage
+
+Migrar SOMENTE os métodos do domínio Companies.
+
+DatabaseStorage continuará implementando IStorage.
+
+Todos os métodos deverão apenas delegar ao CompaniesRepository.
+
+Nenhum comportamento poderá mudar.
+
+======================================================
+
+FASE 4
+
+Eliminar pequenos problemas encontrados na Wave 1A.
+
+Substituir:
+
+!
+
+por
+
+expectOne()
+
+Sempre que aplicável ao domínio Companies.
+
+Não alterar outros domínios.
+
+======================================================
+
+FASE 5
+
+VALIDAÇÃO
+
+Executar:
+
+npm run check:strict
+
+npm run test
+
+npx tsc --noEmit
+
+Comparar com o baseline.
+
+Não pode existir regressão.
+
+======================================================
+
+FASE 6
+
+AUDITORIA
+
+Ao terminar gerar:
+
+docs/refactoring/WAVE_1B_COMPANIES_REPORT.md
+
+Informando:
+
+Arquivos criados
+
+Arquivos alterados
+
+Métodos migrados
+
+Helpers criados
+
+Tipos compartilhados
+
+Compatibilidade preservada
+
+Cobertura
+
+Testes
+
+Riscos
+
+Rollback
+
+======================================================
+
+IMPORTANTE
+
+Após concluir a Wave 1B:
+
+NÃO iniciar a Wave 1C.
+
+Aguardar aprovação.
+
+Responder também:
+
+O padrão continua válido?
+
+Existe alguma melhoria que deve entrar no Repository Standard antes da Wave 1C?

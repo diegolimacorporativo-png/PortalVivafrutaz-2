@@ -8,18 +8,10 @@
  * Wave 1A — Users Repository extraction.
  */
 import type { User, InsertUser } from "../users.types";
-
-/** Entrada de log de auditoria. Espelha o contrato de storage.createLog. */
-export type LogEntry = {
-  action: string;
-  description: string;
-  userId?: number;
-  companyId?: number;
-  userEmail?: string;
-  userRole?: string;
-  ip?: string;
-  level?: string;
-};
+// Wave 1B: LogEntry foi movido para o tipo compartilhado.
+// Importado + re-exportado aqui para preservar compatibilidade com callers existentes.
+import type { LogEntry } from "../../../shared/types/log.types";
+export type { LogEntry } from "../../../shared/types/log.types";
 
 export interface IUsersRepository {
   // ── 7 métodos canônicos do domínio Users ─────────────────────────────────

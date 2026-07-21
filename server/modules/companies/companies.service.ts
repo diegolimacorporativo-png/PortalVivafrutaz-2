@@ -43,7 +43,7 @@ export class CompaniesService {
   listPaginated(params: {
     page?: number; limit?: number; search?: string; status?: string; clientType?: string;
   }): Promise<{ data: Company[]; total: number; page: number; limit: number; totalPages: number }> {
-    return storage.getCompaniesPaginated(params);
+    return this.repo.getCompaniesPaginated(params);
   }
 
   async get(id: number): Promise<Company> {
@@ -212,7 +212,7 @@ export class CompaniesService {
     body: any,
     userId: number,
   ): Promise<ContractAdjustment> {
-    const user = await this.repo.getUser(userId);
+    const user = await storage.getUser(userId);
     const adj = await this.repo.createAdjustment({
       ...body,
       companyId,
@@ -261,7 +261,7 @@ export class CompaniesService {
     const adj = await this.repo.getAdjustment(adjId);
     if (!adj) throw new NotFoundError("Reajuste não encontrado");
 
-    const smtpConfig = await this.repo.getSmtpConfig();
+    const smtpConfig = await storage.getSmtpConfig();
     if (!smtpConfig?.host) throw new BadRequestError("SMTP não configurado");
 
     const targetEmail = (company as any).notificationEmail || company.email;
@@ -289,7 +289,7 @@ export class CompaniesService {
       emailSentAt: new Date(),
     } as any);
 
-    const user = await this.repo.getUser(userId);
+    const user = await storage.getUser(userId);
     await this.repo.log({
       action: "CONTRACT_EMAIL_SENT",
       description: `Email de reajuste contratual enviado para ${targetEmail} (empresa ${company.companyName})`,
@@ -319,7 +319,7 @@ export class CompaniesService {
         "Escopo contratual vazio. Adicione itens ao escopo primeiro.",
       );
     }
-    const products = await this.repo.getProducts();
+    const products = await storage.getProducts();
     const prodById = new Map(products.map((p: any) => [p.id, p]));
 
     const DAY_OFFSET: Record<string, number> = {
@@ -379,7 +379,8 @@ export class CompaniesService {
 
       const totalValue = items.reduce((s, i) => s + Number(i.totalPrice), 0);
 
-      const order = await this.repo.createOrder(
+      // Cast via `any` preserva o comportamento legado — mesmo padrão do repo anterior.
+      const order = await storage.createOrder(
         {
           companyId,
           deliveryDate,
@@ -400,7 +401,7 @@ export class CompaniesService {
           erpId: null,
           erpExportError: null,
         },
-        items,
+        items as any,
       );
 
       createdOrders.push({ ...order, dayName });
@@ -446,8 +447,8 @@ export class CompaniesService {
   async gpsStatus(companyId: number): Promise<GpsStatus> {
     const [cfg, assinaturas, planos] = await Promise.all([
       this.repo.getEmpresaConfig(companyId),
-      this.repo.listAssinaturas(),
-      this.repo.listPlanos(),
+      storage.getAssinaturas(),
+      storage.getPlanos(),
     ]);
     const assinatura = assinaturas.find(
       (a: any) => a.companyId === companyId && a.status === "ativa",
@@ -481,7 +482,7 @@ export class CompaniesService {
     // Role gate preserved from the legacy handler: GPS override is reserved
     // for top-level operators. Pinned tenants (company portal) cannot toggle
     // their own GPS override — a paid plan must be purchased instead.
-    const actor = await this.repo.getUser(actingUserId);
+    const actor = await storage.getUser(actingUserId);
     if (!actor || !["MASTER", "ADMIN", "DIRECTOR"].includes(actor.role)) {
       throw new ForbiddenError("Acesso negado");
     }

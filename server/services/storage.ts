@@ -1,5 +1,7 @@
 import bcrypt from "bcryptjs";
 import { db } from "../database/db";
+// Wave 1B — delegação do domínio Companies
+import { companiesRepository } from "../modules/companies/companies.repository";
 import { cache } from "./cache.js";
 import { invalidateUsageCache } from "../modules/billing/usage-cache";
 import { logSecurity } from "../core/security/securityLogger";
@@ -631,99 +633,65 @@ export class DatabaseStorage implements IStorage {
     return usersRepository.updateUser(id, updates);
   }
 
+  // ── Companies — delegação à Wave 1B (companiesRepository) ──────────────
   async getCompanyByEmail(email: string): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(sql`lower(${companies.email}) = ${email.toLowerCase()}`);
-    return company;
+    return companiesRepository.getCompanyByEmail(email);
   }
 
   async getCompany(id: number): Promise<Company | undefined> {
-    const [company] = await db.select().from(companies).where(eq(companies.id, id));
-    return company;
+    return companiesRepository.getCompany(id);
   }
 
   async getCompanies(limit?: number, offset?: number): Promise<Company[]> {
-    const cacheKey = `companies_${limit || 'all'}_${offset || 0}`;
-    const cached = cache.get(cacheKey);
-    if (cached) return cached;
-    let query: any = db.select().from(companies);
-    if (limit) query = query.limit(limit);
-    if (offset) query = query.offset(offset);
-    const result: Company[] = await query;
-    cache.set(cacheKey, result, 300000); // 5 min
-    return result;
+    return companiesRepository.getCompanies(limit, offset);
   }
 
   async createCompany(company: InsertCompany): Promise<Company> {
-    const hashedPassword = company.password ? await bcrypt.hash(company.password, 10) : undefined;
-    const toInsert = { ...company, password: hashedPassword ?? company.password };
-    const [newCompany] = await db.insert(companies).values(toInsert).returning();
-    return newCompany;
+    return companiesRepository.createCompany(company);
   }
 
   async updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company> {
-    const toUpdate = { ...updates } as any;
-    if (updates.password) {
-      toUpdate.password = await bcrypt.hash(updates.password, 10);
-    }
-    const [updated] = await db.update(companies).set(toUpdate).where(eq(companies.id, id)).returning();
-    return updated;
+    return companiesRepository.updateCompany(id, updates);
   }
 
   async deleteCompany(id: number): Promise<void> {
-    await db.delete(companies).where(eq(companies.id, id));
+    return companiesRepository.deleteCompany(id);
   }
 
   async getContractScopes(companyId: number): Promise<ContractScope[]> {
-    return await db.select().from(contractScopes).where(eq(contractScopes.companyId, companyId));
+    return companiesRepository.getContractScopes(companyId);
   }
 
   async getContractScope(companyId: number, productId: number): Promise<ContractScope | null> {
-    const rows = await db
-      .select()
-      .from(contractScopes)
-      .where(
-        and(
-          eq(contractScopes.companyId, companyId),
-          eq(contractScopes.productId, productId),
-        ),
-      )
-      .limit(1);
-    return rows[0] ?? null;
+    return companiesRepository.getContractScope(companyId, productId);
   }
 
   async createContractScope(scope: InsertContractScope): Promise<ContractScope> {
-    const [newScope] = await db.insert(contractScopes).values(scope).returning();
-    return newScope;
+    return companiesRepository.createContractScope(scope);
   }
 
   async updateContractScope(id: number, data: Partial<InsertContractScope>): Promise<ContractScope> {
-    const [updated] = await db.update(contractScopes).set(data as any).where(eq(contractScopes.id, id)).returning();
-    return updated;
+    return companiesRepository.updateContractScope(id, data);
   }
 
   async deleteContractScope(id: number): Promise<void> {
-    await db.delete(contractScopes).where(eq(contractScopes.id, id));
+    return companiesRepository.deleteContractScope(id);
   }
 
   async getContractAdjustments(companyId: number): Promise<ContractAdjustment[]> {
-    return await db.select().from(contractAdjustments)
-      .where(eq(contractAdjustments.companyId, companyId))
-      .orderBy(desc(contractAdjustments.createdAt));
+    return companiesRepository.getContractAdjustments(companyId);
   }
 
   async createContractAdjustment(adj: InsertContractAdjustment): Promise<ContractAdjustment> {
-    const [record] = await db.insert(contractAdjustments).values(adj).returning();
-    return record;
+    return companiesRepository.createContractAdjustment(adj);
   }
 
   async updateContractAdjustment(id: number, data: Partial<InsertContractAdjustment>): Promise<ContractAdjustment> {
-    const [record] = await db.update(contractAdjustments).set(data as any).where(eq(contractAdjustments.id, id)).returning();
-    return record;
+    return companiesRepository.updateContractAdjustment(id, data);
   }
 
   async getContractAdjustment(id: number): Promise<ContractAdjustment | undefined> {
-    const [record] = await db.select().from(contractAdjustments).where(eq(contractAdjustments.id, id));
-    return record;
+    return companiesRepository.getContractAdjustment(id);
   }
 
   async getDanfeRecordsByOrderId(orderId: number): Promise<DanfeRecord[]> {
@@ -1231,33 +1199,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCompanyConfig(): Promise<CompanyConfig | undefined> {
-    const configs = await db.select().from(companyConfig);
-    return configs[0];
+    return companiesRepository.getCompanyConfig();
   }
 
   async updateCompanyConfig(updates: Partial<InsertCompanyConfig>): Promise<CompanyConfig> {
-    const configs = await db.select().from(companyConfig);
-    if (configs.length === 0) {
-      const [inserted] = await db.insert(companyConfig).values({ ...updates, updatedAt: new Date() } as any).returning();
-      return inserted;
-    }
-    const [updated] = await db.update(companyConfig).set({ ...updates, updatedAt: new Date() } as any).where(eq(companyConfig.id, configs[0].id)).returning();
-    return updated;
+    return companiesRepository.updateCompanyConfig(updates);
   }
 
   async getCompanySettings(empresaId: number): Promise<CompanySettings | undefined> {
-    const [settings] = await db.select().from(companySettings).where(eq(companySettings.empresaId, empresaId));
-    return settings;
+    return companiesRepository.getCompanySettings(empresaId);
   }
 
   async updateCompanySettings(empresaId: number, updates: Partial<InsertCompanySettings>): Promise<CompanySettings> {
-    const existing = await this.getCompanySettings(empresaId);
-    if (!existing) {
-      const [inserted] = await db.insert(companySettings).values({ ...updates, empresaId, updatedAt: new Date() } as any).returning();
-      return inserted;
-    }
-    const [updated] = await db.update(companySettings).set({ ...updates, updatedAt: new Date() } as any).where(eq(companySettings.id, existing.id)).returning();
-    return updated;
+    return companiesRepository.updateCompanySettings(empresaId, updates);
   }
 
   async getPasswordResetRequests(): Promise<PasswordResetRequest[]> {
@@ -2536,26 +2490,23 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Company Addresses ───────────────────────────────────────────────────
   async getCompanyAddresses(companyId: number): Promise<CompanyAddress[]> {
-    return db.select().from(companyAddresses).where(eq(companyAddresses.companyId, companyId)).orderBy(desc(companyAddresses.isPrimary), desc(companyAddresses.createdAt));
+    return companiesRepository.getCompanyAddresses(companyId);
   }
 
   async createCompanyAddress(data: InsertCompanyAddress): Promise<CompanyAddress> {
-    const [r] = await db.insert(companyAddresses).values(data).returning();
-    return r;
+    return companiesRepository.createCompanyAddress(data);
   }
 
   async updateCompanyAddress(id: number, data: Partial<InsertCompanyAddress>): Promise<CompanyAddress> {
-    const [r] = await db.update(companyAddresses).set(data).where(eq(companyAddresses.id, id)).returning();
-    return r;
+    return companiesRepository.updateCompanyAddress(id, data);
   }
 
   async deleteCompanyAddress(id: number): Promise<void> {
-    await db.delete(companyAddresses).where(eq(companyAddresses.id, id));
+    return companiesRepository.deleteCompanyAddress(id);
   }
 
   async setPrimaryAddress(companyId: number, addressId: number): Promise<void> {
-    await db.update(companyAddresses).set({ isPrimary: false }).where(eq(companyAddresses.companyId, companyId));
-    await db.update(companyAddresses).set({ isPrimary: true }).where(eq(companyAddresses.id, addressId));
+    return companiesRepository.setPrimaryAddress(companyId, addressId);
   }
 
   // ─── SaaS: Planos ─────────────────────────────────────────────────────────
@@ -2863,18 +2814,11 @@ export class DatabaseStorage implements IStorage {
 
   // ─── White Label — EmpresaConfig ──────────────────────────────────────────
   async getEmpresaConfig(empresaId: number): Promise<EmpresaConfig | undefined> {
-    const [r] = await db.select().from(empresaConfig).where(eq(empresaConfig.empresaId, empresaId));
-    return r;
+    return companiesRepository.getEmpresaConfigRaw(empresaId);
   }
 
   async upsertEmpresaConfig(empresaId: number, data: Partial<InsertEmpresaConfig>): Promise<EmpresaConfig> {
-    const existing = await this.getEmpresaConfig(empresaId);
-    if (existing) {
-      const [r] = await db.update(empresaConfig).set({ ...data, updatedAt: new Date() }).where(eq(empresaConfig.empresaId, empresaId)).returning();
-      return r;
-    }
-    const [r] = await db.insert(empresaConfig).values({ ...data, empresaId }).returning();
-    return r;
+    return companiesRepository.upsertEmpresaConfigRaw(empresaId, data);
   }
 
   // ─── Marketplace — ModulosMarketplace ─────────────────────────────────────
@@ -2906,32 +2850,23 @@ export class DatabaseStorage implements IStorage {
 
   // ─── Marketplace — EmpresaModulos ─────────────────────────────────────────
   async getEmpresaModulos(empresaId: number): Promise<EmpresaModulo[]> {
-    return db.select().from(empresaModulos).where(eq(empresaModulos.empresaId, empresaId)).orderBy(desc(empresaModulos.dataInstalacao));
+    return companiesRepository.getEmpresaModulos(empresaId);
   }
 
   async getEmpresaModulo(id: number): Promise<EmpresaModulo | undefined> {
-    const [r] = await db.select().from(empresaModulos).where(eq(empresaModulos.id, id));
-    return r;
+    return companiesRepository.getEmpresaModulo(id);
   }
 
   async installModuloEmpresa(empresaId: number, moduloId: number): Promise<EmpresaModulo> {
-    const modulo = await this.getModuloMarketplace(moduloId);
-    const [r] = await db.insert(empresaModulos).values({
-      empresaId,
-      moduloId,
-      status: 'ativo',
-      versaoInstalada: modulo?.versao ?? '1.0.0',
-    }).returning();
-    return r;
+    return companiesRepository.installModuloEmpresa(empresaId, moduloId);
   }
 
   async updateEmpresaModulo(id: number, data: Partial<InsertEmpresaModulo>): Promise<EmpresaModulo> {
-    const [r] = await db.update(empresaModulos).set(data).where(eq(empresaModulos.id, id)).returning();
-    return r;
+    return companiesRepository.updateEmpresaModulo(id, data);
   }
 
   async removeModuloEmpresa(id: number): Promise<void> {
-    await db.delete(empresaModulos).where(eq(empresaModulos.id, id));
+    return companiesRepository.removeModuloEmpresa(id);
   }
 
   // ─── Vigilância Sanitária ──────────────────────────────────────────────────
@@ -3088,41 +3023,7 @@ export class DatabaseStorage implements IStorage {
     status?: string;
     clientType?: string;
   }): Promise<{ data: Company[]; total: number; page: number; limit: number; totalPages: number }> {
-    const page = Math.max(1, params.page ?? 1);
-    const limit = Math.min(200, Math.max(1, params.limit ?? 25));
-    const offset = (page - 1) * limit;
-
-    const conds: any[] = [];
-    if (params.status && params.status !== 'ALL') {
-      if (params.status === 'ACTIVE') conds.push(eq(companies.active, true));
-      else if (params.status === 'INACTIVE') conds.push(eq(companies.active, false));
-    }
-    if (params.clientType && params.clientType !== 'ALL') conds.push(eq(companies.clientType, params.clientType));
-    if (params.search) {
-      const q = `%${params.search}%`;
-      conds.push(or(
-        ilike(companies.companyName, q),
-        ilike(companies.email, q),
-        ilike(companies.contactName, q)
-      )!);
-    }
-
-    const where = conds.length > 0 ? and(...conds) : undefined;
-
-    const [countRow] = await db
-      .select({ total: sql<number>`cast(count(*) as integer)` })
-      .from(companies)
-      .where(where);
-
-    const total = countRow?.total ?? 0;
-    const data = await db
-      .select()
-      .from(companies)
-      .where(where)
-      .limit(limit)
-      .offset(offset);
-
-    return { data, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return companiesRepository.getCompaniesPaginated(params);
   }
 }
 
