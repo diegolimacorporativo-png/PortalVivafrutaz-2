@@ -1,0 +1,187 @@
+# PORTAL VIVAFRUTAZ ERP
+## FASE 3 — DECOMPOSIÇÃO DO STORAGE (ANTI-GOD OBJECT)
+
+IMPORTANTE
+
+NÃO implementar funcionalidades.
+
+NÃO alterar regras de negócio.
+
+NÃO alterar banco.
+
+NÃO alterar APIs.
+
+NÃO alterar comportamento.
+
+NÃO mover domínios.
+
+NÃO iniciar a migração das Waves.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+O arquivo storage.ts tornou-se um GOD OBJECT.
+
+Ele possui dezenas de responsabilidades e mais de 70 importadores.
+
+Antes de reorganizar os domínios precisamos quebrá-lo em contratos claros.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1
+
+Ler completamente storage.ts.
+
+Mapear:
+
+- interfaces
+- classes
+- funções
+- repositories
+- queries
+- helpers
+- transações
+- dependências
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 2
+
+Classificar cada método em um domínio.
+
+Exemplo:
+
+Orders
+
+Customers
+
+Companies
+
+Users
+
+Products
+
+Planning
+
+Production
+
+Logistics
+
+Delivery
+
+Reports
+
+AI
+
+Settings
+
+Finance (congelado)
+
+Fiscal (congelado)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 3
+
+Gerar uma tabela.
+
+Método
+
+↓
+
+Domínio
+
+↓
+
+Quantidade de importadores
+
+↓
+
+Pode sair?
+
+↓
+
+Dependências
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 4
+
+Criar interfaces para cada domínio.
+
+Exemplo
+
+OrdersRepository
+
+CustomersRepository
+
+UsersRepository
+
+ProductsRepository
+
+etc.
+
+NÃO implementar.
+
+Somente projetar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 5
+
+Gerar um plano de decomposição.
+
+Wave 1
+
+↓
+
+Orders
+
+Wave 2
+
+↓
+
+Customers
+
+Wave 3
+
+↓
+
+Products
+
+...
+
+Sempre preservando compatibilidade.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 6
+
+Gerar estratégia de compatibilidade.
+
+storage.ts deverá permanecer funcionando.
+
+Cada método migrado deverá apenas delegar para o novo Repository.
+
+Nenhum importador deverá quebrar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/STORAGE_DECOMPOSITION_PLAN.md
+
+Ao final informar:
+
+- Quantos métodos existem.
+
+- Quantos pertencem a cada domínio.
+
+- Quantos importadores serão afetados.
+
+- Ordem ideal de extração.
+
+Não alterar nenhum arquivo.
