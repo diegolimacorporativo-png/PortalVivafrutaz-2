@@ -1,17 +1,23 @@
 /**
- * FASE 7.1 — Centralised in-memory security event store.
+ * securityLogger — in-memory security event store + console transport.
  *
- * Architecture decision: purely additive, zero DB dependency, zero impact on
- * existing middleware or route handlers. Every other module CALLS into this
- * one (push); nothing here calls outward. The store is a simple circular
- * buffer: once it reaches MAX_EVENTS the oldest entry is dropped on each
- * new push, keeping memory use bounded.
+ * PURPOSE: Runtime observability buffer. Accumulates security events in a
+ * bounded circular buffer (max 1000 entries, no DB, no I/O). Powers the
+ * admin security dashboard (/api/security-events).
+ *
+ * DISTINCT FROM: server/core/audit/audit-logger.ts
+ *   That file writes structured SEC:<action> records to the systemLogs DB table
+ *   for compliance/audit trail purposes. It has a completely different
+ *   logSecurityEvent() signature (SecurityEventPayload vs SecurityEvent).
+ *   Use THIS file for real-time in-memory buffering.
+ *   Use audit-logger for DB-persisted audit trail writes.
  *
  * Exported API:
- *   logSecurityEvent(event)  — record one event (idempotent, never throws)
- *   getSecurityEvents()      — return all events (newest first)
- *   getTopIPs(n?)            — return the N IPs with most events
- *   getEventSummary()        — return event counts grouped by type
+ *   logSecurityEvent(event)  — push to in-memory circular buffer (never throws)
+ *   getSecurityEvents()      — return all buffered events (newest first)
+ *   getTopIPs(n?)            — top-N IPs by event count
+ *   getEventSummary()        — event counts grouped by type
+ *   logSecurity(message)     — emit to console.error + forward to alertEngine
  *
  * FASE 11: logSecurity() also forwards to alertEngine for operational alerting.
  */

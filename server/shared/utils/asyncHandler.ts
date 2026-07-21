@@ -1,23 +1,15 @@
-import type { Request, Response, NextFunction, RequestHandler } from "express";
-
 /**
- * asyncHandler — wraps an async route handler so any thrown error is forwarded
- * to the central error middleware via `next(err)` automatically.
+ * asyncHandler — compatibility re-export.
  *
- * Generic types allow callers to narrow the expected req/res shapes without
- * losing type safety inside the handler:
+ * SOURCE OF TRUTH: server/core/http/asyncHandler.ts
  *
- *   router.get("/", asyncHandler<AuthenticatedRequest>(async (req, res) => {
- *     res.json(req.user);
- *   }));
+ * This file exists solely so that existing imports written as
+ *   import { asyncHandler } from "../../shared/utils/asyncHandler"
+ * continue to resolve without changes.
+ *
+ * For NEW code, import from the canonical location:
+ *   import { asyncHandler } from "../../core/http/asyncHandler"
+ *
+ * @deprecated — import from server/core/http/asyncHandler.ts directly.
  */
-export function asyncHandler<
-  Req extends Request = Request,
-  Res extends Response = Response,
->(
-  fn: (req: Req, res: Res, next: NextFunction) => Promise<unknown>,
-): RequestHandler {
-  return (req, res, next) => {
-    Promise.resolve(fn(req as Req, res as Res, next)).catch(next);
-  };
-}
+export { asyncHandler } from "../../core/http/asyncHandler";

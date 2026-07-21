@@ -1,0 +1,166 @@
+# PORTAL VIVAFRUTAZ ERP
+## FASE 1 — NORMALIZAÇÃO DA ARQUITETURA
+
+Você NÃO deve reorganizar pastas ainda.
+
+Você NÃO deve mover arquivos em massa.
+
+Você NÃO deve alterar imports em larga escala.
+
+Primeiro vamos estabilizar a arquitetura.
+
+Utilize como base:
+
+- docs/architecture/ARCHITECTURE_REORGANIZATION.md
+
+Sua missão é resolver APENAS as inconsistências arquiteturais encontradas.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+Eliminar todas as duplicidades arquiteturais sem alterar comportamento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Resolver somente estes itens:
+
+1.
+
+DB Client
+
+Existe mais de uma implementação.
+
+Escolher uma implementação oficial.
+
+Transformar as demais em re-export temporário.
+
+Não quebrar imports existentes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2.
+
+asyncHandler
+
+Existe implementação duplicada.
+
+Escolher apenas uma.
+
+As demais devem apenas reexportar.
+
+Não alterar comportamento.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3.
+
+apiResponse
+
+Existe duplicidade.
+
+Centralizar.
+
+Criar uma única fonte da verdade.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+4.
+
+rateLimit
+
+Existem dois arquivos homônimos.
+
+Descobrir se possuem responsabilidades diferentes.
+
+Caso sejam iguais:
+
+unificar.
+
+Caso sejam diferentes:
+
+renomear claramente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+5.
+
+securityLogger
+
+Existe conflito de naming.
+
+Resolver utilizando nomenclatura consistente.
+
+Exemplo:
+
+audit-logger
+
+security-logger
+
+Nunca dois arquivos representando responsabilidades diferentes com nomes parecidos.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+6.
+
+alertEngine
+
+Existe alertEngine
+
+Existe alert-engine
+
+Analisar profundamente.
+
+Caso sejam equivalentes:
+
+unificar.
+
+Caso tenham objetivos diferentes:
+
+separar claramente.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGRAS
+
+Não mover pastas.
+
+Não reorganizar rotas.
+
+Não reorganizar componentes.
+
+Não reorganizar hooks.
+
+Não reorganizar frontend.
+
+Não alterar banco.
+
+Não alterar APIs.
+
+Não alterar layout.
+
+Não alterar regras de negócio.
+
+Não alterar testes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ao final gerar:
+
+NORMALIZATION_REPORT.md
+
+Informando:
+
+- Arquivos alterados
+
+- Arquivos preservados
+
+- Reexports criados
+
+- Conflitos resolvidos
+
+- Conflitos restantes
+
+- Riscos eliminados
+
+Somente quando TODOS os conflitos arquiteturais estiverem resolvidos será permitida a reorganização física das pastas.

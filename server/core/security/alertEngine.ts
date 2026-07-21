@@ -1,15 +1,25 @@
 /**
- * FASE 11 — Operational Alert Engine
+ * alertEngine — operational in-memory alert buffer.
  *
- * Observes events pushed via pushAlert(), classifies them by severity,
- * deduplicates within a rolling 60-second window, and exposes the active
- * alert buffer via getAlerts().
+ * PURPOSE: Accumulates, deduplicates, and classifies operational/security
+ * alerts in a bounded in-memory Map (max 200 entries, rolling 60-second window).
+ * Fed by logSecurity() in securityLogger.ts. Powers /api/security-alerts.
+ *
+ * DISTINCT FROM: server/core/alerts/risk-evaluator.ts
+ *   That file re-exports makeDecisions from the policy decision engine.
+ *   It evaluates policy risk decisions and has no relation to this buffer.
+ *   (The old server/core/alerts/alert-engine.ts was a confusingly-named
+ *   re-export of the decision engine — now renamed to risk-evaluator.ts.)
  *
  * Rules:
  *   - Pure in-memory (no DB, no I/O)
  *   - Never throws (all errors are swallowed)
  *   - Zero impact on callers — pushAlert is fire-and-forget
  *   - Buffer is capped at MAX_ALERTS to bound memory usage
+ *
+ * Exported API:
+ *   pushAlert(type, message)  — fire-and-forget event push
+ *   getAlerts()               — sorted active alerts (CRITICAL first)
  */
 
 export type AlertLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
