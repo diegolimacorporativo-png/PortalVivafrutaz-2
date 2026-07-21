@@ -1,0 +1,153 @@
+# PORTAL VIVAFRUTAZ ERP
+## GATE DE EVOLUÇÃO ARQUITETURAL — APÓS WAVE 1B
+
+STATUS
+
+Wave 1A (Users) concluída.
+Wave 1B (Companies) concluída.
+
+Antes de iniciar a Wave 1C, execute uma auditoria comparativa entre as duas Waves.
+
+IMPORTANTE
+
+NÃO alterar código.
+
+NÃO implementar novas funcionalidades.
+
+NÃO iniciar a Wave 1C.
+
+Esta etapa é exclusivamente de engenharia e validação arquitetural.
+
+======================================================
+
+OBJETIVO
+
+Validar se o padrão criado continua consistente após duas extrações e identificar oportunidades de melhoria antes de escalar para os próximos domínios.
+
+======================================================
+
+ETAPA 1 — COMPARAÇÃO
+
+Comparar:
+
+UsersRepository
+
+CompaniesRepository
+
+Analisar:
+
+- Estrutura de pastas
+- Interfaces
+- Tipos
+- Organização dos métodos
+- Queries
+- Tratamento de erros
+- Logging
+- Uso do expectOne()
+- Imports
+- Exports
+- Index
+- Compatibilidade com DatabaseStorage
+
+Identificar qualquer divergência.
+
+======================================================
+
+ETAPA 2 — REPOSITORY STANDARD
+
+Validar o documento:
+
+docs/architecture/REPOSITORY_STANDARD.md
+
+Responder:
+
+- Continua adequado?
+- Precisa de ajustes?
+- Alguma regra ficou faltando?
+- Alguma regra mostrou-se desnecessária?
+
+Propor uma versão 2 do padrão, se necessário.
+
+======================================================
+
+ETAPA 3 — SHARED
+
+Avaliar se existem novos componentes compartilháveis.
+
+Exemplos:
+
+- BaseRepository
+- QueryBuilder
+- PaginationHelper
+- CrudHelper
+- AuditHelper
+- RepositoryFactory
+- TenantHelper
+- SoftDeleteHelper
+
+Para cada item responder:
+
+- Vale criar?
+- Em quais domínios seria utilizado?
+- Benefício esperado?
+- Vale o custo?
+
+======================================================
+
+ETAPA 4 — DATABASESTORAGE
+
+Avaliar a evolução do DatabaseStorage.
+
+Informar:
+
+- Quantos métodos ainda permanecem nele.
+- Quantos já foram delegados.
+- Percentual de redução por domínio.
+- Próximos candidatos à extração.
+
+======================================================
+
+ETAPA 5 — PREVISÃO
+
+Recalcular a estimativa para as próximas Waves considerando a experiência das Waves 1A e 1B.
+
+Informar:
+
+- Complexidade esperada.
+- Riscos.
+- Dependências.
+- Possíveis gargalos.
+
+======================================================
+
+ETAPA 6 — DECISÃO
+
+Responder objetivamente:
+
+1. O padrão está maduro para escalar?
+2. Existe dívida técnica criada pelas Waves?
+3. Existe alguma melhoria obrigatória antes da Wave 1C?
+4. Qual domínio deve realmente ser o próximo?
+5. Existe algum domínio cuja ordem deveria ser alterada?
+
+======================================================
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/ARCHITECTURE_EVOLUTION_GATE.md
+
+Ao final emitir:
+
+🟢 GO — Continuar para a Wave 1C
+
+ou
+
+🟡 GO COM AJUSTES — listar ajustes obrigatórios
+
+ou
+
+🔴 NO GO — listar bloqueadores.
+
+Nenhum código deve ser alterado.
