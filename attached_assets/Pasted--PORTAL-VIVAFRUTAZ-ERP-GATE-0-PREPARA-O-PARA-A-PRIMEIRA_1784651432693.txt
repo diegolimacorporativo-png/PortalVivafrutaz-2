@@ -1,0 +1,143 @@
+# PORTAL VIVAFRUTAZ ERP
+## GATE 0 — PREPARAÇÃO PARA A PRIMEIRA REFATORAÇÃO
+
+Você agora atua como Arquiteto Principal e Revisor Técnico.
+
+Você possui como base:
+
+- docs/architecture/ARCHITECTURE_REORGANIZATION.md
+- docs/architecture/DOMAIN_MIGRATION_PLAN.md
+- docs/architecture/STORAGE_DECOMPOSITION_PLAN.md
+- docs/architecture/STORAGE_VALIDATION_REPORT.md
+
+IMPORTANTE
+
+Esta NÃO é uma fase de implementação.
+
+É a última validação antes da primeira refatoração.
+
+====================================================
+
+OBJETIVO
+
+Garantir que o Portal esteja tecnicamente preparado para iniciar a Wave 1 (Users → Companies → Orders → Products) sem criar dívida técnica.
+
+====================================================
+
+ETAPA 1 — CORRIGIR O CONTRATO
+
+Foi identificado que existem 12 métodos públicos utilizados que ainda não fazem parte da interface IStorage.
+
+Sua missão é:
+
+- Validar novamente os 12 métodos.
+- Confirmar que todos possuem callers ativos.
+- Adicionar suas assinaturas na interface IStorage.
+- NÃO alterar a implementação DatabaseStorage.
+- NÃO alterar os callers.
+- NÃO alterar comportamento.
+
+Ao final confirmar que:
+
+✔ DatabaseStorage implementa 100% da interface.
+
+====================================================
+
+ETAPA 2 — VALIDAÇÃO DO CONTRATO
+
+Executar verificações para responder:
+
+- Existem outros métodos públicos fora da interface?
+- Existem métodos duplicados?
+- Existem assinaturas inconsistentes?
+- Existem retornos incompatíveis?
+- Existem métodos nunca utilizados?
+
+Caso encontre qualquer inconsistência, documentar antes de prosseguir.
+
+====================================================
+
+ETAPA 3 — PRONTIDÃO DA WAVE 1
+
+Validar se os domínios:
+
+Users
+
+Companies
+
+Orders
+
+Products
+
+podem ser extraídos isoladamente.
+
+Para cada domínio informar:
+
+- Número de métodos.
+- Dependências.
+- Importadores.
+- Acoplamentos.
+- Riscos.
+- Necessidade de re-export.
+- Necessidade de adapters.
+- Impacto estimado.
+
+====================================================
+
+ETAPA 4 — CHECKLIST DE MIGRAÇÃO
+
+Gerar um checklist obrigatório contendo:
+
+□ Interface consistente.
+
+□ Compilação sem erros.
+
+□ Testes passando.
+
+□ Zero imports quebrados.
+
+□ Zero dependências circulares.
+
+□ Zero métodos órfãos.
+
+□ Compatibilidade preservada.
+
+□ Re-exports planejados.
+
+□ Rollback documentado.
+
+====================================================
+
+ETAPA 5 — GO / NO GO
+
+Responder objetivamente:
+
+1. A Wave 1 pode começar?
+
+2. Existe algum bloqueador técnico?
+
+3. Existe algum risco alto não tratado?
+
+4. Qual será o primeiro arquivo que deve ser refatorado?
+
+5. Qual será o primeiro repository a ser criado?
+
+6. Qual será a estratégia de rollback caso a Wave falhe?
+
+====================================================
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/WAVE1_READINESS_REPORT.md
+
+Ao final emitir uma decisão formal:
+
+🟢 GO — Wave 1 autorizada
+
+ou
+
+🔴 NO GO — listar os bloqueadores restantes.
+
+Nenhuma outra refatoração poderá iniciar sem este parecer técnico.

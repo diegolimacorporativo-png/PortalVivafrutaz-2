@@ -554,6 +554,7 @@ export interface IStorage {
   createTask(data: { title: string; description: string; assignedToId?: number; assignedToName?: string; createdById?: number; createdByName?: string; deadline?: string; priority: string }): Promise<Task>;
   getTasks(): Promise<Task[]>;
   getTasksByUser(userId: number): Promise<Task[]>;
+  updateTask(id: number, updates: Partial<{ title: string; description: string; assignedToId: number; assignedToName: string; deadline: string; priority: string; status: string; updatedAt: Date }>): Promise<Task>;
   deleteTask(id: number): Promise<void>;
 
   // Client Incidents
@@ -574,6 +575,7 @@ export interface IStorage {
   // Internal Incidents
   createInternalIncident(data: { title: string; description: string; category: string; assignedToId?: number; assignedToName?: string; createdById?: number; createdByName?: string; priority: string }): Promise<InternalIncident>;
   getInternalIncidents(): Promise<InternalIncident[]>;
+  updateInternalIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number; assignedToName?: string }): Promise<InternalIncident>;
   deleteInternalIncident(id: number): Promise<void>;
 
   // Company Settings
@@ -582,21 +584,33 @@ export interface IStorage {
 
   // Other infra getters
   getAboutUs(): Promise<AboutUs | undefined>;
+  upsertAboutUs(data: Partial<InsertAboutUs>): Promise<AboutUs>;
   getSmtpConfig(): Promise<SmtpConfig | undefined>;
+  upsertSmtpConfig(data: Partial<InsertSmtpConfig>): Promise<SmtpConfig>;
   getActivePushSubscriptions(): Promise<PushSubscription[]>;
   getPushSubscriptionCount(): Promise<number>;
   deactivatePushSubscription(endpoint: string): Promise<void>;
+  upsertPushSubscription(data: InsertPushSubscription): Promise<PushSubscription>;
   getNotificationSettings(): Promise<NotificationSetting[]>;
+  upsertNotificationSetting(event: string, data: Partial<InsertNotificationSetting>): Promise<NotificationSetting>;
 
   // Sanitary
   getSanitaryQuestions(): Promise<SanitaryQuestion[]>;
   createSanitaryQuestion(data: InsertSanitaryQuestion): Promise<SanitaryQuestion>;
+  updateSanitaryQuestion(id: number, data: Partial<InsertSanitaryQuestion>): Promise<SanitaryQuestion>;
   deleteSanitaryQuestion(id: number): Promise<void>;
   getSanitaryEvaluations(): Promise<SanitaryEvaluation[]>;
   getSanitaryEvaluation(id: number): Promise<{ evaluation: SanitaryEvaluation; items: SanitaryEvaluationItem[] } | undefined>;
   createSanitaryEvaluation(data: InsertSanitaryEvaluation): Promise<SanitaryEvaluation>;
+  updateSanitaryEvaluation(id: number, data: Partial<InsertSanitaryEvaluation>): Promise<SanitaryEvaluation>;
   createSanitaryEvaluationItem(data: InsertSanitaryEvaluationItem): Promise<SanitaryEvaluationItem>;
+  updateSanitaryEvaluationItem(id: number, data: Partial<InsertSanitaryEvaluationItem>): Promise<SanitaryEvaluationItem>;
   bulkCreateSanitaryEvaluationItems(items: InsertSanitaryEvaluationItem[]): Promise<SanitaryEvaluationItem[]>;
+
+  // Paginated listings
+  getOrdersPaginated(params: { page?: number; limit?: number; search?: string; status?: string; fiscalStatus?: string; empresaId?: number }): Promise<{ data: Order[]; total: number; page: number; limit: number; totalPages: number }>;
+  getProductsPaginated(params: { page?: number; limit?: number; search?: string; category?: string; status?: string; onlyImportados?: boolean; empresaId?: number }): Promise<{ data: Product[]; total: number; page: number; limit: number; totalPages: number }>;
+  getCompaniesPaginated(params: { page?: number; limit?: number; search?: string; status?: string; clientType?: string }): Promise<{ data: Company[]; total: number; page: number; limit: number; totalPages: number }>;
 }
 
 export class DatabaseStorage implements IStorage {
