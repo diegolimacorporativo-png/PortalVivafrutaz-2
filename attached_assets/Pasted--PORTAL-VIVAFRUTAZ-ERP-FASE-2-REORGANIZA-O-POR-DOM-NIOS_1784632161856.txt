@@ -1,0 +1,196 @@
+# PORTAL VIVAFRUTAZ ERP
+## FASE 2 — REORGANIZAÇÃO POR DOMÍNIOS (SEM RENOMEAÇÃO MASSIVA)
+
+A Fase 1 foi concluída com sucesso.
+
+Os conflitos arquiteturais foram resolvidos.
+
+Agora sua missão NÃO é renomear todos os arquivos para kebab-case.
+
+Essa padronização será feita somente após a reorganização dos domínios.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+Reorganizar o Portal VivaFrutaz por contexto de negócio (Domain-Driven Design leve), preservando 100% do comportamento atual.
+
+Não alterar regras de negócio.
+
+Não alterar banco.
+
+Não alterar APIs.
+
+Não alterar layout.
+
+Não alterar funcionalidades.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1 — INVENTÁRIO DOS DOMÍNIOS
+
+Identifique todos os módulos existentes e agrupe-os por domínio funcional.
+
+Exemplo esperado:
+
+core/
+shared/
+
+domains/
+
+admin/
+
+commercial/
+
+customers/
+
+contracts/
+
+orders/
+
+planning/
+
+production/
+
+warehouse/
+
+logistics/
+
+delivery/
+
+products/
+
+suppliers/
+
+academy/
+
+ai/
+
+dashboard/
+
+reports/
+
+settings/
+
+fiscal/ (congelado)
+
+finance/ (congelado)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 2 — MAPA DE DEPENDÊNCIAS
+
+Para cada domínio informar:
+
+- Controllers
+- Routes
+- Services
+- Repositories
+- DTOs
+- Validators
+- Middlewares específicos
+- Componentes relacionados
+- Hooks relacionados
+- Tipos compartilhados
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 3 — PLANO DE MIGRAÇÃO
+
+NÃO mover arquivos ainda.
+
+Gerar um plano de migração contendo:
+
+Origem
+
+↓
+
+Destino
+
+Quantidade de arquivos
+
+Dependências
+
+Riscos
+
+Compatibilidade
+
+Importações afetadas
+
+Tempo estimado
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 4 — DETECTAR ACOPLAMENTOS
+
+Encontrar:
+
+- Dependências cruzadas entre domínios
+- Services compartilhados indevidamente
+- Imports circulares
+- Controllers acessando outros domínios diretamente
+- Hooks consumindo APIs de domínios incorretos
+
+Classificar:
+
+🟢 Aceitável
+
+🟡 Melhorar
+
+🔴 Crítico
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 5 — MATRIZ DE MIGRAÇÃO
+
+Criar uma tabela contendo:
+
+Domínio
+
+Quantidade de arquivos
+
+Prioridade
+
+Complexidade
+
+Pode migrar isoladamente?
+
+Requer compatibilidade?
+
+Necessita re-export?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGRAS
+
+NÃO mover arquivos.
+
+NÃO renomear arquivos.
+
+NÃO alterar imports.
+
+NÃO alterar aliases.
+
+NÃO alterar package.json.
+
+NÃO alterar tsconfig.
+
+NÃO alterar Vite.
+
+NÃO alterar Next.
+
+NÃO alterar testes.
+
+Somente gerar o plano de reorganização.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/DOMAIN_MIGRATION_PLAN.md
+
+Este documento será a referência obrigatória para toda reorganização física das pastas.
+
+Nenhuma migração poderá começar sem este plano aprovado.
