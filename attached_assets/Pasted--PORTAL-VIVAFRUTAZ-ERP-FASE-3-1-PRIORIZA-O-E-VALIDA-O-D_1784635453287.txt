@@ -1,0 +1,164 @@
+# PORTAL VIVAFRUTAZ ERP
+## FASE 3.1 — PRIORIZAÇÃO E VALIDAÇÃO DA DECOMPOSIÇÃO DO STORAGE
+
+Baseie-se exclusivamente em:
+
+docs/architecture/STORAGE_DECOMPOSITION_PLAN.md
+
+NÃO alterar código.
+
+NÃO mover métodos.
+
+NÃO criar repositories.
+
+NÃO iniciar a decomposição.
+
+Sua missão é validar completamente o plano antes da execução.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1 — VALIDAR O CONTRATO
+
+Foi identificado que:
+
+IStorage possui 326 métodos.
+
+DatabaseStorage possui 344 métodos.
+
+Existe uma diferença de 18 métodos.
+
+Investigue detalhadamente cada um deles.
+
+Para CADA método responder:
+
+• Nome do método
+• Localização
+• Visibilidade (public, protected ou private)
+• Está declarado na interface?
+• É chamado por alguém?
+• Quantos importadores possui?
+• É utilizado apenas internamente?
+• É legado?
+• Está morto?
+• É duplicado?
+• Pode ser removido?
+• Deve entrar na interface?
+• Deve permanecer privado?
+• Pode ser convertido em helper interno?
+
+Gerar uma tabela completa.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 2 — VALIDAR A INTERFACE
+
+Responder:
+
+Existem métodos públicos da implementação que não fazem parte do contrato IStorage?
+
+Se sim:
+
+• Qual a justificativa?
+
+• É um erro arquitetural?
+
+• Qual o impacto?
+
+• Como corrigir sem quebrar compatibilidade?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 3 — CLASSIFICAÇÃO
+
+Separar os 18 métodos em categorias.
+
+Categoria A
+
+Métodos públicos esquecidos na interface.
+
+Categoria B
+
+Métodos privados internos.
+
+Categoria C
+
+Métodos legados.
+
+Categoria D
+
+Métodos mortos.
+
+Categoria E
+
+Métodos auxiliares.
+
+Categoria F
+
+Métodos duplicados.
+
+Justificar cada classificação.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 4 — PRIORIZAÇÃO DA EXTRAÇÃO
+
+Recalcular a ordem de extração considerando apenas os módulos ativos da V1.
+
+NÃO considerar:
+
+- Finance
+- Fiscal
+- SaaS
+- Billing
+- Marketplace
+- White Label
+- Gateway
+- PIX
+
+Esses módulos permanecem congelados.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 5 — MATRIZ DE DECISÃO
+
+Para cada domínio informar:
+
+• Quantidade de métodos
+• Dependências
+• Importadores
+• Complexidade
+• Pode migrar isoladamente?
+• Ganho arquitetural
+• Prioridade
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 6 — RECOMENDAÇÃO TÉCNICA
+
+Responder objetivamente:
+
+1. O contrato IStorage está consistente?
+
+2. Os 18 métodos representam um problema arquitetural?
+
+3. O problema deve ser resolvido ANTES da decomposição?
+
+4. Existe algum risco oculto para a migração?
+
+5. Há inconsistências que ainda não foram detectadas?
+
+6. O plano de decomposição pode começar imediatamente ou existe alguma etapa obrigatória antes?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/STORAGE_VALIDATION_REPORT.md
+
+IMPORTANTE
+
+Não alterar nenhum arquivo do projeto.
+
+O objetivo desta fase é validar 100% da arquitetura antes da primeira refatoração.
