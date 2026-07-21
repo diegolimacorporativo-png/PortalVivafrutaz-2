@@ -238,6 +238,8 @@ export const orders = pgTable("orders", {
   status: text("status").default("ACTIVE").notNull(),
   // status values: ACTIVE (legacy), CONFIRMED, REOPEN_REQUESTED, OPEN_FOR_EDITING, CANCELLED, DELIVERED
   workflowStatus: text("workflow_status").default("CREATED").notNull(),
+  // PEDIDO RECORRENTE — true quando gerado automaticamente pelo cron semanal de escopo contratual
+  isRecurring: boolean("is_recurring").default(false).notNull(),
   // workflowStatus values: CREATED, PENDING_APPROVAL, APPROVED, REJECTED, INVOICED, SHIPPED, DELIVERED, CANCELLED
   adminNote: text("admin_note"),
   companyId: integer("company_id").references(() => companies.id).notNull(),
@@ -2095,6 +2097,27 @@ export const insertBackupHistorySchema = createInsertSchema(backupHistory).omit(
 export type InsertBackupHistory = z.infer<typeof insertBackupHistorySchema>;
 export type BackupHistory = typeof backupHistory.$inferSelect;
 
+// ─── Pedido Recorrente — Log de idempotência ──────────────────────────────────
+// Registra cada pedido gerado pelo cron semanal. Chave única: (companyId, weekKey, dayOfWeek)
+// impede que o cron gere duplicatas caso seja executado mais de uma vez na mesma semana.
+export const recurringOrderLogs = pgTable("recurring_order_logs", {
+  id: serial("id").primaryKey(),
+  companyId: integer("company_id").references(() => companies.id).notNull(),
+  weekKey: text("week_key").notNull(), // ex: "2026-W30"
+  dayOfWeek: text("day_of_week").notNull(), // ex: "Segunda-feira"
+  orderId: integer("order_id").references(() => orders.id),
+  scopeCount: integer("scope_count").notNull().default(0),
+  totalValue: numeric("total_value", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  uniquePerWeekDay: uniqueIndex("recurring_order_logs_unique_week_day")
+    .on(table.companyId, table.weekKey, table.dayOfWeek),
+}));
+
+export type RecurringOrderLog = typeof recurringOrderLogs.$inferSelect;
+export const insertRecurringOrderLogSchema = createInsertSchema(recurringOrderLogs).omit({ id: true, createdAt: true });
+export type InsertRecurringOrderLog = z.infer<typeof insertRecurringOrderLogSchema>;
+
 export function validateSchemaIntegrity(): void {
   const tables = [
     users,
@@ -2195,6 +2218,7 @@ export function validateSchemaIntegrity(): void {
     accountsPayable,
     accountsReceivable,
     backupHistory,
+    recurringOrderLogs,
   ];
 
   if (!tables.length) {

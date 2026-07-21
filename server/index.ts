@@ -6,6 +6,7 @@ import { startOutboxWorker, stopOutboxWorker } from "./modules/orders/orders.out
 import { startAutoDispatchWorker, stopAutoDispatchWorker } from "./modules/logistics/auto-dispatch.service";
 import { startBillingCron } from "./modules/billing/billing.cron";
 import { startFaturamentoCron } from "./jobs/faturamento.cron";
+import { startRecurringOrdersCron } from "./jobs/recurring-orders.cron";
 import { startAnalyticsWorker } from "./core/events/event-analytics.worker";
 import { startProactiveAlertsScheduler } from "./services/alerts.proactive";
 import { initSchedulers } from "./bootstrap/scheduler";
@@ -84,6 +85,33 @@ declare module "http" {
   }
 }
 
+async function runStartupMigrations(): Promise<void> {
+  try {
+    await db.execute(sql`
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN NOT NULL DEFAULT false
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS recurring_order_logs (
+        id SERIAL PRIMARY KEY,
+        company_id INTEGER NOT NULL REFERENCES companies(id),
+        week_key TEXT NOT NULL,
+        day_of_week TEXT NOT NULL,
+        order_id INTEGER REFERENCES orders(id),
+        scope_count INTEGER NOT NULL DEFAULT 0,
+        total_value NUMERIC(10,2),
+        created_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
+      CREATE UNIQUE INDEX IF NOT EXISTS recurring_order_logs_unique_week_day
+        ON recurring_order_logs(company_id, week_key, day_of_week)
+    `);
+    console.log("[STARTUP_MIGRATIONS] OK — recurring_order_logs e is_recurring prontos");
+  } catch (err) {
+    console.error("[STARTUP_MIGRATIONS_FAIL]", err instanceof Error ? err.message : String(err));
+  }
+}
+
 async function recoverStuckNFes(): Promise<void> {
   try {
     const result = await db.execute(sql`
@@ -153,6 +181,7 @@ process.on("uncaughtException", (err: Error) => {
     });
   }
 
+  await runStartupMigrations();
   await recoverStuckNFes();
 
   // ETAPA 2 — DESBLOQUEIO IMEDIATO: reset is_locked + login_attempts for all
@@ -181,6 +210,7 @@ process.on("uncaughtException", (err: Error) => {
   startBillingCron();
   startAnalyticsWorker();
   startFaturamentoCron();
+  startRecurringOrdersCron();
   startProactiveAlertsScheduler();
   initSchedulers();
   scheduleBackups();
