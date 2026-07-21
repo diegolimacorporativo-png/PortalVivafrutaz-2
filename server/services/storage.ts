@@ -79,6 +79,7 @@ import {
   cnabImportHistory, type CnabImportHistory, type InsertCnabImportHistory,
 } from "@shared/schema";
 import { eq, and, desc, gte, lte, sql, inArray, or, ilike, isNull } from "drizzle-orm";
+import { usersRepository } from "../modules/users/users.repository";
 
 export interface IStorage {
   // BANCO.5 — CNAB import history (auditoria de uploads de retorno)
@@ -615,31 +616,19 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getUserByEmail(email: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(sql`lower(${users.email}) = ${email.toLowerCase()}`);
-    return user;
+    return usersRepository.getUserByEmail(email);
   }
   
   async getUser(id: number): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user;
+    return usersRepository.getUser(id);
   }
   
   async createUser(user: InsertUser): Promise<User> {
-    const hashedPassword = user.password ? await bcrypt.hash(user.password, 10) : undefined;
-    const toInsert = { ...user, password: hashedPassword ?? user.password };
-    const [newUser] = await db.insert(users).values(toInsert).returning();
-    if (newUser?.empresaId) invalidateUsageCache(newUser.empresaId);
-    return newUser;
+    return usersRepository.createUser(user);
   }
 
   async updateUser(id: number, updates: Partial<InsertUser>): Promise<User> {
-    const toUpdate = { ...updates } as any;
-    if (updates.password) {
-      toUpdate.password = await bcrypt.hash(updates.password, 10);
-    }
-    const [updated] = await db.update(users).set(toUpdate).where(eq(users.id, id)).returning();
-    if (updated?.empresaId) invalidateUsageCache(updated.empresaId);
-    return updated;
+    return usersRepository.updateUser(id, updates);
   }
 
   async getCompanyByEmail(email: string): Promise<Company | undefined> {
@@ -1304,23 +1293,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getUsers(limit = 1000): Promise<User[]> {
-    // PERF-FIX: bounded LIMIT (default 1000) prevents OOM. All existing callers
-    // that omit `limit` get the safe default without any signature change.
-    return await db.select().from(users).orderBy(users.id).limit(limit);
+    return usersRepository.getUsers(limit);
   }
 
   // FASE MT-1 — Safe variant: empresaId obrigatório, filtro no SQL, sem fallback global.
   async getUsersSafe(empresaId: number): Promise<User[]> {
-    return db
-      .select()
-      .from(users)
-      .where(eq(users.empresaId, empresaId))
-      .orderBy(users.id);
+    return usersRepository.getUsersSafe(empresaId);
   }
 
   async deleteUser(id: number): Promise<void> {
-    const [deleted] = await db.delete(users).where(eq(users.id, id)).returning();
-    if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
+    return usersRepository.deleteUser(id);
   }
 
   async createTestOrder(data: { orderCode: string; companyId: number; companyName: string; deliveryDate: Date; weekReference: string; totalValue: string; orderNote?: string | null; items: any[]; createdBy?: number }): Promise<TestOrder> {

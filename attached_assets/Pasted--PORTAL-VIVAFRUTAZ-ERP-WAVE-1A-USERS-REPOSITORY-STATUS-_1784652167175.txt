@@ -1,0 +1,150 @@
+# PORTAL VIVAFRUTAZ ERP
+# WAVE 1A — USERS REPOSITORY
+
+STATUS
+
+Todas as fases anteriores foram concluídas:
+
+✅ Auditoria Técnica
+✅ Auditoria Funcional
+✅ Auditoria Produto
+✅ GAP MAP
+✅ Plano Diretor
+✅ Master Backlog
+✅ Architecture Reorganization
+✅ Storage Validation
+✅ Wave 1 Readiness
+
+Agora iniciaremos a PRIMEIRA REFATORAÇÃO REAL.
+
+IMPORTANTE
+
+Esta Wave deve alterar apenas o domínio USERS.
+
+É proibido alterar qualquer outro domínio.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+Extrair o domínio USERS do DatabaseStorage.
+
+Criar:
+
+server/modules/users/
+
+repository/
+
+interfaces/
+
+types/
+
+services/
+
+index.ts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGRAS
+
+Criar:
+
+IUsersRepository
+
+UsersRepository
+
+Migrar SOMENTE os 7 métodos do domínio Users.
+
+DatabaseStorage continuará funcionando.
+
+Todos os métodos deverão apenas delegar para UsersRepository.
+
+Nenhum importador poderá quebrar.
+
+Nenhuma API poderá ser alterada.
+
+Nenhuma regra de negócio poderá mudar.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+COMPATIBILIDADE
+
+DatabaseStorage deverá permanecer implementando IStorage.
+
+Durante esta Wave:
+
+DatabaseStorage apenas encaminha as chamadas.
+
+Toda lógica ficará em UsersRepository.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TESTES OBRIGATÓRIOS
+
+Antes da refatoração:
+
+Executar:
+
+npm run check:strict
+
+npm run test
+
+Após a refatoração:
+
+Executar novamente.
+
+Comparar resultados.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+VALIDAÇÕES
+
+Confirmar:
+
+Zero erros TypeScript.
+
+Zero endpoints alterados.
+
+Zero rotas alteradas.
+
+Zero mudanças de comportamento.
+
+Zero mudanças no banco.
+
+Zero mudanças na autenticação.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DOCUMENTAÇÃO
+
+Gerar:
+
+docs/refactoring/WAVE_1A_USERS_REPORT.md
+
+Contendo:
+
+Arquivos criados
+
+Arquivos modificados
+
+Métodos migrados
+
+Imports alterados
+
+Compatibilidade
+
+Testes executados
+
+Cobertura
+
+Riscos
+
+Rollback
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+IMPORTANTE
+
+Ao terminar NÃO iniciar a Wave 1B.
+
+Aguardar aprovação humana.
