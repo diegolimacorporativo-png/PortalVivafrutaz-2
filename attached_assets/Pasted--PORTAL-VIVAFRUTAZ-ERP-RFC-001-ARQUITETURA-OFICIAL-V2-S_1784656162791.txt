@@ -1,0 +1,189 @@
+# PORTAL VIVAFRUTAZ ERP
+# RFC-001 — ARQUITETURA OFICIAL V2
+
+STATUS
+
+Após as Waves 1A e 1B e o Architecture Evolution Gate, a arquitetura atingiu maturidade suficiente para ser oficializada.
+
+Antes da Wave 1C, sua missão é consolidar todas as decisões arquiteturais em um documento normativo.
+
+IMPORTANTE
+
+NÃO alterar código.
+
+NÃO iniciar a Wave 1C.
+
+NÃO modificar repositórios.
+
+Esta etapa é exclusivamente documental e arquitetural.
+
+======================================================
+
+OBJETIVO
+
+Criar a especificação oficial da arquitetura do Portal VivaFrutaz ERP.
+
+Este documento será a referência obrigatória para qualquer desenvolvimento futuro.
+
+======================================================
+
+CAPÍTULO 1 — PRINCÍPIOS
+
+Documentar os princípios da arquitetura.
+
+Exemplos:
+
+- Compatibilidade primeiro
+- Refatoração incremental
+- Zero regressão
+- Um domínio por Wave
+- DatabaseStorage como Facade temporária
+- Repository Pattern obrigatório
+- Interfaces antes da implementação
+- Separação entre domínio e infraestrutura
+- Regras de negócio nunca no Repository
+- Services coordenam, Repositories persistem
+
+======================================================
+
+CAPÍTULO 2 — PADRÕES OFICIAIS
+
+Documentar oficialmente:
+
+Repository Pattern
+
+Interface Pattern
+
+Barrel Index Pattern
+
+Shared Types
+
+expectOne()
+
+apiResponse
+
+AppError
+
+Logging
+
+Paginação
+
+Delegação via DatabaseStorage
+
+Compatibilidade
+
+======================================================
+
+CAPÍTULO 3 — ANTI-PADRÕES
+
+Documentar tudo que fica proibido.
+
+Exemplo:
+
+- Importar storage.ts dentro de Repository
+- Cross-domain queries no Repository
+- Regras de negócio em Repository
+- Duplicação de tipos
+- Non-null assertion (!)
+- Helpers duplicados
+- SQL espalhado em Controllers
+- Controllers acessando banco
+- Services acessando Drizzle diretamente
+
+======================================================
+
+CAPÍTULO 4 — ORGANIZAÇÃO DOS DOMÍNIOS
+
+Documentar o padrão oficial.
+
+Cada domínio deverá possuir:
+
+interfaces/
+
+types/
+
+repository/
+
+services/
+
+controllers/
+
+routes/
+
+index.ts
+
+======================================================
+
+CAPÍTULO 5 — CHECKLIST DE REVIEW
+
+Criar checklist obrigatório para Pull Requests.
+
+Exemplo:
+
+□ Interface criada
+
+□ Repository criado
+
+□ Sem dependência circular
+
+□ Sem import de storage
+
+□ Sem regra de negócio
+
+□ expectOne utilizado
+
+□ Barrel atualizado
+
+□ Testes passaram
+
+□ Compatibilidade mantida
+
+□ Rollback documentado
+
+======================================================
+
+CAPÍTULO 6 — GOVERNANÇA
+
+Definir quando uma RFC deve ser criada.
+
+Definir quando um padrão pode ser alterado.
+
+Definir quem pode alterar padrões arquiteturais.
+
+======================================================
+
+CAPÍTULO 7 — ROADMAP DA ARQUITETURA
+
+Mostrar:
+
+Arquitetura Atual
+
+↓
+
+Arquitetura após Wave 1C
+
+↓
+
+Arquitetura após Wave 1D
+
+↓
+
+Arquitetura final da Release 1
+
+Informar a redução esperada do DatabaseStorage a cada etapa.
+
+======================================================
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/RFC-001_ARCHITECTURE_STANDARD.md
+
+Ao final responder:
+
+"A arquitetura está oficialmente congelada para a Release 1?"
+
+Caso a resposta seja NÃO, listar exatamente o que ainda precisa ser resolvido.
+
+Caso seja SIM, declarar que todas as próximas Waves deverão seguir obrigatoriamente esta RFC.
