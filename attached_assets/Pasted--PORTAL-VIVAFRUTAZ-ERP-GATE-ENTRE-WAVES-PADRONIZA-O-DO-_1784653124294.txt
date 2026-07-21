@@ -1,0 +1,178 @@
+# PORTAL VIVAFRUTAZ ERP
+## GATE ENTRE WAVES — PADRONIZAÇÃO DO PADRÃO DE REPOSITÓRIOS
+
+A Wave 1A (Users) foi concluída com sucesso.
+
+ANTES de iniciar a Wave 1B, sua missão é validar se o padrão criado é realmente reutilizável para todos os demais domínios.
+
+IMPORTANTE
+
+NÃO iniciar a Wave 1B.
+
+NÃO alterar Companies.
+
+NÃO alterar Orders.
+
+NÃO alterar Products.
+
+NÃO alterar Storage.
+
+Esta é uma etapa de engenharia de software.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+OBJETIVO
+
+Transformar o padrão utilizado na Wave 1A em um padrão oficial do Portal VivaFrutaz.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 1
+
+Auditar o UsersRepository criado.
+
+Responder:
+
+- O código segue SOLID?
+- Existe duplicação?
+- Existe acoplamento desnecessário?
+- Existe dependência circular?
+- Existem responsabilidades misturadas?
+- Existe código que deveria ir para BaseRepository?
+- Existem utilitários que podem ser compartilhados?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 2
+
+Criar um padrão oficial para TODOS os futuros repositories.
+
+Definir:
+
+Estrutura de pastas
+
+Interfaces
+
+Tipos
+
+Repository
+
+Factory (se necessário)
+
+Index
+
+Exports
+
+Nomenclatura
+
+Organização dos imports
+
+Tratamento de erros
+
+Logs
+
+Retornos
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 3
+
+Criar um guia de implementação.
+
+Toda nova Wave deverá seguir exatamente esse padrão.
+
+Documentar:
+
+Como criar um Repository
+
+Como criar Interface
+
+Como expor métodos
+
+Como realizar queries
+
+Como usar transações
+
+Como tratar erros
+
+Como registrar logs
+
+Como realizar paginação
+
+Como manter compatibilidade com DatabaseStorage
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 4
+
+Avaliar se vale criar componentes compartilhados.
+
+Exemplo:
+
+BaseRepository
+
+RepositoryUtils
+
+PaginationHelper
+
+QueryHelper
+
+TransactionHelper
+
+ErrorMapper
+
+ValidationHelper
+
+Responder para cada um:
+
+Vale a pena?
+
+Em quais domínios será utilizado?
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ETAPA 5
+
+Gerar um TEMPLATE OFICIAL.
+
+Exemplo:
+
+IExampleRepository
+
+ExampleRepository
+
+index.ts
+
+types.ts
+
+README.md
+
+Esse template será utilizado em TODAS as próximas Waves.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+REGRAS
+
+Não alterar código de produção.
+
+Não modificar a Wave 1A.
+
+Não criar funcionalidades.
+
+Não iniciar a Wave 1B.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ENTREGA
+
+Gerar:
+
+docs/architecture/REPOSITORY_STANDARD.md
+
+Ao final responder:
+
+"O padrão está maduro para ser replicado?"
+
+Caso a resposta seja NÃO, explicar exatamente o que precisa ser ajustado antes da Wave 1B.
+
+Caso seja SIM, listar os critérios obrigatórios que todas as próximas Waves deverão seguir.
