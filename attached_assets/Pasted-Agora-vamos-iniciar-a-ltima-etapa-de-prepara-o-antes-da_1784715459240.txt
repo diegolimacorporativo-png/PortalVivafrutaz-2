@@ -1,0 +1,178 @@
+Agora vamos iniciar a última etapa de preparação antes da implementação.
+
+NÃO implemente nenhuma funcionalidade nova.
+
+NÃO crie Pedido Recorrente ainda.
+
+Quero uma auditoria exclusivamente do domínio Orders.
+
+Objetivo:
+
+Transformar o módulo Orders na única porta de entrada para criação de pedidos do ERP.
+
+Faça uma análise completa dos arquivos do domínio Orders e responda com evidências do código.
+
+Analise:
+
+1. Todos os pontos onde um pedido pode ser criado atualmente.
+
+- OrdersService
+- OrdersRepository
+- DatabaseStorage
+- Controllers
+- Rotas
+- Cron jobs
+- Seeds
+- Scripts
+- IA
+- Portal
+- Qualquer outro ponto encontrado
+
+2. Descubra se existe alguma criação de pedido que bypassa o OrdersService.
+
+Para cada caso informe:
+
+- arquivo
+- método
+- motivo
+- risco
+- impacto
+
+3. Faça o mapa completo do ciclo de vida de um pedido.
+
+Desde:
+
+Entrada
+
+↓
+
+Validação
+
+↓
+
+Persistência
+
+↓
+
+Eventos
+
+↓
+
+Logs
+
+↓
+
+Notificações
+
+↓
+
+Workflow
+
+↓
+
+Entrega
+
+Identifique exatamente onde cada etapa acontece.
+
+4. Descubra tudo o que acontece após um pedido ser criado.
+
+Exemplos:
+
+- criação de workflow
+- histórico
+- auditoria
+- notificações
+- estoque
+- planejamento
+- dashboards
+- métricas
+- Clara
+- qualquer efeito colateral
+
+Nada pode ficar oculto.
+
+5. Identifique código duplicado.
+
+Procure:
+
+- createOrder()
+- insert em orders
+- inserts diretos
+- SQL manual
+- storage.createOrder()
+- repository.create()
+- qualquer caminho alternativo
+
+6. Descubra quais responsabilidades pertencem ao OrdersService e quais estão espalhadas em outros módulos.
+
+7. No final proponha um "Order Creation Pipeline".
+
+Quero um fluxo único oficial.
+
+Exemplo:
+
+Request
+
+↓
+
+Validation
+
+↓
+
+OrdersService.create()
+
+↓
+
+Repository
+
+↓
+
+Transaction
+
+↓
+
+afterCreate()
+
+↓
+
+Workflow
+
+↓
+
+Planning
+
+↓
+
+Logs
+
+↓
+
+Notifications
+
+↓
+
+Response
+
+8. Liste tudo que precisa ser refatorado ANTES da implementação do Pedido Recorrente.
+
+Classifique:
+
+🔴 Obrigatório
+
+🟠 Recomendado
+
+🟡 Futuro
+
+9. NÃO altere nenhum arquivo.
+
+NÃO implemente nada.
+
+NÃO escreva código.
+
+Somente análise arquitetural.
+
+No final gere:
+
+docs/architecture/ORDER_CREATION_PIPELINE_AUDIT.md
+
+Este documento será considerado a especificação oficial do domínio Orders antes de qualquer nova funcionalidade.
