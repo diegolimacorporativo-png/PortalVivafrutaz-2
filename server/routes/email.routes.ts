@@ -7,15 +7,18 @@ import {
 } from "../services/mailer";
 import { safeGetOrder } from "../core/security/tenantGuard";
 import { AppError } from "../shared/errors/AppError";
+// SEC-GATE TD-008: requireAuth gates anonymous requests before the handler
+// runs. Inline session.userId checks below remain as defense-in-depth.
+import { requireAuth } from "../core/http/requireAuth";
 
 export async function register(app: Express): Promise<void> {
-  app.get('/api/email/schedules', async (req, res) => {
+  app.get('/api/email/schedules', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     res.json(await storage.getEmailSchedules());
   });
 
-  app.post('/api/email/schedules', async (req, res) => {
+  app.post('/api/email/schedules', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     const user = await storage.getUser(session.userId);
@@ -26,7 +29,7 @@ export async function register(app: Express): Promise<void> {
     res.status(201).json(schedule);
   });
 
-  app.put('/api/email/schedules/:id', async (req, res) => {
+  app.put('/api/email/schedules/:id', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     const user = await storage.getUser(session.userId);
@@ -36,7 +39,7 @@ export async function register(app: Express): Promise<void> {
     res.json(updated);
   });
 
-  app.delete('/api/email/schedules/:id', async (req, res) => {
+  app.delete('/api/email/schedules/:id', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     const user = await storage.getUser(session.userId);
@@ -46,7 +49,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── Email Logs ───────────────────────────────────────────────
-  app.get('/api/email/logs', async (req, res) => {
+  app.get('/api/email/logs', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     const { type, companyId, limit } = req.query as any;
@@ -59,7 +62,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── Manual Email Blast ────────────────────────────────────────
-  app.post('/api/email/broadcast', async (req, res) => {
+  app.post('/api/email/broadcast', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     const user = await storage.getUser(session.userId);
@@ -115,7 +118,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── Manual single email for order events ────────────────────
-  app.post('/api/email/send-order-event', async (req, res) => {
+  app.post('/api/email/send-order-event', requireAuth, async (req, res) => {
     const session = req.session as any;
     if (!session.userId) return res.status(401).json({ message: 'Não autorizado' });
     const user = await storage.getUser(session.userId);

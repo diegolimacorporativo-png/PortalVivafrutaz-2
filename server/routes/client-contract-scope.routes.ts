@@ -1,9 +1,13 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
+// SEC-GATE TD-004: requireSession gates anonymous requests before the handler
+// runs. Accepts either userId (admin) or companyId (client portal) sessions.
+// The inline companyId check below remains as defense-in-depth.
+import { requireSession } from "../core/http/requireAuth";
 
 export function register(app: Express) {
   // ─── Client Contract Scope Routes ────────────────────────────────────────
-  app.get('/api/client/contract-scope', async (req: any, res) => {
+  app.get('/api/client/contract-scope', requireSession, async (req: any, res) => {
     const companyId = req.session?.companyId;
     if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
     try {
@@ -24,7 +28,7 @@ export function register(app: Express) {
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/client/scope-change-request', async (req: any, res) => {
+  app.post('/api/client/scope-change-request', requireSession, async (req: any, res) => {
     const companyId = req.session?.companyId;
     if (!companyId) return res.status(401).json({ message: 'Não autenticado' });
     try {

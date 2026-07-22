@@ -1,9 +1,14 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
-import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+// SEC-GATE TD-006: requireRole added formally alongside requireAuthCore.
+// Inline actor-role checks below remain as defense-in-depth.
+// GET /api/system/versions/current intentionally public (read-only version metadata).
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+
+const SYS_ROLES = ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'] as const;
 
 export function register(app: Express) {
-  app.get('/api/system/versions', requireAuthCore, async (req: any, res) => {
+  app.get('/api/system/versions', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -17,7 +22,7 @@ export function register(app: Express) {
     res.json(version ?? null);
   });
 
-  app.post('/api/system/versions', requireAuthCore, async (req: any, res) => {
+  app.post('/api/system/versions', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -31,7 +36,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.patch('/api/system/versions/:id', requireAuthCore, async (req: any, res) => {
+  app.patch('/api/system/versions/:id', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -42,7 +47,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.delete('/api/system/versions/:id', requireAuthCore, async (req: any, res) => {
+  app.delete('/api/system/versions/:id', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -51,7 +56,7 @@ export function register(app: Express) {
     res.json({ ok: true });
   });
 
-  app.post('/api/system/apply-update', requireAuthCore, async (req: any, res) => {
+  app.post('/api/system/apply-update', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -116,7 +121,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.post('/api/system/rollback', requireAuthCore, async (req: any, res) => {
+  app.post('/api/system/rollback', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -138,7 +143,7 @@ export function register(app: Express) {
     } catch(e: any) { res.status(500).json({ message: e.message }); }
   });
 
-  app.get('/api/system/update-logs', requireAuthCore, async (req: any, res) => {
+  app.get('/api/system/update-logs', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
@@ -150,7 +155,7 @@ export function register(app: Express) {
     res.json(logs);
   });
 
-  app.get('/api/system/updates', requireAuthCore, async (req: any, res) => {
+  app.get('/api/system/updates', requireAuthCore, requireRole([...SYS_ROLES]), async (req: any, res) => {
     const actor = await storage.getUser(req.session.userId);
     if (!actor || !['MASTER','ADMIN','DEVELOPER','DIRECTOR'].includes(actor.role)) {
       return res.status(403).json({ message: 'Acesso negado' });
