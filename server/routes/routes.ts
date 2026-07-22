@@ -578,176 +578,23 @@ export async function registerRoutes(
     res.json(data);
   });
 
-  // In-memory duplicate protection (companyId+day → timestamp)
-  // TTL cleanup every 5 min — prunes entries older than the 60s dedup window
-  // to prevent unbounded Map growth over long uptimes.
-  const recentOrders = new Map<string, number>();
-  setInterval(() => {
-    const cutoff = Date.now() - 60_000;
-    for (const [k, ts] of recentOrders) {
-      if (ts < cutoff) recentOrders.delete(k);
-    }
-  }, 5 * 60_000).unref();
-
-  app.post(api.orders.create.path, requireActiveSubscription, checkPlanLimit('pedidos'), async (req, res) => {
-    try {
-      const { order, items } = req.body;
-      if (!order || !items) return res.status(400).json({ message: "Missing order or items" });
-
-      // Check maintenance mode — block ALL client order creation
-      const maintenanceMode = await storage.getSetting('maintenance_mode');
-      if (maintenanceMode === 'true' && req.session?.companyId) {
-        return res.status(503).json({ message: 'Sistema em manutenção. Pedidos temporariamente desabilitados.' });
-      }
-
-      // Check if user has SISTEMA_TESTE role OR per-user testMode flag — always route to test_orders
-      if (req.session?.userId) {
-        const actingUser = await storage.getUser(req.session.userId);
-        if (actingUser?.role === 'SISTEMA_TESTE' || actingUser?.testMode === true) {
-          const company = await storage.getCompany(order.companyId);
-          const year = new Date().getFullYear();
-          const testCode = `TESTE-${year}-${String(Date.now()).slice(-6)}`;
-          const testOrder = await storage.createTestOrder({
-            orderCode: testCode,
-            companyId: order.companyId,
-            companyName: company?.companyName || `Empresa #${order.companyId}`,
-            deliveryDate: new Date(order.deliveryDate),
-            weekReference: order.weekReference,
-            totalValue: order.totalValue,
-            orderNote: order.orderNote || null,
-            items,
-            createdBy: actingUser.id,
-          });
-          return res.status(201).json({ ...testOrder, id: testOrder.id, orderCode: testCode, vfCode: testCode, isTestOrder: true });
-        }
-      }
-
-      // Check if test mode is active — intercept and save to test_orders table (client sessions only)
-      const testMode = await storage.getSetting('test_mode');
-      if (testMode === 'true' && req.session?.companyId) {
-        const company = await storage.getCompany(order.companyId);
-        const year = new Date().getFullYear();
-        const testCode = `TESTE-${year}-${String(Date.now()).slice(-6)}`;
-        const testOrder = await storage.createTestOrder({
-          orderCode: testCode,
-          companyId: order.companyId,
-          companyName: company?.companyName || `Empresa #${order.companyId}`,
-          deliveryDate: new Date(order.deliveryDate),
-          weekReference: order.weekReference,
-          totalValue: order.totalValue,
-          orderNote: order.orderNote || null,
-          items,
-        });
-        await storage.createLog({ action: 'TEST_ORDER_CREATED', description: `Pedido de teste criado: ${testCode}`, companyId: order.companyId, userRole: 'CLIENT', level: 'INFO' });
-        return res.status(201).json({ ...testOrder, id: testOrder.id, orderCode: testCode, vfCode: testCode, isTestOrder: true });
-      }
-
-      // Duplicate order protection (60-second window)
-      const dupKey = `${order.companyId}:${order.deliveryDate || ''}:${order.orderWindowId || ''}`;
-      const lastSubmit = recentOrders.get(dupKey);
-      if (lastSubmit && Date.now() - lastSubmit < 60000) {
-        return res.status(409).json({ message: "Pedido já enviado. Aguarde a confirmação antes de enviar novamente." });
-      }
-      recentOrders.set(dupKey, Date.now());
-
-      // Date-lock: check if a non-cancelled order already exists for this company + delivery date
-      const requestedDate = new Date(order.deliveryDate);
-      const requestedDateStr = requestedDate.toISOString().split('T')[0];
-      const companyOrders = await storage.getOrdersByCompanyId(order.companyId);
-      const existingForDate = companyOrders.find(o => {
-        if (['CANCELLED'].includes(o.status)) return false;
-        const d = new Date(o.deliveryDate).toISOString().split('T')[0];
-        return d === requestedDateStr;
-      });
-      if (existingForDate) {
-        return res.status(409).json({
-          message: "Você já possui um pedido registrado para essa data de entrega.",
-          existingOrderId: existingForDate.id,
-          existingOrderCode: existingForDate.orderCode,
-        });
-      }
-
-      const newOrder = await storage.createOrder({ ...order, status: 'CONFIRMED' }, items);
-      res.status(201).json(newOrder);
-
-      // Log order creation
-      try {
-        const no = newOrder as any;
-        await storage.createLog({ action: 'ORDER_CREATED', description: `Pedido criado: ${no.vfCode || `#${no.id}`} (empresa ${order.companyId})`, companyId: order.companyId, userRole: 'CLIENT' });
-      } catch {}
-
-      // Fire push notification for new order (non-blocking)
-      try {
-        const no = newOrder as any;
-        const company = await storage.getCompany(order.companyId);
-        const totalVal = typeof order.totalValue === 'number'
-          ? order.totalValue.toFixed(2)
-          : parseFloat(String(order.totalValue || '0')).toFixed(2);
-        fireNotification('order_created', {
-          company: company?.companyName || `Empresa #${order.companyId}`,
-          items: String(items.length),
-          value: totalVal,
-          code: no.vfCode || `#${no.id}`,
-        }, { url: `/admin/orders`, companyId: order.companyId });
-      } catch {}
-
-      // Send emails (non-blocking)
-      try {
-        const company = await storage.getCompany(order.companyId);
-        if (company && newOrder) {
-          const no = newOrder as any;
-          const deliveryDay = no.deliveryDate || order.deliveryDate || "—";
-          await sendOrderPlaced({
-            toEmail: company.email,
-            companyName: company.companyName,
-            vfCode: no.vfCode || "",
-            deliveryDay,
-            totalItems: items.length,
-          });
-          // Notify admin
-          const adminUsers = await storage.getUsers();
-          const adminEmails = adminUsers.filter(u => u.role === 'ADMIN').map(u => u.email);
-          for (const adminEmail of adminEmails) {
-            await sendAdminNewOrder({ adminEmail, companyName: company.companyName, vfCode: no.vfCode || "", deliveryDay });
-          }
-        }
-      } catch (emailErr) {
-        console.error("[EMAIL] Erro ao enviar emails de pedido:", emailErr);
-      }
-
-      // ── Auto-entrada na logística ──────────────────────────────────────────
-      try {
-        const existingDelivery = await storage.getDeliveryByOrder(newOrder.id);
-        if (!existingDelivery) {
-          const co = await storage.getCompany(order.companyId) as any;
-          const delivDate = order.deliveryDate
-            ? String(order.deliveryDate).split('T')[0]
-            : null;
-          await storage.createDelivery({
-            orderId: newOrder.id,
-            companyId: order.companyId,
-            status: 'pendente',
-            scheduledDate: delivDate,
-            addressStreet: co?.addressStreet || null,
-            addressNumber: co?.addressNumber || null,
-            addressCity: co?.addressCity || null,
-            addressState: co?.addressState || null,
-            addressZip: co?.addressZip?.replace(/\D/g, '') || null,
-            latitude: co?.latitude || null,
-            longitude: co?.longitude || null,
-            notes: `Auto-entrada: pedido ${(newOrder as any).vfCode || `#${newOrder.id}`}`,
-          });
-          console.log(`[AUTO-LOGISTICS] Entrega criada para pedido #${newOrder.id}`);
-        }
-      } catch (autoErr) {
-        console.error('[AUTO-LOGISTICS] Erro ao criar entrega automática:', autoErr);
-      }
-
-    } catch (err) {
-      console.error("Order creation error:", err);
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
+  // ── POST /api/orders — MIGRADO PARA O MÓDULO (DEAD CODE) ─────────────────────
+  // R1 (Refatoração Unificação de Pipeline): este handler foi o ponto de criação
+  // de pedidos legado. O módulo `server/modules/orders` monta seu router em
+  // /api/orders ANTES desta função (via server/modules/index.ts → registerModules),
+  // portanto qualquer requisição POST /api/orders é interceptada pelo
+  // ordersController.create → OrdersService.create() — este handler NUNCA é
+  // alcançado em runtime.
+  //
+  // O Map recentOrders abaixo também é dead code; o módulo mantém seu próprio
+  // Map com o mesmo TTL em orders.service.ts.
+  //
+  // TODO (limpeza futura): remover este bloco inteiro quando routes.ts for
+  // aposentado. Mantido por ora para referência histórica.
+  // POST /api/orders — handler legado removido pela R1 (Unificação de Pipeline).
+  // O módulo server/modules/orders monta seu router em /api/orders ANTES desta
+  // função (registerModules → antes de registerRoutes), logo o ordersController
+  // intercepta 100% das requisições. Este ponto nunca foi alcançado em runtime.
 
   // --- Settings / Company Config / Company Settings — MOVED TO settings.routes.ts ---
   // GET    /api/settings/:key

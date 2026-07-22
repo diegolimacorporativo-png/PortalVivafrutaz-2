@@ -506,6 +506,69 @@ export class OrdersService {
   }
 
   /**
+   * Internal creation pipeline — for system callers (cron jobs, admin tools)
+   * that generate orders outside of a client HTTP request.
+   *
+   * Differences from `create()`:
+   *   - No maintenance-mode / test-mode interception (system always writes).
+   *   - No duplicate-submission window (system callers manage their own idempotency).
+   *   - No date-lock guard (system callers are responsible for uniqueness).
+   *   - Accepts the full order shape including `workflowStatus`, `isRecurring`, etc.
+   *
+   * Shared with `create()`:
+   *   - Item totalPrice / order totalValue normalisation.
+   *   - Persistence via `this.repo.create()` (same code path, same orderCode
+   *     generation, same tenant guard).
+   *   - `afterCreate` side-effects: audit log, push notification, emails,
+   *     auto-logistics delivery creation.
+   *
+   * @param order  Plain order data (all DB fields accepted).
+   * @param items  Line items (totalPrice auto-computed if absent).
+   * @param ctx    Optional context for observability (e.g. `{ source: "recurring-cron" }`).
+   * @returns      The persisted order row.
+   */
+  async createInternal(
+    order: Record<string, any>,
+    items: Array<Record<string, any>>,
+    ctx: { source?: string } = {},
+  ): Promise<any> {
+    // — Normalise items and totalValue (same logic as create()) —
+    const normalisedItems = (items || []).map((it: any) => {
+      if (it.totalPrice != null && it.totalPrice !== "") return it;
+      const tp = (Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2);
+      return { ...it, totalPrice: tp };
+    });
+    const normalisedTotal =
+      order.totalValue != null && order.totalValue !== ""
+        ? String(order.totalValue)
+        : String(
+            normalisedItems
+              .reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0)
+              .toFixed(2),
+          );
+
+    // Cast to `any` mirrors `create()` — the caller is responsible for
+    // providing a valid order shape (companyId, deliveryDate, etc.).
+    const newOrder = await this.repo.create(
+      { ...order, totalValue: normalisedTotal } as any,
+      normalisedItems as any,
+    );
+
+    // — Fire afterCreate side-effects (non-blocking, same as create()) —
+    setImmediate(async () => {
+      try {
+        await this.afterCreate(newOrder, order, items);
+      } catch (err: any) {
+        logSecurity(
+          `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} source=${ctx.source ?? "internal"} | error=${err?.message ?? "unknown"}`,
+        );
+      }
+    });
+
+    return newOrder;
+  }
+
+  /**
    * Side-effects fired after a successful create. Kept as one async function
    * so the controller can `void` it without blocking the response. Each
    * sub-step has its own try/catch so a downstream failure in (e.g.) email

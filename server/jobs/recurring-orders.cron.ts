@@ -18,15 +18,14 @@
 
 import cron from "node-cron";
 import { db } from "../database/db";
-import { eq, and, inArray, isNull, or } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import {
   contratosClientes,
   contractScopes,
-  companies,
-  orders,
-  orderItems,
   recurringOrderLogs,
 } from "@shared/schema";
+// R1: pipeline oficial de criação de pedidos — substitui db.insert(orders) direto
+import { ordersService } from "../modules/orders/orders.service";
 
 // ─── Mapeamento dia PT-BR → offset a partir de segunda-feira ─────────────────
 const DAY_OFFSETS: Record<string, number> = {
@@ -191,61 +190,58 @@ export async function runRecurringOrdersCron(): Promise<void> {
     }
 
     try {
-      await db.transaction(async (tx) => {
-        // Calcula total
-        const totalValue = scopes.reduce((sum, s) => {
-          const price = parseFloat(s.unitPrice ?? "0");
-          const qty = s.quantity ?? 1;
-          return sum + price * qty;
-        }, 0);
+      // Calcula total e monta itens
+      const totalValue = scopes.reduce((sum, s) => {
+        const price = parseFloat(s.unitPrice ?? "0");
+        const qty = s.quantity ?? 1;
+        return sum + price * qty;
+      }, 0);
 
-        // Cria pedido
-        const [newOrder] = await tx
-          .insert(orders)
-          .values({
-            companyId,
-            status: "ACTIVE",
-            workflowStatus: "PENDING_APPROVAL",
-            isRecurring: true,
-            weekReference: weekRef,
-            deliveryDate,
-            orderDate: now,
-            totalValue: totalValue.toFixed(2),
-            orderNote: `Pedido gerado automaticamente via escopo contratual — ${dayOfWeek} — ${weekRef}`,
-          })
-          .returning();
+      const items = scopes.map((s) => ({
+        productId: s.productId,
+        quantity: s.quantity ?? 1,
+        unitPrice: s.unitPrice ?? "0.00",
+        totalPrice: (parseFloat(s.unitPrice ?? "0") * (s.quantity ?? 1)).toFixed(2),
+      }));
 
-        // Gera orderCode
-        const year = now.getFullYear();
-        const orderCode = `VF-${year}-${String(newOrder.id).padStart(6, "0")}`;
-        await tx.update(orders).set({ orderCode }).where(eq(orders.id, newOrder.id));
-
-        // Insere itens
-        const items = scopes.map((s) => ({
-          orderId: newOrder.id,
-          empresaId: companyId,
-          productId: s.productId,
-          quantity: s.quantity ?? 1,
-          unitPrice: s.unitPrice ?? "0.00",
-          totalPrice: (parseFloat(s.unitPrice ?? "0") * (s.quantity ?? 1)).toFixed(2),
-        }));
-        if (items.length > 0) {
-          await tx.insert(orderItems).values(items);
-        }
-
-        // Log de idempotência
-        await tx.insert(recurringOrderLogs).values({
+      // R1: pipeline oficial — cria pedido via OrdersService.createInternal().
+      // Garante: orderCode gerado pelo repo, afterCreate (audit log, auto-logistics,
+      // notificações) executado para TODOS os pedidos recorrentes.
+      const newOrder = await ordersService.createInternal(
+        {
           companyId,
-          weekKey,
-          dayOfWeek,
-          orderId: newOrder.id,
-          scopeCount: scopes.length,
+          status: "ACTIVE",
+          workflowStatus: "PENDING_APPROVAL",
+          isRecurring: true,
+          weekReference: weekRef,
+          deliveryDate,
+          orderDate: now,
           totalValue: totalValue.toFixed(2),
-        });
+          orderNote: `Pedido gerado automaticamente via escopo contratual — ${dayOfWeek} — ${weekRef}`,
+        },
+        items,
+        { source: "recurring-cron" },
+      );
+
+      // Log de idempotência — inserido após criação bem-sucedida.
+      // Nota: não atômico com o insert do pedido por design — a separação é
+      // intencional para usar o pipeline oficial. A falha do log de idempotência
+      // é capturada no catch abaixo e registrada em `errors`; o pedido já criado
+      // permanece válido.
+      await db.insert(recurringOrderLogs).values({
+        companyId,
+        weekKey,
+        dayOfWeek,
+        orderId: newOrder.id,
+        scopeCount: scopes.length,
+        totalValue: totalValue.toFixed(2),
       });
 
       created++;
-      console.log("[RECURRING_ORDERS] Pedido criado", { companyId, dayOfWeek, weekKey });
+      console.log("[RECURRING_ORDERS] Pedido criado", {
+        companyId, dayOfWeek, weekKey, orderId: newOrder.id,
+        orderCode: newOrder.orderCode,
+      });
     } catch (err: any) {
       errors++;
       console.error("[RECURRING_ORDERS] Erro ao criar pedido", {

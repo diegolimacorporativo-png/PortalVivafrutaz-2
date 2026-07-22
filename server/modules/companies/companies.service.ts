@@ -4,6 +4,8 @@ import {
   ForbiddenError,
 } from "../../shared/errors/AppError";
 import { storage } from "../../services/storage";
+// R1: pipeline oficial de criação de pedidos — evita bypass do OrdersService
+import { ordersService } from "../orders/orders.service";
 import {
   companiesRepository,
   CompaniesRepository,
@@ -379,8 +381,10 @@ export class CompaniesService {
 
       const totalValue = items.reduce((s, i) => s + Number(i.totalPrice), 0);
 
-      // Cast via `any` preserva o comportamento legado — mesmo padrão do repo anterior.
-      const order = await storage.createOrder(
+      // R1: use o pipeline oficial de criação de pedidos (OrdersService.createInternal)
+      // em vez de storage.createOrder diretamente, garantindo audit log, auto-logistics
+      // e notificações em todos os pedidos gerados por escopo contratual.
+      const order = await ordersService.createInternal(
         {
           companyId,
           deliveryDate,
@@ -402,6 +406,7 @@ export class CompaniesService {
           erpExportError: null,
         },
         items as any,
+        { source: "generate-orders-from-scope" },
       );
 
       createdOrders.push({ ...order, dayName });
