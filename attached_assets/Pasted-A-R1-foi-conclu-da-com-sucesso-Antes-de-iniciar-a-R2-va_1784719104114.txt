@@ -1,0 +1,115 @@
+A R1 foi concluída com sucesso.
+
+Antes de iniciar a R2, vamos fazer um Gate de Arquitetura.
+
+NÃO implemente nenhuma funcionalidade.
+
+NÃO altere nenhum arquivo.
+
+NÃO faça refatorações.
+
+Quero apenas uma auditoria técnica da R1.
+
+Objetivo:
+
+Validar se a unificação do pipeline realmente eliminou todos os caminhos paralelos de criação de pedidos.
+
+Analise profundamente o código atual e responda com evidências.
+
+1. Existe QUALQUER lugar que ainda consiga criar um Order sem passar pelo OrdersService?
+
+Procure em:
+
+- rotas
+- controllers
+- services
+- repositories
+- cron jobs
+- scripts
+- seeds
+- jobs
+- IA
+- Portal
+- testes
+- utilitários
+- storage
+- DatabaseStorage
+- qualquer outro arquivo
+
+2. Existe algum insert direto na tabela orders?
+
+Liste todos.
+
+Informe:
+
+- arquivo
+- linha
+- motivo
+- se é produção ou teste
+
+3. Existe algum insert direto em order_items?
+
+Liste todos.
+
+4. Existe algum createOrder() fora do OrdersService?
+
+5. Existe alguma chamada ao repository.create() feita diretamente por outro módulo?
+
+6. Existe algum caminho que ainda não execute afterCreate()?
+
+7. O pipeline atual é realmente único?
+
+Desenhe o fluxo real encontrado no código.
+
+8. Faça uma análise crítica do método createInternal().
+
+Avalie:
+
+- nome
+- responsabilidades
+- acoplamento
+- reutilização
+- segurança
+- compatibilidade futura
+
+Diga se ele deve permanecer ou ser refatorado antes da Release 1.
+
+9. Procure por novas oportunidades de simplificação.
+
+Exemplos:
+
+- métodos duplicados
+- validações repetidas
+- normalizações repetidas
+- lógica compartilhável
+- responsabilidades incorretas
+
+10. Gere uma nota arquitetural da R1.
+
+Critérios:
+
+- Coesão
+- Acoplamento
+- DDD
+- SOLID
+- Compatibilidade
+- Testabilidade
+- Evolução futura
+
+No final responda apenas:
+
+🟢 R1 encerrada
+
+ou
+
+🟡 R1 precisa de ajustes
+
+ou
+
+🔴 R1 deve ser revertida
+
+Gerar:
+
+docs/refactoring/R1_ARCHITECTURE_REVIEW.md
+
+Não modificar código.
