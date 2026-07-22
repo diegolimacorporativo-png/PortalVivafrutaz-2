@@ -1,0 +1,153 @@
+Agora NÃO implemente nenhuma correção.
+
+Quero fazer uma TRIAGEM da dívida técnica encontrada.
+
+IMPORTANTE
+
+Lembre que o escopo oficial da Release 1 é um ERP interno da VivaFrutaz.
+
+Os módulos abaixo permanecem CONGELADOS:
+
+- Fiscal
+- NF-e
+- Financeiro
+- Cobrança
+- Boletos
+- PIX
+- SaaS
+- Marketplace
+- White-label
+
+Nenhuma inconsistência pertencente a esses módulos deve ser considerada bloqueadora da Release 1.
+
+===========================
+ETAPA 1
+===========================
+
+Reanalise as 36 inconsistências encontradas.
+
+Para cada uma informe:
+
+- pertence ao escopo da Release 1?
+- pertence a módulo congelado?
+- pode esperar outra release?
+- bloqueia produção hoje?
+
+===========================
+ETAPA 2
+===========================
+
+Reclassifique utilizando apenas quatro grupos.
+
+BLOQUEADOR DA RELEASE
+
+Problemas que impedem colocar o ERP em produção.
+
+IMPORTANTE
+
+Problemas que podem causar:
+
+- perda de dados
+- falha operacional
+- falha de segurança
+- corrupção de pedidos
+- inconsistência operacional
+
+----------------------------
+
+ALTA PRIORIDADE
+
+Não impedem produção.
+
+Mas devem entrar nas próximas waves.
+
+----------------------------
+
+DÍVIDA TÉCNICA
+
+Melhorias arquiteturais.
+
+Sem impacto operacional imediato.
+
+----------------------------
+
+CONGELADO
+
+Tudo relacionado a:
+
+Fiscal
+
+NF-e
+
+Financeiro
+
+Cobrança
+
+PIX
+
+Boletos
+
+SaaS
+
+Marketplace
+
+White-label
+
+Esses itens devem ser removidos da fila da Release 1.
+
+===========================
+ETAPA 3
+===========================
+
+Calcule novamente a saúde arquitetural.
+
+Quero uma tabela contendo:
+
+Bloqueadores
+
+Alta prioridade
+
+Dívida técnica
+
+Congelados
+
+Também informar:
+
+quantidade
+
+esforço estimado
+
+risco
+
+===========================
+ETAPA 4
+===========================
+
+Responder objetivamente:
+
+Hoje o ERP conseguiria operar a VivaFrutaz internamente?
+
+Se NÃO:
+
+o que exatamente impede.
+
+Se SIM:
+
+o que ainda falta apenas para melhorar.
+
+===========================
+SAÍDA
+
+Gerar:
+
+docs/architecture/RELEASE_1_TRIAGE.md
+
+No final responder somente:
+
+"A Release 1 pode entrar em produção"
+
+ou
+
+"A Release 1 ainda não pode entrar em produção"
+
+com a justificativa baseada exclusivamente nas evidências encontradas no código.
