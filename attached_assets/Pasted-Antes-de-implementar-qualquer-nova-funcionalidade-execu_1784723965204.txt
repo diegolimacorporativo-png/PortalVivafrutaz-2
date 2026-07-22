@@ -1,0 +1,287 @@
+Antes de implementar qualquer nova funcionalidade, execute uma AUDITORIA DE CONSISTÊNCIA GLOBAL da arquitetura da Release 1.
+
+IMPORTANTE
+
+Não criar nenhuma feature.
+
+Não alterar regra de negócio.
+
+Não alterar banco.
+
+Não alterar APIs.
+
+Não adicionar dependências.
+
+O objetivo é descobrir tudo que ainda está inconsistente após as Waves 1A, 1B e R1.
+
+===========================
+ETAPA 1
+===========================
+
+Audite todos os módulos do sistema.
+
+Verifique:
+
+• Services
+• Repositories
+• Controllers
+• Routes
+• Jobs
+• Middleware
+• Core
+• Shared
+• Utils
+
+Para cada um identifique:
+
+- padrões diferentes
+- duplicações
+- código legado
+- código morto
+- TODOs
+- FIXME
+- bypasses
+- helpers duplicados
+- validações repetidas
+- funções gigantes
+- responsabilidades misturadas
+
+===========================
+ETAPA 2
+===========================
+
+Verifique todos os fluxos críticos.
+
+Pedido
+
+Cliente
+
+Contrato
+
+Escopo
+
+Produção
+
+Separação
+
+Entrega
+
+Logística
+
+Ocorrência
+
+Usuário
+
+Permissões
+
+Uploads
+
+Sanitário
+
+IA Clara
+
+Para cada fluxo responder:
+
+Existe apenas um caminho oficial?
+
+Ou existem caminhos paralelos?
+
+===========================
+ETAPA 3
+===========================
+
+Mapear todos os acoplamentos.
+
+Responder:
+
+Quais Services conhecem outros Services?
+
+Quais Controllers conhecem Repository?
+
+Quais Repositories acessam domínio que não pertence a eles?
+
+Quais módulos importam storage diretamente?
+
+Quais módulos ainda acessam DatabaseStorage sem passar pelo Repository?
+
+===========================
+ETAPA 4
+===========================
+
+Auditar o padrão Repository.
+
+Verificar TODOS os repositories.
+
+Responder:
+
+Todos usam expectOne()?
+
+Todos usam LogEntry compartilhado?
+
+Todos possuem Interface?
+
+Todos possuem index.ts?
+
+Todos usam apiResponse?
+
+Todos seguem a RFC?
+
+Quais divergem?
+
+===========================
+ETAPA 5
+===========================
+
+Auditar o padrão Service.
+
+Responder:
+
+Existem Services grandes demais?
+
+Métodos acima de 200 linhas?
+
+Métodos duplicados?
+
+Validações repetidas?
+
+Normalizações repetidas?
+
+Responsabilidades misturadas?
+
+Side-effects espalhados?
+
+===========================
+ETAPA 6
+===========================
+
+Auditar Controllers.
+
+Responder:
+
+Algum Controller faz lógica de negócio?
+
+Algum Controller acessa banco?
+
+Algum Controller monta SQL?
+
+Algum Controller conhece Repository diretamente?
+
+Todos chamam apenas Services?
+
+===========================
+ETAPA 7
+===========================
+
+Auditar Rotas.
+
+Responder:
+
+Existem rotas legadas?
+
+Rotas mortas?
+
+Rotas duplicadas?
+
+Rotas que nunca são registradas?
+
+Handlers sem uso?
+
+===========================
+ETAPA 8
+===========================
+
+Auditar Jobs.
+
+Cron.
+
+Background.
+
+Scheduler.
+
+Responder:
+
+Todos passam pelos Services?
+
+Algum Job escreve diretamente no banco?
+
+Algum Job usa Repository diretamente?
+
+Existe duplicação de lógica?
+
+===========================
+ETAPA 9
+===========================
+
+Auditar Segurança.
+
+Responder:
+
+Existe middleware duplicado?
+
+Permissões inconsistentes?
+
+Rotas sem autenticação?
+
+Rotas administrativas expostas?
+
+Imports errados?
+
+===========================
+ETAPA 10
+===========================
+
+Gerar uma MATRIZ DE DÍVIDA TÉCNICA.
+
+Classificar cada item:
+
+🔴 Crítico
+
+🟠 Alto
+
+🟡 Médio
+
+🟢 Baixo
+
+Para cada item informar:
+
+• Arquivo
+
+• Linha
+
+• Problema
+
+• Evidência
+
+• Impacto
+
+• Como corrigir
+
+• Complexidade
+
+• Estimativa
+
+===========================
+SAÍDA
+===========================
+
+Gerar:
+
+docs/architecture/RELEASE_1_CONSISTENCY_AUDIT.md
+
+O documento deve conter somente evidências reais encontradas no código.
+
+Não sugerir funcionalidades novas.
+
+Não inventar melhorias.
+
+Não alterar arquivos do projeto.
+
+Apenas auditar.
+
+No final responder apenas:
+
+"Release 1 pronta"
+
+ou
+
+"Release 1 ainda possui X inconsistências."
