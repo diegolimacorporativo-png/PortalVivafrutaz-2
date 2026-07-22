@@ -467,20 +467,8 @@ export class OrdersService {
     // Auto-normalise items: compute totalPrice = unitPrice × quantity if absent.
     // This guards against API callers that provide unitPrice+quantity but omit
     // totalPrice — the DB column is NOT NULL so an absent value causes a 500.
-    const normalisedItems = (items || []).map((it: any) => {
-      if (it.totalPrice != null && it.totalPrice !== "") return it;
-      const tp = (Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2);
-      return { ...it, totalPrice: tp };
-    });
     // Auto-compute totalValue from normalised items when the caller omits it.
-    const normalisedTotal =
-      order.totalValue != null && order.totalValue !== ""
-        ? String(order.totalValue)
-        : String(
-            normalisedItems
-              .reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0)
-              .toFixed(2),
-          );
+    const { normalisedItems, normalisedTotal } = this._normaliseItems(items, order);
     const newOrder = await this.repo.create(
       { ...order, status: "CONFIRMED", totalValue: normalisedTotal },
       normalisedItems,
@@ -530,9 +518,53 @@ export class OrdersService {
   async createInternal(
     order: Record<string, any>,
     items: Array<Record<string, any>>,
-    ctx: { source?: string } = {},
+    ctx: { source?: string; actorRole?: string } = {},
   ): Promise<any> {
-    // — Normalise items and totalValue (same logic as create()) —
+    // — Validate tenant context before writing —
+    if (order.companyId) {
+      const tenant = await this.repo.getCompany(order.companyId);
+      if (!tenant) {
+        throw new BadRequestError(
+          `Empresa ${order.companyId} não encontrada — contexto de tenant inválido`,
+        );
+      }
+    }
+
+    // — Normalise items and totalValue via shared helper —
+    const { normalisedItems, normalisedTotal } = this._normaliseItems(items, order);
+
+    // Cast to `any` mirrors `create()` — the caller is responsible for
+    // providing a valid order shape (companyId, deliveryDate, etc.).
+    const newOrder = await this.repo.create(
+      { ...order, totalValue: normalisedTotal } as any,
+      normalisedItems as any,
+    );
+
+    // — Fire afterCreate side-effects (non-blocking, same as create()) —
+    const actorRole = ctx.actorRole ?? "SISTEMA";
+    setImmediate(async () => {
+      try {
+        await this.afterCreate(newOrder, order, items, actorRole);
+      } catch (err: any) {
+        logSecurity(
+          `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} source=${ctx.source ?? "internal"} | error=${err?.message ?? "unknown"}`,
+        );
+      }
+    });
+
+    return newOrder;
+  }
+
+  /**
+   * Normalises item totalPrice (unitPrice × quantity when absent) and
+   * computes the order totalValue from the normalised items when the caller
+   * omits it.  Extracted from create() / createInternal() to eliminate the
+   * duplicated block that previously lived in both methods.
+   */
+  private _normaliseItems(
+    items: any[],
+    order: { totalValue?: any },
+  ): { normalisedItems: any[]; normalisedTotal: string } {
     const normalisedItems = (items || []).map((it: any) => {
       if (it.totalPrice != null && it.totalPrice !== "") return it;
       const tp = (Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2);
@@ -546,26 +578,7 @@ export class OrdersService {
               .reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0)
               .toFixed(2),
           );
-
-    // Cast to `any` mirrors `create()` — the caller is responsible for
-    // providing a valid order shape (companyId, deliveryDate, etc.).
-    const newOrder = await this.repo.create(
-      { ...order, totalValue: normalisedTotal } as any,
-      normalisedItems as any,
-    );
-
-    // — Fire afterCreate side-effects (non-blocking, same as create()) —
-    setImmediate(async () => {
-      try {
-        await this.afterCreate(newOrder, order, items);
-      } catch (err: any) {
-        logSecurity(
-          `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} source=${ctx.source ?? "internal"} | error=${err?.message ?? "unknown"}`,
-        );
-      }
-    });
-
-    return newOrder;
+    return { normalisedItems, normalisedTotal };
   }
 
   /**
@@ -573,15 +586,19 @@ export class OrdersService {
    * so the controller can `void` it without blocking the response. Each
    * sub-step has its own try/catch so a downstream failure in (e.g.) email
    * never prevents push notifications or auto-logistics from running.
+   *
+   * @param actorRole  Role written to the audit log (defaults to "CLIENT" for
+   *   backward compat; pass the real role from system/admin callers so the
+   *   audit trail is accurate).
    */
-  private async afterCreate(newOrder: any, order: any, items: any[]) {
+  private async afterCreate(newOrder: any, order: any, items: any[], actorRole: string = "CLIENT") {
     // — Log creation —
     try {
       await this.repo.createLog({
         action: "ORDER_CREATED",
         description: `Pedido criado: ${newOrder.orderCode || `#${newOrder.id}`} (empresa ${order.companyId})`,
         companyId: order.companyId,
-        userRole: "CLIENT",
+        userRole: actorRole,
       });
     } catch {
       /* swallow per legacy */
@@ -674,7 +691,17 @@ export class OrdersService {
 
   /**
    * `POST /api/orders/create-with-delivery` — admin-side creation that
-   * always provisions a delivery row in the same call. Faithful port.
+   * always provisions a delivery row in the same call.
+   *
+   * Pipeline alignment (R1 finalisation):
+   *   1. Validate actor + tenant context.
+   *   2. Resolve prices (feature-flagged per company) — unique to this path.
+   *   3. Normalise items/total via shared _normaliseItems() helper.
+   *   4. Persist order via repo.create() with status ACTIVE.
+   *   5. Persist delivery inline (synchronous, returns both to caller).
+   *   6. Fire afterCreate() via setImmediate (audit log, push, emails).
+   *      afterCreate's auto-logistics step skips if delivery already exists,
+   *      so step 5 and afterCreate never duplicate the delivery row.
    */
   async createWithDelivery(
     body: any,
@@ -692,11 +719,13 @@ export class OrdersService {
       0,
     );
 
-    // Pre-fetch company so we can both create the delivery row below AND
-    // feed the read-only Price Resolver divergence check. This is the same
-    // query that already happens further down — moved a few lines up so we
-    // do NOT add an extra round-trip.
+    // Pre-fetch company — validate tenant context before any writes.
     const company: any = await this.repo.getCompany(companyId);
+    if (!company) {
+      throw new BadRequestError(
+        `Empresa ${companyId} não encontrada — contexto de tenant inválido`,
+      );
+    }
 
     // ── Read-only divergence observation (no behavior change) ──
     // Compare the legacy unit price (already saved by the caller) against
@@ -858,18 +887,27 @@ export class OrdersService {
       }
     }
 
+    // Normalise items via the shared helper (guards against missing totalPrice
+    // when the price resolver path is inactive, keeping parity with create()).
+    // The resolver may have already updated unitPrice/totalPrice on items in
+    // the useNewPricing branch; _normaliseItems only fills gaps, never overwrites.
+    const orderShapeForNorm = {
+      totalValue: String(Math.round(computedTotal * 100) / 100),
+    };
+    const { normalisedItems: finalItems } = this._normaliseItems(items || [], orderShapeForNorm);
+
     const order = await this.repo.create(
       {
         companyId,
         deliveryDate,
-        totalValue: String(Math.round(computedTotal * 100) / 100),
+        totalValue: orderShapeForNorm.totalValue,
         status: "ACTIVE",
         orderDate: new Date(),
         fiscalStatus: "nota_pendente",
         erpExportStatus: "nao_exportado",
         ...rest,
       } as any,
-      items || [],
+      finalItems,
     );
     const delivery = await this.repo.createDelivery({
       orderId: order.id,
@@ -880,6 +918,21 @@ export class OrdersService {
       addressZip: company?.addressZip || null,
       addressCity: company?.addressCity || null,
       addressState: company?.addressState || null,
+    });
+
+    // Fire the official afterCreate pipeline (audit log, push notification,
+    // emails).  afterCreate's auto-logistics step checks for an existing
+    // delivery before creating one, so the row we just persisted above is
+    // discovered and skipped — no duplication.
+    const orderBodyForAfterCreate = { companyId, deliveryDate, totalValue: order.totalValue, ...rest };
+    setImmediate(async () => {
+      try {
+        await this.afterCreate(order, orderBodyForAfterCreate, finalItems, acting.role ?? "ADMIN");
+      } catch (err: any) {
+        logSecurity(
+          `[ORDER_AFTER_CREATE_FAILED] orderId=${order.id} source=createWithDelivery | error=${err?.message ?? "unknown"}`,
+        );
+      }
     });
 
     return { order, delivery };

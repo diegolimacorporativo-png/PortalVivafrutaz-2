@@ -1,0 +1,100 @@
+A auditoria da R1 encontrou um último desvio arquitetural.
+
+Vamos encerrar definitivamente a unificação do pipeline de criação de pedidos.
+
+NÃO implemente novas funcionalidades.
+
+NÃO altere regras de negócio.
+
+Objetivo:
+
+Eliminar o último caminho paralelo de criação identificado na auditoria.
+
+Escopo:
+
+1. Analise profundamente o método:
+
+OrdersService.createWithDelivery()
+
+2. Descubra exatamente:
+
+- quais responsabilidades ele executa
+- quais responsabilidades ele NÃO executa
+- quais responsabilidades já existem em create()
+- quais responsabilidades já existem em createInternal()
+- quais responsabilidades pertencem ao afterCreate()
+
+3. Refatore createWithDelivery() para utilizar o pipeline oficial.
+
+A implementação final NÃO pode duplicar lógica.
+
+Ela deve reutilizar:
+
+- create()
+- createInternal()
+- afterCreate()
+
+ou outro fluxo oficial, conforme fizer mais sentido arquitetural.
+
+4. Após a refatoração, valide que TODOS os caminhos abaixo executam exatamente o mesmo pipeline:
+
+- Pedido Manual
+- Pedido Administrativo
+- Pedido Recorrente
+- generateOrdersFromScope()
+- futuras integrações (Portal, Clara, API)
+
+5. Revise o afterCreate().
+
+Avalie se ele possui responsabilidades demais.
+
+Caso possua, proponha uma divisão lógica em métodos privados SEM alterar comportamento.
+
+Exemplo:
+
+afterCreate()
+
+↓
+
+createDelivery()
+
+createAudit()
+
+createNotifications()
+
+createAlerts()
+
+Não implemente essa divisão ainda.
+
+Apenas documente se ela vale a pena.
+
+6. Corrija também os pontos encontrados na auditoria:
+
+- normalização duplicada entre create() e createInternal()
+- userRole fixo "CLIENT" quando o pedido é criado pelo sistema
+- validação explícita do tenant context antes da criação
+
+Somente se essas correções NÃO alterarem comportamento.
+
+7. Execute obrigatoriamente:
+
+- npx tsc --noEmit
+- npm run check
+- npm run check:strict
+- npm test
+
+8. Gere o relatório:
+
+docs/refactoring/R1_FINALIZATION_REPORT.md
+
+No final responda apenas uma das opções:
+
+🟢 R1 FINALIZADA
+
+🟡 Ainda existe mais de um pipeline
+
+🔴 A arquitetura precisa ser revista
+
+Objetivo:
+
+Ao final desta etapa deverá existir exatamente UM pipeline oficial de criação de pedidos em todo o ERP VivaFrutaz.
