@@ -195,7 +195,8 @@ export function register(app: Express) {
     }
   });
 
-  app.get('/api/admin/test-orders', async (req, res) => {
+  // V-03 fix: test-orders is an admin endpoint — require auth + role
+  app.get('/api/admin/test-orders', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const orders = await storage.getTestOrders();
       res.json(orders);

@@ -1,10 +1,13 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { sendPasswordResetResolved } from "../services/mailer";
+import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+
+const RESET_ROLES = ['MASTER', 'ADMIN'] as const;
 
 export function register(app: Express) {
-  // Password Reset Requests — Admin routes
-  app.get('/api/password-reset-requests', async (req, res) => {
+  // Password Reset Requests — Admin routes (V-01 / V-02 fix: require admin auth)
+  app.get('/api/password-reset-requests', requireAuthCore, requireRole([...RESET_ROLES]), async (req, res) => {
     try {
       const requests = await storage.getPasswordResetRequests();
       res.json(requests);
@@ -13,7 +16,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put('/api/password-reset-requests/:id', async (req, res) => {
+  app.put('/api/password-reset-requests/:id', requireAuthCore, requireRole([...RESET_ROLES]), async (req, res) => {
     try {
       const id = Number(req.params.id);
       const { status, newPassword, adminNote } = req.body;

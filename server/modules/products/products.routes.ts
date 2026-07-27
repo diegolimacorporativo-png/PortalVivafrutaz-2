@@ -32,7 +32,8 @@ router.put("/:id", (req, res, next) => productController.update(req, res, next))
 router.delete("/:id", (req, res, next) => productController.remove(req, res, next));
 
 // ── Out-of-season toggle ───────────────────────────────────────────────
-router.patch("/:id/out-of-season", (req, res) => productController.setOutOfSeason(req, res));
+// V-04 fix: userId was obtained but null-check was absent in controller — add requireSession gate here
+router.patch("/:id/out-of-season", requireSession, (req, res) => productController.setOutOfSeason(req, res));
 
 // ── Sub-categories (per-product) ───────────────────────────────────────
 router.get("/:productId/sub-categories", (req, res) => productController.listSubCategories(req, res));

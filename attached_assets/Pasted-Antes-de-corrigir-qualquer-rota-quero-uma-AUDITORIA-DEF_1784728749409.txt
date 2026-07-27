@@ -1,0 +1,141 @@
+Antes de corrigir qualquer rota, quero uma AUDITORIA DEFINITIVA DO MODELO DE AUTENTICAÇÃO E AUTORIZAÇÃO.
+
+IMPORTANTE
+
+Não criar funcionalidades.
+
+Não alterar banco.
+
+Não alterar regra de negócio.
+
+Não implementar nenhuma correção ainda.
+
+Quero primeiro ter certeza de que TODOS os endpoints do sistema foram auditados.
+
+=================================================
+
+ETAPA 1
+
+Varra absolutamente TODAS as rotas Express do projeto.
+
+Incluindo:
+
+- server/routes.ts
+- server/routes/**
+- server/modules/**/routes
+- express.Router()
+- router.get
+- router.post
+- router.put
+- router.patch
+- router.delete
+
+Não ignore rotas legadas.
+
+=================================================
+
+ETAPA 2
+
+Monte um inventário completo contendo para CADA endpoint:
+
+• método HTTP
+
+• endpoint
+
+• arquivo
+
+• handler
+
+• middleware aplicado
+
+• requireAuth
+
+• requireSession
+
+• requireRole
+
+• requirePermission
+
+• inline check
+
+• tipo de usuário esperado
+
+(admin, cliente, sistema, público)
+
+=================================================
+
+ETAPA 3
+
+Identifique inconsistências.
+
+Para cada endpoint responder:
+
+Está protegido corretamente?
+
+Tem apenas validação inline?
+
+Tem middleware duplicado?
+
+Está sem proteção?
+
+Tem proteção redundante?
+
+Tem autorização incorreta?
+
+Tem role incorreta?
+
+=================================================
+
+ETAPA 4
+
+Criar uma MATRIZ DE SEGURANÇA.
+
+Separar em:
+
+✅ Correto
+
+🟡 Melhorar
+
+🔴 Vulnerável
+
+Para cada vulnerabilidade informar:
+
+Arquivo
+
+Linha
+
+Endpoint
+
+Motivo
+
+Risco
+
+Correção recomendada
+
+Complexidade
+
+=================================================
+
+ETAPA 5
+
+Responder:
+
+Após essa auditoria existe alguma outra rota que pode virar um novo bloqueador depois?
+
+Se sim, listar TODAS agora.
+
+Não quero descobrir novos bloqueadores em auditorias futuras.
+
+=================================================
+
+SAÍDA
+
+Gerar:
+
+docs/security/COMPLETE_ENDPOINT_SECURITY_AUDIT.md
+
+Não modificar nenhum arquivo de produção.
+
+Apenas auditar.
+
+Objetivo: que esta seja a ÚLTIMA auditoria de segurança da Release 1 antes das correções.
