@@ -13,7 +13,8 @@
 import { Router } from "express";
 import { productController } from "./products.controller";
 // F1-E2: close public GET endpoints — require any valid session (admin or company portal)
-import { requireSession } from "../../core/http/requireAuth";
+// B2-FIX: mutating endpoints require admin-level role
+import { requireSession, requireRole } from "../../core/http/requireAuth";
 
 const router = Router();
 
@@ -27,9 +28,10 @@ router.get("/price-alerts", requireSession, (req, res) => productController.pric
 // ── List + CRUD by id ──────────────────────────────────────────────────
 router.get("/", requireSession, (req, res, next) => productController.list(req, res, next));
 router.get("/:id", requireSession, (req, res, next) => productController.getById(req, res, next));
-router.post("/", (req, res, next) => productController.create(req, res, next));
-router.put("/:id", (req, res, next) => productController.update(req, res, next));
-router.delete("/:id", (req, res, next) => productController.remove(req, res, next));
+// B2-FIX: mutations require admin-level role (was unauthenticated)
+router.post("/", requireSession, requireRole(['ADMIN','MASTER','DEVELOPER','DIRECTOR']), (req, res, next) => productController.create(req, res, next));
+router.put("/:id", requireSession, requireRole(['ADMIN','MASTER','DEVELOPER','DIRECTOR']), (req, res, next) => productController.update(req, res, next));
+router.delete("/:id", requireSession, requireRole(['ADMIN','MASTER','DEVELOPER','DIRECTOR']), (req, res, next) => productController.remove(req, res, next));
 
 // ── Out-of-season toggle ───────────────────────────────────────────────
 // V-04 fix: userId was obtained but null-check was absent in controller — add requireSession gate here

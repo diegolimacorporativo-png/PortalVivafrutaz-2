@@ -569,7 +569,7 @@ export interface IStorage {
   deleteClientIncident(id: number): Promise<void>;
   respondToClientIncident(id: number, responseMessage: string, respondedByName: string): Promise<ClientIncident>;
   updateClientIncidentStatus(id: number, status: string): Promise<ClientIncident>;
-  markIncidentReadByClient(id: number): Promise<void>;
+  markIncidentReadByClient(id: number, companyId: number): Promise<void>;
 
   // Incident Messages
   createIncidentMessage(data: { incidentId: number; senderType: string; senderName: string; message: string; photosJson?: string }): Promise<IncidentMessage>;
@@ -1373,10 +1373,11 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
-  async markIncidentReadByClient(id: number): Promise<void> {
+  async markIncidentReadByClient(id: number, companyId: number): Promise<void> {
+    // B6-FIX: scope update to the authenticated company's own incident only
     await db.update(clientIncidents)
       .set({ hasUnreadAdminReply: false } as any)
-      .where(eq(clientIncidents.id, id));
+      .where(and(eq(clientIncidents.id, id), eq(clientIncidents.companyId, companyId)));
   }
 
   // ─── Mensagens de Ocorrências ─────────────────────────────────

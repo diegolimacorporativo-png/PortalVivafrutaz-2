@@ -186,7 +186,10 @@ export class CompaniesRepository implements ICompaniesRepository {
 
   async deleteScope(scopeId: number, companyId: number): Promise<void> {
     this.assertCompanyAccess(companyId);
-    await db.delete(contractScopes).where(eq(contractScopes.id, scopeId));
+    // B4-FIX: add companyId to WHERE to prevent cross-tenant IDOR
+    await db.delete(contractScopes).where(
+      and(eq(contractScopes.id, scopeId), eq(contractScopes.companyId, companyId))
+    );
   }
 
   // ── Contract Adjustments ──────────────────────────────────────────────────
@@ -276,7 +279,10 @@ export class CompaniesRepository implements ICompaniesRepository {
 
   async deleteAddress(addressId: number, companyId: number): Promise<void> {
     this.assertCompanyAccess(companyId);
-    await db.delete(companyAddresses).where(eq(companyAddresses.id, addressId));
+    // B5-FIX: add companyId to WHERE to prevent cross-tenant IDOR
+    await db.delete(companyAddresses).where(
+      and(eq(companyAddresses.id, addressId), eq(companyAddresses.companyId, companyId))
+    );
   }
 
   async setPrimaryAddress(companyId: number, addressId: number): Promise<void> {

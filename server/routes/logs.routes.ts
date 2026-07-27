@@ -16,8 +16,8 @@ export async function register(app: Express): Promise<void> {
     }
   });
 
-  // POST /api/logs — registrar log de cliente
-  app.post('/api/logs', async (req, res) => {
+  // POST /api/logs — registrar log de cliente (B1-FIX: require valid session)
+  app.post('/api/logs', requireSessionOrCompany, async (req, res) => {
     try {
       const { action, description, level } = req.body;
       if (!action || !description) return res.status(400).json({ message: 'Campos obrigatórios.' });

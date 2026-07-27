@@ -88,7 +88,8 @@ export function register(app: Express) {
       const id = parseInt(req.params.id);
       const messages = await storage.getIncidentMessages(id);
       if (req.session?.companyId) {
-        await storage.markIncidentReadByClient(id);
+        // B6-FIX: pass companyId to scope the update to the authenticated tenant
+        await storage.markIncidentReadByClient(id, req.session.companyId);
       }
       res.json(messages);
     } catch (e) { res.status(500).json({ message: 'Erro ao buscar mensagens' }); }
@@ -121,9 +122,11 @@ export function register(app: Express) {
 
   // POST mark-read — company portal only (no userId needed)
   app.post('/api/client-incidents/:id/mark-read', async (req, res) => {
-    if (!req.session?.companyId) return res.status(401).json({ message: 'Not authenticated' });
+    const companyId = req.session?.companyId;
+    if (!companyId) return res.status(401).json({ message: 'Not authenticated' });
     try {
-      await storage.markIncidentReadByClient(parseInt(req.params.id));
+      // B6-FIX: pass companyId so the update is scoped to the authenticated tenant only
+      await storage.markIncidentReadByClient(parseInt(req.params.id), companyId);
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });
