@@ -1,0 +1,218 @@
+Entramos no Gate Final da Release 1.
+
+IMPORTANTE:
+
+NÃO implemente nenhuma feature.
+NÃO refatore nada.
+NÃO altere arquivos de produção.
+NÃO gere código novo.
+
+Sua tarefa agora é exclusivamente AUDITORIA ARQUITETURAL.
+
+Quero uma validação completa da arquitetura construída durante todas as Waves.
+
+Execute em paralelo:
+
+1. Verifique todos os fluxos de criação de:
+   - pedidos
+   - entregas
+   - clientes
+   - empresas
+   - usuários
+
+e confirme se existe apenas um pipeline oficial para cada operação.
+
+---
+
+2. Procure qualquer bypass restante.
+
+Exemplos:
+
+- db.insert(...)
+- db.update(...)
+- db.delete(...)
+- storage.create*
+- storage.update*
+- repository chamado diretamente por controller
+- service ignorado
+- SQL inline
+- Drizzle usado fora de repository
+
+Liste TODOS.
+
+---
+
+3. Faça um grafo completo de dependências.
+
+Controller
+↓
+
+Service
+↓
+
+Repository
+↓
+
+Database
+
+Verifique se existe alguma inversão.
+
+Exemplos:
+
+Repository chamando Service
+
+Repository chamando outro Repository
+
+Controller chamando Storage
+
+Controller chamando Database
+
+Service chamando Database
+
+Routes chamando Repository
+
+Tudo isso deve ser listado.
+
+---
+
+4. Faça uma auditoria dos repositórios.
+
+Para cada repository informe:
+
+- possui interface?
+- usa expectOne?
+- usa LogEntry compartilhado?
+- importa storage?
+- importa outro repository?
+- possui responsabilidade única?
+- segue RFC-001?
+
+---
+
+5. Faça uma auditoria dos Services.
+
+Para cada service informe:
+
+- tamanho
+- responsabilidades
+- métodos muito grandes
+- duplicação
+- cross-domain excessivo
+- dependências
+
+---
+
+6. Faça uma auditoria das Rotas.
+
+Confirmar:
+
+- middleware
+- auth
+- requireRole
+- requireSession
+- requireAuthCore
+
+Verificar se existe qualquer endpoint novo sem proteção.
+
+---
+
+7. Faça uma auditoria de Segurança.
+
+Procurar:
+
+SQL Injection
+
+Bypass de autorização
+
+Bypass de tenant
+
+Bypass de audit log
+
+Bypass de notification
+
+Bypass de email
+
+Bypass de delivery
+
+Bypass de workflow
+
+Bypass de transaction
+
+---
+
+8. Faça uma auditoria de Performance.
+
+Procure:
+
+N+1 Query
+
+loops com consultas
+
+queries duplicadas
+
+joins desnecessários
+
+SELECT *
+
+consultas repetidas
+
+---
+
+9. Faça uma auditoria de Dívida Técnica.
+
+Classifique cada item como:
+
+🔴 Bloqueador
+🟠 Alto
+🟡 Médio
+🟢 Baixo
+
+Informe:
+
+impacto
+
+complexidade
+
+tempo estimado
+
+pode esperar Release 2?
+
+---
+
+10. Gere um parecer final.
+
+Responda apenas com evidências.
+
+Nada de opiniões.
+
+Para cada problema informe:
+
+arquivo
+
+linha
+
+trecho
+
+motivo
+
+impacto
+
+correção recomendada
+
+estimativa
+
+No final responda obrigatoriamente:
+
+- Release 1 está pronta para produção?
+- Existe algum bloqueador restante?
+- O ERP suporta 100% da operação da VivaFrutaz?
+- Qual é a saúde arquitetural (0–100)?
+- Qual é a saúde de segurança (0–100)?
+- Qual é a saúde de manutenibilidade (0–100)?
+- Qual é a saúde de escalabilidade (0–100)?
+
+Gerar apenas:
+
+docs/architecture/FINAL_RELEASE_1_AUDIT.md
+
+Sem modificar qualquer arquivo de produção.
