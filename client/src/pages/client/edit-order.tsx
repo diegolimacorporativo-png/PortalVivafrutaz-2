@@ -8,6 +8,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Redirect } from "wouter";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lock } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { api } from "@shared/routes";
 import { resolvePrice } from "@/utils/priceResolver";
 
@@ -123,19 +124,17 @@ export default function EditOrderPage() {
   return (
     <Layout>
       <div className="max-w-5xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <button onClick={() => navigate("/client/history")}
-            className="p-2 rounded-xl border-2 border-border hover:border-primary/50 text-muted-foreground hover:text-primary transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-2xl font-display font-bold text-foreground">Editar Pedido</h1>
-            {order && (
-              <p className="text-muted-foreground text-sm mt-0.5">
-                {order.orderCode} — Entrega solicitada
-              </p>
-            )}
-          </div>
+        <BackHeader
+          fallback="/client/history"
+          breadcrumb={[{ label: "Meus Pedidos", href: "/client/history" }, { label: "Editar Pedido" }]}
+        />
+        <div className="mb-8">
+          <h1 className="text-2xl font-display font-bold text-foreground">Editar Pedido</h1>
+          {order && (
+            <p className="text-muted-foreground text-sm mt-0.5">
+              {order.orderCode} — Entrega solicitada
+            </p>
+          )}
         </div>
 
         {orderLoading || !initialized ? (

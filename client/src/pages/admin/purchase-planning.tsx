@@ -16,6 +16,7 @@ import {
   Filter, X, BarChart3, ListChecks, Zap, AlertCircle, ChevronLeft, ChevronRight as CR
 } from "lucide-react";
 import type { PurchasePlanStatus } from "@shared/schema";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -301,6 +302,10 @@ export default function PurchasePlanningPage() {
 
   return (
     <div className="p-5 space-y-5 max-w-6xl mx-auto">
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Planejamento de Compras" }]}
+      />
       <ContextualTip
         tipId="purchase-planning-intro"
         variant="help"

@@ -8,6 +8,7 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format, isAfter, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Plus, ShieldCheck, Building2, AlertTriangle, Trash2, Edit2, CheckCircle, XCircle, Calendar } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 type OrderException = {
   id: number;
@@ -118,6 +119,10 @@ export default function OrderExceptionsPage() {
 
   return (
     <Layout>
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Exceções de Pedidos" }]}
+      />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Clientes com Exceção de Pedidos</h1>

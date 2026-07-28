@@ -9,6 +9,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import {
   Star, Building2, CheckCircle, XCircle, Clock, Eye, Calendar, AlertTriangle,
   Package, Tag, Edit2, Plus, Trash2, Filter, X, FileDown, Printer
@@ -247,6 +248,10 @@ export default function SpecialOrdersAdminPage() {
 
   return (
     <Layout>
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Pedidos Pontuais" }]}
+      />
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold text-foreground">Pedidos Pontuais</h1>
         <p className="text-muted-foreground mt-1">Solicitações especiais fora da rotina semanal.</p>

@@ -26,6 +26,7 @@ import { CancelModal } from "./dialogs/CancelModal";
 import { ExportOrdersModal } from "./dialogs/ExportOrdersModal";
 import { DeleteHistoryModal } from "./dialogs/DeleteHistoryModal";
 import type { Order } from "./types";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function OrdersPage() {
   const { data: orders, isLoading: isAllOrdersLoading } = useOrders();
@@ -195,6 +196,10 @@ export default function OrdersPage() {
 
   return (
     <Layout>
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Gestão de Pedidos" }]}
+      />
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>

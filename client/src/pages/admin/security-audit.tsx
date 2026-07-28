@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   Unlock,
 } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 interface SecurityAuditData {
   total: number;
@@ -122,6 +123,10 @@ export default function SecurityAuditPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6" data-testid="page-security-audit">
+      <BackHeader
+        fallback="/admin/security-dashboard"
+        breadcrumb={[{ label: "Segurança", href: "/admin/security-dashboard" }, { label: "Auditoria" }]}
+      />
       <div className="flex items-center gap-3">
         <ShieldAlert className="h-8 w-8 text-primary" />
         <div>

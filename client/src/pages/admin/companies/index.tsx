@@ -9,6 +9,7 @@ import { CompaniesFilters } from "./components/CompaniesFilters";
 import { CompaniesTable }   from "./components/CompaniesTable";
 import { CompanyModal }     from "./dialogs/CompanyModal";
 import { TempPasswordModal } from "./dialogs/TempPasswordModal";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function AdminCompanies() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,6 +71,10 @@ export default function AdminCompanies() {
 
   return (
     <Layout>
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Gestão de Empresas" }]}
+      />
       <div className="max-w-[1400px] mx-auto">
         <CompaniesHeader onAddCompany={openCreate} />
 

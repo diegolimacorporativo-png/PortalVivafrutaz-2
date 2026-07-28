@@ -10,6 +10,7 @@ import { PriceAlertsSection } from "./components/PriceAlertsSection";
 import { SafraAlertsSection } from "./components/SafraAlertsSection";
 import { ProductCard } from "./components/ProductCard";
 import { ProductModal } from "./dialogs/ProductModal";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function ProductsPage() {
   const { data: products } = useProducts();
@@ -49,6 +50,10 @@ export default function ProductsPage() {
 
   return (
     <Layout>
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Produtos" }]}
+      />
       <ProductsHeader onAddNew={openCreate} />
 
       <PriceAlertsSection />

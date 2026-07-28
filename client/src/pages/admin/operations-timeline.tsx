@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useParams, Link } from "wouter";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -464,18 +465,13 @@ export default function OperationsTimeline() {
     <div className="min-h-screen bg-background">
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Link href="/admin/observability">
-            <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground" data-testid="button-back">
-              <ArrowLeft className="w-4 h-4" />
-              Observabilidade
-            </Button>
-          </Link>
-          <Separator orientation="vertical" className="h-5" />
-          <div>
-            <h1 className="text-xl font-bold">Timeline Operacional</h1>
-            <p className="text-xs text-muted-foreground">Rastreabilidade ponta a ponta por pedido</p>
-          </div>
+        <BackHeader
+          fallback="/admin/observability"
+          breadcrumb={[{ label: "Observabilidade", href: "/admin/observability" }, { label: "Timeline Operacional" }]}
+        />
+        <div className="mb-6">
+          <h1 className="text-xl font-bold">Timeline Operacional</h1>
+          <p className="text-xs text-muted-foreground">Rastreabilidade ponta a ponta por pedido</p>
         </div>
 
         {/* Search bar */}

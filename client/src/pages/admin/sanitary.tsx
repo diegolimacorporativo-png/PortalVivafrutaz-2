@@ -19,6 +19,7 @@ import {
   ArrowLeft, BarChart3, Clock, ShieldCheck, RefreshCw, Lock, Eye, AlertTriangle,
   FileText, Printer, Loader2,
 } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 // ─── PDF Generator ─────────────────────────────────────────────────────────────
 const CATEGORY_LABELS_PDF: Record<string, string> = {
@@ -694,6 +695,10 @@ export default function SanitaryPage() {
   return (
     <Layout>
       <div className="p-6 max-w-5xl mx-auto">
+        <BackHeader
+          fallback="/admin"
+          breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Vigilância Sanitária" }]}
+        />
         <div className="flex items-center gap-3 mb-6">
           <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
             <ShieldCheck className="w-5 h-5 text-green-600" />

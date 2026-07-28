@@ -13,6 +13,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import NfeDiagnosticsPanel from "@/components/NfeDiagnosticsPanel";
+import { BackHeader } from "@/components/navigation/BackHeader";
 // NF.7.9.7 — feedback amigável para erro 403 PERIODO_FECHADO (aditivo).
 import { handleIfPeriodoFechado } from "@/lib/periodo-fechado";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -758,6 +759,10 @@ export default function NfePage() {
 
   return (
     <div className="p-6 space-y-5">
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Emissão de NF-e" }]}
+      />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">

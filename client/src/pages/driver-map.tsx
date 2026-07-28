@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { Truck, MapPin, Navigation, RefreshCw, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { Truck, MapPin, Navigation, RefreshCw, AlertCircle, CheckCircle2, Clock, ArrowLeft } from "lucide-react";
+import { useLocation } from "wouter";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Leaflet's default marker icons break under bundlers because the URLs are
@@ -188,11 +189,22 @@ export default function DriverMap() {
   const total = data?.deliveries?.length ?? 0;
   const progressPct = total > 0 ? Math.round((completed / total) * 100) : 0;
 
+  const [, navigate] = useLocation();
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col" data-testid="page-driver-map">
       {/* Header */}
       <div className="bg-white border-b shadow-sm px-4 py-3 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
+          <button
+            type="button"
+            onClick={() => navigate("/admin/logistics")}
+            data-testid="button-back"
+            aria-label="Voltar para Logística"
+            className="p-2 rounded-lg text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition-colors shrink-0"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shrink-0">
             <Truck className="w-5 h-5 text-white" />
           </div>
