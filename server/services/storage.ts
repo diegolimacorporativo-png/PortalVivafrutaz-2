@@ -58,6 +58,7 @@ import {
   assinaturas, type Assinatura, type InsertAssinatura,
   billingEvents, type BillingEvent, type InsertBillingEvent,
   deliveries, type Delivery, type InsertDelivery,
+  deliveryStopEvents, type DeliveryStopEvent,
   routeStops, type RouteStop, type InsertRouteStop,
   aiLogs, type AiLog, type InsertAiLog,
   logisticsAuditLogs, type LogisticsAuditLog, type InsertLogisticsAuditLog,
@@ -489,6 +490,16 @@ export interface IStorage {
   createDelivery(data: InsertDelivery): Promise<Delivery>;
   updateDelivery(id: number, data: Partial<InsertDelivery>): Promise<Delivery>;
   deleteDelivery(id: number): Promise<void>;
+  // Delivery stop status
+  registerDeliveryStopStatus(
+    deliveryId: number,
+    status: string,
+    observacao: string | null,
+    registeredById: number | null,
+    registeredBy: string | null,
+    registeredByRole: string | null,
+  ): Promise<Delivery>;
+  getDeliveryStopEvents(deliveryId: number): Promise<DeliveryStopEvent[]>;
 
   // SaaS — Bancos de Recebimento
   getBancosRecebimento(): Promise<BancoRecebimento[]>;
@@ -2652,6 +2663,49 @@ export class DatabaseStorage implements IStorage {
   }
   async deleteDelivery(id: number): Promise<void> {
     await db.delete(deliveries).where(eq(deliveries.id, id));
+  }
+
+  async registerDeliveryStopStatus(
+    deliveryId: number,
+    status: string,
+    observacao: string | null,
+    registeredById: number | null,
+    registeredBy: string | null,
+    registeredByRole: string | null,
+  ): Promise<Delivery> {
+    const now = new Date();
+    // 1. Update delivery current stop status
+    const [updated] = await db
+      .update(deliveries)
+      .set({
+        stopStatus: status,
+        stopStatusAt: now,
+        stopStatusBy: registeredBy,
+        stopStatusByRole: registeredByRole,
+        stopObservacao: observacao,
+        updatedAt: now,
+      })
+      .where(eq(deliveries.id, deliveryId))
+      .returning();
+    if (!updated) throw new Error(`Entrega ${deliveryId} não encontrada`);
+    // 2. Append to event history
+    await db.insert(deliveryStopEvents).values({
+      deliveryId,
+      status,
+      observacao,
+      registeredById,
+      registeredBy,
+      registeredByRole,
+    });
+    return updated;
+  }
+
+  async getDeliveryStopEvents(deliveryId: number): Promise<DeliveryStopEvent[]> {
+    return db
+      .select()
+      .from(deliveryStopEvents)
+      .where(eq(deliveryStopEvents.deliveryId, deliveryId))
+      .orderBy(deliveryStopEvents.registeredAt);
   }
 
   // ─── SaaS: Bancos de Recebimento ──────────────────────────────────────────

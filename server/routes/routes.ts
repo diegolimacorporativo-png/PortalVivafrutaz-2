@@ -741,6 +741,60 @@ export async function registerRoutes(
   // REMOVIDO NA FASE 7.4 — código morto
   // handler duplicado já atendido por módulo em server/modules/*
 
+  // ─── DELIVERIES — stop status & history ──────────────────────────────────
+  // GET /api/deliveries — list with optional ?routeId=, ?companyId=, ?status=
+  app.get('/api/deliveries', requireAuthCore, async (req: Request, res: Response) => {
+    try {
+      const { routeId, companyId, driverId, status, date } = req.query as Record<string, string>;
+      const filters: Record<string, any> = {};
+      if (routeId)    filters.routeId    = Number(routeId);
+      if (companyId)  filters.companyId  = Number(companyId);
+      if (driverId)   filters.driverId   = Number(driverId);
+      if (status)     filters.status     = status;
+      if (date)       filters.date       = date;
+      const rows = await storage.getDeliveries(Object.keys(filters).length ? filters : undefined);
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // POST /api/deliveries/:id/stop-status — register stop status + event history
+  app.post('/api/deliveries/:id/stop-status', requireAuthCore, async (req: Request, res: Response) => {
+    try {
+      const deliveryId = Number(req.params.id);
+      const { status, observacao } = req.body as { status: string; observacao?: string };
+      const VALID = ['entregue','cliente_ausente','endereco_incorreto','recusado','reagendado','problema'];
+      if (!status || !VALID.includes(status)) {
+        return res.status(400).json({ message: `Status inválido. Valores permitidos: ${VALID.join(', ')}` });
+      }
+      const session = (req as any).session;
+      const actor = await storage.getUser(session.userId);
+      const updated = await storage.registerDeliveryStopStatus(
+        deliveryId,
+        status,
+        observacao ?? null,
+        actor?.id ?? null,
+        actor?.email ?? actor?.name ?? null,
+        actor?.role ?? null,
+      );
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // GET /api/deliveries/:id/stop-events — full history for a delivery stop
+  app.get('/api/deliveries/:id/stop-events', requireAuthCore, async (req: Request, res: Response) => {
+    try {
+      const deliveryId = Number(req.params.id);
+      const events = await storage.getDeliveryStopEvents(deliveryId);
+      res.json(events);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // ─── COTAÇÃO DE EMPRESAS — MOVED TO quotations.routes.ts ─────
   // GET    /api/quotations
   // POST   /api/quotations

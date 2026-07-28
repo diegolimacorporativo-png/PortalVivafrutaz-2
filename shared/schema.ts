@@ -1519,8 +1519,9 @@ export const deliveries = pgTable("deliveries", {
   // Estimated km from previous stop
   distanceFromPrev: numeric("distance_from_prev", { precision: 8, scale: 3 }),
   notes: text("notes"),
-  // ─── Status individual da parada (FASE 2) ────────────────────────────────
+  // ─── Status individual da parada ──────────────────────────────────────────
   // Valores: entregue | cliente_ausente | endereco_incorreto | recusado | reagendado | problema
+  stopStatus: text("stop_status"),
   stopStatusAt: timestamp("stop_status_at"),
   stopStatusBy: text("stop_status_by"),
   stopStatusByRole: text("stop_status_by_role"),
