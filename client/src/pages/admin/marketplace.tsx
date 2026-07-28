@@ -17,6 +17,7 @@ import {
   Download, CheckCircle2, Trash2, RefreshCw, Star, Pencil, X,
   ChevronRight, Zap, Shield,
 } from 'lucide-react';
+import { BackHeader } from '@/components/navigation/BackHeader';
 
 const CATEGORIAS = [
   { id: 'all', label: 'Todos' },

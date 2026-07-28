@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Layout } from '@/components/Layout';
+import { BackHeader } from '@/components/navigation/BackHeader';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend
@@ -74,6 +75,7 @@ export default function ExecutiveDashboard() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Dashboard Executivo" }]} />
       <div className="space-y-6">
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3">

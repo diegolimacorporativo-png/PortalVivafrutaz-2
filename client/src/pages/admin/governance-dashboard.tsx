@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -53,6 +54,7 @@ export default function GovernanceDashboardPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Governança" }]} />
       <div className="space-y-6" data-testid="page-governance-dashboard">
         <div>
           <h1 className="text-3xl font-bold" data-testid="text-governance-title">Governance Dashboard</h1>

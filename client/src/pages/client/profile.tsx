@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { Building2, Phone, Mail, MapPin, Tag, Calendar, CreditCard, AlertCircle, User, Clock, RefreshCw, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -111,6 +112,7 @@ export default function ClientProfile() {
 
   return (
     <Layout>
+      <BackHeader fallback="/dashboard" breadcrumb={[{ label: "Meu Perfil" }]} />
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
         <div className="bg-gradient-to-r from-primary to-primary/80 rounded-3xl p-8 text-primary-foreground shadow-xl shadow-primary/20 relative overflow-hidden">

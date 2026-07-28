@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, BellOff, Smartphone, Send, CheckCircle2, XCircle, Loader2, Users, Info } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { useToast } from "@/hooks/use-toast";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
 import { apiRequest } from "@/lib/queryClient";

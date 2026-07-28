@@ -1,6 +1,7 @@
 import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { useState } from "react";
 import { Building2, DollarSign, TrendingUp, Percent, Info, Package } from "lucide-react";
 import type { Company } from "@shared/schema";
@@ -25,6 +26,7 @@ export default function PriceGroupsPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Grupos de Preço" }]} />
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold text-foreground">Simulador de Preços</h1>
         <p className="text-muted-foreground mt-1">

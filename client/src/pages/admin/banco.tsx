@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Landmark, Plus, Trash2, RefreshCw, Wifi, WifiOff, ArrowDownLeft, ArrowUpRight, CheckCircle2, Clock, AlertCircle, BarChart3, Link2 } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 

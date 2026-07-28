@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {

@@ -5,6 +5,7 @@ import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Tag, Edit2, Trash2, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 type Category = { id: number; name: string; description: string | null; active: boolean };
 
@@ -114,6 +115,7 @@ export default function CategoriesPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Categorias" }]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Categorias de Produtos</h1>

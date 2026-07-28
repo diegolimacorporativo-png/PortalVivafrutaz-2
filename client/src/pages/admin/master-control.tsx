@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import { BackHeader } from '@/components/navigation/BackHeader';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { normalizeList } from '@/lib/normalizeResponse';
 import { useToast } from '@/hooks/use-toast';

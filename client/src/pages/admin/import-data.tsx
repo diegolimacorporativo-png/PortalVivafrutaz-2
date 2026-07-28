@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -250,6 +251,7 @@ export default function ImportData() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Importar Dados" }]} />
       <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-start justify-between gap-4">

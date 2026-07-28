@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { useAuth } from "@/hooks/use-auth";
 import { Activity, AlertTriangle, CheckCircle2, RefreshCw, Shield, ShieldAlert, ShieldCheck, Sparkles } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -100,6 +101,7 @@ export default function ControlCenter() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Central de Controle" }]} />
       <div className="min-h-screen bg-background px-6 py-6 text-foreground">
         <div className="mx-auto flex max-w-7xl flex-col gap-6">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-sm">

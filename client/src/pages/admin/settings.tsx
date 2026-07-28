@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { KeyRound, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { BackHeader } from '@/components/navigation/BackHeader';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';

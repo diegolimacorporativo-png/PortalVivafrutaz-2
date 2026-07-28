@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ContextualTip } from "@/components/ContextualTip";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { normalizeList } from "@/lib/normalizeResponse";
@@ -734,6 +735,7 @@ export default function ContractsPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Contratos" }]} />
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="bg-gradient-to-r from-primary to-primary/80 rounded-3xl p-8 text-primary-foreground shadow-xl shadow-primary/20 relative overflow-hidden">

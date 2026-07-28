@@ -5,6 +5,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
 import { Layout } from '@/components/Layout';
+import { BackHeader } from '@/components/navigation/BackHeader';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -115,6 +116,7 @@ export default function SupportConfigPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Configuração" }]} />
       <div className="space-y-6 p-6 max-w-2xl">
         <div>
           <h1 className="text-3xl font-bold text-primary">Configuração de Suporte</h1>

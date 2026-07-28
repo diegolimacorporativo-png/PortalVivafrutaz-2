@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Layout } from '@/components/Layout';
+import { BackHeader } from '@/components/navigation/BackHeader';
 import { Badge } from '@/components/ui/badge';
 import {
   BookOpen, ChevronDown, ChevronRight, Truck, Receipt, Brain,
@@ -356,6 +357,7 @@ export default function AdminTreinamento() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Treinamento" }]} />
       <div className="space-y-6 max-w-4xl">
         <div className="flex items-start gap-4">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/25 flex-shrink-0">

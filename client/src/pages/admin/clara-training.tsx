@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Pencil, Trash2, Bot, Save, X, Sparkles } from 'lucide-react';
+import { BackHeader } from '@/components/navigation/BackHeader';
 
 interface ClaraTraining {
   id: number;

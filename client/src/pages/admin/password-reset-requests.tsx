@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/use-admin";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -71,6 +72,7 @@ export default function PasswordResetRequestsPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Solicitações de Senha" }]} />
       <div className="mb-8">
         <h1 className="text-3xl font-display font-bold text-foreground">Solicitações de Senha</h1>
         <p className="text-muted-foreground mt-1">Gerencie pedidos de recuperação de senha de clientes.</p>

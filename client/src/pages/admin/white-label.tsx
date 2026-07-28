@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/Layout";
 import {
@@ -156,6 +157,7 @@ export default function WhiteLabelPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "White Label" }]} />
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">

@@ -1,6 +1,7 @@
 import { useAuth } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { AlertCircle, FileText, Tag, Calendar, CheckCircle2, Info, Package } from "lucide-react";
 
 function CompanyMissing() {
@@ -63,6 +64,7 @@ export default function ClientQuotations() {
 
   return (
     <Layout>
+      <BackHeader fallback="/dashboard" breadcrumb={[{ label: "Cotações" }]} />
       <div className="max-w-2xl mx-auto space-y-6">
 
         {/* Header */}

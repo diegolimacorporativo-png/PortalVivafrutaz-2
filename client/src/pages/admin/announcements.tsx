@@ -14,6 +14,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { apiRequest } from "@/lib/queryClient";
 import { normalizeList } from "@/lib/normalizeResponse";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 type Announcement = {
   id: number;
@@ -204,6 +205,7 @@ export default function AnnouncementsPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Anúncios" }]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">

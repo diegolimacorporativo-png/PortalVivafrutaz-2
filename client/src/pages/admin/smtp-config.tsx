@@ -5,6 +5,8 @@ import { Mail, Send, Save, Eye, EyeOff, CheckCircle2, XCircle, Loader2, Server, 
 import { apiRequest } from "@/lib/queryClient";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
+import { BackHeader } from "@/components/navigation/BackHeader";
+
 export default function AdminSmtpConfig() {
   const { toast } = useToast();
   const qc = useQueryClient();

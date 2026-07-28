@@ -3,6 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCompanyOrders, useOrderDetail } from "@/hooks/use-ordering";
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
+import { BackHeader } from "@/components/navigation/BackHeader";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -378,6 +379,7 @@ export default function OrderHistoryPage() {
 
   return (
     <Layout>
+      <BackHeader fallback="/dashboard" breadcrumb={[{ label: "Meus Pedidos" }]} />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Meus Pedidos</h1>

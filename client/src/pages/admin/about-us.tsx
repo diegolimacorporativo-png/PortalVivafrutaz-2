@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Building2, Pencil, Save, Image, Eye, X, Upload } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/use-auth";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 const EDIT_ROLES = ['ADMIN', 'DIRECTOR', 'DEVELOPER'];
 
@@ -81,6 +82,7 @@ export default function AdminAboutUs() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Quem Somos" }]} />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

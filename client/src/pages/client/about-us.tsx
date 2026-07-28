@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Image } from "lucide-react";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function ClientAboutUs() {
   const { data, isLoading } = useQuery<any>({

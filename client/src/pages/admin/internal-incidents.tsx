@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Plus, AlertTriangle, Eye, Pencil, Trash2 } from 'lucide-react';
+import { BackHeader } from '@/components/navigation/BackHeader';
 import type { InternalIncident } from '@shared/schema';
 
 const CATEGORY_LABELS: Record<string, string> = { LOGISTICS: 'Logística', QUALITY: 'Qualidade', FINANCIAL: 'Financeiro', SYSTEM: 'Sistema', OTHER: 'Outro' };
