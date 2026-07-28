@@ -1,0 +1,239 @@
+Entramos na fase de Release Candidate (RC1).
+
+A partir deste momento, o foco NÃO é mais arquitetura, Repository Pattern ou novas refatorações.
+
+Quero validar o ERP como um produto real.
+
+Sua missão é executar uma auditoria funcional completa.
+
+## Objetivo
+
+Responder com evidências:
+
+"O ERP já permite que a VivaFrutaz opere 100% da empresa?"
+
+Analise apenas funcionalidades.
+
+Não faça nenhuma alteração de código durante esta etapa.
+
+---
+
+## ETAPA 1
+
+Mapeie todos os módulos existentes.
+
+Exemplo:
+
+Dashboard
+
+Empresas
+
+Clientes
+
+Produtos
+
+Categorias
+
+Pedidos
+
+Planejamento
+
+Compras
+
+Produção
+
+Logística
+
+Motoristas
+
+Entregas
+
+Incidentes
+
+Financeiro
+
+Fiscal
+
+Usuários
+
+Configurações
+
+IA
+
+Relatórios
+
+etc.
+
+---
+
+## ETAPA 2
+
+Para cada módulo informe:
+
+✅ funciona completamente
+
+🟡 funciona parcialmente
+
+❌ não funciona
+
+---
+
+## ETAPA 3
+
+Para cada tela valide:
+
+- abre normalmente
+
+- carrega dados
+
+- cria registros
+
+- edita registros
+
+- exclui registros
+
+- pesquisa
+
+- filtros
+
+- paginação
+
+- mensagens de erro
+
+- loading
+
+- estados vazios
+
+---
+
+## ETAPA 4
+
+Analise toda navegação.
+
+Quero descobrir:
+
+- páginas sem botão Voltar
+
+- páginas sem botão Cancelar
+
+- páginas que obrigam usar botão do navegador
+
+- páginas órfãs
+
+- links quebrados
+
+- rotas inacessíveis
+
+- breadcrumbs ausentes
+
+- menus inconsistentes
+
+---
+
+## ETAPA 5
+
+Analise UX.
+
+Liste:
+
+- formulários grandes
+
+- telas confusas
+
+- excesso de cliques
+
+- ações escondidas
+
+- botões sem confirmação
+
+- confirmações desnecessárias
+
+- campos obrigatórios mal definidos
+
+- problemas de responsividade
+
+---
+
+## ETAPA 6
+
+Simule o fluxo completo da VivaFrutaz.
+
+Desde:
+
+Cliente novo
+
+↓
+
+Contrato
+
+↓
+
+Escopo
+
+↓
+
+Pedidos
+
+↓
+
+Planejamento
+
+↓
+
+Produção
+
+↓
+
+Entrega
+
+↓
+
+Ocorrência
+
+↓
+
+Renovação
+
+Informe exatamente onde o fluxo quebra.
+
+---
+
+## ETAPA 7
+
+Liste somente bugs reais.
+
+Não quero dívida técnica.
+
+Não quero sugestões arquiteturais.
+
+Não quero Repository Pattern.
+
+Não quero Storage.
+
+Não quero SOLID.
+
+Somente bugs funcionais.
+
+---
+
+## ETAPA 8
+
+Gerar um documento:
+
+docs/release/RC1_FUNCTIONAL_AUDIT.md
+
+Classifique:
+
+🔴 bloqueia operação
+
+🟠 importante
+
+🟡 melhoria
+
+🟢 opcional
+
+No final responda apenas:
+
+"O ERP pode operar a VivaFrutaz durante um dia inteiro sem voltar para planilhas?"
+
+com justificativa baseada apenas em funcionalidades.
