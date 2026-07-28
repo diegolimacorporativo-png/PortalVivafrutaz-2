@@ -101,7 +101,7 @@ export function CompanyModal({ isOpen, editingCompany, onClose, onSuccess }: Com
     setGeocoding(true);
     try {
       const query = encodeURIComponent(`${addressStreet}, ${addressNumber || ""}, ${addressCity}, ${addressState}, Brasil`);
-      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`);
+      const r = await fetch(`/api/geocode?q=${query}`);
       const d = await r.json();
       if (d.length > 0) {
         setFormData(prev => ({ ...prev, latitude: d[0].lat, longitude: d[0].lon }));
