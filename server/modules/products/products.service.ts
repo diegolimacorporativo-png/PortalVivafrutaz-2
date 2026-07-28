@@ -73,8 +73,23 @@ export class ProductService {
   }
 
   async listProducts(): Promise<NormalizedProduct[]> {
-    const products = await this.repo.findAll();
-    return products.map(p => this.normalize(p));
+    const [rawProducts, allSubCats] = await Promise.all([
+      this.repo.findAll(),
+      this.repo.findAllSubCategories(),
+    ]);
+    // Group active sub-categories by productId so we can attach them in O(n).
+    const subCatsByProduct = new Map<number, ProductSubCategory[]>();
+    for (const sc of allSubCats) {
+      if (!subCatsByProduct.has(sc.productId)) subCatsByProduct.set(sc.productId, []);
+      subCatsByProduct.get(sc.productId)!.push(sc);
+    }
+    return rawProducts.map(p => ({
+      ...this.normalize(p),
+      subCategories: (subCatsByProduct.get(p.id) ?? []).map(sc => ({
+        ...sc,
+        price: Number(sc.price),
+      })),
+    }));
   }
 
   async listProductsPaginated(params: {

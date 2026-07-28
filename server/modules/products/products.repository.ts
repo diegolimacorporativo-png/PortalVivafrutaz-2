@@ -43,6 +43,7 @@ export interface IProductRepository {
   findUser(id: number): Promise<SchemaUser | undefined>;
   createSystemLog(entry: SystemLogEntry): Promise<void>;
   findSubCategoriesByProductId(productId: number): Promise<ProductSubCategory[]>;
+  findAllSubCategories(): Promise<ProductSubCategory[]>;
   createSubCategory(data: InsertProductSubCategory): Promise<ProductSubCategory>;
   updateSubCategory(id: number, updates: Partial<InsertProductSubCategory>): Promise<ProductSubCategory>;
   deleteSubCategory(id: number): Promise<void>;
@@ -131,6 +132,10 @@ export class ProductRepository implements IProductRepository {
 
   async findSubCategoriesByProductId(productId: number): Promise<ProductSubCategory[]> {
     return storage.getProductSubCategoriesByProductId(productId);
+  }
+
+  async findAllSubCategories(): Promise<ProductSubCategory[]> {
+    return storage.getAllProductSubCategories();
   }
 
   async createSubCategory(data: InsertProductSubCategory): Promise<ProductSubCategory> {

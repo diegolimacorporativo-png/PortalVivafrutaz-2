@@ -1,0 +1,79 @@
+Correção da listagem de produtos por múltiplas categorias
+
+Existe um problema na lógica do catálogo de produtos.
+
+Cenário atual
+
+Um mesmo produto pode pertencer a várias categorias e cada categoria possui um preço diferente.
+
+Exemplo:
+
+Produto: Maçã Fuji
+	•	Frutas in natura higienizadas e embaladas → R$ 2,00
+	•	Frutas in natura higienizadas e embaladas no bio → R$ 2,40
+	•	Frutas in natura não higienizadas e não embaladas → R$ 1,90
+
+Essas informações já são cadastradas corretamente na tela de edição.
+
+Problema
+
+Quando filtro pela categoria, o sistema mostra o produto apenas em uma categoria.
+
+Ele deveria aparecer em todas as categorias às quais está vinculado.
+
+O filtro provavelmente está consultando apenas um campo categoriaId do produto, quando deveria consultar a tabela (ou coleção) de relacionamento entre Produto x Categoria.
+
+O comportamento esperado
+
+Ao selecionar qualquer categoria, o sistema deve buscar todos os produtos que possuem relacionamento com aquela categoria.
+
+Exemplo:
+
+Filtro = “Frutas in natura higienizadas e embaladas”
+
+Resultado:
+	•	Maçã Fuji — R$ 2,00
+
+Filtro = “Frutas in natura higienizadas e embaladas no bio”
+
+Resultado:
+	•	Maçã Fuji — R$ 2,40
+
+Filtro = “Frutas in natura não higienizadas e não embaladas”
+
+Resultado:
+	•	Maçã Fuji — R$ 1,90
+
+O mesmo produto deve aparecer em todas as categorias em que estiver cadastrado.
+
+Importante
+
+O preço mostrado deve ser sempre o preço correspondente à categoria selecionada.
+
+Nunca utilizar um preço genérico do produto.
+
+Sem filtro de categoria
+
+Quando nenhuma categoria estiver selecionada:
+	•	Mostrar cada produto apenas uma vez.
+	•	Exibir todas as categorias vinculadas ao produto com seus respectivos preços.
+
+Exemplo:
+
+Maçã Fuji
+
+* Higienizadas e embaladas — R$ 2,00
+
+* Higienizadas e embaladas no bio — R$ 2,40
+
+* Não higienizadas e não embaladas — R$ 1,90
+
+Requisitos técnicos
+	•	Não alterar a estrutura atual do banco de dados.
+	•	Não remover funcionalidades existentes.
+	•	Corrigir apenas a consulta e a renderização da listagem.
+	•	Utilizar a tabela/coleção de relacionamento ProdutoCategorias (ou equivalente) em vez de apenas uma categoria principal.
+	•	Garantir que a busca, paginação e filtros continuem funcionando normalmente.
+	•	Verificar também a API/Backend responsável pela listagem para garantir que ela retorne todas as categorias vinculadas ao produto e seus respectivos preços.
+
+Faça a correção completa tanto no backend quanto no frontend, validando que um mesmo produto possa aparecer em múltiplas categorias com preços diferentes conforme o filtro selecionado

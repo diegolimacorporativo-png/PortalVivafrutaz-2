@@ -78,7 +78,7 @@ export default function CreateOrderPage() {
 
   const [selectedDay, setSelectedDay] = useState<string>(urlDay);
   const [pendingDay, setPendingDay] = useState<string | null>(null); // Module 1: day requested while cart has items
-  const [cart, setCart] = useState<Record<number, number>>({});
+  const [cart, setCart] = useState<Record<string, number>>({});
   const [orderNote, setOrderNote] = useState("");
   const [replicating, setReplicating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -188,59 +188,140 @@ export default function CreateOrderPage() {
     return [];
   }, [company]);
 
+  // ── Base active products (availability gate only) ──────────────────────────
   const availableProducts = useMemo(() => {
     if (!products || !company) return [];
-    return products
-      .filter(p => {
-        if (!p || !p.active) return false;
-        const days = (p as any).availableDays;
-        if (days && Array.isArray(days) && days.length > 0 && selectedDay) {
-          if (!days.includes(selectedDay)) return false;
-        }
-        return true;
-      })
-      .map(product => {
-        // Centralised resolver — respects subCategoryPrice / contractPrice
-        // when present and applies adminFee only when the company has the
-        // useNewPricing flag enabled (adminFee is never shown to the customer).
-        const price = resolvePrice({
-          basePrice: product.basePrice,
-          subCategoryPrice: (product as any).subCategoryPrice,
-          contractPrice: (product as any).contractPrice,
-          adminFee: company.adminFee,
-          useNewPricing: (company as any).useNewPricing === true,
-          pricingMode: (product as any).pricingMode,
-        });
-        return { ...product, price };
-      })
-      .filter(p => p.price > 0); // final safety net: only hide if NO source produced a price
+    return products.filter(p => {
+      if (!p || !p.active) return false;
+      const days = (p as any).availableDays;
+      if (days && Array.isArray(days) && days.length > 0 && selectedDay) {
+        if (!days.includes(selectedDay)) return false;
+      }
+      return true;
+    });
   }, [products, company, selectedDay]);
 
+  // ── ProductEntry: one entry per sub-category (or one base entry) ───────────
+  // cartKey = "sc_<subCategoryId>" for sub-category variants
+  //           "p_<productId>"       for products without sub-categories
+  type ProductEntry = {
+    cartKey: string;
+    productId: number;
+    name: string;
+    unit: string;
+    observation?: string | null;
+    category: string;
+    price: number;
+    subCategoryId?: number;
+    subCategoryName?: string;
+  };
+
+  const expandedEntries = useMemo((): ProductEntry[] => {
+    const entries: ProductEntry[] = [];
+    for (const p of availableProducts) {
+      const subCats: Array<{ id: number; categoryName: string; price: number; active: boolean }> =
+        ((p as any).subCategories ?? []).filter((sc: any) => sc.active !== false);
+
+      if (subCats.length > 0) {
+        for (const sc of subCats) {
+          const price = resolvePrice({
+            basePrice: p.basePrice,
+            subCategoryPrice: sc.price,
+            contractPrice: (p as any).contractPrice,
+            adminFee: company!.adminFee,
+            useNewPricing: (company as any).useNewPricing === true,
+            pricingMode: (p as any).pricingMode,
+          });
+          if (price <= 0) continue;
+          entries.push({
+            cartKey: `sc_${sc.id}`,
+            productId: p.id,
+            name: p.name,
+            unit: p.unit,
+            observation: (p as any).observation,
+            category: sc.categoryName,
+            price,
+            subCategoryId: sc.id,
+            subCategoryName: sc.categoryName,
+          });
+        }
+      } else {
+        const price = resolvePrice({
+          basePrice: p.basePrice,
+          subCategoryPrice: (p as any).subCategoryPrice,
+          contractPrice: (p as any).contractPrice,
+          adminFee: company!.adminFee,
+          useNewPricing: (company as any).useNewPricing === true,
+          pricingMode: (p as any).pricingMode,
+        });
+        if (price <= 0) continue;
+        entries.push({
+          cartKey: `p_${p.id}`,
+          productId: p.id,
+          name: p.name,
+          unit: p.unit,
+          observation: (p as any).observation,
+          category: p.category,
+          price,
+        });
+      }
+    }
+    return entries;
+  }, [availableProducts, company, selectedDay]);
+
+  // ── Category list: union of all entry categories ───────────────────────────
   const categories = useMemo(() => {
     const cats = new Set<string>();
-    availableProducts.forEach(p => cats.add(p.category));
+    expandedEntries.forEach(e => cats.add(e.category));
     return Array.from(cats).sort();
-  }, [availableProducts]);
+  }, [expandedEntries]);
 
-  const visibleProducts = useMemo(() => {
-    return availableProducts.filter(p => {
-      const matchCat = filterCategory === 'ALL' || p.category === filterCategory;
-      const q = search.toLowerCase();
-      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q);
+  // ── Filtered list (category filter active) ─────────────────────────────────
+  const filteredEntries = useMemo((): ProductEntry[] => {
+    if (filterCategory === 'ALL') return [];
+    const q = search.toLowerCase();
+    return expandedEntries.filter(e => {
+      const matchCat = e.category === filterCategory;
+      const matchSearch = !q || e.name.toLowerCase().includes(q) || e.category.toLowerCase().includes(q);
       return matchCat && matchSearch;
     });
-  }, [availableProducts, filterCategory, search]);
+  }, [expandedEntries, filterCategory, search]);
+
+  // ── Grouped list (no filter): one product card, all sub-categories inside ──
+  type GroupedProduct = {
+    productId: number;
+    name: string;
+    unit: string;
+    observation?: string | null;
+    rows: ProductEntry[];
+  };
+  const groupedEntries = useMemo((): GroupedProduct[] => {
+    if (filterCategory !== 'ALL') return [];
+    const q = search.toLowerCase();
+    const grouped = new Map<number, GroupedProduct>();
+    for (const e of expandedEntries) {
+      if (q && !e.name.toLowerCase().includes(q) && !e.category.toLowerCase().includes(q)) continue;
+      if (!grouped.has(e.productId)) {
+        grouped.set(e.productId, { productId: e.productId, name: e.name, unit: e.unit, observation: e.observation, rows: [] });
+      }
+      grouped.get(e.productId)!.rows.push(e);
+    }
+    return Array.from(grouped.values());
+  }, [expandedEntries, filterCategory, search]);
+
+  // Legacy alias so downstream code that still checks availableProducts.length works.
+  const visibleProductCount = filterCategory === 'ALL' ? groupedEntries.length : filteredEntries.length;
 
   const cartItems = useMemo(() => {
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
-      .map(([productId, qty]) => {
-        const p = availableProducts.find(x => x.id === Number(productId));
-        if (!p || !p.price) return null; // guard: product removed or has no price
-        return { product: p, qty, subtotal: p.price * qty };
+      .map(([cartKey, qty]) => {
+        const entry = expandedEntries.find(e => e.cartKey === cartKey);
+        if (!entry || !entry.price) return null;
+        return { entry, qty, subtotal: entry.price * qty };
       })
-      .filter((item): item is { product: typeof availableProducts[0]; qty: number; subtotal: number } => item !== null);
-  }, [cart, availableProducts]);
+      .filter((item): item is { entry: ProductEntry; qty: number; subtotal: number } => item !== null);
+  }, [cart, expandedEntries]);
 
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.subtotal, 0), [cartItems]);
 
@@ -282,11 +363,11 @@ export default function CreateOrderPage() {
     setPendingDay(null);
   };
 
-  const handleUpdateCart = (productId: number, qty: number) => {
+  const handleUpdateCart = (cartKey: string, qty: number) => {
     setCart(prev => {
       const next = { ...prev };
-      if (qty <= 0) delete next[productId];
-      else next[productId] = qty;
+      if (qty <= 0) delete next[cartKey];
+      else next[cartKey] = qty;
       return next;
     });
   };
@@ -294,8 +375,13 @@ export default function CreateOrderPage() {
   const handleReplicateLastOrder = () => {
     if (!lastOrderDetail?.items) return;
     setReplicating(true);
-    const newCart: Record<number, number> = {};
-    for (const item of lastOrderDetail.items) newCart[Number(item.productId)] = item.quantity;
+    const newCart: Record<string, number> = {};
+    for (const item of lastOrderDetail.items) {
+      const key = (item as any).subCategoryId
+        ? `sc_${(item as any).subCategoryId}`
+        : `p_${Number(item.productId)}`;
+      newCart[key] = item.quantity;
+    }
     setCart(newCart);
     setTimeout(() => setReplicating(false), 600);
   };
@@ -312,11 +398,13 @@ export default function CreateOrderPage() {
 
     setSubmitting(true);
     try {
-      const items = cartItems.map(({ product, qty }) => ({
-        productId: product.id,
+      const items = cartItems.map(({ entry, qty }) => ({
+        productId: entry.productId,
         quantity: qty,
-        unitPrice: String(product.price),
-        totalPrice: String(product.price * qty),
+        unitPrice: String(entry.price),
+        totalPrice: String(entry.price * qty),
+        subCategoryId: entry.subCategoryId ?? null,
+        subCategoryName: entry.subCategoryName ?? null,
       }));
 
       const result = await createOrder.mutateAsync({
@@ -636,7 +724,7 @@ export default function CreateOrderPage() {
             <div className="p-5 border-b border-border/50 bg-muted/20 flex items-center gap-2 flex-wrap">
               <span className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
               <h2 className="text-base font-bold text-foreground">Catálogo de Produtos</h2>
-              <span className="ml-auto text-xs font-bold text-muted-foreground">{visibleProducts.length}/{availableProducts.length} produto(s)</span>
+              <span className="ml-auto text-xs font-bold text-muted-foreground">{visibleProductCount}/{availableProducts.length} produto(s)</span>
             </div>
 
             {/* Fruit Curiosity compact */}
@@ -667,49 +755,105 @@ export default function CreateOrderPage() {
               </div>
             </div>
 
-            {visibleProducts.length === 0 ? (
+            {visibleProductCount === 0 ? (
               <div className="p-12 text-center">
                 <Package className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
                 <p className="text-muted-foreground font-medium">
                   {availableProducts.length === 0 ? "Nenhum produto disponível." : "Nenhum produto nesta categoria."}
                 </p>
               </div>
-            ) : (
+            ) : filterCategory === 'ALL' ? (
+              /* ── No filter: one card per product, all sub-categories listed ── */
               <div className="divide-y divide-border/50">
-                {visibleProducts.map(product => {
-                  if (!product || !product.price) return null; // defensive guard
-                  const qty = cart[product.id] || 0;
-                  const subtotal = qty * product.price;
+                {groupedEntries.map(group => {
+                  const anyInCart = group.rows.some(r => (cart[r.cartKey] || 0) > 0);
                   return (
-                    <div key={product.id} className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${qty > 0 ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'}`}>
+                    <div key={group.productId} className={`p-5 transition-colors ${anyInCart ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'}`}>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${anyInCart ? 'bg-primary/15' : 'bg-muted'}`}>
+                          <Package className={`w-5 h-5 ${anyInCart ? 'text-primary' : 'text-muted-foreground'}`} />
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-foreground">{group.name}</h3>
+                          {group.observation && <p className="text-xs text-muted-foreground italic">{group.observation}</p>}
+                        </div>
+                      </div>
+                      <div className="space-y-2 pl-13">
+                        {group.rows.map(row => {
+                          const qty = cart[row.cartKey] || 0;
+                          const subtotal = qty * row.price;
+                          return (
+                            <div key={row.cartKey} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 py-1.5 border-t border-border/30 first:border-0">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{row.category}</span>
+                              </div>
+                              <div className="flex items-center gap-3 flex-shrink-0">
+                                <div className="text-right min-w-[70px]">
+                                  <p className="font-bold text-base text-primary">R$ {fmtBRL(row.price)}</p>
+                                  <p className="text-xs text-muted-foreground">/{group.unit}</p>
+                                </div>
+                                <div className="flex items-center gap-1 bg-background border-2 border-border rounded-xl overflow-hidden">
+                                  <button onClick={() => handleUpdateCart(row.cartKey, qty - 1)}
+                                    className="w-8 h-8 flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors">
+                                    <Minus className="w-3.5 h-3.5" />
+                                  </button>
+                                  <input type="number" min="0" value={qty || ''}
+                                    onChange={e => handleUpdateCart(row.cartKey, parseInt(e.target.value) || 0)}
+                                    className="w-10 text-center font-bold bg-transparent outline-none text-foreground text-sm" placeholder="0" />
+                                  <button onClick={() => handleUpdateCart(row.cartKey, qty + 1)}
+                                    className="w-8 h-8 flex items-center justify-center bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+                                    <Plus className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                                <div className="text-right min-w-[70px]">
+                                  {qty > 0 ? <p className="font-bold text-sm text-foreground">R$ {fmtBRL(subtotal)}</p>
+                                    : <p className="text-xs text-muted-foreground">—</p>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* ── Category filter active: one card per matched entry ── */
+              <div className="divide-y divide-border/50">
+                {filteredEntries.map(entry => {
+                  const qty = cart[entry.cartKey] || 0;
+                  const subtotal = qty * entry.price;
+                  return (
+                    <div key={entry.cartKey} className={`p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors ${qty > 0 ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'}`}>
                       <div className="flex items-center gap-4">
                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${qty > 0 ? 'bg-primary/15' : 'bg-muted'}`}>
                           <Package className={`w-6 h-6 ${qty > 0 ? 'text-primary' : 'text-muted-foreground'}`} />
                         </div>
                         <div>
-                          <h3 className="font-bold text-foreground">{product.name}</h3>
-                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{product.category}</p>
-                          {(product as any).observation && (
-                            <p className="text-xs text-muted-foreground italic mt-0.5">{(product as any).observation}</p>
+                          <h3 className="font-bold text-foreground">{entry.name}</h3>
+                          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{entry.category}</p>
+                          {entry.observation && (
+                            <p className="text-xs text-muted-foreground italic mt-0.5">{entry.observation}</p>
                           )}
                         </div>
                       </div>
                       <div className="flex items-center gap-5">
                         <div className="text-right min-w-[80px]">
-                          <p className="font-display font-bold text-lg text-primary">R$ {fmtBRL(product.price)}</p>
-                          <p className="text-xs text-muted-foreground">por {product.unit}</p>
+                          <p className="font-display font-bold text-lg text-primary">R$ {fmtBRL(entry.price)}</p>
+                          <p className="text-xs text-muted-foreground">por {entry.unit}</p>
                         </div>
                         <div className="flex items-center gap-1 bg-background border-2 border-border rounded-xl overflow-hidden">
-                          <button data-testid={`button-decrease-${product.id}`}
-                            onClick={() => handleUpdateCart(product.id, qty - 1)}
+                          <button data-testid={`button-decrease-${entry.cartKey}`}
+                            onClick={() => handleUpdateCart(entry.cartKey, qty - 1)}
                             className="w-9 h-9 flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors">
                             <Minus className="w-4 h-4" />
                           </button>
                           <input type="number" min="0" value={qty || ''}
-                            onChange={e => handleUpdateCart(product.id, parseInt(e.target.value) || 0)}
+                            onChange={e => handleUpdateCart(entry.cartKey, parseInt(e.target.value) || 0)}
                             className="w-12 text-center font-bold bg-transparent outline-none text-foreground" placeholder="0" />
-                          <button data-testid={`button-increase-${product.id}`}
-                            onClick={() => handleUpdateCart(product.id, qty + 1)}
+                          <button data-testid={`button-increase-${entry.cartKey}`}
+                            onClick={() => handleUpdateCart(entry.cartKey, qty + 1)}
                             className="w-9 h-9 flex items-center justify-center bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
                             <Plus className="w-4 h-4" />
                           </button>
@@ -761,15 +905,18 @@ export default function CreateOrderPage() {
                 </div>
               ) : (
                 <div className="space-y-0 divide-y divide-border/50 max-h-[45vh] overflow-y-auto">
-                  {cartItems.map(({ product, qty, subtotal }) => (
-                    <div key={product.id} className="py-3 flex justify-between items-start gap-2">
+                  {cartItems.map(({ entry, qty, subtotal }) => (
+                    <div key={entry.cartKey} className="py-3 flex justify-between items-start gap-2">
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm text-foreground truncate">{product.name}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{qty} × R$ {fmtBRL(product.price)}</p>
+                        <p className="font-bold text-sm text-foreground truncate">{entry.name}</p>
+                        {entry.subCategoryName && (
+                          <p className="text-xs text-muted-foreground truncate">{entry.subCategoryName}</p>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-0.5">{qty} × R$ {fmtBRL(entry.price)}</p>
                       </div>
                       <div className="text-right flex-shrink-0 flex items-center gap-2">
                         <p className="font-bold text-sm text-foreground">R$ {fmtBRL(subtotal)}</p>
-                        <button onClick={() => handleUpdateCart(product.id, 0)}
+                        <button onClick={() => handleUpdateCart(entry.cartKey, 0)}
                           className="p-1 rounded text-muted-foreground hover:text-red-500 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>

@@ -160,6 +160,8 @@ export interface IStorage {
   updateProductSubCategory(id: number, updates: Partial<InsertProductSubCategory>): Promise<ProductSubCategory>;
   deleteProductSubCategory(id: number): Promise<void>;
   deleteProductSubCategoriesByProductId(productId: number): Promise<void>;
+  /** Returns all active sub-categories across every product (for bulk product enrichment). */
+  getAllProductSubCategories(): Promise<ProductSubCategory[]>;
 
   // Order Windows
   getOrderWindows(): Promise<OrderWindow[]>;
@@ -861,6 +863,13 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProductSubCategoriesByProductId(productId: number): Promise<void> {
     await db.delete(productSubCategories).where(eq(productSubCategories.productId, productId));
+  }
+
+  async getAllProductSubCategories(): Promise<ProductSubCategory[]> {
+    return db
+      .select()
+      .from(productSubCategories)
+      .where(eq(productSubCategories.active, true));
   }
 
   async getOrderWindows(empresaId?: number): Promise<OrderWindow[]> {
@@ -3046,7 +3055,15 @@ export class DatabaseStorage implements IStorage {
       if (params.status === 'ACTIVE') conds.push(eq(products.active, true));
       else if (params.status === 'INACTIVE') conds.push(eq(products.active, false));
     }
-    if (params.category && params.category !== 'ALL') conds.push(eq(products.category, params.category));
+    if (params.category && params.category !== 'ALL') {
+      // Also match products that have a sub-category with this name (multi-category support).
+      conds.push(
+        or(
+          eq(products.category, params.category),
+          sql`EXISTS (SELECT 1 FROM product_sub_categories psc WHERE psc.product_id = ${products.id} AND psc.category_name = ${params.category} AND psc.active = true)`
+        )!
+      );
+    }
     if (params.onlyImportados) conds.push(eq(products.importado, true));
     if (params.search) {
       const q = `%${params.search}%`;
