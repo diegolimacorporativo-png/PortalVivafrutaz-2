@@ -5,8 +5,23 @@ import { currentTenantId } from "../core/tenant/context";
 import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
-import { logisticsDrivers as driversTable, orders as ordersTable } from "@shared/schema";
-import { eq, or, and, gte, lt, type SQL } from "drizzle-orm";
+import {
+  logisticsDrivers as driversTable,
+  orders as ordersTable,
+  deliveries as deliveriesTable,
+  deliveryStopEvents,
+} from "@shared/schema";
+import { eq, or, and, gte, lt, desc, type SQL } from "drizzle-orm";
+
+/** Canonical stop status values accepted by FASE 2. */
+const VALID_STOP_STATUSES = new Set([
+  "entregue",
+  "cliente_ausente",
+  "endereco_incorreto",
+  "recusado",
+  "reagendado",
+  "problema",
+]);
 
 export async function register(app: Express): Promise<void> {
   app.get('/api/geo/cep/:cep', async (req: any, res) => {
@@ -310,6 +325,86 @@ export async function register(app: Express): Promise<void> {
       await logisticsAudit(req, 'CHECKLIST_ENTREGA', `Entrega ${deliveryId} confirmada`, deliveryId, 'delivery');
 
       res.json({ checklist, message: 'Entrega confirmada com sucesso!' });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ─── FASE 2 — Stop Status ─────────────────────────────────────────────────────
+  // POST /api/deliveries/:id/stop-status
+  // Registra um evento de status para uma parada individual.
+  app.post('/api/deliveries/:id/stop-status', requireAuthCore, async (req: any, res) => {
+    try {
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+
+      const deliveryId = Number(req.params.id);
+      const { status, observacao } = req.body as { status: string; observacao?: string };
+
+      if (!status || !VALID_STOP_STATUSES.has(status)) {
+        return res.status(400).json({
+          message: `Status inválido. Valores aceitos: ${[...VALID_STOP_STATUSES].join(', ')}`,
+        });
+      }
+
+      const delivery = await storage.getDelivery(deliveryId);
+      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
+
+      const now = new Date();
+
+      // 1. Create history event
+      await db.insert(deliveryStopEvents).values({
+        deliveryId,
+        status,
+        observacao: observacao?.trim() || null,
+        registeredById: actor.id,
+        registeredBy: actor.name || actor.email || null,
+        registeredByRole: actor.role || null,
+      });
+
+      // 2. Update delivery with new status + metadata
+      const deliveryUpdate: any = {
+        status: status === 'entregue' ? 'entregue' : status,
+        stopStatusAt: now,
+        stopStatusBy: actor.name || actor.email || null,
+        stopStatusByRole: actor.role || null,
+        stopObservacao: observacao?.trim() || null,
+      };
+      if (status === 'entregue') deliveryUpdate.deliveredAt = now;
+      await storage.updateDelivery(deliveryId, deliveryUpdate);
+
+      // 3. If entregue, also update the linked order
+      if (status === 'entregue' && delivery.orderId) {
+        try {
+          await storage.updateOrder(delivery.orderId, {
+            status: 'DELIVERED',
+            fiscalStatus: 'nota_liberada',
+          });
+        } catch (_) {}
+      }
+
+      // 4. Logistics audit
+      await logisticsAudit(
+        req,
+        `STOP_STATUS_${status.toUpperCase()}`,
+        `Parada ${deliveryId} → ${status}${observacao ? ` | obs: ${observacao}` : ''}`,
+        deliveryId,
+        'delivery',
+      );
+
+      res.json({ success: true, status, registeredAt: now.toISOString() });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // GET /api/deliveries/:id/stop-events
+  // Retorna o histórico completo de eventos de status de uma parada.
+  app.get('/api/deliveries/:id/stop-events', requireAuthCore, async (req: any, res) => {
+    try {
+      const deliveryId = Number(req.params.id);
+      const events = await db
+        .select()
+        .from(deliveryStopEvents)
+        .where(eq(deliveryStopEvents.deliveryId, deliveryId))
+        .orderBy(desc(deliveryStopEvents.registeredAt));
+      res.json(events);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

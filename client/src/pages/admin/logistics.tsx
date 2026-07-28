@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Pencil, Trash2, Truck, User, Wrench, MapPin, Download, CheckCircle2, Clock, XCircle, FileText, Search, Phone, Mail, Building2, RefreshCw, Navigation, ArrowUp, ArrowDown, Printer, Sparkles, CalendarDays, AlertTriangle, Map } from 'lucide-react';
+import { Plus, Pencil, Trash2, Truck, User, Wrench, MapPin, Download, CheckCircle2, Clock, XCircle, FileText, Search, Phone, Mail, Building2, RefreshCw, Navigation, ArrowUp, ArrowDown, Printer, Sparkles, CalendarDays, AlertTriangle, Map, ChevronDown, ChevronUp, UserX, Home, ThumbsDown, CalendarClock, TriangleAlert, History } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { LogisticsDriver, LogisticsVehicle, LogisticsRoute, LogisticsMaintenance, CompanyQuotation } from '@shared/schema';
 // FASE 6.2 — Leaflet carregado sob demanda (lazy) para não bloquear o bundle inicial.
@@ -238,6 +238,188 @@ function VehiclesTab() {
   );
 }
 
+// ─── Stop status helpers ──────────────────────────────────────────────────────
+const STOP_LABEL: Record<string, string> = {
+  entregue: 'Entregue', cliente_ausente: 'Cliente Ausente',
+  endereco_incorreto: 'Endereço Incorreto', recusado: 'Recusado',
+  reagendado: 'Reagendado', problema: 'Problema',
+  pendente: 'Pendente', em_rota: 'Em Rota', cancelado: 'Cancelado',
+};
+const STOP_COLOR: Record<string, string> = {
+  entregue: 'bg-green-100 text-green-800',
+  cliente_ausente: 'bg-orange-100 text-orange-800',
+  endereco_incorreto: 'bg-yellow-100 text-yellow-800',
+  recusado: 'bg-red-100 text-red-800',
+  reagendado: 'bg-purple-100 text-purple-800',
+  problema: 'bg-rose-100 text-rose-800',
+  pendente: 'bg-gray-100 text-gray-600',
+  em_rota: 'bg-blue-100 text-blue-800',
+  cancelado: 'bg-red-100 text-red-700',
+};
+const STOP_STATUS_KEYS_ADMIN = ['entregue','cliente_ausente','endereco_incorreto','recusado','reagendado','problema'] as const;
+
+interface DeliveryRow {
+  id: number; companyId: number; status: string; routePosition?: number;
+  stopStatusAt?: string; stopStatusBy?: string; stopObservacao?: string;
+}
+interface StopEventRow {
+  id: number; deliveryId: number; status: string; observacao: string | null;
+  registeredAt: string; registeredBy: string | null; registeredByRole: string | null;
+}
+
+function RouteStopsPanel({ routeId }: { routeId: number }) {
+  const { toast } = useToast();
+  const [activeStop, setActiveStop] = useState<number | null>(null);
+  const [obs, setObs] = useState('');
+  const [showHistory, setShowHistory] = useState<number | null>(null);
+
+  const { data: deliveries = [], isLoading, refetch } = useQuery<DeliveryRow[]>({
+    queryKey: [`/api/deliveries?routeId=${routeId}`],
+    queryFn: () =>
+      fetchWithAuth(`/api/deliveries?routeId=${routeId}`).then(r => r.json()),
+    staleTime: 30000,
+  });
+
+  const historyQuery = useQuery<StopEventRow[]>({
+    queryKey: [`/api/deliveries/${showHistory}/stop-events`],
+    queryFn: () =>
+      fetchWithAuth(`/api/deliveries/${showHistory}/stop-events`).then(r => r.json()),
+    enabled: showHistory != null,
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ deliveryId, status }: { deliveryId: number; status: string }) =>
+      fetchWithAuth(`/api/deliveries/${deliveryId}/stop-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, observacao: obs }),
+      }).then(async r => {
+        if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message ?? 'Erro'); }
+        return r.json();
+      }),
+    onSuccess: (_d, { status }) => {
+      toast({ title: `Status registrado: ${STOP_LABEL[status] ?? status}` });
+      refetch();
+      queryClient.invalidateQueries({ queryKey: [`/api/deliveries/${activeStop}/stop-events`] });
+      setActiveStop(null); setObs('');
+    },
+    onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
+  });
+
+  const sorted = [...deliveries].sort((a, b) => (a.routePosition ?? 999) - (b.routePosition ?? 999));
+
+  if (isLoading) return <div className="text-xs text-muted-foreground py-3 pl-2">Carregando paradas...</div>;
+  if (sorted.length === 0) return (
+    <div className="text-xs text-muted-foreground py-3 pl-2 italic">
+      Nenhuma entrega cadastrada para esta rota.
+      <span className="ml-1 text-blue-500 cursor-pointer" onClick={() => refetch()}>Recarregar</span>
+    </div>
+  );
+
+  return (
+    <div className="mt-3 pt-3 border-t border-border space-y-2">
+      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pl-0.5">
+        Paradas ({sorted.length})
+      </p>
+      {sorted.map((d, idx) => {
+        const statusKey = d.status ?? 'pendente';
+        const color = STOP_COLOR[statusKey] ?? STOP_COLOR.pendente;
+        const label = STOP_LABEL[statusKey] ?? statusKey;
+        const isExpanded = activeStop === d.id;
+        const isHistoryOpen = showHistory === d.id;
+        return (
+          <div key={d.id} className="rounded-xl border bg-muted/30 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-[10px] font-bold bg-foreground/10 text-foreground rounded-full w-5 h-5 flex items-center justify-center flex-shrink-0">
+                  {d.routePosition ?? idx + 1}
+                </span>
+                <span className="text-sm font-medium truncate">Parada #{d.id}</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${color}`}>{label}</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  type="button"
+                  className="text-[10px] text-blue-600 hover:underline"
+                  onClick={() => { setShowHistory(isHistoryOpen ? null : d.id); }}
+                >
+                  <History className="w-3 h-3 inline mr-0.5" />Histórico
+                </button>
+                <button
+                  type="button"
+                  className="text-[10px] text-primary hover:underline ml-2"
+                  onClick={() => { setActiveStop(isExpanded ? null : d.id); setObs(''); }}
+                >
+                  {isExpanded ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
+                  {isExpanded ? 'Fechar' : 'Registrar'}
+                </button>
+              </div>
+            </div>
+
+            {/* Stop status metadata */}
+            {d.stopStatusAt && (
+              <p className="text-[10px] text-muted-foreground pl-7">
+                ⏱ {new Date(d.stopStatusAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                {d.stopStatusBy && <span> · {d.stopStatusBy}</span>}
+                {d.stopObservacao && <span> — {d.stopObservacao}</span>}
+              </p>
+            )}
+
+            {/* Inline status selector */}
+            {isExpanded && (
+              <div className="pl-7 space-y-2">
+                <div className="grid grid-cols-3 gap-1.5">
+                  {STOP_STATUS_KEYS_ADMIN.map(key => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => statusMutation.mutate({ deliveryId: d.id, status: key })}
+                      disabled={statusMutation.isPending}
+                      className={`text-[11px] font-semibold px-2 py-1.5 rounded-lg border transition-all
+                        ${statusKey === key ? 'ring-2 ring-primary' : ''}
+                        ${STOP_COLOR[key]} hover:opacity-80`}
+                    >
+                      {STOP_LABEL[key]}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  placeholder="Observação (opcional)..."
+                  value={obs}
+                  onChange={e => setObs(e.target.value)}
+                  className="w-full text-xs border rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            )}
+
+            {/* History panel */}
+            {isHistoryOpen && (
+              <div className="pl-7 bg-white rounded-lg border p-2 space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Histórico</p>
+                {historyQuery.isPending && <p className="text-xs text-muted-foreground">Carregando...</p>}
+                {historyQuery.data?.length === 0 && <p className="text-xs text-muted-foreground">Nenhum evento.</p>}
+                {historyQuery.data?.map(ev => (
+                  <div key={ev.id} className="text-xs flex items-start gap-1.5">
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${STOP_COLOR[ev.status] ?? ''}`}>
+                      {STOP_LABEL[ev.status] ?? ev.status}
+                    </span>
+                    <div className="text-muted-foreground">
+                      {new Date(ev.registeredAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      {ev.registeredBy && <span> · {ev.registeredBy}</span>}
+                      {ev.observacao && <span className="italic"> — {ev.observacao}</span>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Rotas Tab ───────────────────────────────────────────────────────────────
 function RoutesTab() {
   const { toast } = useToast();
@@ -247,6 +429,7 @@ function RoutesTab() {
   const [filterDate, setFilterDate] = useState('');
   const [form, setForm] = useState({ name: '', driverId: '', driverName: '', vehicleId: '', vehiclePlate: '', deliveryDate: '', notes: '', companyNames: '', startTime: '', endTime: '' });
   const [companyPickerVal, setCompanyPickerVal] = useState('_none');
+  const [expandedStops, setExpandedStops] = useState<Set<number>>(new Set());
 
   const { data: routes = [], isLoading } = useQuery<LogisticsRoute[]>({ queryKey: ['/api/logistics/routes'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: drivers = [] } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });

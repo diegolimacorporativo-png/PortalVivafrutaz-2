@@ -11,6 +11,7 @@ import {
   Truck, CheckCircle2, Clock, MapPin, Package,
   User, ChevronDown, ChevronUp, Navigation, RefreshCw,
   ClipboardCheck, AlertCircle, CheckCircle, XCircle, Map, List, FileText,
+  UserX, Home, ThumbsDown, CalendarClock, TriangleAlert, History,
 } from 'lucide-react';
 
 interface DeliveryItem {
@@ -31,36 +32,98 @@ interface DeliveryItem {
   totalValue?: string;
   orderCode?: string;
   isOrderBridge?: boolean;
+  stopStatusAt?: string;
+  stopStatusBy?: string;
+  stopObservacao?: string;
 }
 
-const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
-  pendente:  { label: 'Pendente',  icon: Clock,         color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' },
-  em_rota:   { label: 'Em Rota',  icon: Truck,          color: 'text-blue-700',   bg: 'bg-blue-50 border-blue-200' },
-  entregue:  { label: 'Entregue', icon: CheckCircle2,   color: 'text-green-700',  bg: 'bg-green-50 border-green-200' },
-  cancelado: { label: 'Cancelado',icon: XCircle,        color: 'text-red-700',    bg: 'bg-red-50 border-red-200' },
+interface StopEvent {
+  id: number;
+  deliveryId: number;
+  status: string;
+  observacao: string | null;
+  registeredAt: string;
+  registeredBy: string | null;
+  registeredByRole: string | null;
+}
+
+// ─── Status config — all 6 stop statuses + legacy values ─────────────────────
+
+const STOP_STATUS_CONFIG: Record<string, {
+  label: string; icon: any; color: string; bg: string; btnClass: string;
+}> = {
+  entregue:           { label: 'Entregue',           icon: CheckCircle2,    color: 'text-green-700',   bg: 'bg-green-50 border-green-200',   btnClass: 'bg-green-600 hover:bg-green-700 text-white' },
+  cliente_ausente:    { label: 'Cliente Ausente',    icon: UserX,           color: 'text-orange-700',  bg: 'bg-orange-50 border-orange-200', btnClass: 'bg-orange-500 hover:bg-orange-600 text-white' },
+  endereco_incorreto: { label: 'Endereço Incorreto', icon: Home,            color: 'text-yellow-700',  bg: 'bg-yellow-50 border-yellow-200', btnClass: 'bg-yellow-500 hover:bg-yellow-600 text-white' },
+  recusado:           { label: 'Recusado',           icon: ThumbsDown,      color: 'text-red-700',     bg: 'bg-red-50 border-red-200',       btnClass: 'bg-red-600 hover:bg-red-700 text-white' },
+  reagendado:         { label: 'Reagendado',         icon: CalendarClock,   color: 'text-purple-700',  bg: 'bg-purple-50 border-purple-200', btnClass: 'bg-purple-600 hover:bg-purple-700 text-white' },
+  problema:           { label: 'Problema',           icon: TriangleAlert,   color: 'text-rose-700',    bg: 'bg-rose-50 border-rose-200',     btnClass: 'bg-rose-600 hover:bg-rose-700 text-white' },
 };
 
-function ChecklistForm({ delivery, onSuccess }: { delivery: DeliveryItem; onSuccess: () => void }) {
+// Legacy statuses still in use
+const STATUS_CONFIG: Record<string, { label: string; icon: any; color: string; bg: string }> = {
+  pendente:           { label: 'Pendente',           icon: Clock,           color: 'text-yellow-700',  bg: 'bg-yellow-50 border-yellow-200' },
+  em_rota:            { label: 'Em Rota',            icon: Truck,           color: 'text-blue-700',    bg: 'bg-blue-50 border-blue-200' },
+  cancelado:          { label: 'Cancelado',          icon: XCircle,         color: 'text-red-700',     bg: 'bg-red-50 border-red-200' },
+  ...Object.fromEntries(
+    Object.entries(STOP_STATUS_CONFIG).map(([k, v]) => [k, { label: v.label, icon: v.icon, color: v.color, bg: v.bg }])
+  ),
+};
+
+const STOP_STATUS_KEYS = Object.keys(STOP_STATUS_CONFIG) as Array<keyof typeof STOP_STATUS_CONFIG>;
+
+function fmtTime(iso: string) {
+  return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+
+// ─── Stop Status Form ─────────────────────────────────────────────────────────
+
+function StopStatusForm({ delivery, onSuccess }: { delivery: DeliveryItem; onSuccess: () => void }) {
   const { toast } = useToast();
   const [obs, setObs] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+
+  const historyQuery = useQuery<StopEvent[]>({
+    queryKey: [`/api/deliveries/${delivery.id}/stop-events`],
+    queryFn: () =>
+      fetch(`/api/deliveries/${delivery.id}/stop-events`, { credentials: 'include' })
+        .then(r => r.json()),
+    enabled: showHistory && !delivery.isOrderBridge,
+  });
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (status: string) => {
       if (delivery.isOrderBridge) {
-        // Order-bridge: atualiza status do pedido para DELIVERED
+        // Order-bridge: fallback to order status update
         return apiRequest('PATCH', `/api/orders/${delivery.id}`, {
-          status: 'DELIVERED',
-          adminNote: obs || 'Entregue pelo motorista via Painel',
+          status: status === 'entregue' ? 'DELIVERED' : 'ACTIVE',
+          adminNote: obs || `Status registrado: ${STOP_STATUS_CONFIG[status]?.label ?? status}`,
         }).then(r => r.json());
       }
-      return apiRequest('POST', `/api/deliveries/${delivery.id}/checklist`, {
-        observacao: obs,
-        entregaConfirmada: true,
-      }).then(r => r.json());
+      return fetch(`/api/deliveries/${delivery.id}/stop-status`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, observacao: obs }),
+      }).then(async r => {
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.message ?? 'Erro ao registrar status');
+        }
+        return r.json();
+      });
     },
-    onSuccess: () => {
-      toast({ title: 'Entrega confirmada!', description: `${delivery.companyName} marcada como entregue.` });
+    onSuccess: (_data, status) => {
+      const label = STOP_STATUS_CONFIG[status]?.label ?? status;
+      toast({ title: `Status registrado: ${label}`, description: delivery.companyName });
       queryClient.invalidateQueries({ queryKey: ['/api/driver/route-today'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/deliveries/${delivery.id}/stop-events`] });
+      setObs('');
+      setSelectedStatus(null);
       onSuccess();
     },
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
@@ -68,34 +131,107 @@ function ChecklistForm({ delivery, onSuccess }: { delivery: DeliveryItem; onSucc
 
   return (
     <div className="mt-3 pt-3 border-t border-border/50 space-y-3">
-      <p className="text-xs font-semibold text-foreground">Confirmar Entrega</p>
-      <Textarea
-        placeholder="Observação (opcional)..."
-        value={obs}
-        onChange={e => setObs(e.target.value)}
-        className="h-20 text-sm resize-none"
-        data-testid={`textarea-checklist-obs-${delivery.id}`}
-      />
-      <Button
-        type="button"
-        size="sm"
-        className="w-full gap-2"
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-        data-testid={`button-confirm-delivery-${delivery.id}`}
-      >
-        <ClipboardCheck className="w-4 h-4" />
-        {mutation.isPending ? 'Confirmando...' : 'Confirmar Entrega'}
-      </Button>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-foreground">Registrar Status da Parada</p>
+        {!delivery.isOrderBridge && (
+          <button
+            type="button"
+            onClick={() => setShowHistory(h => !h)}
+            className="text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground"
+          >
+            <History className="w-3 h-3" />
+            {showHistory ? 'Ocultar histórico' : 'Ver histórico'}
+          </button>
+        )}
+      </div>
+
+      {/* 6 status buttons in a 2-col grid */}
+      <div className="grid grid-cols-2 gap-2">
+        {STOP_STATUS_KEYS.map(key => {
+          const cfg = STOP_STATUS_CONFIG[key];
+          const Icon = cfg.icon;
+          const isSelected = selectedStatus === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setSelectedStatus(isSelected ? null : key)}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all border-2 ${
+                isSelected
+                  ? `${cfg.btnClass} border-transparent`
+                  : 'bg-white border-border text-foreground hover:border-primary/40'
+              }`}
+              data-testid={`button-stop-status-${key}-${delivery.id}`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {cfg.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedStatus && (
+        <>
+          <Textarea
+            placeholder="Observação (opcional)..."
+            value={obs}
+            onChange={e => setObs(e.target.value)}
+            className="h-16 text-sm resize-none"
+            data-testid={`textarea-stop-obs-${delivery.id}`}
+          />
+          <Button
+            type="button"
+            size="sm"
+            className={`w-full gap-2 ${STOP_STATUS_CONFIG[selectedStatus]?.btnClass}`}
+            onClick={() => mutation.mutate(selectedStatus)}
+            disabled={mutation.isPending}
+            data-testid={`button-confirm-stop-status-${delivery.id}`}
+          >
+            {(() => {
+              const Icon = STOP_STATUS_CONFIG[selectedStatus]?.icon ?? ClipboardCheck;
+              return <Icon className="w-4 h-4" />;
+            })()}
+            {mutation.isPending
+              ? 'Registrando...'
+              : `Confirmar: ${STOP_STATUS_CONFIG[selectedStatus]?.label}`}
+          </Button>
+        </>
+      )}
+
+      {/* History */}
+      {showHistory && (
+        <div className="bg-muted/40 rounded-xl p-3 space-y-2">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Histórico</p>
+          {historyQuery.isPending && <p className="text-xs text-muted-foreground">Carregando...</p>}
+          {historyQuery.data?.length === 0 && <p className="text-xs text-muted-foreground">Nenhum evento registrado.</p>}
+          {historyQuery.data?.map(ev => {
+            const cfg = STOP_STATUS_CONFIG[ev.status];
+            const Icon = cfg?.icon ?? AlertCircle;
+            return (
+              <div key={ev.id} className="flex items-start gap-2 text-xs">
+                <Icon className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${cfg?.color ?? 'text-muted-foreground'}`} />
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold">{cfg?.label ?? ev.status}</span>
+                  {ev.observacao && <span className="text-muted-foreground"> — {ev.observacao}</span>}
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {fmtDateTime(ev.registeredAt)}
+                    {ev.registeredBy && <span> · {ev.registeredBy}</span>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
 function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
   const [expanded, setExpanded] = useState(false);
-  const cfg = STATUS_CONFIG[delivery.status] || STATUS_CONFIG.pendente;
+  const cfg = STATUS_CONFIG[delivery.status] ?? STATUS_CONFIG.pendente;
   const Icon = cfg.icon;
-  const canChecklist = delivery.status === 'pendente' || delivery.status === 'em_rota';
+  const isFinished = delivery.status !== 'pendente' && delivery.status !== 'em_rota';
 
   return (
     <div
@@ -124,23 +260,33 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
               {delivery.deliveryWindowStart} – {delivery.deliveryWindowEnd}
             </p>
           )}
+          {/* Show current stop status if registered */}
+          {delivery.stopStatusAt && (
+            <p className="text-[10px] text-muted-foreground mt-1">
+              ⏱ {fmtTime(delivery.stopStatusAt)}
+              {delivery.stopStatusBy && <span> · {delivery.stopStatusBy}</span>}
+              {delivery.stopObservacao && <span> — {delivery.stopObservacao}</span>}
+            </p>
+          )}
         </div>
         <div className="flex flex-col items-end gap-2 shrink-0">
           <Badge variant="outline" className={`text-xs ${cfg.color} border-current/30`}>
             <Icon className="w-3 h-3 mr-1" />
             {cfg.label}
           </Badge>
-          {canChecklist && (
-            <button
-              type="button"
-              onClick={() => setExpanded(e => !e)}
-              className="text-xs text-blue-600 font-medium flex items-center gap-1"
-              data-testid={`button-expand-checklist-${delivery.id}`}
-            >
-              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              {expanded ? 'Fechar checklist' : 'Confirmar entrega'}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setExpanded(e => !e)}
+            className="text-xs text-blue-600 font-medium flex items-center gap-1"
+            data-testid={`button-expand-checklist-${delivery.id}`}
+          >
+            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            {expanded
+              ? 'Fechar'
+              : isFinished
+              ? 'Atualizar'
+              : 'Registrar status'}
+          </button>
         </div>
       </div>
       {(delivery.orderCode || delivery.totalValue) && (
@@ -152,8 +298,8 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
       {delivery.notes && (
         <p className="text-xs text-muted-foreground mt-2 italic bg-white/50 rounded-lg px-2 py-1">{delivery.notes}</p>
       )}
-      {expanded && canChecklist && (
-        <ChecklistForm delivery={delivery} onSuccess={() => setExpanded(false)} />
+      {expanded && (
+        <StopStatusForm delivery={delivery} onSuccess={() => setExpanded(false)} />
       )}
     </div>
   );
@@ -356,7 +502,8 @@ export default function DriverPanel() {
   });
 
   const deliveries = data?.deliveries || [];
-  const pendentes = deliveries.filter(d => d.status === 'pendente').length;
+  const pendentes = deliveries.filter(d => d.status === 'pendente' || d.status === 'em_rota').length;
+  const concluidos = deliveries.filter(d => d.status !== 'pendente' && d.status !== 'em_rota').length;
   const entregues = deliveries.filter(d => d.status === 'entregue').length;
   const emRota = deliveries.filter(d => d.status === 'em_rota').length;
 
@@ -404,8 +551,8 @@ export default function DriverPanel() {
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Pendentes</div>
         </div>
         <div className="p-3 text-center">
-          <div className="text-2xl font-bold text-green-600">{entregues}</div>
-          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Entregues</div>
+          <div className="text-2xl font-bold text-green-600">{concluidos}</div>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Concluídos</div>
         </div>
       </div>
 

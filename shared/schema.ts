@@ -1519,12 +1519,35 @@ export const deliveries = pgTable("deliveries", {
   // Estimated km from previous stop
   distanceFromPrev: numeric("distance_from_prev", { precision: 8, scale: 3 }),
   notes: text("notes"),
+  // ─── Status individual da parada (FASE 2) ────────────────────────────────
+  // Valores: entregue | cliente_ausente | endereco_incorreto | recusado | reagendado | problema
+  stopStatusAt: timestamp("stop_status_at"),
+  stopStatusBy: text("stop_status_by"),
+  stopStatusByRole: text("stop_status_by_role"),
+  stopObservacao: text("stop_observacao"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export type Delivery = typeof deliveries.$inferSelect;
 export const insertDeliverySchema = createInsertSchema(deliveries).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertDelivery = z.infer<typeof insertDeliverySchema>;
+
+// ─── Delivery Stop Events (histórico de status por parada) ────────────────────
+// Registra cada mudança de status de uma entrega com timestamp, usuário e obs.
+export const deliveryStopEvents = pgTable("delivery_stop_events", {
+  id: serial("id").primaryKey(),
+  deliveryId: integer("delivery_id").references(() => deliveries.id, { onDelete: "cascade" }).notNull(),
+  // Status values: entregue | cliente_ausente | endereco_incorreto | recusado | reagendado | problema
+  status: text("status").notNull(),
+  observacao: text("observacao"),
+  registeredAt: timestamp("registered_at").defaultNow().notNull(),
+  registeredById: integer("registered_by_id"),
+  registeredBy: text("registered_by"),       // nome/email do usuário
+  registeredByRole: text("registered_by_role"),
+});
+export type DeliveryStopEvent = typeof deliveryStopEvents.$inferSelect;
+export const insertDeliveryStopEventSchema = createInsertSchema(deliveryStopEvents).omit({ id: true, registeredAt: true });
+export type InsertDeliveryStopEvent = z.infer<typeof insertDeliveryStopEventSchema>;
 
 // ─── Route Stops (múltiplos CEPs por rota) ────────────────────────────────────
 export const routeStops = pgTable("route_stops", {
@@ -2229,6 +2252,7 @@ export function validateSchemaIntegrity(): void {
     billingEvents,
     companyAddresses,
     deliveries,
+    deliveryStopEvents,
     routeStops,
     aiLogs,
     logisticsAuditLogs,
