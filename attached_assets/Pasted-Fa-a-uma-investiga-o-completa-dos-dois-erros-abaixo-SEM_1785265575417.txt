@@ -1,0 +1,195 @@
+Faça uma investigação completa dos dois erros abaixo SEM fazer nenhuma alteração antes da análise.
+
+ERRO 1
+"Erro ao criar empresa"
+toast mostra:
+[object Object]
+
+ERRO 2
+"Erro ao buscar coordenadas"
+
+Quero uma investigação arquitetural completa.
+
+ETAPA 1
+Localize exatamente onde esses dois toasts são disparados no frontend.
+
+Mostre:
+
+arquivo
+linha
+função
+qual objeto está sendo passado ao toast
+
+Verifique se existe algo como:
+
+toast.error(error)
+
+ao invés de
+
+toast.error(error.message)
+
+ou
+
+toast.error(getErrorMessage(error))
+
+------------------------------------------------
+
+ETAPA 2
+
+Abra o DevTools Network (ou reproduza via logs do backend).
+
+Quero descobrir a resposta REAL da API.
+
+Mostre exatamente:
+
+URL chamada
+
+payload enviado
+
+status HTTP
+
+body retornado
+
+headers
+
+stacktrace
+
+Não quero "[object Object]".
+
+Quero o JSON verdadeiro.
+
+------------------------------------------------
+
+ETAPA 3
+
+Para o erro de criação da empresa:
+
+siga toda a cadeia:
+
+Frontend
+
+↓
+
+Route
+
+↓
+
+Controller
+
+↓
+
+Service
+
+↓
+
+Repository
+
+↓
+
+Banco
+
+Mostre exatamente onde ocorre a exceção.
+
+Informe:
+
+arquivo
+
+linha
+
+motivo
+
+query SQL (se existir)
+
+dados recebidos
+
+dados gravados
+
+------------------------------------------------
+
+ETAPA 4
+
+Para o erro das coordenadas:
+
+descubra qual serviço está sendo utilizado.
+
+Google
+
+OpenStreetMap
+
+Nominatim
+
+Mapbox
+
+Outro
+
+Verifique:
+
+API Key
+
+variáveis de ambiente
+
+timeout
+
+URL
+
+response
+
+status
+
+erro real
+
+------------------------------------------------
+
+ETAPA 5
+
+Verifique se alguma variável de ambiente está ausente.
+
+Liste todas utilizadas neste fluxo.
+
+Exemplo:
+
+GOOGLE_MAPS_API_KEY
+
+GEOCODING_API_KEY
+
+OPENROUTE_KEY
+
+SUPABASE_URL
+
+SUPABASE_SERVICE_ROLE
+
+etc.
+
+------------------------------------------------
+
+ETAPA 6
+
+Depois da investigação,
+
+gere um relatório contendo:
+
+✔ causa raiz
+
+✔ arquivo
+
+✔ linha
+
+✔ impacto
+
+✔ correção recomendada
+
+✔ complexidade
+
+✔ risco
+
+✔ diff exato que deve ser aplicado
+
+------------------------------------------------
+
+IMPORTANTE
+
+NÃO altere nenhum arquivo durante a investigação.
+
+Primeiro quero descobrir a causa real.
+
+Somente depois faremos a correção.
