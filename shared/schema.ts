@@ -517,6 +517,48 @@ export const companyCertificates = pgTable("company_certificates", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// ─── Módulo de Produção ────────────────────────────────────────
+// Batches diários de produção gerados a partir dos pedidos confirmados.
+export const productionBatches = pgTable("production_batches", {
+  id: serial("id").primaryKey(),
+  empresaId: integer("empresa_id").references(() => companies.id),
+  productionDate: date("production_date").notNull(),
+  status: text("status").notNull().default("PENDENTE"),
+  // PENDENTE | EM_PRODUCAO | CONFERIDO | FINALIZADO
+  notes: text("notes"),
+  generatedAt: timestamp("generated_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (table) => ({
+  empresaDateIdx: index("production_batches_empresa_date_idx").on(table.empresaId, table.productionDate),
+}));
+
+export const productionBatchItems = pgTable("production_batch_items", {
+  id: serial("id").primaryKey(),
+  batchId: integer("batch_id").references(() => productionBatches.id, { onDelete: "cascade" }).notNull(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  productName: text("product_name").notNull(),
+  category: text("category"),
+  unit: text("unit").notNull().default("un"),
+  totalQuantity: numeric("total_quantity", { precision: 10, scale: 3 }).notNull(),
+  checkedQuantity: numeric("checked_quantity", { precision: 10, scale: 3 }).default("0").notNull(),
+  // JSON array: [{orderId, orderCode, companyId, companyName, quantity}]
+  orderBreakdown: jsonb("order_breakdown").default([]).notNull(),
+  // JSON array: [{routeId, routeName, quantity, companies: [{companyId, companyName, quantity}]}]
+  routeBreakdown: jsonb("route_breakdown").default([]).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  batchIdx: index("production_batch_items_batch_idx").on(table.batchId),
+}));
+
+export const insertProductionBatchSchema = createInsertSchema(productionBatches).omit({ id: true, createdAt: true, updatedAt: true });
+export const insertProductionBatchItemSchema = createInsertSchema(productionBatchItems).omit({ id: true, createdAt: true });
+export type ProductionBatch = typeof productionBatches.$inferSelect;
+export type ProductionBatchItem = typeof productionBatchItems.$inferSelect;
+export type InsertProductionBatch = z.infer<typeof insertProductionBatchSchema>;
+export type InsertProductionBatchItem = z.infer<typeof insertProductionBatchItemSchema>;
+
 // ─── Insert Schemas ───────────────────────────────────────────
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
 export const insertPriceGroupSchema = createInsertSchema(priceGroups).omit({ id: true });
@@ -2147,6 +2189,8 @@ export function validateSchemaIntegrity(): void {
     logisticsMaintenance,
     companyQuotations,
     companyCertificates,
+    productionBatches,
+    productionBatchItems,
     systemLogs,
     eventStore,
     eventRiskSnapshots,

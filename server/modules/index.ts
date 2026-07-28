@@ -13,6 +13,7 @@ import {
   productsAdminDefinition as productsAdminModule,
 } from "./products";
 import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
+import { definition as productionModule } from "./production";
 
 /**
  * Central module loader.
@@ -55,6 +56,7 @@ const MODULES: readonly ModuleDefinition[] = [
   ordersModule,
   productsModule,
   usersModule,
+  productionModule,
   // 🔜 Append future modules here:
   // salesModule, purchasesModule,
   // reportsModule, aiModule,

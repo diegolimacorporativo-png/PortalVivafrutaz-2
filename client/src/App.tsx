@@ -101,6 +101,7 @@ import InsertNfManual from "@/pages/admin/insert-nf-manual";
 import AdminBanco from "@/pages/admin/banco";
 import AdminAiDeveloper from "@/pages/admin/ai-developer";
 import AdminLogisticsIntelligence from "@/pages/admin/logistics-intelligence";
+import AdminProduction from "@/pages/admin/production";
 import AdminDriverPanel from "@/pages/admin/driver-panel";
 import TrackDelivery from "@/pages/track";
 import DriverMap from "@/pages/driver-map";
@@ -397,6 +398,9 @@ function Router() {
       </Route>
       <Route path="/admin/internal-incidents">
         {() => <ProtectedRoute component={AdminInternalIncidents} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS']} tabKey="internal-incidents" />}
+      </Route>
+      <Route path="/admin/production">
+        {() => <ProtectedRoute component={AdminProduction} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="production" />}
       </Route>
       <Route path="/admin/logistics">
         {() => <ProtectedRoute component={AdminLogistics} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS']} tabKey="logistics" />}
