@@ -87,7 +87,7 @@
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "leaflet": "^1.9.4",
-    "libxmljs2": "^0.35.0",
+    "libxmljs2": "^0.37.0",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "multer": "^2.1.1",
@@ -155,7 +155,11 @@
   "overrides": {
     "drizzle-kit": {
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
-    }
+    },
+    "tar": "^7.0.0",
+    "shell-quote": "^1.8.2",
+    "semver": "^7.6.0",
+    "got": "^12.6.1"
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"

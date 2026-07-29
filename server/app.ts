@@ -102,7 +102,10 @@ export async function buildApp(): Promise<BuildAppResult> {
 
   app.use((req, res, next) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
-    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    // Allow Replit preview iframe in dev; restrict to self in production
+    if (process.env.NODE_ENV === "production") {
+      res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    }
     res.setHeader("X-XSS-Protection", "1; mode=block");
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     // HSTS — tell browsers to use HTTPS only for 1 year.
@@ -124,7 +127,9 @@ export async function buildApp(): Promise<BuildAppResult> {
         "img-src 'self' data: blob:",
         "connect-src 'self' wss: ws:",
         "object-src 'none'",
-        "frame-ancestors 'self'",
+        process.env.NODE_ENV === "production"
+          ? "frame-ancestors 'self'"
+          : "frame-ancestors 'self' https://*.replit.dev https://*.repl.co",
         "base-uri 'self'",
         "form-action 'self'",
       ].join("; "),
