@@ -12,7 +12,12 @@ export function useCompanies() {
     queryFn: async () => {
       const res = await fetchWithAuth(api.companies.list.path);
       if (!res.ok) throw new Error("Failed to fetch companies");
-      return api.companies.list.responses[200].parse(normalizeList(await res.json()));
+      const raw = await res.json();
+      console.log("[COMPANIES_API]", raw);
+      const normalized = normalizeList(raw);
+      const parsed = api.companies.list.responses[200].parse(normalized);
+      console.log("[COMPANIES_HOOK_RESULT]", parsed, Array.isArray(parsed), typeof parsed);
+      return parsed;
     },
     staleTime: 30_000,
     refetchOnMount: "always",
