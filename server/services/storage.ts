@@ -1098,6 +1098,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order> {
+    // [DIAG-6] Repository — before INSERT
+    console.log("[ORDER_CREATE][6_REPO_INSERT] before tx.insert(orders)", {
+      companyId: order.companyId,
+      deliveryDate: order.deliveryDate,
+      totalValue: order.totalValue,
+      status: (order as any).status,
+      itemCount: items.length,
+      itemProductIds: items.map((i) => (i as any).productId),
+    });
+    try {
     return await db.transaction(async (tx) => {
       // Insert order first to get the ID
       const [newOrder] = await tx.insert(orders).values({
@@ -1129,6 +1139,32 @@ export class DatabaseStorage implements IStorage {
       if (result?.companyId) invalidateUsageCache(result.companyId);
       return result;
     });
+    } catch (err: any) {
+      // [DIAG-6] Decode PostgreSQL errors for diagnostic visibility
+      const pgCode: string | undefined = err?.code;
+      if (pgCode === "23502") {
+        console.error("[ORDER_CREATE][SQL_ERROR_NOT_NULL]", {
+          pgCode, column: err.column, table: err.table, detail: err.detail, message: err.message,
+        });
+      } else if (pgCode === "23503") {
+        console.error("[ORDER_CREATE][SQL_ERROR_FK_VIOLATION]", {
+          pgCode, constraint: err.constraint, table: err.table, detail: err.detail, message: err.message,
+        });
+      } else if (pgCode === "23505") {
+        console.error("[ORDER_CREATE][SQL_ERROR_UNIQUE_VIOLATION]", {
+          pgCode, constraint: err.constraint, table: err.table, detail: err.detail, message: err.message,
+        });
+      } else if (pgCode === "23514") {
+        console.error("[ORDER_CREATE][SQL_ERROR_CHECK_VIOLATION]", {
+          pgCode, constraint: err.constraint, table: err.table, detail: err.detail, message: err.message,
+        });
+      } else if (pgCode) {
+        console.error("[ORDER_CREATE][SQL_ERROR_PG]", {
+          pgCode, message: err.message, detail: err.detail,
+        });
+      }
+      throw err; // re-throw — no behavior change
+    }
   }
 
   async getOrderExceptions(): Promise<OrderException[]> {

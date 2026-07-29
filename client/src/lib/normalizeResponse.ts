@@ -88,6 +88,10 @@ export function normalizeError(response: unknown): NormalizedError {
       details: (env.error as any).details,
     };
   }
+  // Middleware shape — { error: "string message" } (e.g. subscription guards)
+  if (env.error && typeof env.error === "string") {
+    return { message: env.error };
+  }
   // Legacy shape — the body itself IS the error payload.
   const raw = response as Record<string, any>;
   return { message: raw.message, code: raw.code, details: raw };

@@ -75,13 +75,18 @@ export async function requireActiveSubscription(
     const { companyId, bypass } = await resolveCompanyId(req);
     if (bypass) return next();
     if (!companyId) {
+      console.warn("[ORDER_CREATE][BLOCKED_requireActiveSubscription] Não autenticado — sem companyId na sessão", {
+        path: req.path, sessionUserId: req.session?.userId, sessionCompanyId: req.session?.companyId,
+      });
       return res.status(401).json({ error: "Não autenticado" });
     }
     const assinatura = await storage.getAssinaturaByCompany(companyId);
     if (!assinatura) {
+      console.warn("[ORDER_CREATE][BLOCKED_requireActiveSubscription] Empresa sem assinatura", { companyId, path: req.path });
       return res.status(403).json({ error: "Empresa sem assinatura" });
     }
     if (INACTIVE_STATUSES.has(assinatura.status)) {
+      console.warn("[ORDER_CREATE][BLOCKED_requireActiveSubscription] Assinatura inativa", { companyId, status: assinatura.status, path: req.path });
       return res.status(403).json({
         error: "Assinatura inativa",
         status: assinatura.status,
@@ -173,6 +178,9 @@ export function checkPlanLimit(tipo: LimitTipo) {
       const max = limitMap[tipo];
 
       if (typeof max === "number" && max > 0 && used >= max) {
+        console.warn("[ORDER_CREATE][BLOCKED_checkPlanLimit] Limite de plano atingido", {
+          tipo, used, max, companyId, path: req.path,
+        });
         return res.status(403).json({
           error: `Limite de ${tipo} atingido`,
           uso: used,

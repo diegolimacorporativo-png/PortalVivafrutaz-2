@@ -29,6 +29,16 @@ export function errorHandler(
 
   // ── Zod validation error ────────────────────────────────────────────
   if (err instanceof ZodError) {
+    // [DIAG] Log Zod field-level errors so the exact failing field is visible
+    console.error(`[ORDER_CREATE][ZOD_ERROR] path=${req.path}`, {
+      issues: err.errors.map((e) => ({
+        field: e.path.join("."),
+        message: e.message,
+        code: e.code,
+        received: (e as any).received,
+        expected: (e as any).expected,
+      })),
+    });
     return res.status(400).json({
       success: false,
       error: {

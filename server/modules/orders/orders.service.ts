@@ -352,6 +352,17 @@ export class OrdersService {
   ): Promise<{ data: any; isTest: boolean; status: 201 }> {
     const { order, items } = body;
 
+    // [DIAG-5] Service reached
+    console.log("[ORDER_CREATE][5_SERVICE] service.create reached", {
+      actorUserId: actor.userId,
+      actorCompanyId: actor.companyId,
+      orderCompanyId: order?.companyId,
+      orderDeliveryDate: order?.deliveryDate,
+      orderTotalValue: order?.totalValue,
+      itemCount: items?.length,
+      itemProductIds: items?.map((i: any) => i.productId),
+    });
+
     // 1) maintenance-mode block (only client sessions)
     const maintenanceMode = await this.repo.getSetting("maintenance_mode");
     if (maintenanceMode === "true" && actor.companyId) {

@@ -112,9 +112,32 @@ router.get(
 // ── POSTs (literals BEFORE /:id) ───────────────────────────────────────
 router.post(
   "/",
+  // [DIAG-1] Log raw payload before any middleware runs
+  (req, _res, next) => {
+    console.log("[ORDER_CREATE][1_RAW_PAYLOAD]", {
+      endpoint: "POST /api/orders",
+      sessionUserId: (req as any).session?.userId,
+      sessionCompanyId: (req as any).session?.companyId,
+      body: JSON.stringify(req.body).slice(0, 3000),
+    });
+    next();
+  },
   requireActiveSubscription,
   checkPlanLimit("pedidos"),
+  // [DIAG-2] After subscription/plan guards — log validated passage
+  (req, _res, next) => {
+    console.log("[ORDER_CREATE][2_POST_SUBSCRIPTION] subscription + plan checks passed");
+    next();
+  },
   validate(createOrderBodySchema, "body"),
+  // [DIAG-3] After Zod validate — log parsed body
+  (req, _res, next) => {
+    console.log("[ORDER_CREATE][3_POST_VALIDATE] Zod validate passed", {
+      parsedOrderKeys: Object.keys((req.body as any)?.order ?? {}),
+      itemCount: ((req.body as any)?.items ?? []).length,
+    });
+    next();
+  },
   asyncHandler(ordersController.create),
 );
 
