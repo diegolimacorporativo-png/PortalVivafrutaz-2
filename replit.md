@@ -6,7 +6,7 @@
 - **Production:** `npm start`
 - **DB push:** `npm run db:push`
 - **Typecheck:** `npm run check`
-- **Required env vars:** `DATABASE_URL` (Replit Postgres, auto-set), optionally `SUPABASE_DATABASE_URL` for production external DB. Optional: `ITAU_CLIENT_ID`, `ITAU_CLIENT_SECRET`, `ITAU_AGENCIA`, `ITAU_CONTA`, `ITAU_AMBIENTE`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `BILLING_WEBHOOK_SECRET`
+- **Required env vars:** `SUPABASE_DATABASE_URL` (mandatory, set as Replit Secret), `SESSION_SECRET` (set as Replit Secret). Optional: `ITAU_CLIENT_ID`, `ITAU_CLIENT_SECRET`, `ITAU_AGENCIA`, `ITAU_CONTA`, `ITAU_AMBIENTE`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `OPENAI_API_KEY`, `GOOGLE_MAPS_API_KEY`
 
 ## Stack
 - **Runtime:** Node.js 20, TypeScript (tsx for dev, esbuild for prod)

@@ -49,6 +49,9 @@ expertMode = true
 [userenv]
 
 [userenv.shared]
-NFE_SEFAZ_MODE = "homologacao"
+NFE_SEFAZ_MODE = "mock"
 NODE_ENV = "development"
 ENABLE_NFE_IDEMPOTENCY_GUARD = "true"
+NFE_AMBIENTE = "2"
+NFE_UF = "SP"
+PORT = "5000"

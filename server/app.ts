@@ -51,6 +51,7 @@ export async function buildApp(): Promise<BuildAppResult> {
     /\.replit\.dev$/,
     /\.replit\.app$/,
     /^http:\/\/localhost(:\d+)?$/,
+    /^http:\/\/127\.0\.0\.1(:\d+)?$/,
   ];
 
   // F1-E4: Block invalid origins with 403 BEFORE cors() processes them.
