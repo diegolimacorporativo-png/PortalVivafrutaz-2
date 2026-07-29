@@ -1,0 +1,108 @@
+Faça uma auditoria técnica COMPLETA do sistema, sem alterar nenhuma regra de negócio. Quero uma análise profunda de toda a aplicação.
+
+Verifique e corrija automaticamente, quando for seguro:
+
+1. Rotas
+- Links quebrados
+- Rotas inexistentes
+- Redirecionamentos incorretos
+- Breadcrumbs
+- Menus
+- Navegação
+
+2. Código
+- Imports inválidos
+- Componentes órfãos
+- Arquivos não utilizados
+- Código duplicado
+- Código morto (dead code)
+- Funções nunca utilizadas
+- Variáveis não utilizadas
+
+3. React
+- Loops de renderização
+- Erros de estado
+- Problemas de useEffect
+- useMemo e useCallback desnecessários
+- Re-renderizações excessivas
+- Memory leaks
+
+4. TypeScript
+- Todos os erros de tipagem
+- Tipos any desnecessários
+- Tipagem incorreta
+- Interfaces duplicadas
+
+5. Build
+- Erros de compilação
+- Warnings
+- Dependências quebradas
+- Imports circulares
+
+6. Banco de Dados (Supabase)
+- Queries lentas
+- Consultas duplicadas
+- Erros de autenticação
+- Políticas RLS inconsistentes
+- Índices ausentes
+- Tabelas sem uso
+- Chamadas desnecessárias ao banco
+
+7. Performance
+- Componentes pesados
+- Lazy Loading
+- Bundle muito grande
+- Imagens não otimizadas
+- Carregamentos desnecessários
+
+8. Segurança
+- Rotas sem proteção
+- Permissões inconsistentes
+- Informações sensíveis expostas
+- Variáveis de ambiente
+- Validação de entrada
+- Possíveis vulnerabilidades
+
+9. Interface
+- Botões sem ação
+- Campos sem validação
+- Formulários quebrados
+- Modais com problemas
+- Tabelas que não carregam
+- Erros de responsividade
+- Problemas de acessibilidade
+
+10. Logs
+- Verifique o console inteiro.
+- Corrija todos os erros.
+- Corrija todos os warnings.
+
+11. Dependências
+- Pacotes desatualizados
+- Dependências não utilizadas
+- Dependências duplicadas
+- Possíveis conflitos de versões
+
+12. Teste automaticamente toda a aplicação
+- Navegue por todas as páginas.
+- Teste todos os menus.
+- Teste todos os botões.
+- Teste todos os formulários.
+- Teste autenticação.
+- Teste CRUDs.
+- Teste integrações com Supabase.
+- Identifique qualquer erro de execução.
+
+Ao final, gere um relatório contendo:
+- Problemas encontrados.
+- Correções realizadas.
+- Problemas que exigem intervenção manual.
+- Arquivos modificados.
+- Ganhos de performance obtidos.
+- Recomendações para deixar o sistema pronto para produção.
+
+Importante:
+- Não altere regras de negócio.
+- Não remova funcionalidades existentes.
+- Preserve o comportamento atual da aplicação.
+- Faça apenas correções técnicas, melhorias de qualidade, estabilidade, segurança e desempenho.

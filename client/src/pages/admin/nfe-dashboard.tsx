@@ -176,7 +176,7 @@ export default function NfeDashboardPage() {
     if (metricsQ.data && !loadedRef.current) {
       loadedRef.current = true;
       const m = metricsQ.data.metricas;
-      console.log("[NFE_UI_DASHBOARD_LOAD]", {
+      if (import.meta.env.DEV) console.log("[NFE_UI_DASHBOARD_LOAD]", {
         corrId: uid(),
         ts: new Date().toISOString(),
         total: m.total_emitidas,
@@ -215,12 +215,12 @@ export default function NfeDashboardPage() {
       alertas.push({ titulo: "NF-es com Erro", msg: `${m.total_erro} NF-e(s) em estado ERRO. Acesse Recovery para detalhes.`, nivel: "warn" });
     }
     if (alertas.length > 0) {
-      console.log("[NFE_UI_DASHBOARD_ALERT]", { corrId: uid(), alertas: alertas.map(a => a.titulo) });
+      if (import.meta.env.DEV) console.log("[NFE_UI_DASHBOARD_ALERT]", { corrId: uid(), alertas: alertas.map(a => a.titulo) });
     }
   }
 
   function handleRefresh() {
-    console.log("[NFE_UI_DASHBOARD_REFRESH]", { corrId: uid(), ts: new Date().toISOString() });
+    if (import.meta.env.DEV) console.log("[NFE_UI_DASHBOARD_REFRESH]", { corrId: uid(), ts: new Date().toISOString() });
     metricsQ.refetch();
     errorsQ.refetch();
     if (timelineOpen) timelineQ.refetch();
@@ -467,7 +467,7 @@ export default function NfeDashboardPage() {
               const next = !timelineOpen;
               setTimelineOpen(next);
               if (next) {
-                console.log("[NFE_UI_TIMELINE_OPEN]", { corrId: uid(), ts: new Date().toISOString() });
+                if (import.meta.env.DEV) console.log("[NFE_UI_TIMELINE_OPEN]", { corrId: uid(), ts: new Date().toISOString() });
                 timelineQ.refetch();
               }
             }}

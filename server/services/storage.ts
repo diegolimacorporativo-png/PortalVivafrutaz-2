@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import { db } from "../database/db";
 // Wave 1B — delegação do domínio Companies
 import { companiesRepository } from "../modules/companies/companies.repository";
-import { cache } from "./cache.js";
+import { cache } from "./cache";
 import { invalidateUsageCache } from "../modules/billing/usage-cache";
 import { logSecurity } from "../core/security/securityLogger";
 import {

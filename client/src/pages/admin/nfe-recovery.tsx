@@ -170,7 +170,7 @@ export default function NfeRecoveryPage() {
   useEffect(() => {
     if (data && !loadedRef.current) {
       loadedRef.current = true;
-      console.log("[NFE_UI_RECOVERY_LOAD]", {
+      if (import.meta.env.DEV) console.log("[NFE_UI_RECOVERY_LOAD]", {
         corrId: uid(),
         total: data.total,
         by_risco: data.by_risco,
@@ -189,7 +189,7 @@ export default function NfeRecoveryPage() {
       if (result?.retorno?.persistWarning) {
         console.error("[NFE_UI_REPROCESS_PERSIST_WARNING]", { corrId: uid(), nfe_id: nfeId, result });
       }
-      console.log("[NFE_UI_REPROCESS_SUCCESS]", {
+      if (import.meta.env.DEV) console.log("[NFE_UI_REPROCESS_SUCCESS]", {
         corrId: uid(), nfe_id: nfeId,
         status: result?.retorno?.status, cStat: result?.retorno?.cStat,
       });
@@ -215,7 +215,7 @@ export default function NfeRecoveryPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/nfe/recovery"] });
       setMarkErrorTarget(null);
       setMarkErrorMotivo("");
-      console.log("[NFE_UI_MARK_ERROR]", { corrId: uid(), nfe_id: nfeId });
+      if (import.meta.env.DEV) console.log("[NFE_UI_MARK_ERROR]", { corrId: uid(), nfe_id: nfeId });
       toast({ title: "NF-e Marcada como Erro", description: "Status atualizado. Dados preservados." });
     },
     onError: (err: any) => {
@@ -277,7 +277,7 @@ export default function NfeRecoveryPage() {
             variant="outline"
             size="sm"
             onClick={() => {
-              console.log("[NFE_UI_REFRESH]", { corrId: uid(), ts: new Date().toISOString() });
+              if (import.meta.env.DEV) console.log("[NFE_UI_REFRESH]", { corrId: uid(), ts: new Date().toISOString() });
               refetch();
             }}
             disabled={isFetching}
@@ -488,7 +488,7 @@ export default function NfeRecoveryPage() {
                               className="h-7 text-xs border-blue-300 text-blue-700 hover:bg-blue-50"
                               disabled={reprocessMutation.isPending}
                               onClick={() => {
-                                console.log("[NFE_UI_REPROCESS_CLICK]", { corrId: uid(), nfe_id: item.nfe_id, order_id: item.order_id });
+                                if (import.meta.env.DEV) console.log("[NFE_UI_REPROCESS_CLICK]", { corrId: uid(), nfe_id: item.nfe_id, order_id: item.order_id });
                                 setReprocessTarget(item);
                                 setReprocessResult(null);
                               }}
@@ -676,7 +676,7 @@ export default function NfeRecoveryPage() {
               disabled={!markErrorMotivo.trim() || markErrorMutation.isPending}
               onClick={() => {
                 if (!markErrorTarget || !markErrorMotivo.trim()) return;
-                console.log("[NFE_UI_MARK_ERROR]", { corrId: uid(), nfe_id: markErrorTarget.nfe_id, order_id: markErrorTarget.order_id });
+                if (import.meta.env.DEV) console.log("[NFE_UI_MARK_ERROR]", { corrId: uid(), nfe_id: markErrorTarget.nfe_id, order_id: markErrorTarget.order_id });
                 markErrorMutation.mutate({ nfeId: markErrorTarget.nfe_id, motivo: markErrorMotivo.trim() });
               }}
               data-testid="button-confirm-mark-error"

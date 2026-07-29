@@ -73,7 +73,7 @@ export async function buildApp(): Promise<BuildAppResult> {
 
   app.use(
     cors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         // sem origin (server-to-server, curl, mobile apps) — permitido
         if (!origin) return callback(null, true);
         const allowed = allowedOrigins.some((pattern) =>
