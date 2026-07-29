@@ -71,7 +71,7 @@ export class ErrorBoundary extends Component<Props, State> {
               </button>
               {isPage && (
                 <button
-                  onClick={() => { window.location.href = '/admin/dashboard'; }}
+                  onClick={() => { window.location.href = '/admin'; }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 border border-border text-foreground font-bold rounded-xl hover:bg-muted transition-colors text-sm"
                   data-testid="button-error-home"
                 >
