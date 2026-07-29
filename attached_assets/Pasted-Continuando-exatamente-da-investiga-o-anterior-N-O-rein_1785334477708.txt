@@ -1,0 +1,164 @@
+Continuando exatamente da investigação anterior.
+
+NÃO reinicie a auditoria.
+
+A causa raiz já foi encontrada.
+
+Logs capturados:
+
+POST /api/orders
+
+[ORDER_CREATE][1_RAW_PAYLOAD]
+sessionCompanyId: 7
+
+[ORDER_CREATE][BLOCKED_requireActiveSubscription]
+Empresa sem assinatura
+
+HTTP 403
+
+Conclusão:
+
+- O controller NÃO foi executado.
+- O service NÃO foi executado.
+- O repository NÃO foi executado.
+- Nenhum SQL foi executado.
+- O middleware requireActiveSubscription bloqueou corretamente.
+
+Agora execute apenas estas tarefas:
+
+──────────────────────────────
+1) Corrigir o frontend
+──────────────────────────────
+
+Ainda aparece:
+
+Failed to create order
+
+A API retorna:
+
+{
+  "error": "Empresa sem assinatura"
+}
+
+O frontend deve exibir exatamente:
+
+"Empresa sem assinatura"
+
+Localize o fluxo:
+
+fetchWithAuth
+normalizeError
+useCreateOrder
+toast
+
+e corrija definitivamente todos os caminhos para aceitar:
+
+error: "texto"
+
+error: { message: "texto" }
+
+message: "texto"
+
+details.message
+
+sem nunca voltar para "Failed to create order" quando existir uma mensagem da API.
+
+──────────────────────────────
+2) Verificar assinatura da empresa
+──────────────────────────────
+
+Localize a empresa:
+
+companyId = 7
+
+Verifique:
+
+- subscriptions
+- company_subscriptions
+- assinaturas
+- planos
+
+(ou qualquer tabela equivalente do projeto)
+
+Quero saber:
+
+- existe assinatura?
+- está ativa?
+- data inicial
+- data final
+- plano
+- status
+
+──────────────────────────────
+3) Se não existir assinatura
+──────────────────────────────
+
+Crie uma assinatura de teste totalmente válida para a empresa 7.
+
+Use o plano padrão do sistema.
+
+Status:
+
+ACTIVE
+
+Vigência:
+
+hoje até +1 ano.
+
+Não altere nenhuma regra de negócio.
+
+Não desabilite middleware.
+
+Não remova requireActiveSubscription.
+
+Quero apenas deixar a empresa apta para fazer pedidos.
+
+──────────────────────────────
+4) Validar
+──────────────────────────────
+
+Após criar a assinatura:
+
+Execute novamente:
+
+POST /api/orders
+
+Quero confirmar:
+
+✓ passou pelo middleware
+
+✓ entrou no controller
+
+✓ entrou no service
+
+✓ entrou no repository
+
+✓ INSERT executado
+
+✓ HTTP 201
+
+Se falhar em outra etapa, pare imediatamente e informe a nova causa raiz.
+
+──────────────────────────────
+5) Relatório final
+──────────────────────────────
+
+Mostre:
+
+- tabela onde a assinatura foi criada
+- SQL executado
+- companyId
+- subscriptionId
+- status
+- plano
+- data de expiração
+
+Depois mostre o resultado da nova tentativa de criação do pedido.
+
+NÃO faça novas auditorias.
+
+NÃO faça refatorações.
+
+NÃO altere arquitetura.
+
+Corrija apenas esse fluxo até o pedido ser criado com sucesso.
