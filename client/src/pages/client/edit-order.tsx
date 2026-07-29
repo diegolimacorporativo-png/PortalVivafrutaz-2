@@ -7,10 +7,27 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Redirect } from "wouter";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lock } from "lucide-react";
+import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lock, Ban } from "lucide-react";
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { api } from "@shared/routes";
 import { resolvePrice } from "@/utils/priceResolver";
+
+/* ── Prazo operacional ──────────────────────────────────────── */
+function prevBusinessDayEO(date: Date): Date {
+  const d = new Date(date);
+  do {
+    d.setUTCDate(d.getUTCDate() - 1);
+  } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d;
+}
+function calcDeadlineEO(deliveryDate: Date | string) {
+  const delivery = new Date(deliveryDate);
+  const step1 = prevBusinessDayEO(delivery);
+  const deadlineDay = prevBusinessDayEO(step1);
+  const deadline = new Date(deadlineDay);
+  deadline.setUTCHours(15, 0, 0, 0); // 12:00 BRT = 15:00 UTC
+  return { canModify: new Date() <= deadline };
+}
 
 function fmtBRL(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -121,6 +138,10 @@ export default function EditOrderPage() {
 
   const order = orderDetail?.order;
 
+  // Prazo operacional expirado: bloqueia edição mesmo que o admin tenha aprovado a reabertura.
+  const deadlineExpiredForEdit =
+    order?.deliveryDate ? !calcDeadlineEO(order.deliveryDate).canModify : false;
+
   return (
     <Layout>
       <div className="max-w-5xl mx-auto">
@@ -137,9 +158,24 @@ export default function EditOrderPage() {
           )}
         </div>
 
+        {deadlineExpiredForEdit && (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-6 flex items-start gap-4">
+            <Ban className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-red-700 text-base mb-1">Prazo operacional expirado</p>
+              <p className="text-sm text-red-600">
+                Este pedido foi reaberto, porém o prazo operacional para alterações já expirou.
+              </p>
+              <p className="text-sm text-red-600 mt-2">
+                Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 12h00 do último dia útil permitido antes da entrega.
+              </p>
+            </div>
+          </div>
+        )}
+
         {orderLoading || !initialized ? (
           <div className="text-center py-16 text-muted-foreground animate-pulse">Carregando pedido...</div>
-        ) : (
+        ) : deadlineExpiredForEdit ? null : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Product list */}
             <div className="lg:col-span-2">

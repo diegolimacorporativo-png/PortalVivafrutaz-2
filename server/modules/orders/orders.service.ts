@@ -9,6 +9,7 @@ import {
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { currentTenantId } from "../../core/tenant/context";
+import { calculateOrderModificationDeadline } from "../../utils/orderDeadline";
 // FASE 9D — safe async observability for afterCreate
 import { logSecurity } from "../../core/security/securityLogger";
 import { auditLog } from "../../utils/auditLogger";
@@ -1397,6 +1398,10 @@ export class OrdersService {
         "Pedido já entrou em separação e não pode mais ser editado.",
       );
     }
+    // Prazo operacional: bloqueia solicitação de alteração após 12:00 BRT
+    // do penúltimo dia útil antes da entrega.
+    await this.assertOperationalDeadline(id, "reopen-request", actor);
+
     // FASE NF.7.9.10 — bloqueio de reabertura em mês fechado.
     // Reaproveita assertPeriodOpen (mesmo helper de update/remove/replace-items).
     // Em mês fechado: log [SECURITY] PERIODO_FECHADO + 403 ForbiddenError.
@@ -1515,6 +1520,15 @@ export class OrdersService {
     if ((data.order as any).status !== "OPEN_FOR_EDITING") {
       throw new BadRequestError("Pedido não está em modo de edição.");
     }
+    // Prazo operacional: mesmo que o pedido tenha sido reaberto pelo admin,
+    // bloqueia edição se o prazo operacional já expirou.
+    await this.assertOperationalDeadline(
+      id,
+      "finalize-edit",
+      actor,
+      "Este pedido foi reaberto, porém o prazo operacional para alterações já expirou.",
+    );
+
     if (Array.isArray(items) && items.length > 0) {
       await this.repo.updateItems(id, items as any);
     }
@@ -2210,6 +2224,58 @@ export class OrdersService {
    * Se o pedido não existir, segue normal (NotFoundError será emitido
    * mais à frente pelo repo, mantendo o fluxo de erro preexistente).
    */
+  /**
+   * Verifica o prazo operacional para alteração de pedido.
+   * Bloqueia se agora > deadline (2 dias úteis antes da entrega, às 12:00 BRT).
+   * Registra auditoria em log em toda tentativa (permitida ou bloqueada).
+   *
+   * @param expiredMessage - mensagem customizada para quando o prazo já expirou.
+   *   Se omitida, usa a mensagem padrão ao cliente.
+   */
+  private async assertOperationalDeadline(
+    orderId: number,
+    source: string,
+    actor: ActorContext,
+    expiredMessage?: string,
+  ): Promise<void> {
+    const data = await this.repo.get(orderId);
+    if (!data) return; // not-found será emitido pelo chamador
+
+    const order = data.order as any;
+    if (!order.deliveryDate) return; // sem data de entrega — sem prazo calculável
+
+    const now = new Date();
+    const { deadline, canModify } = calculateOrderModificationDeadline(order.deliveryDate);
+
+    // Auditoria mandatória: pedido, empresa, usuário, tentativa, deadline, atual, permitido, motivo
+    await this.repo.createLog({
+      action: 'ORDER_MODIFICATION_DEADLINE_CHECK',
+      description: JSON.stringify({
+        orderId,
+        orderCode: order.orderCode ?? null,
+        companyId: order.companyId ?? actor.companyId ?? null,
+        userId: actor.userId ?? null,
+        source,
+        attemptedAt: now.toISOString(),
+        deadlineCalculated: deadline.toISOString(),
+        currentTime: now.toISOString(),
+        allowed: canModify,
+        blockedReason: canModify ? null : 'PRAZO_OPERACIONAL_EXPIRADO',
+      }),
+      companyId: order.companyId ?? actor.companyId,
+      userId: actor.userId,
+      userRole: 'CLIENT',
+      level: canModify ? 'INFO' : 'WARN',
+    });
+
+    if (!canModify) {
+      throw new ForbiddenError(
+        expiredMessage ??
+          'O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado. Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 12h00 do último dia útil permitido antes da entrega. Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial.',
+      );
+    }
+  }
+
   private async assertPeriodOpen(orderId: number, source: string): Promise<void> {
     const data = await this.repo.get(orderId);
     if (!data) return;

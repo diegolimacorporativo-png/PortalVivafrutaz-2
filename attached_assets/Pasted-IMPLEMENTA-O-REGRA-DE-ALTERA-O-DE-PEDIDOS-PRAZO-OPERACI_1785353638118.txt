@@ -1,0 +1,157 @@
+IMPLEMENTAÇÃO – REGRA DE ALTERAÇÃO DE PEDIDOS (PRAZO OPERACIONAL)
+CONTEXTO
+
+Atualmente o sistema permite que o cliente solicite reabertura do pedido para edição.
+
+Precisamos alterar a regra de negócio.
+
+NÃO alterar layout da tela.
+NÃO remover funcionalidades existentes.
+Apenas alterar as regras.
+
+NOVA REGRA
+
+Um pedido somente poderá ser:
+
+solicitado para alteração;
+reaberto;
+editado;
+cancelado;
+
+até às 12:00 (meio-dia) do último dia útil anterior ao prazo operacional.
+
+A regra deve considerar apenas dias úteis (segunda a sexta).
+
+Ignorar sábados e domingos.
+
+EXEMPLOS
+Entrega Segunda-feira
+
+Prazo final:
+
+Quinta-feira anterior às 12:00
+
+Depois desse horário:
+
+❌ Não pode alterar
+
+Entrega Terça-feira
+
+Prazo final:
+
+Sexta-feira anterior às 12:00
+
+Entrega Quarta-feira
+
+Prazo final:
+
+Segunda-feira às 12:00
+
+Entrega Quinta-feira
+
+Prazo final:
+
+Terça-feira às 12:00
+
+Entrega Sexta-feira
+
+Prazo final:
+
+Quarta-feira às 12:00
+
+IMPORTANTE
+
+Sempre calcular automaticamente.
+
+Nunca deixar datas fixas.
+
+O algoritmo deve considerar:
+
+data de entrega
+dia da semana
+voltar somente dias úteis
+horário limite = 12:00
+
+Criar uma função única, por exemplo:
+
+calculateOrderModificationDeadline(deliveryDate)
+
+que retorna:
+
+deadline
+canModify
+reason
+QUANDO O CLIENTE CLICAR EM
+Alterar Pedido
+Solicitar Alteração
+Reabrir Pedido
+Cancelar Pedido
+
+o sistema deve verificar primeiro:
+
+Agora <= deadline ?
+
+Se SIM
+
+continuar normalmente.
+
+Se NÃO
+
+bloquear totalmente.
+
+MENSAGEM AO CLIENTE
+
+Título:
+
+Prazo para alteração expirado
+
+Mensagem:
+
+"O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado.
+
+Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 12h00 do último dia útil permitido antes da entrega.
+
+Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial."
+
+Botão:
+
+Fechar
+
+Não enviar nenhuma solicitação para aprovação do administrador.
+
+REABERTURA PELO ADMINISTRADOR
+
+Mesmo que um administrador aprove a reabertura,
+
+o sistema deve verificar novamente o prazo.
+
+Se estiver fora do prazo operacional:
+
+não permitir edição.
+
+Mostrar:
+
+"Este pedido foi reaberto, porém o prazo operacional para alterações já expirou."
+
+Assim evitamos que uma aprovação administrativa permita alterações fora da operação logística.
+
+AUDITORIA
+
+Registrar em log:
+
+pedido
+empresa
+usuário
+data da tentativa
+deadline calculado
+data atual
+permitido (true/false)
+motivo do bloqueio
+NÃO ALTERAR
+fluxo de aprovação
+histórico
+notificações
+banco
+telas
+
+Alterar apenas a regra de elegibilidade para alteração do pedido.
