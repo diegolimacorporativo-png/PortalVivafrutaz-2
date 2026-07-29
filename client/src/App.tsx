@@ -369,6 +369,9 @@ function Router() {
       <Route path="/admin/security">
         {() => <ProtectedRoute component={SecurityDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN']} tabKey="security" />}
       </Route>
+      <Route path="/admin/security-dashboard">
+        {() => <ProtectedRoute component={SecurityDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN']} tabKey="security" />}
+      </Route>
       <Route path="/admin/security-audit">
         {() => <ProtectedRoute component={AdminSecurityAudit} role="admin" allowedRoles={['MASTER']} tabKey="security-audit" />}
       </Route>

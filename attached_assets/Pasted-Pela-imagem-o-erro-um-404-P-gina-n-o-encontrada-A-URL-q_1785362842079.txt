@@ -1,0 +1,84 @@
+Pela imagem, o erro é um 404 (Página não encontrada). A URL que está falhando é:
+
+/admin/security-dashboard
+
+Isso normalmente acontece por um destes motivos:
+	•	A rota existe no menu, mas não foi criada.
+	•	O arquivo da página foi movido ou renomeado.
+	•	O React Router/Next Router não está registrando essa rota.
+	•	Algum botão ou menu está apontando para uma URL antiga.
+
+Você pode enviar este prompt para o Replit AI:
+
+PROMPT PARA O REPLIT
+
+Quero que você faça uma auditoria completa das rotas do meu projeto e corrija todos os erros de navegação.
+
+Problema encontrado:
+	•	Algumas páginas retornam “Página não encontrada (404)”.
+	•	Exemplo: /admin/security-dashboard.
+
+Tarefas:
+	1.	Faça um scan completo em todas as rotas da aplicação.
+	2.	Localize todos os links, botões, menus e redirecionamentos que apontam para páginas inexistentes.
+	3.	Compare:
+
+	•	Arquivos existentes.
+	•	Rotas registradas.
+	•	Links utilizados na aplicação.
+
+	4.	Caso exista alguma rota apontando para um caminho incorreto:
+
+	•	Corrija automaticamente.
+
+	5.	Caso a página exista mas não esteja registrada:
+
+	•	Registre a rota corretamente.
+
+	6.	Caso a página tenha sido renomeada:
+
+	•	Atualize todos os imports e links.
+
+	7.	Caso a página realmente não exista:
+
+	•	Remova a navegação para ela ou crie uma página funcional temporária.
+
+	8.	Verifique também:
+
+	•	React Router
+	•	BrowserRouter
+	•	Routes
+	•	Route
+	•	Navigate
+	•	Lazy imports
+	•	Protected Routes
+	•	Admin Routes
+
+	9.	Faça uma busca por todo o projeto procurando por:
+
+security-dashboard
+
+e corrija qualquer referência quebrada.
+	10.	Gere um relatório mostrando:
+
+	•	Rotas existentes.
+	•	Rotas inexistentes.
+	•	Links quebrados.
+	•	Arquivos órfãos.
+	•	Imports inválidos.
+	•	Redirecionamentos incorretos.
+
+	11.	Após corrigir tudo, execute uma validação automática navegando por todas as páginas do sistema para garantir que nenhuma rota retorna erro 404.
+	12.	Se houver qualquer erro de compilação relacionado às rotas, corrija automaticamente.
+
+Objetivo final:
+Nenhum menu, botão ou link do sistema deve abrir uma página inexistente.
+
+Se esse problema aparece apenas às vezes, e não sempre, pode ser algo ainda mais específico, como:
+	•	cache antigo do navegador;
+	•	deploy incompleto;
+	•	rota protegida redirecionando incorretamente;
+	•	carregamento assíncrono (lazy loading) falhando;
+	•	conflito entre o Replit e o React Router.
+
+Nesse caso, vale pedir ao Replit também para verificar esses pontos. Isso costuma resolver os erros intermitentes que aparecem somente em algumas navegações.
