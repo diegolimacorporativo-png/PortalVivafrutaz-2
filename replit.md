@@ -1,56 +1,56 @@
-# VivaFrutaz — Corporate fruit ordering platform (ERP) with orders, invoicing, logistics, billing, and analytics.
+# VivafrutaZ ERP + Clara IA
 
-## Run & Operate
-- **Dev:** `npm run dev` (starts Express + Vite on port 5000)
-- **Build:** `npm run build`
-- **Production:** `npm start`
-- **DB push:** `npm run db:push`
-- **Typecheck:** `npm run check`
-- **Required env vars:** `SUPABASE_DATABASE_URL` (mandatory, set as Replit Secret), `SESSION_SECRET` (set as Replit Secret). Optional: `ITAU_CLIENT_ID`, `ITAU_CLIENT_SECRET`, `ITAU_AGENCIA`, `ITAU_CONTA`, `ITAU_AMBIENTE`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`, `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `OPENAI_API_KEY`, `GOOGLE_MAPS_API_KEY`
+Sistema completo de gestão empresarial para fruticulturas com assistente de IA integrada (Clara IA).
 
 ## Stack
-- **Runtime:** Node.js 20, TypeScript (tsx for dev, esbuild for prod)
-- **Backend:** Express v5
-- **Frontend:** React 18 + Vite 7 + TailwindCSS v3 + shadcn/ui (Radix)
-- **ORM:** Drizzle ORM + drizzle-kit (PostgreSQL)
-- **Validation:** Zod
-- **Auth:** Custom session-based (express-session + connect-pg-simple + bcryptjs)
-- **Routing (client):** Wouter
-- **State:** TanStack Query v5
 
-## Where things live
-- `server/` — Express backend
-- `client/src/` — React frontend
-- `shared/schema.ts` — Drizzle schema (source of truth for DB)
-- `server/modules/` — Domain modules (auth, orders, billing, fiscal, logistics, inventory, finance)
-- `server/core/` — Security, session, errors, events
-- `server/routes/routes.ts` — Route registration
-- `vite.config.ts` — Vite config
+- **Backend**: Node.js 20 + TypeScript + Express 5
+- **Frontend**: React + Vite + Tailwind CSS + shadcn/ui
+- **Database**: PostgreSQL 17 via Supabase (Drizzle ORM)
+- **Auth**: Passport.js (local strategy) + express-session
 
-## Architecture decisions
-- Dev server runs Vite in middleware mode inside the same Express process (no separate port)
-- Sessions stored in PostgreSQL via connect-pg-simple; tokenVersion in DB enables global logout
-- Production DB requires `SUPABASE_DATABASE_URL`; dev uses Replit's `DATABASE_URL`
-- Module system: v1/v2 API versioning with `registerModules`, `registerV1Modules`, `registerV2Modules`
-- Background workers (outbox, auto-dispatch, billing cron, faturamento, analytics, alerts) start on server boot
-- **API 404 guard placement**: `vite.middlewares` (Connect server) swallows ALL unmatched requests — Express middleware registered after `registerRoutes()` in `buildApp()` is never reached for unmatched routes. Guard must live in `server/vite.ts` **before** `app.use(vite.middlewares)` (dev) and inside the `/{*path}` handler in `server/static.ts` (prod).
+## Como Rodar
 
-## Product
-- Multi-tenant ERP for fruit distribution companies
-- Customer portal (Portal do Cliente) + internal team access (Acesso da Equipe)
-- Orders, NF-e fiscal invoicing, logistics dispatch, inventory, billing/subscriptions, financial reports
-- AI assistant (Clara), push notifications, email alerts, PDF/XLSX export
+```bash
+npm run dev
+```
 
-## User preferences
-_Populate as you build_
+Acesse em: `https://<repl>.replit.dev` (porta 5000)
 
-## Gotchas
-- `tsx` is installed locally — use `tsx` directly (not `npx tsx`) in scripts
-- Production mode enforces `SUPABASE_DATABASE_URL` — will throw on startup without it; use Replit's `DATABASE_URL` for dev
-- SMTP config is loaded from DB first, env vars as fallback
-- VAPID keys missing = push notifications silently disabled (logged at startup)
+## Secrets Obrigatórios
 
-## Pointers
-- DB schema: `shared/schema.ts`
-- Auth flow: `server/modules/auth/`
-- Session config: `server/core/http/session.ts`
+| Secret | Descrição |
+|--------|-----------|
+| `SUPABASE_DATABASE_URL` | URL de conexão Supabase (obrigatório — sem ele o servidor não inicia) |
+| `SESSION_SECRET` | Chave de sessão |
+
+## Secrets Opcionais
+
+| Secret | Descrição |
+|--------|-----------|
+| `OPENAI_API_KEY` | Habilita Clara IA (assistente de chat) |
+| `ITAU_CLIENT_ID` / `ITAU_CLIENT_SECRET` | Integração bancária Itaú |
+| `NFE_CERT_BASE64` / `NFE_CERT_PASSWORD` | Certificado digital A1 para NF-e (modo padrão: `mock`) |
+| `GOOGLE_MAPS_API_KEY` | Mapas na logística |
+
+## Database Connection (verificado 2026-07-29)
+
+- PostgreSQL 17.6 (Supabase — `aws-1-us-east-1`)
+- Database: `postgres`
+- Tabelas: 106  |  Usuários: 6  |  Empresas: 7  |  Pedidos: 21
+
+## Módulos Principais
+
+- `/api/v1/auth` — autenticação
+- `/api/v1/orders` / `/api/v2/orders` — pedidos
+- `/api/v1/companies` — empresas/clientes
+- `/api/v1/inventory` — estoque
+- `/api/v1/fiscal` — NF-e / SEFAZ (modo mock por padrão)
+- `/api/v1/logistics` — logística / despacho
+- `/api/v1/finance` — financeiro / boletos
+- `/api/v1/products` — produtos / categorias
+
+## User Preferences
+
+- Sempre usar `SUPABASE_DATABASE_URL` como fonte da conexão PostgreSQL — nunca criar um novo banco Replit.
+- Não resetar, migrar ou re-semear o banco de dados em produção sem confirmação explícita.
