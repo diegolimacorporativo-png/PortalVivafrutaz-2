@@ -1,0 +1,279 @@
+CONTINUAR INVESTIGAÇÃO DO ERP VIVAFRUTAZ (NÃO REFAÇA O QUE JÁ FOI FEITO)
+
+Leia todo o projeto antes de alterar qualquer arquivo.
+
+Contexto
+
+Projeto React + Express + Drizzle + PostgreSQL (Supabase).
+
+Banco já conectado e confirmado:
+
+PostgreSQL 17
+Supabase
+106 tabelas
+Banco correto da aplicação
+
+A conexão NÃO é mais o problema.
+
+O que JÁ foi corrigido (NÃO ALTERAR)
+✅ Empresa
+
+Foi corrigido:
+
+client/src/hooks/use-admin.ts
+
+de
+
+errorBody?.error
+
+para
+
+errorBody?.error?.message
+
+Também foi corrigido:
+
+CompanyModal.tsx
+
+de
+
+fetch("https://nominatim.openstreetmap.org/...")
+
+para
+
+fetch("/api/geocode?...")
+
+
+Esses bugs estão resolvidos.
+
+✅ Update Company
+
+Foi corrigido:
+
+server/modules/companies/companies.validation.ts
+
+Criado coercion para campos numeric:
+
+adminFee
+latitude
+longitude
+manualAvgCost
+minWeeklyBilling
+
+Aceitando number|string|null.
+
+Não mexer nisso.
+
+✅ Produção
+
+Módulo Production completo.
+
+Não alterar.
+
+✅ Delivery Stop Status
+
+Endpoints implementados.
+
+Não alterar.
+
+✅ Subscription
+
+Foi criada assinatura para empresa 7.
+
+Tabela:
+
+assinaturas
+
+status:
+
+ativa
+
+Middleware requireActiveSubscription agora passa.
+
+Problema atual
+
+Cliente consegue:
+
+login
+navegar
+montar carrinho
+
+MAS
+
+Ao clicar
+
+Finalizar Pedido
+
+o frontend mostra
+
+Failed to create order
+O que já foi descoberto
+
+Os logs mostraram anteriormente:
+
+POST /api/orders
+
+passava pelo middleware
+
+e era bloqueado por
+
+Empresa sem assinatura
+
+Isso foi resolvido criando a assinatura.
+
+Agora esse erro mudou.
+
+O que NÃO quero
+
+Não quero alterar dezenas de arquivos.
+
+Não quero refatoração.
+
+Não quero melhorar arquitetura.
+
+Quero descobrir exatamente por que o pedido ainda não é criado.
+
+Faça investigação completa
+
+Adicionar logs somente se necessário.
+
+Quero descobrir exatamente onde a requisição para.
+
+Verificar nesta ordem:
+
+1
+
+A requisição chega em
+
+POST /api/orders
+
+?
+
+Mostrar o payload recebido.
+
+2
+
+Passa pelo middleware?
+
+requireActiveSubscription
+checkPlanLimit
+3
+
+Passa pelo
+
+validateRequest()
+
+Se não,
+
+mostrar exatamente
+
+qual campo falhou
+
+e o erro do Zod.
+
+4
+
+Controller
+
+Entrou?
+
+Mostrar:
+
+companyId
+
+userId
+
+items
+
+deliveryDate
+
+5
+
+Service
+
+Entrou?
+
+Mostrar:
+
+order
+
+items
+
+6
+
+Repository
+
+Entrou?
+
+Mostrar exatamente:
+
+INSERT orders
+
+
+antes do execute.
+
+7
+
+Caso seja erro SQL
+
+mostrar
+
+SQLSTATE
+
+constraint
+
+detail
+
+column
+
+message
+
+sem esconder nada.
+
+8
+
+Caso seja erro Drizzle
+
+mostrar stack completa.
+
+9
+
+Caso o frontend ainda mostre
+
+Failed to create order
+
+identificar exatamente
+
+qual arquivo cria essa string.
+
+Quero:
+
+arquivo
+
+linha
+
+função
+
+stack completa.
+
+Muito importante
+
+NÃO suponha nada.
+
+NÃO diga "provavelmente".
+
+NÃO diga "deve ser".
+
+Quero descobrir exatamente onde o fluxo quebra.
+
+Só depois proponha a correção.
+
+Antes de modificar qualquer arquivo, apresente:
+
+causa raiz
+arquivo
+linha
+exceção completa
+impacto
+diff mínimo necessário
+
+Somente depois aplique a correção.
