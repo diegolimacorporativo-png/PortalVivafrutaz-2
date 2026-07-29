@@ -214,7 +214,25 @@ export function useCreateOrder() {
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         const err = normalizeError(body);
-        throw new Error(err.message || "Failed to create order");
+        // Explicit fallback chain (handles all API response shapes):
+        //   1. Standard envelope: { success:false, error:{ message } }
+        //   2. Middleware shape:  { error: "string" }  ← subscription guards return this
+        //   3. Legacy shape:      { message: "string" }
+        //   4. Any error property regardless of envelope
+        const message =
+          err.message ||
+          (body !== null && typeof body === "object" && typeof (body as any).error === "string"
+            ? (body as any).error
+            : undefined) ||
+          (body !== null && typeof body === "object" ? (body as any).message : undefined) ||
+          `Erro ${res.status} ao enviar pedido`;
+        console.error("[CREATE_ORDER_ERROR]", {
+          status: res.status,
+          rawBody: body,
+          normalizedErr: err,
+          finalMessage: message,
+        });
+        throw new Error(message);
       }
       return normalizeOne<any>(body) ?? body;
     },
@@ -222,8 +240,8 @@ export function useCreateOrder() {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
       queryClient.invalidateQueries({ queryKey: [api.orders.companyOrders.path] });
     },
-    onError: () => {
-      toast({ title: "Erro ao enviar pedido", variant: "destructive" });
+    onError: (error: Error) => {
+      toast({ title: error.message || "Erro ao enviar pedido", variant: "destructive" });
     }
   });
 }
