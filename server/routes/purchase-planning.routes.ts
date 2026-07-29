@@ -120,9 +120,9 @@ export function register(app: Express) {
         }
       }
 
-      // Approved special order items
+      // Approved special order items — scoped to current tenant via requireTenant guard
       if (!sourceFilter || sourceFilter === 'all' || sourceFilter === 'special') {
-        const allSpecial = await storage.getSpecialOrderRequests();
+        const allSpecial = await storage.getSpecialOrderRequestsByCompany(req.empresaId);
         const approvedSpecial = allSpecial.filter(s => s.status === 'APPROVED');
         for (const sr of approvedSpecial) {
           const srItems: any[] = Array.isArray((sr as any).items) ? (sr as any).items : [];

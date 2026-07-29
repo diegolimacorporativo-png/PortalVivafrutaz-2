@@ -1,0 +1,136 @@
+FASE S2.1 — CORREÇÃO DO VAZAMENTO MULTI-TENANT (PURCHASE PLANNING)
+
+A auditoria anterior foi concluída.
+
+Ela confirmou que existem 2 endpoints com vazamento real entre tenants.
+
+NÃO refatore o projeto inteiro.
+Corrija somente o necessário.
+CONTEXTO
+
+Foi confirmado que:
+
+storage.getOrders()
+
+possui comportamento:
+
+const empresa = empresaId ?? currentTenantId();
+
+if (empresa != null)
+    where(companyId = empresa)
+
+senão
+
+retorna TODOS os pedidos.
+
+Os endpoints abaixo NÃO estão sob tenantContext.
+
+GET /api/purchase-planning
+GET /api/purchase-planning/forecast
+
+Hoje eles executam:
+
+storage.getOrders()
+
+fora de qualquer contexto de tenant.
+
+Resultado:
+
+Um CLIENT autenticado consegue receber informações de pedidos de outras empresas.
+
+OBJETIVO
+
+Eliminar completamente esse vazamento.
+
+ETAPA 1
+
+Verifique se existe algum motivo legítimo para esses endpoints serem globais.
+
+Se existir:
+
+explique.
+
+Se não existir:
+
+corrija.
+
+ETAPA 2
+
+Implemente a correção mínima.
+
+Prefira:
+
+tenantContext
+requireTenant
+
+caso essa já seja a arquitetura utilizada pelo restante do projeto.
+
+Não quero duplicação de lógica.
+
+ETAPA 3
+
+Depois confirme que:
+
+storage.getOrders()
+
+passa automaticamente a receber
+
+currentTenantId()
+
+sem alterar os loops.
+
+ETAPA 4
+
+Verifique também TODOS os usos de
+
+storage.getOrder(id)
+
+nesses dois endpoints.
+
+Confirme que agora:
+
+o ID obrigatoriamente pertence ao tenant atual.
+
+ETAPA 5
+
+Faça um teste completo.
+
+Simule:
+
+Empresa A
+
+Empresa B
+
+Cliente autenticado da Empresa A
+
+Confirme que:
+
+Empresa A vê apenas pedidos da Empresa A
+Empresa B continua vendo apenas Empresa B
+Nenhum dado nominal cruza tenants
+ETAPA 6
+
+Rode:
+
+npm run check
+
+ou
+
+npx tsc --noEmit
+
+e confirme:
+
+nenhum erro novo
+nenhuma regressão
+ENTREGA
+
+Responder apenas:
+
+Arquivos alterados
+Diff aplicado
+Fluxo antigo
+Fluxo novo
+Testes executados
+Confirmação de que o vazamento foi eliminado
+
+Não faça refatorações adicionais. Não altere outros endpoints. Apenas elimine o vazamento multi-tenant identificado na auditoria.
