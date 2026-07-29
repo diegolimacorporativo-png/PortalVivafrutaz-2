@@ -1,0 +1,223 @@
+Você está continuando uma investigação já iniciada. Não recomece do zero. Leia todo este contexto e continue exatamente daqui.
+
+Contexto
+
+Projeto: VivaFrutaz ERP (React + Express + Drizzle + PostgreSQL + Supabase + React Query v5).
+
+Até agora já foram corrigidos:
+
+✅ erro [object Object] nos toasts
+✅ proxy /api/geocode
+✅ validação Zod de Company
+✅ criação de pedidos (assinatura ativa)
+✅ normalizeError
+
+Agora existe um único bug restante.
+
+BUG ATUAL
+
+Página:
+
+/admin/price-groups
+
+Erro:
+
+companies?.map is not a function
+
+Arquivo:
+
+client/src/pages/admin/price-groups.tsx
+
+Linha aproximada:
+
+56~58
+INVESTIGAÇÃO JÁ FEITA
+
+Foi confirmado que:
+
+A API retorna
+
+{
+  "success": true,
+  "data": [...]
+}
+
+e NÃO
+
+[
+ ...
+]
+
+Também foi confirmado que:
+
+normalizeList()
+
+extrai corretamente:
+
+response.data
+useCompanies()
+
+Hoje está aproximadamente assim:
+
+export function useCompanies() {
+  return useQuery({
+    queryKey: [api.companies.list.path],
+    queryFn: async () => {
+        ...
+        return parse(normalizeList(await res.json()))
+    }
+})
+O problema encontrado
+
+O cache do React Query v5 está sendo compartilhado.
+
+Outras páginas usam
+
+queryKey:
+["/api/companies"]
+
+com
+
+select: normalizeList
+
+mas usam o default queryFn.
+
+Isso faz com que o cache armazene:
+
+{
+ success:true,
+ data:[]
+}
+
+Quando
+
+price-groups.tsx
+
+monta,
+
+recebe imediatamente do cache
+
+{
+ success:true,
+ data:[]
+}
+
+antes do refetch.
+
+Então:
+
+companies
+
+vira
+
+object
+
+e não array.
+
+Resultado:
+
+companies.map is not a function
+O último agente tentou
+
+Adicionar
+
+select: normalizeList
+
+no
+
+useCompanies()
+
+porém surgiram erros TypeScript.
+
+O limite diário acabou antes de resolver.
+
+SUA MISSÃO
+
+Quero uma correção definitiva, seguindo estas regras.
+
+1
+
+Descobrir por que
+
+select: normalizeList
+
+gera erro de tipos.
+
+Quero a causa exata.
+
+Não quero workaround.
+
+2
+
+Corrigir a tipagem corretamente.
+
+Sem usar
+
+as any
+
+Sem
+
+@ts-ignore
+
+Sem perder inferência.
+
+3
+
+Todos os hooks que usam
+
+/api/companies
+
+devem sempre retornar
+
+Company[]
+
+independentemente de:
+
+cache
+envelope
+select
+queryFn
+4
+
+Se existir um problema estrutural no
+
+queryClient.ts
+
+ou
+
+getQueryFn
+
+corrija na raiz.
+
+Prefiro uma solução única do que corrigir dezenas de hooks.
+
+5
+
+Depois execute:
+
+npm run check
+
+ou
+
+npx tsc --noEmit
+
+e confirme:
+
+zero erros novos
+zero regressões
+6
+
+No final entregue apenas:
+
+Causa raiz
+Arquivos alterados
+Diff
+Resultado
+
+Sem explicações longas.
+
+Não pare na investigação.
+
+Implemente a correção completa.
+
+Importante: não faça mudanças parciais nem adicione logs temporários. Quero a correção definitiva da arquitetura do React Query para que esse problema não volte a acontecer em nenhuma página do sistema.
