@@ -4,6 +4,7 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import type { Company } from "@shared/schema";
 
 // ========== COMPANIES ==========
 export function useCompanies() {
@@ -12,13 +13,9 @@ export function useCompanies() {
     queryFn: async () => {
       const res = await fetchWithAuth(api.companies.list.path);
       if (!res.ok) throw new Error("Failed to fetch companies");
-      const raw = await res.json();
-      console.log("[COMPANIES_API]", raw);
-      const normalized = normalizeList(raw);
-      const parsed = api.companies.list.responses[200].parse(normalized);
-      console.log("[COMPANIES_HOOK_RESULT]", parsed, Array.isArray(parsed), typeof parsed);
-      return parsed;
+      return res.json();
     },
+    select: (raw: unknown) => normalizeList<Company>(raw),
     staleTime: 30_000,
     refetchOnMount: "always",
   });

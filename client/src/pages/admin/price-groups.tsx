@@ -52,7 +52,6 @@ export default function PriceGroupsPage() {
         {/* Companies sidebar */}
         <div className="lg:col-span-1 space-y-3">
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider px-1 mb-2">Selecione a Empresa</p>
-          {console.log("[PRICE_GROUPS]", companies, Array.isArray(companies), typeof companies) as any}
           {companies?.length === 0 && (
             <p className="text-sm text-muted-foreground p-4">Nenhuma empresa cadastrada.</p>
           )}
