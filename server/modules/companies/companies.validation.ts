@@ -38,9 +38,29 @@ export const addressParamSchema = z.object({
   addrId: numericId,
 });
 
+// ── Numeric coercion helper ──────────────────────────────────────────────
+// drizzle-zod maps PostgreSQL numeric() → z.string(), but HTTP clients may
+// send numbers or strings.  This helper accepts both (plus null/undefined)
+// and always produces string | null — exactly what Drizzle/PG expects for
+// numeric columns.
+const numericCoerce = z
+  .union([z.string(), z.number(), z.null()])
+  .optional()
+  .transform((v) => (v == null || v === "" ? null : String(v)));
+
 // ── Companies CRUD ──────────────────────────────────────────────────────
-export const createCompanySchema = insertCompanySchema;
-export const updateCompanySchema = insertCompanySchema.partial();
+// Override every numeric() column so the route accepts number | string | null
+// from the client while the repository always receives string | null.
+const companyNumericOverrides = {
+  adminFee:         numericCoerce,
+  latitude:         numericCoerce,
+  longitude:        numericCoerce,
+  minWeeklyBilling: numericCoerce,
+  manualAvgCost:    numericCoerce,
+};
+
+export const createCompanySchema = insertCompanySchema.extend(companyNumericOverrides);
+export const updateCompanySchema = createCompanySchema.partial();
 
 // ── /my/preferred-order-type (company portal self-service) ──────────────
 export const updatePreferredOrderTypeSchema = z.object({
