@@ -1097,7 +1097,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(orders).where(eq(orders.companyId, companyId)).orderBy(desc(orders.orderDate)).limit(1000);
   }
 
-  async createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order> {
+  async createOrder(
+    order: InsertOrder,
+    items: InsertOrderItem[],
+    tx?: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  ): Promise<Order> {
     // [DIAG-6] Repository — before INSERT
     console.log("[ORDER_CREATE][6_REPO_INSERT] before tx.insert(orders)", {
       companyId: order.companyId,
@@ -1107,10 +1111,11 @@ export class DatabaseStorage implements IStorage {
       itemCount: items.length,
       itemProductIds: items.map((i) => (i as any).productId),
     });
-    try {
-    return await db.transaction(async (tx) => {
+
+    // Shared insert logic — runs inside either an external tx or a fresh one.
+    const doInsert = async (runner: any) => {
       // Insert order first to get the ID
-      const [newOrder] = await tx.insert(orders).values({
+      const [newOrder] = await runner.insert(orders).values({
         ...order,
         deliveryDate: new Date(order.deliveryDate),
       }).returning();
@@ -1120,7 +1125,7 @@ export class DatabaseStorage implements IStorage {
       const orderCode = `VF-${year}-${String(newOrder.id).padStart(6, '0')}`;
 
       // Update with the generated order code
-      const [updatedOrder] = await tx.update(orders)
+      const [updatedOrder] = await runner.update(orders)
         .set({ orderCode })
         .where(eq(orders.id, newOrder.id))
         .returning();
@@ -1129,16 +1134,25 @@ export class DatabaseStorage implements IStorage {
       if (items.length > 0) {
         const itemsWithOrderId = items.map(item => ({
           ...item,
-          orderId: updatedOrder.id
+          orderId: updatedOrder.id,
         }));
-        await tx.insert(orderItems).values(itemsWithOrderId);
+        await runner.insert(orderItems).values(itemsWithOrderId);
       }
 
       return updatedOrder;
-    }).then((result) => {
+    };
+
+    try {
+      let result: Order;
+      if (tx) {
+        // External transaction provided — use it directly; caller owns the COMMIT.
+        result = await doInsert(tx);
+      } else {
+        // Standalone call — open our own transaction, same as before.
+        result = await db.transaction(doInsert);
+      }
       if (result?.companyId) invalidateUsageCache(result.companyId);
       return result;
-    });
     } catch (err: any) {
       // [DIAG-6] Decode PostgreSQL errors for diagnostic visibility
       const pgCode: string | undefined = err?.code;

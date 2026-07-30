@@ -131,12 +131,12 @@ export class OrdersRepository {
    * passed is overwritten. Items get a tenant stamp on `empresaId` (their
    * own column name).
    */
-  async create(order: InsertOrder, items: InsertOrderItem[]): Promise<Order> {
+  async create(order: InsertOrder, items: InsertOrderItem[], tx?: any): Promise<Order> {
     // Force the tenant on both halves; never trust the request body.
     const tenantId = requireTenantId();
     const safeOrder = { ...order, companyId: tenantId } as InsertOrder;
     const safeItems = items.map((it) => ({ ...it, empresaId: tenantId }));
-    return storage.createOrder(safeOrder, safeItems as any);
+    return storage.createOrder(safeOrder, safeItems as any, tx);
   }
 
   /**

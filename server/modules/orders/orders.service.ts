@@ -372,7 +372,8 @@ export class OrdersService {
   async create(
     body: { order: any; items: any[] },
     actor: ActorContext,
-  ): Promise<{ data: any; isTest: boolean; status: 201 }> {
+    tx?: any,
+  ): Promise<{ data: any; isTest: boolean; status: 201; afterCreateThunk?: () => Promise<void> }> {
     const { order, items } = body;
 
     // [DIAG-5] Service reached
@@ -506,14 +507,31 @@ export class OrdersService {
     const newOrder = await this.repo.create(
       { ...order, status: "CONFIRMED", totalValue: normalisedTotal },
       normalisedItems,
+      tx,
     );
 
-    // 6) fire-and-forget side-effects — FASE 9D: safe async wrapper with
-    //    structured error observability. setImmediate defers execution until
-    //    after the current event-loop tick so the HTTP response is sent first.
-    //    The try/catch ensures any afterCreate failure is surfaced via
-    //    logSecurity instead of being silently swallowed, without ever
-    //    blocking order creation or altering the response time.
+    // 6) side-effects — behaviour depends on whether we are inside an
+    //    external transaction:
+    //
+    //    • tx provided (createProgramacao ACID path): do NOT call setImmediate
+    //      here — the transaction has not committed yet.  Return a thunk; the
+    //      caller executes it after db.transaction() resolves (i.e. after COMMIT).
+    //
+    //    • no tx (standalone HTTP request, legacy path): fire-and-forget via
+    //      setImmediate exactly as before (FASE 9D).
+    if (tx) {
+      const afterCreateThunk = async () => {
+        try {
+          await this.afterCreate(newOrder, order, items);
+        } catch (err: any) {
+          logSecurity(
+            `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} | error=${err?.message ?? "unknown"}`,
+          );
+        }
+      };
+      return { data: newOrder, isTest: false, status: 201, afterCreateThunk };
+    }
+
     setImmediate(async () => {
       try {
         await this.afterCreate(newOrder, order, items);
@@ -582,15 +600,20 @@ export class OrdersService {
       }
     }
 
-    // Create each day's order through the standard pipeline.
+    // ACID transaction — real all-or-nothing guarantee.
     //
-    // Compensation pattern — all-or-nothing guarantee:
-    //   If any day's create() throws, every order already persisted in this
-    //   batch is deleted atomically inside a single db.transaction() before
-    //   the error propagates to the caller.  From the database's perspective
-    //   the week submission either fully commits or leaves no trace.
+    // Every day's order is inserted inside the SAME database transaction.
+    // If any create() throws, drizzle automatically rolls back the entire
+    // transaction — no manual compensation or delete-on-failure needed.
+    //
+    // afterCreate() side-effects (push notifications, emails, auto-logistics)
+    // are intentionally deferred: create() returns a thunk instead of calling
+    // setImmediate() when a tx is provided.  The thunks run only after
+    // db.transaction() resolves, guaranteeing side-effects fire after COMMIT.
     const createdOrders: any[] = [];
-    try {
+    const thunks: Array<() => Promise<void>> = [];
+
+    await db.transaction(async (tx) => {
       for (const day of activeDays) {
         const result = await this.create(
           {
@@ -605,33 +628,17 @@ export class OrdersService {
             items: day.items,
           },
           actor,
+          tx,
         );
         createdOrders.push(result.data);
+        if (result.afterCreateThunk) thunks.push(result.afterCreateThunk);
       }
-    } catch (err) {
-      // Compensate: remove every order created before the failure so no
-      // partial week ever persists.  The deletion itself is wrapped in a
-      // db.transaction() so the cleanup is also atomic.
-      if (createdOrders.length > 0) {
-        const ids = createdOrders.map((o: any) => o.id as number);
-        await db
-          .transaction(async (tx) => {
-            await tx
-              .delete(orderItemsTable)
-              .where(inArray(orderItemsTable.orderId, ids));
-            await tx
-              .delete(ordersTable)
-              .where(inArray(ordersTable.id, ids));
-          })
-          .catch((delErr: unknown) => {
-            // Log but do not mask the original error.
-            console.error(
-              `[createProgramacao] compensation rollback failed for ids=[${ids.join(",")}]`,
-              delErr,
-            );
-          });
-      }
-      throw err;
+      // Any uncaught throw here causes drizzle to rollback automatically.
+    });
+
+    // COMMIT succeeded — execute all deferred side-effects in insertion order.
+    for (const thunk of thunks) {
+      await thunk();
     }
 
     return { orders: createdOrders };

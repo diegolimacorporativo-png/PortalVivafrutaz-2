@@ -1,0 +1,238 @@
+# CONTINUAÇÃO DA IMPLEMENTAÇÃO — NÃO RECOMEÇAR A AUDITORIA
+
+Você está assumindo um projeto ERP já analisado.
+
+NÃO faça nova auditoria.
+
+NÃO reexplore o projeto.
+
+NÃO reanalise arquitetura.
+
+NÃO explique novamente o fluxo.
+
+Continue exatamente de onde o outro Agent parou.
+
+----------------------------------------------------
+STATUS ATUAL
+----------------------------------------------------
+
+A análise já foi concluída.
+
+Foi confirmado que:
+
+storage.createOrder()
+já trabalha inteiramente usando um objeto tx.
+
+Hoje ele apenas cria seu próprio:
+
+db.transaction(...)
+
+Foi confirmado que é possível transformar toda a Programação Semanal em uma única transação ACID.
+
+Também foi identificado um único ponto crítico:
+
+afterCreate()
+
+Hoje ele executa via
+
+setImmediate(...)
+
+Se create() for chamado dentro de uma transação externa isso dispara antes do COMMIT.
+
+Isso NÃO pode acontecer.
+
+----------------------------------------------------
+O OUTRO AGENT JÁ DEFINIU A SOLUÇÃO
+----------------------------------------------------
+
+storage.ts
+
+createOrder(order, items, tx?)
+
+↓
+
+orders.repository.ts
+
+create(order, items, tx?)
+
+↓
+
+orders.service.ts
+
+create(body, actor, tx?)
+
+↓
+
+createProgramacao()
+
+db.transaction(async(tx)=>{
+
+loop inteiro
+
+})
+
+Após o commit
+
+executar todos os afterCreate()
+
+----------------------------------------------------
+IMPORTANTE
+----------------------------------------------------
+
+NÃO invente outra arquitetura.
+
+NÃO faça compensação.
+
+NÃO faça rollback manual.
+
+NÃO use Saga.
+
+Quero transação ACID REAL.
+
+----------------------------------------------------
+IMPLEMENTAÇÃO
+----------------------------------------------------
+
+1)
+
+storage.createOrder()
+
+recebe tx opcional.
+
+Se tx existir
+
+usa tx.
+
+Caso contrário
+
+abre db.transaction exatamente como hoje.
+
+Backward compatible.
+
+----------------------------------------------------
+
+2)
+
+orders.repository.create()
+
+recebe tx opcional
+
+e apenas repassa.
+
+----------------------------------------------------
+
+3)
+
+orders.service.create()
+
+recebe tx opcional.
+
+Quando tx NÃO existir
+
+comportamento exatamente igual ao atual.
+
+Quando tx existir
+
+NÃO executar setImmediate(afterCreate).
+
+Em vez disso
+
+retornar uma função (thunk/closure)
+
+que execute o afterCreate depois.
+
+----------------------------------------------------
+
+4)
+
+createProgramacao()
+
+abrir
+
+db.transaction(async(tx)=>{
+
+for(...){
+
+await create(..., tx)
+
+guardar thunk
+
+}
+
+})
+
+Após o COMMIT
+
+executar todos os thunks.
+
+----------------------------------------------------
+REGRAS
+----------------------------------------------------
+
+Não alterar:
+
+Frontend
+
+Hooks
+
+Controller
+
+Routes
+
+DTO
+
+Schema
+
+Banco
+
+Permissões
+
+Workflow
+
+Status
+
+Reabertura
+
+Histórico
+
+----------------------------------------------------
+VALIDAÇÃO
+----------------------------------------------------
+
+Executar:
+
+TypeScript
+
+Criar programação com vários dias
+
+Forçar erro em um create
+
+Confirmar que nenhum pedido permanece
+
+Confirmar que afterCreate NÃO dispara antes do commit
+
+----------------------------------------------------
+ENTREGA
+----------------------------------------------------
+
+Quero receber apenas:
+
+✔ arquivos alterados
+
+✔ diff resumido
+
+✔ onde tx foi propagado
+
+✔ onde afterCreate passou a ser deferido
+
+✔ como o COMMIT ficou garantido
+
+✔ testes
+
+✔ TypeScript
+
+Sem nova auditoria.
+
+Sem reexplicar o projeto.
+
+Continue exatamente da implementação já iniciada.
