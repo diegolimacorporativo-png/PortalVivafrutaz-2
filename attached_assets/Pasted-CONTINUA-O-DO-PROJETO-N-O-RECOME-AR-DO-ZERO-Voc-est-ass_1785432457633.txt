@@ -1,0 +1,294 @@
+CONTINUAÇÃO DO PROJETO — NÃO RECOMEÇAR DO ZERO
+
+Você está assumindo um projeto já em andamento.
+
+IMPORTANTE
+
+NÃO reanalise o sistema inteiro.
+
+NÃO proponha outra arquitetura.
+
+NÃO reinicie a investigação.
+
+Considere que todas as etapas abaixo já foram concluídas.
+
+Quero continuar exatamente do ponto onde o outro Agent parou.
+
+CONTEXTO
+
+Sistema ERP VivaFrutaz
+
+Stack:
+
+React
+TypeScript
+Express
+Drizzle ORM
+PostgreSQL (Supabase)
+React Query
+Zod
+
+O sistema já possui:
+
+clientes
+pedidos
+contratos
+programação
+histórico
+workflow de reabertura
+aprovação pelo administrador
+multi-tenant
+tenantContext
+AsyncLocalStorage
+planejamento
+auditoria
+sistema de assinatura
+
+Nada disso deve ser alterado.
+
+O QUE JÁ FOI IMPLEMENTADO
+
+✔ Deadline único de alteração
+
+48 horas úteis
+
+Horário limite:
+12:00
+
+A função canônica já existe.
+
+calculateOrderModificationDeadline()
+
+Ela é usada em:
+
+Histórico
+Editar pedido
+Criar pedido
+
+Não alterar essa regra.
+
+✔ Fluxo de reabertura
+
+Cliente solicita abertura
+
+↓
+
+Administrador aprova
+
+↓
+
+Pedido muda para
+
+OPEN_FOR_EDITING
+
+↓
+
+Cliente pode editar
+
+Esse fluxo permanece.
+
+NOVA FUNCIONALIDADE
+
+Quero substituir completamente o conceito de
+
+"Novo Pedido"
+
+por
+
+"Programação Semanal"
+
+NOVO FLUXO
+
+Cliente entra em
+
+Programação Semanal
+
+↓
+
+Visualiza TODOS os dias da semana liberados para entrega
+
+↓
+
+Monta a programação inteira
+
+↓
+
+Segunda
+
+↓
+
+Terça
+
+↓
+
+Quarta
+
+↓
+
+Quinta
+
+↓
+
+Sexta
+
+↓
+
+Visualiza o total semanal
+
+↓
+
+Visualiza faturamento mínimo semanal
+
+↓
+
+Clique em
+
+Enviar Programação
+
+↓
+
+Abre modal
+
+MODAL
+
+Título
+
+Enviar programação da semana?
+
+Texto
+
+Você está enviando sua programação da semana XX.
+
+Após a confirmação ela será enviada para produção.
+
+Após o envio não será possível alterar os pedidos sem solicitar uma reabertura.
+
+Alterações somente poderão ser solicitadas até 48 horas úteis antes da data de entrega, respeitando o horário limite das 12:00.
+
+Deseja confirmar?
+
+Botões
+
+Cancelar
+
+Enviar programação
+
+APÓS CONFIRMAR
+
+Criar TODOS os pedidos da semana
+
+em uma única transação
+
+Todos ficam
+
+CONFIRMED
+
+Produção recebe a semana inteira
+
+Não existe mais confirmação por dia.
+
+REGRAS IMPORTANTES
+
+A programação inteira é o que trava.
+
+Não o pedido individual.
+
+Ou seja
+
+ANTES
+
+Pedido Segunda
+
+↓
+
+Trava
+
+Pedido Quarta
+
+↓
+
+Trava
+
+Pedido Sexta
+
+↓
+
+Trava
+
+AGORA
+
+Semana inteira
+
+↓
+
+Enviar programação
+
+↓
+
+Toda semana fica travada.
+
+ALTERAÇÕES FUTURAS
+
+Depois da programação enviada
+
+Cliente poderá:
+
+Solicitar alteração
+
+ou
+
+Solicitar cancelamento
+
+Mas somente se ainda estiver dentro do prazo:
+
+48 horas úteis
+
+Horário limite
+
+12:00
+
+Caso contrário mostrar:
+
+"Esta programação está fora do prazo para alterações.
+
+Entre em contato com nosso suporte para mais informações."
+
+MENU
+
+Substituir
+
+Novo Pedido
+
+por
+
+Programação Semanal
+
+IMPORTANTE
+
+Quero preservar:
+
+✔ Histórico
+
+✔ Workflow atual
+
+✔ Aprovação pelo administrador
+
+✔ Banco existente
+
+✔ Estrutura existente
+
+✔ APIs existentes sempre que possível
+
+FORMA DE TRABALHO
+
+Antes de escrever código:
+
+Analise toda a arquitetura atual.
+Liste todos os arquivos que serão alterados.
+Explique como a nova Programação Semanal irá reutilizar o máximo possível do sistema existente.
+Identifique riscos de regressão.
+Só depois implemente.
+
+Não faça mudanças parciais.
+
+Quero uma implementação completa, consistente e integrada ao sistema existente.
