@@ -18,25 +18,8 @@ import {
 import { Link, useLocation } from "wouter";
 import { api } from "@shared/routes";
 import { OrderTimeline } from "@/components/OrderTimeline";
-
-/* ── Prazo operacional ──────────────────────────────────────── */
-function prevBusinessDay(date: Date): Date {
-  const d = new Date(date);
-  do {
-    d.setUTCDate(d.getUTCDate() - 1);
-  } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
-  return d;
-}
-
-function calculateOrderModificationDeadline(deliveryDate: Date | string) {
-  const delivery = new Date(deliveryDate);
-  const lastBizBeforeDelivery = prevBusinessDay(delivery);
-  const deadlineDay = prevBusinessDay(lastBizBeforeDelivery);
-  const deadline = new Date(deadlineDay);
-  deadline.setUTCHours(15, 0, 0, 0); // 12:00 BRT = 15:00 UTC
-  const now = new Date();
-  return { deadline, canModify: now <= deadline };
-}
+import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
 
 const SIXTY_DAYS_AGO = subDays(new Date(), 60);
 
@@ -95,6 +78,7 @@ function OrderDetailModal({ order, onClose, onReopen, onDeadlineExpired }: {
 }) {
   const { data: detail, isLoading } = useOrderDetail(order.id);
   const { data: allProducts } = useProducts();
+  const { user, company } = useAuth();
 
   const items = useMemo(() => {
     if (!detail?.items) return [];
@@ -247,8 +231,9 @@ function OrderDetailModal({ order, onClose, onReopen, onDeadlineExpired }: {
             <button
               data-testid={`button-edit-order-detail-${order.id}`}
               onClick={() => {
-                const { canModify } = calculateOrderModificationDeadline(order.deliveryDate);
-                if (!canModify) { onDeadlineExpired(); return; }
+                const result = calculateOrderModificationDeadline(order.deliveryDate);
+                logDeadlineAudit({ orderId: order.id, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "edit" });
+                if (!result.canModify) { onDeadlineExpired(); return; }
                 window.location.href = `/client/order/edit/${order.id}`;
               }}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-yellow-500 text-white font-bold rounded-xl hover:bg-yellow-600 transition-colors text-sm">
@@ -258,8 +243,9 @@ function OrderDetailModal({ order, onClose, onReopen, onDeadlineExpired }: {
 
           {canRequestReopen && (
             <button onClick={() => {
-                const { canModify } = calculateOrderModificationDeadline(order.deliveryDate);
-                if (!canModify) { onDeadlineExpired(); return; }
+                const result = calculateOrderModificationDeadline(order.deliveryDate);
+                logDeadlineAudit({ orderId: order.id, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "request-change" });
+                if (!result.canModify) { onDeadlineExpired(); return; }
                 onClose(); onReopen();
               }}
               data-testid={`button-reopen-from-detail-${order.id}`}
@@ -282,10 +268,18 @@ function ReopenRequestModal({ order, onClose, onSuccess }: {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const { user, company } = useAuth();
 
   const handleSubmit = async () => {
     if (!reason.trim() || reason.trim().length < 3) {
       toast({ title: "Informe o motivo da alteração.", variant: "destructive" });
+      return;
+    }
+    // Re-validar prazo imediatamente antes de enviar — pode ter expirado enquanto o modal estava aberto
+    const deadlineCheck = calculateOrderModificationDeadline(order.deliveryDate);
+    logDeadlineAudit({ orderId: order.id, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: deadlineCheck.deadline.toISOString(), canModify: deadlineCheck.canModify, reason: deadlineCheck.reason, action: "request-change" });
+    if (!deadlineCheck.canModify) {
+      toast({ title: "Prazo para alteração encerrado", description: deadlineCheck.reason, variant: "destructive" });
       return;
     }
     setSubmitting(true);
@@ -355,34 +349,10 @@ function ReopenRequestModal({ order, onClose, onSuccess }: {
   );
 }
 
-/* ── Deadline Expired Modal ─────────────────────────────────── */
-function DeadlineExpiredModal({ onClose }: { onClose: () => void }) {
-  return (
-    <Modal isOpen onClose={onClose} title="Prazo para alteração expirado" maxWidth="max-w-md">
-      <div className="space-y-4">
-        <div className="flex items-start gap-3 p-4 bg-red-50 rounded-xl border border-red-200">
-          <Ban className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">
-            O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado.
-            <br /><br />
-            Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 12h00 do último dia útil permitido antes da entrega.
-            <br /><br />
-            Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial.
-          </p>
-        </div>
-        <button
-          onClick={onClose}
-          className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:bg-primary/90 transition-colors">
-          Fechar
-        </button>
-      </div>
-    </Modal>
-  );
-}
 
 /* ── Main history page ──────────────────────────────────────── */
 export default function OrderHistoryPage() {
-  const { company, isLoading: authLoading } = useAuth();
+  const { user, company, isLoading: authLoading } = useAuth();
   const { data: orders, isLoading } = useCompanyOrders(company?.id);
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
@@ -613,8 +583,9 @@ export default function OrderHistoryPage() {
                         <button
                           data-testid={`button-edit-order-${order.id}`}
                           onClick={() => {
-                            const { canModify } = calculateOrderModificationDeadline(order.deliveryDate);
-                            if (!canModify) { setDeadlineExpired(true); return; }
+                            const result = calculateOrderModificationDeadline(order.deliveryDate);
+                            logDeadlineAudit({ orderId: order.id, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "edit" });
+                            if (!result.canModify) { setDeadlineExpired(true); return; }
                             navigate(`/client/order/edit/${order.id}`);
                           }}
                           className="flex items-center gap-1.5 px-4 py-2 bg-yellow-500 text-white rounded-xl hover:bg-yellow-600 transition-colors font-bold text-sm">
@@ -627,8 +598,9 @@ export default function OrderHistoryPage() {
                         <button
                           data-testid={`button-reopen-${order.id}`}
                           onClick={() => {
-                            const { canModify } = calculateOrderModificationDeadline(order.deliveryDate);
-                            if (!canModify) { setDeadlineExpired(true); return; }
+                            const result = calculateOrderModificationDeadline(order.deliveryDate);
+                            logDeadlineAudit({ orderId: order.id, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "request-change" });
+                            if (!result.canModify) { setDeadlineExpired(true); return; }
                             setReopenOrder(order);
                           }}
                           className="flex items-center gap-1.5 px-4 py-2 bg-orange-100 text-orange-700 border border-orange-200 rounded-xl hover:bg-orange-200 transition-colors font-bold text-sm">

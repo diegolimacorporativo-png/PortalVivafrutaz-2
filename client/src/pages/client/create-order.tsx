@@ -56,9 +56,11 @@ function fmtBRL(n: number) {
 const ORDER_NOTE_PLACEHOLDER = "Ex: Bananas mais verdes, solicito produto que não está na planilha (informar nome), entregar antes das 9h...";
 
 import { BackHeader } from "@/components/navigation/BackHeader";
+import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
 
 export default function CreateOrderPage() {
-  const { company, isLoading: authLoading } = useAuth();
+  const { user, company, isLoading: authLoading } = useAuth();
   const { data: activeWindow, isLoading: windowLoading } = useActiveOrderWindow();
   const { data: products } = useProducts();
   const createOrder = useCreateOrder();
@@ -92,6 +94,7 @@ export default function CreateOrderPage() {
   const [reopenReason, setReopenReason] = useState("");
   const [reopenTargetId, setReopenTargetId] = useState<number | null>(null);
   const [reopenSuccess, setReopenSuccess] = useState(false);
+  const [showDeadlineExpired, setShowDeadlineExpired] = useState(false);
 
   const requestReopenMut = useMutation({
     mutationFn: ({ id, reason }: { id: number; reason: string }) =>
@@ -527,6 +530,10 @@ export default function CreateOrderPage() {
   return (
     <Layout>
       <BackHeader fallback="/client" breadcrumb={[{label:"Início",href:"/client"},{label:"Novo Pedido"}]} />
+      {showDeadlineExpired && (
+        <DeadlineExpiredModal onClose={() => setShowDeadlineExpired(false)} />
+      )}
+
       {/* Reopen (SOLICITAR ALTERAÇÃO) modal */}
       {showReopenModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -561,6 +568,13 @@ export default function CreateOrderPage() {
                   if (!reopenTargetId || reopenReason.trim().length < 3) {
                     toast({ title: 'Informe o motivo da alteração (mínimo 3 caracteres)', variant: 'destructive' });
                     return;
+                  }
+                  // Re-validar prazo antes de enviar — pode ter expirado enquanto o modal estava aberto
+                  const targetOrder = companyOrders?.find((o: any) => o.id === reopenTargetId);
+                  if (targetOrder?.deliveryDate) {
+                    const check = calculateOrderModificationDeadline(targetOrder.deliveryDate);
+                    logDeadlineAudit({ orderId: reopenTargetId, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: check.deadline.toISOString(), canModify: check.canModify, reason: check.reason, action: "request-change" });
+                    if (!check.canModify) { setShowReopenModal(false); setShowDeadlineExpired(true); return; }
                   }
                   requestReopenMut.mutate({ id: reopenTargetId, reason: reopenReason.trim() });
                 }}
@@ -978,6 +992,9 @@ export default function CreateOrderPage() {
                         <button
                           data-testid="button-request-reopen"
                           onClick={() => {
+                            const result = calculateOrderModificationDeadline(existingOrderForDate.deliveryDate);
+                            logDeadlineAudit({ orderId: existingOrderForDate.id, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "request-change" });
+                            if (!result.canModify) { setShowDeadlineExpired(true); return; }
                             setReopenTargetId(existingOrderForDate.id);
                             setReopenSuccess(false);
                             setShowReopenModal(true);

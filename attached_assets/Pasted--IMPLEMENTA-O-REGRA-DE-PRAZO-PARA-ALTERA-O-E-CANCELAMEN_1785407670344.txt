@@ -1,0 +1,241 @@
+# IMPLEMENTAÇÃO – REGRA DE PRAZO PARA ALTERAÇÃO E CANCELAMENTO DE PEDIDOS
+
+## CONTEXTO
+
+Atualmente o cliente pode:
+
+- Solicitar alteração do pedido;
+- Solicitar cancelamento;
+- Solicitar reabertura do pedido.
+
+Porém precisamos alterar a regra operacional.
+
+NÃO alterar layout.
+NÃO alterar banco de dados.
+NÃO alterar fluxo de aprovação.
+NÃO remover funcionalidades existentes.
+
+Apenas implementar a nova regra de negócio.
+
+--------------------------------------------------------
+
+# NOVA REGRA
+
+Pedidos somente poderão:
+
+- ser alterados;
+- ser cancelados;
+- solicitar reabertura;
+- solicitar alteração;
+
+ATÉ ÀS 12:00 (meio-dia) DO SEGUNDO DIA ÚTIL ANTERIOR À DATA DE ENTREGA.
+
+A regra deve considerar SOMENTE dias úteis.
+
+Ignorar:
+
+- sábado
+- domingo
+
+(Deixar preparado para futuramente considerar feriados.)
+
+--------------------------------------------------------
+
+# EXEMPLOS
+
+Entrega na Segunda-feira
+
+Prazo:
+Quinta-feira anterior às 12:00
+
+Após esse horário:
+❌ Bloquear.
+
+------------------------------------
+
+Entrega na Terça-feira
+
+Prazo:
+Sexta-feira anterior às 12:00
+
+------------------------------------
+
+Entrega na Quarta-feira
+
+Prazo:
+Segunda-feira às 12:00
+
+------------------------------------
+
+Entrega na Quinta-feira
+
+Prazo:
+Terça-feira às 12:00
+
+------------------------------------
+
+Entrega na Sexta-feira
+
+Prazo:
+Quarta-feira às 12:00
+
+--------------------------------------------------------
+
+# IMPLEMENTAÇÃO
+
+Criar uma função única.
+
+Exemplo:
+
+calculateOrderModificationDeadline(deliveryDate)
+
+Ela deverá retornar:
+
+{
+   deadline,
+   canModify,
+   reason
+}
+
+onde:
+
+deadline = data/hora limite
+
+canModify = true/false
+
+reason = motivo do bloqueio
+
+--------------------------------------------------------
+
+# LOCAIS QUE DEVEM VALIDAR
+
+ANTES de executar qualquer ação verificar:
+
+- Editar Pedido
+- Solicitar Alteração
+- Solicitar Cancelamento
+- Solicitar Reabertura
+
+Todos devem utilizar exatamente a mesma função.
+
+Não duplicar regras.
+
+--------------------------------------------------------
+
+# REGRA
+
+Se
+
+Agora <= deadline
+
+seguir normalmente.
+
+Se
+
+Agora > deadline
+
+bloquear imediatamente.
+
+--------------------------------------------------------
+
+# MENSAGEM AO CLIENTE
+
+Título
+
+Prazo para alteração encerrado
+
+Mensagem
+
+"O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado.
+
+Para garantir nossa programação logística e produção, alterações são permitidas somente até às 12h00 do segundo dia útil anterior à data de entrega.
+
+Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial."
+
+Botão
+
+Fechar
+
+--------------------------------------------------------
+
+# IMPORTANTE
+
+Quando estiver fora do prazo:
+
+- NÃO criar solicitação;
+- NÃO enviar para aprovação do administrador;
+- NÃO abrir fluxo de aprovação;
+- NÃO gravar nada no banco.
+
+A validação deve ocorrer antes.
+
+--------------------------------------------------------
+
+# REABERTURA APROVADA PELO ADMIN
+
+Mesmo que um administrador aprove uma solicitação de reabertura,
+
+o sistema deve validar novamente o prazo.
+
+Se o prazo já expirou:
+
+não permitir edição.
+
+Mostrar:
+
+"Este pedido foi reaberto, porém o prazo operacional para alterações já foi encerrado."
+
+--------------------------------------------------------
+
+# AUDITORIA
+
+Registrar log contendo:
+
+- pedido
+- empresa
+- usuário
+- data atual
+- data limite calculada
+- permitido
+- motivo
+
+--------------------------------------------------------
+
+# TESTES
+
+Executar testes para:
+
+✅ Entrega segunda
+
+✅ Entrega terça
+
+✅ Entrega quarta
+
+✅ Entrega quinta
+
+✅ Entrega sexta
+
+Testar:
+
+Antes das 12:00
+
+Depois das 12:00
+
+Fim de semana
+
+Mudança de mês
+
+Mudança de ano
+
+--------------------------------------------------------
+
+# ENTREGA
+
+Informar:
+
+- arquivos alterados;
+- função criada;
+- locais onde foi integrada;
+- resultado dos testes;
+- confirmação de que toda alteração, cancelamento e reabertura utilizam exatamente a mesma regra de negócio;
+- zero erros TypeScript introduzidos.

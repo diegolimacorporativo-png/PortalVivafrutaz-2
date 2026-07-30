@@ -434,6 +434,31 @@ export async function registerRoutes(
     }
   });
 
+  // --- Deadline audit log — no DB write, logger only ---
+  // POST /api/orders/:orderId/deadline-audit
+  // Recebe o resultado da verificação de prazo do cliente e registra via
+  // logger.info. Fire-and-forget: sempre retorna 200 para não bloquear a UX.
+  app.post('/api/orders/:orderId/deadline-audit', async (req: Request, res: Response) => {
+    try {
+      const orderId = Number(req.params.orderId);
+      const { companyId, userId, now, deadline, canModify, reason, action } = req.body ?? {};
+      console.log('[DEADLINE_AUDIT]', {
+        orderId,
+        companyId: companyId ?? null,
+        userId: userId ?? null,
+        now,
+        deadline,
+        canModify,
+        reason,
+        action,
+        ts: new Date().toISOString(),
+      });
+    } catch {
+      // never block the client
+    }
+    res.status(200).json({ ok: true });
+  });
+
   // --- System Logs API ---
   // GET /api/admin/logs — MOVED TO logs.routes.ts
 

@@ -11,30 +11,14 @@ import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lo
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { api } from "@shared/routes";
 import { resolvePrice } from "@/utils/priceResolver";
-
-/* ── Prazo operacional ──────────────────────────────────────── */
-function prevBusinessDayEO(date: Date): Date {
-  const d = new Date(date);
-  do {
-    d.setUTCDate(d.getUTCDate() - 1);
-  } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
-  return d;
-}
-function calcDeadlineEO(deliveryDate: Date | string) {
-  const delivery = new Date(deliveryDate);
-  const step1 = prevBusinessDayEO(delivery);
-  const deadlineDay = prevBusinessDayEO(step1);
-  const deadline = new Date(deadlineDay);
-  deadline.setUTCHours(15, 0, 0, 0); // 12:00 BRT = 15:00 UTC
-  return { canModify: new Date() <= deadline };
-}
+import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
 
 function fmtBRL(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export default function EditOrderPage() {
-  const { company, isLoading: authLoading } = useAuth();
+  const { user, company, isLoading: authLoading } = useAuth();
   const { data: products } = useProducts();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -139,8 +123,19 @@ export default function EditOrderPage() {
   const order = orderDetail?.order;
 
   // Prazo operacional expirado: bloqueia edição mesmo que o admin tenha aprovado a reabertura.
-  const deadlineExpiredForEdit =
-    order?.deliveryDate ? !calcDeadlineEO(order.deliveryDate).canModify : false;
+  // Usa a função canônica de order-deadline — mesma regra para todos os pontos de ação.
+  const deadlineCheckForEdit = order?.deliveryDate
+    ? calculateOrderModificationDeadline(order.deliveryDate)
+    : null;
+  const deadlineExpiredForEdit = deadlineCheckForEdit ? !deadlineCheckForEdit.canModify : false;
+
+  // Auditoria: log da verificação de prazo ao carregar a página (uma vez por orderId/deliveryDate)
+  useEffect(() => {
+    if (!order?.deliveryDate || !orderId) return;
+    const result = calculateOrderModificationDeadline(order.deliveryDate);
+    logDeadlineAudit({ orderId, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "edit" });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.deliveryDate, orderId]);
 
   return (
     <Layout>
@@ -164,10 +159,10 @@ export default function EditOrderPage() {
             <div>
               <p className="font-bold text-red-700 text-base mb-1">Prazo operacional expirado</p>
               <p className="text-sm text-red-600">
-                Este pedido foi reaberto, porém o prazo operacional para alterações já expirou.
+                Este pedido foi reaberto, porém o prazo operacional para alterações já foi encerrado.
               </p>
               <p className="text-sm text-red-600 mt-2">
-                Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 12h00 do último dia útil permitido antes da entrega.
+                Alterações são permitidas somente até às 12h00 do segundo dia útil anterior à data de entrega.
               </p>
             </div>
           </div>
