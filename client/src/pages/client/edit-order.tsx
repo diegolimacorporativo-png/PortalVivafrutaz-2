@@ -77,38 +77,43 @@ export default function EditOrderPage() {
     return map;
   }, [orderDetail?.items]);
 
+  // Catálogo completo para a tela de edição.
+  // Combina:
+  //   • availableProducts — produtos com preço resolvido (podem ser adicionados normalmente)
+  //   • Itens do pedido atual que não aparecem em availableProducts (ex: basePrice null,
+  //     produto com pricingMode="category" sem contractPrice configurado, etc.)
+  //     → exibidos com o unitPrice gravado no pedido, permitindo ajustar a quantidade.
+  const catalogProducts = useMemo(() => {
+    const catalogIds = new Set(availableProducts.map(p => p.id));
+    const extraFromOrder = Object.values(orderItemsByProductId)
+      .filter((item: any) => !catalogIds.has(Number(item.productId)))
+      .map((item: any) => {
+        const pid = Number(item.productId);
+        const unitPrice = Number(item.unitPrice) || 0;
+        const rawProduct = (products || []).find((x: any) => x.id === pid);
+        return rawProduct
+          ? { ...rawProduct, price: unitPrice }
+          : { id: pid, name: `Produto #${pid}`, price: unitPrice, category: '', active: true };
+      });
+    return [...availableProducts, ...extraFromOrder];
+  }, [availableProducts, orderItemsByProductId, products]);
+
   const cartItems = useMemo(() => {
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
       .map(([productId, qty]) => {
         const pid = Number(productId);
 
-        // 1️⃣ Item novo adicionado durante a edição → usa availableProducts
-        //    (catálogo filtrado com preço resolvido pelo modelo de preços).
-        const fromCatalog = availableProducts.find(x => x.id === pid);
+        // Resolve pelo catálogo completo (inclui produtos do pedido com preço gravado)
+        const fromCatalog = catalogProducts.find(x => x.id === pid);
         if (fromCatalog) {
           return { product: fromCatalog, qty, subtotal: fromCatalog.price * qty };
-        }
-
-        // 2️⃣ Item pré-existente no pedido → usa unitPrice do próprio order_item.
-        //    Preserva itens cujo produto tenha basePrice null, esteja inativo
-        //    ou cujo preço venha de contrato/subcategoria não resolvível no
-        //    catálogo atual. O preço gravado no pedido é a fonte de verdade.
-        const orderItem = orderItemsByProductId[pid];
-        if (orderItem) {
-          const unitPrice = Number(orderItem.unitPrice) || 0;
-          // Tenta enriquecer com o nome/categoria do catálogo bruto se disponível.
-          const rawProduct = (products || []).find((x: any) => x.id === pid);
-          const product = rawProduct
-            ? { ...rawProduct, price: unitPrice }
-            : { id: pid, name: `Produto #${pid}`, price: unitPrice };
-          return { product, qty, subtotal: unitPrice * qty };
         }
 
         return null;
       })
       .filter(Boolean) as { product: any; qty: number; subtotal: number }[];
-  }, [cart, availableProducts, orderItemsByProductId, products]);
+  }, [cart, catalogProducts]);
 
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.subtotal, 0), [cartItems]);
 
@@ -222,7 +227,7 @@ export default function EditOrderPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">Ajuste quantidades ou adicione novos itens ao pedido</p>
                 </div>
                 <div className="divide-y divide-border/50 max-h-[60vh] overflow-y-auto">
-                  {availableProducts.map(product => {
+                  {catalogProducts.map(product => {
                     const qty = cart[product.id] || 0;
                     return (
                       <div key={product.id} className="flex items-center justify-between p-4 hover:bg-muted/20 transition-colors">
