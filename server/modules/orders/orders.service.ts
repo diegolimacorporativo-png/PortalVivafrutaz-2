@@ -586,15 +586,23 @@ export class OrdersService {
       const company = await this.repo.getCompany(companyId);
       const minWeekly = parseFloat(String((company as any)?.minWeeklyBilling ?? "0")) || 0;
       if (minWeekly > 0) {
-        const submittedTotal = activeDays.reduce(
-          (sum, d) => sum + (parseFloat(String(d.totalValue)) || 0),
+        // Backend recalculates the real weekly total from item prices — never
+        // trusts the client-supplied day.totalValue which can be 0 or stale.
+        const recalcTotal = activeDays.reduce(
+          (weekSum, d) =>
+            weekSum +
+            (d.items ?? []).reduce(
+              (daySum: number, item: any) =>
+                daySum + Number(item.unitPrice || 0) * Number(item.quantity || 0),
+              0,
+            ),
           0,
         );
         const fmt = (v: number) =>
           v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (submittedTotal < minWeekly) {
+        if (recalcTotal < minWeekly) {
           throw new BadRequestError(
-            `Faturamento mínimo semanal não atingido. Mínimo: R$ ${fmt(minWeekly)}. Total da programação: R$ ${fmt(submittedTotal)}.`,
+            `A programação da semana não atingiu o faturamento mínimo de R$ ${fmt(minWeekly)}. Total calculado: R$ ${fmt(recalcTotal)}.`,
           );
         }
       }
@@ -721,14 +729,14 @@ export class OrdersService {
       const tp = (Number(it.unitPrice || 0) * Number(it.quantity || 0)).toFixed(2);
       return { ...it, totalPrice: tp };
     });
-    const normalisedTotal =
-      order.totalValue != null && order.totalValue !== ""
-        ? String(order.totalValue)
-        : String(
-            normalisedItems
-              .reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0)
-              .toFixed(2),
-          );
+    // Backend is the authoritative source for order totals.
+    // Always recompute from items — never trust the client-supplied totalValue.
+    // This prevents R$ 0,00 orders caused by stale or manipulated client payloads.
+    const normalisedTotal = String(
+      normalisedItems
+        .reduce((s: number, i: any) => s + Number(i.totalPrice || 0), 0)
+        .toFixed(2),
+    );
     return { normalisedItems, normalisedTotal };
   }
 
