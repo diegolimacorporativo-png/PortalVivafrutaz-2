@@ -66,16 +66,49 @@ export default function EditOrderPage() {
       .filter(p => p.price > 0);
   }, [products, company]);
 
+  // Índice de todos os itens originais do pedido, indexado por productId.
+  // Usado para recuperar o unitPrice registrado no momento do pedido —
+  // fonte de verdade de preço para itens já existentes.
+  const orderItemsByProductId = useMemo(() => {
+    const map: Record<number, any> = {};
+    (orderDetail?.items || []).forEach((item: any) => {
+      map[Number(item.productId)] = item;
+    });
+    return map;
+  }, [orderDetail?.items]);
+
   const cartItems = useMemo(() => {
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
       .map(([productId, qty]) => {
-        const p = availableProducts.find(x => x.id === Number(productId));
-        if (!p) return null;
-        return { product: p, qty, subtotal: p.price * qty };
+        const pid = Number(productId);
+
+        // 1️⃣ Item novo adicionado durante a edição → usa availableProducts
+        //    (catálogo filtrado com preço resolvido pelo modelo de preços).
+        const fromCatalog = availableProducts.find(x => x.id === pid);
+        if (fromCatalog) {
+          return { product: fromCatalog, qty, subtotal: fromCatalog.price * qty };
+        }
+
+        // 2️⃣ Item pré-existente no pedido → usa unitPrice do próprio order_item.
+        //    Preserva itens cujo produto tenha basePrice null, esteja inativo
+        //    ou cujo preço venha de contrato/subcategoria não resolvível no
+        //    catálogo atual. O preço gravado no pedido é a fonte de verdade.
+        const orderItem = orderItemsByProductId[pid];
+        if (orderItem) {
+          const unitPrice = Number(orderItem.unitPrice) || 0;
+          // Tenta enriquecer com o nome/categoria do catálogo bruto se disponível.
+          const rawProduct = (products || []).find((x: any) => x.id === pid);
+          const product = rawProduct
+            ? { ...rawProduct, price: unitPrice }
+            : { id: pid, name: `Produto #${pid}`, price: unitPrice };
+          return { product, qty, subtotal: unitPrice * qty };
+        }
+
+        return null;
       })
       .filter(Boolean) as { product: any; qty: number; subtotal: number }[];
-  }, [cart, availableProducts]);
+  }, [cart, availableProducts, orderItemsByProductId, products]);
 
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.subtotal, 0), [cartItems]);
 
