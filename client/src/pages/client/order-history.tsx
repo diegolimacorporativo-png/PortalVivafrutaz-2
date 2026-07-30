@@ -183,6 +183,9 @@ function OrderDetailModal({ order, onClose, onReopen, onDeadlineExpired }: {
                       </div>
                       <div>
                         <p className="font-semibold text-sm text-foreground leading-tight">{item.productName}</p>
+                        {item.subCategoryName && (
+                          <p className="text-xs font-medium text-primary/80 leading-tight">{item.subCategoryName}</p>
+                        )}
                         <p className="text-xs text-muted-foreground">{item.unit}</p>
                       </div>
                     </div>

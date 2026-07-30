@@ -494,6 +494,34 @@ export class OrdersService {
       );
     }
 
+    // 4.5) minimum weekly billing guard — server-side enforcement.
+    // Mirrors the client-side check so the restriction cannot be bypassed via
+    // API. Only applies to client sessions (actor.companyId set).
+    if (actor.companyId && order.weekReference) {
+      const company = await this.repo.getCompany(order.companyId);
+      const minWeekly = parseFloat(String((company as any)?.minWeeklyBilling ?? "0")) || 0;
+      if (minWeekly > 0) {
+        const weekOrders = companyOrders.filter(
+          (o: any) =>
+            o.status !== "CANCELLED" &&
+            o.weekReference === order.weekReference,
+        );
+        const existingWeeklyTotal = weekOrders.reduce(
+          (sum: number, o: any) => sum + (parseFloat(String(o.totalValue)) || 0),
+          0,
+        );
+        const newOrderTotal = parseFloat(String(order.totalValue)) || 0;
+        const projectedTotal = existingWeeklyTotal + newOrderTotal;
+        if (projectedTotal < minWeekly) {
+          const fmt = (v: number) =>
+            v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          throw new BadRequestError(
+            `Faturamento mínimo semanal não atingido. Mínimo: R$ ${fmt(minWeekly)}. Projetado: R$ ${fmt(projectedTotal)}.`,
+          );
+        }
+      }
+    }
+
     // 5) persist
     // Auto-normalise items: compute totalPrice = unitPrice × quantity if absent.
     // This guards against API callers that provide unitPrice+quantity but omit
