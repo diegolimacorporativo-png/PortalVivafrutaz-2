@@ -12,23 +12,21 @@ const _env = process.env.NODE_ENV ?? "development";
 const _ts = () => new Date().toISOString();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FAIL-FAST: SUPABASE_DATABASE_URL é obrigatória em TODOS os ambientes.
-// DATABASE_URL (Replit/heliumdb) NUNCA é usado como fallback.
+// FAIL-FAST: SUPABASE_DATABASE_URL ou DATABASE_URL (Supabase) é obrigatória.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+const supabaseUrl = process.env.SUPABASE_DATABASE_URL ?? process.env.DATABASE_URL;
 
 if (!supabaseUrl) {
   console.error("[SUPABASE_REQUIRED]", {
-    reason: "SUPABASE_DATABASE_URL não configurada. O sistema não pode iniciar sem ela.",
-    fallback_used: "nenhum — fallback para DATABASE_URL é proibido",
-    action: "Configure o secret SUPABASE_DATABASE_URL e reinicie.",
+    reason: "SUPABASE_DATABASE_URL (ou DATABASE_URL) não configurada. O sistema não pode iniciar sem ela.",
+    action: "Configure o secret SUPABASE_DATABASE_URL ou DATABASE_URL e reinicie.",
     env: _env,
     pid: _pid,
     ts: _ts(),
   });
   console.error("[BOOT_VALIDATION_FAIL]", {
-    fails: ["SUPABASE_DATABASE_URL ausente"],
+    fails: ["SUPABASE_DATABASE_URL / DATABASE_URL ausente"],
     env: _env,
     pid: _pid,
     ts: _ts(),
