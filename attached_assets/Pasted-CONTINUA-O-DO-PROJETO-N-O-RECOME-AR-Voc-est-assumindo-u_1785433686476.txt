@@ -1,0 +1,220 @@
+CONTINUAÇÃO DO PROJETO — NÃO RECOMEÇAR
+
+Você está assumindo um projeto ERP que já está em desenvolvimento.
+
+IMPORTANTE
+
+NÃO reanalise o sistema inteiro.
+
+NÃO mude a arquitetura.
+
+NÃO faça refactor.
+
+NÃO recrie funcionalidades.
+
+Continue exatamente do ponto onde o outro Agent parou.
+
+CONTEXTO
+
+Sistema ERP VivaFrutaz
+
+Stack:
+
+React
+TypeScript
+Express
+Drizzle ORM
+PostgreSQL (Supabase)
+React Query
+Zod
+
+O sistema já possui:
+
+pedidos
+histórico
+programação
+contratos
+financeiro
+logística
+produção
+workflow de reabertura
+OPEN_FOR_EDITING
+tenantContext
+AsyncLocalStorage
+
+Essas estruturas NÃO devem ser alteradas.
+
+O QUE FOI IMPLEMENTADO
+
+O Agent anterior informou que implementou:
+
+Programação Semanal
+Nova tela WeeklySchedule
+Novo hook useCreateProgramacao()
+Menu alterado
+Dashboard alterado
+Histórico alterado
+Fluxo de envio da programação
+Modal de confirmação
+Reutilização do fluxo de reabertura
+Deadline de 48 horas úteis
+
+PORÉM
+
+Antes de continuar qualquer desenvolvimento, quero AUDITAR essa implementação.
+
+NÃO ASSUMA que ela está correta.
+
+Quero verificar.
+
+AUDITORIA OBRIGATÓRIA
+PASSO 1
+
+Mostre onde existe:
+
+POST /api/orders/programacao
+
+Informe:
+
+arquivo
+controller
+service
+repository
+PASSO 2
+
+Mostre exatamente onde ocorre:
+
+db.transaction(...)
+
+Quero confirmar que TODOS os pedidos da semana são criados em uma única transação.
+
+Se não existir transaction, informe.
+
+PASSO 3
+
+Explique como a Programação Semanal é persistida.
+
+Responda exatamente uma das opções:
+
+A)
+
+Não existe tabela Programação.
+
+A programação apenas cria pedidos na tabela orders.
+
+ou
+
+B)
+
+Foi criada uma nova entidade/tabela.
+
+Se foi criada, mostre.
+
+PASSO 4
+
+Explique como a tela recupera uma programação já enviada.
+
+Quero saber:
+
+qual endpoint
+
+qual hook
+
+qual query
+
+qual filtro
+
+como os pedidos são agrupados.
+
+PASSO 5
+
+Quero confirmar que o fluxo antigo continua funcionando.
+
+Mostre:
+
+Cliente
+
+↓
+
+Solicita reabertura
+
+↓
+
+Admin aprova
+
+↓
+
+Pedido
+
+OPEN_FOR_EDITING
+
+↓
+
+Cliente edita
+
+Mostre onde isso continua sendo utilizado.
+
+PASSO 6
+
+Quero confirmar que NÃO existe duplicação de lógica.
+
+Verifique se a WeeklySchedule reutiliza:
+
+create-order
+edit-order
+calculateOrderModificationDeadline()
+useOrdering
+
+ou se criou lógica paralela.
+
+Se criou lógica duplicada, liste.
+
+PASSO 7
+
+Verifique se existe regressão.
+
+Especialmente:
+
+Histórico
+Dashboard
+Produção
+Planejamento
+Financeiro
+Pedidos
+Aprovação
+Reabertura
+
+Informe qualquer risco encontrado.
+
+PASSO 8
+
+Quero um relatório com esta tabela:
+
+Item	Status	Observação
+Endpoint	✅ / ❌	
+Transaction	✅ / ❌	
+Hook	✅ / ❌	
+Persistência	✅ / ❌	
+Reabertura	✅ / ❌	
+Histórico	✅ / ❌	
+Dashboard	✅ / ❌	
+Deadline	✅ / ❌	
+Produção	✅ / ❌	
+IMPORTANTE
+
+NÃO IMPLEMENTE NADA AINDA.
+
+Primeiro quero validar que a arquitetura está correta.
+
+Somente depois da auditoria e da minha aprovação você poderá continuar implementando novas funcionalidades.
+
+Use evidências do código.
+
+Para cada resposta, informe:
+
+arquivo
+função
+linhas aproximadas
+trecho relevante
+
+Não responda com hipóteses. Responda apenas com o que realmente existir no projeto.
