@@ -1,0 +1,183 @@
+# CONTINUAÇÃO DO PROJETO — NÃO RECOMEÇAR
+
+Você está assumindo um projeto ERP já em produção.
+
+NÃO reanalise o sistema.
+NÃO faça refactor.
+NÃO altere arquitetura.
+NÃO mude APIs existentes.
+NÃO recrie funcionalidades.
+
+Continue exatamente do estado atual.
+
+-------------------------------------------------------
+CONTEXTO
+-------------------------------------------------------
+
+Foi implementada a Programação Semanal.
+
+Foi realizada uma auditoria completa.
+
+Resultado:
+
+✅ Endpoint existe
+✅ Hook existe
+✅ Reabertura reutiliza OPEN_FOR_EDITING
+✅ Histórico preservado
+✅ Dashboard preservado
+✅ Produção preservada
+✅ Deadline reutilizado
+✅ Persistência continua usando orders
+
+ÚNICO PROBLEMA CONFIRMADO:
+
+A criação da programação semanal NÃO é atômica.
+
+Hoje o service faz:
+
+for (const day of activeDays) {
+   await this.create(...)
+}
+
+Ou seja:
+
+segunda cria
+terça cria
+quarta erro
+
+Resultado:
+
+segunda fica gravada
+terça fica gravada
+quarta falha
+
+Isso NÃO pode acontecer.
+
+-------------------------------------------------------
+OBJETIVO
+-------------------------------------------------------
+
+Transformar a criação da Programação Semanal em uma operação 100% atômica.
+
+Ou:
+
+TODOS os pedidos são criados
+
+OU
+
+NENHUM pedido é criado.
+
+-------------------------------------------------------
+REGRAS
+-------------------------------------------------------
+
+NÃO alterar frontend.
+
+NÃO alterar Layout.
+
+NÃO alterar WeeklySchedule.
+
+NÃO alterar hooks.
+
+NÃO alterar rotas.
+
+NÃO alterar controller.
+
+NÃO alterar DTO.
+
+NÃO alterar banco.
+
+NÃO criar tabela nova.
+
+NÃO criar entidade nova.
+
+NÃO mudar weekReference.
+
+NÃO mudar createOrder.
+
+-------------------------------------------------------
+IMPLEMENTAÇÃO
+-------------------------------------------------------
+
+Quero alterar APENAS o service responsável pelo createProgramacao.
+
+Envolver todo o processo em uma única:
+
+db.transaction(...)
+
+ou utilizar exatamente o padrão de transações já existente no projeto.
+
+Se o projeto já possuir helper próprio para transaction, reutilize.
+
+Não invente outro.
+
+-------------------------------------------------------
+IMPORTANTE
+-------------------------------------------------------
+
+A função create() já funciona.
+
+Ela NÃO deve ser duplicada.
+
+Ela deve continuar sendo utilizada.
+
+Apenas toda a execução deve ocorrer dentro da mesma transação.
+
+-------------------------------------------------------
+VALIDAÇÕES
+-------------------------------------------------------
+
+Após implementar, execute:
+
+1.
+
+Criar programação com 5 dias
+
+Resultado esperado:
+
+5 pedidos criados
+
+2.
+
+Forçar erro no terceiro pedido
+
+Resultado esperado:
+
+ZERO pedidos persistidos
+
+Rollback completo.
+
+-------------------------------------------------------
+RELATÓRIO
+-------------------------------------------------------
+
+Entregar:
+
+✔ Arquivos alterados
+
+✔ Diff resumido
+
+✔ Onde iniciou a transaction
+
+✔ Onde ocorreu o rollback
+
+✔ Como foi reutilizada a função create()
+
+✔ Testes executados
+
+✔ TypeScript
+
+✔ Resultado final
+
+-------------------------------------------------------
+IMPORTANTE
+
+Não faça nenhuma outra melhoria.
+
+Não aproveite para refatorar.
+
+Não altere nomenclaturas.
+
+Não altere arquitetura.
+
+Corrija SOMENTE o problema da atomicidade da Programação Semanal.

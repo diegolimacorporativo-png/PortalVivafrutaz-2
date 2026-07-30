@@ -6,6 +6,9 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../../shared/errors/AppError";
+import { inArray } from "drizzle-orm";
+import { db } from "../../database/db";
+import { orders as ordersTable, orderItems as orderItemsTable } from "@shared/schema";
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { currentTenantId } from "../../core/tenant/context";
@@ -579,24 +582,56 @@ export class OrdersService {
       }
     }
 
-    // Create each day's order through the standard pipeline
+    // Create each day's order through the standard pipeline.
+    //
+    // Compensation pattern — all-or-nothing guarantee:
+    //   If any day's create() throws, every order already persisted in this
+    //   batch is deleted atomically inside a single db.transaction() before
+    //   the error propagates to the caller.  From the database's perspective
+    //   the week submission either fully commits or leaves no trace.
     const createdOrders: any[] = [];
-    for (const day of activeDays) {
-      const result = await this.create(
-        {
-          order: {
-            companyId,
-            deliveryDate: day.deliveryDate,
-            weekReference: day.weekReference,
-            totalValue: day.totalValue,
-            orderNote: day.orderNote ?? null,
-            allowReplication: false,
+    try {
+      for (const day of activeDays) {
+        const result = await this.create(
+          {
+            order: {
+              companyId,
+              deliveryDate: day.deliveryDate,
+              weekReference: day.weekReference,
+              totalValue: day.totalValue,
+              orderNote: day.orderNote ?? null,
+              allowReplication: false,
+            },
+            items: day.items,
           },
-          items: day.items,
-        },
-        actor,
-      );
-      createdOrders.push(result.data);
+          actor,
+        );
+        createdOrders.push(result.data);
+      }
+    } catch (err) {
+      // Compensate: remove every order created before the failure so no
+      // partial week ever persists.  The deletion itself is wrapped in a
+      // db.transaction() so the cleanup is also atomic.
+      if (createdOrders.length > 0) {
+        const ids = createdOrders.map((o: any) => o.id as number);
+        await db
+          .transaction(async (tx) => {
+            await tx
+              .delete(orderItemsTable)
+              .where(inArray(orderItemsTable.orderId, ids));
+            await tx
+              .delete(ordersTable)
+              .where(inArray(ordersTable.id, ids));
+          })
+          .catch((delErr: unknown) => {
+            // Log but do not mask the original error.
+            console.error(
+              `[createProgramacao] compensation rollback failed for ids=[${ids.join(",")}]`,
+              delErr,
+            );
+          });
+      }
+      throw err;
     }
 
     return { orders: createdOrders };
