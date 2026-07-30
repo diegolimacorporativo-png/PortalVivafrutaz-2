@@ -1,0 +1,263 @@
+🚨 INVESTIGAÇÃO CRÍTICA — Pedido reaprovado desaparece ao editar
+
+NÃO alterar layout.
+NÃO refatorar.
+NÃO implementar nada antes de encontrar a causa.
+
+OBJETIVO
+
+Existe um bug no fluxo de reabertura de pedidos.
+
+Fluxo atual:
+
+1. Cliente cria pedido.
+2. Pedido é finalizado.
+3. Cliente solicita alteração.
+4. Admin aprova a reabertura.
+5. O pedido aparece novamente em Histórico de Pedidos.
+6. Cliente clica em "Editar Pedido".
+7. A tela abre mas o pedido desaparece ou não é carregado.
+
+Precisamos descobrir exatamente onde isso acontece.
+
+────────────────────────────
+
+INVESTIGAR TODO O FLUXO
+
+Seguir exatamente esta sequência.
+
+1.
+
+Localizar onde o botão "Editar Pedido" envia o usuário.
+
+Mostrar:
+
+arquivo
+linha
+rota utilizada
+
+Exemplo:
+
+/client/orders/:id/edit
+
+ou
+
+/client/edit-order?id=...
+
+────────────────────────────
+
+2.
+
+Localizar a página edit-order.tsx
+
+Responder:
+
+como ela recebe o ID
+
+params
+
+searchParams
+
+state
+
+context
+
+────────────────────────────
+
+3.
+
+Localizar a query que busca o pedido.
+
+Mostrar:
+
+endpoint
+
+hook
+
+React Query
+
+fetch
+
+queryKey
+
+────────────────────────────
+
+4.
+
+Localizar o endpoint correspondente.
+
+Exemplo:
+
+GET /api/orders/:id
+
+Mostrar:
+
+controller
+
+service
+
+repository
+
+────────────────────────────
+
+5.
+
+Verificar todos os filtros que impedem o pedido de ser retornado.
+
+Exemplos:
+
+status
+
+isEditable
+
+approved
+
+pending
+
+reopened
+
+deleted
+
+archived
+
+cancelled
+
+deliveryDate
+
+tenant
+
+────────────────────────────
+
+6.
+
+Verificar se existe algum filtro parecido com:
+
+status === "OPEN"
+
+status === "PENDING"
+
+status !== "CONFIRMED"
+
+status !== "REOPENED"
+
+isEditable
+
+editable
+
+allowEdit
+
+────────────────────────────
+
+7.
+
+Verificar se o Admin aprova a solicitação mas NÃO altera algum campo necessário.
+
+Exemplo:
+
+pedido continua:
+
+CONFIRMED
+
+ao invés de
+
+OPEN
+
+ou
+
+REOPENED
+
+────────────────────────────
+
+8.
+
+Mostrar exatamente quais campos mudam quando o admin aprova.
+
+ANTES
+
+DEPOIS
+
+Exemplo:
+
+status
+
+reopenedAt
+
+approvedBy
+
+editableUntil
+
+allowEdit
+
+requestedChange
+
+etc.
+
+────────────────────────────
+
+9.
+
+Verificar se o frontend espera um status diferente do salvo pelo backend.
+
+Exemplo:
+
+Backend grava:
+
+REOPENED
+
+Frontend procura:
+
+OPEN
+
+────────────────────────────
+
+10.
+
+Verificar se existe alguma regra na página edit-order.tsx que redireciona quando:
+
+pedido == undefined
+
+pedido == null
+
+pedido.status inválido
+
+────────────────────────────
+
+11.
+
+Adicionar logs temporários (SEM corrigir)
+
+Frontend:
+
+[EDIT_ORDER]
+id
+pedido recebido
+
+Backend:
+
+[GET_ORDER]
+id
+status
+companyId
+allowEdit
+reopened
+requestedChange
+
+────────────────────────────
+
+12.
+
+Entregar um relatório final contendo:
+
+✔ onde o pedido desaparece
+
+✔ qual condição faz isso acontecer
+
+✔ qual campo está incorreto
+
+✔ qual campo deveria estar
+
+✔ qual arquivo precisa ser alterado
+
+NÃO corrigir ainda.
+
+Quero apenas o diagnóstico completo.

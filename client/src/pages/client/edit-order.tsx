@@ -32,6 +32,11 @@ export default function EditOrderPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Pre-fill cart from existing order items once loaded
+  // [TEMP LOG — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
+  useEffect(() => {
+    console.log('[EDIT_ORDER]', { id: orderId, pedido: orderDetail ?? null });
+  }, [orderId, orderDetail]);
+
   useEffect(() => {
     if (orderDetail && !initialized) {
       const initCart: Record<number, number> = {};

@@ -65,7 +65,18 @@ export class OrdersController {
     // os casos o asyncHandler encaminha para o errorHandler central, que
     // mapeia AppError → status correto, sem alterar o shape da resposta.
     await validateOrderTenant(id);
-    return ok(res, await this.service.get(id));
+    const detail = await this.service.get(id);
+    // [TEMP LOG — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
+    const o = detail?.order as any;
+    console.log('[GET_ORDER]', {
+      id,
+      status: o?.status ?? null,
+      companyId: o?.companyId ?? null,
+      allowEdit: o?.allowEdit ?? null,
+      reopened: o?.reopened ?? null,
+      requestedChange: o?.requestedChange ?? null,
+    });
+    return ok(res, detail);
   };
 
   /** GET /api/orders/export */
