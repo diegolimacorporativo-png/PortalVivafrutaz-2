@@ -217,9 +217,20 @@ export class OrdersService {
   }
 
   async get(id: number): Promise<OrderDetail> {
+    // ── PASSO 5 — service.get entrada ────────────────────────────────────
+    console.log('[DIAG][P5] service.get chamado', { id });
     const detail = await this.repo.get(id);
+    // ── PASSO 6/7 — resultado do repo.get ────────────────────────────────
+    console.log('[DIAG][P6] repo.get retornou', {
+      found: !!detail,
+      orderCode: (detail?.order as any)?.orderCode ?? null,
+      orderCompanyId: (detail?.order as any)?.companyId ?? null,
+      orderStatus: (detail?.order as any)?.status ?? null,
+      itemsCount: detail?.items?.length ?? null,
+    });
     if (!detail) {
-      console.warn(
+      // ── PASSO 7 — undefined: causa exata ─────────────────────────────
+      console.warn('[DIAG][P7] detail=undefined → CROSS_TENANT_404 ou pedido inexistente',
         `[SECURITY] CROSS_TENANT_404 | requestId=${getRequestIdForLog()} | orderId=${id} | details=Possible cross-tenant access (404)`,
       );
       throw new NotFoundError("Pedido não encontrado");
@@ -228,7 +239,15 @@ export class OrdersService {
     // (compat 100% com o frontend legado) e expõe `isPaid` + `paidAt` no
     // mesmo nível para consumo direto.
     const projection = await this.getPaymentProjection(id);
-    return { ...detail, ...projection };
+    const result = { ...detail, ...projection };
+    // ── PASSO 10 — o que o backend vai enviar ────────────────────────────
+    console.log('[DIAG][P10-SERVER] service.get retornando', {
+      orderCode: (result.order as any)?.orderCode ?? null,
+      itemsCount: result.items?.length ?? null,
+      isPaid: (result as any).isPaid ?? null,
+      topLevelKeys: Object.keys(result),
+    });
+    return result;
   }
 
   async listByCompany(companyId: number): Promise<Order[]> {

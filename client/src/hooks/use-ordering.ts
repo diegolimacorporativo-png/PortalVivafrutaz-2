@@ -191,17 +191,54 @@ export function useOrderDetail(orderId?: number) {
   return useQuery<OrderDetail | null>({
     queryKey: [api.orders.get.path, orderId],
     queryFn: async () => {
-      if (!orderId) return null;
-      const url = buildUrl(api.orders.get.path, { id: orderId });
-      const res = await fetchWithAuth(url);
-      // [TEMP LOG — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
-      console.log('[GET_ORDER_RESPONSE]', { status: res.status, ok: res.ok });
-      if (!res.ok) {
-        const body = await res.clone().text();
-        console.log('[GET_ORDER_RESPONSE_BODY]', body);
+      // ── PASSO 1 — orderId recebido pelo hook ──────────────────────────
+      console.log('[DIAG][P1] useOrderDetail chamado', { orderId, enabled: !!orderId });
+      if (!orderId) {
+        console.log('[DIAG][P1] orderId ausente — retornando null sem fetch');
         return null;
       }
-      return normalizeOne<OrderDetail>(await res.json());
+      const url = buildUrl(api.orders.get.path, { id: orderId });
+      console.log('[DIAG][P1] URL resolvida:', url);
+
+      // ── PASSO 2 — fetch com status + headers ─────────────────────────
+      const res = await fetchWithAuth(url);
+      const headersObj: Record<string, string> = {};
+      res.headers.forEach((v, k) => { headersObj[k] = v; });
+      console.log('[DIAG][P2] HTTP response', {
+        status: res.status,
+        ok: res.ok,
+        headers: {
+          'content-type': headersObj['content-type'],
+          'x-request-id': headersObj['x-request-id'],
+        },
+      });
+
+      if (!res.ok) {
+        const body = await res.clone().text();
+        console.log('[DIAG][P2] ERRO — body:', body);
+        return null;
+      }
+
+      // ── PASSO 10 — raw JSON antes do normalizeOne ─────────────────────
+      const rawJson = await res.json();
+      console.log('[DIAG][P10] raw JSON recebido', {
+        type: typeof rawJson,
+        isArray: Array.isArray(rawJson),
+        keys: rawJson && typeof rawJson === 'object' ? Object.keys(rawJson) : null,
+        hasData: rawJson?.data !== undefined,
+        success: rawJson?.success,
+        orderCode: rawJson?.order?.orderCode ?? rawJson?.data?.order?.orderCode ?? null,
+        itemsCount: (rawJson?.items ?? rawJson?.data?.items ?? []).length,
+      });
+
+      const normalized = normalizeOne<OrderDetail>(rawJson);
+      console.log('[DIAG][P10] normalizeOne result', {
+        isNull: normalized === null,
+        orderCode: normalized?.order?.orderCode ?? null,
+        itemsCount: normalized?.items?.length ?? null,
+        isPaid: (normalized as any)?.isPaid ?? null,
+      });
+      return normalized;
     },
     enabled: !!orderId,
   });
