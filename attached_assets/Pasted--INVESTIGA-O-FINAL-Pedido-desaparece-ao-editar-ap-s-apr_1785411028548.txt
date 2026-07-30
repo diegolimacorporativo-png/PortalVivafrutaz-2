@@ -1,0 +1,233 @@
+🚨 INVESTIGAÇÃO FINAL — Pedido desaparece ao editar após aprovação
+
+NÃO faça nenhuma correção ainda.
+
+Quero descobrir exatamente por que o pedido desaparece quando clico em Editar Pedido após o administrador aprovar a reabertura.
+
+CONTEXTO
+
+Fluxo:
+
+Cliente cria pedido.
+Pedido é finalizado.
+Cliente solicita reabertura.
+Administrador aprova.
+Status vira:
+OPEN_FOR_EDITING
+O pedido aparece no Histórico normalmente.
+Ao clicar em Editar Pedido:
+/client/order/edit/:id
+
+a página abre, mas o pedido desaparece.
+
+IMPORTANTE
+
+Já sabemos que:
+
+useOrderDetail()
+
+faz:
+
+if (!res.ok) return null;
+
+Portanto o problema verdadeiro está ANTES.
+
+Precisamos descobrir por que
+
+GET /api/orders/:id
+
+está retornando erro.
+
+PASSO 1
+
+Logar exatamente a resposta HTTP.
+
+Quero ver:
+
+status
+body
+headers
+
+antes do
+
+return null
+
+em
+
+client/src/hooks/use-ordering.ts
+
+Exemplo:
+
+console.log("[GET_ORDER_RESPONSE]", {
+   status: res.status,
+   ok: res.ok
+});
+
+console.log(await res.clone().text());
+PASSO 2
+
+No backend, logar a entrada do endpoint.
+
+Arquivo:
+
+orders.controller.ts
+
+antes de
+
+validateOrderTenant(id)
+
+mostrar:
+
+orderId
+session.userId
+session.companyId
+req.empresaId
+PASSO 3
+
+Dentro de
+
+validateOrderTenant()
+
+logar:
+
+order encontrado?
+companyId do pedido
+tenant atual
+
+e informar exatamente qual condição bloqueou.
+
+Exemplo:
+
+tenant mismatch
+
+blocked user
+
+pedido inexistente
+
+etc
+PASSO 4
+
+Dentro de
+
+safeGetOrder()
+
+mostrar:
+
+storage.getOrder(id)
+
+retornou:
+
+undefined
+
+ou
+
+order
+PASSO 5
+
+Dentro de
+
+repo.get()
+
+mostrar:
+
+companyId do pedido
+
+empresa atual
+
+status
+
+antes do retorno.
+
+PASSO 6
+
+Se houver
+
+return undefined
+
+mostrar exatamente qual condição fez isso.
+
+PASSO 7
+
+Se houver
+
+403
+
+mostrar quem gerou.
+
+Exemplo:
+
+validateOrderTenant
+
+requireTenant
+
+tenantContext
+
+safeGetOrder
+
+repo.get
+
+controller
+PASSO 8
+
+Se houver
+
+404
+
+mostrar quem gerou.
+
+PASSO 9
+
+Se houver
+
+500
+
+mostrar stack completa.
+
+PASSO 10
+
+Não corrigir absolutamente nada.
+
+Quero apenas responder:
+
+GET retornou:
+
+200
+
+403
+
+404
+
+500
+
+e exatamente:
+
+qual arquivo
+
+qual linha
+
+qual if
+
+qual return
+
+qual middleware
+
+qual condição
+
+impediu o carregamento do pedido.
+
+ENTREGA
+
+Responder apenas com:
+
+Status HTTP real
+Arquivo
+Linha
+Condição exata que bloqueou
+Valor de:
+order.companyId
+req.empresaId
+session.companyId
+order.status
+Causa raiz confirmada
+
+Não aplicar nenhuma correção até identificar a causa exata.

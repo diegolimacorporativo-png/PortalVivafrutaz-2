@@ -194,7 +194,13 @@ export function useOrderDetail(orderId?: number) {
       if (!orderId) return null;
       const url = buildUrl(api.orders.get.path, { id: orderId });
       const res = await fetchWithAuth(url);
-      if (!res.ok) return null;
+      // [TEMP LOG — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
+      console.log('[GET_ORDER_RESPONSE]', { status: res.status, ok: res.ok });
+      if (!res.ok) {
+        const body = await res.clone().text();
+        console.log('[GET_ORDER_RESPONSE_BODY]', body);
+        return null;
+      }
       return normalizeOne<OrderDetail>(await res.json());
     },
     enabled: !!orderId,

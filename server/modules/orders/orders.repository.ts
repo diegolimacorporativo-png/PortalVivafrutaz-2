@@ -76,9 +76,22 @@ export class OrdersRepository {
   async get(id: number): Promise<OrderDetail | undefined> {
     const tenantId = currentTenantId();
     const detail = await storage.getOrder(id);
+    // [TEMP LOG PASSO 5+6 — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
+    console.log('[REPO_GET_ORDER]', {
+      id,
+      currentTenantId: tenantId,
+      orderFound: !!detail,
+      orderCompanyId: (detail?.order as any)?.companyId ?? null,
+      orderStatus: (detail?.order as any)?.status ?? null,
+    });
     if (!detail) return undefined;
     if (tenantId != null && (detail.order as any).companyId !== tenantId) {
       // Tenant mismatch — pretend not found.
+      console.log('[REPO_GET_ORDER_TENANT_MISMATCH]', {
+        id,
+        currentTenantId: tenantId,
+        orderCompanyId: (detail.order as any).companyId,
+      });
       return undefined;
     }
     return detail;

@@ -134,6 +134,8 @@ function logSecurityMismatch(params: {
  */
 export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
   const tenantId = requireTenantId();
+  // [TEMP LOG PASSO 3+4 — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
+  console.log('[SAFE_GET_ORDER_ENTRY]', { orderId, tenantId });
 
   // FASE 6.5 + 6.9 — bloqueio em duas camadas:
   //   1. Memória (rápido, primeira linha de defesa).
@@ -155,21 +157,22 @@ export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
   }
 
   // (1) Memória — preserva o early-exit quando o Map está vazio.
+  // [TEMP LOG PASSO 3 — bloqueio memória]
   if (
     blockedCount() > 0 &&
     userEmail &&
     isUserBlocked(userEmail)
   ) {
+    console.log('[SAFE_GET_ORDER_BLOCKED_MEMORY]', { userEmail, orderId });
     throw new ForbiddenError("Too many invalid access attempts");
   }
 
   // (2) DB fallback (FASE 6.9) — só consulta se NÃO bloqueado em memória.
-  // Re-hidrata a memória com o TTL ORIGINAL do DB para que próximas
-  // chamadas batam apenas em memória até o bloqueio expirar.
   if (userEmail) {
     try {
       const dbBlock = await getActiveBlock(userEmail);
       if (dbBlock) {
+        console.log('[SAFE_GET_ORDER_BLOCKED_DB]', { userEmail, orderId, blockedUntil: dbBlock.blockedUntil });
         hydrateBlockFromDb(userEmail, dbBlock.blockedUntil.getTime());
         throw new ForbiddenError("Too many invalid access attempts");
       }
@@ -180,16 +183,27 @@ export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
   }
 
   if (!Number.isInteger(orderId) || orderId <= 0) {
+    console.log('[SAFE_GET_ORDER_INVALID_ID]', { orderId });
     throw new NotFoundError(`Pedido inválido: ${orderId}`);
   }
 
   const result = (await storage.getOrder(orderId)) as StoredOrder | undefined;
+  // [TEMP LOG PASSO 4 — storage.getOrder retornou]
+  console.log('[SAFE_GET_ORDER_STORAGE]', {
+    orderId,
+    found: !!(result && result.order),
+    orderCompanyId: (result?.order as any)?.companyId ?? null,
+    orderStatus: (result?.order as any)?.status ?? null,
+    tenantId,
+  });
   if (!result || !result.order) {
+    console.log('[SAFE_GET_ORDER_NOT_FOUND]', { orderId });
     throw new NotFoundError(`Pedido #${orderId} não encontrado.`);
   }
 
   const orderTenantId = extractOrderTenantId(result.order);
   if (orderTenantId !== tenantId) {
+    console.log('[SAFE_GET_ORDER_TENANT_MISMATCH]', { orderId, tenantId, orderTenantId });
     logSecurityMismatch({
       orderId,
       tenantId,

@@ -64,6 +64,14 @@ export class OrdersController {
     // dentro de safeGetOrder). Se não existir → NotFoundError. Em ambos
     // os casos o asyncHandler encaminha para o errorHandler central, que
     // mapeia AppError → status correto, sem alterar o shape da resposta.
+    // [TEMP LOG PASSO 2 — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
+    const s: any = (req as any).session || {};
+    console.log('[GET_ORDER_CONTROLLER_ENTRY]', {
+      orderId: id,
+      'session.userId': s.userId ?? null,
+      'session.companyId': s.companyId ?? null,
+      'req.empresaId': (req as any).empresaId ?? null,
+    });
     await validateOrderTenant(id);
     const detail = await this.service.get(id);
     // [TEMP LOG — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
