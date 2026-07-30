@@ -525,6 +525,84 @@ export class OrdersService {
   }
 
   /**
+   * `POST /api/orders/programacao` — Programação Semanal.
+   *
+   * Creates one order per delivery day for the full week in a single request.
+   * Enforces the company's minimum weekly billing against the TOTAL of all
+   * submitted days before persisting anything. Each day's order still passes
+   * through the existing `create()` pipeline (maintenance mode, test mode,
+   * date-lock guard, side-effects).
+   */
+  async createProgramacao(
+    body: {
+      days: Array<{
+        companyId?: number;
+        deliveryDate: string;
+        weekReference: string;
+        totalValue: string;
+        orderNote?: string | null;
+        items: any[];
+      }>;
+    },
+    actor: ActorContext,
+  ): Promise<{ orders: any[] }> {
+    const { days } = body;
+
+    if (!days || days.length === 0) {
+      throw new BadRequestError("Nenhum dia informado na programação.");
+    }
+
+    // Only process days that actually have items
+    const activeDays = days.filter(d => d.items && d.items.length > 0);
+    if (activeDays.length === 0) {
+      throw new BadRequestError("Adicione produtos em pelo menos um dia antes de enviar.");
+    }
+
+    // Enforce minimum weekly billing — checked against the WHOLE week's total,
+    // not per individual order.
+    const companyId = actor.companyId ?? activeDays[0].companyId;
+    if (companyId) {
+      const company = await this.repo.getCompany(companyId);
+      const minWeekly = parseFloat(String((company as any)?.minWeeklyBilling ?? "0")) || 0;
+      if (minWeekly > 0) {
+        const submittedTotal = activeDays.reduce(
+          (sum, d) => sum + (parseFloat(String(d.totalValue)) || 0),
+          0,
+        );
+        const fmt = (v: number) =>
+          v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        if (submittedTotal < minWeekly) {
+          throw new BadRequestError(
+            `Faturamento mínimo semanal não atingido. Mínimo: R$ ${fmt(minWeekly)}. Total da programação: R$ ${fmt(submittedTotal)}.`,
+          );
+        }
+      }
+    }
+
+    // Create each day's order through the standard pipeline
+    const createdOrders: any[] = [];
+    for (const day of activeDays) {
+      const result = await this.create(
+        {
+          order: {
+            companyId,
+            deliveryDate: day.deliveryDate,
+            weekReference: day.weekReference,
+            totalValue: day.totalValue,
+            orderNote: day.orderNote ?? null,
+            allowReplication: false,
+          },
+          items: day.items,
+        },
+        actor,
+      );
+      createdOrders.push(result.data);
+    }
+
+    return { orders: createdOrders };
+  }
+
+  /**
    * Internal creation pipeline — for system callers (cron jobs, admin tools)
    * that generate orders outside of a client HTTP request.
    *

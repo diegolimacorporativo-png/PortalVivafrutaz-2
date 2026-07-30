@@ -125,6 +125,12 @@ export class OrdersController {
     return ok(res, result);
   };
 
+  /** POST /api/orders/programacao — Programação Semanal */
+  createProgramacao = async (req: Request, res: Response) => {
+    const result = await this.service.createProgramacao(req.body, this.actor(req));
+    return created(res, result);
+  };
+
   // ── UPDATE / DELETE ─────────────────────────────────────────────────
   /** PATCH /api/orders/:id */
   update = async (req: Request, res: Response) => {

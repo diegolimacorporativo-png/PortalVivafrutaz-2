@@ -149,6 +149,14 @@ router.post(
   asyncHandler(ordersController.createWithDelivery),
 );
 
+// Programação Semanal — literal path BEFORE /:id wildcard
+router.post(
+  "/programacao",
+  requireActiveSubscription,
+  checkPlanLimit("pedidos"),
+  asyncHandler(ordersController.createProgramacao),
+);
+
 router.post(
   "/:id/request-reopen",
   validate(idParamSchema, "params"),

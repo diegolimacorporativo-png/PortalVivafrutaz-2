@@ -1,7 +1,7 @@
 /**
  * Regra de prazo para alteração / cancelamento / reabertura de pedidos.
  *
- * Prazo: até às 12:00 BRT (15:00 UTC) do SEGUNDO DIA ÚTIL anterior à entrega.
+ * Prazo: até às 13:00 BRT (16:00 UTC) do SEGUNDO DIA ÚTIL anterior à entrega.
  * Dias úteis: segunda a sexta. Sábado e domingo são ignorados.
  * Feriados: parâmetro `holidays` reservado para implementação futura.
  *
@@ -13,7 +13,7 @@
 // ─── Tipos públicos ────────────────────────────────────────────────────────────
 
 export interface DeadlineResult {
-  /** Data/hora limite: 12:00 BRT (15:00 UTC) do 2º dia útil antes da entrega */
+  /** Data/hora limite: 13:00 BRT (16:00 UTC) do 2º dia útil antes da entrega */
   deadline: Date;
   /** true quando now ≤ deadline (dentro do prazo) */
   canModify: boolean;
@@ -77,12 +77,12 @@ function subtractBusinessDays(date: Date, n: number, _holidays: Date[] = []): Da
 /**
  * Calcula o prazo para alteração / cancelamento / reabertura de um pedido.
  *
- * **Regra:** prazo = segundo dia útil anterior à entrega às 12:00 BRT (15:00 UTC).
+ * **Regra:** prazo = segundo dia útil anterior à entrega às 13:00 BRT (16:00 UTC).
  *
  * @example
- * // Entrega segunda 03/08/2026 → prazo quinta 31/07/2026 às 12:00 BRT
+ * // Entrega segunda 03/08/2026 → prazo quinta 31/07/2026 às 13:00 BRT
  * calculateOrderModificationDeadline("2026-08-04")
- * // { deadline: Date("2026-07-31T15:00:00Z"), canModify: ..., reason: "..." }
+ * // { deadline: Date("2026-07-31T16:00:00Z"), canModify: ..., reason: "..." }
  *
  * @param deliveryDate Data de entrega (Date ou string ISO/YYYY-MM-DD)
  * @param options      { holidays?: Date[]; now?: Date }
@@ -97,12 +97,12 @@ export function calculateOrderModificationDeadline(
   const deadlineDay = subtractBusinessDays(delivery, 2, holidays);
 
   const deadline = new Date(deadlineDay);
-  deadline.setUTCHours(15, 0, 0, 0); // 12:00 BRT = UTC-3 → 15:00 UTC
+  deadline.setUTCHours(16, 0, 0, 0); // 13:00 BRT = UTC-3 → 16:00 UTC
 
   const canModify = now <= deadline;
   const reason = canModify
     ? ""
-    : "Prazo encerrado: alterações são permitidas somente até às 12h00 do segundo dia útil anterior à data de entrega.";
+    : "Prazo encerrado: alterações são permitidas somente até às 13h00 do segundo dia útil anterior à data de entrega.";
 
   return { deadline, canModify, reason };
 }
