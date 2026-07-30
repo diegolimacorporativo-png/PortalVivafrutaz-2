@@ -123,6 +123,7 @@ import OperationsTimeline from "@/pages/admin/operations-timeline";
 
 import ClientDashboard from "@/pages/client/dashboard";
 import ClientCreateOrder from "@/pages/client/create-order";
+import WeeklySchedule from "@/pages/client/weekly-schedule";
 import ClientOrderHistory from "@/pages/client/order-history";
 import ClientEditOrder from "@/pages/client/edit-order";
 import ClientSpecialOrder from "@/pages/client/special-order";
@@ -546,7 +547,7 @@ function Router() {
         {() => <ProtectedRoute component={ClientEditOrder} role="client" />}
       </Route>
       <Route path="/client/order">
-        {() => <ProtectedRoute component={ClientCreateOrder} role="client" />}
+        {() => <ProtectedRoute component={WeeklySchedule} role="client" />}
       </Route>
       <Route path="/client/history">
         {() => <ProtectedRoute component={ClientOrderHistory} role="client" />}

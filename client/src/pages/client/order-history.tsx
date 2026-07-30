@@ -11,7 +11,7 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { format, getYear, subDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Receipt, Calendar, Plus, Filter, X, Clock, Lock, Unlock,
+  Receipt, Calendar, Plus, Filter, X, Clock, Lock, Unlock, CalendarDays,
   ClipboardEdit, Pencil, AlertCircle, Search, Info, Eye,
   Package, ChevronRight, ShoppingCart, FileText, Ban
 } from "lucide-react";
@@ -416,7 +416,7 @@ export default function OrderHistoryPage() {
         </div>
         {company?.clientType !== 'contratual' && (
           <Link href="/client/order" className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-lg shadow-primary/25">
-            <Plus className="w-4 h-4" /> Novo Pedido
+            <CalendarDays className="w-4 h-4" /> Programação Semanal
           </Link>
         )}
         {company?.clientType === 'contratual' && (

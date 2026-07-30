@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveOrderWindow, useCompanyOrders } from "@/hooks/use-ordering";
 import { Layout } from "@/components/Layout";
 import { Link, useLocation } from "wouter";
-import { ShoppingCart, History, AlertCircle, CheckCircle2, Info, Clock, AlertTriangle, Wrench, FlaskConical, Megaphone, X, Truck, FileText } from "lucide-react";
+import { ShoppingCart, History, AlertCircle, CheckCircle2, Info, Clock, AlertTriangle, Wrench, FlaskConical, Megaphone, X, Truck, FileText, CalendarDays } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { FruitCuriosities } from "@/components/FruitCuriosities";
 import { format } from "date-fns";
@@ -196,7 +196,7 @@ export default function ClientDashboard() {
                 <Link href="/client/order"
                   data-testid="link-new-order"
                   className="inline-flex items-center justify-center gap-2 px-6 py-3.5 bg-white text-primary font-bold rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-1 transition-all">
-                  <ShoppingCart className="w-5 h-5" /> Novo Pedido
+                  <CalendarDays className="w-5 h-5" /> Programação Semanal
                 </Link>
               )}
               {company?.clientType !== 'contratual' && (

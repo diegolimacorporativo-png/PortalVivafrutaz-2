@@ -289,6 +289,52 @@ export function useCreateOrder() {
   });
 }
 
+export function useCreateProgramacao() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async (data: {
+      days: Array<{
+        deliveryDate: string;
+        weekReference: string;
+        totalValue: string;
+        orderNote?: string | null;
+        items: Array<{
+          productId: number;
+          quantity: number;
+          unitPrice: string;
+          totalPrice: string;
+          subCategoryId?: number | null;
+          subCategoryName?: string | null;
+        }>;
+      }>;
+    }) => {
+      const res = await fetchWithAuth('/api/orders/programacao', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) {
+        const message =
+          body?.error?.message ||
+          (typeof body?.error === "string" ? body.error : undefined) ||
+          body?.message ||
+          `Erro ${res.status} ao enviar programação`;
+        throw new Error(message);
+      }
+      return body as { orders: any[] };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
+      queryClient.invalidateQueries({ queryKey: [api.orders.companyOrders.path] });
+    },
+    onError: (error: Error) => {
+      toast({ title: error.message || "Erro ao enviar programação", variant: "destructive" });
+    },
+  });
+}
+
 // ========== REPORTS ==========
 export function usePurchasingReport() {
   return useQuery({

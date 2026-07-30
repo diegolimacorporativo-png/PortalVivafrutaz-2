@@ -175,7 +175,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/client', label: 'Início', icon: LayoutDashboard },
     ...(isContratual
       ? [{ href: '/client/contract-scope', label: 'Meu Escopo Contratual', icon: FileText }]
-      : [{ href: '/client/order', label: 'Novo Pedido', icon: ShoppingCart }]
+      : [{ href: '/client/order', label: 'Programação Semanal', icon: CalendarDays }]
     ),
     { href: '/client/history', label: 'Histórico de Pedidos', icon: Receipt },
     ...(!isContratual ? [{ href: '/client/special-order', label: 'Pedidos Pontuais', icon: Star }] : []),
