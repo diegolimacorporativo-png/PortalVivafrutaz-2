@@ -51,7 +51,7 @@ export default function EditOrderPage() {
   const availableProducts = useMemo(() => {
     if (!products || !company) return [];
     return products
-      .filter(p => p.active && p.basePrice != null)
+      .filter(p => p.active)
       .map(product => {
         const price = resolvePrice({
           basePrice: product.basePrice,
@@ -59,9 +59,11 @@ export default function EditOrderPage() {
           contractPrice: (product as any).contractPrice,
           adminFee: company.adminFee,
           useNewPricing: (company as any).useNewPricing === true,
+          pricingMode: (product as any).pricingMode,
         });
         return { ...product, price };
-      });
+      })
+      .filter(p => p.price > 0);
   }, [products, company]);
 
   const cartItems = useMemo(() => {
