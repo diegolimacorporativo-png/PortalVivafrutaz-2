@@ -62,8 +62,10 @@ export default function EditOrderPage() {
           pricingMode: (product as any).pricingMode,
         });
         return { ...product, price };
-      })
-      .filter(p => p.price > 0);
+      });
+    // Sem filtro de preço > 0 aqui: produtos sem preço cadastrado devem
+    // aparecer no catálogo de edição para que o cliente possa adicioná-los.
+    // O preço será resolvido pelo backend no momento da confirmação.
   }, [products, company]);
 
   // Índice de todos os itens originais do pedido, indexado por productId.
@@ -244,7 +246,18 @@ export default function EditOrderPage() {
                                 className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors font-bold">
                                 <Minus className="w-3.5 h-3.5" />
                               </button>
-                              <span className="w-8 text-center font-bold text-sm text-foreground">{qty}</span>
+                              <input
+                                type="number"
+                                min={0}
+                                value={qty}
+                                data-testid={`input-qty-${product.id}`}
+                                onChange={e => {
+                                  const v = parseInt(e.target.value, 10);
+                                  handleUpdateCart(product.id, Number.isNaN(v) ? 0 : v);
+                                }}
+                                onFocus={e => e.target.select()}
+                                className="w-16 text-center font-bold text-sm text-foreground bg-muted/30 border border-border/50 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                              />
                               <button onClick={() => handleUpdateCart(product.id, qty + 1)}
                                 data-testid={`button-increase-${product.id}`}
                                 className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors font-bold">
