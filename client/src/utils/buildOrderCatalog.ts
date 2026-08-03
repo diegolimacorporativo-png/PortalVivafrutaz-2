@@ -43,9 +43,29 @@ export function buildOrderCatalog(
   products: any[],
   company: CompanyPricingContext | null | undefined,
 ): ProductEntry[] {
-  if (!products || !company) return [];
+  // ── AUDIT LOG ─────────────────────────────────────────────────────────────
+  console.log("[buildOrderCatalog] ▶ iniciando", {
+    produtosRecebidos: products?.length ?? 0,
+    company: company
+      ? { adminFee: company.adminFee, useNewPricing: company.useNewPricing }
+      : null,
+  });
+
+  if (!products || !company) {
+    console.warn("[buildOrderCatalog] ✖ retorno antecipado — products ou company é null/undefined", {
+      products: products == null ? "NULL" : `array(${products.length})`,
+      company: company == null ? "NULL" : "presente",
+    });
+    return [];
+  }
 
   const entries: ProductEntry[] = [];
+  const descartados: Array<{
+    produtoId: number; produtoNome: string;
+    scId?: number; scNome?: string;
+    basePrice: unknown; subCategoryPrice: unknown;
+    contractPriceEnviado: unknown; priceResolvido: number; motivo: string;
+  }> = [];
 
   for (const p of products) {
     const subCats: Array<{ id: number; categoryName: string; price: number; active: boolean }> =
@@ -58,15 +78,38 @@ export function buildOrderCatalog(
       // and hide the category-specific price entirely.
       // contractPrice is only relevant for products without category pricing.
       for (const sc of subCats) {
+        const contractEnviado = sc.price > 0 ? null : (p as any).contractPrice;
         const price = resolvePrice({
           basePrice: p.basePrice,
           subCategoryPrice: sc.price,
-          contractPrice: sc.price > 0 ? null : (p as any).contractPrice,
+          contractPrice: contractEnviado,
           adminFee: company.adminFee,
           useNewPricing: company.useNewPricing === true,
           pricingMode: (p as any).pricingMode,
         });
-        if (price <= 0) continue;
+
+        // ── log por sub-categoria ─────────────────────────────────────────
+        console.log("[buildOrderCatalog] produto+subcat", {
+          produto: { id: p.id, nome: p.name },
+          subCategory: { id: sc.id, nome: sc.categoryName, "sc.price": sc.price },
+          contractPriceEnviado: contractEnviado,
+          basePrice: p.basePrice,
+          pricingMode: (p as any).pricingMode ?? "undefined",
+          precoResolvido: price,
+          acao: price <= 0 ? "DESCARTADO (price <= 0)" : "INCLUÍDO",
+        });
+
+        if (price <= 0) {
+          descartados.push({
+            produtoId: p.id, produtoNome: p.name,
+            scId: sc.id, scNome: sc.categoryName,
+            basePrice: p.basePrice, subCategoryPrice: sc.price,
+            contractPriceEnviado: contractEnviado, priceResolvido: price,
+            motivo: "resolvePrice() retornou 0 ou negativo",
+          });
+          continue;
+        }
+
         entries.push({
           cartKey: `sc_${sc.id}`,
           productId: p.id,
@@ -81,15 +124,38 @@ export function buildOrderCatalog(
       }
     } else {
       // Single entry using product-level pricing
+      const subCategoryPriceP = (p as any).subCategoryPrice;
+      const contractPriceP    = (p as any).contractPrice;
       const price = resolvePrice({
         basePrice: p.basePrice,
-        subCategoryPrice: (p as any).subCategoryPrice,
-        contractPrice: (p as any).contractPrice,
+        subCategoryPrice: subCategoryPriceP,
+        contractPrice: contractPriceP,
         adminFee: company.adminFee,
         useNewPricing: company.useNewPricing === true,
         pricingMode: (p as any).pricingMode,
       });
-      if (price <= 0) continue;
+
+      // ── log produto sem sub-categorias ───────────────────────────────────
+      console.log("[buildOrderCatalog] produto sem subcat", {
+        produto: { id: p.id, nome: p.name },
+        subCategoryPrice: subCategoryPriceP,
+        contractPrice: contractPriceP,
+        basePrice: p.basePrice,
+        pricingMode: (p as any).pricingMode ?? "undefined",
+        precoResolvido: price,
+        acao: price <= 0 ? "DESCARTADO (price <= 0)" : "INCLUÍDO",
+      });
+
+      if (price <= 0) {
+        descartados.push({
+          produtoId: p.id, produtoNome: p.name,
+          basePrice: p.basePrice, subCategoryPrice: subCategoryPriceP,
+          contractPriceEnviado: contractPriceP, priceResolvido: price,
+          motivo: "resolvePrice() retornou 0 ou negativo (sem subcat)",
+        });
+        continue;
+      }
+
       entries.push({
         cartKey: `p_${p.id}`,
         productId: p.id,
@@ -100,6 +166,17 @@ export function buildOrderCatalog(
         price,
       });
     }
+  }
+
+  // ── RESUMO FINAL ──────────────────────────────────────────────────────────
+  console.log("[buildOrderCatalog] ◀ resumo", {
+    produtosRecebidos: products.length,
+    entriesCriadas: entries.length,
+    descartados: descartados.length,
+  });
+
+  if (descartados.length > 0) {
+    console.warn("[buildOrderCatalog] ⚠ itens descartados (price <= 0):", descartados);
   }
 
   return entries;
