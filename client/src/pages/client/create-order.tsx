@@ -12,7 +12,7 @@ import {
   Minus, Plus, Trash2, FileText, Clock, PartyPopper, X, Search, AlertTriangle, Lock, RefreshCcw,
   Wrench, FlaskConical, SendHorizonal
 } from "lucide-react";
-import { resolvePrice } from "@/utils/priceResolver";
+import { buildOrderCatalog, itemToCartKey, type ProductEntry } from "@/utils/buildOrderCatalog";
 
 const DAY_OPTIONS = ["Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira"];
 
@@ -205,72 +205,11 @@ export default function CreateOrderPage() {
   }, [products, company, selectedDay]);
 
   // ── ProductEntry: one entry per sub-category (or one base entry) ───────────
-  // cartKey = "sc_<subCategoryId>" for sub-category variants
-  //           "p_<productId>"       for products without sub-categories
-  type ProductEntry = {
-    cartKey: string;
-    productId: number;
-    name: string;
-    unit: string;
-    observation?: string | null;
-    category: string;
-    price: number;
-    subCategoryId?: number;
-    subCategoryName?: string;
-  };
-
+  // Delegates entirely to the shared buildOrderCatalog helper so that
+  // create-order and edit-order always use the exact same pricing logic.
   const expandedEntries = useMemo((): ProductEntry[] => {
-    const entries: ProductEntry[] = [];
-    for (const p of availableProducts) {
-      const subCats: Array<{ id: number; categoryName: string; price: number; active: boolean }> =
-        ((p as any).subCategories ?? []).filter((sc: any) => sc.active !== false);
-
-      if (subCats.length > 0) {
-        for (const sc of subCats) {
-          const price = resolvePrice({
-            basePrice: p.basePrice,
-            subCategoryPrice: sc.price,
-            contractPrice: (p as any).contractPrice,
-            adminFee: company!.adminFee,
-            useNewPricing: (company as any).useNewPricing === true,
-            pricingMode: (p as any).pricingMode,
-          });
-          if (price <= 0) continue;
-          entries.push({
-            cartKey: `sc_${sc.id}`,
-            productId: p.id,
-            name: p.name,
-            unit: p.unit,
-            observation: (p as any).observation,
-            category: sc.categoryName,
-            price,
-            subCategoryId: sc.id,
-            subCategoryName: sc.categoryName,
-          });
-        }
-      } else {
-        const price = resolvePrice({
-          basePrice: p.basePrice,
-          subCategoryPrice: (p as any).subCategoryPrice,
-          contractPrice: (p as any).contractPrice,
-          adminFee: company!.adminFee,
-          useNewPricing: (company as any).useNewPricing === true,
-          pricingMode: (p as any).pricingMode,
-        });
-        if (price <= 0) continue;
-        entries.push({
-          cartKey: `p_${p.id}`,
-          productId: p.id,
-          name: p.name,
-          unit: p.unit,
-          observation: (p as any).observation,
-          category: p.category,
-          price,
-        });
-      }
-    }
-    return entries;
-  }, [availableProducts, company, selectedDay]);
+    return buildOrderCatalog(availableProducts, company);
+  }, [availableProducts, company]);
 
   // ── Category list: union of all entry categories ───────────────────────────
   const categories = useMemo(() => {

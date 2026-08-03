@@ -1,16 +1,26 @@
+/**
+ * edit-order.tsx — Editar Pedido
+ *
+ * Architecture mirrors create-order.tsx exactly:
+ *   • catalog built by buildOrderCatalog() — shared helper, same resolvePrice() chain
+ *   • cartKey = "sc_<subCategoryId>" | "p_<productId>" — same format as create-order
+ *   • EXISTING items: price comes from order_items.unitPrice (historic, never recalculated)
+ *   • NEW items added during edit: price comes from resolvePrice() via buildOrderCatalog
+ *   • Submit: historicPriceByCartKey[key] ?? entry.price — never writes 0 over a saved price
+ */
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useOrderDetail, useCompanyOrders } from "@/hooks/use-ordering";
+import { useOrderDetail } from "@/hooks/use-ordering";
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocation, useRoute, Redirect } from "wouter";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, ArrowLeft, Lock, Ban } from "lucide-react";
+import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, Lock, Ban, Search, X } from "lucide-react";
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { api } from "@shared/routes";
-import { resolvePrice } from "@/utils/priceResolver";
+import { buildOrderCatalog, itemToCartKey, type ProductEntry } from "@/utils/buildOrderCatalog";
 import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
 
 function fmtBRL(n: number) {
@@ -27,107 +37,134 @@ export default function EditOrderPage() {
   const orderId = params?.id ? Number(params.id) : undefined;
 
   const { data: orderDetail, isLoading: orderLoading } = useOrderDetail(orderId);
-  const [cart, setCart] = useState<Record<number, number>>({});
+
+  // cart keys are "sc_<subCategoryId>" | "p_<productId>" — same as create-order
+  const [cart, setCart] = useState<Record<string, number>>({});
   const [initialized, setInitialized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [search, setSearch] = useState("");
 
-  // Pre-fill cart from existing order items once loaded
-  // [TEMP LOG — DIAGNÓSTICO BUG EDIT] Remover após identificar causa.
-  useEffect(() => {
-    console.log('[EDIT_ORDER]', { id: orderId, pedido: orderDetail ?? null });
-  }, [orderId, orderDetail]);
-
+  // ── Pre-fill cart from existing order items once loaded ─────────────────────
+  // Maps each existing item to the same cartKey format used in create-order.
   useEffect(() => {
     if (orderDetail && !initialized) {
-      const initCart: Record<number, number> = {};
+      const initCart: Record<string, number> = {};
       (orderDetail.items || []).forEach((item: any) => {
-        initCart[Number(item.productId)] = item.quantity;
+        const key = itemToCartKey(item);
+        initCart[key] = item.quantity;
       });
       setCart(initCart);
       setInitialized(true);
     }
   }, [orderDetail, initialized]);
 
-  const availableProducts = useMemo(() => {
-    if (!products || !company) return [];
-    return products
-      .filter(p => p.active)
-      .map(product => {
-        const price = resolvePrice({
-          basePrice: product.basePrice,
-          subCategoryPrice: (product as any).subCategoryPrice,
-          contractPrice: (product as any).contractPrice,
-          adminFee: company.adminFee,
-          useNewPricing: (company as any).useNewPricing === true,
-          pricingMode: (product as any).pricingMode,
-        });
-        return { ...product, price };
-      });
-    // Sem filtro de preço > 0 aqui: produtos sem preço cadastrado devem
-    // aparecer no catálogo de edição para que o cliente possa adicioná-los.
-    // O preço será resolvido pelo backend no momento da confirmação.
-  }, [products, company]);
-
-  // Índice de todos os itens originais do pedido, indexado por productId.
-  // Usado para recuperar o unitPrice registrado no momento do pedido —
-  // fonte de verdade de preço para itens já existentes.
-  const orderItemsByProductId = useMemo(() => {
-    const map: Record<number, any> = {};
+  // ── Historic price index ────────────────────────────────────────────────────
+  // cartKey → unitPrice recorded at order creation.
+  // This is the source of truth for existing items and must NEVER be overwritten
+  // by a recalculated price, even if the product is inactive or basePrice is null.
+  const historicPriceByCartKey = useMemo(() => {
+    const map: Record<string, number> = {};
     (orderDetail?.items || []).forEach((item: any) => {
-      map[Number(item.productId)] = item;
+      const key = itemToCartKey(item);
+      const price = Number(item.unitPrice);
+      if (Number.isFinite(price) && price > 0) map[key] = price;
     });
     return map;
   }, [orderDetail?.items]);
 
-  // Catálogo completo para a tela de edição.
-  // Combina:
-  //   • availableProducts — produtos com preço resolvido (podem ser adicionados normalmente)
-  //   • Itens do pedido atual que não aparecem em availableProducts (ex: basePrice null,
-  //     produto com pricingMode="category" sem contractPrice configurado, etc.)
-  //     → exibidos com o unitPrice gravado no pedido, permitindo ajustar a quantidade.
-  const catalogProducts = useMemo(() => {
-    const catalogIds = new Set(availableProducts.map(p => p.id));
-    const extraFromOrder = Object.values(orderItemsByProductId)
-      .filter((item: any) => !catalogIds.has(Number(item.productId)))
-      .map((item: any) => {
-        const pid = Number(item.productId);
-        const unitPrice = Number(item.unitPrice) || 0;
-        const rawProduct = (products || []).find((x: any) => x.id === pid);
-        return rawProduct
-          ? { ...rawProduct, price: unitPrice }
-          : { id: pid, name: `Produto #${pid}`, price: unitPrice, category: '', active: true };
-      });
-    return [...availableProducts, ...extraFromOrder];
-  }, [availableProducts, orderItemsByProductId, products]);
+  // ── Available products (active gate, no day filter needed for editing) ──────
+  const availableProducts = useMemo(() => {
+    if (!products || !company) return [];
+    return products.filter((p: any) => p?.active);
+  }, [products, company]);
 
+  // ── Expanded catalog — identical logic to create-order.tsx ─────────────────
+  // buildOrderCatalog expands subCategories and calls resolvePrice() exactly
+  // as create-order does. Entries with price ≤ 0 are excluded.
+  const expandedEntries = useMemo((): ProductEntry[] => {
+    return buildOrderCatalog(availableProducts, company);
+  }, [availableProducts, company]);
+
+  // ── Extra entries: items from the order that no longer appear in the catalog ─
+  // Covers: inactive products, pricingMode="category" without contractPrice,
+  // basePrice=null products, etc.
+  // These entries use the historic unitPrice so the customer can still adjust qty.
+  const extraEntries = useMemo((): ProductEntry[] => {
+    const catalogKeys = new Set(expandedEntries.map(e => e.cartKey));
+    const extras: ProductEntry[] = [];
+    (orderDetail?.items || []).forEach((item: any) => {
+      const key = itemToCartKey(item);
+      if (catalogKeys.has(key)) return; // already in catalog
+      const historicPrice = historicPriceByCartKey[key] ?? 0;
+      const rawProduct = (products || []).find((x: any) => x.id === Number(item.productId));
+      extras.push({
+        cartKey: key,
+        productId: Number(item.productId),
+        name: rawProduct?.name ?? item.productName ?? `Produto #${item.productId}`,
+        unit: rawProduct?.unit ?? item.unit ?? "un",
+        observation: rawProduct?.observation ?? null,
+        category: rawProduct?.category ?? item.subCategoryName ?? "",
+        price: historicPrice,
+        subCategoryId: item.subCategoryId ? Number(item.subCategoryId) : undefined,
+        subCategoryName: item.subCategoryName ?? undefined,
+      });
+    });
+    return extras;
+  }, [expandedEntries, orderDetail?.items, historicPriceByCartKey, products]);
+
+  // Full catalog = current active catalog + historic-only extras
+  const allEntries = useMemo((): ProductEntry[] => {
+    return [...expandedEntries, ...extraEntries];
+  }, [expandedEntries, extraEntries]);
+
+  // ── Filtered catalog (search) ───────────────────────────────────────────────
+  const filteredEntries = useMemo((): ProductEntry[] => {
+    if (!search.trim()) return allEntries;
+    const q = search.toLowerCase();
+    return allEntries.filter(e =>
+      e.name.toLowerCase().includes(q) ||
+      e.category.toLowerCase().includes(q) ||
+      (e.subCategoryName ?? "").toLowerCase().includes(q)
+    );
+  }, [allEntries, search]);
+
+  // ── Cart items ──────────────────────────────────────────────────────────────
+  // Price resolution:
+  //   existing item (cartKey in historicPriceByCartKey) → historic unitPrice
+  //   new item added during this edit session          → entry.price (resolvePrice)
   const cartItems = useMemo(() => {
     return Object.entries(cart)
       .filter(([, qty]) => qty > 0)
-      .map(([productId, qty]) => {
-        const pid = Number(productId);
-
-        // Resolve pelo catálogo completo (inclui produtos do pedido com preço gravado)
-        const fromCatalog = catalogProducts.find(x => x.id === pid);
-        if (fromCatalog) {
-          return { product: fromCatalog, qty, subtotal: fromCatalog.price * qty };
-        }
-
-        return null;
+      .map(([key, qty]) => {
+        const entry = allEntries.find(e => e.cartKey === key);
+        if (!entry) return null;
+        // Historic price takes absolute priority for existing items
+        const unitPrice = historicPriceByCartKey[key] ?? entry.price;
+        return { entry, qty, unitPrice, subtotal: unitPrice * qty };
       })
-      .filter(Boolean) as { product: any; qty: number; subtotal: number }[];
-  }, [cart, catalogProducts]);
+      .filter((item): item is { entry: ProductEntry; qty: number; unitPrice: number; subtotal: number } =>
+        item !== null
+      );
+  }, [cart, allEntries, historicPriceByCartKey]);
 
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.subtotal, 0), [cartItems]);
 
-  const handleUpdateCart = (productId: number, qty: number) => {
+  const handleUpdateCart = (key: string, qty: number) => {
     setCart(prev => {
       const next = { ...prev };
-      if (qty <= 0) delete next[productId];
-      else next[productId] = qty;
+      if (qty <= 0) delete next[key];
+      else next[key] = qty;
       return next;
     });
   };
 
+  // ── Submit ──────────────────────────────────────────────────────────────────
+  // Existing items → historicPriceByCartKey[key]  (recorded price, never 0)
+  // New items      → entry.price                  (current resolvePrice result)
+  // Safety guard: unitPrice will NEVER be "0" for any valid item because:
+  //   • extraEntries with price=0 are effectively unfilterable (no entry found)
+  //   • catalog entries with price≤0 are excluded by buildOrderCatalog
+  //   • historicPriceByCartKey only stores price>0 values
   const handleSubmit = async () => {
     if (cartItems.length === 0) {
       toast({ title: "Adicione pelo menos um item ao pedido.", variant: "destructive" });
@@ -136,20 +173,22 @@ export default function EditOrderPage() {
     if (submitting) return;
     setSubmitting(true);
     try {
-      const items = cartItems.map(({ product, qty }) => ({
-        productId: product.id,
+      const items = cartItems.map(({ entry, qty, unitPrice }) => ({
+        productId: entry.productId,
         quantity: qty,
-        unitPrice: String(product.price),
-        totalPrice: String(product.price * qty),
+        unitPrice: String(unitPrice),
+        totalPrice: String(unitPrice * qty),
+        subCategoryId: entry.subCategoryId ?? null,
+        subCategoryName: entry.subCategoryName ?? null,
       }));
       const res = await fetchWithAuth(`/api/orders/${orderId}/finalize-edit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ items }),
       });
       if (!res.ok) {
         const d = await res.json();
-        throw new Error(d.message || 'Erro ao salvar pedido.');
+        throw new Error(d.message || "Erro ao salvar pedido.");
       }
       queryClient.invalidateQueries({ queryKey: [api.orders.companyOrders.path] });
       queryClient.invalidateQueries({ queryKey: [api.orders.get.path, orderId] });
@@ -163,25 +202,31 @@ export default function EditOrderPage() {
   };
 
   if (!authLoading && !company) return <Redirect to="/client" />;
-  if (!orderLoading && orderDetail && orderDetail.order.status !== 'OPEN_FOR_EDITING') {
+  if (!orderLoading && orderDetail && orderDetail.order.status !== "OPEN_FOR_EDITING") {
     return <Redirect to="/client/history" />;
   }
 
   const order = orderDetail?.order;
 
-  // Prazo operacional expirado: bloqueia edição mesmo que o admin tenha aprovado a reabertura.
-  // Usa a função canônica de order-deadline — mesma regra para todos os pontos de ação.
-  const deadlineCheckForEdit = order?.deliveryDate
+  const deadlineCheck = order?.deliveryDate
     ? calculateOrderModificationDeadline(order.deliveryDate)
     : null;
-  const deadlineExpiredForEdit = deadlineCheckForEdit ? !deadlineCheckForEdit.canModify : false;
+  const deadlineExpired = deadlineCheck ? !deadlineCheck.canModify : false;
 
-  // Auditoria: log da verificação de prazo ao carregar a página (uma vez por orderId/deliveryDate)
   useEffect(() => {
     if (!order?.deliveryDate || !orderId) return;
     const result = calculateOrderModificationDeadline(order.deliveryDate);
-    logDeadlineAudit({ orderId, companyId: company?.id, userId: user?.id, now: new Date().toISOString(), deadline: result.deadline.toISOString(), canModify: result.canModify, reason: result.reason, action: "edit" });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    logDeadlineAudit({
+      orderId,
+      companyId: company?.id,
+      userId: user?.id,
+      now: new Date().toISOString(),
+      deadline: result.deadline.toISOString(),
+      canModify: result.canModify,
+      reason: result.reason,
+      action: "edit",
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order?.deliveryDate, orderId]);
 
   return (
@@ -200,7 +245,7 @@ export default function EditOrderPage() {
           )}
         </div>
 
-        {deadlineExpiredForEdit && (
+        {deadlineExpired && (
           <div className="rounded-2xl border border-red-200 bg-red-50 p-6 flex items-start gap-4">
             <Ban className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -217,64 +262,124 @@ export default function EditOrderPage() {
 
         {orderLoading || !initialized ? (
           <div className="text-center py-16 text-muted-foreground animate-pulse">Carregando pedido...</div>
-        ) : deadlineExpiredForEdit ? null : (
+        ) : deadlineExpired ? null : (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Product list */}
+            {/* Catalog */}
             <div className="lg:col-span-2">
               <div className="bg-card rounded-2xl border border-border/50 premium-shadow overflow-hidden">
-                <div className="p-4 border-b border-border/50 bg-primary/5">
-                  <p className="font-bold text-foreground flex items-center gap-2">
-                    <Package className="w-4 h-4 text-primary" /> Produtos Disponíveis
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Ajuste quantidades ou adicione novos itens ao pedido</p>
+                <div className="p-4 border-b border-border/50 bg-primary/5 flex items-center justify-between gap-2">
+                  <div>
+                    <p className="font-bold text-foreground flex items-center gap-2">
+                      <Package className="w-4 h-4 text-primary" /> Catálogo de Produtos
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Ajuste quantidades ou adicione novos itens ao pedido
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold text-muted-foreground">
+                    {filteredEntries.length} produto(s)
+                  </span>
                 </div>
+
+                {/* Search */}
+                <div className="p-3 border-b border-border/50 bg-muted/10">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <input
+                      value={search}
+                      onChange={e => setSearch(e.target.value)}
+                      placeholder="Buscar produto..."
+                      className="w-full pl-8 pr-8 py-2 rounded-xl border-2 border-border text-sm focus:border-primary outline-none"
+                    />
+                    {search && (
+                      <button
+                        onClick={() => setSearch("")}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="divide-y divide-border/50 max-h-[60vh] overflow-y-auto">
-                  {catalogProducts.map(product => {
-                    const qty = cart[product.id] || 0;
-                    return (
-                      <div key={product.id} className="flex items-center justify-between p-4 hover:bg-muted/20 transition-colors">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-bold text-sm text-foreground">{product.name}</p>
-                          <p className="text-xs text-muted-foreground">{product.category}</p>
-                          <p className="text-sm font-bold text-primary mt-0.5">R$ {fmtBRL(product.price)}</p>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {qty > 0 ? (
-                            <>
-                              <button onClick={() => handleUpdateCart(product.id, qty - 1)}
-                                data-testid={`button-decrease-${product.id}`}
-                                className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors font-bold">
-                                <Minus className="w-3.5 h-3.5" />
+                  {filteredEntries.length === 0 ? (
+                    <div className="p-12 text-center">
+                      <Package className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                      <p className="text-muted-foreground text-sm">Nenhum produto encontrado.</p>
+                    </div>
+                  ) : (
+                    filteredEntries.map(entry => {
+                      const qty = cart[entry.cartKey] || 0;
+                      // Display price: historic for existing items, current for new
+                      const displayPrice = historicPriceByCartKey[entry.cartKey] ?? entry.price;
+                      const isExisting = entry.cartKey in historicPriceByCartKey;
+                      return (
+                        <div
+                          key={entry.cartKey}
+                          className={`flex items-center justify-between p-4 transition-colors ${qty > 0 ? "bg-primary/[0.03]" : "hover:bg-muted/20"}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-sm text-foreground">{entry.name}</p>
+                            {entry.subCategoryName ? (
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                {entry.subCategoryName}
+                              </p>
+                            ) : entry.category ? (
+                              <p className="text-xs text-muted-foreground">{entry.category}</p>
+                            ) : null}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <p className="text-sm font-bold text-primary">R$ {fmtBRL(displayPrice)}</p>
+                              {isExisting && (
+                                <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-medium">
+                                  preço gravado
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0 ml-3">
+                            {qty > 0 ? (
+                              <>
+                                <button
+                                  onClick={() => handleUpdateCart(entry.cartKey, qty - 1)}
+                                  data-testid={`button-decrease-${entry.cartKey}`}
+                                  className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors font-bold"
+                                >
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  value={qty}
+                                  data-testid={`input-qty-${entry.cartKey}`}
+                                  onChange={e => {
+                                    const v = parseInt(e.target.value, 10);
+                                    handleUpdateCart(entry.cartKey, Number.isNaN(v) ? 0 : v);
+                                  }}
+                                  onFocus={e => e.target.select()}
+                                  className="w-16 text-center font-bold text-sm text-foreground bg-muted/30 border border-border/50 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                                />
+                                <button
+                                  onClick={() => handleUpdateCart(entry.cartKey, qty + 1)}
+                                  data-testid={`button-increase-${entry.cartKey}`}
+                                  className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors font-bold"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            ) : (
+                              <button
+                                onClick={() => handleUpdateCart(entry.cartKey, 1)}
+                                data-testid={`button-add-${entry.cartKey}`}
+                                className="px-4 py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-colors font-bold text-sm"
+                              >
+                                Adicionar
                               </button>
-                              <input
-                                type="number"
-                                min={0}
-                                value={qty}
-                                data-testid={`input-qty-${product.id}`}
-                                onChange={e => {
-                                  const v = parseInt(e.target.value, 10);
-                                  handleUpdateCart(product.id, Number.isNaN(v) ? 0 : v);
-                                }}
-                                onFocus={e => e.target.select()}
-                                className="w-16 text-center font-bold text-sm text-foreground bg-muted/30 border border-border/50 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                              />
-                              <button onClick={() => handleUpdateCart(product.id, qty + 1)}
-                                data-testid={`button-increase-${product.id}`}
-                                className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-colors font-bold">
-                                <Plus className="w-3.5 h-3.5" />
-                              </button>
-                            </>
-                          ) : (
-                            <button onClick={() => handleUpdateCart(product.id, 1)}
-                              data-testid={`button-add-${product.id}`}
-                              className="px-4 py-1.5 bg-primary/10 text-primary rounded-lg hover:bg-primary hover:text-white transition-colors font-bold text-sm">
-                              Adicionar
-                            </button>
-                          )}
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -285,6 +390,11 @@ export default function EditOrderPage() {
                 <div className="p-4 border-b border-border/50 bg-secondary/5 flex items-center gap-2">
                   <ShoppingCart className="w-4 h-4 text-secondary" />
                   <p className="font-bold text-foreground">Resumo do Pedido</p>
+                  {cartItems.length > 0 && (
+                    <span className="ml-auto bg-secondary/10 text-secondary text-xs font-bold px-2 py-0.5 rounded-full">
+                      {cartItems.length} item(s)
+                    </span>
+                  )}
                 </div>
                 <div className="p-4">
                   {cartItems.length === 0 ? (
@@ -294,16 +404,23 @@ export default function EditOrderPage() {
                     </div>
                   ) : (
                     <div className="space-y-0 divide-y divide-border/50 max-h-[40vh] overflow-y-auto">
-                      {cartItems.map(({ product, qty, subtotal }) => (
-                        <div key={product.id} className="py-3 flex justify-between items-start gap-2">
+                      {cartItems.map(({ entry, qty, unitPrice, subtotal }) => (
+                        <div key={entry.cartKey} className="py-3 flex justify-between items-start gap-2">
                           <div className="flex-1 min-w-0">
-                            <p className="font-bold text-sm text-foreground truncate">{product.name}</p>
-                            <p className="text-xs text-muted-foreground">{qty} × R$ {fmtBRL(product.price)}</p>
+                            <p className="font-bold text-sm text-foreground truncate">{entry.name}</p>
+                            {entry.subCategoryName && (
+                              <p className="text-xs text-muted-foreground truncate">{entry.subCategoryName}</p>
+                            )}
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              {qty} × R$ {fmtBRL(unitPrice)}
+                            </p>
                           </div>
                           <div className="text-right flex-shrink-0 flex items-center gap-1.5">
                             <p className="font-bold text-sm">R$ {fmtBRL(subtotal)}</p>
-                            <button onClick={() => handleUpdateCart(product.id, 0)}
-                              className="p-1 rounded text-muted-foreground hover:text-red-500 transition-colors">
+                            <button
+                              onClick={() => handleUpdateCart(entry.cartKey, 0)}
+                              className="p-1 rounded text-muted-foreground hover:text-red-500 transition-colors"
+                            >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
@@ -320,7 +437,8 @@ export default function EditOrderPage() {
                       data-testid="button-finalize-edit"
                       onClick={handleSubmit}
                       disabled={cartItems.length === 0 || submitting}
-                      className="w-full py-3.5 bg-secondary text-secondary-foreground font-bold rounded-xl shadow-lg shadow-secondary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none flex justify-center items-center gap-2">
+                      className="w-full py-3.5 bg-secondary text-secondary-foreground font-bold rounded-xl shadow-lg shadow-secondary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none flex justify-center items-center gap-2"
+                    >
                       <CheckCircle2 className="w-5 h-5" />
                       {submitting ? "Finalizando..." : "Confirmar Pedido"}
                     </button>
