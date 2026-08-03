@@ -239,6 +239,14 @@ export default function EditOrderPage() {
     : null;
   const deadlineExpired = deadlineCheck ? !deadlineCheck.canModify : false;
 
+  console.log("[EDIT-ORDER][DEADLINE]", {
+    deliveryDate: order?.deliveryDate,
+    deadlineCheck,
+    canModify: deadlineCheck?.canModify,
+    deadlineExpired,
+    now: new Date().toISOString(),
+  });
+
   useEffect(() => {
     if (!order?.deliveryDate || !orderId) return;
     const result = calculateOrderModificationDeadline(order.deliveryDate);
@@ -286,6 +294,17 @@ export default function EditOrderPage() {
           </div>
         )}
 
+        {(() => {
+          console.log("[EDIT-ORDER][RENDER]", {
+            orderLoading,
+            initialized,
+            deadlineExpired,
+            filteredEntries: filteredEntries.length,
+            allEntries: allEntries.length,
+            cartItems: cartItems.length,
+          });
+          return null;
+        })()}
         {orderLoading || !initialized ? (
           <div className="text-center py-16 text-muted-foreground animate-pulse">Carregando pedido...</div>
         ) : deadlineExpired ? null : (
