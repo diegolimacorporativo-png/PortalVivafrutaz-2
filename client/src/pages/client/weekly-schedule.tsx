@@ -17,7 +17,7 @@ import {
   ChevronDown, ChevronUp, SendHorizonal, CalendarDays, RotateCcw,
   FlaskConical, Wrench,
 } from "lucide-react";
-import { resolvePrice } from "@/utils/priceResolver";
+import { buildOrderCatalog, type ProductEntry } from "@/utils/buildOrderCatalog";
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
 import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
@@ -71,17 +71,9 @@ function fmtDate(iso: string): string {
 }
 
 // ─────────────────── types ─────────────────────────────────────────────────
-type ProductEntry = {
-  cartKey: string;
-  productId: number;
-  name: string;
-  unit: string;
-  observation?: string | null;
-  category: string;
-  price: number;
-  subCategoryId?: number;
-  subCategoryName?: string;
-};
+// ProductEntry is imported from the shared buildOrderCatalog helper so that
+// weekly-schedule, create-order, and edit-order all share the same type and
+// the same pricing logic (resolvePrice chain).
 
 type GroupedProduct = {
   productId: number;
@@ -90,65 +82,6 @@ type GroupedProduct = {
   observation?: string | null;
   rows: ProductEntry[];
 };
-
-// ─────────────────── product catalog entries per day ───────────────────────
-function buildEntriesForDay(products: any[], company: any, dayName: string): ProductEntry[] {
-  if (!products || !company) return [];
-  const entries: ProductEntry[] = [];
-  for (const p of products) {
-    if (!p || !p.active) continue;
-    const avDays = (p as any).availableDays;
-    if (avDays && Array.isArray(avDays) && avDays.length > 0 && dayName) {
-      if (!avDays.includes(dayName)) continue;
-    }
-    const subCats: Array<{ id: number; categoryName: string; price: number; active: boolean }> =
-      ((p as any).subCategories ?? []).filter((sc: any) => sc.active !== false);
-    if (subCats.length > 0) {
-      for (const sc of subCats) {
-        const price = resolvePrice({
-          basePrice: p.basePrice,
-          subCategoryPrice: sc.price,
-          contractPrice: (p as any).contractPrice,
-          adminFee: company.adminFee,
-          useNewPricing: (company as any).useNewPricing === true,
-          pricingMode: (p as any).pricingMode,
-        });
-        if (price <= 0) continue;
-        entries.push({
-          cartKey: `sc_${sc.id}`,
-          productId: p.id,
-          name: p.name,
-          unit: p.unit,
-          observation: (p as any).observation,
-          category: sc.categoryName,
-          price,
-          subCategoryId: sc.id,
-          subCategoryName: sc.categoryName,
-        });
-      }
-    } else {
-      const price = resolvePrice({
-        basePrice: p.basePrice,
-        subCategoryPrice: (p as any).subCategoryPrice,
-        contractPrice: (p as any).contractPrice,
-        adminFee: company.adminFee,
-        useNewPricing: (company as any).useNewPricing === true,
-        pricingMode: (p as any).pricingMode,
-      });
-      if (price <= 0) continue;
-      entries.push({
-        cartKey: `p_${p.id}`,
-        productId: p.id,
-        name: p.name,
-        unit: p.unit,
-        observation: (p as any).observation,
-        category: p.category,
-        price,
-      });
-    }
-  }
-  return entries;
-}
 
 function groupEntries(entries: ProductEntry[]): GroupedProduct[] {
   const grouped = new Map<number, GroupedProduct>();
@@ -582,12 +515,23 @@ export default function WeeklySchedulePage() {
     return result;
   }, [activeWindow, allowedDays]);
 
-  // Product entries per day
+  // Product entries per day — delegates to buildOrderCatalog (shared helper)
+  // so that weekly-schedule uses the exact same resolvePrice chain as
+  // create-order and edit-order. Day gate is applied here by pre-filtering
+  // before passing to the helper (which expects already-gated products).
   const entriesPerDay = useMemo((): Record<string, ProductEntry[]> => {
     if (!products || !company) return {};
     const result: Record<string, ProductEntry[]> = {};
     for (const day of allowedDays) {
-      result[day] = buildEntriesForDay(products, company, day);
+      const dayProducts = products.filter((p: any) => {
+        if (!p?.active) return false;
+        const avDays = (p as any).availableDays;
+        if (avDays && Array.isArray(avDays) && avDays.length > 0) {
+          return avDays.includes(day);
+        }
+        return true;
+      });
+      result[day] = buildOrderCatalog(dayProducts, company);
     }
     return result;
   }, [products, company, allowedDays]);
