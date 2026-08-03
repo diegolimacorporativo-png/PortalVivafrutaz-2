@@ -52,12 +52,16 @@ export function buildOrderCatalog(
       ((p as any).subCategories ?? []).filter((sc: any) => sc.active !== false);
 
     if (subCats.length > 0) {
-      // One entry per active sub-category
+      // One entry per active sub-category.
+      // When the sub-category has its own price (sc.price > 0), contractPrice
+      // must NOT be forwarded — it would win the contract > sub priority chain
+      // and hide the category-specific price entirely.
+      // contractPrice is only relevant for products without category pricing.
       for (const sc of subCats) {
         const price = resolvePrice({
           basePrice: p.basePrice,
           subCategoryPrice: sc.price,
-          contractPrice: (p as any).contractPrice,
+          contractPrice: sc.price > 0 ? null : (p as any).contractPrice,
           adminFee: company.adminFee,
           useNewPricing: company.useNewPricing === true,
           pricingMode: (p as any).pricingMode,
