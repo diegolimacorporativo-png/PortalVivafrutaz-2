@@ -210,6 +210,14 @@ export default function CreateOrderPage() {
     const tag = '[CATALOG-AUDIT][create-order]';
     console.group(tag + ' pipeline');
     console.log('STEP 1 — GET /api/products raw count:', products.length);
+    console.table(products.slice(0, 15).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      basePrice: p.basePrice ?? null,
+      contractPrice: p.contractPrice ?? null,
+      subCategories_length: (p.subCategories ?? []).length,
+    })));
+    console.log('STEP 1 — products[0] raw object:\n' + JSON.stringify(products[0], null, 2));
     console.log('STEP 2 — availableProducts (active+day gate):', availableProducts.length);
     console.log('STEP 3 — first 10 availableProducts detail:',
       availableProducts.slice(0, 10).map((p: any) => ({

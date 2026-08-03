@@ -86,6 +86,14 @@ export default function EditOrderPage() {
     const tag = '[CATALOG-AUDIT][edit-order]';
     console.group(tag + ' pipeline');
     console.log('STEP 1 — GET /api/products raw count:', products.length);
+    console.table(products.slice(0, 15).map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      basePrice: p.basePrice ?? null,
+      contractPrice: p.contractPrice ?? null,
+      subCategories_length: (p.subCategories ?? []).length,
+    })));
+    console.log('STEP 1 — products[0] raw object:\n' + JSON.stringify(products[0], null, 2));
     console.log('STEP 2 — availableProducts (active gate only, no day filter):', availableProducts.length);
     console.log('STEP 3 — first 10 availableProducts detail:',
       availableProducts.slice(0, 10).map((p: any) => ({
