@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { productService } from "./products.service";
 import { createProductSchema, updateProductSchema, productIdParamSchema } from "./products.validation";
+import { storage } from "../../services/storage";
 
 interface SessionLike {
   userId?: number;
@@ -33,6 +34,28 @@ export class ProductController {
         res.json(result);
         return;
       }
+
+      // ── Company catalog enrichment ──────────────────────────────────────────
+      // When a company user (portal session) requests the product list, enrich
+      // each product with `contractPrice` from their price group so that
+      // buildOrderCatalog() / resolvePrice() can display the correct unit price.
+      // Admin/staff sessions have session.userId, not session.companyId, and
+      // should NOT receive enriched prices (they use the admin price management UI).
+      const session = (req as any).session;
+      if (session?.companyId && !session?.userId) {
+        try {
+          const company = await storage.getCompany(session.companyId);
+          if (company?.priceGroupId) {
+            const products = await productService.listProductsForCompany(company.priceGroupId);
+            res.json(products);
+            return;
+          }
+        } catch (enrichErr) {
+          // Non-fatal — fall back to the standard list so the catalog still loads.
+          console.warn(`[${(req as any).requestId}] [products.controller] price enrichment failed, falling back`, enrichErr);
+        }
+      }
+
       const products = await productService.listProducts();
       res.json(products);
     } catch (err) {

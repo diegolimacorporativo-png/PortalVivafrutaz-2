@@ -72,50 +72,55 @@ export default function EditOrderPage() {
     return map;
   }, [orderDetail?.items]);
 
-  // ── Available products (active gate, no day filter needed for editing) ──────
+  // ── Available products (active gate — mirrors create-order.tsx exactly) ─────
+  // No day filter needed for editing: the order's delivery date is already fixed.
   const availableProducts = useMemo(() => {
     if (!products || !company) return [];
     return products.filter((p: any) => p?.active);
   }, [products, company]);
 
-  // ── Expanded catalog — identical logic to create-order.tsx ─────────────────
-  // buildOrderCatalog expands subCategories and calls resolvePrice() exactly
-  // as create-order does. Entries with price ≤ 0 are excluded.
-  const expandedEntries = useMemo((): ProductEntry[] => {
+  // ── AUDIT — trace the reduction pipeline (visible in browser console) ────────
+  // Req. 7: show exactly how many products survive each stage.
+  // Tag: [CATALOG-AUDIT] — grep this in the browser DevTools console.
+  useEffect(() => {
+    if (!products) return; // still loading
+    const rawCount = products.length;
+    const activeCount = availableProducts.length;
+    const subCatTotal = availableProducts.reduce(
+      (n: number, p: any) => n + ((p.subCategories ?? []).length as number), 0
+    );
+    const catalogEntries = buildOrderCatalog(availableProducts, company);
+    const priceZeroCount = availableProducts.reduce((n, p: any) => {
+      const subs: any[] = (p.subCategories ?? []).filter((sc: any) => sc.active !== false);
+      if (subs.length > 0) return n + subs.filter((sc: any) => Number(sc.price) <= 0).length;
+      return Number(p.basePrice) <= 0 || p.basePrice == null ? n + 1 : n;
+    }, 0);
+
+    console.group('[CATALOG-AUDIT] edit-order catalog pipeline');
+    console.log('GET /api/products → products.length:', rawCount);
+    console.log('active products (p.active = true):', activeCount);
+    console.log('total subCategories across active products:', subCatTotal);
+    console.log('products/subCats with price ≤ 0 (filtered out):', priceZeroCount);
+    console.log('buildOrderCatalog(products, company) → entries:', catalogEntries.length);
+    console.log('sample company pricing context:', {
+      adminFee: (company as any)?.adminFee,
+      useNewPricing: (company as any)?.useNewPricing,
+      priceGroupId: (company as any)?.priceGroupId,
+    });
+    if (catalogEntries.length < activeCount) {
+      console.warn('⚠ REDUCTION DETECTED — some active products have price = 0 after resolvePrice().');
+      console.warn('These products need a basePrice, subCategoryPrice > 0, OR a contractPrice');
+      console.warn('via the company\'s priceGroup. Check the productPrices table for this company\'s priceGroupId.');
+    }
+    console.groupEnd();
+  }, [products, availableProducts, company]);
+
+  // ── Expanded catalog — exclusively from buildOrderCatalog (req. 1) ──────────
+  // CATALOG = buildOrderCatalog(products, company)
+  // NEVER built from order.items.
+  const allEntries = useMemo((): ProductEntry[] => {
     return buildOrderCatalog(availableProducts, company);
   }, [availableProducts, company]);
-
-  // ── Extra entries: items from the order that no longer appear in the catalog ─
-  // Covers: inactive products, pricingMode="category" without contractPrice,
-  // basePrice=null products, etc.
-  // These entries use the historic unitPrice so the customer can still adjust qty.
-  const extraEntries = useMemo((): ProductEntry[] => {
-    const catalogKeys = new Set(expandedEntries.map(e => e.cartKey));
-    const extras: ProductEntry[] = [];
-    (orderDetail?.items || []).forEach((item: any) => {
-      const key = itemToCartKey(item);
-      if (catalogKeys.has(key)) return; // already in catalog
-      const historicPrice = historicPriceByCartKey[key] ?? 0;
-      const rawProduct = (products || []).find((x: any) => x.id === Number(item.productId));
-      extras.push({
-        cartKey: key,
-        productId: Number(item.productId),
-        name: rawProduct?.name ?? item.productName ?? `Produto #${item.productId}`,
-        unit: rawProduct?.unit ?? item.unit ?? "un",
-        observation: rawProduct?.observation ?? null,
-        category: rawProduct?.category ?? item.subCategoryName ?? "",
-        price: historicPrice,
-        subCategoryId: item.subCategoryId ? Number(item.subCategoryId) : undefined,
-        subCategoryName: item.subCategoryName ?? undefined,
-      });
-    });
-    return extras;
-  }, [expandedEntries, orderDetail?.items, historicPriceByCartKey, products]);
-
-  // Full catalog = current active catalog + historic-only extras
-  const allEntries = useMemo((): ProductEntry[] => {
-    return [...expandedEntries, ...extraEntries];
-  }, [expandedEntries, extraEntries]);
 
   // ── Filtered catalog (search) ───────────────────────────────────────────────
   const filteredEntries = useMemo((): ProductEntry[] => {

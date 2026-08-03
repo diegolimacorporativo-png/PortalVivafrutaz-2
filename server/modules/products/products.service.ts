@@ -9,6 +9,9 @@ import type {
   Category,
   InsertCategory,
 } from "@shared/schema";
+import { db } from "../../database/db";
+import { productPrices as productPricesTable } from "@shared/schema";
+import { eq } from "drizzle-orm";
 // Price Resolver — imported for future activation only. Do NOT call it
 // from any persisted-write path yet. See utils/priceResolver.ts.
 // FUTURE:
@@ -90,6 +93,44 @@ export class ProductService {
         price: Number(sc.price),
       })),
     }));
+  }
+
+  /**
+   * listProductsForCompany — same as listProducts() but enriches each product
+   * with `contractPrice` from the company's price group (productPrices table).
+   *
+   * This makes resolvePrice() work correctly for products priced exclusively
+   * via a price group (no basePrice, no subCategoryPrice). Without this
+   * enrichment, buildOrderCatalog() filters them out with `price <= 0`.
+   *
+   * @param priceGroupId  The company's priceGroupId (companies.priceGroupId).
+   *                      When null/undefined, falls back to listProducts().
+   */
+  async listProductsForCompany(priceGroupId: number | null | undefined): Promise<NormalizedProduct[]> {
+    const products = await this.listProducts();
+    if (!priceGroupId) return products;
+
+    // Fetch all prices for this price group in a single query.
+    const priceRows = await db
+      .select({ productId: productPricesTable.productId, price: productPricesTable.price })
+      .from(productPricesTable)
+      .where(eq(productPricesTable.priceGroupId, priceGroupId));
+
+    const priceMap = new Map<number, number>();
+    for (const row of priceRows) {
+      priceMap.set(row.productId, Number(row.price));
+    }
+
+    // Attach contractPrice to products that have a price group entry.
+    // contractPrice is the highest-priority source in resolvePrice(), so it
+    // correctly overrides basePrice and subCategoryPrice.
+    return products.map(p => {
+      const contractPrice = priceMap.get(p.id);
+      if (contractPrice !== undefined && contractPrice > 0) {
+        return { ...p, contractPrice };
+      }
+      return p;
+    });
   }
 
   async listProductsPaginated(params: {
