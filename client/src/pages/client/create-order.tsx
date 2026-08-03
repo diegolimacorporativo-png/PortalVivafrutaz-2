@@ -204,6 +204,39 @@ export default function CreateOrderPage() {
     });
   }, [products, company, selectedDay]);
 
+  // ── [AUDIT] Comparative log — mirrors edit-order audit exactly ──────────────
+  useEffect(() => {
+    if (!products || !company) return;
+    const tag = '[CATALOG-AUDIT][create-order]';
+    console.group(tag + ' pipeline');
+    console.log('STEP 1 — GET /api/products raw count:', products.length);
+    console.log('STEP 2 — availableProducts (active+day gate):', availableProducts.length);
+    console.log('STEP 3 — first 10 availableProducts detail:',
+      availableProducts.slice(0, 10).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        subCategories_length: (p.subCategories ?? []).length,
+        contractPrice: p.contractPrice ?? null,
+        basePrice: p.basePrice ?? null,
+        availableDays: p.availableDays ?? null,
+      }))
+    );
+    console.log('STEP 4 — company context passed to buildOrderCatalog:', {
+      id: (company as any)?.id,
+      priceGroupId: (company as any)?.priceGroupId ?? null,
+      adminFee: (company as any)?.adminFee ?? null,
+      useNewPricing: (company as any)?.useNewPricing ?? null,
+    });
+    const entries = buildOrderCatalog(availableProducts, company);
+    console.log('STEP 5 — buildOrderCatalog() → entries:', entries.length);
+    if (entries.length > 0) {
+      console.log('STEP 5 — first 5 entries:', entries.slice(0, 5).map(e => ({
+        cartKey: e.cartKey, productId: e.productId, name: e.name, price: e.price,
+      })));
+    }
+    console.groupEnd();
+  }, [products, availableProducts, company]);
+
   // ── ProductEntry: one entry per sub-category (or one base entry) ───────────
   // Delegates entirely to the shared buildOrderCatalog helper so that
   // create-order and edit-order always use the exact same pricing logic.

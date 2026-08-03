@@ -80,34 +80,47 @@ export default function EditOrderPage() {
   }, [products, company]);
 
   // ── AUDIT — trace the reduction pipeline (visible in browser console) ────────
-  // Req. 7: show exactly how many products survive each stage.
   // Tag: [CATALOG-AUDIT] — grep this in the browser DevTools console.
   useEffect(() => {
-    if (!products) return; // still loading
-    const rawCount = products.length;
-    const activeCount = availableProducts.length;
+    if (!products || !company) return;
+    const tag = '[CATALOG-AUDIT][edit-order]';
+    console.group(tag + ' pipeline');
+    console.log('STEP 1 — GET /api/products raw count:', products.length);
+    console.log('STEP 2 — availableProducts (active gate only, no day filter):', availableProducts.length);
+    console.log('STEP 3 — first 10 availableProducts detail:',
+      availableProducts.slice(0, 10).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        subCategories_length: (p.subCategories ?? []).length,
+        contractPrice: p.contractPrice ?? null,
+        basePrice: p.basePrice ?? null,
+        availableDays: p.availableDays ?? null,
+      }))
+    );
+    console.log('STEP 4 — company context passed to buildOrderCatalog:', {
+      id: (company as any)?.id,
+      priceGroupId: (company as any)?.priceGroupId ?? null,
+      adminFee: (company as any)?.adminFee ?? null,
+      useNewPricing: (company as any)?.useNewPricing ?? null,
+    });
+    const catalogEntries = buildOrderCatalog(availableProducts, company);
+    console.log('STEP 5 — buildOrderCatalog() → entries:', catalogEntries.length);
+    if (catalogEntries.length > 0) {
+      console.log('STEP 5 — first 5 entries:', catalogEntries.slice(0, 5).map(e => ({
+        cartKey: e.cartKey, productId: e.productId, name: e.name, price: e.price,
+      })));
+    }
     const subCatTotal = availableProducts.reduce(
       (n: number, p: any) => n + ((p.subCategories ?? []).length as number), 0
     );
-    const catalogEntries = buildOrderCatalog(availableProducts, company);
-    const priceZeroCount = availableProducts.reduce((n, p: any) => {
+    const priceZeroCount = availableProducts.reduce((n: number, p: any) => {
       const subs: any[] = (p.subCategories ?? []).filter((sc: any) => sc.active !== false);
       if (subs.length > 0) return n + subs.filter((sc: any) => Number(sc.price) <= 0).length;
       return Number(p.basePrice) <= 0 || p.basePrice == null ? n + 1 : n;
     }, 0);
-
-    console.group('[CATALOG-AUDIT] edit-order catalog pipeline');
-    console.log('GET /api/products → products.length:', rawCount);
-    console.log('active products (p.active = true):', activeCount);
-    console.log('total subCategories across active products:', subCatTotal);
-    console.log('products/subCats with price ≤ 0 (filtered out):', priceZeroCount);
-    console.log('buildOrderCatalog(products, company) → entries:', catalogEntries.length);
-    console.log('sample company pricing context:', {
-      adminFee: (company as any)?.adminFee,
-      useNewPricing: (company as any)?.useNewPricing,
-      priceGroupId: (company as any)?.priceGroupId,
-    });
-    if (catalogEntries.length < activeCount) {
+    console.log('DIAG — total subCategories across active products:', subCatTotal);
+    console.log('DIAG — products/subCats with price ≤ 0 (filtered out):', priceZeroCount);
+    if (catalogEntries.length < availableProducts.length) {
       console.warn('⚠ REDUCTION DETECTED — some active products have price = 0 after resolvePrice().');
       console.warn('These products need a basePrice, subCategoryPrice > 0, OR a contractPrice');
       console.warn('via the company\'s priceGroup. Check the productPrices table for this company\'s priceGroupId.');
