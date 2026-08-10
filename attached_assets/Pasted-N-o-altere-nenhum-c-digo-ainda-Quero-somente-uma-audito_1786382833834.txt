@@ -1,0 +1,327 @@
+Não altere nenhum código ainda. Quero somente uma auditoria completa e baseada no código e nos dados reais do banco.
+
+Precisamos validar uma regra fundamental do ERP:
+
+Os pedidos que as empresas/clientes fazem pelo Portal B2B devem alimentar a tela Administrativa Compras → Relatório de Compras, para que essa tela funcione como previsão de compras/necessidade de frutas.
+
+A tela atualmente está em:
+
+/admin/purchasing
+
+E apresenta:
+
+Produtos diferentes
+Unidades totais
+Valor total
+Filtros de data
+Empresa
+Produto
+Lista "Produtos Vendidos"
+
+No momento, com o período 01/08/2026 até 10/08/2026, está aparecendo:
+
+Produtos diferentes: 0
+Unidades totais: 0
+Valor total: R$ 0,00
+
+Quero descobrir se isso é comportamento correto ou se existe uma falha no fluxo.
+
+1. MAPEAR O FLUXO COMPLETO
+
+Trace exatamente:
+
+Cliente faz pedido no Portal B2B
+
+↓
+
+pedido é salvo
+
+↓
+
+tabela(s) do banco utilizadas
+
+↓
+
+status do pedido
+
+↓
+
+itens do pedido
+
+↓
+
+produto / subcategoria / quantidade / preço
+
+↓
+
+tela /admin/purchasing
+
+↓
+
+agregação dos produtos
+
+↓
+
+previsão de compras
+
+Identifique todos os arquivos, funções, services, controllers, queries e tabelas envolvidos.
+
+2. IDENTIFICAR A FONTE REAL DA TELA /admin/purchasing
+
+Descubra exatamente qual endpoint/API a tela /admin/purchasing chama.
+
+Mostre:
+
+endpoint
+método HTTP
+parâmetros enviados
+filtros de data
+empresa
+produto
+status
+service utilizado
+repository/storage utilizado
+query SQL/Drizzle utilizada
+tabelas consultadas
+
+Quero saber especificamente:
+
+De onde os números "Produtos Diferentes", "Unidades Totais" e "Valor Total" estão vindo.
+
+3. IDENTIFICAR ONDE OS PEDIDOS DOS CLIENTES SÃO SALVOS
+
+Localize o código responsável por criar um pedido no Portal B2B.
+
+Descubra:
+
+tabela onde o pedido é salvo
+tabela onde os itens são salvos
+campo que identifica a empresa cliente
+campo de data de entrega
+campo de criação
+status possíveis
+quantidade dos produtos
+produto relacionado
+subcategoria relacionada
+preço unitário
+
+Depois compare isso com o que /admin/purchasing consulta.
+
+4. FAZER UMA VALIDAÇÃO COM DADOS REAIS
+
+Não quero apenas análise do código.
+
+Consulte o banco real utilizado pela aplicação.
+
+Pegue pelo menos 5 pedidos recentes feitos por empresas clientes, se existirem.
+
+Para cada pedido, mostre:
+
+pedido
+empresa
+data do pedido
+data de entrega
+status
+produto
+subcategoria
+quantidade
+preço
+valor total
+
+Depois verifique se esses mesmos itens aparecem na consulta utilizada pela tela /admin/purchasing.
+
+5. VALIDAR O PERÍODO
+
+A tela está sendo consultada com:
+
+01/08/2026 até 10/08/2026
+
+Verifique se o filtro está considerando:
+
+data de criação do pedido
+data de entrega
+data de faturamento
+data de confirmação
+
+Para previsão de compras, quero saber qual dessas datas a aplicação está usando.
+
+Não altere nada ainda. Apenas diga qual está sendo usada atualmente e se faz sentido para previsão de compras.
+
+6. VALIDAR OS STATUS
+
+Liste todos os status possíveis dos pedidos.
+
+Depois descubra quais status são incluídos na tela /admin/purchasing.
+
+Quero saber se, por exemplo, pedidos com:
+
+solicitado
+confirmado
+aprovado
+em programação
+entregue
+faturado
+cancelado
+
+estão entrando ou sendo excluídos.
+
+Para previsão de compras, precisamos tomar cuidado principalmente para não considerar pedidos cancelados, mas não podemos excluir pedidos válidos simplesmente porque ainda não foram faturados.
+
+7. VALIDAR PRODUTOS COM SUBCATEGORIAS
+
+Isso é MUITO importante no nosso sistema.
+
+Temos produtos como:
+
+Maçã Gala
+
+que possuem várias categorias/subcategorias, por exemplo:
+
+Frutas in natura higienizadas e embaladas no bio
+Frutas in natura higienizadas e embaladas plástico
+Frutas in natura não higienizadas e não embaladas
+Processados bio KG
+Processados plástico KG
+
+Se um cliente pedir:
+
+Maçã Gala
+Categoria X
+quantidade 10
+
+a tela de Compras precisa contabilizar corretamente essa quantidade.
+
+Não pode simplesmente agrupar tudo de forma errada ou perder a subcategoria.
+
+Verifique exatamente como isso está sendo tratado.
+
+8. VALIDAR A AGREGAÇÃO
+
+Descubra como a tela calcula:
+
+Produtos diferentes
+
+Unidades totais
+
+Valor total
+
+Exemplo:
+
+Se existirem:
+
+Cliente A:
+
+Maçã Gala categoria A = 10
+
+Cliente B:
+
+Maçã Gala categoria A = 20
+
+Cliente C:
+
+Banana = 15
+
+O resultado deveria ser:
+
+Produtos diferentes = 2
+Unidades totais = 45
+
+E a lista deveria mostrar as quantidades consolidadas corretamente.
+
+9. DIFERENCIAR "PEDIDO DO CLIENTE" DE "COMPRA"
+
+Muito importante:
+
+O módulo /admin/purchasing aparentemente representa previsão de compras baseada na demanda dos clientes.
+
+Não confunda:
+
+Pedido do cliente → demanda/previsão de compras
+
+com
+
+Pedido de compra para fornecedor → compra efetivamente realizada
+
+Quero que você determine se a tela atual está usando os pedidos dos clientes como fonte de demanda ou se está procurando uma tabela de compras/fornecedores que não tem relação com os pedidos B2B.
+
+10. TESTE DE PONTA A PONTA
+
+Se houver pelo menos um pedido real recente no banco:
+
+Identifique o pedido.
+Identifique seus itens.
+Execute/reproduza a mesma consulta usada por /admin/purchasing.
+Veja se o pedido aparece.
+Veja se a quantidade aparece.
+Veja se o produto aparece.
+Veja se o valor aparece.
+
+Se não aparecer, identifique exatamente em qual etapa ele é perdido.
+
+11. NÃO ALTERE NADA
+
+Nesta etapa:
+
+NÃO modificar código.
+
+NÃO criar migration.
+
+NÃO alterar banco.
+
+NÃO mudar regras de negócio.
+
+NÃO fazer correções.
+
+Quero primeiro somente o diagnóstico.
+
+FORMATO FINAL DO RELATÓRIO
+
+Entregue:
+
+A. Fluxo atual
+Pedido B2B
+↓
+tabela
+↓
+endpoint
+↓
+service
+↓
+query
+↓
+/admin/purchasing
+B. Fonte dos dados
+
+Diga exatamente de quais tabelas vêm os dados.
+
+C. Pedido real encontrado
+
+Mostre pelo menos 5 pedidos recentes e seus itens, se existirem.
+
+D. Comparação
+Pedido existente no banco: SIM
+Consulta do purchasing encontra: SIM/NÃO
+Produto aparece: SIM/NÃO
+Quantidade aparece: SIM/NÃO
+Valor aparece: SIM/NÃO
+E. Ponto exato da perda
+
+Se houver problema, indique:
+
+"O pedido é perdido nesta etapa: ______"
+
+F. Conclusão
+
+Responda objetivamente:
+
+Os pedidos feitos pelos clientes atualmente alimentam corretamente a tela /admin/purchasing para previsão de compras?
+
+Responda:
+
+🟢 SIM — funcionando
+
+🟡 PARCIALMENTE — explique o que funciona e o que não funciona
+
+🔴 NÃO — explique exatamente onde está quebrado
+
+Só depois desse diagnóstico vamos decidir a correção.
