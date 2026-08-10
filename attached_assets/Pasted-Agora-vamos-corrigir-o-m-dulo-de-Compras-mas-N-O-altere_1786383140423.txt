@@ -1,0 +1,112 @@
+Agora vamos corrigir o módulo de Compras, mas NÃO altere nada ainda.
+
+Com base na auditoria já realizada, quero que você faça uma nova auditoria focada exclusivamente na REGRA DE NEGÓCIO da previsão de compras.
+
+Objetivo:
+
+A tela /admin/purchasing deve representar a demanda futura dos pedidos feitos pelos clientes B2B, para que a equipe consiga prever quanto precisa comprar de cada produto.
+
+A auditoria já confirmou:
+
+1. Pedidos normais do Portal B2B são gravados como orders.status = CONFIRMED.
+2. O relatório atual filtra somente orders.status = ACTIVE.
+3. Por isso pedidos CONFIRMED não aparecem.
+4. O relatório atual usa order_date.
+5. Para previsão de compras, provavelmente devemos usar delivery_date.
+6. order_items possui sub_category_id e sub_category_name.
+7. O relatório atualmente agrupa apenas por productId.
+
+NÃO faça nenhuma alteração de código ou banco ainda.
+
+Quero que você audite e me responda:
+
+A) Quais status de orders.status devem entrar na previsão de compras?
+
+Considere a finalidade:
+- CONFIRMED = pedido confirmado pelo cliente e deve gerar necessidade de compra.
+- ACTIVE = verificar exatamente o significado no sistema antes de decidir.
+- CANCELLED = não deve gerar compra.
+- OPEN_FOR_EDITING = verificar se deve ou não gerar compra.
+- REOPEN_REQUESTED = verificar.
+- DELIVERED = verificar se deve aparecer somente no histórico e não na previsão.
+- outros status existentes = analisar individualmente.
+
+Não assuma. Leia o fluxo do sistema e explique o significado real de cada status.
+
+B) Qual data deve controlar a previsão?
+
+Compare:
+- order_date
+- delivery_date
+- created_at
+- qualquer outra data relevante.
+
+O objetivo é responder:
+
+"Se hoje é 10/08 e o cliente fez o pedido em 03/08 para entregar em 17/08, esse pedido deve aparecer na previsão de compras de 17/08?"
+
+Mostre qual campo deve ser usado e por quê.
+
+C) Subcategorias
+
+Analise se a previsão de compras precisa agrupar:
+
+Opção 1:
+productId
+
+Exemplo:
+Maçã Gala = 100 unidades
+
+OU:
+
+Opção 2:
+productId + subCategoryId
+
+Exemplo:
+Maçã Gala — Higienizada = 40
+Maçã Gala — Não higienizada = 60
+
+Verifique no sistema se a subcategoria representa apenas uma forma de venda/preço ou se representa uma especificação real do produto que muda a necessidade de compra.
+
+Não decida por mim. Mostre os impactos de cada opção.
+
+D) Valide com pedidos REAIS existentes no banco.
+
+Pegue alguns pedidos CONFIRMED futuros e mostre:
+
+- número do pedido
+- empresa
+- order_date
+- delivery_date
+- status
+- produtos
+- subcategorias
+- quantidades
+
+Depois simule como eles deveriam aparecer no relatório.
+
+E) Faça um desenho da regra FINAL recomendada:
+
+PEDIDO CLIENTE
+↓
+STATUS?
+↓
+DATA DE ENTREGA?
+↓
+PRODUTO
+↓
+SUBCATEGORIA (se necessário)
+↓
+QUANTIDADE
+↓
+PREVISÃO DE COMPRAS
+
+IMPORTANTE:
+
+- Não alterar código.
+- Não alterar banco.
+- Não criar migration.
+- Não corrigir nada ainda.
+- Somente auditoria e recomendação.
+- Se houver dúvida de regra de negócio, deixe explícito.
+- Quero uma conclusão objetiva dizendo exatamente o que precisa ser alterado depois da minha aprovação.
