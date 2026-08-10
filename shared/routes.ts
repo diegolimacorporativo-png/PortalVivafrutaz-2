@@ -240,14 +240,50 @@ export const api = {
     purchasing: {
       method: 'GET' as const,
       path: '/api/reports/purchasing' as const,
-      input: z.object({ weekReference: z.string().optional() }).optional(),
+      input: z.object({
+        dateFrom: z.string().optional(),
+        dateTo: z.string().optional(),
+        companyId: z.coerce.number().optional(),
+        productId: z.coerce.number().optional(),
+      }).optional(),
       responses: {
-        200: z.array(z.object({
-          productId: z.number(),
-          productName: z.string(),
-          totalQuantity: z.number(),
-          unit: z.string()
-        }))
+        200: z.object({
+          products: z.array(z.object({
+            productId: z.number(),
+            productName: z.string(),
+            unit: z.string(),
+            totalQuantity: z.number(),
+            companies: z.array(z.object({
+              companyId: z.number(),
+              companyName: z.string(),
+              quantity: z.number(),
+            })),
+            subCategories: z.array(z.object({
+              subCategoryId: z.number().nullable(),
+              subCategoryName: z.string().nullable(),
+              totalQuantity: z.number(),
+              totalValue: z.number(),
+              companies: z.array(z.object({
+                companyId: z.number(),
+                companyName: z.string(),
+                quantity: z.number(),
+              })),
+            })),
+          })),
+          rawOrders: z.array(z.object({
+            orderCode: z.string(),
+            companyName: z.string(),
+            orderDate: z.string(),
+            deliveryDate: z.string(),
+            productId: z.number(),
+            productName: z.string(),
+            subCategoryId: z.number().nullable(),
+            subCategoryName: z.string().nullable(),
+            quantity: z.number(),
+            unitPrice: z.number(),
+            totalPrice: z.number(),
+          })),
+        }),
       }
     },
     financial: {

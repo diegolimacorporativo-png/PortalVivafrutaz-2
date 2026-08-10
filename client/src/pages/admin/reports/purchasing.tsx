@@ -37,10 +37,18 @@ function usePurchasingData(filters: {
           unit: string;
           totalQuantity: number;
           companies: { companyId: number; companyName: string; quantity: number }[];
+          subCategories: {
+            subCategoryId: number | null;
+            subCategoryName: string | null;
+            totalQuantity: number;
+            totalValue: number;
+            companies: { companyId: number; companyName: string; quantity: number }[];
+          }[];
         }[];
         rawOrders: {
           orderCode: string; companyName: string; orderDate: string; deliveryDate: string;
-          productName: string; quantity: number; unitPrice: number; totalPrice: number;
+          productId: number; productName: string; subCategoryId: number | null; subCategoryName: string | null;
+          quantity: number; unitPrice: number; totalPrice: number;
         }[];
       }>;
     },
@@ -53,16 +61,17 @@ async function exportToExcel(rawOrders: any[], filters: any) {
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Pedidos detalhados
-  const headers = ['Empresa', 'Código do Pedido', 'Data do Pedido', 'Data de Entrega', 'Produto', 'Quantidade', 'Preço Unitário (R$)', 'Total (R$)'];
+  const headers = ['Empresa', 'Código do Pedido', 'Data do Pedido', 'Data de Entrega', 'Produto', 'Subcategoria', 'Quantidade', 'Preço Unitário (R$)', 'Total (R$)'];
   const rows = rawOrders.map(r => [
     r.companyName,
     r.orderCode,
     r.orderDate,
     r.deliveryDate,
     r.productName,
+    r.subCategoryName || 'Sem subcategoria',
     r.quantity,
     r.unitPrice,
-    { f: `F${rawOrders.indexOf(r) + 2 + 1}*G${rawOrders.indexOf(r) + 2 + 1}` }, // formula: Qty * Price
+    { f: `G${rawOrders.indexOf(r) + 2}*H${rawOrders.indexOf(r) + 2}` }, // formula: Qty * Price
   ]);
 
   // Actually compute total properly
@@ -72,6 +81,7 @@ async function exportToExcel(rawOrders: any[], filters: any) {
     r.orderDate,
     r.deliveryDate,
     r.productName,
+    r.subCategoryName || 'Sem subcategoria',
     r.quantity,
     r.unitPrice,
     r.totalPrice,
@@ -82,7 +92,7 @@ async function exportToExcel(rawOrders: any[], filters: any) {
   // Set column widths
   ws1['!cols'] = [
     { wch: 25 }, { wch: 18 }, { wch: 14 }, { wch: 14 },
-    { wch: 20 }, { wch: 12 }, { wch: 18 }, { wch: 14 },
+    { wch: 20 }, { wch: 24 }, { wch: 12 }, { wch: 18 }, { wch: 14 },
   ];
 
   XLSX.utils.book_append_sheet(wb, ws1, 'Pedidos Detalhados');
@@ -115,7 +125,20 @@ async function exportToExcel(rawOrders: any[], filters: any) {
 function ProductDetailModal({
   product, onClose
 }: {
-  product: { productId: number; productName: string; unit: string; totalQuantity: number; companies: { companyId: number; companyName: string; quantity: number }[] };
+  product: {
+    productId: number;
+    productName: string;
+    unit: string;
+    totalQuantity: number;
+    companies: { companyId: number; companyName: string; quantity: number }[];
+    subCategories: {
+      subCategoryId: number | null;
+      subCategoryName: string | null;
+      totalQuantity: number;
+      totalValue: number;
+      companies: { companyId: number; companyName: string; quantity: number }[];
+    }[];
+  };
   onClose: () => void;
 }) {
   const total = product.companies.reduce((s, c) => s + c.quantity, 0);
@@ -129,6 +152,28 @@ function ProductDetailModal({
           </div>
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
             <Package className="w-7 h-7 text-primary" />
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Por subcategoria</p>
+          <div className="space-y-2">
+            {product.subCategories.map(subCategory => (
+              <div
+                key={subCategory.subCategoryId ?? 'none'}
+                className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border/50"
+              >
+                <div>
+                  <p className="font-bold text-foreground text-sm">{subCategory.subCategoryName || 'Sem subcategoria'}</p>
+                  <p className="text-xs text-muted-foreground">
+                    R$ {subCategory.totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <p className="font-display font-bold text-primary">
+                  {subCategory.totalQuantity} <span className="text-xs font-medium text-muted-foreground">{product.unit}</span>
+                </p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -201,7 +246,7 @@ export default function PurchasingPage() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground">Compras</h1>
-          <p className="text-muted-foreground mt-1">Volume de frutas vendidas, lista de compras e exportação.</p>
+           <p className="text-muted-foreground mt-1">Volume de frutas vendidas por data de entrega, lista de compras e exportação.</p>
         </div>
         <button
           data-testid="button-export-excel"
@@ -261,7 +306,7 @@ export default function PurchasingPage() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Data Início
+               <Calendar className="w-3 h-3" /> Data de Entrega — início
             </label>
             <input
               type="date"
@@ -273,7 +318,7 @@ export default function PurchasingPage() {
           </div>
           <div>
             <label className="block text-xs font-semibold text-muted-foreground mb-1 uppercase flex items-center gap-1">
-              <Calendar className="w-3 h-3" /> Data Fim
+               <Calendar className="w-3 h-3" /> Data de Entrega — fim
             </label>
             <input
               type="date"
@@ -317,7 +362,7 @@ export default function PurchasingPage() {
             <BarChart3 className="w-5 h-5 text-primary" />
           </div>
           <h2 className="text-lg font-bold text-foreground">Produtos Vendidos</h2>
-          <span className="ml-auto text-sm text-muted-foreground font-medium">Clique num produto para ver por empresa</span>
+           <span className="ml-auto text-sm text-muted-foreground font-medium">Clique num produto para ver por empresa e subcategoria</span>
         </div>
 
         <table className="w-full text-left">

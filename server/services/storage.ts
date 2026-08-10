@@ -1007,22 +1007,47 @@ export class DatabaseStorage implements IStorage {
     companyId?: number;
     productId?: number;
   }): Promise<{
-    products: { productId: number; productName: string; unit: string; totalQuantity: number; companies: { companyId: number; companyName: string; quantity: number }[] }[];
-    rawOrders: { orderCode: string; companyName: string; orderDate: string; deliveryDate: string; productName: string; quantity: number; unitPrice: number; totalPrice: number }[];
+    products: {
+      productId: number;
+      productName: string;
+      unit: string;
+      totalQuantity: number;
+      companies: { companyId: number; companyName: string; quantity: number }[];
+      subCategories: {
+        subCategoryId: number | null;
+        subCategoryName: string | null;
+        totalQuantity: number;
+        totalValue: number;
+        companies: { companyId: number; companyName: string; quantity: number }[];
+      }[];
+    }[];
+    rawOrders: {
+      orderCode: string;
+      companyName: string;
+      orderDate: string;
+      deliveryDate: string;
+      productId: number;
+      productName: string;
+      subCategoryId: number | null;
+      subCategoryName: string | null;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+    }[];
   }> {
     // Build conditions
     const conditions: any[] = [];
     if (filters.companyId) conditions.push(eq(orders.companyId, filters.companyId));
     if (filters.productId) conditions.push(eq(orderItems.productId, filters.productId));
-    if (filters.dateFrom) conditions.push(gte(orders.orderDate, new Date(filters.dateFrom)));
+    if (filters.dateFrom) conditions.push(gte(orders.deliveryDate, new Date(filters.dateFrom)));
     if (filters.dateTo) {
       const to = new Date(filters.dateTo);
       to.setHours(23, 59, 59, 999);
-      conditions.push(lte(orders.orderDate, to));
+      conditions.push(lte(orders.deliveryDate, to));
     }
 
-    // Only include ACTIVE orders
-    conditions.push(eq(orders.status, 'ACTIVE'));
+    // The purchasing forecast only includes firm, confirmed orders.
+    conditions.push(eq(orders.status, 'CONFIRMED'));
 
     const rows = await db
       .select({
@@ -1035,6 +1060,8 @@ export class DatabaseStorage implements IStorage {
         productId: products.id,
         productName: products.name,
         productUnit: products.unit,
+        subCategoryId: orderItems.subCategoryId,
+        subCategoryName: orderItems.subCategoryName,
         quantity: orderItems.quantity,
         unitPrice: orderItems.unitPrice,
         totalPrice: orderItems.totalPrice,
@@ -1044,12 +1071,19 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(companies, eq(orders.companyId, companies.id))
       .innerJoin(products, eq(orderItems.productId, products.id))
       .where(conditions.length > 0 ? and(...conditions) : undefined)
-      .orderBy(desc(orders.orderDate));
+        .orderBy(desc(orders.deliveryDate), desc(orders.orderDate));
 
     // Aggregate by product
     const productMap = new Map<number, {
       productId: number; productName: string; unit: string; totalQuantity: number;
       companyMap: Map<number, { companyId: number; companyName: string; quantity: number }>;
+       subCategoryMap: Map<string, {
+         subCategoryId: number | null;
+         subCategoryName: string | null;
+         totalQuantity: number;
+         totalValue: number;
+         companyMap: Map<number, { companyId: number; companyName: string; quantity: number }>;
+       }>;
     }>();
 
     for (const row of rows) {
@@ -1060,6 +1094,7 @@ export class DatabaseStorage implements IStorage {
           unit: row.productUnit,
           totalQuantity: 0,
           companyMap: new Map(),
+           subCategoryMap: new Map(),
         });
       }
       const p = productMap.get(row.productId)!;
@@ -1067,6 +1102,23 @@ export class DatabaseStorage implements IStorage {
       const existing = p.companyMap.get(row.companyId);
       if (existing) existing.quantity += row.quantity;
       else p.companyMap.set(row.companyId, { companyId: row.companyId, companyName: row.companyName, quantity: row.quantity });
+
+       const subCategoryKey = row.subCategoryId == null ? 'none' : String(row.subCategoryId);
+       if (!p.subCategoryMap.has(subCategoryKey)) {
+         p.subCategoryMap.set(subCategoryKey, {
+           subCategoryId: row.subCategoryId,
+           subCategoryName: row.subCategoryName,
+           totalQuantity: 0,
+           totalValue: 0,
+           companyMap: new Map(),
+         });
+       }
+       const subCategory = p.subCategoryMap.get(subCategoryKey)!;
+       subCategory.totalQuantity += row.quantity;
+       subCategory.totalValue += Number(row.totalPrice);
+       const subCategoryCompany = subCategory.companyMap.get(row.companyId);
+       if (subCategoryCompany) subCategoryCompany.quantity += row.quantity;
+       else subCategory.companyMap.set(row.companyId, { companyId: row.companyId, companyName: row.companyName, quantity: row.quantity });
     }
 
     const productsList = Array.from(productMap.values())
@@ -1076,6 +1128,15 @@ export class DatabaseStorage implements IStorage {
         unit: p.unit,
         totalQuantity: p.totalQuantity,
         companies: Array.from(p.companyMap.values()).sort((a, b) => b.quantity - a.quantity),
+         subCategories: Array.from(p.subCategoryMap.values())
+           .map(subCategory => ({
+             subCategoryId: subCategory.subCategoryId,
+             subCategoryName: subCategory.subCategoryName,
+             totalQuantity: subCategory.totalQuantity,
+             totalValue: subCategory.totalValue,
+             companies: Array.from(subCategory.companyMap.values()).sort((a, b) => b.quantity - a.quantity),
+           }))
+           .sort((a, b) => b.totalQuantity - a.totalQuantity),
       }))
       .sort((a, b) => b.totalQuantity - a.totalQuantity);
 
@@ -1084,7 +1145,10 @@ export class DatabaseStorage implements IStorage {
       companyName: row.companyName,
       orderDate: row.orderDate.toISOString().split('T')[0],
       deliveryDate: row.deliveryDate.toISOString().split('T')[0],
+       productId: row.productId,
       productName: row.productName,
+       subCategoryId: row.subCategoryId,
+       subCategoryName: row.subCategoryName,
       quantity: row.quantity,
       unitPrice: Number(row.unitPrice),
       totalPrice: Number(row.totalPrice),
