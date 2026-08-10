@@ -21,6 +21,42 @@ function buildQuery(filters: {
   return p.toString() ? `?${p.toString()}` : '';
 }
 
+type PurchasingSubCategory = {
+  subCategoryId: number | null;
+  subCategoryName: string | null;
+  totalQuantity: number;
+  totalValue: number;
+  companies: { companyId: number; companyName: string; quantity: number }[];
+};
+
+type PurchasingProduct = {
+  productId: number;
+  productName: string;
+  unit: string;
+  totalQuantity: number;
+  companies: { companyId: number; companyName: string; quantity: number }[];
+  subCategories: PurchasingSubCategory[];
+};
+
+type PurchasingOrder = {
+  orderCode: string;
+  companyName: string;
+  orderDate: string;
+  deliveryDate: string;
+  productId: number;
+  productName: string;
+  subCategoryId: number | null;
+  subCategoryName: string | null;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+};
+
+type PurchasingPayload = {
+  products: PurchasingProduct[];
+  rawOrders: PurchasingOrder[];
+};
+
 function usePurchasingData(filters: {
   dateFrom: string; dateTo: string; companyId: string; productId: string;
 }) {
@@ -30,51 +66,18 @@ function usePurchasingData(filters: {
     queryFn: async () => {
       const res = await fetchWithAuth(`/api/reports/purchasing${qs}`);
       if (!res.ok) throw new Error('Failed to fetch purchasing data');
-      return res.json() as Promise<{
-        products: {
-          productId: number;
-          productName: string;
-          unit: string;
-          totalQuantity: number;
-          companies: { companyId: number; companyName: string; quantity: number }[];
-          subCategories: {
-            subCategoryId: number | null;
-            subCategoryName: string | null;
-            totalQuantity: number;
-            totalValue: number;
-            companies: { companyId: number; companyName: string; quantity: number }[];
-          }[];
-        }[];
-        rawOrders: {
-          orderCode: string; companyName: string; orderDate: string; deliveryDate: string;
-          productId: number; productName: string; subCategoryId: number | null; subCategoryName: string | null;
-          quantity: number; unitPrice: number; totalPrice: number;
-        }[];
-      }>;
+      return res.json() as Promise<PurchasingPayload>;
     },
   });
 }
 
 // ─── Excel Export ─────────────────────────────────────────────
-async function exportToExcel(rawOrders: any[], filters: any) {
+async function exportToExcel(rawOrders: PurchasingOrder[]) {
   const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
 
   // Sheet 1: Pedidos detalhados
   const headers = ['Empresa', 'Código do Pedido', 'Data do Pedido', 'Data de Entrega', 'Produto', 'Subcategoria', 'Quantidade', 'Preço Unitário (R$)', 'Total (R$)'];
-  const rows = rawOrders.map(r => [
-    r.companyName,
-    r.orderCode,
-    r.orderDate,
-    r.deliveryDate,
-    r.productName,
-    r.subCategoryName || 'Sem subcategoria',
-    r.quantity,
-    r.unitPrice,
-    { f: `G${rawOrders.indexOf(r) + 2}*H${rawOrders.indexOf(r) + 2}` }, // formula: Qty * Price
-  ]);
-
-  // Actually compute total properly
   const dataRows = rawOrders.map((r, i) => [
     r.companyName,
     r.orderCode,
@@ -123,25 +126,29 @@ async function exportToExcel(rawOrders: any[], filters: any) {
 
 // ─── Product Detail Modal ─────────────────────────────────────
 function ProductDetailModal({
-  product, onClose
+  product, orders, onClose
 }: {
-  product: {
-    productId: number;
-    productName: string;
-    unit: string;
-    totalQuantity: number;
-    companies: { companyId: number; companyName: string; quantity: number }[];
-    subCategories: {
-      subCategoryId: number | null;
-      subCategoryName: string | null;
-      totalQuantity: number;
-      totalValue: number;
-      companies: { companyId: number; companyName: string; quantity: number }[];
-    }[];
-  };
+  product: PurchasingProduct;
+  orders: PurchasingOrder[];
   onClose: () => void;
 }) {
-  const total = product.companies.reduce((s, c) => s + c.quantity, 0);
+  const total = product.totalQuantity;
+  const totalValue = orders.reduce((s, order) => s + order.totalPrice, 0);
+  const subCategories = product.subCategories?.length
+    ? product.subCategories
+    : [{
+      subCategoryId: null,
+      subCategoryName: null,
+      totalQuantity: total,
+      totalValue,
+      companies: product.companies,
+    }];
+
+  const formatDate = (value: string) => {
+    const [year, month, day] = value.split('-');
+    return year && month && day ? `${day}/${month}/${year}` : value;
+  };
+
   return (
     <Modal isOpen onClose={onClose} title={`Detalhe: ${product.productName}`} maxWidth="max-w-xl">
       <div className="space-y-4">
@@ -149,6 +156,9 @@ function ProductDetailModal({
           <div>
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Total Demandado</p>
             <p className="text-3xl font-display font-bold text-primary">{total} <span className="text-base font-medium text-muted-foreground">{product.unit}</span></p>
+            <p className="text-sm font-semibold text-foreground mt-1">
+              Valor total: R$ {totalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            </p>
           </div>
           <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center">
             <Package className="w-7 h-7 text-primary" />
@@ -158,7 +168,7 @@ function ProductDetailModal({
         <div>
           <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Por subcategoria</p>
           <div className="space-y-2">
-            {product.subCategories.map(subCategory => (
+            {subCategories.map(subCategory => (
               <div
                 key={subCategory.subCategoryId ?? 'none'}
                 className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border/50"
@@ -172,6 +182,26 @@ function ProductDetailModal({
                 <p className="font-display font-bold text-primary">
                   {subCategory.totalQuantity} <span className="text-xs font-medium text-muted-foreground">{product.unit}</span>
                 </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Pedidos e datas de entrega</p>
+          <div className="space-y-2">
+            {orders.map((order, index) => (
+              <div key={`${order.orderCode}-${order.subCategoryId ?? 'none'}-${index}`} className="flex items-center justify-between gap-3 p-3 bg-muted/20 rounded-xl border border-border/50">
+                <div>
+                  <p className="font-bold text-foreground text-sm">{order.orderCode}</p>
+                  <p className="text-xs text-muted-foreground">{order.companyName}</p>
+                </div>
+                <div className="text-right">
+                  <p className="font-semibold text-foreground">{formatDate(order.deliveryDate)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {order.quantity} {product.unit} · R$ {order.totalPrice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
@@ -210,7 +240,7 @@ export default function PurchasingPage() {
 
   const today = new Date();
   const defaultFrom = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-  const defaultTo = today.toISOString().split('T')[0];
+  const defaultTo = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
 
   const [filters, setFilters] = useState({
     dateFrom: defaultFrom,
@@ -220,18 +250,28 @@ export default function PurchasingPage() {
   });
 
   const { data, isLoading } = usePurchasingData(filters);
-  const [detailProduct, setDetailProduct] = useState<any | null>(null);
+  const [detailProduct, setDetailProduct] = useState<PurchasingProduct | null>(null);
   const [expandedShoppingList, setExpandedShoppingList] = useState(true);
   const [exporting, setExporting] = useState(false);
 
   const totalQty = useMemo(() => data?.products?.reduce((s, p) => s + p.totalQuantity, 0) || 0, [data]);
   const totalValue = useMemo(() => data?.rawOrders?.reduce((s, r) => s + r.totalPrice, 0) || 0, [data]);
 
+  const ordersByProduct = useMemo(() => {
+    const map = new Map<number, PurchasingOrder[]>();
+    for (const order of data?.rawOrders ?? []) {
+      const orders = map.get(order.productId) ?? [];
+      orders.push(order);
+      map.set(order.productId, orders);
+    }
+    return map;
+  }, [data?.rawOrders]);
+
   const handleExport = async () => {
     if (!data?.rawOrders?.length) return;
     setExporting(true);
     try {
-      await exportToExcel(data.rawOrders, filters);
+      await exportToExcel(data.rawOrders);
     } finally {
       setExporting(false);
     }
@@ -372,17 +412,22 @@ export default function PurchasingPage() {
               <th className="px-6 py-3 font-semibold">Unidade</th>
               <th className="px-6 py-3 font-semibold text-right">Qtd. Total</th>
               <th className="px-6 py-3 font-semibold text-right">% do Total</th>
+              <th className="px-6 py-3 font-semibold text-right">Valor</th>
+              <th className="px-6 py-3 font-semibold">Entrega</th>
               <th className="px-6 py-3 font-semibold">Empresas</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
-              <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Carregando dados reais...</td></tr>
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Carregando dados reais...</td></tr>
             ) : !data?.products?.length ? (
-              <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Nenhum dado para os filtros selecionados</td></tr>
+              <tr><td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">Nenhum dado para os filtros selecionados</td></tr>
             ) : (
               data.products.map(p => {
                 const pct = totalQty ? Math.round((p.totalQuantity / totalQty) * 100) : 0;
+                 const productOrders = ordersByProduct.get(p.productId) ?? [];
+                 const productValue = productOrders.reduce((sum, order) => sum + order.totalPrice, 0);
+                 const deliveryDates = Array.from(new Set(productOrders.map(order => order.deliveryDate)));
                 return (
                   <tr
                     key={p.productId}
@@ -409,6 +454,15 @@ export default function PurchasingPage() {
                         </div>
                         <span className="text-sm font-bold text-muted-foreground">{pct}%</span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-right font-semibold text-foreground">
+                      R$ {productValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                      {deliveryDates.map(date => {
+                        const [year, month, day] = date.split('-');
+                        return year && month && day ? `${day}/${month}/${year}` : date;
+                      }).join(', ') || '—'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1 flex-wrap">
@@ -479,7 +533,11 @@ export default function PurchasingPage() {
 
       {/* Product detail modal */}
       {detailProduct && (
-        <ProductDetailModal product={detailProduct} onClose={() => setDetailProduct(null)} />
+        <ProductDetailModal
+          product={detailProduct}
+          orders={ordersByProduct.get(detailProduct.productId) ?? []}
+          onClose={() => setDetailProduct(null)}
+        />
       )}
     </Layout>
   );

@@ -1,0 +1,82 @@
+Agora, com base no diagnóstico realizado, pode aplicar a correção.
+
+REGRAS IMPORTANTES:
+
+1. Corrija SOMENTE o problema do frontend em:
+   client/src/pages/admin/reports/purchasing.tsx
+
+2. NÃO altere:
+   - server/services/storage.ts
+   - server/routes/reports.routes.ts
+   - shared/routes.ts
+   - banco de dados
+   - schema/migrations
+   - fluxo de criação de pedidos
+   - catálogo
+   - preços
+   - regras de status
+   - regra de deliveryDate
+
+3. A API já foi validada e está funcionando corretamente. NÃO tente corrigir o backend.
+
+4. A tela `/admin/purchasing` precisa consumir o payload atual da API e exibir corretamente:
+
+   Pedido:
+   VF-2026-000057
+
+   Produto:
+   Maçã Gala
+
+   Quantidade total:
+   4 unidades
+
+   Subcategorias:
+   - Frutas in natura higienizadas e embaladas plástico: 3 unidades
+   - Frutas in natura não higienizadas e não embaladas: 1 unidade
+
+   Valor total:
+   R$ 8,80
+
+   Data de entrega:
+   17/08/2026
+
+5. Mantenha os cards existentes de:
+   - Produtos
+   - Unidades
+   - Valor total
+
+6. O detalhamento por subcategoria deve ser exibido sem quebrar produtos que não possuem subcategoria.
+
+7. A exportação Excel deve continuar funcionando e incluir:
+   - Produto
+   - Subcategoria
+   - Quantidade
+   - Valor
+   - Data de entrega
+   - Empresa/pedido quando já disponível no modelo
+
+8. Remova os logs temporários de diagnóstico que foram adicionados apenas para investigação, caso existam.
+
+9. Depois da alteração execute:
+   - TypeScript/check
+   - validação da página
+   - validação da query
+   - validação da exportação, se possível
+
+10. NÃO faça nenhuma alteração adicional fora desse escopo.
+
+Ao finalizar, me informe:
+
+A) arquivo alterado;
+B) linhas/componentes alterados;
+C) causa raiz encontrada;
+D) correção aplicada;
+E) resultado do TypeScript;
+F) confirmação de que VF-2026-000057 aparece no frontend;
+G) confirmação de que Maçã Gala aparece como 4 unidades;
+H) confirmação das duas subcategorias 3 + 1;
+I) confirmação de R$ 8,80;
+J) confirmação da data 17/08/2026;
+K) confirmação de que a exportação continua funcionando.
+
+Não altere nada além do necessário para corrigir o frontend.
