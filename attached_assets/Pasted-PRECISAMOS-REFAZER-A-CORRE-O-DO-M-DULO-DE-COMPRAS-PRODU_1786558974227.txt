@@ -1,0 +1,433 @@
+PRECISAMOS REFAZER A CORREÇÃO DO MÓDULO DE COMPRAS/PRODUTOS DO ZERO.
+
+IMPORTANTE:
+- NÃO faça alterações imediatamente.
+- Primeiro faça uma AUDITORIA COMPLETA do problema.
+- Leia o arquivo de instruções/escopo anexado nesta conversa antes de qualquer alteração.
+- Não altere banco de dados, migrations, autenticação ou permissões sem autorização explícita.
+- Não faça alterações fora do escopo.
+- Não use dados fictícios para mascarar problemas.
+- Não considere uma correção concluída apenas porque TypeScript/build passaram.
+- Quero que o fluxo real seja validado de ponta a ponta.
+
+========================
+PROBLEMAS CONFIRMADOS
+========================
+
+1. RELATÓRIO DE COMPRAS
+
+O relatório de compras estava retornando vazio porque getPurchasingReport() filtrava somente:
+
+orders.status = 'ACTIVE'
+
+Porém os pedidos atuais usam:
+
+CONFIRMED
+
+O pedido:
+
+VF-2026-000057
+
+possui:
+
+status = CONFIRMED
+orderDate = 03/08/2026
+deliveryDate = 17/08/2026
+produto = Maçã Gala
+quantidade total = 4
+valor total = R$ 8,80
+
+Foi confirmado anteriormente que a correção mínima é aceitar:
+
+ACTIVE OR CONFIRMED
+
+mantendo CANCELLED fora do relatório.
+
+Essa correção já foi aplicada anteriormente em:
+
+server/services/storage.ts
+
+Mas agora quero verificar o estado REAL atual do projeto antes de alterar qualquer coisa.
+
+========================
+2. FRONTEND DE COMPRAS
+========================
+
+O frontend anteriormente possuía incompatibilidade com o payload real da API.
+
+O payload real possui estrutura semelhante a:
+
+products:
+- product
+- totalQuantity
+- totalValue
+- subCategories
+
+rawOrders:
+- orderCode
+- deliveryDate
+- quantity
+- totalPrice
+- etc.
+
+O frontend anteriormente esperava campos diferentes, como:
+
+productName
+productId
+unit
+companies
+
+Foi feita uma normalização em:
+
+client/src/pages/admin/reports/purchasing.tsx
+
+Antes de modificar novamente, confirme se essa correção ainda existe e se está correta.
+
+========================
+3. FILTRO DE DATA
+========================
+
+O filtro padrão anteriormente terminava no dia atual.
+
+Exemplo:
+
+dateFrom = 01/08/2026
+dateTo = 10/08/2026
+
+Isso fazia o pedido com entrega em 17/08 desaparecer.
+
+O comportamento esperado é:
+
+primeiro dia do mês atual
+até o último dia do mês atual.
+
+Para agosto de 2026:
+
+dateFrom = 2026-08-01
+dateTo = 2026-08-31
+
+CONFIRME se isso ainda está implementado.
+
+========================
+4. PRODUTOS SUMINDO DO CATÁLOGO
+========================
+
+ESTE É UM PROBLEMA CRÍTICO E PRECISA SER INVESTIGADO.
+
+Os produtos cadastrados no catálogo estão desaparecendo.
+
+Não quero simplesmente recriar produtos.
+
+Quero descobrir POR QUE eles estão sendo apagados ou deixando de aparecer.
+
+Faça rastreamento completo:
+
+Frontend
+→ mutation
+→ controller
+→ service
+→ repository/storage
+→ banco
+
+Procure especialmente operações como:
+
+DELETE
+deleteProduct
+deleteAllSubCategoriesForProduct
+removeAllSubCategoriesForProduct
+updateProduct
+upsertProduct
+deactivateProduct
+
+Verifique se salvar/editar um produto está causando exclusão indevida.
+
+IMPORTANTE:
+
+NÃO altere o banco para corrigir isso.
+
+Primeiro identifique exatamente qual código está causando o desaparecimento.
+
+========================
+5. ERRO DE SUBCATEGORIA
+========================
+
+Existe este erro ao salvar produto:
+
+500:
+
+update or delete on table "product_sub_categories" violates foreign key constraint
+"order_items_sub_category_id_product_sub_categories_id"
+on table "order_items"
+
+O fluxo identificado anteriormente foi:
+
+ProductModal.tsx
+→ updateProduct.mutateAsync(...)
+→ DELETE /api/products/{id}/subcategories
+→ ProductController.deleteAllSubCategoriesForProduct()
+→ ProductService.removeAllSubCategoriesForProduct()
+→ ProductRepository.deleteSubCategoriesByProductId()
+→ storage.deleteProductSubCategoriesByProductId()
+→ DELETE product_sub_categories
+
+O problema é:
+
+existem order_items apontando para determinadas subcategorias.
+
+Portanto, apagar todas as subcategorias durante uma simples edição do produto quebra a FK.
+
+NÃO faça cascade delete.
+NÃO remova a foreign key.
+NÃO apague order_items.
+NÃO faça alteração destrutiva no banco.
+
+A solução deve preservar histórico dos pedidos.
+
+Primeiro determine qual é o comportamento correto para editar subcategorias que já estão sendo utilizadas por pedidos.
+
+========================
+6. IMAGENS DOS PRODUTOS
+========================
+
+Outro problema crítico:
+
+Quando adiciono uma imagem ao produto, ela aparece no formulário, mas depois desaparece.
+
+A imagem NÃO está persistindo corretamente.
+
+Investigue o fluxo completo:
+
+seleção da imagem
+→ upload
+→ resposta do upload
+→ URL/path retornado
+→ estado do formulário
+→ payload do update/create
+→ controller
+→ service
+→ repository/storage
+→ campo da tabela products
+→ leitura posterior do produto
+
+Descubra:
+
+1. Qual campo do produto deveria armazenar a imagem?
+2. O upload realmente está sendo executado?
+3. A API de upload retorna uma URL válida?
+4. Essa URL está sendo enviada no create/update?
+5. O backend salva essa URL?
+6. Ao recarregar o catálogo, a URL é retornada?
+7. Existe algum código sobrescrevendo image/imageUrl com null/undefined?
+8. Existe diferença entre criar e editar produto?
+
+NÃO quero simplesmente salvar a imagem em memória do frontend.
+
+Ela precisa persistir no banco e continuar aparecendo depois de recarregar a página.
+
+========================
+7. REGRA IMPORTANTÍSSIMA SOBRE PRODUTOS E PEDIDOS
+========================
+
+Produtos e subcategorias podem possuir histórico em:
+
+order_items
+
+Portanto:
+
+NÃO excluir fisicamente produto/subcategoria que esteja sendo referenciado por pedidos sem antes verificar a regra de negócio.
+
+NÃO apagar histórico de pedidos.
+
+NÃO apagar order_items.
+
+NÃO quebrar foreign keys.
+
+Se o produto precisa deixar de aparecer no catálogo, avalie se o comportamento correto é INATIVAR em vez de DELETE.
+
+Mas NÃO faça essa mudança sem primeiro verificar como o sistema atualmente trata o campo de status/ativo.
+
+========================
+8. O QUE VOCÊ DEVE FAZER
+========================
+
+FASE 1 — AUDITORIA
+
+Antes de editar:
+
+- localizar ProductModal.tsx
+- localizar catálogo de produtos
+- localizar API de produtos
+- localizar controller
+- localizar service
+- localizar repository/storage
+- localizar schema de products
+- localizar schema de product_sub_categories
+- localizar schema de order_items
+- localizar upload de imagens
+- localizar getPurchasingReport()
+- localizar frontend purchasing.tsx
+
+Mapear o fluxo.
+
+Não alterar nada nesta fase.
+
+========================
+FASE 2 — CAUSA RAIZ
+
+Produza um relatório curto contendo:
+
+A) Por que produtos estão desaparecendo?
+B) Por que salvar produto gera erro de FK?
+C) Por que imagens não persistem?
+D) O relatório de compras aceita CONFIRMED?
+E) O filtro padrão está correto?
+F) Existem alterações anteriores que ficaram incompletas?
+
+Para cada problema indique:
+
+arquivo
+função
+causa
+correção mínima
+
+========================
+FASE 3 — IMPLEMENTAÇÃO
+
+Somente depois da auditoria:
+
+- corrigir o relatório para ACTIVE OR CONFIRMED;
+- manter CANCELLED excluído;
+- corrigir o frontend de compras conforme o payload real;
+- corrigir filtro para primeiro/último dia do mês;
+- corrigir edição de subcategorias sem apagar registros referenciados por order_items;
+- corrigir persistência das imagens;
+- preservar histórico dos pedidos;
+- não alterar autenticação;
+- não alterar permissões;
+- não alterar banco/migration sem necessidade real.
+
+IMPORTANTE:
+
+Não faça uma solução "temporária".
+
+Quero corrigir a causa raiz.
+
+========================
+FASE 4 — VALIDAÇÃO
+
+Depois das alterações execute:
+
+npm run check
+npm run build
+git diff --check
+
+Depois faça validação funcional.
+
+TESTE 1 — PRODUTO
+
+Criar/editar um produto de teste.
+
+Verificar:
+
+- produto permanece no catálogo;
+- produto continua após reload;
+- produto continua após novo login;
+- subcategorias permanecem;
+- não ocorre erro 500;
+- não ocorre erro de FK.
+
+TESTE 2 — IMAGEM
+
+Adicionar imagem.
+
+Verificar:
+
+- upload concluído;
+- URL retornada;
+- URL salva;
+- produto salvo;
+- recarregar página;
+- imagem continua aparecendo.
+
+TESTE 3 — PEDIDO EXISTENTE
+
+NÃO apagar nem modificar o pedido:
+
+VF-2026-000057
+
+Verificar que suas referências às subcategorias continuam válidas.
+
+TESTE 4 — COMPRAS
+
+Com período:
+
+01/08/2026 até 31/08/2026
+
+deve aparecer:
+
+Maçã Gala
+4 unidades
+R$ 8,80
+entrega 17/08/2026
+
+Subcategorias:
+
+3 unidades
+1 unidade
+
+TESTE 5 — CANCELADO
+
+Confirmar que pedido CANCELLED não aparece no relatório.
+
+========================
+REGRAS DE SEGURANÇA
+========================
+
+NÃO:
+
+- apagar banco;
+- apagar tabelas;
+- remover foreign keys;
+- apagar order_items;
+- apagar histórico;
+- criar migrations desnecessárias;
+- alterar autenticação;
+- criar bypass de permissão;
+- usar sessão/cookie para contornar autenticação;
+- instalar dependências sem necessidade;
+- alterar arquivos fora do escopo;
+- esconder erros com try/catch silencioso;
+- simplesmente ignorar erro 500.
+
+Se encontrar alteração pré-existente no workspace, NÃO sobrescreva sem identificar antes.
+
+========================
+RESULTADO FINAL OBRIGATÓRIO
+========================
+
+Ao terminar, informe:
+
+1. CAUSA RAIZ DOS PRODUTOS SUMIREM
+2. CAUSA RAIZ DO ERRO DE FK
+3. CAUSA RAIZ DAS IMAGENS SUMIREM
+4. CAUSA RAIZ DO RELATÓRIO VAZIO
+5. ARQUIVOS ALTERADOS
+6. ARQUIVOS NÃO ALTERADOS
+7. CHECK
+8. BUILD
+9. DIFF CHECK
+10. TESTE DO PRODUTO
+11. TESTE DA IMAGEM
+12. TESTE DO PEDIDO 57
+13. TESTE DO RELATÓRIO
+14. TESTE DE CANCELAMENTO
+
+Se alguma validação não puder ser feita, escreva:
+
+BLOQUEADO — motivo exato
+
+Não marque como PASS aquilo que não foi realmente testado.
+
+COMECE AGORA PELA FASE 1 — AUDITORIA.
+
+NÃO EDITE NENHUM ARQUIVO ATÉ TERMINAR A AUDITORIA E MOSTRAR A CAUSA RAIZ.
