@@ -1,0 +1,200 @@
+PRECISAMOS CORRIGIR EXCLUSIVAMENTE O FLUXO DE COMPRAS E PREVISÃO DE COMPRAS.
+
+NÃO ALTERE:
+- catálogo de produtos;
+- cadastro/edição de produtos;
+- upload ou imagens;
+- banco estrutural/migrations;
+- autenticação;
+- permissões;
+- fluxo de pedidos do cliente;
+- preços;
+- estoque;
+- outros módulos que não sejam necessários para este ajuste.
+
+OBJETIVO
+
+Quando um cliente realizar um pedido, esse pedido deve aparecer corretamente:
+
+1. na tela ADMIN > Compras;
+2. na tela/funcionalidade de Previsão de Compras.
+
+A informação deve ser baseada no pedido REAL realizado pelo cliente, e não em dados fictícios ou calculados de forma independente.
+
+ANTES DE EDITAR
+
+Faça primeiro uma AUDITORIA SOMENTE LEITURA.
+
+Mapeie:
+
+- onde o pedido do cliente é criado;
+- quais tabelas armazenam orders e order_items;
+- status possíveis do pedido;
+- deliveryDate;
+- orderDate;
+- productId;
+- subCategoryId;
+- quantity;
+- unitPrice;
+- totalPrice;
+- como a tela de Compras consulta os pedidos;
+- como a Previsão de Compras consulta os pedidos;
+- quais filtros de status/data são aplicados;
+- se existe alguma divergência entre o pedido realizado e o que aparece em Compras;
+- se Compras e Previsão estão consultando fontes diferentes.
+
+USAR COMO CASO DE TESTE:
+
+Pedido:
+VF-2026-000057
+
+Dados já confirmados anteriormente:
+
+- status: CONFIRMED
+- orderDate: 03/08/2026
+- deliveryDate: 17/08/2026
+- produto: Maçã Gala
+- quantidade total: 4
+- valor total: R$ 8,80
+- subcategoria 34: 3 unidades / R$ 6,90
+- subcategoria 33: 1 unidade / R$ 1,90
+
+RESULTADO ESPERADO NA TELA DE COMPRAS
+
+Com o período:
+
+01/08/2026 até 31/08/2026
+
+o pedido VF-2026-000057 deve ser considerado no relatório.
+
+Deve aparecer:
+
+Maçã Gala
+Quantidade: 4
+Valor: R$ 8,80
+Entrega: 17/08/2026
+
+E o detalhamento deve preservar as duas subcategorias:
+
+- Frutas in natura higienizadas e embaladas plástico — 3
+- Frutas in natura não higienizadas e não embaladas — 1
+
+RESULTADO ESPERADO NA PREVISÃO DE COMPRAS
+
+O pedido confirmado pelo cliente deve gerar a necessidade correspondente para a data de entrega.
+
+Para 17/08/2026:
+
+Maçã Gala = 4 unidades
+
+A previsão deve considerar os pedidos válidos/confirmados existentes para aquele período.
+
+NÃO deve:
+
+- duplicar pedido;
+- ignorar pedido CONFIRMED;
+- incluir CANCELLED;
+- somar pedido duas vezes;
+- usar quantidade de estoque como substituto da quantidade pedida;
+- criar uma previsão fictícia;
+- alterar o pedido original.
+
+STATUS
+
+Verificar cuidadosamente os status existentes no sistema.
+
+O relatório de Compras deve considerar pedidos operacionais válidos, incluindo:
+
+ACTIVE
+CONFIRMED
+
+e excluir:
+
+CANCELLED
+
+Não faça uma alteração global de status sem confirmar primeiro como a Previsão de Compras utiliza esses status.
+
+DATA
+
+Diferenciar:
+
+- orderDate = data em que o cliente realizou o pedido;
+- deliveryDate = data em que a empresa precisa atender/entregar o pedido.
+
+Para Compras e principalmente Previsão de Compras, verificar se a data operacional correta é deliveryDate.
+
+O caso VF-2026-000057 tem:
+
+orderDate = 03/08/2026
+deliveryDate = 17/08/2026
+
+Portanto, o pedido deve aparecer na previsão de necessidade de 17/08/2026.
+
+IMPORTANTE
+
+Não altere apenas o frontend para "fazer aparecer".
+
+Primeiro descubra por que a informação do pedido não está chegando à tela.
+
+Se o backend já possui os dados corretamente, ajuste somente o consumo/consulta.
+
+Se o backend estiver descartando o pedido, corrija a consulta no ponto correto.
+
+Se Compras estiver funcionando mas Previsão estiver usando outra fonte ou outro filtro, alinhe a Previsão à mesma fonte oficial dos pedidos.
+
+SUBCATEGORIAS
+
+Não apagar subcategorias.
+Não recriar subcategorias desnecessariamente.
+Não alterar order_items.
+Não remover foreign keys.
+
+Apenas garantir que a informação existente no pedido seja corretamente utilizada no relatório/previsão.
+
+VALIDAÇÃO OBRIGATÓRIA
+
+Depois da correção:
+
+1. npm run check
+2. npm run build
+3. git diff --check
+
+Depois faça uma validação somente leitura do pedido VF-2026-000057.
+
+Confirmar:
+
+- pedido encontrado;
+- status CONFIRMED;
+- deliveryDate 17/08/2026;
+- Maçã Gala;
+- quantidade 4;
+- valor R$ 8,80;
+- subcategorias 33 e 34;
+- resultado da API de Compras;
+- resultado da API/fonte da Previsão de Compras.
+
+Se houver navegador autenticado disponível, validar visualmente:
+
+ADMIN > Compras
+ADMIN > Previsão de Compras
+
+Se não houver sessão administrativa, NÃO tente contornar autenticação.
+
+Nesse caso, declarar claramente:
+
+BACKEND: PASS/FAIL
+COMPRAS API: PASS/FAIL
+PREVISÃO API: PASS/FAIL
+FRONTEND: VALIDADO/BLOQUEADO POR AUTENTICAÇÃO
+
+ESCOPO
+
+Antes de editar, informe:
+
+- arquivos que serão alterados;
+- causa raiz encontrada;
+- correção mínima proposta.
+
+Não altere nenhum arquivo fora do escopo aprovado.
+
+Ao final, informe o diff exato e todos os arquivos modificados.

@@ -4,6 +4,7 @@ import { requireAuth, requireRole } from "../core/http/requireAuth";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 
 const PLAN_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "OPERATIONS_MANAGER", "PURCHASE_MANAGER"];
+const VALID_PURCHASE_ORDER_STATUSES = new Set(["ACTIVE", "CONFIRMED"]);
 
 export function register(app: Express) {
   app.get('/api/purchase-planning/forecast', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
@@ -11,7 +12,10 @@ export function register(app: Express) {
       const [allOrders, allProds] = await Promise.all([storage.getOrders(), storage.getProducts()]);
       const prodById = new Map(allProds.map(p => [p.id, p]));
       const eightWeeksAgo = new Date(); eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
-      const recentOrders = allOrders.filter(o => o.status !== 'CANCELLED' && new Date(o.deliveryDate) >= eightWeeksAgo);
+      const recentOrders = allOrders.filter(o =>
+        VALID_PURCHASE_ORDER_STATUSES.has(o.status) &&
+        new Date(o.deliveryDate) >= eightWeeksAgo
+      );
 
       // Aggregate by product name, per week
       const weeklyMap: Record<string, Record<string, number>> = {}; // productName -> weekKey -> qty
@@ -76,7 +80,7 @@ export function register(app: Express) {
       const companyById = new Map(allCompanies.map(c => [c.id, c]));
 
       const filtered = allOrders.filter(o => {
-        if (['CANCELLED'].includes(o.status)) return false;
+        if (!VALID_PURCHASE_ORDER_STATUSES.has(o.status)) return false;
         const d = new Date(o.deliveryDate).toISOString().substring(0, 10);
         if (d < startDate) return false;
         if (d > endDate) return false;

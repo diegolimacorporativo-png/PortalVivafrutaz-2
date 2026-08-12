@@ -1046,8 +1046,10 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(orders.deliveryDate, to));
     }
 
-    // The purchasing forecast only includes firm, confirmed orders.
-    conditions.push(eq(orders.status, 'CONFIRMED'));
+    // Purchasing uses operational orders only. ACTIVE covers orders that
+    // are already actionable but not yet promoted to CONFIRMED; both are
+    // valid demand. CANCELLED and every other workflow state stay out.
+    conditions.push(or(eq(orders.status, 'ACTIVE'), eq(orders.status, 'CONFIRMED')));
 
     const rows = await db
       .select({
