@@ -1,0 +1,86 @@
+PRECISAMOS FAZER DOIS AJUSTES NO SISTEMA, MAS PRIMEIRO FAÇA SOMENTE UMA AUDITORIA. NÃO ALTERE NENHUM ARQUIVO AINDA.
+
+OBJETIVO 1 — BOTÃO VOLTAR NA TELA DE COMPRAS
+
+Na tela administrativa de Compras, atualmente não existe um botão visível para retornar à tela anterior/menu.
+
+O usuário precisa clicar com o botão direito ou usar alguma alternativa do navegador para voltar.
+
+Quero adicionar uma navegação normal e visível, seguindo o padrão visual já utilizado pelo sistema.
+
+AUDITAR:
+- localizar client/src/pages/admin/reports/purchasing.tsx;
+- identificar se já existe algum componente/padrão de botão "Voltar" utilizado em outras telas administrativas;
+- verificar qual mecanismo de navegação o projeto utiliza (React Router, useLocation, useNavigate etc.);
+- identificar a melhor rota de destino;
+- NÃO criar uma nova estrutura de navegação;
+- reutilizar o padrão já existente no sistema.
+
+OBJETIVO 2 — ACESSO TOTAL PARA DIRECTOR
+
+O perfil DIRECTOR deve ter acesso completo ao sistema administrativo.
+
+Atualmente o usuário com role DIRECTOR não consegue acessar Produção.
+
+Quero que DIRECTOR tenha acesso às áreas administrativas disponíveis para os perfis administrativos principais, incluindo no mínimo:
+
+- Dashboard
+- Pedidos
+- Compras
+- Planejamento de Compras
+- Produção
+- Produtos/Catálogo
+- Empresas
+- Clientes
+- Relatórios
+- Configurações administrativas
+- demais módulos administrativos atualmente bloqueados por role
+
+IMPORTANTE:
+Não quero simplesmente adicionar "DIRECTOR" aleatoriamente em cada tela.
+
+AUDITAR TODO O FLUXO DE AUTORIZAÇÃO:
+- client/src/App.tsx;
+- componentes de ProtectedRoute/RequireRole, se existirem;
+- menus/sidebar e regras de visibilidade;
+- permissões por rota;
+- middleware requireRole no backend;
+- regras específicas de cada módulo;
+- Produção, Compras e Planejamento;
+- qualquer mapa/constante central de permissões;
+- verificar se existem permissões diferentes entre frontend e backend.
+
+MAPEAR:
+1. Quais rotas DIRECTOR já consegue acessar.
+2. Quais rotas DIRECTOR não consegue acessar.
+3. Onde exatamente Produção está bloqueando DIRECTOR.
+4. Se o bloqueio ocorre no frontend, backend ou nos dois.
+5. Se existe um mecanismo central de roles que possa ser corrigido em vez de espalhar alterações.
+6. Se alguma API administrativa também rejeita DIRECTOR mesmo quando a tela permite acesso.
+7. Se MASTER/ADMIN possuem algum bypass que DIRECTOR deveria possuir de acordo com a regra de negócio.
+
+NÃO ALTERAR:
+- banco de dados;
+- schema;
+- migrations;
+- pedidos;
+- catálogo;
+- Compras além do botão Voltar;
+- lógica de Produção;
+- consultas SQL;
+- dados;
+- autenticação/sessão.
+
+NÃO FAZER LOGIN ALTERNATIVO E NÃO CONTORNAR AUTENTICAÇÃO.
+
+ENTREGAR SOMENTE A AUDITORIA:
+
+- causa exata do bloqueio de DIRECTOR na Produção;
+- lista das rotas/módulos que estão bloqueando DIRECTOR;
+- diferença entre frontend e backend;
+- arquivos que realmente precisam ser alterados;
+- proposta de correção mínima;
+- confirmar se é possível centralizar a permissão;
+- confirmar que não será necessário alterar banco/schema.
+
+NÃO APLIQUE NENHUM PATCH NESTA ETAPA.
