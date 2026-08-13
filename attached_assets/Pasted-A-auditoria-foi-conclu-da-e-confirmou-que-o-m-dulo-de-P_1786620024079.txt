@@ -1,0 +1,312 @@
+A auditoria foi concluída e confirmou que o módulo de Produção JÁ possui os dados necessários.
+
+AGORA IMPLEMENTE SOMENTE A VISÃO POR EMPRESA.
+
+IMPORTANTE:
+- NÃO criar nova API.
+- NÃO criar nova consulta SQL.
+- NÃO criar nova tabela.
+- NÃO alterar banco/schema/migration.
+- NÃO alterar pedidos.
+- NÃO alterar catálogo.
+- NÃO alterar Compras.
+- NÃO alterar o fluxo de geração do lote.
+- NÃO duplicar lógica existente.
+- REUTILIZAR o payload atual do lote.
+- A alteração deve ficar prioritariamente em:
+  client/src/pages/admin/production.tsx
+
+OBJETIVO:
+
+A tela atual de Produção já possui:
+
+activeBatch.items[]
+
+E cada item já possui:
+
+- productId
+- productName
+- unit
+- totalQuantity
+- orderBreakdown
+
+O orderBreakdown já possui:
+
+- orderId
+- orderCode
+- companyId
+- companyName
+- quantity
+
+Portanto, NÃO buscar esses dados novamente no backend.
+
+==================================================
+NOVA VISÃO: "POR EMPRESA"
+==================================================
+
+Adicionar uma nova aba/seção na tela atual de Produção chamada:
+
+"Por Empresa"
+
+Essa visão deve reorganizar os mesmos dados existentes de:
+
+PRODUTO → EMPRESA
+
+para:
+
+EMPRESA → PRODUTOS
+
+Exemplo:
+
+EMPRESA A
+
+Maçã Gala        4 unidades
+Banana           10 unidades
+Melão            5 unidades
+
+Total da empresa: 19 unidades
+
+--------------------------------
+
+EMPRESA B
+
+Maçã Gala        8 unidades
+Banana           6 unidades
+
+Total da empresa: 14 unidades
+
+==================================================
+REGRA DE AGRUPAMENTO
+==================================================
+
+Derivar os dados diretamente de:
+
+activeBatch.items[].orderBreakdown
+
+Para cada item:
+
+1. Identificar:
+   - productId
+   - productName
+   - unit
+
+2. Percorrer:
+   item.orderBreakdown
+
+3. Agrupar por:
+
+companyId
+
+4. Dentro de cada empresa, agrupar por:
+
+productId
+
+5. Somar:
+
+quantity
+
+NÃO agrupar somente pelo nome do produto.
+
+Usar productId como chave principal para evitar misturar produtos diferentes com o mesmo nome.
+
+==================================================
+CONSOLIDADO GERAL
+==================================================
+
+NÃO remover nem alterar a visão atual "Por Produto".
+
+Ela já possui:
+
+Produto
+Quantidade total
+Unidade
+Empresas
+
+Manter essa visão funcionando exatamente como está.
+
+A nova visão "Por Empresa" será apenas uma nova forma de visualizar os MESMOS dados.
+
+==================================================
+VALIDAÇÃO MATEMÁTICA
+==================================================
+
+A soma das empresas para cada produto precisa ser igual ao:
+
+item.totalQuantity
+
+Exemplo:
+
+Maçã Gala
+
+Empresa A = 4
+Empresa B = 8
+
+Total das empresas = 12
+
+O total consolidado do produto precisa ser:
+
+12
+
+Se houver divergência, NÃO corrigir silenciosamente.
+
+Mostrar/registrar a divergência para diagnóstico.
+
+==================================================
+TOTAL POR EMPRESA
+==================================================
+
+Cada empresa deve possuir também um total geral:
+
+Empresa A
+
+Maçã Gala — 4
+Banana — 10
+Melão — 5
+
+TOTAL DA EMPRESA = 19
+
+O total deve ser a soma das quantidades dos produtos daquela empresa.
+
+==================================================
+INFORMAÇÕES VISUAIS
+==================================================
+
+Para cada empresa mostrar:
+
+- Nome da empresa
+- Produtos
+- Quantidade
+- Unidade
+- Total da empresa
+
+Se possível, manter o mesmo padrão visual utilizado atualmente na tela de Produção.
+
+Não criar um design completamente novo.
+
+Reutilizar componentes existentes quando fizer sentido.
+
+==================================================
+PEDIDOS
+==================================================
+
+Não é necessário mostrar o pedido individual nessa primeira versão.
+
+O objetivo dessa visão é operacional:
+
+EMPRESA
+→ PRODUTO
+→ QUANTIDADE
+
+O detalhamento de pedidos existente deve continuar funcionando onde já existe.
+
+==================================================
+DADOS VAZIOS
+==================================================
+
+Se não houver empresas no lote:
+
+Mostrar uma mensagem apropriada:
+
+"Nenhuma empresa encontrada neste lote."
+
+Não gerar erro de JavaScript.
+
+==================================================
+STATUS E FILTROS
+==================================================
+
+NÃO alterar os filtros atuais.
+
+NÃO alterar os status considerados na geração.
+
+NÃO alterar a data de produção.
+
+A nova visão deve trabalhar somente com o lote já carregado.
+
+==================================================
+IMPORTANTE SOBRE SUBCATEGORIAS
+==================================================
+
+A auditoria confirmou que subcategorias NÃO fazem parte do orderBreakdown atual.
+
+Portanto:
+
+NÃO inventar subcategorias.
+NÃO fazer nova consulta.
+NÃO alterar backend para incluí-las nesta tarefa.
+
+Se o mesmo produto possuir subcategorias diferentes, continuar utilizando o comportamento atual do lote.
+
+==================================================
+EXPORTAÇÃO
+==================================================
+
+NÃO implementar Excel/PDF nesta etapa, a menos que já exista uma função de exportação diretamente reutilizável sem alterar backend.
+
+Primeiro quero a visão "Por Empresa" funcionando.
+
+Depois podemos fazer a exportação separadamente.
+
+==================================================
+VALIDAÇÕES OBRIGATÓRIAS
+==================================================
+
+Depois da implementação executar:
+
+npm run check
+
+npm run build
+
+git diff --check
+
+Também revisar:
+
+git diff --name-only
+
+O resultado deve confirmar que somente o arquivo autorizado foi alterado:
+
+client/src/pages/admin/production.tsx
+
+Se outro arquivo for necessário, NÃO altere automaticamente.
+
+Pare e informe qual arquivo seria necessário e por quê.
+
+==================================================
+VALIDAÇÃO FUNCIONAL
+==================================================
+
+Criar uma validação determinística usando o payload/fixture existente do lote, sem depender de autenticação visual.
+
+Confirmar:
+
+1. Empresa A aparece.
+2. Empresa B aparece, se existirem no fixture.
+3. Produtos aparecem dentro de cada empresa.
+4. Quantidades estão corretas.
+5. Total da empresa está correto.
+6. Soma das empresas bate com totalQuantity de cada produto.
+7. A aba "Por Produto" continua funcionando.
+8. A aba "Por Rota" continua funcionando.
+9. A aba "Lista de Separação" continua funcionando.
+10. A aba "Conferência" continua funcionando.
+11. Nenhum erro de undefined/null foi introduzido.
+
+==================================================
+REGRA PRINCIPAL
+==================================================
+
+NÃO RECRIAR O FLUXO DE PRODUÇÃO.
+
+A informação já existe em:
+
+activeBatch.items[].orderBreakdown
+
+Apenas reorganizar essa informação no frontend para produzir:
+
+EMPRESA → PRODUTOS → QUANTIDADE
+
+Mantenha o consolidado existente:
+
+PRODUTO → TOTAL
+
+Essa é uma alteração de apresentação/reagrupamento dos dados já existentes.

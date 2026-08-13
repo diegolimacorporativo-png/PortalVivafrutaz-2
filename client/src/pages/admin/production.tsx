@@ -21,6 +21,7 @@ import {
   Truck,
   ListOrdered,
   Eye,
+  Building2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +119,34 @@ interface Batch {
   items?: BatchItem[];
 }
 
+interface CompanyProductSummary {
+  productId: number;
+  productName: string;
+  unit: string;
+  quantity: number;
+}
+
+interface CompanySummary {
+  companyId: number;
+  companyName: string;
+  products: CompanyProductSummary[];
+  totalQuantity: number;
+}
+
+interface CompanyViewDiscrepancy {
+  productId: number;
+  productName: string;
+  expectedQuantity: number;
+  companyQuantity: number;
+  difference: number;
+  unit: string;
+}
+
+interface CompanyViewData {
+  companies: CompanySummary[];
+  discrepancies: CompanyViewDiscrepancy[];
+}
+
 // ─── Helpers ───────────────────────────────────────────────────
 
 const STATUS_CONFIG: Record<
@@ -151,6 +180,101 @@ function fmt(qty: string | number) {
 
 function today() {
   return format(new Date(), "yyyy-MM-dd");
+}
+
+/**
+ * Reorganiza o orderBreakdown já carregado no lote, sem consultar o backend.
+ * productId e companyId são as chaves de agrupamento para evitar colisões de nomes.
+ */
+export function buildCompanyView(items: BatchItem[]): CompanyViewData {
+  const companyMap = new Map<
+    number,
+    {
+      companyId: number;
+      companyName: string;
+      products: Map<number, CompanyProductSummary>;
+    }
+  >();
+  const productTotals = new Map<
+    number,
+    {
+      productName: string;
+      unit: string;
+      expectedQuantity: number;
+      companyQuantity: number;
+    }
+  >();
+
+  for (const item of items) {
+    const expectedQuantity = Number(item.totalQuantity);
+    const productTotal = productTotals.get(item.productId) ?? {
+      productName: item.productName,
+      unit: item.unit,
+      expectedQuantity: 0,
+      companyQuantity: 0,
+    };
+    productTotal.expectedQuantity += Number.isFinite(expectedQuantity)
+      ? expectedQuantity
+      : 0;
+    productTotals.set(item.productId, productTotal);
+
+    for (const order of item.orderBreakdown ?? []) {
+      const quantity = Number(order.quantity);
+      if (!Number.isFinite(quantity)) continue;
+
+      // O fallback evita erro de renderização se um payload antigo vier incompleto.
+      const companyId = order.companyId ?? -1;
+      const companyName = order.companyName?.trim() || "Empresa não identificada";
+      const company = companyMap.get(companyId) ?? {
+        companyId,
+        companyName,
+        products: new Map<number, CompanyProductSummary>(),
+      };
+      const product = company.products.get(item.productId);
+
+      if (product) {
+        product.quantity += quantity;
+      } else {
+        company.products.set(item.productId, {
+          productId: item.productId,
+          productName: item.productName,
+          unit: item.unit,
+          quantity,
+        });
+      }
+
+      productTotal.companyQuantity += quantity;
+      companyMap.set(companyId, company);
+    }
+  }
+
+  const companies = Array.from(companyMap.values())
+    .map((company) => {
+      const products = Array.from(company.products.values()).sort((a, b) =>
+        a.productName.localeCompare(b.productName),
+      );
+      return {
+        ...company,
+        products,
+        totalQuantity: products.reduce((total, product) => total + product.quantity, 0),
+      };
+    })
+    .sort((a, b) => a.companyName.localeCompare(b.companyName));
+
+  const discrepancies = Array.from(productTotals.entries())
+    .map(([productId, product]) => ({
+      productId,
+      productName: product.productName,
+      expectedQuantity: product.expectedQuantity,
+      companyQuantity: product.companyQuantity,
+      difference: product.companyQuantity - product.expectedQuantity,
+      unit: product.unit,
+    }))
+    // Quantidades têm até três casas decimais; a tolerância evita falso positivo
+    // por erro de representação de ponto flutuante.
+    .filter((product) => Math.abs(product.difference) > 0.0005);
+
+  return { companies, discrepancies };
 }
 
 // ─── Print helper ──────────────────────────────────────────────
@@ -264,6 +388,9 @@ export default function AdminProduction() {
   });
 
   const activeBatch = batchDetailQuery.data ?? null;
+  const companyView = activeBatch?.items
+    ? buildCompanyView(activeBatch.items)
+    : { companies: [], discrepancies: [] };
 
   // ── Mutations ─────────────────────────────────────────────────
 
@@ -550,6 +677,9 @@ export default function AdminProduction() {
                   <TabsTrigger value="produtos">
                     <Package className="w-4 h-4 mr-1" /> Por Produto
                   </TabsTrigger>
+                  <TabsTrigger value="empresas">
+                    <Building2 className="w-4 h-4 mr-1" /> Por Empresa
+                  </TabsTrigger>
                   <TabsTrigger value="rotas">
                     <Truck className="w-4 h-4 mr-1" /> Por Rota
                   </TabsTrigger>
@@ -631,6 +761,99 @@ export default function AdminProduction() {
                       ))}
                     </TableBody>
                   </Table>
+                </TabsContent>
+
+                {/* ── Por Empresa ── */}
+                <TabsContent value="empresas">
+                  {companyView.discrepancies.length > 0 && (
+                    <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded p-3 mb-4 text-amber-800 text-sm">
+                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-medium">
+                          Divergência no consolidado do lote
+                        </p>
+                        <p className="mt-1">
+                          A soma por empresa não corresponde ao total do produto:
+                        </p>
+                        <ul className="mt-1 list-disc list-inside">
+                          {companyView.discrepancies.map((product) => (
+                            <li key={product.productId}>
+                              {product.productName}: esperado{" "}
+                              <strong>
+                                {fmt(product.expectedQuantity)} {product.unit}
+                              </strong>
+                              , por empresa{" "}
+                              <strong>
+                                {fmt(product.companyQuantity)} {product.unit}
+                              </strong>{" "}
+                              (diferença de {fmt(Math.abs(product.difference))}{" "}
+                              {product.unit})
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  )}
+
+                  {companyView.companies.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Building2 className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                      <p>Nenhuma empresa encontrada neste lote.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {companyView.companies.map((company) => (
+                        <Card key={company.companyId} className="border">
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                              <Building2 className="w-4 h-4 text-orange-500" />
+                              {company.companyName}
+                              <Badge variant="secondary" className="ml-auto">
+                                Total: {fmt(company.totalQuantity)}
+                              </Badge>
+                            </CardTitle>
+                            <CardDescription>
+                              {company.products.length} produto(s)
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Produto</TableHead>
+                                  <TableHead className="text-right">
+                                    Quantidade
+                                  </TableHead>
+                                  <TableHead>Unidade</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {company.products.map((product) => (
+                                  <TableRow key={product.productId}>
+                                    <TableCell className="font-medium">
+                                      {product.productName}
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold">
+                                      {fmt(product.quantity)}
+                                    </TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      {product.unit}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                            <div className="flex justify-end border-t mt-3 pt-3 text-sm font-semibold">
+                              Total da empresa:{" "}
+                              <span className="ml-2">
+                                {fmt(company.totalQuantity)}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </TabsContent>
 
                 {/* ── Por Rota ── */}
