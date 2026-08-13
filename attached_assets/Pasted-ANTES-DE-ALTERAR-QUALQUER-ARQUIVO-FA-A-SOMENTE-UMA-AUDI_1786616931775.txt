@@ -1,0 +1,143 @@
+ANTES DE ALTERAR QUALQUER ARQUIVO, FAÇA SOMENTE UMA AUDITORIA DO MÓDULO DE PRODUÇÃO.
+
+NÃO IMPLEMENTE NADA NESTA FASE.
+NÃO CRIE NOVAS TELAS.
+NÃO DUPLIQUE LÓGICAS EXISTENTES.
+NÃO ALTERE BANCO, SCHEMA, PEDIDOS, CATÁLOGO OU COMPRAS.
+
+OBJETIVO:
+
+Quero evoluir a área de PRODUÇÃO para gerar uma visão operacional dos pedidos recebidos.
+
+Preciso que a produção consiga visualizar:
+
+1. SEPARAÇÃO POR EMPRESA
+
+Para cada empresa, listar os produtos solicitados e suas respectivas quantidades.
+
+Exemplo:
+
+Empresa A
+- Maçã Gala: 4
+- Banana: 10
+- Melão: 5
+
+Empresa B
+- Maçã Gala: 8
+- Banana: 6
+
+2. CONSOLIDADO GERAL
+
+Também preciso de uma visão consolidada somando todas as empresas:
+
+- Maçã Gala: 12
+- Banana: 16
+- Melão: 5
+
+Ou seja:
+
+TOTAL POR PRODUTO = soma das quantidades solicitadas por todas as empresas no período selecionado.
+
+3. RELAÇÃO ENTRE AS DUAS VISÕES
+
+A quantidade consolidada precisa ser matematicamente compatível com a soma das quantidades das empresas.
+
+Exemplo:
+
+Maçã Gala
+Empresa A = 4
+Empresa B = 8
+TOTAL = 12
+
+Não criar uma segunda fonte de dados para isso.
+
+REAPROVEITAR O FLUXO DE PEDIDOS/ITENS QUE JÁ EXISTE.
+
+FASE 1 — AUDITORIA
+
+Mapeie e me entregue:
+
+A) Como a área de Produção atualmente busca os pedidos.
+
+B) Qual endpoint/API alimenta a tela.
+
+C) Qual service/storage/repository monta os dados.
+
+D) Quais tabelas são utilizadas:
+- orders
+- order_items
+- products
+- companies
+- subcategorias, se aplicável
+- demais tabelas relevantes.
+
+E) Como o sistema atualmente calcula:
+- quantidade por produto;
+- pedidos por empresa;
+- agrupamentos;
+- totais;
+- filtros por data;
+- status dos pedidos.
+
+F) Verifique se já existe alguma função, endpoint, componente ou relatório que JÁ faça:
+- agrupamento por empresa;
+- agrupamento por produto;
+- total consolidado;
+- separação de pedidos;
+- relatório de produção;
+- exportação.
+
+G) Verifique também se a área de Produção já possui componentes ou dados que podem ser reutilizados para essa nova visão.
+
+H) Identifique exatamente quais informações já estão disponíveis no payload atual e quais informações eventualmente faltam.
+
+I) Verifique se existe risco de duplicação de quantidade quando um pedido possui:
+- múltiplos itens;
+- subcategorias;
+- produtos repetidos;
+- pedidos com mais de uma empresa;
+- diferentes unidades de medida.
+
+J) Verifique quais status devem entrar no relatório de produção.
+Não invente regras. Mostre quais status o fluxo atual considera válidos.
+
+K) Verifique como o filtro de período funciona atualmente e qual data deve ser usada para produção:
+- data do pedido;
+- data de entrega;
+- outra data.
+
+Não altere isso nesta fase. Apenas informe o comportamento atual.
+
+L) Verifique se existe alguma exportação Excel/PDF já existente que possa ser reaproveitada.
+
+IMPORTANTE:
+
+O objetivo desta auditoria é EVITAR RECRIAR algo que já existe.
+
+Se já existir uma função que calcula o total por produto, reutilize-a conceitualmente.
+Se já existir um endpoint que retorna empresa + produto + quantidade, reutilize-o.
+Se já existir um componente de relatório, indique como ele pode ser expandido.
+
+NÃO FAÇA IMPLEMENTAÇÃO.
+
+NO FINAL, ENTREGUE:
+
+1. FLUXO ATUAL DA PRODUÇÃO
+2. ENDPOINTS ENVOLVIDOS
+3. TABELAS/RELACIONAMENTOS
+4. COMPONENTES EXISTENTES QUE PODEM SER REUTILIZADOS
+5. LÓGICAS DE AGRUPAMENTO JÁ EXISTENTES
+6. O QUE JÁ ESTÁ PRONTO
+7. O QUE ESTÁ FALTANDO
+8. CAUSA DE QUALQUER LIMITAÇÃO ENCONTRADA
+9. PROPOSTA DE ALTERAÇÃO MÍNIMA
+10. LISTA EXATA DOS ARQUIVOS QUE SERIAM ALTERADOS
+
+REPETINDO:
+
+NÃO ALTERE NENHUM ARQUIVO NESTA FASE.
+NÃO FAÇA PATCH.
+NÃO ALTERE BANCO.
+NÃO CRIE MIGRATION.
+
+PRIMEIRO QUERO A AUDITORIA COMPLETA PARA DECIDIRMOS A IMPLEMENTAÇÃO.
