@@ -7,7 +7,7 @@ const PLAN_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "OPERATIONS_MANA
 const VALID_PURCHASE_ORDER_STATUSES = new Set(["ACTIVE", "CONFIRMED"]);
 
 export function register(app: Express) {
-  app.get('/api/purchase-planning/forecast', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
+  app.get('/api/purchase-planning/forecast', requireAuth, requireRole(PLAN_ROLES), tenantContext, async (req: any, res) => {
     try {
       const [allOrders, allProds] = await Promise.all([storage.getOrders(), storage.getProducts()]);
       const prodById = new Map(allProds.map(p => [p.id, p]));
@@ -54,7 +54,7 @@ export function register(app: Express) {
     }
   });
 
-  app.get('/api/purchase-planning', requireAuth, requireRole(PLAN_ROLES), tenantContext, requireTenant, async (req: any, res) => {
+  app.get('/api/purchase-planning', requireAuth, requireRole(PLAN_ROLES), tenantContext, async (req: any, res) => {
     try {
       // Accept startDate (YYYY-MM-DD) as primary param; auto-compute Mon–Fri range
       const { startDate: rawStart, categoryFilter, sourceFilter } = req.query as Record<string, string>;
@@ -126,7 +126,9 @@ export function register(app: Express) {
 
       // Approved special order items — scoped to current tenant via requireTenant guard
       if (!sourceFilter || sourceFilter === 'all' || sourceFilter === 'special') {
-        const allSpecial = await storage.getSpecialOrderRequestsByCompany(req.empresaId);
+        const allSpecial = req.empresaId == null
+          ? await storage.getSpecialOrderRequests()
+          : await storage.getSpecialOrderRequestsByCompany(req.empresaId);
         const approvedSpecial = allSpecial.filter(s => s.status === 'APPROVED');
         for (const sr of approvedSpecial) {
           const srItems: any[] = Array.isArray((sr as any).items) ? (sr as any).items : [];
@@ -163,37 +165,41 @@ export function register(app: Express) {
           'Quinta-feira': 3, 'Sexta-feira': 4,
         };
         const contratualCompanies = allCompanies.filter(c => (c as any).clientType === 'contratual');
-        for (const c of contratualCompanies) {
-          const companyScopes = await storage.getContractScopes(c.id);
-          for (const scope of companyScopes) {
-            const prod = productById.get(scope.productId);
-            const productName = prod?.name || `Produto #${scope.productId}`;
-            const unit = prod?.unit || 'un';
-            const offset = DAY_OFFSET[scope.dayOfWeek];
-            if (offset === undefined) continue;
-            const deliveryDate = new Date(startD);
-            deliveryDate.setDate(startD.getDate() + offset);
-            const delivDateStr = deliveryDate.toISOString().substring(0, 10);
-            if (categoryFilter && categoryFilter !== 'all') continue;
-            const key = `scope__${productName}`;
-            if (!productMap.has(key)) {
-              productMap.set(key, { productId: scope.productId, productName, totalQty: 0, unit, source: 'scope' as any, companies: [] });
-            }
-            const entry = productMap.get(key)!;
-            const qty = Number(scope.quantity) || 0;
-            entry.totalQty += qty;
-            entry.companies.push({
-              companyId: c.id, companyName: c.companyName, quantity: qty,
-              deliveryDate: delivDateStr, orderId: 0, orderCode: `SC-${c.id}`,
-            });
+        const companyScopes = req.empresaId == null
+          ? await storage.getAllContractScopes()
+          : (await Promise.all(contratualCompanies.map(c => storage.getContractScopes(c.id)))).flat();
+        for (const scope of companyScopes) {
+          const c = companyById.get(scope.companyId);
+          if (!c || (c as any).clientType !== 'contratual') continue;
+          const prod = productById.get(scope.productId);
+          const productName = prod?.name || `Produto #${scope.productId}`;
+          const unit = prod?.unit || 'un';
+          const offset = DAY_OFFSET[scope.dayOfWeek];
+          if (offset === undefined) continue;
+          const deliveryDate = new Date(startD);
+          deliveryDate.setDate(startD.getDate() + offset);
+          const delivDateStr = deliveryDate.toISOString().substring(0, 10);
+          if (categoryFilter && categoryFilter !== 'all') continue;
+          const key = `scope__${productName}`;
+          if (!productMap.has(key)) {
+            productMap.set(key, { productId: scope.productId, productName, totalQty: 0, unit, source: 'scope' as any, companies: [] });
           }
+          const entry = productMap.get(key)!;
+          const qty = Number(scope.quantity) || 0;
+          entry.totalQty += qty;
+          entry.companies.push({
+            companyId: c.id, companyName: c.companyName, quantity: qty,
+            deliveryDate: delivDateStr, orderId: 0, orderCode: `SC-${c.id}`,
+          });
         }
       }
 
       const result = Array.from(productMap.values()).sort((a, b) => b.totalQty - a.totalQty);
 
       // Attach plan statuses — now scoped to current tenant
-      const statuses = await storage.getPurchasePlanStatuses(weekRef);
+      const statuses = req.empresaId == null
+        ? []
+        : await storage.getPurchasePlanStatuses(weekRef);
       const statusMap = new Map(statuses.map(s => [s.productName, s]));
       const enriched = result.map(p => ({ ...p, planStatus: statusMap.get(p.productName) || null }));
 

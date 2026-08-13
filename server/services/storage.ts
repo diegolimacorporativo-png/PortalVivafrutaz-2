@@ -106,6 +106,7 @@ export interface IStorage {
 
   // Contract Scopes
   getContractScopes(companyId: number): Promise<ContractScope[]>;
+  getAllContractScopes(): Promise<ContractScope[]>;
   getContractScope(companyId: number, productId: number): Promise<ContractScope | null>;
   createContractScope(scope: InsertContractScope): Promise<ContractScope>;
   updateContractScope(id: number, data: Partial<InsertContractScope>): Promise<ContractScope>;
@@ -673,6 +674,14 @@ export class DatabaseStorage implements IStorage {
 
   async getContractScopes(companyId: number): Promise<ContractScope[]> {
     return companiesRepository.getContractScopes(companyId);
+  }
+
+  /**
+   * Cross-tenant read used by global admin purchasing views.
+   * Tenant-pinned callers must continue using getContractScopes(companyId).
+   */
+  async getAllContractScopes(): Promise<ContractScope[]> {
+    return db.select().from(contractScopes);
   }
 
   async getContractScope(companyId: number, productId: number): Promise<ContractScope | null> {
