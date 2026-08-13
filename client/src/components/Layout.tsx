@@ -186,10 +186,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const userTabPerms = user?.tabPermissions as string[] | null | undefined;
   const isMaster = user?.role === 'MASTER';
+  const isFullAccessRole = ['MASTER', 'ADMIN', 'DIRECTOR'].includes(staffRole);
   const links = isStaff 
     ? adminLinks.filter(l => {
         if (isMaster) return true; // MASTER sees everything
         if (!l.roles.includes(user?.role || '')) return false;
+        // Full-access roles must not be hidden by stale/custom tab permissions.
+        // Route protection already treats these roles as unrestricted.
+        if (isFullAccessRole) return true;
         if (!userTabPerms || userTabPerms.length === 0) {
           // Apply module filtering for non-admin roles when modules are loaded
           if (l.moduloChave && !isAdminRole && allowedModulos && allowedModulos.length > 0) {
