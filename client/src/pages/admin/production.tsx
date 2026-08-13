@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { BackHeader } from "@/components/navigation/BackHeader";
@@ -22,9 +22,12 @@ import {
   ListOrdered,
   Eye,
   Building2,
+  Filter,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -72,6 +75,7 @@ import { useToast } from "@/hooks/use-toast";
 // ─── Types ─────────────────────────────────────────────────────
 
 type BatchStatus = "PENDENTE" | "EM_PRODUCAO" | "CONFERIDO" | "FINALIZADO";
+type PrintMode = "all" | "category" | "product" | "selected";
 
 interface OrderBreakdown {
   orderId: number;
@@ -279,46 +283,41 @@ export function buildCompanyView(items: BatchItem[]): CompanyViewData {
 
 // ─── Print helper ──────────────────────────────────────────────
 
-function printBatch(batch: Batch) {
-  if (!batch.items) return;
+function printBatch(
+  batch: Batch,
+  options: { items?: BatchItem[]; mode?: PrintMode } = {},
+) {
+  const items = options.items ?? batch.items ?? [];
+  if (items.length === 0) return;
+  const mode = options.mode ?? "all";
   const dateStr = format(new Date(batch.productionDate + "T12:00:00"), "dd/MM/yyyy", { locale: ptBR });
   const statusCfg = STATUS_CONFIG[batch.status];
-  const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Produção ${dateStr}</title>
-  <style>
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 20px; }
-    h1 { font-size: 18px; margin-bottom: 4px; }
-    .sub { color: #555; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-    th { background: #f0f0f0; text-align: left; padding: 6px 8px; border: 1px solid #ccc; }
-    td { padding: 5px 8px; border: 1px solid #ccc; vertical-align: top; }
-    .product { font-weight: bold; }
-    .route { font-size: 11px; color: #444; }
-    @media print { button { display: none; } }
-  </style>
-</head>
-<body>
-  <h1>Produção do Dia — ${dateStr}</h1>
-  <div class="sub">Status: ${statusCfg.label} | ${batch.items.length} produto(s)</div>
-  <table>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Produto</th>
-        <th>Categoria</th>
-        <th>Qtd Total</th>
-        <th>Un</th>
-        <th>Distribuição por Rota</th>
-        <th>✓ Conferido</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${batch.items
-        .map(
-          (item, i) => `
+  const modeLabel =
+    mode === "category"
+      ? "Por categoria"
+      : mode === "product"
+        ? "Por produto"
+        : mode === "selected"
+          ? "Itens selecionados"
+          : "Todos os itens";
+  const orderedItems =
+    mode === "category"
+      ? [...items].sort((a, b) =>
+          (a.category ?? "Sem categoria").localeCompare(
+            b.category ?? "Sem categoria",
+          ) || a.productName.localeCompare(b.productName),
+        )
+      : items;
+  let lastCategory = "";
+  const rows = orderedItems
+    .map((item, i) => {
+      const category = item.category ?? "Sem categoria";
+      const categoryHeader =
+        mode === "category" && category !== lastCategory
+          ? `<tr class="category-row"><td colspan="7">${category}</td></tr>`
+          : "";
+      lastCategory = category;
+      return `${categoryHeader}
       <tr>
         <td>${i + 1}</td>
         <td class="product">${item.productName}</td>
@@ -334,9 +333,44 @@ function printBatch(batch: Batch) {
           )
           .join("<br/>") || "—"}</td>
         <td style="min-width:60px">&nbsp;</td>
-      </tr>`,
-        )
-        .join("")}
+      </tr>`;
+    })
+    .join("");
+  const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Produção ${dateStr}</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #000; margin: 20px; }
+    h1 { font-size: 18px; margin-bottom: 4px; }
+    .sub { color: #555; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    th { background: #f0f0f0; text-align: left; padding: 6px 8px; border: 1px solid #ccc; }
+    td { padding: 5px 8px; border: 1px solid #ccc; vertical-align: top; }
+    .product { font-weight: bold; }
+    .route { font-size: 11px; color: #444; }
+    .category-row td { background: #e8f0eb; font-size: 13px; font-weight: bold; padding-top: 8px; padding-bottom: 8px; }
+    @media print { button { display: none; } }
+  </style>
+</head>
+<body>
+  <h1>Produção do Dia — ${dateStr}</h1>
+  <div class="sub">Status: ${statusCfg.label} | ${modeLabel} | ${items.length} produto(s)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Produto</th>
+        <th>Categoria</th>
+        <th>Qtd Total</th>
+        <th>Un</th>
+        <th>Distribuição por Rota</th>
+        <th>✓ Conferido</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows}
     </tbody>
   </table>
   <p style="margin-top:40px;">Assinatura: _____________________________ &nbsp;&nbsp; Data: ___/___/______</p>
@@ -360,6 +394,11 @@ export default function AdminProduction() {
   const [selectedDate, setSelectedDate] = useState(today());
   const [activeBatchId, setActiveBatchId] = useState<number | null>(null);
   const [expandedItems, setExpandedItems] = useState<Set<number>>(new Set());
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [productFilter, setProductFilter] = useState("all");
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<number>>(new Set());
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printMode, setPrintMode] = useState<PrintMode>("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
 
@@ -388,9 +427,46 @@ export default function AdminProduction() {
   });
 
   const activeBatch = batchDetailQuery.data ?? null;
-  const companyView = activeBatch?.items
-    ? buildCompanyView(activeBatch.items)
-    : { companies: [], discrepancies: [] };
+  const activeItems = activeBatch?.items ?? [];
+  const categories = useMemo(
+    () =>
+      Array.from(
+        new Set(activeItems.map((item) => item.category?.trim() || "Sem categoria")),
+      ).sort((a, b) => a.localeCompare(b)),
+    [activeItems],
+  );
+  const products = useMemo(
+    () =>
+      [...activeItems]
+        .sort((a, b) => a.productName.localeCompare(b.productName))
+        .map((item) => ({ id: item.productId, name: item.productName })),
+    [activeItems],
+  );
+  const filteredItems = useMemo(
+    () =>
+      activeItems.filter((item) => {
+        const category = item.category?.trim() || "Sem categoria";
+        return (
+          (categoryFilter === "all" || category === categoryFilter) &&
+          (productFilter === "all" || String(item.productId) === productFilter)
+        );
+      }),
+    [activeItems, categoryFilter, productFilter],
+  );
+  const selectedItems = useMemo(
+    () => activeItems.filter((item) => selectedItemIds.has(item.id)),
+    [activeItems, selectedItemIds],
+  );
+  const selectedFilteredCount = filteredItems.filter((item) =>
+    selectedItemIds.has(item.id),
+  ).length;
+  const allFilteredSelected =
+    filteredItems.length > 0 &&
+    filteredItems.every((item) => selectedItemIds.has(item.id));
+  const companyView = useMemo(
+    () => buildCompanyView(filteredItems),
+    [filteredItems],
+  );
 
   // ── Mutations ─────────────────────────────────────────────────
 
@@ -494,6 +570,48 @@ export default function AdminProduction() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const toggleItemSelection = (id: number, checked: boolean) => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleFilteredSelection = () => {
+    setSelectedItemIds((prev) => {
+      const next = new Set(prev);
+      if (allFilteredSelected) {
+        filteredItems.forEach((item) => next.delete(item.id));
+      } else {
+        filteredItems.forEach((item) => next.add(item.id));
+      }
+      return next;
+    });
+  };
+
+  const clearProductionFilters = () => {
+    setCategoryFilter("all");
+    setProductFilter("all");
+  };
+
+  const openPrintDialog = () => {
+    setPrintMode("all");
+    setPrintOpen(true);
+  };
+
+  const handlePrint = () => {
+    if (!activeBatch) return;
+    const items =
+      printMode === "selected"
+        ? selectedItems
+        : filteredItems;
+    if (items.length === 0) return;
+    setPrintOpen(false);
+    printBatch(activeBatch, { items, mode: printMode });
   };
 
   const batches = batchesQuery.data ?? [];
@@ -620,7 +738,8 @@ export default function AdminProduction() {
                         variant="ghost"
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (activeBatch) printBatch(activeBatch);
+                            setActiveBatchId(batch.id);
+                            openPrintDialog();
                         }}
                         title="Imprimir"
                       >
@@ -678,6 +797,91 @@ export default function AdminProduction() {
             )}
             {activeBatch.items && (
               <Tabs defaultValue="produtos">
+                <div className="mb-4 rounded-xl border border-border/60 bg-muted/20 p-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                    <div className="flex flex-1 flex-col gap-3 sm:flex-row">
+                      <div className="min-w-0 flex-1">
+                        <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+                          Categoria
+                        </label>
+                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todas as categorias" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todas as categorias</SelectItem>
+                            {categories.map((category) => (
+                              <SelectItem key={category} value={category}>
+                                {category}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <label className="mb-1 block text-xs font-semibold text-muted-foreground">
+                          Produto
+                        </label>
+                        <Select value={productFilter} onValueChange={setProductFilter}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Todos os produtos" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Todos os produtos</SelectItem>
+                            {products.map((product) => (
+                              <SelectItem key={product.id} value={String(product.id)}>
+                                {product.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="sm:mb-0.5"
+                        onClick={clearProductionFilters}
+                        disabled={categoryFilter === "all" && productFilter === "all"}
+                      >
+                        Limpar
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={toggleFilteredSelection}
+                        disabled={filteredItems.length === 0}
+                      >
+                        <Check className="mr-2 h-4 w-4" />
+                        {allFilteredSelected ? "Desmarcar visíveis" : "Selecionar visíveis"}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-orange-500 text-white hover:bg-orange-600"
+                        onClick={openPrintDialog}
+                        disabled={filteredItems.length === 0}
+                      >
+                        <Printer className="mr-2 h-4 w-4" />
+                        Imprimir
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <Filter className="h-3.5 w-3.5" />
+                    <span>
+                      Exibindo {filteredItems.length} de {activeItems.length} produto(s)
+                    </span>
+                    {selectedItems.length > 0 && (
+                      <Badge variant="secondary">
+                        {selectedItems.length} selecionado(s) para impressão
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
                 <TabsList className="mb-4">
                   <TabsTrigger value="produtos">
                     <Package className="w-4 h-4 mr-1" /> Por Produto
@@ -701,6 +905,20 @@ export default function AdminProduction() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={
+                              allFilteredSelected
+                                ? true
+                                : selectedFilteredCount > 0
+                                  ? "indeterminate"
+                                  : false
+                            }
+                            onCheckedChange={toggleFilteredSelection}
+                            disabled={filteredItems.length === 0}
+                            aria-label="Selecionar produtos visíveis"
+                          />
+                        </TableHead>
                         <TableHead className="w-8"></TableHead>
                         <TableHead>Produto</TableHead>
                         <TableHead>Categoria</TableHead>
@@ -710,13 +928,32 @@ export default function AdminProduction() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeBatch.items.map((item) => (
+                      {filteredItems.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                            Nenhum produto corresponde aos filtros selecionados.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {filteredItems.map((item) => (
                         <>
                           <TableRow
                             key={item.id}
                             className="cursor-pointer hover:bg-muted/50"
                             onClick={() => toggleItem(item.id)}
                           >
+                            <TableCell
+                              onClick={(event) => event.stopPropagation()}
+                              className="w-10"
+                            >
+                              <Checkbox
+                                checked={selectedItemIds.has(item.id)}
+                                onCheckedChange={(checked) =>
+                                  toggleItemSelection(item.id, checked === true)
+                                }
+                                aria-label={`Selecionar ${item.productName} para impressão`}
+                              />
+                            </TableCell>
                             <TableCell>
                               {expandedItems.has(item.id) ? (
                                 <ChevronDown className="w-4 h-4" />
@@ -743,7 +980,7 @@ export default function AdminProduction() {
                           {expandedItems.has(item.id) && (
                             <TableRow key={`exp-${item.id}`}>
                               <TableCell />
-                              <TableCell colSpan={5}>
+                              <TableCell colSpan={6}>
                                 <div className="bg-muted/30 rounded p-3 text-sm space-y-1">
                                   {item.orderBreakdown.map((o) => (
                                     <div
@@ -863,7 +1100,7 @@ export default function AdminProduction() {
 
                 {/* ── Por Rota ── */}
                 <TabsContent value="rotas">
-                  <RouteView items={activeBatch.items} />
+                  <RouteView items={filteredItems} />
                 </TabsContent>
 
                 {/* ── Lista de Separação ── */}
@@ -872,7 +1109,8 @@ export default function AdminProduction() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => printBatch(activeBatch)}
+                      onClick={openPrintDialog}
+                      disabled={filteredItems.length === 0}
                     >
                       <Printer className="w-4 h-4 mr-2" />
                       Imprimir Lista
@@ -890,7 +1128,7 @@ export default function AdminProduction() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeBatch.items.map((item, idx) => (
+                      {filteredItems.map((item, idx) => (
                         <TableRow key={item.id}>
                           <TableCell className="text-muted-foreground">
                             {idx + 1}
@@ -921,7 +1159,7 @@ export default function AdminProduction() {
                 {/* ── Conferência ── */}
                 <TabsContent value="conferencia">
                   <ConferenceView
-                    items={activeBatch.items}
+                    items={filteredItems}
                     onCheck={(itemId, qty) =>
                       checkMutation.mutate({ itemId, checkedQuantity: qty })
                     }
@@ -969,6 +1207,68 @@ export default function AdminProduction() {
               disabled={generateMutation.isPending}
             >
               {generateMutation.isPending ? "Gerando..." : "Gerar Lote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print options */}
+      <Dialog open={printOpen} onOpenChange={setPrintOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Imprimir produção</DialogTitle>
+            <DialogDescription>
+              Escolha o formato da impressão. Os filtros atuais serão
+              considerados, exceto quando você escolher itens selecionados.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                Formato da impressão
+              </label>
+              <Select
+                value={printMode}
+                onValueChange={(value) => setPrintMode(value as PrintMode)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os produtos</SelectItem>
+                  <SelectItem value="category">Agrupado por categoria</SelectItem>
+                  <SelectItem value="product">Lista por produto</SelectItem>
+                  <SelectItem value="selected" disabled={selectedItems.length === 0}>
+                    Apenas itens selecionados ({selectedItems.length})
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {printMode === "selected" && selectedItems.length === 0 && (
+              <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Selecione pelo menos um produto na tabela antes de imprimir.
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              {printMode === "selected"
+                ? `${selectedItems.length} produto(s) selecionado(s)`
+                : `${filteredItems.length} produto(s) serão impressos`}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPrintOpen(false)}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-orange-500 text-white hover:bg-orange-600"
+              onClick={handlePrint}
+              disabled={
+                filteredItems.length === 0 ||
+                (printMode === "selected" && selectedItems.length === 0)
+              }
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              Imprimir
             </Button>
           </DialogFooter>
         </DialogContent>
