@@ -1,0 +1,88 @@
+AUDITORIA EXCLUSIVA — ACESSO TOTAL DO DIRECTOR
+
+IMPORTANTE:
+NÃO ALTERE NENHUM ARQUIVO NESTA ETAPA.
+NÃO FAÇA PATCH.
+NÃO ALTERE BANCO, SCHEMA, MIGRATION, SESSÃO OU PERMISSÕES.
+
+Quero uma auditoria completa do nível de acesso da role DIRECTOR.
+
+OBJETIVO:
+Quero que DIRECTOR tenha acesso total ao sistema administrativo, incluindo Produção, Compras, Planejamento, Pedidos, Produtos, Empresas, Logística, Inventário, Relatórios, Configurações e demais módulos administrativos.
+
+PORÉM:
+Não quero simplesmente colocar DIRECTOR junto de MASTER sem entender o que já existe.
+
+Quero primeiro mapear todas as barreiras atuais de acesso e identificar exatamente onde DIRECTOR está sendo bloqueado.
+
+AUDITE:
+
+1. Todas as rotas frontend /admin/*
+2. ProtectedRoute
+3. FULL_ACCESS_ROLES
+4. Layout.tsx e regras de exibição do menu/sidebar
+5. Todas as chamadas requireRole()
+6. Todas as ocorrências de strict: true
+7. Todas as verificações:
+   - role === 'MASTER'
+   - role !== 'MASTER'
+   - user.role
+   - allowedRoles
+   - roles
+8. Todas as regras de tenantContext relacionadas ao acesso
+9. Services/controllers que fazem validação própria de role
+10. APIs administrativas
+11. Módulos que aparecem para MASTER mas não aparecem para DIRECTOR
+12. Módulos onde a tela permite DIRECTOR mas a API bloqueia DIRECTOR
+13. Módulos onde a API permite DIRECTOR mas o frontend/sidebar esconde o acesso
+
+ATENÇÃO:
+Não quero apenas analisar a Produção.
+Quero mapear o SISTEMA ADMINISTRATIVO inteiro.
+
+CLASSIFIQUE CADA MÓDULO COMO:
+
+✅ DIRECTOR TEM ACESSO
+⚠️ DIRECTOR TEM ACESSO PARCIAL
+❌ DIRECTOR ESTÁ BLOQUEADO
+🔒 EXCLUSIVO MASTER
+
+Para cada bloqueio, informe:
+- arquivo;
+- função;
+- linha aproximada;
+- regra responsável pelo bloqueio;
+- frontend ou backend;
+- se é bloqueio de role ou tenant;
+- se existe alguma inconsistência entre frontend e backend.
+
+Também procure especificamente por casos como:
+
+requireRole(['MASTER'], { strict: true })
+
+ou qualquer outra regra equivalente que possa impedir DIRECTOR.
+
+IMPORTANTE SOBRE TENANT:
+Não trate tenant isolation como simples erro de permissão.
+Diferencie:
+- DIRECTOR pode acessar o módulo;
+- DIRECTOR pode visualizar todas as empresas;
+- DIRECTOR pode alterar dados de todas as empresas.
+
+Quero que essas três coisas sejam analisadas separadamente.
+
+NO FINAL, ENTREGUE:
+
+1. Resumo executivo
+2. Tabela completa de módulos e acesso DIRECTOR
+3. Lista de todos os bloqueios encontrados
+4. Lista de todas as inconsistências frontend/backend
+5. Lista do que já funciona e NÃO precisa ser alterado
+6. Lista exata dos arquivos que precisariam ser alterados
+7. Proposta de correção mínima
+8. O que deve continuar exclusivo do MASTER, caso exista
+9. Confirmação de que nenhum arquivo foi alterado
+
+NÃO IMPLEMENTE NADA.
+
+Apenas faça a auditoria e me entregue o diagnóstico completo para decidirmos o patch depois.
