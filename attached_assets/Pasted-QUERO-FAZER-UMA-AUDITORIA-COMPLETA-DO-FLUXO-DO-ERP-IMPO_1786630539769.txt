@@ -1,0 +1,443 @@
+QUERO FAZER UMA AUDITORIA COMPLETA DO FLUXO DO ERP.
+
+IMPORTANTE:
+NÃO ALTERE NENHUM ARQUIVO.
+NÃO FAÇA PATCH.
+NÃO ALTERE BANCO.
+NÃO CRIE MIGRATION.
+NÃO ALTERE PERMISSÕES.
+NÃO REINICIE O SISTEMA PARA APLICAR ALTERAÇÕES.
+
+Nesta etapa quero SOMENTE AUDITORIA E DIAGNÓSTICO.
+
+Quero validar se o fluxo real implementado no sistema está coerente de ponta a ponta:
+
+CATÁLOGO
+↓
+PEDIDO
+↓
+COMPRAS
+↓
+PLANEJAMENTO DE COMPRAS
+↓
+PRODUÇÃO
+↓
+LOGÍSTICA
+↓
+ENTREGA
+
+E também quero auditar PERMISSÕES e TENANT.
+
+==================================================
+1. MAPEAR O FLUXO COMPLETO
+==================================================
+
+Para cada etapa, identifique:
+
+- tela/frontend;
+- componentes envolvidos;
+- endpoints;
+- controllers;
+- services;
+- repositories/storage;
+- tabelas utilizadas;
+- campos principais;
+- relacionamentos;
+- status utilizados;
+- filtros de data;
+- tenant/company utilizado;
+- origem e destino dos dados.
+
+Mostre o fluxo real do código.
+
+Não faça suposições.
+
+==================================================
+2. CATÁLOGO
+==================================================
+
+Verifique:
+
+- criação de produto;
+- edição;
+- exclusão/inativação;
+- categoria;
+- subcategoria;
+- preço;
+- unidade;
+- imagem.
+
+Especialmente:
+
+A imagem enviada é realmente persistida no banco?
+
+Trace:
+
+UPLOAD
+→ imageUrl
+→ payload
+→ API
+→ service
+→ repository/storage
+→ products.image_url
+→ GET posterior
+
+Verifique também se editar um produto pode apagar:
+
+- subcategorias;
+- vínculos com pedidos;
+- preços;
+- imagem;
+- outros relacionamentos.
+
+Verifique especificamente se existe DELETE destrutivo de subcategorias.
+
+==================================================
+3. PEDIDOS
+==================================================
+
+Mapeie:
+
+cliente
+→ pedido
+→ order_items
+→ produto
+→ subcategoria
+→ empresa
+→ datas
+→ status
+
+Verifique:
+
+- orderDate;
+- deliveryDate;
+- workflowStatus;
+- status;
+- companyId;
+- productId;
+- subCategoryId;
+- quantity;
+- price.
+
+Verifique se alterações no pedido preservam histórico.
+
+Identifique todos os status existentes e quais módulos utilizam cada um.
+
+==================================================
+4. COMPRAS
+==================================================
+
+Audite getPurchasingReport() e a tela de Compras.
+
+Verifique:
+
+- origem dos dados;
+- JOINs;
+- filtros;
+- status;
+- datas;
+- tenant;
+- empresas;
+- produtos;
+- quantidades;
+- subcategorias.
+
+Quero saber exatamente:
+
+QUAL DATA é usada para determinar se o pedido entra no relatório?
+
+QUAL STATUS é aceito?
+
+ACTIVE entra?
+
+CONFIRMED entra?
+
+CANCELLED entra?
+
+Verifique se:
+
+TOTAL DO PRODUTO
+=
+SOMA DAS QUANTIDADES DOS PEDIDOS
+
+E se:
+
+TOTAL DA EMPRESA
+=
+SOMA DOS PRODUTOS DA EMPRESA.
+
+==================================================
+5. PLANEJAMENTO DE COMPRAS
+==================================================
+
+Mapeie:
+
+pedido
+→ planejamento
+→ previsão
+→ empresa
+→ produto
+→ quantidade
+→ data.
+
+Verifique especialmente o comportamento quando o usuário é:
+
+- MASTER;
+- ADMIN;
+- DIRECTOR.
+
+Quando estiver em "Todas as empresas", confirme se a consulta realmente busca todas as empresas.
+
+Verifique se existe filtro obrigatório de tenant que possa fazer os dados desaparecerem.
+
+Não altere nada.
+
+==================================================
+6. PRODUÇÃO
+==================================================
+
+Audite toda a geração de produção.
+
+Quero confirmar:
+
+pedido
+→ deliveryDate
+→ filtro de status
+→ agrupamento por productId
+→ totalQuantity
+→ orderBreakdown
+→ company
+→ production_batch
+→ production_batch_items.
+
+Verifique se a produção usa:
+
+deliveryDate
+
+ou:
+
+orderDate.
+
+Verifique todos os status considerados.
+
+Verifique se pedidos cancelados podem entrar.
+
+Verifique se o mesmo produto em vários pedidos é somado corretamente.
+
+Verifique se:
+
+TOTAL DO PRODUTO
+=
+SOMA DAS EMPRESAS
+=
+SOMA DOS PEDIDOS.
+
+Verifique também:
+
+empresa
+→ produto
+→ quantidade.
+
+Identifique se a informação necessária para separar a produção por empresa já existe no payload ou se seria necessário alterar backend/schema.
+
+==================================================
+7. LOGÍSTICA
+==================================================
+
+Mapeie:
+
+produção
+→ rota
+→ empresa
+→ entrega.
+
+Verifique:
+
+- deliveryDate;
+- companyId;
+- companyIds;
+- rota;
+- produtos;
+- quantidades.
+
+Procure especificamente problemas quando:
+
+- uma empresa possui mais de uma rota;
+- empresa não possui rota;
+- existem várias empresas na mesma rota.
+
+Verifique se existe risco de uma empresa sobrescrever outra no agrupamento.
+
+==================================================
+8. PERMISSÕES
+==================================================
+
+Faça uma auditoria completa de:
+
+MASTER
+ADMIN
+DIRECTOR
+DEVELOPER
+demais roles.
+
+Não analise somente o menu.
+
+Para cada módulo verifique:
+
+MENU
+→ FRONTEND ROUTE
+→ PROTECTED ROUTE
+→ API
+→ requireAuth
+→ requireRole
+→ strict
+→ tenantContext
+→ service/controller.
+
+Quero saber especificamente se DIRECTOR possui realmente acesso total.
+
+Liste qualquer divergência entre:
+
+- menu;
+- rota frontend;
+- backend;
+- endpoint;
+- tenant.
+
+Procure por listas como:
+
+FULL_ACCESS_ROLES
+
+e veja se frontend e backend possuem regras diferentes.
+
+Identifique endpoints que usam:
+
+requireRole(..., { strict: true })
+
+e que possam bloquear DIRECTOR.
+
+==================================================
+9. INTEGRIDADE DE DADOS
+==================================================
+
+Procure operações destrutivas:
+
+DELETE
+UPDATE destrutivo
+cascade
+deleteAll
+removeAll
+
+Especialmente em:
+
+- produtos;
+- subcategorias;
+- pedidos;
+- order_items;
+- produção.
+
+Para cada operação destrutiva diga:
+
+O QUE É APAGADO
+QUANDO
+POR QUÊ
+SE EXISTE HISTÓRICO RELACIONADO
+SE PODE CAUSAR FOREIGN KEY
+SE DEVERIA SER INATIVAÇÃO EM VEZ DE DELETE.
+
+==================================================
+10. CONSISTÊNCIA ENTRE MÓDULOS
+==================================================
+
+Crie uma tabela:
+
+MÓDULO | ORIGEM | DATA | STATUS | TENANT | PRODUTO | EMPRESA | QUANTIDADE
+
+Preencha para:
+
+Pedidos
+Compras
+Planejamento
+Produção
+Logística
+
+Quero identificar divergências.
+
+==================================================
+11. TESTE MATEMÁTICO
+==================================================
+
+Crie um exemplo em memória:
+
+Empresa A:
+Produto X = 4
+Produto Y = 3
+
+Empresa B:
+Produto X = 6
+Produto Y = 2
+
+Confirme que:
+
+Produto X = 10
+Produto Y = 5
+
+Empresa A = 7
+Empresa B = 8
+
+E confirme se a lógica real do sistema produz essa mesma relação.
+
+Faça também um caso com:
+
+mesmo produto repetido no mesmo pedido;
+
+mesmo produto em pedidos diferentes;
+
+duas empresas;
+
+pedido cancelado;
+
+pedido confirmado.
+
+==================================================
+12. RESULTADO FINAL
+==================================================
+
+NÃO CORRIJA NADA.
+
+Entregue somente:
+
+A. FLUXO REAL DO SISTEMA
+
+B. O QUE ESTÁ CORRETO
+
+C. O QUE ESTÁ INCORRETO
+
+D. CAUSA RAIZ DE CADA PROBLEMA
+
+E. RISCOS
+
+F. OPERAÇÕES DESTRUTIVAS ENCONTRADAS
+
+G. DIVERGÊNCIAS DE PERMISSÃO
+
+H. DIVERGÊNCIAS DE TENANT
+
+I. DIVERGÊNCIAS DE DATA/STATUS
+
+J. CAMPOS QUE SÃO PERDIDOS ENTRE OS MÓDULOS
+
+K. O QUE JÁ EXISTE E PODE SER REUTILIZADO
+
+L. O QUE REALMENTE PRECISARIA SER ALTERADO
+
+M. LISTA EXATA DOS ARQUIVOS QUE SERIAM ALTERADOS EM UMA FUTURA CORREÇÃO
+
+NÃO ALTERE NENHUM ARQUIVO NESTA ETAPA.
+
+No final informe explicitamente:
+
+ARQUIVOS ALTERADOS: 0
+BANCO ALTERADO: NÃO
+MIGRATION CRIADA: NÃO
+PATCH APLICADO: NÃO
