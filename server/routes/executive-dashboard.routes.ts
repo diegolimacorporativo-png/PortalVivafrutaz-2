@@ -9,11 +9,12 @@ import { crossTenant } from "../core/tenant/scope";
 export function register(app: Express) {
   // ─── DASHBOARD EXECUTIVO ─────────────────────────────────────
   // SECURITY: Cross-tenant by design (executive overview spans all empresas).
-  // FASE MT-3A (C3): Restricted to MASTER only — ADMIN/DIRECTOR/FINANCEIRO/
-  // DEVELOPER are per-tenant roles and must NOT see other tenants' revenue data.
+  // FASE MT-3A (C3): This is an intentional cross-tenant executive view.
+  // MASTER and DIRECTOR are explicitly allowed; strict mode prevents the
+  // generic FULL_ACCESS_ROLES bypass from granting access to other roles.
   app.get('/api/executive-dashboard',
     requireAuthCore,
-    requireRole(['MASTER'], { strict: true }),
+    requireRole(['MASTER', 'DIRECTOR'], { strict: true }),
     async (req, res) => {
     try {
       // MT-3C — explicit audit marker: cross-tenant reads below are intentional.
