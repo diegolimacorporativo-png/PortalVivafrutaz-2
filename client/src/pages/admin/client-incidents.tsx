@@ -116,6 +116,31 @@ function IncidentDetail({ incident, onClose }: { incident: ClientIncident; onClo
     sendMut.mutate(newMsg);
   };
 
+  const handleDownloadPdf = async () => {
+    try {
+      await downloadIncidentPdf({
+        id: incident.id,
+        companyName: incident.companyName,
+        type: incident.type,
+        status: incident.status,
+        description: incident.description,
+        createdAt: new Date(incident.createdAt).toISOString(),
+        responseMessage: incident.responseMessage || undefined,
+        respondedByName: incident.respondedByName || undefined,
+        respondedAt: incident.respondedAt ? new Date(incident.respondedAt).toISOString() : undefined,
+        adminNote: incident.adminNote || undefined,
+      });
+      toast({ title: 'PDF baixado com sucesso!' });
+    } catch (error) {
+      console.error('[INCIDENT_PDF_DOWNLOAD_ERROR]', error);
+      toast({
+        title: 'Erro ao gerar PDF',
+        description: 'Não foi possível gerar o relatório. Tente novamente.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* Meta */}
@@ -234,18 +259,7 @@ function IncidentDetail({ incident, onClose }: { incident: ClientIncident; onClo
             <Button
               variant="outline"
               size="sm"
-              onClick={() => downloadIncidentPdf({
-                id: incident.id,
-                companyName: incident.companyName,
-                type: incident.type,
-                status: incident.status,
-                description: incident.description,
-                createdAt: incident.createdAt.toISOString(),
-                responseMessage: incident.responseMessage || undefined,
-                respondedByName: incident.respondedByName || undefined,
-                respondedAt: incident.respondedAt ? new Date(incident.respondedAt).toISOString() : undefined,
-                adminNote: incident.adminNote || undefined
-              })}
+              onClick={handleDownloadPdf}
               data-testid="button-download-incident-pdf"
             >
               <Download className="w-4 h-4 mr-1" /> PDF
