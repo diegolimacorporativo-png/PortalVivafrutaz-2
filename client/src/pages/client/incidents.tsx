@@ -1,6 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import { Layout } from '@/components/Layout';
 import { BackHeader } from '@/components/navigation/BackHeader';
 import { queryClient } from '@/lib/queryClient';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
@@ -364,21 +365,47 @@ export default function ClientIncidentsPage() {
 
   const { data: incidents = [], isLoading, isError } = useQuery<ClientIncident[]>({
     queryKey: ['/api/client-incidents'],
+    refetchInterval: 60_000,
   });
+
+  // Keep the current screen in sync with the 24-hour response retention rule,
+  // even if the user leaves this page open past the expiration boundary.
+  const [retentionNow, setRetentionNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setRetentionNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const visibleIncidents = incidents.filter(incident => {
+    const respondedAt = (incident as any).respondedAt;
+    if (!respondedAt) return true;
+    return new Date(respondedAt).getTime() + 24 * 60 * 60 * 1000 > retentionNow;
+  });
+
+  useEffect(() => {
+    if (!selected) return;
+    const respondedAt = (selected as any).respondedAt;
+    if (respondedAt && new Date(respondedAt).getTime() + 24 * 60 * 60 * 1000 <= retentionNow) {
+      setSelected(undefined);
+    }
+  }, [selected, retentionNow]);
 
   if (!authLoading && !company) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-orange-100 flex items-center justify-center mb-4 mx-auto text-3xl">⚠️</div>
-        <h2 className="text-xl font-bold text-foreground mb-2">Dados da empresa não encontrados.</h2>
-        <p className="text-muted-foreground text-sm">Entre em contato com a equipe VivaFrutaz.</p>
-      </div>
+      <Layout>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-orange-100 flex items-center justify-center mb-4 mx-auto text-3xl">⚠️</div>
+          <h2 className="text-xl font-bold text-foreground mb-2">Dados da empresa não encontrados.</h2>
+          <p className="text-muted-foreground text-sm">Entre em contato com a equipe VivaFrutaz.</p>
+        </div>
+      </Layout>
     );
   }
 
-  const unreadCount = incidents.filter(i => (i as any).hasUnreadAdminReply).length;
+  const unreadCount = visibleIncidents.filter(i => (i as any).hasUnreadAdminReply).length;
 
   return (
+    <Layout>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -405,7 +432,7 @@ export default function ClientIncidentsPage() {
           <p className="font-medium">Dados indisponíveis no momento.</p>
           <p className="text-sm mt-1">Tente novamente em alguns instantes.</p>
         </div>
-      ) : incidents.length === 0 ? (
+      ) : visibleIncidents.length === 0 ? (
         <div className="text-center py-16 text-muted-foreground">
           <AlertTriangle className="w-12 h-12 mx-auto mb-3 opacity-30" />
           <p className="font-medium">Nenhuma ocorrência registrada</p>
@@ -413,7 +440,7 @@ export default function ClientIncidentsPage() {
         </div>
       ) : (
         <div className="space-y-3">
-          {incidents.map(inc => {
+          {visibleIncidents.map(inc => {
             const hasUnread = !!(inc as any).hasUnreadAdminReply;
             let parsedPhotos: any[] = [];
             try { if ((inc as any).photosJson) parsedPhotos = JSON.parse((inc as any).photosJson); } catch {}
@@ -490,5 +517,6 @@ export default function ClientIncidentsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </Layout>
   );
 }

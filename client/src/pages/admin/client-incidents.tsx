@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { useToast } from '@/hooks/use-toast';
+import { Layout } from '@/components/Layout';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -229,25 +230,27 @@ function IncidentDetail({ incident, onClose }: { incident: ClientIncident; onClo
 
       <DialogFooter className="flex justify-between">
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => downloadIncidentPdf({
-              id: incident.id,
-              companyName: incident.companyName,
-              type: incident.type,
-              status: incident.status,
-              description: incident.description,
-              createdAt: incident.createdAt.toISOString(),
-              responseMessage: incident.responseMessage || undefined,
-              respondedByName: incident.respondedByName || undefined,
-              respondedAt: incident.respondedAt ? new Date(incident.respondedAt).toISOString() : undefined,
-              adminNote: incident.adminNote || undefined
-            })}
-            data-testid="button-download-incident-pdf"
-          >
-            <Download className="w-4 h-4 mr-1" /> PDF
-          </Button>
+          {user?.role && ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => downloadIncidentPdf({
+                id: incident.id,
+                companyName: incident.companyName,
+                type: incident.type,
+                status: incident.status,
+                description: incident.description,
+                createdAt: incident.createdAt.toISOString(),
+                responseMessage: incident.responseMessage || undefined,
+                respondedByName: incident.respondedByName || undefined,
+                respondedAt: incident.respondedAt ? new Date(incident.respondedAt).toISOString() : undefined,
+                adminNote: incident.adminNote || undefined
+              })}
+              data-testid="button-download-incident-pdf"
+            >
+              <Download className="w-4 h-4 mr-1" /> PDF
+            </Button>
+          )}
           {user?.role && ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role) && (
             <Button 
               variant="destructive" 
@@ -304,6 +307,7 @@ export default function AdminClientIncidentsPage() {
   const respondedCount = incidents.filter(i => i.status === 'RESPONDED').length;
 
   return (
+    <Layout>
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
@@ -400,5 +404,6 @@ export default function AdminClientIncidentsPage() {
         </DialogContent>
       </Dialog>
     </div>
+    </Layout>
   );
 }

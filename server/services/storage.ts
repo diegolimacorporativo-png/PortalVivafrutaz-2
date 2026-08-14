@@ -81,7 +81,7 @@ import {
   sanitaryEvaluationItems, type SanitaryEvaluationItem, type InsertSanitaryEvaluationItem,
   cnabImportHistory, type CnabImportHistory, type InsertCnabImportHistory,
 } from "@shared/schema";
-import { eq, and, desc, gte, lte, sql, inArray, or, ilike, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, gt, lte, sql, inArray, or, ilike, isNull } from "drizzle-orm";
 import { usersRepository } from "../modules/users/users.repository";
 
 export interface IStorage {
@@ -579,7 +579,7 @@ export interface IStorage {
   getClientIncidents(): Promise<ClientIncident[]>;
   getClientIncident(id: number): Promise<ClientIncident | undefined>;
   getClientIncidentsByCompany(companyId: number): Promise<ClientIncident[]>;
-  updateClientIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null }): Promise<ClientIncident>;
+  updateClientIncident(id: number, updates: { status?: string; adminNote?: string; respondedAt?: Date | null; resolvedAt?: Date | null }): Promise<ClientIncident>;
   deleteClientIncident(id: number): Promise<void>;
   respondToClientIncident(id: number, responseMessage: string, respondedByName: string): Promise<ClientIncident>;
   updateClientIncidentStatus(id: number, status: string): Promise<ClientIncident>;
@@ -1490,7 +1490,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getClientIncidentsByCompany(companyId: number): Promise<ClientIncident[]> {
-    return db.select().from(clientIncidents).where(eq(clientIncidents.companyId, companyId)).orderBy(desc(clientIncidents.createdAt)).limit(200);
+    // Client visibility expires 24h after VivaFrutaz first/latest response.
+    // The server-side filter is mandatory: hiding old rows only in React would
+    // still expose them through the API.
+    const retentionCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    return db.select()
+      .from(clientIncidents)
+      .where(and(
+        eq(clientIncidents.companyId, companyId),
+        or(
+          isNull(clientIncidents.respondedAt),
+          gt(clientIncidents.respondedAt, retentionCutoff),
+        ),
+      ))
+      .orderBy(desc(clientIncidents.createdAt))
+      .limit(200);
   }
 
   async updateClientIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null }): Promise<ClientIncident> {
@@ -1534,7 +1548,13 @@ export class DatabaseStorage implements IStorage {
     const [msg] = await db.insert(incidentMessages).values(data).returning();
     if (data.senderType === 'ADMIN') {
       await db.update(clientIncidents)
-        .set({ hasUnreadAdminReply: true, status: 'RESPONDED', updatedAt: new Date() } as any)
+        .set({
+          hasUnreadAdminReply: true,
+          status: 'RESPONDED',
+          responseMessage: data.message,
+          respondedAt: new Date(),
+          updatedAt: new Date(),
+        } as any)
         .where(eq(clientIncidents.id, data.incidentId));
     } else {
       await db.update(clientIncidents)

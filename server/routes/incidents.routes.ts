@@ -42,7 +42,13 @@ export function register(app: Express) {
       const id = parseInt(String(req.params.id));
       const { status, adminNote } = req.body;
       const resolvedAt = status === 'RESOLVED' ? new Date() : undefined;
-      const updated = await storage.updateClientIncident(id, { status, adminNote, ...(resolvedAt !== undefined ? { resolvedAt } : {}) });
+      const respondedAt = status === 'RESPONDED' ? new Date() : undefined;
+      const updated = await storage.updateClientIncident(id, {
+        status,
+        adminNote,
+        ...(resolvedAt !== undefined ? { resolvedAt } : {}),
+        ...(respondedAt !== undefined ? { respondedAt } : {}),
+      });
       await storage.createLog({ action: 'CLIENT_INCIDENT_UPDATED', description: `Ocorrência #${id} atualizada → ${status}`, userId: user.id, userEmail: user.email, userRole: user.role });
       res.json(updated);
     } catch (e) { res.status(500).json({ message: 'Error updating incident' }); }
