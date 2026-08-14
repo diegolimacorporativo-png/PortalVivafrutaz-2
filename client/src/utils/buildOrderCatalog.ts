@@ -20,6 +20,7 @@ export type ProductEntry = {
   productId: number;
   name: string;
   unit: string;
+  imageUrl?: string | null;
   observation?: string | null;
   category: string;
   price: number;         // resolved current price
@@ -115,6 +116,7 @@ export function buildOrderCatalog(
           productId: p.id,
           name: p.name,
           unit: p.unit ?? "un",
+          imageUrl: (p as any).imageUrl,
           observation: (p as any).observation,
           category: sc.categoryName,
           price,
@@ -161,6 +163,7 @@ export function buildOrderCatalog(
         productId: p.id,
         name: p.name,
         unit: p.unit ?? "un",
+        imageUrl: (p as any).imageUrl,
         observation: (p as any).observation,
         category: p.category ?? "",
         price,
