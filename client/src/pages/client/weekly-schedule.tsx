@@ -100,6 +100,46 @@ function groupEntries(entries: ProductEntry[]): GroupedProduct[] {
   return Array.from(grouped.values());
 }
 
+function ProductThumbnail({
+  src,
+  alt,
+  className = "w-9 h-9",
+  iconClassName = "w-4 h-4",
+}: {
+  src?: string | null;
+  alt: string;
+  className?: string;
+  iconClassName?: string;
+}) {
+  const [hasError, setHasError] = useState(false);
+  const normalizedSrc = useMemo(() => {
+    const value = String(src ?? "").trim();
+    if (!value) return "";
+    if (/^(https?:|data:|blob:|\/)/i.test(value)) return value;
+    return `/${value}`;
+  }, [src]);
+
+  if (!normalizedSrc || hasError) {
+    return (
+      <div className={`${className} rounded-xl flex items-center justify-center flex-shrink-0 bg-muted`}>
+        <Package className={`${iconClassName} text-muted-foreground`} />
+      </div>
+    );
+  }
+
+  return (
+    <div className={`${className} rounded-xl overflow-hidden flex-shrink-0 bg-muted`}>
+      <img
+        src={normalizedSrc}
+        alt={alt}
+        className="w-full h-full object-cover"
+        loading="lazy"
+        onError={() => setHasError(true)}
+      />
+    </div>
+  );
+}
+
 // ─────────────────── DayPanel ───────────────────────────────────────────────
 interface DayPanelProps {
   dayName: string;
@@ -324,9 +364,11 @@ function DayPanel({
                     return (
                       <div key={group.productId} className={`p-4 transition-colors ${anyInCart ? "bg-primary/[0.03]" : "hover:bg-muted/10"}`}>
                         <div className="flex items-center gap-3 mb-2">
-                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${anyInCart ? "bg-primary/15" : "bg-muted"}`}>
-                            <Package className={`w-4 h-4 ${anyInCart ? "text-primary" : "text-muted-foreground"}`} />
-                          </div>
+                          <ProductThumbnail
+                            src={group.rows[0]?.imageUrl}
+                            alt={group.name}
+                            className={`w-9 h-9 ${anyInCart ? "ring-2 ring-primary/30" : ""}`}
+                          />
                           <div>
                             <h3 className="font-bold text-foreground text-sm">{group.name}</h3>
                             {group.observation && <p className="text-xs text-muted-foreground italic">{group.observation}</p>}
@@ -385,9 +427,12 @@ function DayPanel({
                     return (
                       <div key={entry.cartKey} className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${qty > 0 ? "bg-primary/[0.03]" : "hover:bg-muted/10"}`}>
                         <div className="flex items-center gap-3">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${qty > 0 ? "bg-primary/15" : "bg-muted"}`}>
-                            <Package className={`w-5 h-5 ${qty > 0 ? "text-primary" : "text-muted-foreground"}`} />
-                          </div>
+                          <ProductThumbnail
+                            src={entry.imageUrl}
+                            alt={entry.name}
+                            className={`w-10 h-10 ${qty > 0 ? "ring-2 ring-primary/30" : ""}`}
+                            iconClassName="w-5 h-5"
+                          />
                           <div>
                             <h3 className="font-bold text-foreground text-sm">{entry.name}</h3>
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{entry.category}</p>
