@@ -1,0 +1,638 @@
+Antes de implementar qualquer funcionalidade de exportação, NÃO altere nada ainda.
+
+Use as duas auditorias de arquitetura já realizadas neste projeto como base obrigatória.
+
+OBJETIVO FINAL
+
+Quero que o ERP permita:
+
+1. Exportar PEDIDOS em Excel (.xlsx)
+2. Exportar PEDIDOS em PDF
+3. Exportar PRODUÇÃO em Excel (.xlsx)
+4. Exportar PRODUÇÃO em PDF
+5. Manter a impressão atual funcionando
+6. Fazer Excel, PDF e impressão utilizarem o mesmo modelo de dados/consolidação.
+7. Não quebrar nenhuma funcionalidade existente.
+
+IMPORTANTE:
+
+NÃO quero simplesmente pegar a exportação atual e modificar.
+
+Quero separar claramente:
+
+A) EXPORTAÇÃO DE PEDIDOS
+B) EXPORTAÇÃO DE PRODUÇÃO
+
+==================================================
+FASE 0 — AUDITORIA FINAL ANTES DE IMPLEMENTAR
+==================================================
+
+Primeiro faça uma nova auditoria SOMENTE LEITURA.
+
+Não faça:
+
+- alterações de código;
+- migrations;
+- alterações no banco;
+- instalação de dependências;
+- refatorações;
+- criação de endpoints;
+- alteração de componentes;
+- commits.
+
+Analise novamente o código atual e confirme:
+
+1. Onde os pedidos são criados;
+2. Onde os itens dos pedidos são armazenados;
+3. Como empresas/clientes são relacionados aos pedidos;
+4. Como produtos são relacionados aos itens;
+5. Como a data de entrega é determinada;
+6. Como a rota é determinada;
+7. Como deliveries se relaciona com orders;
+8. Como logistics_routes se relaciona com empresas;
+9. Como production_batches é criado;
+10. Como production_batch_items é criado;
+11. Como orderBreakdown é gerado;
+12. Como routeBreakdown é gerado;
+13. Como cancelamentos funcionam;
+14. Como alterações e reaberturas funcionam;
+15. Como o tenant é aplicado;
+16. Como permissões são aplicadas;
+17. Como funciona a exportação Excel atual;
+18. Como funciona o PDF atual;
+19. Como funciona a impressão atual.
+
+Compare essa auditoria com as duas auditorias anteriores.
+
+Se encontrar alguma divergência entre as auditorias e o código atual, NÃO corrija automaticamente.
+
+Primeiro registre a divergência.
+
+==================================================
+FASE 1 — SEGURANÇA
+==================================================
+
+ANTES DA EXPORTAÇÃO, corrija somente os problemas de segurança identificados no módulo de produção.
+
+Principalmente:
+
+GET /api/production/batches/:id
+PATCH /api/production/batches/:id/status
+PATCH /api/production/batch-items/:itemId/check
+DELETE /api/production/batches/:id
+
+Essas operações precisam validar o tenant do lote/item.
+
+Um usuário de uma empresa NUNCA pode:
+
+- consultar lote de outra empresa;
+- alterar status de lote de outra empresa;
+- alterar quantidade conferida de outra empresa;
+- excluir lote de outra empresa.
+
+A validação deve ser feita NO BACKEND.
+
+Não confie em:
+
+- frontend;
+- menu;
+- ID enviado pelo usuário;
+- companyId enviado pela requisição.
+
+O tenant da sessão deve ser a fonte de autoridade.
+
+Também implemente autorização explícita por papel nas rotas de produção, conforme os papéis já existentes no sistema.
+
+NÃO crie novos papéis sem necessidade.
+
+Não altere a lógica de negócio além do necessário para corrigir o isolamento e autorização.
+
+==================================================
+FASE 2 — REGRA OFICIAL DE ROTA
+==================================================
+
+Não utilize mais uma associação arbitrária:
+
+companyId → routeId
+
+como única fonte para determinar a rota de um pedido.
+
+Para PEDIDOS ATUAIS, use:
+
+1. deliveries.routeId
+
+como fonte prioritária.
+
+Se não existir:
+
+2. procurar associação única em logistics_routes para a data + empresa.
+
+Se existir exatamente uma:
+
+usar essa rota.
+
+Se não existir nenhuma:
+
+SEM ROTA
+
+Se existirem múltiplas possibilidades:
+
+CONFLITO DE ROTA
+
+NUNCA escolher uma rota arbitrariamente.
+
+Não sobrescreva silenciosamente uma rota com outra.
+
+Para PRODUÇÃO:
+
+utilize a rota congelada no:
+
+production_batch_items.routeBreakdown
+
+porque o lote representa um snapshot operacional.
+
+==================================================
+FASE 3 — SEPARAR PEDIDOS DE PRODUÇÃO
+==================================================
+
+Não quero um único botão genérico que tenha comportamento ambíguo.
+
+Criar conceitos separados:
+
+EXPORTAR PEDIDOS
+
+e
+
+EXPORTAR PRODUÇÃO
+
+----------------------------------------
+EXPORTAR PEDIDOS
+----------------------------------------
+
+Fonte:
+
+orders
+order_items
+companies
+products
+deliveries
+
+Representa o ESTADO ATUAL dos pedidos.
+
+Se o pedido foi alterado:
+
+mostrar o estado atual.
+
+Se a rota mudou:
+
+mostrar a rota atual da entrega.
+
+Se o pedido foi cancelado:
+
+seguir a regra atual de status e deixar isso explícito no relatório.
+
+A data deve ser selecionável conforme o relatório.
+
+Para relatório de pedidos:
+
+orderDate
+
+Para relatório operacional por entrega:
+
+deliveryDate
+
+Não misture as duas sem deixar isso explícito para o usuário.
+
+----------------------------------------
+EXPORTAR PRODUÇÃO
+----------------------------------------
+
+Fonte:
+
+production_batches
+production_batch_items
+
+Utilizar:
+
+orderBreakdown
+routeBreakdown
+
+Representa o SNAPSHOT DO LOTE.
+
+Se o pedido mudar depois do lote:
+
+NÃO alterar o lote automaticamente.
+
+Se o pedido for cancelado depois do lote:
+
+NÃO remover silenciosamente o item do lote.
+
+Se a rota mudar depois do lote:
+
+NÃO alterar routeBreakdown.
+
+O lote deve ser tratado como fotografia operacional.
+
+==================================================
+FASE 4 — MODELO CANÔNICO
+==================================================
+
+Antes de gerar Excel, PDF ou impressão, crie uma camada de leitura/consolidação comum.
+
+NÃO criar uma lógica de consolidação diferente para:
+
+- Excel;
+- PDF;
+- impressão.
+
+Todos devem receber o mesmo modelo.
+
+Estrutura conceitual:
+
+ReportModel
+
+  metadata
+    reportType
+    generatedAt
+    date
+    tenant
+    source
+
+  summary
+    totalProducts
+    totalItems
+    totalOrders
+    totalCompanies
+    totalRoutes
+
+  products
+    productId
+    productName
+    category
+    unit
+    totalQuantity
+    checkedQuantity
+
+  routes
+    routeId
+    routeName
+    clients
+    products
+
+  orders
+    orderId
+    orderCode
+    company
+    deliveryDate
+    route
+    products
+    quantities
+
+  exceptions
+    noRoute
+    routeConflict
+    cancelled
+    changedAfterSnapshot
+
+A estrutura exata pode ser adaptada ao código existente.
+
+Não crie campos que não tenham origem real nos dados.
+
+==================================================
+FASE 5 — EXPORTAÇÃO EXCEL DE PRODUÇÃO
+==================================================
+
+Criar Excel de produção com múltiplas abas.
+
+A estrutura inicial deve ser:
+
+ABA 1 — RESUMO
+
+Produto
+Categoria
+Unidade
+Quantidade Total
+Quantidade Conferida
+Status
+
+ABA 2 — PRODUÇÃO GERAL
+
+Categoria
+Produto
+Unidade
+Quantidade Total
+Quantidade Conferida
+Status
+
+ABAS POR ROTA
+
+Exemplo:
+
+Rota 1
+Rota 2
+Rota 3
+SEM ROTA
+CONFLITO DE ROTA
+
+Cada uma:
+
+Cliente
+Pedido
+Produto
+Categoria
+Unidade
+Quantidade
+
+ABA — DIVERGÊNCIAS
+
+Quando existirem:
+
+- pedido cancelado depois do lote;
+- pedido alterado depois do lote;
+- empresa sem rota;
+- conflito de rota;
+- qualquer outra divergência real identificada.
+
+Não inventar divergências.
+
+Só mostrar aquilo que o sistema realmente conseguir determinar.
+
+Usar productId como chave principal de consolidação.
+
+Não consolidar produtos apenas pelo nome.
+
+==================================================
+FASE 6 — EXPORTAÇÃO EXCEL DE PEDIDOS
+==================================================
+
+Manter a exportação de pedidos como relatório independente.
+
+Utilizar:
+
+orders
+order_items
+companies
+products
+deliveries
+
+O Excel deve permitir pelo menos:
+
+- código do pedido;
+- cliente;
+- produto;
+- categoria;
+- unidade;
+- quantidade;
+- data do pedido;
+- data de entrega;
+- rota;
+- status;
+- observação, quando existir.
+
+A estrutura atual pode ser aproveitada, mas não quebrar o contrato existente sem necessidade.
+
+Se for necessário alterar o endpoint atual, preserve compatibilidade sempre que possível.
+
+==================================================
+FASE 7 — PDF
+==================================================
+
+Criar PDF usando exatamente o mesmo modelo utilizado pelo Excel.
+
+Não criar uma segunda regra de consolidação.
+
+PDF DE PEDIDOS:
+
+mostrar os dados atuais dos pedidos.
+
+PDF DE PRODUÇÃO:
+
+mostrar o snapshot do lote.
+
+Utilizar as bibliotecas já existentes no projeto sempre que forem suficientes.
+
+Não instalar biblioteca nova sem necessidade.
+
+==================================================
+FASE 8 — IMPRESSÃO
+==================================================
+
+A impressão atual da produção deve continuar funcionando.
+
+Adaptar para consumir o mesmo ReportModel.
+
+Não remover a impressão existente.
+
+Não criar uma terceira lógica diferente.
+
+==================================================
+FASE 9 — FRONTEND
+==================================================
+
+Somente depois de backend, segurança e testes estarem validados.
+
+Na tela de PEDIDOS:
+
+Adicionar claramente:
+
+[Exportar Excel]
+[Exportar PDF]
+
+Na tela de PRODUÇÃO:
+
+Adicionar:
+
+[Exportar Excel]
+[Exportar PDF]
+[Imprimir]
+
+Os botões devem respeitar as permissões existentes.
+
+Não exibir no frontend uma função que o backend não autorize.
+
+==================================================
+FASE 10 — TESTES OBRIGATÓRIOS
+==================================================
+
+Antes de considerar concluído, testar:
+
+DADOS:
+
+- 1 pedido;
+- vários pedidos;
+- vários clientes;
+- vários produtos;
+- produto repetido;
+- várias categorias;
+- diferentes unidades.
+
+DATAS:
+
+- orderDate;
+- deliveryDate;
+- pedido recorrente;
+- pedido programado.
+
+STATUS:
+
+- confirmado;
+- cancelado antes do lote;
+- cancelado depois do lote;
+- alterado antes do lote;
+- alterado depois do lote;
+- reaberto;
+- entregue.
+
+ROTAS:
+
+- pedido com rota;
+- pedido sem rota;
+- empresa com uma rota;
+- empresa com duas rotas;
+- rota alterada antes do lote;
+- rota alterada depois do lote;
+- deliveries.routeId diferente da associação logística.
+
+SEGURANÇA:
+
+- usuário acessando próprio lote;
+- usuário tentando acessar lote de outra empresa;
+- usuário tentando alterar lote de outra empresa;
+- usuário tentando excluir lote de outra empresa;
+- usuário sem permissão;
+- administrador global;
+- filtro companyId malicioso.
+
+EXPORTAÇÃO:
+
+- Excel de pedidos;
+- PDF de pedidos;
+- Excel de produção;
+- PDF de produção;
+- impressão;
+- arquivo vazio;
+- SEM ROTA;
+- CONFLITO DE ROTA;
+- lote finalizado;
+- exportação repetida.
+
+==================================================
+FASE 11 — PERFORMANCE
+==================================================
+
+Não gerar grandes arquivos no frontend se isso puder travar o navegador.
+
+Para volumes maiores, preferir geração no backend.
+
+Validar pelo menos:
+
+1.000 pedidos.
+
+Se o código suportar de forma segura, testar também:
+
+5.000 pedidos.
+
+Não fazer otimizações prematuras.
+
+Primeiro garantir:
+
+- segurança;
+- consistência;
+- funcionamento.
+
+==================================================
+FASE 12 — NÃO MEXER
+==================================================
+
+Não alterar sem necessidade:
+
+- criação de pedidos;
+- aprovação;
+- fluxo financeiro;
+- fiscal;
+- estoque;
+- notificações;
+- histórico;
+- regras comerciais;
+- banco de dados dos pedidos;
+- schema dos pedidos;
+- regras não relacionadas à exportação.
+
+NÃO criar novas tabelas nesta primeira versão.
+
+NÃO fazer migration se não for absolutamente necessária.
+
+NÃO alterar o comportamento operacional existente sem justificativa.
+
+==================================================
+FASE 13 — REGRA DE SEGURANÇA CONTRA QUEBRA
+==================================================
+
+Se durante a implementação você descobrir que uma mudança pode afetar uma funcionalidade existente:
+
+PARE.
+
+Não tente "resolver" automaticamente.
+
+Informe:
+
+1. arquivo;
+2. função;
+3. comportamento atual;
+4. comportamento que precisa mudar;
+5. risco;
+6. solução proposta.
+
+Só prossiga depois que a alteração puder ser feita de forma isolada e segura.
+
+==================================================
+FASE 14 — RELATÓRIO FINAL
+==================================================
+
+Ao terminar, apresente um relatório contendo:
+
+1. Arquivos alterados;
+2. Arquivos criados;
+3. Arquivos que não foram alterados;
+4. Endpoints criados/alterados;
+5. Regras de segurança implementadas;
+6. Regra definitiva de rota;
+7. Regra de data;
+8. Diferença entre exportação de pedidos e produção;
+9. Estrutura do Excel;
+10. Estrutura do PDF;
+11. Como a impressão foi preservada;
+12. Testes executados;
+13. Resultado dos testes;
+14. Problemas encontrados;
+15. Riscos restantes.
+
+IMPORTANTE:
+
+Não diga que algo foi testado se não foi realmente executado.
+
+Não diga que uma vulnerabilidade foi corrigida se não foi validada.
+
+Não invente dados.
+
+Não invente campos.
+
+Não invente regras de negócio.
+
+Não faça alterações fora do escopo.
+
+PRINCÍPIO CENTRAL:
+
+Primeiro segurança e consistência.
+
+Depois modelo de dados.
+
+Depois Excel.
+
+Depois PDF.
+
+Depois impressão/frontend.
+
+O objetivo NÃO é apenas "fazer baixar um Excel".
+
+O objetivo é criar uma exportação operacional confiável, sem quebrar o ERP existente.
