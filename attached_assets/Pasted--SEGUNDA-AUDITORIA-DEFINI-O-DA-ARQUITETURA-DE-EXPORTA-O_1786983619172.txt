@@ -1,0 +1,809 @@
+# SEGUNDA AUDITORIA — DEFINIÇÃO DA ARQUITETURA DE EXPORTAÇÃO
+
+A auditoria anterior foi concluída e encontrou que o ERP já possui:
+
+* fluxo completo de pedidos;
+* itens de pedidos;
+* clientes;
+* produtos;
+* datas de entrega;
+* módulo de produção;
+* lotes de produção;
+* consolidação por produto;
+* consolidação por cliente;
+* consolidação por rota;
+* exportação Excel existente;
+* exportação PDF existente.
+
+Agora quero fazer uma SEGUNDA AUDITORIA antes de qualquer implementação.
+
+## REGRA ABSOLUTA
+
+NÃO IMPLEMENTE NADA.
+
+NÃO altere código.
+
+NÃO altere banco.
+
+NÃO faça migration.
+
+NÃO instale dependências.
+
+NÃO crie endpoints.
+
+NÃO altere componentes.
+
+NÃO faça refatoração.
+
+NÃO faça commit.
+
+NÃO faça correções automáticas.
+
+Apenas analise e apresente a proposta técnica.
+
+---
+
+# OBJETIVO DA FUNCIONALIDADE
+
+Quero futuramente permitir que o ERP gere uma planilha Excel de produção baseada nos pedidos existentes, utilizando como referência operacional o arquivo:
+
+`2665CF-_07 Julho2025_Controle de Produção - In Natura - Copia.xlsx`
+
+Também quero posteriormente disponibilizar:
+
+* Exportar Excel;
+* Exportar PDF;
+* Imprimir.
+
+A planilha deve ser gerada automaticamente a partir dos dados existentes no ERP.
+
+NÃO quero criar um sistema paralelo.
+
+NÃO quero duplicar os pedidos.
+
+NÃO quero alterar a estrutura dos pedidos apenas para gerar o relatório.
+
+A ideia é utilizar a estrutura que já existe no ERP.
+
+---
+
+# 1. RESPONDA PRIMEIRO: DE ONDE DEVE VIR A EXPORTAÇÃO?
+
+Analise profundamente as duas possibilidades.
+
+## OPÇÃO A — PEDIDOS ATUAIS
+
+A exportação consulta diretamente os pedidos existentes naquele momento.
+
+Exemplo:
+
+Pedido:
+
+Cliente X
+Banana = 50
+
+Se o pedido for alterado para:
+
+Banana = 70
+
+A exportação passa a mostrar:
+
+Banana = 70.
+
+Explique vantagens, desvantagens e riscos.
+
+---
+
+## OPÇÃO B — LOTE DE PRODUÇÃO
+
+A exportação utiliza o lote de produção já gerado.
+
+Exemplo:
+
+Pedido:
+
+Banana = 50
+
+Lote gerado:
+
+Banana = 50
+
+Depois o pedido muda para:
+
+Banana = 70
+
+A exportação do lote continua mostrando:
+
+Banana = 50.
+
+Explique vantagens, desvantagens e riscos.
+
+---
+
+## OPÇÃO C — DUAS EXPORTAÇÕES
+
+Avalie se o melhor desenho é ter:
+
+### Exportar pedidos
+
+Usa os pedidos atuais.
+
+### Exportar produção
+
+Usa o lote de produção.
+
+### Exportar PDF
+
+Usa a mesma fonte escolhida para cada relatório.
+
+Diga se essa é a arquitetura mais segura.
+
+Minha preferência inicial é essa opção, mas NÃO implemente nada até justificar tecnicamente.
+
+---
+
+# 2. DEFINA A DATA CORRETA
+
+Analise a diferença entre:
+
+`orderDate`
+
+e
+
+`deliveryDate`
+
+Para uma planilha de produção, determine qual deveria ser a data principal.
+
+Considere exemplos:
+
+Pedido criado em:
+
+17/08
+
+Entrega:
+
+18/08
+
+A produção de 18/08 deve aparecer na planilha de qual data?
+
+Explique claramente.
+
+Também analise:
+
+* pedidos recorrentes;
+* pedidos programados;
+* pedidos alterados;
+* pedidos cancelados;
+* pedidos reabertos.
+
+---
+
+# 3. DEFINA A FONTE OFICIAL DA ROTA
+
+Esse é um ponto crítico.
+
+A auditoria anterior identificou que o pedido não possui simplesmente:
+
+`orders.routeId`
+
+A rota pode vir de:
+
+* `deliveries.routeId`;
+* `logistics_routes`;
+* relação empresa/rota;
+* data da entrega;
+* módulo de produção.
+
+Agora determine:
+
+## Qual deve ser a fonte oficial da rota para a exportação?
+
+Analise situações como:
+
+### Exemplo 1
+
+Empresa X:
+
+18/08 → Rota 1
+
+19/08 → Rota 3
+
+O pedido do dia 18/08 deve sair na Rota 1.
+
+### Exemplo 2
+
+A mesma empresa aparece em duas rotas no mesmo dia.
+
+Como o sistema deve resolver?
+
+### Exemplo 3
+
+O pedido não possui rota.
+
+Deve aparecer:
+
+`SEM ROTA`
+
+ou deve bloquear a exportação?
+
+### Exemplo 4
+
+A rota é alterada depois da geração do lote.
+
+Qual rota deve aparecer:
+
+* a rota atual;
+* ou a rota congelada no lote?
+
+Não faça alterações. Apenas recomende a regra correta.
+
+---
+
+# 4. ANALISE O PROBLEMA DO SNAPSHOT
+
+O módulo de produção já possui lotes.
+
+Determine exatamente:
+
+* quando o lote é criado;
+* quais dados são copiados para o lote;
+* quais dados continuam sendo consultados dinamicamente;
+* se os itens do lote podem ficar diferentes do pedido;
+* o que acontece quando o pedido é alterado;
+* o que acontece quando o pedido é cancelado;
+* o que acontece quando o pedido é reaberto;
+* o que acontece quando a rota muda.
+
+Depois recomende uma regra.
+
+---
+
+# 5. SEGURANÇA / TENANT
+
+A auditoria anterior encontrou possíveis pontos de atenção no isolamento de tenant.
+
+Antes de implementar exportação, faça uma análise específica.
+
+Verifique:
+
+* `/api/orders/export`;
+* `/api/v2/orders/export`;
+* módulo de produção;
+* consultas de pedidos;
+* consultas de produtos;
+* consultas de empresas;
+* consultas de rotas;
+* consultas de lotes.
+
+Responda:
+
+### Um usuário de uma empresa consegue, teoricamente, exportar dados de outra empresa?
+
+### Existe algum endpoint que permita isso?
+
+### Existe algum caminho CROSS_TENANT?
+
+### Quais perfis podem utilizar esse caminho?
+
+### Qual deve ser a regra definitiva para exportação?
+
+A exportação normal deve respeitar:
+
+`tenantContext`
+
+e nunca permitir vazamento de dados entre empresas.
+
+Se houver exportação administrativa global, ela deve exigir permissão explícita.
+
+NÃO corrija agora.
+
+Apenas identifique.
+
+---
+
+# 6. DEFINA AS PERMISSÕES
+
+Determine quais perfis deveriam poder:
+
+### Exportar pedidos
+
+### Exportar produção
+
+### Exportar PDF
+
+### Imprimir
+
+### Exportar dados de múltiplas empresas
+
+Não invente permissões novas sem explicar.
+
+Compare com os papéis existentes no sistema.
+
+Recomende a menor mudança necessária.
+
+---
+
+# 7. ANALISE A PLANILHA DE REFERÊNCIA
+
+A planilha:
+
+`2665CF-_07 Julho2025_Controle de Produção - In Natura - Copia.xlsx`
+
+foi enviada pelo usuário nesta conversa.
+
+Se o arquivo estiver disponível para análise no ambiente, utilize-o.
+
+NÃO diga que ele não existe sem antes verificar novamente o arquivo enviado.
+
+Analise:
+
+* abas;
+* cabeçalhos;
+* categorias;
+* produtos;
+* clientes;
+* rotas;
+* quantidades;
+* totais;
+* fórmulas;
+* agrupamentos;
+* formatação;
+* filtros;
+* congelamento;
+* impressão;
+* ordem das colunas;
+* células mescladas;
+* larguras;
+* alturas;
+* cores;
+* bordas;
+* cabeçalhos;
+* rodapés.
+
+Compare a planilha real com a estrutura encontrada no ERP.
+
+---
+
+# 8. DEFINA O MODELO IDEAL DO EXCEL
+
+Proponha exatamente como deve ser o novo Excel.
+
+Avalie se devemos ter:
+
+## Aba 1 — Produção Geral
+
+Todos os clientes.
+
+## Abas por rota
+
+Exemplo:
+
+* Rota 1
+* Rota 2
+* Rota 3
+* Rota 4
+* Rota 5
+* Rota 6
+* Sem Rota
+
+## Aba por produto
+
+Avalie se realmente é necessária.
+
+## Aba de resumo
+
+Avalie se devemos ter:
+
+Produto | Quantidade Total | Unidade
+
+Não crie nada agora.
+
+Apenas recomende a estrutura.
+
+---
+
+# 9. DEFINA O AGRUPAMENTO
+
+Determine qual estrutura é melhor para a operação:
+
+### Modelo A
+
+Cliente nas linhas
+Produto nas colunas
+
+### Modelo B
+
+Produto nas linhas
+Cliente nas colunas
+
+### Modelo C
+
+Rota → Cliente → Produto
+
+### Modelo D
+
+Produção consolidada por produto + detalhamento por cliente/rota
+
+Compare os quatro modelos com a planilha enviada.
+
+Recomende um.
+
+Explique por quê.
+
+---
+
+# 10. DETERMINE O QUE DEVE SER CONSOLIDADO
+
+Exemplo:
+
+Cliente A:
+
+Banana = 10
+
+Cliente B:
+
+Banana = 20
+
+Cliente C:
+
+Banana = 30
+
+A produção deve mostrar:
+
+Banana = 60
+
+E também permitir saber:
+
+Cliente A = 10
+Cliente B = 20
+Cliente C = 30
+
+Analise como aproveitar o `production_batch_items.orderBreakdown` e `routeBreakdown`.
+
+Não recrie uma lógica se ela já existir.
+
+---
+
+# 11. PRODUTOS E CATEGORIAS
+
+Analise:
+
+`products.category`
+
+`products.unit`
+
+`order_items.subCategoryName`
+
+Determine como os produtos devem ser agrupados.
+
+Exemplo:
+
+### FRUTAS
+
+Banana
+Maçã
+Pera
+
+### PORCIONADOS
+
+Produto X
+Produto Y
+
+### FRUTAS SECAS
+
+Castanha
+Amêndoa
+Mix
+
+### INDUSTRIALIZADOS
+
+Produto X
+Produto Y
+
+Não presuma as categorias finais.
+
+Utilize a estrutura real encontrada no sistema e na planilha.
+
+---
+
+# 12. QUANTIDADES
+
+Analise a diferença entre:
+
+`order_items.quantity`
+
+e as quantidades permitidas nos lotes de produção.
+
+Verifique se existe algum problema com:
+
+* números decimais;
+* peso;
+* unidades;
+* caixas;
+* pacotes;
+* unidades;
+* litros;
+* quilogramas.
+
+Determine se a exportação deve preservar exatamente a unidade cadastrada no produto.
+
+NÃO altere o tipo de dado agora.
+
+Apenas identifique riscos.
+
+---
+
+# 13. PERFORMANCE
+
+Avalie:
+
+* 10 pedidos;
+* 100 pedidos;
+* 1.000 pedidos;
+* 5.000 pedidos;
+* 10.000 pedidos.
+
+Determine se a geração deveria acontecer:
+
+### Frontend
+
+ou
+
+### Backend
+
+ou
+
+### Híbrida
+
+Minha preferência inicial é que a consulta/consolidação crítica aconteça no backend.
+
+Avalie tecnicamente.
+
+---
+
+# 14. REUTILIZAÇÃO DO QUE JÁ EXISTE
+
+Liste exatamente o que podemos reutilizar.
+
+Principalmente:
+
+* `production.service`;
+* `production.repository`;
+* `production_batch_items`;
+* `orderBreakdown`;
+* `routeBreakdown`;
+* `orders/export`;
+* biblioteca `xlsx`;
+* biblioteca `jspdf`;
+* `jspdf-autotable`;
+* impressão existente.
+
+Para cada item diga:
+
+`REUTILIZAR`
+
+`ADAPTAR`
+
+ou
+
+`NÃO UTILIZAR`
+
+e explique o motivo.
+
+---
+
+# 15. ARQUITETURA RECOMENDADA
+
+Depois de toda a análise, desenhe a arquitetura recomendada.
+
+Exemplo conceitual:
+
+PEDIDOS
+↓
+FILTRO DE DATA
+↓
+VALIDAÇÃO DE TENANT/PERMISSÃO
+↓
+FONTE DOS DADOS
+↓
+CONSOLIDAÇÃO
+↓
+AGRUPAMENTO POR ROTA/CLIENTE/PRODUTO
+↓
+GERADOR EXCEL
+↓
+DOWNLOAD
+
+E:
+
+MESMA FONTE
+↓
+GERADOR PDF
+↓
+DOWNLOAD / IMPRESSÃO
+
+Determine exatamente onde cada etapa deveria ficar.
+
+---
+
+# 16. LISTA DE ALTERAÇÕES FUTURAS
+
+Separe em três grupos.
+
+## NÃO PRECISA MEXER
+
+Tudo que já funciona e pode continuar intacto.
+
+## PRECISA ADAPTAR
+
+Arquivos que provavelmente precisarão ser alterados.
+
+## PRECISA CRIAR
+
+Arquivos/componentes/endpoints que realmente não existem.
+
+Não invente arquivos desnecessários.
+
+---
+
+# 17. RISCO DE QUEBRAR O ERP
+
+Avalie especificamente se a futura implementação pode afetar:
+
+* pedidos;
+* produção;
+* planejamento;
+* rotas;
+* entregas;
+* estoque;
+* financeiro;
+* fiscal;
+* usuários;
+* permissões;
+* multi-tenancy.
+
+Dê uma classificação:
+
+🟢 baixo
+🟡 médio
+🔴 alto
+
+para cada área.
+
+---
+
+# 18. PLANO DE IMPLEMENTAÇÃO FUTURO
+
+Proponha uma implementação em fases.
+
+Exemplo:
+
+### FASE 1
+
+Criar somente serviço de leitura/consolidação.
+
+### FASE 2
+
+Testar dados.
+
+### FASE 3
+
+Gerar Excel.
+
+### FASE 4
+
+Adicionar botão no frontend.
+
+### FASE 5
+
+Adicionar PDF.
+
+### FASE 6
+
+Adicionar impressão.
+
+### FASE 7
+
+Testes completos.
+
+Mas adapte as fases ao que você encontrar.
+
+---
+
+# 19. TESTES OBRIGATÓRIOS FUTUROS
+
+Defina testes para:
+
+* pedido único;
+* vários pedidos;
+* vários clientes;
+* várias rotas;
+* produto repetido;
+* cliente com vários produtos;
+* pedido cancelado;
+* pedido alterado;
+* pedido reaberto;
+* pedido sem rota;
+* empresa em múltiplas rotas;
+* tenant diferente;
+* usuário sem permissão;
+* grande volume de pedidos;
+* produção já congelada;
+* exportação Excel;
+* exportação PDF.
+
+---
+
+# 20. RELATÓRIO FINAL
+
+No final, responda obrigatoriamente:
+
+## 1. QUAL É A MELHOR FONTE?
+
+Pedidos atuais ou lote de produção?
+
+## 2. QUAL É A MELHOR REGRA DE ROTA?
+
+Explique exatamente.
+
+## 3. QUAL É A DATA CORRETA?
+
+`deliveryDate` ou `orderDate`?
+
+## 4. O QUE JÁ EXISTE?
+
+Liste.
+
+## 5. O QUE PODE SER REUTILIZADO?
+
+Liste.
+
+## 6. O QUE PRECISA SER ALTERADO?
+
+Liste arquivos e motivos.
+
+## 7. O QUE PRECISA SER CRIADO?
+
+Liste somente o necessário.
+
+## 8. QUAIS SÃO OS RISCOS?
+
+Liste.
+
+## 9. QUAL É A ARQUITETURA RECOMENDADA?
+
+Descreva.
+
+## 10. QUAL É A SEQUÊNCIA SEGURA DE IMPLEMENTAÇÃO?
+
+Descreva em fases.
+
+---
+
+# REGRA FINAL
+
+Depois de entregar esse relatório:
+
+PARE.
+
+NÃO IMPLEMENTE.
+
+NÃO ALTERE CÓDIGO.
+
+NÃO FAÇA MIGRATION.
+
+NÃO INSTALE DEPENDÊNCIAS.
+
+NÃO FAÇA COMMIT.
+
+NÃO MODIFIQUE O BANCO.
+
+NÃO ALTERE PEDIDOS.
+
+NÃO ALTERE O MÓDULO DE PRODUÇÃO.
+
+Aguarde minha autorização explícita para começar a implementação.
+
+O objetivo desta etapa é apenas responder:
+
+**"Como o sistema funciona hoje, qual é a melhor arquitetura e exatamente o que precisaremos mudar?"**
