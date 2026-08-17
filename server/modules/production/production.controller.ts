@@ -31,25 +31,34 @@ export const productionController = {
 
   /** GET /api/production/batches/:id */
   async getById(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | null;
     const id = Number((req.params as any).id);
-    const batch = await productionService.getById(id);
+    const batch = await productionService.getById(id, empresaId);
     res.json({ success: true, data: batch });
   },
 
   /** PATCH /api/production/batches/:id/status */
   async updateStatus(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | null;
     const id = Number((req.params as any).id);
     const body = req.body as UpdateBatchStatusBody;
-    const updated = await productionService.updateStatus(id, body.status, body.notes);
+    const updated = await productionService.updateStatus(
+      id,
+      empresaId,
+      body.status,
+      body.notes,
+    );
     res.json({ success: true, data: updated });
   },
 
   /** PATCH /api/production/batch-items/:itemId/check */
   async updateItemCheck(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | null;
     const itemId = Number((req.params as any).itemId);
     const body = req.body as UpdateItemCheckBody;
     const updated = await productionService.updateItemCheck(
       itemId,
+      empresaId,
       body.checkedQuantity,
       body.notes,
     );
@@ -58,8 +67,9 @@ export const productionController = {
 
   /** DELETE /api/production/batches/:id */
   async deleteBatch(req: Request, res: Response) {
+    const empresaId = (req as any).empresaId as number | null;
     const id = Number((req.params as any).id);
-    await productionService.deleteBatch(id);
+    await productionService.deleteBatch(id, empresaId);
     res.status(204).send();
   },
 };

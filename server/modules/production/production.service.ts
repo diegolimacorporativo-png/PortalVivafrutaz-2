@@ -201,35 +201,42 @@ export const productionService = {
     return productionRepository.list(empresaId, opts);
   },
 
-  async getById(id: number) {
-    return productionRepository.getById(id);
+  async getById(id: number, empresaId: number | null) {
+    return productionRepository.getById(id, empresaId);
   },
 
   async updateStatus(
     id: number,
+    empresaId: number | null,
     newStatus: string,
     notes?: string,
   ) {
-    const batch = await productionRepository.getById(id);
+    const batch = await productionRepository.getById(id, empresaId);
     const allowed = ALLOWED_TRANSITIONS[batch.status] ?? [];
     if (!allowed.includes(newStatus)) {
       throw new BadRequestError(
         `Transição inválida: ${batch.status} → ${newStatus}. Permitidas: ${allowed.join(", ") || "nenhuma"}`,
       );
     }
-    return productionRepository.updateStatus(id, newStatus, notes);
+    return productionRepository.updateStatus(id, empresaId, newStatus, notes);
   },
 
   async updateItemCheck(
     itemId: number,
+    empresaId: number | null,
     checkedQuantity: number,
     notes?: string,
   ) {
-    return productionRepository.updateItemCheck(itemId, checkedQuantity, notes);
+    return productionRepository.updateItemCheck(
+      itemId,
+      empresaId,
+      checkedQuantity,
+      notes,
+    );
   },
 
-  async deleteBatch(id: number) {
-    await productionRepository.getById(id); // throws NotFoundError if missing
-    await productionRepository.deleteBatch(id);
+  async deleteBatch(id: number, empresaId: number | null) {
+    await productionRepository.getById(id, empresaId); // also enforces tenant scope
+    await productionRepository.deleteBatch(id, empresaId);
   },
 };

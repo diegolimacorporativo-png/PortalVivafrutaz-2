@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validate } from "../../shared/middlewares/validate";
 import { tenantContext } from "../../middleware/tenant";
+import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { productionController } from "./production.controller";
 import {
   generateBatchBodySchema,
@@ -13,8 +14,22 @@ import {
 
 export const productionRouter = Router();
 
-// All production routes require authentication (tenantContext resolves the principal)
-productionRouter.use(tenantContext);
+const PRODUCTION_ROLES = [
+  "ADMIN",
+  "DIRECTOR",
+  "DEVELOPER",
+  "OPERATIONS_MANAGER",
+  "PURCHASE_MANAGER",
+  "LOGISTICS",
+];
+
+// Production is an admin-only module. tenantContext then resolves the
+// authoritative tenant from the authenticated session.
+productionRouter.use(
+  requireAuth,
+  requireRole(PRODUCTION_ROLES),
+  tenantContext,
+);
 
 // ─── Batch routes ──────────────────────────────────────────────
 

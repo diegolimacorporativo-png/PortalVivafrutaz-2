@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, exists, inArray, sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import {
   productionBatches,
@@ -173,11 +173,22 @@ export const productionRepository = {
   },
 
   /** Get a single batch with its items. */
-  async getById(id: number): Promise<BatchWithItems> {
+  async getById(
+    id: number,
+    empresaId: number | null,
+  ): Promise<BatchWithItems> {
     const [batch] = await db
       .select()
       .from(productionBatches)
-      .where(eq(productionBatches.id, id))
+      .where(
+        and(
+          eq(productionBatches.id, id),
+          // null is reserved for an explicitly cross-tenant admin context.
+          empresaId != null
+            ? eq(productionBatches.empresaId, empresaId)
+            : undefined,
+        ),
+      )
       .limit(1);
     if (!batch) throw new NotFoundError("Lote de produção não encontrado");
 
@@ -268,6 +279,7 @@ export const productionRepository = {
   /** Update batch status (and optionally notes). */
   async updateStatus(
     id: number,
+    empresaId: number | null,
     status: string,
     notes?: string,
   ): Promise<ProductionBatch> {
@@ -278,7 +290,14 @@ export const productionRepository = {
         ...(notes !== undefined ? { notes } : {}),
         updatedAt: new Date(),
       })
-      .where(eq(productionBatches.id, id))
+      .where(
+        and(
+          eq(productionBatches.id, id),
+          empresaId != null
+            ? eq(productionBatches.empresaId, empresaId)
+            : undefined,
+        ),
+      )
       .returning();
     if (!updated) throw new NotFoundError("Lote de produção não encontrado");
     return updated;
@@ -287,6 +306,7 @@ export const productionRepository = {
   /** Update item checked quantity. */
   async updateItemCheck(
     itemId: number,
+    empresaId: number | null,
     checkedQuantity: number,
     notes?: string,
   ): Promise<ProductionBatchItem> {
@@ -296,16 +316,40 @@ export const productionRepository = {
         checkedQuantity: String(checkedQuantity),
         ...(notes !== undefined ? { notes } : {}),
       })
-      .where(eq(productionBatchItems.id, itemId))
+      .where(
+        and(
+          eq(productionBatchItems.id, itemId),
+          empresaId != null
+            ? exists(
+                db
+                  .select({ id: productionBatches.id })
+                  .from(productionBatches)
+                  .where(
+                    and(
+                      eq(productionBatches.id, productionBatchItems.batchId),
+                      eq(productionBatches.empresaId, empresaId),
+                    ),
+                  ),
+              )
+            : undefined,
+        ),
+      )
       .returning();
     if (!updated) throw new NotFoundError("Item não encontrado");
     return updated;
   },
 
   /** Delete a batch (cascades to items). */
-  async deleteBatch(id: number): Promise<void> {
+  async deleteBatch(id: number, empresaId: number | null): Promise<void> {
     await db
       .delete(productionBatches)
-      .where(eq(productionBatches.id, id));
+      .where(
+        and(
+          eq(productionBatches.id, id),
+          empresaId != null
+            ? eq(productionBatches.empresaId, empresaId)
+            : undefined,
+        ),
+      );
   },
 };
