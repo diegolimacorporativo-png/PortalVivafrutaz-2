@@ -58,6 +58,7 @@ const ORDER_NOTE_PLACEHOLDER = "Ex: Bananas mais verdes, solicito produto que n√
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
 import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
+import { WeeklyBillingIndicator } from "@/components/orders/WeeklyBillingIndicator";
 
 export default function CreateOrderPage() {
   const { user, company, isLoading: authLoading } = useAuth();
@@ -925,26 +926,10 @@ export default function CreateOrderPage() {
                   <p className="text-2xl font-display font-bold text-primary">R$ {fmtBRL(cartTotal)}</p>
                 </div>
 
-                {/* Weekly minimum billing indicator */}
-                {minWeeklyBilling > 0 && (
-                  <div className={`p-3 rounded-xl border text-xs ${projectedWeeklyTotal >= minWeeklyBilling ? 'bg-green-50 border-green-200' : 'bg-orange-50 border-orange-200'}`}>
-                    <div className="flex justify-between items-center mb-1.5">
-                      <span className={`font-bold ${projectedWeeklyTotal >= minWeeklyBilling ? 'text-green-700' : 'text-orange-700'}`}>
-                        Faturamento semanal
-                      </span>
-                      <span className={`font-bold ${projectedWeeklyTotal >= minWeeklyBilling ? 'text-green-700' : 'text-orange-700'}`}>
-                        R$ {fmtBRL(projectedWeeklyTotal)} / R$ {fmtBRL(minWeeklyBilling)}
-                      </span>
-                    </div>
-                    <div className="w-full bg-white/60 rounded-full h-1.5">
-                      <div className={`h-1.5 rounded-full transition-all ${projectedWeeklyTotal >= minWeeklyBilling ? 'bg-green-500' : 'bg-orange-400'}`}
-                        style={{ width: `${Math.min(100, (projectedWeeklyTotal / minWeeklyBilling) * 100)}%` }} />
-                    </div>
-                    {billingShortfall > 0 && (
-                      <p className="text-orange-600 mt-1.5 font-medium">Faltam R$ {fmtBRL(billingShortfall)} para o m√≠nimo semanal.</p>
-                    )}
-                  </div>
-                )}
+                <WeeklyBillingIndicator
+                  total={projectedWeeklyTotal}
+                  minimum={minWeeklyBilling}
+                />
 
                 {/* Date-lock: block submission if order already exists for this delivery date */}
                 {existingOrderForDate && existingOrderForDate.status !== 'OPEN_FOR_EDITING' ? (

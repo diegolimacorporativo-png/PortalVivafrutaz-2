@@ -10,7 +10,7 @@
  */
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/hooks/use-auth";
-import { useOrderDetail } from "@/hooks/use-ordering";
+import { useCompanyOrders, useOrderDetail } from "@/hooks/use-ordering";
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
@@ -22,6 +22,7 @@ import { BackHeader } from "@/components/navigation/BackHeader";
 import { api } from "@shared/routes";
 import { buildOrderCatalog, itemToCartKey, type ProductEntry } from "@/utils/buildOrderCatalog";
 import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import { WeeklyBillingIndicator } from "@/components/orders/WeeklyBillingIndicator";
 
 function fmtBRL(n: number) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -37,6 +38,7 @@ export default function EditOrderPage() {
   const orderId = params?.id ? Number(params.id) : undefined;
 
   const { data: orderDetail, isLoading: orderLoading } = useOrderDetail(orderId);
+  const { data: companyOrders } = useCompanyOrders(company?.id);
 
   // cart keys are "sc_<subCategoryId>" | "p_<productId>" — same as create-order
   const [cart, setCart] = useState<Record<string, number>>({});
@@ -175,6 +177,23 @@ export default function EditOrderPage() {
 
   const cartTotal = useMemo(() => cartItems.reduce((s, i) => s + i.subtotal, 0), [cartItems]);
 
+  const minWeeklyBilling = Number((company as any)?.minWeeklyBilling ?? 0) || 0;
+  const projectedWeeklyTotal = useMemo(() => {
+    if (!orderDetail?.order) return cartTotal;
+
+    const currentOrderId = Number(orderDetail.order.id);
+    const weekReference = orderDetail.order.weekReference;
+    const otherOrdersTotal = (companyOrders || [])
+      .filter((order: any) => (
+        order.status !== "CANCELLED" &&
+        Number(order.id) !== currentOrderId &&
+        String(order.weekReference ?? "") === String(weekReference ?? "")
+      ))
+      .reduce((total: number, order: any) => total + (Number(order.totalValue) || 0), 0);
+
+    return otherOrdersTotal + cartTotal;
+  }, [companyOrders, cartTotal, orderDetail?.order]);
+
   const handleUpdateCart = (key: string, qty: number) => {
     setCart(prev => {
       const next = { ...prev };
@@ -213,15 +232,22 @@ export default function EditOrderPage() {
         body: JSON.stringify({ items }),
       });
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.message || "Erro ao salvar pedido.");
+        const d = await res.json().catch(() => ({}));
+        const apiError = d?.error ?? d;
+        throw new Error(apiError?.message || "Erro ao salvar pedido.");
       }
       queryClient.invalidateQueries({ queryKey: [api.orders.companyOrders.path] });
       queryClient.invalidateQueries({ queryKey: [api.orders.get.path, orderId] });
       toast({ title: "Pedido atualizado e confirmado com sucesso!" });
       navigate("/client/history");
     } catch (e: any) {
-      toast({ title: e.message || "Erro ao salvar pedido", variant: "destructive" });
+      const message = e?.message || "Erro ao salvar pedido";
+      const isBillingError = /faturamento mínimo|programação da semana/i.test(message);
+      toast({
+        title: isBillingError ? "Faturamento mínimo não atingido" : "Erro ao salvar pedido",
+        description: message,
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
@@ -478,6 +504,10 @@ export default function EditOrderPage() {
                       <p className="font-bold text-foreground">Total</p>
                       <p className="text-xl font-display font-bold text-primary">R$ {fmtBRL(cartTotal)}</p>
                     </div>
+                    <WeeklyBillingIndicator
+                      total={projectedWeeklyTotal}
+                      minimum={minWeeklyBilling}
+                    />
                     <button
                       data-testid="button-finalize-edit"
                       onClick={handleSubmit}

@@ -9,6 +9,7 @@ import {
 import { useProducts } from "@/hooks/use-catalog";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
+import { WeeklyBillingIndicator } from "@/components/orders/WeeklyBillingIndicator";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -1114,30 +1115,11 @@ export default function WeeklySchedulePage() {
                     </p>
                   </div>
 
-                  {/* Minimum weekly billing indicator */}
-                  {minWeeklyBilling > 0 && (
-                    <div className={`p-3 rounded-xl border text-xs ${weekTotal >= minWeeklyBilling ? "bg-green-50 border-green-200" : "bg-orange-50 border-orange-200"}`}>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className={`font-bold ${weekTotal >= minWeeklyBilling ? "text-green-700" : "text-orange-700"}`}>
-                          Faturamento mínimo
-                        </span>
-                        <span className={`font-bold ${weekTotal >= minWeeklyBilling ? "text-green-700" : "text-orange-700"}`}>
-                          R$ {fmtBRL(weekTotal)} / R$ {fmtBRL(minWeeklyBilling)}
-                        </span>
-                      </div>
-                      <div className="w-full bg-white/60 rounded-full h-1.5">
-                        <div
-                          className={`h-1.5 rounded-full transition-all ${weekTotal >= minWeeklyBilling ? "bg-green-500" : "bg-orange-400"}`}
-                          style={{ width: `${Math.min(100, (weekTotal / minWeeklyBilling) * 100)}%` }}
-                        />
-                      </div>
-                      {billingShortfall > 0 && (
-                        <p className="text-orange-600 mt-1.5 font-medium">
-                          Faltam R$ {fmtBRL(billingShortfall)} para o mínimo.
-                        </p>
-                      )}
-                    </div>
-                  )}
+                  <WeeklyBillingIndicator
+                    total={weekTotal}
+                    minimum={minWeeklyBilling}
+                    label="Faturamento mínimo"
+                  />
 
                   <button
                     onClick={() => {
