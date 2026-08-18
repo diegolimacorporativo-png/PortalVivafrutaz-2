@@ -1,0 +1,334 @@
+Quero corrigir e modernizar a tela de **catálogo de produtos utilizada no módulo “Pedidos Pontuais”**.
+
+A tela atual está visualmente muito grande, pesada e pouco agradável no desktop. No mobile, o problema é ainda mais grave: **o catálogo/modal praticamente não consegue abrir ou fica inutilizável**.
+
+Use a imagem anexada como referência do problema atual.
+
+### OBJETIVO
+
+Refazer somente a apresentação e responsividade do catálogo, mantendo **100% da lógica atual de produtos, categorias, preços, seleção e criação do pedido**.
+
+Não quero alterar regras comerciais nem o funcionamento do pedido pontual.
+
+---
+
+## 1. MODAL/CATÁLOGO
+
+O catálogo deve funcionar perfeitamente em:
+
+* Desktop;
+* Notebook;
+* Tablet;
+* Celular Android;
+* iPhone.
+
+O modal não pode depender de uma largura fixa grande.
+
+### Desktop
+
+Utilizar algo próximo de:
+
+* largura: `min(1100px, calc(100vw - 32px))`;
+* altura máxima: `calc(100vh - 32px)`;
+* conteúdo interno com scroll;
+* bordas arredondadas;
+* espaçamento equilibrado;
+* cabeçalho fixo;
+* área de categorias organizada.
+
+Não deixar o modal ocupar praticamente toda a tela sem necessidade.
+
+---
+
+## 2. MOBILE É PRIORIDADE
+
+No celular, o catálogo precisa abrir normalmente.
+
+Não quero simplesmente reduzir o modal desktop.
+
+Criar um layout realmente responsivo.
+
+No mobile:
+
+* modal ocupar aproximadamente 100% da largura;
+* respeitar safe areas do celular;
+* altura máxima de `100dvh`;
+* permitir rolagem vertical;
+* cabeçalho permanecer acessível;
+* botão de fechar sempre visível;
+* campo de pesquisa ocupar a largura disponível;
+* categorias não podem estourar horizontalmente;
+* produtos devem aparecer em uma grade adequada para celular.
+
+Preferência:
+
+### Celular
+
+1 coluna ou 2 colunas, dependendo da largura disponível.
+
+### Tablet
+
+2 ou 3 colunas.
+
+### Desktop
+
+3 ou 4 colunas.
+
+---
+
+## 3. CATEGORIAS
+
+Hoje existem muitas categorias e elas ocupam praticamente toda a parte superior do catálogo.
+
+Não quero uma enorme sequência de botões ocupando várias linhas.
+
+Transformar a área de categorias em uma interface mais compacta.
+
+No desktop:
+
+* categorias em chips/botões compactos;
+* permitir quebra de linha controlada;
+* não deixar uma categoria gigante dominar a tela.
+
+No mobile:
+
+* categorias em uma faixa horizontal rolável;
+* cada categoria deve manter seu tamanho;
+* permitir deslizar horizontalmente;
+* não quebrar o layout;
+* esconder visualmente a barra de rolagem quando possível.
+
+Exemplo:
+
+`Todos → Bebidas → Frutas in natura → Higienizadas → Processadas → Snacks → ...`
+
+O usuário desliza horizontalmente para acessar as demais.
+
+---
+
+## 4. BUSCA
+
+O campo:
+
+“Buscar por nome...”
+
+deve ficar mais compacto e responsivo.
+
+Desktop:
+
+* pesquisa ao lado da área de categorias ou no topo;
+* largura confortável.
+
+Mobile:
+
+* pesquisa ocupar praticamente toda a largura;
+* ficar acima das categorias;
+* não ultrapassar a largura da tela.
+
+---
+
+## 5. PRODUTOS
+
+Melhorar bastante os cards dos produtos.
+
+Os cards atuais estão muito grandes, principalmente porque a área de imagem ocupa muito espaço.
+
+Criar cards mais compactos.
+
+Cada card deve mostrar claramente:
+
+* imagem do produto;
+* nome;
+* categoria;
+* unidade;
+* preço;
+* botão/controle para adicionar.
+
+Se o produto não tiver imagem, usar um placeholder visual compacto.
+
+Não deixar uma área enorme com “Sem imagem”.
+
+---
+
+## 6. HEADER DO CATÁLOGO
+
+Criar um cabeçalho mais limpo:
+
+**Produtos VivaFrutaz**
+
+“Escolha o produto no catálogo”
+
+E botão de fechar.
+
+No mobile, o header deve ser compacto.
+
+O botão de fechar deve permanecer facilmente acessível.
+
+---
+
+## 7. SCROLL
+
+Muito importante:
+
+O scroll deve funcionar corretamente.
+
+Não pode acontecer de:
+
+* o modal abrir;
+* o fundo ficar travado;
+* o conteúdo interno não conseguir rolar;
+* o usuário não conseguir chegar aos produtos;
+* o botão de fechar ficar inacessível.
+
+Estruturar o modal com:
+
+```text
+Modal
+ ├── Header fixo
+ └── Conteúdo scrollável
+      ├── Busca
+      ├── Categorias
+      └── Produtos
+```
+
+No mobile, utilizar `100dvh` em vez de depender apenas de `100vh`.
+
+Verificar também problemas de:
+
+* `overflow`;
+* `position`;
+* `z-index`;
+* `max-height`;
+* `height`;
+* `overscroll`;
+* scroll do body quando o modal está aberto.
+
+---
+
+## 8. ACESSIBILIDADE E USABILIDADE
+
+Manter:
+
+* fechamento pelo botão X;
+* fechamento por ESC no desktop;
+* foco adequado;
+* botões com área de toque confortável no celular;
+* textos legíveis;
+* contraste adequado.
+
+Não criar botões pequenos demais.
+
+---
+
+## 9. IMPORTANTE — NÃO ALTERAR A LÓGICA
+
+Esta tarefa é de **UI/UX e responsividade**.
+
+Não alterar:
+
+* produtos;
+* categorias existentes;
+* preços;
+* regras de preço;
+* estoque;
+* seleção de produtos;
+* criação do pedido;
+* regras de mínimo;
+* permissões;
+* backend;
+* banco de dados;
+* multi-tenancy;
+* APIs existentes.
+
+Reutilizar os componentes e dados atuais sempre que possível.
+
+Não duplicar lógica.
+
+---
+
+## 10. RESPONSIVIDADE REAL
+
+Depois da alteração, testar visualmente pelo menos nestes cenários:
+
+### Desktop
+
+* 1366×768
+* 1920×1080
+
+### Tablet
+
+* 768×1024
+
+### Mobile
+
+* 390×844
+* 375×812
+
+Garantir que o catálogo:
+
+* abre;
+* fecha;
+* pesquisa;
+* troca categorias;
+* lista produtos;
+* permite selecionar produto;
+* permite rolar;
+* não corta conteúdo;
+* não cria scroll horizontal indesejado.
+
+---
+
+## 11. NÃO FAZER UM DESIGN EXAGERADO
+
+Quero uma interface profissional, limpa e coerente com o atual Portal B2B da VivaFrutaz.
+
+Manter a identidade visual existente:
+
+* verde VivaFrutaz;
+* fundo claro;
+* cards limpos;
+* bordas arredondadas;
+* aparência corporativa.
+
+O objetivo é **deixar menor, mais organizado e muito mais funcional**, não transformar o catálogo em uma tela cheia de efeitos.
+
+---
+
+## 12. ANTES DE ALTERAR
+
+Primeiro localize:
+
+* componente responsável pelo catálogo;
+* componente/modal de Pedido Pontual;
+* componente de categorias;
+* componente/card de produto;
+* CSS/Tailwind relacionado ao modal;
+* lógica de abertura/fechamento.
+
+Depois faça a alteração no menor número possível de arquivos.
+
+Não reescreva o módulo inteiro.
+
+---
+
+## 13. VALIDAÇÃO FINAL
+
+Após implementar:
+
+1. Execute o TypeScript/check existente.
+2. Execute os testes existentes.
+3. Verifique se não houve regressão no Pedido Pontual.
+4. Teste abertura e fechamento do catálogo.
+5. Teste desktop.
+6. Teste mobile.
+7. Verifique especificamente se o catálogo abre corretamente em viewport de 375px e 390px.
+
+No final, informe:
+
+* arquivos alterados;
+* componentes alterados;
+* problema de responsividade encontrado;
+* solução aplicada;
+* resultado dos testes.
+
+**Não altere nenhuma funcionalidade além da interface e responsividade do catálogo de Pedidos Pontuais.**

@@ -30,3 +30,11 @@ description: Covers the weekly-schedule implementation that replaced Novo Pedido
 
 ## Known gap
 `dayCarts` has no localStorage persistence (original `create-order.tsx` had it). Tracked as follow-up.
+
+## Weekly minimum billing invariant
+- On confirmation, the applicable weekly total is the tenant-scoped sum of other non-cancelled orders in the same week plus the candidate item totals.
+- On reconfirmation, exclude the order being edited before adding its replacement items; otherwise the original order is counted twice.
+
+**Why:** Reopened orders can be reduced below the contractual minimum, and client-side totals are not authoritative.
+
+**How to apply:** Keep the calculation in one backend helper and invoke it before writes in every customer-facing confirmation path.

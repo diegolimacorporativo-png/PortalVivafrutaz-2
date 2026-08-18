@@ -45,6 +45,11 @@ import {
   resolveProductPrice,
   logPriceDivergence,
 } from "../products/utils/priceResolver";
+import {
+  calculateWeeklyBillingTotal,
+  minimumWeeklyBillingMessage,
+  type WeeklyBillingOrder,
+} from "./weekly-billing";
 void resolveProductPrice;
 void logPriceDivergence;
 
@@ -498,6 +503,12 @@ export class OrdersService {
       );
     }
 
+    await this.assertMinimumWeeklyBilling({
+      companyId: actor.companyId ?? Number(order.companyId),
+      weekReference: order.weekReference,
+      candidateItems: items,
+    });
+
     // 5) persist
     // Auto-normalise items: compute totalPrice = unitPrice × quantity if absent.
     // This guards against API callers that provide unitPrice+quantity but omit
@@ -583,29 +594,12 @@ export class OrdersService {
     // not per individual order.
     const companyId = actor.companyId ?? activeDays[0].companyId;
     if (companyId) {
-      const company = await this.repo.getCompany(companyId);
-      const minWeekly = parseFloat(String((company as any)?.minWeeklyBilling ?? "0")) || 0;
-      if (minWeekly > 0) {
-        // Backend recalculates the real weekly total from item prices — never
-        // trusts the client-supplied day.totalValue which can be 0 or stale.
-        const recalcTotal = activeDays.reduce(
-          (weekSum, d) =>
-            weekSum +
-            (d.items ?? []).reduce(
-              (daySum: number, item: any) =>
-                daySum + Number(item.unitPrice || 0) * Number(item.quantity || 0),
-              0,
-            ),
-          0,
-        );
-        const fmt = (v: number) =>
-          v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        if (recalcTotal < minWeekly) {
-          throw new BadRequestError(
-            `A programação da semana não atingiu o faturamento mínimo de R$ ${fmt(minWeekly)}. Total calculado: R$ ${fmt(recalcTotal)}.`,
-          );
-        }
-      }
+      await this.assertMinimumWeeklyBilling({
+        companyId: Number(companyId),
+        weekReference: activeDays[0].weekReference,
+        candidateItems: activeDays.flatMap((day) => day.items ?? []),
+        existingOrders: [],
+      });
     }
 
     // ACID transaction — real all-or-nothing guarantee.
@@ -1676,6 +1670,15 @@ export class OrdersService {
       "Este pedido foi reaberto, porém o prazo operacional para alterações já expirou.",
     );
 
+    const candidateItems =
+      Array.isArray(items) && items.length > 0 ? items : data.items;
+    await this.assertMinimumWeeklyBilling({
+      companyId: Number((data.order as any).companyId),
+      weekReference: (data.order as any).weekReference,
+      candidateItems,
+      replacingOrderId: id,
+    });
+
     if (Array.isArray(items) && items.length > 0) {
       await this.repo.updateItems(id, items as any);
     }
@@ -1692,6 +1695,39 @@ export class OrdersService {
       level: "INFO",
     });
     return updated;
+  }
+
+  /**
+   * Shared backend guard for all customer-facing confirmation paths.
+   * It runs before any order write and uses the tenant-scoped repository for
+   * persisted weekly totals.
+   */
+  private async assertMinimumWeeklyBilling(input: {
+    companyId: number;
+    weekReference?: string | null;
+    candidateItems: any[];
+    existingOrders?: WeeklyBillingOrder[];
+    replacingOrderId?: number;
+  }): Promise<void> {
+    if (!Number.isFinite(input.companyId) || input.companyId <= 0) return;
+
+    const company = await this.repo.getCompany(input.companyId);
+    const minimum = parseFloat(String((company as any)?.minWeeklyBilling ?? "0")) || 0;
+    if (minimum <= 0) return;
+
+    const existingOrders =
+      input.existingOrders ?? (await this.repo.listByCompanyId(input.companyId));
+    const total = calculateWeeklyBillingTotal({
+      companyId: input.companyId,
+      weekReference: input.weekReference,
+      existingOrders,
+      candidateItems: input.candidateItems,
+      replacingOrderId: input.replacingOrderId,
+    });
+
+    if (total < minimum) {
+      throw new BadRequestError(minimumWeeklyBillingMessage(minimum, total));
+    }
   }
 
   // ╔══════════════════════════════════════════════════════════════════╗

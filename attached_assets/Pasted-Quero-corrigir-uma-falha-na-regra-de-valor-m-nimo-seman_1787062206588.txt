@@ -1,0 +1,98 @@
+Quero corrigir uma falha na regra de **valor mínimo semanal dos pedidos** no Portal B2B da VivaFrutaz.
+
+### Problema atual
+
+O sistema já possui uma regra que impede o cliente de confirmar um pedido quando o **valor mínimo semanal exigido não é atingido**.
+
+Essa regra funciona corretamente quando o cliente cria um pedido normalmente.
+
+Porém, existe uma falha no fluxo de **pedido reaberto**:
+
+* o pedido é reaberto para alteração;
+* o cliente altera os itens/quantidades;
+* o novo total semanal pode ficar abaixo do valor mínimo;
+* mesmo assim, o sistema permite salvar/reconfirmar o pedido.
+
+Isso significa que a validação do valor mínimo semanal não está sendo executada novamente no fluxo de pedido reaberto.
+
+### O que quero
+
+Corrija essa falha **sem alterar nenhuma outra regra ou funcionalidade do sistema**.
+
+A regra de valor mínimo semanal deve ser aplicada de forma consistente nos dois fluxos:
+
+1. Pedido novo.
+2. Pedido reaberto/alterado.
+
+Sempre que o pedido for confirmado ou reconfirmado, o backend deve recalcular o valor semanal aplicável e executar novamente a mesma validação do mínimo semanal.
+
+### Regra importante
+
+Não crie uma segunda regra independente.
+
+Localize a implementação atual da validação de mínimo semanal e, se necessário, centralize/reutilize essa mesma função para que ela seja chamada tanto no fluxo de pedido novo quanto no fluxo de pedido reaberto.
+
+A validação deve acontecer obrigatoriamente no **backend**, para que o cliente não consiga contorná-la pelo frontend.
+
+### Fluxo esperado
+
+Pedido novo:
+
+Pedido → calcular total semanal → validar mínimo → se atingir, confirmar → se não atingir, bloquear.
+
+Pedido reaberto:
+
+Pedido reaberto → cliente altera quantidades/itens → recalcular total semanal → validar mínimo novamente → se atingir, permitir confirmação → se não atingir, bloquear.
+
+### Mensagem ao cliente
+
+Quando o pedido ficar abaixo do mínimo, utilizar a mensagem de validação já existente no sistema, caso ela exista.
+
+Não criar uma mensagem diferente sem necessidade.
+
+### Cuidados
+
+Antes de alterar:
+
+* localize exatamente onde a regra atual de mínimo semanal está implementada;
+* identifique o endpoint/service responsável por confirmar pedidos;
+* identifique o fluxo específico de reabertura;
+* verifique se existe alguma diferença entre confirmar pedido novo e reconfirmar pedido reaberto.
+
+Depois faça a menor alteração possível.
+
+Não altere:
+
+* valores dos mínimos;
+* regras comerciais existentes;
+* permissões;
+* status dos pedidos;
+* cálculo de preços;
+* histórico;
+* multi-tenancy;
+* banco de dados, salvo se for estritamente necessário;
+* outras funcionalidades do módulo.
+
+### Testes obrigatórios
+
+Crie/verifique testes para garantir:
+
+1. Pedido novo abaixo do mínimo → bloqueado.
+2. Pedido novo acima do mínimo → permitido.
+3. Pedido reaberto que continua acima do mínimo → permitido.
+4. Pedido reaberto que, após alteração, fica abaixo do mínimo → bloqueado.
+5. Pedido reaberto que estava acima do mínimo e passa a ficar abaixo após reduzir quantidades → bloqueado.
+6. Pedido reaberto que estava abaixo do mínimo e passa a atingir o mínimo → permitido.
+7. Um cliente/tenant não pode utilizar dados de outro cliente/tenant no cálculo do mínimo semanal.
+
+Após a alteração, execute os testes e a verificação TypeScript/lint existentes no projeto.
+
+No final, me informe:
+
+* quais arquivos foram alterados;
+* onde estava o problema;
+* qual foi a correção;
+* quais testes foram executados;
+* resultado dos testes.
+
+Não faça nenhuma alteração fora desse escopo.
