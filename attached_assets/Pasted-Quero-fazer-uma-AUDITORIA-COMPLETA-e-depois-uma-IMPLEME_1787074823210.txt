@@ -1,0 +1,599 @@
+Quero fazer uma **AUDITORIA COMPLETA e depois uma IMPLEMENTAÇÃO CONTROLADA do Painel do Motorista** do ERP VivaFrutaz.
+
+A tela atual está em:
+
+`/admin/driver-panel`
+
+Visualmente ela está muito simples e parece não expor várias informações e funcionalidades que podem já existir no backend do sistema.
+
+**NÃO comece programando imediatamente.**
+
+Primeiro faça uma auditoria completa do que já existe no projeto. Depois, com base nessa auditoria, implemente o painel utilizando o máximo possível das estruturas, APIs, tabelas, serviços e componentes que já existem.
+
+---
+
+# FASE 1 — AUDITORIA OBRIGATÓRIA
+
+Antes de alterar qualquer código, investigue o projeto inteiro relacionado à operação de motoristas, entregas e rotas.
+
+Procure especificamente por:
+
+### Backend
+
+* rotas de motorista;
+* rotas de entregas;
+* rotas;
+* planejamento;
+* logística;
+* ocorrências;
+* comprovante de entrega/POD;
+* fotos;
+* assinatura;
+* geolocalização;
+* clientes;
+* pedidos;
+* status de entrega;
+* usuários/motoristas;
+* permissões;
+* notificações;
+* WhatsApp/telefone;
+* mapa/GPS;
+* documentos de rota;
+* NF-e relacionada à entrega, se existir.
+
+Pesquisar também por termos semelhantes:
+
+`driver`
+`motorista`
+`delivery`
+`entrega`
+`route`
+`rota`
+`occurrence`
+`ocorrencia`
+`POD`
+`proof`
+`signature`
+`assinatura`
+`photo`
+`foto`
+`gps`
+`location`
+`geolocation`
+`tracking`
+`navigation`
+`route-stop`
+`parada`
+
+Não assumir que algo não existe apenas porque não aparece na tela atual.
+
+---
+
+# BANCO DE DADOS
+
+Auditar as tabelas relacionadas a:
+
+* motoristas;
+* veículos;
+* rotas;
+* paradas;
+* entregas;
+* pedidos;
+* clientes;
+* ocorrências;
+* fotos;
+* assinaturas;
+* comprovantes;
+* localização;
+* status;
+* histórico/auditoria.
+
+Mapear:
+
+* tabela;
+* finalidade;
+* relacionamentos;
+* campos relevantes;
+* status existentes;
+* foreign keys;
+* tenant_id/contexto de tenant;
+* timestamps.
+
+**Não criar tabelas novas antes de verificar se já existe uma estrutura equivalente.**
+
+---
+
+# APIs / SERVICES
+
+Identificar todas as APIs/services existentes que podem ser reutilizados pelo painel.
+
+Para cada uma, informar:
+
+* endpoint/service;
+* método;
+* finalidade;
+* autenticação;
+* permissões;
+* dados retornados;
+* se já é utilizado por outro módulo.
+
+Verificar também se existem endpoints parcialmente implementados que simplesmente não estão sendo utilizados pela tela atual.
+
+---
+
+# FRONTEND
+
+Auditar:
+
+* página atual `/admin/driver-panel`;
+* componentes existentes;
+* hooks;
+* contextos;
+* services;
+* componentes de mapa;
+* componentes de status;
+* componentes de upload;
+* componentes de assinatura;
+* componentes de ocorrência;
+* componentes de pedido/entrega;
+* componentes responsivos que possam ser reutilizados.
+
+Não duplicar componentes que já existem.
+
+---
+
+# PERMISSÕES E SEGURANÇA
+
+Verificar exatamente como o sistema identifica um motorista.
+
+Respeitar:
+
+* autenticação;
+* autorização;
+* role/perfil;
+* tenant;
+* motorista vinculado ao usuário;
+* isolamento entre empresas.
+
+O motorista **NUNCA pode visualizar entregas, clientes, rotas ou informações pertencentes a outro tenant ou outro motorista sem autorização explícita**.
+
+Não confiar somente no frontend para segurança.
+
+Toda consulta sensível deve ser validada no backend.
+
+---
+
+# RESULTADO DA AUDITORIA
+
+Antes de implementar, apresente um relatório organizado:
+
+## 1. O que já existe
+
+Tabela:
+
+| Recurso | Existe? | Onde está | Pode reutilizar? |
+| ------- | ------- | --------- | ---------------- |
+
+Exemplos:
+
+* Rotas
+* Entregas
+* Paradas
+* Status
+* Ocorrências
+* Fotos
+* Assinatura
+* GPS
+* Clientes
+* Pedidos
+* Comunicação
+* Comprovante de entrega
+
+## 2. O que existe no backend mas não aparece no painel
+
+Listar claramente.
+
+## 3. O que existe parcialmente
+
+Exemplo:
+
+* backend existe;
+* endpoint existe;
+* frontend ainda não utiliza.
+
+## 4. O que realmente está faltando
+
+Somente depois dessa análise apontar funcionalidades que precisam ser criadas.
+
+## 5. Riscos
+
+Identificar possíveis impactos em:
+
+* pedidos;
+* logística;
+* planejamento;
+* permissões;
+* banco;
+* multi-tenancy;
+* outros módulos.
+
+---
+
+# NÃO IMPLEMENTAR ANTES DA AUDITORIA
+
+Depois de concluir a auditoria, **pare antes de fazer alterações** e apresente o relatório.
+
+Somente após a auditoria estar concluída, prossiga para a FASE 2.
+
+---
+
+# FASE 2 — IMPLEMENTAÇÃO
+
+Depois da auditoria, transformar o `/admin/driver-panel` em um verdadeiro **Painel Operacional do Motorista**, aproveitando o que já existe.
+
+A implementação deve ser baseada no resultado da auditoria.
+
+---
+
+# DASHBOARD
+
+Criar uma visão inicial clara:
+
+### Resumo da rota
+
+* Total de entregas
+* Pendentes
+* Em andamento
+* Concluídas
+* Com ocorrência
+
+Mostrar progresso da rota.
+
+Exemplo:
+
+`8 de 12 entregas concluídas`
+
+e uma barra visual de progresso.
+
+---
+
+# ROTA DO DIA
+
+Exibir:
+
+* rota atual;
+* data;
+* motorista;
+* veículo, se existir;
+* horário;
+* quantidade de paradas;
+* status da rota.
+
+Se não houver rota:
+
+mostrar claramente:
+
+**Nenhuma rota atribuída para hoje.**
+
+---
+
+# LISTA DE ENTREGAS
+
+Cada parada deve mostrar:
+
+* número do pedido;
+* cliente;
+* endereço;
+* horário/janela;
+* quantidade de volumes, se disponível;
+* status;
+* observações relevantes.
+
+Ações possíveis, conforme o que o backend já suporta:
+
+* visualizar;
+* iniciar entrega;
+* iniciar navegação;
+* confirmar chegada;
+* concluir entrega;
+* registrar ocorrência;
+* visualizar detalhes.
+
+Não criar ações falsas que não possuem suporte real.
+
+---
+
+# DETALHE DA ENTREGA
+
+Ao abrir uma entrega, mostrar:
+
+### Cliente
+
+* nome;
+* endereço;
+* telefone/WhatsApp, se disponível;
+* observações.
+
+### Pedido
+
+* número;
+* produtos/volumes;
+* informações relevantes para entrega.
+
+### Entrega
+
+* horário previsto;
+* status;
+* histórico;
+* observações.
+
+---
+
+# CONFIRMAÇÃO DE ENTREGA
+
+Se já existir suporte no backend, utilizar.
+
+Possibilitar, conforme disponibilidade atual:
+
+* nome de quem recebeu;
+* assinatura;
+* foto;
+* observação;
+* localização;
+* data/hora automática.
+
+Não criar uma segunda estrutura de comprovante se já existir POD no sistema.
+
+---
+
+# OCORRÊNCIAS
+
+Se já existir estrutura, integrar ao painel.
+
+Permitir registrar ocorrência com:
+
+* tipo;
+* descrição;
+* foto, se suportado;
+* data/hora;
+* localização, se suportado.
+
+Exemplos de ocorrência:
+
+* cliente ausente;
+* estabelecimento fechado;
+* endereço incorreto;
+* pedido recusado;
+* produto avariado;
+* falta de produto;
+* outro.
+
+Utilizar os tipos já existentes no sistema quando houver.
+
+---
+
+# MAPA GPS
+
+Se já existir integração:
+
+utilizar a estrutura existente.
+
+Mostrar:
+
+* posição atual, quando disponível;
+* rota;
+* paradas;
+* próxima entrega.
+
+Permitir abrir navegação utilizando a integração já disponível.
+
+**Não adicionar um novo provedor de mapas sem necessidade.**
+
+---
+
+# NF-e DA ROTA
+
+Existe atualmente uma aba chamada:
+
+**“NF-e da Rota”**
+
+Auditar primeiro o que ela já faz.
+
+Se houver funcionalidade existente, integrá-la corretamente ao painel.
+
+Não remover essa funcionalidade.
+
+---
+
+# GUIA RÁPIDO
+
+A tela atual possui:
+
+**Guia Rápido**
+
+Auditar o conteúdo atual.
+
+Se estiver incompleto, melhorar utilizando as funcionalidades reais do painel.
+
+Não criar instruções para funcionalidades que não existem.
+
+---
+
+# DESIGN
+
+Manter a identidade visual VivaFrutaz.
+
+O painel deve ser:
+
+* limpo;
+* profissional;
+* rápido;
+* fácil de usar;
+* adequado para uso durante a entrega;
+* com botões grandes;
+* leitura rápida;
+* poucos elementos desnecessários.
+
+Priorizar uso em celular.
+
+---
+
+# MOBILE — PRIORIDADE
+
+O motorista provavelmente utilizará celular.
+
+Criar layout responsivo real para:
+
+* 375×812;
+* 390×844;
+* 412×915;
+* tablet;
+* desktop.
+
+No mobile:
+
+* cards compactos;
+* botões fáceis de tocar;
+* informações essenciais primeiro;
+* ações principais sempre acessíveis;
+* evitar tabelas horizontais;
+* evitar elementos que ultrapassem a tela;
+* utilizar `100dvh` quando necessário;
+* scroll correto.
+
+---
+
+# STATUS DA ENTREGA
+
+Utilizar os status já existentes no sistema.
+
+Não criar uma nova máquina de estados se já existir uma.
+
+Caso seja necessário adicionar algum status novo, primeiro identificar impacto no backend e no restante do ERP.
+
+---
+
+# REGRAS IMPORTANTES
+
+Não alterar:
+
+* pedidos;
+* preços;
+* regras comerciais;
+* planejamento semanal;
+* mínimo semanal;
+* faturamento;
+* NF-e;
+* financeiro;
+* multi-tenancy;
+* permissões existentes;
+* banco de dados sem necessidade;
+* APIs existentes sem necessidade.
+
+Não duplicar:
+
+* tabelas;
+* endpoints;
+* services;
+* componentes;
+* regras de negócio.
+
+Reutilizar o máximo possível.
+
+---
+
+# SEGURANÇA
+
+Toda informação do motorista deve ser filtrada no backend.
+
+O motorista somente pode acessar:
+
+* sua própria rota;
+* suas próprias entregas;
+* clientes relacionados às entregas autorizadas;
+* informações necessárias para executar a entrega.
+
+Nunca confiar apenas em parâmetros enviados pelo frontend como `driverId` ou `tenantId`.
+
+---
+
+# TESTES
+
+Depois da implementação executar:
+
+* TypeScript/check;
+* lint, se existir;
+* testes existentes;
+* testes específicos do painel, se houver infraestrutura.
+
+Testar pelo menos:
+
+### Rota
+
+* motorista com rota;
+* motorista sem rota.
+
+### Entregas
+
+* pendente;
+* em andamento;
+* concluída;
+* ocorrência.
+
+### Segurança
+
+* motorista acessando própria rota;
+* tentativa de acessar rota de outro motorista;
+* tentativa de acessar outro tenant.
+
+### Mobile
+
+* 375×812;
+* 390×844;
+* 412×915.
+
+### Desktop
+
+* 1366×768;
+* 1920×1080.
+
+---
+
+# REGRA FINAL
+
+Não faça uma reconstrução baseada em suposições.
+
+Primeiro descubra o que o ERP **já possui**.
+
+Depois conecte o painel às funcionalidades existentes.
+
+Somente desenvolva algo novo quando a auditoria comprovar que realmente não existe.
+
+Ao finalizar, entregue um relatório:
+
+### AUDITORIA
+
+* funcionalidades existentes;
+* funcionalidades parcialmente existentes;
+* funcionalidades ausentes.
+
+### IMPLEMENTAÇÃO
+
+* arquivos alterados;
+* componentes reutilizados;
+* APIs reutilizadas;
+* novas APIs, se realmente necessárias;
+* alterações de banco, se realmente necessárias.
+
+### TESTES
+
+* comandos executados;
+* resultado;
+* problemas encontrados;
+* problemas corrigidos.
+
+### REGRESSÃO
+
+Confirme explicitamente que pedidos, planejamento, permissões, multi-tenancy e demais módulos existentes continuam funcionando.
+
+**Não faça alterações fora desse escopo.**
