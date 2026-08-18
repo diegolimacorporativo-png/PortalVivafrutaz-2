@@ -2,11 +2,13 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
-import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import { isDriver, isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
+import { ForbiddenError } from "../shared/errors/AppError";
 import {
   logisticsDrivers as driversTable,
+  logisticsRoutes as routesTable,
   orders as ordersTable,
   deliveries as deliveriesTable,
   deliveryStopEvents,
@@ -121,6 +123,43 @@ export async function register(app: Express): Promise<void> {
         entidadeId: entidadeId || null, entidadeTipo: entidadeTipo || null,
       });
     } catch (_) {}
+  }
+
+  /**
+   * Resolves a delivery and verifies tenant ownership plus driver ownership.
+   * Internal roles keep their existing visibility; a tenant-pinned internal
+   * user remains restricted to that tenant. An unscoped cross-tenant admin
+   * keeps the existing support/reporting behavior.
+   */
+  async function getAuthorizedDelivery(deliveryId: number, actor: any): Promise<any | undefined> {
+    const delivery = await storage.getDelivery(deliveryId);
+    if (!delivery) return undefined;
+
+    const tenantId = currentTenantId() ?? (actor?.empresaId ?? null);
+    if (tenantId != null && Number(delivery.companyId) !== Number(tenantId)) {
+      throw new ForbiddenError('Acesso negado');
+    }
+
+    if (isDriver(actor?.role)) {
+      const ownDriverId = await resolveOwnDriverId(storage, actor);
+      if (!ownDriverId) throw new ForbiddenError('Motorista não vinculado');
+
+      let ownsDelivery = Number(delivery.driverId) === ownDriverId;
+      if (!ownsDelivery && delivery.routeId) {
+        const [route] = await db
+          .select({ driverId: routesTable.driverId })
+          .from(routesTable)
+          .where(eq(routesTable.id, Number(delivery.routeId)))
+          .limit(1);
+        ownsDelivery = Number(route?.driverId) === ownDriverId;
+      }
+
+      if (!ownsDelivery) {
+        throw new ForbiddenError('Entrega não pertence ao motorista');
+      }
+    }
+
+    return delivery;
   }
 
   // ─── Driver Panel — Rota do dia ───────────────────────────────────────────────

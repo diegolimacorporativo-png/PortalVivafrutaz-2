@@ -8,7 +8,8 @@
  *
  *   • LOGISTICS_INTERNAL_ROLES — read-only canonical list of internal roles
  *     that retain full visibility (mirrors LOGISTICS_AUTH_ROLES + extras).
- *   • DRIVER_OR_INTERNAL_ROLES — superset that additionally allows DRIVER.
+ *   • DRIVER_OR_INTERNAL_ROLES — superset that additionally allows DRIVER
+ *     and the legacy Portuguese alias MOTORISTA.
  *   • resolveOwnDriverId(storageCompat, actor) — resolves the driver id that
  *     belongs to the given user. FASE MT-1: now uses a Drizzle SQL query
  *     scoped to actor.empresaId instead of a full-table storage.getDrivers()
@@ -33,14 +34,19 @@ export const LOGISTICS_INTERNAL_ROLES: readonly string[] = LOGISTICS_AUTH_ROLES;
 export const DRIVER_OR_INTERNAL_ROLES: readonly string[] = [
   ...LOGISTICS_AUTH_ROLES,
   "DRIVER",
+  "MOTORISTA",
 ];
+
+export function isDriver(role: string | null | undefined): boolean {
+  return role === "DRIVER" || role === "MOTORISTA";
+}
 
 export function isInternal(role: string | null | undefined): boolean {
   return !!role && LOGISTICS_INTERNAL_ROLES.includes(role);
 }
 
 export function isDriverOrInternal(role: string | null | undefined): boolean {
-  return !!role && DRIVER_OR_INTERNAL_ROLES.includes(role);
+  return isDriver(role) || (!!role && LOGISTICS_INTERNAL_ROLES.includes(role));
 }
 
 /**

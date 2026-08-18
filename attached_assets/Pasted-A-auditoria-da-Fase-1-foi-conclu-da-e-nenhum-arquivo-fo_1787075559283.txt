@@ -1,0 +1,803 @@
+A auditoria da Fase 1 foi concluída e nenhum arquivo foi alterado.
+
+Agora quero iniciar a **FASE 2 — IMPLEMENTAÇÃO**, utilizando obrigatoriamente os achados da auditoria.
+
+A implementação deve ser feita de forma incremental e segura.
+
+## ORDEM OBRIGATÓRIA
+
+Execute nesta ordem:
+
+1. Segurança e autorização dos endpoints.
+2. Correção do vínculo motorista/usuário, se necessário.
+3. Integração dos dados reais de rota/entrega.
+4. Resumo operacional da rota.
+5. Detalhamento da entrega.
+6. Tracking/GPS/ETA existentes.
+7. Comprovante de entrega.
+8. Ocorrências.
+9. NF-e da rota.
+10. Responsividade/mobile.
+11. Guia Rápido.
+12. Testes e validação final.
+
+Não pule diretamente para o redesign visual.
+
+---
+
+# 1. SEGURANÇA — PRIORIDADE MÁXIMA
+
+A auditoria encontrou uma possível vulnerabilidade nos endpoints individuais de delivery.
+
+Revisar e corrigir, antes de qualquer outra funcionalidade:
+
+* `GET /api/deliveries/:id`
+* `POST /api/deliveries/:id/checklist`
+* `POST /api/deliveries/:id/stop-status`
+* `GET /api/deliveries/:id/stop-events`
+* `PUT/PATCH /api/deliveries/:id`
+
+Todo acesso deve validar:
+
+* sessão;
+* tenant;
+* usuário;
+* papel;
+* motorista;
+* propriedade da entrega;
+* vínculo com rota.
+
+Um motorista não pode acessar ou modificar uma entrega de outro motorista simplesmente conhecendo o `deliveryId`.
+
+Também não pode acessar entrega pertencente a outro tenant.
+
+Não confiar em:
+
+* `driverId` enviado pelo frontend;
+* `tenantId` enviado pelo frontend;
+* `routeId` enviado pelo frontend.
+
+O backend deve resolver e validar o contexto real.
+
+## Importante
+
+Não remover permissões legítimas de:
+
+* ADMIN;
+* DIRECTOR;
+* DEVELOPER;
+* OPERADOR/LOGÍSTICA;
+* outros papéis já autorizados.
+
+Preservar o modelo atual de autorização.
+
+---
+
+# 2. VÍNCULO MOTORISTA / USUÁRIO
+
+A auditoria encontrou:
+
+Frontend:
+
+`MOTORISTA`
+
+Backend:
+
+`DRIVER`
+
+Também foi identificado que o vínculo motorista → usuário atualmente depende de:
+
+1. e-mail;
+2. nome como fallback;
+3. empresa.
+
+Antes de alterar, verificar exatamente como isso funciona atualmente.
+
+Não criar uma nova estrutura de usuários sem necessidade.
+
+Garantir que um usuário identificado como motorista consiga:
+
+* acessar seu painel;
+* consultar sua rota;
+* atualizar suas entregas;
+* enviar seu GPS;
+* registrar entrega;
+* registrar ocorrência.
+
+E que não consiga acessar dados de outro motorista.
+
+Se houver apenas diferença de nomenclatura entre `MOTORISTA` e `DRIVER`, corrigir de forma centralizada e compatível com o sistema atual.
+
+---
+
+# 3. ROTA DO DIA
+
+Utilizar:
+
+`GET /api/driver/route-today`
+
+e as estruturas já existentes.
+
+O painel deve mostrar:
+
+### Cabeçalho
+
+* Motorista;
+* data;
+* rota;
+* veículo, quando disponível;
+* status da rota;
+* horário de início/fim, quando disponível.
+
+### Resumo
+
+Mostrar:
+
+* total;
+* pendentes;
+* em andamento;
+* concluídas;
+* ocorrências.
+
+Criar uma barra de progresso.
+
+Exemplo:
+
+`8 de 12 entregas concluídas`
+
+---
+
+# 4. NÃO CRIAR UMA SEGUNDA FONTE DE DADOS
+
+A informação apresentada no painel deve vir das estruturas reais existentes.
+
+Reutilizar:
+
+* `deliveries`;
+* `route_stops`;
+* `logistics_routes`;
+* `logistics_drivers`;
+* `logistics_vehicles`;
+* `delivery_stop_events`;
+* `orders`;
+* `order_items`;
+* `companies`.
+
+Não criar dados mockados.
+
+Não inventar entregas.
+
+Não duplicar tabelas.
+
+---
+
+# 5. LISTA OPERACIONAL DE ENTREGAS
+
+Transformar a lista atual em uma lista realmente operacional.
+
+Cada entrega deve mostrar:
+
+* posição na rota;
+* cliente;
+* endereço;
+* janela de entrega;
+* pedido;
+* volumes/produtos, quando disponíveis;
+* status;
+* observação relevante;
+* ETA, quando disponível.
+
+Status devem respeitar os existentes:
+
+* `pendente`;
+* `em_rota`;
+* `entregue`;
+* `cancelado`.
+
+E os eventos existentes:
+
+* `entregue`;
+* `cliente_ausente`;
+* `endereco_incorreto`;
+* `recusado`;
+* `reagendado`;
+* `problema`.
+
+Não criar uma nova máquina de estados.
+
+---
+
+# 6. AÇÕES DA ENTREGA
+
+As ações devem aparecer de acordo com o status.
+
+Exemplos:
+
+### Pendente
+
+* Iniciar entrega;
+* Navegar;
+* Ver detalhes.
+
+### Em rota
+
+* Confirmar chegada/conclusão conforme fluxo existente;
+* Registrar ocorrência;
+* Navegar;
+* Ver detalhes.
+
+### Entregue
+
+* Ver detalhes;
+* Ver comprovante;
+* Ver histórico.
+
+Não criar botões que não possuem backend funcional.
+
+---
+
+# 7. DETALHE DA ENTREGA
+
+Criar um painel/modal/drawer responsivo para visualizar uma entrega.
+
+Mostrar:
+
+## Cliente
+
+* nome;
+* endereço;
+* cidade/UF;
+* telefone;
+* observações.
+
+## Pedido
+
+* número;
+* itens;
+* quantidades;
+* volumes;
+* informações relevantes.
+
+## Rota
+
+* posição;
+* janela;
+* ETA;
+* distância, quando disponível.
+
+## Histórico
+
+Utilizar:
+
+`GET /api/deliveries/:id/stop-events`
+
+Mostrar cronologicamente:
+
+* status;
+* horário;
+* usuário;
+* observação.
+
+---
+
+# 8. TRACKING E ETA
+
+A auditoria encontrou:
+
+`GET /api/logistics/track/:routeId`
+
+Esse endpoint já fornece:
+
+* rota;
+* motorista;
+* veículo;
+* paradas;
+* entregas;
+* status;
+* GPS;
+* ETA;
+* distância;
+* tempo estimado.
+
+Reutilizar essa estrutura.
+
+Não criar outro endpoint de tracking se não for necessário.
+
+No painel, mostrar informações úteis como:
+
+* próxima parada;
+* ETA;
+* distância;
+* progresso da rota.
+
+---
+
+# 9. GPS
+
+Já existe:
+
+`POST /api/driver/gps`
+
+e:
+
+`GET /api/driver/:driverId/gps`
+
+Integrar o painel corretamente ao backend.
+
+Se a auditoria confirmar que é seguro e compatível com o projeto:
+
+* utilizar `watchPosition`;
+* enviar posição periodicamente;
+* respeitar permissões do navegador;
+* evitar envio excessivo;
+* tratar indisponibilidade de GPS;
+* não bloquear o painel se o usuário negar localização.
+
+Não implementar rastreamento agressivo.
+
+Não coletar GPS quando o usuário não estiver utilizando o fluxo que exige localização.
+
+O backend continua sendo a autoridade sobre o motorista.
+
+---
+
+# 10. MAPA
+
+Já existem:
+
+* `GpsMap`;
+* `LeafletRouteMap`.
+
+Não criar outro mapa.
+
+Escolher a implementação mais adequada depois de verificar os dois componentes.
+
+O mapa deve mostrar:
+
+* posição do motorista;
+* paradas;
+* ordem das paradas;
+* status;
+* rota, quando disponível.
+
+No mobile, o mapa deve funcionar corretamente.
+
+Não deixar altura fixa inadequada.
+
+---
+
+# 11. COMPROVANTE DE ENTREGA
+
+Já existe:
+
+`delivery_checklists`
+
+com:
+
+* `deliveryId`;
+* `driverId`;
+* `entregaConfirmada`;
+* `observacao`;
+* `assinaturaUrl`;
+* `fotoUrl`;
+* `horarioEntrega`.
+
+Não criar uma nova tabela de POD.
+
+Primeiro verificar a infraestrutura existente de upload/arquivos.
+
+Se já existir upload reutilizável, utilizar.
+
+Implementar no painel:
+
+* confirmação da entrega;
+* nome de quem recebeu, se houver suporte;
+* observação;
+* foto;
+* assinatura;
+* horário automático.
+
+Somente implementar foto/assinatura se houver uma forma segura de armazenar os arquivos.
+
+Não armazenar arquivos de forma improvisada.
+
+---
+
+# 12. OCORRÊNCIAS
+
+A auditoria identificou que existem:
+
+* `client_incidents`;
+* `internal_incidents`;
+* `incident_messages`.
+
+Mas não existe vínculo direto comprovado com `deliveryId`.
+
+Antes de criar qualquer tabela:
+
+verificar se uma estrutura existente pode ser utilizada sem prejudicar o restante do sistema.
+
+Se for realmente necessário criar vínculo específico para entrega:
+
+* propor a alteração;
+* manter multi-tenancy;
+* manter auditoria;
+* não quebrar ocorrências existentes.
+
+A ocorrência deve permitir, quando suportado:
+
+* tipo;
+* descrição;
+* foto;
+* data/hora;
+* entrega;
+* motorista;
+* rota.
+
+Utilizar os tipos existentes sempre que possível.
+
+---
+
+# 13. NF-e DA ROTA
+
+A auditoria identificou que o painel atualmente utiliza:
+
+`GET /api/nfe`
+
+e tenta relacionar NF-e por nome do destinatário.
+
+Isso deve ser corrigido.
+
+Não utilizar comparação textual de nome como principal vínculo.
+
+Priorizar:
+
+`delivery → order → nfe`
+
+ou:
+
+`delivery → orderId → nfe_emissoes`
+
+caso os relacionamentos existentes permitam.
+
+O objetivo é evitar que:
+
+* uma NF-e de outro cliente apareça;
+* uma NF-e correta deixe de aparecer;
+* empresas com nomes semelhantes sejam confundidas.
+
+Não alterar o módulo fiscal.
+
+Apenas melhorar a associação no painel.
+
+---
+
+# 14. ESTADO VAZIO E ERROS
+
+Hoje a tela pode confundir:
+
+“não existem entregas”
+
+com:
+
+“ocorreu um erro ao buscar entregas”.
+
+Separar claramente:
+
+### Sem rota
+
+“Nenhuma rota atribuída para hoje.”
+
+### Sem entregas
+
+“Esta rota não possui entregas.”
+
+### Erro
+
+“Não foi possível carregar a rota.”
+
+Com botão:
+
+“ tentar novamente ”
+
+Não esconder erros reais.
+
+---
+
+# 15. MOBILE — PRIORIDADE
+
+O motorista usará o sistema principalmente no celular.
+
+O painel deve funcionar perfeitamente em:
+
+* 375×812;
+* 390×844;
+* 412×915.
+
+Também testar:
+
+* 768×1024;
+* 1366×768;
+* 1920×1080.
+
+No celular:
+
+* botões grandes;
+* informações essenciais primeiro;
+* cards compactos;
+* evitar tabelas horizontais;
+* mapa adaptável;
+* ações de entrega facilmente acessíveis;
+* histórico em formato vertical;
+* modais/drawers adaptados para mobile.
+
+Não simplesmente reduzir o desktop.
+
+Criar layout responsivo real.
+
+---
+
+# 16. GUIA RÁPIDO
+
+Auditar:
+
+`client/src/components/FloatingGuide.tsx`
+
+Atualizar somente para funcionalidades realmente existentes.
+
+Não prometer:
+
+* “caminhão em tempo real” se não estiver implementado;
+* “Confirmar Entrega” se o fluxo tiver outro nome.
+
+O Guia Rápido deve explicar:
+
+* como visualizar a rota;
+* como abrir uma entrega;
+* como iniciar/atualizar status;
+* como registrar ocorrência;
+* como comprovar entrega;
+* como utilizar o mapa;
+* como utilizar GPS, se disponível.
+
+---
+
+# 17. DESIGN
+
+Manter a identidade visual VivaFrutaz.
+
+A tela atual usa azul no cabeçalho.
+
+Pode melhorar a hierarquia visual, mas não quero uma interface totalmente diferente do restante do ERP.
+
+Priorizar:
+
+* clareza;
+* velocidade;
+* leitura rápida;
+* poucos cliques;
+* operação com uma mão;
+* botões de ação evidentes.
+
+O motorista não deve precisar navegar por várias telas para concluir uma entrega.
+
+---
+
+# 18. ARQUITETURA
+
+Evitar duplicação.
+
+A auditoria encontrou lógica semelhante em:
+
+`client/src/pages/admin/driver-panel.tsx`
+
+e:
+
+`client/src/pages/admin/logistics.tsx`
+
+Antes de duplicar qualquer lógica nova, verificar se pode extrair/reutilizar:
+
+* hooks;
+* services;
+* componentes;
+* funções de status;
+* histórico.
+
+Não fazer uma refatoração gigante sem necessidade.
+
+---
+
+# 19. IMPLEMENTAÇÃO INCREMENTAL
+
+Faça em pequenos blocos.
+
+Depois de cada bloco:
+
+1. verificar TypeScript;
+2. verificar erros;
+3. executar testes relacionados;
+4. confirmar que o painel continua abrindo.
+
+Não modificar dezenas de áreas sem validar.
+
+---
+
+# 20. TESTES DE SEGURANÇA OBRIGATÓRIOS
+
+Testar explicitamente:
+
+### Motorista A
+
+Pode:
+
+* visualizar sua rota;
+* visualizar suas entregas;
+* atualizar sua entrega;
+* consultar histórico;
+* registrar GPS;
+* registrar/comprovar entrega.
+
+### Motorista A tentando acessar entrega do Motorista B
+
+Deve receber:
+
+`403` ou resposta equivalente de autorização.
+
+### Motorista A tentando acessar outro tenant
+
+Deve ser bloqueado.
+
+### Motorista A tentando alterar entrega de outro motorista
+
+Deve ser bloqueado.
+
+### Usuários internos autorizados
+
+Devem continuar funcionando conforme as permissões atuais.
+
+---
+
+# 21. TESTES FUNCIONAIS
+
+Testar:
+
+* rota com entregas;
+* rota sem entregas;
+* motorista sem rota;
+* entrega pendente;
+* entrega em rota;
+* entrega concluída;
+* ocorrência;
+* histórico;
+* mapa;
+* GPS;
+* ETA;
+* NF-e;
+* comprovante;
+* foto;
+* assinatura;
+* atualização de status.
+
+---
+
+# 22. TESTES DE REGRESSÃO
+
+Executar os comandos existentes do projeto.
+
+No mínimo, quando disponíveis:
+
+* `npx tsc --noEmit`;
+* lint/check;
+* testes automatizados.
+
+Não considerar a tarefa concluída se houver erro TypeScript causado pela alteração.
+
+---
+
+# 23. BANCO DE DADOS
+
+Não criar novas tabelas automaticamente.
+
+Antes de qualquer migration:
+
+1. explicar por que é necessária;
+2. mostrar qual estrutura existente foi considerada;
+3. confirmar que não existe alternativa de reutilização;
+4. garantir tenant isolation;
+5. garantir rollback seguro.
+
+Se não for necessária migration, não criar.
+
+---
+
+# 24. NÃO ALTERAR
+
+Não alterar funcionalidades não relacionadas:
+
+* pedidos;
+* programação semanal;
+* mínimo semanal;
+* pedidos pontuais;
+* catálogo;
+* preços;
+* produção;
+* financeiro;
+* faturamento;
+* NF-e além da associação necessária ao painel;
+* regras comerciais;
+* multi-tenancy;
+* permissões de outros módulos.
+
+---
+
+# 25. CRITÉRIO DE CONCLUSÃO
+
+Considerar a Fase 2 concluída somente quando:
+
+* o motorista consegue visualizar sua rota real;
+* consegue visualizar suas entregas;
+* consegue ver detalhes;
+* consegue acompanhar status;
+* consegue consultar histórico;
+* consegue utilizar o mapa;
+* GPS funciona de forma segura quando permitido;
+* ETA/tracking existente é aproveitado;
+* comprovante funciona quando suportado;
+* ocorrência funciona quando suportada;
+* NF-e é associada corretamente;
+* painel funciona no mobile;
+* segurança de delivery está corrigida;
+* multi-tenancy continua protegido;
+* testes passam.
+
+---
+
+# 26. RELATÓRIO FINAL OBRIGATÓRIO
+
+Ao terminar, apresentar:
+
+## Segurança
+
+* vulnerabilidades encontradas;
+* correções realizadas;
+* endpoints protegidos.
+
+## Backend
+
+* arquivos alterados;
+* endpoints reutilizados;
+* endpoints novos, se houver.
+
+## Frontend
+
+* componentes alterados;
+* componentes reutilizados;
+* melhorias mobile.
+
+## Banco
+
+* tabelas utilizadas;
+* migrations realizadas, se houver;
+* justificar qualquer alteração.
+
+## Funcionalidades
+
+* rota;
+* entregas;
+* histórico;
+* GPS;
+* mapa;
+* ETA;
+* POD;
+* ocorrências;
+* NF-e.
+
+## Testes
+
+Informar os comandos executados e os resultados.
+
+## Regressão
+
+Confirmar explicitamente que nenhuma funcionalidade fora do escopo foi alterada.
+
+**IMPORTANTE: não invente funcionalidades e não crie estruturas duplicadas. A auditoria já mostrou o que existe. A implementação deve partir daquele mapa e reutilizar o máximo possível do ERP atual.**
