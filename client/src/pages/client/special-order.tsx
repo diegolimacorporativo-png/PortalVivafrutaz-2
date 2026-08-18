@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useProducts } from "@/hooks/use-catalog";
@@ -179,6 +179,23 @@ export default function SpecialOrderPage() {
     setCatalogCategory("ALL");
     setCatalogItemIndex(index);
   };
+
+  useEffect(() => {
+    if (catalogItemIndex === null) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCatalogItemIndex(null);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [catalogItemIndex]);
 
   const handleSubmit = () => {
     if (!requestedDay || !requestedDate) {
@@ -399,70 +416,122 @@ export default function SpecialOrderPage() {
       )}
 
        {catalogItemIndex !== null && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="special-order-catalog-title">
-           <div className="w-full max-w-5xl max-h-[90vh] overflow-hidden bg-card rounded-2xl border border-border shadow-2xl flex flex-col">
-             <div className="p-5 border-b border-border/60 flex items-start justify-between gap-4">
-               <div>
-                 <p className="text-xs font-bold uppercase tracking-wider text-primary mb-1">Produtos VivaFrutaz</p>
-                 <h2 id="special-order-catalog-title" className="text-xl font-display font-bold text-foreground">Escolha no catálogo</h2>
-                 <p className="text-sm text-muted-foreground mt-1">Selecione o produto que deseja incluir na solicitação.</p>
+         <div
+           className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4 md:p-6"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="special-order-catalog-title"
+         >
+           <div className="flex h-[100dvh] w-full min-h-0 flex-col overflow-hidden bg-card shadow-2xl sm:h-auto sm:max-h-[calc(100dvh-32px)] sm:w-[min(1100px,calc(100vw-32px))] sm:rounded-3xl sm:border sm:border-border">
+             {/* Fixed-in-modal header: it stays reachable while the catalog scrolls. */}
+             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-border/60 px-4 py-3.5 sm:px-6 sm:py-4">
+               <div className="min-w-0">
+                 <p className="mb-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-primary sm:text-xs">Produtos VivaFrutaz</p>
+                 <h2 id="special-order-catalog-title" className="truncate text-lg font-display font-bold text-foreground sm:text-xl">Escolha no catálogo</h2>
+                 <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">Selecione o produto que deseja incluir na solicitação.</p>
                </div>
-               <button type="button" onClick={() => setCatalogItemIndex(null)} aria-label="Fechar catálogo"
-                 className="p-2 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
-                 <X className="w-5 h-5" />
+               <button
+                 type="button"
+                 onClick={() => setCatalogItemIndex(null)}
+                 aria-label="Fechar catálogo"
+                 className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+               >
+                 <X className="h-5 w-5" />
                </button>
              </div>
-             <div className="p-4 border-b border-border/60 bg-muted/10 flex flex-wrap gap-2">
-               <div className="relative flex-1 min-w-[220px]">
-                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                 <input value={catalogSearch} onChange={e => setCatalogSearch(e.target.value)}
-                   autoFocus placeholder="Buscar por nome..."
-                   className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none text-sm bg-background" />
+
+             {/* Controls remain above the scroll area so search and categories stay accessible. */}
+             <div className="shrink-0 border-b border-border/60 bg-muted/10 px-3 py-3 sm:px-5 sm:py-4">
+               <div className="relative">
+                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                 <input
+                   value={catalogSearch}
+                   onChange={e => setCatalogSearch(e.target.value)}
+                   autoFocus
+                   placeholder="Buscar por nome..."
+                   aria-label="Buscar produto por nome"
+                   className="h-11 w-full rounded-xl border-2 border-border bg-background pl-10 pr-4 text-sm outline-none transition-colors focus:border-primary"
+                 />
                </div>
-               <button type="button" onClick={() => setCatalogCategory("ALL")}
-                 className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-colors ${catalogCategory === "ALL" ? "bg-primary text-white border-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-                 Todos
-               </button>
-               {catalogCategories.map(category => (
-                 <button type="button" key={category} onClick={() => setCatalogCategory(category)}
-                   className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-colors ${catalogCategory === category ? "bg-primary text-white border-primary" : "border-border text-muted-foreground hover:border-primary/50"}`}>
-                   {category}
+               <div
+                 className="mt-2.5 flex gap-2 overflow-x-auto px-0.5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:flex-wrap md:overflow-visible md:pb-0"
+                 role="tablist"
+                 aria-label="Categorias de produtos"
+               >
+                 <button
+                   type="button"
+                   onClick={() => setCatalogCategory("ALL")}
+                   aria-pressed={catalogCategory === "ALL"}
+                   className={`min-h-9 shrink-0 rounded-lg border px-3 text-xs font-bold transition-colors ${catalogCategory === "ALL" ? "border-primary bg-primary text-white" : "border-border bg-background text-muted-foreground hover:border-primary/50"}`}
+                 >
+                   Todos
                  </button>
-               ))}
+                 {catalogCategories.map(category => (
+                   <button
+                     type="button"
+                     key={category}
+                     onClick={() => setCatalogCategory(category)}
+                     aria-pressed={catalogCategory === category}
+                     className={`min-h-9 shrink-0 rounded-lg border px-3 text-xs font-bold transition-colors ${catalogCategory === category ? "border-primary bg-primary text-white" : "border-border bg-background text-muted-foreground hover:border-primary/50"}`}
+                   >
+                     {category}
+                   </button>
+                 ))}
+               </div>
              </div>
-             <div className="overflow-y-auto p-5">
+
+             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-5">
                {filteredCatalogEntries.length === 0 ? (
                  <div className="py-14 text-center">
-                   <Package className="w-12 h-12 text-muted-foreground/40 mx-auto mb-3" />
+                   <Package className="mx-auto mb-3 h-12 w-12 text-muted-foreground/40" />
                    <p className="font-semibold text-foreground">Nenhum produto encontrado</p>
-                   <p className="text-sm text-muted-foreground mt-1">Tente outra busca ou categoria.</p>
+                   <p className="mt-1 text-sm text-muted-foreground">Tente outra busca ou categoria.</p>
                  </div>
                ) : (
-                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
                    {filteredCatalogEntries.map(entry => (
-                     <button type="button" key={entry.cartKey} onClick={() => selectCatalogProduct(entry)}
+                     <button
+                       type="button"
+                       key={entry.cartKey}
+                       onClick={() => selectCatalogProduct(entry)}
                        data-testid={`button-select-catalog-${entry.productId}-${entry.subCategoryId ?? "base"}`}
-                       className="group text-left rounded-2xl border-2 border-border bg-background overflow-hidden hover:border-primary/60 hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-primary/40">
-                       <div className="aspect-[4/3] bg-muted/60 relative overflow-hidden">
+                       aria-label={`Selecionar ${entry.name}`}
+                       className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-background text-left transition-all hover:border-primary/60 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-primary/40"
+                     >
+                       <div className="relative h-28 shrink-0 overflow-hidden bg-muted/60 sm:h-32">
                          {entry.imageUrl ? (
-                           <img src={entry.imageUrl} alt={entry.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                           <img src={entry.imageUrl} alt={entry.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
                          ) : (
-                           <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/50">
-                             <ImageIcon className="w-10 h-10 mb-1" />
-                             <span className="text-xs">Sem imagem</span>
+                           <div className="flex h-full flex-col items-center justify-center text-muted-foreground/45">
+                             <ImageIcon className="mb-1 h-7 w-7" />
+                             <span className="text-[11px]">Sem imagem</span>
                            </div>
                          )}
-                         <span className="absolute top-3 left-3 px-2 py-1 rounded-lg bg-white/90 text-[10px] font-bold text-primary shadow-sm">{entry.category}</span>
+                         <span className="absolute left-2.5 top-2.5 max-w-[calc(100%-20px)] truncate rounded-md bg-white/90 px-2 py-1 text-[10px] font-bold text-primary shadow-sm">
+                           {entry.category}
+                         </span>
                        </div>
-                       <div className="p-4">
+                       <div className="flex flex-1 flex-col p-3">
                          <div className="flex items-start justify-between gap-2">
-                           <div className="min-w-0">
-                             <p className="font-bold text-foreground truncate">{entry.name}</p>
-                             {entry.subCategoryName && <p className="text-xs text-muted-foreground mt-0.5 truncate">{entry.subCategoryName}</p>}
+                           <div className="min-w-0 flex-1">
+                             <p className="min-h-10 font-bold leading-5 text-foreground">{entry.name}</p>
+                             {entry.subCategoryName && <p className="mt-0.5 truncate text-xs text-muted-foreground">{entry.subCategoryName}</p>}
                            </div>
-                           <Check className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5" />
+                           <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
                          </div>
-                         <p className="text-xs text-muted-foreground mt-2">Unidade: <span className="font-semibold">{entry.unit}</span></p>
+                         <div className="mt-3 flex items-end justify-between gap-2 border-t border-border/60 pt-2.5">
+                           <div className="min-w-0">
+                             <p className="text-[11px] text-muted-foreground">
+                               Unidade: <span className="font-semibold text-foreground">{entry.unit || "—"}</span>
+                             </p>
+                             <p className="mt-0.5 text-sm font-bold text-primary">
+                               R$ {Number(entry.price || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                             </p>
+                           </div>
+                           <span className="flex h-9 shrink-0 items-center gap-1 rounded-lg bg-primary/10 px-2.5 text-[11px] font-bold text-primary">
+                             <Plus className="h-3.5 w-3.5" /> Adicionar
+                           </span>
+                         </div>
                        </div>
                      </button>
                    ))}
