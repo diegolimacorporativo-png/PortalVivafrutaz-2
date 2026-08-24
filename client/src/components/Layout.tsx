@@ -9,7 +9,7 @@ import {
   ShieldCheck, Factory, FolderOpen, KeyRound, Star, UserCog, HardDrive, FlaskConical,
   ClipboardList, AlertTriangle, Building2, Truck, FileText, TrendingUp, UserCircle, Megaphone, TrendingDown, ShoppingBag, Warehouse, Mail, Settings, Brain, GraduationCap, DollarSign, Route, Menu, X, Bell, BookOpen,
   Search, ScrollText, Activity, Landmark, ReceiptText, Bot, RefreshCw, Palette, Upload, RotateCcw,
-  Zap, Shield
+  Zap, Shield, Navigation
 } from 'lucide-react';
 
 import { VirtualAssistant } from './VirtualAssistant';

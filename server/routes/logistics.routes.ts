@@ -330,6 +330,12 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       if (!isInternal(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
+      // A consulta global só é válida para perfis centrais. Para os demais
+      // perfis internos, a ausência de tenant deve falhar fechado em vez de
+      // expor posições de todas as empresas.
+      if (!actor.empresaId && !['MASTER', 'ADMIN'].includes(actor.role)) {
+        return res.status(403).json({ message: 'Empresa não definida para este usuário' });
+      }
 
       const driverRows = actor.empresaId
         ? await db.select().from(driversTable).where(eq(driversTable.empresaId, actor.empresaId)).orderBy(driversTable.name)
