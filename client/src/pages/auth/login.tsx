@@ -50,6 +50,9 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
   const [password, setPassword] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
+  // `/equipe` must always use the staff login flow, even when this component
+  // was previously rendered by `/login` and its local tab state was "company".
+  const loginType = forceAdminTab ? "admin" : type;
 
   const [showForgot, setShowForgot] = useState(false);
   const [forgotIdentifier, setForgotIdentifier] = useState("");
@@ -91,7 +94,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
     setFieldError(null);
     setPasswordError(null);
 
-    const rawIdentifier = type === 'admin' ? adminIdentifier : companyIdentifier;
+    const rawIdentifier = loginType === 'admin' ? adminIdentifier : companyIdentifier;
     if (!rawIdentifier.trim()) {
       setFieldError("Email ou usuário é obrigatório");
       return;
@@ -103,7 +106,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
 
     const email = prepareIdentifier(rawIdentifier);
     try {
-      await login({ email, password, type });
+      await login({ email, password, type: loginType });
     } catch {
       // Error toast already shown by useAuth onError handler
     }
@@ -176,7 +179,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
           )}
 
           {/* Maintenance mode — block company (client) login */}
-          {maintenanceActive && type === 'company' && !forceAdminTab ? (
+          {maintenanceActive && loginType === 'company' ? (
             <div data-testid="maintenance-banner" className="text-center py-4">
               <div className="w-16 h-16 mx-auto rounded-2xl bg-orange-100 flex items-center justify-center mb-5">
                 <Wrench className="w-8 h-8 text-orange-600" />
@@ -275,7 +278,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                     data-testid="tab-company"
                     onClick={() => { setType('company'); setFieldError(null); setPasswordError(null); }}
                     className={`flex-1 flex justify-center items-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${
-                      type === 'company' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      loginType === 'company' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     <Building2 className="w-4 h-4" /> Portal do Cliente
@@ -284,7 +287,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                     data-testid="tab-admin"
                     onClick={() => { setType('admin'); setFieldError(null); setPasswordError(null); }}
                     className={`flex-1 flex justify-center items-center gap-2 py-2.5 text-sm font-bold rounded-lg transition-all ${
-                      type === 'admin' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      loginType === 'admin' ? 'bg-white text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                     }`}
                   >
                     <UserCircle className="w-4 h-4" /> Acesso da Equipe
@@ -293,7 +296,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
               )}
 
               <form className="space-y-6" onSubmit={handleSubmit}>
-                {type === 'admin' ? (
+                {loginType === 'admin' ? (
                   <div>
                     <label className="block text-sm font-semibold text-foreground mb-2">Email ou usuário</label>
                     <input
@@ -359,7 +362,7 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                 </button>
               </form>
 
-              {type === 'company' && (
+              {loginType === 'company' && (
                 <div className="mt-6 text-center">
                   <button onClick={() => { setShowForgot(true); setForgotIdentifier(companyIdentifier); }}
                     className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium flex items-center gap-1.5 mx-auto">
