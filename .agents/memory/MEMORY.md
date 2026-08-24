@@ -1,2 +1,3 @@
 - [Wave 1B Companies extraction](wave-1b-companies.md) — padrão repo confirmado; 32 métodos migrados; cross-domain reads pertencem ao service, não ao repo.
 - [Programação Semanal feature](weekly-schedule-feature.md) — substituiu Novo Pedido; rota /client/order → WeeklySchedule; backend POST /api/orders/programacao já existia.
+- [Clara data scope](clara-data-scope.md) — consultas globais só para MASTER/ADMIN; ausência de tenant deve falhar fechado, nunca parecer ERP vazio.

@@ -1,0 +1,452 @@
+CONTINUE EXATAMENTE DE ONDE O AGENTE ANTERIOR PAROU.
+
+NÃO REFAÇA A FASE 1 DO ZERO.
+
+O agente anterior já realizou alterações no código e deixou um checkpoint. Antes de modificar qualquer coisa, LEIA O ESTADO ATUAL DO PROJETO e o diff das alterações já realizadas.
+
+## CONTEXTO DA EXECUÇÃO ANTERIOR
+
+A Fase 1 tinha como objetivo desacoplar o fluxo operacional dos pedidos da emissão de NF.
+
+O fluxo desejado é:
+
+PEDIDO RECEBIDO
+↓
+AGUARDANDO CONFERÊNCIA
+↓
+APROVADO
+↓
+EM SEPARAÇÃO
+↓
+PRONTO
+↓
+LIBERADO PARA ENTREGA
+↓
+EM ROTA
+↓
+ENTREGUE
+
+Sem depender de:
+
+* NF-e
+* DANFE
+* pré-nota
+* Bling
+* fiscal_status
+
+### O QUE O AGENTE ANTERIOR JÁ CONFIRMOU
+
+Ele encontrou a dependência que bloqueava a entrega:
+
+`validateBusinessRules`
+
+Essa validação exigia pré-nota ou NF para permitir `SHIPPED`.
+
+Essa dependência foi removida.
+
+Também foram atualizados os textos operacionais de `INVOICED` para representar:
+
+**LIBERADO PARA ENTREGA**
+
+A alteração transacional também foi aplicada:
+
+* aprovação deixou de gerar pré-nota automaticamente;
+* aprovação passou a garantir a conta a receber dentro da mesma transação;
+* preservada a deduplicação financeira;
+* estoque foi preservado;
+* eventos foram preservados;
+* notificações foram preservadas;
+* recursos fiscais foram preservados.
+
+Os testes focados da Fase 1 passaram.
+
+## IMPORTANTE
+
+NÃO DESFAÇA NENHUMA dessas alterações.
+
+NÃO faça novamente os patches.
+
+NÃO reverta o código.
+
+NÃO faça alterações de escopo da Fase 2.
+
+---
+
+# BLOQUEIO ENCONTRADO
+
+A validação final encontrou dois problemas de ambiente.
+
+### Problema 1 — cors
+
+O `npm run check` inicialmente não encontrava `cors`.
+
+O agente restaurou a dependência que já estava declarada no projeto.
+
+NÃO adicione uma biblioteca nova.
+
+NÃO altere a lógica por causa disso.
+
+### Problema 2 — banco de desenvolvimento
+
+Depois de restaurar a dependência, o workflow avançou, mas parou porque a configuração atual aponta para um banco:
+
+`heliumdb`
+
+e o projeto possui uma proteção explícita que bloqueia esse banco no ambiente de desenvolvimento.
+
+NÃO altere:
+
+* banco;
+* schema;
+* DATABASE_URL;
+* configuração de produção;
+* proteção de ambiente;
+
+apenas para fazer o workflow subir.
+
+NÃO tente mascarar esse erro.
+
+---
+
+# SUA MISSÃO AGORA
+
+## 1. PRIMEIRO: INSPECIONAR O ESTADO ATUAL
+
+Antes de alterar qualquer coisa:
+
+* leia o diff atual;
+* identifique exatamente quais arquivos foram modificados;
+* confirme quais alterações da Fase 1 já estão presentes;
+* verifique se existe algum patch parcial ou comentário desalinhado;
+* verifique se não ficou nenhuma alteração incompleta.
+
+Não reverta alterações válidas.
+
+---
+
+# 2. VALIDAR A IMPLEMENTAÇÃO JÁ FEITA
+
+Confirme no código:
+
+### Aprovação
+
+`PENDING_APPROVAL → APPROVED`
+
+Deve:
+
+* garantir conta a receber;
+* impedir duplicidade;
+* manter estoque;
+* manter movimento de estoque;
+* manter eventos;
+* manter notificações;
+* NÃO gerar pré-nota automaticamente.
+
+### READY → INVOICED
+
+Deve continuar permitido.
+
+Porém:
+
+`INVOICED = LIBERADO PARA ENTREGA`
+
+Não deve significar que NF foi emitida.
+
+### INVOICED → SHIPPED
+
+Deve funcionar independentemente de:
+
+* fiscal_status;
+* NF;
+* DANFE;
+* pré-nota;
+* Bling.
+
+### SHIPPED → DELIVERED
+
+Também deve funcionar independentemente de NF.
+
+---
+
+# 3. VALIDAR O CENÁRIO PRINCIPAL SEM BANCO REAL
+
+Como o workflow está bloqueado pela proteção do banco `heliumdb`, NÃO altere o ambiente apenas para executar testes.
+
+Use os testes unitários/focados existentes ou crie testes isolados apenas se necessário.
+
+O teste principal deve comprovar:
+
+`READY`
+
+com:
+
+`fiscal_status = nota_pendente`
+
+↓
+
+`INVOICED`
+
+↓
+
+`SHIPPED`
+
+↓
+
+`DELIVERED`
+
+SEM:
+
+* pré-nota;
+* NF emitida;
+* DANFE;
+* Bling.
+
+Esse é o principal critério de aceitação da Fase 1.
+
+---
+
+# 4. VERIFICAR A CONTA A RECEBER
+
+Confirme no código e nos testes que:
+
+`APPROVED`
+
+garante a existência de UMA conta a receber.
+
+Faça uma análise de idempotência.
+
+O mesmo pedido não pode gerar:
+
+* duas contas a receber;
+* duas transações financeiras;
+* duplicidade por retry.
+
+Se os testes já cobrem isso, NÃO crie testes duplicados.
+
+Se não cobrem, adicione somente um teste focado.
+
+---
+
+# 5. VERIFICAR PRÉ-NOTA
+
+Confirme que:
+
+`APPROVED`
+
+não gera mais automaticamente:
+
+`pre_nota_number`
+
+Mas:
+
+* campo continua existindo;
+* rota continua existindo;
+* serviço fiscal continua existindo;
+* funcionalidade fiscal não foi apagada.
+
+Não remova nada fiscal.
+
+---
+
+# 6. VERIFICAR FISCAL_STATUS
+
+Confirme que `fiscal_status` continua existindo.
+
+Porém ele não deve bloquear:
+
+* `READY → INVOICED`
+* `INVOICED → SHIPPED`
+* `SHIPPED → DELIVERED`
+
+Teste principalmente:
+
+`fiscal_status = nota_pendente`
+
+---
+
+# 7. VERIFICAR BLING
+
+Não remover nada.
+
+Apenas confirme que:
+
+* status_exportacao_erp;
+* data_exportacao_erp;
+* id_erp;
+* erro_exportacao_erp;
+
+não são necessários para concluir o fluxo operacional.
+
+A rota:
+
+`/bling-export`
+
+deve continuar existindo.
+
+---
+
+# 8. VERIFICAR TEXTOS
+
+Faça uma busca por textos operacionais antigos relacionados a `INVOICED`.
+
+Onde o status representa a etapa operacional, o usuário deve ver:
+
+**Liberado para entrega**
+
+e NÃO:
+
+**Faturado**
+
+Mas atenção:
+
+Se a ocorrência de "Faturado" estiver dentro de:
+
+* contexto fiscal;
+* NF-e;
+* DANFE;
+* modal fiscal;
+* documentação técnica;
+* histórico exclusivamente fiscal;
+
+NÃO altere.
+
+---
+
+# 9. VERIFICAR CRON FISCAL
+
+Analise:
+
+`server/jobs/faturamento.cron.ts`
+
+Não remova.
+
+Apenas confirme que ele não é necessário para que o pedido percorra:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+Se houver dependência, documente-a.
+
+Não faça uma refatoração ampla nesta etapa.
+
+---
+
+# 10. NÃO TENTAR CORRIGIR O BLOQUEIO DO BANCO
+
+O erro:
+
+`heliumdb`
+
+é um bloqueio de ambiente já existente.
+
+NÃO:
+
+* trocar banco;
+* alterar DATABASE_URL;
+* desativar proteção;
+* usar banco de produção;
+* alterar schema;
+* criar banco novo;
+* mascarar erro.
+
+Se não for possível executar o servidor por causa disso, registre claramente como:
+
+**BLOQUEIO DE AMBIENTE — NÃO RELACIONADO À FASE 1**
+
+---
+
+# 11. EXECUTAR AS VALIDAÇÕES POSSÍVEIS
+
+Execute:
+
+* testes focados da Fase 1;
+* testes unitários relevantes;
+* verificação de tipos, se possível;
+* lint, se disponível;
+* busca final de referências;
+* análise do diff.
+
+Se alguma validação falhar por ambiente, diferencie:
+
+### FALHA CAUSADA PELA FASE 1
+
+de
+
+### FALHA PRÉ-EXISTENTE / AMBIENTE
+
+Não tente corrigir problemas não relacionados ao escopo.
+
+---
+
+# 12. NÃO IMPLEMENTAR A FASE 2
+
+NÃO faça ainda:
+
+* limpeza visual completa de `/admin/orders`;
+* remoção do DanfePanel;
+* remoção de NF-e;
+* remoção de Bling;
+* remoção de fiscal_status;
+* remoção de pre_nota_number;
+* remoção de tabelas;
+* remoção de campos;
+* migração definitiva de status;
+* criação de nova área fiscal;
+* refatoração ampla do workflow.
+
+Isso fica para a Fase 2.
+
+---
+
+# 13. SE TUDO ESTIVER CORRETO
+
+Se a implementação já estiver correta, NÃO faça alterações desnecessárias.
+
+Apenas valide e informe:
+
+## FASE 1 — STATUS
+
+### Implementado
+
+Liste o que já foi feito.
+
+### Testes aprovados
+
+Liste os testes que passaram.
+
+### Bloqueios externos
+
+Liste os problemas de ambiente.
+
+### Arquivos modificados
+
+Liste exatamente os arquivos alterados.
+
+### Alterações fiscais preservadas
+
+Confirme o que NÃO foi removido.
+
+### Critério principal
+
+Confirme se o código permite conceitualmente:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+com:
+
+`fiscal_status = nota_pendente`
+
+e sem NF emitida.
+
+---
+
+# 14. REGRA ABSOLUTA
+
+NÃO declare a Fase 1 como concluída se houver uma falha causada pelas alterações feitas.
+
+Por outro lado, NÃO tente resolver bloqueios externos de ambiente alterando banco ou configuração de produção.
+
+Se os testes focados passaram e o único bloqueio restante for o `heliumdb`, informe isso claramente.
+
+O objetivo agora é:
+
+**FINALIZAR E VALIDAR A FASE 1 JÁ IMPLEMENTADA, NÃO COMEÇAR NOVAMENTE E NÃO AVANÇAR PARA A FASE 2.**

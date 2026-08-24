@@ -10,18 +10,6 @@ export async function register(app: Express): Promise<void> {
   // --- Clara IA Routes ---
   // FASE 1 — Defesa-em-camadas: exige sessão admin (MASTER/ADMIN/DEVELOPER).
   // Endpoints exec código/treinam IA — não devem ser públicos.
-  app.post('/api/clara/chat', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req: any, res) => {
-    try {
-      const { message } = req.body;
-      const currentUser = req.session?.userId ? await storage.getUser(req.session.userId) : null;
-      const userRole = currentUser?.role;
-      const response = await claraIA.chat(message, userRole);
-      res.json({ response });
-    } catch (err: any) {
-      res.status(500).json({ message: err.message });
-    }
-  });
-
   app.post('/api/clara/learn', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req, res) => {
     try {
       const { prompt, context, expectedOutput } = req.body;
@@ -113,7 +101,7 @@ export async function register(app: Express): Promise<void> {
 
       // CAMADA-1: resolve export scope before hitting the DB.
       // MASTER/ADMIN → cross-tenant allowed (explicit BI use); everyone else → own tenant only.
-      const isMasterAdmin = ['MASTER', 'ADMIN'].includes(currentUser.role);
+      const isGlobalExportRole = ['MASTER', 'ADMIN'].includes(currentUser.role);
       const actorEmpresaId: number | null = (currentUser as any).empresaId ?? null;
 
       // Determine the company scope for this export:
@@ -121,11 +109,19 @@ export async function register(app: Express): Promise<void> {
       //   • non-MASTER without param   → own tenant (auto-scoped, fail if unknown)
       //   • MASTER/ADMIN without param → null = global cross-tenant export (documented intentional)
       let exportCompanyId: number | null = null;
+      const requestedCompanyId = companyId ? Number(companyId) : null;
+      if (requestedCompanyId != null &&
+        (!Number.isInteger(requestedCompanyId) || requestedCompanyId <= 0)) {
+        return res.status(400).json({ message: 'companyId inválido' });
+      }
       if (companyId) {
-        exportCompanyId = parseInt(companyId);
-      } else if (!isMasterAdmin) {
+        if (!isGlobalExportRole && actorEmpresaId !== requestedCompanyId) {
+          return res.status(403).json({ message: 'Você só pode exportar dados da sua empresa.' });
+        }
+        exportCompanyId = requestedCompanyId;
+      } else if (!isGlobalExportRole) {
         if (!actorEmpresaId) {
-          return res.status(403).json({ message: 'Empresa não identificada. Forneça ?companyId= para exportação.' });
+          return res.status(403).json({ message: 'Empresa não identificada. Selecione uma empresa antes de exportar.' });
         }
         exportCompanyId = actorEmpresaId;
       }
@@ -133,9 +129,15 @@ export async function register(app: Express): Promise<void> {
 
       // CROSS-TENANT NOTE: storage.getOrders() without arg is global — only reachable by MASTER/ADMIN above.
       const allOrders = exportCompanyId
-        ? await storage.getOrders(exportCompanyId)
+        ? await storage.getOrdersSafe(exportCompanyId)
         : await storage.getOrders();
-      const allCompanies = await storage.getCompanies();
+      let allCompanies;
+      if (exportCompanyId) {
+        const scopedCompany = await storage.getCompany(exportCompanyId);
+        allCompanies = scopedCompany ? [scopedCompany] : [];
+      } else {
+        allCompanies = await storage.getCompanies();
+      }
 
       let orders = allOrders;
       if (dateFrom) orders = orders.filter((o: any) => new Date(o.orderDate || o.createdAt) >= dateFrom!);

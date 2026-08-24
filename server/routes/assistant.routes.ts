@@ -6,12 +6,18 @@ import { aiInteractions } from "@shared/schema";
 import { tenantContext } from "../middleware/tenant";
 import { tenantWhere, crossTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
-import { desc } from "drizzle-orm";
+import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { fireNotification } from "../services/pushService";
 // FASE 14.5 — Clara IA MUST use the provisioning service; direct storage.createCompany is forbidden
 import { createCompanyFromClaraAI } from "../modules/auth/userProvisioningService";
 // FASE MT-1 — tenant-safe query routing for Clara IA (eliminates P0 cross-tenant bypass)
 import { routeGetOrders, routeGetRoutes } from "../core/tenant/safeQueryRouter";
+import {
+  canUseGlobalClaraData,
+  isClaraInternalRole,
+  resolveClaraDataScope,
+} from "../core/tenant/claraScope";
+import { inventorySettings, orderWindows } from "@shared/schema";
 
 export function register(app: Express) {
   // ─── IA ASSISTENTE VIRTUAL (Interactive AI Chat) ──────────────
@@ -21,13 +27,18 @@ export function register(app: Express) {
   app.get('/api/assistant/history', tenantContext, async (req: any, res) => {
     try {
       const tenantId = currentTenantId();
-      // Cross-tenant admins (MASTER without ?empresaId) get nothing — there is
-      // no "global AI history" view; they must scope to a tenant explicitly.
-      if (tenantId == null) {
+      const historyUser = req.session?.userId
+        ? await storage.getUser(req.session.userId)
+        : null;
+      const canReadGlobalHistory =
+        tenantId == null && canUseGlobalClaraData(historyUser);
+      if (tenantId == null && !canReadGlobalHistory) {
         return res.json([]);
       }
-      const rows = await db.select().from(aiInteractions)
-        .where(tenantWhere(aiInteractions))
+      const historyQuery = db.select().from(aiInteractions);
+      const rows = await (canReadGlobalHistory
+        ? historyQuery
+        : historyQuery.where(tenantWhere(aiInteractions)))
         .orderBy(desc(aiInteractions.createdAt))
         .limit(50);
       // Within a tenant, company-portal users only see their company's
@@ -42,7 +53,8 @@ export function register(app: Express) {
   // MT-3B M1 — tenantContext middleware pins the request's tenant to AsyncLocalStorage,
   // replacing the manual derivation that followed. Fail-closed: unauthenticated calls
   // still reach the explicit 401 guard inside the handler.
-  app.post('/api/assistant/chat', tenantContext, async (req: any, res) => {
+  // Backwards-compatible alias: both paths use the operational, scoped Clara.
+  app.post(['/api/assistant/chat', '/api/clara/chat'], tenantContext, async (req: any, res) => {
     const isUser = !!req.session?.userId;
     const isCompany = !!req.session?.companyId;
     if (!isUser && !isCompany) return res.status(401).json({ message: 'Não autenticado' });
@@ -57,18 +69,27 @@ export function register(app: Express) {
     if (isUser) user = await storage.getUser(req.session.userId);
     if (isCompany) company = await storage.getCompany(req.session.companyId);
 
-    const isAdmin = user && ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role);
+    const isAdmin = user && isClaraInternalRole(user.role);
     const isInternal = !!user;
 
     // MT-3B M1 — tenant resolved from official AsyncLocalStorage context set by
     // tenantContext middleware (eliminates manual derivation from session fields
     // that could diverge from the authoritative middleware resolution).
-    const tenantId = currentTenantId();
+    const requestedTenantId = currentTenantId();
+    // Do not trust ?empresaId for an unassigned non-global user.
+    const tenantSelectionAllowed =
+      user?.empresaId != null || canUseGlobalClaraData(user);
+    const tenantId = tenantSelectionAllowed ? requestedTenantId : null;
+    const dataScope = resolveClaraDataScope(
+      user,
+      tenantId,
+      company?.id ?? null,
+    );
 
     // MT-3B M4 — admin intents that follow (companies, products, inventory, orders)
     // perform intentional cross-tenant reads when MASTER/ADMIN has no empresaId.
     // Explicit marker so grep for crossTenant() surfaces every legitimate bypass.
-    if (isInternal) void crossTenant();
+    if (dataScope.isGlobal) void crossTenant();
 
     // CAMADA-2: log every AI data access for full auditability.
     logSecurityEvent({
@@ -77,24 +98,75 @@ export function register(app: Express) {
       role: user?.role,
       action: 'AI_DATA_ACCESS',
       resource: '/api/assistant/chat',
-      tenantScope: tenantId ? 'SINGLE' : 'CROSS',
+      tenantScope: dataScope.isGlobal ? 'CROSS' : 'SINGLE',
       intent: 'AI_DATA_ACCESS',
       allowed: true,
       metadata: {
         promptType: msg.split(' ').slice(0, 3).join(' '),
-        datasetsUsed: ['orders', 'users', 'routes'],
+        datasetsUsed: isInternal
+          ? ['orders', 'companies', 'products', 'inventory', 'routes']
+          : ['company_orders'],
         tenantId,
         isAdmin: isAdmin,
+        dataScope: dataScope.isGlobal ? 'CROSS' : dataScope.tenantId,
       },
     });
 
-    // Tenant-safe wrappers — used by every isInternal data-fetching intent below.
-    // Returns [] when tenantId is unresolvable so responses degrade gracefully
-    // without ever falling back to a full-table scan.
+    // Global reads are explicit; an unresolvable tenant fails closed instead
+    // of producing an authoritative-looking zero count.
     const safeGetOrders = (): Promise<any[]> =>
-      tenantId ? routeGetOrders(tenantId) : Promise.resolve([]);
+      dataScope.isGlobal
+        ? storage.getOrders()
+        : dataScope.tenantId
+          ? routeGetOrders(dataScope.tenantId)
+          : Promise.reject(new Error('CLARA_TENANT_REQUIRED'));
     const safeGetRoutes = (): Promise<any[]> =>
-      tenantId ? routeGetRoutes(tenantId) : Promise.resolve([]);
+      dataScope.isGlobal
+        ? storage.getRoutes()
+        : dataScope.tenantId
+          ? routeGetRoutes(dataScope.tenantId)
+          : Promise.reject(new Error('CLARA_TENANT_REQUIRED'));
+    const getScopedCompanies = async (): Promise<any[]> => {
+      if (dataScope.isGlobal) return storage.getCompanies();
+      if (!dataScope.tenantId) throw new Error('CLARA_TENANT_REQUIRED');
+      const scopedCompany = await storage.getCompany(dataScope.tenantId);
+      return scopedCompany ? [scopedCompany] : [];
+    };
+    const getScopedProducts = async (): Promise<any[]> => {
+      if (!dataScope.isGlobal && !dataScope.tenantId) {
+        throw new Error('CLARA_TENANT_REQUIRED');
+      }
+      return storage.getProducts(dataScope.tenantId ?? undefined);
+    };
+    const getScopedInventorySettings = async (): Promise<any[]> => {
+      if (dataScope.isGlobal) {
+        return db.select().from(inventorySettings).orderBy(inventorySettings.productName);
+      }
+      if (!dataScope.tenantId) throw new Error('CLARA_TENANT_REQUIRED');
+      return db
+        .select()
+        .from(inventorySettings)
+        .where(eq(inventorySettings.tenantId, dataScope.tenantId))
+        .orderBy(inventorySettings.productName);
+    };
+    const getScopedActiveOrderWindow = async () => {
+      const now = new Date();
+      const conditions = [
+        eq(orderWindows.active, true),
+        lte(orderWindows.orderOpenDate, now),
+        gte(orderWindows.orderCloseDate, now),
+        ...(dataScope.tenantId != null
+          ? [eq(orderWindows.empresaId, dataScope.tenantId)]
+          : []),
+      ];
+      const [activeWindow] = await db
+        .select()
+        .from(orderWindows)
+        .where(and(...conditions))
+        .orderBy(desc(orderWindows.id))
+        .limit(1);
+      return activeWindow;
+    };
 
     let intent = 'unknown';
     let response = '';
@@ -375,13 +447,13 @@ export function register(app: Express) {
     else if (isInternal && /empresa|empresas/.test(msg)) {
       intent = 'query_companies';
       try {
-        const allCompanies = await storage.getCompanies();
+        const allCompanies = await getScopedCompanies();
         const active = allCompanies.filter((c: any) => c.active);
         const inactive = allCompanies.filter((c: any) => !c.active);
 
         if (/não pediram|nao pediram|sem pedido|não fizeram pedido|nao fizeram/.test(msg)) {
           const allOrders = await safeGetOrders();
-          const activeWindow = await storage.getActiveOrderWindow();
+          const activeWindow = await getScopedActiveOrderWindow();
           const weekRef = activeWindow?.weekReference;
           const companiesWithOrders = new Set(
             allOrders
@@ -412,9 +484,9 @@ export function register(app: Express) {
     else if (isInternal && /estoque|inventário|inventario|produto|produtos/.test(msg)) {
       intent = 'query_stock';
       try {
-        const prods = await storage.getProducts();
+        const prods = await getScopedProducts();
         const active = prods.filter((p: any) => p.active !== false);
-        const inventorySettings = await storage.getInventorySettings();
+        const inventorySettings = await getScopedInventorySettings();
 
         if (/baixo|crítico|critico|faltando|pouco|mínimo|minimo/.test(msg)) {
           const lowStock = inventorySettings.filter((s: any) => {
@@ -439,11 +511,11 @@ export function register(app: Express) {
       intent = 'query_purchases';
       try {
         const allOrders = await safeGetOrders();
-        const activeWindow = await storage.getActiveOrderWindow();
+          const activeWindow = await getScopedActiveOrderWindow();
         const weekRef = activeWindow?.weekReference;
         const weekOrders = weekRef ? allOrders.filter((o: any) => o.weekReference === weekRef && o.status !== 'CANCELLED') : [];
-        const prods = await storage.getProducts();
-        const inventorySettings = await storage.getInventorySettings();
+        const prods = await getScopedProducts();
+        const inventorySettings = await getScopedInventorySettings();
 
         if (weekOrders.length === 0) {
           response = `🛒 **Planejamento de Compras**\n\n${weekRef ? `Semana: ${weekRef}\n` : ''}Nenhum pedido ativo para a semana atual.\n\nAcesse **Menu → Planejamento de Compras** para gerar a lista completa.`;
@@ -464,7 +536,7 @@ export function register(app: Express) {
       intent = 'query_routes';
       try {
         const routes = await safeGetRoutes();
-        const activeWindow = await storage.getActiveOrderWindow();
+          const activeWindow = await getScopedActiveOrderWindow();
         let routeLines = '';
         if (routes.length > 0) {
           routeLines = routes.slice(0, 8).map((r: any) => `• **${r.name}** — ${r.status || 'Ativa'}${r.driverName ? ` — Motorista: ${r.driverName}` : ''}`).join('\n');
@@ -474,7 +546,7 @@ export function register(app: Express) {
         const companyMatch = message.match(/(?:empresa|cliente|para)\s+([A-Za-záàâãéèêíïóôõöúçñü\s]+)/i);
         if (companyMatch && companyMatch[1]) {
           const searchName = companyMatch[1].trim().toLowerCase();
-          const allCompanies = await storage.getCompanies();
+          const allCompanies = await getScopedCompanies();
           const found = allCompanies.find((c: any) => c.companyName?.toLowerCase().includes(searchName));
           if (found) {
             let deliveryInfo = `🚚 **Logística — ${found.companyName}**\n\n`;
@@ -531,7 +603,7 @@ export function register(app: Express) {
       } else if (/entrega|quando chega|previsão|previsao/.test(msg)) {
         intent = 'client_delivery';
         try {
-          const win = await storage.getActiveOrderWindow();
+          const win = await getScopedActiveOrderWindow();
           if (win) {
             response = `📅 **Janela de Pedidos Ativa**\n\n• Semana: ${win.weekReference}\n• Pedidos até: ${new Date(win.orderCloseDate).toLocaleDateString('pt-BR')}\n• Entrega: ${new Date(win.deliveryStartDate).toLocaleDateString('pt-BR')} a ${new Date(win.deliveryEndDate).toLocaleDateString('pt-BR')}`;
           } else {
@@ -566,7 +638,7 @@ export function register(app: Express) {
       const empresaMatch = msg.match(/(?:da empresa|do cliente|empresa|cliente)\s+([a-záéíóúãõâêôçñ\s]{2,30})(?:\s|$)/i);
       if (empresaMatch && empresaMatch[1]) {
         const searchName = empresaMatch[1].trim().toLowerCase();
-        const allCompanies = await storage.getCompanies();
+        const allCompanies = await getScopedCompanies();
         const found = allCompanies.find((c: any) =>
           c.companyName.toLowerCase().includes(searchName) ||
           searchName.includes(c.companyName.toLowerCase().substring(0, 4))
@@ -623,7 +695,7 @@ export function register(app: Express) {
       try {
         const now = Date.now();
         const allOrders = await safeGetOrders();
-        const allCompanies = await storage.getCompanies();
+        const allCompanies = await getScopedCompanies();
         const activeCompanies = allCompanies.filter((c: any) => c.active);
         const ordersByCompany: Record<number, any[]> = {};
         for (const o of allOrders.filter((o: any) => o.status !== 'CANCELLED')) {
@@ -686,7 +758,7 @@ export function register(app: Express) {
       intent = 'financial_ranking';
       try {
         const allOrders = await safeGetOrders();
-        const allCompanies = await storage.getCompanies();
+        const allCompanies = await getScopedCompanies();
         const validOrders = allOrders.filter((o: any) => o.status !== 'CANCELLED');
         const byCompany: Record<number, { name: string; total: number }> = {};
         for (const o of validOrders) {
@@ -707,7 +779,7 @@ export function register(app: Express) {
       try {
         const allOrders = await safeGetOrders();
         const routes = await safeGetRoutes();
-        const activeWindow = await storage.getActiveOrderWindow();
+        const activeWindow = await getScopedActiveOrderWindow();
         const activeOrders = allOrders.filter((o: any) => !['CANCELLED'].includes(o.status));
         const withDelivery = activeOrders.filter((o: any) => o.deliveryDate);
 

@@ -135,7 +135,7 @@ export interface IStorage {
   deleteCategory(id: number): Promise<void>;
 
   // Products
-  getProducts(): Promise<Product[]>;
+  getProducts(empresaId?: number): Promise<Product[]>;
   /**
    * Direct-lookup variant of `getProducts()` for `where id = ?`. Lets callers
    * avoid the full-table scan + `.find()` pattern. Returns `undefined` when

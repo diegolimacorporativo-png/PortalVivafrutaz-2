@@ -280,7 +280,7 @@ export function VirtualAssistant() {
   }, [open, mode]);
 
   const handleDirectDownload = (exportParams: string) => {
-    window.open(`/api/Clara/export?${exportParams}`, '_blank');
+    window.open(`/api/clara/export?${exportParams}`, '_blank');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
