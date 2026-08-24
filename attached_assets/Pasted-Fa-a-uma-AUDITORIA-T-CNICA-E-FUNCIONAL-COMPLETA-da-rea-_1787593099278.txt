@@ -1,0 +1,277 @@
+Faça uma AUDITORIA TÉCNICA E FUNCIONAL COMPLETA da área administrativa de PEDIDOS do sistema VivaFrutaz.
+
+IMPORTANTE:
+NÃO APAGUE, NÃO DESATIVE E NÃO ALTERE NENHUMA FUNCIONALIDADE AINDA.
+
+Neste momento quero apenas analisar como o sistema funciona atualmente e identificar o que pode ser simplificado.
+
+## NOVA REGRA DE NEGÓCIO
+
+O sistema NÃO será responsável pela emissão de Nota Fiscal.
+
+A finalidade principal do sistema será:
+
+CLIENTE → ACESSA O PORTAL B2B → FAZ O PEDIDO → PEDIDO É RECEBIDO PELO ADMINISTRATIVO → EQUIPE CONFERE/PROCESSA → PEDIDO É ENTREGUE.
+
+A Nota Fiscal será lançada/emitida externamente, fora deste sistema.
+
+Portanto, precisamos identificar tudo que atualmente está relacionado a:
+
+* emissão de NF
+* DANFE
+* Bling
+* exportação para Bling
+* integração fiscal
+* status fiscal
+* geração de documento fiscal
+* qualquer rotina que dependa da emissão de NF
+
+Mas NÃO remova essas funções nesta etapa.
+
+---
+
+# 1. AUDITAR A TELA DE PEDIDOS
+
+Analise todos os elementos atualmente existentes na página /admin/orders.
+
+Para cada elemento, identifique:
+
+* nome
+* finalidade
+* origem dos dados
+* banco/tabela relacionada
+* função executada
+* dependências
+* se é utilizado por outra parte do sistema
+* se é essencial para o fluxo de pedidos
+* se está relacionado à parte fiscal
+* se pode ser removido futuramente
+
+Classifique cada item em:
+
+ESSENCIAL
+ÚTIL
+OPCIONAL
+FISCAL — PROVAVELMENTE REMOVER
+OBSOLETO — INVESTIGAR
+
+NÃO altere nada.
+
+---
+
+# 2. AUDITAR OS STATUS DOS PEDIDOS
+
+Identifique todos os status existentes no sistema.
+
+Verifique:
+
+* quais status existem
+* quem pode alterar cada status
+* quais ações acontecem quando um status muda
+* se existe automação
+* se existe alteração no banco
+* se o cliente consegue visualizar o status
+* se o status influencia pagamento
+* se o status influencia estoque
+* se o status influencia NF
+* se o status influencia Bling
+* se o status influencia entrega
+
+Monte um fluxo real:
+
+PEDIDO RECEBIDO
+↓
+?
+↓
+?
+↓
+?
+↓
+ENTREGUE
+
+Não invente etapas.
+
+Mostre exatamente o fluxo atualmente implementado.
+
+---
+
+# 3. AUDITAR O FLUXO DO PEDIDO
+
+Descubra o que acontece tecnicamente quando um cliente cria um pedido.
+
+Verifique:
+
+1. criação do pedido
+2. identificação do cliente
+3. produtos
+4. quantidades
+5. preços
+6. descontos, se existirem
+7. valor total
+8. data do pedido
+9. data de entrega
+10. observação do cliente
+11. observação administrativa
+12. status inicial
+13. pagamento
+14. estoque
+15. notificações
+16. alterações
+17. cancelamento
+18. conclusão
+
+Para cada etapa, informe onde essa informação é salva e quais funções utilizam essa informação.
+
+---
+
+# 4. AUDITAR NF / DANFE / BLING
+
+Localize no código todas as funcionalidades relacionadas a:
+
+* NF
+* Nota Fiscal
+* DANFE
+* Bling
+* exportar para Bling
+* status Bling
+* documento fiscal
+* emissão fiscal
+* integração fiscal
+
+Identifique:
+
+* arquivos envolvidos
+* funções envolvidas
+* rotas/API
+* tabelas/campos do banco
+* automações
+* componentes da interface
+* dependências
+
+NÃO remova nada.
+
+Quero apenas saber exatamente o que existe e o que depende dessas funções.
+
+---
+
+# 5. AUDITAR O BANCO DE DADOS
+
+Identifique as tabelas relacionadas a pedidos.
+
+Para cada tabela, informe:
+
+* nome
+* finalidade
+* principais campos
+* relacionamento com clientes
+* relacionamento com produtos
+* relacionamento com pagamentos
+* relacionamento com NF
+* relacionamento com Bling
+* relacionamento com entrega
+
+Identifique também campos que parecem existir exclusivamente para NF/Bling/fiscal.
+
+NÃO exclua campos.
+
+---
+
+# 6. AUDITAR A TELA MOSTRADA AO ADMINISTRADOR
+
+Analise especificamente estes elementos, caso existam:
+
+* Fiscal
+* Nota Pendente
+* Exportar para Bling
+* Status Bling
+* Exportar para Bling
+* DANFE interno
+* Baixar DANFE
+* Visualizar DANFE
+* Histórico do DANFE
+
+Para cada um diga:
+
+1. O que faz?
+2. De onde vem o dado?
+3. Qual função executa?
+4. Qual tabela utiliza?
+5. É necessário para o novo modelo de negócio?
+6. Pode ser removido?
+7. Existe alguma dependência escondida?
+
+---
+
+# 7. IDENTIFICAR RISCOS
+
+Procure funcionalidades que parecem fiscais, mas que podem estar sendo utilizadas por outras partes do sistema.
+
+Exemplo:
+
+Um botão pode parecer relacionado somente à NF, mas sua função pode também alterar o status do pedido.
+
+Se encontrar algo assim, destaque claramente:
+
+⚠️ RISCO DE REMOÇÃO
+
+E explique o motivo.
+
+---
+
+# 8. PROPOSTA DE SIMPLIFICAÇÃO
+
+Depois da auditoria, proponha como a tela de pedidos deveria ficar considerando o novo modelo de negócio.
+
+A prioridade deve ser:
+
+PEDIDO B2B
+
+e não:
+
+NF / ERP / Fiscal.
+
+Sugira quais elementos poderiam futuramente ser:
+
+* MANTIDOS
+* MOVIDOS
+* OCULTADOS
+* REMOVIDOS
+
+Mas NÃO faça essas alterações ainda.
+
+---
+
+# 9. RELATÓRIO FINAL
+
+No final, apresente exatamente estas seções:
+
+## RESUMO DO SISTEMA ATUAL
+
+## FLUXO REAL DO PEDIDO
+
+## FUNCIONALIDADES ESSENCIAIS
+
+## FUNCIONALIDADES RELACIONADAS À NF/BLING
+
+## FUNCIONALIDADES QUE PODEM SER REMOVIDAS
+
+## DEPENDÊNCIAS ENCONTRADAS
+
+## RISCOS
+
+## PROPOSTA DE NOVA TELA DE PEDIDOS
+
+## RECOMENDAÇÃO FINAL
+
+IMPORTANTE:
+
+Esta é uma auditoria.
+
+NÃO faça alterações no código.
+NÃO exclua banco de dados.
+NÃO remova componentes.
+NÃO altere rotas.
+NÃO altere status.
+NÃO altere regras de negócio.
+
+Apenas analise o sistema existente e apresente o diagnóstico técnico e funcional.
