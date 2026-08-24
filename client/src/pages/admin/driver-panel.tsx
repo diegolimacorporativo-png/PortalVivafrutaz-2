@@ -38,6 +38,135 @@ interface DeliveryItem {
   stopObservacao?: string;
 }
 
+function DriverGpsReporter({ role }: { role?: string | null }) {
+  const [state, setState] = useState<'starting' | 'active' | 'denied' | 'unavailable' | 'error'>('starting');
+  const lastSentAt = useRef(0);
+
+  useEffect(() => {
+    if (role !== 'DRIVER' && role !== 'MOTORISTA') return;
+    if (!navigator.geolocation) {
+      setState('unavailable');
+      return;
+    }
+
+    let cancelled = false;
+    const sendPosition = async (position: GeolocationPosition) => {
+      // Avoid excessive writes while still keeping the driver's position live.
+      if (Date.now() - lastSentAt.current < 15000) return;
+      lastSentAt.current = Date.now();
+      try {
+        const response = await fetch('/api/driver/gps', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+            speed: position.coords.speed,
+            heading: position.coords.heading,
+          }),
+        });
+        if (!response.ok) throw new Error('GPS update failed');
+        if (!cancelled) setState('active');
+      } catch {
+        if (!cancelled) setState('error');
+      }
+    };
+
+    const watchId = navigator.geolocation.watchPosition(sendPosition, () => {
+      if (!cancelled) setState('denied');
+    }, {
+      enableHighAccuracy: true,
+      maximumAge: 10000,
+      timeout: 20000,
+    });
+
+    return () => {
+      cancelled = true;
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, [role]);
+
+  if (role !== 'DRIVER' && role !== 'MOTORISTA') return null;
+
+  const label = state === 'active' ? 'GPS ativo — localização compartilhada'
+    : state === 'denied' ? 'GPS bloqueado — permita a localização no navegador'
+    : state === 'unavailable' ? 'GPS indisponível neste dispositivo'
+    : state === 'error' ? 'GPS aguardando conexão'
+    : 'Solicitando localização GPS...';
+  const color = state === 'active' ? 'text-green-700 bg-green-50 border-green-200'
+    : state === 'denied' || state === 'unavailable' ? 'text-red-700 bg-red-50 border-red-200'
+    : 'text-blue-700 bg-blue-50 border-blue-200';
+
+  return (
+    <div className={`mb-3 rounded-xl border px-3 py-2 text-xs flex items-center gap-2 ${color}`} data-testid="driver-gps-status">
+      <Navigation className="w-4 h-4 shrink-0" />
+      <span>{label}. O rastreio continua mesmo sem rota atribuída.</span>
+    </div>
+  );
+}
+
+interface LiveDriverLocation {
+  driverId: number;
+  driverName: string;
+  phone: string | null;
+  active: boolean;
+  latitude: string | null;
+  longitude: string | null;
+  accuracy: string | null;
+  speed: string | null;
+  updatedAt: string | null;
+}
+
+function LiveDriverLocations({ drivers }: { drivers: LiveDriverLocation[] }) {
+  const visibleDrivers = drivers.filter(d => d.active);
+  if (visibleDrivers.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm" data-testid="live-driver-locations">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <MapPin className="w-4 h-4 text-violet-600" />
+          <h2 className="text-sm font-semibold text-foreground">Motoristas localizados</h2>
+        </div>
+        <span className="text-[10px] text-muted-foreground">Atualização automática</span>
+      </div>
+      <div className="space-y-2">
+        {visibleDrivers.map(driver => {
+          const hasLocation = driver.latitude != null && driver.longitude != null;
+          return (
+            <div key={driver.driverId} className="flex items-center gap-3 rounded-xl border border-border/60 px-3 py-2">
+              <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${hasLocation ? 'bg-green-500' : 'bg-muted-foreground/40'}`} />
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-medium text-foreground truncate">{driver.driverName}</p>
+                {hasLocation ? (
+                  <p className="text-[10px] text-muted-foreground">
+                    {Number(driver.latitude).toFixed(5)}, {Number(driver.longitude).toFixed(5)}
+                    {driver.updatedAt && ` • ${new Date(driver.updatedAt).toLocaleTimeString('pt-BR')}`}
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-muted-foreground">Aguardando primeira localização</p>
+                )}
+              </div>
+              {hasLocation && (
+                <a
+                  href={`https://www.google.com/maps/search/?api=1&query=${driver.latitude},${driver.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-medium text-primary hover:underline shrink-0"
+                >
+                  Abrir mapa
+                </a>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 interface StopEvent {
   id: number;
   deliveryId: number;
@@ -491,6 +620,7 @@ function NFeRoutePanel({ companyIds, companyNames }: { companyIds: number[]; com
 
 export default function DriverPanel() {
   const { user } = useAuth();
+  const isDriverUser = (user as any)?.role === 'DRIVER' || (user as any)?.role === 'MOTORISTA';
   const [view, setView] = useState<'list' | 'map' | 'nfe'>('list');
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -500,6 +630,11 @@ export default function DriverPanel() {
     date: string;
   }>({
     queryKey: ['/api/driver/route-today'],
+  });
+  const { data: liveDrivers = [] } = useQuery<LiveDriverLocation[]>({
+    queryKey: ['/api/logistics/drivers/gps'],
+    enabled: !isDriverUser,
+    refetchInterval: 15000,
   });
 
   const deliveries = data?.deliveries || [];
@@ -558,6 +693,8 @@ export default function DriverPanel() {
       </div>
 
       <div className="p-4 mt-3 space-y-3">
+        <DriverGpsReporter role={(user as any)?.role} />
+        {!isDriverUser && <LiveDriverLocations drivers={liveDrivers} />}
         {/* View toggle */}
         <div className="flex gap-1 bg-muted rounded-xl p-1">
           <button

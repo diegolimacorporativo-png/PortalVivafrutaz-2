@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
-import { isDriver, isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import { isDriver, isDriverOrInternal, isInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
 import { ForbiddenError } from "../shared/errors/AppError";
@@ -276,23 +276,85 @@ export async function register(app: Express): Promise<void> {
         return res.status(403).json({ message: 'Acesso negado' });
       }
 
-      const { driverId, latitude, longitude, accuracy, speed, heading } = req.body;
-      if (!driverId || !latitude || !longitude) return res.status(400).json({ message: 'driverId, latitude e longitude obrigatórios' });
+      const { driverId: requestedDriverId, latitude, longitude, accuracy, speed, heading } = req.body ?? {};
+      const lat = Number(latitude);
+      const lng = Number(longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        return res.status(400).json({ message: 'latitude e longitude válidas são obrigatórias' });
+      }
+
+      // A logged-in driver does not need to send an identity field. Resolve it
+      // from the authenticated user so GPS works even when there is no route.
+      let driverId = requestedDriverId ? Number(requestedDriverId) : null;
+      if (isDriver(actor.role)) {
+        const ownDriverId = await resolveOwnDriverId(storage, actor);
+        if (!ownDriverId) {
+          return res.status(403).json({ message: 'Motorista sem cadastro vinculado ao usuário' });
+        }
+        if (driverId !== null && driverId !== ownDriverId) {
+          return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
+        }
+        driverId = ownDriverId;
+      }
+      if (!driverId || !Number.isInteger(driverId) || driverId <= 0) {
+        return res.status(400).json({ message: 'driverId é obrigatório para usuários internos' });
+      }
 
       // STEP 8.7 — drivers can only post GPS for THEIR OWN driverId. This stops
       // a compromised driver account from spoofing positions for someone else.
       // Internal staff (admin / logistics) keep the legacy ability to post on
       // behalf of any driver (used by the route-assistant tooling).
-      if (actor.role === 'DRIVER') {
+      if (isDriver(actor.role)) {
         const ownDriverId = await resolveOwnDriverId(storage, actor);
         if (!ownDriverId || Number(driverId) !== ownDriverId) {
           return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
         }
       }
 
-      const pos = await storage.createGpsPosition({ driverId, latitude, longitude, accuracy, speed, heading });
+      const pos = await storage.createGpsPosition({
+        driverId,
+        latitude: String(lat),
+        longitude: String(lng),
+        accuracy: accuracy == null ? undefined : String(Number(accuracy)),
+        speed: speed == null ? undefined : String(Number(speed)),
+        heading: heading == null ? undefined : String(Number(heading)),
+      });
       res.json(pos);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Latest position for every active driver visible to the authenticated
+  // logistics user. This intentionally does not depend on a route assignment.
+  app.get('/api/logistics/drivers/gps', requireAuthCore, async (req: any, res) => {
+    try {
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      if (!isInternal(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
+
+      const driverRows = actor.empresaId
+        ? await db.select().from(driversTable).where(eq(driversTable.empresaId, actor.empresaId)).orderBy(driversTable.name)
+        : await db.select().from(driversTable).orderBy(driversTable.name);
+
+      const positions = await Promise.all(driverRows.map(async (driver: any) => {
+        const position = await storage.getLatestGpsPosition(driver.id);
+        return {
+          driverId: driver.id,
+          driverName: driver.name,
+          phone: driver.phone ?? null,
+          active: driver.active,
+          latitude: position?.latitude ?? null,
+          longitude: position?.longitude ?? null,
+          accuracy: position?.accuracy ?? null,
+          speed: position?.speed ?? null,
+          heading: position?.heading ?? null,
+          updatedAt: position?.recordedAt ?? null,
+        };
+      }));
+
+      res.json(positions);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
   });
 
   app.get('/api/driver/:driverId/gps', requireAuthCore, async (req: any, res) => {
