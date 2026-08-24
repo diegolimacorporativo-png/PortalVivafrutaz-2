@@ -1,0 +1,103 @@
+CONTINUE EXATAMENTE DO PONTO ONDE O AGENTE ANTERIOR PAROU.
+
+NÃO REFAÇA A FASE 1.
+
+NÃO REVISITE TODO O PROJETO.
+
+NÃO ALTERE A CLARA.
+
+NÃO ALTERE O BANCO `heliumdb`.
+
+NÃO REVERTA NADA.
+
+## ESTADO COMPROVADO
+
+A Fase 1 do fluxo de pedidos já foi implementada e validada.
+
+O agente anterior confirmou:
+
+* TypeScript passou;
+* build passou;
+* `git diff --check` passou;
+* teste focado da Fase 1 passou: **4/4**;
+* fluxo operacional foi validado;
+* conta a receber está vinculada à aprovação;
+* aprovação não gera pré-nota automaticamente;
+* `SHIPPED` não exige NF/pré-nota;
+* recursos fiscais continuam preservados;
+* Clara não foi alterada;
+* banco `heliumdb` não foi alterado.
+
+Também foi criado:
+
+`docs/release/RC1_COMPLETION_REPORT.md`
+
+O relatório registra os resultados e os bloqueios conhecidos.
+
+A suíte geral possui uma falha externa já conhecida relacionada a horário/timezone:
+
+o teste espera `15:00 UTC`, enquanto o ambiente retorna `16:00 UTC`.
+
+Isso NÃO deve ser corrigido agora.
+
+---
+
+# SUA ÚNICA MISSÃO
+
+Faça somente uma checagem curta:
+
+1. confirme que `docs/release/RC1_COMPLETION_REPORT.md` existe;
+2. confirme que o teste focado da Fase 1 continua aprovado;
+3. confirme que TypeScript/build/diff check estão aprovados;
+4. confirme que não existem alterações inesperadas no código;
+5. confirme que Clara não foi alterada;
+6. confirme que `heliumdb` não foi alterado.
+
+NÃO faça refatoração.
+
+NÃO crie novos testes.
+
+NÃO corrija timezone.
+
+NÃO corrija banco.
+
+NÃO altere código da Fase 1, pois ela já está validada.
+
+---
+
+# SE ESTIVER TUDO CERTO
+
+Declare:
+
+**FASE 1 — CONCLUÍDA E VALIDADA**
+
+E informe brevemente:
+
+* testes aprovados;
+* bloqueio de timezone;
+* relatório criado;
+* Clara preservada;
+* banco preservado.
+
+---
+
+# MUITO IMPORTANTE
+
+Depois de confirmar a Fase 1:
+
+**NÃO IMPLEMENTE A FASE 2.**
+
+A próxima etapa será planejada separadamente.
+
+A Fase 2 será a limpeza da área administrativa de pedidos para transformá-la em uma tela operacional B2B, removendo da interface principal a dependência visual de:
+
+* NF-e;
+* DANFE;
+* pré-nota;
+* Bling;
+* status fiscal;
+* informações ERP.
+
+Mas ISSO NÃO DEVE SER IMPLEMENTADO AGORA.
+
+Somente finalize a validação da Fase 1 e pare.
