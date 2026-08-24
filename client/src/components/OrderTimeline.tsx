@@ -52,7 +52,7 @@ const ACTION_META: Record<
 const WF_STATE_META: Record<string, { label: string; icon: any; color: string }> = {
   PROCESSING: { label: "Em Separação",  icon: PackageOpen,   color: "text-amber-600 bg-amber-50 border-amber-200" },
   READY:      { label: "Pedido Pronto", icon: PackageCheck,  color: "text-violet-600 bg-violet-50 border-violet-200" },
-  INVOICED:   { label: "Faturado",      icon: FileText,      color: "text-cyan-600 bg-cyan-50 border-cyan-200" },
+  INVOICED:   { label: "Liberado para entrega", icon: FileText, color: "text-cyan-600 bg-cyan-50 border-cyan-200" },
   SHIPPED:    { label: "Em Rota",       icon: Truck,         color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
   DELIVERED:  { label: "Entregue",      icon: CheckCircle2,  color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
   APPROVED:   { label: "Aprovado",      icon: ThumbsUp,      color: "text-blue-600 bg-blue-50 border-blue-200" },

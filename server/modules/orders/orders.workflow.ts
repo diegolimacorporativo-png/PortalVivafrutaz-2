@@ -72,9 +72,9 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
  * Rationale for each arc:
  *  CREATED          → PENDING_APPROVAL (normal flow) | CANCELLED (abort before review)
  *  PENDING_APPROVAL → APPROVED (admin approves) | REJECTED (admin rejects) | CANCELLED
- *  APPROVED         → INVOICED (fiscal creates pre-nota) | CANCELLED (rare abort)
+ *  APPROVED         → INVOICED (operationally released for delivery) | CANCELLED
  *  REJECTED         → terminal (no recovery — create a new order if needed)
- *  INVOICED         → SHIPPED (logistics dispatches) | CANCELLED (invoice voided)
+ *  INVOICED         → SHIPPED (logistics dispatches) | CANCELLED
  *  SHIPPED          → DELIVERED (delivery confirmed)
  *  DELIVERED        → terminal
  *  CANCELLED        → terminal
@@ -147,7 +147,7 @@ export function assertTransitionRole(to: OrderStatus, userRole: string): void {
  * Rules:
  *  → APPROVED  : customer must be active (not locked), no overdue invoices
  *  → INVOICED  : order must already be APPROVED (enforced by transition map)
- *  → SHIPPED   : a pre-nota number or fiscal note must already exist
+ *  → SHIPPED   : no fiscal document is required; fiscal processing is separate
  */
 export type PreTransitionContext = {
   orderId: number;
@@ -177,15 +177,4 @@ export function validateBusinessRules(ctx: PreTransitionContext): void {
     }
   }
 
-  if (to === OrderStatus.SHIPPED) {
-    const hasInvoice =
-      orderRow.preNotaNumber ||
-      orderRow.fiscalStatus === "nota_emitida" ||
-      orderRow.fiscalStatus === "nota_exportada";
-    if (!hasInvoice) {
-      throw new BadRequestError(
-        "O pedido precisa ter uma nota fiscal gerada antes de ser enviado para expedição.",
-      );
-    }
-  }
 }

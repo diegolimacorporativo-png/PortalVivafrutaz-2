@@ -1157,12 +1157,13 @@ export class OrdersService {
    *   b. State guard: `assertTransitionAllowed` rejects illegal arcs.
    *   c. RBAC: `assertTransitionRole` rejects under-privileged callers.
    *   d. Business rules: `validateBusinessRules` checks domain invariants
-   *      (customer active/not-locked, no overdue AR, invoice present for SHIP).
+    *      (customer active/not-locked, no overdue AR; fiscal documents do not
+    *       gate operational shipping).
    *
    * PHASE 3 — Atomic transaction (critical — all-or-nothing)
    *   Calls `executeWorkflowTransaction` which runs inside a single pg BEGIN.
    *   Writes: workflowStatus + status (legacy sync) + per-transition critical
-   *   ops (pre-nota, inventory deduction, AR creation, delivery status update).
+    *   ops (inventory deduction, AR creation on approval, delivery status update).
    *   Any error causes automatic ROLLBACK — no partial state ever persists.
    *
    * PHASE 4 — Non-critical side effects (fire-and-forget)

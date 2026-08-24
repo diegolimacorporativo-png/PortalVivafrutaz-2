@@ -1,0 +1,418 @@
+Agora implemente SOMENTE a FASE 1 do plano aprovado.
+
+IMPORTANTE:
+Não faça a limpeza visual da tela ainda.
+Não remova componentes fiscais.
+Não remova rotas fiscais.
+Não remova tabelas.
+Não remova campos do banco.
+Não remova DANFE.
+Não remova NF-e.
+Não remova Bling.
+
+O objetivo desta fase é SOMENTE desacoplar o fluxo operacional do pedido da emissão de NF.
+
+## OBJETIVO
+
+O pedido deve conseguir seguir este fluxo:
+
+PEDIDO RECEBIDO
+↓
+AGUARDANDO CONFERÊNCIA
+↓
+APROVADO
+↓
+EM SEPARAÇÃO
+↓
+PRONTO
+↓
+LIBERADO PARA ENTREGA
+↓
+EM ROTA
+↓
+ENTREGUE
+
+sem depender de:
+
+* NF-e;
+* DANFE;
+* pré-nota;
+* Bling;
+* status fiscal.
+
+## 1. MANTER INVOICED INTERNAMENTE
+
+NÃO remova `INVOICED` do enum ou do banco.
+
+Mantenha:
+
+`orders.workflow_status = INVOICED`
+
+por compatibilidade.
+
+Porém, a partir desta implementação, o significado operacional desse status será:
+
+`INVOICED = LIBERADO PARA ENTREGA`
+
+Atualize os labels e mensagens necessários para que o usuário NÃO veja "Faturado" como significado da etapa.
+
+Não remova o valor interno `INVOICED`.
+
+## 2. CONTA A RECEBER
+
+Atualmente a transição para `INVOICED` pode criar uma conta a receber.
+
+Altere essa lógica para que a conta a receber seja criada ou garantida na aprovação:
+
+`PENDING_APPROVAL → APPROVED`
+
+Preserve:
+
+* idempotência;
+* `order_id`;
+* valor;
+* vencimento;
+* forma de pagamento;
+* PIX;
+* vínculo com empresa;
+* transação;
+* rollback;
+* proteção contra duplicidade.
+
+IMPORTANTE:
+
+Antes de criar uma nova conta a receber, verifique se já existe uma para o pedido.
+
+O mesmo pedido NUNCA pode gerar duas contas a receber por causa dessa alteração.
+
+## 3. APROVAÇÃO E ESTOQUE
+
+NÃO altere a lógica operacional existente de aprovação.
+
+A aprovação deve continuar:
+
+* validando permissões;
+* validando o pedido;
+* validando empresa;
+* validando regras;
+* deduzindo estoque quando aplicável;
+* criando movimento de saída;
+* registrando workflow event;
+* disparando notificações;
+* mantendo auditoria.
+
+Não remova nenhum desses efeitos.
+
+## 4. REMOVER DEPENDÊNCIA FISCAL DA ENTREGA
+
+Revise as transições:
+
+`READY → INVOICED`
+
+`INVOICED → SHIPPED`
+
+`SHIPPED → DELIVERED`
+
+A entrega NÃO pode depender de:
+
+`fiscal_status`
+
+ou de:
+
+* NF emitida;
+* DANFE;
+* pré-nota;
+* Bling;
+* ID ERP.
+
+Teste explicitamente o cenário:
+
+`fiscal_status = nota_pendente`
+
+e confirme que o pedido consegue seguir:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+normalmente.
+
+## 5. PRÉ-NOTA
+
+A geração automática de:
+
+`orders.pre_nota_number`
+
+não deve mais ser requisito para aprovação ou entrega.
+
+Não exclua o campo.
+
+Não exclua a rota.
+
+Não exclua a função.
+
+Apenas remova a dependência automática dela no fluxo operacional.
+
+A função poderá continuar sendo usada futuramente pela área fiscal.
+
+## 6. FISCAL_STATUS
+
+NÃO remova:
+
+`orders.fiscal_status`
+
+NÃO remova seus valores.
+
+Porém, revise todas as regras em:
+
+* orders.service;
+* orders.workflow;
+* orders.transaction;
+* logistics;
+* delivery;
+* cron.
+
+para garantir que `fiscal_status` NÃO bloqueie:
+
+* liberação para entrega;
+* envio para rota;
+* confirmação de entrega.
+
+O fiscal passa a ser independente do fluxo operacional.
+
+## 7. BLING
+
+Não remova o Bling nesta fase.
+
+Não remova:
+
+* `status_exportacao_erp`;
+* `data_exportacao_erp`;
+* `id_erp`;
+* `erro_exportacao_erp`;
+* rota `/bling-export`.
+
+Apenas garanta que nenhuma dessas informações seja necessária para:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+## 8. INVOICED → SHIPPED
+
+Mantenha a transição.
+
+Porém, remova qualquer interpretação de que:
+
+`INVOICED = NF emitida`
+
+O significado deve ser:
+
+`INVOICED = LIBERADO PARA ENTREGA`
+
+A ação que atualmente aparece como:
+
+`Faturar`
+
+deve ser alterada para:
+
+`Liberar para entrega`
+
+Não altere ainda o restante da interface fiscal.
+
+## 9. PORTAL DO CLIENTE
+
+Atualize somente o necessário para que o cliente veja:
+
+`Liberado para entrega`
+
+em vez de:
+
+`Faturado`
+
+Não mostrar ao cliente nesta etapa:
+
+* detalhes internos de NF;
+* Bling;
+* DANFE.
+
+Se atualmente já existe uma área fiscal separada, não altere essa área.
+
+## 10. OUTBOX E NOTIFICAÇÕES
+
+Atualize mensagens relacionadas ao status `INVOICED`.
+
+Não devem mais dizer:
+
+"Pedido faturado"
+
+quando estiverem se referindo à etapa operacional.
+
+Devem utilizar:
+
+"Pedido liberado para entrega"
+
+Preserve:
+
+* workflow events;
+* retry;
+* outbox;
+* logs;
+* notificações.
+
+## 11. CRON FISCAL
+
+Revise:
+
+`server/jobs/faturamento.cron.ts`
+
+Garanta que ele continue tratando somente rotinas fiscais.
+
+O cron NÃO pode bloquear a operação:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+por ausência de NF.
+
+Não remova o cron.
+
+## 12. NÃO FAZER NESTA FASE
+
+Não faça:
+
+* limpeza visual da tela `/admin/orders`;
+* remoção do DanfePanel;
+* remoção de NF-e;
+* remoção de Bling;
+* remoção de fiscal_status;
+* remoção de pre_nota_number;
+* remoção de tabelas;
+* remoção de campos;
+* remoção de rotas;
+* migração do `orders.status`;
+* remoção do `orders.status`.
+
+Essas serão fases posteriores.
+
+## 13. TESTES OBRIGATÓRIOS
+
+Depois da implementação, execute testes automatizados ou testes internos suficientes para confirmar:
+
+### TESTE 1
+
+Pedido novo:
+
+`CREATED → PENDING_APPROVAL`
+
+Resultado:
+pedido criado normalmente.
+
+### TESTE 2
+
+Aprovação:
+
+`PENDING_APPROVAL → APPROVED`
+
+Confirmar:
+
+* estoque correto;
+* movimento de saída;
+* conta a receber criada UMA vez;
+* workflow event;
+* notificação;
+* auditoria.
+
+### TESTE 3
+
+Separação:
+
+`APPROVED → PROCESSING`
+
+### TESTE 4
+
+Pedido pronto:
+
+`PROCESSING → READY`
+
+### TESTE 5
+
+SEM NF:
+
+Definir:
+
+`fiscal_status = nota_pendente`
+
+Depois executar:
+
+`READY → INVOICED`
+
+Resultado esperado:
+
+`INVOICED = LIBERADO PARA ENTREGA`
+
+Sem exigir NF.
+
+### TESTE 6
+
+Enviar para rota:
+
+`INVOICED → SHIPPED`
+
+Mesmo com:
+
+`fiscal_status = nota_pendente`
+
+deve funcionar.
+
+### TESTE 7
+
+Entregar:
+
+`SHIPPED → DELIVERED`
+
+Mesmo sem:
+
+* NF;
+* DANFE;
+* Bling;
+* pré-nota.
+
+deve funcionar.
+
+### TESTE 8
+
+Duplicidade financeira:
+
+Executar aprovação novamente ou simular repetição da transação.
+
+Resultado:
+
+NUNCA criar duas contas a receber para o mesmo pedido.
+
+### TESTE 9
+
+Cancelamento:
+
+Verificar que o pedido pode ser cancelado conforme as regras atuais sem quebrar estoque, financeiro ou auditoria.
+
+## 14. RELATÓRIO FINAL
+
+Depois de implementar, informe:
+
+1. Arquivos alterados.
+2. Funções alteradas.
+3. Regras alteradas.
+4. Como a conta a receber passou a ser criada.
+5. Como a dependência fiscal foi removida.
+6. Como `INVOICED` passou a representar "Liberado para entrega".
+7. Testes executados.
+8. Resultado de cada teste.
+9. Erros encontrados.
+10. Funcionalidades que NÃO foram alteradas.
+11. O que ainda precisa ser feito na Fase 2.
+
+IMPORTANTE:
+
+Não considere a implementação concluída apenas porque o código compilou.
+
+O fluxo deve ser funcionalmente validado.
+
+A regra de aceitação é:
+
+UM PEDIDO SEM NF EMITIDA DEVE CONSEGUIR CHEGAR A "ENTREGUE".

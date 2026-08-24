@@ -38,7 +38,7 @@ const WF_LABELS: Record<string, { label: string; color: string }> = {
   APPROVED:   { label: "Aprovado",      color: "bg-blue-50 text-blue-700 border border-blue-200" },
   PROCESSING: { label: "Em Separação",  color: "bg-amber-50 text-amber-700 border border-amber-200" },
   READY:      { label: "Pedido Pronto", color: "bg-violet-50 text-violet-700 border border-violet-200" },
-  INVOICED:   { label: "Faturado",      color: "bg-cyan-50 text-cyan-700 border border-cyan-200" },
+  INVOICED:   { label: "Liberado para entrega", color: "bg-cyan-50 text-cyan-700 border border-cyan-200" },
   SHIPPED:    { label: "Em Rota",       color: "bg-indigo-50 text-indigo-700 border border-indigo-200" },
   DELIVERED:  { label: "Entregue",      color: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
 };

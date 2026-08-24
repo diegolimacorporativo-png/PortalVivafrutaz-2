@@ -59,7 +59,7 @@ export const OrderRow = memo(function OrderRow({
   const NEXT: Record<string, { to: string; label: string; cls: string }> = {
     APPROVED:   { to: "PROCESSING", label: "Iniciar Separação", cls: "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100" },
     PROCESSING: { to: "READY",      label: "Pedido Pronto",     cls: "bg-violet-50 text-violet-700 border-violet-300 hover:bg-violet-100" },
-    READY:      { to: "INVOICED",   label: "Faturar",           cls: "bg-cyan-50 text-cyan-700 border-cyan-300 hover:bg-cyan-100" },
+    READY:      { to: "INVOICED",   label: "Liberar para entrega", cls: "bg-cyan-50 text-cyan-700 border-cyan-300 hover:bg-cyan-100" },
     INVOICED:   { to: "SHIPPED",    label: "Saiu p/ Entrega",   cls: "bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100" },
     SHIPPED:    { to: "DELIVERED",  label: "Entregue",          cls: "bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100" },
   };
