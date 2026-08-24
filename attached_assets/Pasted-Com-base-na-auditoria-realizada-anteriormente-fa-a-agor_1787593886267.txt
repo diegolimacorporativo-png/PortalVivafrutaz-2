@@ -1,0 +1,368 @@
+Com base na auditoria realizada anteriormente, faça agora uma SEGUNDA ETAPA DE ANÁLISE E PLANEJAMENTO para adequar o módulo de pedidos ao novo modelo de negócio da VivaFrutaz.
+
+IMPORTANTE:
+
+AINDA NÃO APAGUE NADA.
+
+NÃO EXCLUA:
+
+* tabelas;
+* campos;
+* rotas;
+* serviços;
+* componentes;
+* funções fiscais;
+* integração/registro do Bling;
+* DANFE;
+* NF-e.
+
+Nesta etapa quero que você prepare a aplicação para a mudança de fluxo, identificando exatamente o que precisa ser alterado antes de qualquer exclusão.
+
+# NOVO MODELO DE NEGÓCIO
+
+O sistema será exclusivamente um PORTAL B2B DE PEDIDOS.
+
+Fluxo principal:
+
+CLIENTE FAZ O PEDIDO
+↓
+ADMINISTRATIVO RECEBE
+↓
+CONFERÊNCIA/APROVAÇÃO
+↓
+SEPARAÇÃO
+↓
+PEDIDO PRONTO
+↓
+LIBERADO PARA ENTREGA
+↓
+EM ROTA
+↓
+ENTREGUE
+
+A NOTA FISCAL NÃO SERÁ EMITIDA PELO SISTEMA.
+
+A NF será lançada/emitida externamente pela equipe.
+
+Portanto:
+
+* emissão de NF não deve ser requisito para concluir o fluxo operacional;
+* DANFE não deve aparecer como parte do fluxo principal;
+* Bling não deve aparecer como parte do fluxo principal;
+* status fiscal não deve controlar a operação de entrega;
+* o pedido não deve ficar parado aguardando emissão de NF dentro do portal.
+
+# 1. ANALISAR O STATUS INVOICED
+
+Este é o ponto mais importante.
+
+Analise todas as referências a:
+
+INVOICED
+
+e descubra exatamente:
+
+* onde é criado;
+* onde é alterado;
+* quais telas utilizam;
+* quais APIs utilizam;
+* quais serviços utilizam;
+* quais efeitos colaterais acontecem;
+* se ele dispara estoque;
+* se ele dispara financeiro;
+* se ele dispara entrega;
+* se ele dispara notificações;
+* se ele dispara eventos;
+* se ele possui dependência fiscal.
+
+NÃO altere ainda.
+
+Depois proponha qual deve ser o novo significado dessa etapa.
+
+A prioridade é substituir a dependência conceitual de:
+
+"Faturamento/NF"
+
+por uma etapa operacional.
+
+Sugira a melhor alternativa entre conceitos como:
+
+* Liberado para entrega;
+* Liberado para expedição;
+* Pronto para entrega;
+* Processado.
+
+Escolha a opção que melhor corresponde ao código existente e explique o motivo.
+
+# 2. ANALISAR O MOMENTO DA APROVAÇÃO
+
+A auditoria informou que APPROVED pode:
+
+* gerar pré-nota;
+* deduzir estoque;
+* criar movimento de saída;
+* gerar conta a receber;
+* disparar eventos;
+* enviar notificações.
+
+Não altere ainda.
+
+Descubra se esses efeitos precisam continuar acontecendo quando o pedido é APROVADO no novo modelo.
+
+Separe claramente:
+
+## EFEITOS OPERACIONAIS QUE DEVEM CONTINUAR
+
+e
+
+## EFEITOS EXCLUSIVAMENTE FISCAIS QUE DEVEM DEIXAR DE SER EXECUTADOS
+
+Não remova nada nesta etapa.
+
+# 3. DEFINIR O NOVO FLUXO OPERACIONAL
+
+Com base no código atual, proponha uma máquina de estados futura para:
+
+PEDIDO RECEBIDO
+↓
+CONFERÊNCIA
+↓
+APROVADO
+↓
+EM SEPARAÇÃO
+↓
+PRONTO
+↓
+LIBERADO PARA ENTREGA
+↓
+EM ROTA
+↓
+ENTREGUE
+
+Compare cada nova etapa com os status existentes.
+
+Mostre:
+
+STATUS ATUAL → NOVO SIGNIFICADO
+
+Exemplo:
+
+INVOICED → LIBERADO PARA ENTREGA
+
+Mas somente faça essa equivalência se a análise do código confirmar que é seguro.
+
+# 4. NÃO CRIAR DUPLICIDADE DESNECESSÁRIA
+
+O sistema possui:
+
+orders.status
+
+e
+
+orders.workflow_status
+
+Analise se é realmente necessário manter os dois.
+
+Não altere ainda.
+
+Mapeie todas as referências encontradas e diga:
+
+* quais usam status;
+* quais usam workflow_status;
+* quais podem ser migradas;
+* quais rotas legadas ainda dependem de status;
+* quais telas dependem deles.
+
+No final, proponha uma estratégia para reduzir a duplicidade futuramente sem quebrar o sistema.
+
+# 5. NOVA TELA DE PEDIDOS
+
+Planeje a futura tela administrativa.
+
+Ela deve priorizar:
+
+## PEDIDOS
+
+Filtros:
+
+* Todos
+* Aguardando conferência
+* Aprovados
+* Em separação
+* Prontos
+* Liberados para entrega
+* Em rota
+* Entregues
+* Cancelados
+* Pagos
+* Pendentes
+
+Busca:
+
+* Empresa
+* Código do pedido
+
+A tabela deve priorizar:
+
+* Código
+* Empresa
+* Data do pedido
+* Data de entrega
+* Quantidade de itens
+* Total
+* Pagamento
+* Status operacional
+* Ações
+
+NÃO mostrar na tabela principal:
+
+* Fiscal
+* Status NF
+* Pré-nota
+* DANFE
+* Status Bling
+* ID ERP
+* Data de exportação Bling
+
+# 6. PAINEL EXPANDIDO
+
+Planeje o painel expandido do pedido contendo:
+
+* empresa;
+* data;
+* entrega;
+* itens;
+* quantidades;
+* preços;
+* total;
+* observação do cliente;
+* observação administrativa;
+* histórico operacional;
+* pagamento;
+* estoque;
+* ações disponíveis.
+
+As ações devem depender do status.
+
+Exemplo:
+
+AGUARDANDO CONFERÊNCIA
+→ Aprovar / Rejeitar
+
+APROVADO
+→ Iniciar separação
+
+EM SEPARAÇÃO
+→ Marcar como pronto
+
+PRONTO
+→ Liberar para entrega
+
+LIBERADO PARA ENTREGA
+→ Enviar para rota
+
+EM ROTA
+→ Confirmar entrega
+
+ENTREGUE
+→ Somente consulta
+
+CANCELADO
+→ Somente consulta
+
+Não implemente ainda.
+
+# 7. ÁREA FISCAL
+
+A área fiscal não deve ser destruída nesta etapa.
+
+Planeje como ela poderia ficar isolada do fluxo principal.
+
+Identifique:
+
+* DanfePanel;
+* NF-e;
+* pré-nota;
+* fiscal_status;
+* Bling;
+* nfe_emissoes;
+* danfe_records;
+* fiscal_closures;
+* rotinas fiscais;
+* serviços fiscais.
+
+Sugira uma futura separação:
+
+PEDIDOS
+→ operação B2B
+
+FISCAL
+→ emissão/consulta fiscal, caso ainda seja necessário manter
+
+ERP/BLING
+→ integração externa, caso realmente exista
+
+Não mova nada ainda.
+
+# 8. PRESERVAR O QUE É OPERACIONAL
+
+Confirme que a futura simplificação não irá quebrar:
+
+* estoque;
+* contas a receber;
+* pagamentos;
+* logística;
+* entregas;
+* notificações;
+* histórico;
+* auditoria;
+* solicitação de alteração;
+* edição de pedidos;
+* cancelamento.
+
+Para cada um, explique qual status deve continuar disparando suas ações.
+
+# 9. IDENTIFICAR ALTERAÇÕES NECESSÁRIAS
+
+Crie uma tabela:
+
+| Arquivo | Função | Alteração necessária | Risco | Prioridade |
+| ------- | ------ | -------------------- | ----- | ---------- |
+
+Liste somente alterações que realmente serão necessárias para implementar o novo fluxo.
+
+# 10. NÃO EXECUTAR
+
+NÃO faça nenhuma alteração nesta etapa.
+
+Não editar código.
+Não alterar banco.
+Não migrar dados.
+Não apagar componentes.
+Não remover rotas.
+Não excluir campos.
+
+Quero somente o PLANO TÉCNICO EXATO para a próxima etapa.
+
+# RESULTADO FINAL
+
+Entregue:
+
+1. Fluxo atual.
+2. Fluxo proposto.
+3. Mapeamento de INVOICED.
+4. Efeitos da aprovação.
+5. Mapeamento de status.
+6. Dependências operacionais.
+7. Dependências fiscais.
+8. Nova estrutura da tela.
+9. Arquivos que precisarão ser alterados.
+10. Riscos da implementação.
+11. Ordem recomendada das alterações.
+12. O que definitivamente NÃO deve ser removido.
+
+A regra principal é:
+
+O PEDIDO DEVE CONSEGUIR CHEGAR A ENTREGUE SEM DEPENDER DA EMISSÃO DE NF DENTRO DO SISTEMA.
+
+A NF será tratada externamente.
