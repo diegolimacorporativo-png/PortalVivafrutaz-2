@@ -127,6 +127,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/production', label: 'Produção', icon: Factory, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'], tabKey: 'production', category: 'Pedidos' },
     { href: '/admin/logistics', label: 'Logística', icon: Truck, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'], tabKey: 'logistics', category: 'Logística', moduloChave: 'logistica' },
     { href: '/admin/driver-panel', label: 'Painel do Motorista', icon: Route, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'MOTORISTA'], tabKey: 'driver-panel', category: 'Logística' },
+    { href: '/admin/gps-tracking', label: 'GPS em Tempo Real', icon: Navigation, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER'], tabKey: 'gps-tracking', category: 'Logística' },
     { href: '/admin/financial', label: 'Painel Financeiro', icon: PieChart, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'financial', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/fiscal', label: 'Gestão de Notas Fiscais', icon: Receipt, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/fiscal-config', label: 'Configurações Fiscais', icon: Settings, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal-config', category: 'Financeiro', moduloChave: 'fiscal' },

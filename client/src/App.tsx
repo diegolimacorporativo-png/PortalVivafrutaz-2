@@ -103,6 +103,7 @@ import AdminAiDeveloper from "@/pages/admin/ai-developer";
 import AdminLogisticsIntelligence from "@/pages/admin/logistics-intelligence";
 import AdminProduction from "@/pages/admin/production";
 import AdminDriverPanel from "@/pages/admin/driver-panel";
+import GpsTracking from "@/pages/admin/gps-tracking";
 import TrackDelivery from "@/pages/track";
 import DriverMap from "@/pages/driver-map";
 import AdminNotificationSettings from "@/pages/admin/notification-settings";
@@ -480,6 +481,9 @@ function Router() {
       </Route>
       <Route path="/admin/driver-panel">
         {() => <ProtectedRoute component={AdminDriverPanel} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'MOTORISTA']} tabKey="driver-panel" />}
+      </Route>
+      <Route path="/admin/gps-tracking">
+        {() => <ProtectedRoute component={GpsTracking} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER']} tabKey="gps-tracking" />}
       </Route>
       <Route path="/admin/saas-dashboard">
         {() => <ProtectedRoute component={SaasDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS']} tabKey="saas-dashboard" />}
