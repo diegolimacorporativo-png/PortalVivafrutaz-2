@@ -1,0 +1,305 @@
+CONTINUE EXATAMENTE DO ÚLTIMO CHECKPOINT.
+
+NÃO REFAÇA A FASE 1.
+
+NÃO ALTERE A CLARA.
+
+NÃO ALTERE O BANCO `heliumdb`.
+
+NÃO REVERTA NENHUMA ALTERAÇÃO JÁ FEITA.
+
+## ESTADO ATUAL
+
+O agente anterior confirmou que a implementação da Fase 1 está presente e os testes focados passaram.
+
+As alterações principais já estão implementadas:
+
+* aprovação garante conta a receber;
+* conta a receber não depende mais de `INVOICED`;
+* aprovação não gera pré-nota automaticamente;
+* `READY → INVOICED` continua funcionando;
+* `INVOICED → SHIPPED` não exige mais NF/pré-nota;
+* `SHIPPED → DELIVERED` não deve depender de NF;
+* recursos fiscais foram preservados;
+* Clara não foi alterada.
+
+O agente encontrou uma pendência nos textos:
+
+A tela operacional ainda mostrava `INVOICED` como:
+
+**Faturado**
+
+Foram encontrados dois rótulos operacionais incorretos e eles JÁ FORAM CORRIGIDOS para representar:
+
+**Liberado para entrega**
+
+Os textos explicitamente fiscais não foram alterados.
+
+## SUA TAREFA AGORA
+
+NÃO faça novas mudanças de lógica.
+
+Apenas:
+
+1. revisar o diff atual;
+2. confirmar que os dois rótulos foram realmente alterados;
+3. executar novamente as validações depois dessa alteração;
+4. verificar se não apareceu nenhuma regressão;
+5. registrar o resultado final.
+
+---
+
+# 1. VALIDAR DIFF
+
+Verifique exatamente quais arquivos foram modificados pela Fase 1.
+
+Confirme que as alterações pertencem somente ao escopo:
+
+* workflow de pedidos;
+* conta a receber;
+* desacoplamento fiscal;
+* rótulos de `INVOICED`.
+
+Não altere arquivos da Clara.
+
+Não faça limpeza de código adicional.
+
+---
+
+# 2. EXECUTAR VALIDAÇÕES
+
+Execute, quando disponíveis:
+
+`npx tsc --noEmit`
+
+`npm run build`
+
+`git diff --check`
+
+e os testes focados da Fase 1.
+
+Se já existirem testes específicos do workflow, execute-os.
+
+Se os testes gerais falharem por causa do ambiente/banco `heliumdb`, NÃO tente corrigir o banco.
+
+Classifique a falha como:
+
+**BLOQUEIO EXTERNO DE AMBIENTE**
+
+---
+
+# 3. TESTE PRINCIPAL DA FASE 1
+
+Confirme através dos testes existentes ou análise do código que o seguinte cenário é permitido:
+
+`READY`
+
+com:
+
+`fiscal_status = nota_pendente`
+
+↓
+
+`INVOICED`
+
+↓
+
+`SHIPPED`
+
+↓
+
+`DELIVERED`
+
+sem:
+
+* NF emitida;
+* DANFE;
+* pré-nota;
+* Bling.
+
+Esse é o principal critério de aceitação.
+
+---
+
+# 4. CONTA A RECEBER
+
+Confirme que:
+
+`APPROVED`
+
+garante a existência da conta a receber.
+
+Confirme também que:
+
+`INVOICED`
+
+não é mais necessário para criar a conta a receber.
+
+Verifique idempotência.
+
+Não deve existir risco de criar duas contas a receber para o mesmo pedido.
+
+---
+
+# 5. PRÉ-NOTA
+
+Confirme que a aprovação NÃO gera automaticamente:
+
+`pre_nota_number`
+
+Mas preserve:
+
+* campo;
+* rota;
+* serviço;
+* módulo fiscal;
+* componentes fiscais.
+
+---
+
+# 6. RÓTULOS
+
+Faça uma busca final por referências a:
+
+`Faturado`
+
+e `INVOICED`.
+
+Separe:
+
+### CONTEXTO OPERACIONAL
+
+Quando estiver representando o status operacional `INVOICED`, deve aparecer:
+
+**Liberado para entrega**
+
+### CONTEXTO FISCAL
+
+Se estiver falando de NF-e/faturamento fiscal, pode permanecer como:
+
+**Faturado**
+
+NÃO altere textos fiscais legítimos.
+
+---
+
+# 7. CLARA
+
+Não tocar em nenhum arquivo ou função da Clara.
+
+Não executar correções da Clara.
+
+Apenas confirme que ela não foi alterada nesta continuação.
+
+---
+
+# 8. HELIUMDB
+
+Se o workflow não iniciar porque existe uma proteção contra:
+
+`heliumdb`
+
+NÃO:
+
+* trocar DATABASE_URL;
+* trocar banco;
+* alterar schema;
+* desativar proteção;
+* usar banco de produção;
+* modificar configuração de segurança.
+
+Registre:
+
+**Workflow bloqueado por configuração de ambiente existente (`heliumdb`).**
+
+Isso NÃO deve ser tratado como falha da Fase 1 se os testes focados e validações de código passarem.
+
+---
+
+# 9. NÃO AVANÇAR PARA FASE 2
+
+NÃO faça ainda:
+
+* remoção do DANFE;
+* remoção de NF-e;
+* remoção do Bling;
+* remoção de `fiscal_status`;
+* remoção de `pre_nota_number`;
+* remoção de tabelas fiscais;
+* limpeza completa da tela `/admin/orders`;
+* criação da nova área fiscal;
+* migração definitiva dos status;
+* remoção de `orders.status`;
+* remoção de `workflow_status`.
+
+A Fase 2 será feita separadamente.
+
+---
+
+# 10. RELATÓRIO FINAL
+
+Ao terminar, responda exatamente:
+
+## FASE 1 — RESULTADO FINAL
+
+### 1. Implementação
+
+O que já estava implementado.
+
+### 2. Última correção
+
+Explique os dois rótulos operacionais corrigidos de “Faturado” para “Liberado para entrega”.
+
+### 3. Arquivos alterados
+
+Liste os arquivos realmente modificados.
+
+### 4. Testes focados
+
+Informe quais passaram.
+
+### 5. Validações gerais
+
+Resultado de:
+
+* TypeScript;
+* Build;
+* diff check.
+
+### 6. Critério principal
+
+Diga claramente:
+
+**APROVADO** ou **REPROVADO**
+
+para:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+com `fiscal_status = nota_pendente` e sem NF.
+
+### 7. Conta a receber
+
+Confirme que não depende mais de `INVOICED`.
+
+### 8. Recursos fiscais
+
+Liste o que foi preservado.
+
+### 9. Clara
+
+Confirme:
+
+**NÃO ALTERADA**
+
+### 10. Bloqueios
+
+Informe qualquer bloqueio externo, especialmente `heliumdb`.
+
+### 11. Próxima etapa
+
+Se a Fase 1 estiver aprovada, escreva apenas:
+
+**FASE 1 CONCLUÍDA — PRONTO PARA PLANEJAR A FASE 2.**
+
+NÃO implemente a Fase 2 agora.
