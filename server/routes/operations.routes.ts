@@ -87,7 +87,7 @@ function workflowStatusLabel(ws: string): string {
     PENDING_APPROVAL:  "Aguardando aprovação",
     APPROVED:          "Aprovado",
     REJECTED:          "Rejeitado",
-    INVOICED:          "Faturado",
+    INVOICED:          "Liberado para entrega",
     SHIPPED:           "Enviado",
     DELIVERED:         "Entregue",
     CANCELLED:         "Cancelado",

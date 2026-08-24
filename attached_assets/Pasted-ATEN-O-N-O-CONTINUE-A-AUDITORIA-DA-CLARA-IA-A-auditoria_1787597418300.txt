@@ -1,0 +1,324 @@
+ATENÇÃO: NÃO CONTINUE A AUDITORIA DA CLARA IA.
+
+A auditoria/correções da Clara já foram concluídas e estão fora do escopo desta tarefa.
+
+AGORA precisamos voltar EXCLUSIVAMENTE para a FASE 1 do MÓDULO DE PEDIDOS, descrita anteriormente.
+
+Não faça nenhuma alteração na Clara.
+
+# OBJETIVO
+
+Finalizar e validar o desacoplamento do fluxo operacional de pedidos da emissão de Nota Fiscal.
+
+O sistema será um PORTAL B2B DE PEDIDOS.
+
+A NF será emitida externamente.
+
+O pedido NÃO pode depender de NF para ser entregue.
+
+O fluxo operacional desejado é:
+
+PEDIDO RECEBIDO
+↓
+CONFERÊNCIA
+↓
+APROVADO
+↓
+EM SEPARAÇÃO
+↓
+PRONTO
+↓
+LIBERADO PARA ENTREGA
+↓
+EM ROTA
+↓
+ENTREGUE
+
+# ESTADO ATUAL
+
+O agente anterior informou que já realizou as principais alterações da Fase 1:
+
+1. `INVOICED` continua existindo internamente.
+2. `INVOICED` deve representar operacionalmente:
+   **LIBERADO PARA ENTREGA**
+3. A aprovação deixou de gerar pré-nota automaticamente.
+4. A aprovação passou a garantir a conta a receber dentro da mesma transação.
+5. A deduplicação financeira foi preservada.
+6. Estoque foi preservado.
+7. Eventos foram preservados.
+8. Notificações foram preservadas.
+9. A validação que exigia pré-nota/NF para `SHIPPED` foi removida.
+10. Os testes focados da Fase 1 passaram.
+11. Recursos fiscais continuam preservados.
+
+NÃO reverta essas alterações.
+
+ANTES DE ALTERAR QUALQUER COISA, INSPECIONE O CÓDIGO ATUAL E CONFIRME SE ELAS REALMENTE ESTÃO PRESENTES.
+
+# 1. NÃO MEXER NA CLARA
+
+Não alterar:
+
+* `server/core/tenant/claraScope.ts`
+* `/api/clara/chat`
+* `/api/assistant/chat`
+* funções da Clara;
+* exportações da Clara;
+* permissões da Clara;
+* escopo de empresas da Clara.
+
+A auditoria da Clara já está concluída.
+
+# 2. VALIDAR O FLUXO DE PEDIDOS
+
+Verifique no código:
+
+`PENDING_APPROVAL → APPROVED`
+
+Deve:
+
+* aprovar o pedido;
+* garantir UMA conta a receber;
+* preservar estoque;
+* registrar movimento de estoque;
+* registrar evento;
+* enviar notificações;
+* NÃO gerar pré-nota automaticamente.
+
+Depois:
+
+`APPROVED → PROCESSING`
+
+Depois:
+
+`PROCESSING → READY`
+
+Depois:
+
+`READY → INVOICED`
+
+Aqui:
+
+`INVOICED = LIBERADO PARA ENTREGA`
+
+Depois:
+
+`INVOICED → SHIPPED`
+
+Depois:
+
+`SHIPPED → DELIVERED`
+
+# 3. TESTE PRINCIPAL
+
+O teste mais importante é:
+
+Criar/simular pedido com:
+
+`fiscal_status = nota_pendente`
+
+e SEM:
+
+* NF emitida;
+* DANFE;
+* pré-nota;
+* Bling.
+
+Então validar:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+Esse fluxo deve funcionar.
+
+Se qualquer etapa ainda exigir documento fiscal, corrija SOMENTE essa dependência.
+
+# 4. CONTA A RECEBER
+
+Confirme que a conta a receber agora é garantida em `APPROVED`.
+
+Não deve depender de:
+
+`INVOICED`
+
+Não deve depender de NF.
+
+Não deve haver duplicidade.
+
+Teste também retry/reexecução.
+
+Um pedido deve possuir no máximo uma conta a receber correspondente.
+
+# 5. PRÉ-NOTA
+
+Confirme que `APPROVED` não gera mais automaticamente:
+
+`pre_nota_number`
+
+Mas NÃO remova:
+
+* campo;
+* rota;
+* serviço;
+* componentes;
+* módulo fiscal.
+
+A pré-nota deve permanecer disponível para eventual uso fiscal futuro.
+
+# 6. FISCAL_STATUS
+
+Não remover.
+
+Mas confirmar que `fiscal_status` NÃO bloqueia:
+
+* READY → INVOICED;
+* INVOICED → SHIPPED;
+* SHIPPED → DELIVERED.
+
+Especialmente:
+
+`fiscal_status = nota_pendente`
+
+deve permitir todo o fluxo operacional.
+
+# 7. BLING
+
+Não remover nada.
+
+Confirmar apenas que:
+
+* status_exportacao_erp;
+* data_exportacao_erp;
+* id_erp;
+* erro_exportacao_erp;
+
+não são necessários para concluir o pedido.
+
+# 8. TEXTOS
+
+Onde `INVOICED` for apresentado como etapa operacional, usar:
+
+**Liberado para entrega**
+
+e não:
+
+**Faturado**
+
+Não alterar ocorrências que estejam explicitamente em contexto fiscal.
+
+# 9. CRON FISCAL
+
+Não remover.
+
+Apenas confirmar que:
+
+`server/jobs/faturamento.cron.ts`
+
+não é necessário para:
+
+`READY → INVOICED → SHIPPED → DELIVERED`
+
+# 10. BANCO HELIUMDB
+
+NÃO alterar:
+
+* DATABASE_URL;
+* banco;
+* schema;
+* proteção de segurança;
+* configuração de produção.
+
+Se o preview continuar bloqueado pelo `heliumdb`, registre:
+
+**BLOQUEIO EXTERNO DE AMBIENTE**
+
+Não tente mascarar o erro.
+
+# 11. VALIDAÇÕES
+
+Execute o que for possível:
+
+* `npx tsc --noEmit`
+* `npm run build`
+* `git diff --check`
+* testes específicos do workflow;
+* testes específicos da conta a receber;
+* testes específicos do desacoplamento fiscal.
+
+Não precisa repetir testes da Clara.
+
+Se os comandos gerais já estiverem aprovados e não houver alteração posterior que os invalide, apenas confirme o estado atual.
+
+# 12. NÃO FAZER FASE 2
+
+Ainda NÃO:
+
+* remover DANFE;
+* remover NF-e;
+* remover Bling;
+* remover `fiscal_status`;
+* remover `pre_nota_number`;
+* remover tabelas fiscais;
+* limpar visualmente `/admin/orders`;
+* criar nova tela fiscal;
+* apagar campos;
+* migrar definitivamente `orders.status`;
+* remover `workflow_status`.
+
+Isso será feito depois.
+
+# 13. CRITÉRIO DE CONCLUSÃO
+
+Considere a Fase 1 concluída somente se o código permitir:
+
+`READY`
+↓
+`INVOICED`
+↓
+`SHIPPED`
+↓
+`DELIVERED`
+
+com:
+
+`fiscal_status = nota_pendente`
+
+e sem:
+
+* NF;
+* DANFE;
+* pré-nota;
+* Bling.
+
+Além disso:
+
+`APPROVED`
+
+deve garantir a conta a receber sem depender de `INVOICED`.
+
+# RELATÓRIO FINAL
+
+Ao terminar, responda somente com:
+
+## FASE 1 — RESULTADO
+
+### O que já estava implementado
+
+### O que precisou ser corrigido
+
+### Arquivos alterados
+
+### Testes executados
+
+### Testes aprovados
+
+### Bloqueios externos
+
+### Recursos fiscais preservados
+
+### Clara — NÃO ALTERADA
+
+### Critério principal — APROVADO ou REPROVADO
+
+Se estiver tudo correto, NÃO faça nenhuma alteração adicional.
+
+NÃO avance para a Fase 2.
