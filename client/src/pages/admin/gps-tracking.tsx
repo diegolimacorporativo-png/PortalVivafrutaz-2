@@ -26,6 +26,7 @@ const defaultCenter: [number, number] = [-23.5505, -46.6333];
 
 // Vite does not preserve Leaflet's default image path automatically when the
 // app is served behind the Replit preview proxy.
+delete (L.Icon.Default.prototype as { _getIconUrl?: unknown })._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
@@ -99,7 +100,14 @@ export default function GpsTracking() {
 
   const activeDrivers = useMemo(() => drivers.filter(driver => driver.active), [drivers]);
   const locatedDrivers = useMemo(
-    () => activeDrivers.filter(driver => driver.latitude != null && driver.longitude != null),
+    () => activeDrivers.filter(driver => {
+      if (driver.latitude == null || driver.longitude == null) return false;
+      const latitude = Number(driver.latitude);
+      const longitude = Number(driver.longitude);
+      return Number.isFinite(latitude) && Number.isFinite(longitude)
+        && latitude >= -90 && latitude <= 90
+        && longitude >= -180 && longitude <= 180;
+    }),
     [activeDrivers],
   );
 
@@ -173,9 +181,9 @@ export default function GpsTracking() {
               <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl>
                 <InvalidateMapSize />
                 <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-                  subdomains="abcd"
-                  attribution='&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  maxZoom={19}
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
                 />
                 <FitDriverBounds drivers={locatedDrivers} />
                 {locatedDrivers.map(driver => (
