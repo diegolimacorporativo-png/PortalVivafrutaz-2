@@ -42,9 +42,9 @@ const _env = process.env.NODE_ENV ?? "development";
     fails.push(`NODE_ENV inválido: "${process.env.NODE_ENV}". Valores aceitos: ${validEnvs.join(", ")}`);
   }
 
-  // Obrigatório em TODOS os ambientes — aceita SUPABASE_DATABASE_URL ou DATABASE_URL.
-  if (!process.env.SUPABASE_DATABASE_URL && !process.env.DATABASE_URL) {
-    fails.push("SUPABASE_DATABASE_URL (ou DATABASE_URL) é obrigatório em todos os ambientes. Configure o secret e reinicie.");
+  // Obrigatório em TODOS os ambientes — banco local/Replit nunca é aceito.
+  if (!process.env.SUPABASE_DATABASE_URL) {
+    fails.push("SUPABASE_DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
   }
 
   // FISCAL BOOT SAFE — bloqueia NFE_SEFAZ_MODE=production antes de qualquer worker.
@@ -170,7 +170,7 @@ process.on("uncaughtException", (err: Error) => {
   try {
     await pool.query("SELECT 1 AS ok");
     console.log("[DB_CONNECTED]", {
-      db: process.env.SUPABASE_DATABASE_URL ? "supabase" : "replit",
+      db: "supabase",
       uptime: process.uptime().toFixed(1),
       ts: new Date().toISOString(),
     });
@@ -259,7 +259,7 @@ process.on("uncaughtException", (err: Error) => {
       pid: process.pid,
       bootMs,
       uptime: process.uptime().toFixed(1),
-      db: process.env.SUPABASE_DATABASE_URL ? "supabase" : "replit",
+      db: "supabase",
       ts: new Date().toISOString(),
     });
   });

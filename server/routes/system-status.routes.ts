@@ -157,7 +157,7 @@ export function register(app: Express): void {
           latencyMs: dbCheck.latencyMs,
           message: dbCheck.message,
           pool: poolStats,
-          provider: process.env.SUPABASE_DATABASE_URL ? "supabase" : "replit",
+          provider: "supabase",
         },
         fiscal: {
           tpAmb,
