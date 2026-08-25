@@ -11,7 +11,7 @@ import {
   Truck, CheckCircle2, Clock, MapPin, Package,
   User, ChevronDown, ChevronUp, Navigation, RefreshCw,
   ClipboardCheck, AlertCircle, CheckCircle, XCircle, Map, List, FileText,
-  UserX, Home, ThumbsDown, CalendarClock, TriangleAlert, History,
+  UserX, Home, ThumbsDown, CalendarClock, TriangleAlert, History, LogOut,
 } from 'lucide-react';
 import { BackHeader } from '@/components/navigation/BackHeader';
 
@@ -619,7 +619,7 @@ function NFeRoutePanel({ companyIds, companyNames }: { companyIds: number[]; com
 }
 
 export default function DriverPanel() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const isDriverUser = (user as any)?.role === 'DRIVER' || (user as any)?.role === 'MOTORISTA';
   const [view, setView] = useState<'list' | 'map' | 'nfe'>('list');
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -658,14 +658,29 @@ export default function DriverPanel() {
               <p className="text-xs text-blue-100 capitalize">{today}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => refetch()}
-            className="p-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
-            data-testid="button-refresh-route"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="p-2 rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
+              data-testid="button-refresh-route"
+              aria-label="Atualizar rota"
+              title="Atualizar rota"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => logout()}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 hover:bg-white/30 transition-colors px-3 py-2 text-xs font-medium"
+              data-testid="button-switch-user"
+              aria-label="Sair e trocar de usuário"
+              title="Sair e trocar de usuário"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Trocar usuário</span>
+            </button>
+          </div>
         </div>
 
         {data?.driver && (
