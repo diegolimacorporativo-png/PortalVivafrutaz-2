@@ -4288,7 +4288,8 @@ async function seedDatabase() {
       for (const user of internalUsers) {
         if (
           internalRoles.includes(user.role) &&
-          !(user as any).mustChangePassword
+          !(user as any).mustChangePassword &&
+          !(user as any).passwordChangedAt
         ) {
           await storage.updateUser(user.id, {
             mustChangePassword: true,
