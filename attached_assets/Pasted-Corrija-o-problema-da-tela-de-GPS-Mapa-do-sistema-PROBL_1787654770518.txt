@@ -1,0 +1,63 @@
+Corrija o problema da tela de GPS/Mapa do sistema.
+
+### PROBLEMA ATUAL
+
+A área do mapa está aparecendo completamente cinza. Os controles de zoom do Leaflet aparecem normalmente e o rodapé `Leaflet | © OpenStreetMap` também aparece, porém os tiles do mapa não são carregados. Também existe um ícone de marcador quebrado no centro do mapa.
+
+### OBJETIVO
+
+Fazer o mapa GPS carregar normalmente, exibindo o mapa visual completo, ruas, bairros, cidades e marcadores das empresas cadastradas com GPS.
+
+### REGRAS IMPORTANTES
+
+* NÃO altere o layout geral da tela.
+* NÃO remova nenhuma funcionalidade existente.
+* NÃO altere o banco de dados.
+* NÃO altere os dados das empresas.
+* NÃO altere o sistema de rotas, pedidos, manifestos ou demais funcionalidades.
+* Faça somente as correções necessárias para o funcionamento do mapa GPS.
+* Preserve o Leaflet caso ele já esteja sendo utilizado.
+
+### VERIFICAÇÕES E CORREÇÕES
+
+1. Verifique a configuração atual do componente Leaflet responsável pelo mapa.
+2. Verifique se o `L.tileLayer` está utilizando uma URL válida e acessível.
+3. Se estiver usando OpenStreetMap, utilize uma configuração correta de tiles, por exemplo:
+
+`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`
+
+4. Garanta que a atribuição do OpenStreetMap continue presente.
+5. Verifique se existe algum bloqueio de CSP, CORS, HTTPS ou política de segurança impedindo o carregamento dos tiles.
+6. Verifique se o container do mapa possui altura e largura reais quando o Leaflet é inicializado.
+7. Se o mapa estiver dentro de uma aba, modal, painel recolhível ou elemento que inicialmente fica oculto, garanta que o Leaflet execute `invalidateSize()` quando o mapa ficar visível.
+8. Corrija o caminho dos arquivos de ícone do marcador do Leaflet. O ícone atualmente aparece como imagem quebrada.
+9. Não dependa de caminhos relativos quebrados para `marker-icon.png`, `marker-icon-2x.png` ou `marker-shadow.png`. Utilize uma configuração robusta dos ícones do Leaflet.
+10. Verifique o console do navegador e corrija qualquer erro relacionado ao Leaflet, aos tiles, aos ícones ou à inicialização do mapa.
+11. Garanta que o mapa seja centralizado automaticamente nos pontos GPS existentes quando houver empresas cadastradas.
+12. Garanta que os marcadores continuem aparecendo nas coordenadas corretas.
+13. Se houver somente uma empresa com GPS cadastrado, o mapa deve continuar funcionando normalmente e centralizar nela.
+14. Se não houver empresas com GPS, mostrar o estado vazio apropriado sem quebrar o mapa.
+
+### IMPORTANTE
+
+Antes de alterar o código, identifique a causa real do mapa cinza.
+
+Depois:
+
+* faça a correção;
+* valide o carregamento dos tiles;
+* valide os marcadores;
+* valide o zoom;
+* valide a centralização;
+* valide que não existem erros no console;
+* execute o teste/build/TypeScript existente do projeto, se disponível.
+
+NÃO faça refatorações desnecessárias.
+
+Ao finalizar, informe:
+
+1. Qual era a causa do mapa cinza.
+2. Quais arquivos foram alterados.
+3. O que foi corrigido.
+4. Se os marcadores GPS continuam funcionando.
+5. Se TypeScript/testes/build passaram.

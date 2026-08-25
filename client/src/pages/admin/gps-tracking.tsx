@@ -3,6 +3,9 @@ import { useQuery } from "@tanstack/react-query";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import markerIcon from "leaflet/dist/images/marker-icon.png";
+import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { AlertCircle, Clock, ExternalLink, MapPin, Navigation, Radio, RefreshCw, Users } from "lucide-react";
 import { BackHeader } from "@/components/navigation/BackHeader";
 
@@ -20,6 +23,28 @@ interface LiveDriver {
 }
 
 const defaultCenter: [number, number] = [-23.5505, -46.6333];
+
+// Vite does not preserve Leaflet's default image path automatically when the
+// app is served behind the Replit preview proxy.
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2x,
+  iconUrl: markerIcon,
+  shadowUrl: markerShadow,
+});
+
+function InvalidateMapSize() {
+  const map = useMap();
+  useEffect(() => {
+    const invalidate = () => map.invalidateSize({ pan: false });
+    const initialTimer = window.setTimeout(invalidate, 0);
+    window.addEventListener("resize", invalidate);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.removeEventListener("resize", invalidate);
+    };
+  }, [map]);
+  return null;
+}
 
 function FitDriverBounds({ drivers }: { drivers: LiveDriver[] }) {
   const map = useMap();
@@ -146,6 +171,7 @@ export default function GpsTracking() {
             </div>
             <div className="h-[520px]">
               <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl>
+                <InvalidateMapSize />
                 <TileLayer
                   url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                   subdomains="abcd"
