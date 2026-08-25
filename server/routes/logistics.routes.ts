@@ -3,6 +3,7 @@ import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
 import { isDriver, isDriverOrInternal, isInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import { LOGISTICS_AUTH_ROLES } from "../modules/logistics/logistics.types";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
 import { ForbiddenError } from "../shared/errors/AppError";
@@ -333,7 +334,7 @@ export async function register(app: Express): Promise<void> {
       // A consulta global só é válida para perfis centrais. Para os demais
       // perfis internos, a ausência de tenant deve falhar fechado em vez de
       // expor posições de todas as empresas.
-      if (!actor.empresaId && !['MASTER', 'ADMIN'].includes(actor.role)) {
+      if (!actor.empresaId && !(LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
         return res.status(403).json({ message: 'Empresa não definida para este usuário' });
       }
 
