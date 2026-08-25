@@ -205,7 +205,8 @@ export async function register(app: Express): Promise<void> {
       // every company, while status mutations remain ownership-protected below.
       const deliveryFilters: any = { dateFrom, dateTo };
       if (selectedCompanyId && Number.isInteger(selectedCompanyId)) deliveryFilters.companyId = selectedCompanyId;
-      let allDeliveries = await storage.getDeliveries(deliveryFilters);
+      let allDeliveries = (await storage.getDeliveries(deliveryFilters))
+        .filter((delivery: any) => delivery.status !== 'cancelado');
       let source: 'deliveries' | 'orders' = 'deliveries';
 
       // If deliveries table is empty, bridge from today's orders.
@@ -224,7 +225,8 @@ export async function register(app: Express): Promise<void> {
         } else if (actor.empresaId && actor.role !== 'DRIVER') {
           orderConds.push(eq(ordersTable.companyId, actor.empresaId));
         }
-        const todayOrders = await db.select().from(ordersTable).where(and(...orderConds));
+        const todayOrders = (await db.select().from(ordersTable).where(and(...orderConds)))
+          .filter((order: any) => order.status !== 'CANCELLED');
         const statusMap: Record<string, string> = {
           CONFIRMED: 'pendente', ACTIVE: 'pendente',
           DELIVERED: 'entregue', CANCELLED: 'cancelado', LOCKED: 'pendente',

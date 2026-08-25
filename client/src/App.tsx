@@ -497,7 +497,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminLogisticsIntelligence} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="logistics-intelligence" />}
       </Route>
       <Route path="/admin/driver-panel">
-        {() => <ProtectedRoute component={AdminDriverPanel} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'MOTORISTA']} tabKey="driver-panel" />}
+        {() => <ProtectedRoute component={AdminDriverPanel} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA']} tabKey="driver-panel" />}
       </Route>
       <Route path="/admin/gps-tracking">
         {() => <ProtectedRoute component={GpsTracking} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER']} tabKey="gps-tracking" />}

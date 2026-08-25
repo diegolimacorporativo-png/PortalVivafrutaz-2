@@ -34,6 +34,8 @@ export const LOGISTICS_AUTH_ROLES = [
   "DEVELOPER",
   "OPERATIONS_MANAGER",
   "LOGISTICS",
+  "COMERCIAL",
+  "MASTER_COMERCIAL",
 ] as const;
 
 /** Stricter set used to gate the audit-log read endpoint. */
