@@ -362,15 +362,19 @@ export default function Login({ forceAdminTab }: { forceAdminTab?: boolean } = {
                 </button>
               </form>
 
-              {loginType === 'company' && (
-                <div className="mt-6 text-center">
-                  <button onClick={() => { setShowForgot(true); setForgotIdentifier(companyIdentifier); }}
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium flex items-center gap-1.5 mx-auto">
-                    <KeyRound className="w-3.5 h-3.5" />
-                    Esqueci minha senha
-                  </button>
-                </div>
-              )}
+              <div className="mt-6 text-center">
+                <button
+                  onClick={() => {
+                    setShowForgot(true);
+                    setForgotIdentifier(loginType === 'admin' ? adminIdentifier : companyIdentifier);
+                  }}
+                  className="text-sm text-muted-foreground hover:text-primary transition-colors font-medium flex items-center gap-1.5 mx-auto"
+                  data-testid="button-forgot-password"
+                >
+                  <KeyRound className="w-3.5 h-3.5" />
+                  Esqueci minha senha
+                </button>
+              </div>
             </>
           )}
         </div>

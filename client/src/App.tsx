@@ -176,6 +176,8 @@ const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
 
 // Auth Guard Wrapper
 function UnauthorizedModule() {
+  const { logout } = useAuth();
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-center space-y-4 p-8">
@@ -186,7 +188,23 @@ function UnauthorizedModule() {
         </div>
         <h2 className="text-xl font-bold text-foreground">Acesso não autorizado para este módulo.</h2>
         <p className="text-muted-foreground text-sm max-w-xs mx-auto">Você não possui permissão para acessar esta área. Entre em contato com o administrador do sistema.</p>
-        <a href="/admin" className="inline-block mt-2 px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:opacity-90 transition-opacity">Voltar ao início</a>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-2 mt-2">
+          <a
+            href="/admin"
+            className="inline-block px-6 py-2.5 bg-primary text-primary-foreground font-semibold rounded-xl text-sm hover:opacity-90 transition-opacity"
+            data-testid="link-go-to-home"
+          >
+            Voltar ao início
+          </a>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="inline-flex items-center justify-center px-6 py-2.5 border border-border text-foreground font-semibold rounded-xl text-sm hover:bg-muted transition-colors"
+            data-testid="button-logout-unauthorized"
+          >
+            Sair e trocar usuário
+          </button>
+        </div>
       </div>
     </div>
   );
