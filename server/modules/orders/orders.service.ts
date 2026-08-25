@@ -594,11 +594,12 @@ export class OrdersService {
     // not per individual order.
     const companyId = actor.companyId ?? activeDays[0].companyId;
     if (companyId) {
+      const existingOrders = await this.repo.listByCompanyId(Number(companyId));
       await this.assertMinimumWeeklyBilling({
         companyId: Number(companyId),
         weekReference: activeDays[0].weekReference,
         candidateItems: activeDays.flatMap((day) => day.items ?? []),
-        existingOrders: [],
+        existingOrders,
       });
     }
 

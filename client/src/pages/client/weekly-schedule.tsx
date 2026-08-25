@@ -145,6 +145,7 @@ function ProductThumbnail({
 interface DayPanelProps {
   dayName: string;
   deliveryDate: string;
+  minimumRequired?: number;
   isExpanded: boolean;
   onToggle: () => void;
   cart: Record<string, number>;
@@ -158,7 +159,7 @@ interface DayPanelProps {
 }
 
 function DayPanel({
-  dayName, deliveryDate, isExpanded, onToggle,
+  dayName, deliveryDate, minimumRequired = 0, isExpanded, onToggle,
   cart, onCartChange, note, onNoteChange,
   entries, isLocked, existingOrder, onRequestReopen,
 }: DayPanelProps) {
@@ -294,6 +295,15 @@ function DayPanel({
       {/* Expanded body */}
       {isExpanded && (
         <div className="border-t border-border/50">
+          {minimumRequired > 0 && (
+            <div className="mx-4 mt-4 rounded-xl border border-orange-200 bg-orange-50 px-3 py-2.5 text-sm text-orange-700">
+              <p className="font-bold">Pedido mínimo para este último dia</p>
+              <p className="mt-0.5">
+                Faltam <strong>R$ {fmtBRL(minimumRequired)}</strong> para atingir o faturamento mínimo semanal.
+                Esse valor considera o que já foi programado nos dias anteriores.
+              </p>
+            </div>
+          )}
           {entries.length === 0 ? (
             <div className="p-8 text-center">
               <Package className="w-10 h-10 text-muted-foreground/40 mx-auto mb-2" />
@@ -592,6 +602,22 @@ export default function WeeklySchedulePage() {
   }, [companyOrders, activeWindow]);
 
   const weekAlreadySubmitted = weekOrders.length > 0;
+  const hasApprovedReopen = weekOrders.some((order: any) => order.status === "OPEN_FOR_EDITING");
+  const existingWeekTotal = useMemo(
+    () => weekOrders.reduce((total, order: any) => total + (Number(order.totalValue) || 0), 0),
+    [weekOrders],
+  );
+  const existingOrderByDate = useMemo(() => {
+    const result: Record<string, any> = {};
+    for (const order of weekOrders) {
+      if (order.deliveryDate) result[String(order.deliveryDate).split("T")[0]] = order;
+    }
+    return result;
+  }, [weekOrders]);
+  const daysAvailableForNewOrder = useMemo(
+    () => allowedDays.filter(day => deliveryDates[day] && !existingOrderByDate[deliveryDates[day]]),
+    [allowedDays, deliveryDates, existingOrderByDate],
+  );
 
   // Per-day cart helpers
   const getDayCart = (day: string): Record<string, number> => dayCarts[day] || {};
@@ -625,7 +651,15 @@ export default function WeeklySchedulePage() {
   }, [dayCarts, entriesPerDay, allowedDays]);
 
   const minWeeklyBilling = parseFloat((company as any)?.minWeeklyBilling || "0") || 0;
-  const billingShortfall = minWeeklyBilling > 0 ? Math.max(0, minWeeklyBilling - weekTotal) : 0;
+  const projectedWeekTotal = existingWeekTotal + weekTotal;
+  const billingShortfall = minWeeklyBilling > 0 ? Math.max(0, minWeeklyBilling - projectedWeekTotal) : 0;
+  const lastAvailableDay = [...daysAvailableForNewOrder].reverse().find(day => Boolean(deliveryDates[day])) || null;
+  const minimumRequiredByDay = useMemo(() => {
+    const result: Record<string, number> = {};
+    if (!lastAvailableDay || minWeeklyBilling <= 0) return result;
+    result[lastAvailableDay] = Math.max(0, minWeeklyBilling - projectedWeekTotal);
+    return result;
+  }, [deliveryDates, lastAvailableDay, minWeeklyBilling, projectedWeekTotal]);
 
   const daysWithItems = useMemo(() => {
     return allowedDays.filter(day => {
@@ -937,7 +971,7 @@ export default function WeeklySchedulePage() {
       </div>
 
       {/* Week already submitted: read-only view */}
-      {weekAlreadySubmitted ? (
+      {weekAlreadySubmitted && !hasApprovedReopen ? (
         <div className="space-y-4 max-w-3xl">
           <div className="bg-green-50 border-2 border-green-200 rounded-2xl p-5 flex items-start gap-4">
             <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0 mt-0.5" />
@@ -1019,6 +1053,35 @@ export default function WeeklySchedulePage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left: day panels */}
           <div className="lg:col-span-2 space-y-3">
+            {hasApprovedReopen && (
+              <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl p-4 text-sm text-blue-800">
+                <p className="font-bold">Reabertura aprovada</p>
+                <p className="mt-1">
+                  O pedido aprovado pode ser editado pelo Histórico. Nesta tela, você também pode adicionar
+                  um novo pedido em outro dia permitido para sua empresa.
+                </p>
+              </div>
+            )}
+            {hasApprovedReopen && weekOrders.filter((order: any) => order.status !== "OPEN_FOR_EDITING").map((order: any) => {
+              const date = order.deliveryDate ? String(order.deliveryDate).split("T")[0] : "";
+              const dayName = Object.entries(deliveryDates).find(([, value]) => value === date)?.[0] || "Dia programado";
+              return (
+                <DayPanel
+                  key={`locked-${order.id}`}
+                  dayName={dayName}
+                  deliveryDate={date}
+                  isExpanded={false}
+                  onToggle={() => {}}
+                  cart={{}}
+                  onCartChange={() => {}}
+                  note=""
+                  onNoteChange={() => {}}
+                  entries={[]}
+                  isLocked
+                  existingOrder={order}
+                />
+              );
+            })}
             {allowedDays.length === 0 && (
               <div className="bg-card rounded-2xl p-10 text-center border border-border/50">
                 <AlertCircle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -1026,11 +1089,12 @@ export default function WeeklySchedulePage() {
                 <p className="text-muted-foreground text-sm mt-1">Entre em contato com o administrador.</p>
               </div>
             )}
-            {allowedDays.map(day => (
+            {daysAvailableForNewOrder.map(day => (
               <DayPanel
                 key={day}
                 dayName={day}
                 deliveryDate={deliveryDates[day] || ""}
+                minimumRequired={minimumRequiredByDay[day] || 0}
                 isExpanded={activeDay === day}
                 onToggle={() => setActiveDay(prev => prev === day ? null : day)}
                 cart={getDayCart(day)}
@@ -1091,6 +1155,11 @@ export default function WeeklySchedulePage() {
                               {deliveryDate && (
                                 <p className="text-xs text-muted-foreground/70">{fmtDate(deliveryDate)}</p>
                               )}
+                              {minimumRequiredByDay[day] > 0 && (
+                                <p className="text-[10px] font-bold text-orange-600">
+                                  Mínimo restante: R$ {fmtBRL(minimumRequiredByDay[day])}
+                                </p>
+                              )}
                             </div>
                           </div>
                           {hasItems ? (
@@ -1110,13 +1179,13 @@ export default function WeeklySchedulePage() {
                 <div className="border-t border-border/50 mt-4 pt-4 space-y-3">
                   <div className="flex justify-between items-center">
                     <p className="font-bold text-foreground text-sm">Total da Semana</p>
-                    <p className={`text-xl font-display font-bold ${weekTotal > 0 ? "text-primary" : "text-muted-foreground"}`}>
-                      R$ {fmtBRL(weekTotal)}
+                    <p className={`text-xl font-display font-bold ${projectedWeekTotal > 0 ? "text-primary" : "text-muted-foreground"}`}>
+                      R$ {fmtBRL(projectedWeekTotal)}
                     </p>
                   </div>
 
                   <WeeklyBillingIndicator
-                    total={weekTotal}
+                    total={projectedWeekTotal}
                     minimum={minWeeklyBilling}
                     label="Faturamento mínimo"
                   />
