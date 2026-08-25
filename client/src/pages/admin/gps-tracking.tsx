@@ -62,6 +62,10 @@ function statusLabel(driver: LiveDriver) {
   return { text: "Localização ativa", className: "text-green-600" };
 }
 
+function googleMapsUrl(driver: LiveDriver) {
+  return `https://www.google.com/maps/search/?api=1&query=${driver.latitude},${driver.longitude}`;
+}
+
 export default function GpsTracking() {
   const { data: drivers = [], isLoading, isFetching, error, refetch } = useQuery<LiveDriver[]>({
     queryKey: ["/api/logistics/drivers/gps"],
@@ -141,8 +145,12 @@ export default function GpsTracking() {
               <span className="text-xs text-muted-foreground">Atualiza a cada 10 segundos</span>
             </div>
             <div className="h-[520px]">
-              <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl={false}>
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl>
+                <TileLayer
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                  subdomains="abcd"
+                  attribution='&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a>'
+                />
                 <FitDriverBounds drivers={locatedDrivers} />
                 {locatedDrivers.map(driver => (
                   <Marker
@@ -154,7 +162,18 @@ export default function GpsTracking() {
                       <strong>{driver.driverName}</strong>
                       <br />
                       {statusLabel(driver).text}
+                      <br />
+                      <span>{Number(driver.latitude).toFixed(6)}, {Number(driver.longitude).toFixed(6)}</span>
                       {driver.speed != null && <><br />Velocidade: {Number(driver.speed).toFixed(1)}</>}
+                      <br />
+                      <a
+                        href={googleMapsUrl(driver)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: "#2563eb", fontWeight: 600 }}
+                      >
+                        Abrir local exato no Google Maps
+                      </a>
                     </Popup>
                   </Marker>
                 ))}
@@ -193,7 +212,7 @@ export default function GpsTracking() {
                         </div>
                         {hasLocation && (
                           <a
-                            href={`https://www.google.com/maps/search/?api=1&query=${driver.latitude},${driver.longitude}`}
+                             href={googleMapsUrl(driver)}
                             target="_blank"
                             rel="noopener noreferrer"
                             title="Abrir no Google Maps"
