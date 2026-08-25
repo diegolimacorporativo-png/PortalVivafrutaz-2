@@ -4,13 +4,29 @@ import { sendSpecialOrderResolved } from "../services/mailer";
 import { validateCompanyTenant } from "../core/security/orderSecurity";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { ordersService } from "../modules/orders/orders.service";
+import { productService } from "../modules/products/products.service";
+import { resolveProductPrice } from "../modules/products/utils/priceResolver";
+import { runWithTenant } from "../core/tenant/context";
+
+function isoWeekReference(dateValue: string): string {
+  const date = new Date(`${dateValue}T12:00:00Z`);
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil((((date.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+}
 
 export function register(app: Express) {
-  // Client: submit special order — no auth required (public form)
-  app.post('/api/special-order-requests', async (req, res) => {
+  // Client: submit special order — an authenticated company session is required.
+  app.post('/api/special-order-requests', requireSessionOrCompany, async (req, res) => {
     try {
       const { companyId, requestedDay, requestedDate, description, quantity, observations, items } = req.body;
       if (!companyId) return res.status(400).json({ message: "ID da empresa é obrigatório." });
+      if (req.session?.companyId && Number(req.session.companyId) !== Number(companyId)) {
+        return res.status(403).json({ message: "A empresa da sessão não corresponde ao pedido." });
+      }
       if (!requestedDay) return res.status(400).json({ message: "Dia desejado é obrigatório." });
       if (Array.isArray(items) && items.length > 0) {
         for (const it of items) {
@@ -71,12 +87,85 @@ export function register(app: Express) {
       if (status === 'REJECTED' && !adminNote?.trim()) return res.status(400).json({ message: 'Informe o motivo da recusa.' });
       const allSpecial = await storage.getSpecialOrderRequests();
       const sr = allSpecial.find(r => r.id === id);
-      const updated = await storage.updateSpecialOrderRequest(id, {
-        status, adminNote, resolvedAt: new Date(),
+       let generatedOrder: any = null;
+       let finalAdminNote = adminNote;
+
+       // Catalog items become a regular order only after the administrator
+       // approves the special request. This makes them visible to the normal
+       // programming/production flow while keeping external products manual.
+       if (status === "APPROVED") {
+         const approvedItems: any[] = Array.isArray(items) ? items : (Array.isArray(sr?.items) ? sr.items : []);
+         const catalogItems = approvedItems.filter((item) => item.productType === "catalog");
+         if (catalogItems.length > 0) {
+           const requestedDate = sr?.requestedDate;
+           if (!requestedDate) {
+             return res.status(400).json({ message: "A data solicitada é obrigatória para enviar o produto à programação." });
+           }
+
+           const company = await storage.getCompany(sr.companyId);
+           const companyProducts = await productService.listProductsForCompany(company?.priceGroupId);
+           const orderItems = catalogItems.map((item) => {
+             const product = companyProducts.find((candidate: any) => Number(candidate.id) === Number(item.productId));
+             if (!product || product.active === false) {
+               throw new Error(`Produto do catálogo não encontrado ou inativo: ${item.productName || item.productId}`);
+             }
+
+             const subCategory = item.subCategoryId
+               ? (product as any).subCategories?.find((candidate: any) => Number(candidate.id) === Number(item.subCategoryId))
+               : undefined;
+             const quantity = Number(item.approvedQuantity ?? item.quantity);
+             if (!Number.isInteger(quantity) || quantity <= 0) {
+               throw new Error(`Quantidade inválida para ${product.name}. Informe um número inteiro maior que zero.`);
+             }
+
+             const unitPrice = resolveProductPrice({
+               basePrice: Number((product as any).basePrice ?? 0),
+               subCategoryPrice: subCategory ? Number(subCategory.price) : null,
+               contractPrice: (product as any).contractPrice != null ? Number((product as any).contractPrice) : null,
+               adminFee: company?.useNewPricing ? Number(company.adminFee ?? 0) : 0,
+             });
+             if (unitPrice <= 0) throw new Error(`O produto ${product.name} não possui preço válido.`);
+
+             return {
+               productId: product.id,
+               quantity,
+               unitPrice: unitPrice.toFixed(2),
+               totalPrice: (unitPrice * quantity).toFixed(2),
+               subCategoryId: subCategory?.id ?? null,
+               subCategoryName: subCategory?.categoryName ?? null,
+             };
+           });
+
+           generatedOrder = await runWithTenant(
+             {
+               principal: { kind: "admin", empresaId: sr.companyId, userId: req.session.userId!, role: actingUser.role },
+               empresaId: sr.companyId,
+             },
+             () => ordersService.createInternal(
+               {
+                 companyId: sr.companyId,
+                 deliveryDate: new Date(`${requestedDate}T12:00:00`),
+                 weekReference: isoWeekReference(requestedDate),
+                 workflowStatus: "CREATED",
+                 status: "CONFIRMED",
+                 orderNote: `Gerado a partir do Pedido Pontual PP-${String(sr.id).padStart(6, "0")}${sr.observations ? ` — ${sr.observations}` : ""}`,
+                 allowReplication: false,
+                 isRecurring: false,
+               },
+               orderItems,
+               { source: "special-order-approval", actorRole: actingUser.role },
+             ),
+           );
+           finalAdminNote = `${adminNote || "Pedido pontual aprovado!"} Pedido encaminhado à programação (${generatedOrder.orderCode}).`;
+         }
+       }
+
+       const updated = await storage.updateSpecialOrderRequest(id, {
+         status, adminNote: finalAdminNote, resolvedAt: new Date(),
         ...(items !== undefined ? { items } : {}),
         ...(estimatedDeliveryDate !== undefined ? { estimatedDeliveryDate } : {}),
       } as any);
-      res.json(updated);
+       res.json({ ...updated, generatedOrder });
 
       // Send email (non-blocking)
       if (sr && (status === 'APPROVED' || status === 'REJECTED')) {
@@ -88,7 +177,7 @@ export function register(app: Express) {
               companyName: company.companyName,
               requestedDay: sr.requestedDay || "—",
               status,
-              adminNote,
+               adminNote: finalAdminNote,
             });
           }
         } catch (emailErr) {
