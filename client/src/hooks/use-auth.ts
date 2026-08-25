@@ -42,6 +42,7 @@ export function useAuth() {
         const body = await res.json();
         if (body?.error === "PASSWORD_CHANGE_REQUIRED") {
           sessionStorage.setItem("change_password_email", body.email ?? data.email ?? "");
+          sessionStorage.setItem("change_password_reason", body.reason ?? "temporary");
           setLocation("/change-password");
           return null as any;
         }

@@ -4169,42 +4169,6 @@ export async function registerRoutes(
 
 async function seedDatabase() {
   try {
-    // FASE SENHA TEMPORÁRIA — todos os perfis internos devem passar pela
-    // troca obrigatória quando uma conta é provisionada/redefinida.
-    // Não altera senhas existentes: apenas garante o gate de primeiro login.
-    try {
-      const internalRoles = [
-        "MASTER",
-        "ADMIN",
-        "DIRECTOR",
-        "DEVELOPER",
-        "OPERATIONS_MANAGER",
-        "PURCHASE_MANAGER",
-        "FINANCEIRO",
-        "COMERCIAL",
-      ];
-      const internalUsers = await storage.getUsers();
-      for (const user of internalUsers) {
-        if (
-          internalRoles.includes(user.role) &&
-          !(user as any).mustChangePassword
-        ) {
-          await storage.updateUser(user.id, {
-            mustChangePassword: true,
-            passwordTemporary: true,
-          } as any);
-        }
-      }
-    } catch (err: any) {
-      logSecurity(
-        `[SYSTEM_SEED_FAILED] step=force_internal_password_change | error=${err?.message ?? "unknown"}`,
-      );
-      console.error(
-        "[SEED] Error enforcing internal first-login password change:",
-        err,
-      );
-    }
-
     // Provisiona o usuário administrativo solicitado apenas se ainda não
     // existir. A senha temporária é armazenada como bcrypt pelo repositório e
     // o primeiro login é bloqueado até a troca por uma senha definitiva.

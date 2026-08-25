@@ -61,9 +61,13 @@ export class AuthController {
     if (outcome.kind === "password-change-required") {
       res.status(403).json({
         error: "PASSWORD_CHANGE_REQUIRED",
-        message: "Sua senha é temporária e deve ser alterada antes de continuar.",
+        message: outcome.reason === "expired"
+          ? "Sua senha precisa ser atualizada após 30 dias."
+          : "Sua senha é temporária e deve ser alterada antes de continuar.",
         companyId: outcome.companyId,
+        userId: outcome.userId,
         email: outcome.email,
+        reason: outcome.reason ?? "temporary",
       });
       return;
     }

@@ -24,6 +24,13 @@ import { eq, inArray } from "drizzle-orm";
 
 /** Number of failed attempts before an account is auto-locked. */
 const MAX_ATTEMPTS = 3;
+const PASSWORD_CHANGE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
+
+function passwordChangeIsDue(entity: { mustChangePassword?: boolean; passwordChangedAt?: Date | string | null }): boolean {
+  if (entity.mustChangePassword) return true;
+  if (!entity.passwordChangedAt) return false;
+  return Date.now() - new Date(entity.passwordChangedAt).getTime() >= PASSWORD_CHANGE_INTERVAL_MS;
+}
 
 /** Roles that get notified when any account is auto-locked. */
 const LOCKOUT_NOTIFY_ROLES = ["ADMIN", "DIRECTOR", "DEVELOPER"] as const;
@@ -533,7 +540,7 @@ export class AuthService {
 
         onSuccess: async () => {
           // FASE SENHA TEMPORÁRIA — gate for admin users (mirrors company flow)
-          if ((user as any).mustChangePassword) {
+          if (passwordChangeIsDue(user as any)) {
             await this.repo.log({
               action: "LOGIN_BLOCKED_TEMP_PASSWORD",
               description: `Login bloqueado: usuário interno "${user.email}" (${user.role}) deve trocar senha temporária antes de acessar o sistema.`,
@@ -542,7 +549,12 @@ export class AuthService {
               level: "WARN",
               ip,
             });
-            return { kind: "password-change-required", userId: user.id, email: user.email };
+            return {
+              kind: "password-change-required",
+              userId: user.id,
+              email: user.email,
+              reason: (user as any).mustChangePassword ? "temporary" : "expired",
+            };
           }
 
           // L1 reset + L2 record — done inside onSuccess so admin and company
@@ -654,7 +666,7 @@ export class AuthService {
           // FASE 14.5 — mustChangePassword check runs BEFORE L1/L2 counter reset.
           // The password was verified correct, but we don't grant a full session
           // until the temporary password is replaced.
-          if (c.mustChangePassword) {
+          if (passwordChangeIsDue(c as any)) {
             await this.repo.log({
               action: "LOGIN_BLOCKED_TEMP_PASSWORD",
               description: `Login bloqueado: empresa "${company.companyName}" (${email}) deve trocar senha temporária antes de acessar o sistema.`,
@@ -663,7 +675,12 @@ export class AuthService {
               level: "WARN",
               ip,
             });
-            return { kind: "password-change-required", companyId: company.id, email: company.email };
+            return {
+              kind: "password-change-required",
+              companyId: company.id,
+              email: company.email,
+              reason: (c as any).mustChangePassword ? "temporary" : "expired",
+            };
           }
 
           // L1 reset + L2 record — only after mustChangePassword gate is cleared
@@ -714,7 +731,7 @@ export class AuthService {
     // ── 1. Try company account first ────────────────────────────────────
     const company = await this.repo.getCompanyByEmail(normalizedEmail);
     if (company) {
-      if (!(company as any).mustChangePassword) {
+      if (!passwordChangeIsDue(company as any)) {
         return { ok: false, status: 400, message: "Esta conta não requer troca de senha." };
       }
 
@@ -731,6 +748,7 @@ export class AuthService {
         password: newPassword,
         mustChangePassword: false,
         passwordTemporary: false,
+        passwordChangedAt: new Date(),
       } as any);
 
       await this.repo.log({
@@ -750,7 +768,7 @@ export class AuthService {
     if (!user) {
       return { ok: false, status: 404, message: "Conta não encontrada." };
     }
-    if (!(user as any).mustChangePassword) {
+    if (!passwordChangeIsDue(user as any)) {
       return { ok: false, status: 400, message: "Esta conta não requer troca de senha." };
     }
 
@@ -767,6 +785,7 @@ export class AuthService {
       password: newPassword,
       mustChangePassword: false,
       passwordTemporary: false,
+      passwordChangedAt: new Date(),
     } as any);
 
     await this.repo.log({
@@ -812,6 +831,7 @@ export class AuthService {
       password: newPassword,
       mustChangePassword: false,
       passwordTemporary: false,
+      passwordChangedAt: new Date(),
     } as any);
 
     console.warn("[PASSWORD_CHANGED]", { userId, role: user.role });

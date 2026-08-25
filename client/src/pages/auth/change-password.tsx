@@ -13,6 +13,7 @@ export default function ChangePassword() {
   });
 
   const [email, setEmail] = useState("");
+  const [changeReason, setChangeReason] = useState<"temporary" | "expired">("temporary");
   const [tempPassword, setTempPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -26,6 +27,7 @@ export default function ChangePassword() {
     const stored = sessionStorage.getItem("change_password_email");
     if (stored) {
       setEmail(stored);
+      setChangeReason(sessionStorage.getItem("change_password_reason") === "expired" ? "expired" : "temporary");
     } else {
       setLocation("/login");
     }
@@ -58,6 +60,7 @@ export default function ChangePassword() {
         return;
       }
       sessionStorage.removeItem("change_password_email");
+      sessionStorage.removeItem("change_password_reason");
       setStatus("success");
     } catch {
       setStatus("error");
@@ -117,8 +120,14 @@ export default function ChangePassword() {
                   <ShieldCheck className="w-5 h-5 text-amber-600" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-foreground">Troca de Senha Obrigatória</h3>
-                  <p className="text-xs text-muted-foreground">Sua senha é temporária e deve ser alterada para continuar.</p>
+                   <h3 className="text-base font-bold text-foreground">
+                     {changeReason === "expired" ? "Atualização periódica de senha" : "Troca de Senha Obrigatória"}
+                   </h3>
+                   <p className="text-xs text-muted-foreground">
+                     {changeReason === "expired"
+                       ? "Sua senha foi usada por 30 dias. Atualize-a para continuar."
+                       : "Sua senha é temporária e deve ser alterada para continuar."}
+                   </p>
                 </div>
               </div>
 
@@ -132,7 +141,7 @@ export default function ChangePassword() {
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-2">
-                    Senha temporária recebida
+                     {changeReason === "expired" ? "Senha atual" : "Senha temporária recebida"}
                   </label>
                   <div className="relative">
                     <input
@@ -141,7 +150,7 @@ export default function ChangePassword() {
                       required
                       value={tempPassword}
                       onChange={e => setTempPassword(e.target.value)}
-                      placeholder="Cole a senha temporária aqui"
+                       placeholder={changeReason === "expired" ? "Digite sua senha atual" : "Cole a senha temporária aqui"}
                       className="w-full px-4 py-3 pr-12 rounded-xl bg-background border-2 border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
                     />
                     <button

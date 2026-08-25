@@ -33,7 +33,7 @@ export type LoginOutcome =
   | { kind: "admin-success"; user: User }
   | { kind: "company-success"; company: Company }
   /** FASE 14.5 — account authenticated but must change temporary password before proceeding */
-  | { kind: "password-change-required"; companyId?: number; userId?: number; email: string }
+  | { kind: "password-change-required"; companyId?: number; userId?: number; email: string; reason?: "temporary" | "expired" }
   | { kind: "failure"; status: number; message: string };
 
 /** Outcome for the `/me` endpoint — same reasoning as above. */

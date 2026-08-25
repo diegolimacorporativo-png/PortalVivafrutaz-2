@@ -23,6 +23,7 @@ export const users = pgTable("users", {
   // FASE SENHA TEMPORÁRIA — forced password change on first login
   mustChangePassword: boolean("must_change_password").default(false).notNull(),
   passwordTemporary: boolean("password_temporary").default(false).notNull(),
+  passwordChangedAt: timestamp("password_changed_at"),
 }, (table) => ({
   empresaIdIdx: index("users_empresa_id_idx").on(table.empresaId),
 }));
@@ -111,6 +112,7 @@ export const companies = pgTable("companies", {
   // FASE 14.5 — Secure provisioning flags
   mustChangePassword: boolean("must_change_password").default(false).notNull(),
   passwordTemporary: boolean("password_temporary").default(false).notNull(),
+  passwordChangedAt: timestamp("password_changed_at"),
   createdBySource: text("created_by_source"), // "CLARA_AI" | "MANUAL" | null
   // FASE 14.6 — session invalidation: increment to kick all active sessions
   tokenVersion: integer("token_version").default(0).notNull(),

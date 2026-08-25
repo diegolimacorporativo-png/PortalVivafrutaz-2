@@ -106,6 +106,12 @@ async function runStartupMigrations(): Promise<void> {
       CREATE UNIQUE INDEX IF NOT EXISTS recurring_order_logs_unique_week_day
         ON recurring_order_logs(company_id, week_key, day_of_week)
     `);
+    await db.execute(sql`
+      ALTER TABLE companies ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP
+    `);
+    await db.execute(sql`
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP
+    `);
     console.log("[STARTUP_MIGRATIONS] OK — recurring_order_logs e is_recurring prontos");
   } catch (err) {
     console.error("[STARTUP_MIGRATIONS_FAIL]", err instanceof Error ? err.message : String(err));
