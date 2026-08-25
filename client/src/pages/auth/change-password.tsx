@@ -41,6 +41,10 @@ export default function ChangePassword() {
       setErrorMessage("A nova senha deve ter pelo menos 8 caracteres.");
       return;
     }
+    if (tempPassword === newPassword) {
+      setErrorMessage("A nova senha não pode ser igual à senha temporária.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setErrorMessage("As senhas não coincidem.");
       return;

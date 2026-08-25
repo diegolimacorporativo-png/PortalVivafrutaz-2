@@ -236,6 +236,15 @@ export async function safeGetOrder(orderId: number): Promise<StoredOrder> {
  * é feita em um único lugar.
  */
 export async function validateOrderTenant(orderId: number): Promise<void> {
+  const principal = getTenantContext()?.principal;
+  if (
+    principal?.kind === "admin" &&
+    ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"].includes(principal.role ?? "")
+  ) {
+    const result = await storage.getOrder(orderId);
+    if (!result?.order) throw new NotFoundError(`Pedido #${orderId} não encontrado.`);
+    return;
+  }
   await safeGetOrder(orderId);
 }
 

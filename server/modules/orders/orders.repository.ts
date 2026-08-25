@@ -9,7 +9,7 @@ import {
   withTenantAll,
   stripTenantFields,
 } from "../../core/tenant/scope";
-import { currentTenantId, requireTenantId } from "../../core/tenant/context";
+import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import {
@@ -48,6 +48,12 @@ import type {
  * pinned, even for admins.
  */
 export class OrdersRepository {
+  private isCrossTenantOrdersAdmin(): boolean {
+    const principal = getTenantContext()?.principal;
+    return principal?.kind === "admin" &&
+      ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"].includes(principal.role ?? "");
+  }
+
   // ── Reads ───────────────────────────────────────────────────────────────
 
   /**
@@ -57,7 +63,7 @@ export class OrdersRepository {
    */
   list(filter: OrdersListFilter = {}): Promise<Order[]> {
     const tenantId = currentTenantId();
-    if (tenantId == null) {
+    if (tenantId == null || this.isCrossTenantOrdersAdmin()) {
       // Cross-tenant admin path. The legacy contract preserved.
       return storage.getOrders(filter.empresaId as number | undefined);
     }
@@ -85,7 +91,11 @@ export class OrdersRepository {
       orderStatus: (detail?.order as any)?.status ?? null,
     });
     if (!detail) return undefined;
-    if (tenantId != null && (detail.order as any).companyId !== tenantId) {
+    if (
+      tenantId != null &&
+      !this.isCrossTenantOrdersAdmin() &&
+      (detail.order as any).companyId !== tenantId
+    ) {
       // Tenant mismatch — pretend not found.
       console.log('[REPO_GET_ORDER_TENANT_MISMATCH]', {
         id,
