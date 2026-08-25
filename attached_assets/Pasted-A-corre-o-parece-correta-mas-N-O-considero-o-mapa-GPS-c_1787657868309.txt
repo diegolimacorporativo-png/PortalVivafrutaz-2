@@ -1,0 +1,106 @@
+A correção parece correta, mas NÃO considero o mapa GPS concluído ainda porque você informou que não conseguiu fazer o teste visual autenticado.
+
+Agora faça SOMENTE a validação final da tela `/admin/gps-tracking`.
+
+### OBJETIVO
+
+Preciso comprovar visualmente que o mapa REALMENTE aparece dentro do sistema para um usuário administrativo autenticado.
+
+Não quero apenas testar a URL do tile.
+
+### TESTE OBRIGATÓRIO
+
+Abra a aplicação com uma sessão administrativa válida e acesse:
+
+`/admin/gps-tracking`
+
+Se o ambiente de preview não tiver sessão ativa, utilize o mecanismo de autenticação/teste já existente no projeto para acessar a tela como administrador.
+
+NÃO remova autenticação.
+NÃO crie bypass permanente.
+NÃO altere permissões para conseguir testar.
+
+### CONFIRMAR VISUALMENTE
+
+Na tela autenticada, confirme:
+
+* o mapa não está cinza;
+* ruas aparecem;
+* bairros/áreas aparecem;
+* o mapa pode ser movimentado;
+* zoom + funciona;
+* zoom - funciona;
+* o marcador do motorista aparece;
+* o marcador está na região correspondente às coordenadas;
+* o nome/status do motorista continua funcionando;
+* a atualização continua ocorrendo;
+* o mapa não pisca nem é recriado a cada 10 segundos.
+
+### TESTE COM O MOTORISTA EXISTENTE
+
+Utilize o motorista que já possui coordenadas no sistema.
+
+Confirme que as coordenadas:
+
+`-23.63093, -46.70345`
+
+são utilizadas pelo marcador.
+
+Não altere essas coordenadas apenas para fazer o teste.
+
+### TESTE DOS TILES
+
+No DevTools/Network confirme que os tiles CARTO estão retornando sucesso.
+
+Não basta verificar apenas um tile isolado.
+
+Confirme que os tiles necessários para montar o mapa estão sendo carregados corretamente.
+
+Não devem existir erros relacionados aos tiles no console.
+
+### TESTE DE ATUALIZAÇÃO
+
+Aguarde pelo menos uma atualização do ciclo de 10 segundos.
+
+Confirme que:
+
+* o mapa continua visível;
+* o marcador continua visível;
+* o mapa não volta para cinza;
+* o mapa não é recriado;
+* a posição do marcador é atualizada quando houver nova coordenada.
+
+### NÃO ALTERAR
+
+Não alterar:
+
+* banco de dados;
+* autenticação;
+* GPS;
+* pedidos;
+* rotas;
+* manifestos;
+* motoristas;
+* layout geral;
+* lógica de negócio.
+
+Se a implementação atual estiver correta, NÃO faça novas alterações desnecessárias.
+
+### RESULTADO FINAL
+
+Só informe "MAPA CORRIGIDO" se conseguir confirmar visualmente a tela autenticada.
+
+Informe:
+
+1. Mapa visível: SIM/NÃO
+2. Tiles carregando: SIM/NÃO
+3. Ruas visíveis: SIM/NÃO
+4. Marcador visível: SIM/NÃO
+5. Coordenada do marcador: SIM/NÃO
+6. Atualização de 10 segundos: SIM/NÃO
+7. Erros no console: SIM/NÃO
+8. TypeScript: resultado
+9. Testes: resultado
+10. Build: resultado
+
+Se o teste autenticado não puder ser realizado, NÃO diga que o mapa foi definitivamente corrigido. Informe exatamente o que impediu a validação.
