@@ -27,7 +27,10 @@ const MAX_ATTEMPTS = 3;
 const PASSWORD_CHANGE_INTERVAL_MS = 30 * 24 * 60 * 60 * 1000;
 
 function passwordChangeIsDue(entity: { mustChangePassword?: boolean; passwordChangedAt?: Date | string | null }): boolean {
-  if (entity.mustChangePassword) return true;
+  // A temporary/provisioned account must change its password once. After that
+  // successful change, passwordChangedAt is the durable source of truth and
+  // prevents a stale mustChangePassword flag from forcing the screen forever.
+  if (entity.mustChangePassword && !entity.passwordChangedAt) return true;
   if (!entity.passwordChangedAt) return false;
   return Date.now() - new Date(entity.passwordChangedAt).getTime() >= PASSWORD_CHANGE_INTERVAL_MS;
 }
@@ -259,6 +262,9 @@ export class AuthService {
         password: novaSenha,
         loginAttempts: 0,
         isLocked: false,
+        mustChangePassword: false,
+        passwordTemporary: false,
+        passwordChangedAt: new Date(),
       });
       const user = await this.repo.getUserById(record.userId);
       await this.repo.log({
@@ -274,6 +280,9 @@ export class AuthService {
         password: novaSenha,
         loginAttempts: 0,
         isLocked: false,
+        mustChangePassword: false,
+        passwordTemporary: false,
+        passwordChangedAt: new Date(),
       } as any);
       const company = await this.repo.getCompanyById(record.companyId);
       await this.repo.log({
