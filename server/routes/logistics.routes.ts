@@ -9,12 +9,13 @@ import { db } from "../database/db";
 import { ForbiddenError } from "../shared/errors/AppError";
 import {
   logisticsDrivers as driversTable,
+  users as usersTable,
   logisticsRoutes as routesTable,
   orders as ordersTable,
   deliveries as deliveriesTable,
   deliveryStopEvents,
 } from "@shared/schema";
-import { eq, or, and, gte, lt, desc, type SQL } from "drizzle-orm";
+import { eq, or, and, gte, lt, desc, inArray, type SQL } from "drizzle-orm";
 
 /** Canonical stop status values accepted by FASE 2. */
 const VALID_STOP_STATUSES = new Set([
@@ -338,12 +339,38 @@ export async function register(app: Express): Promise<void> {
         return res.status(403).json({ message: 'Empresa não definida para este usuário' });
       }
 
-      const driverRows = actor.empresaId
+      let driverRows = actor.empresaId
         ? await db.select().from(driversTable).where(eq(driversTable.empresaId, actor.empresaId)).orderBy(driversTable.name)
         : await db.select().from(driversTable).orderBy(driversTable.name);
 
+      // Some legacy installations registered drivers as user accounts with
+      // role MOTORISTA/DRIVER but never created the corresponding
+      // logistics_drivers row. Keep the operational table as the source of
+      // truth when it has data; otherwise expose those accounts as read-only
+      // GPS entries so the admin can see every registered driver.
+      if (driverRows.length === 0) {
+        const userConditions: SQL<unknown>[] = [
+          inArray(usersTable.role, ["MOTORISTA", "DRIVER"]),
+          eq(usersTable.active, true),
+        ];
+        if (actor.empresaId) userConditions.push(eq(usersTable.empresaId, actor.empresaId));
+        const driverUsers = await db
+          .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, active: usersTable.active })
+          .from(usersTable)
+          .where(and(...userConditions))
+          .orderBy(usersTable.name);
+        driverRows = driverUsers.map((user: any) => ({
+          id: -Number(user.id),
+          name: user.name,
+          email: user.email,
+          phone: null,
+          active: user.active,
+          virtualFromUser: true,
+        })) as any;
+      }
+
       const positions = await Promise.all(driverRows.map(async (driver: any) => {
-        const position = await storage.getLatestGpsPosition(driver.id);
+        const position = driver.virtualFromUser ? null : await storage.getLatestGpsPosition(driver.id);
         return {
           driverId: driver.id,
           driverName: driver.name,
