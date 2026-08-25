@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -49,13 +49,26 @@ function InvalidateMapSize() {
 
 function FitDriverBounds({ drivers }: { drivers: LiveDriver[] }) {
   const map = useMap();
+  const fittedDriverSet = useRef<string | null>(null);
+
   useEffect(() => {
     const points = drivers
       .filter(d => d.latitude != null && d.longitude != null)
       .map(d => [Number(d.latitude), Number(d.longitude)] as [number, number])
       .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+
+    // Fit on the initial load and when the set of located drivers changes.
+    // Position updates must not recenter the map while an administrator is
+    // panning or zooming manually.
+    const driverSet = drivers
+      .map(driver => driver.driverId)
+      .sort((a, b) => a - b)
+      .join(",");
+    if (fittedDriverSet.current === driverSet) return;
+    fittedDriverSet.current = driverSet;
+
     if (points.length === 0) {
-      map.setView(defaultCenter, 11);
+      if (driverSet === "") map.setView(defaultCenter, 11);
     } else if (points.length === 1) {
       map.setView(points[0], 14);
     } else {
@@ -181,9 +194,9 @@ export default function GpsTracking() {
               <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl>
                 <InvalidateMapSize />
                 <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                   maxZoom={19}
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
+                  attribution='&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
                 />
                 <FitDriverBounds drivers={locatedDrivers} />
                 {locatedDrivers.map(driver => (

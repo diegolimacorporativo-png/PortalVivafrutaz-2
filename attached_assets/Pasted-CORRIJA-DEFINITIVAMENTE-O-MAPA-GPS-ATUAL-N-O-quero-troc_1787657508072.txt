@@ -1,0 +1,227 @@
+CORRIJA DEFINITIVAMENTE O MAPA GPS ATUAL.
+
+NÃO quero trocar para Google Maps.
+NÃO quero API paga.
+NÃO quero alterar o banco de dados.
+NÃO quero alterar a lógica de GPS dos motoristas.
+
+Quero manter:
+
+LEAFLET + OPENSTREETMAP
+
+O GPS já está funcionando e as coordenadas dos motoristas estão sendo recebidas. O problema é que o mapa aparece completamente CINZA.
+
+### PROBLEMA OBSERVADO
+
+Na página `/admin/gps-tracking`:
+
+* Os controles `+` e `-` do Leaflet aparecem.
+* A atribuição `Leaflet | © OpenStreetMap contributors` aparece.
+* O marcador do motorista aparece.
+* As coordenadas são exibidas corretamente.
+* Porém, o fundo do mapa fica completamente cinza.
+* Em alguns momentos também apareceu imagem quebrada no marcador.
+
+Isso significa que a inicialização do Leaflet está funcionando, mas os tiles visuais do mapa não estão sendo carregados corretamente.
+
+### PRIMEIRO: ENCONTRE A CAUSA REAL
+
+Antes de modificar qualquer coisa, investigue o componente do mapa e descubra exatamente por que os tiles não estão aparecendo.
+
+Verifique:
+
+1. URL atual do `L.tileLayer`.
+2. Se a URL dos tiles está correta.
+3. Se os requests dos tiles estão falhando.
+4. Se existe erro no console.
+5. Se existe erro de CSP.
+6. Se existe bloqueio de HTTPS/mixed content.
+7. Se existe problema de CORS.
+8. Se o domínio dos tiles está sendo bloqueado.
+9. Se o container do mapa possui altura real.
+10. Se o Leaflet está sendo inicializado antes de o container estar visível.
+11. Se existe mais de uma instância do mapa sendo criada.
+12. Se existe algum CSS cobrindo os tiles.
+13. Se `z-index`, `overflow`, `position` ou `height` estão impedindo a visualização.
+14. Se o mapa precisa de `invalidateSize()`.
+15. Se o projeto está usando algum proxy ou configuração de rede que esteja impedindo os tiles.
+
+NÃO faça uma troca aleatória de código sem identificar a causa.
+
+### TILE LAYER
+
+Garanta que exista uma camada de tiles válida.
+
+Pode utilizar:
+
+`https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`
+
+com atribuição adequada ao OpenStreetMap.
+
+Se a implementação atual já utiliza essa URL, NÃO simplesmente substitua pela mesma URL. Investigue por que ela não está sendo carregada.
+
+### TESTE DOS TILES
+
+Verifique no navegador se uma URL de tile individual está respondendo corretamente.
+
+Teste uma requisição equivalente a:
+
+`https://a.tile.openstreetmap.org/{z}/{x}/{y}.png`
+
+substituindo `{z}`, `{x}` e `{y}` por valores reais.
+
+Se o domínio atual estiver indisponível ou bloqueado pelo ambiente, escolha uma fonte de tiles pública e gratuita compatível com Leaflet, respeitando os termos de uso do provedor.
+
+NÃO utilizar API paga.
+
+### TAMANHO DO MAPA
+
+Garanta que o elemento do mapa tenha uma altura definida.
+
+Exemplo:
+
+`height: 100%`
+
+ou uma altura explícita apropriada ao layout.
+
+Verifique também se todos os elementos pais possuem altura válida quando `height: 100%` for utilizado.
+
+Depois que o mapa estiver visível, executar `invalidateSize()` quando necessário.
+
+### INICIALIZAÇÃO
+
+A inicialização deve acontecer somente quando o container estiver montado e visível.
+
+Evitar:
+
+* múltiplas instâncias de `L.map()`;
+* múltiplos TileLayers;
+* múltiplos timers;
+* múltiplos listeners;
+* criação repetida do mapa após cada atualização de GPS.
+
+Se o componente for desmontado, limpar corretamente a instância anterior.
+
+### MARCADOR
+
+Corrigir também o problema do ícone quebrado do Leaflet.
+
+Não depender de caminhos relativos incorretos para:
+
+* `marker-icon.png`
+* `marker-icon-2x.png`
+* `marker-shadow.png`
+
+Configurar corretamente os assets do Leaflet ou utilizar uma solução compatível com a estrutura atual do projeto.
+
+O marcador do motorista precisa continuar funcionando.
+
+### GPS
+
+NÃO ALTERAR A LÓGICA DE GPS.
+
+As coordenadas já estão chegando.
+
+Preservar:
+
+* latitude;
+* longitude;
+* motorista;
+* última localização;
+* timestamp;
+* atualização automática;
+* status online/offline.
+
+O mapa deve apenas consumir esses dados.
+
+### CENTRALIZAÇÃO
+
+Quando existir apenas um motorista com GPS:
+
+* centralizar o mapa nele;
+* mostrar o marcador;
+* utilizar um zoom apropriado.
+
+Quando existirem vários:
+
+* mostrar todos;
+* ajustar o mapa para que todos fiquem visíveis.
+
+Não centralizar novamente a cada atualização se isso fizer o mapa "pular" enquanto o administrador estiver navegando manualmente.
+
+### ATUALIZAÇÃO
+
+Preservar a atualização atual de aproximadamente 10 segundos.
+
+A atualização deve:
+
+1. buscar as novas coordenadas;
+2. atualizar os marcadores;
+3. adicionar novos motoristas;
+4. remover marcadores que não existem mais;
+5. atualizar informações de última posição.
+
+NÃO recriar o mapa inteiro a cada atualização.
+
+### IMPORTANTE SOBRE O MAPA CINZA
+
+Não considerar o problema resolvido apenas porque:
+
+* o componente Leaflet aparece;
+* os controles + e - aparecem;
+* o marcador aparece;
+* aparece `Leaflet | OpenStreetMap`.
+
+O problema só estará resolvido quando for possível visualizar:
+
+* ruas;
+* bairros;
+* áreas urbanas;
+* mapa completo;
+* marcador do motorista sobre o mapa.
+
+### TESTE FINAL OBRIGATÓRIO
+
+Depois da correção:
+
+1. Abrir `/admin/gps-tracking`.
+2. Confirmar que o mapa não está cinza.
+3. Confirmar que as ruas aparecem.
+4. Confirmar que o OpenStreetMap carrega os tiles.
+5. Confirmar que o marcador do motorista aparece sobre o mapa.
+6. Confirmar que o motorista está na coordenada correta.
+7. Confirmar zoom.
+8. Confirmar movimentação/pan.
+9. Confirmar atualização automática.
+10. Confirmar múltiplos motoristas.
+11. Confirmar que não há erro no console.
+12. Confirmar que não há requests de tiles falhando.
+13. Executar TypeScript.
+14. Executar testes existentes.
+15. Executar build.
+
+### REGRA
+
+NÃO trocar para Google Maps.
+NÃO adicionar API Key.
+NÃO criar dependência paga.
+NÃO alterar banco.
+NÃO alterar autenticação.
+NÃO alterar pedidos.
+NÃO alterar rotas.
+NÃO alterar manifestos.
+NÃO alterar outras telas.
+
+Faça somente o necessário para corrigir o Leaflet + OpenStreetMap e deixar o mapa GPS REALMENTE VISÍVEL.
+
+Ao finalizar, informe exatamente:
+
+* causa do mapa cinza;
+* arquivo/componente responsável;
+* correção aplicada;
+* URL de tiles utilizada;
+* correção do marcador;
+* resultado do teste visual;
+* resultado do TypeScript;
+* resultado dos testes;
+* resultado do build.
