@@ -193,6 +193,9 @@ export default function EditOrderPage() {
 
     return otherOrdersTotal + cartTotal;
   }, [companyOrders, cartTotal, orderDetail?.order]);
+  const otherOrdersWeeklyTotal = Math.max(0, projectedWeeklyTotal - cartTotal);
+  const minimumRequiredForReopenedOrder = Math.max(0, minWeeklyBilling - otherOrdersWeeklyTotal);
+  const reopenedOrderShortfall = Math.max(0, minimumRequiredForReopenedOrder - cartTotal);
 
   const handleUpdateCart = (key: string, qty: number) => {
     setCart(prev => {
@@ -504,14 +507,32 @@ export default function EditOrderPage() {
                       <p className="font-bold text-foreground">Total</p>
                       <p className="text-xl font-display font-bold text-primary">R$ {fmtBRL(cartTotal)}</p>
                     </div>
-                    <WeeklyBillingIndicator
+                     {minimumRequiredForReopenedOrder > 0 && (
+                       <div className={`rounded-xl border p-3 text-xs ${
+                         reopenedOrderShortfall > 0
+                           ? "border-orange-200 bg-orange-50 text-orange-700"
+                           : "border-green-200 bg-green-50 text-green-700"
+                       }`}>
+                         <p className="font-bold">
+                           Mínimo necessário neste pedido reaberto: R$ {fmtBRL(minimumRequiredForReopenedOrder)}
+                         </p>
+                         {reopenedOrderShortfall > 0 ? (
+                           <p className="mt-1">
+                             Ainda faltam <strong>R$ {fmtBRL(reopenedOrderShortfall)}</strong> para atingir o faturamento mínimo semanal.
+                           </p>
+                         ) : (
+                           <p className="mt-1">O saldo deste pedido já cobre o mínimo semanal pendente.</p>
+                         )}
+                       </div>
+                     )}
+                     <WeeklyBillingIndicator
                       total={projectedWeeklyTotal}
                       minimum={minWeeklyBilling}
                     />
                     <button
                       data-testid="button-finalize-edit"
                       onClick={handleSubmit}
-                      disabled={cartItems.length === 0 || submitting}
+                       disabled={cartItems.length === 0 || reopenedOrderShortfall > 0 || submitting}
                       className="w-full py-3.5 bg-secondary text-secondary-foreground font-bold rounded-xl shadow-lg shadow-secondary/20 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:transform-none flex justify-center items-center gap-2"
                     >
                       <CheckCircle2 className="w-5 h-5" />
