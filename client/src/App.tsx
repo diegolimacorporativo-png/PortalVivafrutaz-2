@@ -8,7 +8,6 @@ import { ErrorBoundary, PageBoundary } from "@/components/ErrorBoundary";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
-import FloatingGuide from "@/components/FloatingGuide";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 // Keep-alive: ping every 5 minutes to prevent Replit sleep
@@ -598,12 +597,6 @@ function Router() {
   );
 }
 
-function FloatingGuideWrapper() {
-  const { isAuthenticated, isStaff } = useAuth();
-  if (!isAuthenticated || !isStaff) return null;
-  return <FloatingGuide />;
-}
-
 function App() {
   return (
     <ErrorBoundary>
@@ -612,7 +605,6 @@ function App() {
           <KeepAlive />
           <Toaster />
           <Router />
-          <FloatingGuideWrapper />
         </TooltipProvider>
       </QueryClientProvider>
     </ErrorBoundary>
