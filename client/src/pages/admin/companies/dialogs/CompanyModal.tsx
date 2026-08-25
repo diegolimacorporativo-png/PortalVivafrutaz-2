@@ -75,8 +75,12 @@ export function CompanyModal({ isOpen, editingCompany, onClose, onSuccess }: Com
     if (digits.length !== 8) return;
     setLookingUpCep(true);
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      const d = await r.json();
+      const r = await fetch(`/api/geo/cep-basic/${digits}`, { credentials: "include" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: r.status === 404 ? "CEP não encontrado" : "Erro ao consultar CEP", variant: "destructive" });
+        return;
+      }
       if (d.erro) { toast({ title: "CEP não encontrado", variant: "destructive" }); return; }
       setFormData(prev => ({
         ...prev,

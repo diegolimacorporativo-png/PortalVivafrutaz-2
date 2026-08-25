@@ -59,7 +59,12 @@ const companyNumericOverrides = {
   manualAvgCost:    numericCoerce,
 };
 
-export const createCompanySchema = insertCompanySchema.extend(companyNumericOverrides);
+// The controller generates a temporary password for every new company after
+// validation. Requiring password here made the "Nova Empresa" form fail
+// before the controller could generate that password.
+export const createCompanySchema = insertCompanySchema
+  .omit({ password: true })
+  .extend(companyNumericOverrides);
 export const updateCompanySchema = createCompanySchema.partial();
 
 // ── /my/preferred-order-type (company portal self-service) ──────────────

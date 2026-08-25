@@ -70,8 +70,12 @@ export function AddressesTab({ company }: { company: Company | null }) {
     if (cleaned.length !== 8) return;
     setCepLoading(true);
     try {
-      const r = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
-      const d = await r.json();
+      const r = await fetch(`/api/geo/cep-basic/${cleaned}`, { credentials: "include" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: r.status === 404 ? "CEP não encontrado" : "Erro ao buscar CEP", variant: "destructive" });
+        return;
+      }
       if (d.erro) { toast({ title: "CEP não encontrado", variant: "destructive" }); return; }
       setAddrForm(prev => ({
         ...prev,
