@@ -15,7 +15,7 @@ import {
   deliveries as deliveriesTable,
   deliveryStopEvents,
 } from "@shared/schema";
-import { eq, or, and, gte, lt, desc, inArray, type SQL } from "drizzle-orm";
+import { eq, or, and, gte, lte, lt, desc, inArray, type SQL } from "drizzle-orm";
 
 /** Canonical stop status values accepted by FASE 2. */
 const VALID_STOP_STATUSES = new Set([
@@ -70,6 +70,8 @@ export async function register(app: Express): Promise<void> {
       if (req.query.routeId) filters.routeId = Number(req.query.routeId);
       if (req.query.status) filters.status = req.query.status;
       if (req.query.date) filters.date = req.query.date;
+      if (req.query.dateFrom) filters.dateFrom = String(req.query.dateFrom);
+      if (req.query.dateTo) filters.dateTo = String(req.query.dateTo);
       res.json(await storage.getDeliveries(filters));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -177,6 +179,9 @@ export async function register(app: Express): Promise<void> {
         return res.status(403).json({ message: 'Acesso negado' });
       }
       const today = new Date().toISOString().split('T')[0];
+      const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : today;
+      const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : dateFrom;
+      const selectedCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
 
       const allCompanies = await storage.getCompanies();
       const companyMap = Object.fromEntries(allCompanies.map((c: any) => [c.id, c]));
@@ -196,28 +201,29 @@ export async function register(app: Express): Promise<void> {
         myDriver = driverRows[0] ?? null;
       }
 
-      // STEP 8.7 — DRIVER must have a matching logistics_drivers row;
-      // without it we can't safely determine ownership, so return empty.
-      if (actor.role === 'DRIVER' && !myDriver) {
-        return res.json({ deliveries: [], driver: null, date: today, source: 'deliveries' });
-      }
-
-      // Try deliveries table first
-      let allDeliveries = await storage.getDeliveries({ date: today });
+      // Search the selected period. Drivers can view unassigned orders from
+      // every company, while status mutations remain ownership-protected below.
+      const deliveryFilters: any = { dateFrom, dateTo };
+      if (selectedCompanyId && Number.isInteger(selectedCompanyId)) deliveryFilters.companyId = selectedCompanyId;
+      let allDeliveries = await storage.getDeliveries(deliveryFilters);
       let source: 'deliveries' | 'orders' = 'deliveries';
 
       // If deliveries table is empty, bridge from today's orders.
       // FASE MT-1: Drizzle query scoped to tenant + date range in SQL — no full-table scan.
       if (allDeliveries.length === 0) {
         source = 'orders';
-        const todayStart = new Date(today + 'T00:00:00.000Z');
-        const tomorrowStart = new Date(todayStart);
-        tomorrowStart.setUTCDate(tomorrowStart.getUTCDate() + 1);
+        const rangeStart = new Date(dateFrom + 'T00:00:00.000Z');
+        const rangeEnd = new Date(dateTo + 'T00:00:00.000Z');
+        rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
         const orderConds: SQL<unknown>[] = [
-          gte(ordersTable.deliveryDate, todayStart),
-          lt(ordersTable.deliveryDate, tomorrowStart),
+          gte(ordersTable.deliveryDate, rangeStart),
+          lt(ordersTable.deliveryDate, rangeEnd),
         ];
-        if (actor.empresaId) orderConds.push(eq(ordersTable.companyId, actor.empresaId));
+        if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
+          orderConds.push(eq(ordersTable.companyId, selectedCompanyId));
+        } else if (actor.empresaId && actor.role !== 'DRIVER') {
+          orderConds.push(eq(ordersTable.companyId, actor.empresaId));
+        }
         const todayOrders = await db.select().from(ordersTable).where(and(...orderConds));
         const statusMap: Record<string, string> = {
           CONFIRMED: 'pendente', ACTIVE: 'pendente',
@@ -227,7 +233,7 @@ export async function register(app: Express): Promise<void> {
           id: o.id,
           companyId: o.companyId,
           status: statusMap[o.status] || 'pendente',
-          scheduledDate: today,
+          scheduledDate: o.deliveryDate ? new Date(o.deliveryDate).toISOString().slice(0, 10) : dateFrom,
           routePosition: idx + 1,
           notes: o.orderNote || null,
           totalValue: o.totalValue,
@@ -245,7 +251,7 @@ export async function register(app: Express): Promise<void> {
       // internal admins keep the legacy "unassigned-or-mine" semantics.
       let deliveries: any[];
       if (actor.role === 'DRIVER' && myDriver) {
-        deliveries = allDeliveries.filter((d: any) => d.driverId === myDriver.id);
+        deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);
       } else if (myDriver) {
         deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);
       } else {
@@ -254,6 +260,7 @@ export async function register(app: Express): Promise<void> {
 
       const enriched = deliveries.map((d: any) => ({
         ...d,
+        canUpdate: actor.role !== 'DRIVER' || Boolean(myDriver && d.driverId && Number(d.driverId) === Number(myDriver.id)),
         companyName: companyMap[d.companyId]?.companyName || companyMap[d.companyId]?.name || '—',
         deliveryWindowStart: companyMap[d.companyId]?.deliveryWindowStart || null,
         deliveryWindowEnd: companyMap[d.companyId]?.deliveryWindowEnd || null,
@@ -263,7 +270,15 @@ export async function register(app: Express): Promise<void> {
         longitude: d.longitude || companyMap[d.companyId]?.longitude || null,
       }));
 
-      res.json({ deliveries: enriched, driver: myDriver || null, date: today, source });
+      res.json({
+        deliveries: enriched,
+        driver: myDriver || null,
+        companies: allCompanies.map((c: any) => ({ id: c.id, name: c.companyName || c.name })),
+        date: dateFrom,
+        dateFrom,
+        dateTo,
+        source,
+      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

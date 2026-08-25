@@ -487,7 +487,7 @@ export interface IStorage {
   getModuloChavesByCompany(companyId: number): Promise<string[]>;
 
   // Deliveries
-  getDeliveries(filters?: { companyId?: number; driverId?: number; routeId?: number; status?: string; date?: string }): Promise<Delivery[]>;
+  getDeliveries(filters?: { companyId?: number; driverId?: number; routeId?: number; status?: string; date?: string; dateFrom?: string; dateTo?: string }): Promise<Delivery[]>;
   getDelivery(id: number): Promise<Delivery | undefined>;
   getDeliveryByOrder(orderId: number): Promise<Delivery | undefined>;
   createDelivery(data: InsertDelivery): Promise<Delivery>;
@@ -2790,13 +2790,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Deliveries ────────────────────────────────────────────────────────────
-  async getDeliveries(filters?: { companyId?: number; driverId?: number; routeId?: number; status?: string; date?: string }): Promise<Delivery[]> {
+  async getDeliveries(filters?: { companyId?: number; driverId?: number; routeId?: number; status?: string; date?: string; dateFrom?: string; dateTo?: string }): Promise<Delivery[]> {
     const conds: any[] = [];
     if (filters?.companyId) conds.push(eq(deliveries.companyId, filters.companyId));
     if (filters?.driverId) conds.push(eq(deliveries.driverId, filters.driverId));
     if (filters?.routeId) conds.push(eq(deliveries.routeId, filters.routeId));
     if (filters?.status) conds.push(eq(deliveries.status, filters.status));
     if (filters?.date) conds.push(eq(deliveries.scheduledDate, filters.date));
+    if (filters?.dateFrom) conds.push(gte(deliveries.scheduledDate, filters.dateFrom));
+    if (filters?.dateTo) conds.push(lte(deliveries.scheduledDate, filters.dateTo));
     return db.select().from(deliveries).where(conds.length ? and(...conds) : undefined).orderBy(desc(deliveries.createdAt));
   }
   async getDelivery(id: number): Promise<Delivery | undefined> {

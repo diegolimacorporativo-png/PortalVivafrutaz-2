@@ -36,6 +36,7 @@ interface DeliveryItem {
   stopStatusAt?: string;
   stopStatusBy?: string;
   stopObservacao?: string;
+  canUpdate?: boolean;
 }
 
 function DriverGpsReporter({ role }: { role?: string | null }) {
@@ -361,7 +362,6 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = STATUS_CONFIG[delivery.status] ?? STATUS_CONFIG.pendente;
   const Icon = cfg.icon;
-  const isFinished = delivery.status !== 'pendente' && delivery.status !== 'em_rota';
 
   return (
     <div
@@ -411,11 +411,7 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
             data-testid={`button-expand-checklist-${delivery.id}`}
           >
             {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            {expanded
-              ? 'Fechar'
-              : isFinished
-              ? 'Atualizar'
-              : 'Registrar status'}
+             {expanded ? 'Fechar' : 'Visualizar pedido'}
           </button>
         </div>
       </div>
@@ -428,8 +424,17 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
       {delivery.notes && (
         <p className="text-xs text-muted-foreground mt-2 italic bg-white/50 rounded-lg px-2 py-1">{delivery.notes}</p>
       )}
-      {expanded && (
+      {expanded && delivery.canUpdate !== false && (
         <StopStatusForm delivery={delivery} onSuccess={() => setExpanded(false)} />
+      )}
+      {expanded && delivery.canUpdate === false && (
+        <div className="mt-3 pt-3 border-t border-border/50 space-y-2 text-xs text-muted-foreground">
+          <p className="font-semibold text-foreground">Detalhes do pedido</p>
+          <p>Data de entrega: {new Date(`${delivery.scheduledDate}T12:00:00`).toLocaleDateString('pt-BR')}</p>
+          {delivery.addressStreet && <p>Endereço: {delivery.addressStreet}{delivery.addressCity ? `, ${delivery.addressCity}` : ''}</p>}
+          {delivery.notes && <p>Observações: {delivery.notes}</p>}
+          <p className="italic">Pedido disponível apenas para visualização.</p>
+        </div>
       )}
     </div>
   );
@@ -622,14 +627,31 @@ export default function DriverPanel() {
   const { user, logout } = useAuth();
   const isDriverUser = (user as any)?.role === 'DRIVER' || (user as any)?.role === 'MOTORISTA';
   const [view, setView] = useState<'list' | 'map' | 'nfe'>('list');
+  const formatDateInput = (date: Date) => {
+    const local = new Date(date);
+    local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+    return local.toISOString().slice(0, 10);
+  };
+  const [dateFrom, setDateFrom] = useState(() => formatDateInput(new Date()));
+  const [dateTo, setDateTo] = useState(() => formatDateInput(new Date()));
+  const [companyId, setCompanyId] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({ dateFrom: formatDateInput(new Date()), dateTo: formatDateInput(new Date()), companyId: '' });
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const { data, isLoading, refetch } = useQuery<{
     deliveries: DeliveryItem[];
     driver: any;
+    companies?: Array<{ id: number; name: string }>;
     date: string;
   }>({
-    queryKey: ['/api/driver/route-today'],
+    queryKey: ['/api/driver/route-today', appliedFilters],
+    queryFn: async () => {
+      const params = new URLSearchParams({ dateFrom: appliedFilters.dateFrom, dateTo: appliedFilters.dateTo });
+      if (appliedFilters.companyId) params.set('companyId', appliedFilters.companyId);
+      const response = await fetch(`/api/driver/route-today?${params.toString()}`, { credentials: 'include' });
+      if (!response.ok) throw new Error('Não foi possível carregar os pedidos');
+      return response.json();
+    },
   });
   const { data: liveDrivers = [] } = useQuery<LiveDriverLocation[]>({
     queryKey: ['/api/logistics/drivers/gps'],
@@ -710,6 +732,59 @@ export default function DriverPanel() {
       <div className="p-4 mt-3 space-y-3">
         <DriverGpsReporter role={(user as any)?.role} />
         {!isDriverUser && <LiveDriverLocations drivers={liveDrivers} />}
+        <div className="rounded-2xl border border-border bg-card p-3 shadow-sm space-y-3" data-testid="driver-order-filters">
+          <div className="flex items-center gap-2">
+            <CalendarClock className="w-4 h-4 text-blue-600" />
+            <p className="text-sm font-semibold text-foreground">Consultar pedidos disponíveis</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <label className="text-xs text-muted-foreground">
+              De
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="input-driver-date-from" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Até
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="input-driver-date-to" />
+            </label>
+            <label className="text-xs text-muted-foreground">
+              Empresa
+              <select value={companyId} onChange={e => setCompanyId(e.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-2 text-sm text-foreground" data-testid="select-driver-company">
+                <option value="">Todas as empresas</option>
+                {(data?.companies ?? []).map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                if (!dateFrom || !dateTo || dateFrom > dateTo) return;
+                setAppliedFilters({ dateFrom, dateTo, companyId });
+              }}
+              className="gap-2"
+              data-testid="button-apply-driver-filters"
+            >
+              <RefreshCw className="w-3.5 h-3.5" /> Buscar pedidos
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const current = formatDateInput(new Date());
+                setDateFrom(current);
+                setDateTo(current);
+                setCompanyId('');
+                setAppliedFilters({ dateFrom: current, dateTo: current, companyId: '' });
+              }}
+              data-testid="button-clear-driver-filters"
+            >
+              Hoje
+            </Button>
+          </div>
+          {dateFrom > dateTo && <p className="text-xs text-red-600">A data inicial deve ser anterior ou igual à data final.</p>}
+        </div>
         {/* View toggle */}
         <div className="flex gap-1 bg-muted rounded-xl p-1">
           <button
