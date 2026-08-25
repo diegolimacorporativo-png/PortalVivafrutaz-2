@@ -1,60 +1,38 @@
 import { memo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useOrderDetail } from "@/hooks/use-ordering";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-  Receipt, MessageSquare, Package, XCircle, Edit3, StickyNote, Calendar,
+  Receipt, MessageSquare, Package, XCircle, Edit3, StickyNote,
   ThumbsUp, ThumbsDown, ClipboardEdit, ChevronDown, ChevronUp, CheckCircle,
-  Send, ShieldCheck, ShieldX, Clock, RefreshCw, Tag,
 } from "lucide-react";
 import {
   STATUS_BADGE, STATUS_LABEL, WF_BADGE, WF_LABEL,
-  FISCAL_BADGE, FISCAL_LABEL, ERP_STATUS_BADGE, ERP_STATUS_LABEL,
 } from "../constants";
-import { DanfePanel } from "./DanfePanel";
 import type { Order } from "../types";
 
 interface OrderRowProps {
   order: Order;
-  company: any;
   companyName: string;
   products: any[];
   onNoteEdit: (order: Order) => void;
   onEdit: (order: Order) => void;
   onCancel: (order: Order) => void;
   onRestore: (order: Order) => void;
-  onPatchNimbi: (id: number, date: string) => Promise<void>;
   onApproveReopen: (order: Order) => void;
   onDenyReopen: (order: Order) => void;
-  onBlingExport: (order: Order) => Promise<void>;
   onTransition: (order: Order, to: string, label: string) => Promise<void>;
 }
 
 export const OrderRow = memo(function OrderRow({
-  order, company, companyName, products,
-  onNoteEdit, onEdit, onCancel, onRestore, onPatchNimbi,
-  onApproveReopen, onDenyReopen, onBlingExport, onTransition,
+  order, companyName, products,
+  onNoteEdit, onEdit, onCancel, onRestore,
+  onApproveReopen, onDenyReopen, onTransition,
 }: OrderRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const [nimbiDate, setNimbiDate] = useState(order.nimbiExpiration || '');
-  const [savingNimbi, setSavingNimbi] = useState(false);
-  const [blingExporting, setBlingExporting] = useState(false);
   const { data: detail } = useOrderDetail(expanded ? order.id : undefined);
-  const qc = useQueryClient();
   const isCancelled = order.status === 'CANCELLED';
   const isReopenRequested = order.status === 'REOPEN_REQUESTED';
-  const erpStatus = order.erpExportStatus || 'nao_exportado';
-
-  const handleSaveNimbi = async () => {
-    setSavingNimbi(true);
-    try { await onPatchNimbi(order.id, nimbiDate); } finally { setSavingNimbi(false); }
-  };
-
-  const handleBlingExport = async () => {
-    setBlingExporting(true);
-    try { await onBlingExport(order); } finally { setBlingExporting(false); }
-  };
 
   const NEXT: Record<string, { to: string; label: string; cls: string }> = {
     APPROVED:   { to: "PROCESSING", label: "Iniciar Separação", cls: "bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100" },
@@ -84,20 +62,6 @@ export const OrderRow = memo(function OrderRow({
                     className={`text-xs font-bold px-1.5 py-0.5 rounded-md border ${WF_BADGE[order.workflowStatus]}`}
                     title={`Etapa operacional: ${WF_LABEL[order.workflowStatus] || order.workflowStatus}`}>
                     {WF_LABEL[order.workflowStatus] || order.workflowStatus}
-                  </span>
-                )}
-                {order.fiscalStatus && (
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md border ${FISCAL_BADGE[order.fiscalStatus] || "bg-gray-100 text-gray-600 border-gray-300"}`}>
-                    {FISCAL_LABEL[order.fiscalStatus] || order.fiscalStatus}
-                  </span>
-                )}
-                {order.preNotaNumber && (
-                  <span className="text-xs text-violet-600 font-mono">{order.preNotaNumber}</span>
-                )}
-                {(order.erpExportStatus && order.erpExportStatus !== 'nao_exportado') && (
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-md border flex items-center gap-0.5 ${ERP_STATUS_BADGE[order.erpExportStatus] || ERP_STATUS_BADGE.nao_exportado}`}>
-                    <Send className="w-2.5 h-2.5" />
-                    {ERP_STATUS_LABEL[order.erpExportStatus] || order.erpExportStatus}
                   </span>
                 )}
                 {(order as any).isPaid && (
@@ -219,61 +183,6 @@ export const OrderRow = memo(function OrderRow({
                 </div>
               )}
 
-              {/* Bling Export */}
-              <div className="space-y-2">
-                <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
-                  <Calendar className="w-4 h-4 text-orange-600 flex-shrink-0" />
-                  <span className="text-xs font-bold text-orange-700 uppercase tracking-wider">Exportar para Bling</span>
-                  <input type="date" value={nimbiDate} onChange={e => setNimbiDate(e.target.value)}
-                    data-testid={`input-nimbi-${order.id}`}
-                    className="px-3 py-1.5 border-2 border-orange-200 rounded-lg text-sm focus:border-orange-400 outline-none bg-white" />
-                  <button onClick={handleSaveNimbi} disabled={savingNimbi}
-                    data-testid={`button-save-nimbi-${order.id}`}
-                    className="px-3 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50">
-                    {savingNimbi ? '...' : 'Salvar'}
-                  </button>
-                  {nimbiDate && (
-                    <button onClick={() => { setNimbiDate(''); onPatchNimbi(order.id, ''); }}
-                      className="px-3 py-1.5 border border-orange-300 text-orange-600 text-xs font-bold rounded-lg hover:bg-orange-100 transition-colors">
-                      Limpar
-                    </button>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3 p-3 bg-emerald-50 rounded-xl border border-emerald-100">
-                  <Send className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <div className="flex-1 flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Status Bling:</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full border ${ERP_STATUS_BADGE[erpStatus]}`}>
-                      {erpStatus === 'exportando' && <Clock className="w-2.5 h-2.5 inline mr-0.5" />}
-                      {erpStatus === 'exportado' && <ShieldCheck className="w-2.5 h-2.5 inline mr-0.5" />}
-                      {erpStatus === 'erro' && <ShieldX className="w-2.5 h-2.5 inline mr-0.5" />}
-                      {ERP_STATUS_LABEL[erpStatus] || erpStatus}
-                    </span>
-                    {order.erpId && <span className="text-xs text-emerald-600 font-mono">{order.erpId}</span>}
-                    {order.erpExportedAt && (
-                      <span className="text-xs text-emerald-600">
-                        {format(new Date(order.erpExportedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                      </span>
-                    )}
-                    {order.erpExportError && erpStatus === 'erro' && (
-                      <span className="text-xs text-red-600">{order.erpExportError}</span>
-                    )}
-                  </div>
-                  {erpStatus === 'exportado' ? (
-                    <span className="text-xs text-emerald-600 font-medium">✓ Já exportado</span>
-                  ) : (
-                    <button onClick={handleBlingExport} disabled={blingExporting || erpStatus === 'exportando'}
-                      data-testid={`button-bling-export-${order.id}`}
-                      className="px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center gap-1.5">
-                      {blingExporting || erpStatus === 'exportando'
-                        ? <><RefreshCw className="w-3 h-3 animate-spin" /> Exportando...</>
-                        : <><Send className="w-3 h-3" /> Exportar para Bling</>}
-                    </button>
-                  )}
-                </div>
-              </div>
-
               {order.reopenReason && (
                 <div className="flex items-start gap-2 p-3 bg-orange-50 rounded-xl border border-orange-200">
                   <ClipboardEdit className="w-4 h-4 text-orange-600 mt-0.5 flex-shrink-0" />
@@ -345,7 +254,6 @@ export const OrderRow = memo(function OrderRow({
                 </div>
               )}
 
-              <DanfePanel order={order} company={company} products={products} queryClient={qc} />
             </div>
           </td>
         </tr>

@@ -1,0 +1,533 @@
+INICIAR FASE 2A — LIMPEZA E REORGANIZAÇÃO DA INTERFACE ADMINISTRATIVA DE PEDIDOS
+
+A FASE 1 ESTÁ OFICIALMENTE CONCLUÍDA E VALIDADA.
+
+NÃO REFAZER A FASE 1.
+
+NÃO ALTERAR O FLUXO TRANSACIONAL VALIDADO.
+
+NÃO ALTERAR A CLARA.
+
+NÃO ALTERAR O BANCO.
+
+NÃO REMOVER FUNCIONALIDADES FISCAIS DO BACKEND NESTA FASE.
+
+==================================================
+OBJETIVO DA FASE 2A
+==================================================
+
+Transformar `/admin/orders` em uma tela administrativa focada exclusivamente na operação B2B:
+
+PEDIDO
+↓
+CONFERÊNCIA
+↓
+APROVAÇÃO
+↓
+SEPARAÇÃO
+↓
+PEDIDO PRONTO
+↓
+LIBERAÇÃO PARA ENTREGA
+↓
+EM ROTA
+↓
+ENTREGUE
+
+A emissão da NF será realizada FORA deste sistema.
+
+Portanto, a tela de pedidos não deve colocar NF, DANFE, Bling ou informações fiscais no centro da operação.
+
+==================================================
+REGRA MAIS IMPORTANTE
+==================================================
+
+ESTA FASE É PRINCIPALMENTE VISUAL/UX.
+
+NÃO DELETE:
+
+- rotas fiscais;
+- serviços fiscais;
+- tabelas fiscais;
+- campos fiscais;
+- `fiscal_status`;
+- `pre_nota_number`;
+- `nfe_emissoes`;
+- `danfe_records`;
+- integração/rotas Bling;
+- cron fiscal;
+- componentes fiscais que possam ser utilizados por outros módulos.
+
+Primeiro vamos retirar essas funções da interface PRINCIPAL de pedidos.
+
+A remoção técnica definitiva será analisada em uma fase posterior, depois de confirmar todas as dependências.
+
+==================================================
+1. AUDITAR A TELA ATUAL ANTES DE EDITAR
+==================================================
+
+Leia:
+
+- `client/src/pages/admin/orders/index.tsx`
+- `client/src/pages/admin/orders/components/OrderRow.tsx`
+- `client/src/pages/admin/orders/components/DanfePanel.tsx`
+- `client/src/pages/admin/orders/constants.ts`
+
+E os serviços/rotas diretamente utilizados pela tela.
+
+Mapeie:
+
+- componentes;
+- filtros;
+- botões;
+- badges;
+- campos;
+- chamadas de API;
+- ações de pedido;
+- informações fiscais;
+- informações ERP.
+
+NÃO altere nada antes de entender o impacto.
+
+==================================================
+2. REMOVER DA INTERFACE PRINCIPAL
+==================================================
+
+Na tela `/admin/orders`, retirar da visualização operacional principal:
+
+- Status Fiscal;
+- Nota Pendente;
+- Nota Emitida;
+- Nota Cancelada;
+- Pré-nota;
+- Número de NF;
+- DANFE;
+- botão Emitir NF-e;
+- Diagnóstico NF-e;
+- Pré-flight fiscal;
+- Histórico de DANFE;
+- Status Bling;
+- ID ERP;
+- Data de exportação Bling;
+- Erro de exportação Bling;
+- botão Exportar para Bling.
+
+ATENÇÃO:
+
+"Retirar da interface principal" NÃO significa apagar o backend.
+
+Se algum componente fiscal for usado por outra tela, preserve-o.
+
+==================================================
+3. NÃO REMOVER
+==================================================
+
+A tela deve continuar mostrando:
+
+### PEDIDO
+
+- código;
+- empresa;
+- data do pedido;
+- data prevista de entrega;
+- quantidade de itens;
+- valor total.
+
+### CLIENTE
+
+- empresa;
+- informações necessárias para operação.
+
+### ITENS
+
+- produto;
+- quantidade;
+- preço;
+- subtotal;
+- total.
+
+### OBSERVAÇÕES
+
+- observação do cliente;
+- observação administrativa.
+
+### PAGAMENTO
+
+Manter apenas o necessário para visão administrativa:
+
+- pago;
+- pendente;
+- data de pagamento, quando disponível.
+
+Não transformar pagamento em fluxo fiscal.
+
+### OPERACIONAL
+
+Manter:
+
+- aguardando aprovação;
+- aprovado;
+- em separação;
+- pronto;
+- liberado para entrega;
+- em rota;
+- entregue;
+- cancelado;
+- rejeitado, quando aplicável.
+
+==================================================
+4. STATUS INVOICED
+==================================================
+
+O backend continuará utilizando `INVOICED`.
+
+NÃO altere a máquina de estados.
+
+Na interface, quando `INVOICED` representar a etapa operacional validada na Fase 1, exibir:
+
+**Liberado para entrega**
+
+Nunca exibir "Faturado" como status operacional.
+
+Se houver algum "Faturado" em contexto exclusivamente fiscal, preserve.
+
+==================================================
+5. FILTROS
+==================================================
+
+Reorganizar os filtros para priorizar operação.
+
+Manter/criar visualmente:
+
+- Todos;
+- Aguardando conferência;
+- Aprovados;
+- Em separação;
+- Prontos;
+- Liberados para entrega;
+- Em rota;
+- Entregues;
+- Cancelados.
+
+Manter busca por:
+
+- código do pedido;
+- empresa.
+
+Manter filtros úteis de:
+
+- período;
+- entrega;
+- pagamento;
+- empresa, quando permitido.
+
+REMOVER DA INTERFACE PRINCIPAL:
+
+- filtro fiscal;
+- filtro por status de NF;
+- filtro Bling/ERP.
+
+Não remova necessariamente a API que alimenta esses filtros.
+
+Apenas retire-os da tela nesta fase.
+
+==================================================
+6. CABEÇALHO
+==================================================
+
+Simplificar o cabeçalho.
+
+O usuário deve entender imediatamente:
+
+"Gestão de Pedidos"
+
+e não:
+
+"Gestão Fiscal + Pedidos + ERP".
+
+Manter:
+
+- quantidade de pedidos;
+- pedidos pendentes;
+- solicitações de alteração;
+- busca;
+- exportação operacional.
+
+Se houver cards/indicadores fiscais no topo, retirar da interface principal.
+
+==================================================
+7. TABELA
+==================================================
+
+Priorizar estas colunas:
+
+1. Pedido
+2. Empresa
+3. Data
+4. Entrega
+5. Itens
+6. Total
+7. Pagamento
+8. Status operacional
+9. Ações
+
+Evitar excesso de informação.
+
+REMOVER da tabela principal:
+
+- NF;
+- pré-nota;
+- fiscal status;
+- Bling;
+- ERP;
+- DANFE.
+
+==================================================
+8. EXPANSÃO DO PEDIDO
+==================================================
+
+Ao abrir um pedido, organizar em blocos:
+
+### RESUMO
+
+- empresa;
+- pedido;
+- datas;
+- total;
+- pagamento;
+- status.
+
+### ITENS
+
+Lista completa dos produtos.
+
+### OBSERVAÇÕES
+
+- cliente;
+- administrativo.
+
+### OPERAÇÃO
+
+Mostrar ações conforme o status:
+
+- Aprovar;
+- Rejeitar;
+- Iniciar separação;
+- Marcar como pronto;
+- Liberar para entrega;
+- Enviar/Marcar em rota;
+- Confirmar entrega;
+- Cancelar.
+
+### HISTÓRICO
+
+Mostrar histórico operacional relevante.
+
+==================================================
+9. SOLICITAÇÃO DE ALTERAÇÃO
+==================================================
+
+Preservar o fluxo existente de:
+
+`REOPEN_REQUESTED`
+
+Não remover.
+
+Ele faz parte da operação B2B.
+
+==================================================
+10. EDIÇÃO DE ITENS
+==================================================
+
+Preservar:
+
+- edição de itens;
+- substituição de produtos;
+- quantidades;
+- regras de preço;
+- validações existentes.
+
+Não modificar regras de estoque/preço nesta fase.
+
+==================================================
+11. CANCELAMENTO
+==================================================
+
+Preservar cancelamento operacional.
+
+Mas remover da tela principal qualquer dependência visual desnecessária de:
+
+- cancelamento de NF;
+- status fiscal;
+- DANFE.
+
+IMPORTANTE:
+
+Não remover as rotas fiscais de cancelamento.
+
+Apenas não apresentar isso como parte do fluxo normal de pedidos.
+
+==================================================
+12. EXPORTAÇÃO
+==================================================
+
+Manter:
+
+**Exportar pedidos**
+
+se for exportação operacional.
+
+Remover da interface principal:
+
+**Exportar para Bling**
+
+Não apagar a rota `/api/orders/:id/bling-export`.
+
+==================================================
+13. DANFE PANEL
+==================================================
+
+O `DanfePanel` NÃO deve ser apagado automaticamente.
+
+Primeiro determine se ele é:
+
+- usado exclusivamente nessa tela;
+- usado em outras partes do sistema;
+- importado por outros componentes.
+
+Se for exclusivo da tela, retire sua apresentação do `/admin/orders`, mas preserve o arquivo nesta fase.
+
+Se houver dependências externas, não altere.
+
+==================================================
+14. RESPONSIVIDADE E ORGANIZAÇÃO
+==================================================
+
+A tela deve ficar mais simples.
+
+Não criar uma nova arquitetura.
+
+Não trocar framework.
+
+Não trocar biblioteca de componentes.
+
+Não trocar Leaflet ou outras tecnologias não relacionadas.
+
+Apenas reorganizar a interface existente.
+
+==================================================
+15. NÃO MEXER NO BACKEND OPERACIONAL
+==================================================
+
+Não alterar:
+
+- workflow;
+- transações;
+- estoque;
+- contas a receber;
+- logística;
+- entregas;
+- notificações;
+- permissões;
+- Clara.
+
+A Fase 1 já validou essas partes.
+
+==================================================
+16. NÃO REMOVER CAMPOS DO BANCO
+==================================================
+
+Não criar migration para remover:
+
+- `fiscal_status`;
+- `pre_nota_number`;
+- `status_exportacao_erp`;
+- `data_exportacao_erp`;
+- `id_erp`;
+- `erro_exportacao_erp`.
+
+Nada de DROP.
+
+==================================================
+17. TESTES E VALIDAÇÃO
+==================================================
+
+Depois das alterações:
+
+Executar:
+
+`npx tsc --noEmit`
+
+`npm run build`
+
+`git diff --check`
+
+Executar testes relevantes da tela/admin orders, se existirem.
+
+Não tentar corrigir o problema conhecido de timezone da suíte geral.
+
+Não alterar `heliumdb`.
+
+==================================================
+18. VERIFICAÇÃO FINAL
+==================================================
+
+Fazer uma busca final na interface `/admin/orders`.
+
+A tela principal NÃO deve mais apresentar como parte da operação:
+
+- NF-e;
+- DANFE;
+- pré-nota;
+- Bling;
+- ERP;
+- status fiscal.
+
+Mas o backend fiscal deve continuar intacto.
+
+==================================================
+19. REGRA CONTRA EXCESSO DE ALTERAÇÃO
+==================================================
+
+Se uma alteração não for necessária para atingir o objetivo desta Fase 2A:
+
+NÃO FAÇA.
+
+Não refatore por estética.
+
+Não renomeie arquivos sem necessidade.
+
+Não altere APIs.
+
+Não altere banco.
+
+Não faça limpeza técnica antecipada.
+
+==================================================
+20. RELATÓRIO FINAL
+==================================================
+
+Ao terminar, informe:
+
+### FASE 2A — RESULTADO
+
+1. Arquivos alterados.
+2. Elementos fiscais removidos da interface.
+3. Elementos operacionais preservados.
+4. Componentes fiscais preservados no código.
+5. APIs preservadas.
+6. Banco não alterado.
+7. Clara não alterada.
+8. TypeScript.
+9. Build.
+10. `git diff --check`.
+11. Testes.
+12. Possíveis riscos encontrados.
+
+IMPORTANTE:
+
+NÃO IMPLEMENTAR A FASE 2B.
+
+A Fase 2B será uma auditoria posterior para descobrir quais códigos fiscais ficaram realmente sem uso depois da limpeza da interface.
+
+PARE após concluir a Fase 2A.

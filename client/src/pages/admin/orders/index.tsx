@@ -5,20 +5,20 @@ import { useCompanies } from "@/hooks/use-admin";
 import { useProducts } from "@/hooks/use-catalog";
 import { useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { normalizeOne, normalizeError } from "@/lib/normalizeResponse";
+import { normalizeError } from "@/lib/normalizeResponse";
 import { Layout } from "@/components/Layout";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@shared/routes";
 import { handleIfPeriodoFechado } from "@/lib/periodo-fechado";
 import {
-  Search, Tag, FileSpreadsheet, Trash2, Bell, Building2, Calendar,
+  Search, FileSpreadsheet, Trash2, Bell, Building2, Calendar,
   MessageSquare, ClipboardEdit, ThumbsUp, ThumbsDown,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
-import { FISCAL_LABEL, STATUS_LABEL } from "./constants";
+import { STATUS_LABEL } from "./constants";
 import { OrderRow } from "./components/OrderRow";
 import { AdminNoteModal } from "./dialogs/AdminNoteModal";
 import { EditItemsModal } from "./dialogs/EditItemsModal";
@@ -41,7 +41,6 @@ export default function OrdersPage() {
   // ── Filter state ──────────────────────────────────────────────
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
-  const [filterFiscal, setFilterFiscal] = useState("ALL");
   const [paymentFilter, setPaymentFilter] = useState<"all" | "paid" | "pending">("all");
 
   // ── Dialog state ──────────────────────────────────────────────
@@ -61,10 +60,10 @@ export default function OrdersPage() {
     return () => clearTimeout(t);
   }, [search]);
 
-  useEffect(() => { setPage(1); }, [filterStatus, filterFiscal]);
+  useEffect(() => { setPage(1); }, [filterStatus]);
 
   const { data: pagedOrders, isLoading } = useOrdersPaginated({
-    page, limit, search: debouncedSearch, status: filterStatus, fiscalStatus: filterFiscal,
+    page, limit, search: debouncedSearch, status: filterStatus,
   });
 
   // ── Client-side payment filter (isPaid already in paginated payload) ──
@@ -110,30 +109,6 @@ export default function OrdersPage() {
     await patchOrder(cancelOrder.id, { status: 'CANCELLED' });
     toast({ title: "Pedido cancelado.", variant: "destructive" });
   };
-
-  const saveNimbi = useCallback(async (id: number, date: string) => {
-    await patchOrder(id, { nimbiExpiration: date || null });
-    toast({ title: date ? "Data de exportação Bling salva!" : "Data de exportação Bling removida." });
-  }, []);
-
-  const blingExport = useCallback(async (order: Order) => {
-    try {
-      const res = await fetchWithAuth(`/api/orders/${order.id}/bling-export`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast({ title: normalizeError(body).message || "Erro ao exportar para Bling", variant: "destructive" });
-        return;
-      }
-      queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
-      const ok = normalizeOne<{ erpId: string }>(body) ?? body;
-      toast({ title: `Pedido exportado para Bling com sucesso! ID: ${ok.erpId}` });
-    } catch (e: any) {
-      toast({ title: e.message || "Erro ao exportar para Bling", variant: "destructive" });
-    }
-  }, [toast, queryClient]);
 
   const restoreOrder = useCallback(async (order: Order) => {
     await patchOrder(order.id, { status: 'ACTIVE' });
@@ -330,16 +305,6 @@ export default function OrdersPage() {
               </button>
             ))}
             <div className="w-px h-6 bg-border mx-1" />
-            <Tag className="w-4 h-4 text-violet-500 flex-shrink-0" />
-            <select data-testid="select-filter-fiscal" value={filterFiscal}
-              onChange={e => setFilterFiscal(e.target.value)}
-              className="px-3 py-2 rounded-xl text-xs font-bold border-2 border-border text-muted-foreground focus:border-violet-400 outline-none bg-white">
-              <option value="ALL">Fiscal: Todos</option>
-              {Object.entries(FISCAL_LABEL).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-            <div className="w-px h-6 bg-border mx-1" />
             {([
               { key: 'all',     label: 'Todos',     count: totalCount   },
               { key: 'paid',    label: 'Pagos',     count: paidCount    },
@@ -390,17 +355,14 @@ export default function OrdersPage() {
                     <OrderRow
                       key={order.id}
                       order={order}
-                      company={company || null}
                       companyName={company?.companyName || 'Desconhecido'}
                       products={products || []}
                       onNoteEdit={setNoteOrder}
                       onEdit={setEditOrder}
                       onCancel={setCancelOrder}
                       onRestore={restoreOrder}
-                      onPatchNimbi={saveNimbi}
                       onApproveReopen={approveReopen}
                       onDenyReopen={denyReopen}
-                      onBlingExport={blingExport}
                       onTransition={transitionOrder}
                     />
                   );
