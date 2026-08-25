@@ -1,0 +1,234 @@
+O MAPA CONTINUA CINZA NO MEU APP.
+
+Não quero mais receber como resposta que o Chromium do ambiente não consegue iniciar.
+
+O usuário final consegue abrir o sistema no navegador real, portanto precisamos corrigir a implementação diretamente e adicionar diagnóstico VISÍVEL na própria tela.
+
+### CORREÇÃO
+
+Mantenha Leaflet.
+
+Mantenha CARTO como provedor de tiles por enquanto.
+
+NÃO troque para Google Maps.
+
+NÃO troque novamente de provedor.
+
+### 1. SIMPLIFICAR A URL DOS TILES
+
+A configuração atual usa:
+
+`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png`
+
+REMOVA o `{r}`.
+
+Utilize exatamente:
+
+`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png`
+
+Não utilize retina por enquanto.
+
+### 2. CONFIGURAR O TILELAYER DE FORMA EXPLÍCITA
+
+Garanta que o TileLayer seja criado com:
+
+* URL correta;
+* `maxZoom` compatível;
+* `crossOrigin` adequado, se necessário;
+* atribuição correta;
+* subdomains `a`, `b`, `c` se a configuração exigir.
+
+Não criar várias camadas.
+
+### 3. ADICIONAR EVENTOS DE DEBUG
+
+No TileLayer, adicionar temporariamente handlers para:
+
+* `tileload`
+* `tileerror`
+* `loading`
+* `load`
+
+Quando ocorrer `tileerror`, registrar no console:
+
+`MAP TILE ERROR:`
+
+junto com a URL real do tile que falhou.
+
+Quando ocorrer `tileload`, registrar:
+
+`MAP TILE LOADED:`
+
+junto com a URL real.
+
+### 4. MOSTRAR DIAGNÓSTICO NA TELA
+
+Durante o desenvolvimento, adicionar discretamente abaixo do mapa um pequeno status:
+
+`Mapa: carregando...`
+
+Depois:
+
+`Mapa: tiles carregados`
+
+ou:
+
+`Mapa: erro ao carregar tiles`
+
+Se houver erro, mostrar também o domínio que falhou.
+
+Isso é TEMPORÁRIO e pode ser removido depois que o problema estiver resolvido.
+
+### 5. TESTAR O TILE DIRETAMENTE NO COMPONENTE
+
+Crie uma pequena verificação usando um `<img>` com uma URL REAL de tile, por exemplo um tile correspondente ao centro inicial do mapa.
+
+O objetivo é descobrir se o navegador consegue renderizar a imagem.
+
+Se o `<img>` conseguir mostrar o PNG mas o Leaflet não mostrar, então o problema é Leaflet/CSS.
+
+Se nem o `<img>` conseguir mostrar, então o problema é rede/provedor/CSP.
+
+Não assumir a causa.
+
+### 6. VERIFICAR O DOM
+
+Depois da inicialização, verificar:
+
+`.leaflet-tile`
+
+Se existirem tiles:
+
+* verificar `src`;
+* verificar `complete`;
+* verificar `naturalWidth`;
+* verificar `naturalHeight`.
+
+Registrar no console:
+
+`LEAFLET TILE COUNT: X`
+
+`LEAFLET TILE LOADED: X`
+
+`LEAFLET TILE FAILED: X`
+
+### 7. SE OS TILES CARREGAREM MAS NÃO APARECEREM
+
+Então corrigir o CSS.
+
+Verificar especificamente:
+
+`.leaflet-tile-pane`
+`.leaflet-layer`
+`.leaflet-tile-container`
+`.leaflet-tile`
+
+Garantir:
+
+* `opacity: 1`;
+* `visibility: visible`;
+* `display: block`;
+* dimensões corretas;
+* z-index correto.
+
+NÃO aplicar CSS global.
+
+### 8. SE OS TILES NÃO CARREGAREM
+
+O evento `tileerror` precisa mostrar a URL real que falhou.
+
+Nesse caso, verificar a URL diretamente no navegador.
+
+Se CARTO estiver bloqueado no navegador real, aí sim escolher outro provedor gratuito compatível.
+
+Mas NÃO fazer isso sem primeiro registrar o erro real.
+
+### 9. MAPA DEVE APARECER MESMO SEM GPS
+
+IMPORTANTE:
+
+O mapa deve ser renderizado independentemente de existirem motoristas.
+
+Mesmo com ZERO motoristas:
+
+→ mapa deve aparecer normalmente.
+
+Com 1 motorista:
+
+→ mapa aparece + marcador.
+
+Com vários:
+
+→ mapa aparece + todos os marcadores.
+
+Não condicionar a criação do mapa à existência de coordenadas.
+
+### 10. CENTRO PADRÃO
+
+Quando não houver motorista, usar um centro padrão válido para a região do sistema.
+
+Quando houver motorista, centralizar nele.
+
+Não recriar o mapa quando o GPS atualizar.
+
+### 11. GARANTIR INVALIDATE SIZE
+
+Depois que o componente estiver visível:
+
+executar:
+
+`map.invalidateSize()`
+
+com um pequeno atraso quando necessário.
+
+Se a página usar tabs, cards, modais ou containers que mudam de tamanho, executar novamente quando o container ficar visível.
+
+### 12. NÃO ACEITO MAIS "NÃO CONFIRMADO"
+
+Depois dessa alteração, preciso que o próprio aplicativo informe se:
+
+* os tiles carregaram;
+* os tiles falharam;
+* quantos tiles carregaram;
+* qual URL falhou.
+
+Assim conseguimos diagnosticar pelo navegador real, mesmo que o Chromium do ambiente de desenvolvimento esteja quebrado.
+
+### 13. IMPORTANTE
+
+NÃO alterar:
+
+* banco;
+* GPS;
+* autenticação;
+* motoristas;
+* pedidos;
+* rotas;
+* manifestos;
+* lógica de rastreamento.
+
+Somente corrigir o mapa.
+
+### 14. TESTE FINAL
+
+Depois da alteração:
+
+1. Abra `/admin/gps-tracking`.
+2. O mapa precisa aparecer mesmo sem motorista.
+3. Confirme visualmente ruas e mapa.
+4. Confirme que aparece o status "tiles carregados".
+5. Confirme que não existem `tileerror`.
+6. Confirme o marcador do motorista.
+7. Confirme a coordenada `-23.63093, -46.70345`.
+8. Confirme atualização dos marcadores.
+9. Confirme zoom.
+10. Confirme pan.
+11. Execute TypeScript.
+12. Execute testes.
+13. Execute build.
+
+NÃO considere o trabalho concluído somente porque o build passou.
+
+O critério principal é:
+
+**EU PRECISO ABRIR A TELA DO SISTEMA E VER O MAPA DE RUAS, NÃO UMA ÁREA CINZA.**

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -23,6 +23,19 @@ interface LiveDriver {
 }
 
 const defaultCenter: [number, number] = [-23.5505, -46.6333];
+const tileZoom = 11;
+
+function tileUrlForCenter([latitude, longitude]: [number, number]) {
+  const scale = 2 ** tileZoom;
+  const x = Math.floor(((longitude + 180) / 360) * scale);
+  const latitudeRadians = (latitude * Math.PI) / 180;
+  const y = Math.floor(
+    ((1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) / 2) * scale,
+  );
+  return `https://a.basemaps.cartocdn.com/light_all/${tileZoom}/${x}/${y}.png`;
+}
+
+const diagnosticTileUrl = tileUrlForCenter(defaultCenter);
 
 // Vite does not preserve Leaflet's default image path automatically when the
 // app is served behind the Replit preview proxy.
@@ -106,6 +119,11 @@ function googleMapsUrl(driver: LiveDriver) {
 }
 
 export default function GpsTracking() {
+  const [tileStatus, setTileStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [tileLoadedCount, setTileLoadedCount] = useState(0);
+  const [tileFailedCount, setTileFailedCount] = useState(0);
+  const [failedTileUrl, setFailedTileUrl] = useState<string | null>(null);
+  const [diagnosticImageSize, setDiagnosticImageSize] = useState<string>("carregando...");
   const { data: drivers = [], isLoading, isFetching, error, refetch } = useQuery<LiveDriver[]>({
     queryKey: ["/api/logistics/drivers/gps"],
     refetchInterval: 10000,
@@ -123,6 +141,15 @@ export default function GpsTracking() {
     }),
     [activeDrivers],
   );
+
+  const inspectLeafletTiles = () => {
+    const tiles = Array.from(document.querySelectorAll<HTMLImageElement>(".leaflet-tile"));
+    const loaded = tiles.filter(tile => tile.complete && tile.naturalWidth > 0).length;
+    const failed = tiles.filter(tile => tile.complete && tile.naturalWidth === 0).length;
+    console.info("LEAFLET TILE COUNT:", tiles.length);
+    console.info("LEAFLET TILE LOADED:", loaded);
+    console.info("LEAFLET TILE FAILED:", failed);
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -194,8 +221,36 @@ export default function GpsTracking() {
               <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl>
                 <InvalidateMapSize />
                 <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                  subdomains={["a", "b", "c"]}
                   maxZoom={19}
+                  crossOrigin="anonymous"
+                  eventHandlers={{
+                    loading: () => {
+                      setTileStatus("loading");
+                      console.info("MAP TILES LOADING");
+                    },
+                    tileload: event => {
+                      const url = (event.tile as HTMLImageElement).src;
+                      setTileLoadedCount(count => count + 1);
+                      setTileStatus("loaded");
+                      console.info("MAP TILE LOADED:", url);
+                      window.setTimeout(inspectLeafletTiles, 0);
+                    },
+                    tileerror: event => {
+                      const url = (event.tile as HTMLImageElement).src;
+                      setTileFailedCount(count => count + 1);
+                      setFailedTileUrl(url);
+                      setTileStatus("error");
+                      console.error("MAP TILE ERROR:", url);
+                      window.setTimeout(inspectLeafletTiles, 0);
+                    },
+                    load: () => {
+                      setTileStatus("loaded");
+                      console.info("MAP TILES LOADED");
+                      window.setTimeout(inspectLeafletTiles, 0);
+                    },
+                  }}
                   attribution='&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
                 />
                 <FitDriverBounds drivers={locatedDrivers} />
@@ -225,6 +280,32 @@ export default function GpsTracking() {
                   </Marker>
                 ))}
               </MapContainer>
+            </div>
+            <div className="border-t border-border bg-muted/30 px-4 py-3 text-xs space-y-2" data-testid="map-tile-diagnostics">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <strong>
+                  Mapa: {tileStatus === "loading" ? "carregando..." : tileStatus === "loaded" ? "tiles carregados" : "erro ao carregar tiles"}
+                </strong>
+                <span>Carregados: {tileLoadedCount}</span>
+                <span>Falhos: {tileFailedCount}</span>
+              </div>
+              {failedTileUrl && (
+                <p className="break-all text-red-700">URL que falhou: {failedTileUrl}</p>
+              )}
+              <div className="flex items-center gap-3">
+                <img
+                  src={diagnosticTileUrl}
+                  alt="Tile CARTO de diagnóstico"
+                  className="h-16 w-16 rounded border border-border object-cover"
+                  crossOrigin="anonymous"
+                  onLoad={event => {
+                    const image = event.currentTarget;
+                    setDiagnosticImageSize(`${image.naturalWidth}×${image.naturalHeight}`);
+                  }}
+                  onError={() => setDiagnosticImageSize("erro ao carregar")}
+                />
+                <span>Teste direto do tile: {diagnosticImageSize}</span>
+              </div>
             </div>
             {!isLoading && locatedDrivers.length === 0 && (
               <div className="px-4 py-3 text-xs text-muted-foreground border-t border-border">
