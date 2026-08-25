@@ -1,0 +1,294 @@
+O MAPA AINDA ESTÁ CINZA.
+
+Aparece a interface do Leaflet e a atribuição/link do Leaflet/OpenStreetMap/CARTO, mas NÃO aparecem ruas, bairros ou imagem de mapa.
+
+Portanto, NÃO considere o problema resolvido.
+
+Não quero mais trocar de provedor de tiles sem diagnóstico.
+
+### OBJETIVO
+
+Descobrir exatamente por que os tiles não estão sendo renderizados VISUALMENTE dentro do mapa.
+
+O GPS, coordenadas, marcador e banco de dados devem permanecer intactos.
+
+### DIAGNÓSTICO OBRIGATÓRIO NO NAVEGADOR
+
+Preciso que você investigue a tela `/admin/gps-tracking` usando o navegador/DevTools disponível no ambiente.
+
+Verifique especificamente:
+
+#### 1. DOM
+
+Inspecione o elemento:
+
+`.leaflet-container`
+
+e confirme:
+
+* largura real;
+* altura real;
+* `display`;
+* `visibility`;
+* `opacity`;
+* `overflow`;
+* `position`;
+* `z-index`.
+
+Depois localize:
+
+`.leaflet-tile-pane`
+
+e confirme se existem elementos:
+
+`.leaflet-tile`
+
+dentro dele.
+
+### 2. IMAGENS DOS TILES
+
+Inspecione os elementos `<img class="leaflet-tile">`.
+
+Para cada tile, verificar:
+
+* `src`;
+* `naturalWidth`;
+* `naturalHeight`;
+* `complete`;
+* `display`;
+* `visibility`;
+* `opacity`.
+
+Se `naturalWidth = 0`, o tile não carregou.
+
+Se `naturalWidth > 0`, mas continua invisível, então o problema provavelmente é CSS/renderização.
+
+### 3. NETWORK
+
+Na aba Network, filtre por:
+
+`tile`
+
+e depois por:
+
+`png`
+
+Confirme os requests reais feitos pelo mapa.
+
+NÃO testar somente uma URL manualmente.
+
+Quero os requests que o próprio Leaflet está fazendo.
+
+Para os requests reais, informar:
+
+* URL;
+* status HTTP;
+* content-type;
+* tamanho da resposta;
+* se houve bloqueio;
+* se houve CORS;
+* se houve CSP;
+* se houve redirect;
+* se houve erro de carregamento.
+
+### 4. CONSOLE
+
+Verifique o Console procurando especificamente por:
+
+* CSP;
+* CORS;
+* mixed content;
+* blocked;
+* Leaflet;
+* tile;
+* image;
+* network;
+* Content Security Policy;
+* Cross-Origin.
+
+Se houver erro, informe a mensagem EXATA.
+
+### 5. CSP
+
+A CSP foi alterada anteriormente.
+
+Agora confirme que a CSP REALMENTE permite o domínio usado pelos tiles.
+
+Não basta alterar o arquivo de configuração.
+
+Verifique o header CSP efetivamente recebido pela página no navegador.
+
+Se o mapa usa:
+
+`https://{s}.basemaps.cartocdn.com/...`
+
+garanta que esse domínio esteja permitido na diretiva correta para imagens.
+
+Se existir `img-src`, o domínio dos tiles precisa estar autorizado.
+
+Se houver `connect-src` envolvido, verificar também.
+
+### 6. TESTAR O DOMÍNIO REAL
+
+Não use apenas:
+
+`https://a.basemaps.cartocdn.com/...`
+
+de forma genérica.
+
+Pegue uma URL REAL criada pelo Leaflet, com valores reais de:
+
+`z`
+`x`
+`y`
+
+e teste exatamente essa URL.
+
+Exemplo conceitual:
+
+`https://a.basemaps.cartocdn.com/light_all/12/XXXX/YYYY.png`
+
+Não invente os valores.
+
+Pegue os valores do request real do navegador.
+
+### 7. VERIFICAR SE O PROBLEMA É O `{r}`
+
+A URL atual aparentemente é:
+
+`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png`
+
+Verifique se o plugin/configuração do Leaflet está substituindo corretamente `{r}`.
+
+Se `{r}` estiver permanecendo literalmente na URL ou gerando uma URL inválida, corrija.
+
+Como teste, utilizar temporariamente uma URL sem `{r}`:
+
+`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png`
+
+Se isso resolver, manter a versão correta sem `{r}` caso não exista necessidade de retina.
+
+### 8. VERIFICAR CAMADA CSS
+
+Se os tiles estiverem carregando com `naturalWidth > 0`, mas o mapa continuar cinza:
+
+inspecionar CSS de:
+
+`.leaflet-tile`
+`.leaflet-tile-container`
+`.leaflet-layer`
+`.leaflet-tile-pane`
+
+Verificar se alguma regra global da aplicação está causando:
+
+* `filter`;
+* `opacity`;
+* `display:none`;
+* `visibility:hidden`;
+* `mix-blend-mode`;
+* `transform`;
+* `z-index`;
+* tamanho incorreto;
+* imagem com largura/altura 0.
+
+NÃO aplicar CSS global desnecessário.
+
+### 9. VERIFICAR SOBREPOSIÇÃO
+
+Verifique se existe outro elemento cobrindo:
+
+`.leaflet-tile-pane`
+
+O marcador aparecer não significa que os tiles não estejam atrás de outro elemento.
+
+Use a inspeção visual/DOM para confirmar a ordem das camadas.
+
+### 10. NÃO TROCAR NOVAMENTE DE MAPA
+
+Por enquanto NÃO trocar:
+
+* Leaflet;
+* CARTO;
+* OpenStreetMap;
+* Google Maps.
+
+Primeiro descubra por que o tile não está sendo renderizado.
+
+### 11. SE CARTO ESTIVER BLOQUEADO
+
+Se os requests reais do CARTO estiverem sendo bloqueados pelo ambiente, mostre o erro exato.
+
+Somente depois disso escolha outro provedor público compatível.
+
+Não fazer várias trocas aleatórias.
+
+### 12. TESTE COM TILE LOCAL
+
+Se necessário para diagnosticar renderização:
+
+pegue UM tile PNG real retornado pelo provedor e verifique se ele pode ser exibido diretamente dentro de um `<img>` simples na mesma página.
+
+Isso permite separar:
+
+PROBLEMA DE REDE/TILES
+
+de
+
+PROBLEMA DE LEAFLET/CSS/RENDERIZAÇÃO.
+
+### RESULTADO QUE EU QUERO
+
+No final, NÃO quero uma resposta dizendo apenas:
+
+"Tile respondeu 200."
+
+Quero uma conclusão objetiva:
+
+**CAUSA EXATA:**
+[explicar]
+
+**REQUEST REAL DO TILE:**
+[URL real]
+
+**STATUS:**
+[HTTP]
+
+**NATURAL WIDTH/HEIGHT:**
+[resultado]
+
+**CSP:**
+[permitindo/bloqueando]
+
+**CSS:**
+[normal/problemático]
+
+**LEAFLET:**
+[normal/problemático]
+
+**CORREÇÃO:**
+[exatamente o que foi alterado]
+
+### DEPOIS DA CORREÇÃO
+
+Confirmar visualmente:
+
+* mapa de ruas aparece;
+* bairros aparecem;
+* mapa não é cinza;
+* marcador aparece sobre o mapa;
+* zoom funciona;
+* pan funciona;
+* atualização dos motoristas continua;
+* mapa não é recriado a cada 10 segundos.
+
+Executar também:
+
+`npx tsc --noEmit`
+
+`npm test`
+
+`npm run build`
+
+Não alterar banco, autenticação, GPS, motoristas, pedidos ou rotas.
+
+NÃO considerar concluído até descobrir por que os tiles não aparecem VISUALMENTE.
