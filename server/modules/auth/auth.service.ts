@@ -753,6 +753,13 @@ export class AuthService {
         return { ok: false, status: 401, message: "Senha temporária incorreta." };
       }
 
+      const sameAsTemporaryPassword = company.password.startsWith("$2")
+        ? await bcrypt.compare(newPassword, company.password)
+        : newPassword === company.password;
+      if (sameAsTemporaryPassword) {
+        return { ok: false, status: 422, message: "A nova senha não pode ser igual à senha temporária." };
+      }
+
       await this.repo.updateCompany(company.id, {
         password: newPassword,
         mustChangePassword: false,
@@ -788,6 +795,13 @@ export class AuthService {
     );
     if (!passwordMatch) {
       return { ok: false, status: 401, message: "Senha temporária incorreta." };
+    }
+
+    const sameAsTemporaryPassword = user.password.startsWith("$2")
+      ? await bcrypt.compare(newPassword, user.password)
+      : newPassword === user.password;
+    if (sameAsTemporaryPassword) {
+      return { ok: false, status: 422, message: "A nova senha não pode ser igual à senha temporária." };
     }
 
     await this.repo.updateUser(user.id, {
