@@ -1,0 +1,70 @@
+Continue exatamente de onde parou.
+
+A correção do gateway Cloudflare já foi implementada e validada localmente. Não faça novas alterações na arquitetura nem recrie o backend.
+
+Agora quero finalizar a publicação.
+
+Etapa 1 — Publicar o backend
+
+Publique o backend Node/Express existente como deployment público do Replit, usando a configuração de deployment já preparada no .replit.
+
+Confirme que o backend está acessível externamente por HTTPS.
+
+Não exponha nenhuma variável de ambiente ou secret.
+
+Etapa 2 — Configurar API_ORIGIN
+
+Depois que o backend estiver publicado, obtenha a URL HTTPS pública dele.
+
+Configure essa URL como o secret API_ORIGIN do Cloudflare Worker.
+
+Não coloque API_ORIGIN no código ou no wrangler.toml.
+
+Etapa 3 — Autenticar Cloudflare
+
+Se o Wrangler ainda não estiver autenticado, inicie o processo de autenticação necessário.
+
+Se for necessária uma ação minha no navegador, pare e me informe exatamente o que preciso fazer. Não invente credenciais.
+
+Etapa 4 — Publicar o Worker
+
+Depois que:
+
+backend Node estiver público;
+API_ORIGIN estiver configurado;
+Wrangler estiver autenticado;
+
+execute o deploy do Worker.
+
+Etapa 5 — Testar
+
+Teste o domínio público real.
+
+Verifique:
+
+/
+/login
+POST /api/auth/login
+GET /api/auth/me
+logout
+sessão autenticada
+demais APIs principais
+
+Confirme status HTTP, Content-Type e se as respostas são JSON válidos.
+
+Não altere senhas existentes e não tente descobrir ou expor a senha do usuário de teste.
+
+Importante
+
+Se precisar que eu faça alguma etapa manual, como autorização OAuth do Cloudflare ou configuração de um deployment no Replit, pare e me diga exatamente onde devo clicar.
+
+Não considere concluído apenas porque o build passou. Só considere concluído depois que o backend estiver público, o Worker estiver publicado e as rotas /api estiverem funcionando no domínio real.
+
+No final me informe:
+
+URL pública do backend;
+URL pública do Worker;
+se API_ORIGIN foi configurado;
+resultado de /api/auth/me;
+resultado do login;
+qualquer etapa manual que ainda dependa de mim.
