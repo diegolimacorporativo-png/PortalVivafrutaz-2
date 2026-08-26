@@ -1,0 +1,70 @@
+#5 - Build VivaFrutaz Tracker Android companion
+
+What & Why
+
+The user approved a small native Android companion for the existing VivaFrutaz ERP. It must keep sending the authenticated driver's location while the screen is locked or the app is in the background, while continuing to use the existing backend, database, PWA GPS reporter, and administrative polling panel.
+
+Done looks like
+
+A separate Kotlin Android project named VivaFrutaz Tracker is created under android/, without mixing its build with React/Vite.
+A driver can log in through the existing /api/auth/login session flow, call /api/auth/me, see their name, and log out.
+The app requests only the location and network permissions needed by the Android version.
+An explicit start action launches a transparent Foreground Service declared with foregroundServiceType="location".
+A persistent notification says VivaFrutaz — Rastreamento ativo while tracking is active.
+Fused Location Provider captures high-accuracy positions approximately every 15 seconds and continues with the screen locked and the app in the background.
+The app sends exactly the existing GPS payload to POST /api/driver/gps, without sending driverId; the backend identifies the driver from the authenticated session.
+The app shows driver, tracking, GPS, internet, battery, last-send, latitude, and longitude status, with an explicit stop action.
+Stopping the action stops the Foreground Service correctly.
+The existing web ERP, PWA DriverGpsReporter, driver_gps_positions table, endpoint behavior, and gps-tracking.tsx panel remain unchanged.
+The app can produce a debug APK at android/app/build/outputs/apk/debug/app-debug.apk.
+Out of scope
+
+Offline queue, clientPositionId, device registry, WebSocket, new GPS history UI, geofencing, maps inside the Android app, new administrative features, large database changes, backend replacement, PWA changes, and removal of DriverGpsReporter.
+Guaranteeing execution after the user force-stops the app or the operating system terminates it; Android security and manufacturer battery policies cannot be bypassed.
+Storing passwords or server secrets in the APK.
+Steps
+
+Read the artifacts and multi-artifact migration instructions before creating the second artifact.
+Create the separate Android/Kotlin project under android/; do not put Android files in the web artifact and do not alter .replit or the existing web workflow unless the approved migration requires it.
+Inventory the existing authentication and GPS contracts: /api/auth/login, /api/auth/me, /api/auth/logout, session cookie sessionId, /api/driver/gps, and the driver_gps_positions fields.
+Implement the login screen with a secure cookie jar. Reuse the current session rather than adding JWT or another authentication system. Require a new login when the current session expires.
+Implement permission handling for coarse/fine location, Foreground Service location declarations, and the staged background-location flow only when required by the Android version. Explain tracking visibly to the driver.
+Implement TrackingService with Fused Location Provider, high accuracy, an approximately 15-second interval, a reasonable minimum distance, cancellation, and a persistent notification.
+Send the exact existing payload { latitude, longitude, accuracy, speed, heading } to /api/driver/gps with the authenticated session cookie and never send driverId.
+Implement the simple status screen and clear error messages for GPS disabled, denied permission, unavailable location, disconnected internet, unavailable API, stopped service, and active service.
+Test the service lifecycle and screen-lock behavior with the available Android compatibility target, prioritizing Moto G6 and also covering Samsung J6/J7 behavior and manufacturer battery optimization guidance.
+Build the debug APK and verify its exact output path. Do not claim the physical Moto G6 test is complete unless a connected device or user-provided test result is available.
+Verify the existing web artifact still runs and that new Android requests appear in the unchanged administrative polling panel.
+Present the Android artifact or generated APK output for review.
+Call markTaskComplete({ task_ref: "<your assigned task ref>", ... }) as the final callback in CodeExecution.
+Relevant files
+
+client/src/pages/admin/driver-panel.tsx
+client/src/pages/admin/gps-tracking.tsx
+server/routes/logistics.routes.ts
+server/modules/auth/auth.controller.ts
+server/modules/auth/auth.routes.ts
+server/core/http/session.ts
+server/modules/logistics/driver.access.ts
+shared/schema.ts
+package.json
+android/ (new Kotlin artifact)
+Note to the code reviewer
+
+Do not reject this follow-up for:
+
+Not using web React components inside the native Android app.
+Platform-native Android UI and lifecycle patterns.
+Not adding offline queue, device registry, WebSocket, or other explicitly out-of-scope features.
+Not changing the backend when the existing session and GPS endpoint are sufficient.
+Not proving physical-device behavior without a connected Moto G6.
+Do flag:
+
+Removing or changing the PWA GPS reporter.
+Adding a second backend, database, or GPS table.
+Sending a caller-controlled driverId.
+Storing passwords, server secrets, or long-lived credentials in the APK.
+Omitting the visible Foreground Service notification.
+Failing to stop the service when the user presses the stop action.
+Claiming screen-lock validation without a real device test.
+The project has already been migrated to PNPM_WORKSPACE. Do not run the migration again
