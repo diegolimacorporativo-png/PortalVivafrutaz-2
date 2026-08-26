@@ -1,0 +1,152 @@
+Quero que você faça uma AUDITORIA COMPLETA no projeto VivaFrutaz para descobrir se já existe alguma funcionalidade relacionada a GPS, geolocalização, rastreamento de motoristas ou localização em tempo real.
+
+IMPORTANTE:
+- NÃO altere nenhum arquivo.
+- NÃO instale nenhuma dependência.
+- NÃO faça nenhuma mudança no código.
+- Apenas analise o projeto e me entregue um relatório detalhado.
+- Procure no projeto inteiro, incluindo frontend, backend, banco de dados, PWA, APIs, componentes, hooks, serviços e configurações.
+
+Procure especificamente por:
+
+1. GPS / Geolocalização
+- navigator.geolocation
+- geolocation
+- getCurrentPosition
+- watchPosition
+- clearWatch
+- latitude
+- longitude
+- coordinates
+- location
+- position
+
+2. Rastreamento em tempo real
+- tracking
+- tracker
+- rastreamento
+- localização em tempo real
+- motorista em tempo real
+- live location
+- real-time location
+- realtime
+- WebSocket
+- Socket.IO
+- SSE / Server-Sent Events
+- polling
+- intervalos que busquem localização
+
+3. Mapas
+- Google Maps
+- Google Maps API
+- Leaflet
+- OpenStreetMap
+- Mapbox
+- mapas
+- marcadores
+- markers
+- mapa de motoristas
+- rotas
+- directions
+
+4. Backend/API
+Procure endpoints relacionados a:
+- localização
+- GPS
+- latitude
+- longitude
+- motorista
+- tracking
+- posição
+- rota
+
+5. Banco de dados / Prisma
+Verifique todos os models do Prisma e procure campos ou tabelas relacionados a:
+- latitude
+- longitude
+- location
+- coordinates
+- GPS
+- tracking
+- motorista
+- rota
+- última localização
+- localização atual
+- timestamp da localização
+
+6. PWA
+Verifique se o PWA já possui alguma implementação de:
+- localização em segundo plano
+- service worker
+- background sync
+- periodic background sync
+- geolocation
+- permissões de localização
+
+7. Login / motorista
+Verifique se o sistema já relaciona:
+- usuário → motorista
+- usuário → celular
+- motorista → dispositivo
+- motorista → localização
+
+8. Dependências
+Analise package.json e identifique qualquer biblioteca instalada relacionada a:
+- GPS
+- geolocalização
+- mapas
+- tracking
+- WebSocket
+- localização em background
+
+9. Configurações
+Verifique também:
+- manifest.json
+- service worker
+- vite.config
+- configurações PWA
+- permissões
+- variáveis de ambiente relacionadas a mapas/localização
+
+NO FINAL, me entregue um relatório exatamente neste formato:
+
+### 1. O sistema JÁ possui GPS?
+Responda SIM ou NÃO.
+
+### 2. O sistema JÁ possui localização em tempo real?
+Responda SIM ou NÃO.
+
+### 3. O sistema consegue continuar capturando localização com o PWA fechado?
+Responda SIM, NÃO ou NÃO É POSSÍVEL DETERMINAR.
+
+Explique o motivo.
+
+### 4. O sistema possui rastreamento de motoristas?
+Responda SIM ou NÃO.
+
+### 5. O sistema possui mapa?
+Responda SIM ou NÃO.
+Diga qual tecnologia está sendo usada.
+
+### 6. O sistema possui API para receber localização?
+Responda SIM ou NÃO.
+Se SIM, informe o caminho do endpoint e o arquivo onde ele está.
+
+### 7. O banco já possui dados de localização?
+Responda SIM ou NÃO.
+Se SIM, informe exatamente o model e os campos.
+
+### 8. O PWA possui alguma solução de localização em segundo plano?
+Responda SIM ou NÃO.
+Explique tecnicamente.
+
+### 9. O que já está pronto?
+Liste tudo que já existe relacionado a GPS/localização/rastreamento.
+
+### 10. O que está faltando?
+Liste exatamente o que precisaria ser desenvolvido para termos:
+
+CELULAR DO MOTORISTA
+→ GPS contínuo
+→ tela apagada
+→
