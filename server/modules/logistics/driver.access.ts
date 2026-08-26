@@ -24,7 +24,7 @@
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 import { db } from "../../database/db";
 import { logisticsDrivers } from "@shared/schema";
-import { eq, or, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
 
 /** Canonical "internal logistics user" set (re-uses the existing constant). */
@@ -69,36 +69,53 @@ export function isDriverOrInternal(role: string | null | undefined): boolean {
  */
 export async function resolveOwnDriverId(
   _storageCompat: { getDrivers: () => Promise<any[]> },
-  actor: { email?: string | null; name?: string | null } | null | undefined,
+  actor: {
+    email?: string | null;
+    name?: string | null;
+    empresaId?: number | null;
+  } | null | undefined,
 ): Promise<number | null> {
   if (!actor) return null;
 
-  // Build identity conditions (email OR name).
-  const identityParts: SQL<unknown>[] = [];
-  if ((actor as any).email) {
-    identityParts.push(eq(logisticsDrivers.email, (actor as any).email));
+  // Legacy accounts are not consistent about capitalization or trailing
+  // whitespace (for example, "Alex " and "Alex@..."). Normalize both sides
+  // in SQL so the lookup behaves like the login identity lookup.
+  const tenantId = actor.empresaId ?? null;
+  const tenantCondition = (identity: SQL<unknown>) =>
+    tenantId == null
+      ? identity
+      : and(eq(logisticsDrivers.empresaId, tenantId), identity)!;
+
+  // Email is the preferred identity. Name is deliberately only a fallback;
+  // this keeps a changed display name from taking precedence over a stable
+  // account email while still supporting old rows without email.
+  if (actor.email?.trim()) {
+    const emailRows = await db
+      .select({ id: logisticsDrivers.id })
+      .from(logisticsDrivers)
+      .where(
+        tenantCondition(
+          sql`lower(trim(${logisticsDrivers.email})) = lower(trim(${actor.email.trim()}))`,
+        ),
+      )
+      .limit(1);
+    if (emailRows[0]?.id) return emailRows[0].id;
   }
-  if ((actor as any).name) {
-    identityParts.push(eq(logisticsDrivers.name, (actor as any).name));
+
+  if (actor.name?.trim()) {
+    const nameRows = await db
+      .select({ id: logisticsDrivers.id })
+      .from(logisticsDrivers)
+      .where(
+        tenantCondition(
+          sql`lower(trim(${logisticsDrivers.name})) = lower(trim(${actor.name.trim()}))`,
+        ),
+      )
+      .limit(1);
+    if (nameRows[0]?.id) return nameRows[0].id;
   }
-  if (identityParts.length === 0) return null;
 
-  const identityCond: SQL<unknown> =
-    identityParts.length === 1 ? identityParts[0]! : or(...identityParts)!;
-
-  // Scope to actor's tenant when available — prevents cross-tenant driver lookup.
-  const tenantId: number | null = (actor as any).empresaId ?? null;
-  const where: SQL<unknown> = tenantId
-    ? and(eq(logisticsDrivers.empresaId, tenantId), identityCond)!
-    : identityCond;
-
-  const rows = await db
-    .select({ id: logisticsDrivers.id })
-    .from(logisticsDrivers)
-    .where(where)
-    .limit(1);
-
-  return rows[0]?.id ?? null;
+  return null;
 }
 
 /**

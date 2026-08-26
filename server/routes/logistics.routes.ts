@@ -485,7 +485,7 @@ export async function register(app: Express): Promise<void> {
         const operationalName = normalizeIdentity(driver.name);
         const matchedUser = driverUsers.find((user: any) =>
           (operationalEmail && normalizeIdentity(user.email) === operationalEmail) ||
-          (!operationalEmail && operationalName && normalizeIdentity(user.name) === operationalName),
+          (operationalName && normalizeIdentity(user.name) === operationalName),
         );
         if (matchedUser) matchedUserIds.add(Number(matchedUser.id));
       }

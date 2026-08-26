@@ -106,10 +106,16 @@ function DriversTab() {
                   {d.licenseNumber && <p className="text-xs text-muted-foreground">CNH: {d.licenseNumber}</p>}
                   {d.cpf && <p className="text-xs text-muted-foreground">CPF: {d.cpf}</p>}
                 </div>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(d)}><Pencil className="w-3.5 h-3.5" /></Button>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(d.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>
-                </div>
+                {(d as any).virtualFromUser ? (
+                  <span className="text-[10px] text-muted-foreground text-right max-w-24">
+                    Conta de acesso<br />será vinculada ao usar GPS
+                  </span>
+                ) : (
+                  <div className="flex gap-1">
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(d)}><Pencil className="w-3.5 h-3.5" /></Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(d.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           ))}

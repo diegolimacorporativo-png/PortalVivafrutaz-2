@@ -38,6 +38,18 @@ export class LogisticsRepository {
   getDriversSafe(empresaId: number): Promise<LogisticsDriver[]> {
     return this.db.getDriversSafe(empresaId);
   }
+  getDriverAccounts(empresaId?: number) {
+    const users = empresaId
+      ? this.db.getUsersSafe(empresaId)
+      : this.db.getUsers();
+    return users.then((rows: any[]) =>
+      rows.filter(
+        (user: any) =>
+          user.active !== false &&
+          (user.role === "MOTORISTA" || user.role === "DRIVER"),
+      ),
+    );
+  }
   createDriver(data: Partial<LogisticsDriver>): Promise<LogisticsDriver> {
     return this.db.createDriver(data);
   }

@@ -39,9 +39,49 @@ export class LogisticsService {
   constructor(private readonly repo: LogisticsRepository = logisticsRepository) {}
 
   // ─── DRIVERS ──────────────────────────────────────────────────────────
-  listDrivers() {
+  async listDrivers() {
     const tid = currentTenantId();
-    return tid ? this.repo.getDriversSafe(tid) : this.repo.getDrivers();
+    const drivers = (await (tid
+      ? this.repo.getDriversSafe(tid)
+      : this.repo.getDrivers())) as any[];
+
+    // Some installations created driver access accounts before the
+    // logistics_drivers row. Keep the operational rows authoritative and add
+    // read-only virtual entries for the missing accounts. They receive a
+    // stable negative id so the UI cannot confuse them with a real FK.
+    const getDriverAccounts = (this.repo as any).getDriverAccounts;
+    if (typeof getDriverAccounts !== "function") return drivers;
+    const accounts = (await getDriverAccounts.call(this.repo, tid ?? undefined)) as any[];
+    const normalize = (value: unknown) =>
+      String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+    const missingAccounts = accounts.filter((account: any) => {
+      const accountEmail = normalize(account.email);
+      const accountName = normalize(account.name);
+      return !drivers.some((driver: any) => {
+        const driverEmail = normalize(driver.email);
+        const driverName = normalize(driver.name);
+        return (
+          (accountEmail && driverEmail === accountEmail) ||
+          (accountName && driverName === accountName)
+        );
+      });
+    });
+
+    return [
+      ...drivers,
+      ...missingAccounts.map((account: any) => ({
+        id: -Number(account.id),
+        empresaId: account.empresaId ?? null,
+        name: account.name,
+        email: account.email,
+        phone: null,
+        cpf: null,
+        licenseNumber: null,
+        active: account.active !== false,
+        notes: "Conta de motorista aguardando vínculo operacional",
+        virtualFromUser: true,
+      })),
+    ];
   }
 
   async createDriver(
@@ -144,9 +184,42 @@ export class LogisticsService {
       endTime,
     } = body || {};
     if (!name) throw new BadRequestError("Nome da rota obrigatório");
+    let operationalDriverId = driverId || undefined;
+    if (operationalDriverId && Number(operationalDriverId) < 0) {
+      // Virtual driver entries come from user accounts that predate the
+      // logistics_drivers table. Assigning a route is an explicit write, so
+      // this is the safe point to materialize the operational link.
+      const accountId = Math.abs(Number(operationalDriverId));
+      const account = await this.repo.getUser(accountId);
+      if (
+        !account ||
+        account.active === false ||
+        !["MOTORISTA", "DRIVER"].includes(account.role)
+      ) {
+        throw new BadRequestError("Conta de motorista inválida");
+      }
+      const existingDrivers = (await this.repo.getDrivers()) as any[];
+      const normalize = (value: unknown) =>
+        String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+      const existing = existingDrivers.find(
+        (driver: any) =>
+          (account.email &&
+            normalize(driver.email) === normalize(account.email)) ||
+          (account.name && normalize(driver.name) === normalize(account.name)),
+      );
+      const linked = existing ?? (await this.repo.createDriver({
+        empresaId: currentTenantId() ?? actor.empresaId ?? account.empresaId ?? undefined,
+        name: account.name,
+        email: account.email,
+        active: true,
+        notes: "Vínculo criado ao atribuir rota à conta de motorista",
+      } as Partial<LogisticsDriver>));
+      operationalDriverId = linked.id;
+    }
+
     const r = await this.repo.createRoute({
       name,
-      driverId: driverId || undefined,
+      driverId: operationalDriverId,
       driverName,
       vehicleId: vehicleId || undefined,
       vehiclePlate,
