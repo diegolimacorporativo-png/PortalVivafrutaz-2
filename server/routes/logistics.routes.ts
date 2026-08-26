@@ -276,11 +276,15 @@ export async function register(app: Express): Promise<void> {
         allDeliveries = [...allDeliveries, ...bridgedOrders];
       }
 
-      // STEP 8.7 — DRIVER role gets STRICT filter to its own driverId only;
-      // internal admins keep the legacy "unassigned-or-mine" semantics.
+      // STEP 8.7 — both DRIVER and the legacy MOTORISTA alias get a strict
+      // tenant/driver filter. An unlinked driver must see no deliveries,
+      // rather than falling through to the internal-user visibility branch.
+      // Internal staff keep the legacy "unassigned-or-mine" semantics.
       let deliveries: any[];
-      if (actor.role === 'DRIVER' && myDriver) {
-        deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);
+      if (isDriver(actor.role)) {
+        deliveries = myDriver
+          ? allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id)
+          : [];
       } else if (myDriver) {
         deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);
       } else {
@@ -324,7 +328,7 @@ export async function register(app: Express): Promise<void> {
 
       const enriched = deliveries.map((d: any) => ({
         ...d,
-        canUpdate: actor.role !== 'DRIVER' || Boolean(myDriver && d.driverId && Number(d.driverId) === Number(myDriver.id)),
+        canUpdate: !isDriver(actor.role) || Boolean(myDriver && d.driverId && Number(d.driverId) === Number(myDriver.id)),
         companyName: companyMap[d.companyId]?.companyName || companyMap[d.companyId]?.name || '—',
         companyCnpj: companyMap[d.companyId]?.cnpj || null,
         companyPhone: companyMap[d.companyId]?.phone || null,
