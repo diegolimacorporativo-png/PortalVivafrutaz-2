@@ -20,8 +20,8 @@ type SystemDecision = {
 };
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes("localhost") ? undefined : { rejectUnauthorized: false },
+  connectionString: process.env.SUPABASE_DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 const CLI_REPORT_PATH = process.env.CLI_REPORT_PATH ?? "cliReport.json";
@@ -61,7 +61,7 @@ async function loadSystemDecisions(): Promise<Map<string, SystemDecision>> {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required");
+  if (!process.env.SUPABASE_DATABASE_URL) throw new Error("SUPABASE_DATABASE_URL is required");
 
   const cli = await loadCliReport();
   const systemDecisions = await loadSystemDecisions();

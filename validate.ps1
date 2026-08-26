@@ -99,7 +99,7 @@ Check-File "client/src/pages/test-clara.tsx"
 Write-Host ""
 Write-Host "🔐 VARIÁVEIS DE AMBIENTE" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
-Check-Env "DATABASE_URL"
+Check-Env "SUPABASE_DATABASE_URL"
 Check-Env "PORT"
 
 Write-Host ""
@@ -171,7 +171,7 @@ if ($FAIL -eq 0) {
     Write-Host ""
     Write-Host "Verifique:"
     Write-Host "1. Instale Node.js (nodejs.org)"
-    Write-Host "2. Crie arquivo .env com DATABASE_URL e PORT=5000"
+    Write-Host "2. Configure SUPABASE_DATABASE_URL e PORT=5000 como Secrets"
     Write-Host "3. Execute: npm install"
     Write-Host "4. Execute: npm run db:push"
 }

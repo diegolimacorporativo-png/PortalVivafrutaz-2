@@ -24,12 +24,12 @@ import * as schema from "../shared/schema";
 const { users } = schema;
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    console.error("[RESET] DATABASE_URL not set. Aborting.");
+  if (!process.env.SUPABASE_DATABASE_URL) {
+    console.error("[RESET] SUPABASE_DATABASE_URL not set. Aborting.");
     process.exit(1);
   }
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: process.env.SUPABASE_DATABASE_URL });
   const db = drizzle(pool, { schema });
 
   console.warn("======= INICIO RESET CONTROLADO DE SENHAS =======");

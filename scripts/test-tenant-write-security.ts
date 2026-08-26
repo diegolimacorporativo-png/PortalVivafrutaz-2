@@ -377,8 +377,8 @@ async function getOrderItemsCount(
 // ── Main ────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<number> {
-  if (!process.env.DATABASE_URL) {
-    console.error("[ABORT] DATABASE_URL ausente.");
+  if (!process.env.SUPABASE_DATABASE_URL) {
+    console.error("[ABORT] SUPABASE_DATABASE_URL ausente.");
     return 1;
   }
 
@@ -391,7 +391,7 @@ async function main(): Promise<number> {
   console.log(` Admin  A   : ${ADMIN_A_EMAIL}`);
   console.log("───────────────────────────────────────────────\n");
 
-  const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  const pool = new Pool({ connectionString: process.env.SUPABASE_DATABASE_URL });
   const client = await pool.connect();
   let seedData: Seed | null = null;
   const results: ScenarioResult[] = [];

@@ -31,8 +31,8 @@ type SessionRow = {
 type Decision = "OK" | "LOCKED" | "HIGH_RISK" | "SUSPICIOUS_IP_SPREAD" | "RATE_SPIKE";
 
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes("localhost") ? undefined : { rejectUnauthorized: false },
+  connectionString: process.env.SUPABASE_DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
 function toId(row: AttemptRow | SessionRow): number | null {
@@ -66,8 +66,8 @@ async function loadRows<T>(query: string): Promise<T[]> {
 }
 
 async function main() {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is required");
+  if (!process.env.SUPABASE_DATABASE_URL) {
+    throw new Error("SUPABASE_DATABASE_URL is required");
   }
 
   const users = await loadRows<EntityRow>(

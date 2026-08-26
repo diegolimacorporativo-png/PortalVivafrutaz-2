@@ -15,7 +15,12 @@ const _ts = () => new Date().toISOString();
 // FAIL-FAST: somente SUPABASE_DATABASE_URL é aceita para o banco da aplicação.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const supabaseUrl = process.env.SUPABASE_DATABASE_URL;
+// Secret entry can preserve harmless wrapping whitespace/quotes. Normalize
+// only that accidental formatting; never fall back to DATABASE_URL.
+const supabaseUrl = (process.env.SUPABASE_DATABASE_URL ?? "")
+  .trim()
+  .replace(/^(['"])(.*)\1$/, "$2")
+  .trim();
 
 if (!supabaseUrl) {
   console.error("[SUPABASE_REQUIRED]", {

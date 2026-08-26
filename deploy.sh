@@ -5,8 +5,8 @@ echo "=== VivaFrutaz Deploy Script ==="
 echo ""
 
 # Check required env vars
-if [ -z "$DATABASE_URL" ]; then
-  echo "ERROR: DATABASE_URL not set"
+if [ -z "$SUPABASE_DATABASE_URL" ]; then
+  echo "ERROR: SUPABASE_DATABASE_URL not set"
   exit 1
 fi
 

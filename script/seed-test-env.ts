@@ -18,7 +18,7 @@ import { Pool } from "pg";
 
 dotenv.config();
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const pool = new Pool({ connectionString: process.env.SUPABASE_DATABASE_URL });
 
 const COMPANY_NAME = "Empresa Teste";
 const COMPANY_EMAIL = "cliente@test.com";

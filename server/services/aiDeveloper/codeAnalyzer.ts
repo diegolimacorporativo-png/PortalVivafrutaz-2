@@ -232,24 +232,9 @@ services:
       - "5000:5000"
     environment:
       - NODE_ENV=production
-      - DATABASE_URL=\${DATABASE_URL}
+      - SUPABASE_DATABASE_URL=\${SUPABASE_DATABASE_URL}
       - SESSION_SECRET=\${SESSION_SECRET}
-    depends_on:
-      - db
     restart: unless-stopped
-
-  db:
-    image: postgres:15-alpine
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=vivafrutaz
-      - POSTGRES_USER=\${POSTGRES_USER:-vivafrutaz}
-      - POSTGRES_PASSWORD=\${POSTGRES_PASSWORD}
-    restart: unless-stopped
-
-volumes:
-  pgdata:
 `;
 
   const deployShell = `#!/bin/bash
@@ -279,7 +264,7 @@ echo "==> Deploy concluído com sucesso!"
 # ==========================================
 
 # Banco de Dados PostgreSQL
-DATABASE_URL=postgresql://user:password@localhost:5432/vivafrutaz
+SUPABASE_DATABASE_URL=postgresql://user:password@host.supabase.com:6543/postgres
 
 # Sessão Express
 SESSION_SECRET=sua_chave_secreta_muito_longa_aqui
