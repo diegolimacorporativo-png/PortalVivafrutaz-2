@@ -1,0 +1,432 @@
+INICIAR PROJETO — RASTREAMENTO DE CELULAR CORPORATIVO EM BACKGROUND
+
+OBJETIVO
+
+O sistema já é uma PWA e já possui localização GPS funcionando quando o PWA está ativo.
+
+Agora precisamos evoluir o rastreamento para que o celular corporativo continue enviando localização quando:
+
+- a tela estiver bloqueada;
+- o PWA estiver em segundo plano;
+- o usuário sair do PWA;
+- o navegador suspender a página.
+
+IMPORTANTE:
+
+Não assumir que uma PWA consegue garantir geolocalização contínua com a tela bloqueada.
+
+Primeiro faça uma auditoria técnica do projeto e determine a arquitetura correta para obter localização em background.
+
+==================================================
+REGRA PRINCIPAL
+==================================================
+
+NÃO destruir o rastreamento GPS atual.
+
+NÃO substituir o PWA.
+
+O PWA continuará sendo a interface principal.
+
+Precisamos adicionar, se necessário, um componente de localização em background.
+
+Arquitetura desejada:
+
+CELULAR CORPORATIVO
+        ↓
+SERVIÇO DE LOCALIZAÇÃO EM BACKGROUND
+        ↓
+GPS DO APARELHO
+        ↓
+API DO SISTEMA
+        ↓
+BANCO
+        ↓
+PAINEL DE LOGÍSTICA
+
+O PWA continua responsável pela interface.
+
+==================================================
+FASE 1 — AUDITORIA OBRIGATÓRIA
+
+Antes de alterar qualquer código, descubra:
+
+1. Qual framework frontend está sendo usado.
+2. Qual tecnologia PWA está sendo usada.
+3. Como o GPS atual funciona.
+4. Onde está implementado:
+   - navigator.geolocation;
+   - watchPosition;
+   - permissões;
+   - envio da localização para o backend.
+5. Qual é a estrutura atual de:
+   - motoristas;
+   - veículos;
+   - rotas;
+   - entregas;
+   - localização.
+6. Qual banco já armazena localização.
+7. Quais APIs recebem latitude/longitude.
+8. Como o painel administrativo mostra os motoristas.
+9. Se existe service worker.
+10. Se existe alguma implementação de background sync.
+11. Se existe Capacitor, Cordova, React Native, TWA ou qualquer wrapper nativo.
+12. Se o projeto já possui alguma estrutura que permita transformar a PWA em aplicativo instalável/nativo.
+
+NÃO implementar ainda.
+
+Entregar primeiro o diagnóstico.
+
+==================================================
+FASE 2 — DEFINIR PLATAFORMA
+
+Identificar se os dispositivos corporativos são:
+
+- Android;
+- iPhone;
+- ambos.
+
+Se essa informação NÃO estiver no código/projeto, NÃO inventar.
+
+Registrar:
+
+"Plataforma dos dispositivos não identificada no código."
+
+Depois avaliar separadamente:
+
+ANDROID:
+- serviço foreground/background;
+- localização em segundo plano;
+- permissões;
+- execução com tela bloqueada;
+- otimização de bateria.
+
+IOS:
+- limitações do PWA;
+- Core Location;
+- background location;
+- necessidade de aplicativo nativo;
+- permissões;
+- comportamento com tela bloqueada.
+
+Se for necessário componente nativo, explicar exatamente.
+
+==================================================
+FASE 3 — ARQUITETURA
+
+Propor a solução mais simples e confiável que preserve a PWA.
+
+Preferência:
+
+PWA
++
+módulo/serviço nativo de localização
++
+API existente
++
+banco existente
++
+painel existente.
+
+NÃO criar uma segunda plataforma completa se não for necessária.
+
+NÃO duplicar banco.
+
+NÃO duplicar usuários.
+
+NÃO duplicar motoristas.
+
+NÃO duplicar rotas.
+
+==================================================
+FASE 4 — RASTREAMENTO
+
+O sistema deve permitir:
+
+- ativar rastreamento;
+- desativar rastreamento;
+- identificar o dispositivo;
+- associar dispositivo ao motorista;
+- enviar latitude;
+- enviar longitude;
+- timestamp;
+- precisão;
+- velocidade, quando disponível;
+- direção, quando disponível;
+- bateria, se a plataforma permitir;
+- status online/offline;
+- última localização conhecida.
+
+Exemplo:
+
+MOTORISTA:
+João
+
+DISPOSITIVO:
+CEL-003
+
+STATUS:
+🟢 RASTREAMENTO ATIVO
+
+LOCALIZAÇÃO:
+- latitude
+- longitude
+
+PRECISÃO:
+12 metros
+
+ÚLTIMA ATUALIZAÇÃO:
+há 8 segundos
+
+BATERIA:
+64%
+
+==================================================
+FASE 5 — FREQUÊNCIA
+
+NÃO implementar polling agressivo sem necessidade.
+
+Avaliar uma estratégia de localização adequada para logística.
+
+Exemplo conceitual:
+
+- em deslocamento: atualização periódica;
+- parado: reduzir frequência;
+- sem GPS: manter última posição;
+- sem internet: armazenar posições localmente e sincronizar posteriormente, se a plataforma permitir.
+
+Não definir intervalo arbitrário sem analisar consumo de bateria e limitações da plataforma.
+
+==================================================
+FASE 6 — OFFLINE
+
+O sistema deve considerar:
+
+GPS disponível + internet indisponível.
+
+Nesse caso:
+
+CELULAR
+↓
+LOCALIZAÇÃO
+↓
+ARMAZENAMENTO LOCAL TEMPORÁRIO
+↓
+INTERNET VOLTA
+↓
+SINCRONIZA
+↓
+SERVIDOR
+
+Não perder completamente o histórico por uma queda temporária de internet.
+
+==================================================
+FASE 7 — SEGURANÇA
+
+Como são celulares corporativos:
+
+Cada dispositivo deve possuir identificação própria.
+
+Não confiar somente em:
+
+- IP;
+- user-agent;
+- navegador.
+
+Avaliar:
+
+- device_id;
+- token;
+- autenticação;
+- associação motorista/dispositivo;
+- revogação de dispositivo;
+- último heartbeat.
+
+Impedir que um usuário simplesmente altere um parâmetro e se passe por outro dispositivo.
+
+==================================================
+FASE 8 — PRIVACIDADE E CONTROLE
+
+O rastreamento deve ser explícito e autorizado.
+
+Criar estado:
+
+RASTREAMENTO ATIVO
+RASTREAMENTO PAUSADO
+RASTREAMENTO OFFLINE
+
+Registrar:
+
+- quem ativou;
+- quando ativou;
+- quando pausou;
+- quando desativou.
+
+Não criar rastreamento oculto.
+
+==================================================
+FASE 9 — PAINEL ADMINISTRATIVO
+
+Não criar uma nova tela sem antes verificar se já existe painel de logística/mapa.
+
+Se já existir:
+
+ADICIONAR ao painel existente.
+
+Mostrar:
+
+🟢 Online
+🟡 Sem atualização recente
+🔴 Offline
+
+Ao selecionar motorista:
+
+- localização atual;
+- última atualização;
+- histórico;
+- rota;
+- veículo;
+- entregas.
+
+==================================================
+FASE 10 — HISTÓRICO
+
+Verificar se já existe tabela de localização.
+
+Se existir, reutilizar.
+
+Se não existir, propor uma tabela específica.
+
+Exemplo conceitual:
+
+driver_locations
+
+- id
+- driver_id
+- device_id
+- latitude
+- longitude
+- accuracy
+- speed
+- heading
+- battery_level
+- recorded_at
+- received_at
+
+NÃO criar migration ainda sem apresentar a estrutura encontrada e justificar a necessidade.
+
+==================================================
+FASE 11 — IP
+
+O IP NÃO será utilizado como mecanismo principal de localização.
+
+Pode ser registrado como informação de segurança/auditoria:
+
+- IP;
+- timestamp;
+- dispositivo.
+
+Mas:
+
+IP ≠ GPS.
+
+==================================================
+FASE 12 — NÃO ALTERAR
+
+Não alterar nesta auditoria:
+
+- fluxo de pedidos;
+- Fase 1;
+- Fase 2A;
+- Clara;
+- NF-e;
+- DANFE;
+- fiscal;
+- Bling;
+- contas a receber;
+- estoque;
+- workflow;
+- permissões existentes;
+- banco de produção.
+
+==================================================
+FASE 13 — IMPLEMENTAÇÃO
+
+SOMENTE depois da auditoria e definição da arquitetura, implementar.
+
+Se a solução exigir aplicativo nativo:
+
+Não fingir que PWA puro resolve.
+
+Explicar qual componente precisa existir e por quê.
+
+Se for possível resolver parcialmente com PWA:
+
+Implementar somente o que a PWA realmente suporta.
+
+==================================================
+FASE 14 — VALIDAÇÃO
+
+Testar:
+
+1. PWA aberto.
+2. PWA em segundo plano.
+3. Tela bloqueada.
+4. Internet desligada.
+5. Internet religada.
+6. GPS desligado.
+7. Permissão de localização negada.
+8. Rastreamento pausado.
+9. Rastreamento reativado.
+10. Motorista diferente.
+11. Dispositivo diferente.
+
+IMPORTANTE:
+
+Se o ambiente de desenvolvimento não permitir testar tela bloqueada/background real, NÃO declarar que funciona.
+
+Registrar:
+
+"Teste de background real não pôde ser executado neste ambiente."
+
+==================================================
+RESULTADO DA PRIMEIRA EXECUÇÃO
+
+Nesta primeira execução, NÃO saia implementando tudo.
+
+Faça primeiro:
+
+# AUDITORIA DO RASTREAMENTO
+
+Entregar:
+
+## 1. Como o GPS funciona hoje
+
+## 2. Onde está implementado
+
+## 3. Estrutura de banco atual
+
+## 4. APIs existentes
+
+## 5. Painel existente
+
+## 6. Service Worker/PWA
+
+## 7. Plataforma identificada
+
+## 8. Limitações atuais
+
+## 9. Arquitetura recomendada
+
+## 10. O que precisa ser criado
+
+## 11. O que pode ser reutilizado
+
+## 12. Riscos
+
+## 13. Plano de implementação
+
+E PARAR.
+
+NÃO implementar mudanças antes de apresentar essa auditoria.
+
+Não tocar nas Fases 1 e 2A.
