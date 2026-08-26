@@ -1,0 +1,198 @@
+Quero prosseguir com a Task #4 — Preservar e migrar o ERP VivaFrutaz.
+
+ANTES DE EXECUTAR:
+
+Faça um snapshot/commit do estado atual do projeto para que exista um ponto seguro de retorno.
+
+OBJETIVO:
+
+Migrar a estrutura atual FULLSTACK_JS para PNPM_WORKSPACE, preparando o projeto para múltiplos artefatos, SEM alterar o funcionamento do ERP.
+
+ESTRUTURA DESEJADA:
+
+- Aplicação Web/PWA
+- API/Backend
+- Pacotes compartilhados quando realmente necessário
+
+IMPORTANTE:
+
+O ERP atual está funcionando e deve ser tratado como referência.
+
+NÃO faça uma reescrita do sistema.
+
+NÃO altere regras de negócio sem necessidade.
+
+NÃO altere funcionalidades apenas para "modernizar" o código.
+
+NÃO altere o banco de dados.
+
+NÃO altere schema/tabelas.
+
+NÃO migre registros.
+
+NÃO remova dados.
+
+NÃO altere autenticação sem necessidade.
+
+NÃO altere o funcionamento do GPS.
+
+NÃO remova ou substitua:
+
+- PWA
+- Service Worker
+- DriverGpsReporter
+- POST /api/driver/gps
+- painel administrativo de GPS
+- mapas
+- rotas
+- entregas
+- autenticação
+- sessões
+- APIs existentes
+
+O objetivo é ORGANIZAR A ESTRUTURA, não reconstruir o ERP.
+
+ANTES DE MOVER QUALQUER ARQUIVO:
+
+1. Analise a estrutura atual.
+2. Identifique frontend, backend e código compartilhado.
+3. Identifique scripts atuais do package.json.
+4. Identifique dependências usadas pelo frontend.
+5. Identifique dependências usadas pelo backend.
+6. Identifique arquivos que precisam continuar compartilhados.
+7. Identifique configurações do Vite, TypeScript, Tailwind e demais ferramentas.
+8. Identifique como o build atual funciona.
+9. Identifique como o deploy atual funciona.
+10. Identifique qualquer caminho/importação que possa quebrar durante a migração.
+
+Depois apresente um resumo do plano de migração.
+
+SE O AMBIENTE PERMITIR EXECUÇÃO:
+
+Execute a migração preservando a funcionalidade atual.
+
+Use PNPM Workspace de forma simples e organizada.
+
+Uma estrutura possível é:
+
+/
+├── package.json
+├── pnpm-workspace.yaml
+├── apps/
+│   ├── web/
+│   └── api/
+└── packages/
+    └── shared/
+    
+MAS NÃO force exatamente essa estrutura se a análise mostrar que outra organização é mais segura.
+
+PRIORIDADE:
+
+FUNCIONALIDADE ATUAL > ORGANIZAÇÃO PERFEITA.
+
+Depois da reorganização:
+
+TESTE OBRIGATORIAMENTE:
+
+1. Instalação das dependências.
+2. TypeScript.
+3. Build do frontend.
+4. Build do backend.
+5. Inicialização do servidor.
+6. Login.
+7. Sessão.
+8. APIs principais.
+9. PWA.
+10. Service Worker.
+11. GPS do motorista.
+12. POST /api/driver/gps.
+13. Painel administrativo de GPS.
+14. Mapas.
+15. Rotas.
+16. Entregas.
+17. Autenticação dos diferentes tipos de usuário.
+
+IMPORTANTE SOBRE O GPS:
+
+O sistema já possui:
+
+navigator.geolocation.watchPosition
+
+e:
+
+POST /api/driver/gps
+
+Não substitua isso.
+
+O futuro VivaFrutaz Tracker Android deverá utilizar a mesma API.
+
+PORTANTO:
+
+Não crie o aplicativo Android agora.
+
+Não crie a pasta:
+
+android/
+
+Não altere o backend especificamente para o Android nesta tarefa.
+
+O Tracker Android será uma tarefa separada depois que esta migração estiver concluída.
+
+DEPLOY:
+
+Preserve o funcionamento do deploy atual.
+
+Se alguma configuração de deploy precisar mudar por causa da nova estrutura, faça somente a alteração mínima necessária e explique exatamente o que foi alterado.
+
+SEGURANÇA:
+
+Não coloque secrets no código.
+
+Não altere variáveis de ambiente sem necessidade.
+
+Não exponha credenciais.
+
+Não altere as configurações de sessão sem necessidade.
+
+ROLLBACK:
+
+Se durante a migração aparecer um erro grave que possa comprometer o funcionamento do ERP, NÃO tente improvisar uma correção estrutural grande.
+
+Pare, informe o erro e explique qual arquivo/estrutura está causando o problema.
+
+No final, apresente:
+
+1. Estrutura antiga.
+2. Estrutura nova.
+3. Arquivos movidos.
+4. Arquivos criados.
+5. Arquivos alterados.
+6. Arquivos removidos, se houver.
+7. Dependências alteradas.
+8. Scripts alterados.
+9. Configurações de deploy alteradas.
+10. Testes realizados.
+11. Resultado de cada teste.
+12. Qualquer problema encontrado.
+13. Como iniciar o projeto localmente.
+14. Como fazer o build.
+15. Como fazer o deploy.
+
+CRITÉRIO DE CONCLUSÃO:
+
+A migração só deve ser considerada concluída se:
+
+- o ERP continuar funcionando;
+- frontend funcionar;
+- backend funcionar;
+- login funcionar;
+- PWA funcionar;
+- GPS continuar funcionando;
+- painel de GPS continuar funcionando;
+- APIs continuarem funcionando;
+- banco continuar intacto;
+- deploy continuar funcionando.
+
+NÃO considere a tarefa concluída apenas porque os arquivos foram reorganizados.
+
+A prioridade é preservar o ERP VivaFrutaz funcionando.
