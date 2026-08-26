@@ -18,7 +18,7 @@ export const createUserSchema = insertUserSchema.extend({
   name: z.string().min(1, "Nome é obrigatório"),
   email: z.string().email("Email inválido"),
   password: z.string().min(3, "Senha muito curta"),
-  role: z.string().min(1, "Perfil é obrigatório"),
+  role: z.string().trim().min(1, "Perfil é obrigatório"),
   active: z.boolean().optional().default(true),
 });
 
@@ -27,6 +27,10 @@ export const createUserSchema = insertUserSchema.extend({
 // value is the masked placeholder "***" — we preserve that behaviour in the
 // service layer (not here) so validation stays pure.
 export const updateUserSchema = insertUserSchema.partial().extend({
+  // A role may be omitted on an unrelated edit, but an explicitly supplied
+  // role can never be blank. This keeps the driver profile selection required
+  // instead of allowing an account to lose its access profile via the API.
+  role: z.string().trim().min(1, "Perfil é obrigatório").optional(),
   // tabPermissions intentionally allows `null` to "reset to no restriction".
   tabPermissions: z.union([z.array(z.string()), z.null()]).optional(),
 });

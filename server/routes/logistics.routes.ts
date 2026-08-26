@@ -392,9 +392,12 @@ export async function register(app: Express): Promise<void> {
 
       // A logged-in driver does not need to send an identity field. Resolve it
       // from the authenticated user so GPS works even when there is no route.
+      // Legacy driver accounts may not have a logistics_drivers row yet. The
+      // first real GPS update is the one read endpoint allowed to provision
+      // that operational link.
       let driverId = requestedDriverId ? Number(requestedDriverId) : null;
       if (isDriver(actor.role)) {
-        const ownDriverId = await resolveOwnDriverId(storage, actor);
+        const ownDriverId = await ensureOwnDriverId(storage, actor);
         if (!ownDriverId) {
           return res.status(403).json({ message: 'Motorista sem cadastro vinculado ao usuário' });
         }
@@ -412,7 +415,10 @@ export async function register(app: Express): Promise<void> {
       // Internal staff (admin / logistics) keep the legacy ability to post on
       // behalf of any driver (used by the route-assistant tooling).
       if (isDriver(actor.role)) {
-        const ownDriverId = await resolveOwnDriverId(storage, actor);
+        // Reuse the already-resolved id. Besides avoiding a second query, this
+        // is important for a legacy account: ensureOwnDriverId may have just
+        // created its operational record above.
+        const ownDriverId = driverId;
         if (!ownDriverId || Number(driverId) !== ownDriverId) {
           return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
         }
