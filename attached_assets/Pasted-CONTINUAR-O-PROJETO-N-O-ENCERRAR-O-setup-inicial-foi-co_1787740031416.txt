@@ -1,0 +1,185 @@
+CONTINUAR O PROJETO — NÃO ENCERRAR
+
+O setup inicial foi concluído:
+
+- Supabase conectado;
+- banco respondendo com dados reais;
+- app rodando na porta 5000;
+- tela de login funcionando;
+- TypeScript aprovado.
+
+AGORA NÃO CONSIDERE O PROJETO DE RASTREAMENTO CONCLUÍDO.
+
+O objetivo desta tarefa continua sendo implementar/avaliar o rastreamento do CELULAR CORPORATIVO EM BACKGROUND.
+
+==================================================
+PRIMEIRO: AUDITORIA REAL DO SISTEMA
+==================================================
+
+Não faça outro setup.
+
+Não reinstale dependências sem necessidade.
+
+Não altere banco sem necessidade.
+
+Agora examine o código existente e descubra:
+
+1. Onde o PWA está configurado.
+2. Onde está o Service Worker.
+3. Como o GPS atual funciona.
+4. Onde existe `navigator.geolocation`.
+5. Onde existe `watchPosition`.
+6. Onde a localização é enviada para o backend.
+7. Quais tabelas armazenam localização.
+8. Quais APIs recebem localização.
+9. Como motorista, veículo e dispositivo são relacionados.
+10. Qual tela/mapa já mostra a localização.
+11. Se existe Capacitor, Cordova, TWA ou qualquer camada nativa.
+12. Se o projeto possui manifest/PWA configurado.
+13. Se existe alguma estratégia de background sync.
+14. Se existe código específico para Android/iOS.
+
+==================================================
+IMPORTANTE
+==================================================
+
+O requisito NÃO é simplesmente:
+
+"pegar GPS quando o PWA está aberto".
+
+Isso já existe.
+
+O requisito é:
+
+"continuar rastreando o celular corporativo quando o PWA estiver em segundo plano ou com a tela bloqueada."
+
+Não afirmar que isso funciona com PWA puro sem comprovação.
+
+==================================================
+VERIFICAR PLATAFORMA
+==================================================
+
+Descobrir se o projeto foi preparado para:
+
+- Android;
+- iOS;
+- ambos.
+
+Se não for possível descobrir pelo código, registrar isso.
+
+Não inventar.
+
+==================================================
+DEPOIS DA AUDITORIA
+==================================================
+
+Apresentar:
+
+# AUDITORIA DO RASTREAMENTO
+
+## GPS atual
+Onde está e como funciona.
+
+## PWA
+Como está configurado.
+
+## Service Worker
+Existe ou não.
+
+## Banco
+Tabelas e campos relacionados.
+
+## Backend
+Endpoints relacionados.
+
+## Frontend
+Telas/componentes relacionados.
+
+## Motoristas
+Como são identificados.
+
+## Dispositivos
+Se já existe identificação do celular.
+
+## Rastreamento em background
+O que já funciona.
+
+## O que NÃO funciona
+Especialmente tela bloqueada/segundo plano.
+
+## Arquitetura recomendada
+Explicar exatamente o que precisa ser adicionado.
+
+## Android
+Explicar solução necessária.
+
+## iPhone
+Explicar solução necessária.
+
+## Impacto
+Quais arquivos/tabelas/APIs precisariam mudar.
+
+==================================================
+NÃO IMPLEMENTAR AINDA
+==================================================
+
+Nesta execução:
+
+NÃO criar migration.
+
+NÃO criar aplicativo nativo.
+
+NÃO modificar o GPS atual.
+
+NÃO modificar banco.
+
+NÃO modificar Clara.
+
+NÃO modificar pedidos.
+
+NÃO modificar logística existente.
+
+NÃO modificar NF/fiscal.
+
+NÃO apagar nada.
+
+Primeiro quero o diagnóstico técnico completo.
+
+==================================================
+SE A AUDITORIA MOSTRAR QUE PRECISAMOS DE APP NATIVO
+==================================================
+
+Não tente simular isso com JavaScript ou Service Worker.
+
+Explique:
+
+- qual tecnologia seria necessária;
+- se Android exige serviço foreground;
+- como o PWA continuaria sendo utilizado;
+- como o app/serviço enviaria localização para a API existente;
+- como o dispositivo seria associado ao motorista.
+
+Depois pare.
+
+==================================================
+VALIDAÇÃO
+==================================================
+
+Como o app já está rodando:
+
+- não precisa repetir o setup;
+- pode fazer buscas no código;
+- pode verificar APIs;
+- pode verificar banco somente por leitura;
+- pode executar TypeScript/build se necessário.
+
+Não declarar rastreamento em background como funcionando apenas porque o preview abriu.
+
+==================================================
+RESULTADO FINAL
+
+Entregar somente a auditoria e o plano técnico.
+
+NÃO iniciar a implementação ainda.
+
+Parar após o diagnóstico para aprovação.
