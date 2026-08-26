@@ -32,7 +32,7 @@ function tileUrlForCenter([latitude, longitude]: [number, number]) {
   const y = Math.floor(
     ((1 - Math.log(Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)) / Math.PI) / 2) * scale,
   );
-  return `https://a.basemaps.cartocdn.com/light_all/${tileZoom}/${x}/${y}.png`;
+  return `https://a.tile.openstreetmap.org/${tileZoom}/${x}/${y}.png`;
 }
 
 const diagnosticTileUrl = tileUrlForCenter(defaultCenter);
@@ -221,10 +221,9 @@ export default function GpsTracking() {
               <MapContainer center={defaultCenter} zoom={11} className="h-full w-full" attributionControl>
                 <InvalidateMapSize />
                 <TileLayer
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   subdomains={["a", "b", "c"]}
                   maxZoom={19}
-                  crossOrigin="anonymous"
                   eventHandlers={{
                     loading: () => {
                       setTileStatus("loading");
@@ -251,7 +250,7 @@ export default function GpsTracking() {
                       window.setTimeout(inspectLeafletTiles, 0);
                     },
                   }}
-                  attribution='&copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors'
                 />
                 <FitDriverBounds drivers={locatedDrivers} />
                 {locatedDrivers.map(driver => (
@@ -295,7 +294,7 @@ export default function GpsTracking() {
               <div className="flex items-center gap-3">
                 <img
                   src={diagnosticTileUrl}
-                  alt="Tile CARTO de diagnóstico"
+                  alt="Tile OpenStreetMap de diagnóstico"
                   className="h-16 w-16 rounded border border-border object-cover"
                   crossOrigin="anonymous"
                   onLoad={event => {

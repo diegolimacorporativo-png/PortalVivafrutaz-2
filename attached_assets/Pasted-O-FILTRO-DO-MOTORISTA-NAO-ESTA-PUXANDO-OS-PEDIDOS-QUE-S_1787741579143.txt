@@ -1,0 +1,47 @@
+O FILTRO DO MOTORISTA NAO ESTA PUXANDO OS PEDIDOS QUE SAO CONFIRMADOS, VERFIQUEI, tem que aparecer tanto no painel motorista quanto no painel administradores
+
+Free
+6 minutes ago
+Investigating UI issue
+
+Investigating UI issue
+Vou verificar a consulta que alimenta “Pedidos disponíveis”, quais status ela aceita e como o painel administrativo filtra os pedidos confirmados. Também vou conferir os logs da requisição mostrada na imagem antes de alterar o código.
+
+
+
+5 actions
+Vou investigar por que pedidos CONFIRMED ficam fora quando já existe alguma entrega na data: o código atual só usa os pedidos como fallback quando não há nenhuma entrega, o que pode omitir confirmados. Também vou localizar o filtro do painel administrativo para alinhar os dois painéis.
+
+
+
+12 actions
+A evidência indica dois problemas distintos:
+
+O painel do motorista busca primeiro a tabela deliveries; se encontrar uma única entrega, ele não faz o fallback para pedidos CONFIRMED, deixando confirmados de fora.
+O painel administrativo usa paginação e o filtro CONFIRMED depende do status exato vindo da API.
+Vou consultar os registros atuais para confirmar datas/status e então corrigir os dois fluxos de forma consistente.
+
+
+
+9 actions
+Encontrei o defeito principal: a rota do motorista só consultava orders quando deliveries estava totalmente vazia. Assim, uma entrega pendente bastava para impedir a entrada dos pedidos confirmados restantes. Vou fazer a rota unir entregas existentes com pedidos confirmados/ativos/entregues, remover cancelados e deduplicar pelo orderId. O painel administrativo continuará usando os mesmos status oficiais.
+
+
+
+5 actions
+A união foi implementada. Agora vou rodar as verificações para garantir que os pedidos confirmados sejam incorporados sem duplicação e sem reintroduzir cancelados.
+
+
+
+3 actions
+A checagem encontrou apenas uma referência antiga ao campo source, que deixou de ser necessário após a união das duas fontes. Vou corrigir esse retorno e repetir a validação.
+
+
+
+Edited logistics.routes.ts
+Ajuste final aplicado. Vou validar novamente e reiniciar a aplicação para deixar o painel administrativo e o painel do motorista usando a correção efetiva.
+
+
+
+5 actions
+A correção do motorista já está aplicada e a aplicação subiu. Ainda falta alinhar o painel administrativo: vou verificar se os parâmetros status, data e paginação estão chegando ao backend ou sendo descartados pela validação da rota, pois isso explicaria os confirmados não aparecerem nesse painel.

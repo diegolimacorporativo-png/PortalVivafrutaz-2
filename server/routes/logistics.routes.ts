@@ -209,29 +209,37 @@ export async function register(app: Express): Promise<void> {
         .filter((delivery: any) => delivery.status !== 'cancelado');
       let source: 'deliveries' | 'orders' = 'deliveries';
 
-      // If deliveries table is empty, bridge from today's orders.
+      // Always bridge confirmed orders, not only when the deliveries table is
+      // empty. A delivery row can exist for one company while confirmed
+      // orders from other companies still have no delivery row yet.
       // FASE MT-1: Drizzle query scoped to tenant + date range in SQL — no full-table scan.
-      if (allDeliveries.length === 0) {
-        source = 'orders';
-        const rangeStart = new Date(dateFrom + 'T00:00:00.000Z');
-        const rangeEnd = new Date(dateTo + 'T00:00:00.000Z');
-        rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
-        const orderConds: SQL<unknown>[] = [
-          gte(ordersTable.deliveryDate, rangeStart),
-          lt(ordersTable.deliveryDate, rangeEnd),
-        ];
-        if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
-          orderConds.push(eq(ordersTable.companyId, selectedCompanyId));
-        } else if (actor.empresaId && actor.role !== 'DRIVER') {
-          orderConds.push(eq(ordersTable.companyId, actor.empresaId));
-        }
-        const todayOrders = (await db.select().from(ordersTable).where(and(...orderConds)))
-          .filter((order: any) => order.status !== 'CANCELLED');
-        const statusMap: Record<string, string> = {
-          CONFIRMED: 'pendente', ACTIVE: 'pendente',
-          DELIVERED: 'entregue', CANCELLED: 'cancelado', LOCKED: 'pendente',
-        };
-        allDeliveries = todayOrders.map((o: any, idx: number) => ({
+      const rangeStart = new Date(dateFrom + 'T00:00:00.000Z');
+      const rangeEnd = new Date(dateTo + 'T00:00:00.000Z');
+      rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
+      const orderConds: SQL<unknown>[] = [
+        gte(ordersTable.deliveryDate, rangeStart),
+        lt(ordersTable.deliveryDate, rangeEnd),
+      ];
+      if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
+        orderConds.push(eq(ordersTable.companyId, selectedCompanyId));
+      } else if (actor.empresaId && actor.role !== 'DRIVER') {
+        orderConds.push(eq(ordersTable.companyId, actor.empresaId));
+      }
+      const dateOrders = (await db.select().from(ordersTable).where(and(...orderConds)))
+        .filter((order: any) => order.status !== 'CANCELLED');
+      const statusMap: Record<string, string> = {
+        CONFIRMED: 'pendente', ACTIVE: 'pendente',
+        DELIVERED: 'entregue', CANCELLED: 'cancelado', LOCKED: 'pendente',
+      };
+      const existingOrderIds = new Set(
+        allDeliveries
+          .map((delivery: any) => delivery.orderId)
+          .filter((orderId: unknown) => orderId != null)
+          .map((orderId: unknown) => Number(orderId)),
+      );
+      const bridgedOrders = dateOrders
+        .filter((order: any) => !existingOrderIds.has(Number(order.id)))
+        .map((o: any, idx: number) => ({
           id: o.id,
           companyId: o.companyId,
           status: statusMap[o.status] || 'pendente',
@@ -247,6 +255,9 @@ export async function register(app: Express): Promise<void> {
           longitude: companyMap[o.companyId]?.longitude || null,
           isOrderBridge: true,
         })) as any;
+      if (bridgedOrders.length > 0) {
+        source = allDeliveries.length > 0 ? 'deliveries' : 'orders';
+        allDeliveries = [...allDeliveries, ...bridgedOrders];
       }
 
       // STEP 8.7 — DRIVER role gets STRICT filter to its own driverId only;
