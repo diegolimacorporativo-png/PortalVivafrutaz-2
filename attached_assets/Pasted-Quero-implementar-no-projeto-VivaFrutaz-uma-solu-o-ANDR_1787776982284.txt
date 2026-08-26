@@ -1,0 +1,489 @@
+Quero implementar no projeto VivaFrutaz uma solução ANDROID NATIVA para manter o rastreamento GPS do motorista funcionando continuamente, inclusive quando:
+
+- a tela do celular estiver apagada/bloqueada;
+- o PWA estiver em segundo plano;
+- o navegador estiver fechado;
+- o motorista estiver usando outro aplicativo.
+
+IMPORTANTE: NÃO quero substituir o sistema GPS que já existe. Quero COMPLEMENTAR o sistema atual.
+
+ANTES DE ALTERAR QUALQUER ARQUIVO:
+
+1. Analise completamente a implementação atual de GPS.
+2. Confirme como o componente `DriverGpsReporter` funciona.
+3. Confirme exatamente como o endpoint `POST /api/driver/gps` funciona.
+4. Confirme o formato do payload aceito.
+5. Confirme como o backend identifica o motorista autenticado.
+6. Confirme como a tabela `driver_gps_positions` funciona.
+7. Confirme como o painel administrativo `gps-tracking.tsx` busca e mostra as posições.
+8. Identifique a tecnologia atual do projeto e a estrutura de build/deploy.
+
+NÃO crie outro backend.
+NÃO crie outro banco.
+NÃO crie outra tabela de GPS.
+NÃO crie outro endpoint de GPS sem necessidade.
+NÃO remova o `DriverGpsReporter`.
+NÃO altere funcionalidades existentes sem necessidade.
+
+OBJETIVO:
+
+Criar um pequeno aplicativo Android nativo chamado:
+
+VivaFrutaz Tracker
+
+A função principal desse aplicativo será manter a localização do celular do motorista sendo enviada para o backend do VivaFrutaz enquanto a jornada estiver ativa.
+
+ARQUITETURA DESEJADA:
+
+Celular Android
+→ GPS nativo
+→ Foreground Service de localização
+→ internet
+→ POST /api/driver/gps
+→ tabela driver_gps_positions
+→ painel gps-tracking.tsx
+
+O aplicativo NÃO precisa reproduzir todo o ERP.
+
+Ele precisa somente:
+
+1. Identificar o motorista/celular.
+2. Fazer login/autenticação.
+3. Solicitar as permissões de localização necessárias.
+4. Iniciar o rastreamento.
+5. Executar um Foreground Service de localização.
+6. Continuar capturando localização com a tela apagada.
+7. Continuar capturando localização quando o aplicativo estiver em segundo plano.
+8. Enviar latitude.
+9. Enviar longitude.
+10. Enviar accuracy.
+11. Enviar speed quando disponível.
+12. Enviar heading quando disponível.
+13. Enviar as informações para o endpoint existente `/api/driver/gps`.
+14. Informar visualmente quando o rastreamento estiver ativo.
+15. Permitir encerrar o rastreamento.
+
+REQUISITOS ANDROID:
+
+Use uma implementação nativa Android adequada para localização contínua em segundo plano.
+
+O rastreamento deve utilizar Foreground Service com tipo de serviço `location`.
+
+Implemente corretamente as permissões exigidas pelas versões modernas do Android.
+
+Considere:
+
+- ACCESS_COARSE_LOCATION
+- ACCESS_FINE_LOCATION
+- ACCESS_BACKGROUND_LOCATION quando realmente necessário e permitido pelo fluxo do Android
+- FOREGROUND_SERVICE
+- FOREGROUND_SERVICE_LOCATION
+
+Não peça permissões desnecessárias.
+
+O aplicativo deve explicar ao usuário por que a localização é necessária.
+
+O Foreground Service deve possuir uma notificação persistente enquanto o rastreamento estiver ativo.
+
+Exemplo:
+
+"VivaFrutaz
+Rastreamento de rota ativo"
+
+Não tente esconder o uso da localização.
+
+O rastreamento deve ser iniciado por uma ação explícita do motorista, como:
+
+[ INICIAR JORNADA ]
+
+e encerrado por:
+
+[ ENCERRAR JORNADA ]
+
+CONFIGURAÇÃO DO GPS:
+
+Use localização de alta precisão quando disponível.
+
+A frequência inicial desejada é aproximadamente:
+
+1 atualização a cada 15 segundos
+
+Porém, não implemente isso de forma que cause consumo absurdo de bateria.
+
+Analise a melhor configuração de `LocationRequest` para Android moderno.
+
+Considere também uma distância mínima razoável para evitar enviar centenas de posições quando o aparelho estiver parado.
+
+REDE:
+
+Se houver internet:
+
+→ enviar imediatamente a posição para `/api/driver/gps`.
+
+Se não houver internet:
+
+→ NÃO perder a posição imediatamente.
+
+Criar uma pequena fila local das posições pendentes.
+
+Quando a internet voltar:
+
+→ enviar as posições pendentes.
+
+Evitar duplicação de posições.
+
+Se o backend rejeitar uma posição, registrar o erro e tentar novamente conforme uma estratégia segura.
+
+AUTENTICAÇÃO:
+
+NÃO invente um sistema de autenticação paralelo se o VivaFrutaz já possui autenticação.
+
+Analise como o login atual funciona.
+
+O aplicativo Android deve utilizar a mesma lógica de autenticação do VivaFrutaz sempre que tecnicamente possível.
+
+Se o endpoint `/api/driver/gps` exige sessão/cookie/token, implemente o método correto para o aplicativo Android enviar a autenticação.
+
+Não coloque senha fixa no código.
+
+Não coloque tokens secretos no código-fonte.
+
+IDENTIFICAÇÃO DO DISPOSITIVO:
+
+Precisamos diferenciar os celulares corporativos.
+
+Proponha a implementação de um identificador persistente e seguro para o dispositivo.
+
+Não use IMEI, número de série ou identificadores proibidos/desnecessários.
+
+Queremos algo como:
+
+Celular VivaFrutaz 01
+Celular VivaFrutaz 02
+Celular VivaFrutaz 03
+...
+
+E posteriormente poder vincular:
+
+dispositivo → motorista
+
+Se for necessário adicionar campos ao banco para isso, NÃO faça a alteração ainda.
+
+Primeiro mostre a proposta.
+
+COMPATIBILIDADE:
+
+Os dispositivos utilizados atualmente são:
+
+- Motorola Moto G6
+- Samsung Galaxy J6
+- Samsung Galaxy J7
+
+Todos estão atualizados dentro do possível.
+
+A solução precisa priorizar compatibilidade com esses aparelhos e Android moderno.
+
+IMPORTANTE SOBRE ECONOMIA DE BATERIA:
+
+Fabricantes como Samsung e Motorola podem restringir aplicativos em segundo plano.
+
+Pesquise/analise como configurar o aplicativo para reduzir a chance de o sistema interromper o rastreamento.
+
+Não tente burlar mecanismos de segurança do Android.
+
+Se forem necessárias instruções manuais de configuração de bateria, crie uma tela/configuração de "Como permitir rastreamento contínuo".
+
+EXEMPLO DE FLUXO:
+
+Motorista abre:
+
+VivaFrutaz Tracker
+
+↓
+
+Login
+
+↓
+
+Motorista: João
+
+↓
+
+Status:
+
+⚪ Rastreamento parado
+
+↓
+
+[ INICIAR JORNADA ]
+
+↓
+
+Android solicita permissões
+
+↓
+
+Motorista autoriza
+
+↓
+
+Status:
+
+🟢 Rastreamento ativo
+
+↓
+
+Foreground Service inicia
+
+↓
+
+GPS captura posição
+
+↓
+
+POST /api/driver/gps
+
+↓
+
+servidor salva em `driver_gps_positions`
+
+↓
+
+painel administrativo mostra João no mapa
+
+↓
+
+motorista bloqueia a tela
+
+↓
+
+GPS continua
+
+↓
+
+motorista abre outro aplicativo
+
+↓
+
+GPS continua
+
+↓
+
+motorista volta ao VivaFrutaz
+
+↓
+
+rastreamento continua ativo
+
+↓
+
+[ ENCERRAR JORNADA ]
+
+↓
+
+Foreground Service é encerrado.
+
+TELA DO APLICATIVO:
+
+Crie uma interface extremamente simples.
+
+Tela inicial:
+
+VivaFrutaz
+
+Rastreamento de motorista
+
+Motorista:
+[ nome ]
+
+Status:
+🟢 Rastreamento ativo
+
+Última localização enviada:
+há 12 segundos
+
+GPS:
+🟢 Funcionando
+
+Internet:
+🟢 Conectado
+
+Bateria:
+78%
+
+[ ENCERRAR JORNADA ]
+
+Quando estiver parado:
+
+Status:
+⚪ Rastreamento parado
+
+[ INICIAR JORNADA ]
+
+ERROS:
+
+Mostrar mensagens claras:
+
+GPS desligado:
+"Ative a localização do celular para iniciar o rastreamento."
+
+Permissão negada:
+"É necessário permitir acesso à localização para iniciar a jornada."
+
+Sem internet:
+"Sem internet. As posições serão enviadas quando a conexão voltar."
+
+Erro no GPS:
+"Não foi possível obter a localização."
+
+API indisponível:
+"Servidor temporariamente indisponível."
+
+SEGURANÇA:
+
+- Não armazenar senha em texto puro.
+- Não colocar segredo de servidor no aplicativo.
+- Validar todas as coordenadas no backend.
+- O motorista só pode enviar sua própria localização.
+- Não permitir que um motorista informe manualmente outro `driverId`.
+- Manter a autorização no servidor.
+- Não expor endpoints administrativos no aplicativo.
+
+BACKEND:
+
+Aproveite o endpoint existente:
+
+POST /api/driver/gps
+
+Antes de criar qualquer alteração no backend, mostre:
+
+1. Arquivo atual.
+2. Código atual relevante.
+3. O que precisa mudar.
+4. Por que precisa mudar.
+
+Se o endpoint atual já for suficiente, NÃO altere.
+
+BANCO:
+
+Aproveite:
+
+driver_gps_positions
+
+com os campos existentes:
+
+id
+driverId
+latitude
+longitude
+accuracy
+speed
+heading
+recordedAt
+
+Não crie uma nova tabela de posições.
+
+HISTÓRICO:
+
+As posições continuam sendo gravadas individualmente no banco.
+
+Não altere a lógica existente do painel administrativo.
+
+PAINEL ADMINISTRATIVO:
+
+O painel existente:
+
+client/src/pages/admin/gps-tracking.tsx
+
+deve continuar funcionando.
+
+Depois que o Tracker Android enviar posições pelo endpoint existente, o painel deverá automaticamente receber as novas posições através do mecanismo de polling que já existe.
+
+Não substitua o polling por WebSocket neste momento.
+
+Isso pode ser uma melhoria futura.
+
+PWA:
+
+O PWA continuará existindo.
+
+O `DriverGpsReporter` continuará funcionando para o navegador.
+
+A solução Android nativa será uma alternativa para os celulares corporativos.
+
+Não remova o GPS existente do PWA.
+
+MODO DE TESTE:
+
+Antes de fazer qualquer alteração grande, crie um plano de implementação.
+
+Quero que você responda PRIMEIRO somente com:
+
+### 1. Arquitetura atual encontrada
+
+Explique como o GPS atual funciona.
+
+### 2. O que será reutilizado
+
+Liste:
+
+- endpoint
+- banco
+- autenticação
+- painel
+- mapas
+- componentes existentes
+
+### 3. Tecnologia Android recomendada
+
+Explique qual tecnologia pretende usar:
+
+- Kotlin/Android nativo
+- ou outra opção
+
+Explique por que escolheu.
+
+### 4. Arquivos que serão criados
+
+Liste os arquivos.
+
+### 5. Arquivos existentes que precisarão ser alterados
+
+Liste os arquivos.
+
+### 6. Alterações no banco
+
+Diga SIM ou NÃO.
+
+Se SIM, explique exatamente quais campos/tabelas.
+
+### 7. Alterações no backend
+
+Diga SIM ou NÃO.
+
+Se SIM, explique exatamente quais endpoints/arquivos.
+
+### 8. Compatibilidade
+
+Explique especificamente como pretende lidar com:
+
+- Moto G6
+- Samsung J6
+- Samsung J7
+- tela bloqueada
+- aplicativo em segundo plano
+- aplicativo fechado
+- economia de bateria
+- perda de internet
+
+### 9. Segurança e permissões
+
+Explique quais permissões serão usadas e por quê.
+
+### 10. Plano de implementação
+
+Divida em etapas pequenas.
+
+NÃO IMPLEMENTE AINDA.
+
+Primeiro quero analisar sua proposta antes de você modificar o projeto.
