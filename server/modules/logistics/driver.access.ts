@@ -16,9 +16,9 @@
  *     scan followed by in-memory find(). The first parameter is kept for
  *     backward-compat (callers need not change) but is no longer used.
  *
- * Returns `null` if no link can be established — callers MUST treat that as
- * "this driver has no route" (empty results), never as "this driver is an
- * admin" (which would be a privilege-escalation bug).
+ * Returns `null` if no link can be established. For GPS submission, callers
+ * should use ensureOwnDriverId so legacy driver accounts can be provisioned
+ * into the operational table on their first real location update.
  */
 
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
@@ -99,4 +99,40 @@ export async function resolveOwnDriverId(
     .limit(1);
 
   return rows[0]?.id ?? null;
+}
+
+/**
+ * Resolve a driver's operational record, provisioning a missing legacy link
+ * only when the driver is actually sending a GPS position.
+ *
+ * We intentionally do not create rows from read endpoints. This keeps GPS
+ * listing side-effect free while allowing old user accounts (MOTORISTA/DRIVER)
+ * to become fully trackable as soon as they grant browser location access.
+ */
+export async function ensureOwnDriverId(
+  storageCompat: { getDrivers: () => Promise<any[]> },
+  actor: {
+    email?: string | null;
+    name?: string | null;
+    empresaId?: number | null;
+  } | null | undefined,
+): Promise<number | null> {
+  const existingId = await resolveOwnDriverId(storageCompat, actor);
+  if (existingId) return existingId;
+
+  const tenantId = actor?.empresaId ?? null;
+  const name = actor?.name?.trim();
+  if (!tenantId || !name) return null;
+
+  const [created] = await db
+    .insert(logisticsDrivers)
+    .values({
+      empresaId: tenantId,
+      name,
+      email: actor?.email?.trim() || null,
+      active: true,
+    })
+    .returning({ id: logisticsDrivers.id });
+
+  return created?.id ?? null;
 }

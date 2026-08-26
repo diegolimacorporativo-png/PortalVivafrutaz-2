@@ -20,6 +20,8 @@ interface LiveDriver {
   speed: string | null;
   heading: string | null;
   updatedAt: string | null;
+  gpsReady?: boolean;
+  source?: "user-account" | "logistics-driver";
 }
 
 const defaultCenter: [number, number] = [-23.5505, -46.6333];
@@ -330,7 +332,11 @@ export default function GpsTracking() {
                         <span className={`mt-1.5 w-2.5 h-2.5 rounded-full shrink-0 ${hasLocation ? "bg-green-500" : "bg-slate-300"}`} />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium truncate">{driver.driverName}</p>
-                          <p className={`text-xs mt-0.5 ${status.className}`}>{status.text}</p>
+                          <p className={`text-xs mt-0.5 ${status.className}`}>
+                            {!driver.gpsReady
+                              ? "Conta identificada — abra o Painel do Motorista para ativar o GPS"
+                              : status.text}
+                          </p>
                           {hasLocation && (
                             <p className="text-[11px] text-muted-foreground mt-1">
                               {Number(driver.latitude).toFixed(5)}, {Number(driver.longitude).toFixed(5)}

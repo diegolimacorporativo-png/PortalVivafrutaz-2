@@ -53,6 +53,7 @@ export interface ActorRef {
   email?: string | null;
   role: string;
   name?: string | null;
+  empresaId?: number | null;
 }
 
 // ── Route Assistant ────────────────────────────────────────────────────────

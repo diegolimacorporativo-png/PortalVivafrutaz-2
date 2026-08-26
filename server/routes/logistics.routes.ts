@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
-import { isDriver, isDriverOrInternal, isInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import { ensureOwnDriverId, isDriver, isDriverOrInternal, isInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { LOGISTICS_AUTH_ROLES } from "../modules/logistics/logistics.types";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
@@ -147,7 +147,7 @@ export async function register(app: Express): Promise<void> {
     }
 
     if (isDriver(actor?.role)) {
-      const ownDriverId = await resolveOwnDriverId(storage, actor);
+         const ownDriverId = await ensureOwnDriverId(storage, actor);
       if (!ownDriverId) throw new ForbiddenError('Motorista não vinculado');
 
       let ownsDelivery = Number(delivery.driverId) === ownDriverId;
@@ -450,29 +450,52 @@ export async function register(app: Express): Promise<void> {
 
       // Some legacy installations registered drivers as user accounts with
       // role MOTORISTA/DRIVER but never created the corresponding
-      // logistics_drivers row. Keep the operational table as the source of
-      // truth when it has data; otherwise expose those accounts as read-only
-      // GPS entries so the admin can see every registered driver.
-      if (driverRows.length === 0) {
-        const userConditions: SQL<unknown>[] = [
-          inArray(usersTable.role, ["MOTORISTA", "DRIVER"]),
-          eq(usersTable.active, true),
-        ];
-        if (actor.empresaId) userConditions.push(eq(usersTable.empresaId, actor.empresaId));
-        const driverUsers = await db
-          .select({ id: usersTable.id, name: usersTable.name, email: usersTable.email, active: usersTable.active })
-          .from(usersTable)
-          .where(and(...userConditions))
-          .orderBy(usersTable.name);
-        driverRows = driverUsers.map((user: any) => ({
+      // logistics_drivers row. Always include those accounts when they do not
+      // match an operational record, so every registered driver is visible.
+      // The read remains side-effect free: missing operational records are
+      // virtual until the driver sends a real GPS position.
+      const userConditions: SQL<unknown>[] = [
+        inArray(usersTable.role, ["MOTORISTA", "DRIVER"]),
+        eq(usersTable.active, true),
+      ];
+      if (actor.empresaId) userConditions.push(eq(usersTable.empresaId, actor.empresaId));
+      const driverUsers = await db
+        .select({
+          id: usersTable.id,
+          name: usersTable.name,
+          email: usersTable.email,
+          empresaId: usersTable.empresaId,
+          active: usersTable.active,
+        })
+        .from(usersTable)
+        .where(and(...userConditions))
+        .orderBy(usersTable.name);
+
+      const normalizeIdentity = (value: unknown) =>
+        String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+      const matchedUserIds = new Set<number>();
+      for (const driver of driverRows as any[]) {
+        const operationalEmail = normalizeIdentity(driver.email);
+        const operationalName = normalizeIdentity(driver.name);
+        const matchedUser = driverUsers.find((user: any) =>
+          (operationalEmail && normalizeIdentity(user.email) === operationalEmail) ||
+          (!operationalEmail && operationalName && normalizeIdentity(user.name) === operationalName),
+        );
+        if (matchedUser) matchedUserIds.add(Number(matchedUser.id));
+      }
+
+      const legacyDriverRows = driverUsers
+        .filter((user: any) => !matchedUserIds.has(Number(user.id)))
+        .map((user: any) => ({
           id: -Number(user.id),
           name: user.name,
           email: user.email,
           phone: null,
           active: user.active,
+          empresaId: user.empresaId,
           virtualFromUser: true,
-        })) as any;
-      }
+        }));
+      driverRows = [...driverRows, ...legacyDriverRows] as any;
 
       const positions = await Promise.all(driverRows.map(async (driver: any) => {
         const position = driver.virtualFromUser ? null : await storage.getLatestGpsPosition(driver.id);
@@ -487,6 +510,8 @@ export async function register(app: Express): Promise<void> {
           speed: position?.speed ?? null,
           heading: position?.heading ?? null,
           updatedAt: position?.recordedAt ?? null,
+          gpsReady: !driver.virtualFromUser,
+          source: driver.virtualFromUser ? "user-account" : "logistics-driver",
         };
       }));
 

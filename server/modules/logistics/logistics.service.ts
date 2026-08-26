@@ -51,6 +51,7 @@ export class LogisticsService {
     const { name, cpf, phone, email, licenseNumber, notes } = body || {};
     if (!name) throw new BadRequestError("Nome obrigatório");
     const d = await this.repo.createDriver({
+      empresaId: currentTenantId() ?? actor.empresaId ?? undefined,
       name,
       cpf,
       phone,
