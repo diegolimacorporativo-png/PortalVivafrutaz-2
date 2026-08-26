@@ -186,7 +186,17 @@ export async function register(app: Express): Promise<void> {
       const selectedCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
 
       const allCompanies = await storage.getCompanies();
-      const companyMap = Object.fromEntries(allCompanies.map((c: any) => [c.id, c]));
+      const actorCompanyId = actor.empresaId ? Number(actor.empresaId) : undefined;
+      // A tenant-pinned internal user may only query its own company. Do this
+      // before both delivery and order queries so a crafted companyId cannot
+      // bypass the scope by taking the orders branch.
+      if (actorCompanyId && selectedCompanyId && selectedCompanyId !== actorCompanyId) {
+        return res.status(403).json({ message: 'Acesso negado' });
+      }
+      const visibleCompanies = actorCompanyId
+        ? allCompanies.filter((company: any) => Number(company.id) === actorCompanyId)
+        : allCompanies;
+      const companyMap = Object.fromEntries(visibleCompanies.map((c: any) => [c.id, c]));
 
       // FASE MT-1 — driver lookup scoped to actor's tenant in SQL (no full-table scan).
       const driverIdentity: SQL<unknown>[] = [];
@@ -206,7 +216,11 @@ export async function register(app: Express): Promise<void> {
       // Search the selected period. Drivers can view unassigned orders from
       // every company, while status mutations remain ownership-protected below.
       const deliveryFilters: any = { dateFrom, dateTo };
-      if (selectedCompanyId && Number.isInteger(selectedCompanyId)) deliveryFilters.companyId = selectedCompanyId;
+      if (actorCompanyId) {
+        deliveryFilters.companyId = actorCompanyId;
+      } else if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
+        deliveryFilters.companyId = selectedCompanyId;
+      }
       let allDeliveries = (await storage.getDeliveries(deliveryFilters))
         .filter((delivery: any) => delivery.status !== 'cancelado');
       let source: 'deliveries' | 'orders' = 'deliveries';
@@ -222,10 +236,10 @@ export async function register(app: Express): Promise<void> {
         gte(ordersTable.deliveryDate, rangeStart),
         lt(ordersTable.deliveryDate, rangeEnd),
       ];
-      if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
+      if (actorCompanyId) {
+        orderConds.push(eq(ordersTable.companyId, actorCompanyId));
+      } else if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
         orderConds.push(eq(ordersTable.companyId, selectedCompanyId));
-      } else if (actor.empresaId && actor.role !== 'DRIVER') {
-        orderConds.push(eq(ordersTable.companyId, actor.empresaId));
       }
       const dateOrders = (await db.select().from(ordersTable).where(and(...orderConds)))
         .filter((order: any) => order.status !== 'CANCELLED');
@@ -341,7 +355,7 @@ export async function register(app: Express): Promise<void> {
       res.json({
         deliveries: enriched,
         driver: myDriver || null,
-        companies: allCompanies.map((c: any) => ({
+        companies: visibleCompanies.map((c: any) => ({
           id: c.id,
           name: c.companyName || c.name,
           cnpj: c.cnpj || null,

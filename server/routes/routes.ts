@@ -4169,23 +4169,27 @@ export async function registerRoutes(
 
 async function seedDatabase() {
   try {
-    // Provisiona o usuário administrativo solicitado apenas se ainda não
-    // existir. A senha temporária é armazenada como bcrypt pelo repositório e
-    // o primeiro login é bloqueado até a troca por uma senha definitiva.
+    // Provisiona o usuário diretor apenas se ainda não existir. Nunca
+    // hardcode uma senha no código: em uma instalação nova, o acesso deve ser
+    // concluído pelo fluxo protegido de criação/redefinição de usuários.
     try {
       const diegoEmail = "diego@vivafrutaz.com";
       const diego = await storage.getUserByEmail(diegoEmail);
       if (!diego) {
+        const initialPassword = randomBytes(24).toString("base64url");
         await storage.createUser({
-          name: "Diego",
+          name: "Diego Lima",
           email: diegoEmail,
-          password: "123456",
-          role: "ADMIN",
+          password: initialPassword,
+          role: "DIRECTOR",
           active: true,
           mustChangePassword: true,
           passwordTemporary: true,
         } as any);
-        console.log("[SEED] Usuário administrativo temporário criado: diego@vivafrutaz.com");
+        console.log("[SEED] Usuário diretor temporário criado; conclua a troca de senha pelo fluxo protegido.");
+      } else if (diego.name !== "Diego Lima" || diego.role !== "DIRECTOR") {
+        await storage.updateUser(diego.id, { name: "Diego Lima", role: "DIRECTOR" } as any);
+        console.log("[SEED] Usuário Diego sincronizado como DIRECTOR.");
       }
     } catch (err: any) {
       logSecurity(

@@ -1,0 +1,48 @@
+Vou ler a nova solicitação do painel do motorista e mapear os componentes existentes antes de alterar qualquer coisa, preservando o trabalho já feito no mapa GPS.
+
+
+
+2 actions
+Vou localizar a consulta atual de pedidos, os tipos retornados e o componente de detalhes já existente. Depois implementarei apenas a busca/visualização no painel, sem tocar em GPS, NF-e, schema ou regras de elegibilidade.
+
+
+
+34 actions
+A consulta atual já retorna o conjunto elegível correto, incluindo pedidos CONFIRMED em ponte, e o endpoint detalhado existente retorna pedido + itens. Vou reutilizar ambos: a busca será aplicada sobre essa resposta já autorizada, e “Ver pedido” buscará os detalhes pelo orderId, sem criar endpoint nem regra paralela.
+
+
+
+14 actions
+A leitura revelou um ponto importante de segurança: buscar detalhes diretamente em /api/orders/:id poderia reutilizar uma rota genérica sem repetir a mesma regra de acesso do painel. Para manter tenant e elegibilidade intactos, vou anexar ao próprio resultado já autorizado de /api/driver/route-today os itens reais dos pedidos visíveis, em lote. Assim o botão “Ver pedido” não cria uma brecha nem uma segunda regra de pedidos.
+
+
+
+7 actions
+A consulta agora reutiliza a resposta autorizada da rota e inclui detalhes/itens reais no mesmo payload; o cartão expande sem uma chamada genérica adicional. Vou executar TypeScript, build, verificação de diff e os testes focados/disponíveis para capturar incompatibilidades antes de concluir.
+
+
+
+5 actions
+A compilação, TypeScript e git diff --check passaram. Vou rodar a suíte disponível e revisar o fluxo final do componente; em seguida reinicio o workflow para garantir que o servidor esteja servindo a nova resposta do painel.
+
+
+
+2 actions
+Os checks encontraram apenas falhas preexistentes da suíte de testes (horário de deadline), não relacionadas a esta mudança. Antes do restart, vou ajustar dois detalhes de robustez: busca de CNPJ com/sem pontuação e fallback de visualização para entregas legadas que não tenham orderId, sem esconder os dados que já existiam.
+
+
+
+3 actions
+Ajustes finais aplicados. Vou reiniciar o workflow para carregar a alteração do endpoint e então verificar os logs de inicialização e da consulta do painel.
+
+
+
+3 actions
+O workflow reiniciou corretamente e o servidor está atendendo na porta 5000. Vou fazer a checagem final após os últimos ajustes (TypeScript, build e diff) e remover apenas variáveis antigas que ficaram sem uso no cálculo dos cards filtrados.
+
+
+
+Edited driver-panel.tsx
+
+Worked for 5 minutes
+You've reached your monthly free quota limit. It will reset on September 17, 2026.
