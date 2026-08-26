@@ -147,7 +147,7 @@ export async function register(app: Express): Promise<void> {
     }
 
     if (isDriver(actor?.role)) {
-         const ownDriverId = await ensureOwnDriverId(storage, actor);
+      const ownDriverId = await resolveOwnDriverId(storage, actor);
       if (!ownDriverId) throw new ForbiddenError('Motorista não vinculado');
 
       let ownsDelivery = Number(delivery.driverId) === ownDriverId;
