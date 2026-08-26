@@ -139,7 +139,10 @@ export async function ensureOwnDriverId(
 
   const tenantId = actor?.empresaId ?? null;
   const name = actor?.name?.trim();
-  if (!tenantId || !name) return null;
+  // Older driver accounts may be global (empresaId = NULL). They are still
+  // valid identities; the GPS write is the explicit moment when the
+  // operational row is created.
+  if (!name) return null;
 
   const [created] = await db
     .insert(logisticsDrivers)

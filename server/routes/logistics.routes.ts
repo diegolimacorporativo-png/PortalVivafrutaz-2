@@ -198,18 +198,17 @@ export async function register(app: Express): Promise<void> {
         : allCompanies;
       const companyMap = Object.fromEntries(visibleCompanies.map((c: any) => [c.id, c]));
 
-      // FASE MT-1 — driver lookup scoped to actor's tenant in SQL (no full-table scan).
-      const driverIdentity: SQL<unknown>[] = [];
-      if (actor.email) driverIdentity.push(eq(driversTable.email, actor.email));
-      if (actor.name) driverIdentity.push(eq(driversTable.name, actor.name));
       let myDriver: any = null;
-      if (driverIdentity.length > 0) {
-        const identityCond: SQL<unknown> =
-          driverIdentity.length === 1 ? driverIdentity[0]! : or(...driverIdentity)!;
-        const driverWhere: SQL<unknown> = actor.empresaId
-          ? and(eq(driversTable.empresaId, actor.empresaId), identityCond)!
-          : identityCond;
-        const driverRows = await db.select().from(driversTable).where(driverWhere).limit(1);
+      // Use the same normalized email/name resolver as GPS POST. This keeps
+      // route lookup and position lookup on exactly the same driver identity,
+      // including legacy rows with casing/whitespace differences.
+      const ownDriverId = await resolveOwnDriverId(storage, actor);
+      if (ownDriverId) {
+        const driverRows = await db
+          .select()
+          .from(driversTable)
+          .where(eq(driversTable.id, ownDriverId))
+          .limit(1);
         myDriver = driverRows[0] ?? null;
       }
 

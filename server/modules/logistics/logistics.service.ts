@@ -191,14 +191,18 @@ export class LogisticsService {
       // this is the safe point to materialize the operational link.
       const accountId = Math.abs(Number(operationalDriverId));
       const account = await this.repo.getUser(accountId);
+      const tenantId = currentTenantId() ?? actor.empresaId ?? null;
       if (
         !account ||
         account.active === false ||
-        !["MOTORISTA", "DRIVER"].includes(account.role)
+        !["MOTORISTA", "DRIVER"].includes(account.role) ||
+        (tenantId != null && Number(account.empresaId) !== Number(tenantId))
       ) {
         throw new BadRequestError("Conta de motorista inválida");
       }
-      const existingDrivers = (await this.repo.getDrivers()) as any[];
+      const existingDrivers = (await (tenantId != null
+        ? this.repo.getDriversSafe(Number(tenantId))
+        : this.repo.getDrivers())) as any[];
       const normalize = (value: unknown) =>
         String(value ?? "").trim().toLocaleLowerCase("pt-BR");
       const existing = existingDrivers.find(
@@ -208,7 +212,7 @@ export class LogisticsService {
           (account.name && normalize(driver.name) === normalize(account.name)),
       );
       const linked = existing ?? (await this.repo.createDriver({
-        empresaId: currentTenantId() ?? actor.empresaId ?? account.empresaId ?? undefined,
+        empresaId: tenantId ?? account.empresaId ?? undefined,
         name: account.name,
         email: account.email,
         active: true,
