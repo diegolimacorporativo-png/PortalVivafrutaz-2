@@ -1,10 +1,10 @@
 import { defineConfig } from "drizzle-kit";
 
-// Prefer SUPABASE_DATABASE_URL (production Supabase) over DATABASE_URL (Replit local).
-// This ensures db:push targets the correct database.
-const dbUrl = process.env.SUPABASE_DATABASE_URL || process.env.DATABASE_URL;
+// The application is intentionally coupled to the external Supabase database.
+// Never fall back to Replit's runtime-managed DATABASE_URL.
+const dbUrl = process.env.SUPABASE_DATABASE_URL;
 if (!dbUrl) {
-  throw new Error("SUPABASE_DATABASE_URL or DATABASE_URL must be set");
+  throw new Error("SUPABASE_DATABASE_URL must be set");
 }
 
 export default defineConfig({
@@ -13,6 +13,6 @@ export default defineConfig({
   dialect: "postgresql",
   dbCredentials: {
     url: dbUrl,
-    ssl: !!process.env.SUPABASE_DATABASE_URL,
+    ssl: true,
   },
 });

@@ -37,8 +37,8 @@
 # Clone o .env.example se não existir
 cp .env.example .env
 
-# Edite .env com dados do seu banco:
-# DATABASE_URL=postgresql://viva_user:SenhaForte123@localhost:5432/viva_db
+# Configure o Secret SUPABASE_DATABASE_URL com os dados do PostgreSQL externo:
+# SUPABASE_DATABASE_URL=postgresql://user:password@host.supabase.com:6543/postgres
 ```
 
 ### 2️⃣ Iniciar Servidor Local
@@ -168,10 +168,10 @@ npm run server-tunnel
 
 ## 🔧 Troubleshooting
 
-### Erro: "DATABASE_URL must be set"
+### Erro: "SUPABASE_DATABASE_URL must be set"
 ```bash
-# Verifique se .env existe e tem:
-DATABASE_URL=postgresql://viva_user:SenhaForte123@localhost:5432/viva_db
+# Verifique se o Secret SUPABASE_DATABASE_URL está configurado.
+# O app não aceita DATABASE_URL, PostgreSQL local ou o banco interno do Replit.
 ```
 
 ### Erro: "Cannot connect to database"

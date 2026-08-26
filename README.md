@@ -36,9 +36,10 @@ npm install
 ```
 
 ### 3️⃣ Configure o Ambiente
-**Crie arquivo `.env`:**
+**Configure o Secret `SUPABASE_DATABASE_URL`** com a URL do PostgreSQL externo do Supabase.
+O aplicativo não usa o `DATABASE_URL` gerenciado pelo Replit nem um PostgreSQL local.
 ```env
-DATABASE_URL=postgresql://viva_user:SenhaForte123@localhost:5432/viva_db
+SUPABASE_DATABASE_URL=postgresql://user:password@host.supabase.com:6543/postgres
 PORT=5000
 NODE_ENV=development
 ```
@@ -291,10 +292,8 @@ lsof -ti:5000 | xargs kill -9
 
 ## 🚀 Deploy
 
-### Docker (Local)
-```bash
-docker-compose up
-```
+O `docker-compose.yml` é mantido apenas como referência histórica. Não o use para
+iniciar o banco da aplicação: o ambiente configurado usa exclusivamente o Supabase.
 
 ### Produção (Recomendado)
 1. Configure `.env` para produção

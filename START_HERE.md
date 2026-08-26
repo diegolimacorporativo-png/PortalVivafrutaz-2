@@ -27,8 +27,8 @@ npm install
 **Criar arquivo `.env` na raiz do projeto:**
 
 ```env
-# Database (PostgreSQL)
-DATABASE_URL=postgresql://viva_user:SenhaForte123@localhost:5432/viva_db
+# Database (PostgreSQL externo do Supabase)
+SUPABASE_DATABASE_URL=postgresql://user:password@host.supabase.com:6543/postgres
 
 # Server
 PORT=5000
@@ -353,8 +353,7 @@ projeto/
 ## ✅ Checklist de Início
 
 - [ ] Node.js instalado? (`node --version`)
-- [ ] PostgreSQL rodando?
-- [ ] Arquivo `.env` criado com DATABASE_URL?
+- [ ] Secret `SUPABASE_DATABASE_URL` configurado?
 - [ ] `npm install` executado?
 - [ ] `npm run validate` passou?
 - [ ] `npm run dev` iniciou servidor?
