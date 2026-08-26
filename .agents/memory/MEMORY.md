@@ -5,3 +5,4 @@
 - [Supabase secret formatting](supabase-secret-formatting.md) — normalize espaços e aspas externas antes da validação estrita da URL, mantendo fail-closed.
 - [Driver panel tenant scope](driver-panel-scope.md) — aplique o tenant antes de unir deliveries e pedidos CONFIRMED ou processar filtros.
 - [Cloudflare Node gateway](cloudflare-node-gateway.md) — o Worker serve assets e encaminha APIs ao backend Node publicado; não migrar o Express/pg TCP diretamente para Workers.
+- [Node runtime recovery](node-runtime-recovery.md) — erros de módulo ausente no boot podem indicar node_modules incompleto, não defeito da aplicação.
