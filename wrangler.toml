@@ -1,0 +1,7 @@
+name = "portal-vivafrutaz"
+compatibility_date = "2026-08-26"
+
+# Vite generates the frontend static files in dist/public.
+# The backend bundle remains in dist/index.cjs and is not modified by this config.
+[assets]
+directory = "./dist/public"
