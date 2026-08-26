@@ -1,0 +1,335 @@
+IMPLEMENTAR — MELHORIA DO PAINEL DO MOTORISTA / CONSULTA DE PEDIDOS
+
+Quero melhorar o painel do motorista em:
+
+`/admin/driver-panel`
+
+IMPORTANTE:
+Antes de alterar qualquer coisa, faça uma leitura rápida dos componentes/rotas que alimentam o painel e reutilize as APIs e estruturas já existentes.
+
+NÃO criar banco novo.
+NÃO criar migration.
+NÃO alterar schema.
+NÃO alterar a máquina de estados dos pedidos.
+NÃO alterar o rastreamento GPS.
+NÃO alterar a Clara.
+NÃO alterar o painel administrativo de pedidos.
+NÃO alterar regras de NF-e.
+NÃO remover funcionalidades existentes sem necessidade.
+
+Apenas implementar a melhoria de consulta dos pedidos no painel do motorista.
+
+==================================================
+OBJETIVO
+==================================================
+
+O motorista precisa conseguir localizar rapidamente um pedido específico de um cliente, mesmo que ele não esteja procurando pela rota.
+
+Hoje o painel possui:
+
+- De
+- Até
+- Empresa
+- Buscar pedidos
+- Hoje
+
+Mas falta uma busca direta por pedido/cliente.
+
+Adicionar um filtro:
+
+### "Buscar pedido ou cliente"
+
+Esse campo deve permitir localizar por:
+
+- código do pedido;
+- nome da empresa/cliente;
+- CNPJ, se esse dado já estiver disponível na consulta existente.
+
+Exemplo:
+
+`VF-2026-000101`
+
+ou
+
+`Sacolão do Zé Eireli`
+
+==================================================
+LAYOUT
+==================================================
+
+Na seção:
+
+`Consultar pedidos disponíveis`
+
+adicionar o campo de busca acima ou junto dos filtros existentes.
+
+Estrutura desejada:
+
+Consultar pedidos disponíveis
+
+[ 🔎 Buscar pedido ou cliente........................ ]
+
+De [26/08/2026]    Até [04/09/2026]    Empresa [Todas ▼]
+
+[ 🔄 Buscar pedidos ]   [ Hoje ]   [ Limpar filtros ]
+
+Manter os filtros atuais.
+
+Não remover:
+
+- De
+- Até
+- Empresa
+- Buscar pedidos
+- Hoje
+
+Adicionar:
+
+- Buscar pedido ou cliente
+- Limpar filtros, caso seja simples implementar usando o estado já existente.
+
+==================================================
+COMPORTAMENTO DA BUSCA
+==================================================
+
+A busca deve funcionar em conjunto com os filtros existentes.
+
+Exemplos:
+
+1. Buscar:
+`VF-2026-000101`
+
+→ mostrar somente o pedido correspondente.
+
+2. Buscar:
+`Sacolão do Zé Eireli`
+
+→ mostrar pedidos dessa empresa.
+
+3. Buscar parcialmente:
+`Zé Eireli`
+
+→ encontrar a empresa, se a API existente suportar busca parcial.
+
+4. Buscar código parcialmente:
+`000101`
+
+→ encontrar o pedido correspondente, se compatível com a consulta atual.
+
+5. Campo vazio:
+
+→ comportamento atual permanece exatamente igual.
+
+==================================================
+IMPORTANTE — NÃO CRIAR UMA SEGUNDA REGRA DE PEDIDOS
+==================================================
+
+A consulta deve respeitar a mesma regra de elegibilidade que já foi corrigida anteriormente.
+
+Pedidos `CONFIRMED` precisam continuar aparecendo no painel do motorista.
+
+A correção anterior da rota que une:
+
+- deliveries
+- orders CONFIRMED/ativos/entregues
+
+DEVE SER PRESERVADA.
+
+Não substituir essa lógica.
+
+Não voltar ao comportamento em que a existência de uma única entrega impede o carregamento dos demais pedidos confirmados.
+
+==================================================
+DETALHES DO PEDIDO
+==================================================
+
+Ao encontrar um pedido, o motorista deve conseguir abrir/ver os detalhes.
+
+No card atual, por exemplo:
+
+`[SEED-OP] Sacolão do Zé Eireli`
+
+adicionar uma ação clara:
+
+### "Ver pedido"
+
+ou:
+
+### "Detalhes do pedido"
+
+Essa ação deve abrir/expandir os dados do pedido usando a estrutura/API já existente.
+
+Mostrar, se os dados já estiverem disponíveis:
+
+- Código do pedido
+- Empresa
+- Data do pedido
+- Data de entrega
+- Endereço de entrega
+- Telefone/contato, se já existir e for apropriado
+- Observação do cliente
+- Itens do pedido
+- Quantidades
+- Unidade, se disponível
+- Valor, se já disponível
+- Status atual
+- Informações necessárias para a entrega
+
+==================================================
+ITENS DO PEDIDO
+==================================================
+
+Dentro dos detalhes, mostrar algo semelhante a:
+
+Pedido #101
+Sacolão do Zé Eireli
+
+Produto                  Quantidade
+------------------------------------
+Produto A                10 kg
+Produto B                15 kg
+Produto C                 5 cx
+
+Usar os dados reais do pedido.
+
+NÃO inventar produtos ou quantidades.
+
+Se já existir um componente de detalhes de pedido, reutilizá-lo em vez de criar outro.
+
+==================================================
+GPS
+==================================================
+
+O aviso:
+
+"GPS bloqueado — permita a localização no navegador. O rastreio continua mesmo sem rota atribuída."
+
+NÃO deve impedir:
+
+- buscar pedidos;
+- abrir pedidos;
+- consultar detalhes;
+- visualizar itens.
+
+GPS e consulta de pedidos devem continuar independentes.
+
+Não alterar o funcionamento atual do GPS nesta tarefa.
+
+==================================================
+NF-e DA ROTA
+==================================================
+
+Não implementar nenhuma nova funcionalidade fiscal.
+
+Não criar emissão de NF.
+
+Não integrar NF.
+
+Não mexer no backend fiscal.
+
+Se a aba:
+
+`NF-e da Rota`
+
+já existir, não alterar sua lógica nesta tarefa.
+
+Apenas não permitir que ela interfira na consulta dos pedidos.
+
+==================================================
+PERMISSÕES / TENANT
+==================================================
+
+Preservar todas as regras atuais de segurança.
+
+O motorista somente pode consultar pedidos aos quais ele já teria acesso pelas regras atuais.
+
+Não permitir que o parâmetro de busca seja usado para consultar pedidos de outra empresa/tenant.
+
+Não criar endpoint público.
+
+Não remover autenticação.
+
+==================================================
+VALIDAÇÃO
+==================================================
+
+Depois da implementação testar:
+
+1. Campo vazio
+   → lista atual continua funcionando.
+
+2. Buscar por código completo
+   → pedido aparece.
+
+3. Buscar por parte do código
+   → pedido aparece, se suportado pela API.
+
+4. Buscar pelo nome da empresa
+   → pedido aparece.
+
+5. Buscar com filtros de data
+   → respeita as datas.
+
+6. Buscar com filtro de empresa
+   → respeita a empresa selecionada.
+
+7. Pedido `CONFIRMED`
+   → continua aparecendo.
+
+8. Pedido `CONFIRMED` quando existem outras deliveries na mesma data
+   → continua aparecendo.
+
+9. Pedido cancelado
+   → não deve aparecer como pedido disponível, conforme regra atual.
+
+10. Abrir "Ver pedido"
+    → detalhes e itens reais aparecem.
+
+11. GPS bloqueado
+    → consulta de pedidos continua funcionando.
+
+12. Deduplicação
+    → um pedido não aparece duas vezes.
+
+==================================================
+VALIDAÇÃO TÉCNICA
+==================================================
+
+Executar, quando disponíveis:
+
+- TypeScript
+- teste focado
+- build
+- git diff --check
+
+Se houver bloqueio ambiental, não mascarar.
+
+Não alterar credenciais ou banco apenas para fazer o teste passar.
+
+==================================================
+ESCOPO
+==================================================
+
+Esta tarefa é SOMENTE:
+
+1. adicionar busca por pedido/cliente;
+2. adicionar/ajustar visualização dos detalhes do pedido;
+3. preservar a correção anterior dos pedidos CONFIRMED;
+4. manter os filtros existentes;
+5. manter segurança/tenant;
+6. manter GPS independente da consulta.
+
+NÃO iniciar outras tarefas depois disso.
+
+Ao final, responder com:
+
+# PAINEL DO MOTORISTA — CONSULTA DE PEDIDOS
+
+## O que foi implementado
+## Como funciona a busca
+## Como funciona "Ver pedido"
+## CONFIRMED continua funcionando?
+## Testes realizados
+## Resultado
+## Arquivos alterados
+## Bloqueios, se houver

@@ -12,6 +12,8 @@ import {
   users as usersTable,
   logisticsRoutes as routesTable,
   orders as ordersTable,
+  orderItems as orderItemsTable,
+  products as productsTable,
   deliveries as deliveriesTable,
   deliveryStopEvents,
 } from "@shared/schema";
@@ -271,22 +273,79 @@ export async function register(app: Express): Promise<void> {
         deliveries = allDeliveries;
       }
 
+      // Keep order details inside the already-authorized driver-panel payload.
+      // This avoids sending a driver through the generic /api/orders/:id route,
+      // whose access rules are intentionally different from route eligibility.
+      const visibleOrderIds = Array.from(new Set(
+        deliveries
+          .map((delivery: any) => Number(delivery.orderId ?? (delivery.isOrderBridge ? delivery.id : 0)))
+          .filter((orderId: number) => Number.isInteger(orderId) && orderId > 0),
+      ));
+      const visibleOrders = visibleOrderIds.length > 0
+        ? await db.select().from(ordersTable).where(inArray(ordersTable.id, visibleOrderIds))
+        : [];
+      const visibleItems = visibleOrderIds.length > 0
+        ? await db
+          .select({
+            id: orderItemsTable.id,
+            orderId: orderItemsTable.orderId,
+            productId: orderItemsTable.productId,
+            quantity: orderItemsTable.quantity,
+            unitPrice: orderItemsTable.unitPrice,
+            totalPrice: orderItemsTable.totalPrice,
+            productName: productsTable.name,
+            productUnit: productsTable.unit,
+          })
+          .from(orderItemsTable)
+          .leftJoin(productsTable, eq(productsTable.id, orderItemsTable.productId))
+          .where(inArray(orderItemsTable.orderId, visibleOrderIds))
+        : [];
+      const visibleOrderMap = new Map(visibleOrders.map(order => [order.id, order]));
+      const visibleItemsMap = new Map<number, any[]>();
+      for (const item of visibleItems) {
+        const items = visibleItemsMap.get(item.orderId) ?? [];
+        items.push(item);
+        visibleItemsMap.set(item.orderId, items);
+      }
+
       const enriched = deliveries.map((d: any) => ({
         ...d,
         canUpdate: actor.role !== 'DRIVER' || Boolean(myDriver && d.driverId && Number(d.driverId) === Number(myDriver.id)),
         companyName: companyMap[d.companyId]?.companyName || companyMap[d.companyId]?.name || '—',
+        companyCnpj: companyMap[d.companyId]?.cnpj || null,
+        companyPhone: companyMap[d.companyId]?.phone || null,
         deliveryWindowStart: companyMap[d.companyId]?.deliveryWindowStart || null,
         deliveryWindowEnd: companyMap[d.companyId]?.deliveryWindowEnd || null,
         addressStreet: d.addressStreet || companyMap[d.companyId]?.addressStreet || null,
         addressCity: d.addressCity || companyMap[d.companyId]?.addressCity || null,
         latitude: d.latitude || companyMap[d.companyId]?.latitude || null,
         longitude: d.longitude || companyMap[d.companyId]?.longitude || null,
+        orderDetails: (() => {
+          const orderId = Number(d.orderId ?? (d.isOrderBridge ? d.id : 0));
+          const order = visibleOrderMap.get(orderId);
+          if (!order) return null;
+          return {
+            order: {
+              orderCode: order.orderCode,
+              orderDate: order.orderDate,
+              deliveryDate: order.deliveryDate,
+              orderNote: order.orderNote,
+              status: order.status,
+              totalValue: order.totalValue,
+            },
+            items: visibleItemsMap.get(orderId) ?? [],
+          };
+        })(),
       }));
 
       res.json({
         deliveries: enriched,
         driver: myDriver || null,
-        companies: allCompanies.map((c: any) => ({ id: c.id, name: c.companyName || c.name })),
+        companies: allCompanies.map((c: any) => ({
+          id: c.id,
+          name: c.companyName || c.name,
+          cnpj: c.cnpj || null,
+        })),
         date: dateFrom,
         dateFrom,
         dateTo,

@@ -32,6 +32,10 @@ interface DeliveryItem {
   longitude?: string;
   totalValue?: string;
   orderCode?: string;
+  orderId?: number;
+  companyCnpj?: string | null;
+  companyPhone?: string | null;
+  orderDetails?: OrderDetailData | null;
   isOrderBridge?: boolean;
   stopStatusAt?: string;
   stopStatusBy?: string;
@@ -358,10 +362,43 @@ function StopStatusForm({ delivery, onSuccess }: { delivery: DeliveryItem; onSuc
   );
 }
 
+interface OrderDetailData {
+  order: {
+    orderCode?: string | null;
+    companyId?: number;
+    orderDate?: string;
+    deliveryDate?: string;
+    orderNote?: string | null;
+    status?: string;
+    totalValue?: string | number;
+  };
+  items: Array<{
+    id: number;
+    productId: number;
+    quantity: number;
+    unitPrice?: string | number;
+    totalPrice?: string | number;
+  }>;
+}
+
+function formatOrderDate(value?: string) {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('pt-BR');
+}
+
+function normalizeSearchValue(value: unknown) {
+  return String(value ?? '')
+    .toLocaleLowerCase('pt-BR')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '');
+}
+
 function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
   const [expanded, setExpanded] = useState(false);
   const cfg = STATUS_CONFIG[delivery.status] ?? STATUS_CONFIG.pendente;
   const Icon = cfg.icon;
+  const orderDetail = delivery.orderDetails;
 
   return (
     <div
@@ -410,8 +447,8 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
             className="text-xs text-blue-600 font-medium flex items-center gap-1"
             data-testid={`button-expand-checklist-${delivery.id}`}
           >
-            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-             {expanded ? 'Fechar' : 'Visualizar pedido'}
+             {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+             {expanded ? 'Fechar pedido' : 'Ver pedido'}
           </button>
         </div>
       </div>
@@ -424,17 +461,76 @@ function DeliveryCard({ delivery }: { delivery: DeliveryItem }) {
       {delivery.notes && (
         <p className="text-xs text-muted-foreground mt-2 italic bg-white/50 rounded-lg px-2 py-1">{delivery.notes}</p>
       )}
+      {expanded && (
+        <div className="mt-3 pt-3 border-t border-border/50 space-y-3 text-xs" data-testid={`order-details-${delivery.id}`}>
+          <p className="font-semibold text-foreground">Detalhes do pedido</p>
+          {orderDetail && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                <p><strong className="text-foreground">Código:</strong> {orderDetail.order.orderCode || delivery.orderCode || `#${delivery.id}`}</p>
+                <p><strong className="text-foreground">Empresa:</strong> {delivery.companyName}</p>
+                <p><strong className="text-foreground">Data do pedido:</strong> {formatOrderDate(orderDetail.order.orderDate)}</p>
+                <p><strong className="text-foreground">Data de entrega:</strong> {formatOrderDate(orderDetail.order.deliveryDate || delivery.scheduledDate)}</p>
+                <p className="sm:col-span-2">
+                  <strong className="text-foreground">Endereço:</strong>{' '}
+                  {delivery.addressStreet || '—'}{delivery.addressCity ? `, ${delivery.addressCity}` : ''}
+                </p>
+                {delivery.companyPhone && <p><strong className="text-foreground">Telefone:</strong> {delivery.companyPhone}</p>}
+                <p><strong className="text-foreground">Status:</strong> {cfg.label}</p>
+              </div>
+              {(orderDetail.order.orderNote || delivery.notes) && (
+                <p className="rounded-lg bg-blue-50 px-2 py-1 text-blue-900">
+                  <strong>Observação:</strong> {orderDetail.order.orderNote || delivery.notes}
+                </p>
+              )}
+              <div>
+                <p className="font-semibold text-foreground mb-2 flex items-center gap-1"><Package className="w-3.5 h-3.5" /> Itens do pedido</p>
+                {orderDetail.items.length === 0 ? (
+                  <p className="text-muted-foreground">Nenhum item informado.</p>
+                ) : (
+                  <div className="rounded-lg border border-border/60 overflow-hidden">
+                    {orderDetail.items.map(item => {
+                      const unit = (item as any).productUnit || 'un.';
+                      return (
+                        <div key={item.id} className="flex items-center justify-between gap-3 px-3 py-2 border-b last:border-b-0 border-border/50 bg-card">
+                          <span className="font-medium text-foreground">{(item as any).productName || `Produto #${item.productId}`}</span>
+                          <span className="text-muted-foreground whitespace-nowrap">
+                            {item.quantity} {unit}
+                            {item.totalPrice != null && ` · R$ ${Number(item.totalPrice).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+          {!orderDetail && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-muted-foreground">
+                <p><strong className="text-foreground">Código:</strong> {delivery.orderCode || `#${delivery.id}`}</p>
+                <p><strong className="text-foreground">Empresa:</strong> {delivery.companyName}</p>
+                <p><strong className="text-foreground">Data de entrega:</strong> {formatOrderDate(delivery.scheduledDate)}</p>
+                <p><strong className="text-foreground">Status:</strong> {cfg.label}</p>
+                <p className="sm:col-span-2">
+                  <strong className="text-foreground">Endereço:</strong>{' '}
+                  {delivery.addressStreet || '—'}{delivery.addressCity ? `, ${delivery.addressCity}` : ''}
+                </p>
+              </div>
+              {delivery.notes && <p className="text-muted-foreground"><strong className="text-foreground">Observação:</strong> {delivery.notes}</p>}
+              <p className="text-muted-foreground italic">Itens detalhados não estão disponíveis para esta entrega legada.</p>
+            </>
+          )}
+        </div>
+      )}
       {expanded && delivery.canUpdate !== false && (
         <StopStatusForm delivery={delivery} onSuccess={() => setExpanded(false)} />
       )}
       {expanded && delivery.canUpdate === false && (
-        <div className="mt-3 pt-3 border-t border-border/50 space-y-2 text-xs text-muted-foreground">
-          <p className="font-semibold text-foreground">Detalhes do pedido</p>
-          <p>Data de entrega: {new Date(`${delivery.scheduledDate}T12:00:00`).toLocaleDateString('pt-BR')}</p>
-          {delivery.addressStreet && <p>Endereço: {delivery.addressStreet}{delivery.addressCity ? `, ${delivery.addressCity}` : ''}</p>}
-          {delivery.notes && <p>Observações: {delivery.notes}</p>}
-          <p className="italic">Pedido disponível apenas para visualização.</p>
-        </div>
+        <p className="mt-3 pt-3 border-t border-border/50 text-xs italic text-muted-foreground">
+          Pedido disponível apenas para visualização.
+        </p>
       )}
     </div>
   );
@@ -635,13 +731,19 @@ export default function DriverPanel() {
   const [dateFrom, setDateFrom] = useState(() => formatDateInput(new Date()));
   const [dateTo, setDateTo] = useState(() => formatDateInput(new Date()));
   const [companyId, setCompanyId] = useState('');
-  const [appliedFilters, setAppliedFilters] = useState({ dateFrom: formatDateInput(new Date()), dateTo: formatDateInput(new Date()), companyId: '' });
+  const [searchTerm, setSearchTerm] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState({
+    dateFrom: formatDateInput(new Date()),
+    dateTo: formatDateInput(new Date()),
+    companyId: '',
+    search: '',
+  });
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const { data, isLoading, refetch } = useQuery<{
     deliveries: DeliveryItem[];
     driver: any;
-    companies?: Array<{ id: number; name: string }>;
+    companies?: Array<{ id: number; name: string; cnpj?: string | null }>;
     date: string;
   }>({
     queryKey: ['/api/driver/route-today', appliedFilters],
@@ -660,12 +762,20 @@ export default function DriverPanel() {
   });
 
   const deliveries = data?.deliveries || [];
-  const pendentes = deliveries.filter(d => d.status === 'pendente' || d.status === 'em_rota').length;
-  const concluidos = deliveries.filter(d => d.status !== 'pendente' && d.status !== 'em_rota').length;
-  const entregues = deliveries.filter(d => d.status === 'entregue').length;
-  const emRota = deliveries.filter(d => d.status === 'em_rota').length;
 
-  const sorted = [...deliveries].sort((a, b) => (a.routePosition || 999) - (b.routePosition || 999));
+  const normalizedSearch = normalizeSearchValue(appliedFilters.search);
+  const filteredDeliveries = normalizedSearch
+    ? deliveries.filter(delivery => [
+        delivery.orderCode,
+        delivery.companyName,
+        delivery.companyCnpj,
+      ].some(value => normalizeSearchValue(value).includes(normalizedSearch)))
+    : deliveries;
+  const sorted = [...filteredDeliveries].sort((a, b) => (a.routePosition || 999) - (b.routePosition || 999));
+  const filteredPendentes = sorted.filter(d => d.status === 'pendente' || d.status === 'em_rota').length;
+  const filteredConcluidos = sorted.filter(d => d.status !== 'pendente' && d.status !== 'em_rota').length;
+  const filteredEntregues = sorted.filter(d => d.status === 'entregue').length;
+  const filteredEmRota = sorted.filter(d => d.status === 'em_rota').length;
 
   return (
     <div className="min-h-screen bg-background">
@@ -716,15 +826,15 @@ export default function DriverPanel() {
 
       <div className="mx-4 -mt-8 bg-card rounded-2xl border border-border shadow-lg grid grid-cols-3 divide-x divide-border">
         <div className="p-3 text-center" data-testid="stat-total-deliveries">
-          <div className="text-2xl font-bold text-foreground">{deliveries.length}</div>
+          <div className="text-2xl font-bold text-foreground">{sorted.length}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Total</div>
         </div>
         <div className="p-3 text-center">
-          <div className="text-2xl font-bold text-yellow-600">{pendentes}</div>
+          <div className="text-2xl font-bold text-yellow-600">{filteredPendentes}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Pendentes</div>
         </div>
         <div className="p-3 text-center">
-          <div className="text-2xl font-bold text-green-600">{concluidos}</div>
+          <div className="text-2xl font-bold text-green-600">{filteredConcluidos}</div>
           <div className="text-[10px] text-muted-foreground uppercase tracking-wide">Concluídos</div>
         </div>
       </div>
@@ -737,6 +847,17 @@ export default function DriverPanel() {
             <CalendarClock className="w-4 h-4 text-blue-600" />
             <p className="text-sm font-semibold text-foreground">Consultar pedidos disponíveis</p>
           </div>
+          <label className="block text-xs text-muted-foreground">
+            Buscar pedido ou cliente
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Código, nome da empresa ou CNPJ"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm text-foreground"
+              data-testid="input-driver-order-search"
+            />
+          </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <label className="text-xs text-muted-foreground">
               De
@@ -760,7 +881,7 @@ export default function DriverPanel() {
               size="sm"
               onClick={() => {
                 if (!dateFrom || !dateTo || dateFrom > dateTo) return;
-                setAppliedFilters({ dateFrom, dateTo, companyId });
+                setAppliedFilters({ dateFrom, dateTo, companyId, search: searchTerm });
               }}
               className="gap-2"
               data-testid="button-apply-driver-filters"
@@ -776,11 +897,25 @@ export default function DriverPanel() {
                 setDateFrom(current);
                 setDateTo(current);
                 setCompanyId('');
-                setAppliedFilters({ dateFrom: current, dateTo: current, companyId: '' });
+                setSearchTerm('');
+                setAppliedFilters({ dateFrom: current, dateTo: current, companyId: '', search: '' });
               }}
               data-testid="button-clear-driver-filters"
             >
               Hoje
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setCompanyId('');
+                setSearchTerm('');
+                setAppliedFilters(current => ({ ...current, companyId: '', search: '' }));
+              }}
+              data-testid="button-reset-driver-filters"
+            >
+              Limpar filtros
             </Button>
           </div>
           {dateFrom > dateTo && <p className="text-xs text-red-600">A data inicial deve ser anterior ou igual à data final.</p>}
@@ -820,11 +955,13 @@ export default function DriverPanel() {
           </div>
         )}
 
-        {!isLoading && deliveries.length === 0 && (
+        {!isLoading && sorted.length === 0 && (
           <div className="text-center py-12 bg-card rounded-2xl border border-border/50">
             <Package className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="font-medium text-foreground">Sem entregas hoje</p>
-            <p className="text-sm text-muted-foreground mt-1">Nenhuma entrega agendada para hoje.</p>
+            <p className="font-medium text-foreground">{normalizedSearch ? 'Nenhum pedido encontrado' : 'Sem entregas hoje'}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {normalizedSearch ? 'Tente outro código, cliente ou CNPJ.' : 'Nenhuma entrega agendada para o período selecionado.'}
+            </p>
           </div>
         )}
 
@@ -835,23 +972,23 @@ export default function DriverPanel() {
           />
         )}
 
-        {!isLoading && deliveries.length > 0 && view !== 'nfe' && (
+        {!isLoading && sorted.length > 0 && view !== 'nfe' && (
           <>
             {view === 'map' && <GpsMap deliveries={sorted} />}
 
             {view === 'list' && (
               <>
-                {emRota > 0 && (
+                {filteredEmRota > 0 && (
                   <div className="flex items-center gap-2 text-sm text-blue-700 bg-blue-50 rounded-xl px-3 py-2 border border-blue-200">
                     <Navigation className="w-4 h-4 animate-pulse" />
-                    <span className="font-medium">{emRota} entrega(s) em rota agora</span>
+                    <span className="font-medium">{filteredEmRota} entrega(s) em rota agora</span>
                   </div>
                 )}
                 {sorted.map(d => <DeliveryCard key={d.id} delivery={d} />)}
               </>
             )}
 
-            {entregues === deliveries.length && deliveries.length > 0 && view === 'list' && (
+            {filteredEntregues === sorted.length && sorted.length > 0 && view === 'list' && (
               <div className="text-center py-6 bg-green-50 rounded-2xl border border-green-200">
                 <CheckCircle2 className="w-10 h-10 text-green-600 mx-auto mb-2" />
                 <p className="font-bold text-green-700">Todas as entregas concluídas!</p>
