@@ -20,10 +20,13 @@
     "test:e2e:mobile": "playwright test --project=iPhone tests/e2e/clara-erp.spec.ts",
     "test:report": "playwright show-report",
     "audit": "npm run check && npm run build",
+    "build:cloudflare": "npm run build",
+    "deploy:cloudflare": "npm run build:cloudflare && wrangler deploy",
     "server-tunnel": "concurrently \"npm run dev\" \"npm run tunnel\"",
     "mobile-test": "npm run audit && npm run server-tunnel"
   },
   "dependencies": {
+    "@cloudflare/workers-types": "^4.20260702.1",
     "@hookform/resolvers": "^3.10.0",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@playwright/test": "^1.58.2",
@@ -119,6 +122,7 @@
     "vaul": "^1.1.2",
     "web-push": "^3.6.7",
     "wouter": "^3.3.5",
+    "wrangler": "^4.86.0",
     "ws": "^8.18.0",
     "xlsx": "^0.18.5",
     "xml-crypto": "^6.1.2",

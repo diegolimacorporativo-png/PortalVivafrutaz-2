@@ -1,7 +1,19 @@
 name = "portal-vivafrutaz"
-compatibility_date = "2026-08-26"
+# Keep this at or below the runtime supported by the pinned Wrangler version.
+# The gateway uses no future compatibility flags.
+compatibility_date = "2026-05-03"
+main = "worker/index.ts"
 
-# Vite generates the frontend static files in dist/public.
-# The backend bundle remains in dist/index.cjs and is not modified by this config.
+# The Node/Express backend is kept as the API origin. The Worker serves the
+# frontend and proxies API requests to that origin; this avoids publishing a
+# static-only app that returns empty 404 responses for /api/*.
 [assets]
 directory = "./dist/public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+# API_ORIGIN must be configured as a Cloudflare Worker secret:
+#   npx wrangler secret put API_ORIGIN
+#
+# It must point to the HTTPS URL of the published Node/Express deployment.
+# Never put a database URL, password, token, or secret in this file.

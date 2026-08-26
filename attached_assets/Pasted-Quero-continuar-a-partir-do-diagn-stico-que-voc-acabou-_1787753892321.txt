@@ -1,0 +1,127 @@
+Quero continuar a partir do diagnóstico que você acabou de fazer.
+
+O diagnóstico confirmado foi:
+
+O frontend está publicado corretamente no Cloudflare Workers.
+O Supabase está acessível e contém os dados existentes.
+A tabela users possui 11 registros.
+A tabela companies possui 8 registros.
+O usuário fernando@vivafrutaz.com existe na tabela users.
+O frontend chama POST /api/auth/login.
+O frontend também utiliza GET /api/auth/me.
+No deployment atual do Cloudflare, essas rotas retornam 404 com corpo vazio.
+O Worker publicado contém apenas os assets estáticos e não possui o backend/API.
+Isso causa o erro no frontend: Failed to execute 'json' on 'Response': Unexpected end of JSON input.
+
+Quero que você resolva isso de forma definitiva.
+
+Objetivo
+
+Fazer o sistema completo funcionar no Cloudflare, mantendo o Supabase existente como banco de dados e sem perder nenhum dado.
+
+A arquitetura desejada é:
+
+Navegador
+→ Cloudflare Worker
+→ Frontend + API/backend
+→ Supabase
+
+As rotas existentes do sistema, principalmente:
+
+POST /api/auth/login
+
+e
+
+GET /api/auth/me
+
+precisam funcionar no deployment publicado.
+
+Regras importantes
+NÃO recrie o banco Supabase.
+NÃO apague tabelas.
+NÃO apague usuários.
+NÃO altere senhas existentes.
+NÃO exponha nenhuma chave, senha, token ou secret no código, nos logs ou na resposta.
+Preserve o frontend e o layout atual.
+Preserve todas as funcionalidades existentes do sistema.
+Não faça uma implementação falsa/mock apenas para fazer o login parecer funcionar.
+Use o Supabase existente.
+Verifique as variáveis de ambiente/secrets necessárias no Cloudflare sem mostrar seus valores.
+Primeiro analise o backend atual existente no projeto antes de reescrevê-lo.
+Se o backend atual for incompatível com Cloudflare Workers, adapte-o para Workers somente onde for necessário.
+Não remova funcionalidades do backend para conseguir fazer o deploy.
+Mantenha as respostas das APIs em JSON válido, inclusive em erros.
+Autenticação
+
+Verifique todo o fluxo atual de autenticação:
+
+login;
+criação/manutenção de sessão;
+/api/auth/me;
+logout;
+recuperação de senha, se existir;
+middleware de autenticação;
+permissões de usuário;
+fluxo de equipe/admin;
+relacionamento entre users e companies.
+
+O usuário fernando@vivafrutaz.com deve conseguir utilizar o fluxo de acesso correspondente ao seu tipo de usuário.
+
+Não altere a senha dele para resolver o problema.
+
+Cloudflare
+
+Analise a configuração atual do Wrangler e do Worker.
+
+Verifique:
+
+wrangler.toml;
+wrangler.json ou wrangler.jsonc, se existir;
+vite.config.*;
+scripts do package.json;
+estrutura de client, src, server ou outras pastas existentes;
+comando de build;
+comando de deploy;
+configuração de assets;
+configuração de rotas;
+bindings e secrets.
+
+O frontend e as APIs precisam ser publicados no mesmo deployment ou corretamente conectados.
+
+Testes obrigatórios
+
+Depois de implementar a solução:
+
+Execute o build completo.
+Execute o deploy.
+Teste o domínio real do Cloudflare.
+Teste POST /api/auth/login com uma requisição real.
+Verifique status HTTP.
+Verifique Content-Type.
+Verifique se a resposta é JSON válido.
+Teste /api/auth/me autenticado.
+Teste o login pelo navegador.
+Verifique se não existem erros 404 nas rotas /api.
+Verifique se o frontend continua funcionando.
+
+Se alguma rota do backend ainda estiver retornando 404, investigue e corrija antes de considerar o trabalho concluído.
+
+Importante
+
+Não quero apenas uma explicação do problema.
+
+Quero que você implemente a correção no projeto, faça o build e valide o deployment real.
+
+Se encontrar uma limitação técnica do Cloudflare Workers que impeça alguma parte do backend atual de funcionar, explique exatamente qual é a limitação e adapte a implementação usando uma solução compatível, mantendo o Supabase existente.
+
+No final, informe:
+
+arquivos alterados;
+configurações adicionadas;
+quais secrets/variáveis são necessários, sem revelar os valores;
+URL do deployment;
+resultado do teste de login;
+resultado do teste /api/auth/me;
+qualquer funcionalidade que ainda precise de atenção.
+
+Não recrie o banco e não faça alterações destrutivas nos dados existentes.
