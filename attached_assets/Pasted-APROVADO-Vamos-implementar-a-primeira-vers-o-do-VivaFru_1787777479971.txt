@@ -1,0 +1,255 @@
+APROVADO.
+
+Vamos implementar a primeira versão do VivaFrutaz Tracker Android, mas quero começar pelo MVP mais simples e seguro possível.
+
+IMPORTANTE:
+
+NÃO implemente ainda:
+
+- fila offline;
+- clientPositionId;
+- tabela de dispositivos;
+- WebSocket;
+- histórico visual novo;
+- geofencing;
+- novas funcionalidades administrativas;
+- alterações grandes no banco;
+- alterações no PWA.
+
+Quero primeiro provar que o GPS funciona com a tela bloqueada e o aplicativo em segundo plano.
+
+OBJETIVO DO MVP:
+
+Criar um aplicativo Android nativo em Kotlin chamado:
+
+VivaFrutaz Tracker
+
+O aplicativo deverá:
+
+1. Fazer login usando o sistema de autenticação atual do VivaFrutaz.
+2. Identificar o motorista autenticado através da sessão existente.
+3. Mostrar o nome do motorista.
+4. Solicitar as permissões de localização necessárias.
+5. Ter botão:
+
+[ INICIAR RASTREAMENTO ]
+
+6. Ao iniciar, iniciar um Foreground Service de localização.
+7. Mostrar uma notificação persistente:
+
+"VivaFrutaz
+Rastreamento ativo"
+
+8. Capturar localização usando Fused Location Provider.
+9. Usar alta precisão.
+10. Tentar obter uma atualização aproximadamente a cada 15 segundos.
+11. Enviar a localização para o endpoint EXISTENTE:
+
+POST /api/driver/gps
+
+12. Usar exatamente o payload já aceito pelo backend:
+
+{
+  "latitude": número,
+  "longitude": número,
+  "accuracy": número,
+  "speed": número ou null,
+  "heading": número ou null
+}
+
+13. NÃO enviar driverId.
+14. Deixar o backend identificar o motorista através da sessão autenticada.
+15. Continuar funcionando com a tela bloqueada.
+16. Continuar funcionando quando o aplicativo estiver em segundo plano.
+17. Permitir encerrar o rastreamento pelo botão:
+
+[ ENCERRAR RASTREAMENTO ]
+
+18. Ao encerrar, parar corretamente o Foreground Service.
+
+AUTENTICAÇÃO:
+
+Use o sistema existente.
+
+Endpoints:
+
+POST /api/auth/login
+GET /api/auth/me
+POST /api/auth/logout
+
+A autenticação atual usa:
+
+express-session
+connect-pg-simple
+sessionId
+
+O aplicativo precisa manter a sessão/cookie necessário para que:
+
+POST /api/driver/gps
+
+continue sendo reconhecido pelo backend como o motorista correto.
+
+NÃO crie JWT.
+NÃO crie outro sistema de autenticação.
+NÃO coloque usuário ou senha fixa no código.
+
+SEGURANÇA:
+
+O backend deve continuar sendo responsável por identificar o motorista.
+
+O aplicativo nunca deve poder escolher livremente um driverId.
+
+ANDROID:
+
+Utilize Kotlin nativo.
+
+Utilize Foreground Service para localização.
+
+Utilize Fused Location Provider.
+
+Declare corretamente o serviço como:
+
+foregroundServiceType="location"
+
+Implemente corretamente as permissões exigidas pela versão do Android.
+
+O aplicativo deve lidar corretamente com:
+
+- localização precisa;
+- GPS desligado;
+- permissão negada;
+- permissão concedida;
+- serviço parado;
+- serviço ativo.
+
+NÃO tente esconder o rastreamento.
+
+A notificação de rastreamento deve permanecer visível enquanto o serviço estiver ativo.
+
+TELA:
+
+Criar uma tela simples:
+
+VIVAFRUTAZ
+
+Rastreamento de motorista
+
+Motorista:
+[NOME]
+
+Status:
+⚪ Rastreamento parado
+
+GPS:
+—
+
+Internet:
+—
+
+Última localização enviada:
+—
+
+[ INICIAR RASTREAMENTO ]
+
+Quando estiver ativo:
+
+Status:
+🟢 Rastreamento ativo
+
+GPS:
+🟢 Funcionando
+
+Internet:
+🟢 Conectado
+
+Última localização enviada:
+há X segundos
+
+Latitude:
+...
+
+Longitude:
+...
+
+[ ENCERRAR RASTREAMENTO ]
+
+Também mostrar uma pequena mensagem explicando:
+
+"Durante o rastreamento, sua localização será enviada ao sistema VivaFrutaz para acompanhamento da rota."
+
+NÃO precisa criar mapa dentro do aplicativo.
+
+O mapa continuará somente no ERP.
+
+BACKEND:
+
+NÃO altere o endpoint `/api/driver/gps` se ele já aceitar exatamente o payload necessário.
+
+NÃO altere o banco.
+
+NÃO altere o painel administrativo.
+
+NÃO altere o DriverGpsReporter.
+
+Queremos testar utilizando exatamente a infraestrutura atual.
+
+TESTE PRINCIPAL:
+
+Depois de implementar:
+
+1. Criar o APK de debug.
+2. Instalar no Moto G6.
+3. Fazer login com um usuário real de motorista.
+4. Iniciar rastreamento.
+5. Confirmar que a notificação aparece.
+6. Confirmar que a primeira localização chega ao backend.
+7. Confirmar que aparece no painel:
+
+client/src/pages/admin/gps-tracking.tsx
+
+8. Bloquear a tela do Moto G6.
+9. Esperar pelo menos 2 minutos.
+10. Verificar se novas posições continuam chegando.
+11. Desbloquear o celular.
+12. Confirmar que o serviço continua ativo.
+13. Abrir outro aplicativo.
+14. Confirmar novamente que novas posições continuam chegando.
+15. Encerrar o rastreamento.
+16. Confirmar que o serviço realmente parou.
+
+IMPORTANTE SOBRE O REPLIT:
+
+O projeto Android pode ficar dentro de:
+
+android/
+
+ou em uma estrutura separada dentro do repositório.
+
+Não misture o build Android com o build React/Vite.
+
+O sistema web atual deve continuar funcionando exatamente como está.
+
+ANTES DE FINALIZAR:
+
+Mostre:
+
+1. Todos os arquivos Android criados.
+2. Código principal do Foreground Service.
+3. Como o GPS é capturado.
+4. Como a sessão/cookie é mantida.
+5. Como o POST `/api/driver/gps` é realizado.
+6. Quais permissões Android foram adicionadas.
+7. Como o serviço continua funcionando com a tela bloqueada.
+8. Como gerar o APK.
+9. Comando exato para gerar o APK.
+10. Local exato onde o APK será gerado.
+
+NÃO faça alterações no backend, banco ou PWA sem necessidade.
+
+PRIORIDADE ABSOLUTA:
+
+FAZER O GPS FUNCIONAR COM A TELA BLOQUEADA.
+
+Primeiro precisamos provar isso no Moto G6.
+
+Depois que o teste funcionar, vamos evoluir para os outros celulares e para recursos adicionais.
