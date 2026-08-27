@@ -16,6 +16,10 @@ A base do MVP está implementada:
 - deduplicação por impressão do payload;
 - reenvio com backoff quando a rede volta;
 - retomada após reinicialização pelo `BOOT_COMPLETED`;
+- estado persistido e compartilhado entre o serviço e a tela, com GPS, rede,
+  última captura, último envio e tamanho da fila;
+- painel que mostra `GPS ATIVO`, `SEM SINAL / GPS INDISPONÍVEL`,
+  `SEM INTERNET` ou `ERRO` em tempo real enquanto a Activity está aberta;
 - nenhuma ação comum no app para desligar o rastreamento;
 - nenhuma senha, chave administrativa ou token escrito no código.
 

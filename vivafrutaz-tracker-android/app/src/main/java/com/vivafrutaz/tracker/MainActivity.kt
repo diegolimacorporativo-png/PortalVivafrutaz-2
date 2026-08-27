@@ -12,22 +12,35 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.vivafrutaz.tracker.data.SecureStore
+import com.vivafrutaz.tracker.data.TrackingState
+import com.vivafrutaz.tracker.data.TrackingStateStore
 import com.vivafrutaz.tracker.network.LoginResult
 import com.vivafrutaz.tracker.network.SessionResult
 import com.vivafrutaz.tracker.network.TrackerApi
 import com.vivafrutaz.tracker.tracking.TrackingService
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     private lateinit var api: TrackerApi
     private lateinit var store: SecureStore
+    private lateinit var trackingStateStore: TrackingStateStore
     private lateinit var content: LinearLayout
+    private var stateRefreshJob: Job? = null
     private var pendingSessionName = "Motorista"
     private var pendingSessionRole = ""
 
@@ -49,6 +62,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         api = TrackerApi(this)
         store = api.secureStore()
+        trackingStateStore = TrackingStateStore(this)
         buildShell()
         restoreSessionOrLogin()
     }
@@ -59,7 +73,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(24), dp(18), dp(24), dp(24))
             setBackgroundColor(Color.rgb(247, 250, 246))
         }
-        setContentView(content)
+        setContentView(ScrollView(this).apply { addView(content) })
     }
 
     private fun restoreSessionOrLogin() {
@@ -97,6 +111,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showLogin(message: String? = null, isError: Boolean = false) {
+        stateRefreshJob?.cancel()
         content.removeAllViews()
         addTitle("VivaFrutaz Tracker")
         addSubtitle("Rastreamento seguro para motoristas")
@@ -189,32 +204,153 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showTracking(name: String) {
+        stateRefreshJob?.cancel()
         content.removeAllViews()
-        addTitle("Rastreamento ativo")
+        addTitle("Rastreamento do motorista")
         addSubtitle("VivaFrutaz • $name")
 
-        val card = TextView(this).apply {
-            text = "O serviço de localização está protegido e continuará funcionando enquanto o Android permitir.\\n\\n" +
-                "• coleta por Foreground Service\\n" +
-                "• envio para o endpoint GPS existente\\n" +
-                "• fila local durante perda de internet\\n" +
-                "• reenvio automático ao reconectar\\n\\n" +
-                "Não existe um botão comum para desligar o rastreamento."
-            textSize = 16f
-            setTextColor(Color.rgb(35, 55, 38))
+        val statusCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.WHITE)
             setPadding(dp(18), dp(18), dp(18), dp(18))
         }
-        content.addView(card, marginParams(top = 22))
+        content.addView(statusCard, marginParams(top = 22))
 
-        val authNote = TextView(this).apply {
-            text = "Sessão revalidada automaticamente quando o aplicativo é aberto. A renovação silenciosa após a validade atual do servidor depende de uma extensão específica de autenticação do Tracker."
+        val statusValue = TextView(this).apply {
+            textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val statusDetail = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(6), 0, 0)
+        }
+        val backgroundValue = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(14), 0, 0)
+        }
+        val lastCaptureValue = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(14), 0, 0)
+        }
+        val lastSentValue = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(14), 0, 0)
+        }
+        val pendingValue = TextView(this).apply {
+            textSize = 14f
+            setPadding(0, dp(14), 0, 0)
+        }
+        statusCard.addView(statusValue)
+        statusCard.addView(statusDetail)
+        statusCard.addView(backgroundValue)
+        statusCard.addView(lastCaptureValue)
+        statusCard.addView(lastSentValue)
+        statusCard.addView(pendingValue)
+
+        renderTrackingState(
+            statusValue,
+            statusDetail,
+            backgroundValue,
+            lastCaptureValue,
+            lastSentValue,
+            pendingValue,
+        )
+        stateRefreshJob = lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                while (isActive) {
+                    renderTrackingState(
+                        statusValue,
+                        statusDetail,
+                        backgroundValue,
+                        lastCaptureValue,
+                        lastSentValue,
+                        pendingValue,
+                    )
+                    delay(1_000)
+                }
+            }
+        }
+
+        val scopeNote = TextView(this).apply {
+            text = "A tela acompanha o estado persistido pelo serviço. O Foreground Service continua coletando mesmo quando esta Activity é fechada. Não existe um botão comum para desligar o rastreamento."
             textSize = 12f
             setTextColor(Color.DKGRAY)
             setPadding(0, dp(18), 0, 0)
         }
-        content.addView(authNote)
+        content.addView(scopeNote)
     }
+
+    private fun renderTrackingState(
+        statusValue: TextView,
+        statusDetail: TextView,
+        backgroundValue: TextView,
+        lastCaptureValue: TextView,
+        lastSentValue: TextView,
+        pendingValue: TextView,
+    ) {
+        val state = trackingStateStore.read()
+        val statusLabel = when (state.status) {
+            TrackingState.STATUS_ACTIVE -> "GPS ATIVO"
+            TrackingState.STATUS_NO_INTERNET -> "SEM INTERNET"
+            TrackingState.STATUS_ERROR -> "ERRO"
+            else -> "SEM SINAL / GPS INDISPONÍVEL"
+        }
+        val statusColor = when (state.status) {
+            TrackingState.STATUS_ACTIVE -> Color.rgb(27, 94, 32)
+            TrackingState.STATUS_ERROR -> Color.rgb(183, 28, 28)
+            else -> Color.rgb(173, 91, 0)
+        }
+        statusValue.text = statusLabel
+        statusValue.setTextColor(statusColor)
+        statusDetail.text = state.errorMessage
+            ?: when (state.status) {
+                TrackingState.STATUS_ACTIVE -> "Última posição capturada e monitorada pelo serviço."
+                TrackingState.STATUS_NO_INTERNET -> "As posições continuam sendo guardadas localmente."
+                TrackingState.STATUS_ERROR -> "O serviço precisa de atenção."
+                else -> "Aguardando uma posição válida do GPS."
+            }
+        statusDetail.setTextColor(if (state.status == TrackingState.STATUS_ERROR) {
+            Color.rgb(183, 28, 28)
+        } else {
+            Color.DKGRAY
+        })
+        backgroundValue.text = if (state.trackingActive) {
+            "Segundo plano: Foreground Service em execução"
+        } else {
+            "Segundo plano: serviço não está em execução"
+        }
+        lastCaptureValue.text = buildString {
+            append("Última posição capturada: ")
+            append(formatDate(state.lastCapturedAt))
+            if (state.lastCapturedLatitude != null && state.lastCapturedLongitude != null) {
+                append("\n")
+                append(formatCoordinates(state.lastCapturedLatitude, state.lastCapturedLongitude))
+                state.lastCapturedAccuracy?.let {
+                    append(" • precisão ${formatNumber(it)} m")
+                }
+            }
+        }
+        lastSentValue.text = buildString {
+            append("Última posição enviada ao servidor: ")
+            append(formatDate(state.lastSentAt))
+            if (state.lastSentLatitude != null && state.lastSentLongitude != null) {
+                append("\n")
+                append(formatCoordinates(state.lastSentLatitude, state.lastSentLongitude))
+            }
+        }
+        pendingValue.text = "Posições pendentes na fila: ${state.pendingCount}"
+    }
+
+    private fun formatDate(value: Long?): String =
+        value?.let {
+            SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(Date(it))
+        } ?: "nenhuma"
+
+    private fun formatCoordinates(latitude: Double, longitude: Double): String =
+        String.format(Locale.US, "Coordenadas: %.6f, %.6f", latitude, longitude)
+
+    private fun formatNumber(value: Double): String =
+        String.format(Locale.getDefault(), "%.1f", value)
 
     private fun startTracking() {
         ContextCompat.startForegroundService(

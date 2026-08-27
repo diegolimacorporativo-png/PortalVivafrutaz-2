@@ -1,0 +1,111 @@
+CONTINUE O VIVAFRUTAZ TRACKER ANDROID EXATAMENTE DO ESTADO ATUAL.
+
+NÃO REFAÇA TRABALHO JÁ CONCLUÍDO.
+NÃO FAÇA MIGRAÇÃO PNPM.
+NÃO TRABALHE COM NF-e.
+NÃO ALTERE O ERP/PWA.
+NÃO ALTERE O BANCO OU SCHEMA.
+NÃO ALTERE O POST /api/driver/gps.
+NÃO REABRA DECISÕES JÁ ENCERRADAS.
+
+O agente anterior identificou a última lacuna principal:
+
+A tela do Tracker ainda é apenas informativa e precisa mostrar o estado REAL do serviço de rastreamento.
+
+CONTINUE A PARTIR DISSO.
+
+OBJETIVO:
+
+Criar um estado local compartilhado entre TrackingService e MainActivity para que o motorista consiga visualizar claramente:
+
+- GPS ATIVO
+- SEM SINAL/GPS INDISPONÍVEL
+- SEM INTERNET
+- ERRO
+- última posição capturada
+- horário da última posição enviada ao servidor
+- quantidade de posições pendentes na fila
+- indicação de que o rastreamento está funcionando em segundo plano
+
+O estado deve ser atualizado pelo próprio TrackingService.
+
+REQUISITOS:
+
+1. Quando o Foreground Service estiver funcionando:
+   mostrar GPS ATIVO.
+
+2. Quando o GPS estiver indisponível ou a permissão for perdida:
+   mostrar claramente o problema.
+
+3. Quando não houver internet:
+   mostrar SEM INTERNET.
+   Continuar capturando e armazenando posições localmente sempre que possível.
+
+4. Quando houver posições pendentes:
+   mostrar a quantidade de posições aguardando envio.
+
+5. Quando a internet voltar:
+   reenviar automaticamente a fila.
+
+6. Mostrar o horário da última posição realmente enviada ao backend.
+
+7. Mostrar a última posição capturada localmente.
+
+8. O estado deve sobreviver à rotação/recriação da Activity e não depender apenas de variáveis temporárias da tela.
+
+9. O Foreground Service deve continuar funcionando mesmo com a MainActivity fechada.
+
+10. Não criar botão comum para desligar o rastreamento.
+
+11. NÃO armazenar senha ou chave administrativa no APK.
+
+12. NÃO alterar o contrato:
+POST /api/driver/gps
+
+13. NÃO alterar:
+- autenticação do ERP;
+- banco;
+- schema;
+- PWA;
+- Service Worker;
+- pedidos;
+- rotas;
+- endpoint GPS.
+
+IMPORTANTE:
+
+A tarefa de renovação de sessão além de 24 horas foi CANCELADA.
+
+Portanto NÃO implemente refresh token, nova rota de autenticação ou alteração no backend nesta etapa.
+
+O Tracker deve utilizar a sessão persistida que já existe e continuar funcionando offline quando possível.
+
+DEPOIS DA IMPLEMENTAÇÃO:
+
+Faça somente verificações relacionadas ao Tracker:
+
+- revisar Kotlin;
+- revisar AndroidManifest;
+- revisar permissões;
+- revisar Foreground Service;
+- revisar BootReceiver;
+- revisar fila Room;
+- revisar persistência de sessão;
+- procurar credenciais/chaves hardcoded;
+- verificar se nenhum arquivo do ERP foi alterado.
+
+Se encontrar necessidade de alterar backend, PARE e me explique antes.
+
+NÃO considere concluído apenas porque o código compila.
+
+No final informe claramente:
+
+1. o que foi alterado;
+2. quais arquivos foram alterados;
+3. o que está funcionando;
+4. o que ainda depende de teste físico;
+5. se o APK já pode ser gerado;
+6. como gerar o APK;
+7. como instalar no Moto G6, Galaxy J6 e Galaxy J7.
+
+Mantenha o foco exclusivamente no Tracker Android e GPS.

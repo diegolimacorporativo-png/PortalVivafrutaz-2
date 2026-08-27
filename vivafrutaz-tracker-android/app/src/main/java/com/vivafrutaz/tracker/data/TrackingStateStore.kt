@@ -10,6 +10,9 @@ data class TrackingState(
     val trackingActive: Boolean = false,
     val pendingCount: Int = 0,
     val lastCapturedAt: Long? = null,
+    val lastCapturedLatitude: Double? = null,
+    val lastCapturedLongitude: Double? = null,
+    val lastCapturedAccuracy: Double? = null,
     val lastSentAt: Long? = null,
     val lastSentLatitude: Double? = null,
     val lastSentLongitude: Double? = null,
@@ -41,6 +44,9 @@ class TrackingStateStore(context: Context) {
         trackingActive = preferences.getBoolean(KEY_TRACKING_ACTIVE, false),
         pendingCount = preferences.getInt(KEY_PENDING_COUNT, 0),
         lastCapturedAt = preferences.longOrNull(KEY_LAST_CAPTURED_AT),
+        lastCapturedLatitude = preferences.doubleOrNull(KEY_LAST_CAPTURED_LATITUDE),
+        lastCapturedLongitude = preferences.doubleOrNull(KEY_LAST_CAPTURED_LONGITUDE),
+        lastCapturedAccuracy = preferences.doubleOrNull(KEY_LAST_CAPTURED_ACCURACY),
         lastSentAt = preferences.longOrNull(KEY_LAST_SENT_AT),
         lastSentLatitude = preferences.doubleOrNull(KEY_LAST_SENT_LATITUDE),
         lastSentLongitude = preferences.doubleOrNull(KEY_LAST_SENT_LONGITUDE),
@@ -48,9 +54,16 @@ class TrackingStateStore(context: Context) {
     )
 
     @Synchronized
-    fun serviceStarted(pendingCount: Int) {
+    fun serviceStarted(pendingCount: Int, networkAvailable: Boolean) {
         preferences.edit()
-            .putString(KEY_STATUS, TrackingState.STATUS_NO_SIGNAL)
+            .putString(
+                KEY_STATUS,
+                if (networkAvailable) {
+                    TrackingState.STATUS_NO_SIGNAL
+                } else {
+                    TrackingState.STATUS_NO_INTERNET
+                },
+            )
             .putBoolean(KEY_TRACKING_ACTIVE, true)
             .putInt(KEY_PENDING_COUNT, pendingCount)
             .remove(KEY_ERROR)
@@ -58,12 +71,26 @@ class TrackingStateStore(context: Context) {
     }
 
     @Synchronized
-    fun recordCapture(payload: GpsPayload, pendingCount: Int) {
+    fun recordCapture(
+        payload: GpsPayload,
+        pendingCount: Int,
+        networkAvailable: Boolean,
+    ) {
         preferences.edit()
-            .putString(KEY_STATUS, TrackingState.STATUS_ACTIVE)
+            .putString(
+                KEY_STATUS,
+                if (networkAvailable) {
+                    TrackingState.STATUS_ACTIVE
+                } else {
+                    TrackingState.STATUS_NO_INTERNET
+                },
+            )
             .putBoolean(KEY_TRACKING_ACTIVE, true)
             .putInt(KEY_PENDING_COUNT, pendingCount)
             .putLong(KEY_LAST_CAPTURED_AT, payload.capturedAt)
+            .putDouble(KEY_LAST_CAPTURED_LATITUDE, payload.latitude)
+            .putDouble(KEY_LAST_CAPTURED_LONGITUDE, payload.longitude)
+            .putDoubleOrRemove(KEY_LAST_CAPTURED_ACCURACY, payload.accuracy)
             .remove(KEY_ERROR)
             .apply()
     }
@@ -110,11 +137,20 @@ class TrackingStateStore(context: Context) {
     private fun android.content.SharedPreferences.Editor.putDouble(key: String, value: Double) =
         putString(key, value.toString())
 
+    private fun android.content.SharedPreferences.Editor.putDoubleOrRemove(
+        key: String,
+        value: Double?,
+    ): android.content.SharedPreferences.Editor =
+        if (value == null) remove(key) else putDouble(key, value)
+
     private companion object {
         const val KEY_STATUS = "status"
         const val KEY_TRACKING_ACTIVE = "tracking_active"
         const val KEY_PENDING_COUNT = "pending_count"
         const val KEY_LAST_CAPTURED_AT = "last_captured_at"
+        const val KEY_LAST_CAPTURED_LATITUDE = "last_captured_latitude"
+        const val KEY_LAST_CAPTURED_LONGITUDE = "last_captured_longitude"
+        const val KEY_LAST_CAPTURED_ACCURACY = "last_captured_accuracy"
         const val KEY_LAST_SENT_AT = "last_sent_at"
         const val KEY_LAST_SENT_LATITUDE = "last_sent_latitude"
         const val KEY_LAST_SENT_LONGITUDE = "last_sent_longitude"
