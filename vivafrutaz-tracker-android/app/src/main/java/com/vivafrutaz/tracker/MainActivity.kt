@@ -85,13 +85,13 @@ class MainActivity : AppCompatActivity() {
         lifecycleScope.launch {
             when (val result = api.me()) {
                 is SessionResult.Success -> {
-                    if (isDriverRole(result.session.role)) {
+                    if (isTrackingRole(result.session.role)) {
                         pendingSessionName = result.session.name
                         pendingSessionRole = result.session.role
                         requestPermissionsAndStart()
                     } else {
                         store.clearSession()
-                        showLogin("Esta conta não possui perfil de motorista.")
+                        showLogin("Esta conta não possui perfil de motorista ou logística.")
                     }
                 }
                 is SessionResult.Failure -> {
@@ -150,9 +150,9 @@ class MainActivity : AppCompatActivity() {
                     store.saveBaseUrl(url)
                     when (val result = api.login(identifier, secret)) {
                         is LoginResult.Success -> {
-                            if (!isDriverRole(result.session.role)) {
+                            if (!isTrackingRole(result.session.role)) {
                                 store.clearSession()
-                                status.text = "Esta conta não possui perfil de motorista."
+                                status.text = "Esta conta não possui perfil de motorista ou logística."
                                 status.setTextColor(Color.rgb(183, 28, 28))
                                 isEnabled = true
                             } else {
@@ -422,8 +422,8 @@ class MainActivity : AppCompatActivity() {
                 Manifest.permission.ACCESS_COARSE_LOCATION,
             ) == PackageManager.PERMISSION_GRANTED
 
-    private fun isDriverRole(role: String): Boolean =
-        role == "DRIVER" || role == "MOTORISTA"
+    private fun isTrackingRole(role: String): Boolean =
+        role == "DRIVER" || role == "MOTORISTA" || role == "LOGISTICS"
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
