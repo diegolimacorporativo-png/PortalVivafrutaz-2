@@ -1,0 +1,155 @@
+A inspeção somente leitura está aprovada.
+
+PODE INICIAR A IMPLEMENTAÇÃO DO VIVAFrutaz TRACKER ANDROID.
+
+Antes de começar, considere estas decisões definitivas:
+
+### 1. Projeto separado
+
+Criar o Tracker Android em Kotlin como aplicativo separado.
+
+NÃO transformar o ERP/PWA atual em aplicativo Android.
+
+NÃO fazer nova migração estrutural.
+
+NÃO alterar PNPM.
+
+NÃO alterar NF-e.
+
+NÃO alterar pedidos, rotas ou funcionalidades administrativas existentes.
+
+### 2. GPS
+
+Utilizar:
+
+* Foreground Service;
+* Fused Location Provider;
+* rastreamento com aplicativo minimizado;
+* rastreamento com tela bloqueada dentro das limitações do Android;
+* tratamento de perda de internet;
+* fila local limitada;
+* reenvio automático.
+
+Enviar para o endpoint EXISTENTE:
+
+POST /api/driver/gps
+
+Preservar integralmente o contrato atual e o payload existente.
+
+NÃO criar outro endpoint GPS sem necessidade comprovada.
+
+### 3. Login persistente — requisito obrigatório
+
+O motorista deve fazer login uma única vez.
+
+O aplicativo NÃO deve deslogar o motorista simplesmente porque:
+
+* fechou o aplicativo;
+* abriu novamente;
+* minimizou;
+* reiniciou o celular;
+* ficou algumas horas sem abrir o aplicativo.
+
+A autenticação deverá ser armazenada de maneira segura.
+
+O Tracker deverá tentar renovar/revalidar a autenticação automaticamente.
+
+ATENÇÃO:
+
+A sessão atual do backend possui validade de aproximadamente 24 horas e não existe refresh token.
+
+NÃO aceite simplesmente "24 horas e depois pede login" como comportamento final.
+
+Antes de alterar a autenticação do backend, PARE e apresente uma proposta técnica específica para implementar autenticação persistente/renovável para o Tracker.
+
+Não altere a autenticação do ERP inteiro sem aprovação.
+
+### 4. Proteção contra desligamento do GPS
+
+O motorista não terá um botão comum para desligar o rastreamento.
+
+Qualquer função de interrupção deverá exigir autorização administrativa.
+
+A chave/senha administrativa:
+
+* não pode estar hardcoded no APK;
+* não pode aparecer em logs;
+* não pode ser facilmente extraída do aplicativo;
+* deverá ser validada de forma segura.
+
+Não tentar burlar as proteções do Android.
+
+O aplicativo deverá respeitar as notificações e permissões obrigatórias do sistema.
+
+### 5. Compatibilidade
+
+Priorizar:
+
+* Motorola Moto G6;
+* Samsung Galaxy J6;
+* Samsung Galaxy J7.
+
+O aplicativo deve ser leve e adequado para aparelhos antigos.
+
+### 6. Offline
+
+Sem internet:
+
+* continuar capturando GPS enquanto o Android permitir;
+* guardar posições temporariamente;
+* limitar o tamanho da fila;
+* evitar duplicações;
+* reenviar automaticamente quando a internet retornar.
+
+### 7. Não implementar ainda
+
+NÃO implementar nesta etapa:
+
+* sequência de empresas;
+* checklist de entrega;
+* horário de chegada;
+* horário de saída;
+* km da parada;
+* ETA;
+* trânsito;
+* novas telas administrativas;
+* alterações nas rotas.
+
+Esses módulos serão a próxima etapa depois que o Tracker GPS estiver funcionando.
+
+### 8. Critério do primeiro MVP
+
+O MVP deve chegar ao ponto em que:
+
+* motorista instala o aplicativo;
+* faz login;
+* permanece autenticado;
+* GPS é iniciado;
+* Foreground Service permanece ativo;
+* localização é enviada para `/api/driver/gps`;
+* aplicativo pode ser minimizado;
+* tela pode ser bloqueada;
+* perda de internet é tratada;
+* localização volta a ser enviada quando a conexão retornar;
+* motorista não consegue simplesmente desligar o rastreamento;
+* ERP existente continua funcionando sem regressões.
+
+### REGRA PRINCIPAL
+
+Se precisar alterar qualquer parte do backend para resolver autenticação persistente, segurança do GPS ou integração com o Tracker:
+
+PARE E INFORME.
+
+Não faça alterações improvisadas no ERP.
+
+Primeiro implemente o projeto Android e a integração mínima possível com a infraestrutura existente.
+
+Ao terminar cada etapa, informe:
+
+1. arquivos criados/alterados;
+2. o que foi implementado;
+3. testes realizados;
+4. problemas encontrados;
+5. próximo passo.
+
+PODE COMEÇAR.
