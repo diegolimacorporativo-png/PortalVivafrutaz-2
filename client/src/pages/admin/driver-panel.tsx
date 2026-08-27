@@ -125,6 +125,8 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
   const pendingRef = useRef<PendingGpsPosition[]>([]);
   const sendingRef = useRef(false);
   const resumeRef = useRef(false);
+  const retryTimerRef = useRef<number | null>(null);
+  const retryAttemptRef = useRef(0);
   const authBlockedRef = useRef(false);
   const watchIdRef = useRef<number | null>(null);
   const cancelledRef = useRef(false);
@@ -237,6 +239,35 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
       }
     };
 
+    const clearQueueRetry = () => {
+      if (retryTimerRef.current !== null) {
+        window.clearTimeout(retryTimerRef.current);
+        retryTimerRef.current = null;
+      }
+    };
+
+    const scheduleQueueRetry = () => {
+      if (
+        cancelledRef.current ||
+        retryTimerRef.current !== null ||
+        pendingRef.current.length === 0 ||
+        !navigator.onLine ||
+        authBlockedRef.current
+      ) return;
+
+      const delay = Math.min(60000, 15000 * (2 ** retryAttemptRef.current));
+      retryAttemptRef.current = Math.min(retryAttemptRef.current + 1, 4);
+      retryTimerRef.current = window.setTimeout(async () => {
+        retryTimerRef.current = null;
+        const flushed = await flushQueue();
+        if (flushed) {
+          retryAttemptRef.current = 0;
+        } else {
+          scheduleQueueRetry();
+        }
+      }, delay);
+    };
+
     const sendPosition = async (position: GeolocationPosition, force = false) => {
       if (cancelledRef.current) return;
 
@@ -260,10 +291,12 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
           setState(authBlockedRef.current ? 'denied' : 'offline');
           setLastError(authBlockedRef.current ? 'Sessão sem autorização para enviar GPS' : 'Sem conexão');
         }
+        if (!authBlockedRef.current) scheduleQueueRetry();
         return;
       }
 
       sendingRef.current = true;
+      let shouldFlushQueue = false;
       try {
         const result = await postPosition(payload);
         if (result.ok) {
@@ -273,17 +306,22 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
             setState('active');
             setLastError(null);
           }
-          return;
+          shouldFlushQueue = pendingRef.current.length > 0;
+        } else {
+          enqueuePosition(payload);
+          if (!cancelledRef.current) {
+            setState(result.retryable ? 'error' : 'denied');
+            setLastError(result.message || 'Falha ao enviar GPS');
+          }
+          if (!result.retryable) authBlockedRef.current = true;
+          if (result.retryable) scheduleQueueRetry();
         }
-
-        enqueuePosition(payload);
-        if (!cancelledRef.current) {
-          setState(result.retryable ? 'error' : 'denied');
-          setLastError(result.message || 'Falha ao enviar GPS');
-        }
-        if (!result.retryable) authBlockedRef.current = true;
       } finally {
         sendingRef.current = false;
+      }
+      if (shouldFlushQueue) {
+        const flushed = await flushQueue();
+        if (!flushed) scheduleQueueRetry();
       }
     };
 
@@ -327,7 +365,13 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
         }
         if (authBlockedRef.current) return;
         const queueFlushed = await flushQueue();
-        if (queueFlushed) await requestImmediatePosition();
+        if (queueFlushed) {
+          retryAttemptRef.current = 0;
+          clearQueueRetry();
+          await requestImmediatePosition();
+        } else {
+          scheduleQueueRetry();
+        }
       } finally {
         resumeRef.current = false;
       }
@@ -358,6 +402,7 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
 
     return () => {
       cancelledRef.current = true;
+      clearQueueRetry();
       if (watchIdRef.current !== null) {
         navigator.geolocation.clearWatch(watchIdRef.current);
         watchIdRef.current = null;
