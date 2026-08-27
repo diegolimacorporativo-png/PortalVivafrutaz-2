@@ -1,0 +1,7 @@
+{
+  "name": "@vivafrutaz/shared",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "VivaFrutaz shared contracts and database types"
+}

@@ -1,0 +1,8 @@
+packages:
+  - "client"
+  - "server"
+  - "shared"
+
+# The root package remains the compatibility entry point for the existing
+# FULLSTACK_JS runtime. These workspace boundaries are intentionally logical
+# in this first migration pass; source files and build commands stay in place.
