@@ -1,0 +1,4 @@
+# Copy to local.properties for a local Android Studio build.
+# Do not commit local.properties.
+sdk.dir=/path/to/Android/Sdk
+TRACKER_BASE_URL=https://your-vivafrutaz-host.example

@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">VivaFrutaz Tracker</string>
+    <string name="tracking_channel_name">Rastreamento VivaFrutaz</string>
+    <string name="tracking_notification_title">Rastreamento GPS ativo</string>
+</resources>
