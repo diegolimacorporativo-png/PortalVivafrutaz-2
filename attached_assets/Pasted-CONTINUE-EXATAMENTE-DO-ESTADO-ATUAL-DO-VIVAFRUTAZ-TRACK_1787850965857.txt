@@ -1,0 +1,120 @@
+CONTINUE EXATAMENTE DO ESTADO ATUAL DO VIVAFRUTAZ TRACKER ANDROID.
+
+NÃO faça novas migrações estruturais.
+NÃO altere o ERP/PWA.
+NÃO altere banco/schema.
+NÃO altere o endpoint POST /api/driver/gps.
+NÃO trabalhe com NF-e.
+NÃO crie outra arquitetura.
+
+O foco agora é exclusivamente finalizar o Tracker Android operacional.
+
+PRIORIDADE 1 — GPS CONTÍNUO
+
+Garanta que o Tracker utilize Foreground Service + FusedLocationProviderClient para manter o rastreamento funcionando com:
+- aplicativo minimizado;
+- tela bloqueada;
+- troca para outro aplicativo;
+- perda e retorno de internet;
+- reinicialização do aparelho.
+
+Preserve exatamente o contrato atual do POST /api/driver/gps.
+
+Utilize a fila offline já criada e garanta:
+- persistência das posições;
+- reenvio automático;
+- backoff;
+- deduplicação;
+- envio da posição mais recente;
+- recuperação após reinicialização.
+
+PRIORIDADE 2 — MOTORISTA PERMANECER LOGADO
+
+O motorista deve fazer login uma única vez.
+
+Depois disso:
+- fechar o aplicativo não pode exigir novo login;
+- minimizar o aplicativo não pode exigir novo login;
+- reiniciar o celular não pode exigir novo login;
+- o Tracker deve recuperar a sessão persistida automaticamente;
+- validar /api/auth/me quando houver internet;
+- não armazenar a senha do motorista.
+
+Existe atualmente uma limitação de sessão de aproximadamente 24 horas no backend.
+
+Analise a proposta já existente em:
+vivafrutaz-tracker-android/docs/TRACKER-AUTH-PROPOSAL.md
+
+Implemente somente uma solução segura para manter o motorista conectado além desse período.
+
+Se for realmente necessário alterar o backend para criar renovação segura de sessão, NÃO faça uma alteração improvisada.
+
+Antes de modificar qualquer arquivo do backend:
+1. explique exatamente quais arquivos serão alterados;
+2. explique como a renovação funcionará;
+3. explique como a senha do motorista continuará protegida;
+4. explique como isso não afetará os demais usuários do ERP;
+5. aguarde aprovação.
+
+PRIORIDADE 3 — BLOQUEIO PARA DESLIGAR O GPS
+
+O motorista NÃO deve ter um botão comum para desligar o rastreamento.
+
+Precisamos de uma forma administrativa segura para interromper o rastreamento quando necessário.
+
+A interrupção deverá exigir uma senha/chave administrativa.
+
+IMPORTANTE:
+- nunca coloque a chave diretamente no APK;
+- nunca coloque senha em texto puro no código;
+- não crie uma senha fixa dentro do aplicativo;
+- a validação deve ocorrer de forma segura no backend.
+
+Se for necessário criar endpoint/backend para essa função:
+PARE antes de alterar o backend e apresente o plano técnico para aprovação.
+
+PRIORIDADE 4 — TELA DO MOTORISTA
+
+A tela deve ser extremamente simples:
+
+- Motorista logado;
+- nome do motorista;
+- status GPS: ATIVO / SEM SINAL / SEM INTERNET / ERRO;
+- última localização enviada;
+- horário do último envio;
+- quantidade de posições pendentes;
+- indicador de rastreamento ativo.
+
+Não criar funções desnecessárias.
+
+PRIORIDADE 5 — COMPATIBILIDADE
+
+Preparar o Tracker especificamente para:
+- Motorola Moto G6;
+- Samsung Galaxy J6;
+- Samsung Galaxy J7.
+
+Documentar as permissões e configurações necessárias do Android para evitar que a economia de bateria mate o serviço.
+
+IMPORTANTE SOBRE O ESCOPO
+
+O objetivo NÃO é criar um novo ERP.
+
+O objetivo NÃO é transformar o PWA em aplicativo Android.
+
+O objetivo é ter um aplicativo Android separado chamado VivaFrutaz Tracker, instalado no celular do motorista, responsável principalmente por localização.
+
+O ERP continua sendo o sistema principal.
+
+O Tracker conversa com o ERP através dos endpoints existentes.
+
+Antes de qualquer alteração no backend, pare e apresente o plano.
+
+Depois de concluir a parte que não exige backend, faça:
+- check estático;
+- revisão de segurança;
+- revisão de permissões;
+- verificação de arquivos alterados;
+- confirmação de que o ERP não foi alterado.
+
+Não considere a tarefa concluída enquanto o fluxo de GPS, persistência de sessão e recuperação após reinicialização estiverem coerentes.
