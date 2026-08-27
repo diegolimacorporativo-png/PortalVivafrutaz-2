@@ -1,0 +1,108 @@
+CONTINUIDADE DE TAREFA — NÃO COMEÇAR DO ZERO
+
+O agente anterior atingiu o limite diário de execução durante a inspeção inicial.
+
+NÃO considere a tarefa concluída e NÃO refaça migrações.
+
+O ERP VivaFrutaz já foi estabilizado e o GPS da PWA já foi reforçado.
+
+ESCOPO ATUAL EXCLUSIVO:
+
+Criar posteriormente o VivaFrutaz Tracker Android separado, em Kotlin, para rastreamento GPS dos motoristas.
+
+ANTES DE QUALQUER ALTERAÇÃO, CONTINUE A INSPEÇÃO SOMENTE LEITURA QUE O AGENTE ANTERIOR JÁ INICIOU.
+
+Você deve confirmar:
+
+1. Contrato exato do POST /api/driver/gps.
+2. Formato atual do payload.
+3. Mecanismo atual de autenticação.
+4. Como o motorista é identificado.
+5. Como o backend relaciona a posição ao motorista.
+6. Endpoints existentes que podem ser reutilizados para login e renovação da autenticação.
+7. Tabelas/persistência atualmente utilizadas pelo GPS.
+8. Como o motorista atualmente inicia o rastreamento na PWA.
+9. Quais partes podem ser reutilizadas pelo Tracker Android sem alterar o ERP.
+
+NÃO ALTERE NENHUM ARQUIVO DURANTE ESSA INSPEÇÃO.
+
+DEPOIS DA INSPEÇÃO, APRESENTE UM PLANO TÉCNICO CURTO E AGUARDE MINHA APROVAÇÃO.
+
+OBJETIVO DO TRACKER:
+
+Criar um aplicativo Android separado em Kotlin.
+
+O Tracker deverá:
+
+- fazer login do motorista;
+- manter o login persistente;
+- não deslogar ao fechar o app;
+- não deslogar ao reiniciar o celular;
+- renovar autenticação automaticamente quando possível;
+- utilizar Foreground Service;
+- utilizar Fused Location Provider;
+- continuar coletando GPS com o app minimizado;
+- funcionar com tela bloqueada dentro das limitações do Android/aparelho;
+- enviar GPS para o POST /api/driver/gps EXISTENTE;
+- tratar perda de internet;
+- armazenar temporariamente posições pendentes;
+- reenviar quando a conexão retornar.
+
+PROTEÇÃO:
+
+O motorista não deverá ter um botão simples para desligar o rastreamento.
+
+Para interromper o rastreamento deverá existir uma função administrativa protegida por uma CHAVE/SENHA.
+
+A chave:
+
+- não pode ficar hardcoded no APK;
+- não pode ficar exposta no código;
+- não pode aparecer em logs;
+- deve ser validada de forma segura.
+
+O Android deve continuar respeitando as permissões e notificações obrigatórias do sistema.
+
+APARELHOS PRIORITÁRIOS:
+
+- Motorola Moto G6;
+- Samsung Galaxy J6;
+- Samsung Galaxy J7.
+
+FORA DO ESCOPO AGORA:
+
+- NF-e;
+- migração PNPM;
+- nova migração estrutural do ERP;
+- alterações no banco;
+- alterações no schema;
+- alterações nos pedidos;
+- alterações nas rotas;
+- alterações no PWA;
+- alterações no Service Worker;
+- alteração do POST /api/driver/gps;
+- checklist de entrega;
+- ETA/trânsito;
+- sequência de empresas.
+
+IMPORTANTE:
+
+O módulo de rota e sequência de empresas será desenvolvido posteriormente.
+
+O checklist de cada parada também será desenvolvido posteriormente.
+
+PRINCÍPIO FUNDAMENTAL:
+
+O Tracker Android deve ser um aplicativo separado.
+
+NÃO transforme o ERP/PWA atual em aplicativo Android.
+
+NÃO faça alterações no ERP para compensar problemas encontrados no Tracker.
+
+Se encontrar algum bloqueio ou necessidade de alterar o backend, PARE e informe exatamente o que precisa ser alterado antes de fazer qualquer modificação.
+
+PRIMEIRO PASSO AGORA:
+
+Somente leitura → concluir inspeção → apresentar plano → aguardar aprovação.
+
+NÃO CODIFIQUE AINDA.
