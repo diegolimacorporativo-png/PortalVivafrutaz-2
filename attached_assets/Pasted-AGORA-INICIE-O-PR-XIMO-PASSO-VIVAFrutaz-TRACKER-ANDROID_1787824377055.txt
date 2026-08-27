@@ -1,0 +1,177 @@
+AGORA INICIE O PRÓXIMO PASSO: VIVAFrutaz TRACKER ANDROID.
+
+ATENÇÃO: NÃO SAIA DO ESCOPO.
+
+O ERP/PWA já foi estabilizado. NÃO faça nova migração estrutural, NÃO altere o PNPM workspace, NÃO altere pedidos, rotas, banco, schema, NF-e, PWA ou Service Worker.
+
+O objetivo agora é criar um aplicativo Android separado, em Kotlin, chamado VivaFrutaz Tracker.
+
+ARQUITETURA
+
+Criar o Tracker como projeto Android independente, preferencialmente dentro de uma pasta própria, sem transformar o ERP atual em aplicativo Android.
+
+O Tracker deverá reutilizar a infraestrutura existente sempre que possível.
+
+GPS:
+- utilizar Kotlin;
+- utilizar Foreground Service;
+- utilizar Fused Location Provider;
+- manter rastreamento com aplicativo minimizado e tela bloqueada;
+- enviar localização para o endpoint EXISTENTE:
+  POST /api/driver/gps
+- NÃO criar outro endpoint se o atual puder ser reutilizado;
+- NÃO alterar o contrato atual do endpoint;
+- NÃO alterar a tabela GPS sem necessidade absolutamente comprovada.
+
+LOGIN
+
+O motorista deverá fazer login apenas uma vez.
+
+Após o primeiro login:
+- manter a autenticação persistida com segurança;
+- fechar o aplicativo não pode deslogar o motorista;
+- reiniciar o celular não pode deslogar o motorista;
+- minimizar o aplicativo não pode deslogar;
+- o Tracker deve renovar automaticamente a autenticação/token quando necessário;
+- não pedir login novamente sem motivo real;
+- se a sessão/token realmente não puder mais ser renovada, mostrar claramente o motivo ao motorista.
+
+IMPORTANTE:
+Não implementar uma sessão frágil baseada simplesmente em memória.
+Usar armazenamento seguro apropriado para credenciais/token.
+
+PROTEÇÃO DO GPS
+
+O motorista NÃO deverá conseguir desligar o rastreamento normalmente pelo aplicativo.
+
+Não criar um botão simples "Desligar GPS" acessível ao motorista.
+
+Caso seja necessário interromper o rastreamento, deverá existir uma função protegida por CHAVE/SENHA ADMINISTRATIVA.
+
+Essa chave:
+- não pode ficar escrita diretamente no código;
+- não pode ficar hardcoded no APK;
+- não pode ser exibida nos logs;
+- deve ser validada de maneira segura;
+- somente usuário autorizado deverá conseguir interromper o rastreamento.
+
+Criar uma função administrativa claramente identificada para:
+- interromper temporariamente o rastreamento;
+- reativar o rastreamento;
+- exigir autenticação administrativa para essas ações.
+
+IMPORTANTE:
+Não criar mecanismos para esconder o aplicativo do usuário, impedir o Android de mostrar o serviço de localização ou burlar permissões do sistema.
+O Android deve continuar mostrando as notificações/permissões exigidas pelo sistema operacional.
+
+PERMISSÕES
+
+Solicitar corretamente:
+- localização precisa;
+- localização em segundo plano quando necessária;
+- notificações, nas versões Android que exigirem;
+- demais permissões estritamente necessárias.
+
+Explicar claramente ao motorista por que cada permissão é necessária.
+
+COMPATIBILIDADE
+
+Prioridade de teste:
+- Motorola Moto G6;
+- Samsung Galaxy J6;
+- Samsung Galaxy J7.
+
+Considerar versões antigas de Android desses aparelhos.
+
+O aplicativo precisa ser leve e compatível com aparelhos de baixo desempenho.
+
+FUNCIONAMENTO OFFLINE
+
+Se perder internet:
+- continuar capturando localização enquanto o Android permitir;
+- armazenar temporariamente posições pendentes de forma limitada;
+- reenviar quando a conexão retornar;
+- evitar duplicação infinita;
+- priorizar as posições mais recentes;
+- não perder completamente o rastreamento por uma queda momentânea de internet.
+
+STATUS DO MOTORISTA
+
+O Tracker deverá mostrar claramente:
+- motorista conectado;
+- GPS ativo;
+- última localização capturada;
+- última localização enviada;
+- conexão com internet;
+- quantidade de posições pendentes;
+- eventual erro de GPS;
+- eventual erro de autenticação.
+
+NÃO alterar o endpoint GPS existente apenas para facilitar a implementação.
+
+ANTES DE CODIFICAR
+
+Faça primeiro uma inspeção somente leitura do ERP atual e confirme:
+1. contrato exato do POST /api/driver/gps;
+2. formato atual do payload;
+3. mecanismo atual de autenticação;
+4. como o motorista é identificado;
+5. como o backend relaciona GPS ao motorista;
+6. quais endpoints existentes podem ser reutilizados para login/renovação;
+7. quais tabelas GPS já existem.
+
+Depois apresente um plano técnico curto e aguarde aprovação antes de alterar arquivos.
+
+REGRAS ABSOLUTAS
+
+NÃO:
+- migrar novamente o ERP;
+- alterar PNPM;
+- alterar pedidos;
+- alterar rotas;
+- alterar banco sem autorização;
+- alterar NF-e;
+- alterar Service Worker;
+- alterar o PWA;
+- substituir o endpoint /api/driver/gps;
+- criar um segundo sistema de GPS dentro do ERP;
+- recriar funcionalidades que já existem no backend.
+
+SIM:
+- criar o projeto Android separado;
+- reutilizar autenticação existente;
+- reutilizar POST /api/driver/gps;
+- implementar Foreground Service;
+- implementar localização contínua;
+- implementar login persistente;
+- implementar proteção administrativa para desligamento;
+- preparar o Tracker para posteriormente receber a rota e sequência de empresas.
+
+NÃO IMPLEMENTAR AINDA:
+- checklist de entrega;
+- sequência de empresas;
+- ETA/trânsito;
+- novas telas administrativas;
+- alterações de rotas.
+
+Esses serão os próximos módulos depois que o Tracker GPS estiver funcionando.
+
+CRITÉRIO DE CONCLUSÃO DO MVP
+
+O MVP somente será considerado concluído quando:
+- o projeto Android compilar;
+- o aplicativo instalar;
+- o motorista conseguir fazer login;
+- o login permanecer após fechar/reabrir o app;
+- o GPS funcionar pelo Foreground Service;
+- a localização continuar sendo enviada com o app minimizado;
+- funcionar com a tela bloqueada dentro das limitações do aparelho/Android;
+- o POST /api/driver/gps receber as posições;
+- a perda de internet for tratada;
+- o motorista não conseguir desligar o rastreamento sem a chave administrativa;
+- não houver alteração desnecessária no ERP existente.
+
+SE ENCONTRAR QUALQUER BLOQUEIO:
+PARE.
+Explique o problema.
+Não faça uma solução improvisada alterando o ERP.
