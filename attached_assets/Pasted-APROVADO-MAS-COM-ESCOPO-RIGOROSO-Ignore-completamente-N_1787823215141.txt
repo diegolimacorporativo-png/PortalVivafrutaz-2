@@ -1,0 +1,57 @@
+APROVADO, MAS COM ESCOPO RIGOROSO.
+
+Ignore completamente NF-e, libxmljs2 e qualquer funcionalidade fiscal.
+
+Também NÃO faça novas migrações estruturais, NÃO reorganize PNPM e NÃO altere a arquitetura do ERP.
+
+Primeiro restaure SOMENTE a execução atual do ERP, corrigindo a dependência já declarada que está ausente do node_modules (cors), sem alterar package.json, package-lock.json, schema, banco ou regras de negócio.
+
+Depois disso, implemente SOMENTE as melhorias de robustez do GPS/PWA descritas no plano aprovado:
+
+1. Preservar POST /api/driver/gps exatamente como está.
+2. Preservar DriverGpsReporter e melhorar sua retomada.
+3. Implementar retomada após visibilitychange, pageshow, focus e retorno da conectividade.
+4. Enviar uma posição imediatamente após retomada.
+5. Implementar tratamento de falhas de rede e retry controlado.
+6. Implementar fila local limitada para posições que não puderam ser enviadas.
+7. Exibir claramente ao motorista o estado do GPS, conexão, última posição enviada e posições pendentes.
+8. NÃO usar Service Worker para tentar obter GPS.
+9. NÃO alterar banco ou criar nova tabela GPS.
+10. NÃO alterar pedidos, rotas ou entregas nesta etapa.
+11. NÃO alterar o formato atual do payload do POST /api/driver/gps.
+12. NÃO alterar autenticação ou autorização.
+
+IMPORTANTE:
+
+O objetivo final continua sendo GPS contínuo nos celulares corporativos Moto G6, Samsung J6 e Samsung J7, inclusive com tela bloqueada.
+
+Reconheça que PWA/Chrome não garante localização contínua com a tela bloqueada.
+
+Portanto, NÃO tente fingir que o PWA resolve esse requisito.
+
+Depois de estabilizar o GPS/PWA, prepare separadamente o plano para o VivaFrutaz Tracker Android nativo em Kotlin usando Foreground Service + Fused Location Provider.
+
+NÃO crie o aplicativo Android ainda.
+
+Primeiro conclua e valide a etapa PWA.
+
+Antes de cada alteração relevante, informe quais arquivos serão modificados e por quê.
+
+Ao final, valide:
+- npm run check
+- npm run build
+- inicialização do ERP
+- login
+- painel do motorista
+- POST /api/driver/gps
+- painel administrativo de GPS
+- PWA
+- pedidos
+- rotas
+
+Não declare sucesso se o backend não estiver realmente iniciando.
+
+NF-e está FORA DO ESCOPO.
+Migração PNPM está FORA DO ESCOPO.
+Tracker Android está FORA DESTA ETAPA.
+FOCO: ERP FUNCIONANDO + GPS/PWA ROBUSTO.

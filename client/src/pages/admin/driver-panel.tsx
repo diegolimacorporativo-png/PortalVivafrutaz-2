@@ -43,9 +43,91 @@ interface DeliveryItem {
   canUpdate?: boolean;
 }
 
+type GpsPayload = {
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+};
+
+type PendingGpsPosition = {
+  payload: GpsPayload;
+  capturedAt: number;
+};
+
+const GPS_QUEUE_STORAGE_KEY = 'vivafrutaz:gps-pending:v1';
+const GPS_QUEUE_LIMIT = 20;
+const GPS_SEND_INTERVAL_MS = 15000;
+const GPS_REQUEST_TIMEOUT_MS = 10000;
+const GPS_OPTIONS: PositionOptions = {
+  enableHighAccuracy: true,
+  maximumAge: 10000,
+  timeout: 20000,
+};
+
+function readPendingGpsPositions(): PendingGpsPosition[] {
+  try {
+    const raw = window.localStorage.getItem(GPS_QUEUE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((entry): entry is PendingGpsPosition => {
+        const payload = entry?.payload;
+        return Boolean(
+          payload &&
+          Number.isFinite(Number(payload.latitude)) &&
+          Number.isFinite(Number(payload.longitude)) &&
+          Number.isFinite(Number(entry.capturedAt)),
+        );
+      })
+      .slice(-GPS_QUEUE_LIMIT)
+      .map(entry => ({
+        capturedAt: Number(entry.capturedAt),
+        payload: {
+          latitude: Number(entry.payload.latitude),
+          longitude: Number(entry.payload.longitude),
+          accuracy: entry.payload.accuracy == null ? null : Number(entry.payload.accuracy),
+          speed: entry.payload.speed == null ? null : Number(entry.payload.speed),
+          heading: entry.payload.heading == null ? null : Number(entry.payload.heading),
+        },
+      }));
+  } catch {
+    return [];
+  }
+}
+
+function writePendingGpsPositions(queue: PendingGpsPosition[]): void {
+  try {
+    window.localStorage.setItem(
+      GPS_QUEUE_STORAGE_KEY,
+      JSON.stringify(queue.slice(-GPS_QUEUE_LIMIT)),
+    );
+  } catch {
+    // Storage can be unavailable in private/restricted browser contexts.
+  }
+}
+
+function formatGpsTime(timestamp: number | null): string {
+  if (!timestamp) return '—';
+  return new Date(timestamp).toLocaleTimeString('pt-BR');
+}
+
 function DriverGpsReporter({ role }: { role?: string | null }) {
-  const [state, setState] = useState<'starting' | 'active' | 'denied' | 'unavailable' | 'error'>('starting');
-  const lastSentAt = useRef(0);
+  const [state, setState] = useState<'starting' | 'active' | 'denied' | 'unavailable' | 'error' | 'offline'>('starting');
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
+  const [lastCapturedAt, setLastCapturedAt] = useState<number | null>(null);
+  const [lastSentAt, setLastSentAt] = useState<number | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const lastSentAtRef = useRef(0);
+  const pendingRef = useRef<PendingGpsPosition[]>([]);
+  const sendingRef = useRef(false);
+  const resumeRef = useRef(false);
+  const authBlockedRef = useRef(false);
+  const watchIdRef = useRef<number | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (role !== 'DRIVER' && role !== 'MOTORISTA') return;
@@ -54,42 +136,237 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
       return;
     }
 
-    let cancelled = false;
-    const sendPosition = async (position: GeolocationPosition) => {
-      // Avoid excessive writes while still keeping the driver's position live.
-      if (Date.now() - lastSentAt.current < 15000) return;
-      lastSentAt.current = Date.now();
+    cancelledRef.current = false;
+    pendingRef.current = readPendingGpsPositions();
+    setPendingCount(pendingRef.current.length);
+
+    const updateQueueState = () => {
+      if (!cancelledRef.current) setPendingCount(pendingRef.current.length);
+      writePendingGpsPositions(pendingRef.current);
+    };
+
+    const enqueuePosition = (payload: GpsPayload) => {
+      pendingRef.current = [
+        ...pendingRef.current,
+        { payload, capturedAt: Date.now() },
+      ].slice(-GPS_QUEUE_LIMIT);
+      updateQueueState();
+    };
+
+    const handleGeolocationError = (error: GeolocationPositionError) => {
+      if (cancelledRef.current) return;
+      if (error.code === error.PERMISSION_DENIED) {
+        setState('denied');
+        setLastError('Permissão de localização negada');
+      } else if (!navigator.onLine) {
+        setState('offline');
+        setLastError('Sem conexão');
+      } else {
+        setState('error');
+        setLastError('Não foi possível obter a posição');
+      }
+    };
+
+    const postPosition = async (
+      payload: GpsPayload,
+    ): Promise<{ ok: boolean; retryable: boolean; message?: string }> => {
+      if (!navigator.onLine) {
+        return { ok: false, retryable: true, message: 'Sem conexão' };
+      }
+
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), GPS_REQUEST_TIMEOUT_MS);
       try {
+        // Keep the existing endpoint, authentication mode, and payload contract.
         const response = await fetch('/api/driver/gps', {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            accuracy: position.coords.accuracy,
-            speed: position.coords.speed,
-            heading: position.coords.heading,
-          }),
+          body: JSON.stringify(payload),
+          signal: controller.signal,
         });
-        if (!response.ok) throw new Error('GPS update failed');
-        if (!cancelled) setState('active');
-      } catch {
-        if (!cancelled) setState('error');
+        if (response.ok) return { ok: true, retryable: false };
+        if (response.status === 401 || response.status === 403) {
+          return { ok: false, retryable: false, message: 'Sessão sem autorização para enviar GPS' };
+        }
+        return { ok: false, retryable: true, message: `Servidor respondeu ${response.status}` };
+      } catch (error) {
+        return {
+          ok: false,
+          retryable: true,
+          message: error instanceof DOMException && error.name === 'AbortError'
+            ? 'Tempo limite de envio excedido'
+            : 'Falha de conexão ao enviar GPS',
+        };
+      } finally {
+        window.clearTimeout(timeoutId);
       }
     };
 
-    const watchId = navigator.geolocation.watchPosition(sendPosition, () => {
-      if (!cancelled) setState('denied');
-    }, {
-      enableHighAccuracy: true,
-      maximumAge: 10000,
-      timeout: 20000,
-    });
+    const flushQueue = async (): Promise<boolean> => {
+      if (sendingRef.current || cancelledRef.current || !navigator.onLine || authBlockedRef.current) {
+        return pendingRef.current.length === 0;
+      }
+
+      sendingRef.current = true;
+      try {
+        while (pendingRef.current.length > 0 && navigator.onLine && !authBlockedRef.current) {
+          const pending = pendingRef.current[0];
+          const result = await postPosition(pending.payload);
+          if (!result.ok) {
+            if (!cancelledRef.current) {
+              setState(result.retryable ? 'error' : 'denied');
+              setLastError(result.message || 'Falha ao enviar GPS');
+            }
+            if (!result.retryable) authBlockedRef.current = true;
+            return false;
+          }
+
+          pendingRef.current = pendingRef.current.slice(1);
+          updateQueueState();
+          lastSentAtRef.current = Date.now();
+          if (!cancelledRef.current) {
+            setLastSentAt(lastSentAtRef.current);
+            setState('active');
+            setLastError(null);
+          }
+        }
+        return pendingRef.current.length === 0;
+      } finally {
+        sendingRef.current = false;
+      }
+    };
+
+    const sendPosition = async (position: GeolocationPosition, force = false) => {
+      if (cancelledRef.current) return;
+
+      const payload: GpsPayload = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        speed: position.coords.speed,
+        heading: position.coords.heading,
+      };
+      setLastCapturedAt(Date.now());
+
+      if (!force && Date.now() - lastSentAtRef.current < GPS_SEND_INTERVAL_MS) return;
+      if (sendingRef.current) {
+        enqueuePosition(payload);
+        return;
+      }
+      if (!navigator.onLine || authBlockedRef.current) {
+        enqueuePosition(payload);
+        if (!cancelledRef.current) {
+          setState(authBlockedRef.current ? 'denied' : 'offline');
+          setLastError(authBlockedRef.current ? 'Sessão sem autorização para enviar GPS' : 'Sem conexão');
+        }
+        return;
+      }
+
+      sendingRef.current = true;
+      try {
+        const result = await postPosition(payload);
+        if (result.ok) {
+          lastSentAtRef.current = Date.now();
+          if (!cancelledRef.current) {
+            setLastSentAt(lastSentAtRef.current);
+            setState('active');
+            setLastError(null);
+          }
+          return;
+        }
+
+        enqueuePosition(payload);
+        if (!cancelledRef.current) {
+          setState(result.retryable ? 'error' : 'denied');
+          setLastError(result.message || 'Falha ao enviar GPS');
+        }
+        if (!result.retryable) authBlockedRef.current = true;
+      } finally {
+        sendingRef.current = false;
+      }
+    };
+
+    const startWatch = () => {
+      if (cancelledRef.current || watchIdRef.current !== null) return;
+      try {
+        watchIdRef.current = navigator.geolocation.watchPosition(
+          position => { void sendPosition(position); },
+          handleGeolocationError,
+          GPS_OPTIONS,
+        );
+      } catch {
+        setState('error');
+        setLastError('Não foi possível iniciar o monitoramento GPS');
+      }
+    };
+
+    const requestImmediatePosition = async (): Promise<void> => {
+      if (cancelledRef.current || !navigator.onLine || authBlockedRef.current) return;
+      await new Promise<void>(resolve => {
+        navigator.geolocation.getCurrentPosition(
+          position => { void sendPosition(position, true).finally(resolve); },
+          error => {
+            handleGeolocationError(error);
+            resolve();
+          },
+          GPS_OPTIONS,
+        );
+      });
+    };
+
+    const resumeTracking = async () => {
+      if (cancelledRef.current || resumeRef.current) return;
+      resumeRef.current = true;
+      try {
+        startWatch();
+        if (!navigator.onLine) {
+          setState('offline');
+          setLastError('Sem conexão — posições ficarão pendentes');
+          return;
+        }
+        if (authBlockedRef.current) return;
+        const queueFlushed = await flushQueue();
+        if (queueFlushed) await requestImmediatePosition();
+      } finally {
+        resumeRef.current = false;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') void resumeTracking();
+    };
+    const onPageShow = () => { void resumeTracking(); };
+    const onFocus = () => { void resumeTracking(); };
+    const onOnline = () => {
+      setIsOnline(true);
+      void resumeTracking();
+    };
+    const onOffline = () => {
+      setIsOnline(false);
+      setState('offline');
+      setLastError('Sem conexão — posições ficarão pendentes');
+    };
+
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    void resumeTracking();
 
     return () => {
-      cancelled = true;
-      navigator.geolocation.clearWatch(watchId);
+      cancelledRef.current = true;
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+        watchIdRef.current = null;
+      }
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [role]);
 
@@ -98,6 +375,7 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
   const label = state === 'active' ? 'GPS ativo — localização compartilhada'
     : state === 'denied' ? 'GPS bloqueado — permita a localização no navegador'
     : state === 'unavailable' ? 'GPS indisponível neste dispositivo'
+    : state === 'offline' ? 'GPS sem conexão — posição será reenviada'
     : state === 'error' ? 'GPS aguardando conexão'
     : 'Solicitando localização GPS...';
   const color = state === 'active' ? 'text-green-700 bg-green-50 border-green-200'
@@ -107,7 +385,16 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
   return (
     <div className={`mb-3 rounded-xl border px-3 py-2 text-xs flex items-center gap-2 ${color}`} data-testid="driver-gps-status">
       <Navigation className="w-4 h-4 shrink-0" />
-      <span>{label}. O rastreio continua mesmo sem rota atribuída.</span>
+      <div className="min-w-0">
+        <span>{label}. O rastreio continua mesmo sem rota atribuída.</span>
+        <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] opacity-90">
+          <span>{isOnline ? 'Conectado' : 'Sem conexão'}</span>
+          <span>Última captura: {formatGpsTime(lastCapturedAt)}</span>
+          <span>Último envio: {formatGpsTime(lastSentAt)}</span>
+          <span>Pendentes: {pendingCount}</span>
+        </div>
+        {lastError && <div className="mt-0.5 truncate" title={lastError}>{lastError}</div>}
+      </div>
     </div>
   );
 }
