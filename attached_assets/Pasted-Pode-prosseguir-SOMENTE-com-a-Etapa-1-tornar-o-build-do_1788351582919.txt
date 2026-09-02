@@ -1,0 +1,74 @@
+Pode prosseguir SOMENTE com a Etapa 1: tornar o build do aplicativo Android reproduzível.
+
+Projeto:
+vivafrutaz-tracker-android
+
+Objetivo:
+conseguir gerar um APK DEBUG de forma reproduzível.
+
+REGRAS ABSOLUTAS:
+- NÃO alterar o ERP/PWA.
+- NÃO alterar o backend.
+- NÃO alterar o endpoint /api/driver/gps.
+- NÃO alterar autenticação do backend.
+- NÃO mexer em NF-e.
+- NÃO alterar TrackingService.kt.
+- NÃO alterar BootReceiver.kt.
+- NÃO alterar MainActivity.kt, salvo se for absolutamente necessário para corrigir erro de compilação descoberto pelo build.
+- NÃO fazer migração de dependências.
+- NÃO trocar Kotlin.
+- NÃO trocar Android Gradle Plugin.
+- NÃO criar outro projeto Android.
+- NÃO remover funcionalidades existentes.
+- NÃO fazer push para GitHub.
+- Pode fazer commit somente se eu autorizar depois. Por enquanto NÃO faça commit.
+
+Faça apenas:
+
+1. Adicione o Gradle Wrapper ao diretório:
+   vivafrutaz-tracker-android/
+
+2. Use uma versão do Gradle compatível com:
+   Android Gradle Plugin 8.7.3
+   Kotlin 2.0.21
+   compileSdk 35
+   Java 17
+
+3. O wrapper deve permitir executar:
+   ./gradlew :app:assembleDebug
+
+4. Preserve as versões atuais do projeto:
+   - AGP 8.7.3
+   - Kotlin 2.0.21
+   - compileSdk 35
+   - targetSdk 35
+   - minSdk 23
+   - Java/Kotlin 17
+
+5. Não altere as dependências atuais sem necessidade.
+
+6. Verifique também se o projeto possui todos os arquivos necessários para o Gradle Wrapper funcionar.
+
+7. Se o ambiente do Replit não possuir Java/Android SDK suficiente para executar o build, NÃO invente uma solução e NÃO altere o projeto para contornar isso. Nesse caso, apenas prepare o Wrapper e me informe exatamente o que falta para executar o build.
+
+8. Se for possível executar o build, execute:
+   ./gradlew :app:assembleDebug
+
+9. Se houver erro de compilação:
+   - não saia corrigindo várias coisas;
+   - identifique o primeiro erro real;
+   - corrija somente o necessário;
+   - execute novamente o build.
+
+10. Ao final, NÃO faça commit nem push.
+
+Me informe:
+
+- quais arquivos foram criados/alterados;
+- versão do Gradle escolhida;
+- se o Gradle Wrapper ficou funcionando;
+- se o APK conseguiu ser gerado;
+- caminho exato do APK, caso tenha sido gerado;
+- se não conseguiu gerar, qual foi o bloqueio exato.
+
+NÃO faça nenhuma alteração fora dessa etapa.

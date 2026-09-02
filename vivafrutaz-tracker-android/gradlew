@@ -1,0 +1,29 @@
+#!/bin/sh
+
+#
+# Gradle startup script for POSIX.
+# Generated for the Gradle Wrapper and kept intentionally independent
+# of any system-wide Gradle installation.
+#
+
+set -eu
+
+APP_HOME=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+if [ -n "${JAVA_HOME:-}" ]; then
+    JAVACMD="$JAVA_HOME/bin/java"
+else
+    JAVACMD=java
+fi
+
+if [ ! -x "$JAVACMD" ]; then
+    echo "ERROR: JAVA_HOME is not set correctly or no 'java' command was found." >&2
+    echo "Install Java 17 and set JAVA_HOME before running the Android build." >&2
+    exit 1
+fi
+
+exec "$JAVACMD" \
+    -Dorg.gradle.appname="$(basename "$0")" \
+    -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" \
+    org.gradle.wrapper.GradleWrapperMain \
+    "$@"
