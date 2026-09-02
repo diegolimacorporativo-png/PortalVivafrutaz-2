@@ -1,0 +1,64 @@
+Vamos recomeçar o desenvolvimento do rastreador Android a partir do estado ATUAL deste projeto.
+
+IMPORTANTE: NÃO altere nada ainda.
+
+Quero primeiro fazer uma auditoria do estado atual do projeto.
+
+Nosso objetivo é continuar o desenvolvimento do aplicativo Android nativo:
+vivafrutaz-tracker-android
+
+O objetivo do aplicativo é:
+- login do motorista/usuário
+- manter a sessão persistida
+- capturar GPS continuamente em segundo plano
+- continuar capturando com a tela bloqueada
+- usar Foreground Service de localização
+- enviar a localização para o backend existente
+- utilizar o endpoint existente POST /api/driver/gps
+- funcionar nos aparelhos corporativos antigos, especialmente Moto G6, Samsung J6 e Samsung J7
+- possuir fila offline e reenviar quando a internet voltar
+
+REGRAS:
+- NÃO mexer no NF-e.
+- NÃO fazer migração de dependências do projeto principal.
+- NÃO alterar o ERP/PWA.
+- NÃO alterar o backend neste momento.
+- NÃO criar um novo projeto.
+- NÃO apagar arquivos.
+- NÃO instalar dependências ainda.
+- NÃO fazer commit.
+- NÃO fazer push.
+- NÃO alterar o GitHub.
+
+Primeiro faça apenas uma análise do estado atual.
+
+Verifique:
+1. Se a pasta vivafrutaz-tracker-android existe.
+2. Estrutura completa do projeto Android.
+3. build.gradle/settings.gradle/gradle.properties.
+4. Gradle Wrapper e versão do Gradle.
+5. versão do Android Gradle Plugin.
+6. versão do Kotlin.
+7. compileSdk e targetSdk.
+8. minSdk.
+9. AndroidManifest.xml.
+10. MainActivity.
+11. Tracking Service.
+12. BootReceiver.
+13. classes de login/autenticação.
+14. classes de GPS.
+15. Room/fila offline, caso existam.
+16. endpoint configurado para o backend.
+17. local.properties.example, se existir.
+18. qualquer arquivo relacionado ao GitHub Actions.
+
+NÃO corrija nada.
+
+No final, me entregue um relatório simples dizendo:
+- o que já está pronto;
+- o que está incompleto;
+- se o projeto tem tudo necessário para gerar APK;
+- qual é o primeiro problema que devemos resolver;
+- quais arquivos você pretende alterar no próximo passo.
+
+Aguarde minha autorização antes de modificar qualquer arquivo.
