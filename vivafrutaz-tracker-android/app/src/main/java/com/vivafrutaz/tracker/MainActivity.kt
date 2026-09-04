@@ -395,7 +395,7 @@ class MainActivity : AppCompatActivity() {
             this.hint = hint
             setText(value)
             textSize = 16f
-            singleLine = true
+            maxLines = 1
             content.addView(this, marginParams(top = 12))
         }
 
