@@ -1,0 +1,69 @@
+Vamos continuar EXATAMENTE do ponto atual do projeto.
+
+ESCOPO ATUAL:
+Estamos trabalhando SOMENTE para conseguir gerar o APK debug do aplicativo Android Tracker em:
+
+vivafrutaz-tracker-android/
+
+O objetivo imediato é fazer o GitHub Actions compilar o APK.
+
+IMPORTANTE:
+- NÃO mexa no ERP/PWA.
+- NÃO mexa no backend.
+- NÃO mexa no banco de dados.
+- NÃO mexa no sistema de pedidos.
+- NÃO mexa no NF-e.
+- NÃO mexa no edit-order.tsx ou em qualquer problema de preço/histórico de pedidos.
+- NÃO faça refatorações.
+- NÃO altere funcionalidades do Tracker sem necessidade.
+- NÃO crie outro workflow.
+- NÃO faça mudanças amplas.
+- Se o build falhar, primeiro diagnostique o erro real antes de alterar qualquer código.
+
+O workflow correto está em:
+
+.github/workflows/build-android.yml
+
+Ele deve estar com esta estrutura:
+
+- Java 17
+- Android SDK Platform 35
+- Build Tools 35.0.0
+- Gradle Wrapper
+- TRACKER_BASE_URL:
+  https://portal-vivafrutaz-2-1--replitcod2.replit.app
+- build:
+  ./gradlew :app:assembleDebug \
+    -PTRACKER_BASE_URL="${TRACKER_BASE_URL}" \
+    --stacktrace \
+    --info
+- verificação da existência do APK
+- upload do artifact:
+  vivafrutaz-tracker-debug
+
+ANTES DE FAZER QUALQUER ALTERAÇÃO:
+
+1. Verifique o estado atual do repositório.
+2. Verifique se o workflow acima já está no GitHub/branch main.
+3. Verifique se o Gradle Wrapper existe em:
+   vivafrutaz-tracker-android/gradlew
+4. Verifique se não há alterações pendentes inesperadas.
+5. Não altere código do aplicativo ainda.
+
+O PRÓXIMO PASSO É:
+Aguardar/executar o GitHub Actions e descobrir se o build gera:
+
+vivafrutaz-tracker-android/app/build/outputs/apk/debug/app-debug.apk
+
+Se o Actions estiver falhando:
+- identifique a etapa que falhou;
+- leia o erro completo;
+- me mostre a causa provável;
+- NÃO corrija automaticamente ainda se isso exigir alteração no código do Tracker.
+
+Se o Actions estiver verde:
+- confirme que o artifact vivafrutaz-tracker-debug foi gerado;
+- não faça outras alterações;
+- me diga que o APK está pronto para download/teste.
+
+Quero trabalhar passo a passo e manter o escopo rigorosamente no APK do Tracker.
