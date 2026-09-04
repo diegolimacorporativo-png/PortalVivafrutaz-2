@@ -34,12 +34,28 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Verify Gradle Wrapper
+        working-directory: vivafrutaz-tracker-android
+        shell: bash
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --version
+
       - name: Build debug APK with Gradle Wrapper
         working-directory: vivafrutaz-tracker-android
         shell: bash
         run: |
           chmod +x ./gradlew
-          ./gradlew :app:assembleDebug -PTRACKER_BASE_URL="${TRACKER_BASE_URL}"
+          ./gradlew :app:assembleDebug \
+            -PTRACKER_BASE_URL="${TRACKER_BASE_URL}" \
+            --stacktrace \
+            --info
+
+      - name: Verify APK
+        shell: bash
+        run: |
+          ls -lah vivafrutaz-tracker-android/app/build/outputs/apk/debug/
+          test -f vivafrutaz-tracker-android/app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload Tracker debug APK
         uses: actions/upload-artifact@v4
