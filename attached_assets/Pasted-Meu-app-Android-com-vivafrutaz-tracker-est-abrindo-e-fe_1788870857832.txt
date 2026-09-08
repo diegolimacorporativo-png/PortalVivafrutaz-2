@@ -1,0 +1,37 @@
+Meu app Android com.vivafrutaz.tracker está abrindo e fechando imediatamente.
+
+Analise e corrija o crash abaixo. O erro foi capturado diretamente pelo adb logcat:
+
+09-08 09:32:24.711 31520 31563 E AndroidRuntime: FATAL EXCEPTION: DefaultDispatcher-worker-3
+09-08 09:32:24.711 31520 31563 E AndroidRuntime: Process: com.vivafrutaz.tracker, PID: 31520
+09-08 09:32:24.711 31520 31563 E AndroidRuntime: java.lang.SecurityException: ConnectivityService: Neither user 10006 nor current process has android.permission.ACCESS_NETWORK_STATE.
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at android.net.ConnectivityManager.getActiveNetwork(ConnectivityManager.java:1175)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at com.vivafrutaz.tracker.tracking.TrackingService.hasNetwork(TrackingService.kt:387)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at com.vivafrutaz.tracker.tracking.TrackingService.access$hasNetwork(TrackingService.kt:45)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at com.vivafrutaz.tracker.tracking.TrackingService$onStartCommand$1.invokeSuspend(TrackingService.kt:134)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:101)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at kotlinx.coroutines.internal.LimitedDispatcher$Worker.run(LimitedDispatcher.kt:113)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at kotlinx.coroutines.scheduling.TaskImpl.run(Tasks.kt:89)
+09-08 09:32:24.711 31520 31563 E AndroidRuntime:        at kotlinx.coroutines.CoroutineScheduler.runSafely(CoroutineScheduler.java:589)
+
+
+Diagnóstico aparente:
+
+TrackingService.hasNetwork() na linha 387 chama ConnectivityManager.getActiveNetwork(), mas o aplicativo não possui a permissão android.permission.ACCESS_NETWORK_STATE, causando SecurityException e encerrando o processo.
+
+Faça uma análise do projeto e:
+
+Verifique o AndroidManifest.xml.
+Adicione, caso esteja ausente:
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+Verifique também se android.permission.INTERNET está declarado, pois o app utiliza comunicação de rede.
+Analise TrackingService.kt, especialmente hasNetwork() na linha 387 e onStartCommand() na linha 134.
+Corrija o código de forma segura para que a verificação de rede não consiga derrubar o aplicativo.
+Não faça apenas uma correção superficial: verifique se existem outras chamadas de rede/permissões no TrackingService que possam causar SecurityException semelhantes.
+Preserve o funcionamento atual do rastreamento e não remova funcionalidades existentes.
+Considere corretamente o comportamento do serviço em segundo plano e as permissões necessárias para a versão do Android utilizada pelo projeto.
+Depois das alterações, faça o build do projeto e verifique se não existem erros de compilação.
+Informe exatamente quais arquivos foram alterados e mostre um resumo das mudanças.
+
+O objetivo é que o app com.vivafrutaz.tracker deixe de fechar imediatamente e que o TrackingService continue funcionando normalmente.
