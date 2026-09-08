@@ -215,7 +215,7 @@ export interface IStorage {
   // Password Reset Requests
   getPasswordResetRequests(): Promise<PasswordResetRequest[]>;
   createPasswordResetRequest(companyId: number): Promise<PasswordResetRequest>;
-  updatePasswordResetRequest(id: number, updates: { status: string; newPassword?: string; adminNote?: string; resolvedAt?: Date }): Promise<PasswordResetRequest>;
+  updatePasswordResetRequest(id: number, updates: { status: string; adminNote?: string; resolvedAt?: Date }): Promise<PasswordResetRequest>;
 
   // Special Order Requests
   getSpecialOrderRequests(): Promise<SpecialOrderRequest[]>;
@@ -1368,7 +1368,7 @@ export class DatabaseStorage implements IStorage {
     return req;
   }
 
-  async updatePasswordResetRequest(id: number, updates: { status: string; newPassword?: string; adminNote?: string; resolvedAt?: Date }): Promise<PasswordResetRequest> {
+  async updatePasswordResetRequest(id: number, updates: { status: string; adminNote?: string; resolvedAt?: Date }): Promise<PasswordResetRequest> {
     const [updated] = await db.update(passwordResetRequests).set(updates as any).where(eq(passwordResetRequests.id, id)).returning();
     return updated;
   }

@@ -14,7 +14,6 @@ type PasswordResetRequest = {
   id: number;
   companyId: number;
   status: string;
-  newPassword: string | null;
   adminNote: string | null;
   createdAt: string;
   resolvedAt: string | null;

@@ -20,12 +20,11 @@ export function register(app: Express) {
     try {
       const id = Number(req.params.id);
       const { status, newPassword, adminNote } = req.body;
-      const updates: any = { status, adminNote, resolvedAt: new Date() };
+      const updates = { status, adminNote, resolvedAt: new Date() };
       const allReqs = await storage.getPasswordResetRequests();
       const pr = allReqs.find(r => r.id === id);
       if (newPassword && status === 'APPROVED' && pr) {
         await storage.updateCompany(pr.companyId, { password: newPassword } as any);
-        updates.newPassword = newPassword;
       }
       const updated = await storage.updatePasswordResetRequest(id, updates);
       res.json(updated);

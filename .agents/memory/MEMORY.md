@@ -8,3 +8,4 @@
 - [Node runtime recovery](node-runtime-recovery.md) — erros de módulo ausente no boot podem indicar node_modules incompleto, não defeito da aplicação.
 - [GPS em segundo plano na PWA](gps-pwa-background.md) — retomada e fila melhoram a PWA, mas tela bloqueada exige Tracker Android nativo.
 - [GPS global access](gps-global-access.md) — endpoint modular; MASTER/ADMIN/DIRECTOR têm visão global, demais internos seguem tenant-scoped.
+- [Password reset history](password-reset-security.md) — pedidos de reset nunca persistem a senha original; a senha só vai ao cadastro protegido da empresa.

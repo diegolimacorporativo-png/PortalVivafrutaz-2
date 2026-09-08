@@ -312,7 +312,6 @@ export const passwordResetRequests = pgTable("password_reset_requests", {
   id: serial("id").primaryKey(),
   companyId: integer("company_id").references(() => companies.id).notNull(),
   status: text("status").default("PENDING").notNull(), // PENDING, APPROVED, REJECTED
-  newPassword: text("new_password"),
   adminNote: text("admin_note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   resolvedAt: timestamp("resolved_at"),
