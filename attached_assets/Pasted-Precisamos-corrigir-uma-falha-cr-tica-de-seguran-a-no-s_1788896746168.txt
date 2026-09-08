@@ -1,0 +1,97 @@
+Precisamos corrigir uma falha crítica de segurança no sistema de autenticação.
+
+ANTES DE ALTERAR QUALQUER ARQUIVO:
+1. Analise completamente o fluxo atual de autenticação e persistência de senhas.
+2. Leia obrigatoriamente:
+   - server/modules/auth/auth.service.ts
+   - server/modules/auth/auth.repository.ts
+   - server/core/http/session.ts
+   - server/services/storage.ts
+   - shared/schema.ts
+3. Procure no projeto TODOS os pontos onde:
+   - usuários são criados;
+   - usuários têm a senha alterada;
+   - empresas têm a senha alterada;
+   - senhas são redefinidas;
+   - senhas são persistidas no banco.
+4. Identifique se existe algum outro mecanismo que já faça hash automaticamente antes de gravar a senha.
+
+PROBLEMA JÁ IDENTIFICADO:
+Em auth.service.ts, a rotina de upgrade de senha legada aparentemente faz:
+
+await this.repo.updateUser(userId, { password: submitted });
+
+Isso significa que uma senha armazenada anteriormente em texto puro continua sendo salva em texto puro, em vez de ser convertida para bcrypt.
+
+O mesmo problema aparentemente existe para companies.
+
+Além disso, os fluxos de:
+- resetPassword
+- forcePasswordChange
+- changePasswordSelf
+
+aparentemente enviam a nova senha diretamente para o repository.
+
+OBJETIVO:
+Garantir que NENHUMA senha seja persistida no banco em texto puro.
+
+REGRAS DA CORREÇÃO:
+1. Usar bcrypt, aproveitando a dependência bcryptjs já existente no projeto.
+2. Criar uma função central/reutilizável para geração do hash, se isso for necessário.
+3. Toda senha NOVA deve obrigatoriamente passar pelo hash antes de ser persistida.
+4. Senhas existentes em bcrypt devem continuar funcionando normalmente.
+5. Senhas legadas em texto puro devem continuar permitindo login, mas, após um login válido, devem ser convertidas imediatamente para bcrypt.
+6. O mesmo comportamento deve existir para usuários e empresas.
+7. A comparação de senha deve continuar segura usando bcrypt.compare quando a senha armazenada já estiver em bcrypt.
+8. NÃO alterar a lógica de sessão, permissões, RBAC ou regras de negócio sem necessidade.
+9. NÃO alterar NF-e, fiscal, financeiro, logística, pedidos ou qualquer outro módulo que não seja necessário para esta correção.
+10. NÃO fazer refatoração ampla do projeto.
+
+ATENÇÃO SOBRE password_reset_requests.newPassword:
+Analise esse campo e todos os fluxos que o utilizam. Ele não deve armazenar senha em texto puro.
+Antes de removê-lo ou alterar o schema, primeiro identifique todas as referências no projeto e apresente a estratégia mínima e segura para corrigir isso.
+
+MIGRAÇÃO DE SENHAS LEGADAS:
+NÃO faça uma migração destrutiva ou tente descobrir/reverter senhas existentes.
+A estratégia preferencial é:
+- usuário faz login com senha legada;
+- sistema valida a senha;
+- sistema gera bcrypt;
+- sistema substitui o valor legado pelo hash;
+- próximos logins usam bcrypt.
+
+ANTES DE FINALIZAR:
+Faça uma busca global por todos os pontos que gravam:
+password
+senha
+newPassword
+
+e confirme que nenhum fluxo de criação, alteração, reset ou troca de senha está salvando senha sem hash.
+
+TESTES OBRIGATÓRIOS:
+- login com senha bcrypt existente;
+- login com senha legada em texto puro e conversão para bcrypt;
+- alteração de senha;
+- recuperação/reset de senha;
+- troca obrigatória de senha;
+- criação de usuário;
+- criação/alteração de senha de empresa;
+- verificar que as senhas persistidas começam com formato bcrypt ($2...);
+- garantir que a autenticação existente continue funcionando.
+
+Depois execute:
+npm run check
+
+e os testes relevantes existentes.
+
+IMPORTANTE:
+NÃO faça commit de alterações ainda.
+Primeiro me mostre:
+1. quais arquivos serão alterados;
+2. quais arquivos serão apenas analisados;
+3. exatamente qual é a causa do problema;
+4. qual será a solução;
+5. quais riscos existem;
+6. quais testes serão executados.
+
+Somente depois dessa análise aguardarei minha autorização para aplicar as alterações.
