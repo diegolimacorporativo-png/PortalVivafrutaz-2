@@ -383,12 +383,14 @@ class TrackingService : Service() {
         }
     }
 
-    private fun hasNetwork(): Boolean {
-        val network = connectivityManager.activeNetwork ?: return false
-        val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
-    }
+    private fun hasNetwork(): Boolean =
+        runCatching {
+            val network = connectivityManager.activeNetwork ?: return@runCatching false
+            val capabilities = connectivityManager.getNetworkCapabilities(network)
+                ?: return@runCatching false
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+                capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        }.getOrDefault(false)
 
     private fun isLocationProviderEnabled(): Boolean {
         val manager = getSystemService(Context.LOCATION_SERVICE) as LocationManager
