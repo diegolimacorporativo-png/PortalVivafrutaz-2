@@ -125,6 +125,23 @@ export class LogisticsController {
     }
   };
 
+  listLiveDriverLocations = async (req: Request, res: Response) => {
+    const user = await this.logAuth(req, res);
+    if (!user) return;
+    try {
+      res.json(await this.service.listLiveDriverLocations(user));
+    } catch (err: any) {
+      console.warn(`[${req.requestId}] [logistics.controller] listLiveDriverLocations failed`, err);
+      const status =
+        typeof err?.status === "number" && err.status >= 400 && err.status < 500
+          ? err.status
+          : 500;
+      res.status(status).json({
+        message: err?.message || "Erro",
+      });
+    }
+  };
+
   createDriver = async (req: Request, res: Response) => {
     const user = await this.logAuth(req, res);
     if (!user) return;

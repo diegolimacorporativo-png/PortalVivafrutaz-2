@@ -14,9 +14,11 @@
 import { LogisticsRepository, logisticsRepository } from "./logistics.repository";
 import {
   BadRequestError,
+  ForbiddenError,
   NotFoundError,
 } from "../../shared/errors/AppError";
 import { currentTenantId } from "../../core/tenant/context";
+import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 import type {
   ActorRef,
   CalculateDistanceInput,
@@ -82,6 +84,75 @@ export class LogisticsService {
         virtualFromUser: true,
       })),
     ];
+  }
+
+  /**
+   * Lists the latest GPS position for every visible driver.
+   * MASTER, ADMIN and DIRECTOR are global profiles and must not be reduced
+   * to actor.empresaId. Other internal roles keep their tenant scope.
+   */
+  async listLiveDriverLocations(actor: ActorRef) {
+    const globalGpsAccess = ["MASTER", "ADMIN", "DIRECTOR"].includes(actor.role);
+    const canReadGlobal =
+      globalGpsAccess ||
+      (!actor.empresaId && LOGISTICS_AUTH_ROLES.includes(actor.role as any));
+
+    if (!actor.empresaId && !canReadGlobal) {
+      throw new ForbiddenError("Empresa não definida para este usuário");
+    }
+
+    const scopedEmpresaId = canReadGlobal ? undefined : actor.empresaId ?? undefined;
+    let driverRows = (await (scopedEmpresaId
+      ? this.repo.getDriversSafe(scopedEmpresaId)
+      : this.repo.getDrivers())) as any[];
+
+    const driverUsers = (await this.repo.getDriverAccounts(scopedEmpresaId)) as any[];
+    const normalizeIdentity = (value: unknown) =>
+      String(value ?? "").trim().toLocaleLowerCase("pt-BR");
+    const matchedUserIds = new Set<number>();
+
+    for (const driver of driverRows) {
+      const operationalEmail = normalizeIdentity(driver.email);
+      const operationalName = normalizeIdentity(driver.name);
+      const matchedUser = driverUsers.find((user: any) =>
+        (operationalEmail && normalizeIdentity(user.email) === operationalEmail) ||
+        (operationalName && normalizeIdentity(user.name) === operationalName),
+      );
+      if (matchedUser) matchedUserIds.add(Number(matchedUser.id));
+    }
+
+    const legacyDriverRows = driverUsers
+      .filter((user: any) => !matchedUserIds.has(Number(user.id)))
+      .map((user: any) => ({
+        id: -Number(user.id),
+        name: user.name,
+        email: user.email,
+        phone: null,
+        active: user.active,
+        empresaId: user.empresaId,
+        virtualFromUser: true,
+      }));
+    driverRows = [...driverRows, ...legacyDriverRows];
+
+    return Promise.all(driverRows.map(async (driver: any) => {
+      const position = driver.virtualFromUser
+        ? null
+        : await this.repo.getLatestGpsPosition(driver.id);
+      return {
+        driverId: driver.id,
+        driverName: driver.name,
+        phone: driver.phone ?? null,
+        active: driver.active,
+        latitude: position?.latitude ?? null,
+        longitude: position?.longitude ?? null,
+        accuracy: position?.accuracy ?? null,
+        speed: position?.speed ?? null,
+        heading: position?.heading ?? null,
+        updatedAt: position?.recordedAt ?? null,
+        gpsReady: !driver.virtualFromUser,
+        source: driver.virtualFromUser ? "user-account" : "logistics-driver",
+      };
+    }));
   }
 
   async createDriver(

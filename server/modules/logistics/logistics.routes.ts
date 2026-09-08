@@ -34,6 +34,7 @@ router.use((req: Request, res: Response, next: NextFunction) => {
 
 // ── Drivers ────────────────────────────────────────────────────────────
 router.get("/drivers", logisticsController.listDrivers);
+router.get("/drivers/gps", logisticsController.listLiveDriverLocations);
 router.post(
   "/drivers",
   requireActiveSubscription,

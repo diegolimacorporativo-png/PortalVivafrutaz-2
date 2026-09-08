@@ -50,6 +50,9 @@ export class LogisticsRepository {
       ),
     );
   }
+  getLatestGpsPosition(driverId: number) {
+    return this.db.getLatestGpsPosition(driverId);
+  }
   createDriver(data: Partial<LogisticsDriver>): Promise<LogisticsDriver> {
     return this.db.createDriver(data);
   }
