@@ -174,8 +174,8 @@ export interface IStorage {
   // Order Exceptions
   getOrderExceptions(): Promise<OrderException[]>;
   createOrderException(exc: InsertOrderException): Promise<OrderException>;
-  updateOrderException(id: number, updates: Partial<InsertOrderException>): Promise<OrderException>;
-  deleteOrderException(id: number): Promise<void>;
+  updateOrderException(id: number, updates: Partial<InsertOrderException>): Promise<OrderException | undefined>;
+  deleteOrderException(id: number): Promise<boolean>;
   getCompanyException(companyId: number): Promise<OrderException | undefined>;
 
   // Orders
@@ -1264,27 +1264,64 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getOrderExceptions(): Promise<OrderException[]> {
-    return await db.select().from(orderExceptions).orderBy(desc(orderExceptions.createdAt)).limit(200);
+    const tenantId = currentTenantId();
+    return await db
+      .select()
+      .from(orderExceptions)
+      .where(tenantId == null ? undefined : eq(orderExceptions.companyId, tenantId))
+      .orderBy(desc(orderExceptions.createdAt))
+      .limit(200);
   }
 
   async createOrderException(exc: InsertOrderException): Promise<OrderException> {
-    const [newExc] = await db.insert(orderExceptions).values(exc).returning();
+    const tenantId = currentTenantId();
+    const companyId = tenantId ?? Number(exc.companyId);
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new Error("companyId required");
+    }
+    const [newExc] = await db
+      .insert(orderExceptions)
+      .values({ ...stripTenantFields(exc as any), companyId })
+      .returning();
     return newExc;
   }
 
-  async updateOrderException(id: number, updates: Partial<InsertOrderException>): Promise<OrderException> {
-    const [updated] = await db.update(orderExceptions).set(updates).where(eq(orderExceptions.id, id)).returning();
+  async updateOrderException(
+    id: number,
+    updates: Partial<InsertOrderException>,
+  ): Promise<OrderException | undefined> {
+    const tenantId = currentTenantId();
+    const conditions = [eq(orderExceptions.id, id)];
+    if (tenantId != null) {
+      conditions.push(eq(orderExceptions.companyId, tenantId));
+    }
+    const [updated] = await db
+      .update(orderExceptions)
+      .set(stripTenantFields(updates as any))
+      .where(and(...conditions))
+      .returning();
     return updated;
   }
 
-  async deleteOrderException(id: number): Promise<void> {
-    await db.delete(orderExceptions).where(eq(orderExceptions.id, id));
+  async deleteOrderException(id: number): Promise<boolean> {
+    const tenantId = currentTenantId();
+    const conditions = [eq(orderExceptions.id, id)];
+    if (tenantId != null) {
+      conditions.push(eq(orderExceptions.companyId, tenantId));
+    }
+    const deleted = await db
+      .delete(orderExceptions)
+      .where(and(...conditions))
+      .returning({ id: orderExceptions.id });
+    return deleted.length > 0;
   }
 
   async getCompanyException(companyId: number): Promise<OrderException | undefined> {
+    const tenantId = currentTenantId();
+    const effectiveCompanyId = tenantId ?? companyId;
     const now = new Date();
     const rows = await db.select().from(orderExceptions).where(
-      and(eq(orderExceptions.companyId, companyId), eq(orderExceptions.active, true))
+      and(eq(orderExceptions.companyId, effectiveCompanyId), eq(orderExceptions.active, true))
     );
     // Filter to non-expired exceptions (expiryDate null or >= today)
     const valid = rows.filter(e => !e.expiryDate || new Date(e.expiryDate) >= now);

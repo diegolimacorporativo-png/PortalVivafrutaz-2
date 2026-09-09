@@ -1,59 +1,240 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
-import { validateCompanyTenant } from "../core/security/orderSecurity";
-import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { runWithTenant } from "../core/tenant/context";
+import {
+  requireAuth as requireAuthCore,
+  requireRole,
+  requireSession,
+} from "../core/http/requireAuth";
+import {
+  extractRequestedCompanyId,
+  resolveOrderExceptionAccess,
+  sanitizeOrderExceptionBody,
+} from "./order-exceptions.policy";
 
 export function register(app: Express) {
   // Order Exceptions
-  app.get('/api/order-exceptions', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
-    const exceptions = await storage.getOrderExceptions();
-    res.json(exceptions);
-  });
+  app.get(
+    '/api/order-exceptions',
+    requireAuthCore,
+    requireRole(["MASTER", "ADMIN", "DIRECTOR"], { strict: true }),
+    async (req: any, res, next) => {
+      try {
+        const actor = await storage.getUser(req.session.userId);
+        if (!actor) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+        const access = resolveOrderExceptionAccess(actor ?? {});
+        if (!access.allowed) {
+          return res.status(access.status).json({ message: access.message });
+        }
 
-  app.post('/api/order-exceptions', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
-    try {
-      const { companyId, reason, expiryDate, active } = req.body;
-      if (!companyId || !reason) return res.status(400).json({ message: "companyId and reason required" });
-      const exc = await storage.createOrderException({
-        companyId: Number(companyId),
-        reason,
-        expiryDate: expiryDate || null,
-        active: active ?? true,
-      });
-      res.status(201).json(exc);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
+        const exceptions = await runWithTenant(
+          {
+            principal: {
+              kind: "admin",
+              empresaId: access.tenantId,
+              userId: actor.id,
+              role: actor.role,
+            },
+            empresaId: access.tenantId,
+          },
+          () => storage.getOrderExceptions(),
+        );
+        return res.json(exceptions);
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
 
-  app.put('/api/order-exceptions/:id', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
-    try {
-      const { reason, expiryDate, active } = req.body;
-      const exc = await storage.updateOrderException(Number(req.params.id), { reason, expiryDate: expiryDate || null, active });
-      res.json(exc);
-    } catch (err) {
-      res.status(400).json({ message: "Bad request" });
-    }
-  });
+  app.post(
+    '/api/order-exceptions',
+    requireAuthCore,
+    requireRole(["MASTER", "ADMIN", "DIRECTOR"], { strict: true }),
+    async (req: any, res, next) => {
+      try {
+        const actor = await storage.getUser(req.session.userId);
+        if (!actor) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+        const requestedCompanyId = extractRequestedCompanyId(req.body);
+        const access = resolveOrderExceptionAccess(actor, requestedCompanyId);
+        if (!access.allowed) {
+          return res.status(access.status).json({ message: access.message });
+        }
 
-  app.delete('/api/order-exceptions/:id', requireAuthCore, requireRole(["ADMIN", "DIRECTOR"]), async (req, res) => {
-    await storage.deleteOrderException(Number(req.params.id));
-    res.status(204).end();
-  });
+        if (access.tenantId == null) {
+          return res.status(400).json({ message: "companyId required" });
+        }
+
+        const body = sanitizeOrderExceptionBody(req.body);
+        if (!body.reason) {
+          return res.status(400).json({ message: "reason required" });
+        }
+        const expiryDate =
+          body.expiryDate === undefined ||
+          body.expiryDate === null ||
+          body.expiryDate === ""
+            ? null
+            : String(body.expiryDate);
+        const active = body.active === undefined ? true : Boolean(body.active);
+
+        const exc = await runWithTenant(
+          {
+            principal: {
+              kind: "admin",
+              empresaId: access.tenantId,
+              userId: actor.id,
+              role: actor.role,
+            },
+            empresaId: access.tenantId,
+          },
+          () =>
+            storage.createOrderException({
+              companyId: access.tenantId!,
+              reason: String(body.reason),
+              expiryDate,
+              active,
+            }),
+        );
+        return res.status(201).json(exc);
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
+
+  app.put(
+    '/api/order-exceptions/:id',
+    requireAuthCore,
+    requireRole(["MASTER", "ADMIN", "DIRECTOR"], { strict: true }),
+    async (req: any, res, next) => {
+      try {
+        const actor = await storage.getUser(req.session.userId);
+        if (!actor) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+        const access = resolveOrderExceptionAccess(actor ?? {});
+        if (!access.allowed) {
+          return res.status(access.status).json({ message: access.message });
+        }
+
+        const exc = await runWithTenant(
+          {
+            principal: {
+              kind: "admin",
+              empresaId: access.tenantId,
+              userId: actor.id,
+              role: actor.role,
+            },
+            empresaId: access.tenantId,
+          },
+          () =>
+            storage.updateOrderException(
+              Number(req.params.id),
+              sanitizeOrderExceptionBody(req.body),
+            ),
+        );
+        if (!exc) {
+          return res.status(404).json({ message: "Exceção de pedido não encontrada" });
+        }
+        return res.json(exc);
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
+
+  app.delete(
+    '/api/order-exceptions/:id',
+    requireAuthCore,
+    requireRole(["MASTER", "ADMIN", "DIRECTOR"], { strict: true }),
+    async (req: any, res, next) => {
+      try {
+        const actor = await storage.getUser(req.session.userId);
+        if (!actor) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+        const access = resolveOrderExceptionAccess(actor ?? {});
+        if (!access.allowed) {
+          return res.status(access.status).json({ message: access.message });
+        }
+
+        const deleted = await runWithTenant(
+          {
+            principal: {
+              kind: "admin",
+              empresaId: access.tenantId,
+              userId: actor.id,
+              role: actor.role,
+            },
+            empresaId: access.tenantId,
+          },
+          () => storage.deleteOrderException(Number(req.params.id)),
+        );
+        if (!deleted) {
+          return res.status(404).json({ message: "Exceção de pedido não encontrada" });
+        }
+        return res.status(204).end();
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
 
   // Check order exception for a company (used by client-side order check)
-  app.get('/api/order-exceptions/company/:companyId', async (req, res) => {
-    // FASE 6 — BATCH FINAL: auth + tenant guard.
-    if (!(req as any).session?.userId && !(req as any).session?.companyId) {
-      return res.status(401).json({ message: 'Não autenticado' });
-    }
-    const companyId = Number(req.params.companyId);
-    try {
-      validateCompanyTenant(companyId, req);
-    } catch {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    const exc = await storage.getCompanyException(companyId);
-    res.json(exc || null);
-  });
+  app.get(
+    '/api/order-exceptions/company/:companyId',
+    requireSession,
+    async (req: any, res, next) => {
+      try {
+        const companyId = Number(req.params.companyId);
+        const session = req.session;
+
+        if (session.companyId) {
+          if (Number(session.companyId) !== companyId) {
+            return res.status(404).json({ message: "Exceção de pedido não encontrada" });
+          }
+          const exc = await runWithTenant(
+            {
+              principal: {
+                kind: "company",
+                empresaId: Number(session.companyId),
+                userId: session.userId,
+              },
+              empresaId: Number(session.companyId),
+            },
+            () => storage.getCompanyException(companyId),
+          );
+          return res.json(exc || null);
+        }
+
+        const actor = await storage.getUser(session.userId);
+        if (!actor) {
+          return res.status(403).json({ message: "Acesso negado" });
+        }
+        const access = resolveOrderExceptionAccess(actor, companyId);
+        if (!access.allowed) {
+          return res.status(access.status).json({ message: access.message });
+        }
+
+        const exc = await runWithTenant(
+          {
+            principal: {
+              kind: "admin",
+              empresaId: access.tenantId,
+              userId: actor.id,
+              role: actor.role,
+            },
+            empresaId: access.tenantId,
+          },
+          () => storage.getCompanyException(companyId),
+        );
+        return res.json(exc || null);
+      } catch (error) {
+        return next(error);
+      }
+    },
+  );
 }

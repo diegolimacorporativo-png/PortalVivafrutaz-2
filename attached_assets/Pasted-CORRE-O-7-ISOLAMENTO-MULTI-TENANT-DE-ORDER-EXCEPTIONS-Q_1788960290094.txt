@@ -1,0 +1,350 @@
+CORREÇÃO 7 — ISOLAMENTO MULTI-TENANT DE ORDER EXCEPTIONS
+
+Quero corrigir APENAS o risco de IDOR/autorização multiempresa identificado no módulo de order exceptions.
+
+Arquivo principal identificado na auditoria:
+
+server/routes/order-exceptions.routes.ts
+
+Endpoints identificados:
+
+POST /api/order-exceptions
+PUT /api/order-exceptions/:id
+DELETE /api/order-exceptions/:id
+
+Também existem consultas/listagens por empresa que já possuem algum nível de validação.
+
+OBJETIVO:
+
+Garantir que um usuário tenant-bound só consiga criar, consultar, alterar ou excluir order exceptions pertencentes à própria empresa.
+
+REGRAS OBRIGATÓRIAS:
+
+1. NÃO tocar em NF-e.
+
+2. NÃO alterar schema.
+
+3. NÃO criar migration.
+
+4. NÃO alterar dados existentes.
+
+5. NÃO executar INSERT/UPDATE/DELETE no Supabase compartilhado durante testes.
+
+6. NÃO fazer refatoração ampla.
+
+7. Alterar somente o necessário para corrigir o isolamento multiempresa deste módulo.
+
+ANTES DE EDITAR:
+
+Leia completamente:
+
+- server/routes/order-exceptions.routes.ts
+- controller/service relacionado
+- repository/storage utilizado
+- shared/schema.ts somente para entender a estrutura
+- tenantContext/currentTenantId/withTenantScope
+- middleware de autenticação/RBAC
+- consumidores frontend
+- testes existentes
+- qualquer relação entre order exception e order/company
+
+IMPORTANTE:
+
+Mapeie primeiro todos os endpoints existentes desse módulo.
+
+Não presuma que somente POST/PUT/DELETE são relevantes.
+
+Se existir:
+
+GET /:id
+GET por companyId
+PATCH
+ou qualquer endpoint secundário
+
+também audite o isolamento.
+
+REGRA TENANT-BOUND:
+
+Se a sessão pertence à empresa A:
+
+- criação deve obrigatoriamente usar empresa A;
+- leitura deve retornar somente empresa A;
+- update deve permitir somente exceção da empresa A;
+- delete deve permitir somente exceção da empresa A.
+
+Nunca confiar em:
+
+- companyId do body;
+- empresaId do body;
+- company_id do body;
+- companyId da query;
+- empresaId da query;
+- qualquer tenant informado pelo frontend.
+
+O tenant deve vir da sessão/contexto autenticado.
+
+CRIAÇÃO:
+
+Se:
+
+POST /api/order-exceptions
+
+aceitar companyId/empresaId:
+
+- ignorar o valor enviado pelo cliente quando a sessão possui tenant;
+- usar o tenant da sessão;
+- ou rejeitar a requisição, seguindo o padrão existente.
+
+Exemplo:
+
+sessão → empresa A
+
+body:
+
+{
+  "companyId": "empresa-B"
+}
+
+Resultado:
+
+NÃO criar em B.
+
+A exceção deve pertencer a A ou a requisição deve ser rejeitada.
+
+UPDATE:
+
+No:
+
+PUT /api/order-exceptions/:id
+
+A operação tenant-bound deve validar simultaneamente:
+
+id = :id
+E
+company_id = tenant da sessão
+
+Não fazer:
+
+1. buscar apenas por ID;
+2. alterar;
+3. verificar tenant depois.
+
+Preferir ownership diretamente na consulta/update.
+
+Se a exceção pertencer a outro tenant:
+
+→ retornar 404 ou comportamento seguro equivalente.
+
+DELETE:
+
+Mesma regra:
+
+id + tenant
+
+Tenant A não pode excluir exception da empresa B.
+
+Se pertencer a outro tenant:
+
+→ 404 ou comportamento seguro equivalente.
+
+ALTERAÇÃO DE TENANT:
+
+Se PUT aceitar campos como:
+
+- companyId
+- company_id
+- empresaId
+- empresa_id
+- tenantId
+- tenant_id
+
+não permitir que usuário tenant-bound altere esses campos.
+
+Remover esses campos do payload de atualização ou aplicar a política já existente no projeto.
+
+Uma order exception não pode ser movida de uma empresa para outra por request do cliente.
+
+CONSULTAS:
+
+Revise todas as consultas/listagens.
+
+Se houver:
+
+?companyId=B
+
+e o usuário for tenant-bound da empresa A:
+
+- ignorar B e usar A;
+ou
+- retornar 403.
+
+Nunca retornar dados de B.
+
+USUÁRIOS GLOBAIS:
+
+Identifique as roles realmente globais no projeto.
+
+Preserve apenas acesso global legítimo.
+
+Não transforme ADMIN ou DEVELOPER tenant-bound em global automaticamente.
+
+Se houver operação global:
+
+- somente roles explicitamente globais podem selecionar empresa;
+- seguir o padrão já estabelecido nas correções anteriores.
+
+ATENÇÃO AO VÍNCULO COM PEDIDOS:
+
+Se a order exception estiver vinculada a um pedido/order:
+
+também verifique se o pedido pertence ao mesmo tenant da exception.
+
+Não permitir algo como:
+
+exception.companyId = empresa A
+order.companyId = empresa B
+
+se essa inconsistência puder gerar acesso ou manipulação cross-tenant.
+
+Se existir validação desse vínculo, preserve.
+
+Se estiver ausente e for necessário corrigir para fechar o IDOR desta etapa, faça a menor alteração possível.
+
+Não faça refatoração geral do módulo de pedidos.
+
+TESTES:
+
+Criar testes unitários isolados, sem Supabase compartilhado.
+
+Cobrir no mínimo:
+
+1. Tenant A cria exception para A.
+→ permitido.
+
+2. Tenant A envia companyId B.
+→ não cria em B.
+
+3. Tenant A lista/consulta suas exceptions.
+→ permitido.
+
+4. Tenant A tenta consultar exception de B.
+→ bloqueado.
+
+5. Tenant A altera exception de A.
+→ permitido.
+
+6. Tenant A altera exception de B pelo ID.
+→ bloqueado, preferencialmente 404.
+
+7. Tenant A exclui exception de A.
+→ permitido.
+
+8. Tenant A exclui exception de B pelo ID.
+→ bloqueado, preferencialmente 404.
+
+9. Tenant A tenta mudar companyId da exception para B.
+→ bloqueado.
+→ exception continua em A.
+
+10. Tenant B não acessa exceptions de A.
+
+11. Usuário sem autenticação.
+→ 401.
+
+12. Usuário autenticado sem role.
+→ 403.
+
+13. Se existir operação global legítima:
+usuário global autorizado → permitido.
+
+14. Usuário tenant-bound sem empresa.
+→ acesso fechado, salvo regra global legítima.
+
+15. Se houver vínculo com order:
+exception e order precisam respeitar o mesmo tenant.
+
+BANCO:
+
+Não utilizar o Supabase compartilhado para os testes.
+
+Use:
+
+- fake repository;
+- mocks;
+- testes unitários;
+- infraestrutura isolada já existente.
+
+Não executar INSERT/UPDATE/DELETE reais.
+
+VALIDAÇÃO:
+
+Executar:
+
+npm run check
+
+Testes direcionados do módulo.
+
+npm test
+
+Comparar a quantidade e natureza das falhas com o estado anterior.
+
+As 10 falhas conhecidas de:
+
+tests/unit/order-deadline.test.ts
+
+não fazem parte desta correção.
+
+NÃO corrigir essas falhas agora.
+
+Depois:
+
+- reiniciar workflow;
+- confirmar DB_PROVIDER_SELECTED: supabase;
+- confirmar DB_CONNECTED: supabase;
+- confirmar APP_READY;
+- fazer pelo menos uma requisição HTTP sem sessão em endpoint protegido;
+- confirmar 401.
+
+REVISÃO FINAL:
+
+Antes de concluir, revise o diff e confirme:
+
+- nenhum schema alterado;
+- nenhuma migration criada;
+- nenhum dado alterado;
+- nenhum código NF-e alterado;
+- nenhum módulo não relacionado alterado;
+- nenhum commit criado.
+
+RELATÓRIO FINAL:
+
+Informar:
+
+1. endpoints encontrados;
+2. endpoints corrigidos;
+3. como tenant é determinado;
+4. como companyId/empresaId enviado pelo cliente é tratado;
+5. como GET/listagem foi protegida;
+6. como PUT garante ownership;
+7. como DELETE garante ownership;
+8. como vínculo com order foi validado;
+9. quais roles são globais;
+10. arquivos alterados;
+11. testes adicionados;
+12. resultado dos testes direcionados;
+13. resultado do npm run check;
+14. resultado do npm test;
+15. comparação com as 10 falhas preexistentes;
+16. resultado do boot;
+17. confirmação Supabase;
+18. confirmação de que banco não foi alterado;
+19. confirmação de que schema/migration não foi alterado;
+20. confirmação de que NF-e permaneceu intocado.
+
+NÃO FAÇA COMMIT.
+
+Se encontrar outros problemas durante a auditoria, registre apenas como:
+
+"Fora do escopo."
+
+Não corrija outros problemas nesta etapa.

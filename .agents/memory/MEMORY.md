@@ -13,4 +13,5 @@
 - [Reports tenant scope](reports-tenant-scope.md) — relatórios comuns são tenant-bound; somente MASTER/DIRECTOR sem empresa vinculada mantêm visão global explícita.
 - [Client incidents tenant scope](client-incidents-tenant-scope.md) — IDs e companyId do cliente não definem ownership; mutações devem filtrar pelo tenant resolvido.
 - [Special order requests tenant scope](special-order-requests-tenant-scope.md) — POST é portal autenticado de empresa; GET/PUT precisam de RBAC e escopo id + tenant.
+- [Order exceptions tenant scope](order-exceptions-tenant-scope.md) — exceções usam companyId como tenant; CRUD tenant-bound filtra por tenant e só MASTER/DIRECTOR globais selecionam empresas.
 - [Empresa-config tenant scope](empresa-config-tenant-scope.md) — white-label é tenant-bound; só MASTER/DIRECTOR sem empresa vinculada mantêm seleção global explícita.
