@@ -316,7 +316,7 @@ export async function registerRoutes(
   app.get(
     '/api/admin/security/tenant-mismatch-events',
     requireAuthCore,
-    requireRole(['MASTER']),
+    requireRole(['MASTER'], { strict: true }),
     async (req, res) => {
       try {
         console.log('[SECURITY_AUDIT] Tenant mismatch audit requested');
@@ -342,7 +342,7 @@ export async function registerRoutes(
   app.post(
     '/api/admin/security/unblock',
     requireAuthCore,
-    requireRole(['MASTER']),
+    requireRole(['MASTER'], { strict: true }),
     async (req, res) => {
       try {
         const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';

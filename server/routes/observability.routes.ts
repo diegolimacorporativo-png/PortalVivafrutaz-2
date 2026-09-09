@@ -34,7 +34,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/errors",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (req, res) => {
       const limit = Math.min(Number(req.query.limit ?? 200), 500);
       const severity = req.query.severity as string | undefined;
@@ -56,7 +56,7 @@ export function register(app: Express): void {
   app.delete(
     "/api/admin/observability/errors",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       clearErrors();
       return res.json({ success: true, message: "Error store cleared" });
@@ -67,7 +67,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/metrics",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       return res.json({ success: true, data: getMetrics() });
     },
@@ -77,7 +77,7 @@ export function register(app: Express): void {
   app.post(
     "/api/admin/observability/metrics/reset",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       resetMetrics();
       return res.json({ success: true, message: "Metrics reset" });
@@ -88,7 +88,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/jobs",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       const jobs = getJobRegistry();
       return res.json({
@@ -107,7 +107,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/jobs/slow-report",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       const report = getSlowJobsReport();
       return res.json({
@@ -126,7 +126,7 @@ export function register(app: Express): void {
   app.post(
     "/api/admin/observability/dead-letters/:id/requeue",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     async (req, res) => {
       const id = parseInt(String(req.params.id), 10);
       if (isNaN(id) || id <= 0) {
@@ -147,7 +147,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/health-summary",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     async (_req, res) => {
       const issues: string[] = [];
       const warnings: string[] = [];
@@ -222,7 +222,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/dead-letters",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     async (_req, res) => {
       try {
         const rows = await db
@@ -278,7 +278,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/db-health",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     async (_req, res) => {
       try {
         const client = await pool.connect();
@@ -360,7 +360,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/restore-check",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     async (_req, res) => {
       const checks: Array<{ name: string; ok: boolean; detail?: string }> = [];
 
@@ -421,7 +421,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/observability/fiscal",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       const snapshot = getFiscalSnapshot();
       const circuit = getCircuitState();
@@ -445,7 +445,7 @@ export function register(app: Express): void {
   app.post(
     "/api/admin/observability/fiscal/reset",
     requireAuth,
-    requireRole(["MASTER"]),
+    requireRole(["MASTER"], { strict: true }),
     (_req, res) => {
       resetFiscalStore();
       return res.json({ success: true, message: "Fiscal store reset" });

@@ -63,7 +63,7 @@ export async function register(app: Express): Promise<void> {
   // ── Restore Check (dry-run por ID do histórico) ───────────────
   // Valida integridade e estrutura sem tocar no banco.
   // NÃO faz restore real. NÃO sobrescreve dados.
-  app.post('/api/admin/backups/:id/restore-check', requireSessionOrCompany, requireRole(MASTER_ONLY), async (req: any, res) => {
+  app.post('/api/admin/backups/:id/restore-check', requireSessionOrCompany, requireRole(MASTER_ONLY, { strict: true }), async (req: any, res) => {
     const { id } = req.params;
     const corrId = `restore-check-${Date.now()}`;
 
@@ -139,7 +139,7 @@ export async function register(app: Express): Promise<void> {
 
   // ── T504: Restore Lock Status ─────────────────────────────────
   // Must be registered BEFORE /:filename routes
-  app.get('/api/admin/backups/restore-lock', requireSessionOrCompany, requireRole(MASTER_ONLY), (_req, res) => {
+  app.get('/api/admin/backups/restore-lock', requireSessionOrCompany, requireRole(MASTER_ONLY, { strict: true }), (_req, res) => {
     res.json({ success: true, data: getRestoreLockState() });
   });
 
@@ -165,7 +165,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── T502: Restore Sandbox (MASTER only, read-only, no DB) ─────
-  app.post('/api/admin/backups/:filename/sandbox', requireSessionOrCompany, requireRole(MASTER_ONLY), async (req: any, res) => {
+  app.post('/api/admin/backups/:filename/sandbox', requireSessionOrCompany, requireRole(MASTER_ONLY, { strict: true }), async (req: any, res) => {
     const { filename } = req.params;
     const corrId = `sandbox-${Date.now()}`;
 
@@ -199,7 +199,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── T501: Restore Dry-Run (MASTER only, reads live DB — READ ONLY) ──
-  app.post('/api/admin/backups/:filename/dry-run', requireSessionOrCompany, requireRole(MASTER_ONLY), async (req: any, res) => {
+  app.post('/api/admin/backups/:filename/dry-run', requireSessionOrCompany, requireRole(MASTER_ONLY, { strict: true }), async (req: any, res) => {
     const { filename } = req.params;
     const corrId = `dryrun-${Date.now()}`;
 
@@ -234,7 +234,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── T503: Restore Planner (MASTER only, reads live DB — READ ONLY) ──
-  app.get('/api/admin/backups/:filename/plan', requireSessionOrCompany, requireRole(MASTER_ONLY), async (req: any, res) => {
+  app.get('/api/admin/backups/:filename/plan', requireSessionOrCompany, requireRole(MASTER_ONLY, { strict: true }), async (req: any, res) => {
     const { filename } = req.params;
     const corrId = `planner-${Date.now()}`;
 
@@ -268,7 +268,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ── Validate (MASTER only) ────────────────────────────────────
-  app.post('/api/admin/backups/:filename/validate', requireSessionOrCompany, requireRole(MASTER_ONLY), async (req: any, res) => {
+  app.post('/api/admin/backups/:filename/validate', requireSessionOrCompany, requireRole(MASTER_ONLY, { strict: true }), async (req: any, res) => {
     try {
       const { filename } = req.params;
       const result = validateBackup(filename);

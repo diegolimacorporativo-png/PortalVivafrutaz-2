@@ -1,0 +1,311 @@
+ETAPA 21 — AUDITORIA E CORREÇÃO DE RBAC / requireRole
+
+OBJETIVO:
+Auditar e corrigir problemas de autorização relacionados ao middleware/policy central de RBAC, principalmente o comportamento de FULL_ACCESS_ROLES e requireRole(), SEM fazer uma alteração global perigosa.
+
+IMPORTANTE:
+Esta etapa é EXCLUSIVAMENTE sobre autorização/RBAC.
+NÃO mexer em:
+- NF-e
+- fiscal
+- certificado A1
+- emissão fiscal
+- impostos
+- DANFE
+- GPS/Android Tracker
+- produtos
+- preços
+- entregas
+- financeiro/banco
+- inventário
+- pedidos
+- banco de dados/schema/migrations
+
+Não criar migration.
+Não alterar dados reais.
+Não fazer mudanças cosméticas.
+Não refatorar módulos sem necessidade.
+Não fazer commit.
+
+CONTEXTO:
+O projeto possui roles como:
+MASTER
+ADMIN
+DIRECTOR
+DEVELOPER
+OPERATIONS_MANAGER
+LOGISTICS
+PURCHASE_MANAGER
+FINANCEIRO/FINANCE
+DRIVER/MOTORISTA
+CLIENT
+SERVICE
+
+Existe um risco já identificado no RBAC:
+requireRole("LOGISTICS"), por exemplo, pode aceitar MASTER/ADMIN/DIRECTOR/DEVELOPER por causa da lógica de FULL_ACCESS_ROLES.
+
+Isso NÃO significa automaticamente que está errado.
+Alguns endpoints realmente precisam permitir administradores globais.
+O objetivo é descobrir onde isso gera privilégio excessivo e corrigir somente os casos necessários.
+
+1. AUDITORIA CENTRAL
+
+Inspecione primeiro:
+
+- server/core/http/requireAuth.ts
+- qualquer implementação de requireRole
+- FULL_ACCESS_ROLES
+- middleware/policies relacionadas a roles
+- tenantContext
+- requireTenant
+- helpers de autorização
+
+Depois procure TODOS os consumidores de:
+
+- requireRole(
+- FULL_ACCESS_ROLES
+- requireAuth + checagens manuais de role
+- req.user.role
+- req.session
+- role ===
+- role.includes
+- arrays de roles
+- políticas específicas de autorização
+
+Faça um mapa dos endpoints afetados.
+
+2. CLASSIFICAR CADA ENDPOINT
+
+Para cada endpoint relevante, classifique como:
+
+A) GLOBAL ADMIN
+Pode ser acessado por MASTER/DIRECTOR ou outros administradores globais conforme a política existente.
+
+B) TENANT-BOUND
+Usuário precisa estar vinculado a uma empresa e só pode operar dentro dela.
+
+C) OPERACIONAL
+Exemplo:
+LOGISTICS
+OPERATIONS_MANAGER
+PURCHASE_MANAGER
+FINANCEIRO
+DRIVER
+
+D) TÉCNICO
+Exemplo:
+DEVELOPER/SERVICE, somente onde realmente necessário.
+
+E) CLIENT PORTAL
+Somente CLIENT/fluxos de cliente.
+
+F) PÚBLICO
+Sem autenticação, somente onde for realmente intencional.
+
+Não alterar um endpoint apenas porque encontrou requireRole().
+
+3. INVESTIGAR O PROBLEMA DE FULL_ACCESS_ROLES
+
+Determine exatamente:
+
+- quais roles estão em FULL_ACCESS_ROLES;
+- em quais endpoints elas conseguem entrar;
+- quais desses acessos são legítimos;
+- quais permitem privilégio acima do necessário.
+
+Exemplo:
+
+Se existir:
+
+requireRole("LOGISTICS")
+
+e MASTER/ADMIN/DIRECTOR/DEVELOPER passam automaticamente:
+
+NÃO simplesmente remover FULL_ACCESS_ROLES.
+
+Primeiro verifique se aquele endpoint é realmente:
+- operacional tenant-bound;
+- administrativo global;
+- técnico;
+- ou misto.
+
+Se MASTER/DIRECTOR precisam de acesso administrativo global, preservar isso.
+
+Se ADMIN/DEVELOPER vinculados a uma empresa devem ficar tenant-bound, preservar a política tenant-bound existente.
+
+4. PRINCIPAL REGRA
+
+Não confiar somente na role.
+
+Sempre que o endpoint for tenant-bound, validar também:
+
+- empresaId/tenantId da sessão;
+- tenantContext;
+- vínculo do usuário;
+- empresa do recurso acessado.
+
+Um usuário com role correta, mas pertencente à empresa errada, deve ser bloqueado.
+
+5. ATENÇÃO ESPECIAL
+
+Auditar principalmente endpoints que usam:
+
+requireRole("LOGISTICS")
+requireRole("FINANCEIRO")
+requireRole("PURCHASE_MANAGER")
+requireRole("OPERATIONS_MANAGER")
+requireRole("DRIVER")
+requireRole("MOTORISTA")
+requireRole("CLIENT")
+
+e também combinações como:
+
+requireRole("ADMIN", "DIRECTOR")
+requireRole(...)
+requireAuth + role manual.
+
+Verificar se:
+
+CLIENT consegue acessar endpoint interno.
+
+DRIVER consegue acessar endpoint administrativo.
+
+LOGISTICS consegue acessar financeiro.
+
+FINANCEIRO consegue acessar logística administrativa.
+
+OPERATIONS_MANAGER consegue acessar recursos de outros módulos.
+
+PURCHASE_MANAGER consegue alterar recursos fora de compras.
+
+ADMIN/DEVELOPER vinculados a empresa conseguem escapar do tenant.
+
+MASTER/DIRECTOR legítimos continuam funcionando.
+
+6. NÃO QUEBRAR A POLÍTICA EXISTENTE
+
+Preservar as regras já corrigidas nas etapas anteriores:
+
+- MASTER/DIRECTOR sem empresa podem ter comportamento global quando legitimamente previsto.
+- ADMIN/DEVELOPER vinculados a empresa não devem automaticamente virar globais.
+- usuários tenant-bound devem permanecer limitados à própria empresa.
+- usuários sem empresa não devem ganhar acesso global por acidente.
+- cross-tenant deve continuar bloqueado.
+
+7. ESTRATÉGIA DE CORREÇÃO
+
+Prefira:
+
+- policy específica;
+- middleware específico;
+- helper específico;
+- validação tenant + role no próprio módulo.
+
+EVITE alterar requireRole globalmente.
+
+Só altere o comportamento central de requireRole se a auditoria provar que isso é necessário e seguro.
+
+Se alterar requireRole central:
+
+- mapear todos os consumidores;
+- criar testes de regressão;
+- garantir que endpoints administrativos legítimos continuem funcionando;
+- garantir que endpoints operacionais não ganhem acesso indevido.
+
+8. TESTES OBRIGATÓRIOS
+
+Criar testes direcionados para os casos encontrados.
+
+Testar pelo menos:
+
+- sem autenticação -> 401
+- role explicitamente permitida -> acesso
+- role não permitida -> 403
+- MASTER
+- DIRECTOR
+- ADMIN sem empresa
+- ADMIN vinculado à empresa
+- DEVELOPER sem empresa
+- DEVELOPER vinculado à empresa
+- CLIENT
+- DRIVER
+- MOTORISTA
+- LOGISTICS
+- FINANCEIRO
+- OPERATIONS_MANAGER
+- PURCHASE_MANAGER
+- tentativa cross-tenant
+- tentativa de spoofing de empresaId/tenantId
+
+Não testar somente o middleware isoladamente.
+Sempre que possível testar o endpoint/policy real.
+
+9. VALIDAR MASS ASSIGNMENT RELACIONADO A RBAC
+
+Nos endpoints encontrados, verificar se o cliente consegue enviar:
+
+role
+userRole
+empresaId
+empresa_id
+companyId
+company_id
+tenantId
+tenant_id
+isAdmin
+isMaster
+permissions
+createdBy
+userId
+
+e alterar seu próprio nível de acesso ou o escopo da empresa.
+
+Se existir vulnerabilidade real, corrigir somente naquele fluxo.
+
+10. VERIFICAÇÃO FINAL
+
+Executar:
+
+npm run check
+
+npm run build
+
+testes direcionados criados nesta etapa
+
+Se houver workflow disponível, verificar:
+
+- BOOT_VALIDATION_OK
+- DB_CONNECTED
+- APP_READY
+
+Não executar operações destrutivas no banco.
+
+Se existirem os 10 testes conhecidos de order-deadline por timezone UTC/BRT, continuar tratando-os como falhas preexistentes, sem misturar com esta etapa.
+
+11. RELATÓRIO OBRIGATÓRIO
+
+No final, me entregue:
+
+ETAPA 21 — RESULTADO
+
+1. Problemas encontrados
+2. Problemas que eram falsos positivos/legítimos
+3. Arquivos alterados
+4. Endpoints corrigidos
+5. Regras de RBAC aplicadas
+6. Testes criados
+7. Resultado dos testes
+8. npm run check
+9. npm run build
+10. Workflow / DB_CONNECTED / APP_READY
+11. Se houve schema/migration/data: SIM/NÃO
+12. Se tocou NF-e/fiscal: SIM/NÃO
+13. Se tocou GPS/Android: SIM/NÃO
+14. Git diff resumido
+15. Próxima etapa recomendada
+
+NÃO FAÇA COMMIT.
+
+IMPORTANTE:
+Se não encontrar vulnerabilidade real em determinado endpoint, NÃO altere o código apenas para "melhorar".
+Esta é uma auditoria de segurança, não uma refatoração geral.

@@ -7,7 +7,7 @@ import {
   checkWebhookIdempotency,
 } from "../modules/billing/subscription.middleware";
 
-const requireMaster = [requireAuthCore, requireRole(['MASTER'])];
+const requireMaster = [requireAuthCore, requireRole(['MASTER'], { strict: true })];
 
 export async function register(app: Express): Promise<void> {
   app.get('/api/master/users', ...requireMaster, async (req: any, res) => {

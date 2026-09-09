@@ -11,7 +11,7 @@ export async function register(app: Express) {
   app.get(
     '/api/admin/certificates/audit',
     requireAuthCore,
-    requireRole(['MASTER']),
+    requireRole(['MASTER'], { strict: true }),
     async (_req, res) => {
       try {
         const { auditCertificates } = await import(
@@ -39,7 +39,7 @@ export async function register(app: Express) {
   app.post(
     '/api/admin/certificates/migrate-legacy',
     requireAuthCore,
-    requireRole(['MASTER']),
+    requireRole(['MASTER'], { strict: true }),
     async (_req, res) => {
       try {
         const { migrateLegacyCertificates } = await import(

@@ -69,7 +69,7 @@ export function register(app: Express) {
 
   // ─── PROTECTED GENERIC CATCH-ALL (registered after specific public routes) ───
   // System Settings
-  app.get('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req, res) => {
+  app.get('/api/settings/:key', requireAuthCore, requireRole(["MASTER"], { strict: true }), async (req, res) => {
     const key = String(req.params.key);
     const value = await storage.getSetting(key);
     if (key === 'maintenance' || key === 'test-mode') {
@@ -80,7 +80,7 @@ export function register(app: Express) {
     res.json({ key, value });
   });
 
-  app.put('/api/settings/:key', requireAuthCore, requireRole(["MASTER"]), async (req: any, res) => {
+  app.put('/api/settings/:key', requireAuthCore, requireRole(["MASTER"], { strict: true }), async (req: any, res) => {
     const { value } = req.body;
     if (typeof value !== 'string') return res.status(400).json({ message: 'value required' });
     const key = String(req.params.key);
