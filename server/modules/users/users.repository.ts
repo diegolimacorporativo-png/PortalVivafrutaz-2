@@ -17,11 +17,18 @@ import { db } from "../../database/db";
 import { users as usersTable, systemLogs } from "@shared/schema";
 import type { User, InsertUser } from "./users.types";
 import type { IUsersRepository, LogEntry } from "./interfaces/IUsersRepository";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { currentTenantId } from "../../core/tenant/context";
 import { invalidateUsageCache } from "../billing/usage-cache";
 
 export class UsersRepository implements IUsersRepository {
+  private scopedIdWhere(id: number) {
+    const tenantId = currentTenantId();
+    return tenantId == null
+      ? eq(usersTable.id, id)
+      : and(eq(usersTable.id, id), eq(usersTable.empresaId, tenantId));
+  }
+
   // ── 7 métodos canônicos (IStorage contract) ───────────────────────────────
 
   async getUserByEmail(email: string): Promise<User | undefined> {
@@ -58,10 +65,14 @@ export class UsersRepository implements IUsersRepository {
     if (updates.password) {
       toUpdate.password = await bcrypt.hash(updates.password, 10);
     }
+    const tenantId = currentTenantId();
+    if (tenantId != null) {
+      toUpdate.empresaId = tenantId;
+    }
     const [updated] = await db
       .update(usersTable)
       .set(toUpdate)
-      .where(eq(usersTable.id, id))
+      .where(this.scopedIdWhere(id))
       .returning();
     if (updated?.empresaId) invalidateUsageCache(updated.empresaId);
     return updated!;
@@ -85,7 +96,7 @@ export class UsersRepository implements IUsersRepository {
   async deleteUser(id: number): Promise<void> {
     const [deleted] = await db
       .delete(usersTable)
-      .where(eq(usersTable.id, id))
+      .where(this.scopedIdWhere(id))
       .returning();
     if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
   }
@@ -126,7 +137,12 @@ export class UsersRepository implements IUsersRepository {
   }
 
   getById(id: number): Promise<User | undefined> {
-    return this.getUser(id);
+    return db
+      .select()
+      .from(usersTable)
+      .where(this.scopedIdWhere(id))
+      .limit(1)
+      .then((rows) => rows[0]);
   }
 
   create(data: InsertUser): Promise<User> {

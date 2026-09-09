@@ -1,0 +1,131 @@
+CORREÇÃO 2 — ISOLAMENTO MULTI-TENANT DO CRUD DE USUÁRIOS
+
+Quero corrigir APENAS o risco de IDOR/multi-tenant identificado no CRUD de usuários.
+
+Contexto da auditoria:
+- server/routes/users.routes.ts
+- server/routes/users.admin.routes.ts
+- serviços/repositórios relacionados a usuários
+- endpoints como:
+  GET /api/users/:id
+  PATCH/PUT /api/users/:id
+  DELETE /api/users/:id
+  /api/admin/users/:id/unlock
+- O problema identificado é que operações por ID não possuem isolamento consistente por empresa/tenant.
+- Também foi identificado que a criação pode aceitar empresa/empresaId enviada pelo cliente.
+
+REGRAS OBRIGATÓRIAS:
+
+1. NÃO altere NF-e ou qualquer código relacionado a NF-e.
+
+2. NÃO faça refatoração ampla.
+
+3. NÃO altere schema/migrations/banco nesta etapa, a menos que seja absolutamente indispensável. Preferencialmente resolver apenas na camada de autorização/queries.
+
+4. Antes de alterar qualquer coisa, leia:
+   - server/routes/users.routes.ts
+   - server/routes/users.admin.routes.ts
+   - service de usuários
+   - repository de usuários
+   - storage relacionado a usuários
+   - tenantContext/currentTenantId/withTenantScope
+   - middleware de autenticação/RBAC utilizado pelos usuários
+   - schema da tabela users
+   - todos os consumidores frontend desses endpoints.
+
+5. Determine exatamente quais endpoints são:
+   a) tenant-bound;
+   b) realmente globais e exclusivos de MASTER/ADMIN/DEVELOPER/DIRECTOR, conforme o padrão já existente no projeto.
+
+6. Para operações tenant-bound:
+   - nunca confiar em empresaId/empresa_id enviado pelo frontend;
+   - obter o tenant a partir da sessão/contexto autenticado;
+   - GET por ID deve validar que o usuário pertence ao tenant atual;
+   - UPDATE deve validar ownership pelo ID + tenant;
+   - DELETE deve validar ownership pelo ID + tenant;
+   - UNLOCK deve validar ownership pelo ID + tenant;
+   - criação deve ignorar/substituir empresaId fornecido pelo cliente pelo tenant autenticado;
+   - usuário de uma empresa não pode criar, visualizar, alterar, desbloquear ou excluir usuário de outra empresa.
+
+7. Para usuários globais:
+   - manter comportamento global SOMENTE se o papel for explicitamente global;
+   - não transformar ADMIN comum/tenant-bound em usuário global apenas para preservar comportamento antigo;
+   - seguir o padrão de autorização global já existente no projeto, especialmente o utilizado pelo dashboard executivo/MASTER.
+
+8. Não confiar em:
+   - req.body.companyId
+   - req.body.empresaId
+   - req.query.companyId
+   - parâmetros enviados pelo frontend
+   quando o tenant puder ser obtido da sessão.
+
+9. Atenção especial a escalada de privilégio:
+   - não permitir que um tenant altere role/permissões de usuário pertencente a outro tenant;
+   - não permitir alterar empresaId/empresa_id de forma a mover um usuário para outro tenant;
+   - preserve as regras atuais de quem pode criar/editar/excluir usuários.
+
+10. Preserve integralmente:
+   - autenticação existente;
+   - hash de senha existente;
+   - fluxo de login;
+   - recuperação de senha;
+   - RBAC existente;
+   - funcionalidades legítimas de usuários globais.
+
+TESTES:
+
+Crie/ajuste testes sem modificar dados reais do banco compartilhado, preferencialmente usando mocks/fakes/test database já existente no projeto.
+
+Validar pelo menos:
+
+Cenário A:
+Usuário tenant A → consultar usuário do tenant A
+RESULTADO: permitido.
+
+Cenário B:
+Usuário tenant A → consultar usuário do tenant B
+RESULTADO: 403 ou 404 seguro.
+
+Cenário C:
+Usuário tenant A → editar usuário do tenant B
+RESULTADO: bloqueado.
+
+Cenário D:
+Usuário tenant A → excluir usuário do tenant B
+RESULTADO: bloqueado.
+
+Cenário E:
+Usuário tenant A → desbloquear usuário do tenant B
+RESULTADO: bloqueado.
+
+Cenário F:
+Usuário tenant A → criar usuário informando empresaId do tenant B no body
+RESULTADO: usuário deve permanecer no tenant A ou a requisição deve ser rejeitada conforme a regra existente.
+
+Cenário G:
+usuário global autorizado → acessar usuários conforme sua permissão global
+RESULTADO: permitido.
+
+Cenário H:
+usuário sem autenticação → acessar endpoints protegidos
+RESULTADO: 401.
+
+IMPORTANTE:
+
+Não execute testes que façam INSERT/UPDATE/DELETE no banco compartilhado de desenvolvimento/produção.
+
+Depois da alteração:
+
+1. Rode npm run check.
+2. Rode npm test.
+3. Informe exatamente:
+   - arquivos alterados;
+   - endpoints corrigidos;
+   - como o tenant agora é determinado;
+   - quais roles continuam globais;
+   - quais cenários foram testados;
+   - resultado dos testes;
+   - se houve qualquer alteração de banco.
+4. NÃO faça commit.
+
+Se encontrar outro problema durante a análise, NÃO corrija nesta etapa. Apenas relate como "fora do escopo".

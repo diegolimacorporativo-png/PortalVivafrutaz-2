@@ -13,6 +13,7 @@ import type {
   UnlockUserResult,
   User,
 } from "./users.types";
+import { currentTenantId } from "../../core/tenant/context";
 
 /** Roles allowed to change another user's password. Mirrors legacy gate. */
 const PASSWORD_CHANGE_ROLES = [
@@ -55,7 +56,11 @@ export class UsersService {
   // ── Create ─────────────────────────────────────────────────────────────
   async create(input: InsertUser): Promise<SafeUser> {
     try {
-      const user = await this.repo.create(input);
+      const tenantId = currentTenantId();
+      const scopedInput = tenantId == null
+        ? input
+        : { ...input, empresaId: tenantId };
+      const user = await this.repo.create(scopedInput);
       return toSafe(user);
     } catch (err: any) {
       // Postgres unique violation on `users.email` (code 23505).
@@ -76,6 +81,11 @@ export class UsersService {
     if (updates.password === "***" || updates.password === "") {
       delete updates.password;
     }
+    // A tenant-bound actor can never move an account to another tenant.
+    const tenantId = currentTenantId();
+    if (tenantId != null) {
+      updates.empresaId = tenantId;
+    }
 
     const user = await this.repo.update(id, updates);
     if (!user) throw new NotFoundError("Usuário não encontrado");
@@ -84,6 +94,8 @@ export class UsersService {
 
   // ── Delete ─────────────────────────────────────────────────────────────
   async delete(id: number): Promise<void> {
+    const target = await this.repo.getById(id);
+    if (!target) throw new NotFoundError("Usuário não encontrado");
     await this.repo.delete(id);
   }
 

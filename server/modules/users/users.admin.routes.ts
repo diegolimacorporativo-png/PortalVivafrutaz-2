@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { usersController } from "./users.controller";
+import { requireAuth, requireRole } from "../../core/http/requireAuth";
+import { tenantContext } from "../../middleware/tenant";
 
 /**
  * Admin-prefixed users router — mounted at `/api/admin/users`.
@@ -16,6 +18,12 @@ import { usersController } from "./users.controller";
  */
 const router = Router();
 
-router.post("/:id/unlock", asyncHandler(usersController.unlock));
+router.use(tenantContext);
+router.post(
+  "/:id/unlock",
+  requireAuth,
+  requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]),
+  asyncHandler(usersController.unlock),
+);
 
 export { router as usersAdminRouter };

@@ -12,6 +12,7 @@ import {
 // C2-FIX: users CRUD endpoints were completely unauthenticated — now require
 // a valid admin session. Role enforcement (ADMIN/MASTER) is applied per route.
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
+import { tenantContext } from "../../middleware/tenant";
 
 /**
  * Users router — wires HTTP method+path → middleware chain → controller.
@@ -36,6 +37,10 @@ import { requireAuth, requireRole } from "../../core/http/requireAuth";
  * coordinated with a frontend pass — not silently during this refactor.
  */
 const router = Router();
+// Resolve and pin the tenant before any user query. Tenant-bound accounts
+// cannot override it with body/query values; global admins may use the
+// existing explicit tenant-targeting convention.
+router.use(tenantContext);
 
 // ── List ────────────────────────────────────────────────────────────────
 router.get("/", requireAuth, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), asyncHandler(usersController.list));

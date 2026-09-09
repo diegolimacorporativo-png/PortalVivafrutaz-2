@@ -9,3 +9,4 @@
 - [GPS em segundo plano na PWA](gps-pwa-background.md) — retomada e fila melhoram a PWA, mas tela bloqueada exige Tracker Android nativo.
 - [GPS global access](gps-global-access.md) — endpoint modular; MASTER/ADMIN/DIRECTOR têm visão global, demais internos seguem tenant-scoped.
 - [Password reset history](password-reset-security.md) — pedidos de reset nunca persistem a senha original; a senha só vai ao cadastro protegido da empresa.
+- [Users CRUD tenant scope](users-crud-tenant-scope.md) — CRUD deve resolver tenant no middleware e repetir o escopo por empresa no repositório; admin global só quando não há tenant fixado.
