@@ -1,0 +1,249 @@
+CORREÇÃO 5 — ISOLAMENTO E AUTORIZAÇÃO DOS SPECIAL ORDER REQUESTS
+
+Quero corrigir APENAS os riscos de autorização e isolamento multiempresa identificados no módulo de solicitações de pedidos especiais.
+
+Arquivo principal identificado na auditoria:
+
+server/routes/special-order-requests.routes.ts
+
+Fluxos envolvidos:
+
+POST /api/special-order-requests
+GET  /api/special-order-requests
+
+Antes de alterar qualquer código, faça uma auditoria completa desse fluxo.
+
+OBJETIVO:
+
+Descobrir se o POST é realmente um formulário público legítimo e, caso seja, impedir que um usuário consiga escolher arbitrariamente o tenant de outra empresa.
+
+Também impedir que a listagem de solicitações exponha solicitações de outras empresas para usuários não autorizados.
+
+REGRAS OBRIGATÓRIAS:
+
+1. NÃO alterar NF-e.
+
+2. NÃO alterar schema.
+
+3. NÃO criar migration.
+
+4. NÃO alterar dados existentes no banco.
+
+5. NÃO fazer refatoração ampla.
+
+6. Não alterar outros módulos fora do necessário.
+
+ANTES DE EDITAR:
+
+Leia completamente:
+
+- server/routes/special-order-requests.routes.ts
+- controller/service relacionado
+- repository/storage
+- shared/schema.ts apenas para entender os campos existentes
+- tenantContext/currentTenantId/withTenantScope
+- autenticação/RBAC
+- todos os consumidores frontend de special-order-requests
+- páginas públicas relacionadas
+- rotas públicas relacionadas
+- testes existentes desse módulo
+
+IMPORTANTE:
+
+Não assuma que POST público é vulnerabilidade automaticamente.
+
+Determine primeiro:
+
+A) Existe uma página/formulário público legítimo que permite que um cliente faça uma solicitação sem login?
+
+B) Como esse formulário sabe para qual empresa/cliente a solicitação pertence?
+
+C) O frontend público recebe algum token, slug, identificador seguro ou outro vínculo confiável?
+
+D) O companyId atualmente enviado pelo cliente é realmente a única forma de escolher a empresa?
+
+E) A listagem GET é usada por painel administrativo ou por página pública?
+
+F) Quais roles deveriam conseguir listar/gerenciar essas solicitações?
+
+REGRA PARA FLUXO PÚBLICO:
+
+Se o POST realmente precisar permanecer público:
+
+NÃO simplesmente exigir autenticação e quebrar o formulário público.
+
+Em vez disso, encontre a menor alteração segura.
+
+O ideal é que um formulário público seja vinculado a uma empresa por algum identificador público apropriado já existente no sistema.
+
+Se já existir token, slug ou identificador público seguro:
+
+- usar esse mecanismo;
+- validar o vínculo;
+- nunca confiar apenas em companyId arbitrário enviado pelo cliente.
+
+Se NÃO existir mecanismo seguro:
+
+- não inventar uma arquitetura complexa nesta etapa;
+- avaliar se o POST pode aceitar uma solicitação pública sem atribuir diretamente um tenant arbitrário;
+- se for necessário criar algum vínculo novo, apenas propor a solução e NÃO criar migration nesta etapa.
+
+REGRA PARA USUÁRIOS AUTENTICADOS:
+
+Quando a sessão possui tenant:
+
+- o tenant da sessão deve prevalecer;
+- companyId enviado pelo cliente não pode mudar o tenant;
+- tenant A não pode criar/consultar/alterar solicitações do tenant B.
+
+USUÁRIOS GLOBAIS:
+
+Identifique quais roles são realmente globais no projeto.
+
+Somente essas roles podem ter acesso cross-tenant.
+
+Não transformar ADMIN tenant-bound em global automaticamente.
+
+LISTAGEM GET:
+
+Se o endpoint:
+
+GET /api/special-order-requests
+
+for usado pelo painel administrativo:
+
+- exigir autenticação;
+- aplicar RBAC;
+- tenant-bound deve receber somente suas próprias solicitações;
+- global autorizado pode consultar múltiplos tenants conforme regra existente.
+
+Se existir uma necessidade legítima de consulta pública:
+
+- identifique exatamente qual é o fluxo;
+- não exponha uma listagem global;
+- use somente o identificador público apropriado já existente.
+
+IMPORTANTE:
+
+Não permitir:
+
+tenant A → enviar companyId B → criar solicitação em B.
+
+Não permitir:
+
+tenant A → enviar companyId B → listar solicitações de B.
+
+Não permitir:
+
+usuário não autorizado → obter listagem global.
+
+OWNERSHIP:
+
+Se houver endpoints por ID além de POST/GET, audite também:
+
+PATCH
+PUT
+DELETE
+GET /:id
+
+Se existirem, aplique a mesma regra:
+
+id + tenant
+
+para operações tenant-bound.
+
+TESTES:
+
+Crie testes unitários sem utilizar o banco compartilhado.
+
+Cubra pelo menos:
+
+1. Tenant A cria solicitação para A.
+→ permitido.
+
+2. Tenant A envia companyId B.
+→ NÃO pode criar em B.
+
+3. Tenant A tenta listar solicitações de B.
+→ bloqueado ou tenant B ignorado.
+
+4. Tenant B não consegue acessar solicitações de A.
+
+5. Usuário sem autenticação tenta acessar listagem administrativa.
+→ 401.
+
+6. Usuário autenticado sem role necessária.
+→ 403.
+
+7. Usuário global autorizado.
+→ comportamento global legítimo permanece funcionando.
+
+8. Se POST público existir:
+   validar que o fluxo público legítimo continua funcionando sem permitir seleção arbitrária de tenant.
+
+9. Se existir endpoint por ID:
+   tenant A tentando acessar ID pertencente a B
+   → bloqueado, preferencialmente 404.
+
+BANCO:
+
+Não executar INSERT/UPDATE/DELETE no Supabase compartilhado.
+
+Use mocks/fakes/testes unitários.
+
+VALIDAÇÃO FINAL:
+
+Executar:
+
+npm run check
+
+Testes direcionados do módulo.
+
+npm test
+
+Reiniciar o workflow.
+
+Confirmar:
+
+DB_CONNECTED: supabase
+APP_READY
+
+Fazer pelo menos uma validação HTTP sem sessão em endpoint que deveria ser protegido, sem alterar banco.
+
+As 10 falhas conhecidas de:
+
+tests/unit/order-deadline.test.ts
+
+não fazem parte desta correção.
+
+NÃO corrigir essas falhas agora.
+
+RELATÓRIO FINAL:
+
+Informar:
+
+- qual era exatamente o fluxo público;
+- se o POST permaneceu público ou passou a exigir autenticação;
+- como a empresa/tenant é determinado;
+- como companyId enviado pelo cliente é tratado;
+- quais roles podem acessar a listagem;
+- quais endpoints foram protegidos;
+- arquivos alterados;
+- testes adicionados;
+- resultado dos testes direcionados;
+- npm run check;
+- npm test;
+- comparação com as 10 falhas preexistentes;
+- resultado do boot;
+- confirmação Supabase;
+- confirmação de que nenhum dado foi alterado;
+- confirmação de que nenhuma migration/schema foi alterada;
+- confirmação de que NF-e não foi tocado.
+
+NÃO FAÇA COMMIT.
+
+Se encontrar outro problema durante a auditoria, registre apenas como:
+
+"Fora do escopo."
+
+Não corrija outros problemas nesta etapa.

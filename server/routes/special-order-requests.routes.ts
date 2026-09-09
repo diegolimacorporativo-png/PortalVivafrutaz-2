@@ -1,13 +1,32 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { sendSpecialOrderResolved } from "../services/mailer";
-import { validateCompanyTenant } from "../core/security/orderSecurity";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { requireRole } from "../core/http/requireAuth";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
+import { tenantContext } from "../middleware/tenant";
+import { currentTenantId, runWithTenant } from "../core/tenant/context";
 import { ordersService } from "../modules/orders/orders.service";
 import { productService } from "../modules/products/products.service";
 import { resolveProductPrice } from "../modules/products/utils/priceResolver";
-import { runWithTenant } from "../core/tenant/context";
+import {
+  SPECIAL_ORDER_MANAGE_ROLES,
+  SPECIAL_ORDER_VIEW_ROLES,
+  resolveSpecialOrderCreationCompanyId,
+  resolveSpecialOrderScope,
+} from "../modules/special-orders/special-order-requests.policy";
+
+const SPECIAL_ORDER_SESSION_MIDDLEWARE = [requireSessionOrCompany, tenantContext] as const;
+const SPECIAL_ORDER_ADMIN_MIDDLEWARE = [
+  requireAuthCore,
+  requireRole([...SPECIAL_ORDER_VIEW_ROLES], { strict: true }),
+  tenantContext,
+] as const;
+const SPECIAL_ORDER_MANAGER_MIDDLEWARE = [
+  requireAuthCore,
+  requireRole([...SPECIAL_ORDER_MANAGE_ROLES], { strict: true }),
+  tenantContext,
+] as const;
 
 function isoWeekReference(dateValue: string): string {
   const date = new Date(`${dateValue}T12:00:00Z`);
@@ -18,15 +37,58 @@ function isoWeekReference(dateValue: string): string {
   return `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
 }
 
+function parseSpecialOrderId(value: unknown): number | null {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+async function resolveSpecialOrderRequest(
+  req: any,
+  res: any,
+  allowedRoles: readonly string[] = SPECIAL_ORDER_VIEW_ROLES,
+) {
+  const session = req.session;
+  const user = session?.userId ? await storage.getUser(session.userId) : null;
+
+  if (session?.companyId) {
+    const scope = resolveSpecialOrderScope(
+      { sessionCompanyId: session.companyId, tenantId: currentTenantId() },
+      allowedRoles,
+    );
+    if (scope) return { scope, user: null };
+    res.status(403).json({ message: "Empresa não definida para esta sessão" });
+    return null;
+  }
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    res.status(403).json({ message: "Sem permissão" });
+    return null;
+  }
+
+  const scope = resolveSpecialOrderScope(
+    {
+      tenantId: currentTenantId(),
+      userEmpresaId: user.empresaId,
+      role: user.role,
+    },
+    allowedRoles,
+  );
+  if (!scope) {
+    res.status(403).json({ message: "Empresa não definida para este usuário" });
+    return null;
+  }
+
+  return { scope, user };
+}
+
 export function register(app: Express) {
   // Client: submit special order — an authenticated company session is required.
-  app.post('/api/special-order-requests', requireSessionOrCompany, async (req, res) => {
+  app.post('/api/special-order-requests', ...SPECIAL_ORDER_SESSION_MIDDLEWARE, async (req, res) => {
     try {
-      const { companyId, requestedDay, requestedDate, description, quantity, observations, items } = req.body;
-      if (!companyId) return res.status(400).json({ message: "ID da empresa é obrigatório." });
-      if (req.session?.companyId && Number(req.session.companyId) !== Number(companyId)) {
-        return res.status(403).json({ message: "A empresa da sessão não corresponde ao pedido." });
-      }
+      if (!req.session?.companyId) return res.status(403).json({ message: "Apenas sessões de empresa podem criar solicitações." });
+      const { companyId: requestedCompanyId, requestedDay, requestedDate, description, quantity, observations, items } = req.body ?? {};
+      const companyId = resolveSpecialOrderCreationCompanyId(req.session.companyId, requestedCompanyId);
+      if (!companyId) return res.status(403).json({ message: "Empresa da sessão não encontrada." });
       if (!requestedDay) return res.status(400).json({ message: "Dia desejado é obrigatório." });
       if (Array.isArray(items) && items.length > 0) {
         for (const it of items) {
@@ -52,48 +114,53 @@ export function register(app: Express) {
     }
   });
 
-  // Client: list own requests — accessible by userId OR companyId
-  app.get('/api/special-order-requests/company/:companyId', requireSessionOrCompany, async (req, res) => {
+  // Client: list own requests — company portal session only
+  app.get('/api/special-order-requests/company/:companyId', ...SPECIAL_ORDER_SESSION_MIDDLEWARE, async (req, res) => {
     try {
-      const companyId = Number(req.params.companyId);
-      try {
-        validateCompanyTenant(companyId, req);
-      } catch {
-        return res.status(403).json({ message: 'Acesso negado' });
+      if (!req.session?.companyId) return res.status(403).json({ message: "Apenas sessões de empresa podem consultar solicitações." });
+      const companyId = parseSpecialOrderId(req.params.companyId);
+      if (!companyId || companyId !== Number(currentTenantId())) {
+        return res.status(404).json({ message: 'Solicitações não encontradas' });
       }
       const items = await storage.getSpecialOrderRequestsByCompany(companyId);
       res.json(items);
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
 
-  // Admin: list all — public (no auth check, as per original)
-  app.get('/api/special-order-requests', async (req, res) => {
+  // Admin: list own tenant or all for an explicitly global role.
+  app.get('/api/special-order-requests', ...SPECIAL_ORDER_ADMIN_MIDDLEWARE, async (req, res) => {
     try {
-      const items = await storage.getSpecialOrderRequests();
+      const request = await resolveSpecialOrderRequest(req, res);
+      if (!request) return;
+      const items = request.scope.companyId == null
+        ? await storage.getSpecialOrderRequests()
+        : await storage.getSpecialOrderRequestsByCompany(request.scope.companyId);
       res.json(items);
     } catch { res.status(500).json({ message: "Erro interno" }); }
   });
 
   // Admin: approve/reject — admin users only
-  app.put('/api/special-order-requests/:id', requireAuthCore, async (req, res) => {
+  app.put('/api/special-order-requests/:id', ...SPECIAL_ORDER_MANAGER_MIDDLEWARE, async (req, res) => {
     try {
-      const actingUser = await storage.getUser(req.session.userId!);
-      if (!actingUser || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(actingUser.role)) {
-        return res.status(403).json({ message: 'Apenas Administrador, Diretor ou Desenvolvedor podem aprovar/recusar pedidos pontuais.' });
-      }
-      const id = Number(req.params.id);
-      const { status, adminNote, items, estimatedDeliveryDate } = req.body;
+      const request = await resolveSpecialOrderRequest(req, res, SPECIAL_ORDER_MANAGE_ROLES);
+      if (!request) return;
+      const actingUser = request.user!;
+      const id = parseSpecialOrderId(req.params.id);
+      if (!id) return res.status(404).json({ message: 'Solicitação não encontrada' });
+      const { status, adminNote, items, estimatedDeliveryDate } = req.body ?? {};
       if (!status || !['APPROVED', 'REJECTED'].includes(status)) return res.status(400).json({ message: 'Status inválido.' });
       if (status === 'REJECTED' && !adminNote?.trim()) return res.status(400).json({ message: 'Informe o motivo da recusa.' });
-      const allSpecial = await storage.getSpecialOrderRequests();
-      const sr = allSpecial.find(r => r.id === id);
-       let generatedOrder: any = null;
-       let finalAdminNote = adminNote;
+      const sr = request.scope.companyId == null
+        ? await storage.getSpecialOrderRequest(id)
+        : await storage.getSpecialOrderRequestForCompany(id, request.scope.companyId);
+      if (!sr) return res.status(404).json({ message: 'Solicitação não encontrada' });
+      let generatedOrder: any = null;
+      let finalAdminNote = adminNote;
 
-       // Catalog items become a regular order only after the administrator
-       // approves the special request. This makes them visible to the normal
-       // programming/production flow while keeping external products manual.
-       if (status === "APPROVED") {
+      // Catalog items become a regular order only after the administrator
+      // approves the special request. This makes them visible to the normal
+      // programming/production flow while keeping external products manual.
+      if (status === "APPROVED") {
          const approvedItems: any[] = Array.isArray(items) ? items : (Array.isArray(sr?.items) ? sr.items : []);
          const catalogItems = approvedItems.filter((item) => item.productType === "catalog");
          if (catalogItems.length > 0) {
@@ -160,12 +227,19 @@ export function register(app: Express) {
          }
        }
 
-       const updated = await storage.updateSpecialOrderRequest(id, {
-         status, adminNote: finalAdminNote, resolvedAt: new Date(),
-        ...(items !== undefined ? { items } : {}),
-        ...(estimatedDeliveryDate !== undefined ? { estimatedDeliveryDate } : {}),
-      } as any);
-       res.json({ ...updated, generatedOrder });
+      const updated = request.scope.companyId == null
+        ? await storage.updateSpecialOrderRequest(id, {
+            status, adminNote: finalAdminNote, resolvedAt: new Date(),
+            ...(items !== undefined ? { items } : {}),
+            ...(estimatedDeliveryDate !== undefined ? { estimatedDeliveryDate } : {}),
+          } as any)
+        : await storage.updateSpecialOrderRequestForCompany(id, request.scope.companyId, {
+            status, adminNote: finalAdminNote, resolvedAt: new Date(),
+            ...(items !== undefined ? { items } : {}),
+            ...(estimatedDeliveryDate !== undefined ? { estimatedDeliveryDate } : {}),
+          } as any);
+      if (!updated) return res.status(404).json({ message: 'Solicitação não encontrada' });
+      res.json({ ...updated, generatedOrder });
 
       // Send email (non-blocking)
       if (sr && (status === 'APPROVED' || status === 'REJECTED')) {
@@ -177,7 +251,7 @@ export function register(app: Express) {
               companyName: company.companyName,
               requestedDay: sr.requestedDay || "—",
               status,
-               adminNote: finalAdminNote,
+              adminNote: finalAdminNote,
             });
           }
         } catch (emailErr) {
