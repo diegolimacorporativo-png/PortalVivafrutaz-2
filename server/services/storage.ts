@@ -87,6 +87,7 @@ import {
 } from "@shared/schema";
 import { eq, and, desc, gte, gt, lte, sql, inArray, or, ilike, isNull } from "drizzle-orm";
 import { usersRepository } from "../modules/users/users.repository";
+import type { QuotationScope } from "../modules/quotations/quotations.policy";
 
 export interface IStorage {
   // BANCO.5 — CNAB import history (auditoria de uploads de retorno)
@@ -303,10 +304,11 @@ export interface IStorage {
   updateMaintenanceOwned(id: number, empresaId: number, data: Partial<LogisticsMaintenance>): Promise<LogisticsMaintenance | null>;
   deleteMaintenanceOwned(id: number, empresaId: number): Promise<boolean>;
   // Quotations
-  getQuotations(): Promise<CompanyQuotation[]>;
-  createQuotation(data: Partial<CompanyQuotation>): Promise<CompanyQuotation>;
-  updateQuotation(id: number, data: Partial<CompanyQuotation>): Promise<CompanyQuotation>;
-  deleteQuotation(id: number): Promise<void>;
+  getQuotations(scope: QuotationScope): Promise<CompanyQuotation[]>;
+  getQuotationById(id: number, scope: QuotationScope): Promise<CompanyQuotation | undefined>;
+  createQuotation(data: Partial<CompanyQuotation>, empresaId: number | null): Promise<CompanyQuotation>;
+  updateQuotation(id: number, scope: QuotationScope, data: Partial<CompanyQuotation>): Promise<CompanyQuotation | undefined>;
+  deleteQuotation(id: number, scope: QuotationScope): Promise<boolean>;
   // Waste Control
   getWasteRecords(): Promise<WasteControl[]>;
   createWasteRecord(data: InsertWasteControl): Promise<WasteControl>;
@@ -1973,19 +1975,74 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Cotação de Empresas ──────────────────────────────────────
-  async getQuotations(): Promise<CompanyQuotation[]> {
-    return db.select().from(companyQuotations).orderBy(desc(companyQuotations.createdAt)).limit(200);
+  async getQuotations(scope: QuotationScope): Promise<CompanyQuotation[]> {
+    const whereClause = scope.global
+      ? undefined
+      : eq(companyQuotations.empresaId, scope.empresaId);
+    return db
+      .select()
+      .from(companyQuotations)
+      .where(whereClause)
+      .orderBy(desc(companyQuotations.createdAt))
+      .limit(200);
   }
-  async createQuotation(data: Partial<CompanyQuotation>): Promise<CompanyQuotation> {
-    const [q] = await db.insert(companyQuotations).values({ status: 'PENDING', ...data } as any).returning();
+  async getQuotationById(
+    id: number,
+    scope: QuotationScope,
+  ): Promise<CompanyQuotation | undefined> {
+    const whereClause = scope.global
+      ? eq(companyQuotations.id, id)
+      : and(
+          eq(companyQuotations.id, id),
+          eq(companyQuotations.empresaId, scope.empresaId),
+        );
+    const [q] = await db
+      .select()
+      .from(companyQuotations)
+      .where(whereClause)
+      .limit(1);
     return q;
   }
-  async updateQuotation(id: number, data: Partial<CompanyQuotation>): Promise<CompanyQuotation> {
-    const [q] = await db.update(companyQuotations).set({ ...data, updatedAt: new Date() } as any).where(eq(companyQuotations.id, id)).returning();
+  async createQuotation(
+    data: Partial<CompanyQuotation>,
+    empresaId: number | null,
+  ): Promise<CompanyQuotation> {
+    const [q] = await db
+      .insert(companyQuotations)
+      .values({ status: "PENDING", ...data, empresaId } as any)
+      .returning();
     return q;
   }
-  async deleteQuotation(id: number): Promise<void> {
-    await db.delete(companyQuotations).where(eq(companyQuotations.id, id));
+  async updateQuotation(
+    id: number,
+    scope: QuotationScope,
+    data: Partial<CompanyQuotation>,
+  ): Promise<CompanyQuotation | undefined> {
+    const whereClause = scope.global
+      ? eq(companyQuotations.id, id)
+      : and(
+          eq(companyQuotations.id, id),
+          eq(companyQuotations.empresaId, scope.empresaId),
+        );
+    const [q] = await db
+      .update(companyQuotations)
+      .set({ ...data, updatedAt: new Date() } as any)
+      .where(whereClause)
+      .returning();
+    return q;
+  }
+  async deleteQuotation(id: number, scope: QuotationScope): Promise<boolean> {
+    const whereClause = scope.global
+      ? eq(companyQuotations.id, id)
+      : and(
+          eq(companyQuotations.id, id),
+          eq(companyQuotations.empresaId, scope.empresaId),
+        );
+    const deleted = await db
+      .delete(companyQuotations)
+      .where(whereClause)
+      .returning({ id: companyQuotations.id });
+    return deleted.length > 0;
   }
 
   // ─── Announcements ────────────────────────────────────────────

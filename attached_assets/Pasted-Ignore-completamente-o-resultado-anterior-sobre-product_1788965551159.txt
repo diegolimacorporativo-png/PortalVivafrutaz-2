@@ -1,0 +1,77 @@
+Ignore completamente o resultado anterior sobre production.tsx.
+
+Continue a ETAPA 13 que foi solicitada anteriormente: AUDITORIA E CORREÇÃO DE ISOLAMENTO MULTI-TENANT EM QUOTATIONS.
+
+O resultado anterior NÃO conta como Etapa 13.
+
+Trabalhe SOMENTE no módulo de quotations/orçamentos.
+
+Audite e corrija, se vulneráveis:
+
+- GET /api/quotations
+- GET /api/quotations/:id
+- POST /api/quotations
+- PATCH /api/quotations/:id
+- PUT /api/quotations/:id, se existir
+- DELETE /api/quotations/:id
+- rotas auxiliares diretamente relacionadas a quotations
+
+Objetivo principal:
+Eliminar IDOR, cross-tenant access e mass assignment.
+
+REGRAS OBRIGATÓRIAS:
+
+1. Usuário tenant-bound só pode acessar quotations do próprio tenant.
+2. ID sozinho nunca pode permitir acesso a quotation de outro tenant.
+3. GET por ID deve validar ownership.
+4. PATCH/PUT/DELETE devem validar ownership ANTES da operação.
+5. POST não pode permitir criar quotation para outro tenant através de companyId/empresaId/tenantId.
+6. PATCH/PUT não podem permitir alterar o tenant da quotation.
+7. Proteger também relacionamentos com cliente/empresa para impedir associar quotation de A a recurso privado de B.
+8. ?companyId, ?empresaId ou ?tenantId não podem substituir o tenant da sessão.
+9. Preserve MASTER/DIRECTOR global conforme a política já existente.
+10. ADMIN/DEVELOPER vinculados continuam tenant-bound.
+11. Não invente novas permissões.
+12. Não transforme recursos globais em tenant-bound sem comprovação no schema/código.
+
+ANTES DE ALTERAR:
+Audite routes, controllers, services, repositories/storage, shared/schema.ts, tenant context, requireAuth e consumidores frontend.
+
+Determine primeiro como quotation realmente se relaciona com empresa/tenant.
+
+Depois faça somente as correções necessárias.
+
+TESTES:
+Crie testes unitários com mocks/fakes, sem escrita real no banco.
+
+Teste:
+- tenant A acessa própria quotation;
+- tenant A não acessa quotation B;
+- tenant A não altera/exclui quotation B;
+- spoofing companyId/empresaId/tenantId;
+- criação sempre no tenant correto;
+- filtros não burlam tenant;
+- relacionamento com cliente de outro tenant bloqueado;
+- MASTER/DIRECTOR global preservados;
+- ADMIN/DEVELOPER tenant-bound preservados;
+- sem sessão → 401 quando aplicável.
+
+Execute:
+npm run check
+npm run build
+git diff --check
+
+Se SUPABASE_DATABASE_URL estiver ausente, NÃO tente contornar o guard. Continue com testes unitários e informe DB_CONNECTED/APP_READY como não confirmados.
+
+NÃO:
+- criar migration;
+- alterar schema;
+- alterar dados;
+- executar INSERT/UPDATE/DELETE real no Supabase;
+- tocar em NF-e/fiscal/certificados/credenciais;
+- corrigir outros módulos;
+- criar commit.
+
+No final informe arquivos alterados, vulnerabilidades, correções, testes e confirmações.
+
+Se encontrar problemas fora de quotations, apenas RELATE. NÃO corrija.
