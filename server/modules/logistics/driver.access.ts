@@ -50,6 +50,48 @@ export function isDriverOrInternal(role: string | null | undefined): boolean {
 }
 
 /**
+ * Preserve the existing global-logistics behavior for unbound internal
+ * accounts. Once an account is pinned to a tenant, its driver operations must
+ * be checked against that tenant instead of relying on the submitted ID.
+ */
+export function isGlobalLogisticsActor(actor: {
+  role?: string | null;
+  empresaId?: number | null;
+} | null | undefined): boolean {
+  return !!actor
+    && actor.empresaId == null
+    && !!actor.role
+    && LOGISTICS_INTERNAL_ROLES.includes(actor.role);
+}
+
+export function canAccessDriverRecord(
+  actor: {
+    role?: string | null;
+    empresaId?: number | null;
+  } | null | undefined,
+  driver: {
+    empresaId?: number | null;
+  } | null | undefined,
+): boolean {
+  if (!actor || !driver || !isInternal(actor.role)) return false;
+  if (isGlobalLogisticsActor(actor)) return true;
+  return actor.empresaId != null && driver.empresaId === actor.empresaId;
+}
+
+/**
+ * A driver may omit driverId (the Android/PWA contract) or repeat its own
+ * resolved ID, but it can never select another operational driver.
+ */
+export function resolveDriverGpsSubmissionId(
+  requestedDriverId: number | null | undefined,
+  ownDriverId: number | null | undefined,
+): number | null {
+  if (ownDriverId == null) return null;
+  if (requestedDriverId != null && requestedDriverId !== ownDriverId) return null;
+  return ownDriverId;
+}
+
+/**
  * Resolves the `logistics_drivers.id` that belongs to the given user.
  *
  * FASE MT-1: Uses a direct Drizzle SQL query filtered by actor.empresaId

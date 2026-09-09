@@ -1,0 +1,150 @@
+ETAPA 14 — AUDITORIA E CORREÇÃO DE OWNERSHIP MULTI-TENANT DO GPS DOS MOTORISTAS
+
+Corrija SOMENTE o isolamento multi-tenant relacionado às rotas de GPS/logística de motoristas.
+
+NÃO mexa em NF-e, fiscal, certificados, credenciais ou integrações fiscais.
+NÃO altere schema.
+NÃO crie migration.
+NÃO altere dados.
+NÃO faça INSERT/UPDATE/DELETE real no Supabase durante testes.
+NÃO crie commit.
+NÃO refatore o sistema inteiro.
+
+ESCOPO:
+
+Investigue especialmente:
+
+- POST /api/driver/gps
+- GET /api/logistics/drivers/gps
+- qualquer rota interna que aceite driverId para consultar posição/histórico
+- qualquer service/repository diretamente usado por essas rotas
+
+ANTES DE ALTERAR, audite:
+
+- server/routes/logistics.routes.ts
+- server/modules/logistics/*
+- services/repositories de GPS
+- driver/user repositories
+- tenant context
+- requireAuth
+- middleware tenant
+- shared/schema.ts
+- frontend/admin de GPS
+- Android tracker, somente para entender o contrato existente
+
+OBJETIVO:
+
+Um motorista da empresa A NÃO pode ter sua posição gravada como se fosse motorista da empresa B.
+
+Um usuário tenant-bound da empresa A NÃO pode consultar posição de motorista da empresa B.
+
+O backend NÃO deve confiar em driverId enviado pelo cliente para determinar o tenant.
+
+POST /api/driver/gps:
+
+Se a sessão for de DRIVER/MOTORISTA:
+- derive o motorista da sessão autenticada;
+- não confie em driverId enviado pelo cliente;
+- preserve o contrato atual do Android se possível;
+- não quebre o tracker.
+
+Se usuários internos puderem enviar GPS para um driverId:
+- valide que o driver pertence ao tenant autorizado;
+- usuários tenant-bound só podem operar dentro do próprio tenant;
+- não permita spoofing cross-tenant.
+
+GETS/consultas:
+
+Quando houver driverId:
+- valide driver → empresa → tenant da sessão;
+- tenant A não pode consultar driver B;
+- não confie apenas no ID.
+
+Para usuários globais:
+- preserve a política existente;
+- MASTER/DIRECTOR globais continuam seguindo o comportamento atual;
+- ADMIN/DEVELOPER vinculados permanecem tenant-bound.
+
+IMPORTANTE SOBRE O ANDROID:
+
+NÃO altere o Android tracker nesta etapa a menos que a auditoria prove que uma alteração mínima é indispensável para impedir o bypass.
+
+Primeiro tente corrigir somente o backend.
+
+Preserve:
+- POST /api/driver/gps
+- payload atual;
+- autenticação existente;
+- funcionamento offline;
+- foreground service;
+- contrato utilizado pelo aplicativo.
+
+NÃO troque autenticação nem crie novo sistema de tokens nesta etapa.
+
+IDEMPOTÊNCIA:
+
+Se já existir clientPositionId/idempotência, preserve.
+Se não existir, NÃO crie migration apenas para isso nesta etapa. Apenas relate como melhoria futura.
+
+TESTES:
+
+Crie testes unitários com mocks/fakes.
+
+Cubra:
+
+1. motorista A envia sua própria posição → permitido;
+2. motorista A tenta informar driverId de B → bloqueado/ignorado conforme contrato seguro;
+3. usuário interno A consulta driver A → permitido;
+4. usuário interno A consulta driver B → bloqueado;
+5. usuário sem sessão → 401 quando aplicável;
+6. ADMIN tenant-bound A não acessa GPS de B;
+7. DEVELOPER tenant-bound A não acessa GPS de B;
+8. MASTER global preserva acesso;
+9. DIRECTOR global preserva acesso;
+10. nenhum campo enviado pelo cliente consegue trocar o tenant autorizado.
+
+IMPORTANTE:
+Se o backend já resolve corretamente o motorista pela sessão em determinado fluxo, NÃO altere esse fluxo.
+
+VALIDAÇÃO:
+
+Execute:
+
+npm run check
+npm run build
+git diff --check
+
+Execute os testes direcionados.
+
+Se possível, valide HTTP read-only sem sessão.
+
+Não faça escrita real no banco.
+
+Se o workflow estiver sem SUPABASE_DATABASE_URL:
+- não contorne o guard;
+- não altere secrets;
+- registre DB_CONNECTED/APP_READY como não confirmados.
+
+Se estiver disponível:
+- confirme DB_CONNECTED;
+- confirme APP_READY.
+
+RESULTADO FINAL:
+
+Informe:
+
+1. rotas auditadas;
+2. vulnerabilidade encontrada;
+3. como driver → empresa → tenant foi validado;
+4. como driverId spoofing foi tratado;
+5. alterações feitas;
+6. testes;
+7. resultados;
+8. schema/migration/dados;
+9. confirmação de que NF-e/fiscal não foi tocado;
+10. confirmação de que Android não foi alterado, caso não tenha sido necessário;
+11. commit não criado.
+
+SE ENCONTRAR OUTRAS VULNERABILIDADES DE LOGÍSTICA:
+APENAS RELATE NO FINAL.
+NÃO CORRIJA NESTA ETAPA.

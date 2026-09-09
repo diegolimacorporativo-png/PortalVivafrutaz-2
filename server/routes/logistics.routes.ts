@@ -2,14 +2,22 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
-import { ensureOwnDriverId, isDriver, isDriverOrInternal, isInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import {
+  canAccessDriverRecord,
+  ensureOwnDriverId,
+  isDriver,
+  isDriverOrInternal,
+  isGlobalLogisticsActor,
+  isInternal,
+  resolveDriverGpsSubmissionId,
+  resolveOwnDriverId,
+} from "../modules/logistics/driver.access";
 import {
   isDeliveryInTenant,
   resolveDeliveryAccess,
   sanitizeDeliveryCreateBody,
   sanitizeDeliveryUpdateBody,
 } from "../modules/logistics/delivery.access";
-import { LOGISTICS_AUTH_ROLES } from "../modules/logistics/logistics.types";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
 import {
@@ -432,29 +440,30 @@ export async function register(app: Express): Promise<void> {
       let driverId = requestedDriverId ? Number(requestedDriverId) : null;
       if (isDriver(actor.role)) {
         const ownDriverId = await ensureOwnDriverId(storage, actor);
-        if (!ownDriverId) {
-          return res.status(403).json({ message: 'Motorista sem cadastro vinculado ao usuário' });
-        }
-        if (driverId !== null && driverId !== ownDriverId) {
+        const safeDriverId = resolveDriverGpsSubmissionId(driverId, ownDriverId);
+        if (!safeDriverId) {
+          if (!ownDriverId) {
+            return res.status(403).json({ message: 'Motorista sem cadastro vinculado ao usuário' });
+          }
           return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
         }
-        driverId = ownDriverId;
+        driverId = safeDriverId;
       }
       if (!driverId || !Number.isInteger(driverId) || driverId <= 0) {
         return res.status(400).json({ message: 'driverId é obrigatório para usuários internos' });
       }
 
-      // STEP 8.7 — drivers can only post GPS for THEIR OWN driverId. This stops
-      // a compromised driver account from spoofing positions for someone else.
-      // Internal staff (admin / logistics) keep the legacy ability to post on
-      // behalf of any driver (used by the route-assistant tooling).
-      if (isDriver(actor.role)) {
-        // Reuse the already-resolved id. Besides avoiding a second query, this
-        // is important for a legacy account: ensureOwnDriverId may have just
-        // created its operational record above.
-        const ownDriverId = driverId;
-        if (!ownDriverId || Number(driverId) !== ownDriverId) {
-          return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
+      // Internal staff may post on behalf of a driver only after validating
+      // driver → empresa → tenant. Global internal roles retain their
+      // existing cross-tenant operational access.
+      if (!isDriver(actor.role)) {
+        const [targetDriver] = await db
+          .select({ id: driversTable.id, empresaId: driversTable.empresaId })
+          .from(driversTable)
+          .where(eq(driversTable.id, driverId))
+          .limit(1);
+        if (!canAccessDriverRecord(actor, targetDriver)) {
+          return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }
 
@@ -480,7 +489,7 @@ export async function register(app: Express): Promise<void> {
       // A consulta global só é válida para perfis centrais. Para os demais
       // perfis internos, a ausência de tenant deve falhar fechado em vez de
       // expor posições de todas as empresas.
-      if (!actor.empresaId && !(LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
+      if (!isGlobalLogisticsActor(actor) && actor.empresaId == null) {
         return res.status(403).json({ message: 'Empresa não definida para este usuário' });
       }
 
@@ -571,10 +580,19 @@ export async function register(app: Express): Promise<void> {
         return res.status(403).json({ message: 'Acesso negado' });
       }
       const targetDriverId = Number(req.params.driverId);
-      if (actor.role === 'DRIVER') {
+      if (isDriver(actor.role)) {
         const ownDriverId = await resolveOwnDriverId(storage, actor);
         if (!ownDriverId || targetDriverId !== ownDriverId) {
           return res.status(403).json({ message: 'Motorista só pode consultar a própria posição' });
+        }
+      } else {
+        const [targetDriver] = await db
+          .select({ id: driversTable.id, empresaId: driversTable.empresaId })
+          .from(driversTable)
+          .where(eq(driversTable.id, targetDriverId))
+          .limit(1);
+        if (!canAccessDriverRecord(actor, targetDriver)) {
+          return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }
       const pos = await storage.getLatestGpsPosition(targetDriverId);
