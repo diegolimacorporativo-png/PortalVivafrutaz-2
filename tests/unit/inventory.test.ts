@@ -21,6 +21,7 @@ import assert from "node:assert/strict";
 import type { Request, Response } from "express";
 import { InventoryController } from "../../server/modules/inventory/inventory.controller";
 import { InventoryService } from "../../server/modules/inventory/inventory.service";
+import { hasInventoryRole } from "../../server/modules/inventory/inventory.policy";
 import type { InventoryRepository } from "../../server/modules/inventory/inventory.repository";
 import type {
   InsertInventoryEntry,
@@ -52,13 +53,21 @@ function makeRes(): Response & { _status: number; _body: any } {
 
 /** Builds a Request stub with the given session + body/query/params. */
 function makeReq(opts: {
-  session?: { userId?: number; userName?: string } | null;
+  session?: { userId?: number; userName?: string; userRole?: string } | null;
   body?: any;
   query?: any;
   params?: any;
 }): Request {
+  const session = opts.session
+    ? {
+        ...opts.session,
+        userRole:
+          opts.session.userRole ??
+          (opts.session.userId ? "ADMIN" : undefined),
+      }
+    : null;
   return {
-    session: opts.session ?? null,
+    session,
     body: opts.body ?? {},
     query: opts.query ?? {},
     params: opts.params ?? {},
@@ -70,6 +79,8 @@ function makeReq(opts: {
  * side-effect test can assert exact ordering and field values.
  */
 class FakeRepo implements InventoryRepository {
+  tenantId = 1;
+  productIds = new Set<number>();
   settings: InventorySettings[] = [];
   entries: InventoryEntry[] = [];
   movements: InventoryMovement[] = [];
@@ -80,31 +91,47 @@ class FakeRepo implements InventoryRepository {
   countCalls: InsertInventoryPhysicalCount[] = [];
 
   async getSettings(): Promise<InventorySettings[]> {
-    return this.settings;
+    return this.settings.filter(
+      (setting) => setting.tenantId == null || setting.tenantId === this.tenantId,
+    );
+  }
+  async getSettingById(id: number) {
+    return (await this.getSettings()).find((s) => s.id === id);
   }
   async getSettingByProductId(productId: number) {
-    return this.settings.find((s) => s.productId === productId);
+    return (await this.getSettings()).find((s) => s.productId === productId);
   }
   async getSettingByProductName(productName: string) {
-    return this.settings.find((s) => s.productName === productName);
+    return (await this.getSettings()).find((s) => s.productName === productName);
+  }
+  async getProductById(productId: number) {
+    return this.productIds.has(productId) ? ({ id: productId } as any) : undefined;
   }
   async upsertSetting(data: InsertInventorySettings) {
     this.upsertCalls.push(data);
     const cast = data as any;
     const id = cast.id ?? this.settings.length + 1;
-    const row = { ...(cast as any), id, updatedAt: new Date() } as InventorySettings;
+    const row = {
+      ...(cast as any),
+      tenantId: this.tenantId,
+      id,
+      updatedAt: new Date(),
+    } as InventorySettings;
     const idx = this.settings.findIndex((s) => s.id === id);
     if (idx >= 0) this.settings[idx] = row;
     else this.settings.push(row);
     return row;
   }
   async getEntries() {
-    return this.entries;
+    return this.entries.filter(
+      (entry) => entry.tenantId == null || entry.tenantId === this.tenantId,
+    );
   }
   async createEntry(data: InsertInventoryEntry) {
     this.entryCalls.push(data);
     const row = {
       ...(data as any),
+      tenantId: this.tenantId,
       id: this.entries.length + 1,
       createdAt: new Date(),
     } as InventoryEntry;
@@ -115,12 +142,15 @@ class FakeRepo implements InventoryRepository {
     this.entries = this.entries.filter((e) => e.id !== id);
   }
   async getMovements() {
-    return this.movements;
+    return this.movements.filter(
+      (movement) => movement.tenantId == null || movement.tenantId === this.tenantId,
+    );
   }
   async createMovement(data: InsertInventoryMovement) {
     this.movementCalls.push(data);
     const row = {
       ...(data as any),
+      tenantId: this.tenantId,
       id: this.movements.length + 1,
       createdAt: new Date(),
     } as InventoryMovement;
@@ -128,12 +158,15 @@ class FakeRepo implements InventoryRepository {
     return row;
   }
   async getPhysicalCounts() {
-    return this.counts;
+    return this.counts.filter(
+      (count) => count.tenantId == null || count.tenantId === this.tenantId,
+    );
   }
   async createPhysicalCount(data: InsertInventoryPhysicalCount) {
     this.countCalls.push(data);
     const row = {
       ...(data as any),
+      tenantId: this.tenantId,
       id: this.counts.length + 1,
       createdAt: new Date(),
     } as InventoryPhysicalCount;
@@ -311,5 +344,271 @@ describe("InventoryController — legacy edge case: createEntry side-effects", (
     assert.equal(mv.referenceType, "entry");
     assert.equal(mv.notes, "NF NF-001");
     assert.equal(mv.createdBy, "Operator");
+  });
+});
+
+describe("Etapa 20 — Inventory RBAC, tenant isolation and mass assignment", () => {
+  test("1. una sessão ausente continua recebendo 401", async () => {
+    const { ctrl } = makeController();
+    const res = makeRes();
+    await ctrl.listMovements(makeReq({ session: null }), res);
+    assert.equal(res._status, 401);
+  });
+
+  test("2. usuário A consulta o estoque permitido do próprio tenant", async () => {
+    const { ctrl, repo } = makeController();
+    repo.tenantId = 1;
+    repo.settings.push({ id: 1, tenantId: 1, productName: "A", unit: "kg" } as any);
+    const res = makeRes();
+    await ctrl.listSettings(
+      makeReq({ session: { userId: 10, userRole: "PURCHASE_MANAGER" } }),
+      res,
+    );
+    assert.equal(res._status, 200);
+    assert.deepEqual(res._body.map((row: any) => row.productName), ["A"]);
+  });
+
+  test("3. usuário A não consulta estoque do tenant B", async () => {
+    const { ctrl, repo } = makeController();
+    repo.tenantId = 1;
+    repo.settings.push({ id: 2, tenantId: 2, productName: "B", unit: "kg" } as any);
+    const res = makeRes();
+    await ctrl.listSettings(
+      makeReq({ session: { userId: 10, userRole: "ADMIN" } }),
+      res,
+    );
+    assert.deepEqual(res._body, []);
+  });
+
+  test("4. usuário A não altera configuração do tenant B", async () => {
+    const { ctrl, repo } = makeController();
+    repo.settings.push({
+      id: 20,
+      tenantId: 2,
+      productName: "B",
+      unit: "kg",
+      currentStock: "4",
+      minStock: "1",
+    } as any);
+    const res = makeRes();
+    await ctrl.updateSetting(
+      makeReq({
+        session: { userId: 10, userRole: "ADMIN" },
+        params: { id: "20" },
+        body: { minStock: 99 },
+      }),
+      res,
+    );
+    assert.equal(res._status, 404);
+    assert.equal((repo.settings[0] as any).minStock, "1");
+  });
+
+  test("5. usuário A não exclui entrada do tenant B", async () => {
+    const { ctrl, repo } = makeController();
+    repo.entries.push({ id: 30, tenantId: 2 } as any);
+    const res = makeRes();
+    await ctrl.deleteEntry(
+      makeReq({
+        session: { userId: 10, userRole: "ADMIN" },
+        params: { id: "30" },
+      }),
+      res,
+    );
+    assert.equal(res._status, 404);
+    assert.equal(repo.entries.length, 1);
+  });
+
+  test("6. companyId enviado no payload não troca o tenant", async () => {
+    const { ctrl, repo } = makeController();
+    const res = makeRes();
+    await ctrl.createSetting(
+      makeReq({
+        session: { userId: 10, userRole: "ADMIN" },
+        body: {
+          productName: "Banana",
+          unit: "kg",
+          companyId: 999,
+          empresaId: 999,
+        },
+      }),
+      res,
+    );
+    assert.equal(res._status, 200);
+    assert.equal((res._body as any).tenantId, 1);
+    assert.equal((repo.upsertCalls[0] as any).companyId, undefined);
+    assert.equal((repo.upsertCalls[0] as any).empresaId, undefined);
+  });
+
+  test("7. tenantId enviado no payload não troca o tenant", async () => {
+    const { ctrl, repo } = makeController();
+    const res = makeRes();
+    await ctrl.createEntry(
+      makeReq({
+        session: { userId: 10, userName: "A", userRole: "ADMIN" },
+        body: {
+          productName: "Banana",
+          quantity: 2,
+          unit: "kg",
+          entryDate: "2026-04-25",
+          tenantId: 999,
+        },
+      }),
+      res,
+    );
+    assert.equal(res._status, 200);
+    assert.equal((repo.entryCalls[0] as any).tenantId, undefined);
+    assert.equal((res._body as any).tenantId, 1);
+  });
+
+  test("8. criação é gravada no tenant resolvido pela sessão/repositório", async () => {
+    const { ctrl, repo } = makeController();
+    repo.tenantId = 7;
+    const res = makeRes();
+    await ctrl.createEntry(
+      makeReq({
+        session: { userId: 10, userName: "Operator", userRole: "DIRECTOR" },
+        body: {
+          productName: "Maçã",
+          quantity: 3,
+          unit: "kg",
+          entryDate: "2026-04-25",
+        },
+      }),
+      res,
+    );
+    assert.equal(res._status, 200);
+    assert.equal((res._body as any).tenantId, 7);
+  });
+
+  test("9. role sem permissão recebe 403", async () => {
+    const { ctrl } = makeController();
+    const res = makeRes();
+    await ctrl.listSettings(
+      makeReq({ session: { userId: 10, userRole: "LOGISTICS" } }),
+      res,
+    );
+    assert.equal(res._status, 403);
+    assert.deepEqual(res._body, { message: "Sem permissão para esta operação" });
+  });
+
+  test("10. role autorizada continua funcionando", async () => {
+    const { ctrl } = makeController();
+    const res = makeRes();
+    await ctrl.listSettings(
+      makeReq({ session: { userId: 10, userRole: "PURCHASE_MANAGER" } }),
+      res,
+    );
+    assert.equal(res._status, 200);
+  });
+
+  test("11. campos protegidos não sofrem mass assignment", async () => {
+    const { ctrl, repo } = makeController();
+    const res = makeRes();
+    await ctrl.createEntry(
+      makeReq({
+        session: { userId: 10, userName: "Server User", userRole: "ADMIN" },
+        body: {
+          productName: "Pera",
+          quantity: 2,
+          unit: "kg",
+          entryDate: "2026-04-25",
+          createdBy: "Attacker",
+          createdById: 999,
+          balanceAfter: "99999",
+          currentStock: "99999",
+          status: "APPROVED",
+          approvedBy: 999,
+        },
+      }),
+      res,
+    );
+    assert.equal((repo.entryCalls[0] as any).createdBy, "Server User");
+    assert.equal((repo.entryCalls[0] as any).createdById, 10);
+    assert.equal((repo.entryCalls[0] as any).balanceAfter, undefined);
+    assert.equal((repo.entryCalls[0] as any).currentStock, undefined);
+    assert.equal((repo.entryCalls[0] as any).status, undefined);
+  });
+
+  test("12. produto relacionado de outro tenant é rejeitado", async () => {
+    const { ctrl, repo } = makeController();
+    const res = makeRes();
+    await ctrl.createEntry(
+      makeReq({
+        session: { userId: 10, userRole: "ADMIN" },
+        body: {
+          productId: 500,
+          productName: "Produto B",
+          quantity: 1,
+          unit: "kg",
+          entryDate: "2026-04-25",
+        },
+      }),
+      res,
+    );
+    assert.equal(res._status, 403);
+    assert.equal(repo.entryCalls.length, 0);
+  });
+
+  test("13. saldo posterior é calculado no servidor", async () => {
+    const { ctrl, repo } = makeController();
+    repo.settings.push({
+      id: 1,
+      tenantId: 1,
+      productName: "Pera",
+      unit: "kg",
+      currentStock: "10",
+      minStock: "0",
+      avgPurchasePrice: "2",
+    } as any);
+    const res = makeRes();
+    await ctrl.createEntry(
+      makeReq({
+        session: { userId: 10, userName: "Operator", userRole: "ADMIN" },
+        body: {
+          productName: "Pera",
+          quantity: 3,
+          unit: "kg",
+          entryDate: "2026-04-25",
+          balanceAfter: "999",
+        },
+      }),
+      res,
+    );
+    assert.equal((repo.movementCalls[0] as any).balanceAfter, "13");
+    assert.equal((repo.movementCalls[0] as any).quantity, "3");
+  });
+
+  test("14. MASTER e DIRECTOR mantêm acesso autorizado", () => {
+    assert.equal(hasInventoryRole("MASTER"), true);
+    assert.equal(hasInventoryRole("DIRECTOR"), true);
+  });
+
+  test("15. operação permitida de inventário físico continua funcionando", async () => {
+    const { ctrl, repo } = makeController();
+    repo.settings.push({
+      id: 1,
+      tenantId: 1,
+      productName: "Uva",
+      unit: "kg",
+      currentStock: "10",
+      minStock: "0",
+    } as any);
+    const res = makeRes();
+    await ctrl.createPhysicalCount(
+      makeReq({
+        session: { userId: 10, userName: "Auditor", userRole: "DIRECTOR" },
+        body: {
+          productName: "Uva",
+          physicalStock: 7,
+          unit: "kg",
+          date: "2026-04-25",
+        },
+      }),
+      res,
+    );
+    assert.equal(res._status, 200);
+    assert.equal((repo.countCalls[0] as any).systemStock, "10");
+    assert.equal((repo.countCalls[0] as any).physicalStock, "7");
+    assert.equal((repo.countCalls[0] as any).difference, "-3");
   });
 });

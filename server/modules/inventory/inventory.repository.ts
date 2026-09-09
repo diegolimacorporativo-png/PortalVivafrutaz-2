@@ -45,6 +45,9 @@ export class InventoryRepository {
   getSettingByProductName(productName: string): Promise<InventorySettings | undefined> {
     return this.db.getInventorySettingByProductName(productName);
   }
+  getProductById(productId: number) {
+    return this.db.getProductById(productId);
+  }
   upsertSetting(data: InsertInventorySettings): Promise<InventorySettings> {
     return this.db.upsertInventorySetting(data);
   }

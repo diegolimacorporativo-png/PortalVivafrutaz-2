@@ -16,6 +16,11 @@
 import type { Request, Response } from "express";
 import { AppError } from "../../shared/errors/AppError";
 import { InventoryService, inventoryService } from "./inventory.service";
+import {
+  hasInventoryRole,
+  INVENTORY_READ_ROLES,
+  INVENTORY_WRITE_ROLES,
+} from "./inventory.policy";
 import type { InventorySession } from "./inventory.types";
 
 export class InventoryController {
@@ -23,26 +28,34 @@ export class InventoryController {
     private readonly service: InventoryService = inventoryService,
   ) {}
 
-  /** Mirrors the inline `if (!session.userId)` check used by every legacy handler. */
-  private requireSession(req: Request, res: Response): InventorySession | null {
+  private requireAccess(
+    req: Request,
+    res: Response,
+    allowedRoles: readonly string[],
+  ): InventorySession | null {
     const session = (req as any).session;
     if (!session?.userId) {
       res.status(401).json({ message: "Não autorizado" });
       return null;
     }
-    return { userId: session.userId, userName: session.userName };
+    const userRole = session.userRole ?? session.role;
+    if (!hasInventoryRole(userRole, allowedRoles)) {
+      res.status(403).json({ message: "Sem permissão para esta operação" });
+      return null;
+    }
+    return { userId: session.userId, userName: session.userName, userRole };
   }
 
   // ── GET /api/inventory/settings ────────────────────────────────────────
   listSettings = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
+    if (!this.requireAccess(req, res, INVENTORY_READ_ROLES)) return;
     const settings = await this.service.listSettings();
     res.json(settings);
   };
 
   // ── PUT /api/inventory/settings/:id ────────────────────────────────────
   updateSetting = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
+    if (!this.requireAccess(req, res, INVENTORY_WRITE_ROLES)) return;
     try {
       const id = parseInt(req.params.id as string);
       const updated = await this.service.updateSetting(id, req.body);
@@ -61,7 +74,7 @@ export class InventoryController {
 
   // ── POST /api/inventory/settings ───────────────────────────────────────
   createSetting = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
+    if (!this.requireAccess(req, res, INVENTORY_WRITE_ROLES)) return;
     try {
       const result = await this.service.createSetting(req.body);
       res.json(result);
@@ -79,7 +92,7 @@ export class InventoryController {
 
   // ── GET /api/inventory/entries ─────────────────────────────────────────
   listEntries = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
+    if (!this.requireAccess(req, res, INVENTORY_READ_ROLES)) return;
     const { from, to } = req.query as Record<string, string>;
     const entries = await this.service.listEntries({ from, to });
     res.json(entries);
@@ -87,7 +100,7 @@ export class InventoryController {
 
   // ── POST /api/inventory/entries ────────────────────────────────────────
   createEntry = async (req: Request, res: Response) => {
-    const session = this.requireSession(req, res);
+    const session = this.requireAccess(req, res, INVENTORY_WRITE_ROLES);
     if (!session) return;
     try {
       const entry = await this.service.createEntry(req.body, session);
@@ -108,14 +121,21 @@ export class InventoryController {
 
   // ── DELETE /api/inventory/entries/:id ──────────────────────────────────
   deleteEntry = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
-    await this.service.deleteEntry(parseInt(req.params.id as string));
-    res.json({ ok: true });
+    if (!this.requireAccess(req, res, INVENTORY_WRITE_ROLES)) return;
+    try {
+      await this.service.deleteEntry(parseInt(req.params.id as string));
+      res.json({ ok: true });
+    } catch (e) {
+      if (e instanceof AppError) {
+        return res.status(e.status).json({ message: e.message });
+      }
+      throw e;
+    }
   };
 
   // ── GET /api/inventory/movements ───────────────────────────────────────
   listMovements = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
+    if (!this.requireAccess(req, res, INVENTORY_READ_ROLES)) return;
     const { from, to, productId } = req.query as Record<string, string>;
     const movements = await this.service.listMovements({
       from,
@@ -127,13 +147,13 @@ export class InventoryController {
 
   // ── GET /api/inventory/physical-counts ─────────────────────────────────
   listPhysicalCounts = async (req: Request, res: Response) => {
-    if (!this.requireSession(req, res)) return;
+    if (!this.requireAccess(req, res, INVENTORY_READ_ROLES)) return;
     res.json(await this.service.listPhysicalCounts());
   };
 
   // ── POST /api/inventory/physical-counts ────────────────────────────────
   createPhysicalCount = async (req: Request, res: Response) => {
-    const session = this.requireSession(req, res);
+    const session = this.requireAccess(req, res, INVENTORY_WRITE_ROLES);
     if (!session) return;
     try {
       const count = await this.service.createPhysicalCount(req.body, session);

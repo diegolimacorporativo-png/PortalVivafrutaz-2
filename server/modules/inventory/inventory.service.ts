@@ -12,7 +12,11 @@
  * Validation errors are signalled via `BadRequestError` so the controller
  * can map them to the legacy `400 { message }` shape verbatim.
  */
-import { BadRequestError, NotFoundError } from "../../shared/errors/AppError";
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../shared/errors/AppError";
 import {
   InventoryRepository,
   inventoryRepository,
@@ -66,6 +70,7 @@ export class InventoryService {
     if (!productName || !unit) {
       throw new BadRequestError("productName e unit são obrigatórios");
     }
+    await this.assertProductAccessible(productId);
     return this.repo.upsertSetting({
       productId,
       productName,
@@ -119,13 +124,20 @@ export class InventoryService {
         "Campos obrigatórios: productName, quantity, unit, entryDate",
       );
     }
+    const numericQuantity = Number(quantity);
+    if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+      throw new BadRequestError(
+        "Campos obrigatórios: productName, quantity, unit, entryDate",
+      );
+    }
+    await this.assertProductAccessible(productId);
 
     const entry = await this.repo.createEntry({
       productId: productId || null,
       productName,
       category: category || null,
       supplier: supplier || null,
-      quantity: String(quantity),
+       quantity: String(numericQuantity),
       unit,
       purchasePrice: purchasePrice ? String(purchasePrice) : null,
       invoiceNumber: invoiceNumber || null,
@@ -154,7 +166,7 @@ export class InventoryService {
     }
 
     const newStock =
-      parseFloat(setting.currentStock || "0") + parseFloat(String(quantity));
+      parseFloat(setting.currentStock || "0") + numericQuantity;
 
     // Weighted-average purchase price recomputation (verbatim).
     let newAvg = setting.avgPurchasePrice
@@ -165,11 +177,11 @@ export class InventoryService {
       const oldAvg = parseFloat(setting.avgPurchasePrice || "0");
       const totalOld = oldStock * oldAvg;
       const totalNew =
-        parseFloat(String(quantity)) * parseFloat(String(purchasePrice));
+        numericQuantity * parseFloat(String(purchasePrice));
       newAvg =
-        oldStock + parseFloat(String(quantity)) > 0
+        oldStock + numericQuantity > 0
           ? (totalOld + totalNew) /
-            (oldStock + parseFloat(String(quantity)))
+            (oldStock + numericQuantity)
           : parseFloat(String(purchasePrice));
     }
 
@@ -183,7 +195,7 @@ export class InventoryService {
       productId: productId || null,
       productName,
       movementType: "ENTRY",
-      quantity: String(quantity),
+       quantity: String(numericQuantity),
       balanceAfter: String(newStock),
       unit,
       referenceType: "entry",
@@ -197,6 +209,10 @@ export class InventoryService {
   }
 
   async deleteEntry(id: number): Promise<void> {
+    const existing = (await this.repo.getEntries()).find((entry) => entry.id === id);
+    if (!existing) {
+      throw new NotFoundError("Entrada não encontrada");
+    }
     await this.repo.deleteEntry(id);
   }
 
@@ -234,6 +250,13 @@ export class InventoryService {
         "productName, physicalStock e date são obrigatórios",
       );
     }
+    const numericPhysicalStock = Number(physicalStock);
+    if (!Number.isFinite(numericPhysicalStock) || numericPhysicalStock < 0) {
+      throw new BadRequestError(
+        "productName, physicalStock e date são obrigatórios",
+      );
+    }
+    await this.assertProductAccessible(productId);
 
     const setting = productId
       ? await this.repo.getSettingByProductId(productId)
@@ -242,7 +265,7 @@ export class InventoryService {
     const systemStockVal = setting
       ? parseFloat(setting.currentStock || "0")
       : 0;
-    const physicalVal = parseFloat(String(physicalStock));
+    const physicalVal = numericPhysicalStock;
     const diff = physicalVal - systemStockVal;
 
     const count = await this.repo.createPhysicalCount({
@@ -282,6 +305,19 @@ export class InventoryService {
     }
 
     return count;
+  }
+
+  /**
+   * Product IDs are foreign references without a database FK in the legacy
+   * inventory tables. Resolve them through the tenant-scoped product lookup so
+   * a caller cannot attach another company's product to an inventory write.
+   */
+  private async assertProductAccessible(productId?: number | null): Promise<void> {
+    if (productId == null) return;
+    const product = await this.repo.getProductById(productId);
+    if (!product) {
+      throw new ForbiddenError("Produto não pertence ao tenant autorizado");
+    }
   }
 }
 

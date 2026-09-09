@@ -32,6 +32,7 @@ export type {
 export interface InventorySession {
   userId: number;
   userName?: string;
+  userRole?: string;
 }
 
 /** Filters accepted by the entries listing endpoint. */
