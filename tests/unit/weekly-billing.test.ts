@@ -38,6 +38,22 @@ describe("valor mínimo semanal — pedido novo", () => {
       true,
     );
   });
+
+  test("soma itens de todos os dias antes de validar o mínimo semanal", () => {
+    const total = calculateWeeklyBillingTotal({
+      companyId: COMPANY_ID,
+      weekReference: WEEK,
+      existingOrders: [],
+      candidateItems: [
+        { unitPrice: "139.45", quantity: 1 },
+        { unitPrice: "37.80", quantity: 1 },
+        { unitPrice: "509.25", quantity: 1 },
+      ],
+    });
+
+    assert.equal(total, 686.5);
+    assert.equal(total >= 300, true);
+  });
 });
 
 describe("valor mínimo semanal — pedido reaberto", () => {
