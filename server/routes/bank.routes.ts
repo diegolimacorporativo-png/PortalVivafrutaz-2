@@ -4,8 +4,16 @@ import { requireAuth as requireAuthCore, requireRole } from "../core/http/requir
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { financeService } from "../modules/finance/finance.service";
 import { financeRepository } from "../modules/finance/finance.repository";
-import { uploadInMemory } from "../infra/upload";
 import { auditLog } from "../utils/auditLogger";
+import { validateRequest } from "../core/validation/validateRequest";
+import {
+  bankAccountCreateSchema,
+  bankAccountUpdateSchema,
+  bankAccountIdParamsSchema,
+  bankStatementQuerySchema,
+  boletoSchema,
+  reconciliationSchema,
+} from "./bank.validation";
 
 export async function register(app: Express) {
   const { getItauExtrato, getItauSaldo, criarBoletItau, getItauConfigFromEnv } = await import('../services/financeiro/itauIntegration.ts');
@@ -19,7 +27,7 @@ export async function register(app: Express) {
   };
 
   // GET /api/bank/accounts — requireTenant ensures tenantWhere() in storage never lacks context
-  app.get('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
+  app.get('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, async (req: any, res) => {
     try {
       const accounts = await storage.getBankAccounts();
       // Mask secrets before sending
@@ -28,7 +36,7 @@ export async function register(app: Express) {
   });
 
   // POST /api/bank/accounts — withTenant() stamps empresa_id
-  app.post('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
+  app.post('/api/bank/accounts', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(bankAccountCreateSchema), async (req: any, res) => {
     try {
       auditLog("CREATE_BANK_ACCOUNT", {
         userId: req.session?.userId,
@@ -36,13 +44,17 @@ export async function register(app: Express) {
         entity: "bank_account",
         details: { nome: req.body.nome, banco: req.body.banco },
       });
-      const acc = await storage.createBankAccount(req.body);
+      const { descricao, ...data } = req.body;
+      const acc = await storage.createBankAccount({
+        ...data,
+        nome: data.nome ?? descricao,
+      });
       res.status(201).json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // PATCH /api/bank/accounts/:id — tenantAnd() enforces ownership
-  app.patch('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
+  app.patch('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(bankAccountIdParamsSchema, "params"), validateRequest(bankAccountUpdateSchema), async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       auditLog("UPDATE_BANK_ACCOUNT", {
@@ -52,13 +64,17 @@ export async function register(app: Express) {
         entityId: id,
         details: req.body,
       });
-      const acc = await storage.updateBankAccount(id, req.body);
+      const { descricao, ...data } = req.body;
+      const acc = await storage.updateBankAccount(id, {
+        ...data,
+        ...(descricao !== undefined ? { nome: data.nome ?? descricao } : {}),
+      });
       res.json({ ...acc, clientSecret: acc.clientSecret ? '***' : null });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
   // DELETE /api/bank/accounts/:id — tenantAnd() enforces ownership
-  app.delete('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCE"]), tenantContext, requireTenant, async (req: any, res) => {
+  app.delete('/api/bank/accounts/:id', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(bankAccountIdParamsSchema, "params"), async (req: any, res) => {
     try {
       const id = Number(req.params.id);
       auditLog("DELETE_BANK_ACCOUNT", {
@@ -73,7 +89,7 @@ export async function register(app: Express) {
   });
 
   // POST /api/bank/accounts/:id/testar — testar conexão
-  app.post('/api/bank/accounts/:id/testar', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.post('/api/bank/accounts/:id/testar', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(bankAccountIdParamsSchema, "params"), async (req: any, res) => {
     try {
       const acc = await storage.getBankAccount(Number(req.params.id));
       if (!acc) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -89,7 +105,7 @@ export async function register(app: Express) {
   });
 
   // GET /api/bank/accounts/:id/extrato
-  app.get('/api/bank/accounts/:id/extrato', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.get('/api/bank/accounts/:id/extrato', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(bankAccountIdParamsSchema, "params"), validateRequest(bankStatementQuerySchema, "query"), async (req: any, res) => {
     try {
       const acc = await storage.getBankAccount(Number(req.params.id));
       if (!acc) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -116,7 +132,7 @@ export async function register(app: Express) {
   });
 
   // GET /api/bank/transactions — persisted transactions
-  app.get('/api/bank/transactions', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.get('/api/bank/transactions', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, async (req: any, res) => {
     try {
       const { bankAccountId, status, from, to } = req.query;
       const txs = await storage.getBankTransactions({ bankAccountId: bankAccountId ? Number(bankAccountId) : undefined, status: status as string, from: from as string, to: to as string });
@@ -125,7 +141,7 @@ export async function register(app: Express) {
   });
 
   // POST /api/bank/accounts/:id/boleto — emitir boleto
-  app.post('/api/bank/accounts/:id/boleto', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.post('/api/bank/accounts/:id/boleto', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(bankAccountIdParamsSchema, "params"), validateRequest(boletoSchema), async (req: any, res) => {
     try {
       const acc = await storage.getBankAccount(Number(req.params.id));
       if (!acc) return res.status(404).json({ message: 'Conta não encontrada' });
@@ -140,11 +156,29 @@ export async function register(app: Express) {
   });
 
   // POST /api/bank/reconciliar — reconciliar com AR/AP
-  app.post('/api/bank/reconciliar', requireAuthCore, tenantContext, async (req: any, res) => {
+  app.post('/api/bank/reconciliar', requireAuthCore, requireRole(["ADMIN", "FINANCEIRO"]), tenantContext, requireTenant, validateRequest(reconciliationSchema), async (req: any, res) => {
     try {
-      const { bankTransactions = [], arItems = [], apItems = [] } = req.body;
+      const { bankAccountId } = req.body;
+      const account = await storage.getBankAccount(bankAccountId);
+      if (!account) return res.status(404).json({ message: 'Conta não encontrada' });
+
+      // Never reconcile caller-supplied financial records. Load all inputs
+      // from the already tenant-scoped repositories/storage instead.
+      const [storedTransactions, arItems, apItems] = await Promise.all([
+        storage.getBankTransactions({ bankAccountId, status: "pendente" }),
+        financeRepository.listAccountsReceivable({ status: "pendente" }),
+        financeRepository.listAccountsPayable({ status: "pendente" }),
+      ]);
+      const bankTransactions = storedTransactions.map((tx) => ({
+        id: tx.externalId || String(tx.id),
+        tipo: tx.tipo as "credito" | "debito",
+        valor: Number(tx.valor),
+        data: tx.data,
+        descricao: tx.descricao || "",
+        documento: tx.documento || undefined,
+      }));
       const result = reconciliarTransacoes(bankTransactions, arItems, apItems);
-      res.json(result);
+      res.json({ matches: result, resumo: resumoReconciliacao(result) });
     } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 }

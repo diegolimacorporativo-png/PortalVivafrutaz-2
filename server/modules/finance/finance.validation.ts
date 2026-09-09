@@ -1,9 +1,4 @@
 import { z } from "zod";
-import {
-  insertAccountReceivableSchema,
-  insertAccountPayableSchema,
-  insertFinancialTransactionSchema,
-} from "@shared/schema";
 
 /**
  * Validation layer for the finance module.
@@ -15,30 +10,49 @@ import {
  */
 
 // ── Accounts Receivable ──────────────────────────────────────────────────
-export const createAccountReceivableSchema = insertAccountReceivableSchema.extend({
+const money = z.union([z.string(), z.number()]).transform(String);
+const date = z.string().min(1);
+
+// HTTP DTOs intentionally exclude id, tenantId, status, pagoEm and pixPayload.
+// Those fields are server-controlled state, not editable business input.
+export const createAccountReceivableSchema = z.object({
+  companyId: z.number().int().positive().nullable().optional(),
+  orderId: z.number().int().positive().nullable().optional(),
   descricao: z.string().min(1, "Descrição é obrigatória"),
-  valor: z.union([z.string(), z.number()]).transform(String),
+  valor: money,
+  dataEmissao: date,
+  dataVencimento: date,
+  formaPagamento: z.enum(["pix", "boleto", "transferencia", "dinheiro"]).optional(),
+  observacoes: z.string().max(2000).nullable().optional(),
 });
 
 export const updateAccountReceivableSchema =
-  insertAccountReceivableSchema.partial();
+  createAccountReceivableSchema
+    .omit({ companyId: true, orderId: true })
+    .partial();
 
 export const accountsReceivableQuerySchema = z.object({
   status: z.string().optional(),
   companyId: z
     .union([z.string(), z.number()])
     .optional()
-    .transform((v) => (v === undefined || v === "" ? undefined : Number(v))),
+    .transform((v) => (v === undefined || v === "" ? undefined : Number(v)))
+    .refine((v) => v === undefined || (Number.isInteger(v) && v > 0), "companyId inválido"),
 });
 
 // ── Accounts Payable ─────────────────────────────────────────────────────
-export const createAccountPayableSchema = insertAccountPayableSchema.extend({
-  descricao: z.string().min(1, "Descrição é obrigatória"),
+export const createAccountPayableSchema = z.object({
   fornecedor: z.string().min(1, "Fornecedor é obrigatório"),
-  valor: z.union([z.string(), z.number()]).transform(String),
+  descricao: z.string().min(1, "Descrição é obrigatória"),
+  valor: money,
+  dataVencimento: date,
+  categoria: z.enum(["fornecedor", "logistica", "operacional", "outros"]).optional(),
+  observacoes: z.string().max(2000).nullable().optional(),
 });
 
-export const updateAccountPayableSchema = insertAccountPayableSchema.partial();
+export const updateAccountPayableSchema = createAccountPayableSchema
+  .omit({ fornecedor: true })
+  .partial();
 
 export const accountsPayableQuerySchema = z.object({
   status: z.string().optional(),
@@ -50,7 +64,12 @@ export const cashflowQuerySchema = z.object({
   to: z.string().optional(),
 });
 
-export const createCashflowEntrySchema = insertFinancialTransactionSchema;
+export const createCashflowEntrySchema = z.object({
+  tipo: z.enum(["entrada", "saida"]),
+  valor: money,
+  descricao: z.string().min(1),
+  data: date,
+});
 
 // ── Path params ──────────────────────────────────────────────────────────
 export const idParamSchema = z.object({

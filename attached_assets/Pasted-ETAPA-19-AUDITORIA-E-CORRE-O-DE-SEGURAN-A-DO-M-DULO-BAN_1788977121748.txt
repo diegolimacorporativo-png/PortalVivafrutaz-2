@@ -1,0 +1,241 @@
+ETAPA 19 — AUDITORIA E CORREÇÃO DE SEGURANÇA DO MÓDULO BANK / OPERAÇÕES BANCÁRIAS SENSÍVEIS
+
+Objetivo:
+Auditar exclusivamente as operações bancárias/financeiras sensíveis identificadas na auditoria multi-tenant/RBAC.
+
+IMPORTANTE:
+Esta etapa NÃO é para alterar regras financeiras ou lógica de negócio.
+É exclusivamente uma auditoria de:
+- autenticação;
+- autorização;
+- RBAC;
+- tenant isolation;
+- ownership;
+- mass assignment;
+- IDOR.
+
+NÃO mexer em:
+- NF-e;
+- Fiscal;
+- DANFE;
+- certificados;
+- Bling;
+- GPS;
+- Android;
+- Products;
+- Prices;
+- Quotations;
+- Deliveries;
+- Logistics Analytics;
+- Internal Incidents já corrigidos na Etapa 18.
+
+NÃO criar migration.
+NÃO alterar schema sem necessidade absolutamente comprovada.
+NÃO alterar dados reais.
+NÃO fazer refatoração ampla.
+NÃO criar commit.
+
+PRIMEIRO FAÇA AUDITORIA READ-ONLY.
+
+Localize todos os endpoints relacionados ao módulo bancário/financeiro sensível.
+
+Investigue:
+
+1. GET
+2. POST
+3. PUT
+4. PATCH
+5. DELETE
+6. operações de pagamento
+7. operações de transferência
+8. operações de conciliação, se existirem
+9. operações de contas bancárias
+10. operações que alterem saldos/status
+11. exportações ou consultas sensíveis
+12. services
+13. repositories
+14. storage
+15. policies
+16. middleware
+17. frontend consumers
+
+IMPORTANTE:
+
+Diferencie:
+
+- consultas financeiras;
+- CRUD administrativo;
+- operações financeiras sensíveis que efetivamente alteram estado.
+
+Não aplicar automaticamente a mesma permissão para tudo.
+
+AUTENTICAÇÃO:
+
+Todo endpoint sensível deve exigir sessão autenticada.
+
+Sem sessão:
+
+-> 401
+
+USUÁRIO TENANT-BOUND:
+
+Se o usuário pertence à empresa A:
+
+- só pode consultar dados financeiros permitidos da empresa A;
+- não pode consultar dados da empresa B;
+- não pode modificar dados da empresa B;
+- não pode executar operação financeira para empresa B;
+- não pode trocar tenant através do body/query/path.
+
+Bloquear tentativas usando:
+
+- companyId
+- company_id
+- empresaId
+- empresa_id
+- tenantId
+- tenant_id
+
+A sessão/contexto confiável deve vencer qualquer valor enviado pelo cliente.
+
+IDOR:
+
+Para qualquer operação por ID:
+
+- validar tenant/ownership antes de retornar ou modificar;
+- não confiar apenas no ID;
+- cross-tenant deve falhar de forma segura.
+
+Preferir 404 para recurso fora do escopo quando isso seguir o padrão já usado no projeto.
+
+RBAC:
+
+AUDITAR quais roles atualmente possuem acesso.
+
+Não inventar roles novas.
+
+Não alterar a política global existente sem necessidade.
+
+Diferenciar:
+
+1. leitura;
+2. criação;
+3. edição;
+4. exclusão;
+5. operação financeira sensível.
+
+Operações sensíveis devem exigir autorização mais forte se o código atual já possuir essa distinção ou se a auditoria demonstrar que o acesso atual permite uma ação financeira indevida.
+
+IMPORTANTE:
+
+Não conceder acesso global simplesmente porque o usuário é ADMIN ou DEVELOPER.
+
+Se ADMIN/DEVELOPER estiver vinculado a empresa:
+
+-> permanece tenant-bound.
+
+MASTER/DIRECTOR sem empresa:
+
+-> preservar comportamento global existente.
+
+Não transformar roles tenant-bound em globais.
+
+MASS ASSIGNMENT:
+
+Verificar especialmente endpoints financeiros que aceitam objetos completos.
+
+O cliente não deve conseguir alterar campos como:
+
+- empresa;
+- tenant;
+- createdBy;
+- approvedBy;
+- approvedAt;
+- balance;
+- status interno;
+- timestamps;
+- IDs de auditoria;
+- campos calculados;
+- campos de controle interno.
+
+Use allowlist quando apropriado.
+
+OPERAÇÕES FINANCEIRAS:
+
+Para qualquer endpoint que execute uma ação financeira real, verificar:
+
+- autenticação;
+- role;
+- tenant;
+- ownership;
+- validação de IDs;
+- validação de origem/destino;
+- impossibilidade de alterar parâmetros protegidos;
+- impossibilidade de executar a operação em nome de outra empresa.
+
+Não modificar regras de cálculo financeiro.
+
+TESTES:
+
+Criar testes unitários com mocks/fakes.
+
+NÃO executar operações financeiras reais.
+
+Cobrir no mínimo:
+
+1. sem sessão -> 401;
+2. usuário A consegue operação permitida em A;
+3. usuário A não acessa B;
+4. usuário A não modifica B;
+5. usuário A não exclui B;
+6. companyId spoofing falha;
+7. empresa/tenant enviado no body não substitui sessão;
+8. usuário sem role recebe 403;
+9. role autorizada continua funcionando;
+10. ADMIN vinculado continua tenant-bound;
+11. comportamento global de MASTER/DIRECTOR continua funcionando;
+12. IDs inválidos são rejeitados;
+13. campos protegidos não podem sofrer mass assignment;
+14. operação sensível exige autorização adequada;
+15. nenhuma operação financeira real é executada pelos testes.
+
+VALIDAÇÃO:
+
+Executar:
+
+npm run check
+npm run build
+git diff --check
+
+Se houver workflow disponível:
+
+- reiniciar;
+- confirmar DB_CONNECTED;
+- confirmar APP_READY.
+
+Não alterar configuração do banco por falhas ambientais.
+
+AO FINAL INFORMAR:
+
+- endpoints auditados;
+- vulnerabilidades encontradas;
+- correções realizadas;
+- roles antes/depois;
+- política tenant aplicada;
+- proteção contra IDOR;
+- proteção contra mass assignment;
+- testes executados;
+- resultado dos testes;
+- check;
+- build;
+- diff-check;
+- workflow;
+- schema alterado? SIM/NÃO;
+- migration criada? SIM/NÃO;
+- dados reais alterados? SIM/NÃO;
+- operações financeiras reais executadas? SIM/NÃO;
+- confirmar que NF-e/Fiscal/Bling/GPS/Android não foram tocados;
+- confirmar que etapas anteriores não foram alteradas;
+- confirmar que nenhum commit foi criado.
+
+NÃO criar commit.

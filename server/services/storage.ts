@@ -2815,7 +2815,10 @@ export class DatabaseStorage implements IStorage {
 
   // BANCO.5 — Histórico de importações de retorno CNAB
   async createCnabImportHistory(data: InsertCnabImportHistory): Promise<CnabImportHistory> {
-    const [r] = await db.insert(cnabImportHistory).values(data).returning();
+    const [r] = await db
+      .insert(cnabImportHistory)
+      .values(withTenant(cnabImportHistory, data as any))
+      .returning();
     return r;
   }
 
@@ -2843,7 +2846,10 @@ export class DatabaseStorage implements IStorage {
     const [r] = await db
       .select()
       .from(cnabImportHistory)
-      .where(eq(cnabImportHistory.fileHash, hash))
+      .where(and(
+        eq(cnabImportHistory.fileHash, hash),
+        tenantWhere(cnabImportHistory),
+      ))
       .limit(1);
     return r;
   }
@@ -3114,9 +3120,9 @@ export class DatabaseStorage implements IStorage {
   // ─── Bank Transactions ───────────────────────────────────────────────────
   // empresa_id is always stamped on insert and always filtered on reads.
   async getBankTransactions(filters?: { bankAccountId?: number; status?: string; from?: string; to?: string }): Promise<BankTransaction[]> {
-    const tenantId = currentTenantId();
+    const tenantId = requireTenantId();
     const conds: any[] = [];
-    if (tenantId != null) conds.push(eq(bankTransactions.empresaId, tenantId));
+    conds.push(eq(bankTransactions.empresaId, tenantId));
     if (filters?.bankAccountId) conds.push(eq(bankTransactions.bankAccountId, filters.bankAccountId));
     if (filters?.status && filters.status !== 'todos') conds.push(eq(bankTransactions.status, filters.status));
     if (filters?.from) conds.push(gte(bankTransactions.data, filters.from));
@@ -3138,12 +3144,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertBankTransaction(externalId: string, bankAccountId: number, data: InsertBankTransaction): Promise<BankTransaction> {
-    const tenantId = currentTenantId();
+    const tenantId = requireTenantId();
     const conds: any[] = [
       eq(bankTransactions.externalId, externalId),
       eq(bankTransactions.bankAccountId, bankAccountId),
     ];
-    if (tenantId != null) conds.push(eq(bankTransactions.empresaId, tenantId));
+    conds.push(eq(bankTransactions.empresaId, tenantId));
     const [existing] = await db.select().from(bankTransactions).where(and(...conds));
     if (existing) return existing;
     const [r] = await db.insert(bankTransactions).values(withTenant(bankTransactions, data as any)).returning();

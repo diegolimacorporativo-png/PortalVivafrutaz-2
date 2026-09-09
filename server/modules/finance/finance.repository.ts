@@ -288,12 +288,16 @@ export class FinanceRepository {
       const [row] = await tx
         .update(accountsPayable)
         .set({ status: "pago", pagoEm: new Date() })
-        .where(and(eq(accountsPayable.id, id), tenantWhere(accountsPayable)))
+        .where(
+          and(
+            eq(accountsPayable.id, id),
+            tenantWhere(accountsPayable),
+            eq(accountsPayable.status, "pendente"),
+          ),
+        )
         .returning();
       if (!row) {
-        throw new NotFoundError(
-          `Conta a pagar #${id} não encontrada no tenant atual.`,
-        );
+        throw new Error("ACCOUNT_PAYABLE_ALREADY_PAID_OR_NOT_FOUND");
       }
       const today = new Date().toISOString().substring(0, 10);
       await tx.insert(financialTransactions).values(

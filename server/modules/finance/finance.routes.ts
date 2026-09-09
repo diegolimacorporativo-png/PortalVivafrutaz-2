@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/http/asyncHandler";
-import { requireAuth } from "../../core/http/requireAuth";
+import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { withTenantScope } from "../../middleware/tenant";
 import { validateRequest } from "../../core/validation/validateRequest";
 import { financeController } from "./finance.controller";
@@ -30,7 +30,7 @@ const router = Router();
 // authenticated principal into an empresaId, refuses if absent, and pins it
 // to the request via AsyncLocalStorage. Every controller below this line can
 // safely call `requireTenantId()` from any depth.
-router.use(requireAuth, withTenantScope);
+router.use(requireAuth, requireRole(["ADMIN", "FINANCEIRO"]), withTenantScope);
 
 // ── Dashboard ────────────────────────────────────────────────────────────
 router.get("/dashboard", asyncHandler(financeController.getDashboard));
