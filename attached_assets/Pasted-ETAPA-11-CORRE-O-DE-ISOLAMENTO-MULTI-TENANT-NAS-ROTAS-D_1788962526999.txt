@@ -1,0 +1,192 @@
+ETAPA 11 — CORREÇÃO DE ISOLAMENTO MULTI-TENANT NAS ROTAS DE DELIVERIES
+
+Objetivo:
+Corrigir SOMENTE as vulnerabilidades de isolamento multi-tenant relacionadas às rotas de entregas (deliveries).
+
+NÃO faça refatoração ampla.
+NÃO altere funcionalidades de negócio que não sejam necessárias para corrigir o isolamento.
+NÃO mexa em NF-e, fiscal, certificados, credenciais fiscais ou qualquer integração fiscal.
+NÃO crie migration.
+NÃO altere o schema do banco.
+NÃO altere dados existentes.
+NÃO faça INSERT, UPDATE ou DELETE real no Supabase durante os testes.
+NÃO crie commit.
+
+Rotas sob investigação:
+
+GET    /api/deliveries/:id
+POST   /api/deliveries/:id
+PUT    /api/deliveries/:id
+PATCH  /api/deliveries/:id/status
+DELETE /api/deliveries/:id
+
+Também investigue rotas auxiliares diretamente relacionadas à delivery somente se forem necessárias para corrigir o mesmo problema de ownership. Não amplie o escopo para outros módulos.
+
+ANTES DE ALTERAR:
+Faça uma auditoria read-only dos arquivos envolvidos, especialmente:
+
+- server/routes/logistics.routes.ts
+- server/services/storage.ts
+- serviços/controllers/repositories utilizados pelas deliveries
+- server/core/http/requireAuth.ts
+- server/core/tenant/context.ts
+- server/middleware/tenant.ts
+- shared/schema.ts
+- consumidores frontend das rotas de deliveries
+
+Descubra:
+
+1. Como uma delivery é relacionada à empresa/tenant.
+2. Qual campo representa a empresa da delivery.
+3. Como o tenant da sessão autenticada é obtido.
+4. Quais roles podem criar, consultar, atualizar status, editar e excluir deliveries.
+5. Se existe alguma regra especial para MASTER, DIRECTOR, ADMIN, DEVELOPER, LOGISTICS, DRIVER/MOTORISTA ou outros papéis.
+6. Se existem consumidores legítimos que dependem dessas rotas.
+7. Se o storage/repository possui métodos globais que podem causar bypass de tenant.
+
+REGRA PRINCIPAL:
+
+Um usuário tenant-bound da empresa A NÃO pode:
+
+- consultar delivery da empresa B;
+- alterar delivery da empresa B;
+- alterar status de delivery da empresa B;
+- excluir delivery da empresa B;
+- inserir/modificar companyId/empresaId/tenantId para tentar trocar o tenant.
+
+O ID da delivery sozinho NÃO deve ser suficiente para acessar uma delivery de outro tenant.
+
+A autorização deve ocorrer ANTES da operação de leitura ou escrita.
+
+Para usuários tenant-bound:
+- o tenant da sessão deve prevalecer;
+- o backend deve validar que a delivery pertence ao tenant da sessão;
+- tentativa cross-tenant deve ser bloqueada;
+- preserve o padrão de resposta já utilizado pelo projeto, evitando revelar informações desnecessárias sobre a existência da delivery de outro tenant.
+
+Para usuários globais:
+- preserve a política global já existente no projeto;
+- NÃO invente novas permissões;
+- MASTER/DIRECTOR sem empresa vinculada devem seguir a política global existente;
+- ADMIN ou DEVELOPER vinculados a uma empresa NÃO devem ganhar acesso global apenas por causa da role;
+- não altere a política existente de roles sem necessidade.
+
+PROTEÇÃO CONTRA MASS ASSIGNMENT:
+
+Analise os bodies de POST/PUT/PATCH.
+
+Se houver campos como:
+
+- empresaId
+- empresa_id
+- companyId
+- company_id
+- tenantId
+- tenant_id
+
+ou equivalentes usados pelo projeto,
+
+eles NÃO podem permitir que um usuário tenant-bound troque a empresa da delivery.
+
+Quando a empresa precisa ser determinada pelo backend, ela deve vir do contexto autorizado da sessão/tenant, e não de um valor arbitrário enviado pelo cliente.
+
+IMPORTANTE:
+Não remova campos legítimos do domínio se eles tiverem outra finalidade. Primeiro entenda como são utilizados e altere somente o necessário para impedir o bypass.
+
+CRIAÇÃO:
+
+Na criação de delivery, confirme se o tenant da nova delivery é derivado de uma fonte confiável.
+
+Um usuário tenant-bound não pode criar uma delivery para outra empresa simplesmente enviando outro companyId/empresaId no body.
+
+Se a criação atual já possui uma regra correta, preserve-a.
+
+ATUALIZAÇÃO:
+
+Para PUT/PATCH/status/delete:
+
+Nunca faça algo equivalente a:
+
+storage.getDelivery(id)
+storage.updateDelivery(id, body)
+
+sem validar que a delivery pertence ao tenant autorizado.
+
+Prefira uma abordagem tenant-aware, por exemplo:
+
+- buscar a delivery já filtrada pelo tenant;
+- ou validar ownership antes da operação;
+- ou utilizar repository/service que receba o tenant autorizado.
+
+Use o padrão arquitetural já existente no projeto. Não faça uma refatoração desnecessária.
+
+TESTES:
+
+Crie testes unitários focados na política de tenant/ownership usando mocks ou fakes.
+
+NÃO execute escrita real no banco.
+
+Cubra no mínimo:
+
+1. usuário empresa A acessando delivery da empresa A → permitido;
+2. usuário empresa A acessando delivery da empresa B → negado;
+3. usuário empresa A tentando atualizar delivery da empresa B → negado;
+4. usuário empresa A tentando alterar status de delivery da empresa B → negado;
+5. usuário empresa A tentando excluir delivery da empresa B → negado;
+6. usuário empresa A tentando criar delivery informando companyId/empresaId da empresa B → não pode criar em B;
+7. tentativa de spoofing via company_id/empresa_id → bloqueada;
+8. MASTER global → preservar acesso global existente;
+9. DIRECTOR global → preservar acesso global existente;
+10. ADMIN tenant-bound → não pode acessar outro tenant;
+11. DEVELOPER tenant-bound → não pode acessar outro tenant;
+12. usuário não autenticado → deve receber 401 nas rotas que exigem autenticação.
+
+Também teste que nenhuma resposta de cross-tenant permita obter dados da delivery protegida.
+
+VALIDAÇÃO HTTP:
+
+Depois da correção, faça somente testes read-only/sem mutação real.
+
+Verifique pelo menos uma rota GET sem sessão e confirme que não existe acesso público indevido.
+
+Se for possível montar testes HTTP com mocks/sessões falsas, teste:
+
+- tenant A → delivery A
+- tenant A → delivery B
+- sem sessão → 401
+
+Não faça POST/PUT/PATCH/DELETE real no Supabase.
+
+VALIDAÇÃO FINAL:
+
+Execute:
+
+npm run check
+
+Se houver testes unitários específicos da etapa, execute-os.
+
+Depois confirme:
+
+- npm run check → PASS
+- testes direcionados → PASS
+- DB_CONNECTED → PASS
+- APP_READY → PASS
+- workflow reiniciado → PASS
+
+Ao final, informe:
+
+1. arquivos alterados;
+2. vulnerabilidade encontrada;
+3. como o ownership/tenant foi protegido;
+4. como companyId/empresaId foi protegido contra spoofing;
+5. testes executados e resultados;
+6. se houve alteração de schema;
+7. se houve migration;
+8. se houve alteração de dados;
+9. confirme explicitamente que NF-e/fiscal não foi alterado;
+10. confirme que nenhum commit foi criado.
+
+IMPORTANTE:
+Se durante a auditoria você descobrir que alguma das rotas já está corretamente protegida, NÃO altere desnecessariamente. Corrija somente o que realmente estiver vulnerável.
+
+Se encontrar outro problema fora de deliveries, apenas RELATE no final. Não corrija nesta etapa.

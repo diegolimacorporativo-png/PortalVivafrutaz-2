@@ -492,6 +492,7 @@ export interface IStorage {
   // Deliveries
   getDeliveries(filters?: { companyId?: number; driverId?: number; routeId?: number; status?: string; date?: string; dateFrom?: string; dateTo?: string }): Promise<Delivery[]>;
   getDelivery(id: number): Promise<Delivery | undefined>;
+  getDeliveryForCompany(id: number, companyId: number): Promise<Delivery | undefined>;
   getDeliveryByOrder(orderId: number): Promise<Delivery | undefined>;
   createDelivery(data: InsertDelivery): Promise<Delivery>;
   updateDelivery(id: number, data: Partial<InsertDelivery>): Promise<Delivery>;
@@ -2903,6 +2904,13 @@ export class DatabaseStorage implements IStorage {
   }
   async getDelivery(id: number): Promise<Delivery | undefined> {
     const [r] = await db.select().from(deliveries).where(eq(deliveries.id, id));
+    return r;
+  }
+  async getDeliveryForCompany(id: number, companyId: number): Promise<Delivery | undefined> {
+    const [r] = await db
+      .select()
+      .from(deliveries)
+      .where(and(eq(deliveries.id, id), eq(deliveries.companyId, companyId)));
     return r;
   }
   async getDeliveryByOrder(orderId: number): Promise<Delivery | undefined> {

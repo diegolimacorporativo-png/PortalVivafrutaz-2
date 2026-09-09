@@ -3,10 +3,15 @@ import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
 import { currentTenantId } from "../core/tenant/context";
 import { ensureOwnDriverId, isDriver, isDriverOrInternal, isInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
+import {
+  isDeliveryInTenant,
+  resolveDeliveryAccess,
+  sanitizeDeliveryCreateBody,
+  sanitizeDeliveryUpdateBody,
+} from "../modules/logistics/delivery.access";
 import { LOGISTICS_AUTH_ROLES } from "../modules/logistics/logistics.types";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { db } from "../database/db";
-import { ForbiddenError } from "../shared/errors/AppError";
 import {
   logisticsDrivers as driversTable,
   users as usersTable,
@@ -80,7 +85,9 @@ export async function register(app: Express): Promise<void> {
 
   app.get('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {
     try {
-      const d = await storage.getDelivery(Number(req.params.id));
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      const d = await getAuthorizedDelivery(Number(req.params.id), actor);
       if (!d) return res.status(404).json({ message: 'Entrega não encontrada' });
       res.json(d);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -88,31 +95,54 @@ export async function register(app: Express): Promise<void> {
 
   app.post('/api/deliveries', requireAuthCore, async (req: any, res) => {
     try {
-      const delivery = await storage.createDelivery(req.body);
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      const access = resolveDeliveryAccess(actor);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      const data = sanitizeDeliveryCreateBody(req.body, access.tenantId);
+      const delivery = await storage.createDelivery(data as any);
       res.status(201).json(delivery);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.put('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {
     try {
-      const delivery = await storage.updateDelivery(Number(req.params.id), req.body);
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      const deliveryId = Number(req.params.id);
+      const current = await getAuthorizedDelivery(deliveryId, actor);
+      if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
+      const delivery = await storage.updateDelivery(
+        deliveryId,
+        sanitizeDeliveryUpdateBody(req.body) as any,
+      );
       res.json(delivery);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.patch('/api/deliveries/:id/status', requireAuthCore, async (req: any, res) => {
     try {
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      const deliveryId = Number(req.params.id);
+      const current = await getAuthorizedDelivery(deliveryId, actor);
+      if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
       const { status } = req.body;
       const updates: any = { status };
       if (status === 'entregue') updates.deliveredAt = new Date();
-      const delivery = await storage.updateDelivery(Number(req.params.id), updates);
+      const delivery = await storage.updateDelivery(deliveryId, updates);
       res.json(delivery);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
   app.delete('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {
     try {
-      await storage.deleteDelivery(Number(req.params.id));
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      const deliveryId = Number(req.params.id);
+      const current = await getAuthorizedDelivery(deliveryId, actor);
+      if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
+      await storage.deleteDelivery(deliveryId);
       res.json({ success: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -133,22 +163,27 @@ export async function register(app: Express): Promise<void> {
 
   /**
    * Resolves a delivery and verifies tenant ownership plus driver ownership.
-   * Internal roles keep their existing visibility; a tenant-pinned internal
-   * user remains restricted to that tenant. An unscoped cross-tenant admin
-   * keeps the existing support/reporting behavior.
+   * Cross-tenant requests intentionally return undefined so callers preserve
+   * the existing not-found response and do not reveal another tenant's row.
    */
   async function getAuthorizedDelivery(deliveryId: number, actor: any): Promise<any | undefined> {
-    const delivery = await storage.getDelivery(deliveryId);
+    const access = resolveDeliveryAccess(actor);
+    if (!access.allowed) {
+      return undefined;
+    }
+
+    const delivery = access.tenantId != null
+      ? await storage.getDeliveryForCompany(deliveryId, access.tenantId)
+      : await storage.getDelivery(deliveryId);
     if (!delivery) return undefined;
 
-    const tenantId = currentTenantId() ?? (actor?.empresaId ?? null);
-    if (tenantId != null && Number(delivery.companyId) !== Number(tenantId)) {
-      throw new ForbiddenError('Acesso negado');
+    if (!isDeliveryInTenant(delivery, access.tenantId)) {
+      return undefined;
     }
 
     if (isDriver(actor?.role)) {
       const ownDriverId = await resolveOwnDriverId(storage, actor);
-      if (!ownDriverId) throw new ForbiddenError('Motorista não vinculado');
+      if (!ownDriverId) return undefined;
 
       let ownsDelivery = Number(delivery.driverId) === ownDriverId;
       if (!ownsDelivery && delivery.routeId) {
@@ -161,7 +196,7 @@ export async function register(app: Express): Promise<void> {
       }
 
       if (!ownsDelivery) {
-        throw new ForbiddenError('Entrega não pertence ao motorista');
+        return undefined;
       }
     }
 
@@ -548,9 +583,14 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── Delivery Checklist ────────────────────────────────────────────────────────
-  app.get('/api/deliveries/:id/checklist', async (req: any, res) => {
+  app.get('/api/deliveries/:id/checklist', requireAuthCore, async (req: any, res) => {
     try {
-      const checklist = await storage.getDeliveryChecklist(Number(req.params.id));
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      const deliveryId = Number(req.params.id);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
+      const checklist = await storage.getDeliveryChecklist(deliveryId);
       res.json(checklist || null);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -560,6 +600,8 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       const { observacao, driverId, entregaConfirmada } = req.body;
 
       // Create checklist record
@@ -580,7 +622,6 @@ export async function register(app: Express): Promise<void> {
           deliveredAt: new Date(),
         });
         // Also update the linked order: mark as DELIVERED and liberate for NF-e
-        const delivery = await storage.getDelivery(deliveryId);
         if (delivery?.orderId) {
           try {
             await storage.updateOrder(delivery.orderId, {
@@ -615,7 +656,7 @@ export async function register(app: Express): Promise<void> {
         });
       }
 
-      const delivery = await storage.getDelivery(deliveryId);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
 
       const now = new Date();
@@ -668,7 +709,11 @@ export async function register(app: Express): Promise<void> {
   // Retorna o histórico completo de eventos de status de uma parada.
   app.get('/api/deliveries/:id/stop-events', requireAuthCore, async (req: any, res) => {
     try {
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       const events = await db
         .select()
         .from(deliveryStopEvents)
