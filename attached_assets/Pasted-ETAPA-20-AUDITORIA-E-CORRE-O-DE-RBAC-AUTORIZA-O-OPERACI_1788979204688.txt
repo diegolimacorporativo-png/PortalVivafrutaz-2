@@ -1,0 +1,299 @@
+ETAPA 20 — AUDITORIA E CORREÇÃO DE RBAC/AUTORIZAÇÃO OPERACIONAL DO INVENTORY
+
+Objetivo:
+Auditar exclusivamente o módulo de INVENTORY/ESTOQUE para verificar se as operações estão corretamente protegidas por:
+- autenticação;
+- RBAC;
+- tenant isolation;
+- ownership;
+- mass assignment;
+- autorização específica por operação.
+
+IMPORTANTE:
+Esta etapa NÃO deve alterar regras de negócio do estoque.
+O objetivo é somente impedir acesso ou alteração não autorizada.
+
+NÃO mexer em:
+- NF-e;
+- Fiscal;
+- DANFE;
+- certificados;
+- Bling;
+- GPS;
+- Android;
+- Products;
+- Prices;
+- Quotations;
+- Deliveries;
+- Logistics Analytics;
+- Internal Incidents;
+- Bank/Financeiro corrigido na Etapa 19.
+
+NÃO criar migration.
+NÃO alterar schema sem necessidade absolutamente comprovada.
+NÃO alterar dados reais.
+NÃO fazer refatoração ampla.
+NÃO criar commit.
+
+PRIMEIRO FAÇA UMA AUDITORIA READ-ONLY.
+
+LOCALIZE:
+
+- todas as rotas /api relacionadas a inventory/estoque;
+- GET;
+- POST;
+- PUT;
+- PATCH;
+- DELETE;
+- ajustes de estoque;
+- entradas;
+- saídas;
+- movimentações;
+- transferências;
+- inventário/conferência;
+- histórico;
+- relatórios;
+- métodos de storage;
+- repositories;
+- services;
+- policies;
+- middleware;
+- consumidores frontend.
+
+NÃO ASSUMA OS NOMES DAS ROTAS.
+Descubra pelo código quais endpoints realmente existem.
+
+1. AUTENTICAÇÃO
+
+Todo endpoint que expõe ou altera estoque deve exigir autenticação adequada.
+
+Sem sessão:
+
+-> 401
+
+2. TENANT
+
+Usuário tenant-bound da empresa A:
+
+- só pode consultar estoque permitido da empresa A;
+- só pode alterar estoque permitido da empresa A;
+- não pode acessar estoque da empresa B;
+- não pode criar movimentação para empresa B;
+- não pode trocar tenant através do payload.
+
+Nunca confiar no cliente para:
+
+- companyId;
+- empresaId;
+- tenantId;
+- company_id;
+- empresa_id;
+- tenant_id.
+
+O tenant confiável deve vir da sessão/contexto.
+
+3. RBAC POR OPERAÇÃO
+
+Esta é a parte principal desta etapa.
+
+Identifique quais roles atualmente podem:
+
+- visualizar estoque;
+- criar entrada;
+- criar saída;
+- ajustar quantidade;
+- transferir;
+- excluir/cancelar movimentação;
+- realizar inventário;
+- visualizar histórico;
+- executar operações administrativas.
+
+Não invente uma política completamente nova.
+
+Analise as roles já existentes no projeto e o uso real do módulo.
+
+Considere especialmente roles como:
+
+- MASTER
+- ADMIN
+- DIRECTOR
+- DEVELOPER
+- OPERATIONS_MANAGER
+- LOGISTICS
+- PURCHASE_MANAGER
+- FINANCEIRO
+- DRIVER
+- CLIENT
+
+Apenas conceda ou restrinja acesso quando houver evidência no código/fluxo atual.
+
+IMPORTANTE:
+
+Não faça simplesmente:
+
+"qualquer usuário autenticado da empresa pode alterar estoque".
+
+Isso deve ser considerado um possível problema.
+
+4. LEITURA VS ALTERAÇÃO
+
+Diferencie:
+
+- consulta;
+- relatório;
+- histórico;
+- operação que altera quantidade;
+- operação administrativa.
+
+Uma role que pode visualizar estoque não necessariamente pode alterar estoque.
+
+5. IDOR
+
+Para endpoints por ID:
+
+- validar tenant antes de retornar;
+- validar tenant antes de alterar;
+- validar tenant antes de excluir/cancelar.
+
+Usuário A não pode usar ID de B.
+
+Cross-tenant deve falhar de maneira segura.
+
+6. MASS ASSIGNMENT
+
+Verificar payloads de movimentação/ajuste.
+
+Cliente NÃO deve poder definir livremente:
+
+- tenant;
+- empresa;
+- usuário executor;
+- createdBy;
+- approvedBy;
+- timestamps;
+- saldo calculado;
+- quantidade anterior;
+- quantidade posterior;
+- status interno;
+- campos de auditoria;
+- IDs internos.
+
+O servidor deve derivar os campos controlados.
+
+Usar allowlist quando apropriado.
+
+7. MOVIMENTAÇÕES
+
+Para operações que alteram quantidade:
+
+Verificar se:
+
+- usuário está autenticado;
+- possui role adequada;
+- pertence ao tenant;
+- produto/estoque pertence ao mesmo tenant;
+- IDs relacionados pertencem ao mesmo tenant;
+- quantidade é validada;
+- campos calculados não podem ser falsificados.
+
+NÃO alterar o algoritmo de estoque se ele já estiver funcionando.
+
+8. TRANSFERÊNCIAS
+
+Se existir transferência entre estoques:
+
+validar origem e destino.
+
+Não permitir que um usuário tenant-bound use IDs para movimentar estoque de outra empresa.
+
+Se houver múltiplos locais/depósitos dentro da mesma empresa, preservar essa funcionalidade.
+
+9. EXCLUSÃO/CANCELAMENTO
+
+Se houver DELETE ou cancelamento:
+
+verificar se realmente precisa de role mais forte.
+
+Não permitir que uma role de consulta execute exclusão simplesmente porque está autenticada.
+
+10. TESTES
+
+Criar testes unitários usando mocks/fakes.
+
+NÃO escrever no Supabase real.
+
+Cobrir no mínimo:
+
+1. sem sessão -> 401;
+2. usuário A consegue consultar estoque permitido;
+3. usuário A não consulta estoque B;
+4. usuário A não altera estoque B;
+5. usuário A não exclui/cancela movimentação B;
+6. companyId spoofing falha;
+7. tenantId spoofing falha;
+8. criação força tenant da sessão;
+9. usuário sem permissão recebe 403;
+10. role autorizada continua funcionando;
+11. campos protegidos não podem sofrer mass assignment;
+12. produto/estoque relacionado de outro tenant é rejeitado;
+13. quantidade/saldo controlados pelo servidor não podem ser falsificados;
+14. comportamento global existente de MASTER/DIRECTOR continua funcionando;
+15. operações permitidas continuam funcionando.
+
+Se algumas dessas operações não existirem, não inventar endpoints apenas para testar.
+
+11. VALIDAR FRONTEND
+
+Verifique quais roles o frontend mostra como capazes de:
+
+- acessar estoque;
+- ajustar estoque;
+- movimentar estoque.
+
+Mas considere o backend como autoridade final.
+
+Não basta esconder botão.
+
+12. VALIDAÇÃO FINAL
+
+Executar:
+
+npm run check
+
+npm run build
+
+git diff --check
+
+Se houver workflow:
+
+- reiniciar;
+- confirmar DB_CONNECTED;
+- confirmar APP_READY.
+
+Se houver falha ambiental de banco, não alterar configuração do banco.
+
+AO FINAL INFORMAR:
+
+- endpoints auditados;
+- vulnerabilidades encontradas;
+- operações protegidas;
+- RBAC aplicado;
+- tenant isolation;
+- IDOR corrigidos;
+- mass assignment corrigido;
+- arquivos alterados;
+- testes executados;
+- resultado;
+- check;
+- build;
+- diff-check;
+- workflow;
+- schema alterado? SIM/NÃO;
+- migration criada? SIM/NÃO;
+- dados reais alterados? SIM/NÃO;
+- operações reais de estoque executadas? SIM/NÃO;
+- confirmar que NF-e/Fiscal/Bling/GPS/Android não foram tocados;
+- confirmar que Etapas 17, 18 e 19 não foram alteradas;
+- confirmar que nenhum commit foi criado.
+
+NÃO criar commit.
