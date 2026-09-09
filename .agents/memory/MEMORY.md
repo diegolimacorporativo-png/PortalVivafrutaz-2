@@ -10,3 +10,4 @@
 - [GPS global access](gps-global-access.md) — endpoint modular; MASTER/ADMIN/DIRECTOR têm visão global, demais internos seguem tenant-scoped.
 - [Password reset history](password-reset-security.md) — pedidos de reset nunca persistem a senha original; a senha só vai ao cadastro protegido da empresa.
 - [Users CRUD tenant scope](users-crud-tenant-scope.md) — CRUD deve resolver tenant no middleware e repetir o escopo por empresa no repositório; admin global só quando não há tenant fixado.
+- [Reports tenant scope](reports-tenant-scope.md) — relatórios comuns são tenant-bound; somente MASTER/DIRECTOR sem empresa vinculada mantêm visão global explícita.

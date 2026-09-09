@@ -1,0 +1,140 @@
+CORREÇÃO 3 — ISOLAMENTO MULTI-TENANT DOS RELATÓRIOS
+
+Quero corrigir APENAS o risco de isolamento multiempresa identificado nos endpoints de relatórios.
+
+Problema identificado na auditoria:
+
+server/routes/reports.routes.ts
+
+Endpoints envolvidos:
+
+GET /api/reports/industrialized
+GET /api/reports/purchasing
+GET /api/reports/financial
+
+Foi identificado que os endpoints possuem autenticação/RBAC, porém a resolução da empresa pode aceitar companyId vindo de query/body em situações nas quais deveria prevalecer o tenant da sessão.
+
+OBJETIVO:
+
+Garantir que usuários vinculados a um tenant nunca consigam consultar relatórios de outra empresa simplesmente alterando companyId na requisição.
+
+REGRAS OBRIGATÓRIAS:
+
+1. NÃO alterar NF-e.
+2. NÃO alterar schema.
+3. NÃO criar migration.
+4. NÃO alterar dados do banco.
+5. NÃO fazer refatoração ampla.
+6. Não alterar módulos que não sejam necessários para essa correção.
+
+ANTES DE EDITAR:
+
+Leia completamente:
+
+- server/routes/reports.routes.ts
+- services utilizados pelos relatórios
+- repositories/storage utilizados pelos relatórios
+- tenantContext/currentTenantId/withTenantScope
+- middleware de autenticação e RBAC
+- implementação existente do padrão global usado pelo dashboard executivo/MASTER
+- consumidores frontend desses endpoints
+
+Determine primeiro quais relatórios são:
+
+A) tenant-bound:
+   devem obrigatoriamente usar a empresa da sessão;
+
+B) realmente globais:
+   somente usuários com papel global explicitamente autorizado podem consultar múltiplas empresas.
+
+REGRA PRINCIPAL:
+
+Para usuário tenant-bound:
+
+- NÃO confiar em req.query.companyId;
+- NÃO confiar em req.body.companyId;
+- NÃO permitir override de tenant pelo cliente;
+- usar exclusivamente o tenant derivado da sessão/contexto autenticado;
+- se houver companyId diferente no request, ignorá-lo ou rejeitar com 403, conforme o padrão de segurança já utilizado no projeto;
+- nunca executar consulta com a empresa enviada pelo cliente.
+
+Para usuário global:
+
+- preservar o comportamento global existente SOMENTE quando o papel realmente tiver permissão global;
+- seguir o mesmo padrão já usado no projeto para operações globais;
+- não transformar ADMIN/GESTOR comum em usuário global apenas para preservar comportamento antigo.
+
+ATENÇÃO ESPECIAL:
+
+Revise também funções auxiliares como:
+
+resolveCompanyId(...)
+currentTenantId(...)
+tenantContext
+withTenantScope
+
+Se uma função permitir fallback para req.query.companyId quando existe uma sessão tenant-bound, corrija somente o necessário para impedir esse bypass.
+
+NÃO faça uma refatoração geral dessas funções.
+
+TESTES:
+
+Adicionar testes unitários sem utilizar o banco compartilhado.
+
+Validar pelo menos:
+
+1. Tenant A consulta relatório da empresa A
+→ permitido.
+
+2. Tenant A envia:
+   ?companyId=empresaB
+→ deve continuar usando empresa A ou retornar 403.
+→ nunca retornar dados da empresa B.
+
+3. Tenant A tenta alterar companyId por qualquer parâmetro suportado pelo endpoint
+→ bloqueado ou ignorado.
+
+4. Tenant B não consegue consultar dados da empresa A.
+
+5. Usuário global autorizado consegue consultar relatório global conforme comportamento existente.
+
+6. Usuário sem autenticação
+→ 401.
+
+7. Usuário autenticado sem role necessária
+→ 403.
+
+IMPORTANTE SOBRE DADOS:
+
+Não executar testes que façam INSERT, UPDATE ou DELETE no banco compartilhado.
+
+Use mocks/fakes/testes unitários já existentes no projeto.
+
+VALIDAÇÃO FINAL:
+
+Executar:
+
+npm run check
+npm test
+
+Se possível, executar também somente os testes novos/direcionados.
+
+Comparar as falhas da suíte completa com o estado anterior.
+
+As 10 falhas conhecidas de order-deadline relacionadas ao horário não fazem parte desta correção e não devem ser corrigidas agora.
+
+Depois informe:
+
+- arquivos alterados;
+- endpoints corrigidos;
+- como o tenant agora é determinado;
+- quais roles continuam globais;
+- como o companyId enviado pelo cliente é tratado;
+- testes adicionados;
+- resultado de npm run check;
+- resultado de npm test;
+- confirmação de que nenhum dado/schema/migration foi alterado.
+
+NÃO FAÇA COMMIT.
+
+Se encontrar outros problemas durante a auditoria, apenas registre como "fora do escopo". Não corrija nesta etapa.

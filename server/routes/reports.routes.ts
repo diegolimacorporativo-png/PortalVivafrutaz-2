@@ -3,6 +3,37 @@ import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { currentTenantId } from "../core/tenant/context";
+import { tenantContext } from "../middleware/tenant";
+import { ForbiddenError, UnauthorizedError } from "../shared/errors/AppError";
+
+const GLOBAL_REPORT_ROLES = ["MASTER", "DIRECTOR"] as const;
+
+/**
+ * Reports are tenant-bound for normal administrative roles. MASTER/DIRECTOR
+ * without a company assignment retain the explicit global-report convention
+ * (optionally narrowed by ?companyId or X-Empresa-Id through tenantContext).
+ *
+ * This is intentionally local to reports: changing tenantContext globally
+ * would alter unrelated cross-tenant operational flows.
+ */
+export async function reportsTenantContext(req: any, res: any, next: any) {
+  try {
+    const user = await storage.getUser(req.session?.userId);
+    if (!user) return next(new UnauthorizedError("Sessão inválida"));
+
+    if (user.empresaId == null && !GLOBAL_REPORT_ROLES.includes(user.role as any)) {
+      return next(
+        new ForbiddenError(
+          "Relatórios exigem uma empresa vinculada para este perfil",
+        ),
+      );
+    }
+
+    return tenantContext(req, res, next);
+  } catch (error) {
+    return next(error);
+  }
+}
 
 /**
  * FASE MT-3D — companyId hardening.
@@ -18,7 +49,7 @@ import { currentTenantId } from "../core/tenant/context";
  *      aceita `req.query.companyId` como filtro opcional, igual ao
  *      comportamento anterior — pois esse usuário já tem acesso global.
  */
-function resolveCompanyId(req: any): number | undefined {
+export function resolveCompanyId(req: any): number | undefined {
   const tid = currentTenantId();
   if (tid != null) return tid;
   const qp = req.query.companyId;
@@ -27,7 +58,7 @@ function resolveCompanyId(req: any): number | undefined {
 
 export function register(app: Express) {
   // Industrialized products report
-  app.get('/api/reports/industrialized', requireAuthCore, requireRole(["ADMIN", "DIRECTOR", "MASTER"]), async (req, res) => {
+  app.get('/api/reports/industrialized', requireAuthCore, requireRole(["ADMIN", "DIRECTOR", "MASTER", "PURCHASE_MANAGER"], { strict: true }), reportsTenantContext, async (req, res) => {
     try {
       const { dateFrom, dateTo, productId } = req.query;
       const companyId = resolveCompanyId(req);
@@ -45,7 +76,7 @@ export function register(app: Express) {
   });
 
   // Reports — real data from DB
-  app.get(api.reports.purchasing.path, requireAuthCore, requireRole(["ADMIN", "DIRECTOR", "MASTER"]), async (req, res) => {
+  app.get(api.reports.purchasing.path, requireAuthCore, requireRole(["ADMIN", "DIRECTOR", "MASTER", "PURCHASE_MANAGER"], { strict: true }), reportsTenantContext, async (req, res) => {
     try {
       const { dateFrom, dateTo, productId } = req.query;
       const companyId = resolveCompanyId(req);
@@ -62,7 +93,18 @@ export function register(app: Express) {
     }
   });
 
-  app.get(api.reports.financial.path, requireAuthCore, requireRole(["ADMIN", "DIRECTOR", "MASTER"]), async (req, res) => {
+  app.get(api.reports.financial.path, requireAuthCore, requireRole(["ADMIN", "DIRECTOR", "MASTER", "FINANCEIRO"], { strict: true }), reportsTenantContext, async (req, res) => {
+    // This endpoint is still a legacy placeholder. Never return its
+    // cross-company sample data to a tenant-bound request.
+    if (currentTenantId() != null) {
+      return res.json({
+        weeklyRevenue: 0,
+        monthlyRevenue: 0,
+        topCompanies: [],
+        topSellingFruits: [],
+      });
+    }
+
     res.json({
       weeklyRevenue: 4500.00,
       monthlyRevenue: 18200.00,
