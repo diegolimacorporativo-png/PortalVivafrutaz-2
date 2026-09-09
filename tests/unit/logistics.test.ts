@@ -53,8 +53,12 @@ function makeStubRepo(overrides: Record<string, any> = {}) {
     updateRouteStop: track("updateRouteStop", (id: number, d: any) => ({ id, ...d })),
     deleteRouteStop: track("deleteRouteStop", () => undefined),
     getLogisticsAuditLogs: track("getLogisticsAuditLogs", () => []),
+    getCompany: track("getCompany", () => undefined),
     getCompanies: track("getCompanies", () => []),
     getOrders: track("getOrders", () => []),
+    getOrdersSafe: track("getOrdersSafe", () => []),
+    getDriversSafe: track("getDriversSafe", () => []),
+    getRoutesSafe: track("getRoutesSafe", () => []),
     getDeliveries: track("getDeliveries", () => []),
     getUser: track("getUser", () => null),
     log: track("log", () => undefined),
@@ -83,7 +87,14 @@ function makeApp(repo: any) {
   app.post("/api/logistics/calculate-distance", controller.calculateDistance);
   app.get("/api/logistics/audit-logs", controller.auditLogs);
   app.get("/api/logistics/route-assistant", controller.routeAssistant);
+  app.post("/api/logistics/suggest-route", controller.suggestRoute);
+  app.get("/api/logistics/day-orders", controller.dayOrders);
+  app.post("/api/logistics/simulate-day", controller.simulateDay);
+  app.get("/api/logistics/reports/deliveries", controller.deliveriesReport);
   app.get("/api/logistics/best-driver", controller.bestDriver);
+  app.get("/api/logistics/smart-search", controller.smartSearch);
+  app.post("/api/logistics/route-insertion", controller.routeInsertion);
+  app.get("/api/logistics/smart-route-plan", controller.smartRoutePlan);
 
   return app;
 }
@@ -274,10 +285,13 @@ describe("logistics — happy paths and edge cases", () => {
 
   test("GET /best-driver with no active drivers → { driver: null, message }", async () => {
     const repo = makeStubRepo({
-      getDrivers: async () => [{ id: 1, name: "X", active: false }],
+      getUser: async () => ({ id: 1, role: "LOGISTICS", empresaId: 1 }),
+      getDriversSafe: async () => [{ id: 1, name: "X", active: false }],
     });
     const app = makeApp(repo);
-    const { status, body } = await call(app, "GET", "/api/logistics/best-driver");
+    const { status, body } = await call(app, "GET", "/api/logistics/best-driver", {
+      session: { userId: 1 },
+    });
     assert.equal(status, 200);
     assert.equal(body.driver, null);
     assert.equal(body.message, "Nenhum motorista ativo");
@@ -294,5 +308,63 @@ describe("logistics — happy paths and edge cases", () => {
     assert.equal(status, 401);
     // Legacy quirk: this endpoint uses "Não autorizado", others use "Não autenticado".
     assert.equal(body.message, "Não autorizado");
+  });
+
+  test("GET /smart-search without session → 401", async () => {
+    const repo = makeStubRepo();
+    const app = makeApp(repo);
+    const { status } = await call(app, "GET", "/api/logistics/smart-search?q=Cliente");
+    assert.equal(status, 401);
+    assert.equal(repo._calls.getCompanies, undefined);
+  });
+
+  test("POST /route-insertion rejects a non-logistics role → 403", async () => {
+    const repo = makeStubRepo({
+      getUser: async () => ({ id: 1, role: "CLIENT", empresaId: 1 }),
+    });
+    const app = makeApp(repo);
+    const { status, body } = await call(
+      app,
+      "POST",
+      "/api/logistics/route-insertion",
+      { session: { userId: 1 }, body: { companyId: 2 } },
+    );
+    assert.equal(status, 403);
+    assert.equal(body.message, "Sem permissão");
+  });
+
+  test("tenant-bound analytics fails closed for an unbound ADMIN → 403", async () => {
+    const repo = makeStubRepo({
+      getUser: async () => ({ id: 1, role: "ADMIN", empresaId: null }),
+    });
+    const app = makeApp(repo);
+    const { status, body } = await call(
+      app,
+      "GET",
+      "/api/logistics/smart-search?q=Cliente",
+      { session: { userId: 1 } },
+    );
+    assert.equal(status, 403);
+    assert.match(body.message, /empresa/i);
+  });
+
+  test("analytical endpoints require a session", async () => {
+    const repo = makeStubRepo();
+    const app = makeApp(repo);
+    const requests: Array<[string, string, any]> = [
+      ["POST", "/api/logistics/suggest-route", {}],
+      ["GET", "/api/logistics/day-orders", undefined],
+      ["POST", "/api/logistics/simulate-day", {}],
+      ["GET", "/api/logistics/reports/deliveries", undefined],
+      ["GET", "/api/logistics/best-driver", undefined],
+      ["GET", "/api/logistics/smart-search?q=A", undefined],
+      ["POST", "/api/logistics/route-insertion", {}],
+      ["GET", "/api/logistics/smart-route-plan", undefined],
+    ];
+
+    for (const [method, path, body] of requests) {
+      const response = await call(app, method, path, { body });
+      assert.equal(response.status, 401, `${method} ${path}`);
+    }
   });
 });

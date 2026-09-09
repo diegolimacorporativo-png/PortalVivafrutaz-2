@@ -40,6 +40,74 @@ import type {
 export class LogisticsService {
   constructor(private readonly repo: LogisticsRepository = logisticsRepository) {}
 
+  private analyticsScope(actor: ActorRef): { tenantId: number | null; global: boolean } {
+    const contextTenant = currentTenantId();
+    const actorTenant =
+      actor.empresaId == null ? null : Number(actor.empresaId);
+
+    if (contextTenant != null) {
+      if (
+        actorTenant != null &&
+        (!Number.isInteger(contextTenant) || actorTenant !== contextTenant)
+      ) {
+        throw new ForbiddenError("O tenant da sessão não corresponde ao usuário.");
+      }
+      return { tenantId: contextTenant, global: false };
+    }
+
+    if (actorTenant != null) {
+      if (!Number.isInteger(actorTenant) || actorTenant <= 0) {
+        throw new ForbiddenError("Empresa do usuário inválida.");
+      }
+      return { tenantId: actorTenant, global: false };
+    }
+
+    // Only these existing global profiles may intentionally operate without
+    // a tenant target. Unbound ADMIN/DEVELOPER accounts fail closed.
+    if (actor.role === "MASTER" || actor.role === "DIRECTOR") {
+      return { tenantId: null, global: true };
+    }
+
+    throw new ForbiddenError(
+      "Este perfil precisa estar vinculado a uma empresa.",
+    );
+  }
+
+  private async visibleCompanies(scope: { tenantId: number | null; global: boolean }) {
+    if (scope.global) return (await this.repo.getCompanies()) as any[];
+    const company = await this.repo.getCompany(scope.tenantId!);
+    return company ? [company] : [];
+  }
+
+  private visibleOrders(scope: { tenantId: number | null; global: boolean }) {
+    return scope.global
+      ? this.repo.getOrders()
+      : this.repo.getOrdersSafe(scope.tenantId!);
+  }
+
+  private visibleDrivers(scope: { tenantId: number | null; global: boolean }) {
+    return scope.global
+      ? this.repo.getDrivers()
+      : this.repo.getDriversSafe(scope.tenantId!);
+  }
+
+  private visibleRoutes(scope: { tenantId: number | null; global: boolean }) {
+    return scope.global
+      ? this.repo.getRoutes()
+      : this.repo.getRoutesSafe(scope.tenantId!);
+  }
+
+  private visibleDeliveries(
+    scope: { tenantId: number | null; global: boolean },
+    filters: Record<string, unknown> = {},
+  ) {
+    return this.repo.getDeliveries(
+      scope.global
+        ? (filters as any)
+        : ({ ...filters, companyId: scope.tenantId } as any),
+    );
+  }
+
   // ─── DRIVERS ──────────────────────────────────────────────────────────
   async listDrivers() {
     const tid = currentTenantId();
@@ -376,13 +444,17 @@ export class LogisticsService {
   }
 
   // ─── ROUTE ASSISTANT ──────────────────────────────────────────────────
-  async routeAssistant(query: { day?: string; date?: string }): Promise<RouteAssistantItem[]> {
+  async routeAssistant(
+    query: { day?: string; date?: string },
+    actor: ActorRef,
+  ): Promise<RouteAssistantItem[]> {
     const { day, date } = query;
-    const allCompanies = await this.repo.getCompanies();
+    const scope = this.analyticsScope(actor);
+    const allCompanies = await this.visibleCompanies(scope);
 
     let companiesWithOrders: Set<number> = new Set();
     if (date) {
-      const allOrders = await this.repo.getOrders();
+      const allOrders = await this.visibleOrders(scope);
       const dateStr = String(date);
       allOrders.forEach((o: any) => {
         const od = new Date(o.deliveryDate).toISOString().split("T")[0];
@@ -444,7 +516,7 @@ export class LogisticsService {
   }
 
   // ─── SUGGEST ROUTE ────────────────────────────────────────────────────
-  async suggestRoute(body: SuggestRouteInput) {
+  async suggestRoute(body: SuggestRouteInput, actor: ActorRef) {
     const { newPoint, date } = body || ({} as SuggestRouteInput);
     if (!newPoint?.lat || !newPoint?.lng) {
       throw new BadRequestError("Informe lat/lng do ponto de entrega");
@@ -452,11 +524,12 @@ export class LogisticsService {
     const { suggestInsertion } = await import(
       "../../services/logistics/routeOptimizer"
     );
-    const routes = await this.repo.getRoutes();
+    const scope = this.analyticsScope(actor);
+    const routes = await this.visibleRoutes(scope);
     const filteredRoutes = date
       ? routes.filter((r: any) => r.deliveryDate === date)
       : routes;
-    const drivers = await this.repo.getDrivers();
+    const drivers = await this.visibleDrivers(scope);
 
     const driverRoutesMap = filteredRoutes.map((r: any) => {
       return {
@@ -479,12 +552,16 @@ export class LogisticsService {
   }
 
   // ─── DAY ORDERS ───────────────────────────────────────────────────────
-  async dayOrders(query: { date?: string }): Promise<DayOrdersResponse> {
+  async dayOrders(
+    query: { date?: string },
+    actor: ActorRef,
+  ): Promise<DayOrdersResponse> {
     const { date } = query;
     if (!date) throw new BadRequestError("Informe a data (date)");
 
-    const allOrders = await this.repo.getOrders();
-    const allCompanies = await this.repo.getCompanies();
+    const scope = this.analyticsScope(actor);
+    const allOrders = await this.visibleOrders(scope);
+    const allCompanies = await this.visibleCompanies(scope);
     const companyMap = Object.fromEntries(
       (allCompanies as any[]).map((c: any) => [c.id, c]),
     );
@@ -550,24 +627,31 @@ export class LogisticsService {
   }
 
   // ─── SIMULATE DAY ─────────────────────────────────────────────────────
-  async simulateDay(body: { date?: string; depotLat?: number; depotLng?: number }) {
+  async simulateDay(
+    body: { date?: string; depotLat?: number; depotLng?: number },
+    actor: ActorRef,
+  ) {
     const { date, depotLat, depotLng } = body || {};
     if (!date) throw new BadRequestError("Informe a data de simulação");
+    const scope = this.analyticsScope(actor);
 
     const { simulateRouteDay } = await import(
       "../../services/logistics/routeOptimizer"
     );
 
-    let allDeliveries = await this.repo.getDeliveries({ date, status: "pendente" });
-    const allDrivers = await this.repo.getDrivers();
+    let allDeliveries = await this.visibleDeliveries(scope, {
+      date,
+      status: "pendente",
+    });
+    const allDrivers = await this.visibleDrivers(scope);
     const drivers = (allDrivers as any[]).filter((d: any) => d.active);
-    const routes = await this.repo.getRoutes();
+    const routes = await this.visibleRoutes(scope);
 
     let deliveryPoints: any[] = [];
     let ordersBridged: any[] = [];
     if ((allDeliveries as any[]).length === 0) {
-      const allOrders = await this.repo.getOrders();
-      const allCompanies = await this.repo.getCompanies();
+      const allOrders = await this.visibleOrders(scope);
+      const allCompanies = await this.visibleCompanies(scope);
       const companyMap = Object.fromEntries(
         (allCompanies as any[]).map((c: any) => [c.id, c]),
       );
@@ -679,14 +763,15 @@ export class LogisticsService {
   }
 
   // ─── REPORTS / DELIVERIES ─────────────────────────────────────────────
-  async deliveriesReport(query: DeliveriesReportFilters) {
+  async deliveriesReport(query: DeliveriesReportFilters, actor: ActorRef) {
     const { companyId, driverId, startDate, endDate, status } = query || {};
+    const scope = this.analyticsScope(actor);
     const filters: any = {};
-    if (companyId) filters.companyId = Number(companyId);
+    if (scope.global && companyId) filters.companyId = Number(companyId);
     if (driverId) filters.driverId = Number(driverId);
     if (status) filters.status = String(status);
 
-    let deliveries = (await this.repo.getDeliveries(filters)) as any[];
+    let deliveries = (await this.visibleDeliveries(scope, filters)) as any[];
 
     if (startDate) {
       deliveries = deliveries.filter(
@@ -791,14 +876,15 @@ export class LogisticsService {
   }
 
   // ─── SMART SEARCH ─────────────────────────────────────────────────────
-  async smartSearch(rawQ: string): Promise<SmartSearchResult[]> {
+  async smartSearch(rawQ: string, actor: ActorRef): Promise<SmartSearchResult[]> {
     const trimmed = String(rawQ || "").trim();
     const q = trimmed.replace(/\D/g, "");
     if (!trimmed) {
       throw new BadRequestError("Informe nome, CNPJ, CEP ou endereço");
     }
 
-    const allComps = (await this.repo.getCompanies()) as any[];
+    const scope = this.analyticsScope(actor);
+    const allComps = await this.visibleCompanies(scope);
     let companies: any[] = [];
 
     if (q.length === 8) {
@@ -824,8 +910,8 @@ export class LogisticsService {
     }
 
     const [drivers, routes] = await Promise.all([
-      this.repo.getDrivers(),
-      this.repo.getRoutes(),
+      this.visibleDrivers(scope),
+      this.visibleRoutes(scope),
     ]);
     const activeDrivers = (drivers as any[]).filter((d: any) => d.active);
 
@@ -892,15 +978,16 @@ export class LogisticsService {
   }
 
   // ─── BEST DRIVER ──────────────────────────────────────────────────────
-  async bestDriver(date?: string) {
-    const drivers = (await this.repo.getDrivers()) as any[];
+  async bestDriver(date: string | undefined, actor: ActorRef) {
+    const scope = this.analyticsScope(actor);
+    const drivers = (await this.visibleDrivers(scope)) as any[];
     const active = drivers.filter((d: any) => d.active);
     if (!active.length) {
       return { driver: null, message: "Nenhum motorista ativo" };
     }
 
     const deliveries = date
-      ? ((await this.repo.getDeliveries({ date })) as any[])
+      ? ((await this.visibleDeliveries(scope, { date })) as any[])
       : [];
     const loadMap: Record<number, number> = {};
     deliveries.forEach((d: any) => {
@@ -915,19 +1002,25 @@ export class LogisticsService {
   }
 
   // ─── ROUTE INSERTION ──────────────────────────────────────────────────
-  async routeInsertion(body: { companyId?: number; date?: string }) {
+  async routeInsertion(body: { companyId?: number; date?: string }, actor: ActorRef) {
     const { companyId, date } = body || {};
     if (!companyId) throw new BadRequestError("Informe companyId");
 
-    const routes = (await this.repo.getRoutes()) as any[];
-    const drivers = (await this.repo.getDrivers()) as any[];
+    const scope = this.analyticsScope(actor);
+    const companies = await this.visibleCompanies(scope);
+    if (!companies.some((company: any) => company.id === Number(companyId))) {
+      throw new ForbiddenError("Empresa não pertence ao tenant autorizado.");
+    }
+
+    const routes = (await this.visibleRoutes(scope)) as any[];
+    const drivers = (await this.visibleDrivers(scope)) as any[];
 
     if (!routes.length) {
       return { suggestion: null, message: "Nenhuma rota cadastrada" };
     }
 
     const deliveries = date
-      ? ((await this.repo.getDeliveries({ date })) as any[])
+      ? ((await this.visibleDeliveries(scope, { date })) as any[])
       : [];
     const routeLoad: Record<number, number> = {};
     deliveries.forEach((d: any) => {
@@ -956,11 +1049,12 @@ export class LogisticsService {
   }
 
   // ─── SMART ROUTE PLAN ─────────────────────────────────────────────────
-  async smartRoutePlan(date?: string) {
+  async smartRoutePlan(date: string | undefined, actor: ActorRef) {
+    const scope = this.analyticsScope(actor);
     const [deliveries, drivers, routes] = await Promise.all([
-      this.repo.getDeliveries(date ? { date } : {}),
-      this.repo.getDrivers(),
-      this.repo.getRoutes(),
+      this.visibleDeliveries(scope, date ? { date } : {}),
+      this.visibleDrivers(scope),
+      this.visibleRoutes(scope),
     ]);
 
     const haversineKm = (

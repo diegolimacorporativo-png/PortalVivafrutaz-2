@@ -1,0 +1,278 @@
+ETAPA 15 — AUDITORIA E CORREÇÃO DE ISOLAMENTO MULTI-TENANT EM LOGÍSTICA/ANALYTICS
+
+Corrija SOMENTE vulnerabilidades de autenticação, autorização e isolamento multi-tenant nos endpoints analíticos/auxiliares de logística.
+
+NÃO faça refatoração ampla.
+NÃO altere funcionalidades de negócio sem necessidade.
+NÃO mexa em NF-e, fiscal, certificados, credenciais ou integrações fiscais.
+NÃO altere schema.
+NÃO crie migration.
+NÃO altere dados.
+NÃO execute INSERT/UPDATE/DELETE real no Supabase durante os testes.
+NÃO crie commit.
+
+ESCOPO PRINCIPAL
+
+Investigue especificamente os endpoints apontados pela auditoria:
+
+- route-assistant
+- day-orders
+- simulate-day
+- suggest-route
+- reports/deliveries
+- smart-search
+- best-driver
+- route-insertion
+- smart-route-plan
+
+Localize as rotas reais no código antes de alterar.
+
+Também investigue somente os services/controllers/repositories diretamente utilizados por essas rotas.
+
+PRIMEIRO: AUDITORIA READ-ONLY
+
+Analise:
+
+- server/routes/logistics.routes.ts
+- server/modules/logistics/*
+- services/controllers/repositories envolvidos
+- storage
+- tenant context
+- requireAuth
+- middleware tenant
+- políticas de roles
+- shared/schema.ts
+- consumidores frontend dessas rotas
+
+Para cada endpoint, determine:
+
+1. exige autenticação?
+2. quais roles podem usar?
+3. recebe companyId/empresaId/tenantId?
+4. recebe routeId, deliveryId, driverId, orderId ou outro ID?
+5. esses IDs são validados contra o tenant?
+6. consultas SQL aplicam empresa/tenant?
+7. existe fallback global quando empresaId é null?
+8. o fallback é legítimo?
+9. parâmetros de query/body podem trocar o tenant?
+10. resultados podem retornar dados de outras empresas?
+11. um recurso de outro tenant pode ser usado como entrada para gerar informação indireta?
+
+IMPORTANTE:
+
+NÃO aplique simplesmente um filtro genérico em todas as rotas.
+
+Cada endpoint pode possuir um modelo diferente.
+
+Determine a relação real:
+
+tenant
+→ routes
+→ deliveries
+→ orders
+→ drivers
+→ clients
+→ demais entidades utilizadas pelo endpoint.
+
+PROTEÇÃO:
+
+Para usuários tenant-bound:
+
+- usar o tenant da sessão como autoridade;
+- ignorar ou validar companyId/empresaId/tenantId enviados pelo cliente;
+- validar ownership dos IDs recebidos;
+- impedir que IDs de outro tenant sejam usados para gerar resultados;
+- impedir que filtros de outro tenant alterem a consulta;
+- impedir que dados agregados revelem informações privadas de outro tenant.
+
+Para MASTER/DIRECTOR globais:
+
+- preservar a política global já existente;
+- acesso global somente conforme a política existente;
+- não conceder acesso global automaticamente a ADMIN/DEVELOPER vinculados.
+
+ADMIN/DEVELOPER vinculados permanecem tenant-bound.
+
+ANALYTICS E AGREGAÇÕES:
+
+Preste atenção especial aos endpoints que retornam:
+
+- quantidade de pedidos;
+- entregas;
+- rotas;
+- motoristas;
+- clientes;
+- totais;
+- rankings;
+- sugestões;
+- planejamento de rota.
+
+Mesmo que não retornem registros individuais, não podem calcular métricas usando dados privados de outro tenant.
+
+IDs DE OUTROS RECURSOS:
+
+Se uma rota receber:
+
+- routeId
+- deliveryId
+- driverId
+- orderId
+- companyId
+- clienteId/clientId
+
+valide a cadeia de ownership antes de executar a lógica.
+
+Exemplo:
+
+route → empresa
+
+delivery → empresa
+
+driver → empresa
+
+order → empresa
+
+Não confie somente no ID.
+
+SMART SEARCH:
+
+Verifique se buscas permitem pesquisar dados de outros tenants.
+
+A pesquisa deve respeitar o tenant autorizado mesmo que o usuário envie filtros ou termos específicos.
+
+BEST DRIVER / SUGGEST ROUTE / ROUTE PLAN:
+
+Verifique se algoritmos de recomendação usam somente:
+
+- motoristas autorizados;
+- deliveries autorizadas;
+- pedidos autorizados;
+- rotas autorizadas.
+
+Não permita que um motorista/entrega de outro tenant entre no cálculo.
+
+DAY ORDERS / REPORTS:
+
+Garanta que os agregados e resultados estejam limitados ao tenant autorizado.
+
+SIMULATE-DAY:
+
+Mesmo sendo simulação, não pode utilizar dados privados de outro tenant.
+
+Simulação não significa acesso global.
+
+MASS ASSIGNMENT:
+
+Se algum endpoint aceitar body com:
+
+- companyId
+- company_id
+- empresaId
+- empresa_id
+- tenantId
+- tenant_id
+
+não permita que esses campos troquem o tenant da operação.
+
+Não remova campos legítimos sem analisar seu uso.
+
+TESTES:
+
+Crie testes unitários com mocks/fakes.
+
+NÃO escreva no Supabase.
+
+Cubra, conforme os endpoints reais:
+
+1. tenant A consulta seus dados → permitido;
+2. tenant A tenta usar companyId de B → bloqueado/ignorado;
+3. tenant A usa routeId de B → bloqueado;
+4. tenant A usa deliveryId de B → bloqueado;
+5. tenant A usa driverId de B → bloqueado;
+6. tenant A usa orderId de B → bloqueado;
+7. tenant A não recebe agregados de B;
+8. smart-search não retorna dados de B;
+9. best-driver não considera motorista de B;
+10. suggest-route não considera entregas de B;
+11. route-insertion não aceita recursos de B;
+12. smart-route-plan não utiliza dados de B;
+13. simulate-day não utiliza dados de B;
+14. ADMIN tenant-bound permanece limitado;
+15. DEVELOPER tenant-bound permanece limitado;
+16. MASTER global preserva acesso existente;
+17. DIRECTOR global preserva acesso existente;
+18. sem sessão → 401 quando aplicável.
+
+Não invente endpoints que não existem.
+
+Se algum endpoint for legitimamente público, confirme através dos consumidores e do código antes de alterar.
+
+VALIDAÇÃO:
+
+Execute:
+
+npm run check
+npm run build
+git diff --check
+
+Execute todos os testes direcionados criados.
+
+Se possível, faça testes HTTP read-only:
+
+- sem sessão → 401;
+- tenant-bound sem autorização → 403/404 conforme política existente;
+- acesso autorizado → comportamento normal.
+
+Não faça mutações reais no banco.
+
+Se SUPABASE_DATABASE_URL estiver ausente:
+- não altere secrets;
+- não desative o guard;
+- não tente mascarar o problema;
+- continue com testes unitários;
+- informe DB_CONNECTED/APP_READY como não confirmados.
+
+Se o workflow iniciar:
+- confirme DB_CONNECTED;
+- confirme APP_READY.
+
+NÃO TOCAR:
+
+- NF-e
+- fiscal
+- DANFE
+- certificados
+- credenciais fiscais
+- Bling
+- cron fiscal
+- emissão fiscal
+- Android tracker
+- produtos
+- quotations
+- deliveries
+- GPS
+
+Esses módulos já foram tratados em etapas anteriores e não devem ser refatorados nesta etapa.
+
+RESULTADO FINAL:
+
+Informe:
+
+1. endpoints auditados;
+2. quais tinham bypass;
+3. quais foram corrigidos;
+4. como o tenant foi aplicado;
+5. quais IDs tiveram ownership validado;
+6. quais agregações foram protegidas;
+7. testes executados;
+8. resultado;
+9. arquivos alterados;
+10. schema/migration/dados;
+11. DB_CONNECTED/APP_READY;
+12. confirmação de que NF-e/fiscal não foi tocado;
+13. confirmação de que Android não foi alterado;
+14. confirmação de que nenhum commit foi criado.
+
+SE ENCONTRAR OUTRAS VULNERABILIDADES FORA DESSE ESCOPO:
+APENAS RELATE NO FINAL.
+NÃO CORRIJA.

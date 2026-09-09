@@ -10,15 +10,15 @@
  *      Allowed roles: MASTER, ADMIN, DIRECTOR, DEVELOPER,
  *                     OPERATIONS_MANAGER, LOGISTICS.
  *
- *   2. session-only     → 401 "Não autenticado" or "Não autorizado"
- *      (route-assistant uses "Não autorizado", others use "Não autenticado").
+ *   2. analytical logistics → authenticated logistics roles only. The
+ *      route-assistant legacy message remains "Não autorizado"; the other
+ *      analytical endpoints use "Não autenticado".
  *
  *   3. admin-only       → 401 "Não autenticado" / 403 "Acesso negado.
  *      Apenas administradores logísticos." (audit-logs).
  *      Allowed roles: MASTER, ADMIN, DIRECTOR, LOGISTICS, DEVELOPER.
  *
- *   4. no auth at all   → calculate-distance, route-stops CRUD, geo/cep,
- *      smart-search, best-driver, route-insertion.
+ *   4. no auth at all   → calculate-distance, route-stops CRUD and geo/cep.
  *
  * Because of (4), we DO NOT mount `requireAuth` on the router; each handler
  * enforces its own gate (or none) to mirror legacy verbatim. Error response
@@ -113,6 +113,25 @@ export class LogisticsController {
     return actor;
   }
 
+  /** Auth gate for analytics/planning endpoints plus their tenant scope. */
+  private async requireAnalyticsAuth(
+    req: Request,
+    res: Response,
+    unauthenticatedMessage = "Não autenticado",
+  ): Promise<ActorRef | null> {
+    const session = (req as any).session;
+    if (!session?.userId) {
+      res.status(401).json({ message: unauthenticatedMessage });
+      return null;
+    }
+    const actor = await (this.service as any).repo.getUser(session.userId);
+    if (!actor || !LOGISTICS_AUTH_ROLES.includes(actor.role as any)) {
+      res.status(403).json({ message: "Sem permissão" });
+      return null;
+    }
+    return actor;
+  }
+
   // ── DRIVERS ────────────────────────────────────────────────────────────
   listDrivers = async (req: Request, res: Response) => {
     const user = await this.logAuth(req, res);
@@ -151,8 +170,8 @@ export class LogisticsController {
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] createDriver failed`, e);
       // Preserve legacy: BadRequestError → 400; everything else → 500.
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e?.message || "Erro" });
     }
@@ -202,8 +221,8 @@ export class LogisticsController {
       res.json(await this.service.createVehicle(req.body, user));
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] createVehicle failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e?.message || "Erro" });
     }
@@ -253,8 +272,8 @@ export class LogisticsController {
       res.json(await this.service.createRoute(req.body, user));
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] createRoute failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e?.message || "Erro" });
     }
@@ -304,8 +323,8 @@ export class LogisticsController {
       res.json(await this.service.createMaintenance(req.body, user));
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] createMaintenance failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e?.message || "Erro" });
     }
@@ -338,10 +357,12 @@ export class LogisticsController {
 
   // ── ROUTE ASSISTANT (uses "Não autorizado") ───────────────────────────
   routeAssistant = async (req: Request, res: Response) => {
-    if (this.requireSession(req, res, "Não autorizado") === null) return;
+    const actor = await this.requireAnalyticsAuth(req, res, "Não autorizado");
+    if (!actor) return;
     try {
       const result = await this.service.routeAssistant(
         req.query as { day?: string; date?: string },
+        actor,
       );
       res.json(result);
     } catch (e: any) {
@@ -353,13 +374,14 @@ export class LogisticsController {
   // ── SUGGEST ROUTE ──────────────────────────────────────────────────────
   suggestRoute = async (req: Request, res: Response) => {
     try {
-      if (this.requireSession(req, res) === null) return;
-      const result = await this.service.suggestRoute(req.body);
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
+      const result = await this.service.suggestRoute(req.body, actor);
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] suggestRoute failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e.message });
     }
@@ -368,15 +390,17 @@ export class LogisticsController {
   // ── DAY ORDERS ─────────────────────────────────────────────────────────
   dayOrders = async (req: Request, res: Response) => {
     try {
-      if (this.requireSession(req, res) === null) return;
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
       const result = await this.service.dayOrders(
         req.query as { date?: string },
+        actor,
       );
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] dayOrders failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e.message });
     }
@@ -385,13 +409,14 @@ export class LogisticsController {
   // ── SIMULATE DAY ───────────────────────────────────────────────────────
   simulateDay = async (req: Request, res: Response) => {
     try {
-      if (this.requireSession(req, res) === null) return;
-      const result = await this.service.simulateDay(req.body);
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
+      const result = await this.service.simulateDay(req.body, actor);
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] simulateDay failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e.message });
     }
@@ -427,20 +452,18 @@ export class LogisticsController {
   // ── REPORTS / DELIVERIES ───────────────────────────────────────────────
   deliveriesReport = async (req: Request, res: Response) => {
     try {
-      if (this.requireSession(req, res) === null) return;
-      // Legacy additionally re-resolved the actor and 401s if missing.
-      const actor = await (this.service as any).repo.getUser(
-        (req as any).session.userId,
-      );
-      if (!actor) {
-        return res.status(401).json({ message: "Não autenticado" });
-      }
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
       const result = await this.service.deliveriesReport(
         req.query as any,
+        actor,
       );
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] deliveriesReport failed`, e);
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
+      }
       res.status(500).json({ message: e.message });
     }
   };
@@ -508,43 +531,53 @@ export class LogisticsController {
     }
   };
 
-  // ── SMART SEARCH (no auth) ─────────────────────────────────────────────
+  // ── SMART SEARCH ──────────────────────────────────────────────────────
   smartSearch = async (req: Request, res: Response) => {
     try {
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
       const q = String(req.query.q || "");
-      const result = await this.service.smartSearch(q);
+      const result = await this.service.smartSearch(q, actor);
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] smartSearch failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e.message });
     }
   };
 
-  // ── BEST DRIVER (no auth) ──────────────────────────────────────────────
+  // ── BEST DRIVER ────────────────────────────────────────────────────────
   bestDriver = async (req: Request, res: Response) => {
     try {
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
       const result = await this.service.bestDriver(
         req.query.date as string | undefined,
+        actor,
       );
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] bestDriver failed`, e);
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
+      }
       res.status(500).json({ message: e.message });
     }
   };
 
-  // ── ROUTE INSERTION (no auth) ──────────────────────────────────────────
+  // ── ROUTE INSERTION ────────────────────────────────────────────────────
   routeInsertion = async (req: Request, res: Response) => {
     try {
-      const result = await this.service.routeInsertion(req.body);
+      const actor = await this.requireAnalyticsAuth(req, res);
+      if (!actor) return;
+      const result = await this.service.routeInsertion(req.body, actor);
       res.json(result);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] routeInsertion failed`, e);
-      if (e?.status === 400) {
-        return res.status(400).json({ message: e.message });
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
       }
       res.status(500).json({ message: e.message });
     }
@@ -802,10 +835,12 @@ export class LogisticsController {
 
   // ── SMART ROUTE PLAN ───────────────────────────────────────────────────
   smartRoutePlan = async (req: Request, res: Response) => {
-    if (this.requireSession(req, res) === null) return;
+    const actor = await this.requireAnalyticsAuth(req, res);
+    if (!actor) return;
     try {
       const result = await this.service.smartRoutePlan(
         req.query.date as string | undefined,
+        actor,
       );
       res.json(result);
     } catch (e: any) {

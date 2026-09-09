@@ -167,11 +167,17 @@ export class LogisticsRepository {
   }
 
   // ── Cross-cutting reads ────────────────────────────────────────────────
+  getCompany(id: number) {
+    return this.db.getCompany(id);
+  }
   getCompanies() {
     return this.db.getCompanies();
   }
   getOrders() {
     return this.db.getOrders();
+  }
+  getOrdersSafe(empresaId: number) {
+    return this.db.getOrdersSafe(empresaId);
   }
   getDeliveries(filters?: {
     companyId?: number;
