@@ -48,10 +48,28 @@ function makeStubRepo(overrides: Record<string, any> = {}) {
     createMaintenance: track("createMaintenance", (d: any) => ({ id: 1, ...d })),
     updateMaintenance: track("updateMaintenance", () => undefined),
     deleteMaintenance: track("deleteMaintenance", () => undefined),
+    getRoute: track("getRoute", () => undefined),
+    getRouteForCompany: track("getRouteForCompany", () => undefined),
     getRouteStops: track("getRouteStops", () => []),
-    createRouteStop: track("createRouteStop", (d: any) => ({ id: 1, ...d })),
-    updateRouteStop: track("updateRouteStop", (id: number, d: any) => ({ id, ...d })),
-    deleteRouteStop: track("deleteRouteStop", () => undefined),
+    getRouteStopsForCompany: track("getRouteStopsForCompany", () => []),
+    createRouteStopForRoute: track(
+      "createRouteStopForRoute",
+      (routeId: number, d: any, empresaId?: number) => ({
+        id: 1,
+        routeId,
+        companyId: empresaId,
+        ...d,
+      }),
+    ),
+    updateRouteStopForRoute: track(
+      "updateRouteStopForRoute",
+      (stopId: number, routeId: number, d: any) => ({
+        id: stopId,
+        routeId,
+        ...d,
+      }),
+    ),
+    deleteRouteStopForRoute: track("deleteRouteStopForRoute", () => true),
     getLogisticsAuditLogs: track("getLogisticsAuditLogs", () => []),
     getCompany: track("getCompany", () => undefined),
     getCompanies: track("getCompanies", () => []),
@@ -95,6 +113,16 @@ function makeApp(repo: any) {
   app.get("/api/logistics/smart-search", controller.smartSearch);
   app.post("/api/logistics/route-insertion", controller.routeInsertion);
   app.get("/api/logistics/smart-route-plan", controller.smartRoutePlan);
+  app.get("/api/logistics/routes/:routeId/stops", controller.listRouteStops);
+  app.post("/api/logistics/routes/:routeId/stops", controller.createRouteStop);
+  app.patch(
+    "/api/logistics/routes/:routeId/stops/:stopId",
+    controller.updateRouteStop,
+  );
+  app.delete(
+    "/api/logistics/routes/:routeId/stops/:stopId",
+    controller.deleteRouteStop,
+  );
 
   return app;
 }
@@ -365,6 +393,137 @@ describe("logistics — happy paths and edge cases", () => {
     for (const [method, path, body] of requests) {
       const response = await call(app, method, path, { body });
       assert.equal(response.status, 401, `${method} ${path}`);
+    }
+  });
+});
+
+describe("logistics — legacy route stops authorization and tenant isolation", () => {
+  const tenantSession = { userId: 21 };
+
+  test("all route-stop methods require an authenticated logistics role", async () => {
+    const repo = makeStubRepo();
+    const app = makeApp(repo);
+    for (const [method, path, body] of [
+      ["GET", "/api/logistics/routes/10/stops", undefined],
+      ["POST", "/api/logistics/routes/10/stops", { cidade: "São Paulo" }],
+      ["PATCH", "/api/logistics/routes/10/stops/3", { cidade: "São Paulo" }],
+      ["DELETE", "/api/logistics/routes/10/stops/3", undefined],
+    ] as const) {
+      const response = await call(app, method, path, { body });
+      assert.equal(response.status, 401, `${method} ${path}`);
+    }
+  });
+
+  test("CLIENT and DRIVER cannot use the admin route-stop surface", async () => {
+    for (const role of ["CLIENT", "DRIVER", "MOTORISTA"]) {
+      const repo = makeStubRepo({
+        getUser: async () => ({ id: 21, role, empresaId: 10 }),
+      });
+      const app = makeApp(repo);
+      const response = await call(
+        app,
+        "GET",
+        "/api/logistics/routes/10/stops",
+        { session: tenantSession },
+      );
+      assert.equal(response.status, 403, role);
+      assert.equal(repo._calls.getRouteForCompany, undefined, role);
+    }
+  });
+
+  test("tenant-bound user lists only stops from an owned route", async () => {
+    const stops = [{ id: 3, routeId: 10, companyId: 10, cidade: "Campinas" }];
+    const repo = makeStubRepo({
+      getUser: async () => ({ id: 21, role: "LOGISTICS", empresaId: 10 }),
+      getRouteForCompany: async () => ({ id: 10, empresaId: 10, name: "Rota A" }),
+      getRouteStopsForCompany: async () => stops,
+    });
+    const app = makeApp(repo);
+    const response = await call(
+      app,
+      "GET",
+      "/api/logistics/routes/10/stops",
+      { session: tenantSession },
+    );
+    assert.equal(response.status, 200);
+    assert.deepEqual(response.body, stops);
+    assert.equal(repo._calls.getRouteStops, undefined);
+  });
+
+  test("cross-tenant route is hidden on list, update and delete", async () => {
+    for (const [method, path, body] of [
+      ["GET", "/api/logistics/routes/99/stops", undefined],
+      ["PATCH", "/api/logistics/routes/99/stops/3", { cidade: "spoof" }],
+      ["DELETE", "/api/logistics/routes/99/stops/3", undefined],
+    ] as const) {
+      const repo = makeStubRepo({
+        getUser: async () => ({ id: 21, role: "ADMIN", empresaId: 10 }),
+        getRouteForCompany: async () => undefined,
+      });
+      const app = makeApp(repo);
+      const response = await call(app, method, path, {
+        session: tenantSession,
+        body,
+      });
+      assert.equal(response.status, 404, `${method} ${path}`);
+      assert.equal(repo._calls.updateRouteStopForRoute, undefined);
+      assert.equal(repo._calls.deleteRouteStopForRoute, undefined);
+    }
+  });
+
+  test("create derives ownership from the route and ignores spoofed fields", async () => {
+    const repo = makeStubRepo({
+      getUser: async () => ({ id: 21, role: "ADMIN", empresaId: 10 }),
+      getRouteForCompany: async () => ({ id: 10, empresaId: 10, name: "Rota A" }),
+    });
+    const app = makeApp(repo);
+    const response = await call(
+      app,
+      "POST",
+      "/api/logistics/routes/10/stops",
+      {
+        session: tenantSession,
+        body: {
+          cidade: "Campinas",
+          latitude: -22.9,
+          longitude: -47.1,
+          routeId: 99,
+          companyId: 999,
+          empresaId: 999,
+          createdAt: "2099-01-01T00:00:00.000Z",
+        },
+      },
+    );
+    assert.equal(response.status, 200);
+    const [routeId, payload, empresaId] = repo._calls.createRouteStopForRoute[0];
+    assert.equal(routeId, 10);
+    assert.equal(empresaId, 10);
+    assert.deepEqual(payload, {
+      cidade: "Campinas",
+      latitude: -22.9,
+      longitude: -47.1,
+    });
+    assert.equal(payload.routeId, undefined);
+    assert.equal(payload.companyId, undefined);
+    assert.equal(payload.empresaId, undefined);
+  });
+
+  test("MASTER and DIRECTOR retain explicit global access", async () => {
+    for (const role of ["MASTER", "DIRECTOR"]) {
+      const repo = makeStubRepo({
+        getUser: async () => ({ id: 1, role, empresaId: null }),
+        getRoute: async () => ({ id: 10, empresaId: 20, name: "Rota global" }),
+        getRouteStops: async () => [{ id: 3, routeId: 10 }],
+      });
+      const app = makeApp(repo);
+      const response = await call(
+        app,
+        "GET",
+        "/api/logistics/routes/10/stops",
+        { session: { userId: 1 } },
+      );
+      assert.equal(response.status, 200, role);
+      assert.deepEqual(response.body, [{ id: 3, routeId: 10 }]);
     }
   });
 });

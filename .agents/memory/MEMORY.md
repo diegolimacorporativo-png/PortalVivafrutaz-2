@@ -23,3 +23,4 @@
 - [Internal incidents tenant scope](internal-incidents-tenant-scope.md) — ocorrências internas exigem RBAC explícito, tenant resolvido e responsável da mesma empresa.
 - [Vercel public registry](vercel-public-registry.md) — package-lock pode persistir URLs do firewall Replit; deploy externo exige resolved URLs públicas e .npmrc público.
 - [RBAC strict policy](rbac-strict-policy.md) — preserve o bypass estratégico global; use strict apenas em endpoints explicitamente MASTER-only ou com exclusão comprovada.
+- [Legacy route stops authorization](legacy-route-stops-tenant.md) — ownership confiável vem da rota e seu empresa_id; route_stops.company_id é legado e não autoriza acesso.

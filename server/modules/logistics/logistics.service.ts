@@ -37,6 +37,29 @@ import type {
   SuggestRouteInput,
 } from "./logistics.types";
 
+const ROUTE_STOP_FIELDS = [
+  "cep",
+  "endereco",
+  "numero",
+  "cidade",
+  "estado",
+  "latitude",
+  "longitude",
+  "ordemParada",
+  "janelainicio",
+  "janelaFim",
+  "tempoEstimadoMin",
+] as const;
+
+function pickRouteStopFields(body: any): Record<string, unknown> {
+  const source = body && typeof body === "object" ? body : {};
+  return Object.fromEntries(
+    ROUTE_STOP_FIELDS
+      .filter((field) => Object.prototype.hasOwnProperty.call(source, field))
+      .map((field) => [field, source[field]]),
+  );
+}
+
 export class LogisticsService {
   constructor(private readonly repo: LogisticsRepository = logisticsRepository) {}
 
@@ -809,12 +832,32 @@ export class LogisticsService {
   }
 
   // ─── ROUTE STOPS ──────────────────────────────────────────────────────
-  getRouteStops(routeId: number): Promise<RouteStop[]> {
-    return this.repo.getRouteStops(routeId);
+  private async routeStopScope(routeId: number, actor: ActorRef) {
+    if (!Number.isInteger(routeId) || routeId <= 0) {
+      throw new BadRequestError("Rota inválida");
+    }
+    const scope = this.analyticsScope(actor);
+    const route = scope.global
+      ? await this.repo.getRoute(routeId)
+      : await this.repo.getRouteForCompany(routeId, scope.tenantId!);
+    if (!route) throw new NotFoundError("Rota não encontrada");
+    return { scope, route };
   }
 
-  async createRouteStop(routeId: number, body: any): Promise<RouteStop> {
-    const payload = { ...(body || {}) };
+  async getRouteStops(routeId: number, actor: ActorRef): Promise<RouteStop[]> {
+    const { scope } = await this.routeStopScope(routeId, actor);
+    return scope.global
+      ? this.repo.getRouteStops(routeId)
+      : this.repo.getRouteStopsForCompany(routeId, scope.tenantId!);
+  }
+
+  async createRouteStop(
+    routeId: number,
+    body: any,
+    actor: ActorRef,
+  ): Promise<RouteStop> {
+    const { scope } = await this.routeStopScope(routeId, actor);
+    const payload = pickRouteStopFields(body);
     // Auto-fetch geo from CEP if coordinates not provided
     if (payload.cep && (!payload.latitude || !payload.longitude)) {
       try {
@@ -830,15 +873,52 @@ export class LogisticsService {
         }
       } catch (_) {}
     }
-    return this.repo.createRouteStop({ ...payload, routeId });
+    const stop = await this.repo.createRouteStopForRoute(
+      routeId,
+      payload,
+      scope.global ? undefined : scope.tenantId!,
+    );
+    if (!stop) throw new NotFoundError("Rota não encontrada");
+    return stop;
   }
 
-  updateRouteStop(stopId: number, body: any): Promise<RouteStop> {
-    return this.repo.updateRouteStop(stopId, body);
+  async updateRouteStop(
+    routeId: number,
+    stopId: number,
+    body: any,
+    actor: ActorRef,
+  ): Promise<RouteStop> {
+    await this.routeStopScope(routeId, actor);
+    if (!Number.isInteger(stopId) || stopId <= 0) {
+      throw new BadRequestError("Parada inválida");
+    }
+    const scope = this.analyticsScope(actor);
+    const stop = await this.repo.updateRouteStopForRoute(
+      stopId,
+      routeId,
+      pickRouteStopFields(body),
+      scope.global ? undefined : scope.tenantId!,
+    );
+    if (!stop) throw new NotFoundError("Parada não encontrada");
+    return stop;
   }
 
-  deleteRouteStop(stopId: number): Promise<void> {
-    return this.repo.deleteRouteStop(stopId);
+  async deleteRouteStop(
+    routeId: number,
+    stopId: number,
+    actor: ActorRef,
+  ): Promise<void> {
+    await this.routeStopScope(routeId, actor);
+    if (!Number.isInteger(stopId) || stopId <= 0) {
+      throw new BadRequestError("Parada inválida");
+    }
+    const scope = this.analyticsScope(actor);
+    const deleted = await this.repo.deleteRouteStopForRoute(
+      stopId,
+      routeId,
+      scope.global ? undefined : scope.tenantId!,
+    );
+    if (!deleted) throw new NotFoundError("Parada não encontrada");
   }
 
   // ─── GEO CEP ──────────────────────────────────────────────────────────

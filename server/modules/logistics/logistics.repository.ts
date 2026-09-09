@@ -96,6 +96,12 @@ export class LogisticsRepository {
   getRoutes(): Promise<LogisticsRoute[]> {
     return this.db.getRoutes();
   }
+  getRoute(id: number): Promise<LogisticsRoute | undefined> {
+    return this.db.getRoute(id);
+  }
+  getRouteForCompany(id: number, empresaId: number): Promise<LogisticsRoute | undefined> {
+    return this.db.getRouteForCompany(id, empresaId);
+  }
   getRoutesSafe(empresaId: number): Promise<LogisticsRoute[]> {
     return this.db.getRoutesSafe(empresaId);
   }
@@ -147,14 +153,30 @@ export class LogisticsRepository {
   getRouteStops(routeId: number): Promise<RouteStop[]> {
     return this.db.getRouteStops(routeId);
   }
-  createRouteStop(data: any): Promise<RouteStop> {
-    return this.db.createRouteStop(data);
+  getRouteStopsForCompany(routeId: number, empresaId: number): Promise<RouteStop[]> {
+    return this.db.getRouteStopsForCompany(routeId, empresaId);
   }
-  updateRouteStop(id: number, data: any): Promise<RouteStop> {
-    return this.db.updateRouteStop(id, data);
+  createRouteStopForRoute(
+    routeId: number,
+    data: any,
+    empresaId?: number,
+  ): Promise<RouteStop | undefined> {
+    return this.db.createRouteStopForRoute(routeId, data, empresaId);
   }
-  deleteRouteStop(id: number): Promise<void> {
-    return this.db.deleteRouteStop(id);
+  updateRouteStopForRoute(
+    stopId: number,
+    routeId: number,
+    data: any,
+    empresaId?: number,
+  ): Promise<RouteStop | undefined> {
+    return this.db.updateRouteStopForRoute(stopId, routeId, data, empresaId);
+  }
+  deleteRouteStopForRoute(
+    stopId: number,
+    routeId: number,
+    empresaId?: number,
+  ): Promise<boolean> {
+    return this.db.deleteRouteStopForRoute(stopId, routeId, empresaId);
   }
 
   // ── Audit ──────────────────────────────────────────────────────────────

@@ -1,0 +1,366 @@
+ETAPA 22 — LEGACY ROUTE STOPS / AUTORIZAÇÃO E TENANT ISOLATION
+
+OBJETIVO:
+Auditar e corrigir exclusivamente os endpoints legados relacionados a ROUTE STOPS / PARADAS DE ROTAS que ainda não receberam a proteção completa de autenticação, RBAC e tenant isolation.
+
+Esta etapa NÃO deve mexer nos módulos já corrigidos nas etapas anteriores, salvo se for absolutamente necessário para corrigir a própria rota legacy.
+
+NÃO mexer em:
+- NF-e
+- fiscal
+- certificados A1
+- impostos
+- DANFE
+- financeiro/banco
+- inventário
+- produtos/preços
+- quotations
+- incidents
+- deliveries já protegidas
+- GPS/Android Tracker
+- push notifications
+- schema/migrations
+- dados reais
+
+Não criar migration.
+Não alterar dados reais.
+Não fazer commit.
+
+CONTEXTO DA AUDITORIA:
+Na auditoria multi-tenant foram identificados endpoints legacy de route stops que ainda precisam de revisão.
+
+Também existe o módulo moderno de deliveries que já foi corrigido na ETAPA 11.
+
+IMPORTANTE:
+Não duplicar a lógica já existente de delivery.access.ts.
+Primeiro entender exatamente qual entidade os endpoints legacy manipulam e qual é a relação dela com:
+- rota
+- motorista
+- empresa
+- delivery
+- pedido
+- stop/parada
+
+1. LOCALIZAR TODAS AS ROTAS LEGACY
+
+Procure no projeto por:
+
+- route stops
+- route-stops
+- routeStops
+- stops
+- stop
+- `/api/logistics/routes`
+- `/api/routes`
+- `/api/route-stops`
+- `/stops`
+- `getRouteStops`
+- `createRouteStop`
+- `updateRouteStop`
+- `deleteRouteStop`
+- métodos equivalentes no storage/repository/service/controller.
+
+Não assumir os nomes.
+Mapear as rotas reais existentes.
+
+Para cada endpoint encontrado, registrar:
+
+- método HTTP
+- caminho
+- controller
+- service
+- repository/storage
+- entidade/tabela usada
+- parâmetros de ID
+- companyId/empresaId/tenantId utilizados
+- autenticação atual
+- RBAC atual
+- risco de IDOR/cross-tenant
+
+2. IDENTIFICAR O MODELO DE OWNERSHIP
+
+Descobrir como uma route stop pertence a uma empresa.
+
+Verificar se a relação é:
+
+stop -> route -> company
+
+ou:
+
+stop -> delivery -> company
+
+ou:
+
+stop -> order -> company
+
+ou outra.
+
+Não confiar em `companyId` enviado pelo cliente.
+
+A empresa deve ser derivada/validada a partir do recurso persistido e da sessão.
+
+3. REGRAS DE ACESSO
+
+Aplicar somente regras compatíveis com a arquitetura existente.
+
+Usuário tenant-bound:
+- somente stops da própria empresa;
+- nunca acessar stop de outra empresa;
+- nunca alterar empresa do recurso;
+- nunca criar stop em empresa diferente.
+
+MASTER/DIRECTOR:
+- preservar o comportamento global legítimo já utilizado pelo módulo;
+- quando houver operação cross-tenant administrativa, permitir somente conforme a política existente.
+
+ADMIN/DEVELOPER:
+- se vinculados a uma empresa, permanecer tenant-bound;
+- não transformar automaticamente em acesso global;
+- se a política existente permitir acesso global somente quando sem empresa, preservar essa regra.
+
+LOGISTICS:
+- acesso somente conforme escopo operacional legítimo;
+- validar empresa da rota/stop.
+
+DRIVER/MOTORISTA:
+- somente se o endpoint realmente fizer parte do fluxo de motorista;
+- validar se a rota/stop pertence ao motorista e à empresa;
+- não conceder acesso administrativo só por possuir role DRIVER/MOTORISTA.
+
+CLIENT:
+- negar endpoints internos de route stops, salvo se existir um fluxo explicitamente destinado ao portal CLIENT.
+
+Usuários sem sessão:
+- 401.
+
+Usuário autenticado sem permissão:
+- 403.
+
+Cross-tenant:
+- preferencialmente 404 quando o padrão do módulo tratar o recurso como inexistente para outro tenant.
+
+4. PROTEGER TODAS AS OPERAÇÕES
+
+Verificar separadamente:
+
+GET/listagem
+GET por ID
+POST
+PUT
+PATCH
+DELETE
+qualquer atualização de status
+qualquer atualização de posição/ordem
+qualquer endpoint auxiliar relacionado à stop
+
+Não proteger somente o GET.
+
+5. CRIAÇÃO
+
+No POST:
+
+NÃO aceitar como fonte de verdade:
+
+companyId
+empresaId
+tenantId
+company_id
+empresa_id
+tenant_id
+
+Se esses campos existirem no body, ignorá-los ou rejeitar conforme o padrão de segurança já usado no projeto.
+
+A empresa deve vir do tenantContext/sessão ou da rota/recurso pai validado.
+
+Validar também que:
+- routeId pertence à empresa correta;
+- deliveryId, orderId ou outro recurso relacionado pertence à empresa correta;
+- IDs relacionados existem;
+- usuário possui permissão para criar.
+
+6. UPDATE / PATCH
+
+Não permitir mass assignment de:
+
+companyId
+empresaId
+tenantId
+routeId
+deliveryId
+orderId
+createdBy
+createdAt
+updatedAt
+ou qualquer campo de ownership que não deva ser alterado.
+
+Se routeId/deliveryId puder legitimamente ser alterado pelo negócio, validar explicitamente o novo recurso e seu tenant.
+
+Não confiar somente no ID enviado pelo cliente.
+
+7. DELETE
+
+Validar ownership antes de excluir.
+
+Exemplo:
+
+DELETE /api/.../stops/:id
+
+deve primeiro confirmar que o stop pertence ao escopo do usuário.
+
+Não usar somente:
+
+storage.deleteStop(id)
+
+se isso permitir que um usuário tenant-bound exclua stop de outra empresa.
+
+Preferir filtro por:
+id + empresa/tenant
+
+ou validar a cadeia de ownership antes da operação.
+
+8. LISTAGENS
+
+Verificar se:
+
+GET /.../stops
+
+ou endpoints equivalentes podem retornar stops de todas as empresas.
+
+Para usuário tenant-bound:
+
+somente empresa própria.
+
+Filtros como:
+
+?empresaId=
+?companyId=
+?tenantId=
+X-Empresa-Id
+
+não podem ampliar o escopo da sessão.
+
+Se o usuário for global e a política permitir seleção explícita de empresa, preservar esse comportamento.
+
+9. REPOSITORY / STORAGE
+
+Não corrigir somente a rota se o método interno continuar perigoso.
+
+Se existir:
+
+getRouteStop(id)
+updateRouteStop(id)
+deleteRouteStop(id)
+
+e esses métodos forem usados em contexto tenant-bound, criar/usar métodos scoped quando necessário.
+
+Exemplo conceitual:
+
+getRouteStopForCompany(id, empresaId)
+
+updateRouteStopForCompany(id, empresaId, data)
+
+deleteRouteStopForCompany(id, empresaId)
+
+Mas não criar abstrações desnecessárias.
+
+Manter compatibilidade com consumidores legítimos existentes.
+
+10. TESTES
+
+Criar testes direcionados para route stops.
+
+Cobrir no mínimo:
+
+- sem sessão -> 401
+- usuário tenant A acessa stop A -> sucesso
+- usuário tenant A acessa stop B -> bloqueado
+- usuário tenant A atualiza stop B -> bloqueado
+- usuário tenant A exclui stop B -> bloqueado
+- usuário tenant A tenta criar stop usando empresa B no body -> empresa A deve prevalecer ou requisição deve ser rejeitada
+- tentativa de spoofing companyId
+- tentativa de spoofing empresaId
+- tentativa de spoofing tenantId
+- ADMIN tenant-bound cross-tenant -> bloqueado
+- DEVELOPER tenant-bound cross-tenant -> bloqueado
+- LOGISTICS tenant-bound cross-tenant -> bloqueado
+- DRIVER/MOTORISTA, se aplicável -> somente escopo legítimo
+- CLIENT -> bloqueado em endpoint interno
+- MASTER -> comportamento global legítimo preservado
+- DIRECTOR -> comportamento global legítimo preservado conforme política existente
+
+Também testar listagem para garantir que não vaza dados de outra empresa.
+
+11. NÃO QUEBRAR DELIVERY MODERNO
+
+A ETAPA 11 já corrigiu deliveries.
+
+Não reverter:
+- delivery.access.ts
+- getDeliveryForCompany
+- filtros tenant-bound
+- proteção de checklist
+- proteção de stop-status
+- proteção de stop-events
+
+Se route stops reutilizar delivery, apenas conectar corretamente a validação existente.
+
+12. VALIDAÇÃO
+
+Executar:
+
+npm run check
+
+npm run build
+
+testes direcionados da etapa
+
+git diff --check
+
+Se houver workflow disponível:
+
+- BOOT_VALIDATION_OK
+- DB_CONNECTED
+- APP_READY
+
+Não executar operações destrutivas.
+
+Não alterar dados reais.
+
+Se a suíte completa ainda apresentar os 10 testes conhecidos de order-deadline UTC/BRT, registrar como preexistentes.
+
+13. RELATÓRIO FINAL OBRIGATÓRIO
+
+Entregar:
+
+ETAPA 22 — RESULTADO
+
+1. Rotas legacy encontradas
+2. Entidades/tabelas envolvidas
+3. Como foi determinado o ownership
+4. Vulnerabilidades encontradas
+5. Vulnerabilidades corrigidas
+6. Rotas protegidas
+7. Arquivos alterados
+8. Regras RBAC aplicadas
+9. Proteções contra IDOR/cross-tenant
+10. Proteções contra mass assignment
+11. Testes criados
+12. Resultado dos testes
+13. npm run check
+14. npm run build
+15. git diff --check
+16. Workflow / DB_CONNECTED / APP_READY
+17. Schema/migration/data alterados? SIM/NÃO
+18. NF-e/fiscal alterado? SIM/NÃO
+19. GPS/Android alterado? SIM/NÃO
+20. Delivery moderno alterado? SIM/NÃO
+21. Próxima etapa recomendada
+
+NÃO FAÇA COMMIT.
+
+REGRA FINAL:
+Se algum endpoint legacy já estiver corretamente protegido, NÃO altere apenas por padronização.
+
+Se descobrir que uma rota é pública por necessidade legítima, documentar o motivo e não exigir autenticação artificialmente.
+
+O objetivo é eliminar IDOR/cross-tenant real sem quebrar os fluxos legítimos existentes.

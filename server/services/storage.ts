@@ -442,10 +442,13 @@ export interface IStorage {
   createDeliveryChecklist(data: InsertDeliveryChecklist): Promise<DeliveryChecklist>;
   getDeliveryChecklist(deliveryId: number): Promise<DeliveryChecklist | undefined>;
   // Route Stops
+  getRoute(id: number): Promise<LogisticsRoute | undefined>;
+  getRouteForCompany(id: number, empresaId: number): Promise<LogisticsRoute | undefined>;
   getRouteStops(routeId: number): Promise<RouteStop[]>;
-  createRouteStop(data: InsertRouteStop): Promise<RouteStop>;
-  updateRouteStop(id: number, data: Partial<InsertRouteStop>): Promise<RouteStop>;
-  deleteRouteStop(id: number): Promise<void>;
+  getRouteStopsForCompany(routeId: number, empresaId: number): Promise<RouteStop[]>;
+  createRouteStopForRoute(routeId: number, data: Partial<InsertRouteStop>, empresaId?: number): Promise<RouteStop | undefined>;
+  updateRouteStopForRoute(id: number, routeId: number, data: Partial<InsertRouteStop>, empresaId?: number): Promise<RouteStop | undefined>;
+  deleteRouteStopForRoute(id: number, routeId: number, empresaId?: number): Promise<boolean>;
   getRouteStopsByCep(cep: string): Promise<RouteStop[]>;
   // AI Logs
   getAiLogs(limit?: number): Promise<AiLog[]>;
@@ -2043,6 +2046,22 @@ export class DatabaseStorage implements IStorage {
   async getRoutes(): Promise<LogisticsRoute[]> {
     return db.select().from(logisticsRoutes).orderBy(desc(logisticsRoutes.createdAt));
   }
+  async getRoute(id: number): Promise<LogisticsRoute | undefined> {
+    const [route] = await db
+      .select()
+      .from(logisticsRoutes)
+      .where(eq(logisticsRoutes.id, id))
+      .limit(1);
+    return route;
+  }
+  async getRouteForCompany(id: number, empresaId: number): Promise<LogisticsRoute | undefined> {
+    const [route] = await db
+      .select()
+      .from(logisticsRoutes)
+      .where(and(eq(logisticsRoutes.id, id), eq(logisticsRoutes.empresaId, empresaId)))
+      .limit(1);
+    return route;
+  }
 
   // FASE MT-1 — Safe variant com filtro SQL obrigatório.
   async getRoutesSafe(empresaId: number): Promise<LogisticsRoute[]> {
@@ -3063,16 +3082,64 @@ export class DatabaseStorage implements IStorage {
   async getRouteStops(routeId: number): Promise<RouteStop[]> {
     return db.select().from(routeStops).where(eq(routeStops.routeId, routeId)).orderBy(routeStops.ordemParada);
   }
-  async createRouteStop(data: InsertRouteStop): Promise<RouteStop> {
-    const [r] = await db.insert(routeStops).values(data).returning();
+  async getRouteStopsForCompany(routeId: number, empresaId: number): Promise<RouteStop[]> {
+    const ownedRoute = db
+      .select({ id: logisticsRoutes.id })
+      .from(logisticsRoutes)
+      .where(and(eq(logisticsRoutes.id, routeId), eq(logisticsRoutes.empresaId, empresaId)));
+    return db
+      .select()
+      .from(routeStops)
+      .where(and(eq(routeStops.routeId, routeId), inArray(routeStops.routeId, ownedRoute)))
+      .orderBy(routeStops.ordemParada);
+  }
+  async createRouteStopForRoute(
+    routeId: number,
+    data: Partial<InsertRouteStop>,
+    empresaId?: number,
+  ): Promise<RouteStop | undefined> {
+    const route = empresaId == null
+      ? await this.getRoute(routeId)
+      : await this.getRouteForCompany(routeId, empresaId);
+    if (!route) return undefined;
+    const [r] = await db.insert(routeStops).values({
+      ...data,
+      routeId,
+      companyId: route.empresaId ?? null,
+    } as InsertRouteStop).returning();
     return r;
   }
-  async updateRouteStop(id: number, data: Partial<InsertRouteStop>): Promise<RouteStop> {
-    const [r] = await db.update(routeStops).set(data).where(eq(routeStops.id, id)).returning();
+  async updateRouteStopForRoute(
+    id: number,
+    routeId: number,
+    data: Partial<InsertRouteStop>,
+    empresaId?: number,
+  ): Promise<RouteStop | undefined> {
+    const route = empresaId == null
+      ? await this.getRoute(routeId)
+      : await this.getRouteForCompany(routeId, empresaId);
+    if (!route) return undefined;
+    const [r] = await db
+      .update(routeStops)
+      .set(data)
+      .where(and(eq(routeStops.id, id), eq(routeStops.routeId, routeId)))
+      .returning();
     return r;
   }
-  async deleteRouteStop(id: number): Promise<void> {
-    await db.delete(routeStops).where(eq(routeStops.id, id));
+  async deleteRouteStopForRoute(
+    id: number,
+    routeId: number,
+    empresaId?: number,
+  ): Promise<boolean> {
+    const route = empresaId == null
+      ? await this.getRoute(routeId)
+      : await this.getRouteForCompany(routeId, empresaId);
+    if (!route) return false;
+    const [deleted] = await db
+      .delete(routeStops)
+      .where(and(eq(routeStops.id, id), eq(routeStops.routeId, routeId)))
+      .returning();
+    return !!deleted;
   }
   async getRouteStopsByCep(cep: string): Promise<RouteStop[]> {
     const clean = cep.replace(/\D/g, '');

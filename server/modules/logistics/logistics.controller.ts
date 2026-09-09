@@ -18,7 +18,7 @@
  *      Apenas administradores logísticos." (audit-logs).
  *      Allowed roles: MASTER, ADMIN, DIRECTOR, LOGISTICS, DEVELOPER.
  *
- *   4. no auth at all   → calculate-distance, route-stops CRUD and geo/cep.
+ *   4. no auth at all   → calculate-distance and geo/cep.
  *
  * Because of (4), we DO NOT mount `requireAuth` on the router; each handler
  * enforces its own gate (or none) to mirror legacy verbatim. Error response
@@ -468,51 +468,79 @@ export class LogisticsController {
     }
   };
 
-  // ── ROUTE STOPS (no auth) ──────────────────────────────────────────────
+  // ── ROUTE STOPS (authenticated + route-tenant scoped) ────────────────
   listRouteStops = async (req: Request, res: Response) => {
+    const actor = await this.logAuth(req, res);
+    if (!actor) return;
     try {
       const stops = await this.service.getRouteStops(
         Number(req.params.routeId as string),
+        actor,
       );
       res.json(stops);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] listRouteStops failed`, e);
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
+      }
       res.status(500).json({ message: e.message });
     }
   };
 
   createRouteStop = async (req: Request, res: Response) => {
+    const actor = await this.logAuth(req, res);
+    if (!actor) return;
     try {
       const stop = await this.service.createRouteStop(
         Number(req.params.routeId as string),
         req.body,
+        actor,
       );
       res.json(stop);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] createRouteStop failed`, e);
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
+      }
       res.status(500).json({ message: e.message });
     }
   };
 
   updateRouteStop = async (req: Request, res: Response) => {
+    const actor = await this.logAuth(req, res);
+    if (!actor) return;
     try {
       const stop = await this.service.updateRouteStop(
+        Number(req.params.routeId as string),
         Number(req.params.stopId as string),
         req.body,
+        actor,
       );
       res.json(stop);
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] updateRouteStop failed`, e);
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
+      }
       res.status(500).json({ message: e.message });
     }
   };
 
   deleteRouteStop = async (req: Request, res: Response) => {
+    const actor = await this.logAuth(req, res);
+    if (!actor) return;
     try {
-      await this.service.deleteRouteStop(Number(req.params.stopId as string));
+      await this.service.deleteRouteStop(
+        Number(req.params.routeId as string),
+        Number(req.params.stopId as string),
+        actor,
+      );
       res.json({ ok: true });
     } catch (e: any) {
       console.warn(`[${req.requestId}] [logistics.controller] deleteRouteStop failed`, e);
+      if ([400, 403, 404].includes(e?.status)) {
+        return res.status(e.status).json({ message: e.message });
+      }
       res.status(500).json({ message: e.message });
     }
   };
