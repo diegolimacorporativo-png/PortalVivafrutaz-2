@@ -11,7 +11,8 @@ import type {
 } from "@shared/schema";
 import { db } from "../../database/db";
 import { productPrices as productPricesTable } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
+import { tenantWhere } from "../../core/tenant/scope";
 // Price Resolver — imported for future activation only. Do NOT call it
 // from any persisted-write path yet. See utils/priceResolver.ts.
 // FUTURE:
@@ -114,7 +115,10 @@ export class ProductService {
     const priceRows = await db
       .select({ productId: productPricesTable.productId, price: productPricesTable.price })
       .from(productPricesTable)
-      .where(eq(productPricesTable.priceGroupId, priceGroupId));
+      .where(and(
+        eq(productPricesTable.priceGroupId, priceGroupId),
+        tenantWhere(productPricesTable),
+      ));
 
     const priceMap = new Map<number, number>();
     for (const row of priceRows) {

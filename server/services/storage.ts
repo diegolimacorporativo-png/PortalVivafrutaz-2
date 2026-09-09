@@ -17,6 +17,11 @@ import {
   catalogTenantForCreate,
 } from "../modules/products/products.tenant";
 import {
+  canReadPricingChain,
+  canMutatePricingChain,
+  pricingTenantForCreate,
+} from "../modules/products/pricing.tenant";
+import {
   users, priceGroups, companies, categories, products, productPrices, productSubCategories, orderWindows, orderExceptions, orders, orderItems, systemSettings, passwordResetRequests, specialOrderRequests, systemLogs, testOrders, tasks, clientIncidents, incidentMessages, internalIncidents, logisticsDrivers, logisticsVehicles, logisticsRoutes, logisticsMaintenance, companyQuotations, contractScopes, danfeRecords, companyConfig, companySettings, announcements, wasteControl, purchasePlanStatus, inventorySettings, inventoryEntries, inventoryMovements, inventoryPhysicalCounts, fiscalInvoices, emailSchedules, emailLogs, aboutUs, smtpConfig, claraTraining, pushSubscriptions, notificationSettings, contractAdjustments, scopeSimulations, accountsReceivable, accountsPayable, financialTransactions,
   type AccountReceivable, type InsertAccountReceivable,
   type AccountPayable, type InsertAccountPayable,
@@ -757,33 +762,57 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPriceGroups(empresaId?: number, limit = 500): Promise<PriceGroup[]> {
-    // T805 — Bounded LIMIT (default 500) prevents unbounded full-table scans.
-    try {
-      const query = db.select().from(priceGroups);
-      if (empresaId) {
-        query.where(eq(priceGroups.empresaId, empresaId));
-      }
-      query.limit(Math.min(limit, 500));
-      return await query;
-    } catch (err: any) {
-      logSecurity(`[STORAGE_WRITE_FAILED] step=getPriceGroups | reason=empresa_id_column_missing | error=${err?.message ?? "unknown"}`);
-      console.warn('[STORAGE] getPriceGroups: coluna empresa_id pode não existir, retornando sem filtro');
-      return await db.select().from(priceGroups).limit(500);
+    // Hybrid catalog: global groups plus the current tenant's groups.
+    // Never fall back to an unfiltered query when a tenant is pinned.
+    const tenantId = currentTenantId() ?? empresaId ?? null;
+    const query = db.select().from(priceGroups);
+    if (tenantId != null) {
+      query.where(or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId)));
     }
+    query.limit(Math.min(limit, 500));
+    return await query;
   }
 
   async createPriceGroup(group: InsertPriceGroup): Promise<PriceGroup> {
-    const [newGroup] = await db.insert(priceGroups).values(group).returning();
+    const [newGroup] = await db.insert(priceGroups).values({
+      ...stripTenantFields(group as any),
+      empresaId: pricingTenantForCreate(currentTenantId(), (group as any).empresaId),
+    } as InsertPriceGroup).returning();
     return newGroup;
   }
 
   async updatePriceGroup(id: number, updates: Partial<InsertPriceGroup>): Promise<PriceGroup> {
-    const [updated] = await db.update(priceGroups).set(updates).where(eq(priceGroups.id, id)).returning();
+    const tenantId = currentTenantId();
+    const existing = await db.select({ empresaId: priceGroups.empresaId })
+      .from(priceGroups)
+      .where(and(eq(priceGroups.id, id), tenantId == null
+        ? sql`true`
+        : or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId))))
+      .limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const [updated] = await db.update(priceGroups)
+      .set(stripTenantFields(updates as any))
+      .where(and(eq(priceGroups.id, id), this.catalogMutationWhere(priceGroups.empresaId)))
+      .returning();
+    if (!updated) {
+      const error = new Error("Grupo de preço não encontrado.");
+      (error as Error & { status?: number }).status = 404;
+      throw error;
+    }
     return updated;
   }
 
   async deletePriceGroup(id: number): Promise<void> {
-    await db.delete(priceGroups).where(eq(priceGroups.id, id));
+    const tenantId = currentTenantId();
+    const existing = await db.select({ empresaId: priceGroups.empresaId })
+      .from(priceGroups)
+      .where(and(eq(priceGroups.id, id), tenantId == null
+        ? sql`true`
+        : or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId))))
+      .limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    await db.delete(priceGroups)
+      .where(and(eq(priceGroups.id, id), this.catalogMutationWhere(priceGroups.empresaId)));
   }
 
   async getCategories(empresaId?: number, limit = 500): Promise<Category[]> {
@@ -891,32 +920,156 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductPrices(empresaId?: number, limit = 2000): Promise<ProductPrice[]> {
-    // T805 — Bounded LIMIT (default 2000, higher than categories/priceGroups
-    // because price entries are 1:n with products). Prevents OOM on large catalogs.
-    const query = db.select().from(productPrices);
-    if (empresaId) {
-      query.where(eq(productPrices.empresaId, empresaId));
+    // Hybrid catalog visibility must hold for the price row and both
+    // referenced resources. This prevents a tenant from reaching a private
+    // product/group through an otherwise global-looking price row.
+    const tenantId = currentTenantId() ?? empresaId ?? null;
+    const query = db.select({
+      id: productPrices.id,
+      empresaId: productPrices.empresaId,
+      productId: productPrices.productId,
+      priceGroupId: productPrices.priceGroupId,
+      price: productPrices.price,
+    })
+      .from(productPrices)
+      .innerJoin(products, eq(products.id, productPrices.productId))
+      .innerJoin(priceGroups, eq(priceGroups.id, productPrices.priceGroupId));
+    if (tenantId != null) {
+      query.where(and(
+        or(isNull(productPrices.empresaId), eq(productPrices.empresaId, tenantId)),
+        or(isNull(products.empresaId), eq(products.empresaId, tenantId)),
+        or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId)),
+      ));
     }
     query.limit(Math.min(limit, 2000));
-    return await query;
+    return await query as ProductPrice[];
   }
 
   async getProductPricesByProductId(productId: number): Promise<ProductPrice[]> {
-    return await db.select().from(productPrices).where(eq(productPrices.productId, productId));
+    const tenantId = currentTenantId();
+    const query = db.select({
+      id: productPrices.id,
+      empresaId: productPrices.empresaId,
+      productId: productPrices.productId,
+      priceGroupId: productPrices.priceGroupId,
+      price: productPrices.price,
+    })
+      .from(productPrices)
+      .innerJoin(products, eq(products.id, productPrices.productId))
+      .innerJoin(priceGroups, eq(priceGroups.id, productPrices.priceGroupId))
+      .where(and(
+        eq(productPrices.productId, productId),
+        tenantId == null ? sql`true` : and(
+          or(isNull(productPrices.empresaId), eq(productPrices.empresaId, tenantId)),
+          or(isNull(products.empresaId), eq(products.empresaId, tenantId)),
+          or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId)),
+        ),
+      ));
+    return await query as ProductPrice[];
   }
 
   async createProductPrice(price: InsertProductPrice): Promise<ProductPrice> {
-    const [newPrice] = await db.insert(productPrices).values(price).returning();
+    const productId = Number(price.productId);
+    const priceGroupId = Number(price.priceGroupId);
+    await this.assertPricingReferences(productId, priceGroupId);
+    const [newPrice] = await db.insert(productPrices).values({
+      ...stripTenantFields(price as any),
+      empresaId: pricingTenantForCreate(currentTenantId(), (price as any).empresaId),
+    } as InsertProductPrice).returning();
     return newPrice;
   }
 
   async updateProductPrice(id: number, updates: Partial<InsertProductPrice>): Promise<ProductPrice> {
-    const [updated] = await db.update(productPrices).set(updates).where(eq(productPrices.id, id)).returning();
+    const existing = await this.getVisibleProductPrice(id);
+    if (!existing) {
+      const error = new Error("Preço não encontrado.");
+      (error as Error & { status?: number }).status = 404;
+      throw error;
+    }
+    const tenantId = currentTenantId();
+    assertCatalogMutation(existing.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const productId = updates.productId == null ? existing.productId : Number(updates.productId);
+    const priceGroupId = updates.priceGroupId == null ? existing.priceGroupId : Number(updates.priceGroupId);
+    await this.assertPricingReferences(productId, priceGroupId);
+    const [updated] = await db.update(productPrices)
+      .set(stripTenantFields(updates as any))
+      .where(and(eq(productPrices.id, id), this.catalogMutationWhere(productPrices.empresaId)))
+      .returning();
+    if (!updated) {
+      const error = new Error("Preço não encontrado.");
+      (error as Error & { status?: number }).status = 404;
+      throw error;
+    }
     return updated;
   }
 
   async deleteProductPrice(id: number): Promise<void> {
-    await db.delete(productPrices).where(eq(productPrices.id, id));
+    const existing = await this.getVisibleProductPrice(id);
+    if (!existing) {
+      const error = new Error("Preço não encontrado.");
+      (error as Error & { status?: number }).status = 404;
+      throw error;
+    }
+    assertCatalogMutation(existing.empresaId, currentTenantId(), this.catalogGlobalMutationAllowed());
+    await db.delete(productPrices)
+      .where(and(eq(productPrices.id, id), this.catalogMutationWhere(productPrices.empresaId)));
+  }
+
+  private async getVisibleProductPrice(id: number): Promise<ProductPrice | undefined> {
+    const tenantId = currentTenantId();
+    const [row] = await db.select({
+      id: productPrices.id,
+      empresaId: productPrices.empresaId,
+      productId: productPrices.productId,
+      priceGroupId: productPrices.priceGroupId,
+      price: productPrices.price,
+    })
+      .from(productPrices)
+      .innerJoin(products, eq(products.id, productPrices.productId))
+      .innerJoin(priceGroups, eq(priceGroups.id, productPrices.priceGroupId))
+      .where(and(
+        eq(productPrices.id, id),
+        tenantId == null ? sql`true` : and(
+          or(isNull(productPrices.empresaId), eq(productPrices.empresaId, tenantId)),
+          or(isNull(products.empresaId), eq(products.empresaId, tenantId)),
+          or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId)),
+        ),
+      ))
+      .limit(1);
+    return row as ProductPrice | undefined;
+  }
+
+  private async assertPricingReferences(productId: number, priceGroupId: number): Promise<void> {
+    const tenantId = currentTenantId();
+    const [product] = await db.select({ empresaId: products.empresaId })
+      .from(products)
+      .where(and(
+        eq(products.id, productId),
+        tenantId == null ? sql`true` : or(isNull(products.empresaId), eq(products.empresaId, tenantId)),
+      ))
+      .limit(1);
+    const [group] = await db.select({ empresaId: priceGroups.empresaId })
+      .from(priceGroups)
+      .where(and(
+        eq(priceGroups.id, priceGroupId),
+        tenantId == null ? sql`true` : or(isNull(priceGroups.empresaId), eq(priceGroups.empresaId, tenantId)),
+      ))
+      .limit(1);
+    if (!product || !group) {
+      const error = new Error("Produto ou grupo de preço não encontrado.");
+      (error as Error & { status?: number }).status = 404;
+      throw error;
+    }
+    if (!canReadPricingChain(
+      currentTenantId(),
+      product.empresaId,
+      group.empresaId,
+      currentTenantId(),
+    )) {
+      const error = new Error("Produto ou grupo de preço não encontrado.");
+      (error as Error & { status?: number }).status = 404;
+      throw error;
+    }
   }
 
   async getProductSubCategoriesByProductId(productId: number): Promise<ProductSubCategory[]> {

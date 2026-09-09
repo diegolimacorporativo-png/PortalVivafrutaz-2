@@ -2,18 +2,21 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
 import { requireAuth, requireRole, requireSession } from "../core/http/requireAuth";
+import { tenantContext } from "../middleware/tenant";
 import { auditLog } from "../utils/auditLogger";
+import { z } from "zod";
 
 const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
+const positiveId = z.coerce.number().int().positive();
 
 export function register(app: Express) {
   // F1-E2: was unauthenticated — now requires any valid session
-  app.get(api.priceGroups.list.path, requireSession, async (req, res) => {
+  app.get(api.priceGroups.list.path, requireSession, tenantContext, async (req, res) => {
     const groups = await storage.getPriceGroups();
     res.json(groups);
   });
 
-  app.post(api.priceGroups.create.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+  app.post(api.priceGroups.create.path, requireAuth, requireRole(WRITE_ROLES), tenantContext, async (req: any, res) => {
     try {
       const input = api.priceGroups.create.input.parse(req.body);
       auditLog("CREATE_PRICE_GROUP", {
@@ -29,7 +32,7 @@ export function register(app: Express) {
     }
   });
 
-  app.put(api.priceGroups.update.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+  app.put(api.priceGroups.update.path, requireAuth, requireRole(WRITE_ROLES), tenantContext, async (req: any, res) => {
     try {
       const input = api.priceGroups.update.input.parse(req.body);
       auditLog("UPDATE_PRICE_GROUP", {
@@ -46,9 +49,11 @@ export function register(app: Express) {
     }
   });
 
-  app.delete(api.priceGroups.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+  app.delete(api.priceGroups.delete.path, requireAuth, requireRole(WRITE_ROLES), tenantContext, async (req: any, res) => {
     try {
-      const id = Number(req.params.id);
+      const parsedId = positiveId.safeParse(req.params.id);
+      if (!parsedId.success) return res.status(400).json({ message: "id inválido" });
+      const id = parsedId.data;
       auditLog("DELETE_PRICE_GROUP", {
         userId: req.session?.userId,
         role: req.session?.userRole,

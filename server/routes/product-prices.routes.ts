@@ -1,14 +1,17 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { api } from "@shared/routes";
-import { requireAuth, requireRole } from "../core/http/requireAuth";
+import { requireAuth, requireRole, requireSession } from "../core/http/requireAuth";
+import { tenantContext } from "../middleware/tenant";
 import { auditLog } from "../utils/auditLogger";
 import { z } from "zod";
 
 const WRITE_ROLES = ["ADMIN", "DIRECTOR", "MASTER"];
+const positiveId = z.coerce.number().int().positive();
+const priceValue = z.coerce.number().finite().nonnegative();
 
 export function register(app: Express) {
-  app.get(api.productPrices.list.path, async (req, res) => {
+  app.get(api.productPrices.list.path, requireSession, tenantContext, async (req, res) => {
     try {
       const prices = await storage.getProductPrices();
       res.json(prices);
@@ -17,17 +20,19 @@ export function register(app: Express) {
     }
   });
 
-  app.get(api.productPrices.byProduct.path, async (req, res) => {
-    const prices = await storage.getProductPricesByProductId(Number(req.params.productId));
-    res.json(prices);
+  app.get(api.productPrices.byProduct.path, requireSession, tenantContext, async (req, res) => {
+    const productId = positiveId.safeParse(req.params.productId);
+    if (!productId.success) return res.status(400).json({ message: "productId inválido" });
+    const prices = await storage.getProductPricesByProductId(productId.data);
+    return res.json(prices);
   });
 
-  app.post(api.productPrices.create.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+  app.post(api.productPrices.create.path, requireAuth, requireRole(WRITE_ROLES), tenantContext, async (req: any, res) => {
     try {
       const bodySchema = api.productPrices.create.input.extend({
-        productId: z.coerce.number(),
-        priceGroupId: z.coerce.number(),
-        price: z.string()
+        productId: positiveId,
+        priceGroupId: positiveId,
+        price: priceValue,
       });
       const input = bodySchema.parse(req.body);
       auditLog("CREATE_PRODUCT_PRICE", {
@@ -43,12 +48,12 @@ export function register(app: Express) {
     }
   });
 
-  app.put(api.productPrices.update.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+  app.put(api.productPrices.update.path, requireAuth, requireRole(WRITE_ROLES), tenantContext, async (req: any, res) => {
     try {
       const bodySchema = api.productPrices.update.input.extend({
-        productId: z.coerce.number().optional(),
-        priceGroupId: z.coerce.number().optional(),
-        price: z.string().optional()
+        productId: positiveId.optional(),
+        priceGroupId: positiveId.optional(),
+        price: priceValue.optional(),
       });
       const input = bodySchema.parse(req.body);
       auditLog("UPDATE_PRODUCT_PRICE", {
@@ -65,7 +70,7 @@ export function register(app: Express) {
     }
   });
 
-  app.delete(api.productPrices.delete.path, requireAuth, requireRole(WRITE_ROLES), async (req: any, res) => {
+  app.delete(api.productPrices.delete.path, requireAuth, requireRole(WRITE_ROLES), tenantContext, async (req: any, res) => {
     const id = Number(req.params.id);
     auditLog("DELETE_PRODUCT_PRICE", {
       userId: req.session?.userId,

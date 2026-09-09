@@ -1,0 +1,225 @@
+ETAPA 17 — AUDITORIA E SEGURANÇA MULTI-TENANT DE PREÇOS E PRICE GROUPS
+
+Objetivo:
+Corrigir exclusivamente os riscos de isolamento multi-tenant/RBAC relacionados a preços, grupos de preços e endpoints de pricing identificados na auditoria anterior.
+
+IMPORTANTE:
+- NÃO mexer em NF-e.
+- NÃO mexer em Fiscal.
+- NÃO mexer em DANFE.
+- NÃO mexer em certificados.
+- NÃO mexer em Bling.
+- NÃO mexer em GPS.
+- NÃO mexer no Android.
+- NÃO mexer em Quotations.
+- NÃO mexer em Deliveries.
+- NÃO mexer em Logistics Analytics.
+- NÃO mexer em Products/Subcategories já corrigidos na Etapa 12, exceto se for estritamente necessário para validar ownership.
+- NÃO criar migration.
+- NÃO alterar schema sem necessidade absolutamente comprovada.
+- NÃO alterar dados reais.
+- NÃO fazer refatoração ampla.
+- NÃO criar commit.
+
+PRIMEIRO FAÇA UMA AUDITORIA READ-ONLY DO ESCOPO.
+
+Investigue especificamente:
+
+1. Rotas relacionadas a:
+   - /api/product-prices
+   - /api/price-groups
+   - qualquer rota de pricing/preços/grupos de preço relacionada
+   - endpoints de consulta, criação, edição e exclusão
+   - endpoints que recebem productId, priceGroupId, empresaId, companyId ou equivalentes
+
+2. Arquivos relacionados:
+   - routes
+   - controllers
+   - services
+   - repositories
+   - storage
+   - policies
+   - tenant context
+   - middleware de autenticação/RBAC
+   - schemas/types
+   - consumidores frontend
+
+3. Descubra o modelo real de tenancy usado atualmente.
+
+IMPORTANTE:
+Não assuma que preço é obrigatoriamente tenant-private.
+
+Determine pelo código/dados/modelo atual se existem:
+- preços globais/shared
+- preços específicos por empresa
+- grupos de preços globais
+- grupos de preços específicos por empresa
+- relações entre produto, empresa e grupo de preço
+
+Preserve o comportamento funcional existente.
+
+REGRAS DE SEGURANÇA A APLICAR:
+
+A) Usuário tenant-bound
+
+Se o usuário estiver vinculado à empresa A:
+
+- só pode consultar preços/grupos permitidos para A;
+- nunca pode consultar ou alterar dados exclusivos da empresa B;
+- não pode trocar empresa através de:
+  - companyId
+  - company_id
+  - empresaId
+  - empresa_id
+  - tenantId
+  - tenant_id
+- esses campos nunca devem ampliar o tenant definido pela sessão.
+
+B) Criação
+
+Quando uma entidade de pricing for tenant-bound:
+
+- empresa deve ser derivada do escopo autenticado;
+- NÃO confiar em empresa enviada pelo frontend;
+- bloquear mass assignment de campos de ownership;
+- usuário da empresa A não pode criar preço pertencente à empresa B.
+
+Se o modelo atual permitir entidades globais/shared, preserve essa funcionalidade somente para os roles que já possuem permissão global.
+
+C) GET por ID
+
+Qualquer endpoint por ID deve validar ownership/tenant antes de retornar o registro.
+
+Um usuário tenant-bound não pode obter um preço ou grupo pertencente a outra empresa apenas conhecendo o ID.
+
+Preferir retornar 404 para recurso fora do escopo quando isso for consistente com o padrão já usado no projeto.
+
+D) UPDATE
+
+Atualização deve ser tenant-scoped.
+
+Usuário da empresa A:
+
+- pode alterar apenas registros permitidos da empresa A;
+- não pode alterar registro da empresa B;
+- não pode alterar empresa/tenant do registro;
+- não pode usar body para mover ownership.
+
+E) DELETE
+
+Mesma regra do UPDATE.
+
+DELETE por ID deve obrigatoriamente validar tenant/ownership.
+
+F) LISTAGEM
+
+Listagens não podem retornar dados de outras empresas.
+
+Se o sistema utilizar modelo híbrido global + tenant:
+
+- tenant A pode enxergar global + A, quando isso for compatível com o comportamento atual;
+- nunca retornar B.
+
+Se a entidade for estritamente tenant-bound:
+
+- retornar somente A.
+
+G) FILTROS
+
+Parâmetros como:
+
+- ?companyId=
+- ?empresaId=
+- ?tenantId=
+
+não podem substituir o tenant da sessão.
+
+Para usuário tenant-bound, a sessão sempre vence.
+
+Somente roles que já possuem comportamento global no projeto podem selecionar explicitamente outro tenant, e isso deve seguir a mesma política já estabelecida nas etapas anteriores.
+
+NÃO invente uma nova política de roles.
+
+ROLES:
+
+Preserve a política existente:
+
+- MASTER global
+- DIRECTOR global quando sem empresa, conforme política existente
+- ADMIN/DEVELOPER vinculados ficam tenant-bound
+- demais roles seguem suas permissões existentes
+
+Não transforme automaticamente uma role em global.
+
+ATENÇÃO ESPECIAL:
+
+Verifique se existe alguma situação em que:
+
+storage/repository:
+empresaId === null
+
+faz uma consulta global.
+
+Isso não é necessariamente vulnerabilidade.
+
+A correção deve acontecer na camada de autorização/escopo para impedir que usuário tenant-bound chegue nesse fallback indevidamente.
+
+TESTES:
+
+Crie testes direcionados usando mocks/fakes, sem escrever no banco real.
+
+Cubra no mínimo:
+
+1. usuário A consegue listar seus preços;
+2. usuário A não recebe preços privados de B;
+3. usuário A não consegue GET por ID de B;
+4. usuário A não consegue alterar preço de B;
+5. usuário A não consegue excluir preço de B;
+6. companyId/empresaId enviado pelo cliente não consegue mudar o tenant;
+7. criação tenant-bound força empresa da sessão;
+8. usuário sem autenticação recebe 401;
+9. usuário sem permissão recebe 403;
+10. comportamento global de MASTER/DIRECTOR existente continua funcionando;
+11. se houver grupos de preço, repetir os testes para price groups;
+12. se houver relação produto → preço → grupo, validar que a cadeia também não permite cross-tenant.
+
+NÃO faça testes que dependam de dados reais do Supabase.
+
+VALIDAÇÕES FINAIS:
+
+Execute:
+
+- npm run check
+- npm run build
+- git diff --check
+
+Se houver workflow disponível, reinicie e confirme:
+
+- DB_CONNECTED
+- APP_READY
+
+Se o workflow não conseguir conectar por problema externo de ambiente, registre isso claramente e não tente alterar configuração do banco para "consertar".
+
+ANTES DE ALTERAR:
+
+Mostre internamente quais rotas e arquivos realmente apresentam risco.
+
+Depois faça somente as correções necessárias.
+
+AO FINAL INFORME:
+
+- vulnerabilidades encontradas;
+- arquivos alterados;
+- rotas protegidas;
+- política de tenant aplicada;
+- política de RBAC preservada;
+- testes executados e resultado;
+- check/build/diff-check;
+- status do workflow;
+- se houve ou não alteração de schema;
+- se houve ou não migration;
+- se houve ou não alteração de dados;
+- confirmar que NF-e/Fiscal/Bling/GPS/Android não foram tocados;
+- confirmar que nenhum commit foi criado.
+
+NÃO criar commit.
