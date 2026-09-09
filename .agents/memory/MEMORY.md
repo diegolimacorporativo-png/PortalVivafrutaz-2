@@ -15,3 +15,4 @@
 - [Special order requests tenant scope](special-order-requests-tenant-scope.md) — POST é portal autenticado de empresa; GET/PUT precisam de RBAC e escopo id + tenant.
 - [Order exceptions tenant scope](order-exceptions-tenant-scope.md) — exceções usam companyId como tenant; CRUD tenant-bound filtra por tenant e só MASTER/DIRECTOR globais selecionam empresas.
 - [Empresa-config tenant scope](empresa-config-tenant-scope.md) — white-label é tenant-bound; só MASTER/DIRECTOR sem empresa vinculada mantêm seleção global explícita.
+- [Legacy tenant audit](legacy-tenant-audit.md) — rotas legadas e endpoints públicos não herdam segurança do contexto; exigem storage scoped e whitelist de campos.

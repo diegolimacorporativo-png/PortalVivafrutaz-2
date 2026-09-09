@@ -1,0 +1,520 @@
+FASE 8 — AUDITORIA FINAL READ-ONLY DE MULTI-TENANT, RBAC, IDOR/BOLA E AUTORIZAÇÃO
+
+Quero uma auditoria FINAL e EXCLUSIVAMENTE READ-ONLY do ERP VivaFrutaz.
+
+IMPORTANTE:
+- NÃO alterar nenhum arquivo.
+- NÃO criar migrations.
+- NÃO alterar schema.
+- NÃO alterar banco de dados.
+- NÃO inserir, atualizar ou deletar dados.
+- NÃO executar scripts que façam INSERT/UPDATE/DELETE.
+- NÃO alterar NF-e, fiscal ou qualquer rotina relacionada a NF-e.
+- NÃO fazer refatoração.
+- NÃO corrigir nada nesta etapa.
+- NÃO criar commit.
+- O objetivo agora é SOMENTE encontrar vulnerabilidades que ainda possam existir.
+
+OBJETIVO
+
+Depois das correções já realizadas em:
+- password_reset_requests
+- logistics tracking
+- users
+- reports
+- client-incidents
+- special-order-requests
+- empresa-config
+- order-exceptions
+
+quero verificar se ainda existem outros pontos no sistema onde um usuário de uma empresa possa:
+
+1. visualizar dados de outra empresa;
+2. alterar dados de outra empresa;
+3. excluir dados de outra empresa;
+4. criar registros em nome de outra empresa;
+5. informar companyId/empresaId/tenantId no request e conseguir burlar o tenant da sessão;
+6. acessar um registro diretamente pelo ID (IDOR/BOLA);
+7. usar query parameters para trocar de empresa;
+8. usar headers como X-Empresa-Id para escapar do tenant;
+9. explorar diferença entre roles globais e roles tenant-bound;
+10. acessar endpoints sem autenticação;
+11. acessar endpoints autenticados sem RBAC adequado;
+12. manipular recursos de outra empresa através de relações indiretas.
+
+ESCOPO
+
+Faça a auditoria de TODAS as rotas relevantes da aplicação, incluindo:
+
+- server/routes/**
+- server/modules/**/**.routes.ts
+- controllers
+- services
+- repositories
+- storage
+- tenant context / tenant guards
+- RBAC
+- middleware de autenticação
+- endpoints administrativos
+- endpoints de clientes
+- endpoints de logística
+- endpoints de pedidos
+- endpoints de produtos
+- endpoints de estoque
+- endpoints financeiros
+- endpoints de contratos
+- endpoints de usuários
+- endpoints de dashboards
+- endpoints de relatórios
+- endpoints de notificações
+- endpoints de incidentes
+- endpoints de configurações
+- endpoints de entregas
+- endpoints de motoristas
+- endpoints de rotas
+- endpoints de produção
+- endpoints de compras
+- endpoints de fornecedores
+- endpoints de recorrência
+- endpoints de solicitações
+- endpoints de qualquer outro módulo que manipule dados ligados a empresa/tenant.
+
+NÃO precisa auditar NF-e/fiscal.
+
+MÉTODO
+
+Para cada endpoint importante, verifique:
+
+A) AUTENTICAÇÃO
+- requireAuth?
+- middleware equivalente?
+- existe endpoint público?
+- endpoint público é realmente necessário?
+- existe rota que deveria exigir login mas está pública?
+
+B) AUTORIZAÇÃO
+- quais roles podem acessar?
+- existe requireRole/requireAnyRole ou equivalente?
+- role é validada antes da operação?
+- existe diferença entre ADMIN tenant-bound e ADMIN global?
+- roles globais estão explicitamente definidas?
+
+C) TENANT
+
+Verifique se o tenant vem de fonte confiável:
+
+- session.companyId
+- tenantContext
+- tenant guard
+- principal autenticado
+
+E NÃO de:
+
+- req.body.companyId
+- req.body.empresaId
+- req.body.tenantId
+- req.query.companyId
+- req.query.empresaId
+- req.params.companyId
+- req.params.empresaId
+- X-Empresa-Id
+- qualquer outro campo enviado livremente pelo cliente.
+
+D) IDOR/BOLA
+
+Procure especialmente operações como:
+
+GET /resource/:id
+PUT /resource/:id
+PATCH /resource/:id
+DELETE /resource/:id
+
+e verifique se a consulta é equivalente a:
+
+WHERE id = :id
+AND empresa_id = :currentTenant
+
+ou se existe validação de ownership equivalente.
+
+Não aceite como suficiente:
+
+WHERE id = :id
+
+quando o recurso for tenant-bound.
+
+E) CRIAÇÃO
+
+Para POSTs tenant-bound:
+
+- companyId enviado pelo cliente deve ser ignorado ou validado contra a sessão;
+- preferencialmente o tenant deve ser derivado da sessão;
+- usuário tenant-bound não pode criar registro para outra empresa.
+
+F) UPDATE
+
+Verifique se o usuário consegue enviar:
+
+companyId
+empresaId
+tenantId
+company_id
+empresa_id
+tenant_id
+
+ou variantes semelhantes para mover o registro para outro tenant.
+
+Campos de tenant devem ser protegidos.
+
+G) RELAÇÕES INDIRETAS
+
+Procure casos como:
+
+usuário acessa /orders/:orderId
+mas o ID pertence a empresa B.
+
+Ou:
+
+/routes/:routeId/stops/:stopId
+/companies/:companyId/users/:userId
+/products/:productId
+/invoices/:id
+/incidents/:id
+
+onde o recurso filho ou pai pertence a outro tenant.
+
+Valide sempre a cadeia de ownership.
+
+Exemplo:
+
+stop → route → company
+
+Não basta validar somente o stopId.
+
+H) LISTAGENS
+
+Verifique endpoints GET que retornam coleções.
+
+Exemplo:
+
+GET /api/orders
+GET /api/users
+GET /api/products
+GET /api/reports
+GET /api/incidents
+
+Verifique se usuários tenant-bound recebem somente os dados da própria empresa.
+
+Cuidado especial com:
+
+- ausência de filtro;
+- filtro opcional;
+- fallback global;
+- companyId opcional;
+- query parameter usado para selecionar empresa.
+
+I) GLOBAL ACCESS
+
+Mapeie exatamente quais roles podem realmente operar globalmente.
+
+Não assumir que:
+
+ADMIN = global.
+
+Neste sistema, confirme o comportamento real no código.
+
+Verifique especialmente:
+
+MASTER
+DIRECTOR
+ADMIN
+DEVELOPER
+OPERATIONS_MANAGER
+LOGISTICS
+PURCHASE_MANAGER
+FINANCEIRO
+outros roles existentes.
+
+Para cada role, informe:
+
+- global;
+- tenant-bound;
+- depende da presença de empresa;
+- comportamento quando empresa é NULL.
+
+Se existir comportamento inconsistente entre módulos, registrar.
+
+J) FALLBACKS PERIGOSOS
+
+Procure padrões como:
+
+if (tenantId) {
+  buscarPorTenant(...)
+} else {
+  buscarGlobal(...)
+}
+
+ou:
+
+const companyId = session.companyId || req.query.companyId;
+
+ou:
+
+const companyId = req.body.companyId || session.companyId;
+
+ou qualquer equivalente.
+
+Esses padrões são especialmente importantes.
+
+Determine se o fallback pode permitir acesso indevido.
+
+K) HEADERS
+
+Verifique uso de:
+
+X-Empresa-Id
+X-Company-Id
+X-Tenant-Id
+
+e headers semelhantes.
+
+Eles podem ser usados apenas em cenários explicitamente autorizados.
+
+Usuário tenant-bound não deve conseguir trocar de empresa através de header.
+
+L) STORAGE/REPOSITORIES
+
+Não audite apenas as rotas.
+
+Procure métodos perigosos como:
+
+getById(id)
+update(id, data)
+delete(id)
+findById(id)
+
+quando deveriam possuir variante tenant-scoped.
+
+Verifique se uma rota pode chamar um método global de storage/repository indevidamente.
+
+M) SQL
+
+Procure consultas SQL com:
+
+WHERE id = ...
+WHERE company_id = ...
+WHERE empresa_id = ...
+
+e confirme se o tenant está realmente aplicado quando necessário.
+
+Procure especialmente queries construídas dinamicamente.
+
+N) CONTROLLERS/SERVICES
+
+Verifique se a proteção existe somente na rota ou também é preservada ao entrar em:
+
+controller → service → repository.
+
+Procure casos onde a rota valida tenant mas o service chama uma função global.
+
+O) MULTI-TENANT EM RELAÇÕES
+
+Verifique recursos ligados a:
+
+- company
+- empresa
+- tenant
+- user
+- order
+- route
+- delivery
+- driver
+- client
+- incident
+- product
+- inventory
+- purchase
+- supplier
+- contract
+- invoice
+- report
+- notification
+- configuration.
+
+NÃO ALTERE NF-e.
+
+TESTES
+
+NÃO executar testes que escrevam no banco.
+
+Pode executar:
+
+npm run check
+
+e testes unitários existentes que sejam read-only.
+
+Se existir algum teste que faça INSERT/UPDATE/DELETE no Supabase ou banco de produção, NÃO execute.
+
+Não criar testes nesta etapa porque a etapa é somente auditoria.
+
+VALIDAÇÃO DA APLICAÇÃO
+
+Pode verificar apenas de forma segura:
+
+- npm run check
+- compilação/typecheck
+- boot da aplicação
+- APP_READY
+- conexão existente com Supabase, sem modificar dados.
+
+Se for possível fazer requests HTTP sem sessão contra endpoints seguros, pode verificar respostas 401/403.
+
+Não faça testes de exploração alterando dados.
+
+ENTREGÁVEL
+
+Quero um relatório estruturado exatamente assim:
+
+# AUDITORIA FINAL MULTI-TENANT/RBAC
+
+## 1. RESUMO EXECUTIVO
+
+- quantidade de endpoints analisados;
+- quantidade de módulos analisados;
+- vulnerabilidades críticas;
+- altas;
+- médias;
+- baixas;
+- pontos fortes.
+
+## 2. CRÍTICAS
+
+Para cada uma:
+
+- endpoint;
+- arquivo;
+- linha aproximada;
+- vulnerabilidade;
+- cenário de exploração;
+- impacto;
+- tenant envolvido;
+- recomendação;
+- dificuldade de correção.
+
+## 3. ALTAS
+
+Mesmo formato.
+
+## 4. MÉDIAS
+
+Mesmo formato.
+
+## 5. BAIXAS
+
+Mesmo formato.
+
+## 6. PONTOS FORTES
+
+Liste proteções que estão funcionando corretamente.
+
+## 7. ROTAS SEM PROTEÇÃO
+
+Liste endpoints públicos encontrados e diga:
+
+- se parecem intencionais;
+- que dados expõem;
+- se existe risco.
+
+Não classificar automaticamente todo endpoint público como vulnerável.
+
+## 8. RBAC
+
+Monte uma tabela:
+
+Role | Global/Tenant | Comportamento | Observação
+
+## 9. TENANT BYPASS
+
+Liste todos os lugares encontrados onde:
+
+companyId
+empresaId
+tenantId
+X-Empresa-Id
+query params
+path params
+
+podem influenciar a escolha do tenant.
+
+Classifique cada caso:
+
+- seguro;
+- protegido;
+- suspeito;
+- vulnerável.
+
+## 10. IDOR/BOLA
+
+Liste todos os endpoints que trabalham com IDs e diga se existe ownership/tenant validation.
+
+## 11. FALLBACKS GLOBAIS
+
+Liste todos os lugares onde existe comportamento do tipo:
+
+tenant presente → scoped
+tenant ausente → global
+
+e diga se está corretamente protegido por role.
+
+## 12. INCONSISTÊNCIAS
+
+Procure módulos onde a proteção é diferente de outros módulos.
+
+Exemplo:
+
+orders protegido
+mas deliveries não.
+
+## 13. RECOMENDAÇÕES
+
+Organize por prioridade:
+
+P0 — corrigir imediatamente
+P1 — corrigir em seguida
+P2 — melhoria
+P3 — hardening futuro
+
+NÃO implemente nenhuma recomendação.
+
+## 14. ARQUIVOS ANALISADOS
+
+Liste os principais arquivos revisados.
+
+## 15. VALIDAÇÃO
+
+Informar:
+
+- npm run check;
+- testes executados;
+- resultado;
+- status do workflow;
+- APP_READY;
+- Supabase;
+- qualquer erro encontrado.
+
+IMPORTANTE:
+
+Se não encontrar vulnerabilidade, diga explicitamente:
+
+"NÃO ENCONTRADO"
+
+Não invente problemas.
+
+Se encontrar algo incerto, classifique como "SUSPEITO — NECESSITA VALIDAÇÃO".
+
+NÃO modificar código.
+NÃO modificar banco.
+NÃO criar migration.
+NÃO tocar em NF-e.
+NÃO criar commit.
+
+No final, dê uma conclusão objetiva dizendo se, após as correções já realizadas, ainda existem riscos de isolamento multi-tenant que precisam ser corrigidos.
