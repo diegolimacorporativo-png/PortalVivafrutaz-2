@@ -259,10 +259,14 @@ export interface IStorage {
   createLog(log: { action: string; description: string; userId?: number; companyId?: number; userEmail?: string; userRole?: string; ip?: string; level?: string }): Promise<void>;
   getLogsByOrderCode(orderCode: string): Promise<SystemLog[]>;
   getLogs(limit?: number): Promise<SystemLog[]>;
+  getLogsScoped(limit?: number, companyId?: number): Promise<SystemLog[]>;
   getSecurityLogs(limit?: number): Promise<SystemLog[]>;
   clearLogs(): Promise<void>;
+  clearLogsScoped(companyId?: number): Promise<void>;
   deleteLogsByIds(ids: number[]): Promise<number>;
+  deleteLogsByIdsScoped(ids: number[], companyId?: number): Promise<number>;
   deleteLogsByDateRange(start: Date, end: Date): Promise<number>;
+  deleteLogsByDateRangeScoped(start: Date, end: Date, companyId?: number): Promise<number>;
   cleanOldLogs(olderThanDays?: number): Promise<number>;
   // Logistics
   getDrivers(): Promise<LogisticsDriver[]>;
@@ -1619,6 +1623,14 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(systemLogs).orderBy(desc(systemLogs.createdAt)).limit(limit);
   }
 
+  async getLogsScoped(limit = 200, companyId?: number): Promise<SystemLog[]> {
+    const where = companyId == null ? undefined : eq(systemLogs.companyId, companyId);
+    return db.select().from(systemLogs)
+      .where(where)
+      .orderBy(desc(systemLogs.createdAt))
+      .limit(limit);
+  }
+
   async getLogsByOrderCode(orderCode: string): Promise<SystemLog[]> {
     if (!orderCode) return [];
     // Match `Pedido VFR-0001`, `Pedido #123 (VFR-0001)`, or any description
@@ -2084,6 +2096,14 @@ export class DatabaseStorage implements IStorage {
     await db.delete(systemLogs);
   }
 
+  async clearLogsScoped(companyId?: number): Promise<void> {
+    if (companyId == null) {
+      await db.delete(systemLogs);
+      return;
+    }
+    await db.delete(systemLogs).where(eq(systemLogs.companyId, companyId));
+  }
+
   async deleteLogsByIds(ids: number[]): Promise<number> {
     if (!ids.length) return 0;
     const { inArray } = await import('drizzle-orm');
@@ -2091,10 +2111,31 @@ export class DatabaseStorage implements IStorage {
     return ids.length;
   }
 
+  async deleteLogsByIdsScoped(ids: number[], companyId?: number): Promise<number> {
+    if (!ids.length) return 0;
+    const { inArray } = await import('drizzle-orm');
+    const where = companyId == null
+      ? inArray(systemLogs.id, ids)
+      : and(inArray(systemLogs.id, ids), eq(systemLogs.companyId, companyId));
+    const before = await db.select({ id: systemLogs.id }).from(systemLogs).where(where);
+    await db.delete(systemLogs).where(where);
+    return before.length;
+  }
+
   async deleteLogsByDateRange(start: Date, end: Date): Promise<number> {
     const { and, gte: gteOp, lte: lteOp } = await import('drizzle-orm');
     const before = await db.select().from(systemLogs).where(and(gteOp(systemLogs.createdAt, start), lteOp(systemLogs.createdAt, end)));
     await db.delete(systemLogs).where(and(gteOp(systemLogs.createdAt, start), lteOp(systemLogs.createdAt, end)));
+    return before.length;
+  }
+
+  async deleteLogsByDateRangeScoped(start: Date, end: Date, companyId?: number): Promise<number> {
+    const { and: andOp, gte: gteOp, lte: lteOp } = await import('drizzle-orm');
+    const predicates = [gteOp(systemLogs.createdAt, start), lteOp(systemLogs.createdAt, end)];
+    if (companyId != null) predicates.push(eq(systemLogs.companyId, companyId));
+    const where = andOp(...predicates);
+    const before = await db.select({ id: systemLogs.id }).from(systemLogs).where(where);
+    await db.delete(systemLogs).where(where);
     return before.length;
   }
 

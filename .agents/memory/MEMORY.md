@@ -18,3 +18,4 @@
 - [Legacy tenant audit](legacy-tenant-audit.md) — rotas legadas e endpoints públicos não herdam segurança do contexto; exigem storage scoped e whitelist de campos.
 - [Products tenant isolation](products-tenant-isolation.md) — catálogo híbrido: global + tenant próprio na leitura; mutações exigem ownership e derivam empresa do contexto.
 - [Analytics tenant scope](analytics-tenant-scope.md) — agregações logísticas recebem ator, derivam tenant do contexto e convertem falhas de escopo em 403.
+- [Audit log tenant policy](audit-log-tenant-policy.md) — system_logs usa companyId legado; filtros do cliente nunca substituem o tenant confiável.

@@ -1,0 +1,258 @@
+ETAPA 16 — AUDITORIA E CORREÇÃO DE SEGURANÇA DOS AUDIT LOGS
+
+Corrija SOMENTE problemas de autenticação, RBAC, isolamento multi-tenant e integridade dos logs de auditoria.
+
+NÃO faça refatoração ampla.
+NÃO altere funcionalidades sem necessidade.
+NÃO mexa em NF-e, fiscal, certificados, credenciais ou integrações fiscais.
+NÃO altere schema.
+NÃO crie migration.
+NÃO altere dados existentes.
+NÃO execute INSERT/UPDATE/DELETE real no Supabase durante os testes.
+NÃO crie commit.
+
+ESCOPO:
+
+Investigue as rotas reais relacionadas a:
+
+- GET /api/logs
+- POST /api/logs
+- DELETE /api/logs
+- qualquer rota de consulta/remoção de logs diretamente relacionada
+- services/repositories utilizados pelos logs
+- middleware de auditoria que grava logs automaticamente
+
+PRIMEIRO FAÇA AUDITORIA READ-ONLY.
+
+Analise:
+
+- routes de logs
+- controllers/services
+- repositories/storage
+- schema relacionado aos logs
+- tenant context
+- requireAuth
+- RBAC
+- middleware de auditoria
+- todos os pontos do código que criam audit logs
+- consumidores frontend dos logs
+
+OBJETIVOS:
+
+1. Usuário tenant-bound só pode consultar logs do próprio tenant.
+2. Usuário tenant-bound não pode consultar logs de outra empresa.
+3. Exclusão de logs deve possuir RBAC adequado.
+4. Usuário comum não deve conseguir apagar histórico de auditoria.
+5. POST manual de logs não pode permitir falsificação perigosa do histórico.
+6. O tenant do log deve ser determinado pelo contexto confiável sempre que o log representar uma ação do usuário.
+7. Não confiar em companyId/empresaId/tenantId enviados pelo cliente para definir o tenant.
+8. Não permitir que usuário falsifique livremente:
+   - actor/user;
+   - empresa;
+   - ação;
+   - nível;
+   - origem;
+   - timestamps;
+   - outros campos de integridade.
+
+IMPORTANTE:
+
+Antes de bloquear POST /api/logs, descubra se ele é usado internamente pelo próprio sistema.
+
+Existem duas possibilidades:
+
+A) endpoint usado apenas pelo frontend/cliente;
+B) endpoint usado legitimamente por componentes internos para registrar eventos.
+
+Se for A:
+- proteger fortemente;
+- tenant derivado da sessão;
+- RBAC adequado;
+- allowlist de campos.
+
+Se for B:
+- preserve o mecanismo interno;
+- mas impeça que o cliente consiga falsificar o contexto;
+- não quebre os pontos internos existentes.
+
+AUDIT LOG NÃO É LOG COMUM.
+
+Determine se os registros representam:
+
+- ações administrativas;
+- alterações de dados;
+- acessos;
+- operações financeiras;
+- ações de usuários;
+- eventos técnicos.
+
+Preserve a finalidade atual.
+
+TENANT:
+
+Para usuário tenant-bound:
+
+- GET deve aplicar tenant;
+- filtros companyId/empresaId/tenantId não podem escapar do tenant;
+- IDs de logs não podem permitir IDOR;
+- DELETE deve validar tenant antes da remoção.
+
+Para usuários globais:
+
+Preserve a política existente.
+
+MASTER/DIRECTOR globais podem manter acesso global se isso já for previsto.
+
+ADMIN/DEVELOPER vinculados continuam tenant-bound.
+
+Não conceda acesso global apenas pela role.
+
+RBAC:
+
+Determine quem realmente deve:
+
+- visualizar logs;
+- criar logs manualmente;
+- excluir logs.
+
+Não invente uma matriz nova sem verificar o padrão do projeto.
+
+Por segurança, ações destrutivas em audit logs devem possuir uma autorização mais forte que simples autenticação.
+
+Se o projeto já possuir uma política específica, preserve-a.
+
+Se não existir, use a menor permissão coerente com o modelo existente e documente.
+
+INTEGRIDADE DO POST:
+
+Analise especialmente:
+
+POST /api/logs
+
+Se aceitar algo como:
+
+{
+  action,
+  level,
+  description,
+  companyId,
+  userId,
+  ...
+}
+
+não permita que o cliente falsifique o contexto.
+
+O backend deve derivar, quando aplicável:
+
+- actor/user → sessão;
+- tenant/company → sessão;
+- timestamp → servidor.
+
+O cliente pode fornecer somente campos de negócio realmente necessários.
+
+Não permita que um usuário tenant-bound crie um log atribuído a outro usuário/empresa.
+
+Não permita criar log dizendo que outra pessoa realizou determinada ação.
+
+Não permita criar log de outro tenant.
+
+IMPORTANTE SOBRE HISTÓRICO:
+
+Não tente tornar o sistema de auditoria imutável se isso exigir alteração de schema.
+
+Nesta etapa, apenas corrija autorização e falsificação.
+
+Se existir uma limitação estrutural que exigiria schema/migration, apenas RELATE como melhoria futura.
+
+TESTES:
+
+Crie testes unitários com mocks/fakes.
+
+NÃO use escrita real no Supabase.
+
+Cubra:
+
+1. tenant A consulta seus logs → permitido;
+2. tenant A não consulta logs de B;
+3. ?companyId=B não permite escapar do tenant;
+4. ?empresaId=B não permite escapar;
+5. ?tenantId=B não permite escapar;
+6. tenant A não exclui log de B;
+7. usuário sem sessão → 401;
+8. usuário sem role adequada → 403;
+9. POST não permite escolher tenant B;
+10. POST não permite escolher user/actor de outra pessoa quando o actor deve vir da sessão;
+11. POST não permite falsificar contexto privilegiado;
+12. MASTER global preserva comportamento;
+13. DIRECTOR global preserva comportamento;
+14. ADMIN tenant-bound permanece limitado;
+15. DEVELOPER tenant-bound permanece limitado;
+16. exclusão exige autorização apropriada.
+
+Se POST for um endpoint interno necessário, teste que o fluxo interno continua funcionando sem abrir um bypass para o cliente.
+
+VALIDAÇÃO:
+
+Execute:
+
+npm run check
+npm run build
+git diff --check
+
+Execute os testes direcionados.
+
+Faça testes HTTP read-only quando possível:
+
+- GET sem sessão;
+- GET tenant-bound;
+- cross-tenant;
+- role inadequada.
+
+NÃO faça escrita real no banco.
+
+Se o workflow não iniciar por SUPABASE_DATABASE_URL:
+não contorne o guard.
+
+Se iniciar:
+confirme DB_CONNECTED e APP_READY.
+
+NÃO TOCAR:
+
+- NF-e
+- fiscal
+- DANFE
+- certificados
+- Bling
+- cron fiscal
+- Android
+- GPS
+- products
+- quotations
+- deliveries
+- logística analytics
+
+Essas áreas já foram tratadas.
+
+RESULTADO FINAL:
+
+Informe:
+
+1. rotas auditadas;
+2. vulnerabilidades encontradas;
+3. correções aplicadas;
+4. política de tenant;
+5. política de RBAC;
+6. proteção do POST /api/logs;
+7. proteção contra falsificação de actor/tenant;
+8. proteção de DELETE;
+9. testes executados;
+10. resultado;
+11. arquivos alterados;
+12. schema/migration/dados;
+13. DB_CONNECTED/APP_READY;
+14. confirmação de NF-e/fiscal não tocado;
+15. confirmação de nenhum commit.
+
+Se encontrar vulnerabilidades fora de audit logs:
+APENAS RELATE.
+NÃO CORRIJA NESTA ETAPA.
