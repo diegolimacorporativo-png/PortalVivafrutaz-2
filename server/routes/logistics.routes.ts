@@ -221,7 +221,7 @@ export async function register(app: Express): Promise<void> {
         deliveryFilters.companyId = selectedCompanyId;
       }
       let allDeliveries = (await storage.getDeliveries(deliveryFilters))
-        .filter((delivery: any) => delivery.status !== 'cancelado');
+        .filter((delivery: any) => !['cancelado', 'cancelled'].includes(String(delivery.status ?? '').toLowerCase()));
       let source: 'deliveries' | 'orders' = 'deliveries';
 
       // Always bridge confirmed orders, not only when the deliveries table is

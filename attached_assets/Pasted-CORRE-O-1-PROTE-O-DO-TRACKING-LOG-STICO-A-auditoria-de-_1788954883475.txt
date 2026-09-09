@@ -1,0 +1,231 @@
+CORREÇÃO 1 — PROTEÇÃO DO TRACKING LOGÍSTICO
+
+A auditoria de autenticação, RBAC e isolamento multiempresa identificou um problema CRÍTICO no endpoint:
+
+GET /api/logistics/track/:routeId
+
+Arquivos envolvidos identificados na auditoria:
+
+- server/modules/logistics/logistics.routes.ts
+- server/modules/logistics/logistics.controller.ts
+
+PROBLEMA:
+
+O endpoint atualmente pode ser acessado sem autenticação, tenant ou token de compartilhamento.
+
+Ele pode retornar informações operacionais sensíveis, incluindo potencialmente:
+
+- motorista;
+- telefone;
+- endereços;
+- empresas;
+- latitude/longitude;
+- status das entregas;
+- última posição GPS.
+
+OBJETIVO:
+
+Eliminar o acesso público indevido sem quebrar o rastreamento legítimo utilizado pelo ERP.
+
+ANTES DE ALTERAR:
+
+1. Leia completamente:
+   - logistics.routes.ts
+   - logistics.controller.ts
+   - logistics.service.ts
+   - logistics.repository.ts
+
+2. Procure TODAS as referências a:
+
+   /api/logistics/track/
+   logistics/track
+   routeId
+   tracking
+   track
+
+3. Identifique quem utiliza esse endpoint atualmente:
+   - frontend;
+   - portal do cliente;
+   - motorista;
+   - administrador;
+   - outro serviço.
+
+4. Descubra se existe algum fluxo de rastreamento público legítimo que dependa desse endpoint.
+
+NÃO presuma que o endpoint pode simplesmente ser fechado com requireAuth sem verificar os consumidores.
+
+--------------------------------------------------
+SOLUÇÃO PREFERENCIAL
+--------------------------------------------------
+
+Se o endpoint for utilizado somente dentro do ERP/admin:
+
+- exigir autenticação;
+- exigir tenant válido;
+- garantir que a rota pertence ao tenant do usuário;
+- impedir acesso de outra empresa por routeId.
+
+Se existir rastreamento público legítimo para cliente:
+
+NÃO simplesmente remover o endpoint.
+
+Nesse caso, propor uma separação entre:
+
+1. Endpoint administrativo autenticado e tenant-scoped.
+
+2. Endpoint público de compartilhamento protegido por token.
+
+O token público deve ser:
+
+- aleatório/criptograficamente seguro;
+- impossível de adivinhar;
+- limitado à rota/entrega correta;
+- com expiração;
+- revogável;
+- sem permitir acesso a outras rotas;
+- sem depender apenas do routeId.
+
+IMPORTANTE:
+
+O endpoint público, caso realmente necessário, NÃO deve retornar informações desnecessárias como:
+
+- telefone pessoal do motorista;
+- dados pessoais que não sejam necessários;
+- GPS mais preciso do que o necessário para a função;
+- dados de outras empresas.
+
+--------------------------------------------------
+ISOLAMENTO MULTI-TENANT
+--------------------------------------------------
+
+Para acesso autenticado:
+
+O tenant deve vir da sessão/contexto confiável.
+
+NÃO confiar em:
+
+- companyId do body;
+- empresaId do body;
+- companyId da query;
+- empresaId da query;
+- tenantId enviado pelo frontend.
+
+Para usuário tenant-bound:
+
+routeId deve ser validado contra o tenant.
+
+Conceitualmente:
+
+routeId + currentTenantId
+
+e NÃO apenas:
+
+routeId
+
+Usuários globais, se existirem, devem continuar seguindo as regras globais já existentes.
+
+NÃO altere essas regras sem necessidade.
+
+--------------------------------------------------
+DADOS RETORNADOS
+--------------------------------------------------
+
+Revise exatamente o payload retornado pelo tracking.
+
+Retorne somente os campos necessários para o funcionamento.
+
+Especial atenção para:
+
+- telefone do motorista;
+- latitude;
+- longitude;
+- endereço;
+- dados pessoais.
+
+Não remova informações funcionais sem antes verificar os consumidores do endpoint.
+
+--------------------------------------------------
+REGRAS IMPORTANTES
+--------------------------------------------------
+
+NÃO alterar:
+
+- NF-e;
+- fiscal;
+- financeiro;
+- pedidos;
+- contratos;
+- estoque;
+- autenticação geral;
+- senha;
+- sessão global;
+- RBAC global;
+- outros módulos não relacionados.
+
+NÃO fazer refatoração ampla.
+
+NÃO corrigir os outros achados da auditoria nesta etapa.
+
+NÃO criar migration se não for absolutamente necessária.
+
+NÃO alterar banco se a correção puder ser feita sem isso.
+
+--------------------------------------------------
+TESTES
+--------------------------------------------------
+
+Antes da alteração, documente o comportamento atual.
+
+Depois da alteração, testar:
+
+1. Usuário autenticado da empresa A acessa rota da empresa A → permitido.
+
+2. Usuário autenticado da empresa A tenta acessar rota da empresa B → 403 ou resposta segura equivalente.
+
+3. Usuário sem autenticação tenta acessar tracking administrativo → bloqueado.
+
+4. Usuário global autorizado → comportamento global esperado.
+
+5. Se existir tracking público legítimo:
+   - token válido → permitido somente para recurso autorizado;
+   - token inválido → bloqueado;
+   - token expirado → bloqueado;
+   - token de outra rota → bloqueado;
+   - token revogado → bloqueado.
+
+6. Confirmar que o GPS e o tracking legítimo continuam funcionando.
+
+Execute:
+
+npm run check
+
+npm test
+
+Não considere como regressão desta alteração os erros preexistentes já documentados.
+
+--------------------------------------------------
+ANTES DE FINALIZAR
+--------------------------------------------------
+
+Faça uma busca global para garantir que não existe outro endpoint de tracking que mantenha a mesma vulnerabilidade.
+
+Não faça commit.
+
+No final, informe:
+
+1. arquivos alterados;
+2. comportamento antes;
+3. comportamento depois;
+4. como o tenant é validado;
+5. se existe tracking público legítimo;
+6. como ele ficou protegido;
+7. testes realizados;
+8. resultado de npm run check;
+9. resultado de npm test;
+10. possíveis riscos restantes.
+
+IMPORTANTE:
+
+Se encontrar necessidade de alterar banco, PARAR antes da migration e me informar exatamente o que seria necessário.
+
+Faça somente esta correção.
