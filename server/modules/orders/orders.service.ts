@@ -503,11 +503,17 @@ export class OrdersService {
       );
     }
 
-    await this.assertMinimumWeeklyBilling({
-      companyId: actor.companyId ?? Number(order.companyId),
-      weekReference: order.weekReference,
-      candidateItems: items,
-    });
+    // createProgramacao validates the complete week's items once before
+    // opening its transaction. Do not re-validate each individual day here:
+    // the first day could be below the weekly minimum even when the full
+    // submitted week reaches it.
+    if (!tx) {
+      await this.assertMinimumWeeklyBilling({
+        companyId: actor.companyId ?? Number(order.companyId),
+        weekReference: order.weekReference,
+        candidateItems: items,
+      });
+    }
 
     // 5) persist
     // Auto-normalise items: compute totalPrice = unitPrice × quantity if absent.
