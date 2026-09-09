@@ -1,0 +1,339 @@
+ETAPA 21 — AUDITORIA GLOBAL DE RBAC E REQUIRE ROLE
+
+Objetivo:
+Auditar o mecanismo central de autorização por roles, especialmente `requireRole`, e identificar situações em que usuários recebem privilégios maiores do que o endpoint deveria conceder.
+
+ATENÇÃO:
+Esta é uma etapa de alto impacto.
+
+NÃO fazer uma alteração global em `requireRole` sem antes mapear todos os consumidores.
+
+PRIMEIRO:
+Faça uma auditoria READ-ONLY completa.
+
+NÃO mexer em:
+- NF-e;
+- Fiscal;
+- DANFE;
+- certificados;
+- Bling;
+- GPS;
+- Android;
+- Products;
+- Prices;
+- Quotations;
+- Deliveries;
+- Logistics Analytics;
+- Internal Incidents;
+- Bank/Financeiro;
+- Inventory.
+
+Esses módulos já foram auditados nas etapas anteriores.
+
+NÃO criar migration.
+NÃO alterar schema.
+NÃO alterar dados reais.
+NÃO fazer refatoração ampla.
+NÃO criar commit.
+
+==================================================
+1. AUDITAR REQUIREAUTH / REQUIREROLE
+==================================================
+
+Localize:
+
+- implementação de requireAuth;
+- implementação de requireRole;
+- variantes;
+- wrappers;
+- policies;
+- middleware relacionados;
+- FULL_ACCESS_ROLES;
+- roles globais;
+- roles tenant-bound;
+- qualquer bypass administrativo.
+
+Determine exatamente:
+
+- quais roles passam quando são explicitamente permitidas;
+- quais roles passam mesmo quando não estão na lista;
+- se MASTER possui bypass;
+- se ADMIN possui bypass;
+- se DIRECTOR possui bypass;
+- se DEVELOPER possui bypass;
+- se isso é intencional;
+- em quais endpoints isso gera privilégio excessivo.
+
+NÃO assumir que todo bypass é vulnerabilidade.
+
+==================================================
+2. MAPEAR TODOS OS CONSUMIDORES
+==================================================
+
+Faça busca por todo o projeto:
+
+- requireRole(
+- requireAuth(
+- middleware de role
+- policies equivalentes
+- FULL_ACCESS_ROLES
+- ADMIN
+- MASTER
+- DIRECTOR
+- DEVELOPER
+
+Crie um mapa interno:
+
+endpoint -> middleware -> roles permitidas -> comportamento real.
+
+Não modificar ainda.
+
+==================================================
+3. CLASSIFICAR OS ENDPOINTS
+==================================================
+
+Classifique os endpoints encontrados em:
+
+A. Global administrativo legítimo
+
+Exemplo:
+- MASTER
+- DIRECTOR
+- funções realmente globais.
+
+B. Tenant-bound
+
+Endpoints onde ADMIN/DEVELOPER/DIRECTOR vinculados a empresa devem permanecer limitados ao tenant.
+
+C. Operacional específico
+
+Exemplo:
+- LOGISTICS
+- OPERATIONS_MANAGER
+- PURCHASE_MANAGER
+- FINANCEIRO
+- DRIVER
+- CLIENT
+
+D. Técnico/interno
+
+Endpoints usados por serviços internos ou integrações.
+
+E. Público
+
+Endpoints que legitimamente não exigem autenticação.
+
+==================================================
+4. PROBLEMA PRINCIPAL
+==================================================
+
+Verificar casos como:
+
+requireRole("LOGISTICS")
+
+mas um:
+
+ADMIN
+MASTER
+DIRECTOR
+DEVELOPER
+
+consegue passar automaticamente.
+
+Isso pode ser legítimo em alguns endpoints administrativos.
+
+Porém, pode ser vulnerabilidade de least privilege em endpoints operacionais.
+
+NÃO corrigir automaticamente todos.
+
+Para cada caso, determine:
+
+- o bypass é intencional?
+- o endpoint possui dados sensíveis?
+- existe tenant isolation?
+- existe outra policy?
+- o role bypass realmente cria privilégio indevido?
+
+==================================================
+5. ADMIN E DEVELOPER
+==================================================
+
+Especial atenção:
+
+ADMIN e DEVELOPER não devem se tornar globalmente privilegiados apenas por aparecerem em uma lista genérica de FULL_ACCESS_ROLES.
+
+Se estiverem vinculados a empresa:
+
+-> continuam tenant-bound.
+
+Se uma rota exigir uma função operacional específica, verificar se ADMIN/DEVELOPER realmente devem passar.
+
+Não alterar o comportamento de módulos já protegidos nas etapas anteriores sem necessidade.
+
+==================================================
+6. MASTER E DIRECTOR
+==================================================
+
+Preservar o comportamento global existente quando for intencional.
+
+Mas verificar se existe endpoint onde:
+
+MASTER/DIRECTOR
+
+ganham acesso a uma operação que deveria ser restrita por segurança operacional.
+
+Não remover acesso global indiscriminadamente.
+
+==================================================
+7. CLIENT / DRIVER
+==================================================
+
+Garantir que:
+
+CLIENT
+não consiga endpoints internos apenas por autenticação.
+
+DRIVER/MOTORISTA
+não consiga endpoints administrativos apenas por autenticação.
+
+LOGISTICS
+não consiga funções financeiras ou administrativas sem autorização explícita.
+
+FINANCEIRO
+não consiga funções operacionais não autorizadas apenas porque possui acesso autenticado.
+
+==================================================
+8. TENANT
+==================================================
+
+Mesmo quando uma role possuir privilégio administrativo:
+
+- tenant-bound continua tenant-bound;
+- companyId do cliente não pode expandir escopo;
+- empresa da sessão/contexto continua sendo autoridade.
+
+Não transformar correção de RBAC em bypass de tenant.
+
+==================================================
+9. ESTRATÉGIA DE CORREÇÃO
+==================================================
+
+Somente depois do mapeamento:
+
+Corrija APENAS os casos comprovadamente vulneráveis.
+
+Preferir:
+
+- policy específica;
+- middleware específico;
+- ajuste localizado da rota;
+
+em vez de alterar globalmente `requireRole`, quando possível.
+
+Se for realmente necessário alterar `requireRole`:
+
+- preservar compatibilidade;
+- criar testes de regressão;
+- mapear consumidores afetados;
+- não quebrar os módulos já corrigidos.
+
+Não fazer mudança global sem cobertura.
+
+==================================================
+10. TESTES
+==================================================
+
+Criar testes unitários de RBAC.
+
+Testar:
+
+1. usuário não autenticado -> 401;
+2. role explicitamente autorizada -> acesso;
+3. role não autorizada -> 403;
+4. ADMIN sem autorização específica -> verificar comportamento esperado;
+5. DEVELOPER sem autorização específica -> verificar comportamento esperado;
+6. MASTER -> preservar comportamento global legítimo;
+7. DIRECTOR -> preservar comportamento global legítimo;
+8. CLIENT não acessa endpoint interno;
+9. DRIVER não acessa endpoint administrativo;
+10. LOGISTICS não acessa financeiro sem autorização;
+11. FINANCEIRO não acessa função operacional sem autorização;
+12. tenant-bound continua limitado ao próprio tenant;
+13. companyId enviado pelo cliente não altera escopo;
+14. nenhum módulo corrigido nas etapas anteriores perde isolamento.
+
+Os testes devem usar mocks/fakes.
+
+NÃO executar operações reais no banco.
+
+==================================================
+11. NÃO FAZER
+==================================================
+
+Não:
+
+- trocar todos os `requireRole` por uma implementação nova;
+- remover FULL_ACCESS_ROLES sem análise;
+- transformar ADMIN em role restrita globalmente;
+- transformar MASTER/DIRECTOR em tenant-bound;
+- alterar roles existentes no banco;
+- alterar usuários reais;
+- alterar schema;
+- criar migration.
+
+==================================================
+12. VALIDAÇÃO
+==================================================
+
+Executar:
+
+npm run check
+npm run build
+git diff --check
+
+Executar também os testes direcionados criados.
+
+Se houver workflow:
+
+- reiniciar;
+- confirmar DB_CONNECTED;
+- confirmar APP_READY.
+
+Se a alteração de RBAC causar falhas em testes existentes:
+
+investigar se é:
+- vulnerabilidade corrigida;
+- teste desatualizado;
+- comportamento legítimo quebrado.
+
+Não simplesmente remover o teste.
+
+==================================================
+13. RESULTADO FINAL
+==================================================
+
+Informar:
+
+- implementação atual do requireRole;
+- principais bypasses encontrados;
+- quais eram legítimos;
+- quais eram vulnerabilidades;
+- endpoints corrigidos;
+- arquivos alterados;
+- roles afetadas;
+- testes criados;
+- testes aprovados;
+- check;
+- build;
+- diff-check;
+- workflow;
+- DB_CONNECTED;
+- APP_READY;
+- schema alterado? SIM/NÃO;
+- migration? SIM/NÃO;
+- dados reais alterados? SIM/NÃO;
+- confirmar que NF-e/Fiscal/Bling/GPS/Android não foram tocados;
+- confirmar que etapas 17, 18, 19 e 20 permanecem intactas;
+- confirmar que nenhum commit foi criado.
+
+NÃO criar commit.
