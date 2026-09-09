@@ -579,9 +579,13 @@ export interface IStorage {
   getClientIncidents(): Promise<ClientIncident[]>;
   getClientIncident(id: number): Promise<ClientIncident | undefined>;
   getClientIncidentsByCompany(companyId: number): Promise<ClientIncident[]>;
+  getClientIncidentForCompany(id: number, companyId: number): Promise<ClientIncident | undefined>;
   updateClientIncident(id: number, updates: { status?: string; adminNote?: string; respondedAt?: Date | null; resolvedAt?: Date | null }): Promise<ClientIncident>;
+  updateClientIncidentForCompany(id: number, companyId: number, updates: { status?: string; adminNote?: string; respondedAt?: Date | null; resolvedAt?: Date | null }): Promise<ClientIncident | undefined>;
   deleteClientIncident(id: number): Promise<void>;
+  deleteClientIncidentForCompany(id: number, companyId: number): Promise<ClientIncident | undefined>;
   respondToClientIncident(id: number, responseMessage: string, respondedByName: string): Promise<ClientIncident>;
+  respondToClientIncidentForCompany(id: number, companyId: number, responseMessage: string, respondedByName: string): Promise<ClientIncident | undefined>;
   updateClientIncidentStatus(id: number, status: string): Promise<ClientIncident>;
   markIncidentReadByClient(id: number, companyId: number): Promise<void>;
 
@@ -1489,6 +1493,14 @@ export class DatabaseStorage implements IStorage {
     return incident;
   }
 
+  async getClientIncidentForCompany(id: number, companyId: number): Promise<ClientIncident | undefined> {
+    const [incident] = await db
+      .select()
+      .from(clientIncidents)
+      .where(and(eq(clientIncidents.id, id), eq(clientIncidents.companyId, companyId)));
+    return incident;
+  }
+
   async getClientIncidentsByCompany(companyId: number): Promise<ClientIncident[]> {
     // Client visibility expires 24h after VivaFrutaz first/latest response.
     // The server-side filter is mandatory: hiding old rows only in React would
@@ -1512,14 +1524,40 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async updateClientIncidentForCompany(id: number, companyId: number, updates: { status?: string; adminNote?: string; respondedAt?: Date | null; resolvedAt?: Date | null }): Promise<ClientIncident | undefined> {
+    const [updated] = await db
+      .update(clientIncidents)
+      .set(updates as any)
+      .where(and(eq(clientIncidents.id, id), eq(clientIncidents.companyId, companyId)))
+      .returning();
+    return updated;
+  }
+
   async deleteClientIncident(id: number): Promise<void> {
     await db.delete(clientIncidents).where(eq(clientIncidents.id, id));
+  }
+
+  async deleteClientIncidentForCompany(id: number, companyId: number): Promise<ClientIncident | undefined> {
+    const [deleted] = await db
+      .delete(clientIncidents)
+      .where(and(eq(clientIncidents.id, id), eq(clientIncidents.companyId, companyId)))
+      .returning();
+    return deleted;
   }
 
   async respondToClientIncident(id: number, responseMessage: string, respondedByName: string): Promise<ClientIncident> {
     const [updated] = await db.update(clientIncidents)
       .set({ responseMessage, respondedByName, respondedAt: new Date(), status: 'RESPONDED', hasUnreadAdminReply: true, updatedAt: new Date() })
       .where(eq(clientIncidents.id, id))
+      .returning();
+    return updated;
+  }
+
+  async respondToClientIncidentForCompany(id: number, companyId: number, responseMessage: string, respondedByName: string): Promise<ClientIncident | undefined> {
+    const [updated] = await db
+      .update(clientIncidents)
+      .set({ responseMessage, respondedByName, respondedAt: new Date(), status: 'RESPONDED', hasUnreadAdminReply: true, updatedAt: new Date() })
+      .where(and(eq(clientIncidents.id, id), eq(clientIncidents.companyId, companyId)))
       .returning();
     return updated;
   }

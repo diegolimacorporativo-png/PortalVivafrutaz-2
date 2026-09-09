@@ -1,0 +1,303 @@
+CORREÇÃO 4 — ISOLAMENTO MULTI-TENANT DOS INCIDENTES DE CLIENTES
+
+Quero corrigir APENAS o risco de IDOR/multi-tenant identificado no módulo de incidentes de clientes.
+
+Problema identificado na auditoria:
+
+server/routes/incidents.routes.ts
+
+Endpoints envolvidos:
+
+POST   /api/client-incidents
+PATCH  /api/client-incidents/:id
+DELETE /api/client-incidents/:id
+
+Foi identificado que:
+
+- o POST pode aceitar companyId enviado pelo cliente;
+- PATCH e DELETE operam por ID sem garantir de forma consistente que o incidente pertence ao tenant da sessão;
+- isso pode permitir criação, alteração ou exclusão de incidente de outra empresa.
+
+OBJETIVO:
+
+Garantir isolamento completo por empresa/tenant nos incidentes de clientes.
+
+REGRAS OBRIGATÓRIAS:
+
+1. NÃO alterar NF-e ou qualquer código relacionado a NF-e.
+
+2. NÃO alterar schema.
+
+3. NÃO criar migration.
+
+4. NÃO alterar dados existentes no banco.
+
+5. NÃO fazer refatoração ampla.
+
+6. Alterar somente o necessário para corrigir o isolamento multiempresa desse módulo.
+
+ANTES DE EDITAR:
+
+Leia completamente:
+
+- server/routes/incidents.routes.ts
+- controller/service de client-incidents
+- repository/storage utilizado pelos incidentes
+- shared/schema.ts somente para entender a estrutura existente
+- tenantContext/currentTenantId/withTenantScope
+- middleware de autenticação/RBAC
+- consumidores frontend de /api/client-incidents
+- testes existentes relacionados a incidentes
+
+Não altere esses arquivos apenas por terem sido lidos. Altere somente o que for necessário.
+
+REGRAS PARA USUÁRIO TENANT-BOUND:
+
+1. CRIAÇÃO
+
+No:
+
+POST /api/client-incidents
+
+Nunca confiar no:
+
+- companyId do body;
+- empresaId do body;
+- qualquer outro tenant informado pelo frontend.
+
+Se a sessão estiver vinculada à empresa A:
+
+→ o incidente deve ser criado obrigatoriamente para empresa A.
+
+Mesmo que o frontend envie:
+
+{
+  "companyId": "empresa-B"
+}
+
+o usuário não poderá criar o incidente na empresa B.
+
+Pode ignorar o valor enviado e usar o tenant da sessão, seguindo o padrão de segurança já existente no projeto.
+
+2. CONSULTA
+
+Revise todos os endpoints GET relacionados aos incidentes.
+
+Quando houver filtro por empresa:
+
+- tenant-bound deve usar exclusivamente o tenant da sessão;
+- companyId fornecido pelo cliente não pode ampliar o acesso;
+- nunca permitir consulta de incidentes de outra empresa.
+
+3. PATCH
+
+No:
+
+PATCH /api/client-incidents/:id
+
+A operação deve validar:
+
+incident.id = :id
+E
+incident.empresa_id = tenant da sessão
+
+Somente então permitir alteração.
+
+Se o incidente existir mas pertencer a outra empresa:
+
+→ não revelar sua existência.
+
+Preferencialmente retornar 404, seguindo o padrão utilizado na correção do CRUD de usuários.
+
+4. DELETE
+
+No:
+
+DELETE /api/client-incidents/:id
+
+Aplicar a mesma regra:
+
+id + empresa_id do tenant
+
+Usuário da empresa A não pode excluir incidente da empresa B.
+
+Se pertencer a outro tenant:
+
+→ retornar 404 ou comportamento seguro equivalente já adotado pelo projeto.
+
+5. CAMPOS DE TENANT
+
+Se PATCH/PUT aceitar:
+
+- companyId
+- empresaId
+- empresa_id
+
+não permitir que um usuário tenant-bound altere esses campos para mover o incidente para outra empresa.
+
+Se necessário, remova esses campos do patch ou sobrescreva pelo tenant autorizado.
+
+6. AUTENTICAÇÃO E RBAC
+
+Verifique se todos os endpoints de alteração possuem autenticação e autorização adequadas.
+
+Usuário sem sessão:
+
+→ 401
+
+Usuário autenticado mas sem role permitida:
+
+→ 403
+
+Não remova permissões legítimas existentes.
+
+Não transforme um usuário tenant-bound em global apenas para preservar comportamento antigo.
+
+7. USUÁRIOS GLOBAIS
+
+Verifique se existe algum fluxo legítimo de administração global de incidentes.
+
+Se existir:
+
+- preservar somente para roles explicitamente globais;
+- seguir o padrão já existente no projeto para operações globais;
+- não permitir que ADMIN tenant-bound vire global automaticamente.
+
+Se não existir necessidade real de acesso global, não crie uma exceção global.
+
+8. REPOSITÓRIO
+
+Sempre que possível, implementar o isolamento no nível da consulta/repositório, não somente no controller.
+
+Exemplo conceitual:
+
+WHERE id = :id
+AND empresa_id = :tenantId
+
+Evite buscar primeiro pelo ID e só depois verificar o tenant, pois isso aumenta o risco de esquecer a validação em algum caminho futuro.
+
+TESTES:
+
+Crie testes unitários sem utilizar o banco compartilhado.
+
+Use mocks/fakes/testes em memória já existentes no projeto.
+
+Cubra no mínimo:
+
+TESTE 1
+Tenant A cria incidente sem companyId.
+→ incidente pertence à empresa A.
+
+TESTE 2
+Tenant A cria incidente enviando companyId da empresa B.
+→ incidente NÃO pode ser criado na empresa B.
+→ deve permanecer na empresa A ou ser rejeitado.
+
+TESTE 3
+Tenant A consulta seus próprios incidentes.
+→ permitido.
+
+TESTE 4
+Tenant A tenta consultar incidentes da empresa B usando companyId.
+→ bloqueado ou ignorado.
+→ nunca retornar dados da empresa B.
+
+TESTE 5
+Tenant A altera incidente da empresa A.
+→ permitido.
+
+TESTE 6
+Tenant A tenta alterar incidente da empresa B usando o ID.
+→ bloqueado.
+→ preferencialmente 404.
+
+TESTE 7
+Tenant A tenta excluir incidente da empresa B.
+→ bloqueado.
+→ preferencialmente 404.
+
+TESTE 8
+Tenant A tenta alterar companyId/empresaId do próprio incidente para empresa B.
+→ bloqueado.
+→ incidente continua pertencendo à empresa A.
+
+TESTE 9
+Usuário sem autenticação tenta criar/alterar/excluir incidente.
+→ 401.
+
+TESTE 10
+Usuário autenticado sem role necessária.
+→ 403.
+
+TESTE 11
+Se existir fluxo global legítimo:
+usuário global autorizado → acesso global permitido conforme regra existente.
+
+IMPORTANTE SOBRE O BANCO:
+
+Não executar testes que façam:
+
+- INSERT
+- UPDATE
+- DELETE
+
+no banco compartilhado Supabase.
+
+Os testes devem ser unitários/fakes/mocks ou usar infraestrutura de teste isolada já existente.
+
+VALIDAÇÃO:
+
+Depois da implementação:
+
+1. npm run check
+
+2. Rodar os testes direcionados do módulo.
+
+3. npm test
+
+4. Comparar as falhas da suíte completa com o estado anterior.
+
+As 10 falhas conhecidas de:
+
+tests/unit/order-deadline.test.ts
+
+relacionadas à diferença de horário 15:00 UTC vs 16:00 UTC NÃO fazem parte desta correção.
+
+NÃO corrigir essas falhas agora.
+
+5. Reiniciar o workflow da aplicação.
+
+6. Confirmar que o servidor inicia normalmente e continua conectado ao Supabase.
+
+7. Fazer pelo menos uma validação HTTP sem sessão em um endpoint protegido, sem alterar banco.
+
+RELATÓRIO FINAL:
+
+Informe exatamente:
+
+- arquivos alterados;
+- endpoints protegidos;
+- como o tenant agora é determinado;
+- como companyId/empresaId enviado pelo frontend é tratado;
+- como PATCH e DELETE garantem ownership;
+- quais roles possuem acesso;
+- testes adicionados;
+- resultado dos testes direcionados;
+- resultado de npm run check;
+- resultado de npm test;
+- comparação com as 10 falhas preexistentes;
+- resultado do boot;
+- confirmação de conexão com Supabase;
+- confirmação de que nenhum dado do banco foi alterado;
+- confirmação de que nenhuma migration/schema foi criada ou alterada;
+- confirmação de que NF-e não foi tocado.
+
+NÃO FAÇA COMMIT.
+
+Se encontrar outros problemas durante a análise, NÃO corrija nesta etapa.
+
+Apenas registre:
+
+"Fora do escopo — encontrado durante a auditoria."
+
+Não misture outras correções com esta.

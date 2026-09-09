@@ -11,3 +11,4 @@
 - [Password reset history](password-reset-security.md) — pedidos de reset nunca persistem a senha original; a senha só vai ao cadastro protegido da empresa.
 - [Users CRUD tenant scope](users-crud-tenant-scope.md) — CRUD deve resolver tenant no middleware e repetir o escopo por empresa no repositório; admin global só quando não há tenant fixado.
 - [Reports tenant scope](reports-tenant-scope.md) — relatórios comuns são tenant-bound; somente MASTER/DIRECTOR sem empresa vinculada mantêm visão global explícita.
+- [Client incidents tenant scope](client-incidents-tenant-scope.md) — IDs e companyId do cliente não definem ownership; mutações devem filtrar pelo tenant resolvido.
