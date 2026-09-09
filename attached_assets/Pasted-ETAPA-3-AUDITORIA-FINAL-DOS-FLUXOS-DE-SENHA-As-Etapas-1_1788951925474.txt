@@ -1,0 +1,210 @@
+ETAPA 3 — AUDITORIA FINAL DOS FLUXOS DE SENHA
+
+As Etapas 1 e 2 já foram concluídas.
+
+Agora NÃO faça nenhuma alteração no código, schema ou banco.
+
+Esta etapa é SOMENTE AUDITORIA + TESTES.
+
+OBJETIVO:
+
+Confirmar de forma definitiva que TODOS os caminhos que criam, alteram, resetam ou persistem senhas de usuários e empresas utilizam bcrypt corretamente.
+
+ESCOPO:
+
+Auditar principalmente:
+
+- users.password
+- companies.password
+- criação de usuários
+- alteração de usuários
+- criação de empresas
+- alteração de empresas
+- login
+- login com senha legada
+- troca de senha pelo próprio usuário
+- troca obrigatória de senha
+- recuperação de senha
+- reset por token
+- reset administrativo
+- aprovação de pedido de reset
+- provisioning de usuários/empresas
+- qualquer endpoint ou serviço que possa escrever diretamente nesses campos
+
+1. BUSCA GLOBAL
+
+Faça uma busca completa no projeto por:
+
+password:
+password =
+password:
+password
+users.password
+companies.password
+updateUser
+updateCompany
+createUser
+createCompany
+newPassword
+novaSenha
+senha
+bcrypt.hash
+bcrypt.compare
+
+Não se limite aos arquivos de autenticação.
+
+Quero identificar TODOS os locais onde existe possibilidade de persistência de senha.
+
+2. PARA CADA CAMINHO ENCONTRADO
+
+Informe:
+
+- arquivo;
+- função;
+- origem da senha;
+- função/repository chamado;
+- onde o bcrypt é aplicado;
+- se existe risco de salvar texto puro;
+- se existe risco de hash duplo.
+
+Não altere nada.
+
+3. CONFIRMAR RESPONSABILIDADE DO HASH
+
+Precisamos confirmar exatamente onde o hash acontece.
+
+Por exemplo:
+
+Auth Service
+↓
+Auth Repository
+↓
+Users Repository
+↓
+bcrypt.hash()
+↓
+Banco
+
+E o equivalente para companies.
+
+Confirme se existe algum caminho que bypassa os repositories.
+
+4. LOGIN COM SENHA LEGADA
+
+Audite a lógica que trata senhas antigas armazenadas em texto puro.
+
+Confirme:
+
+- senha bcrypt → bcrypt.compare()
+- senha legada → comparação apropriada;
+- após login legado válido → conversão para bcrypt;
+- após conversão → valor persistido é bcrypt;
+- não existe possibilidade de continuar salvando a senha legada em texto puro.
+
+NÃO altere essa lógica nesta etapa.
+
+5. RESET E TROCA DE SENHA
+
+Confirme que:
+
+- reset por token grava somente bcrypt;
+- troca própria grava somente bcrypt;
+- troca obrigatória grava somente bcrypt;
+- reset administrativo grava somente bcrypt;
+- criação de usuário grava somente bcrypt;
+- criação de empresa grava somente bcrypt;
+- alteração de senha de usuário grava somente bcrypt;
+- alteração de senha de empresa grava somente bcrypt.
+
+6. PEDIDOS DE RESET
+
+A Etapa 2 removeu:
+
+password_reset_requests.new_password
+
+Confirme novamente que:
+
+- nenhuma referência à coluna existe;
+- nenhuma senha é armazenada no histórico;
+- nenhuma API retorna senha histórica;
+- a senha utilizada na aprovação existe somente de forma transitória durante o processo.
+
+7. TESTES
+
+Se já existirem testes de autenticação, execute-os.
+
+Se NÃO existirem testes suficientes, NÃO crie testes ainda.
+
+Primeiro me informe quais testes seriam necessários.
+
+Execute:
+
+npm test
+
+e, se houver testes específicos de autenticação, execute-os também.
+
+Execute:
+
+npm run check
+
+IMPORTANTE:
+
+Os erros preexistentes já conhecidos são:
+
+- declaração de tipos do pacote cors em server/app.ts;
+- falhas de horário/fuso em tests/unit/order-deadline.test.ts.
+
+Não considere esses erros como falhas desta auditoria, mas confirme se continuam sendo os mesmos erros.
+
+8. VERIFICAÇÃO DO BANCO
+
+Sem expor qualquer senha ou segredo, confirme a estrutura dos campos:
+
+users.password
+companies.password
+
+Não mostre valores reais.
+
+Se for possível verificar registros, mostre SOMENTE informações seguras, por exemplo:
+
+- quantidade de registros;
+- quantidade usando formato bcrypt;
+- quantidade aparentemente não-bcrypt.
+
+NUNCA mostre senhas, hashes completos ou tokens.
+
+9. RESULTADO FINAL
+
+Entregue um relatório classificando cada fluxo como:
+
+✅ SEGURO
+⚠️ REQUER ATENÇÃO
+🔴 VULNERÁVEL
+
+Use uma tabela:
+
+| Fluxo | Resultado | Onde ocorre | Bcrypt confirmado? | Observação |
+
+Depois informe:
+
+### Pontos seguros
+### Pontos que ainda precisam de correção
+### Riscos residuais
+### Testes existentes
+### Testes que faltam
+
+IMPORTANTE:
+
+NÃO ALTERE NENHUM ARQUIVO.
+
+NÃO CRIE MIGRATION.
+
+NÃO ALTERE BANCO.
+
+NÃO FAÇA REFACTOR.
+
+NÃO FAÇA COMMIT.
+
+NÃO ALTERE NF-e, fiscal, financeiro, logística, pedidos, sessão ou RBAC.
+
+Esta etapa serve exclusivamente para comprovar se a correção de segurança das senhas está completa.
