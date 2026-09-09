@@ -1,0 +1,284 @@
+ETAPA 13 — AUDITORIA E CORREÇÃO DE ISOLAMENTO MULTI-TENANT EM QUOTATIONS
+
+Objetivo:
+Corrigir SOMENTE vulnerabilidades de autenticação, autorização, ownership, isolamento multi-tenant e mass assignment relacionadas ao módulo de quotations/orçamentos.
+
+NÃO faça refatoração ampla.
+NÃO altere funcionalidades de negócio sem necessidade.
+NÃO mexa em NF-e, fiscal, certificados, credenciais fiscais ou integrações fiscais.
+NÃO crie migration.
+NÃO altere o schema do banco.
+NÃO altere dados existentes.
+NÃO execute INSERT, UPDATE ou DELETE real no Supabase durante os testes.
+NÃO crie commit.
+
+ESCOPO:
+
+Investigue as rotas relacionadas a quotations/orçamentos, incluindo:
+
+- GET /api/quotations
+- GET /api/quotations/:id
+- POST /api/quotations
+- PATCH /api/quotations/:id
+- PUT /api/quotations/:id, se existir
+- DELETE /api/quotations/:id
+- qualquer rota auxiliar de quotations diretamente relacionada ao mesmo recurso
+
+Não altere outros módulos nesta etapa.
+
+PRIMEIRO — AUDITORIA READ-ONLY
+
+Analise:
+
+- routes de quotations
+- controllers
+- services
+- repositories
+- storage
+- shared/schema.ts
+- tenant context
+- requireAuth
+- middleware tenant
+- políticas de roles
+- consumidores frontend
+- relações entre quotation e empresa/cliente/produtos/pedidos
+
+Descubra exatamente:
+
+1. Qual tabela representa quotations.
+2. Qual campo representa o tenant/empresa.
+3. Se quotation pertence diretamente a uma empresa ou indiretamente através de cliente/outro recurso.
+4. Quais roles podem criar, visualizar, alterar e excluir quotations.
+5. Se existem quotations globais.
+6. Se existe algum comportamento legítimo de acesso global.
+7. Se GET por ID permite IDOR.
+8. Se PATCH/PUT/DELETE usam apenas o ID.
+9. Se POST aceita companyId/empresaId do cliente.
+10. Se PATCH espalha o body inteiro diretamente no storage/repository.
+11. Se query params como companyId/empresaId/tenantId podem substituir o tenant da sessão.
+
+IMPORTANTE:
+
+Não presuma que quotation é tenant-bound sem verificar o schema e os consumidores.
+
+Determine o modelo real.
+
+Se quotation for tenant-bound:
+- tenant A só pode acessar quotations de A;
+- tenant A não pode consultar quotation privada de B;
+- tenant A não pode alterar quotation de B;
+- tenant A não pode excluir quotation de B;
+- tenant A não pode criar quotation para B.
+
+Se houver recursos globais legítimos:
+- preserve o comportamento;
+- não transforme em tenant-bound sem evidência.
+
+IDOR:
+
+Qualquer rota por ID deve validar ownership antes de retornar ou modificar o recurso.
+
+Não pode existir uma sequência equivalente a:
+
+storage.getQuotation(id)
+
+seguida de retorno direto sem validação do tenant.
+
+Para UPDATE/PATCH/DELETE:
+
+A autorização deve ocorrer antes da escrita.
+
+Sempre que possível, a condição tenant + ID deve ser aplicada também na operação SQL para evitar race condition entre a verificação e a escrita.
+
+MASS ASSIGNMENT:
+
+Analise especialmente o PATCH.
+
+NÃO permita que um usuário envie no body:
+
+- companyId
+- company_id
+- empresaId
+- empresa_id
+- tenantId
+- tenant_id
+
+ou equivalentes e altere o tenant da quotation.
+
+Se o campo tiver uso legítimo interno, preserve a funcionalidade sem permitir que o cliente controle o ownership.
+
+NÃO use simplesmente:
+
+{ ...req.body }
+
+ou equivalente para persistir campos sensíveis/ownership sem validação.
+
+Faça uma allowlist de campos somente se isso for necessário e compatível com o padrão do projeto.
+
+Não remova campos legítimos do domínio sem verificar seus consumidores.
+
+LISTAGEM:
+
+Analise GET /api/quotations.
+
+Para usuários tenant-bound:
+
+- a sessão deve determinar o tenant;
+- ?companyId não pode permitir trocar de empresa;
+- ?empresaId não pode permitir trocar de empresa;
+- ?tenantId não pode permitir trocar de empresa;
+- filtros opcionais não podem escapar do tenant.
+
+Se houver acesso global legítimo para MASTER/DIRECTOR, preserve a política existente.
+
+Não conceda acesso global automaticamente a ADMIN/DEVELOPER vinculados a uma empresa.
+
+CRIAÇÃO:
+
+Na criação:
+
+- tenant-bound deve criar dentro do tenant autorizado;
+- companyId/empresaId enviado pelo cliente não pode mudar o tenant;
+- se o tenant precisar ser derivado de outra entidade, valide essa relação;
+- não permita criar quotation associada a cliente de outra empresa.
+
+Verifique especialmente relações como:
+
+quotation → client/company
+
+quotation → products
+
+quotation → user
+
+Se uma quotation estiver associada a um cliente, confirme que o cliente pertence ao tenant autorizado.
+
+Não permita criar quotation do tenant A apontando para cliente privado do tenant B.
+
+ATUALIZAÇÃO:
+
+Para PATCH/PUT:
+
+- primeiro validar ownership;
+- remover/proteger campos de tenant;
+- validar relacionamentos alterados;
+- impedir que quotation seja movida entre empresas;
+- impedir associação com recursos privados de outro tenant.
+
+DELETE:
+
+Validar ownership antes de excluir.
+
+Cross-tenant deve ser tratado como recurso inexistente ou conforme o padrão de segurança já utilizado pelo projeto, sem revelar desnecessariamente a existência do registro.
+
+ROLES:
+
+Preserve a política atual.
+
+Analise pelo menos:
+
+- MASTER
+- DIRECTOR
+- ADMIN
+- DEVELOPER
+- OPERATIONS_MANAGER
+- LOGISTICS
+- PURCHASE_MANAGER
+- FINANCE/FINANCEIRO
+- DRIVER/MOTORISTA
+- CLIENT
+
+Não invente novas permissões.
+
+ADMIN/DEVELOPER vinculados devem continuar tenant-bound.
+
+MASTER/DIRECTOR globais devem seguir a política global já estabelecida.
+
+TESTES:
+
+Criar testes unitários read-only com mocks/fakes.
+
+NÃO usar escrita real no Supabase.
+
+Cobrir:
+
+1. tenant A lista quotations → somente escopo permitido;
+2. tenant A acessa quotation própria → permitido;
+3. tenant A acessa quotation privada de B → negado;
+4. tenant A tenta PATCH quotation de B → negado;
+5. tenant A tenta PUT quotation de B → negado, se existir;
+6. tenant A tenta DELETE quotation de B → negado;
+7. tenant A cria quotation → fica no tenant A;
+8. companyId de B no POST → não permite criar em B;
+9. empresaId de B no POST → não permite criar em B;
+10. tenantId de B no POST → não permite criar em B;
+11. companyId/empresaId/tenantId no PATCH → não permite mudar ownership;
+12. tenant A não consegue associar quotation a cliente privado de B;
+13. filtros ?companyId/?empresaId/?tenantId não burlam o tenant;
+14. MASTER global preserva acesso existente;
+15. DIRECTOR global preserva acesso existente;
+16. ADMIN tenant-bound permanece limitado;
+17. DEVELOPER tenant-bound permanece limitado;
+18. sem sessão → 401 quando a rota exige autenticação.
+
+Se algum endpoint for legitimamente público, confirme isso através dos consumidores reais antes de protegê-lo.
+
+VALIDAÇÃO:
+
+Execute:
+
+npm run check
+
+Execute os testes direcionados.
+
+Execute npm run build se o projeto permitir.
+
+Execute:
+
+git diff --check
+
+Não execute escrita real no banco.
+
+Se o workflow não iniciar por ausência de SUPABASE_DATABASE_URL, NÃO tente contornar, alterar secret, remover guard ou desativar proteção de boot.
+
+Nesse caso, registre:
+
+- DB_CONNECTED não confirmado;
+- APP_READY não confirmado;
+- HTTP preview não validado;
+
+mas continue com os testes unitários que não dependem do banco.
+
+RESULTADO FINAL:
+
+Informe:
+
+1. rotas auditadas;
+2. vulnerabilidades encontradas;
+3. correções aplicadas;
+4. modelo de tenant encontrado;
+5. ownership utilizado;
+6. proteção contra IDOR;
+7. proteção contra mass assignment;
+8. proteção de relações com clientes/empresas;
+9. roles preservadas;
+10. testes executados;
+11. resultado dos testes;
+12. arquivos alterados;
+13. schema alterado? 
+14. migration criada?
+15. dados alterados?
+16. houve INSERT/UPDATE/DELETE real?
+17. NF-e/fiscal/certificados/credenciais fiscais foram alterados?
+18. commit criado?
+
+CONFIRME explicitamente que NF-e/fiscal NÃO foi tocado.
+
+Se encontrar vulnerabilidades em outros módulos durante a análise:
+APENAS RELATE.
+NÃO CORRIJA FORA DO ESCOPO.
+
+IMPORTANTE:
+Audite primeiro.
+Depois corrija somente vulnerabilidades comprovadas.
+Não faça alterações especulativas.
+Preserve o comportamento funcional existente.
