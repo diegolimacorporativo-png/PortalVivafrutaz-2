@@ -37,7 +37,7 @@ import {
   type EmpresaModulo,
   type InsertEmpresaModulo,
 } from "@shared/schema";
-import { tenantWhere } from "../../core/tenant/scope";
+import { stripTenantFields, tenantWhere } from "../../core/tenant/scope";
 import { currentTenantId } from "../../core/tenant/context";
 import { ForbiddenError } from "../../shared/errors/AppError";
 import { expectOne } from "../../shared/repositories/repository.utils";
@@ -313,18 +313,19 @@ export class CompaniesRepository implements ICompaniesRepository {
     data: Partial<InsertEmpresaConfig>,
   ): Promise<EmpresaConfig> {
     this.assertCompanyAccess(companyId);
+    const safeData = { ...stripTenantFields(data as Record<string, unknown>) } as Partial<InsertEmpresaConfig>;
     const existing = await this._getEmpresaConfigRaw(companyId);
     if (existing) {
       const rows = await db
         .update(empresaConfig)
-        .set({ ...data, updatedAt: new Date() })
+        .set({ ...safeData, updatedAt: new Date() })
         .where(eq(empresaConfig.empresaId, companyId))
         .returning();
       return expectOne(rows, "CompaniesRepository.upsertEmpresaConfig.update");
     }
     const rows = await db
       .insert(empresaConfig)
-      .values({ ...data, empresaId: companyId })
+      .values({ ...safeData, empresaId: companyId })
       .returning();
     return expectOne(rows, "CompaniesRepository.upsertEmpresaConfig.insert");
   }

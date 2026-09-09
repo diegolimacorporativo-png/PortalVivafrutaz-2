@@ -1,0 +1,283 @@
+CORREÇÃO 6 — ISOLAMENTO MULTI-TENANT DO EMPRESA-CONFIG
+
+Quero corrigir APENAS o risco de IDOR/autorização identificado no módulo de configuração de empresa.
+
+Arquivo principal identificado na auditoria:
+
+server/routes/empresa-config.routes.ts
+
+Endpoints:
+
+GET /api/empresa-config/:empresaId
+PUT /api/empresa-config/:empresaId
+
+PROBLEMA IDENTIFICADO:
+
+As rotas verificam roles administrativas, porém não garantem de forma consistente que um usuário administrativo tenant-bound esteja acessando somente a própria empresa.
+
+Isso pode permitir:
+
+empresa A → informar empresaId B → consultar ou alterar configuração da empresa B.
+
+OBJETIVO:
+
+Garantir isolamento completo por tenant nesse módulo, preservando o acesso global legítimo.
+
+REGRAS OBRIGATÓRIAS:
+
+1. NÃO tocar em NF-e.
+
+2. NÃO alterar schema.
+
+3. NÃO criar migration.
+
+4. NÃO alterar dados existentes.
+
+5. NÃO alterar valores/configurações existentes.
+
+6. NÃO fazer refatoração ampla.
+
+7. Corrigir somente autorização e isolamento multiempresa.
+
+ANTES DE EDITAR:
+
+Leia completamente:
+
+- server/routes/empresa-config.routes.ts
+- service/controller utilizado
+- repository/storage
+- shared/schema.ts somente para entender os campos
+- tenantContext/currentTenantId/withTenantScope
+- middleware de autenticação/RBAC
+- padrão de autorização global usado no dashboard executivo/MASTER
+- todos os consumidores frontend de empresa-config
+- testes existentes relacionados
+
+ATENÇÃO ESPECIAL:
+
+O schema pode conter configurações sensíveis ou relacionadas a integrações fiscais.
+
+NÃO alterar nenhuma dessas configurações.
+
+NÃO alterar NF-e.
+
+NÃO remover campos.
+
+NÃO migrar dados.
+
+REGRA TENANT-BOUND:
+
+Se a sessão possui empresaId/tenant:
+
+O parâmetro:
+
+/api/empresa-config/:empresaId
+
+DEVE corresponder ao tenant da sessão.
+
+Exemplo:
+
+sessão → empresa A
+
+GET /api/empresa-config/A
+→ permitido.
+
+GET /api/empresa-config/B
+→ bloqueado, preferencialmente 404.
+
+PUT /api/empresa-config/B
+→ bloqueado.
+
+Nunca confiar apenas no empresaId da URL.
+
+O tenant deve ser derivado da sessão/contexto autenticado.
+
+USUÁRIOS GLOBAIS:
+
+Identifique quais roles são realmente globais no projeto.
+
+Somente usuários explicitamente globais podem acessar configurações de outros tenants.
+
+Não transformar ADMIN tenant-bound em global automaticamente.
+
+Se um usuário tiver role administrativa mas possuir empresaId na sessão:
+
+→ ele continua tenant-bound.
+
+Se houver usuário global sem tenant:
+
+→ preservar somente o comportamento global legítimo já existente.
+
+NÃO inventar novas roles globais.
+
+GET:
+
+Garantir:
+
+id da URL + tenant da sessão
+
+para usuários tenant-bound.
+
+PUT:
+
+Garantir:
+
+id da URL + tenant da sessão
+
+antes de qualquer alteração.
+
+A validação deve acontecer ANTES de executar update.
+
+Não fazer:
+
+1. buscar por ID global;
+2. alterar;
+3. verificar tenant depois.
+
+O ownership deve fazer parte da própria operação/consulta sempre que possível.
+
+SE O REPOSITÓRIO PERMITIR:
+
+Preferir condição equivalente a:
+
+WHERE empresa_id = tenantId
+
+e:
+
+WHERE id = empresaId
+AND empresa_id = tenantId
+
+conforme a estrutura real.
+
+CUIDADO COM CAMPOS DE TENANT:
+
+Se PUT aceitar qualquer campo como:
+
+- empresaId
+- empresa_id
+- companyId
+
+não permitir que um tenant-bound altere o tenant da configuração.
+
+Não permitir mover configuração de uma empresa para outra.
+
+AUTENTICAÇÃO:
+
+Usuário sem sessão:
+
+→ 401.
+
+Usuário autenticado sem role:
+
+→ 403.
+
+Usuário tenant-bound acessando outra empresa:
+
+→ 404 ou comportamento seguro equivalente.
+
+USUÁRIO GLOBAL:
+
+Se existir fluxo global legítimo:
+
+→ preservar.
+
+Mas somente roles realmente globais podem selecionar empresa diferente.
+
+TESTES:
+
+Criar testes unitários sem Supabase compartilhado.
+
+Cobrir no mínimo:
+
+1. Tenant A → GET configuração A
+→ permitido.
+
+2. Tenant A → GET configuração B
+→ bloqueado.
+
+3. Tenant A → PUT configuração A
+→ permitido.
+
+4. Tenant A → PUT configuração B
+→ bloqueado.
+
+5. Tenant A → tenta enviar companyId/empresaId B no body
+→ não pode alterar tenant.
+
+6. Tenant B → não acessa configuração A.
+
+7. Usuário sem sessão
+→ 401.
+
+8. Usuário sem role necessária
+→ 403.
+
+9. Usuário global autorizado → pode acessar tenant permitido.
+
+10. ADMIN tenant-bound não pode selecionar empresa arbitrária.
+
+11. Usuário sem tenant e sem role global
+→ acesso bloqueado.
+
+12. Garantir que nenhuma configuração existente é alterada pelos testes.
+
+IMPORTANTE:
+
+Não executar INSERT/UPDATE/DELETE no Supabase compartilhado.
+
+Use fake repository, mocks ou infraestrutura isolada de testes.
+
+VALIDAÇÃO:
+
+Executar:
+
+npm run check
+
+Testes direcionados.
+
+npm test
+
+Não corrigir as 10 falhas conhecidas de:
+
+tests/unit/order-deadline.test.ts
+
+Comparar com o estado anterior e confirmar que nenhuma nova falha foi introduzida.
+
+Reiniciar workflow.
+
+Confirmar:
+
+DB_PROVIDER_SELECTED: supabase
+DB_CONNECTED: supabase
+APP_READY
+
+Fazer uma chamada HTTP sem autenticação para confirmar 401, sem alterar banco.
+
+RELATÓRIO FINAL:
+
+Informar:
+
+- arquivos alterados;
+- endpoints protegidos;
+- como tenant é determinado;
+- como empresaId da URL é validado;
+- como body é tratado;
+- quais roles são globais;
+- testes adicionados;
+- resultado dos testes;
+- npm run check;
+- npm test;
+- comparação das falhas;
+- boot;
+- conexão Supabase;
+- confirmação de nenhum dado alterado;
+- confirmação de nenhum schema/migration alterado;
+- confirmação de NF-e intocado.
+
+NÃO FAÇA COMMIT.
+
+Se encontrar outros problemas, registre apenas como:
+
+"Fora do escopo."
+
+Não corrija outros problemas nesta etapa.
