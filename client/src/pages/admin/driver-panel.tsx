@@ -1099,6 +1099,7 @@ export default function DriverPanel() {
   const filteredDeliveries = normalizedSearch
     ? deliveries.filter(delivery => [
         delivery.orderCode,
+        delivery.orderDetails?.order.orderCode,
         delivery.companyName,
         delivery.companyCnpj,
       ].some(value => normalizeSearchValue(value).includes(normalizedSearch)))

@@ -1,0 +1,357 @@
+ETAPA 23 — PUSH SETTINGS / TEST — SEGURANÇA, RBAC E TENANT ISOLATION
+
+OBJETIVO:
+Auditar e corrigir exclusivamente os endpoints relacionados às configurações de Push Notifications e aos endpoints de teste/envio de Push.
+
+A auditoria anterior identificou que essa superfície pode ter autenticação/RBAC/globalização insuficiente.
+
+IMPORTANTE:
+Esta etapa é SOMENTE sobre Push Settings / Push Test.
+
+NÃO mexer em:
+- NF-e
+- fiscal
+- certificados A1
+- DANFE
+- impostos
+- financeiro/banco
+- inventário
+- produtos/preços
+- quotations
+- deliveries
+- route stops
+- GPS/Android Tracker
+- tenantContext global
+- outros módulos não necessários
+
+Não criar migration.
+Não alterar schema.
+Não alterar dados reais.
+Não enviar notificações reais.
+Não fazer operações destrutivas.
+Não fazer commit.
+
+1. LOCALIZAR TODA A SUPERFÍCIE DE PUSH
+
+Mapear todas as rotas relacionadas a:
+
+- push
+- push notifications
+- push settings
+- push subscription
+- web push
+- notification test
+- send notification
+- test push
+- VAPID
+- subscription
+
+Pesquisar especialmente:
+
+`/api/push`
+`/api/notifications`
+`/api/push-settings`
+
+e todos os consumidores de:
+
+- web-push
+- PushSubscription
+- subscription
+- VAPID
+- sendNotification
+- push service
+
+Não assumir os nomes das rotas.
+
+Para cada endpoint encontrado, registrar:
+
+- método
+- caminho
+- autenticação atual
+- RBAC atual
+- tenant/company usado
+- dados aceitos
+- dados retornados
+- se dispara envio real
+- se manipula subscription
+- se é endpoint administrativo ou operacional
+
+2. SEPARAR OS FLUXOS
+
+Classificar cada endpoint em:
+
+A) CONFIGURAÇÃO ADMINISTRATIVA
+Exemplo:
+- VAPID/public configuration
+- configuração global
+- habilitar/desabilitar Push
+
+B) SUBSCRIPTION DO USUÁRIO
+Exemplo:
+- registrar subscription
+- remover subscription
+- atualizar subscription
+
+C) TESTE DE PUSH
+Exemplo:
+- enviar uma notificação de teste
+
+D) ENVIO OPERACIONAL
+Exemplo:
+- disparar notificação para usuários/empresas
+
+Cada categoria deve ter sua própria autorização apropriada.
+
+3. PROBLEMA PRINCIPAL
+
+Verificar se um usuário autenticado consegue:
+
+- consultar configuração global indevida;
+- alterar configuração de Push;
+- enviar Push para usuários de outra empresa;
+- testar Push em outro tenant;
+- registrar subscription vinculada a outra empresa;
+- remover subscription de outro usuário;
+- escolher companyId/empresaId/tenantId pelo body;
+- escolher recipient/userId arbitrariamente;
+- acessar tokens/subscriptions de terceiros.
+
+Qualquer `companyId`, `empresaId` ou `tenantId` enviado pelo cliente NÃO deve ampliar o escopo do usuário.
+
+4. RBAC
+
+Aplicar RBAC compatível com a arquitetura atual.
+
+Para configurações administrativas sensíveis:
+
+- MASTER
+- ADMIN/DIRECTOR conforme política administrativa existente
+- DEVELOPER somente se a política existente realmente permitir
+
+Não transformar automaticamente todo ADMIN/DEVELOPER em acesso global.
+
+Usuário tenant-bound:
+- somente própria empresa.
+
+Usuários operacionais:
+- não ganhar acesso administrativo apenas por possuir role operacional.
+
+CLIENT:
+- somente seus próprios fluxos de subscription, se existentes.
+
+DRIVER/MOTORISTA:
+- somente seu próprio fluxo, se existir.
+
+Para teste administrativo de Push:
+- não permitir que CLIENT, DRIVER, MOTORISTA ou perfis operacionais enviem notificações arbitrárias.
+
+5. SUBSCRIPTIONS
+
+Auditar a entidade/tabela utilizada para armazenar subscriptions.
+
+Descobrir como ela identifica:
+
+- usuário
+- empresa
+- endpoint
+- subscription
+- dispositivo, se houver
+
+Não criar tabela nova nesta etapa.
+
+Na criação/atualização:
+
+- userId deve vir da sessão quando o fluxo for "minha subscription";
+- empresa deve ser derivada do usuário/tenant;
+- não confiar em `userId`, `companyId`, `empresaId` ou `tenantId` enviados pelo cliente.
+
+Na remoção:
+
+- usuário comum somente sua própria subscription;
+- administrador tenant-bound somente conforme escopo permitido;
+- cross-tenant bloqueado.
+
+6. ENDPOINT DE TESTE
+
+Se existir algo como:
+
+POST /api/push/test
+
+ou equivalente:
+
+proteger explicitamente.
+
+O cliente não deve conseguir escolher livremente:
+
+- recipientUserId
+- userId
+- companyId
+- empresaId
+- tenantId
+- subscription endpoint
+- payload arbitrário perigoso
+
+Validar o destinatário no servidor.
+
+Se for uma ferramenta administrativa de teste:
+
+- exigir RBAC adequado;
+- validar tenant;
+- impedir cross-tenant acidental.
+
+NÃO enviar Push real durante os testes.
+
+Use mocks/stubs.
+
+7. SEGREDOS
+
+Verificar se endpoints retornam:
+
+- VAPID private key
+- secret
+- API key
+- subscription auth secret
+- encryption key
+- outros credentials
+
+Nunca retornar segredo para usuário comum.
+
+Se existir endpoint que retorna configuração pública, permitir somente dados realmente públicos, como VAPID public key, quando necessário.
+
+NÃO modificar a configuração fiscal/NF-e.
+
+8. MASS ASSIGNMENT
+
+Verificar se o body pode alterar:
+
+userId
+companyId
+empresaId
+tenantId
+role
+createdBy
+createdAt
+updatedAt
+status
+secret
+VAPID keys
+subscription ownership
+
+Criar allowlist para campos editáveis quando necessário.
+
+9. TENANT ISOLATION
+
+Testar:
+
+Tenant A:
+- registra subscription própria;
+- acessa própria subscription/configuração permitida.
+
+Tenant B:
+- não consegue acessar/remover subscription de A;
+- não consegue enviar Push para A;
+- não consegue usar companyId de A para ampliar escopo.
+
+MASTER/DIRECTOR:
+- manter comportamento global legítimo conforme política existente.
+
+ADMIN/DEVELOPER vinculados:
+- permanecer tenant-bound.
+
+Usuário sem empresa:
+- fail closed quando o endpoint exige tenant.
+
+10. TESTES
+
+Criar testes direcionados cobrindo:
+
+- 401 sem sessão;
+- 403 role não permitida;
+- MASTER permitido onde aplicável;
+- ADMIN permitido onde aplicável;
+- DIRECTOR permitido onde aplicável;
+- DEVELOPER somente onde legítimo;
+- CLIENT bloqueado de administração;
+- DRIVER/MOTORISTA bloqueados de administração;
+- tenant A não acessa subscription de B;
+- tenant A não envia teste para B;
+- companyId spoofing;
+- empresaId spoofing;
+- tenantId spoofing;
+- userId spoofing;
+- secrets não retornados;
+- subscription própria funcionando;
+- remoção de subscription de outro usuário bloqueada.
+
+Use mocks para envio de Push.
+NÃO enviar notificações reais.
+
+11. NÃO ALTERAR BANCO
+
+Não criar migration.
+
+Não alterar schema.
+
+Não inserir/deletar subscriptions reais.
+
+Se precisar testar persistência, usar repository fake/mock ou transação isolada sem modificar dados reais.
+
+12. VALIDAÇÃO FINAL
+
+Executar:
+
+npm run check
+
+npm run build
+
+testes direcionados da etapa
+
+git diff --check
+
+Verificar workflow:
+
+- BOOT_VALIDATION_OK
+- DB_CONNECTED
+- APP_READY
+
+Registrar as 10 falhas preexistentes de order-deadline UTC/BRT, caso continuem.
+
+13. RELATÓRIO FINAL
+
+Entregar:
+
+ETAPA 23 — RESULTADO
+
+1. Endpoints de Push encontrados
+2. Como cada endpoint funciona
+3. Vulnerabilidades encontradas
+4. Vulnerabilidades corrigidas
+5. RBAC aplicado
+6. Tenant isolation aplicado
+7. Proteções contra spoofing
+8. Proteções contra mass assignment
+9. Secrets protegidos
+10. Arquivos alterados
+11. Testes criados
+12. Resultado dos testes
+13. npm run check
+14. npm run build
+15. git diff --check
+16. Workflow / DB_CONNECTED / APP_READY
+17. Houve envio real de Push? DEVE SER NÃO
+18. Houve alteração de dados reais? DEVE SER NÃO
+19. Houve migration/schema? DEVE SER NÃO
+20. NF-e/fiscal alterado? NÃO
+21. GPS/Android alterado? NÃO
+22. Próxima etapa recomendada
+
+NÃO FAÇA COMMIT.
+
+REGRA FINAL:
+Não criar arquitetura nova de Push.
+Não substituir o sistema existente.
+Não criar nova tabela.
+Não alterar infraestrutura.
+Corrigir somente autenticação, RBAC, tenant isolation, ownership e mass assignment onde houver risco real.
+
+Se um endpoint já estiver seguro, não alterar apenas para padronizar.
