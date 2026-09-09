@@ -1,0 +1,265 @@
+ETAPA 10 — CORREÇÃO DE ISOLAMENTO MULTI-TENANT EM COMPANY-SETTINGS
+
+Quero corrigir SOMENTE o isolamento multi-tenant das rotas:
+
+GET  /api/company-settings/:empresaId
+POST /api/company-settings/:empresaId
+PUT  /api/company-settings/:empresaId
+
+IMPORTANTE:
+
+- NÃO tocar em NF-e.
+- NÃO tocar em fiscal.
+- NÃO alterar certificados.
+- NÃO alterar credenciais fiscais.
+- NÃO alterar schema.
+- NÃO criar migration.
+- NÃO alterar banco.
+- NÃO alterar dados existentes.
+- NÃO fazer refatoração ampla.
+- NÃO alterar outras configurações sem necessidade.
+- NÃO criar commit.
+
+CONTEXTO
+
+A auditoria encontrou que:
+
+GET /api/company-settings/:empresaId
+
+pode retornar dados sem autenticação e aceita um empresaId arbitrário.
+
+Também existem POST/PUT utilizando empresaId no path.
+
+O objetivo é impedir que um usuário tenant-bound consiga acessar ou alterar configurações de outra empresa.
+
+==================================================
+PRIMEIRO: AUDITAR ANTES DE ALTERAR
+==================================================
+
+Leia:
+
+- server/routes/settings.routes.ts
+- services/controllers/repositories envolvidos
+- tenant context
+- requireAuth
+- requireRole
+- storage utilizado por company-settings
+- consumidores frontend dessas rotas
+
+Descubra:
+
+1. quais telas usam essas rotas;
+2. quais campos são realmente necessários;
+3. quais roles atualmente utilizam;
+4. se existe algum consumidor público legítimo;
+5. se existe algum uso global legítimo;
+6. como o tenant é representado no recurso.
+
+NÃO altere nada até entender esses pontos.
+
+==================================================
+REGRA DE TENANT
+==================================================
+
+Para usuário autenticado e vinculado a uma empresa:
+
+- o tenant deve vir da sessão/tenantContext;
+- o `:empresaId` enviado na URL NÃO pode permitir trocar de empresa;
+- se `:empresaId` for diferente do tenant da sessão, negar acesso.
+
+Pode usar:
+
+404 para não revelar existência do recurso
+
+ou
+
+403 quando essa for a convenção já utilizada no projeto.
+
+Prefira seguir o padrão já existente no sistema.
+
+Exemplo:
+
+usuário da empresa A:
+
+GET /api/company-settings/A → permitido
+
+GET /api/company-settings/B → negado
+
+PUT /api/company-settings/B → negado
+
+POST /api/company-settings/B → negado
+
+==================================================
+USUÁRIOS GLOBAIS
+==================================================
+
+Não assumir que ADMIN é global.
+
+Preserve a regra já estabelecida no projeto:
+
+- MASTER sem empresa vinculada pode ter acesso global;
+- DIRECTOR sem empresa vinculada pode ter acesso global;
+- ADMIN com empresa vinculada permanece tenant-bound;
+- DEVELOPER com empresa vinculada NÃO deve ganhar acesso cross-tenant apenas por ser DEVELOPER, salvo se o código existente explicitamente definir essa regra.
+
+Antes de alterar, confirme no código a política real de roles.
+
+Não criar nova política global desnecessariamente.
+
+==================================================
+POST E PUT
+==================================================
+
+Além de validar o `:empresaId`, verifique mass assignment.
+
+O body NÃO pode alterar:
+
+- empresaId
+- empresa_id
+- companyId
+- company_id
+- tenantId
+- tenant_id
+
+nem variantes equivalentes.
+
+Se esses campos forem necessários internamente, devem ser definidos pelo backend a partir do tenant autorizado.
+
+Nunca aceitar o tenant livremente do cliente.
+
+==================================================
+GET
+==================================================
+
+GET /api/company-settings/:empresaId
+
+deve exigir autenticação, salvo se você encontrar um consumidor público legítimo.
+
+Se existir algum dado realmente público usado no login/layout:
+
+NÃO tornar company-settings inteiro público.
+
+Separe logicamente o dado público existente ou mantenha o endpoint público já existente.
+
+Não expor configuração administrativa.
+
+==================================================
+DADOS SENSÍVEIS
+==================================================
+
+Verifique se company-settings contém:
+
+- senha;
+- token;
+- secret;
+- API key;
+- certificado;
+- credenciais;
+- dados fiscais;
+- dados administrativos.
+
+Não alterar armazenamento.
+
+Apenas garantir que o endpoint não permita acesso indevido.
+
+Se houver segredo que não deveria ser retornado por essa API, informe no relatório e faça somente a correção mínima necessária, sem tocar na lógica fiscal/NF-e.
+
+==================================================
+OWNERSHIP
+==================================================
+
+Se o storage/repository atual usa:
+
+getByEmpresaId()
+updateByEmpresaId()
+
+etc., valide se o valor utilizado é o tenant autorizado.
+
+Se usa ID puro, garantir que a autorização aconteça ANTES da operação.
+
+Não confiar somente no path.
+
+==================================================
+TESTES
+==================================================
+
+Não fazer INSERT/UPDATE/DELETE reais no banco para testar.
+
+Pode executar testes read-only e unitários com mocks/fakes.
+
+Faça pelo menos estes cenários:
+
+1. sem sessão → 401
+2. usuário empresa A acessa A → permitido
+3. usuário empresa A acessa B → negado
+4. usuário empresa A faz PUT em B → negado
+5. usuário empresa A faz POST em B → negado
+6. usuário tenta enviar companyId B no body → tenant não pode ser alterado
+7. usuário tenta enviar empresaId B → tenant não pode ser alterado
+8. usuário tenta enviar tenantId B → tenant não pode ser alterado
+9. MASTER global → comportamento global conforme política existente
+10. DIRECTOR global → comportamento global conforme política existente
+11. ADMIN tenant-bound → não pode acessar B
+12. DEVELOPER tenant-bound → não pode acessar B, salvo regra explícita já existente
+
+Não escrever dados reais no Supabase.
+
+==================================================
+VALIDAÇÃO
+==================================================
+
+Executar:
+
+npm run check
+
+Depois:
+
+- reiniciar workflow;
+- confirmar APP_READY;
+- confirmar DB_CONNECTED;
+- testar sem sessão;
+- confirmar HTTP 401;
+- testar comportamento cross-tenant de forma segura, sem alterar dados.
+
+Se possível, usar mocks/fakes para testar mutações.
+
+==================================================
+NÃO ALTERAR
+==================================================
+
+Não modificar:
+
+- NF-e;
+- fiscal;
+- certificados;
+- migrations;
+- schema;
+- dados;
+- outras rotas não relacionadas.
+
+==================================================
+RELATÓRIO FINAL
+==================================================
+
+Informe:
+
+1. arquivos analisados;
+2. consumidores encontrados;
+3. comportamento anterior;
+4. vulnerabilidade confirmada;
+5. alteração realizada;
+6. regra de tenant aplicada;
+7. regra de RBAC aplicada;
+8. proteção contra alteração de tenant;
+9. testes realizados;
+10. resultado dos testes;
+11. npm run check;
+12. APP_READY;
+13. DB_CONNECTED;
+14. resultado sem sessão;
+15. confirmação de que não houve alteração de banco/schema/NF-e;
+16. confirmação de que nenhum commit foi criado.
+
+Se descobrir que algum endpoint não deveria ser alterado por depender de outro fluxo legítimo, pare e informe antes de fazer uma mudança arriscada.
+
+Faça a menor alteração necessária.

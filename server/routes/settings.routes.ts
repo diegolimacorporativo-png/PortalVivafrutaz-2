@@ -2,7 +2,13 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { runWithTenant } from "../core/tenant/context";
 import { auditLog } from "../utils/auditLogger";
+import {
+  EMPRESA_CONFIG_ROLES,
+  resolveEmpresaConfigAccess,
+  sanitizeEmpresaConfigBody,
+} from "./empresa-config.policy";
 
 const COMPANY_CONFIG_FULL_ACCESS_ROLES = new Set(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]);
 
@@ -157,59 +163,111 @@ export function register(app: Express) {
   });
 
   // Company Settings (White-label)
-  app.get('/api/company-settings/:empresaId', async (req, res) => {
+  app.get('/api/company-settings/:empresaId', requireAuthCore, async (req: any, res, next) => {
+    const actor = await storage.getUser(req.session.userId);
+    const empresaId = Number(req.params.empresaId);
+    const access = resolveEmpresaConfigAccess(actor ?? {}, empresaId);
+    if (!access.allowed) {
+      return res.status(access.status).json({ message: access.message });
+    }
+    if (!actor || !EMPRESA_CONFIG_ROLES.includes(actor.role as any)) {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+
     try {
-      const empresaId = Number(req.params.empresaId);
-      const settings = await companySettingsService.getSettings(empresaId);
+      const settings = await runWithTenant(
+        {
+          principal: {
+            kind: "admin",
+            empresaId: access.tenantId,
+            userId: actor.id,
+            role: actor.role,
+          },
+          empresaId: access.tenantId,
+        },
+        () => companySettingsService.getSettings(empresaId),
+      );
       res.json(settings);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
+    } catch (error) {
+      return next(error);
     }
   });
 
-  app.post('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId!);
-    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
-    if (!user || !FULL_ACCESS_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: 'Sem permissão para alterar configurações' });
+  app.post('/api/company-settings/:empresaId', requireAuthCore, async (req: any, res, next) => {
+    const actor = await storage.getUser(req.session.userId);
+    const empresaId = Number(req.params.empresaId);
+    const access = resolveEmpresaConfigAccess(actor ?? {}, empresaId);
+    if (!access.allowed) {
+      return res.status(access.status).json({ message: access.message });
     }
+    if (!actor || !EMPRESA_CONFIG_ROLES.includes(actor.role as any)) {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+
     try {
-      const empresaId = Number(req.params.empresaId);
+      const updates = sanitizeEmpresaConfigBody(req.body) as any;
       auditLog("UPDATE_COMPANY_SETTINGS", {
-        userId: user.id,
-        role: user.role,
+        userId: actor.id,
+        role: actor.role,
         entity: "company_settings",
         entityId: empresaId,
-        details: req.body,
+        details: updates,
       });
-      const settings = await companySettingsService.updateSettings(empresaId, req.body);
-      await storage.createLog({ action: 'COMPANY_SETTINGS_UPDATED', description: `Configurações white-label atualizadas para empresa ${empresaId} por ${user.name}`, userId: user.id, userEmail: user.email, userRole: user.role });
+      const settings = await runWithTenant(
+        {
+          principal: {
+            kind: "admin",
+            empresaId: access.tenantId,
+            userId: actor.id,
+            role: actor.role,
+          },
+          empresaId: access.tenantId,
+        },
+        () => companySettingsService.updateSettings(empresaId, updates),
+      );
+      await storage.createLog({ action: 'COMPANY_SETTINGS_UPDATED', description: `Configurações white-label atualizadas para empresa ${empresaId} por ${actor.name}`, userId: actor.id, userEmail: actor.email, userRole: actor.role });
       res.json(settings);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
+    } catch (error) {
+      return next(error);
     }
   });
 
-  app.put('/api/company-settings/:empresaId', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId!);
-    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
-    if (!user || !FULL_ACCESS_ROLES.includes(user.role)) {
-      return res.status(403).json({ message: 'Sem permissão para alterar configurações' });
+  app.put('/api/company-settings/:empresaId', requireAuthCore, async (req: any, res, next) => {
+    const actor = await storage.getUser(req.session.userId);
+    const empresaId = Number(req.params.empresaId);
+    const access = resolveEmpresaConfigAccess(actor ?? {}, empresaId);
+    if (!access.allowed) {
+      return res.status(access.status).json({ message: access.message });
     }
+    if (!actor || !EMPRESA_CONFIG_ROLES.includes(actor.role as any)) {
+      return res.status(403).json({ message: 'Acesso negado' });
+    }
+
     try {
-      const empresaId = Number(req.params.empresaId);
+      const updates = sanitizeEmpresaConfigBody(req.body) as any;
       auditLog("UPDATE_COMPANY_SETTINGS", {
-        userId: user.id,
-        role: user.role,
+        userId: actor.id,
+        role: actor.role,
         entity: "company_settings",
         entityId: empresaId,
-        details: req.body,
+        details: updates,
       });
-      const settings = await companySettingsService.updateSettings(empresaId, req.body);
-      await storage.createLog({ action: 'COMPANY_SETTINGS_UPDATED', description: `Configurações white-label atualizadas para empresa ${empresaId} por ${user.name}`, userId: user.id, userEmail: user.email, userRole: user.role });
+      const settings = await runWithTenant(
+        {
+          principal: {
+            kind: "admin",
+            empresaId: access.tenantId,
+            userId: actor.id,
+            role: actor.role,
+          },
+          empresaId: access.tenantId,
+        },
+        () => companySettingsService.updateSettings(empresaId, updates),
+      );
+      await storage.createLog({ action: 'COMPANY_SETTINGS_UPDATED', description: `Configurações white-label atualizadas para empresa ${empresaId} por ${actor.name}`, userId: actor.id, userEmail: actor.email, userRole: actor.role });
       res.json(settings);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
+    } catch (error) {
+      return next(error);
     }
   });
 
