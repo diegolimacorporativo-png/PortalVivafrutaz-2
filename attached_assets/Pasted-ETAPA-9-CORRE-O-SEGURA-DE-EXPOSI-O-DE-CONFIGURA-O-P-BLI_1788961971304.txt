@@ -1,0 +1,176 @@
+ETAPA 9 — CORREÇÃO SEGURA DE EXPOSIÇÃO DE CONFIGURAÇÃO PÚBLICA
+
+Quero corrigir SOMENTE a exposição indevida de configurações no endpoint:
+
+GET /api/company-config
+
+IMPORTANTE:
+- NÃO tocar em NF-e.
+- NÃO tocar em fiscal.
+- NÃO alterar certificados A1/A3.
+- NÃO alterar senhas fiscais.
+- NÃO alterar integrações fiscais.
+- NÃO alterar schema.
+- NÃO criar migration.
+- NÃO alterar banco.
+- NÃO apagar dados.
+- NÃO fazer refatoração ampla.
+- NÃO alterar comportamento fiscal.
+- NÃO criar commit.
+
+CONTEXTO
+
+A auditoria read-only encontrou:
+
+GET /api/company-config
+
+retornando 200 sem sessão e retornando configuração interna da empresa.
+
+A resposta aparentemente contém campos sensíveis, incluindo configurações relacionadas a certificados/credenciais.
+
+Também existe:
+
+GET /api/company-settings/:empresaId
+
+que será tratado em uma etapa separada.
+
+NÃO misture as duas correções.
+
+OBJETIVO
+
+Primeiro descubra exatamente:
+
+1. Quem chama GET /api/company-config.
+2. Se existe frontend público que realmente precisa dessa rota.
+3. Quais campos da resposta são realmente utilizados pelo frontend.
+4. Quais campos são administrativos ou sensíveis.
+5. Se existe algum campo relacionado a NF-e/fiscal.
+
+NÃO altere os campos fiscais.
+
+CORREÇÃO
+
+Se a rota for necessária para funcionalidades públicas, mantenha somente os campos estritamente necessários para o frontend público.
+
+A resposta pública NÃO pode incluir:
+
+- senha;
+- token;
+- secret;
+- API key;
+- certificado;
+- certificado em base64;
+- private key;
+- senha de certificado;
+- credenciais SMTP;
+- credenciais de integração;
+- configurações administrativas internas;
+- qualquer segredo armazenado no banco.
+
+Se houver campos fiscais/NF-e na mesma configuração:
+
+NÃO modificar a estrutura fiscal.
+
+Apenas garanta que esses campos NÃO sejam enviados pela resposta pública, sem alterar seu armazenamento ou funcionamento.
+
+IMPORTANTE:
+
+Não resolver isso simplesmente escondendo campos no frontend.
+
+A proteção deve ocorrer no backend, antes de enviar a resposta HTTP.
+
+Se existir uma rota administrativa autenticada que precisa da configuração completa, preserve essa rota separadamente.
+
+Se não existir, não crie uma arquitetura nova. Faça a menor alteração segura possível.
+
+AUTENTICAÇÃO
+
+Avalie se GET /api/company-config deve:
+
+A) continuar público com payload estritamente público;
+
+ou
+
+B) exigir autenticação.
+
+Escolha com base nos consumidores reais encontrados no código.
+
+Se for público, faça whitelist explícita dos campos permitidos.
+
+Se for administrativo, exigir autenticação/RBAC.
+
+NÃO confiar em filtros enviados pelo cliente.
+
+VALIDAÇÃO
+
+Antes da alteração:
+
+- identificar consumidores;
+- identificar campos utilizados;
+- identificar campos sensíveis.
+
+Depois:
+
+1. npm run check
+2. iniciar/reiniciar workflow
+3. confirmar APP_READY
+4. Supabase conectado
+5. testar GET /api/company-config sem sessão
+6. confirmar que não existem segredos na resposta
+7. verificar que frontend continua funcionando
+8. confirmar que nenhuma rotina fiscal/NF-e foi modificada
+
+NÃO executar INSERT/UPDATE/DELETE.
+
+NÃO criar migration.
+
+NÃO alterar schema.
+
+NÃO alterar dados.
+
+TESTE IMPORTANTE
+
+Faça uma verificação explícita procurando na resposta por nomes semelhantes a:
+
+password
+senha
+secret
+token
+apiKey
+api_key
+certificate
+certificado
+base64
+privateKey
+private_key
+smtp
+credential
+credentials
+
+Não precisa imprimir valores sensíveis no relatório.
+
+Se encontrar campos fiscais/NF-e, apenas informe que foram preservados e não enviados na resposta pública.
+
+ENTREGÁVEL
+
+Informe:
+
+1. Arquivos analisados.
+2. Consumidores encontrados.
+3. Campos públicos necessários.
+4. Campos sensíveis encontrados.
+5. Alterações realizadas.
+6. Como a rota ficou protegida.
+7. Resultado do npm run check.
+8. Resultado do teste sem sessão.
+9. Resultado do boot/APP_READY.
+10. Confirmação explícita de que:
+   - nenhuma migration foi criada;
+   - nenhum dado foi alterado;
+   - nenhum schema foi alterado;
+   - NF-e/fiscal não foi alterado;
+   - nenhum commit foi criado.
+
+Se a rota puder continuar pública com segurança, NÃO transformar obrigatoriamente em rota autenticada.
+
+Faça a menor correção necessária para eliminar a exposição.

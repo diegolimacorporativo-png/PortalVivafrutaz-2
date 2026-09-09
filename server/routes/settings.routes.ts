@@ -4,6 +4,40 @@ import { companySettingsService } from "../services/companySettingsService.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { auditLog } from "../utils/auditLogger";
 
+const COMPANY_CONFIG_FULL_ACCESS_ROLES = new Set(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]);
+
+// Non-privileged authenticated screens only need display/DANFE fields.
+// Credentials and fiscal certificate material are intentionally excluded.
+const COMPANY_CONFIG_SAFE_FIELDS = [
+  "companyName",
+  "fantasyName",
+  "address",
+  "addressNumber",
+  "neighborhood",
+  "city",
+  "state",
+  "cep",
+  "phone",
+  "email",
+  "cnpj",
+  "stateRegistration",
+  "supportPhone",
+  "supportEmail",
+  "supportMessage",
+  "defaultCfop",
+  "defaultNatureza",
+  "logoBase64",
+  "logoType",
+] as const;
+
+function toSafeCompanyConfig(config: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    COMPANY_CONFIG_SAFE_FIELDS
+      .filter((field) => config[field] !== undefined)
+      .map((field) => [field, config[field]]),
+  );
+}
+
 export function register(app: Express) {
   // ─── PUBLIC ROUTES FIRST (must be registered before the generic :key wildcard) ───
 
@@ -67,10 +101,26 @@ export function register(app: Express) {
   });
 
   // ─── COMPANY CONFIG (Support, DANFE info) ─────────────────────
-  app.get('/api/company-config', async (req, res) => {
+  // The logo endpoint above is the only public company-config surface.
+  // This endpoint is authenticated because the full row contains credentials
+  // and A1 certificate material used by the fiscal runtime.
+  app.get('/api/company-config', requireAuthCore, async (req, res) => {
     try {
       const config = await storage.getCompanyConfig();
-      res.json(config || { companyName: 'VivaFrutaz' });
+      if (!config) return res.json({ companyName: 'VivaFrutaz' });
+
+      const session = (req as any).session;
+      let role = session?.userRole as string | undefined;
+      if (!role && session?.userId) {
+        const user = await storage.getUser(session.userId);
+        role = user?.role;
+      }
+
+      if (!role || !COMPANY_CONFIG_FULL_ACCESS_ROLES.has(role)) {
+        return res.json(toSafeCompanyConfig(config as unknown as Record<string, unknown>));
+      }
+
+      res.json(config);
     } catch (e) { res.status(500).json({ message: 'Error fetching config' }); }
   });
 
