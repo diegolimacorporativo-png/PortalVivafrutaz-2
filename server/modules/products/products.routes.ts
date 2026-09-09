@@ -15,8 +15,13 @@ import { productController } from "./products.controller";
 // F1-E2: close public GET endpoints — require any valid session (admin or company portal)
 // B2-FIX: mutating endpoints require admin-level role
 import { requireSession, requireRole } from "../../core/http/requireAuth";
+import { tenantContext } from "../../middleware/tenant";
 
 const router = Router();
+
+// Pin every catalog request to the authenticated company/admin context before
+// repositories resolve products, categories or subcategories.
+router.use(tenantContext);
 
 // ── Static GET routes (must precede /:id) ──────────────────────────────
 router.get("/safra-alerts", requireSession, (req, res) => productController.safraAlerts(req, res));

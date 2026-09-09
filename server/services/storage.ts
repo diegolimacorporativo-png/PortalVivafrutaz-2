@@ -11,7 +11,11 @@ import {
   withTenant,
   stripTenantFields,
 } from "../core/tenant/scope";
-import { requireTenantId, currentTenantId } from "../core/tenant/context";
+import { requireTenantId, currentTenantId, getTenantContext } from "../core/tenant/context";
+import {
+  assertCatalogMutation,
+  catalogTenantForCreate,
+} from "../modules/products/products.tenant";
 import {
   users, priceGroups, companies, categories, products, productPrices, productSubCategories, orderWindows, orderExceptions, orders, orderItems, systemSettings, passwordResetRequests, specialOrderRequests, systemLogs, testOrders, tasks, clientIncidents, incidentMessages, internalIncidents, logisticsDrivers, logisticsVehicles, logisticsRoutes, logisticsMaintenance, companyQuotations, contractScopes, danfeRecords, companyConfig, companySettings, announcements, wasteControl, purchasePlanStatus, inventorySettings, inventoryEntries, inventoryMovements, inventoryPhysicalCounts, fiscalInvoices, emailSchedules, emailLogs, aboutUs, smtpConfig, claraTraining, pushSubscriptions, notificationSettings, contractAdjustments, scopeSimulations, accountsReceivable, accountsPayable, financialTransactions,
   type AccountReceivable, type InsertAccountReceivable,
@@ -138,9 +142,9 @@ export interface IStorage {
   getProducts(empresaId?: number): Promise<Product[]>;
   /**
    * Direct-lookup variant of `getProducts()` for `where id = ?`. Lets callers
-   * avoid the full-table scan + `.find()` pattern. Returns `undefined` when
-   * no row matches — same contract as the previous `(await getProducts()).find(...)`
-   * call site behaviour.
+   * avoid the full-table scan + `.find()` pattern. It applies the same
+   * global-or-current-tenant visibility policy as `getProducts()` and returns
+   * `undefined` when no visible row matches.
    */
   getProductById(id: number): Promise<Product | undefined>;
   createProduct(product: InsertProduct): Promise<Product>;
@@ -639,6 +643,19 @@ export interface IStorage {
 }
 
 export class DatabaseStorage implements IStorage {
+  private catalogGlobalMutationAllowed(): boolean {
+    const principal = getTenantContext()?.principal;
+    const role = principal?.kind === "admin" ? principal.role : undefined;
+    return role === "MASTER" || role === "DIRECTOR";
+  }
+
+  private catalogMutationWhere(column: any): any {
+    const tenantId = currentTenantId();
+    if (tenantId == null) return sql`true`;
+    const own = eq(column, tenantId);
+    return this.catalogGlobalMutationAllowed() ? or(isNull(column), own) : own;
+  }
+
   async getUserByEmail(email: string): Promise<User | undefined> {
     return usersRepository.getUserByEmail(email);
   }
@@ -766,60 +783,105 @@ export class DatabaseStorage implements IStorage {
   async getCategories(empresaId?: number, limit = 500): Promise<Category[]> {
     // T805 — Bounded LIMIT (default 500) prevents unbounded full-table scans.
     const query = db.select().from(categories).orderBy(categories.name);
-    if (empresaId) {
-      query.where(eq(categories.empresaId, empresaId));
+    const tenantId = currentTenantId() ?? empresaId ?? null;
+    if (tenantId != null) {
+      query.where(or(isNull(categories.empresaId), eq(categories.empresaId, tenantId)));
     }
     query.limit(Math.min(limit, 500));
     return await query;
   }
 
   async createCategory(cat: InsertCategory): Promise<Category> {
-    const [newCat] = await db.insert(categories).values(cat).returning();
+    const [newCat] = await db.insert(categories).values({
+      ...stripTenantFields(cat as any),
+      empresaId: catalogTenantForCreate(currentTenantId()),
+    } as InsertCategory).returning();
     return newCat;
   }
 
   async updateCategory(id: number, updates: Partial<InsertCategory>): Promise<Category> {
-    const [updated] = await db.update(categories).set(updates).where(eq(categories.id, id)).returning();
+    const tenantId = currentTenantId();
+    const existing = await db.select({ empresaId: categories.empresaId })
+      .from(categories).where(eq(categories.id, id)).limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const [updated] = await db.update(categories)
+      .set(stripTenantFields(updates as any))
+      .where(and(
+        eq(categories.id, id),
+        this.catalogMutationWhere(categories.empresaId),
+      ))
+      .returning();
     return updated;
   }
 
   async deleteCategory(id: number): Promise<void> {
-    await db.delete(categories).where(eq(categories.id, id));
+    const tenantId = currentTenantId();
+    const existing = await db.select({ empresaId: categories.empresaId })
+      .from(categories).where(eq(categories.id, id)).limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    await db.delete(categories).where(and(
+      eq(categories.id, id),
+      this.catalogMutationWhere(categories.empresaId),
+    ));
   }
 
   async getProducts(empresaId?: number, limit = 1000): Promise<Product[]> {
     // PERF-FIX: bounded LIMIT (default 1000) prevents OOM on large catalogs.
     // All existing callers that omit `limit` get the safe default.
     const query = db.select().from(products);
-    if (empresaId) {
-      query.where(eq(products.empresaId, empresaId));
+    const tenantId = currentTenantId() ?? empresaId ?? null;
+    if (tenantId != null) {
+      query.where(or(isNull(products.empresaId), eq(products.empresaId, tenantId)));
     }
     query.limit(limit);
     return await query;
   }
 
   /**
-   * Direct-by-id lookup. Mirrors `getProducts()`'s lack of tenant scoping
-   * (the existing call sites used `(await getProducts()).find(p => p.id === id)`
-   * which is also globally scoped). Returns `undefined` when not found.
+   * Direct-by-id lookup with the same global-or-current-tenant visibility
+   * policy as `getProducts()`. Returns `undefined` when not found or hidden.
    */
   async getProductById(id: number): Promise<Product | undefined> {
-    const [row] = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    const tenantId = currentTenantId();
+    const [row] = await db.select().from(products).where(and(
+      eq(products.id, id),
+      tenantId == null ? sql`true` : or(isNull(products.empresaId), eq(products.empresaId, tenantId)),
+    )).limit(1);
     return row;
   }
 
   async createProduct(product: InsertProduct): Promise<Product> {
-    const [newProduct] = await db.insert(products).values(product).returning();
+    const [newProduct] = await db.insert(products).values({
+      ...stripTenantFields(product as any),
+      empresaId: catalogTenantForCreate(currentTenantId()),
+    } as InsertProduct).returning();
     return newProduct;
   }
 
   async updateProduct(id: number, updates: Partial<InsertProduct>): Promise<Product> {
-    const [updated] = await db.update(products).set(updates).where(eq(products.id, id)).returning();
+    const tenantId = currentTenantId();
+    const existing = await db.select({ empresaId: products.empresaId })
+      .from(products).where(eq(products.id, id)).limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const [updated] = await db.update(products)
+      .set(stripTenantFields(updates as any))
+      .where(and(
+        eq(products.id, id),
+        this.catalogMutationWhere(products.empresaId),
+      ))
+      .returning();
     return updated;
   }
 
   async deleteProduct(id: number): Promise<void> {
-    await db.delete(products).where(eq(products.id, id));
+    const tenantId = currentTenantId();
+    const existing = await db.select({ empresaId: products.empresaId })
+      .from(products).where(eq(products.id, id)).limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    await db.delete(products).where(and(
+      eq(products.id, id),
+      this.catalogMutationWhere(products.empresaId),
+    ));
   }
 
   async getProductPrices(empresaId?: number, limit = 2000): Promise<ProductPrice[]> {
@@ -852,41 +914,97 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getProductSubCategoriesByProductId(productId: number): Promise<ProductSubCategory[]> {
-    return await db.select().from(productSubCategories).where(eq(productSubCategories.productId, productId));
+    const tenantId = currentTenantId();
+    const product = await this.getProductById(productId);
+    if (!product) return [];
+    return await db.select().from(productSubCategories).where(and(
+      eq(productSubCategories.productId, productId),
+      tenantId == null
+        ? sql`true`
+        : or(isNull(productSubCategories.empresaId), eq(productSubCategories.empresaId, tenantId)),
+    ));
   }
 
   async getProductSubCategoryById(id: number): Promise<ProductSubCategory | null> {
+    const tenantId = currentTenantId();
     const rows = await db
       .select()
       .from(productSubCategories)
-      .where(eq(productSubCategories.id, id))
+      .where(and(
+        eq(productSubCategories.id, id),
+        tenantId == null
+          ? sql`true`
+          : or(isNull(productSubCategories.empresaId), eq(productSubCategories.empresaId, tenantId)),
+      ))
       .limit(1);
-    return rows[0] ?? null;
+    if (!rows[0]) return null;
+    const product = await this.getProductById(rows[0].productId);
+    return product ? rows[0] : null;
   }
 
   async createProductSubCategory(data: InsertProductSubCategory): Promise<ProductSubCategory> {
-    const [row] = await db.insert(productSubCategories).values(data).returning();
+    const tenantId = currentTenantId();
+    const product = await this.getProductById(data.productId);
+    assertCatalogMutation(product?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const [row] = await db.insert(productSubCategories).values({
+      ...stripTenantFields(data as any),
+      empresaId: catalogTenantForCreate(tenantId),
+    } as InsertProductSubCategory).returning();
     return row;
   }
 
   async updateProductSubCategory(id: number, updates: Partial<InsertProductSubCategory>): Promise<ProductSubCategory> {
-    const [row] = await db.update(productSubCategories).set(updates).where(eq(productSubCategories.id, id)).returning();
+    const tenantId = currentTenantId();
+    const existing = await db.select({
+      empresaId: productSubCategories.empresaId,
+      productId: productSubCategories.productId,
+    }).from(productSubCategories).where(eq(productSubCategories.id, id)).limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const product = existing[0] ? await this.getProductById(existing[0].productId) : undefined;
+    assertCatalogMutation(product?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const [row] = await db.update(productSubCategories)
+      .set(stripTenantFields(updates as any))
+      .where(and(
+        eq(productSubCategories.id, id),
+        this.catalogMutationWhere(productSubCategories.empresaId),
+      ))
+      .returning();
     return row;
   }
 
   async deleteProductSubCategory(id: number): Promise<void> {
-    await db.delete(productSubCategories).where(eq(productSubCategories.id, id));
+    const tenantId = currentTenantId();
+    const existing = await db.select({
+      empresaId: productSubCategories.empresaId,
+      productId: productSubCategories.productId,
+    }).from(productSubCategories).where(eq(productSubCategories.id, id)).limit(1);
+    assertCatalogMutation(existing[0]?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    const product = existing[0] ? await this.getProductById(existing[0].productId) : undefined;
+    assertCatalogMutation(product?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    await db.delete(productSubCategories).where(and(
+      eq(productSubCategories.id, id),
+      this.catalogMutationWhere(productSubCategories.empresaId),
+    ));
   }
 
   async deleteProductSubCategoriesByProductId(productId: number): Promise<void> {
-    await db.delete(productSubCategories).where(eq(productSubCategories.productId, productId));
+    const tenantId = currentTenantId();
+    const product = await this.getProductById(productId);
+    assertCatalogMutation(product?.empresaId, tenantId, this.catalogGlobalMutationAllowed());
+    await db.delete(productSubCategories).where(and(
+      eq(productSubCategories.productId, productId),
+      this.catalogMutationWhere(productSubCategories.empresaId),
+    ));
   }
 
   async getAllProductSubCategories(): Promise<ProductSubCategory[]> {
-    return db
-      .select()
-      .from(productSubCategories)
-      .where(eq(productSubCategories.active, true));
+    const tenantId = currentTenantId();
+    return db.select().from(productSubCategories).where(and(
+      eq(productSubCategories.active, true),
+      tenantId == null
+        ? sql`true`
+        : or(isNull(productSubCategories.empresaId), eq(productSubCategories.empresaId, tenantId)),
+    ));
   }
 
   async getOrderWindows(empresaId?: number): Promise<OrderWindow[]> {
@@ -3305,17 +3423,30 @@ export class DatabaseStorage implements IStorage {
     const offset = (page - 1) * limit;
 
     const conds: any[] = [];
-    if (params.empresaId) conds.push(eq(products.empresaId, params.empresaId));
+    const tenantId = currentTenantId() ?? params.empresaId ?? null;
+    if (tenantId != null) {
+      conds.push(or(isNull(products.empresaId), eq(products.empresaId, tenantId)));
+    }
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'ACTIVE') conds.push(eq(products.active, true));
       else if (params.status === 'INACTIVE') conds.push(eq(products.active, false));
     }
     if (params.category && params.category !== 'ALL') {
       // Also match products that have a sub-category with this name (multi-category support).
+      const subCategoryScope = tenantId == null
+        ? sql`true`
+        : sql`(psc.empresa_id IS NULL OR psc.empresa_id = ${tenantId})`;
       conds.push(
         or(
           eq(products.category, params.category),
-          sql`EXISTS (SELECT 1 FROM product_sub_categories psc WHERE psc.product_id = ${products.id} AND psc.category_name = ${params.category} AND psc.active = true)`
+          sql`EXISTS (
+            SELECT 1
+            FROM product_sub_categories psc
+            WHERE psc.product_id = ${products.id}
+              AND psc.category_name = ${params.category}
+              AND psc.active = true
+              AND ${subCategoryScope}
+          )`
         )!
       );
     }

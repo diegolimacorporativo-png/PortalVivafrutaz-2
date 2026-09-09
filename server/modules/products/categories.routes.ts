@@ -11,8 +11,11 @@ import { productController } from "./products.controller";
 // F1-E2: close public GET endpoint
 // B3-FIX: mutating endpoints require admin-level role
 import { requireSession, requireRole } from "../../core/http/requireAuth";
+import { tenantContext } from "../../middleware/tenant";
 
 const router = Router();
+
+router.use(tenantContext);
 
 router.get("/", requireSession, (req, res) => productController.listCategories(req, res));
 // B3-FIX: mutations require admin-level role (was unauthenticated)

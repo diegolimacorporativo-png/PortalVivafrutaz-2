@@ -1,0 +1,242 @@
+ETAPA 12 — AUDITORIA E CORREÇÃO DE ISOLAMENTO MULTI-TENANT EM PRODUCTS E SUBCATEGORIES
+
+Objetivo:
+Corrigir SOMENTE vulnerabilidades de autenticação, autorização, ownership e isolamento multi-tenant relacionadas a produtos e subcategorias.
+
+NÃO faça refatoração ampla.
+NÃO altere funcionalidades de negócio sem necessidade.
+NÃO mexa em NF-e, fiscal, certificados, credenciais fiscais ou integrações fiscais.
+NÃO crie migration.
+NÃO altere o schema do banco.
+NÃO altere dados existentes.
+NÃO execute INSERT, UPDATE ou DELETE real no Supabase durante os testes.
+NÃO crie commit.
+
+ESCOPO PRINCIPAL:
+
+Investigue e, se vulneráveis, corrija:
+
+PRODUCTS:
+- GET /api/products
+- GET /api/products/:id
+- POST /api/products
+- PUT /api/products/:id
+- PATCH /api/products/:id
+- DELETE /api/products/:id
+
+SUBCATEGORIES:
+- todas as rotas de subcategorias relacionadas a produtos
+- listagem
+- consulta por ID
+- criação
+- atualização
+- exclusão
+
+PRIMEIRO FAÇA AUDITORIA READ-ONLY.
+
+Analise:
+
+- server/routes/* relacionado a products
+- repositories de products
+- services de products
+- storage
+- rotas/services/repositories de subcategories
+- shared/schema.ts
+- tenant context
+- middleware tenant
+- requireAuth
+- políticas de autorização existentes
+- consumidores frontend
+- referências a companyId/empresaId/tenantId
+- referências a produtos globais/compartilhados
+
+IMPORTANTE:
+
+NÃO presuma que todo produto obrigatoriamente pertence a uma empresa.
+
+Descubra primeiro se o sistema possui:
+
+1. produtos globais;
+2. produtos por empresa;
+3. produtos compartilhados;
+4. produtos com comportamento híbrido.
+
+Preserve o modelo de negócio existente.
+
+O objetivo NÃO é simplesmente adicionar companyId.
+
+O objetivo é impedir que um usuário tenant-bound consiga acessar ou modificar dados de outro tenant que deveriam estar isolados.
+
+INVESTIGUE ESPECIALMENTE:
+
+- Se GET /api/products retorna produtos de outras empresas.
+- Se GET por ID permite IDOR.
+- Se PUT/PATCH/DELETE por ID permitem modificar produto de outro tenant.
+- Se POST permite criar produto em outra empresa através do body.
+- Se campos companyId/empresaId/tenantId podem ser manipulados pelo cliente.
+- Se subcategorias podem ser usadas para descobrir ou alterar dados de outro tenant.
+- Se uma subcategoria pertence a uma empresa, categoria ou produto específico.
+- Se existe fallback global quando empresa/tenant é null.
+- Se esse fallback é legítimo ou cria bypass.
+- Se existem filtros opcionais como ?companyId, ?empresaId ou ?tenantId que podem substituir o tenant da sessão.
+
+REGRA DE TENANT:
+
+Para qualquer recurso que seja tenant-bound:
+
+- tenant A só pode consultar recursos de A;
+- tenant A não pode consultar recursos privados de B;
+- tenant A não pode atualizar recursos de B;
+- tenant A não pode excluir recursos de B;
+- tenant A não pode criar recurso para B;
+- IDs isoladamente não podem ser suficientes para acesso cross-tenant.
+
+Para recursos genuinamente globais/compartilhados:
+
+- preserve o comportamento existente;
+- não transforme recursos globais em tenant-bound sem evidência no código;
+- não quebre catálogo compartilhado;
+- documente claramente no resultado quais recursos são globais e por quê.
+
+ROLES:
+
+Preserve a política existente do projeto.
+
+Não invente permissões.
+
+Observe especialmente:
+
+- MASTER
+- DIRECTOR
+- ADMIN
+- DEVELOPER
+- OPERATIONS_MANAGER
+- LOGISTICS
+- PURCHASE_MANAGER
+- FINANCE/FINANCEIRO
+- DRIVER/MOTORISTA
+- CLIENT
+
+ADMIN ou DEVELOPER vinculados a uma empresa não devem ganhar acesso global apenas por causa da role.
+
+MASTER/DIRECTOR globais devem continuar seguindo a política existente.
+
+Usuários tenant-bound devem ser limitados ao tenant autorizado.
+
+MASS ASSIGNMENT:
+
+Analise todos os bodies de POST/PUT/PATCH.
+
+Campos como:
+
+- companyId
+- company_id
+- empresaId
+- empresa_id
+- tenantId
+- tenant_id
+
+não podem permitir troca arbitrária de tenant.
+
+Se esses campos forem necessários internamente, derive o valor confiável do contexto autorizado ou valide-o explicitamente.
+
+Não remova campos legítimos sem verificar seu uso.
+
+SUBCATEGORIES:
+
+Faça a mesma análise para subcategorias.
+
+É obrigatório verificar a relação:
+
+subcategoria → categoria → produto → empresa
+
+ou qualquer outra relação real existente no schema.
+
+Não permita que um usuário tenant-bound manipule uma subcategoria pertencente a outro tenant apenas informando o ID.
+
+Se subcategorias forem globais, preserve-as como globais.
+
+TESTES:
+
+Crie testes unitários read-only usando mocks/fakes.
+
+NÃO use escrita real no Supabase.
+
+Cubra, conforme o modelo real descoberto:
+
+1. tenant A acessa produto próprio → permitido;
+2. tenant A tenta acessar produto privado de B → negado;
+3. tenant A tenta alterar produto de B → negado;
+4. tenant A tenta excluir produto de B → negado;
+5. tenant A tenta criar produto para B → bloqueado ou forçado para A, conforme modelo existente;
+6. companyId spoofing → bloqueado;
+7. empresaId spoofing → bloqueado;
+8. tenantId spoofing → bloqueado;
+9. filtros ?companyId/?empresaId/?tenantId não podem burlar a sessão;
+10. subcategoria de A acessível por A → permitido;
+11. subcategoria privada de B acessada por A → negado;
+12. alteração de subcategoria de B → negada;
+13. exclusão de subcategoria de B → negada;
+14. MASTER global preserva acesso existente;
+15. DIRECTOR global preserva acesso existente;
+16. ADMIN tenant-bound permanece limitado;
+17. DEVELOPER tenant-bound permanece limitado;
+18. usuário sem sessão recebe 401 quando a rota não for legitimamente pública.
+
+Se algum endpoint for legitimamente público ou global, NÃO proteja artificialmente. Explique o motivo baseado nos consumidores reais.
+
+VALIDAÇÃO:
+
+Execute:
+
+npm run check
+
+Execute também os testes direcionados criados.
+
+Faça testes HTTP read-only sempre que possível.
+
+Não execute operações reais de:
+
+- INSERT
+- UPDATE
+- DELETE
+
+contra o Supabase.
+
+Confirme:
+
+- DB_CONNECTED
+- APP_READY
+- workflow reiniciado
+- npm run check PASS
+- testes direcionados PASS
+
+RESULTADO FINAL:
+
+Informe:
+
+1. quais rotas foram auditadas;
+2. quais vulnerabilidades foram encontradas;
+3. quais vulnerabilidades foram corrigidas;
+4. quais produtos/subcategorias são globais e quais são tenant-bound;
+5. como o ownership foi protegido;
+6. como companyId/empresaId/tenantId foram protegidos;
+7. quais testes foram executados;
+8. resultado dos testes;
+9. arquivos alterados;
+10. confirmar que schema não foi alterado;
+11. confirmar que migration não foi criada;
+12. confirmar que dados não foram alterados;
+13. confirmar que nenhum INSERT/UPDATE/DELETE real foi executado;
+14. confirmar que NF-e/fiscal/certificados/credenciais fiscais NÃO foram alterados;
+15. confirmar que nenhum commit foi criado.
+
+SE ENCONTRAR PROBLEMAS FORA DE PRODUCTS E SUBCATEGORIES:
+Apenas relate no final.
+NÃO corrija outros módulos nesta etapa.
+
+IMPORTANTE:
+Faça a auditoria primeiro e só depois implemente as correções necessárias.
+Não faça alterações especulativas.
+Não transforme recursos globais em tenant-bound sem evidência.
+Preserve o comportamento funcional existente.
