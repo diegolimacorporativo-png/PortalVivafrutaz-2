@@ -1,0 +1,103 @@
+ETAPA 2 — REMOÇÃO DEFINITIVA DO ARMAZENAMENTO HISTÓRICO DE SENHAS
+
+A Etapa 1 foi concluída e validada.
+
+Agora podemos executar somente a Etapa 2 referente à remoção da coluna física:
+
+password_reset_requests.new_password
+
+OBJETIVO:
+
+Eliminar definitivamente do banco o campo que anteriormente armazenava senhas de reset em texto puro.
+
+ANTES DA MIGRAÇÃO:
+
+1. Faça uma busca global no projeto por:
+
+newPassword
+new_password
+password_reset_requests
+
+2. Confirme que nenhum código atual depende da coluna física.
+
+3. Verifique no banco, SEM EXIBIR NENHUMA SENHA OU VALOR SENSÍVEL, apenas a quantidade de registros que possuem valor em new_password.
+
+Exemplo de informação aceitável:
+
+"Existem X registros históricos com new_password preenchido."
+
+NÃO mostre os valores das senhas nos logs, terminal, relatório ou resposta.
+
+4. Verifique se existem outras tabelas, views, queries, scripts ou jobs que dependam dessa coluna.
+
+5. NÃO altere nenhuma outra tabela.
+
+MIGRAÇÃO:
+
+Depois das verificações:
+
+1. Crie a migration necessária para remover somente:
+
+password_reset_requests.new_password
+
+2. Não faça alterações em:
+- users.password
+- companies.password
+- auth
+- sessão
+- RBAC
+- NF-e
+- fiscal
+- financeiro
+- pedidos
+- logística
+- qualquer outro módulo.
+
+3. Não faça migração destrutiva de users.password ou companies.password.
+
+4. Não tente descriptografar, converter ou recuperar valores históricos de new_password.
+A coluna deve simplesmente ser eliminada, removendo definitivamente esses dados sensíveis.
+
+ANTES DE APLICAR:
+
+Mostre:
+- nome da migration;
+- SQL que será executado;
+- tabelas afetadas;
+- impacto esperado;
+- resultado da verificação de dependências.
+
+Depois aplique a migration.
+
+APÓS A MIGRATION:
+
+1. Confirme que a coluna new_password não existe mais.
+2. Faça uma busca global novamente para garantir que o código não referencia mais essa coluna.
+3. Rode:
+
+npm run check
+
+4. Rode os testes relevantes.
+5. Reinicie a aplicação.
+6. Confirme que o servidor sobe normalmente.
+7. Valide que o fluxo de solicitação/aprovação de reset continua funcionando.
+
+IMPORTANTE:
+
+Não exiba nenhuma senha ou segredo durante a auditoria.
+
+Não faça commit ainda.
+
+Ao finalizar, me entregue um relatório contendo:
+
+- migration criada;
+- migration aplicada com sucesso ou não;
+- quantidade de registros históricos que existiam (somente quantidade);
+- coluna removida;
+- arquivos alterados;
+- resultado do npm run check;
+- resultado dos testes;
+- resultado do boot da aplicação;
+- possíveis problemas restantes.
+
+Não faça nenhuma outra alteração fora desse escopo.
