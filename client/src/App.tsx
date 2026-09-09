@@ -416,7 +416,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminClientIncidents} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS']} tabKey="incidents" />}
       </Route>
       <Route path="/admin/internal-incidents">
-        {() => <ProtectedRoute component={AdminInternalIncidents} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS']} tabKey="internal-incidents" />}
+        {() => <ProtectedRoute component={AdminInternalIncidents} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS']} tabKey="internal-incidents" />}
       </Route>
       <Route path="/admin/production">
         {() => <ProtectedRoute component={AdminProduction} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="production" />}

@@ -20,3 +20,4 @@
 - [Analytics tenant scope](analytics-tenant-scope.md) — agregações logísticas recebem ator, derivam tenant do contexto e convertem falhas de escopo em 403.
 - [Audit log tenant policy](audit-log-tenant-policy.md) — system_logs usa companyId legado; filtros do cliente nunca substituem o tenant confiável.
 - [Pricing tenant isolation](pricing-tenant-isolation.md) — preço só é visível quando linha, produto e grupo pertencem ao tenant ou são globais.
+- [Internal incidents tenant scope](internal-incidents-tenant-scope.md) — ocorrências internas exigem RBAC explícito, tenant resolvido e responsável da mesma empresa.

@@ -201,7 +201,7 @@ export default function InternalIncidentsPage() {
   const [editInc, setEditInc] = useState<InternalIncident | undefined>();
   const [selected, setSelected] = useState<InternalIncident | undefined>();
   const [filterStatus, setFilterStatus] = useState('ALL');
-  const canView = ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'].includes(user?.role || '');
+  const canView = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user?.role || '');
 
   const { data: incidents = [], isLoading } = useQuery<InternalIncident[]>({
     queryKey: ['/api/internal-incidents'],
@@ -219,7 +219,7 @@ export default function InternalIncidentsPage() {
     onError: () => toast({ title: 'Erro ao excluir', variant: 'destructive' }),
   });
 
-  const canDelete = ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user?.role || '');
+  const canDelete = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user?.role || '');
   const filtered = filterStatus === 'ALL' ? incidents : incidents.filter(i => i.status === filterStatus);
   const openCount = incidents.filter(i => i.status === 'OPEN').length;
 

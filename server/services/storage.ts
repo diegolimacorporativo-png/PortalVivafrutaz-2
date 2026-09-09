@@ -613,10 +613,13 @@ export interface IStorage {
   getIncidentMessages(incidentId: number): Promise<IncidentMessage[]>;
 
   // Internal Incidents
-  createInternalIncident(data: { title: string; description: string; category: string; assignedToId?: number; assignedToName?: string; createdById?: number; createdByName?: string; priority: string }): Promise<InternalIncident>;
+  createInternalIncident(data: { empresaId: number; title: string; description: string; category: string; assignedToId?: number | null; assignedToName?: string | null; createdById?: number; createdByName?: string; priority: string }): Promise<InternalIncident>;
   getInternalIncidents(): Promise<InternalIncident[]>;
-  updateInternalIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number; assignedToName?: string }): Promise<InternalIncident>;
+  getInternalIncidentsForCompany(empresaId: number): Promise<InternalIncident[]>;
+  updateInternalIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number | null; assignedToName?: string | null }): Promise<InternalIncident>;
+  updateInternalIncidentForCompany(id: number, empresaId: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number | null; assignedToName?: string | null }): Promise<InternalIncident | undefined>;
   deleteInternalIncident(id: number): Promise<void>;
+  deleteInternalIncidentForCompany(id: number, empresaId: number): Promise<InternalIncident | undefined>;
 
   // Company Settings
   getCompanySettings(empresaId: number): Promise<CompanySettings | undefined>;
@@ -1951,7 +1954,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // ─── Ocorrências Internas ─────────────────────────────────────
-  async createInternalIncident(data: { title: string; description: string; category: string; assignedToId?: number; assignedToName?: string; createdById?: number; createdByName?: string; priority: string }): Promise<InternalIncident> {
+  async createInternalIncident(data: { empresaId: number; title: string; description: string; category: string; assignedToId?: number | null; assignedToName?: string | null; createdById?: number; createdByName?: string; priority: string }): Promise<InternalIncident> {
     const [inc] = await db.insert(internalIncidents).values({ ...data, status: 'OPEN' }).returning();
     return inc;
   }
@@ -1960,13 +1963,36 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(internalIncidents).orderBy(desc(internalIncidents.createdAt)).limit(200);
   }
 
-  async updateInternalIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number; assignedToName?: string }): Promise<InternalIncident> {
+  async getInternalIncidentsForCompany(empresaId: number): Promise<InternalIncident[]> {
+    return db.select()
+      .from(internalIncidents)
+      .where(eq(internalIncidents.empresaId, empresaId))
+      .orderBy(desc(internalIncidents.createdAt))
+      .limit(200);
+  }
+
+  async updateInternalIncident(id: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number | null; assignedToName?: string | null }): Promise<InternalIncident> {
     const [updated] = await db.update(internalIncidents).set(updates as any).where(eq(internalIncidents.id, id)).returning();
+    return updated;
+  }
+
+  async updateInternalIncidentForCompany(id: number, empresaId: number, updates: { status?: string; adminNote?: string; resolvedAt?: Date | null; assignedToId?: number | null; assignedToName?: string | null }): Promise<InternalIncident | undefined> {
+    const [updated] = await db.update(internalIncidents)
+      .set(updates as any)
+      .where(and(eq(internalIncidents.id, id), eq(internalIncidents.empresaId, empresaId)))
+      .returning();
     return updated;
   }
 
   async deleteInternalIncident(id: number): Promise<void> {
     await db.delete(internalIncidents).where(eq(internalIncidents.id, id));
+  }
+
+  async deleteInternalIncidentForCompany(id: number, empresaId: number): Promise<InternalIncident | undefined> {
+    const [deleted] = await db.delete(internalIncidents)
+      .where(and(eq(internalIncidents.id, id), eq(internalIncidents.empresaId, empresaId)))
+      .returning();
+    return deleted;
   }
 
   // ─── Logística: Motoristas ────────────────────────────────────

@@ -11,6 +11,14 @@ import {
   resolveIncidentCreationCompanyId,
   sanitizeIncidentPatch,
 } from "../modules/incidents/client-incidents.policy";
+import {
+  INTERNAL_INCIDENT_DELETE_ROLES,
+  INTERNAL_INCIDENT_ROLES,
+  internalIncidentAssigneeBelongsToScope,
+  requiresInternalIncidentTenant,
+  resolveInternalIncidentScope,
+  sanitizeInternalIncidentPatch,
+} from "../modules/incidents/internal-incidents.policy";
 
 const INCIDENT_ADMIN_MIDDLEWARE = [requireAuthCore, tenantContext] as const;
 const INCIDENT_SESSION_MIDDLEWARE = [requireSessionOrCompany, tenantContext] as const;
@@ -62,6 +70,46 @@ async function getIncidentForScope(
   return scope.companyId == null
     ? storage.getClientIncident(id)
     : storage.getClientIncidentForCompany(id, scope.companyId);
+}
+
+async function resolveInternalIncidentRequest(
+  req: any,
+  res: any,
+  allowedRoles: readonly string[] = INTERNAL_INCIDENT_ROLES,
+) {
+  const user = req.session?.userId
+    ? await storage.getUser(req.session.userId)
+    : null;
+  if (!user || !allowedRoles.includes(user.role)) {
+    res.status(403).json({ message: 'Sem permissão' });
+    return null;
+  }
+
+  const scope = resolveInternalIncidentScope(
+    { tenantId: currentTenantId(), role: user.role, userEmpresaId: user.empresaId },
+    allowedRoles,
+  );
+  if (!scope) {
+    res.status(403).json({ message: 'Empresa não definida para este usuário' });
+    return null;
+  }
+
+  return { scope, user };
+}
+
+async function resolveInternalIncidentAssignee(
+  scope: { companyId: number | null; global: boolean },
+  assignedToId: number | null | undefined,
+) {
+  if (assignedToId == null) return { assignedToId: null, assignedToName: null };
+  const assignee = await storage.getUser(assignedToId);
+  if (
+    !assignee ||
+    !internalIncidentAssigneeBelongsToScope(scope as any, assignee.empresaId)
+  ) {
+    return null;
+  }
+  return { assignedToId: assignee.id, assignedToName: assignee.name };
 }
 
 export function register(app: Express) {
@@ -217,50 +265,100 @@ export function register(app: Express) {
   });
 
   // ─── OCORRÊNCIAS INTERNAS ─────────────────────────────────────
-  app.get('/api/internal-incidents', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId!);
-    if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'].includes(user.role)) {
-      return res.status(403).json({ message: 'Sem permissão' });
-    }
+  app.get('/api/internal-incidents', ...INCIDENT_ADMIN_MIDDLEWARE, async (req, res) => {
     try {
-      const incidents = await storage.getInternalIncidents();
+      const request = await resolveInternalIncidentRequest(req, res);
+      if (!request) return;
+      const incidents = request.scope.companyId == null
+        ? await storage.getInternalIncidents()
+        : await storage.getInternalIncidentsForCompany(request.scope.companyId);
       res.json(incidents);
     } catch (e) { res.status(500).json({ message: 'Error fetching internal incidents' }); }
   });
 
-  app.post('/api/internal-incidents', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId!);
-    if (!user) return res.status(401).json({ message: 'Not authenticated' });
+  app.post('/api/internal-incidents', ...INCIDENT_ADMIN_MIDDLEWARE, async (req, res) => {
     try {
-      const { title, description, category, assignedToId, assignedToName, priority } = req.body;
+      const request = await resolveInternalIncidentRequest(req, res);
+      if (!request) return;
+      if (!requiresInternalIncidentTenant(request.scope)) {
+        return res.status(403).json({ message: 'Este endpoint exige um tenant alvo' });
+      }
+      const { title, description, category, assignedToId: rawAssignedToId, priority } = req.body ?? {};
       if (!title || !description || !category || !priority) return res.status(400).json({ message: 'Campos obrigatórios' });
-      const incident = await storage.createInternalIncident({ title, description, category, assignedToId, assignedToName, priority, createdById: user.id, createdByName: user.name });
-      await storage.createLog({ action: 'INTERNAL_INCIDENT_CREATED', description: `Ocorrência interna criada: ${title}`, userId: user.id, userEmail: user.email, userRole: user.role, level: 'WARN' });
+      const assignedToId = rawAssignedToId === undefined || rawAssignedToId === null || rawAssignedToId === '' || rawAssignedToId === 'none'
+        ? null
+        : Number(rawAssignedToId);
+      if (assignedToId !== null && (!Number.isInteger(assignedToId) || assignedToId <= 0)) {
+        return res.status(400).json({ message: 'Responsável inválido' });
+      }
+      const assignee = await resolveInternalIncidentAssignee(request.scope, assignedToId);
+      if (!assignee) return res.status(400).json({ message: 'Responsável inválido' });
+      const incident = await storage.createInternalIncident({
+        empresaId: request.scope.companyId,
+        title,
+        description,
+        category,
+        ...assignee,
+        priority,
+        createdById: request.user.id,
+        createdByName: request.user.name,
+      });
+      await storage.createLog({ action: 'INTERNAL_INCIDENT_CREATED', description: `Ocorrência interna criada: ${title}`, userId: request.user.id, userEmail: request.user.email, userRole: request.user.role, level: 'WARN', companyId: request.scope.companyId });
       res.json(incident);
     } catch (e) { res.status(500).json({ message: 'Error creating internal incident' }); }
   });
 
-  app.patch('/api/internal-incidents/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId!);
-    if (!user) return res.status(401).json({ message: 'Not authenticated' });
+  app.patch('/api/internal-incidents/:id', ...INCIDENT_ADMIN_MIDDLEWARE, async (req, res) => {
     try {
-      const id = parseInt(String(req.params.id));
-      const updates = req.body;
-      const resolvedAt = updates.status === 'RESOLVED' ? new Date() : null;
-      const updated = await storage.updateInternalIncident(id, { ...updates, ...(resolvedAt !== undefined ? { resolvedAt } : {}) });
-      await storage.createLog({ action: 'INTERNAL_INCIDENT_UPDATED', description: `Ocorrência interna #${id} → ${updates.status || 'editada'}`, userId: user.id, userEmail: user.email, userRole: user.role });
+      const request = await resolveInternalIncidentRequest(req, res);
+      if (!request) return;
+      if (!requiresInternalIncidentTenant(request.scope)) {
+        return res.status(403).json({ message: 'Este endpoint exige um tenant alvo' });
+      }
+      const id = parseIncidentId(req.params.id);
+      if (!id) return res.status(404).json({ message: 'Ocorrência não encontrada' });
+      const patch = sanitizeInternalIncidentPatch(req.body);
+      const rawPatch = req.body && typeof req.body === 'object'
+        ? req.body as Record<string, unknown>
+        : {};
+      if (
+        rawPatch.assignedToId !== undefined &&
+        rawPatch.assignedToId !== null &&
+        rawPatch.assignedToId !== '' &&
+        rawPatch.assignedToId !== 'none' &&
+        patch.assignedToId === undefined
+      ) {
+        return res.status(400).json({ message: 'Responsável inválido' });
+      }
+      const updates: Record<string, unknown> = { ...patch };
+      if (patch.status !== undefined) {
+        updates.resolvedAt = patch.status === 'RESOLVED' ? new Date() : null;
+      }
+      if (patch.assignedToId !== undefined) {
+        const assignee = await resolveInternalIncidentAssignee(request.scope, patch.assignedToId);
+        if (!assignee) return res.status(400).json({ message: 'Responsável inválido' });
+        Object.assign(updates, assignee);
+      }
+      delete updates.assignedToId;
+      const updated = await storage.updateInternalIncidentForCompany(id, request.scope.companyId, updates as any);
+      if (!updated) return res.status(404).json({ message: 'Ocorrência não encontrada' });
+      await storage.createLog({ action: 'INTERNAL_INCIDENT_UPDATED', description: `Ocorrência interna #${id} → ${patch.status || 'editada'}`, userId: request.user.id, userEmail: request.user.email, userRole: request.user.role, companyId: request.scope.companyId });
       res.json(updated);
     } catch (e) { res.status(500).json({ message: 'Error updating internal incident' }); }
   });
 
-  app.delete('/api/internal-incidents/:id', requireAuthCore, async (req, res) => {
-    const user = await storage.getUser(req.session.userId!);
-    if (!user || !['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user.role)) {
-      return res.status(403).json({ message: 'Sem permissão' });
-    }
+  app.delete('/api/internal-incidents/:id', ...INCIDENT_ADMIN_MIDDLEWARE, async (req, res) => {
     try {
-      await storage.deleteInternalIncident(parseInt(String(req.params.id)));
-      await storage.createLog({ action: 'INTERNAL_INCIDENT_DELETED', description: `Ocorrência interna #${req.params.id} excluída`, userId: user.id, userEmail: user.email, userRole: user.role });
+      const request = await resolveInternalIncidentRequest(req, res, INTERNAL_INCIDENT_DELETE_ROLES);
+      if (!request) return;
+      if (!requiresInternalIncidentTenant(request.scope)) {
+        return res.status(403).json({ message: 'Este endpoint exige um tenant alvo' });
+      }
+      const id = parseIncidentId(req.params.id);
+      if (!id) return res.status(404).json({ message: 'Ocorrência não encontrada' });
+      const deleted = await storage.deleteInternalIncidentForCompany(id, request.scope.companyId);
+      if (!deleted) return res.status(404).json({ message: 'Ocorrência não encontrada' });
+      await storage.createLog({ action: 'INTERNAL_INCIDENT_DELETED', description: `Ocorrência interna #${id} excluída`, userId: request.user.id, userEmail: request.user.email, userRole: request.user.role, companyId: request.scope.companyId });
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ message: 'Error deleting internal incident' }); }
   });

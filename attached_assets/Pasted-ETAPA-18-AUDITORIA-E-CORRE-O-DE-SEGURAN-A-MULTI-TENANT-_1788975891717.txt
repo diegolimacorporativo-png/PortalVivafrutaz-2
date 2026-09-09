@@ -1,0 +1,170 @@
+ETAPA 18 — AUDITORIA E CORREÇÃO DE SEGURANÇA MULTI-TENANT/RBAC DOS INTERNAL INCIDENTS
+
+Objetivo:
+Auditar e corrigir exclusivamente os riscos de autenticação, autorização, RBAC e isolamento multi-tenant relacionados aos INTERNAL INCIDENTS.
+
+IMPORTANTE:
+- NÃO mexer em NF-e.
+- NÃO mexer em Fiscal.
+- NÃO mexer em DANFE.
+- NÃO mexer em certificados.
+- NÃO mexer em Bling.
+- NÃO mexer em GPS.
+- NÃO mexer no Android.
+- NÃO mexer em Products.
+- NÃO mexer em Prices/Price Groups já corrigidos na Etapa 17.
+- NÃO mexer em Quotations.
+- NÃO mexer em Deliveries.
+- NÃO mexer em Logistics Analytics.
+- NÃO criar migration.
+- NÃO alterar schema sem necessidade absolutamente comprovada.
+- NÃO alterar dados reais.
+- NÃO fazer refatoração ampla.
+- NÃO criar commit.
+
+PRIMEIRO FAÇA UMA AUDITORIA READ-ONLY.
+
+Localize todos os endpoints, services, repositories e storage relacionados a INTERNAL INCIDENTS.
+
+Diferencie claramente:
+- internal incidents;
+- client incidents já corrigidos;
+- qualquer outro módulo de incident/report/log que não faça parte deste escopo.
+
+AUDITAR:
+
+1. GET/listagem de internal incidents
+2. GET por ID
+3. POST/criação
+4. PUT/PATCH
+5. DELETE
+6. filtros por empresa
+7. filtros por usuário
+8. companyId/empresaId/tenantId recebidos pelo cliente
+9. métodos de storage/repository
+10. policies
+11. middleware requireAuth/requireRole
+12. consumidores frontend
+
+OBJETIVO PRINCIPAL:
+
+Um usuário da empresa A jamais pode:
+
+- listar incidentes privados da empresa B;
+- consultar incidente de B por ID;
+- alterar incidente de B;
+- excluir incidente de B;
+- criar incidente pertencente a B;
+- mudar o tenant através do body/query/path;
+- usar companyId, empresaId ou tenantId para escapar do tenant da sessão.
+
+TENANT:
+
+Para usuário tenant-bound:
+
+- tenant deve vir da sessão/contexto confiável;
+- valores enviados pelo cliente não podem substituir o tenant;
+- companyId/empresaId/tenantId e aliases devem ser tratados com segurança.
+
+Se existir modelo global + tenant, preservar exatamente o comportamento legítimo já existente.
+
+Não transformar registros globais em tenant-private sem evidência no código.
+
+RBAC:
+
+Identifique quais roles realmente deveriam acessar internal incidents.
+
+Não invente uma política nova.
+
+Preserve a política existente quando legítima, mas elimine acesso indevido.
+
+Usuários autenticados sem permissão devem receber 403.
+
+Não autenticado deve receber 401.
+
+OWNERSHIP:
+
+Se o incidente tiver relação com:
+- empresa;
+- usuário;
+- cliente;
+- pedido;
+- entrega;
+- outro recurso tenant-bound;
+
+verifique a cadeia de ownership.
+
+Não basta validar apenas o ID do incidente se o incidente puder apontar para recurso de outro tenant.
+
+CRIAÇÃO:
+
+Se o endpoint aceitar companyId/empresaId:
+
+- NÃO confiar no valor enviado;
+- derivar do tenant autenticado quando o usuário for tenant-bound;
+- impedir criação em empresa diferente.
+
+UPDATE:
+
+- tenant-scoped;
+- impedir troca de empresa;
+- bloquear mass assignment de campos de ownership;
+- validar relações alteradas.
+
+DELETE:
+
+- tenant-scoped;
+- validar ownership antes da exclusão.
+
+TESTES:
+
+Criar testes unitários puros com mocks/fakes, sem escrita real no banco.
+
+Cobrir no mínimo:
+
+1. unauthenticated -> 401;
+2. usuário A lista somente A;
+3. usuário A não lista B;
+4. usuário A não acessa incidente B por ID;
+5. usuário A não atualiza B;
+6. usuário A não exclui B;
+7. criação força tenant A;
+8. companyId/empresaId/tenantId spoofing não funciona;
+9. usuário sem role recebe 403;
+10. roles autorizadas continuam funcionando;
+11. relações com outros recursos não permitem cross-tenant;
+12. comportamento global existente permanece funcionando para roles realmente globais.
+
+VALIDAÇÃO:
+
+Executar:
+
+npm run check
+npm run build
+git diff --check
+
+Se houver workflow disponível, reiniciar e verificar:
+
+DB_CONNECTED
+APP_READY
+
+Não alterar configuração do banco para corrigir falhas ambientais.
+
+AO FINAL INFORMAR:
+
+- vulnerabilidades encontradas;
+- endpoints auditados;
+- arquivos alterados;
+- política tenant aplicada;
+- política RBAC aplicada;
+- testes e resultados;
+- check/build/diff-check;
+- status do workflow;
+- schema alterado? SIM/NÃO;
+- migration criada? SIM/NÃO;
+- dados alterados? SIM/NÃO;
+- confirmar que NF-e/Fiscal/Bling/GPS/Android não foram tocados;
+- confirmar que nenhuma outra etapa foi alterada;
+- confirmar que nenhum commit foi criado.
+
+NÃO criar commit.
