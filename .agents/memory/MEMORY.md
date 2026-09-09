@@ -24,3 +24,4 @@
 - [Vercel public registry](vercel-public-registry.md) — package-lock pode persistir URLs do firewall Replit; deploy externo exige resolved URLs públicas e .npmrc público.
 - [RBAC strict policy](rbac-strict-policy.md) — preserve o bypass estratégico global; use strict apenas em endpoints explicitamente MASTER-only ou com exclusão comprovada.
 - [Legacy route stops authorization](legacy-route-stops-tenant.md) — ownership confiável vem da rota e seu empresa_id; route_stops.company_id é legado e não autoriza acesso.
+- [Push global settings policy](push-global-settings-policy.md) — tabela sem companyId exige administração global somente por contas administrativas sem empresa vinculada.

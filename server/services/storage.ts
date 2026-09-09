@@ -636,7 +636,9 @@ export interface IStorage {
   getActivePushSubscriptions(): Promise<PushSubscription[]>;
   getPushSubscriptionCount(): Promise<number>;
   deactivatePushSubscription(endpoint: string): Promise<void>;
+  deactivatePushSubscriptionOwned(endpoint: string, owner: { userId: number | null; companyId: number }): Promise<boolean>;
   upsertPushSubscription(data: InsertPushSubscription): Promise<PushSubscription>;
+  upsertPushSubscriptionOwned(data: InsertPushSubscription): Promise<PushSubscription | null>;
   getNotificationSettings(): Promise<NotificationSetting[]>;
   upsertNotificationSetting(event: string, data: Partial<InsertNotificationSetting>): Promise<NotificationSetting>;
 
@@ -2650,6 +2652,52 @@ export class DatabaseStorage implements IStorage {
       .update(pushSubscriptions)
       .set({ active: false })
       .where(eq(pushSubscriptions.endpoint, endpoint));
+  }
+  async deactivatePushSubscriptionOwned(
+    endpoint: string,
+    owner: { userId: number | null; companyId: number },
+  ): Promise<boolean> {
+    const ownerFilter = owner.userId != null
+      ? and(eq(pushSubscriptions.userId, owner.userId), eq(pushSubscriptions.companyId, owner.companyId))
+      : and(isNull(pushSubscriptions.userId), eq(pushSubscriptions.companyId, owner.companyId));
+    const rows = await db
+      .update(pushSubscriptions)
+      .set({ active: false })
+      .where(and(eq(pushSubscriptions.endpoint, endpoint), ownerFilter))
+      .returning({ id: pushSubscriptions.id });
+    return rows.length > 0;
+  }
+  async upsertPushSubscriptionOwned(data: InsertPushSubscription): Promise<PushSubscription | null> {
+    const existing = await db
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, data.endpoint))
+      .limit(1);
+    if (existing.length > 0) {
+      const current = existing[0];
+      if (current.userId !== data.userId || current.companyId !== data.companyId) {
+        return null;
+      }
+      const [updated] = await db
+        .update(pushSubscriptions)
+        .set({
+          p256dh: data.p256dh,
+          auth: data.auth,
+          userAgent: data.userAgent,
+          active: true,
+        })
+        .where(and(
+          eq(pushSubscriptions.endpoint, data.endpoint),
+          eq(pushSubscriptions.companyId, data.companyId!),
+          current.userId == null
+            ? isNull(pushSubscriptions.userId)
+            : eq(pushSubscriptions.userId, current.userId),
+        ))
+        .returning();
+      return updated ?? null;
+    }
+    const [created] = await db.insert(pushSubscriptions).values(data).returning();
+    return created;
   }
   async getActivePushSubscriptions(): Promise<PushSubscription[]> {
     return db.select().from(pushSubscriptions).where(eq(pushSubscriptions.active, true));

@@ -542,7 +542,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminIntelligence} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="intelligence" />}
       </Route>
       <Route path="/admin/notification-settings">
-        {() => <ProtectedRoute component={AdminNotificationSettings} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="notification-settings" />}
+        {() => <ProtectedRoute component={AdminNotificationSettings} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="notification-settings" />}
       </Route>
       <Route path="/admin/scope-simulations">
         {() => <ProtectedRoute component={AdminScopeSimulations} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER']} tabKey="scope-simulations" />}
