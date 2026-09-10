@@ -48,7 +48,6 @@ import {
   verifyPublicTrackingToken,
 } from "../../core/security/publicTrackingToken";
 import { buildPublicRouteTrackingPayload } from "./public-tracking.dto";
-import { resolveNumericRouteTrackingAccess } from "./route-tracking.access";
 
 /** Drizzle's `db.execute` returns either { rows } or an array depending on driver. */
 function rowsOf<T = any>(r: any): T[] {
@@ -664,17 +663,40 @@ export class LogisticsController {
       // id into a cross-company read.
       if (!publicClaims) {
         numericActor = await (this.service as any).repo.getUser(sessionUserId);
-        const numericAccess = resolveNumericRouteTrackingAccess(numericActor);
-        if (!numericAccess) {
+        const isInternalRole =
+          numericActor &&
+          (LOGISTICS_AUTH_ROLES as readonly string[]).includes(numericActor.role);
+        const isDriverRole =
+          numericActor?.role === "DRIVER" || numericActor?.role === "MOTORISTA";
+        const isGlobalActor =
+          numericActor &&
+          numericActor.empresaId == null &&
+          (numericActor.role === "MASTER" || numericActor.role === "DIRECTOR");
+
+        if (!numericActor || (!isInternalRole && !isDriverRole)) {
+          return res.status(403).json({ error: "Sem permissão para rastrear esta rota" });
+        }
+        if (numericActor.empresaId == null && !isGlobalActor) {
           return res.status(403).json({ error: "Empresa não definida" });
         }
       }
 
       const routeId = publicClaims?.resourceId ?? Number(rawResource);
-      const numericAccess = resolveNumericRouteTrackingAccess(numericActor);
+      if (numericActor) {
+        const ownedRoute = numericActor.empresaId == null
+          ? await (this.service as any).repo.getRoute(routeId)
+          : await (this.service as any).repo.getRouteForCompany(
+              routeId,
+              numericActor.empresaId,
+            );
+        if (!ownedRoute) {
+          return res.status(404).json({ error: "Route not found" });
+        }
+      }
+
       const tenantRoutePredicate =
-        numericAccess && !numericAccess.global
-          ? sql`AND lr.empresa_id = ${numericAccess.empresaId}`
+        numericActor && numericActor.empresaId != null
+          ? sql`AND lr.empresa_id = ${numericActor.empresaId}`
           : sql``;
 
       // 1. Route header + driver (LEFT JOIN — route may have no driver yet)

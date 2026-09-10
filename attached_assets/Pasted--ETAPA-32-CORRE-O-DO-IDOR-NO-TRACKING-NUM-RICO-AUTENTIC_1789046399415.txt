@@ -1,0 +1,196 @@
+## ETAPA 32 — CORREÇÃO DO IDOR NO TRACKING NUMÉRICO AUTENTICADO
+
+CONTEXTO:
+A Etapa 31 encontrou uma vulnerabilidade HIGH em:
+
+GET /api/logistics/track/:token
+
+Quando existe sessão interna, o endpoint ainda aceita um ID numérico legado.
+Nesse caminho numérico, o controller consulta a rota diretamente por ID sem aplicar corretamente tenant isolation nem ownership.
+
+CENÁRIO CONFIRMADO:
+Um usuário interno da empresa A consegue acessar:
+
+GET /api/logistics/track/<id-da-rota-da-empresa-B>
+
+e receber dados operacionais da empresa B, incluindo entregas e GPS.
+
+OBJETIVO:
+Corrigir EXCLUSIVAMENTE esse IDOR.
+
+NÃO alterar a arquitetura dos tokens públicos já implementada na Etapa 30/31.
+
+==================================================
+REGRAS OBRIGATÓRIAS
+==================================================
+
+1. Para o caminho NUMÉRICO legado autenticado:
+
+- sessão obrigatória;
+- aplicar tenantContext/política de tenant existente;
+- usuário tenant-bound só pode acessar rota da própria empresa;
+- rota de outra empresa deve retornar 403 ou 404 conforme o padrão de segurança já utilizado pelo módulo;
+- não confiar em empresaId enviado pelo cliente;
+- não confiar em query/body/header para trocar tenant;
+- não permitir que driver acesse rota de outra empresa;
+- se houver regra específica de motorista/ownership existente, preservá-la;
+- MASTER/DIRECTOR globais devem manter a política global já existente.
+
+2. Usar os mecanismos de ownership existentes.
+
+Priorizar/reutilizar:
+- getRouteForCompany
+- tenantContext
+- políticas existentes de logistics
+- helpers de acesso/ownership já criados
+
+NÃO criar uma segunda política de tenant se já existir uma adequada.
+
+3. IMPORTANTE:
+
+O caminho com TOKEN deve continuar funcionando exatamente como validado na Etapa 31.
+
+Não remover:
+- AES-256-GCM;
+- HMAC;
+- TTL;
+- purpose;
+- type delivery/route;
+- nonce;
+- validação antes do DB;
+- rate limit;
+- DTO público;
+- arredondamento de GPS;
+- remoção de dados sensíveis.
+
+4. O comportamento deve ficar assim:
+
+TOKEN:
+GET /api/logistics/track/:token
+→ token válido → fluxo público protegido por token.
+
+NUMÉRICO:
+GET /api/logistics/track/:numericId
+→ somente sessão interna;
+→ tenant/ownership validado;
+→ empresa A não acessa rota da empresa B.
+
+ANÔNIMO + ID NUMÉRICO:
+→ continuar bloqueado conforme Etapa 30.
+
+5. NÃO alterar:
+
+- schema;
+- migrations;
+- banco;
+- dados reais;
+- frontend;
+- Android Tracker;
+- GPS;
+- NF-e/fiscal;
+- financeiro;
+- inventory;
+- Clara;
+- quotations;
+- deliveries;
+- push;
+- products;
+- prices;
+- tenantContext globalmente.
+
+A alteração deve ser mínima e localizada.
+
+==================================================
+TESTES OBRIGATÓRIOS
+==================================================
+
+Criar/ajustar testes direcionados para provar:
+
+1. sem sessão + ID numérico → 401/403 conforme política atual;
+
+2. usuário da empresa A + rota da empresa A → permitido;
+
+3. usuário da empresa A + rota da empresa B → BLOQUEADO;
+
+4. motorista da empresa A + rota da empresa B → BLOQUEADO;
+
+5. MASTER global + rota válida → comportamento global preservado;
+
+6. DIRECTOR global + rota válida → comportamento global preservado;
+
+7. empresaId/companyId/tenantId enviado pelo cliente não consegue alterar o tenant;
+
+8. rota inexistente continua retornando comportamento correto;
+
+9. token público válido continua funcionando;
+
+10. token público inválido/tampered continua rejeitado;
+
+11. endpoint numérico não deve executar consulta cross-tenant antes da validação de ownership/tenant quando for possível evitar isso.
+
+IMPORTANTE:
+Não fazer apenas teste unitário superficial.
+Use o mesmo padrão de testes de isolamento já usado nas etapas anteriores.
+
+==================================================
+VALIDAÇÃO
+==================================================
+
+Executar:
+
+npm run check
+npm run build
+npm test
+git diff --check
+
+Se o workflow Start application estiver disponível, tentar iniciar.
+
+Se SUPABASE_DATABASE_URL estiver ausente, NÃO inventar sucesso.
+Registrar claramente que o workflow ficou bloqueado pelo ambiente.
+
+==================================================
+CRITÉRIO DE APROVAÇÃO
+==================================================
+
+A Etapa 32 só pode ser considerada APROVADA se:
+
+- empresa A não conseguir acessar rota da empresa B pelo ID numérico;
+- usuário tenant-bound não conseguir trocar tenant;
+- MASTER/DIRECTOR global continuar funcionando;
+- token público continuar funcionando;
+- testes direcionados passarem;
+- check passar;
+- build passar;
+- diff-check passar.
+
+Se npm test/workflow forem bloqueados exclusivamente por SUPABASE_DATABASE_URL, registrar como limitação ambiental, sem mascarar o resultado.
+
+==================================================
+RESTRIÇÃO CRÍTICA
+==================================================
+
+Não aproveitar esta etapa para refatorar outras partes.
+
+Não corrigir outras vulnerabilidades encontradas incidentalmente.
+
+Não alterar NF-e/fiscal.
+
+Não criar migration.
+
+Não alterar dados reais.
+
+Não fazer deploy.
+
+Não criar commit.
+
+Ao final, apresentar:
+
+1. arquivos alterados;
+2. vulnerabilidade corrigida;
+3. como o tenant/ownership agora é validado;
+4. testes executados e resultados;
+5. check/build/diff-check;
+6. estado do workflow/Supabase;
+7. confirmação de que token público permaneceu intacto;
+8. confirmação de que NF-e/fiscal e demais módulos protegidos não foram alterados;
+9. estado Git.
