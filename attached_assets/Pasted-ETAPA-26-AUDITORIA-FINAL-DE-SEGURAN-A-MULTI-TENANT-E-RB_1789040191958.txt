@@ -1,0 +1,627 @@
+ETAPA 26 — AUDITORIA FINAL DE SEGURANÇA, MULTI-TENANT E RBAC
+
+Estamos na última etapa da auditoria de segurança do Portal VivaFrutaz.
+
+ATENÇÃO:
+Esta etapa é SOMENTE AUDITORIA READ-ONLY.
+
+NÃO alterar código.
+NÃO criar migration.
+NÃO alterar schema.
+NÃO alterar dados.
+NÃO executar operações reais de escrita no banco.
+NÃO criar commit.
+NÃO fazer deploy.
+NÃO alterar NF-e/fiscal/certificados/credenciais.
+NÃO alterar GPS/Android.
+NÃO refatorar módulos.
+NÃO corrigir nada automaticamente.
+
+O objetivo é verificar se, depois das Etapas 1–25, ainda existem vulnerabilidades reais de segurança que não foram tratadas.
+
+==================================================
+1. CONTEXTO
+==================================================
+
+O sistema é um ERP/SaaS multi-tenant da VivaFrutaz.
+
+Já foram concluídas as principais correções de:
+
+- armazenamento seguro de senhas;
+- password reset;
+- multi-tenant;
+- RBAC;
+- company-config;
+- company-settings;
+- deliveries;
+- products/categorias/subcategorias;
+- quotations;
+- GPS/driver ownership;
+- logistics analytics;
+- audit logs;
+- prices/price groups;
+- internal incidents;
+- finance/bank;
+- inventory;
+- strict RBAC;
+- legacy route stops;
+- push settings;
+- tenant context/fallbacks;
+- logistics mass assignment.
+
+As Etapas 1–25 NÃO devem ser reabertas ou modificadas.
+
+==================================================
+2. OBJETIVO
+==================================================
+
+Faça uma auditoria final abrangente procurando SOMENTE vulnerabilidades ainda existentes.
+
+Priorize:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+
+Não transformar comportamento legítimo em vulnerabilidade.
+
+Não considerar como vulnerabilidade simplesmente existir:
+
+- rota administrativa legítima;
+- acesso global legítimo de MASTER;
+- comportamento fiscal/NF-e já existente;
+- serviço técnico explicitamente global;
+- endpoint público que tenha finalidade pública real;
+- filtros opcionais que não permitam escapar do tenant;
+- fallback explicitamente permitido pela arquitetura.
+
+Para cada finding, informe:
+
+1. severidade;
+2. arquivo;
+3. endpoint ou função;
+4. comportamento observado;
+5. cenário de exploração;
+6. impacto;
+7. evidência no código;
+8. se é realmente explorável;
+9. recomendação;
+10. se já está coberto por alguma etapa anterior.
+
+==================================================
+3. AUDITORIA DE ROTAS
+==================================================
+
+Mapear novamente todas as rotas HTTP do projeto.
+
+Procurar:
+
+- endpoints sem autenticação;
+- endpoints com autenticação insuficiente;
+- endpoints com RBAC incorreto;
+- endpoints com IDOR;
+- endpoints que aceitam companyId/empresaId/tenantId pelo cliente;
+- endpoints que aceitam tenantId por query;
+- endpoints que aceitam tenantId por header;
+- endpoints que aceitam tenantId por body;
+- endpoints que aceitam IDs de recursos de outro tenant;
+- endpoints com mass assignment;
+- endpoints com filtros que conseguem escapar do tenant;
+- endpoints de DELETE sem ownership;
+- endpoints de PATCH/PUT sem ownership;
+- endpoints de POST que permitem criar registros em outro tenant.
+
+Prestar atenção especialmente em:
+
+/api/*
+/api/admin/*
+/api/master/*
+/api/logistics/*
+/api/driver/*
+/api/orders/*
+/api/products/*
+/api/quotations/*
+/api/reports/*
+/api/finance/*
+/api/bank/*
+/api/inventory/*
+/api/push/*
+/api/incidents/*
+/api/company-settings/*
+/api/empresa-config/*
+/api/logs/*
+
+Também procurar rotas legadas ou aliases de APIs.
+
+==================================================
+4. MULTI-TENANT FINAL
+==================================================
+
+Verificar se existe algum caminho que permita:
+
+Tenant A
+   ↓
+sessão autenticada
+   ↓
+requisição manipulada
+   ↓
+acesso a recurso do Tenant B
+
+Testar mentalmente e por análise estática:
+
+- URL ID;
+- query parameter;
+- request body;
+- headers;
+- cookies;
+- session;
+- req.user;
+- req.session;
+- companyId;
+- empresaId;
+- tenantId;
+- X-Empresa-Id;
+- filtros;
+- repository;
+- storage;
+- service;
+- controller.
+
+Especial atenção para:
+
+resolveTenant()
+tenantContext
+requireTenant
+runWithTenant
+session.companyId
+session.user.empresaId
+
+Confirmar que nenhum código ainda confia cegamente em:
+
+req.body.companyId
+req.body.empresaId
+req.body.tenantId
+req.query.companyId
+req.query.empresaId
+req.query.tenantId
+req.headers["x-empresa-id"]
+req.headers["x-tenant-id"]
+
+quando o usuário já está vinculado a um tenant.
+
+==================================================
+5. RBAC FINAL
+==================================================
+
+Auditar todas as chamadas de:
+
+requireRole
+requireAuth
+requireAuthCore
+requireTenant
+policy
+access
+permission
+
+Procurar:
+
+- ADMIN recebendo acesso indevido;
+- DIRECTOR recebendo acesso indevido;
+- DEVELOPER recebendo acesso indevido;
+- OPERATIONS_MANAGER recebendo acesso indevido;
+- LOGISTICS recebendo acesso indevido;
+- PURCHASE_MANAGER recebendo acesso indevido;
+- FINANCE/FINANCEIRO recebendo acesso indevido;
+- DRIVER/MOTORISTA recebendo acesso indevido;
+- CLIENT recebendo acesso indevido.
+
+Verificar especialmente se algum endpoint MASTER-only ainda possui bypass indireto.
+
+Não alterar o comportamento global de FULL_ACCESS_ROLES.
+
+Apenas identificar problemas reais.
+
+==================================================
+6. MASS ASSIGNMENT FINAL
+==================================================
+
+Pesquisar sistematicamente por:
+
+Object.assign
+spread de req.body
+req.body diretamente em storage
+req.body diretamente em repository
+update(req.body)
+insert(req.body)
+create(req.body)
+
+e equivalentes.
+
+Procurar campos controlados pelo servidor:
+
+- id;
+- empresaId;
+- empresa_id;
+- companyId;
+- company_id;
+- tenantId;
+- tenant_id;
+- createdAt;
+- updatedAt;
+- createdBy;
+- userId;
+- role;
+- status;
+- approvedBy;
+- approvedAt;
+- deletedAt;
+- balance;
+- balanceAfter;
+- previousQuantity;
+- timestamps;
+- ownership;
+- audit fields.
+
+Verificar se ainda existe algum endpoint onde esses campos possam ser alterados pelo cliente.
+
+==================================================
+7. IDOR / OWNERSHIP FINAL
+==================================================
+
+Pesquisar operações por:
+
+:id
+/:id
+/:resourceId
+/:driverId
+/:routeId
+/:stopId
+/:companyId
+/:empresaId
+
+Verificar se existe algum recurso onde:
+
+GET
+PATCH
+PUT
+DELETE
+
+possa acessar objeto de outro tenant apenas conhecendo o ID.
+
+Verificar também ownership indireto:
+
+delivery → company
+route → company
+stop → route → company
+driver → company
+vehicle → company
+maintenance → vehicle/driver/company
+product → company
+price → product/company
+quotation → company
+incident → company
+financial record → company
+inventory → company
+push subscription → user/company
+
+==================================================
+8. STORAGE / REPOSITORY / SERVICE
+==================================================
+
+Não olhar somente as rotas.
+
+Auditar também:
+
+server/services/storage.ts
+server/core/tenant/*
+server/modules/*/repository*
+server/modules/*/service*
+server/modules/*/policy*
+server/modules/*/access*
+server/modules/*/controller*
+
+Procurar métodos genéricos que ainda possam ser chamados de forma insegura.
+
+Especial atenção para métodos que possuem comportamento:
+
+empresaId === null
+tenantId === null
+sem filtro de empresa
+fallback global
+query sem WHERE tenant
+findById(id)
+updateById(id)
+deleteById(id)
+
+Determinar se existe algum caminho HTTP real que consiga explorar esses métodos.
+
+Não marcar como vulnerabilidade apenas porque um método interno é genérico se todos os consumidores estiverem protegidos.
+
+==================================================
+9. DADOS SENSÍVEIS
+==================================================
+
+Pesquisar respostas HTTP que possam expor:
+
+- senhas;
+- hashes;
+- tokens;
+- secrets;
+- API keys;
+- SMTP credentials;
+- private keys;
+- A1;
+- certificados;
+- credenciais bancárias;
+- dados internos de usuários;
+- dados de outros tenants.
+
+IMPORTANTE:
+
+NÃO MODIFICAR NF-e, fiscal, certificado A1 ou integrações fiscais nesta etapa.
+
+Apenas registrar eventual exposição encontrada.
+
+Diferenciar:
+
+- campo armazenado internamente;
+- campo retornado pela API;
+- campo retornado somente para MASTER/ADMIN/DIRECTOR/DEVELOPER;
+- campo exposto publicamente.
+
+==================================================
+10. LOGS E AUDITORIA
+==================================================
+
+Verificar se ainda existe algum endpoint capaz de:
+
+- falsificar usuário;
+- falsificar empresa;
+- falsificar role;
+- falsificar timestamp;
+- apagar logs de outro tenant;
+- consultar logs de outro tenant;
+- inserir audit log arbitrário.
+
+Revisar também escritores internos de logs.
+
+==================================================
+11. ENDPOINTS PÚBLICOS
+==================================================
+
+Listar todos os endpoints realmente públicos.
+
+Para cada um informar:
+
+- endpoint;
+- finalidade;
+- dados retornados;
+- se possui motivo legítimo para ser público;
+- se possui risco de exposição;
+- se precisa continuar público.
+
+Não alterar nada.
+
+Não considerar automaticamente `/api/track/:deliveryId` vulnerável se o fluxo público de rastreamento for intencional.
+
+==================================================
+12. UPLOADS / FILES
+==================================================
+
+Auditar endpoints de upload.
+
+Procurar:
+
+- path traversal;
+- filename injection;
+- acesso a arquivos de outro tenant;
+- upload sem autenticação;
+- MIME spoofing;
+- arquivos executáveis;
+- exposição de arquivos internos;
+- ausência de ownership.
+
+Não alterar nada.
+
+==================================================
+13. FRONTEND
+==================================================
+
+Fazer uma verificação rápida procurando:
+
+- chamadas para endpoints que agora exigem autenticação;
+- chamadas enviando companyId/tenantId manualmente;
+- dados sensíveis armazenados em localStorage;
+- tokens em localStorage;
+- secrets no bundle;
+- permissões controladas somente pelo frontend;
+- rotas administrativas protegidas apenas visualmente.
+
+Não transformar problemas puramente de UX em vulnerabilidades de backend.
+
+==================================================
+14. DEPENDÊNCIAS
+==================================================
+
+Somente registrar riscos conhecidos claramente relevantes.
+
+NÃO executar:
+
+npm audit fix
+npm audit fix --force
+
+NÃO atualizar dependências.
+
+Apenas registrar o estado atual se necessário.
+
+Não misturar vulnerabilidades de dependências com a auditoria de autorização.
+
+==================================================
+15. TESTES
+==================================================
+
+Criar SOMENTE testes temporários/in-memory se forem necessários para comprovar uma hipótese, mas NÃO deixar alterações permanentes no projeto.
+
+Preferir análise estática.
+
+Se executar a suíte:
+
+npm run check
+npm run build
+git diff --check
+npm test
+
+Registrar claramente:
+
+- testes relacionados à auditoria;
+- testes preexistentes;
+- falhas de timezone UTC/BRT já conhecidas;
+- falhas fiscais causadas pelo host fictício/ambiente sem credenciais reais;
+- qualquer falha nova.
+
+Não considerar essas falhas conhecidas como regressão das Etapas 1–25 sem evidência.
+
+==================================================
+16. WORKFLOW
+==================================================
+
+Se o workflow continuar bloqueado por:
+
+SUPABASE_DATABASE_URL ausente
+
+registrar isso como limitação ambiental.
+
+NÃO pedir secret ao usuário.
+
+NÃO alterar configuração para contornar.
+
+NÃO inventar conexão.
+
+==================================================
+17. CHECKLIST FINAL
+==================================================
+
+Produzir uma matriz:
+
+Área | Status | Findings | Severidade
+
+Com:
+
+- autenticação;
+- RBAC;
+- multi-tenant;
+- IDOR;
+- mass assignment;
+- ownership;
+- tenant context;
+- storage/repository;
+- logistics;
+- deliveries;
+- products;
+- prices;
+- quotations;
+- reports;
+- incidents;
+- finance;
+- bank;
+- inventory;
+- push;
+- audit logs;
+- uploads;
+- frontend;
+- endpoints públicos;
+- dados sensíveis;
+- dependências.
+
+==================================================
+18. RESULTADO FINAL
+==================================================
+
+Criar somente um relatório:
+
+docs/security/ETAPA_26_AUDITORIA_FINAL.md
+
+O relatório deve conter:
+
+1. resumo executivo;
+2. escopo;
+3. metodologia;
+4. findings Critical;
+5. findings High;
+6. findings Medium;
+7. findings Low;
+8. itens já corrigidos nas Etapas 1–25;
+9. riscos aceitos/legítimos;
+10. limitações ambientais;
+11. testes executados;
+12. conclusão;
+13. recomendações futuras.
+
+IMPORTANTE:
+
+Não criar código de correção.
+
+Não modificar arquivos da aplicação.
+
+Não modificar banco.
+
+Não criar migration.
+
+Não modificar schema.
+
+Não alterar NF-e/fiscal.
+
+Não alterar GPS/Android.
+
+Não alterar finance/inventory/logistics.
+
+Não criar commit.
+
+==================================================
+19. GIT
+==================================================
+
+No final executar:
+
+git status --short
+git diff --check
+git diff --stat
+
+Confirmar:
+
+- nenhuma alteração de código;
+- nenhuma migration;
+- nenhum schema alterado;
+- nenhum dado alterado;
+- nenhum commit.
+
+Se o relatório for o único arquivo novo/modificado, informar explicitamente.
+
+==================================================
+20. RESPOSTA FINAL OBRIGATÓRIA
+==================================================
+
+Responder com:
+
+ETAPA 26 — RESULTADO FINAL
+
+1. Vulnerabilidades Critical:
+2. Vulnerabilidades High:
+3. Vulnerabilidades Medium:
+4. Vulnerabilidades Low:
+5. Itens já corrigidos:
+6. Riscos aceitos/legítimos:
+7. Limitações:
+8. Testes:
+9. Arquivos alterados:
+10. Estado Git:
+11. Conclusão geral de segurança:
+
+Não corrigir nada nesta etapa.
+
+Se não houver vulnerabilidades relevantes, dizer explicitamente:
+
+"Nenhuma vulnerabilidade Critical/High/Medium explorável foi encontrada na auditoria final."
+
+Depois separar claramente qualquer recomendação futura de baixa prioridade.
