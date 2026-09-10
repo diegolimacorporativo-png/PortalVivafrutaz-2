@@ -1,0 +1,230 @@
+ETAPA 28 — CORREÇÃO DO BLOQUEIO DE DEPENDÊNCIA `cors`
+
+Objetivo único:
+
+Resolver o erro:
+
+server/app.ts:3:18 - error TS2307: Cannot find module 'cors'
+
+Esse erro está bloqueando:
+
+- npm run check
+- npm run build
+- workflow Start application
+
+IMPORTANTE:
+
+Fazer uma correção mínima e controlada.
+
+NÃO executar:
+
+- npm audit fix
+- npm audit fix --force
+- atualização geral de dependências
+- npm update
+- migração de banco
+- alteração de schema
+- alteração de dados
+- alteração de NF-e/fiscal
+- alteração de financeiro
+- alteração de inventory
+- alteração de logistics
+- alteração de deliveries
+- alteração de GPS/Android
+- alteração de tenant context
+- alteração de RBAC
+- alteração de autenticação
+- refatoração geral
+
+==================================================
+1. DIAGNÓSTICO
+==================================================
+
+Antes de alterar qualquer coisa, verificar:
+
+- package.json
+- package-lock.json
+- node_modules
+- server/app.ts
+
+Confirmar como `cors` está sendo importado e utilizado.
+
+Pesquisar se:
+
+- `cors` está declarado no package.json;
+- `cors` aparece no package-lock.json;
+- existe referência a uma versão específica;
+- a dependência está ausente somente do node_modules;
+- houve alguma alteração anterior no package-lock;
+- existe configuração de registry que possa impedir a instalação.
+
+NÃO alterar nada antes desse diagnóstico.
+
+==================================================
+2. CORREÇÃO MÍNIMA
+==================================================
+
+Se `cors` já estiver corretamente declarado no package.json e package-lock.json:
+
+- não alterar versões;
+- não alterar package-lock manualmente;
+- restaurar/reinstalar somente a dependência necessária, se apropriado;
+- verificar se o ambiente passa a resolver `cors`.
+
+Se `cors` estiver faltando no package.json:
+
+- adicionar somente `cors` na versão compatível com o projeto;
+- atualizar o package-lock de forma normal;
+- não atualizar outras dependências.
+
+Se existir conflito entre package.json e package-lock:
+
+- corrigir somente essa inconsistência;
+- preservar todas as demais versões e integridades.
+
+Não trocar Node 20 por Node 22 nesta etapa.
+
+Não mexer em libxmljs2.
+
+==================================================
+3. SEGURANÇA DAS DEPENDÊNCIAS
+==================================================
+
+Não tentar corrigir todas as vulnerabilidades de npm agora.
+
+O objetivo é SOMENTE resolver:
+
+Cannot find module 'cors'
+
+Registrar separadamente qualquer aviso de vulnerabilidade já existente.
+
+==================================================
+4. VALIDAÇÃO
+==================================================
+
+Depois da correção executar:
+
+npm run check
+
+npm test
+
+npm run build
+
+git diff --check
+
+Se possível verificar também:
+
+npm ls cors
+
+O resultado esperado é que `cors` esteja resolvido sem duplicações ou versão inesperada.
+
+==================================================
+5. TESTES
+==================================================
+
+Os 344 testes da Etapa 27 estavam passando.
+
+Confirmar que continuam:
+
+344/344
+
+Se algum teste novo falhar, investigar somente se tiver relação com esta alteração.
+
+Não modificar os testes de deadline.
+
+==================================================
+6. WORKFLOW
+==================================================
+
+Tentar iniciar a aplicação/workflow.
+
+Se continuar bloqueado por:
+
+SUPABASE_DATABASE_URL ausente
+
+registrar isso como limitação ambiental.
+
+NÃO pedir secret.
+
+NÃO inventar secret.
+
+NÃO alterar configuração para contornar.
+
+==================================================
+7. GIT
+==================================================
+
+Não criar commit.
+
+Verificar:
+
+git status --short
+git diff --stat
+git diff --check
+
+Não alterar:
+
+docs/security/ETAPA_26_AUDITORIA_FINAL.md
+
+Não alterar:
+
+docs/security/ETAPA_27_TIMEZONE_AUDIT.md
+
+Não alterar o arquivo anexado pelo usuário da Etapa 26.
+
+Não alterar o arquivo anexado pelo usuário da Etapa 27.
+
+==================================================
+8. RELATÓRIO
+==================================================
+
+Criar:
+
+docs/security/ETAPA_28_DEPENDENCY_FIX.md
+
+Informar:
+
+1. causa exata do `cors` ausente;
+2. estado anterior de package.json;
+3. estado anterior do package-lock;
+4. correção aplicada;
+5. versão final do cors;
+6. se outras dependências foram alteradas;
+7. npm run check;
+8. npm test;
+9. npm run build;
+10. npm ls cors;
+11. workflow;
+12. estado Git;
+13. conclusão.
+
+==================================================
+9. REGRA PRINCIPAL
+==================================================
+
+Esta é uma correção cirúrgica.
+
+Se descobrir que o `cors` está no package.json/package-lock e simplesmente não está instalado no ambiente, NÃO modificar arquivos do projeto desnecessariamente.
+
+Se precisar instalar a dependência no ambiente, faça isso sem alterar versões declaradas.
+
+Se for necessário alterar package.json/package-lock, alterar SOMENTE o necessário para `cors`.
+
+==================================================
+RESPOSTA FINAL OBRIGATÓRIA
+
+ETAPA 28 — RESULTADO
+
+1. Causa:
+2. Correção:
+3. Versão do cors:
+4. Outras dependências alteradas:
+5. npm run check:
+6. npm test:
+7. npm run build:
+8. npm ls cors:
+9. Workflow:
+10. Banco:
+11. NF-e/fiscal:
+12. Estado Git:
+13. Conclusão:
