@@ -60,8 +60,147 @@ function pickRouteStopFields(body: any): Record<string, unknown> {
   );
 }
 
+const DRIVER_EDITABLE_FIELDS = [
+  "name",
+  "cpf",
+  "phone",
+  "email",
+  "licenseNumber",
+  "active",
+  "notes",
+] as const;
+
+const VEHICLE_EDITABLE_FIELDS = [
+  "plate",
+  "model",
+  "brand",
+  "year",
+  "type",
+  "capacity",
+  "active",
+  "notes",
+] as const;
+
+const ROUTE_EDITABLE_FIELDS = [
+  "name",
+  "driverId",
+  "driverName",
+  "vehicleId",
+  "vehiclePlate",
+  "deliveryDate",
+  "status",
+  "companyIds",
+  "companyNames",
+  "notes",
+  "startTime",
+  "endTime",
+] as const;
+
+const MAINTENANCE_EDITABLE_FIELDS = [
+  "vehicleId",
+  "vehiclePlate",
+  "type",
+  "description",
+  "cost",
+  "scheduledDate",
+  "completedDate",
+  "status",
+  "notes",
+] as const;
+
+function pickEditableFields(
+  body: unknown,
+  fields: readonly string[],
+): Record<string, unknown> {
+  const source = body && typeof body === "object" && !Array.isArray(body)
+    ? body as Record<string, unknown>
+    : {};
+
+  return Object.fromEntries(
+    fields
+      .filter((field) => Object.prototype.hasOwnProperty.call(source, field))
+      .map((field) => [field, source[field]])
+      .filter(([, value]) => value !== undefined),
+  );
+}
+
+function normalizeOptionalId(
+  value: unknown,
+  label: string,
+): number | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null || value === "" || value === "none") return null;
+  const id = Number(value);
+  if (!Number.isInteger(id) || id <= 0) {
+    throw new BadRequestError(`${label} inválido`);
+  }
+  return id;
+}
+
 export class LogisticsService {
   constructor(private readonly repo: LogisticsRepository = logisticsRepository) {}
+
+  private actorTenant(actor?: ActorRef): number | null {
+    const contextTenant = currentTenantId();
+    if (contextTenant != null) return contextTenant;
+    return actor?.empresaId == null ? null : Number(actor.empresaId);
+  }
+
+  private async validateDriverReference(
+    driverId: number | null | undefined,
+    tenantId: number | null,
+  ): Promise<void> {
+    if (driverId == null) return;
+    const drivers = tenantId == null
+      ? await this.repo.getDrivers()
+      : await this.repo.getDriversSafe(tenantId);
+    const driver = (drivers as any[]).find((item) => Number(item.id) === driverId);
+    if (!driver || (tenantId != null && Number(driver.empresaId) !== tenantId)) {
+      throw new ForbiddenError("Motorista não pertence ao tenant autorizado.");
+    }
+  }
+
+  private async validateVehicleReference(
+    vehicleId: number | null | undefined,
+    tenantId: number | null,
+  ): Promise<void> {
+    if (vehicleId == null) return;
+    const vehicles = tenantId == null
+      ? await this.repo.getVehicles()
+      : await this.repo.getVehiclesSafe(tenantId);
+    const vehicle = (vehicles as any[]).find((item) => Number(item.id) === vehicleId);
+    if (!vehicle || (tenantId != null && Number(vehicle.empresaId) !== tenantId)) {
+      throw new ForbiddenError("Veículo não pertence ao tenant autorizado.");
+    }
+  }
+
+  private async validateCompanyReferences(
+    companyIds: unknown,
+    tenantId: number | null,
+  ): Promise<number[] | undefined> {
+    if (companyIds === undefined) return undefined;
+    if (!Array.isArray(companyIds)) {
+      throw new BadRequestError("companyIds inválido");
+    }
+
+    const ids = companyIds.map((value) => {
+      const id = Number(value);
+      if (!Number.isInteger(id) || id <= 0) {
+        throw new BadRequestError("companyIds inválido");
+      }
+      return id;
+    });
+    const companies = tenantId == null
+      ? await this.repo.getCompanies()
+      : [await this.repo.getCompany(tenantId)];
+    const allowedIds = new Set(
+      (companies as any[]).filter(Boolean).map((company) => Number(company.id)),
+    );
+    if (ids.some((id) => !allowedIds.has(id))) {
+      throw new ForbiddenError("Empresa não pertence ao tenant autorizado.");
+    }
+    return ids;
+  }
 
   private analyticsScope(actor: ActorRef): { tenantId: number | null; global: boolean } {
     const contextTenant = currentTenantId();
@@ -272,9 +411,12 @@ export class LogisticsService {
     return d;
   }
 
-  updateDriver(id: number, body: any) {
-    const tid = currentTenantId();
-    return tid ? this.repo.updateDriverOwned(id, tid, body) : this.repo.updateDriver(id, body);
+  updateDriver(id: number, body: any, actor?: ActorRef) {
+    const tid = this.actorTenant(actor);
+    const payload = pickEditableFields(body, DRIVER_EDITABLE_FIELDS);
+    return tid
+      ? this.repo.updateDriverOwned(id, tid, payload)
+      : this.repo.updateDriver(id, payload);
   }
 
   deleteDriver(id: number) {
@@ -297,6 +439,7 @@ export class LogisticsService {
       throw new BadRequestError("Placa, modelo e marca obrigatórios");
     }
     const v = await this.repo.createVehicle({
+      empresaId: currentTenantId() ?? actor.empresaId ?? undefined,
       plate: String(plate).toUpperCase(),
       model,
       brand,
@@ -316,9 +459,15 @@ export class LogisticsService {
     return v;
   }
 
-  updateVehicle(id: number, body: any) {
-    const tid = currentTenantId();
-    return tid ? this.repo.updateVehicleOwned(id, tid, body) : this.repo.updateVehicle(id, body);
+  updateVehicle(id: number, body: any, actor?: ActorRef) {
+    const tid = this.actorTenant(actor);
+    const payload = pickEditableFields(body, VEHICLE_EDITABLE_FIELDS);
+    if (Object.prototype.hasOwnProperty.call(payload, "plate")) {
+      payload.plate = String(payload.plate).toUpperCase();
+    }
+    return tid
+      ? this.repo.updateVehicleOwned(id, tid, payload)
+      : this.repo.updateVehicle(id, payload);
   }
 
   deleteVehicle(id: number) {
@@ -342,10 +491,15 @@ export class LogisticsService {
       deliveryDate,
       notes,
       companyNames,
+      companyIds,
       startTime,
       endTime,
     } = body || {};
     if (!name) throw new BadRequestError("Nome da rota obrigatório");
+    const tenantId = this.actorTenant(actor);
+    const normalizedVehicleId = normalizeOptionalId(vehicleId, "Veículo");
+    await this.validateVehicleReference(normalizedVehicleId, tenantId);
+    const normalizedCompanyIds = await this.validateCompanyReferences(companyIds, tenantId);
     let operationalDriverId = driverId || undefined;
     if (operationalDriverId && Number(operationalDriverId) < 0) {
       // Virtual driver entries come from user accounts that predate the
@@ -353,17 +507,17 @@ export class LogisticsService {
       // this is the safe point to materialize the operational link.
       const accountId = Math.abs(Number(operationalDriverId));
       const account = await this.repo.getUser(accountId);
-      const tenantId = currentTenantId() ?? actor.empresaId ?? null;
+      const driverTenantId = tenantId;
       if (
         !account ||
         account.active === false ||
         !["MOTORISTA", "DRIVER"].includes(account.role) ||
-        (tenantId != null && Number(account.empresaId) !== Number(tenantId))
+        (driverTenantId != null && Number(account.empresaId) !== Number(driverTenantId))
       ) {
         throw new BadRequestError("Conta de motorista inválida");
       }
-      const existingDrivers = (await (tenantId != null
-        ? this.repo.getDriversSafe(Number(tenantId))
+      const existingDrivers = (await (driverTenantId != null
+        ? this.repo.getDriversSafe(Number(driverTenantId))
         : this.repo.getDrivers())) as any[];
       const normalize = (value: unknown) =>
         String(value ?? "").trim().toLocaleLowerCase("pt-BR");
@@ -374,7 +528,7 @@ export class LogisticsService {
           (account.name && normalize(driver.name) === normalize(account.name)),
       );
       const linked = existing ?? (await this.repo.createDriver({
-        empresaId: tenantId ?? account.empresaId ?? undefined,
+        empresaId: driverTenantId ?? account.empresaId ?? undefined,
         name: account.name,
         email: account.email,
         active: true,
@@ -383,13 +537,17 @@ export class LogisticsService {
       operationalDriverId = linked.id;
     }
 
+    const normalizedDriverId = normalizeOptionalId(operationalDriverId, "Motorista");
+    await this.validateDriverReference(normalizedDriverId, tenantId);
     const r = await this.repo.createRoute({
+      empresaId: tenantId ?? undefined,
       name,
-      driverId: operationalDriverId,
+      driverId: normalizedDriverId ?? undefined,
       driverName,
-      vehicleId: vehicleId || undefined,
+      vehicleId: normalizedVehicleId ?? undefined,
       vehiclePlate,
       deliveryDate: deliveryDate || undefined,
+      companyIds: normalizedCompanyIds,
       notes,
       companyNames,
       startTime,
@@ -405,9 +563,23 @@ export class LogisticsService {
     return r;
   }
 
-  updateRoute(id: number, body: any) {
-    const tid = currentTenantId();
-    return tid ? this.repo.updateRouteOwned(id, tid, body) : this.repo.updateRoute(id, body);
+  async updateRoute(id: number, body: any, actor?: ActorRef) {
+    const tid = this.actorTenant(actor);
+    const payload = pickEditableFields(body, ROUTE_EDITABLE_FIELDS);
+    if (Object.prototype.hasOwnProperty.call(payload, "driverId")) {
+      payload.driverId = normalizeOptionalId(payload.driverId, "Motorista");
+      await this.validateDriverReference(payload.driverId as number | null, tid);
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "vehicleId")) {
+      payload.vehicleId = normalizeOptionalId(payload.vehicleId, "Veículo");
+      await this.validateVehicleReference(payload.vehicleId as number | null, tid);
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "companyIds")) {
+      payload.companyIds = await this.validateCompanyReferences(payload.companyIds, tid);
+    }
+    return tid
+      ? this.repo.updateRouteOwned(id, tid, payload)
+      : this.repo.updateRoute(id, payload);
   }
 
   deleteRoute(id: number) {
@@ -437,8 +609,12 @@ export class LogisticsService {
     if (!type || !description) {
       throw new BadRequestError("Tipo e descrição obrigatórios");
     }
+    const tenantId = this.actorTenant(actor);
+    const normalizedVehicleId = normalizeOptionalId(vehicleId, "Veículo");
+    await this.validateVehicleReference(normalizedVehicleId, tenantId);
     const m = await this.repo.createMaintenance({
-      vehicleId: vehicleId || undefined,
+      empresaId: tenantId ?? undefined,
+      vehicleId: normalizedVehicleId ?? undefined,
       vehiclePlate,
       type,
       description,
@@ -456,9 +632,16 @@ export class LogisticsService {
     return m;
   }
 
-  updateMaintenance(id: number, body: any) {
-    const tid = currentTenantId();
-    return tid ? this.repo.updateMaintenanceOwned(id, tid, body) : this.repo.updateMaintenance(id, body);
+  async updateMaintenance(id: number, body: any, actor?: ActorRef) {
+    const tid = this.actorTenant(actor);
+    const payload = pickEditableFields(body, MAINTENANCE_EDITABLE_FIELDS);
+    if (Object.prototype.hasOwnProperty.call(payload, "vehicleId")) {
+      payload.vehicleId = normalizeOptionalId(payload.vehicleId, "Veículo");
+      await this.validateVehicleReference(payload.vehicleId as number | null, tid);
+    }
+    return tid
+      ? this.repo.updateMaintenanceOwned(id, tid, payload)
+      : this.repo.updateMaintenance(id, payload);
   }
 
   deleteMaintenance(id: number) {

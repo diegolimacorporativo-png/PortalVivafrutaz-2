@@ -182,10 +182,13 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(
-        await this.service.updateDriver(parseInt(req.params.id as string), req.body),
+        await this.service.updateDriver(parseInt(req.params.id as string), req.body, user),
       );
-    } catch (err) {
+    } catch (err: any) {
       console.warn(`[${req.requestId}] [logistics.controller] updateDriver failed`, err);
+      if ([400, 403, 404].includes(err?.status)) {
+        return res.status(err.status).json({ message: err.message });
+      }
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -233,10 +236,13 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(
-        await this.service.updateVehicle(parseInt(req.params.id as string), req.body),
+        await this.service.updateVehicle(parseInt(req.params.id as string), req.body, user),
       );
-    } catch (err) {
+    } catch (err: any) {
       console.warn(`[${req.requestId}] [logistics.controller] updateVehicle failed`, err);
+      if ([400, 403, 404].includes(err?.status)) {
+        return res.status(err.status).json({ message: err.message });
+      }
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -284,10 +290,13 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(
-        await this.service.updateRoute(parseInt(req.params.id as string), req.body),
+        await this.service.updateRoute(parseInt(req.params.id as string), req.body, user),
       );
-    } catch (err) {
+    } catch (err: any) {
       console.warn(`[${req.requestId}] [logistics.controller] updateRoute failed`, err);
+      if ([400, 403, 404].includes(err?.status)) {
+        return res.status(err.status).json({ message: err.message });
+      }
       res.status(500).json({ message: "Erro" });
     }
   };
@@ -335,10 +344,13 @@ export class LogisticsController {
     if (!user) return;
     try {
       res.json(
-        await this.service.updateMaintenance(parseInt(req.params.id as string), req.body),
+        await this.service.updateMaintenance(parseInt(req.params.id as string), req.body, user),
       );
-    } catch (err) {
+    } catch (err: any) {
       console.warn(`[${req.requestId}] [logistics.controller] updateMaintenance failed`, err);
+      if ([400, 403, 404].includes(err?.status)) {
+        return res.status(err.status).json({ message: err.message });
+      }
       res.status(500).json({ message: "Erro" });
     }
   };
