@@ -1,0 +1,342 @@
+ETAPA 29 — AUDITORIA E HARDENING DO RASTREAMENTO PÚBLICO
+
+Objetivo:
+
+Analisar os dois endpoints públicos de rastreamento identificados na Etapa 26:
+
+GET /api/track/:deliveryId
+GET /api/logistics/track/:routeId
+
+A Etapa 26 classificou ambos como risco MEDIUM residual por:
+
+- IDs numéricos enumeráveis;
+- ausência de token opaco;
+- possível excesso de dados no payload anônimo.
+
+IMPORTANTE:
+
+Esta etapa começa como AUDITORIA.
+
+Não alterar código imediatamente.
+
+Não alterar banco.
+
+Não criar migration.
+
+Não alterar schema.
+
+Não alterar dados.
+
+Não alterar NF-e/fiscal.
+
+Não alterar financeiro.
+
+Não alterar inventory.
+
+Não alterar deliveries internos.
+
+Não alterar GPS interno.
+
+Não alterar Android Tracker.
+
+Não alterar tenant context.
+
+Não alterar RBAC interno.
+
+Não criar commit.
+
+==================================================
+1. MAPEAR OS ENDPOINTS
+==================================================
+
+Localizar exatamente:
+
+GET /api/track/:deliveryId
+GET /api/logistics/track/:routeId
+
+Identificar:
+
+- route;
+- controller;
+- service;
+- repository/storage;
+- queries;
+- tabelas consultadas;
+- joins;
+- campos retornados;
+- validações existentes.
+
+Não assumir comportamento pelo nome da rota.
+
+==================================================
+2. ANALISAR /api/track/:deliveryId
+==================================================
+
+Determinar exatamente o JSON retornado para visitante anônimo.
+
+Classificar cada campo:
+
+A) essencial para rastreamento público;
+B) útil, mas pode ser reduzido;
+C) informação operacional interna;
+D) informação sensível;
+E) informação de outro contexto que não deveria ser pública.
+
+Prestar atenção em:
+
+- empresa;
+- cliente;
+- endereço;
+- motorista;
+- telefone;
+- GPS;
+- latitude;
+- longitude;
+- velocidade;
+- heading;
+- status;
+- rota;
+- stops;
+- pedidos;
+- códigos internos;
+- IDs internos;
+- observações;
+- horários;
+- dados de outros clientes.
+
+Não expor dados reais no relatório se isso puder ser evitado.
+
+==================================================
+3. ANALISAR /api/logistics/track/:routeId
+==================================================
+
+Determinar exatamente o que um visitante sem autenticação consegue descobrir conhecendo ou adivinhando um routeId.
+
+Verificar:
+
+- rota;
+- stops;
+- endereços;
+- empresa;
+- motorista;
+- deliveries;
+- GPS;
+- status;
+- sequência de paradas;
+- dados de clientes;
+- IDs internos;
+- informações operacionais.
+
+Determinar se o endpoint realmente precisa ser público.
+
+==================================================
+4. ENUMERAÇÃO
+==================================================
+
+Avaliar se IDs numéricos permitem enumeração prática.
+
+Não executar varredura agressiva.
+
+Não acessar dados de terceiros além do estritamente necessário para comprovação.
+
+Não fazer brute force.
+
+Apenas analisar:
+
+- formato do ID;
+- espaço de IDs;
+- mensagens de erro;
+- diferença entre ID existente e inexistente;
+- presença de dados;
+- possibilidade de inferir existência de recursos.
+
+Se houver necessidade de teste HTTP, utilizar somente IDs controlados de teste, sem dados reais.
+
+==================================================
+5. IDENTIFICAR O FLUXO DE NEGÓCIO
+==================================================
+
+Descobrir como os clientes chegam ao rastreamento.
+
+Procurar no frontend:
+
+- QR Code;
+- link de rastreamento;
+- botão "acompanhar";
+- URL gerada;
+- deliveryId;
+- routeId;
+- token;
+- share link.
+
+Descobrir se:
+
+1. o sistema gera algum token;
+2. o cliente recebe algum link;
+3. o link já contém apenas um ID;
+4. o ID é realmente necessário para o frontend;
+5. existe outra forma de identificar a entrega.
+
+Não criar nova arquitetura sem necessidade.
+
+==================================================
+6. DECISÃO DE SEGURANÇA
+==================================================
+
+Depois da análise, classificar cada endpoint:
+
+VERDE:
+Pode continuar público porque retorna somente dados mínimos e necessários.
+
+AMARELO:
+Pode continuar público, mas deve reduzir payload.
+
+VERMELHO:
+Deveria usar token opaco/temporário ou autenticação adicional.
+
+Para cada endpoint explicar claramente o motivo.
+
+==================================================
+7. REGRA PARA ALTERAÇÃO
+==================================================
+
+Somente se houver uma vulnerabilidade prática real, propor a menor correção possível.
+
+Possíveis correções:
+
+- reduzir payload público;
+- remover campos internos;
+- ocultar motorista;
+- ocultar endereço completo;
+- reduzir precisão do GPS;
+- usar token opaco;
+- adicionar expiração ao link;
+- limitar informações operacionais.
+
+NÃO implementar token opaco automaticamente.
+
+NÃO criar tabela nova automaticamente.
+
+NÃO criar migration automaticamente.
+
+NÃO alterar o banco sem uma etapa futura específica e aprovação explícita.
+
+Se a análise concluir que o endpoint pode continuar público com redução de payload, apenas propor a alteração.
+
+==================================================
+8. COMPATIBILIDADE
+==================================================
+
+Verificar consumidores atuais.
+
+Não quebrar:
+
+- rastreamento de cliente;
+- QR Code;
+- links enviados ao cliente;
+- tela pública;
+- mapas;
+- atualização de posição;
+- status de entrega.
+
+Verificar frontend antes de propor remoção de campos.
+
+==================================================
+9. TESTES
+==================================================
+
+Não alterar testes nesta etapa.
+
+Se possível executar somente testes existentes relevantes.
+
+Não executar brute force.
+
+Não executar testes destrutivos.
+
+Não escrever dados reais.
+
+Registrar:
+
+- npm run check;
+- npm test;
+- npm run build;
+
+somente se forem necessários para confirmar que a análise não introduziu regressão.
+
+Como não haverá alteração de código, não é necessário alterar nada para "fazer os testes passarem".
+
+==================================================
+10. RELATÓRIO
+==================================================
+
+Criar:
+
+docs/security/ETAPA_29_PUBLIC_TRACKING_AUDIT.md
+
+O relatório deve conter:
+
+1. endpoints analisados;
+2. payload atual;
+3. dados públicos;
+4. dados potencialmente sensíveis;
+5. análise de enumeração;
+6. fluxo real de negócio;
+7. consumidores frontend;
+8. classificação de cada endpoint;
+9. risco real;
+10. recomendação mínima;
+11. impacto da recomendação;
+12. se exige migration;
+13. se exige mudança de banco;
+14. se exige alteração de frontend;
+15. conclusão.
+
+==================================================
+11. GIT
+==================================================
+
+Não criar commit.
+
+No final executar:
+
+git status --short
+git diff --stat
+git diff --check
+
+O único arquivo permitido para alteração/criação nesta etapa é:
+
+docs/security/ETAPA_29_PUBLIC_TRACKING_AUDIT.md
+
+Não alterar:
+
+docs/security/ETAPA_26_AUDITORIA_FINAL.md
+docs/security/ETAPA_27_TIMEZONE_AUDIT.md
+docs/security/ETAPA_28_DEPENDENCY_FIX.md
+
+Não alterar o arquivo anexado pelo usuário.
+
+==================================================
+12. RESPOSTA FINAL
+==================================================
+
+ETAPA 29 — RESULTADO
+
+1. /api/track/:deliveryId:
+2. /api/logistics/track/:routeId:
+3. Dados realmente expostos:
+4. Enumeração:
+5. Risco real:
+6. Classificação:
+7. Correção recomendada:
+8. Migration necessária:
+9. Banco alterado:
+10. Frontend afetado:
+11. Testes:
+12. Estado Git:
+13. Conclusão:
+
+IMPORTANTE:
+
+Se a análise mostrar que os endpoints são legítimos e o risco é aceitável, NÃO implementar mudanças.
+
+Somente propor a melhoria para uma etapa posterior.

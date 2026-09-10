@@ -6,9 +6,25 @@ id = "iqhZLzRybO8iDy5pP4mbU"
 uri = "file://ROUTE_SAFETY_AUDIT.md"
 type = "text"
 title = "VivafrutaZ ERP — Full Route Safety Audit"
+logical_id = "18eb8aa9-2ea0-4c78-88a7-4b7a4ab69e67"
 
 [[outputs]]
 id = "Di_c92JEXlr7ENlyWw3So"
 uri = "file://.local/state/replit/agent/fase2_audit.md"
 type = "text"
 title = "FASE 2 — Auditoria Profunda VivaFrutaz ERP"
+logical_id = "cd811215-8fe9-4424-9aa8-6e1ca52d0377"
+
+[[outputs]]
+id = "n9jswyz_E5z6flLLq1VTc"
+uri = "file://docs/security/ETAPA_29_PUBLIC_TRACKING_AUDIT.md"
+type = "text"
+title = "Etapa 29 — Auditoria do rastreamento público"
+description = "Relatório completo dos endpoints públicos, payloads, enumeração, consumidores, classificação de risco e recomendação futura."
+logical_id = "625a60a3-aa04-45ca-bc7a-9496088685ac"
+content_hash = "sha256:37a2386f8ad7df83d120300fd7c7ac55eccaea18cccbcc3d6449f266ffe0d95c"
+size = 20595
+mtime_ms = 1789043756114
+storage_uri = "gcs://replit-rams-assets-kirk/rams/assets/repl:1384d23f-3831-4041-bb72-fb3ec4276dfd/625a60a3-aa04-45ca-bc7a-9496088685ac/762a69ee-4ad4-4fd1-b1ee-90f4be866952"
+storage_version_token = "1789043780192858"
+content_type = "text/markdown"
