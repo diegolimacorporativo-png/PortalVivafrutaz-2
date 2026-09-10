@@ -1,0 +1,136 @@
+ETAPA 27 — CORREÇÃO DOS TESTES DE PRAZO UTC/BRT
+
+Agora vamos corrigir SOMENTE os testes de prazo que ficaram conhecidos durante a auditoria.
+
+OBJETIVO:
+
+Eliminar as falhas de timezone UTC/BRT dos testes de deadline/prazo sem alterar a regra de negócio.
+
+IMPORTANTE:
+
+- NÃO alterar NF-e.
+- NÃO alterar fiscal.
+- NÃO alterar financeiro.
+- NÃO alterar inventory.
+- NÃO alterar logistics.
+- NÃO alterar deliveries.
+- NÃO alterar GPS.
+- NÃO alterar Android.
+- NÃO alterar tenant context.
+- NÃO alterar RBAC.
+- NÃO alterar autenticação.
+- NÃO alterar banco.
+- NÃO criar migration.
+- NÃO alterar schema.
+- NÃO executar escrita real no banco.
+- NÃO fazer deploy.
+- NÃO criar commit.
+
+Primeiro identificar exatamente quais testes estão falhando.
+
+Investigar:
+
+- tests/unit/order-deadline.test.ts
+- funções de cálculo de prazo utilizadas por esses testes;
+- tratamento de Date;
+- new Date();
+- toISOString();
+- comparação de datas;
+- parsing de datas sem timezone;
+- uso de UTC;
+- uso do timezone local;
+- datas esperadas hardcoded.
+
+O problema conhecido é uma diferença de aproximadamente 1 hora entre UTC e BRT.
+
+REGRAS:
+
+1. Descobrir se o bug está:
+   a) somente no teste;
+   b) somente na implementação;
+   c) em ambos.
+
+2. NÃO mascarar o problema simplesmente adicionando +3 horas ou -3 horas.
+
+3. NÃO alterar a regra comercial de prazo.
+
+4. A regra deve representar corretamente a data/hora de negócio da VivaFrutaz.
+
+5. Evitar dependência do timezone da máquina de execução.
+
+6. Preferir uma representação explícita e determinística de timezone.
+
+7. Se a implementação já estiver correta e somente os testes estiverem assumindo timezone local incorreto, corrigir apenas os testes.
+
+8. Se existir bug real na implementação, corrigir somente o mínimo necessário.
+
+9. Não criar dependência nova sem necessidade.
+
+10. Não alterar APIs públicas.
+
+TESTES:
+
+Executar:
+
+npm test
+
+Depois:
+
+npm run check
+
+Depois:
+
+npm run build
+
+Depois:
+
+git diff --check
+
+Se existirem falhas não relacionadas a timezone, separar claramente.
+
+Criar um pequeno relatório:
+
+docs/security/ETAPA_27_TIMEZONE_AUDIT.md
+
+O relatório deve informar:
+
+- testes que falhavam;
+- causa encontrada;
+- arquivos alterados;
+- regra de negócio preservada;
+- testes antes/depois;
+- resultado de check;
+- resultado de build;
+- qualquer falha residual.
+
+GIT:
+
+NÃO criar commit.
+
+No final executar:
+
+git status --short
+git diff --stat
+git diff --check
+
+Não tocar no arquivo:
+
+attached_assets/Pasted-ETAPA-26-AUDITORIA-FINAL-DE-SEGURAN-A-MULTI-TENANT-E-RB_1789040191958.txt
+
+Não modificar o relatório da Etapa 26.
+
+RESPOSTA FINAL:
+
+ETAPA 27 — RESULTADO
+
+1. Causa do problema:
+2. Arquivos alterados:
+3. Testes antes:
+4. Testes depois:
+5. npm run check:
+6. npm run build:
+7. git diff --check:
+8. Banco:
+9. NF-e/fiscal:
+10. Estado Git:
+11. Conclusão:
