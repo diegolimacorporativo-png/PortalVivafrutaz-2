@@ -61,25 +61,26 @@ const stopIcon = (status: string, position?: number | null) => {
 };
 
 interface TrackingResponse {
-  route: { id: number; name: string | null; status: string; deliveryDate: string | null; driverId: number | null; vehicleId: number | null };
+  route: { id?: number; name: string | null; status: string; deliveryDate: string | null; driverId?: number | null; vehicleId?: number | null };
   driver: { id: number; name: string | null; phone: string | null } | null;
   stops: Array<{
-    id: number; ordem: number | null; companyId: number | null;
-    cep: string | null; endereco: string | null; numero: string | null;
+    id?: number; ordem: number | null; companyId?: number | null;
+    cep?: string | null; endereco?: string | null; numero?: string | null;
     cidade: string | null; estado: string | null;
     latitude: string | null; longitude: string | null;
-    janelaInicio: string | null; janelaFim: string | null; tempoEstimadoMin: number | null;
+    janelaInicio?: string | null; janelaFim?: string | null; tempoEstimadoMin?: number | null;
+    status?: string | null;
     distanceKm?: number; legMinutes?: number; etaMinutes?: number; etaTime?: string | null;
   }>;
   deliveries: Array<{
-    id: number; orderId: number | null; companyId: number | null; companyName: string | null;
+    id?: number; orderId?: number | null; companyId?: number | null; companyName?: string | null;
     status: string; routePosition: number | null;
     latitude: string | null; longitude: string | null;
     scheduledDate: string | null; deliveredAt: string | null;
     etaMinutes?: number | null; etaTime?: string | null;
   }>;
-  driverPosition: { lat: string; lng: string; accuracy: string | null; speed: string | null; heading: string | null; updatedAt: string } | null;
-  eta: { totalDistanceKm: number; totalMinutes: number; totalEtaTime: string; avgSpeedKmh: number };
+  driverPosition: { lat: string | null; lng: string | null; accuracy?: string | null; speed?: string | null; heading?: string | null; updatedAt: string | null } | null;
+  eta?: { totalDistanceKm: number; totalMinutes: number; totalEtaTime: string; avgSpeedKmh: number };
 }
 
 function formatEtaMinutes(min: number | null | undefined): string {
@@ -107,21 +108,21 @@ function FitBounds({ points }: { points: Array<[number, number]> }) {
 }
 
 export default function DriverMap() {
-  const [, params] = useRoute("/driver-map/:routeId");
-  const routeId = params?.routeId;
+  const [, params] = useRoute("/driver-map/:token");
+  const token = params?.token;
   const [autoRefresh, setAutoRefresh] = useState(true);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery<TrackingResponse>({
-    queryKey: ["/api/logistics/track", routeId],
+    queryKey: ["/api/logistics/track", token],
     queryFn: async () => {
-      const r = await fetchWithAuth(`/api/logistics/track/${routeId}`);
+      const r = await fetchWithAuth(`/api/logistics/track/${encodeURIComponent(token || '')}`);
       if (!r.ok) {
         const body = await r.json().catch(() => ({}));
         throw new Error(body?.error || "Rota não encontrada");
       }
       return r.json();
     },
-    enabled: !!routeId,
+    enabled: !!token,
     refetchInterval: autoRefresh ? 5000 : false,
   });
 
@@ -131,17 +132,20 @@ export default function DriverMap() {
     if (data.stops.length > 0) {
       return data.stops
         .filter((s) => s.latitude && s.longitude)
-        .map((s) => {
-          // Match status from corresponding delivery (by companyId) if any.
-          const matched = data.deliveries.find((d) => d.companyId === s.companyId);
+        .map((s, index) => {
+          // Public payloads no longer include company identifiers. Internal
+          // payloads retain the legacy match for the operations map.
+          const matched = s.companyId == null
+            ? data.deliveries.find((d) => d.routePosition === s.ordem)
+            : data.deliveries.find((d) => d.companyId === s.companyId);
           return {
-            id: `stop-${s.id}`,
+            id: `stop-${s.id ?? s.ordem ?? index}`,
             lat: parseFloat(s.latitude as string),
             lng: parseFloat(s.longitude as string),
             position: s.ordem ?? matched?.routePosition ?? null,
-            title: matched?.companyName || s.endereco || `Parada #${s.ordem ?? s.id}`,
+            title: matched?.companyName || s.endereco || `Parada #${s.ordem ?? s.id ?? "?"}`,
             subtitle: [s.cidade, s.estado].filter(Boolean).join(" / "),
-            status: matched?.status || "pendente",
+            status: s.status || matched?.status || "pendente",
             window: s.janelaInicio && s.janelaFim ? `${s.janelaInicio} – ${s.janelaFim}` : null,
             etaMinutes: s.etaMinutes ?? null,
             etaTime: s.etaTime ?? null,
@@ -151,12 +155,12 @@ export default function DriverMap() {
     }
     return data.deliveries
       .filter((d) => d.latitude && d.longitude)
-      .map((d) => ({
-        id: `del-${d.id}`,
+      .map((d, index) => ({
+        id: `del-${d.id ?? d.routePosition ?? index}`,
         lat: parseFloat(d.latitude as string),
         lng: parseFloat(d.longitude as string),
         position: d.routePosition,
-        title: d.companyName || `Entrega #${d.id}`,
+        title: d.companyName || `Parada #${d.routePosition ?? "?"}`,
         subtitle: d.scheduledDate ?? "",
         status: d.status,
         window: null,
@@ -168,6 +172,7 @@ export default function DriverMap() {
 
   const driverPoint = useMemo(() => {
     if (!data?.driverPosition) return null;
+    if (!data.driverPosition.lat || !data.driverPosition.lng) return null;
     const lat = parseFloat(data.driverPosition.lat);
     const lng = parseFloat(data.driverPosition.lng);
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
@@ -210,7 +215,7 @@ export default function DriverMap() {
           </div>
           <div className="min-w-0">
             <h1 className="font-bold text-gray-900 truncate" data-testid="text-route-title">
-              {data?.route?.name || `Rota #${routeId}`}
+               {data?.route?.name || "Rastreamento de rota"}
             </h1>
             <p className="text-xs text-gray-500 truncate" data-testid="text-driver-name">
               {data?.driver?.name ? `Motorista: ${data.driver.name}` : "Sem motorista atribuído"}
@@ -254,7 +259,9 @@ export default function DriverMap() {
           {data.driverPosition && (
             <span className="flex items-center gap-1 text-gray-600" data-testid="text-gps-updated">
               <Clock className="w-3.5 h-3.5 text-emerald-500" />
-              GPS: {new Date(data.driverPosition.updatedAt).toLocaleTimeString("pt-BR")}
+              GPS: {data.driverPosition.updatedAt
+                ? new Date(data.driverPosition.updatedAt).toLocaleTimeString("pt-BR")
+                : "sem horário"}
             </span>
           )}
           {!data.driverPosition && (
@@ -357,7 +364,9 @@ export default function DriverMap() {
                   </div>
                   {data?.driverPosition && (
                     <div className="text-xs text-gray-500">
-                      Atualizado às {new Date(data.driverPosition.updatedAt).toLocaleTimeString("pt-BR")}
+                      Atualizado às {data.driverPosition.updatedAt
+                        ? new Date(data.driverPosition.updatedAt).toLocaleTimeString("pt-BR")
+                        : "sem horário"}
                     </div>
                   )}
                 </div>

@@ -42,6 +42,12 @@ function getRequestId(req: Request): string {
   return (req as any).requestId ?? "unknown";
 }
 
+function redactSecurityPath(path: string): string {
+  return path
+    .replace(/(\/api\/track\/)[^/?]+/, "$1:token")
+    .replace(/(\/api\/logistics\/track\/)[^/?]+/, "$1:token");
+}
+
 // ── Core factory ──────────────────────────────────────────────────────────────
 
 interface RateWindow {
@@ -90,10 +96,16 @@ function createRateLimiter(
     if (win.count > maxRequests) {
       const retryAfter = Math.ceil((win.resetAt - now) / 1000);
       const rid = getRequestId(req);
+      const safePath = redactSecurityPath(req.path);
       logSecurity(
-        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${req.path} | requestId=${rid}`,
+        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${safePath} | requestId=${rid}`,
       );
-      logSecurityEvent({ type: "RATE_LIMITED", ip, path: req.originalUrl, requestId: rid });
+      logSecurityEvent({
+        type: "RATE_LIMITED",
+        ip,
+        path: redactSecurityPath(req.originalUrl),
+        requestId: rid,
+      });
       res.setHeader("Retry-After", String(retryAfter));
       res.status(429).json({ message });
       return;
@@ -131,6 +143,13 @@ export const nfeLimiter = createRateLimiter(
   30,
   60_000,
   "Muitas requisições fiscais. Tente novamente em breve.",
+);
+
+/** Public tracking is intentionally tighter because it is anonymous and polls GPS. */
+export const publicTrackingLimiter = createRateLimiter(
+  30,
+  60_000,
+  "Muitas consultas de rastreamento. Tente novamente em breve.",
 );
 
 /** Admin limiter — admin panel routes. */

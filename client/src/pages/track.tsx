@@ -34,17 +34,15 @@ const STATUS_LABELS: Record<string, { label: string; icon: any; color: string; d
 };
 
 interface TrackingData {
-  id: number;
   status: string;
-  companyId: number;
-  scheduledDate: string;
-  deliveredAt?: string;
-  routePosition?: number;
+  scheduledDate: string | null;
+  deliveredAt?: string | null;
+  routePosition?: number | null;
   totalStopsInRoute: number;
   stopsAhead: number;
   etaMinutes: number;
   etaTime: string;
-  driverPosition?: { lat: string; lng: string; updatedAt: string } | null;
+  driverPosition?: { lat: string | null; lng: string | null; updatedAt: string | null } | null;
 }
 
 function formatEta(minutes: number): string {
@@ -56,17 +54,17 @@ function formatEta(minutes: number): string {
 }
 
 export default function TrackDelivery() {
-  const [, params] = useRoute('/track/:id');
-  const deliveryId = params?.id;
+  const [, params] = useRoute('/track/:token');
+  const token = params?.token;
 
   const { data, isLoading, error, refetch } = useQuery<TrackingData>({
-    queryKey: ['/api/track', deliveryId],
+    queryKey: ['/api/track', token],
     queryFn: async () => {
-      const r = await fetchWithAuth(`/api/track/${deliveryId}`);
+      const r = await fetchWithAuth(`/api/track/${encodeURIComponent(token || '')}`);
       if (!r.ok) throw new Error('Entrega não encontrada');
       return r.json();
     },
-    enabled: !!deliveryId,
+    enabled: !!token,
     refetchInterval: 60000, // Auto-refresh every minute
   });
 
@@ -125,13 +123,8 @@ export default function TrackDelivery() {
                 </div>
               </div>
 
-              {/* Delivery ID */}
-              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm">
-                <span className="text-gray-500">Código da entrega</span>
-                <span className="font-mono font-semibold text-gray-800">#{String(data.id).padStart(6, '0')}</span>
-              </div>
               {data.scheduledDate && (
-                <div className="flex justify-between text-sm mt-2">
+                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between text-sm">
                   <span className="text-gray-500">Data agendada</span>
                   <span className="font-medium text-gray-800">
                     {new Date(data.scheduledDate + 'T12:00:00').toLocaleDateString('pt-BR')}
@@ -200,7 +193,9 @@ export default function TrackDelivery() {
                 <div className="bg-green-50 rounded-xl p-3 text-sm">
                   <p className="text-green-700 font-medium">GPS Ativo</p>
                   <p className="text-green-600 text-xs mt-1">
-                    Última atualização: {new Date(data.driverPosition.updatedAt).toLocaleTimeString('pt-BR')}
+                     Última atualização: {data.driverPosition.updatedAt
+                       ? new Date(data.driverPosition.updatedAt).toLocaleTimeString('pt-BR')
+                       : 'sem horário'}
                   </p>
                   <a
                     href={`https://www.google.com/maps/search/?api=1&query=${data.driverPosition.lat},${data.driverPosition.lng}`}

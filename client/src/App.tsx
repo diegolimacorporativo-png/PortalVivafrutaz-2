@@ -532,7 +532,7 @@ function Router() {
       <Route path="/track/:id">
         {() => <TrackDelivery />}
       </Route>
-      <Route path="/driver-map/:routeId">
+      <Route path="/driver-map/:token">
         {() => <DriverMap />}
       </Route>
       <Route path="/test-clara">

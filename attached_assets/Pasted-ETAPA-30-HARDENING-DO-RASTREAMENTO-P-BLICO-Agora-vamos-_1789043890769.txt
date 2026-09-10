@@ -1,0 +1,558 @@
+ETAPA 30 — HARDENING DO RASTREAMENTO PÚBLICO
+
+Agora vamos corrigir os dois riscos MEDIUM identificados na Etapa 29:
+
+GET /api/track/:deliveryId
+GET /api/logistics/track/:routeId
+
+OBJETIVO:
+
+Manter o rastreamento público funcionando para clientes, mas impedir:
+
+- enumeração simples por ID;
+- exposição excessiva de dados operacionais;
+- exposição de telefone do motorista;
+- exposição de IDs internos;
+- exposição de pedidos internos;
+- exposição de endereços completos desnecessariamente;
+- exposição de telemetria desnecessária;
+- acesso direto por ID numérico sem segredo.
+
+A solução deve ser mínima, segura e compatível.
+
+==================================================
+REGRA PRINCIPAL
+==================================================
+
+NÃO criar migration inicialmente.
+
+NÃO alterar schema inicialmente.
+
+NÃO criar tabela de tokens inicialmente.
+
+Preferir token assinado e expirável usando mecanismo já disponível no projeto, se houver.
+
+Antes de implementar, localizar:
+
+- biblioteca existente para JWT ou assinatura;
+- mecanismos criptográficos existentes;
+- secrets/configuração já existentes;
+- geração atual de links de rastreamento;
+- frontend que consome os endpoints.
+
+NÃO criar uma nova senha/secreta hardcoded.
+
+NÃO colocar secret no frontend.
+
+NÃO usar companyId, deliveryId ou routeId como segredo.
+
+==================================================
+1. FLUXO ATUAL
+==================================================
+
+Mapear:
+
+- GET /api/track/:deliveryId
+- GET /api/logistics/track/:routeId
+- frontend `/track/:id`
+- frontend `/driver-map/:routeId`
+- geração de links;
+- QR Codes;
+- mensagens ou compartilhamento de links.
+
+Descobrir todos os consumidores.
+
+Não remover a funcionalidade antes de entender o fluxo.
+
+==================================================
+2. TOKEN PÚBLICO
+==================================================
+
+Criar um mecanismo de token público seguro.
+
+Requisitos:
+
+- criptograficamente imprevisível;
+- não derivado diretamente do ID;
+- não conter dados sensíveis;
+- não usar ID numérico como segredo;
+- expiração configurável;
+- assinatura/verificação no servidor;
+- validação de finalidade;
+- não permitir alterar deliveryId/routeId sem invalidar assinatura;
+- não aceitar token de delivery para rota;
+- não aceitar token de rota para delivery.
+
+Se já existir biblioteca JWT ou mecanismo HMAC apropriado, reutilizar.
+
+Se precisar de segredo:
+
+- usar variável de ambiente/configuração segura;
+- não hardcodar;
+- não expor no frontend.
+
+Não criar nova tabela nesta etapa.
+
+==================================================
+3. GERAÇÃO DO TOKEN
+==================================================
+
+Localizar onde o sistema atualmente gera o link público.
+
+Substituir:
+
+/track/:deliveryId
+
+por uma forma compatível com token público.
+
+Exemplo conceitual:
+
+/track?t=<token>
+
+ou:
+
+/track/<token>
+
+Mas NÃO alterar cegamente a URL.
+
+Escolher o formato compatível com o frontend atual.
+
+Para rota:
+
+/driver-map/<token>
+
+ou equivalente compatível.
+
+IMPORTANTE:
+
+Não usar:
+
+/track/123
+
+como segredo.
+
+O token deve ser suficiente para identificar e autorizar o recurso.
+
+==================================================
+4. COMPATIBILIDADE
+==================================================
+
+Não quebrar links legítimos sem analisar o impacto.
+
+Determinar se links antigos estão:
+
+- impressos;
+- enviados por WhatsApp;
+- enviados por e-mail;
+- usados em QR Code;
+- armazenados no banco;
+- usados no frontend.
+
+Se links antigos forem impossíveis de invalidar imediatamente, avaliar compatibilidade controlada.
+
+NÃO manter indefinidamente o endpoint inseguro simplesmente por compatibilidade.
+
+Se houver necessidade de período de transição, registrar explicitamente.
+
+==================================================
+5. PAYLOAD PÚBLICO
+==================================================
+
+Criar DTO específico para rastreamento público.
+
+NUNCA retornar diretamente entidade/storage completa.
+
+Para `/api/track`, manter somente informações realmente necessárias.
+
+Exemplos aceitáveis:
+
+- status;
+- etapa da entrega;
+- previsão/ETA;
+- horário previsto;
+- posição aproximada se realmente necessária;
+- progresso da rota;
+- informações mínimas da entrega.
+
+Remover do payload público, salvo necessidade comprovada:
+
+- companyId;
+- IDs internos;
+- orderId;
+- driverId;
+- telefone;
+- nome completo do motorista;
+- CPF/documentos;
+- CEP;
+- observações internas;
+- velocidade;
+- heading;
+- accuracy detalhada;
+- dados de outros pedidos;
+- dados de outros clientes.
+
+Não alterar o payload interno utilizado pelo painel administrativo.
+
+==================================================
+6. /api/logistics/track
+==================================================
+
+Este endpoint atualmente expõe muito mais dados.
+
+Criar DTO público separado.
+
+Remover:
+
+- telefone do motorista;
+- IDs internos;
+- orderId;
+- informações de pedidos;
+- dados internos da empresa;
+- endereço completo quando não necessário;
+- CEP;
+- velocidade;
+- heading;
+- accuracy detalhada;
+- telemetria interna;
+- dados de outros clientes.
+
+Manter somente o necessário para a experiência pública.
+
+Se o mapa público precisar de posição:
+
+- considerar reduzir precisão da localização;
+- não expor telemetria do veículo;
+- não expor dados pessoais.
+
+NÃO alterar o endpoint interno usado pelo painel administrativo.
+
+==================================================
+7. GPS
+==================================================
+
+IMPORTANTE:
+
+Não alterar:
+
+- `/api/driver/gps`;
+- driver_gps_positions;
+- Android Tracker;
+- PWA GPS;
+- GPS interno administrativo.
+
+Somente controlar o que o endpoint PÚBLICO devolve.
+
+Se for necessário arredondar coordenadas para reduzir precisão:
+
+- fazer somente no DTO público;
+- não alterar coordenadas armazenadas;
+- não alterar banco.
+
+==================================================
+8. RATE LIMIT
+==================================================
+
+Verificar se o projeto já possui middleware de rate limiting.
+
+Se existir:
+
+- aplicar somente aos endpoints públicos de tracking;
+- usar configuração razoável;
+- não afetar APIs internas.
+
+Se NÃO existir:
+
+NÃO adicionar uma infraestrutura complexa nesta etapa.
+
+Registrar rate limit como melhoria futura.
+
+==================================================
+9. ERROS E ENUMERAÇÃO
+==================================================
+
+O endpoint público não deve permitir descobrir facilmente:
+
+- se um deliveryId existe;
+- se uma routeId existe;
+- informações diferentes para recurso existente/inexistente.
+
+Com token inválido/expirado:
+
+retornar erro genérico apropriado.
+
+Não revelar:
+
+- "delivery existe mas token está errado";
+- IDs;
+- empresa;
+- route;
+- dados internos.
+
+Não fazer consultas ao recurso antes de validar o token.
+
+==================================================
+10. AUTORIZAÇÃO DO TOKEN
+==================================================
+
+Token deve estar vinculado a:
+
+- tipo do recurso;
+- recurso específico;
+- finalidade pública;
+- expiração.
+
+Exemplo conceitual de claims:
+
+type = delivery
+resourceId = 123
+purpose = public_tracking
+exp = ...
+
+ou:
+
+type = route
+resourceId = 456
+purpose = public_tracking
+exp = ...
+
+Não confiar em resourceId fornecido separadamente pelo cliente.
+
+==================================================
+11. SEGURANÇA DO SECRET
+==================================================
+
+Se usar JWT/HMAC:
+
+- secret somente no servidor;
+- secret por variável de ambiente;
+- não colocar no código;
+- não colocar no frontend;
+- não colocar no banco nesta etapa;
+- não logar o secret;
+- não logar tokens completos.
+
+Se o projeto já possui mecanismo de secret adequado, reutilizar.
+
+==================================================
+12. TESTES
+==================================================
+
+Criar testes automatizados específicos.
+
+Testar:
+
+1. token válido delivery → 200;
+2. token válido route → 200;
+3. token inválido → 401/403;
+4. token expirado → 401/403;
+5. token delivery usado como route → 401/403;
+6. token route usado como delivery → 401/403;
+7. ID alterado mantendo token → 401/403;
+8. token ausente → 401/403;
+9. ID numérico sem token → não deve conceder acesso;
+10. payload não contém:
+   - telefone;
+   - orderId;
+   - driverId;
+   - companyId;
+   - IDs internos desnecessários;
+   - velocidade;
+   - heading;
+   - accuracy detalhada;
+11. endpoint interno administrativo continua funcionando;
+12. links públicos gerados pelo sistema continuam corretos.
+
+Não executar brute force.
+
+Não acessar dados reais de outros clientes.
+
+Preferir mocks/fake repositories.
+
+==================================================
+13. BANCO
+==================================================
+
+Não alterar banco.
+
+Não criar migration.
+
+Não adicionar coluna.
+
+Não adicionar tabela.
+
+Não executar UPDATE/INSERT/DELETE real.
+
+Tokens serão stateless nesta etapa.
+
+==================================================
+14. FRONTEND
+==================================================
+
+Atualizar somente os consumidores necessários para aceitar o novo link/token.
+
+Não alterar:
+
+- painel administrativo;
+- GPS do motorista;
+- Android;
+- mapa interno;
+- pedidos;
+- deliveries internos.
+
+Verificar:
+
+- `/track`;
+- `/driver-map`;
+- geração de links;
+- QR Code;
+- compartilhamento.
+
+==================================================
+15. LEGACY IDS
+==================================================
+
+Não deixar o endpoint antigo:
+
+GET /api/track/:deliveryId
+
+continuar concedendo acesso anônimo por ID numérico.
+
+Se a compatibilidade exigir uma transição, NÃO decidir sozinho.
+
+Nesse caso:
+
+- documentar;
+- manter bloqueado por padrão;
+- informar no relatório.
+
+O objetivo final é:
+
+ID numérico sozinho = NÃO autorizado.
+
+==================================================
+16. CHECKS
+==================================================
+
+Executar:
+
+npm run check
+npm test
+npm run build
+git diff --check
+
+Esperado:
+
+- todos os testes existentes continuam passando;
+- novos testes de tracking passam;
+- check passa;
+- build passa.
+
+Se houver falha não relacionada, separar claramente.
+
+==================================================
+17. WORKFLOW
+==================================================
+
+Reiniciar workflow.
+
+Esperado:
+
+[APP_READY]
+
+Se houver erro de ambiente, registrar.
+
+Não inventar secrets.
+
+==================================================
+18. RELATÓRIO
+==================================================
+
+Criar:
+
+docs/security/ETAPA_30_PUBLIC_TRACKING_HARDENING.md
+
+Informar:
+
+1. risco anterior;
+2. arquitetura escolhida;
+3. mecanismo de token;
+4. expiração;
+5. proteção contra enumeração;
+6. payload antigo;
+7. payload novo;
+8. campos removidos;
+9. impacto no frontend;
+10. compatibilidade;
+11. testes;
+12. check;
+13. build;
+14. workflow;
+15. banco;
+16. schema;
+17. migrations;
+18. NF-e/fiscal;
+19. GPS/Android;
+20. estado Git.
+
+==================================================
+19. GIT
+==================================================
+
+NÃO criar commit.
+
+No final:
+
+git status --short
+git diff --stat
+git diff --check
+
+Não alterar os relatórios anteriores:
+
+docs/security/ETAPA_26_AUDITORIA_FINAL.md
+docs/security/ETAPA_27_TIMEZONE_AUDIT.md
+docs/security/ETAPA_28_DEPENDENCY_FIX.md
+docs/security/ETAPA_29_PUBLIC_TRACKING_AUDIT.md
+
+Não alterar arquivos anexados.
+
+==================================================
+20. REGRA DE SEGURANÇA MAIS IMPORTANTE
+==================================================
+
+O endpoint público nunca deve confiar somente em:
+
+deliveryId
+routeId
+
+fornecidos pelo visitante.
+
+O ID pode identificar o recurso, mas NÃO pode ser a credencial.
+
+A autorização deve depender do token público assinado e expirável.
+
+==================================================
+RESPOSTA FINAL OBRIGATÓRIA
+
+ETAPA 30 — RESULTADO
+
+1. Arquitetura escolhida:
+2. Token:
+3. Expiração:
+4. ID numérico sem token:
+5. Payload público delivery:
+6. Payload público route:
+7. Dados removidos:
+8. Frontend:
+9. Testes:
+10. npm run check:
+11. npm test:
+12. npm run build:
+13. Workflow:
+14. Banco:
+15. Schema/migration:
+16. NF-e/fiscal:
+17. GPS/Android:
+18. Estado Git:
+19. Conclusão:
+
+Se alguma alteração prevista não puder ser feita com segurança sem migration ou mudança estrutural, NÃO improvisar. Documentar e parar nesse ponto.

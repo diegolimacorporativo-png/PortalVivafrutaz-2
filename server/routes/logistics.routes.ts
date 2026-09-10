@@ -19,6 +19,12 @@ import {
   sanitizeDeliveryUpdateBody,
 } from "../modules/logistics/delivery.access";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import {
+  createPublicTrackingToken,
+  verifyPublicTrackingToken,
+} from "../core/security/publicTrackingToken";
+import { publicTrackingLimiter } from "../core/security/rateLimit";
+import { buildPublicDeliveryTrackingPayload } from "../modules/logistics/public-tracking.dto";
 import { db } from "../database/db";
 import {
   logisticsDrivers as driversTable,
@@ -742,9 +748,39 @@ export async function register(app: Express): Promise<void> {
   });
 
   // ─── Public Customer Tracking ─────────────────────────────────────────────────
-  app.get('/api/track/:deliveryId', async (req: any, res) => {
+  // Tokens are issued only to authenticated users who can already view the
+  // delivery. The public handler verifies the signed token before any lookup.
+  app.post('/api/track/token', requireAuthCore, async (req: any, res) => {
     try {
-      const delivery = await storage.getDelivery(Number(req.params.deliveryId));
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+
+      const deliveryId = Number(req.body?.deliveryId);
+      if (!Number.isInteger(deliveryId) || deliveryId <= 0) {
+        return res.status(400).json({ message: 'Entrega inválida' });
+      }
+      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
+
+      const issued = createPublicTrackingToken('delivery', deliveryId);
+      res.json({
+        token: issued.token,
+        expiresAt: issued.expiresAt,
+        path: `/track/${issued.token}`,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get('/api/track/:token', publicTrackingLimiter, async (req: any, res) => {
+    try {
+      const claims = verifyPublicTrackingToken(req.params.token, 'delivery');
+      if (!claims) {
+        return res.status(403).json({ message: 'Link de rastreamento inválido ou expirado' });
+      }
+
+      const delivery = await storage.getDelivery(claims.resourceId);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
 
       // Get route info for position calculation
@@ -770,10 +806,8 @@ export async function register(app: Express): Promise<void> {
         driverPosition = await storage.getLatestGpsPosition(delivery.driverId);
       }
 
-      res.json({
-        id: delivery.id,
+      res.json(buildPublicDeliveryTrackingPayload({
         status: delivery.status,
-        companyId: delivery.companyId,
         scheduledDate: delivery.scheduledDate,
         deliveredAt: delivery.deliveredAt,
         routePosition: delivery.routePosition,
@@ -781,12 +815,14 @@ export async function register(app: Express): Promise<void> {
         stopsAhead: stopsRemaining,
         etaMinutes,
         etaTime: etaTime.toISOString(),
-        driverPosition: driverPosition ? {
-          lat: driverPosition.latitude,
-          lng: driverPosition.longitude,
-          updatedAt: driverPosition.recordedAt,
-        } : null,
-      });
+        driverPosition: driverPosition
+          ? {
+              latitude: driverPosition.latitude,
+              longitude: driverPosition.longitude,
+              recordedAt: driverPosition.recordedAt,
+            }
+          : null,
+      }));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }

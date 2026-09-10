@@ -44,6 +44,10 @@ import {
   LOGISTICS_AUTH_ROLES,
   type ActorRef,
 } from "./logistics.types";
+import {
+  verifyPublicTrackingToken,
+} from "../../core/security/publicTrackingToken";
+import { buildPublicRouteTrackingPayload } from "./public-tracking.dto";
 
 /** Drizzle's `db.execute` returns either { rows } or an array depending on driver. */
 function rowsOf<T = any>(r: any): T[] {
@@ -623,9 +627,10 @@ export class LogisticsController {
     }
   };
 
-  // ── ROUTE TRACKING (no auth — admin / driver / customer share this) ───
+  // ── ROUTE TRACKING (signed public token or authenticated internal session) ─
   /**
-   * GET /api/logistics/track/:routeId — read-only aggregator that joins:
+   * GET /api/logistics/track/:token — public access requires a signed token.
+   * Authenticated internal callers may still use a numeric route id.
    *   • logistics_routes  → route header + driver assignment
    *   • logistics_drivers → driver name/phone (LEFT JOIN, may be null)
    *   • route_stops       → ordered sequence (by ordem_parada)
@@ -639,10 +644,18 @@ export class LogisticsController {
    */
   routeTracking = async (req: Request, res: Response) => {
     try {
-      const routeId = Number(req.params.routeId);
-      if (!Number.isFinite(routeId) || routeId <= 0) {
-        return res.status(400).json({ error: "Invalid routeId" });
+      const rawResource = String(req.params.token ?? "");
+      const publicClaims = verifyPublicTrackingToken(rawResource, "route");
+      const sessionUserId: number | undefined = (req as any).session?.userId;
+
+      // Do not let malformed, expired, or numeric anonymous URLs reach the
+      // database. The numeric compatibility path is session-bound only.
+      if (!publicClaims && (!sessionUserId || !/^[1-9]\d*$/.test(rawResource))) {
+        return res.status(403).json({
+          error: "Link de rastreamento inválido ou expirado",
+        });
       }
+      const routeId = publicClaims?.resourceId ?? Number(rawResource);
 
       // 1. Route header + driver (LEFT JOIN — route may have no driver yet)
       const routeRows = rowsOf<any>(await db.execute(sql`
@@ -755,6 +768,7 @@ export class LogisticsController {
             legMinutes: etaResults[i]?.legMinutes ?? 0,
             etaMinutes: etaResults[i]?.etaMinutes ?? 0,
             etaTime: etaResults[i]?.etaTime ?? null,
+             status: etaSourceFromStops[i]?.status ?? null,
           }))
         : [];
 
@@ -805,9 +819,8 @@ export class LogisticsController {
       // is the canonical "internal logistics user" set already used by every
       // other write endpoint in this controller. Customers (role "CLIENT")
       // and unauthenticated requests both fall through to the redacted path.
-      const sessionUserId: number | undefined = (req as any).session?.userId;
       let isInternal = false;
-      if (sessionUserId) {
+      if (!publicClaims && sessionUserId) {
         try {
           const actor = await (this.service as any).repo.getUser(sessionUserId);
           if (actor && (LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
@@ -834,16 +847,7 @@ export class LogisticsController {
         }
       }
 
-      const stopsPublic = stopsOut.map((s) => {
-        const { distanceKm, legMinutes, etaMinutes, etaTime, ...rest } = s;
-        return rest;
-      });
-      const deliveriesPublic = deliveriesOut.map((d) => {
-        const { etaMinutes, etaTime, ...rest } = d;
-        return rest;
-      });
-
-      const payload: any = {
+      const internalPayload: any = {
         route: {
           id: route.id,
           name: route.route_name,
@@ -859,14 +863,47 @@ export class LogisticsController {
               phone: route.driver_phone,
             }
           : null,
-        stops: isInternal ? stopsOut : stopsPublic,
-        deliveries: isInternal ? deliveriesOut : deliveriesPublic,
+         stops: stopsOut,
+         deliveries: deliveriesOut,
         driverPosition,
-        viewerScope: isInternal ? "internal" : "public",
+         viewerScope: "internal",
       };
-      if (isInternal) payload.eta = etaSummary;
+      if (isInternal) internalPayload.eta = etaSummary;
 
-      res.json(payload);
+      if (isInternal) {
+        return res.json(internalPayload);
+      }
+
+      return res.json(buildPublicRouteTrackingPayload({
+        route: {
+          name: route.route_name,
+          status: route.status,
+          deliveryDate: route.delivery_date,
+        },
+        stops: stopsOut.map((stop) => ({
+          ordem: stop.ordem,
+          cidade: stop.cidade,
+          estado: stop.estado,
+          latitude: stop.latitude,
+          longitude: stop.longitude,
+          status: stop.status,
+        })),
+        deliveries: deliveriesOut.map((delivery) => ({
+          status: delivery.status,
+          routePosition: delivery.routePosition,
+          latitude: delivery.latitude,
+          longitude: delivery.longitude,
+          scheduledDate: delivery.scheduledDate,
+          deliveredAt: delivery.deliveredAt,
+        })),
+        driverPosition: driverPosition
+          ? {
+              lat: driverPosition.lat,
+              lng: driverPosition.lng,
+              recordedAt: driverPosition.updatedAt,
+            }
+          : null,
+      }));
     } catch (e: any) {
       console.warn(`[${(req as any).requestId}] [logistics.controller] routeTracking failed`, e);
       res.status(500).json({ error: e?.message || "Erro" });

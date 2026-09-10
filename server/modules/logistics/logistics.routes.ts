@@ -19,6 +19,14 @@ import {
   checkPlanLimit,
 } from "../billing/subscription.middleware";
 import { tenantContext } from "../../middleware/tenant";
+import { currentTenantId } from "../../core/tenant/context";
+import { requireAuth as requireAuthCore } from "../../core/http/requireAuth";
+import {
+  createPublicTrackingToken,
+} from "../../core/security/publicTrackingToken";
+import { publicTrackingLimiter } from "../../core/security/rateLimit";
+import { storage } from "../../services/storage";
+import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 
 const router = Router();
 
@@ -104,6 +112,39 @@ router.post("/route-insertion", logisticsController.routeInsertion);
 router.get("/smart-route-plan", logisticsController.smartRoutePlan);
 
 // ── Real-time tracking aggregator (admin / driver / customer share) ────
-router.get("/track/:routeId", logisticsController.routeTracking);
+router.post("/track/token", requireAuthCore, async (req: Request, res: Response) => {
+  try {
+    const actor = await storage.getUser((req as any).session.userId);
+    if (!actor || !(LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
+      return res.status(403).json({ message: "Sem permissão" });
+    }
+
+    const routeId = Number((req as any).body?.routeId);
+    if (!Number.isInteger(routeId) || routeId <= 0) {
+      return res.status(400).json({ message: "Rota inválida" });
+    }
+
+    const tenantId = currentTenantId();
+    const route = tenantId != null
+      ? await storage.getRouteForCompany(routeId, tenantId)
+      : await storage.getRoute(routeId);
+    if (!route) return res.status(404).json({ message: "Rota não encontrada" });
+
+    const issued = createPublicTrackingToken("route", routeId);
+    return res.json({
+      token: issued.token,
+      expiresAt: issued.expiresAt,
+      path: `/driver-map/${issued.token}`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error?.message || "Erro" });
+  }
+});
+
+router.get(
+  "/track/:token",
+  publicTrackingLimiter,
+  logisticsController.routeTracking,
+);
 
 export const logisticsRouter = router;
