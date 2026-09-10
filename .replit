@@ -55,3 +55,7 @@ ENABLE_NFE_IDEMPOTENCY_GUARD = "true"
 NFE_AMBIENTE = "2"
 NFE_UF = "SP"
 PORT = "5000"
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 300000
