@@ -1,0 +1,305 @@
+## ETAPA 34 — CORREÇÃO DO IDOR CROSS-TENANT NA TIMELINE OPERACIONAL
+
+CONTEXTO:
+
+A Etapa 33 — Auditoria Final Consolidada encontrou 7 vulnerabilidades HIGH.
+
+Nesta etapa vamos corrigir SOMENTE:
+
+HIGH #1 — IDOR cross-tenant na timeline operacional.
+
+NÃO corrigir os outros HIGH nesta etapa.
+
+OBJETIVO:
+
+Garantir que um usuário da empresa A não consiga consultar a timeline operacional de registros pertencentes à empresa B manipulando IDs, empresaId, tenantId ou parâmetros equivalentes.
+
+==================================================
+REGRAS
+==================================================
+
+1. Primeiro identificar exatamente:
+
+- endpoint(s) da timeline operacional;
+- controller/route;
+- service;
+- repository/storage;
+- parâmetros recebidos;
+- entidade principal da timeline;
+- relações utilizadas para determinar a empresa.
+
+2. Não assumir qual é o endpoint.
+
+Localizar no código e no relatório da Etapa 33 a evidência exata.
+
+3. Aplicar a política de tenant já existente.
+
+Priorizar/reutilizar:
+
+- tenantContext;
+- requireTenant;
+- getRouteForCompany;
+- getDeliveryForCompany;
+- policies existentes;
+- helpers de ownership já existentes.
+
+NÃO criar uma segunda implementação de tenant isolation se já existir mecanismo equivalente.
+
+==================================================
+COMPORTAMENTO OBRIGATÓRIO
+==================================================
+
+Para usuário tenant-bound:
+
+empresa A + recurso A
+→ permitido.
+
+empresa A + recurso B
+→ bloqueado com 403 ou 404 conforme padrão existente.
+
+empresaId/companyId/tenantId enviado pelo cliente
+→ NÃO pode alterar o tenant.
+
+Query string
+→ NÃO pode alterar o tenant.
+
+Body
+→ NÃO pode alterar o tenant.
+
+Headers
+→ NÃO podem alterar o tenant.
+
+Path ID
+→ deve ser validado contra o tenant antes de retornar dados.
+
+Para MASTER/DIRECTOR globais:
+
+→ preservar exatamente a política global existente.
+
+Para usuários sem tenant e fora da política global:
+
+→ fail closed.
+
+Não criar acesso global como fallback.
+
+==================================================
+IDOR INDIRETO
+==================================================
+
+Verificar não apenas o ID principal.
+
+Se a timeline recebe algo como:
+
+routeId
+deliveryId
+orderId
+driverId
+companyId
+eventId
+stopId
+userId
+
+verificar toda a cadeia de ownership.
+
+Exemplo:
+
+timeline → delivery → route → empresa
+
+ou:
+
+timeline → route → empresa
+
+ou:
+
+timeline → order → empresa.
+
+O atacante não pode acessar o recurso apenas porque conhece um ID válido de uma empresa diferente.
+
+==================================================
+CONSULTA AO BANCO
+==================================================
+
+Quando tecnicamente possível, garantir que a consulta já seja tenant-scoped.
+
+Evitar:
+
+SELECT ... WHERE id = ?
+
+seguido de uma validação tardia.
+
+Preferir:
+
+SELECT ... WHERE id = ? AND empresa_id = ?
+
+ou equivalente seguro existente.
+
+Se houver cadeia de relacionamento, validar ownership antes de consultar os dados detalhados.
+
+Não retornar dados parcialmente antes da validação.
+
+==================================================
+MASS ASSIGNMENT / SPOOFING
+==================================================
+
+Se a timeline aceitar filtros ou payload:
+
+não permitir alteração de:
+
+- empresaId
+- empresa_id
+- companyId
+- company_id
+- tenantId
+- tenant_id
+- userId
+- createdBy
+- ownership
+- timestamps internos
+
+através do cliente.
+
+==================================================
+TESTES OBRIGATÓRIOS
+==================================================
+
+Criar testes direcionados SOMENTE para esta vulnerabilidade.
+
+Cobrir pelo menos:
+
+1. usuário empresa A acessa timeline própria → PASSA;
+
+2. usuário empresa A acessa timeline empresa B → BLOQUEADO;
+
+3. usuário empresa A tenta trocar empresaId → BLOQUEADO;
+
+4. usuário empresa A tenta trocar tenantId → BLOQUEADO;
+
+5. usuário empresa A tenta usar ID de recurso B → BLOQUEADO;
+
+6. recurso relacionado de empresa B → BLOQUEADO;
+
+7. usuário sem sessão → 401;
+
+8. usuário sem tenant fora da política global → 403;
+
+9. MASTER global → comportamento global preservado;
+
+10. DIRECTOR global → comportamento global preservado;
+
+11. confirmação de que dados da empresa B não são retornados;
+
+12. confirmação de que a consulta detalhada não ocorre antes da validação quando possível.
+
+Não alterar testes de outras etapas sem necessidade.
+
+==================================================
+REGRESSÃO
+==================================================
+
+Executar:
+
+npm run check
+npm run build
+npm test
+git diff --check
+
+Tentar também o workflow Start application.
+
+Confirmar:
+
+DB_CONNECTED
+APP_READY
+HTTP preview
+
+Se o ambiente estiver funcionando, não mascarar nenhum erro.
+
+==================================================
+RESTRIÇÕES CRÍTICAS
+==================================================
+
+NÃO alterar:
+
+- NF-e;
+- fiscal;
+- certificados;
+- financeiro;
+- inventory;
+- GPS;
+- Android Tracker;
+- Clara;
+- public tracking tokens;
+- deliveries fora do necessário para a timeline;
+- products;
+- prices;
+- quotations;
+- push;
+- tenantContext globalmente.
+
+NÃO corrigir os outros 6 HIGH.
+
+NÃO fazer refatoração geral.
+
+NÃO criar migration.
+
+NÃO alterar schema.
+
+NÃO alterar dados reais.
+
+NÃO fazer deploy.
+
+NÃO criar commit.
+
+==================================================
+RELATÓRIO
+==================================================
+
+Criar:
+
+docs/security/ETAPA_34_TIMELINE_IDOR_FIX.md
+
+Registrar:
+
+1. endpoint afetado;
+2. causa do IDOR;
+3. exploração antes da correção;
+4. correção aplicada;
+5. política de tenant utilizada;
+6. testes;
+7. check;
+8. build;
+9. npm test;
+10. workflow;
+11. Supabase;
+12. arquivos alterados;
+13. confirmação dos outros HIGH não tratados;
+14. confirmação de que NF-e/fiscal não foi alterado;
+15. estado Git.
+
+==================================================
+CRITÉRIO DE APROVAÇÃO
+==================================================
+
+Etapa 34 APROVADA somente se:
+
+- cross-tenant timeline estiver bloqueado;
+- tenant spoofing estiver bloqueado;
+- ownership indireto estiver protegido;
+- testes direcionados passarem;
+- npm run check passar;
+- build passar;
+- npm test passar ou eventual falha ambiental for claramente documentada;
+- nenhuma alteração fora do escopo ocorrer.
+
+Ao final mostrar o painel:
+
+ETAPA 1–33
+ETAPA 34
+HIGH RESTANTES
+MEDIUM
+LOW
+TESTES
+CHECK
+BUILD
+WORKFLOW
+GIT
+PRÓXIMA ETAPA

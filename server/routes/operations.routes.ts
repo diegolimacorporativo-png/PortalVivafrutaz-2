@@ -9,6 +9,8 @@
 
 import type { Express } from "express";
 import { requireAuth, requireRole } from "../core/http/requireAuth";
+import { tenantContext } from "../middleware/tenant";
+import { currentTenantId, getTenantContext } from "../core/tenant/context";
 import { db } from "../database/db";
 import {
   orders,
@@ -20,7 +22,7 @@ import {
   eventStore,
   type WorkflowEventPayload,
 } from "@shared/schema";
-import { eq, asc } from "drizzle-orm";
+import { and, eq, asc } from "drizzle-orm";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -105,6 +107,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/operations/timeline/:orderId",
     requireAuth,
+    tenantContext,
     requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]),
     async (req, res) => {
       const orderId = parseInt(String(req.params.orderId), 10);
@@ -113,9 +116,43 @@ export function register(app: Express): void {
       }
 
       try {
-        // ── Fetch all correlated data in parallel ──────────────────────────
+        const tenantId = currentTenantId();
+        const principal = getTenantContext()?.principal;
+        const isGlobalOperator =
+          principal?.kind === "admin" &&
+          ["MASTER", "DIRECTOR"].includes(principal.role ?? "");
+
+        // tenantContext pins tenant-bound users to the session company and
+        // permits only the existing explicit MASTER/DIRECTOR global flow.
+        // Any other missing context fails closed instead of becoming a global
+        // read.
+        if (tenantId == null && !isGlobalOperator) {
+          return res.status(403).json({
+            success: false,
+            error: "Este endpoint exige um tenant alvo",
+          });
+        }
+
+        // Resolve ownership before loading any correlated operational data.
+        // A pinned tenant is enforced in SQL, so an order ID from another
+        // company is indistinguishable from a missing order (404).
+        const orderPredicate = tenantId == null
+          ? eq(orders.id, orderId)
+          : and(eq(orders.id, orderId), eq(orders.companyId, tenantId));
+        const orderRows = await db
+          .select()
+          .from(orders)
+          .where(orderPredicate)
+          .limit(1);
+
+        if (orderRows.length === 0) {
+          return res.status(404).json({ success: false, error: "Pedido não encontrado" });
+        }
+
+        const order = orderRows[0];
+
+        // ── Fetch correlated data only after order ownership is proven ─────
         const [
-          orderRows,
           outboxRows,
           nfeRows,
           trainingRows,
@@ -123,7 +160,6 @@ export function register(app: Express): void {
           arRows,
           storeRows,
         ] = await Promise.all([
-          db.select().from(orders).where(eq(orders.id, orderId)).limit(1),
           db.select().from(workflowEvents).where(eq(workflowEvents.orderId, orderId)).orderBy(asc(workflowEvents.createdAt)),
           db.select().from(nfeEmissoes).where(eq(nfeEmissoes.orderId, orderId)).orderBy(asc(nfeEmissoes.createdAt)),
           db.select().from(nfeTrainingLogs).where(eq(nfeTrainingLogs.orderId, orderId)).orderBy(asc(nfeTrainingLogs.createdAt)),
@@ -131,12 +167,6 @@ export function register(app: Express): void {
           db.select().from(accountsReceivable).where(eq(accountsReceivable.orderId, orderId)).orderBy(asc(accountsReceivable.createdAt)),
           db.select().from(eventStore).where(eq(eventStore.entityId, String(orderId))).orderBy(asc(eventStore.createdAt)),
         ]);
-
-        if (orderRows.length === 0) {
-          return res.status(404).json({ success: false, error: "Pedido não encontrado" });
-        }
-
-        const order = orderRows[0];
         const events: TimelineEvent[] = [];
 
         // ── 1. ORDER_CREATED ──────────────────────────────────────────────
