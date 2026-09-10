@@ -1,0 +1,296 @@
+## ETAPA 35 — CORREÇÃO DE TOKENS DE RECUPERAÇÃO ARMAZENADOS EM CLARO
+
+OBJETIVO:
+
+Corrigir SOMENTE o HIGH identificado na Etapa 33 relacionado a tokens de recuperação armazenados em claro.
+
+Não corrigir os outros HIGH nesta etapa.
+
+==================================================
+PRIMEIRO: AUDITORIA DO FLUXO ATUAL
+==================================================
+
+Antes de editar, localizar exatamente:
+
+- tabela(s) envolvida(s);
+- schema Drizzle;
+- migrations existentes;
+- endpoint que gera o token;
+- endpoint que consome/valida o token;
+- service/repository;
+- onde o token é persistido;
+- onde é comparado;
+- TTL/expiração;
+- invalidação após uso;
+- logs relacionados;
+- e-mails relacionados.
+
+Não assumir nomes de tabela ou arquivos.
+
+Usar o relatório da Etapa 33 como contexto, mas confirmar tudo no código atual.
+
+==================================================
+OBJETIVO DE SEGURANÇA
+==================================================
+
+O token secreto de recuperação NÃO deve permanecer armazenado em plaintext no banco.
+
+A arquitetura desejada é:
+
+TOKEN ORIGINAL
+→ enviado somente ao usuário
+→ banco armazena somente representação não reversível adequada para comparação
+→ quando o usuário apresenta o token:
+   hash/digest do token recebido
+   → comparar com valor persistido
+   → validar expiração/uso/escopo
+   → consumir/inutilizar
+
+O token original não deve ser recuperável a partir do banco.
+
+Preferir SHA-256 ou mecanismo criptográfico equivalente apropriado para token aleatório de alta entropia.
+
+NÃO usar bcrypt automaticamente para tokens se isso exigir alterar desnecessariamente o fluxo; avaliar o mecanismo atual e escolher a solução segura e compatível.
+
+==================================================
+REGRAS IMPORTANTES
+==================================================
+
+1. Não criar sistema paralelo de autenticação.
+
+2. Não alterar login normal.
+
+3. Não alterar password hashing existente.
+
+4. Não alterar sessão existente.
+
+5. Não alterar o fluxo já corrigido de password reset plaintext da Etapa 1–3, exceto se o HIGH encontrado na Etapa 33 for especificamente outro fluxo de recuperação.
+
+6. Não armazenar o token original em logs.
+
+7. Não retornar o token em respostas da API depois da criação.
+
+8. Não permitir reutilização após consumo.
+
+9. Validar expiração no servidor.
+
+10. Validar finalidade/escopo do token.
+
+11. Não permitir que um token de recuperação seja utilizado para outra conta/usuário.
+
+12. Comparação deve ser feita usando representação segura persistida.
+
+==================================================
+MIGRATION / COMPATIBILIDADE
+==================================================
+
+Se a correção exigir alteração de schema:
+
+- criar migration mínima;
+- não apagar dados sem necessidade;
+- não alterar tabelas não relacionadas;
+- preservar registros legítimos;
+- definir estratégia segura para tokens antigos armazenados em plaintext.
+
+ATENÇÃO:
+
+Não executar migration automaticamente contra produção.
+
+Não modificar dados reais.
+
+Se houver tokens plaintext históricos:
+
+- não imprimir valores;
+- não expor tokens;
+- documentar a estratégia necessária;
+- preferir invalidar tokens antigos ou migrar somente se houver maneira segura de fazer isso sem recuperar/expor o segredo.
+
+==================================================
+ENUMERAÇÃO / TIMING
+==================================================
+
+Verificar também:
+
+- token inexistente;
+- token expirado;
+- token já usado;
+- token adulterado;
+- token de outro usuário;
+- token vazio;
+- token malformado.
+
+Não revelar informações desnecessárias sobre qual parte falhou.
+
+==================================================
+TESTES OBRIGATÓRIOS
+==================================================
+
+Criar testes direcionados cobrindo:
+
+1. criação de token funciona;
+
+2. banco não recebe o token plaintext;
+
+3. token válido funciona;
+
+4. token adulterado falha;
+
+5. token inexistente falha;
+
+6. token expirado falha;
+
+7. token já utilizado falha;
+
+8. token não pode ser usado para outro usuário;
+
+9. token não aparece em logs;
+
+10. token não aparece em resposta indevida da API;
+
+11. criação de novo token invalida ou respeita corretamente tokens anteriores conforme política atual;
+
+12. fluxo normal de login não é afetado;
+
+13. fluxo de redefinição de senha continua funcionando;
+
+14. não existe caminho alternativo que aceite o plaintext diretamente.
+
+Não modificar testes de outras etapas sem necessidade.
+
+==================================================
+SEGURANÇA DE LOGS
+==================================================
+
+Pesquisar especificamente:
+
+- console.log(token)
+- logger(...token...)
+- audit logs
+- error logs
+- URLs contendo token
+- query parameters contendo token
+- resposta JSON contendo token
+
+Se encontrar logging inseguro diretamente relacionado a este HIGH, corrigir SOMENTE o necessário para eliminar a exposição do token.
+
+Não corrigir o HIGH separado de "logging integral de respostas HTTP".
+
+==================================================
+VALIDAÇÃO
+==================================================
+
+Executar:
+
+npm run check
+npm run build
+npm test
+git diff --check
+
+Tentar:
+
+Start application
+
+Confirmar:
+
+DB_CONNECTED
+APP_READY
+HTTP preview
+/api/health
+
+Se algum teste falhar, investigar.
+
+Não mascarar falhas.
+
+==================================================
+RESTRIÇÕES
+==================================================
+
+NÃO alterar:
+
+- NF-e/fiscal;
+- certificados;
+- financeiro;
+- inventory;
+- GPS;
+- Android Tracker;
+- Clara;
+- public tracking tokens;
+- logistics;
+- deliveries;
+- products;
+- prices;
+- quotations;
+- push;
+- tenantContext global;
+- outras vulnerabilidades HIGH da Etapa 33.
+
+Não fazer refatoração geral.
+
+Não fazer deploy.
+
+Não criar commit.
+
+Não alterar dados reais.
+
+==================================================
+RELATÓRIO
+==================================================
+
+Criar:
+
+docs/security/ETAPA_35_RECOVERY_TOKEN_SECURITY.md
+
+Registrar:
+
+1. fluxo analisado;
+2. causa do armazenamento plaintext;
+3. impacto;
+4. solução aplicada;
+5. mecanismo criptográfico utilizado;
+6. compatibilidade;
+7. tratamento de tokens antigos;
+8. testes;
+9. check;
+10. build;
+11. npm test;
+12. workflow;
+13. Supabase;
+14. arquivos alterados;
+15. confirmação dos outros HIGH não tratados;
+16. confirmação de NF-e/fiscal intacto;
+17. estado Git.
+
+NUNCA colocar tokens reais no relatório.
+
+==================================================
+CRITÉRIO DE APROVAÇÃO
+==================================================
+
+A Etapa 35 só será APROVADA se:
+
+- token secreto não for mais armazenado em plaintext;
+- token válido continuar funcionando;
+- token adulterado/expirado/usado for rejeitado;
+- token não aparecer em logs;
+- token não puder ser usado por outra conta;
+- testes direcionados passarem;
+- npm run check passar;
+- build passar;
+- npm test passar;
+- workflow funcionar, ou eventual falha ambiental ser claramente documentada.
+
+Ao final mostrar:
+
+ETAPA 1–34
+ETAPA 35
+HIGH restantes
+MEDIUM
+LOW
+TESTES
+CHECK
+BUILD
+WORKFLOW
+SUPABASE
+GIT
+NF-e/FISCAL
+PRÓXIMA ETAPA

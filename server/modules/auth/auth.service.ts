@@ -17,6 +17,7 @@ import {
 import { authCoreService, AUTH_EVENTS } from "../../core/auth/authCore.service";
 // STRATEGIC BYPASS — email IP+limiter bypass for MASTER/ADMIN/DIRECTOR/DEVELOPER
 import { markEmailAsStrategic } from "../../core/security/rateLimit";
+import { sendGenericEmail } from "../../services/mailer";
 // Direct DB access for startup unlock of strategic accounts
 import { db } from "../../database/db";
 import { users as usersTable, authAttempts } from "@shared/schema";
@@ -137,7 +138,10 @@ interface AuthDelegate {
  *    paths — that was a duplicate channel producing noise in prod logs.
  */
 export class AuthService {
-  constructor(private readonly repo: AuthRepository = authRepository) {}
+  constructor(
+    private readonly repo: AuthRepository = authRepository,
+    private readonly sendEmail: typeof sendGenericEmail = sendGenericEmail,
+  ) {}
 
   // ── Login entry point ──────────────────────────────────────────────────
   async attemptLogin(input: LoginInput, ip: string): Promise<LoginOutcome> {
@@ -210,17 +214,23 @@ export class AuthService {
       expiresAt,
     });
 
-    // DEV MODE — log reset link to console instead of sending email
-    if (process.env.NODE_ENV === "development") {
-      const baseUrl = process.env.REPLIT_DEV_DOMAIN
+    const baseUrl = process.env.APP_URL
+      || (process.env.REPLIT_DEV_DOMAIN
         ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-        : "http://localhost:5000";
-      console.log("\n========================================");
-      console.log("[RESET_LINK_DEV] PASSWORD RESET LINK");
-      console.log(`    ${baseUrl}/reset-password?token=${token}`);
-      console.log(`    Account: ${normalised}`);
-      console.log(`    Expires: ${expiresAt.toISOString()}`);
-      console.log("========================================\n");
+        : "http://localhost:5000");
+    const resetUrl = `${baseUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const recipient = user?.email ?? company?.email;
+    if (recipient) {
+      await this.sendEmail(
+        recipient,
+        "Recuperação de senha — VivaFrutaz",
+        `
+          <p>Recebemos uma solicitação para redefinir sua senha.</p>
+          <p><a href="${resetUrl}">Clique aqui para criar uma nova senha</a></p>
+          <p>Este link expira em 15 minutos e só pode ser usado uma vez.</p>
+          <p>Se você não solicitou a recuperação, ignore este e-mail.</p>
+        `,
+      );
     }
 
     // Keep creating the manual request for companies (legacy admin-reviewed flow)
@@ -239,20 +249,23 @@ export class AuthService {
     novaSenha: string,
     ip: string,
   ): Promise<import("./auth.types").ResetPasswordOutcome> {
-    const record = await this.repo.getValidResetToken(token);
-    if (!record) {
-      return {
-        ok: false,
-        status: 400,
-        message: "Token inválido ou expirado. Solicite um novo link de recuperação.",
-      };
-    }
-
     if (novaSenha.length < 8) {
       return {
         ok: false,
         status: 422,
         message: "A nova senha deve ter pelo menos 8 caracteres.",
+      };
+    }
+
+    // The repository atomically deletes a matching, unexpired row while
+    // returning its owner. This makes successful consumption single-use even
+    // when two reset requests arrive concurrently.
+    const record = await this.repo.consumeValidResetToken(token);
+    if (!record) {
+      return {
+        ok: false,
+        status: 400,
+        message: "Token inválido ou expirado. Solicite um novo link de recuperação.",
       };
     }
 
@@ -294,9 +307,6 @@ export class AuthService {
         ip,
       });
     }
-
-    // Token is single-use — delete immediately after successful reset
-    await this.repo.deleteResetToken(token);
 
     return { ok: true, message: "Senha redefinida com sucesso. Você já pode fazer login." };
   }

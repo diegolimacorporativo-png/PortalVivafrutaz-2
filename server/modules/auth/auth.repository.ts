@@ -5,6 +5,7 @@ import { db } from "../../database/db";
 import { passwordResetTokens, users as usersTable } from "@shared/schema";
 import { eq, gt, and } from "drizzle-orm";
 import { currentTenantId } from "../../core/tenant/context";
+import { hashRecoveryToken } from "./recovery-token";
 
 /**
  * AuthRepository — the only place the auth module talks to persistence.
@@ -78,30 +79,28 @@ export class AuthRepository {
     token: string;
     expiresAt: Date;
   }) {
+    const { token, ...account } = params;
     const [row] = await db
       .insert(passwordResetTokens)
-      .values(params)
+      .values({
+        ...account,
+        tokenHash: hashRecoveryToken(token),
+      })
       .returning();
     return row;
   }
 
-  async getValidResetToken(token: string) {
+  async consumeValidResetToken(token: string) {
     const [row] = await db
-      .select()
-      .from(passwordResetTokens)
+      .delete(passwordResetTokens)
       .where(
         and(
-          eq(passwordResetTokens.token, token),
+          eq(passwordResetTokens.tokenHash, hashRecoveryToken(token)),
           gt(passwordResetTokens.expiresAt, new Date()),
         ),
-      );
+      )
+      .returning();
     return row ?? null;
-  }
-
-  async deleteResetToken(token: string) {
-    await db
-      .delete(passwordResetTokens)
-      .where(eq(passwordResetTokens.token, token));
   }
 
   // ── Audit log ──────────────────────────────────────────────────────────

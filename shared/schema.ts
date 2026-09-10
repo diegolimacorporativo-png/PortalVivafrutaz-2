@@ -322,7 +322,7 @@ export const passwordResetTokens = pgTable("password_reset_tokens", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id),
   companyId: integer("company_id").references(() => companies.id),
-  token: text("token").notNull().unique(),
+  tokenHash: text("token_hash").notNull().unique(),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
