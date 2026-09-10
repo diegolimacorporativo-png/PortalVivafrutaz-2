@@ -27,3 +27,4 @@
 - [Push global settings policy](push-global-settings-policy.md) — tabela sem companyId exige administração global somente por contas administrativas sem empresa vinculada.
 - [Tenant fail-closed boundary](tenant-fail-closed.md) — sessão fixa o tenant; serviços exigem alvo; global sem empresa é exclusivo de MASTER/DIRECTOR explícitos.
 - [Public tracking tokens](public-tracking-tokens.md) — links anônimos são capabilities opacas, cifradas, assinadas e expiráveis; DTO público e logs devem ser redacted.
+- [Weekly reopening scope](weekly-reopening-scope.md) — reabertura é solicitada e aprovada por pedido/dia; os demais dias da programação permanecem bloqueados.
