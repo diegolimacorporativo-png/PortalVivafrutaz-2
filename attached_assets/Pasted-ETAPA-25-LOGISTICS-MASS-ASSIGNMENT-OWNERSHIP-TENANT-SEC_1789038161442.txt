@@ -1,0 +1,538 @@
+ETAPA 25 — LOGISTICS MASS ASSIGNMENT / OWNERSHIP / TENANT SECURITY
+
+OBJETIVO:
+
+Fazer a última auditoria específica de MASS ASSIGNMENT e alteração indevida de campos de ownership dentro dos módulos de LOGÍSTICA que ainda não foram completamente cobertos pelas etapas anteriores.
+
+A auditoria anterior encontrou como ponto residual:
+
+M2 — endpoints de logística onde payloads de atualização podem aceitar campos de tenant/ownership indevidamente.
+
+Esta etapa deve descobrir e corrigir somente riscos reais.
+
+IMPORTANTE:
+
+NÃO fazer refatoração geral.
+
+NÃO reescrever o módulo de logística.
+
+NÃO alterar regras de negócio sem necessidade.
+
+NÃO alterar os módulos já corrigidos, salvo quando houver dependência direta.
+
+NÃO mexer em:
+- NF-e
+- fiscal
+- certificados A1
+- impostos
+- DANFE
+- financeiro/banco
+- inventário
+- produtos/preços
+- quotations
+- incidents
+- push
+- tenant context
+- deliveries
+- route stops
+- GPS/Android Tracker
+
+Não criar migration.
+Não alterar schema.
+Não alterar dados reais.
+Não executar operações destrutivas.
+Não fazer commit.
+
+==================================================
+1. LOCALIZAR MASS ASSIGNMENT EM LOGÍSTICA
+==================================================
+
+Auditar:
+
+- server/modules/logistics/
+- server/routes/logistics.routes.ts
+- controllers
+- services
+- repositories
+- storage
+- schemas Zod relacionados a logística
+
+Pesquisar padrões como:
+
+req.body
+request.body
+...req.body
+...data
+Object.assign
+storage.update
+repository.update
+service.update
+
+Especial atenção para:
+
+PATCH
+PUT
+POST
+
+que recebem objetos diretamente do cliente.
+
+==================================================
+2. MAPEAR ENTIDADES
+
+Listar todas as entidades de logística que possuem operações de criação/alteração.
+
+Exemplos possíveis:
+
+- logistics_routes
+- route_stops
+- deliveries
+- drivers
+- driver assignments
+- delivery status
+- route status
+- stops
+- vehicle assignments
+- company assignments
+- qualquer outra entidade encontrada
+
+NÃO assumir que somente essas existem.
+
+Para cada entidade:
+
+- endpoint
+- método
+- tabela
+- campos recebidos
+- campos persistidos
+- ownership
+- tenant
+- role necessária
+
+==================================================
+3. CAMPOS CRÍTICOS
+
+Verificar se o cliente consegue enviar ou alterar:
+
+companyId
+empresaId
+company_id
+empresa_id
+tenantId
+tenant_id
+
+routeId
+route_id
+
+driverId
+driver_id
+
+createdBy
+created_by
+
+updatedBy
+updated_by
+
+userId
+user_id
+
+status
+role
+permissions
+
+createdAt
+updatedAt
+
+ou qualquer campo interno que determine ownership, autorização ou histórico.
+
+Não bloquear automaticamente campos que são legitimamente editáveis pela operação.
+
+Primeiro determinar a regra de negócio.
+
+==================================================
+4. REGRA PRINCIPAL
+
+Campos de TENANT/OWNERSHIP não devem ser aceitos cegamente do cliente.
+
+Exemplo perigoso:
+
+PATCH /api/logistics/routes/123
+
+body:
+
+{
+  "empresaId": 999
+}
+
+Se isso permitir transferir a rota para outra empresa:
+
+VULNERABILIDADE.
+
+Outro exemplo:
+
+PATCH /api/logistics/routes/123
+
+{
+  "driverId": 456
+}
+
+Se o motorista 456 pertence a outra empresa:
+
+VULNERABILIDADE.
+
+A correção deve validar a relação.
+
+==================================================
+5. ROUTES
+
+Auditar especialmente criação e alteração de ROTAS.
+
+Verificar:
+
+- empresa da rota
+- motorista
+- pedidos
+- deliveries
+- stops
+- datas
+- status
+
+Na criação:
+
+tenant deve vir do contexto confiável quando a rota for tenant-bound.
+
+Na atualização:
+
+empresa não deve ser trocada por payload.
+
+Se driverId puder ser alterado:
+
+validar que o motorista pertence ao mesmo tenant.
+
+Se order/delivery/stop puder ser associado:
+
+validar ownership de todos os recursos relacionados.
+
+==================================================
+6. DRIVER ASSIGNMENT
+
+Verificar endpoints que permitem:
+
+- atribuir motorista;
+- trocar motorista;
+- atribuir rota;
+- alterar motorista de uma entrega;
+- associar motorista a empresa.
+
+Não confiar somente em:
+
+driverId
+
+Validar:
+
+driver existe;
+driver pertence ao tenant correto;
+usuário tem permissão;
+recurso pai pertence ao mesmo tenant.
+
+Não criar possibilidade de:
+
+empresa A → motorista da empresa B.
+
+==================================================
+7. STATUS
+
+Verificar se endpoints de logística permitem alteração arbitrária de:
+
+status
+deliveryStatus
+routeStatus
+stopStatus
+
+Não bloquear status legítimos.
+
+Mas verificar:
+
+- role autorizada;
+- ownership;
+- transições válidas quando já existir máquina de estados;
+- tenant.
+
+Não criar uma nova máquina de estados nesta etapa.
+
+Apenas impedir bypass de autorização/mass assignment.
+
+==================================================
+8. LISTAGENS E FILTROS
+
+Verificar se filtros podem alterar tenant:
+
+?empresaId=
+?companyId=
+?tenantId=
+
+X-Empresa-Id
+
+body.companyId
+
+Para usuários tenant-bound:
+
+o tenant da sessão/contexto deve prevalecer.
+
+Não permitir:
+
+empresa A autenticada
++
+empresaId=B
+
+resultar em dados de B.
+
+A Etapa 24 já endureceu o tenant context.
+
+Não desfazer essa proteção.
+
+==================================================
+9. STORAGE / REPOSITORY
+
+Verificar se métodos internos usados pelas rotas permitem update/delete somente por ID:
+
+updateRoute(id, data)
+deleteRoute(id)
+updateDriver(id, data)
+
+etc.
+
+Quando necessário, criar variante scoped:
+
+updateXForCompany(id, companyId, data)
+
+ou validar ownership antes da chamada.
+
+Não alterar métodos genéricos usados legitimamente por MASTER/DIRECTOR global sem necessidade.
+
+==================================================
+10. ALLOWLIST
+
+Quando houver mass assignment real:
+
+preferir allowlist de campos editáveis.
+
+Exemplo conceitual:
+
+const allowed = {
+  name,
+  scheduledDate,
+  notes,
+  ...
+}
+
+Não simplesmente:
+
+const data = req.body
+
+Não aceitar campos de:
+
+tenant
+ownership
+auditoria
+permissão
+
+sem validação explícita.
+
+==================================================
+11. RBAC
+
+Preservar as regras já corrigidas.
+
+Tenant-bound:
+
+- somente própria empresa.
+
+MASTER/DIRECTOR:
+
+- manter acesso global legítimo.
+
+ADMIN/DEVELOPER:
+
+- respeitar vínculo de empresa.
+
+LOGISTICS:
+
+- somente operações permitidas.
+
+DRIVER/MOTORISTA:
+
+- somente operações legítimas de motorista.
+
+CLIENT:
+
+- não acessar administração logística.
+
+Não alterar requireRole globalmente.
+
+==================================================
+12. TESTES
+
+Criar testes direcionados para cada vulnerabilidade real encontrada.
+
+Cobrir no mínimo:
+
+- 401 sem sessão;
+- 403 role inválida;
+- tenant A atualizando recurso A -> sucesso;
+- tenant A atualizando recurso B -> bloqueado;
+- companyId spoofing;
+- empresaId spoofing;
+- tenantId spoofing;
+- driverId de outra empresa;
+- routeId de outra empresa;
+- deliveryId de outra empresa;
+- tentativa de alterar ownership;
+- tentativa de alterar createdBy;
+- tentativa de alterar tenant;
+- campos permitidos continuam funcionando;
+- MASTER comportamento legítimo preservado;
+- DIRECTOR comportamento legítimo preservado;
+- ADMIN tenant-bound;
+- DEVELOPER tenant-bound;
+- LOGISTICS;
+- DRIVER/MOTORISTA quando aplicável.
+
+Se algum recurso não permitir determinada alteração, testar explicitamente que o campo é rejeitado/ignorado.
+
+==================================================
+13. NÃO ALTERAR DADOS REAIS
+
+Todos os testes devem usar:
+
+- mocks;
+- repositories fake;
+- fixtures isoladas;
+- ou testes que não persistam mudanças reais.
+
+Não executar:
+
+UPDATE real
+DELETE real
+INSERT real
+
+no Supabase de produção.
+
+==================================================
+14. VALIDAÇÃO
+
+Executar:
+
+npm run check
+
+npm run build
+
+testes direcionados da Etapa 25
+
+git diff --check
+
+Executar suíte completa se possível.
+
+Registrar novamente as 10 falhas conhecidas de:
+
+tests/unit/order-deadline.test.ts
+
+UTC/BRT
+
+como preexistentes.
+
+NÃO corrigir timezone nesta etapa.
+
+Verificar:
+
+BOOT_VALIDATION_OK
+DB_CONNECTED
+APP_READY
+
+==================================================
+15. VERIFICAR REGRESSÃO
+
+Muito importante:
+
+As etapas anteriores corrigiram:
+
+- deliveries
+- route stops
+- GPS
+- logistics analytics
+- products
+- prices
+- quotations
+- incidents
+- finance
+- inventory
+- push
+- tenant context
+- RBAC
+
+Não reintroduzir nenhum bypass nesses módulos.
+
+Executar uma busca final por alterações que possam remover filtros tenant.
+
+==================================================
+16. RELATÓRIO FINAL
+
+Entregar:
+
+ETAPA 25 — RESULTADO
+
+1. Entidades logísticas auditadas
+2. Endpoints auditados
+3. Mass assignments encontrados
+4. Vulnerabilidades reais
+5. Falsos positivos
+6. Correções realizadas
+7. Campos protegidos
+8. Relações de ownership validadas
+9. Tenant isolation aplicado
+10. RBAC aplicado
+11. Arquivos alterados
+12. Testes criados
+13. Resultado dos testes
+14. npm run check
+15. npm run build
+16. git diff --check
+17. Workflow
+18. DB_CONNECTED
+19. APP_READY
+20. Schema/migration/data alterados? SIM/NÃO
+21. NF-e/fiscal alterado? SIM/NÃO
+22. GPS/Android alterado? SIM/NÃO
+23. Deliveries/route stops alterados? SIM/NÃO
+24. Push alterado? SIM/NÃO
+25. Commit realizado? SIM/NÃO
+26. Próxima etapa recomendada
+
+==================================================
+REGRA FINAL
+==================================================
+
+Esta é uma etapa de segurança.
+
+Se não existir vulnerabilidade real:
+
+NÃO alterar código.
+
+Se encontrar mass assignment real:
+
+corrigir com a menor alteração possível.
+
+Não substituir arquitetura.
+
+Não criar nova camada sem necessidade.
+
+Não criar migration.
+
+Não alterar dados.
+
+Não fazer commit.
+
+Depois desta etapa teremos:
+
+25/26
+
+e a próxima será a AUDITORIA FINAL COMPLETA.
