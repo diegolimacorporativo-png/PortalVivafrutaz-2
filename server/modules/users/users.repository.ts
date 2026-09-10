@@ -18,7 +18,7 @@ import { users as usersTable, systemLogs } from "@shared/schema";
 import type { User, InsertUser } from "./users.types";
 import type { IUsersRepository, LogEntry } from "./interfaces/IUsersRepository";
 import { and, eq, sql } from "drizzle-orm";
-import { currentTenantId } from "../../core/tenant/context";
+import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { invalidateUsageCache } from "../billing/usage-cache";
 
 export class UsersRepository implements IUsersRepository {
@@ -131,12 +131,27 @@ export class UsersRepository implements IUsersRepository {
         .from(usersTable)
         .where(eq(usersTable.empresaId, tenantId)) as unknown as Promise<User[]>;
     }
-    // Cross-tenant: MASTER admin sem tenant alvo.
-    // Intencional — grep neste comentário localiza todos os cross-tenant reads.
+    const principal = getTenantContext()?.principal;
+    if (
+      principal?.kind !== "admin" ||
+      !["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+    ) {
+      // No context is an authentication bug; a non-global role without a
+      // target is an authorization failure. Neither may become a global list.
+      requireTenantId();
+    }
+    // Explicit cross-tenant read: MASTER/DIRECTOR without a target.
     return db.select().from(usersTable) as unknown as Promise<User[]>;
   }
 
   getById(id: number): Promise<User | undefined> {
+    const principal = getTenantContext()?.principal;
+    if (currentTenantId() == null && (
+      principal?.kind !== "admin" ||
+      !["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+    )) {
+      requireTenantId();
+    }
     return db
       .select()
       .from(usersTable)

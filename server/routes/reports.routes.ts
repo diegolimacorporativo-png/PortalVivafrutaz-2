@@ -4,7 +4,7 @@ import { api } from "@shared/routes";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { currentTenantId } from "../core/tenant/context";
 import { tenantContext } from "../middleware/tenant";
-import { ForbiddenError, UnauthorizedError } from "../shared/errors/AppError";
+import { BadRequestError, ForbiddenError, UnauthorizedError } from "../shared/errors/AppError";
 
 const GLOBAL_REPORT_ROLES = ["MASTER", "DIRECTOR"] as const;
 
@@ -53,7 +53,12 @@ export function resolveCompanyId(req: any): number | undefined {
   const tid = currentTenantId();
   if (tid != null) return tid;
   const qp = req.query.companyId;
-  return qp ? Number(qp) : undefined;
+  if (qp == null || qp === "") return undefined;
+  const parsed = Number(qp);
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new BadRequestError("companyId inválido");
+  }
+  return parsed;
 }
 
 export function register(app: Express) {

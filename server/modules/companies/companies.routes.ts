@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/http/asyncHandler";
 import { tenantContext } from "../../middleware/tenant";
+import { requireAuth } from "../../core/http/requireAuth";
 import { requireAuthOrService } from "../../middleware/serviceAuth";
 import { validateRequest } from "../../core/validation/validateRequest";
 import { companiesController } from "./companies.controller";
@@ -40,9 +41,9 @@ import {
  * /api/companies`, leaking the entire customer list.
  *
  * Two auth modes are accepted, gated per-route:
- *   - **Session-only** (default): the request must carry `req.session.userId`
- *     or `req.session.companyId`. Used for ALL mutating endpoints — service
- *     callers cannot create/update/delete companies, scopes, addresses, etc.
+ *   - **Session-only** (default): mutating endpoints require
+ *     `req.session.userId` or `req.session.companyId`. Service callers cannot
+ *     create/update/delete companies, scopes, addresses, etc.
  *   - **Session-or-service**: read endpoints listed below also accept
  *     `x-api-key: <INTERNAL_API_KEY>` for unattended consumers (cron jobs,
  *     GPS daemon, ERP integration, NF-e poller). Service callers MUST still
@@ -69,10 +70,10 @@ const router = Router();
 const readGate = [requireAuthOrService, tenantContext] as const;
 
 // Mutating endpoints require explicit authentication. requireAuthOrService
-// ensures only authenticated sessions (or service tokens) reach tenantContext,
-// which then enforces session-only access for writes. This makes the protection
-// explicit and auditable rather than relying on tenantContext's implicit behavior.
-const writeGate = [requireAuthOrService, tenantContext] as const;
+// requireAuth intentionally excludes service tokens from writes. This makes
+// the protection explicit and auditable rather than relying on tenantContext's
+// implicit behavior.
+const writeGate = [requireAuth, tenantContext] as const;
 
 // ── Literals BEFORE /:id ───────────────────────────────────────────────
 // Read — usable by service callers (e.g. logistics map needs to enumerate

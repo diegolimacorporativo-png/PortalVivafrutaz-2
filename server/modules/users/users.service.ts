@@ -13,7 +13,7 @@ import type {
   UnlockUserResult,
   User,
 } from "./users.types";
-import { currentTenantId } from "../../core/tenant/context";
+import { currentTenantId, requireTenantId } from "../../core/tenant/context";
 
 /** Roles allowed to change another user's password. Mirrors legacy gate. */
 const PASSWORD_CHANGE_ROLES = [
@@ -56,10 +56,8 @@ export class UsersService {
   // ── Create ─────────────────────────────────────────────────────────────
   async create(input: InsertUser): Promise<SafeUser> {
     try {
-      const tenantId = currentTenantId();
-      const scopedInput = tenantId == null
-        ? input
-        : { ...input, empresaId: tenantId };
+      const tenantId = requireTenantId();
+      const scopedInput = { ...input, empresaId: tenantId };
       const user = await this.repo.create(scopedInput);
       return toSafe(user);
     } catch (err: any) {
@@ -82,10 +80,7 @@ export class UsersService {
       delete updates.password;
     }
     // A tenant-bound actor can never move an account to another tenant.
-    const tenantId = currentTenantId();
-    if (tenantId != null) {
-      updates.empresaId = tenantId;
-    }
+    updates.empresaId = requireTenantId();
 
     const user = await this.repo.update(id, updates);
     if (!user) throw new NotFoundError("Usuário não encontrado");
@@ -94,6 +89,7 @@ export class UsersService {
 
   // ── Delete ─────────────────────────────────────────────────────────────
   async delete(id: number): Promise<void> {
+    requireTenantId();
     const target = await this.repo.getById(id);
     if (!target) throw new NotFoundError("Usuário não encontrado");
     await this.repo.delete(id);
@@ -111,6 +107,7 @@ export class UsersService {
    */
   async changePassword(input: ChangePasswordInput): Promise<{ ok: true }> {
     const { targetUserId, newPassword, actorUserId, ip } = input;
+    requireTenantId();
 
     const actor = actorUserId ? await this.repo.getById(actorUserId) : null;
 
@@ -162,6 +159,7 @@ export class UsersService {
    */
   async unlockUser(input: UnlockUserInput): Promise<UnlockUserResult> {
     const { targetUserId, actorUserId, ip } = input;
+    requireTenantId();
 
     if (actorUserId == null) {
       throw new UnauthorizedError("Not authenticated");

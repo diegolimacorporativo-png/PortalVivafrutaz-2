@@ -51,7 +51,7 @@ export class OrdersRepository {
   private isCrossTenantOrdersAdmin(): boolean {
     const principal = getTenantContext()?.principal;
     return principal?.kind === "admin" &&
-      ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"].includes(principal.role ?? "");
+      ["MASTER", "DIRECTOR"].includes(principal.role ?? "");
   }
 
   // ── Reads ───────────────────────────────────────────────────────────────
@@ -192,8 +192,9 @@ export class OrdersRepository {
    * existence cross-tenant.
    */
   private async assertOwned(id: number): Promise<void> {
-    const tenantId = currentTenantId();
-    if (tenantId == null) return; // cross-tenant admin
+    // Every order mutation is tenant-bound. Global operators may perform
+    // global reads, but must pin a target tenant before writing.
+    const tenantId = requireTenantId();
     const [row] = await db
       .select({ companyId: orders.companyId })
       .from(orders)

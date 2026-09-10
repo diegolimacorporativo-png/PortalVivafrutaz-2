@@ -20,12 +20,18 @@ export function getTenantContext(): TenantContext | undefined {
   return storage.getStore();
 }
 
-export function resolveTenant(req: any) {
-  const user = req.user;
-  if (user?.role === "MASTER" || user?.role === "ADMIN" || user?.role === "DEVELOPER" || user?.role === "DIRECTOR") {
-    return typeof req.query?.tenantId === "string" && req.query.tenantId.trim() ? req.query.tenantId.trim() : "GLOBAL_VIEW";
-  }
-  return user?.tenantId ?? user?.empresaId?.toString() ?? null;
+/**
+ * Read the already-resolved tenant. Tenant resolution belongs to
+ * `middleware/tenant.ts`, where the session user is loaded and the request
+ * lifecycle is pinned with AsyncLocalStorage.
+ *
+ * This intentionally does not inspect `req.user`, query, headers, or body.
+ * Those values are client-controlled (and the old implementation returned the
+ * string `GLOBAL_VIEW`), so using them here could silently turn a missing
+ * context into a global read.
+ */
+export function resolveTenant(_req?: unknown): number | null {
+  return currentTenantId();
 }
 
 export function requireTenantId(): number {
@@ -34,7 +40,7 @@ export function requireTenantId(): number {
     throw new UnauthorizedError("Tenant context ausente — esta operação exige autenticação tenant-scoped");
   }
   if (ctx.empresaId == null) {
-    throw new ForbiddenError("Operação requer um tenant alvo. Admins devem informar ?empresaId=N");
+    throw new ForbiddenError("Operação requer um tenant alvo");
   }
   return ctx.empresaId;
 }

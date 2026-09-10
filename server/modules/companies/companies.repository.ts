@@ -38,7 +38,11 @@ import {
   type InsertEmpresaModulo,
 } from "@shared/schema";
 import { stripTenantFields, tenantWhere } from "../../core/tenant/scope";
-import { currentTenantId } from "../../core/tenant/context";
+import {
+  currentTenantId,
+  getTenantContext,
+  requireTenantId,
+} from "../../core/tenant/context";
 import { ForbiddenError } from "../../shared/errors/AppError";
 import { expectOne } from "../../shared/repositories/repository.utils";
 import type { LogEntry } from "../../shared/types/log.types";
@@ -81,6 +85,19 @@ export class CompaniesRepository implements ICompaniesRepository {
     if (tenantId != null && tenantId !== companyId) {
       throw new ForbiddenError("Tenant não autorizado a acessar esta empresa");
     }
+    if (tenantId == null) {
+      this.assertExplicitGlobalAdmin();
+    }
+  }
+
+  private assertExplicitGlobalAdmin(): void {
+    const principal = getTenantContext()?.principal;
+    if (
+      principal?.kind !== "admin" ||
+      !["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+    ) {
+      requireTenantId();
+    }
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -96,6 +113,7 @@ export class CompaniesRepository implements ICompaniesRepository {
   async list(): Promise<Company[]> {
     const tenantId = currentTenantId();
     if (tenantId == null) {
+      this.assertExplicitGlobalAdmin();
       return db.select().from(companies);
     }
     const [own] = await db
@@ -120,6 +138,7 @@ export class CompaniesRepository implements ICompaniesRepository {
    * pinned admins são permitidos.
    */
   async create(data: InsertCompany): Promise<Company> {
+    this.assertExplicitGlobalAdmin();
     // No assertion — see doc-block. bcrypt hashing preservado da implementação original.
     const hashedPassword = data.password
       ? await bcrypt.hash(data.password, 10)
@@ -671,6 +690,12 @@ export class CompaniesRepository implements ICompaniesRepository {
     const offset = (page - 1) * limit;
 
     const conds: any[] = [];
+    const tenantId = currentTenantId();
+    if (tenantId == null) {
+      this.assertExplicitGlobalAdmin();
+    } else {
+      conds.push(eq(companies.id, tenantId));
+    }
     if (params.status && params.status !== "ALL") {
       if (params.status === "ACTIVE") conds.push(eq(companies.active, true));
       else if (params.status === "INACTIVE") conds.push(eq(companies.active, false));
