@@ -10,6 +10,7 @@ import { createSessionMiddleware } from "./core/http/session";
 import { requestIdMiddleware } from "./middleware/requestId";
 import { requestContextMiddleware } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
+import { responseLogger } from "./middleware/responseLogger";
 import {
   apiLimiter,
   nfeLimiter,
@@ -163,25 +164,7 @@ export async function buildApp(): Promise<BuildAppResult> {
     }),
   );
 
-  app.use((req, res, next) => {
-    const start = Date.now();
-    let captured: unknown;
-    const orig = res.json;
-    res.json = function (body, ...args) {
-      captured = body;
-      return orig.apply(res, [body, ...args]);
-    };
-    res.on("finish", () => {
-      if (req.path.startsWith("/api")) {
-        const time = new Date().toLocaleTimeString("en-US", { hour12: true });
-        const duration = Date.now() - start;
-        let line = `${req.method} ${req.path} ${res.statusCode} in ${duration}ms`;
-        if (captured) line += ` :: ${JSON.stringify(captured)}`;
-        console.log(`${time} [${req.requestId}] [express] ${line}`);
-      }
-    });
-    next();
-  });
+  app.use(responseLogger);
 
   app.use(createSessionMiddleware());
   app.use(sessionVersionGuard);

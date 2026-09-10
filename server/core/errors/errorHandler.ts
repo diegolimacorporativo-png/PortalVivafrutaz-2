@@ -68,11 +68,19 @@ export function errorHandler(
   // ── Unknown / unexpected error ──────────────────────────────────────
   const e = err as { status?: number; statusCode?: number; message?: string; stack?: string };
   const status = e?.status || e?.statusCode || 500;
-  const message = e?.message || "Erro interno do servidor";
+  const isServerError = status >= 500;
+  const message = isServerError
+    ? "Erro interno do servidor"
+    : e?.message || "Erro interno do servidor";
 
-  if (status >= 500) {
-    console.error(`[${req.requestId}] [errorHandler] unhandled error:`, err);
-    _captureError(err, req, status, "ERROR");
+  if (isServerError) {
+    // Do not serialize the error object: its message/stack can contain
+    // credentials, tokens, request payloads, or upstream response bodies.
+    console.error(`[${req.requestId}] [errorHandler] unhandled error`, {
+      status,
+      errorType: err instanceof Error ? err.constructor.name : typeof err,
+    });
+    _captureError(err, req, status, "ERROR", message);
   }
 
   return res.status(status).json({
@@ -90,6 +98,7 @@ function _captureError(
   req: Request,
   statusCode: number,
   severity: "ERROR" | "WARN",
+  safeMessage?: string,
 ): void {
   try {
     const e = err as { message?: string; stack?: string };
@@ -101,7 +110,7 @@ function _captureError(
       method: req.method,
       statusCode,
       severity,
-      message: e?.message ?? "Unknown error",
+      message: safeMessage ?? e?.message ?? "Unknown error",
       // T906 — suppress full stack traces in production; stack is a dev/debug tool only
       stack: process.env.NODE_ENV !== "production" ? e?.stack : undefined,
       tenantId: ctx?.tenantId,

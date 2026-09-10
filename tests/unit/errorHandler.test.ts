@@ -195,12 +195,12 @@ describe("errorHandler — AppError hierarchy", () => {
 });
 
 describe("errorHandler — fallbacks", () => {
-  test("Unknown Error → 500 with INTERNAL_ERROR", async () => {
+  test("Unknown Error → 500 with generic INTERNAL_ERROR message", async () => {
     const { status, body } = await fetchError(new Error("random"));
     assert.equal(status, 500);
     assert.equal(body.success, false);
     assert.equal(body.error.code, "INTERNAL_ERROR");
-    assert.equal(body.error.message, "random");
+    assert.equal(body.error.message, "Erro interno do servidor");
   });
 
   test("Unknown Error without message → generic 500 message", async () => {

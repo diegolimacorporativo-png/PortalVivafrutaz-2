@@ -1,0 +1,273 @@
+## ETAPA 36 — CORREÇÃO DO HIGH DE LOGGING INTEGRAL DE RESPOSTAS HTTP
+
+OBJETIVO:
+
+Corrigir SOMENTE o HIGH identificado na Etapa 33 relacionado ao logging integral de respostas HTTP.
+
+Não corrigir os outros HIGH nesta etapa.
+
+==================================================
+PRIMEIRO: AUDITORIA
+==================================================
+
+Localizar exatamente:
+
+- middleware de logging HTTP;
+- interceptor/logger;
+- pontos onde response body é capturado;
+- pontos onde status, headers, body ou payload são registrados;
+- formato atual dos logs;
+- destino dos logs;
+- relação com audit logs;
+- relação com console/logger;
+- rotas afetadas.
+
+Usar a evidência do relatório:
+
+docs/security/ETAPA_33_AUDITORIA_FINAL_CONSOLIDADA.md
+
+Confirmar a vulnerabilidade no código atual antes de editar.
+
+==================================================
+OBJETIVO DE SEGURANÇA
+==================================================
+
+O servidor NÃO deve registrar integralmente respostas HTTP que possam conter:
+
+- tokens;
+- senhas;
+- hashes;
+- cookies;
+- session IDs;
+- authorization headers;
+- API keys;
+- secrets;
+- certificados;
+- dados bancários;
+- CPF/documentos;
+- endereços;
+- dados pessoais;
+- payloads completos de usuários/clientes;
+- informações operacionais sensíveis.
+
+O logging deve ser mínimo e seguro.
+
+Preferir registrar:
+
+- método;
+- rota/template da rota;
+- status HTTP;
+- duração;
+- request ID/correlation ID se já existir;
+- tamanho da resposta;
+- identificador técnico não sensível quando necessário.
+
+NÃO registrar automaticamente o body completo da resposta.
+
+==================================================
+REGRAS
+==================================================
+
+1. Remover somente o logging integral inseguro.
+
+2. Preservar logs operacionais úteis.
+
+3. Não remover observabilidade necessária sem substituição segura.
+
+4. Não alterar o sistema de audit logs da Etapa 16 salvo se for estritamente necessário para eliminar esta vulnerabilidade.
+
+5. Não registrar:
+
+- Authorization;
+- Cookie;
+- Set-Cookie;
+- tokens;
+- passwords;
+- reset tokens;
+- VAPID private key;
+- API keys;
+- secrets;
+- certificados;
+- dados financeiros;
+- response body completo.
+
+6. Se existir necessidade legítima de logar conteúdo para alguma rota específica:
+
+usar allowlist explícita de campos seguros.
+
+NUNCA criar blacklist como única proteção.
+
+==================================================
+REQUEST LOGGING
+==================================================
+
+Auditar também se o mesmo middleware registra request body/query/headers.
+
+Se estiver diretamente relacionado ao mesmo mecanismo de logging integral e puder expor secrets, corrigir o necessário dentro desta etapa.
+
+Não transformar isso em uma auditoria geral de logs.
+
+==================================================
+ERROR HANDLING
+==================================================
+
+Garantir que erros não passem a vazar:
+
+- stack traces em produção;
+- secrets;
+- tokens;
+- request body;
+- response body sensível.
+
+Não alterar comportamento funcional das APIs.
+
+==================================================
+TESTES OBRIGATÓRIOS
+==================================================
+
+Criar testes direcionados cobrindo:
+
+1. resposta normal não grava body integral;
+
+2. resposta contendo token não aparece no log;
+
+3. resposta contendo password não aparece no log;
+
+4. Set-Cookie/Cookie não aparece no log;
+
+5. Authorization não aparece no log;
+
+6. dados sensíveis não aparecem no log;
+
+7. status/método/duração continuam sendo registrados;
+
+8. erros continuam registrados sem conteúdo sensível;
+
+9. logging de audit existente continua funcionando;
+
+10. não existe caminho alternativo no middleware que grave response body completo.
+
+Testar também pelo menos uma rota real de API.
+
+Não colocar valores secretos reais nos testes.
+
+Usar valores sintéticos como:
+
+TEST_SECRET_TOKEN
+TEST_PASSWORD
+TEST_API_KEY
+
+==================================================
+REGRESSÃO
+==================================================
+
+Executar:
+
+npm run check
+npm run build
+npm test
+git diff --check
+
+Tentar:
+
+Start application
+
+Confirmar:
+
+DB_CONNECTED
+APP_READY
+/api/health → 200
+
+==================================================
+RESTRIÇÕES
+==================================================
+
+NÃO alterar:
+
+- NF-e/fiscal;
+- certificados;
+- financeiro;
+- inventory;
+- GPS;
+- Android Tracker;
+- Clara;
+- public tracking tokens;
+- recovery token architecture da Etapa 35;
+- deliveries;
+- products;
+- prices;
+- quotations;
+- push;
+- tenantContext;
+- outras vulnerabilidades HIGH.
+
+Não executar a migration da Etapa 35.
+
+Não alterar dados reais.
+
+Não fazer deploy.
+
+Não criar commit.
+
+Não fazer refatoração geral.
+
+==================================================
+RELATÓRIO
+==================================================
+
+Criar:
+
+docs/security/ETAPA_36_HTTP_LOGGING_SECURITY.md
+
+Registrar:
+
+1. mecanismo vulnerável encontrado;
+2. exemplo do risco sem expor dados reais;
+3. correção;
+4. o que continua sendo registrado;
+5. o que passou a ser bloqueado;
+6. testes;
+7. check;
+8. build;
+9. npm test;
+10. workflow;
+11. Supabase;
+12. arquivos alterados;
+13. confirmação dos outros HIGH não tratados;
+14. confirmação da Etapa 35 intacta;
+15. confirmação de NF-e/fiscal intacto;
+16. estado Git.
+
+NUNCA colocar tokens, senhas ou secrets reais no relatório.
+
+==================================================
+CRITÉRIO DE APROVAÇÃO
+==================================================
+
+A Etapa 36 só será APROVADA se:
+
+- response body integral não for mais registrado;
+- secrets/tokens/passwords não aparecerem nos logs;
+- headers sensíveis não aparecerem;
+- logs operacionais úteis continuarem;
+- testes direcionados passarem;
+- npm run check passar;
+- build passar;
+- npm test passar;
+- workflow funcionar ou eventual falha ambiental ser documentada.
+
+Ao final mostrar:
+
+ETAPA 1–35
+ETAPA 36
+HIGH restantes
+MEDIUM
+LOW
+TESTES
+CHECK
+BUILD
+WORKFLOW
+SUPABASE
+GIT
+NF-e/FISCAL
+PRÓXIMA ETAPA
