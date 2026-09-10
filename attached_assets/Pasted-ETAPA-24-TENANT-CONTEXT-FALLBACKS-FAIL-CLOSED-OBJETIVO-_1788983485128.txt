@@ -1,0 +1,407 @@
+ETAPA 24 — TENANT CONTEXT / FALLBACKS / FAIL-CLOSED
+
+OBJETIVO:
+Auditar profundamente o mecanismo central de resolução de tenant e identificar qualquer situação em que uma rota tenant-bound possa cair acidentalmente em comportamento GLOBAL quando empresa/tenant não estiver resolvido.
+
+Esta etapa é de segurança multi-tenant.
+
+IMPORTANTE:
+Não fazer refatoração geral.
+Não alterar regras de negócio sem evidência.
+Não mexer em módulos já corrigidos, exceto quando for necessário corrigir um fallback central comprovadamente inseguro.
+
+NÃO mexer em:
+- NF-e
+- fiscal
+- certificado A1
+- impostos
+- DANFE
+- GPS/Android Tracker
+- Push
+- financeiro/banco
+- inventário
+- products/prices
+- deliveries
+- route stops
+- quotations
+- incidents
+
+Não criar migration.
+Não alterar schema.
+Não alterar dados reais.
+Não fazer operações destrutivas.
+Não fazer commit.
+
+==================================================
+1. AUDITAR O TENANT CONTEXT CENTRAL
+==================================================
+
+Inspecionar:
+
+- server/core/tenant/context.ts
+- server/middleware/tenant.ts
+- server/core/http/requireAuth.ts
+- funções de resolução de empresa/tenant
+- session.user.empresaId
+- session.companyId
+- X-Empresa-Id
+- ?empresaId
+- ?tenantId
+- qualquer header/query/body usado para escolher tenant
+
+Mapear exatamente a prioridade usada para resolver o tenant.
+
+Documentar:
+
+1. de onde vem o tenant;
+2. quando ele é considerado confiável;
+3. quando pode ser informado pelo cliente;
+4. quando pode ficar null/undefined;
+5. o que acontece quando fica null/undefined.
+
+==================================================
+2. PROBLEMA PRINCIPAL — FALLBACK GLOBAL
+==================================================
+
+Pesquisar por padrões como:
+
+if (!empresaId)
+if (!tenantId)
+empresaId ? ...
+empresaId ?? ...
+empresaId || ...
+tenantId ?? ...
+tenantId || ...
+
+e principalmente consultas como:
+
+WHERE empresa_id = ${empresaId}
+
+ou lógica equivalente onde:
+
+empresaId == null
+
+pode resultar em:
+
+- buscar todos;
+- buscar registros globais;
+- remover filtro de empresa;
+- executar operação sem escopo.
+
+Também pesquisar repositories/storage que tenham comportamento semelhante a:
+
+if (empresaId) {
+  filtrar por empresa
+} else {
+  retornar tudo
+}
+
+Esse comportamento pode ser legítimo para ferramentas globais.
+
+O objetivo é descobrir onde ele é perigoso em endpoint tenant-bound.
+
+==================================================
+3. SEPARAR GLOBAL LEGÍTIMO DE FALLBACK PERIGOSO
+==================================================
+
+NÃO remover global fallback indiscriminadamente.
+
+Classificar cada ocorrência como:
+
+A) GLOBAL LEGÍTIMO
+Exemplo:
+MASTER/DIRECTOR sem empresa em ferramenta administrativa global.
+
+B) TENANT-BOUND
+Precisa obrigatoriamente de empresa.
+
+C) OPERAÇÃO MISTA
+Pode trabalhar globalmente ou tenant-bound dependendo do usuário/política.
+
+D) PÚBLICO
+Não possui tenant.
+
+E) SUSPEITO
+Não está claro por que fica global quando empresa não está resolvida.
+
+Somente corrigir B/E e D quando houver risco real.
+
+==================================================
+4. REGRAS OBRIGATÓRIAS
+==================================================
+
+Para endpoint TENANT-BOUND:
+
+Se sessão não possui tenant resolvido:
+
+-> FAIL CLOSED
+
+Preferencialmente:
+
+403
+
+ou 401 quando o problema for ausência de autenticação.
+
+Nunca:
+
+-> executar consulta global silenciosamente.
+
+Para endpoint GLOBAL legítimo:
+
+MASTER/DIRECTOR sem empresa podem continuar globais conforme política existente.
+
+ADMIN/DEVELOPER sem empresa:
+
+não devem automaticamente ganhar acesso global.
+
+Preservar as regras já estabelecidas nas etapas anteriores.
+
+==================================================
+5. ATENÇÃO AO tenantId ALTERNATIVO
+==================================================
+
+A auditoria anterior encontrou `?tenantId` em:
+
+server/core/tenant/context.ts
+
+Investigar cuidadosamente.
+
+Descobrir:
+
+- quem pode enviar esse parâmetro;
+- se ele tem prioridade sobre session.companyId/session.user.empresaId;
+- se um usuário tenant-bound consegue trocar de tenant;
+- se X-Empresa-Id pode fazer o mesmo;
+- se query/body/header pode sobrescrever tenant confiável.
+
+REGRA:
+
+Para usuário tenant-bound:
+
+sessão deve vencer qualquer tenant fornecido pelo cliente.
+
+Exemplo:
+
+sessão = empresa 10
+cliente envia:
+?tenantId=20
+
+Resultado obrigatório:
+
+tenant 10
+
+ou requisição rejeitada.
+
+Nunca tenant 20.
+
+Para usuários globais que legitimamente podem selecionar empresa:
+
+preservar o mecanismo existente, mas exigir autorização apropriada.
+
+==================================================
+6. STORAGE / REPOSITORIES
+==================================================
+
+Auditar principalmente métodos genéricos que podem ter fallback global:
+
+- products
+- price groups
+- prices
+- orders
+- deliveries
+- companies
+- users
+- logistics
+- production
+- reports
+- inventory
+- quotations
+- incidents
+
+Não alterar módulos já corrigidos sem necessidade.
+
+O objetivo é descobrir chamadas onde:
+
+tenant-bound route
+        ↓
+empresaId não resolvido
+        ↓
+storage method
+        ↓
+consulta global
+
+Se encontrar:
+
+corrigir na camada mais apropriada.
+
+Preferir:
+
+requireTenant()
+
+ou policy tenant-bound
+
+antes da chamada perigosa.
+
+Não colocar `empresaId` arbitrário vindo do body como solução.
+
+==================================================
+7. CRIAR MATRIZ DE TESTES
+==================================================
+
+Criar testes direcionados para o tenant context.
+
+Cobrir:
+
+1. sessão tenant A -> tenant A
+2. sessão tenant A + companyId B -> continua A
+3. sessão tenant A + empresaId B -> continua A
+4. sessão tenant A + tenantId B -> continua A
+5. sessão tenant A + X-Empresa-Id B -> continua A
+6. sem empresa em endpoint tenant-bound -> 403
+7. MASTER sem empresa em endpoint global -> permitido
+8. DIRECTOR sem empresa em endpoint global -> permitido
+9. ADMIN sem empresa -> não ganhar global automaticamente
+10. DEVELOPER sem empresa -> não ganhar global automaticamente
+11. usuário cross-tenant -> bloqueado
+12. storage/repository não deve remover filtro de tenant em contexto tenant-bound
+13. tentativa de spoofing por query
+14. tentativa de spoofing por header
+15. tentativa de spoofing por body quando aplicável
+
+Também testar pelo menos algumas rotas reais que utilizam o tenantContext.
+
+Não testar somente helper isolado.
+
+==================================================
+8. FAIL-CLOSED
+==================================================
+
+Procurar especificamente casos onde uma função retorna:
+
+null
+undefined
+0
+false
+
+para representar "sem tenant"
+
+e o chamador interpreta isso como:
+
+"buscar globalmente".
+
+Se existir esse padrão em rota tenant-bound:
+
+corrigir.
+
+Não mudar semântica global legítima.
+
+==================================================
+9. NÃO FAZER MIGRATION
+==================================================
+
+Esta etapa deve ser somente código/policies/tests.
+
+Não criar:
+
+- migration
+- tabela
+- coluna
+- índice
+- alteração de schema
+
+Não modificar dados.
+
+==================================================
+10. VALIDAÇÃO
+==================================================
+
+Executar:
+
+npm run check
+
+npm run build
+
+testes direcionados da Etapa 24
+
+git diff --check
+
+Se possível, executar suíte completa.
+
+Se aparecerem novamente as 10 falhas de:
+
+tests/unit/order-deadline.test.ts
+
+UTC/BRT
+
+registrar como preexistentes.
+
+Não corrigir timezone nesta etapa.
+
+Verificar workflow:
+
+BOOT_VALIDATION_OK
+DB_CONNECTED
+APP_READY
+
+==================================================
+11. RELATÓRIO FINAL
+==================================================
+
+Entregar:
+
+ETAPA 24 — RESULTADO
+
+1. Como o tenant é resolvido atualmente
+2. Fontes de tenant confiáveis
+3. Fontes de tenant controláveis pelo cliente
+4. Prioridade entre session/query/header/body
+5. Fallbacks globais encontrados
+6. Fallbacks legítimos
+7. Fallbacks perigosos
+8. Vulnerabilidades encontradas
+9. Correções realizadas
+10. Arquivos alterados
+11. Rotas afetadas
+12. Repositories/storage afetados
+13. Testes criados
+14. Resultado dos testes
+15. npm run check
+16. npm run build
+17. git diff --check
+18. Workflow / DB_CONNECTED / APP_READY
+19. Schema/migration/data alterados? SIM/NÃO
+20. NF-e/fiscal alterado? SIM/NÃO
+21. GPS/Android alterado? SIM/NÃO
+22. Push alterado? SIM/NÃO
+23. Commit realizado? SIM/NÃO
+24. Próxima etapa recomendada
+
+==================================================
+REGRA FINAL
+==================================================
+
+NÃO transformar todos os métodos globais em tenant-bound.
+
+O sistema possui funcionalidades administrativas globais legítimas.
+
+A correção deve ser:
+
+"tenant-bound -> fail closed"
+
+e não:
+
+"tudo precisa obrigatoriamente ter tenant".
+
+Preservar MASTER/DIRECTOR global onde já for legítimo.
+
+ADMIN/DEVELOPER vinculados devem continuar tenant-bound.
+
+O objetivo é eliminar somente o risco real de:
+
+tenant não resolvido
+        ↓
+fallback global
+        ↓
+vazamento ou alteração cross-tenant.
+
+NÃO FAÇA COMMIT.
