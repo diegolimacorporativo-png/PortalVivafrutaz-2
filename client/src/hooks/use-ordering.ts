@@ -323,7 +323,9 @@ export function useCreateProgramacao() {
           `Erro ${res.status} ao enviar programação`;
         throw new Error(message);
       }
-      return body as { orders: any[] };
+      // Modular endpoints return the standard { success, data } envelope.
+      // Keep a raw-shape fallback for compatibility with older deployments.
+      return (body?.data ?? body) as { orders: any[] };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });

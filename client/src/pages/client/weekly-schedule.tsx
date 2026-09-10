@@ -902,7 +902,7 @@ export default function WeeklySchedulePage() {
                 Após o envio não será possível alterar os pedidos sem solicitar uma reabertura.
               </p>
               <p className="text-muted-foreground font-medium">
-                Alterações somente poderão ser solicitadas até 48 horas úteis antes da data de entrega, respeitando o horário limite das 12:00.
+                 Alterações somente poderão ser solicitadas até o segundo dia útil anterior à entrega, até 13:00 (horário de Brasília).
               </p>
             </div>
 
@@ -978,8 +978,8 @@ export default function WeeklySchedulePage() {
             <div>
               <p className="font-bold text-green-800">Programação já enviada para esta semana.</p>
               <p className="text-green-700 text-sm mt-1">
-                Você enviou {weekOrders.length} pedido(s) para a {weekNum}.
-                Para solicitar alterações, use o botão abaixo em cada pedido (dentro do prazo de 48h úteis antes da entrega).
+                 Você enviou {weekOrders.length} pedido(s) para a {weekNum}.
+                 Para solicitar alterações, use o botão abaixo em cada pedido até o segundo dia útil anterior à entrega, às 13:00 (horário de Brasília).
               </p>
             </div>
           </div>
@@ -1198,7 +1198,7 @@ export default function WeeklySchedulePage() {
                       }
                       setShowConfirmModal(true);
                     }}
-                    disabled={!hasAnyItems}
+                     disabled={!hasAnyItems || (minWeeklyBilling > 0 && projectedWeekTotal < minWeeklyBilling)}
                     className="w-full py-3.5 bg-secondary text-secondary-foreground font-bold rounded-xl shadow-lg shadow-secondary/20 hover:-translate-y-0.5 transition-all disabled:opacity-40 disabled:transform-none flex justify-center items-center gap-2"
                   >
                     <SendHorizonal className="w-5 h-5" />
@@ -1209,6 +1209,11 @@ export default function WeeklySchedulePage() {
                       Selecione produtos em pelo menos um dia para enviar.
                     </p>
                   )}
+                   {hasAnyItems && minWeeklyBilling > 0 && projectedWeekTotal < minWeeklyBilling && (
+                     <p className="text-xs text-orange-600 text-center font-medium">
+                       Adicione mais R$ {fmtBRL(billingShortfall)} para atingir o mínimo semanal.
+                     </p>
+                   )}
                 </div>
               </div>
             </div>

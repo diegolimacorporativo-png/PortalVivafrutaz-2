@@ -1,0 +1,410 @@
+## ETAPA 33 — AUDITORIA FINAL CONSOLIDADA DE SEGURANÇA
+
+OBJETIVO:
+Executar uma auditoria FINAL, READ-ONLY, do estado atual do projeto após as Etapas 1–32.
+
+IMPORTANTE:
+Esta etapa NÃO é para corrigir código.
+
+Não alterar implementação.
+Não criar migration.
+Não alterar schema.
+Não alterar banco.
+Não alterar dados.
+Não fazer deploy.
+Não criar commit.
+
+Se encontrar vulnerabilidade CRITICAL ou HIGH, apenas documentar:
+- arquivo;
+- endpoint;
+- exploração;
+- impacto;
+- evidência;
+- recomendação;
+- etapa futura sugerida.
+
+NÃO corrigir nesta etapa.
+
+==================================================
+ESCOPO
+==================================================
+
+Auditar o código atual completo, com foco em:
+
+1. AUTHENTICATION
+2. RBAC
+3. MULTI-TENANT / TENANT ISOLATION
+4. IDOR / OWNERSHIP
+5. MASS ASSIGNMENT
+6. QUERY/BODY/HEADER TENANT BYPASS
+7. GLOBAL FALLBACKS
+8. PUBLIC ENDPOINTS
+9. SENSITIVE DATA EXPOSURE
+10. AUDIT LOGS
+11. FILE UPLOADS
+12. PUSH
+13. LOGISTICS
+14. GPS
+15. DELIVERIES
+16. PRODUCTS / PRICES
+17. QUOTATIONS
+18. INCIDENTS
+19. FINANCE / BANK
+20. INVENTORY
+21. COMPANY SETTINGS
+22. COMPANY CONFIG
+23. REPORTS
+24. USERS
+25. ROUTES / STOPS
+26. PUBLIC TRACKING
+27. TOKEN TRACKING
+28. SECURITY MIDDLEWARE
+29. TENANT CONTEXT
+30. ADMIN / MASTER ENDPOINTS
+
+==================================================
+ETAPAS JÁ CONCLUÍDAS
+==================================================
+
+Considere como contexto as correções anteriores:
+
+- password reset plaintext
+- logistics tracking authentication
+- users tenant isolation
+- reports tenant isolation
+- client incidents
+- special order requests
+- empresa-config
+- order exceptions
+- company settings
+- deliveries / checklist / stop status
+- products / categories / subcategories
+- quotations
+- GPS driver ownership
+- logistics analytics
+- audit logs
+- prices / price groups
+- internal incidents
+- bank / finance
+- inventory
+- strict MASTER RBAC
+- legacy route stops
+- push settings
+- tenantContext / dangerous fallbacks
+- logistics mass assignment
+- public tracking audit
+- public tracking tokens
+- token validation
+- numeric route tracking IDOR
+
+Não considerar uma vulnerabilidade já corrigida como nova vulnerabilidade apenas porque o código histórico ainda aparece em documentação/memória.
+
+==================================================
+TRACKING — VALIDAR ESPECIALMENTE
+==================================================
+
+Confirmar novamente:
+
+PUBLIC TOKEN:
+- token válido funciona;
+- token adulterado falha;
+- token expirado falha;
+- token cross-resource falha;
+- token não expõe dados internos;
+- token não permite troca de tenant;
+- rate limit permanece.
+
+NUMERIC LEGACY:
+- exige sessão;
+- tenant-bound só acessa própria empresa;
+- cross-tenant retorna bloqueio;
+- MASTER/DIRECTOR global preservados;
+- consulta detalhada não ocorre antes da validação;
+- anônimo não consegue usar ID numérico.
+
+Não modificar nada.
+
+==================================================
+TENANT ISOLATION — MATRIZ FINAL
+==================================================
+
+Para endpoints tenant-bound, verificar se existe algum caminho onde o atacante consiga controlar:
+
+- empresaId
+- empresa_id
+- companyId
+- company_id
+- tenantId
+- tenant_id
+- req.user
+- session user
+- query params
+- body
+- headers
+- path params
+- IDs de registros relacionados
+
+Verificar também se algum:
+
+- null
+- undefined
+- ausência de empresa
+- fallback global
+- repository genérico
+
+pode transformar uma operação tenant-bound em consulta global.
+
+==================================================
+IDOR
+==================================================
+
+Pesquisar endpoints que recebem:
+
+GET /:id
+PATCH /:id
+PUT /:id
+DELETE /:id
+
+e verificar se existe validação de ownership/tenant antes de acessar o registro.
+
+Não assumir que autenticação é suficiente.
+
+Especial atenção para:
+- users
+- companies
+- deliveries
+- routes
+- route stops
+- drivers
+- vehicles
+- products
+- prices
+- quotations
+- incidents
+- finance
+- bank
+- inventory
+- reports
+- settings
+- push
+- logs
+
+==================================================
+MASS ASSIGNMENT
+==================================================
+
+Procurar objetos como:
+
+req.body
+...req.body
+storage.update(...)
+repository.update(...)
+insert(...)
+create(...)
+
+e verificar se campos protegidos podem ser enviados pelo cliente:
+
+- id
+- empresaId
+- companyId
+- tenantId
+- createdAt
+- updatedAt
+- createdBy
+- userId
+- role
+- status
+- balance
+- audit metadata
+- ownership fields
+
+Não corrigir.
+
+==================================================
+RBAC
+==================================================
+
+Verificar especialmente:
+
+- requireRole
+- requireAuth
+- requireAuthCore
+- strict role checks
+- FULL_ACCESS_ROLES
+- MASTER
+- ADMIN
+- DIRECTOR
+- DEVELOPER
+- OPERATIONS_MANAGER
+- LOGISTICS
+- PURCHASE_MANAGER
+- FINANCEIRO
+- DRIVER/MOTORISTA
+- CLIENT
+
+Procurar endpoints onde uma role com acesso amplo possa entrar por engano em endpoint que deveria ser restrito.
+
+Distinguir:
+- vulnerabilidade real;
+- política intencional;
+- falso positivo.
+
+==================================================
+PUBLIC ENDPOINTS
+==================================================
+
+Listar endpoints públicos reais.
+
+Para cada um responder:
+
+- é intencional?
+- exige token?
+- possui dados sensíveis?
+- possui IDs enumeráveis?
+- possui rate limit quando necessário?
+- permite consulta cross-tenant?
+- expõe informações operacionais?
+
+Não alterar.
+
+==================================================
+DADOS SENSÍVEIS
+==================================================
+
+Pesquisar exposição de:
+
+- senhas
+- password hashes
+- tokens
+- secrets
+- API keys
+- certificados
+- A1
+- SMTP credentials
+- private keys
+- CPF/documentos
+- telefones
+- endereços
+- GPS exato
+- dados financeiros
+- credenciais bancárias
+
+Não alterar NF-e/fiscal.
+
+Apenas reportar se houver exposição.
+
+==================================================
+RESULTADO OBRIGATÓRIO
+==================================================
+
+Classificar cada finding:
+
+CRITICAL
+HIGH
+MEDIUM
+LOW
+INFO
+FALSE POSITIVE
+
+Para cada HIGH/CRITICAL:
+
+- endpoint;
+- arquivo;
+- linha aproximada;
+- pré-condição;
+- exploração;
+- impacto;
+- por que as proteções atuais não impedem;
+- recomendação.
+
+Para MEDIUM/LOW:
+resumo objetivo.
+
+==================================================
+TESTES
+==================================================
+
+Executar somente testes/read-only já existentes.
+
+Pode executar:
+
+npm run check
+npm run build
+npm test
+git diff --check
+
+Não criar novos testes nesta etapa.
+
+Se algum comando falhar, informar a causa real.
+
+Não mascarar falhas ambientais.
+
+Se o workflow estiver disponível, verificar:
+
+DB_CONNECTED
+APP_READY
+HTTP preview
+
+==================================================
+GIT
+==================================================
+
+Não criar commit.
+
+Mostrar:
+
+git status
+git diff --check
+
+Não descartar alterações existentes.
+
+==================================================
+ARQUIVO DE RELATÓRIO
+==================================================
+
+Criar somente:
+
+docs/security/ETAPA_33_AUDITORIA_FINAL_CONSOLIDADA.md
+
+Esse relatório pode ser criado/alterado.
+
+Nenhum arquivo de implementação deve ser alterado.
+
+==================================================
+CRITÉRIO FINAL
+==================================================
+
+Se:
+
+- CRITICAL = 0
+- HIGH = 0
+
+então declarar:
+
+"SUPERFÍCIE DE SEGURANÇA CRÍTICA/HIGH FECHADA"
+
+e separar claramente MEDIUM/LOW como hardening futuro.
+
+Se existir CRITICAL/HIGH:
+NÃO corrigir.
+Apenas declarar que a segurança ainda não está fechada e listar a próxima etapa recomendada.
+
+IMPORTANTE:
+Não transformar esta auditoria em nova refatoração.
+
+NF-e/fiscal permanece completamente fora do escopo.
+
+Ao final apresentar um painel:
+
+ETAPA 1–32
+ETAPA 33
+CRITICAL
+HIGH
+MEDIUM
+LOW
+TESTES
+CHECK
+BUILD
+WORKFLOW
+GIT
+PRÓXIMA ETAPA

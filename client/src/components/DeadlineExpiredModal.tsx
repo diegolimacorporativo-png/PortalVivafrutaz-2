@@ -22,7 +22,7 @@ export function DeadlineExpiredModal({ onClose }: DeadlineExpiredModalProps) {
             O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado.
             <br /><br />
             Para garantir nossa programação logística e produção, alterações são permitidas
-            somente até às 12h00 do segundo dia útil anterior à data de entrega.
+            somente até às 13h00 do segundo dia útil anterior à data de entrega.
             <br /><br />
             Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial.
           </p>

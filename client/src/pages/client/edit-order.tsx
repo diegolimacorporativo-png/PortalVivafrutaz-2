@@ -317,7 +317,7 @@ export default function EditOrderPage() {
                 Este pedido foi reaberto, porém o prazo operacional para alterações já foi encerrado.
               </p>
               <p className="text-sm text-red-600 mt-2">
-                Alterações são permitidas somente até às 12h00 do segundo dia útil anterior à data de entrega.
+                Alterações são permitidas somente até às 13h00 do segundo dia útil anterior à data de entrega.
               </p>
             </div>
           </div>

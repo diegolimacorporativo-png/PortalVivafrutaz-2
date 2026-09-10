@@ -74,6 +74,19 @@ export const createWithDeliveryBodySchema = z
   })
   .passthrough(); // legacy spreads `...rest` into createOrder
 
+/** `POST /api/orders/programacao` — one payload for the whole delivery week. */
+export const createProgramacaoBodySchema = z.object({
+  days: z.array(
+    z.object({
+      deliveryDate: z.union([z.string(), z.date()]),
+      weekReference: z.string().min(1),
+      totalValue: z.union([z.string(), z.number()]),
+      orderNote: z.string().nullable().optional(),
+      items: z.array(z.record(z.string(), z.any())).min(1),
+    }),
+  ).min(1),
+});
+
 /** `PATCH /api/orders/:id` — partial update for status/notes/nimbi. */
 export const updateOrderBodySchema = z
   .object({

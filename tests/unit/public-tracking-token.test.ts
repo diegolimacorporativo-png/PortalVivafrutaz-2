@@ -34,8 +34,10 @@ describe("tokens de rastreamento público", () => {
 
   test("rejeita token inválido ou adulterado", () => {
     const issued = createPublicTrackingToken("route", 456, 1_000);
-    const last = issued.token.at(-1);
-    const tampered = `${issued.token.slice(0, -1)}${last === "a" ? "b" : "a"}`;
+    const tokenParts = issued.token.split(".");
+    const signature = tokenParts.pop()!;
+    const tamperedSignature = `${signature[0] === "A" ? "B" : "A"}${signature.slice(1)}`;
+    const tampered = [...tokenParts, tamperedSignature].join(".");
 
     assert.equal(verifyPublicTrackingToken(tampered, "route", 1_001), null);
     assert.equal(verifyPublicTrackingToken("456", "route", 1_001), null);

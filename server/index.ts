@@ -30,8 +30,8 @@ const _bootAt = Date.now();
 const _env = process.env.NODE_ENV ?? "development";
 
 // T906 — Safe Mode: fail-fast on critical misconfigurations in ALL environments.
-// SUPABASE_DATABASE_URL is mandatory regardless of NODE_ENV — no fallback to
-// the Replit-managed DATABASE_URL (heliumdb) is ever permitted.
+// A PostgreSQL URL must be provided through SUPABASE_DATABASE_URL or DATABASE_URL.
+// The Replit-managed DATABASE_URL (heliumdb) is never permitted.
 (function validateProductionEnv() {
   const isProd = process.env.NODE_ENV === "production";
   const fails: string[] = [];
@@ -43,8 +43,28 @@ const _env = process.env.NODE_ENV ?? "development";
   }
 
   // Obrigatório em TODOS os ambientes — banco local/Replit nunca é aceito.
-  if (!process.env.SUPABASE_DATABASE_URL) {
-    fails.push("SUPABASE_DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
+  // Keep normalization aligned with server/database/db.ts because secret
+  // values may arrive with harmless outer whitespace or quotes.
+  const databaseUrl = (process.env.SUPABASE_DATABASE_URL ?? process.env.DATABASE_URL ?? "")
+    .trim()
+    .replace(/^(['"])(.*)\1$/, "$2")
+    .trim();
+
+  if (!databaseUrl) {
+    fails.push("SUPABASE_DATABASE_URL ou DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
+  } else {
+    const blockedDatabaseUrlPatterns: Array<{ pattern: RegExp; reason: string }> = [
+      { pattern: /heliumdb/i, reason: "banco Replit (heliumdb) proibido" },
+      { pattern: /localhost/i, reason: "PostgreSQL local proibido" },
+      { pattern: /127\.0\.0\.1/i, reason: "PostgreSQL local proibido" },
+      { pattern: /^(?!postgresql:\/\/|postgres:\/\/)/i, reason: "protocolo não-PostgreSQL proibido" },
+    ];
+
+    for (const { pattern, reason } of blockedDatabaseUrlPatterns) {
+      if (pattern.test(databaseUrl)) {
+        fails.push(`URL do banco inválida: ${reason}.`);
+      }
+    }
   }
 
   // FISCAL BOOT SAFE — bloqueia NFE_SEFAZ_MODE=production antes de qualquer worker.

@@ -12,26 +12,27 @@ const _env = process.env.NODE_ENV ?? "development";
 const _ts = () => new Date().toISOString();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FAIL-FAST: somente SUPABASE_DATABASE_URL é aceita para o banco da aplicação.
+// FAIL-FAST: SUPABASE_DATABASE_URL ou DATABASE_URL (quando apontar para
+// PostgreSQL externo, como Supabase) é aceita para o banco da aplicação.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Secret entry can preserve harmless wrapping whitespace/quotes. Normalize
-// only that accidental formatting; never fall back to DATABASE_URL.
-const supabaseUrl = (process.env.SUPABASE_DATABASE_URL ?? "")
+// only that accidental formatting; never allow a local/Replit database.
+const supabaseUrl = (process.env.SUPABASE_DATABASE_URL ?? process.env.DATABASE_URL ?? "")
   .trim()
   .replace(/^(['"])(.*)\1$/, "$2")
   .trim();
 
 if (!supabaseUrl) {
   console.error("[SUPABASE_REQUIRED]", {
-    reason: "SUPABASE_DATABASE_URL não configurada. O sistema não pode iniciar sem a conexão Supabase.",
-    action: "Configure o secret SUPABASE_DATABASE_URL e reinicie.",
+    reason: "SUPABASE_DATABASE_URL ou DATABASE_URL não configurada. O sistema não pode iniciar sem a conexão Supabase.",
+    action: "Configure o secret SUPABASE_DATABASE_URL ou DATABASE_URL e reinicie.",
     env: _env,
     pid: _pid,
     ts: _ts(),
   });
   console.error("[BOOT_VALIDATION_FAIL]", {
-    fails: ["SUPABASE_DATABASE_URL ausente"],
+    fails: ["SUPABASE_DATABASE_URL / DATABASE_URL ausente"],
     env: _env,
     pid: _pid,
     ts: _ts(),
@@ -68,7 +69,7 @@ for (const { pattern, reason } of BLOCKED_PATTERNS) {
 
 console.log("[DB_PROVIDER_SELECTED]", {
   provider: "supabase",
-  source: "SUPABASE_DATABASE_URL",
+  source: process.env.SUPABASE_DATABASE_URL ? "SUPABASE_DATABASE_URL" : "DATABASE_URL",
   ssl: true,
   env: _env,
   pid: _pid,

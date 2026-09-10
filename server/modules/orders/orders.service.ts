@@ -1547,7 +1547,7 @@ export class OrdersService {
         "Pedido já entrou em separação e não pode mais ser editado.",
       );
     }
-    // Prazo operacional: bloqueia solicitação de alteração após 12:00 BRT
+    // Prazo operacional: bloqueia solicitação de alteração após 13:00 BRT
     // do penúltimo dia útil antes da entrega.
     await this.assertOperationalDeadline(id, "reopen-request", actor);
 
@@ -2417,7 +2417,7 @@ export class OrdersService {
    */
   /**
    * Verifica o prazo operacional para alteração de pedido.
-   * Bloqueia se agora > deadline (2 dias úteis antes da entrega, às 12:00 BRT).
+   * Bloqueia se agora > deadline (2 dias úteis antes da entrega, às 13:00 BRT).
    * Registra auditoria em log em toda tentativa (permitida ou bloqueada).
    *
    * @param expiredMessage - mensagem customizada para quando o prazo já expirou.
@@ -2462,7 +2462,7 @@ export class OrdersService {
     if (!canModify) {
       throw new ForbiddenError(
         expiredMessage ??
-          'O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado. Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 12h00 do último dia útil permitido antes da entrega. Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial.',
+          'O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado. Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 13h00 do último dia útil permitido antes da entrega. Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial.',
       );
     }
   }

@@ -11,6 +11,7 @@ import {
   bulkDeleteBodySchema,
   createDanfeLogBodySchema,
   createOrderBodySchema,
+  createProgramacaoBodySchema,
   createWithDeliveryBodySchema,
   deleteOrderBodySchema,
   exportQuerySchema,
@@ -154,6 +155,7 @@ router.post(
   "/programacao",
   requireActiveSubscription,
   checkPlanLimit("pedidos"),
+  validate(createProgramacaoBodySchema, "body"),
   asyncHandler(ordersController.createProgramacao),
 );
 
