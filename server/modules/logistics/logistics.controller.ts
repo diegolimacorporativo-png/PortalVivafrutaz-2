@@ -48,6 +48,7 @@ import {
   verifyPublicTrackingToken,
 } from "../../core/security/publicTrackingToken";
 import { buildPublicRouteTrackingPayload } from "./public-tracking.dto";
+import { resolveNumericRouteTrackingAccess } from "./route-tracking.access";
 
 /** Drizzle's `db.execute` returns either { rows } or an array depending on driver. */
 function rowsOf<T = any>(r: any): T[] {
@@ -647,6 +648,7 @@ export class LogisticsController {
       const rawResource = String(req.params.token ?? "");
       const publicClaims = verifyPublicTrackingToken(rawResource, "route");
       const sessionUserId: number | undefined = (req as any).session?.userId;
+      let numericActor: ActorRef | null = null;
 
       // Do not let malformed, expired, or numeric anonymous URLs reach the
       // database. The numeric compatibility path is session-bound only.
@@ -655,7 +657,25 @@ export class LogisticsController {
           error: "Link de rastreamento inválido ou expirado",
         });
       }
+
+      // Numeric route ids are an authenticated compatibility path, not a
+      // public capability. Resolve the actor and tenant before any route,
+      // stop, delivery, or GPS query. A session alone must not turn a route
+      // id into a cross-company read.
+      if (!publicClaims) {
+        numericActor = await (this.service as any).repo.getUser(sessionUserId);
+        const numericAccess = resolveNumericRouteTrackingAccess(numericActor);
+        if (!numericAccess) {
+          return res.status(403).json({ error: "Empresa não definida" });
+        }
+      }
+
       const routeId = publicClaims?.resourceId ?? Number(rawResource);
+      const numericAccess = resolveNumericRouteTrackingAccess(numericActor);
+      const tenantRoutePredicate =
+        numericAccess && !numericAccess.global
+          ? sql`AND lr.empresa_id = ${numericAccess.empresaId}`
+          : sql``;
 
       // 1. Route header + driver (LEFT JOIN — route may have no driver yet)
       const routeRows = rowsOf<any>(await db.execute(sql`
@@ -669,11 +689,27 @@ export class LogisticsController {
                ld.phone          AS driver_phone
         FROM logistics_routes lr
         LEFT JOIN logistics_drivers ld ON ld.id = lr.driver_id
-        WHERE lr.id = ${routeId}
+        WHERE lr.id = ${routeId} ${tenantRoutePredicate}
         LIMIT 1
       `));
       const route = routeRows[0];
       if (!route) return res.status(404).json({ error: "Route not found" });
+
+      // Driver accounts are restricted to their own operational route before
+      // any private route details are queried. Internal tenant users were
+      // already constrained by empresa_id above.
+      if (
+        numericActor &&
+        (numericActor.role === "DRIVER" || numericActor.role === "MOTORISTA")
+      ) {
+        const ownDriverId = await resolveOwnDriverId(
+          { getDrivers: () => (this.service as any).repo.getDrivers() },
+          numericActor,
+        );
+        if (!ownDriverId || Number(route.driver_id) !== ownDriverId) {
+          return res.status(403).json({ error: "Rota não pertence ao motorista" });
+        }
+      }
 
       // 2. Stops in route order
       const stops = rowsOf<any>(await db.execute(sql`
@@ -820,12 +856,15 @@ export class LogisticsController {
       // other write endpoint in this controller. Customers (role "CLIENT")
       // and unauthenticated requests both fall through to the redacted path.
       let isInternal = false;
-      if (!publicClaims && sessionUserId) {
+      if (!publicClaims && numericActor) {
         try {
-          const actor = await (this.service as any).repo.getUser(sessionUserId);
-          if (actor && (LOGISTICS_AUTH_ROLES as readonly string[]).includes(actor.role)) {
+          const actor = numericActor;
+          if (LOGISTICS_AUTH_ROLES.includes(actor.role as any)) {
             isInternal = true;
-          } else if (actor && actor.role === "DRIVER") {
+          } else if (
+            actor &&
+            (actor.role === "DRIVER" || actor.role === "MOTORISTA")
+          ) {
             // STEP 8.7 — DRIVER ownership gate. A driver may only see THEIR
             // own route; any other route id returns 403 instead of leaking
             // the redacted public payload (which would still confirm the
