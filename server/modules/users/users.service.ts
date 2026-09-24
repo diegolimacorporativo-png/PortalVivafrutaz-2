@@ -13,7 +13,11 @@ import type {
   UnlockUserResult,
   User,
 } from "./users.types";
-import { currentTenantId, requireTenantId } from "../../core/tenant/context";
+import {
+  currentTenantId,
+  getTenantContext,
+  requireTenantId,
+} from "../../core/tenant/context";
 
 /** Roles allowed to change another user's password. Mirrors legacy gate. */
 const PASSWORD_CHANGE_ROLES = [
@@ -107,7 +111,19 @@ export class UsersService {
    */
   async changePassword(input: ChangePasswordInput): Promise<{ ok: true }> {
     const { targetUserId, newPassword, actorUserId, ip } = input;
-    requireTenantId();
+    const tenantId = currentTenantId();
+    const principal = getTenantContext()?.principal;
+    const isGlobalPasswordAdmin =
+      tenantId == null &&
+      principal?.kind === "admin" &&
+      principal.empresaId == null &&
+      ["MASTER", "DIRECTOR"].includes(principal.role ?? "");
+
+    // A global administrator may act on the explicit user ID in this request.
+    // The repository then pins the mutation to that user's company as stored
+    // in the database. All tenant-bound actors still require their session's
+    // resolved tenant.
+    if (!isGlobalPasswordAdmin) requireTenantId();
 
     const actor = actorUserId ? await this.repo.getById(actorUserId) : null;
 
@@ -132,7 +148,13 @@ export class UsersService {
     const target = await this.repo.getById(targetUserId);
     if (!target) throw new NotFoundError("Usuário não encontrado");
 
-    await this.repo.update(targetUserId, { password: newPassword });
+    const updated = await this.repo.changePasswordForTarget(
+      targetUserId,
+      newPassword,
+      tenantId ?? target.empresaId ?? null,
+    );
+    if (!updated) throw new NotFoundError("Usuário não encontrado");
+
     await this.repo.log({
       action: "PASSWORD_CHANGED",
       description: `Senha alterada: usuário "${target.email}" (${target.role}) por "${actor.email}" (${actor.role})`,

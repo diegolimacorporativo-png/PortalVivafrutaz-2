@@ -78,7 +78,7 @@ router.delete(
 router.put(
   "/:id/password",
   requireAuth,
-  requireRole(["MASTER", "ADMIN"]),
+  requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]),
   validate(idParamSchema, "params"),
   validate(changePasswordSchema, "body"),
   asyncHandler(usersController.changePassword),

@@ -34,6 +34,7 @@ function makeService(overrides: Record<string, any> = {}) {
   const calls: Record<string, any[]> = {
     create: [],
     update: [],
+    changePasswordForTarget: [],
     delete: [],
     getById: [],
     log: [],
@@ -48,6 +49,12 @@ function makeService(overrides: Record<string, any> = {}) {
       return overrides.update
         ? overrides.update(id, input)
         : { ...target, ...input, id };
+    },
+    changePasswordForTarget: async (id: number, password: string, empresaId: number | null) => {
+      calls.changePasswordForTarget.push([id, password, empresaId]);
+      return overrides.changePasswordForTarget
+        ? overrides.changePasswordForTarget(id, password, empresaId)
+        : { ...target, id, empresaId };
     },
     delete: async (id: number) => {
       calls.delete.push(id);
@@ -66,6 +73,13 @@ function makeService(overrides: Record<string, any> = {}) {
 function withTenant<T>(empresaId: number, fn: () => Promise<T>) {
   return runWithTenant(
     { principal: { kind: "admin", empresaId, userId: actor.id, role: actor.role }, empresaId },
+    fn,
+  );
+}
+
+function withGlobalAdmin<T>(role: "MASTER" | "DIRECTOR", fn: () => Promise<T>) {
+  return runWithTenant(
+    { principal: { kind: "admin", empresaId: null, userId: actor.id, role }, empresaId: null },
     fn,
   );
 }
@@ -139,5 +153,49 @@ describe("UsersService — isolamento multi-tenant", () => {
       );
     });
     assert.equal(calls.update.length, 0);
+  });
+
+  test("DIRECTOR global redefine apenas o usuário explícito no tenant confiável do alvo", async () => {
+    const globalActor = { ...actor, role: "DIRECTOR", empresaId: null };
+    const targetInOtherTenant = { ...target, empresaId: 55 };
+    const { service, calls } = makeService({
+      getById: (id: number) => (id === globalActor.id ? globalActor : targetInOtherTenant),
+    });
+
+    await withGlobalAdmin("DIRECTOR", async () => {
+      await service.changePassword({
+        targetUserId: targetInOtherTenant.id,
+        newPassword: "new-secure-password",
+        actorUserId: globalActor.id,
+        ip: "test",
+      });
+    });
+
+    assert.deepEqual(calls.changePasswordForTarget, [[20, "new-secure-password", 55]]);
+    assert.equal(calls.log.at(-1)?.action, "PASSWORD_CHANGED");
+  });
+
+  test("DIRECTOR global não redefine alvo que mudou de tenant entre leitura e update", async () => {
+    const globalActor = { ...actor, role: "DIRECTOR", empresaId: null };
+    const targetInOtherTenant = { ...target, empresaId: 55 };
+    const { service, calls } = makeService({
+      getById: (id: number) => (id === globalActor.id ? globalActor : targetInOtherTenant),
+      changePasswordForTarget: () => undefined,
+    });
+
+    await withGlobalAdmin("DIRECTOR", async () => {
+      await assert.rejects(
+        () =>
+          service.changePassword({
+            targetUserId: targetInOtherTenant.id,
+            newPassword: "new-secure-password",
+            actorUserId: globalActor.id,
+            ip: "test",
+          }),
+        (error: any) => error instanceof NotFoundError && error.status === 404,
+      );
+    });
+
+    assert.equal(calls.log.length, 0);
   });
 });

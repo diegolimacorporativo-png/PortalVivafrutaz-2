@@ -17,7 +17,7 @@ import { db } from "../../database/db";
 import { users as usersTable, systemLogs } from "@shared/schema";
 import type { User, InsertUser } from "./users.types";
 import type { IUsersRepository, LogEntry } from "./interfaces/IUsersRepository";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { invalidateUsageCache } from "../billing/usage-cache";
 
@@ -76,6 +76,30 @@ export class UsersRepository implements IUsersRepository {
       .returning();
     if (updated?.empresaId) invalidateUsageCache(updated.empresaId);
     return updated!;
+  }
+
+  /**
+   * Change one user's password while pinning the update to the target's
+   * server-resolved company. Global MASTER/DIRECTOR actions have no tenant in
+   * AsyncLocalStorage, so the service supplies the company read from that
+   * exact target row rather than trusting a client-provided tenant selector.
+   */
+  async changePasswordForTarget(
+    id: number,
+    password: string,
+    expectedEmpresaId: number | null,
+  ): Promise<User | undefined> {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const scope =
+      expectedEmpresaId == null
+        ? isNull(usersTable.empresaId)
+        : eq(usersTable.empresaId, expectedEmpresaId);
+    const [updated] = await db
+      .update(usersTable)
+      .set({ password: hashedPassword })
+      .where(and(eq(usersTable.id, id), scope))
+      .returning();
+    return updated;
   }
 
   async getUsers(limit = 1000): Promise<User[]> {
