@@ -47,6 +47,10 @@ const LOCKOUT_NOTIFY_ROLES = ["ADMIN", "DIRECTOR", "DEVELOPER"] as const;
  */
 const STRATEGIC_ROLES = new Set(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]);
 
+function isStrategicRole(role?: string | null): boolean {
+  return STRATEGIC_ROLES.has((role ?? "").trim().toUpperCase());
+}
+
 // ── Auth Decision Delegate ─────────────────────────────────────────────────
 /**
  * Adapter interface that decouples the shared auth decision flow (_runAuthFlow)
@@ -359,7 +363,7 @@ export class AuthService {
 
     // STRATEGIC accounts (MASTER/ADMIN/DIRECTOR/DEVELOPER) bypass all automatic
     // blocking. Logs and audit are always preserved.
-    const isStrategic = delegate.kind === "admin" && STRATEGIC_ROLES.has(delegate.role ?? "");
+    const isStrategic = delegate.kind === "admin" && isStrategicRole(delegate.role);
 
     // ── 1. Account state: locked ───────────────────────────────────────
     if (delegate.isLocked) {
@@ -440,10 +444,10 @@ export class AuthService {
 
     // ── 5a. Wrong password ─────────────────────────────────────────────
     if (!passwordMatch) {
-      const newAttempts = delegate.loginAttempts + 1;
-      // STRATEGIC accounts never lock: willLock is forced false so updateAttempts
-      // never writes isLocked=true to the DB. loginAttempts is still incremented
-      // for tracking purposes (preserved per protocol).
+      // Strategic accounts must never accumulate the ordinary account-lockout
+      // counter. Keep their failed-login audit/risk telemetry without exposing
+      // a misleading "x/3 attempts" count or persisting a lockout threshold.
+      const newAttempts = isStrategic ? 0 : delegate.loginAttempts + 1;
       const willLock = !isStrategic && newAttempts >= MAX_ATTEMPTS;
 
       // Entity-specific: update DB row + write LOGIN_FAILED log entry
@@ -479,7 +483,9 @@ export class AuthService {
       return {
         kind: "failure",
         status: 401,
-        message: `Usuário ou senha incorretos. (${newAttempts}/${MAX_ATTEMPTS} tentativas)`,
+        message: isStrategic
+          ? "Usuário ou senha incorretos."
+          : `Usuário ou senha incorretos. (${newAttempts}/${MAX_ATTEMPTS} tentativas)`,
       };
     }
 
@@ -516,7 +522,7 @@ export class AuthService {
     // STRATEGIC BYPASS — register the email so loginEmailIpLimiter never blocks
     // this account. Done before _runAuthFlow so even the very first attempt is
     // already exempt. Fail-safe: only marks, never throws.
-    if (STRATEGIC_ROLES.has(user.role)) {
+    if (isStrategicRole(user.role)) {
       markEmailAsStrategic(email);
     }
 
@@ -539,15 +545,18 @@ export class AuthService {
           this.repo.log({ action, description, userId: user.id, userEmail: email, level, ip }) as Promise<void>,
 
         updateAttempts: async (newAttempts, willLock) => {
+          const strategic = isStrategicRole(user.role);
           await this.repo.updateUser(user.id, {
-            loginAttempts: newAttempts,
+            loginAttempts: strategic ? 0 : newAttempts,
             lastLoginAttempt: new Date(),
-            ...(willLock ? { isLocked: true } : {}),
+            ...(strategic ? { isLocked: false } : willLock ? { isLocked: true } : {}),
           });
           await this.repo.log({
             action: "LOGIN_FAILED",
             // F1-E5: PII removed — email must not appear in logs
-            description: `Falha de autenticação — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
+            description: strategic
+              ? "Falha de autenticação em conta estratégica — bloqueio automático não aplicado"
+              : `Falha de autenticação — tentativa ${newAttempts}/${MAX_ATTEMPTS}${willLock ? " — CONTA BLOQUEADA" : ""}`,
             userId: user.id,
             userEmail: email,
             level: "WARN",
