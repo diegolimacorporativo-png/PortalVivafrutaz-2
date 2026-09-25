@@ -9,7 +9,7 @@
 - [GPS em segundo plano na PWA](gps-pwa-background.md) — retomada e fila melhoram a PWA, mas tela bloqueada exige Tracker Android nativo.
 - [GPS global access](gps-global-access.md) — endpoint modular; MASTER/ADMIN/DIRECTOR têm visão global, demais internos seguem tenant-scoped.
 - [Password reset history](password-reset-security.md) — pedidos de reset nunca persistem a senha original; a senha só vai ao cadastro protegido da empresa.
-- [Users CRUD tenant scope](users-crud-tenant-scope.md) — CRUD deve resolver tenant no middleware e repetir o escopo por empresa no repositório; admin global só quando não há tenant fixado.
+- [Users CRUD tenant scope](users-crud-tenant-scope.md) — CRUD filtra pela empresa; MASTER/DIRECTOR globais só mutam usuário explícito com empresa confirmada no banco.
 - [Reports tenant scope](reports-tenant-scope.md) — relatórios comuns são tenant-bound; somente MASTER/DIRECTOR sem empresa vinculada mantêm visão global explícita.
 - [Client incidents tenant scope](client-incidents-tenant-scope.md) — IDs e companyId do cliente não definem ownership; mutações devem filtrar pelo tenant resolvido.
 - [Special order requests tenant scope](special-order-requests-tenant-scope.md) — POST é portal autenticado de empresa; GET/PUT precisam de RBAC e escopo id + tenant.

@@ -35,6 +35,7 @@ function makeService(overrides: Record<string, any> = {}) {
     create: [],
     update: [],
     changePasswordForTarget: [],
+    unlockUserForTarget: [],
     delete: [],
     getById: [],
     log: [],
@@ -55,6 +56,12 @@ function makeService(overrides: Record<string, any> = {}) {
       return overrides.changePasswordForTarget
         ? overrides.changePasswordForTarget(id, password, empresaId)
         : { ...target, id, empresaId };
+    },
+    unlockUserForTarget: async (id: number, empresaId: number | null) => {
+      calls.unlockUserForTarget.push([id, empresaId]);
+      return overrides.unlockUserForTarget
+        ? overrides.unlockUserForTarget(id, empresaId)
+        : { ...target, id, empresaId, isLocked: false, loginAttempts: 0 };
     },
     delete: async (id: number) => {
       calls.delete.push(id);
@@ -152,7 +159,70 @@ describe("UsersService — isolamento multi-tenant", () => {
         (error: any) => error instanceof NotFoundError && error.status === 404,
       );
     });
-    assert.equal(calls.update.length, 0);
+    assert.equal(calls.unlockUserForTarget.length, 0);
+  });
+
+  test("ADMIN do tenant desbloqueia usuário da própria empresa", async () => {
+    const { service, calls } = makeService({
+      getById: (id: number) => (id === actor.id ? actor : target),
+    });
+
+    await withTenant(10, async () => {
+      await service.unlockUser({
+        targetUserId: target.id,
+        actorUserId: actor.id,
+        ip: "test",
+      });
+    });
+
+    assert.deepEqual(calls.unlockUserForTarget, [[target.id, 10]]);
+    assert.equal(calls.log.at(-1)?.action, "ACCOUNT_UNLOCKED");
+  });
+
+  for (const role of ["MASTER", "DIRECTOR"] as const) {
+    test(`${role} global desbloqueia usuário pelo ID explícito e empresa confiável`, async () => {
+      const globalActor = { ...actor, role, empresaId: null };
+      const targetInOtherTenant = { ...target, empresaId: 55 };
+      const { service, calls } = makeService({
+        getById: (id: number) =>
+          id === globalActor.id ? globalActor : targetInOtherTenant,
+      });
+
+      await withGlobalAdmin(role, async () => {
+        await service.unlockUser({
+          targetUserId: targetInOtherTenant.id,
+          actorUserId: globalActor.id,
+          ip: "test",
+        });
+      });
+
+      assert.deepEqual(calls.unlockUserForTarget, [[20, 55]]);
+      assert.equal(calls.log.at(-1)?.action, "ACCOUNT_UNLOCKED");
+    });
+  }
+
+  test("não registra desbloqueio se o usuário mudar de empresa antes da atualização", async () => {
+    const globalActor = { ...actor, role: "MASTER", empresaId: null };
+    const targetInOtherTenant = { ...target, empresaId: 55 };
+    const { service, calls } = makeService({
+      getById: (id: number) =>
+        id === globalActor.id ? globalActor : targetInOtherTenant,
+      unlockUserForTarget: () => undefined,
+    });
+
+    await withGlobalAdmin("MASTER", async () => {
+      await assert.rejects(
+        () =>
+          service.unlockUser({
+            targetUserId: targetInOtherTenant.id,
+            actorUserId: globalActor.id,
+            ip: "test",
+          }),
+        (error: any) => error instanceof NotFoundError && error.status === 404,
+      );
+    });
+
+    assert.equal(calls.log.length, 0);
   });
 
   test("DIRECTOR global redefine apenas o usuário explícito no tenant confiável do alvo", async () => {

@@ -40,6 +40,16 @@ function toSafe(user: User): SafeUser {
   return { ...user, password: "***" };
 }
 
+function isGlobalUserManagementAdmin(): boolean {
+  const principal = getTenantContext()?.principal;
+  return (
+    currentTenantId() == null &&
+    principal?.kind === "admin" &&
+    principal.empresaId == null &&
+    ["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+  );
+}
+
 /**
  * UsersService — business rules of the users module.
  *
@@ -112,18 +122,12 @@ export class UsersService {
   async changePassword(input: ChangePasswordInput): Promise<{ ok: true }> {
     const { targetUserId, newPassword, actorUserId, ip } = input;
     const tenantId = currentTenantId();
-    const principal = getTenantContext()?.principal;
-    const isGlobalPasswordAdmin =
-      tenantId == null &&
-      principal?.kind === "admin" &&
-      principal.empresaId == null &&
-      ["MASTER", "DIRECTOR"].includes(principal.role ?? "");
 
     // A global administrator may act on the explicit user ID in this request.
     // The repository then pins the mutation to that user's company as stored
     // in the database. All tenant-bound actors still require their session's
     // resolved tenant.
-    if (!isGlobalPasswordAdmin) requireTenantId();
+    if (!isGlobalUserManagementAdmin()) requireTenantId();
 
     const actor = actorUserId ? await this.repo.getById(actorUserId) : null;
 
@@ -181,7 +185,10 @@ export class UsersService {
    */
   async unlockUser(input: UnlockUserInput): Promise<UnlockUserResult> {
     const { targetUserId, actorUserId, ip } = input;
-    requireTenantId();
+    // MASTER/DIRECTOR global accounts may unlock the explicit target ID. The
+    // repository pins the update to the target's company as read from storage.
+    // Everyone else must have a tenant fixed by the authenticated session.
+    if (!isGlobalUserManagementAdmin()) requireTenantId();
 
     if (actorUserId == null) {
       throw new UnauthorizedError("Not authenticated");
@@ -197,10 +204,13 @@ export class UsersService {
       throw new NotFoundError("Usuário não encontrado.");
     }
 
-    await this.repo.update(targetUserId, {
-      isLocked: false,
-      loginAttempts: 0,
-    } as Partial<InsertUser>);
+    const updated = await this.repo.unlockUserForTarget(
+      targetUserId,
+      target.empresaId ?? null,
+    );
+    if (!updated) {
+      throw new NotFoundError("Usuário não encontrado.");
+    }
 
     await this.repo.log({
       action: "ACCOUNT_UNLOCKED",

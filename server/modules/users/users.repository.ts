@@ -102,6 +102,27 @@ export class UsersRepository implements IUsersRepository {
     return updated;
   }
 
+  /**
+   * Clear a user's lock while pinning the write to the target's server-resolved
+   * company. This supports global MASTER/DIRECTOR actions without trusting a
+   * client-supplied tenant selector or leaving the update unscoped.
+   */
+  async unlockUserForTarget(
+    id: number,
+    expectedEmpresaId: number | null,
+  ): Promise<User | undefined> {
+    const scope =
+      expectedEmpresaId == null
+        ? isNull(usersTable.empresaId)
+        : eq(usersTable.empresaId, expectedEmpresaId);
+    const [updated] = await db
+      .update(usersTable)
+      .set({ isLocked: false, loginAttempts: 0 })
+      .where(and(eq(usersTable.id, id), scope))
+      .returning();
+    return updated;
+  }
+
   async getUsers(limit = 1000): Promise<User[]> {
     // PERF-FIX: bounded LIMIT (default 1000) prevents OOM. All existing callers
     // that omit `limit` get the safe default without any signature change.
