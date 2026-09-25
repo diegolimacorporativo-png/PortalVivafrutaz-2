@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { currentTenantId } from "../core/tenant/context";
+import { tenantContext } from "../middleware/tenant";
 import { healthTestLimiter } from "../core/security/rateLimit";
 import { logSecurityEvent } from "../core/security/securityLogger";
 import { pool } from "../database/db";
@@ -174,7 +176,7 @@ export async function register(app: Express): Promise<void> {
   });
 
   // Full internal health check (authenticated admin)
-  app.get('/api/admin/health', requireAuthCore, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), async (req, res) => {
+  app.get('/api/admin/health', requireAuthCore, tenantContext, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), async (req, res) => {
     const start = Date.now();
     const report: any = { timestamp: new Date().toISOString(), checks: {} };
     try {
@@ -184,7 +186,10 @@ export async function register(app: Express): Promise<void> {
       report.checks.database = { status: 'ERROR', message: e?.message };
     }
     try {
-      const users = await storage.getUsers();
+      const tenantId = currentTenantId();
+      const users = tenantId == null
+        ? await storage.getUsers()
+        : await storage.getUsersSafe(tenantId);
       report.checks.auth = { status: 'OK', message: `${users.length} usuários cadastrados` };
     } catch (e: any) {
       report.checks.auth = { status: 'ERROR', message: e?.message };

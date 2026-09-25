@@ -80,7 +80,7 @@ function analyzeLogsForBugs(logs: any[]): Array<{ type: string; description: str
 function HealthTab() {
   const { toast } = useToast();
   const { data: health, isLoading, refetch, isFetching } = useQuery<any>({
-    queryKey: ['/api/health'],
+    queryKey: ['/api/admin/health'],
     enabled: false,
     staleTime: 0,
   });

@@ -89,7 +89,7 @@ export default function SystemHealth() {
 
   // ── Health query (auto-refresh every 30 s) ──────────────────────
   const { data: health, isFetching: healthLoading, refetch: refetchHealth } = useQuery<HealthReport>({
-    queryKey: ["/api/health"],
+    queryKey: ["/api/admin/health"],
     refetchInterval: 30_000,
   });
 
