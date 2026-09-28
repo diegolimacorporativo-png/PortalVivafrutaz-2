@@ -4,6 +4,7 @@ import { requireAuth } from "../../server/core/http/requireAuth";
 import {
   canAccessDriverRecord,
   isGlobalLogisticsActor,
+  isLogisticsSupervisorRole,
   isLogisticsTrackingRole,
   resolveDriverGpsSubmissionId,
 } from "../../server/modules/logistics/driver.access";
@@ -57,8 +58,14 @@ describe("GPS de motoristas — ownership multi-tenant", () => {
   });
 
   test("usuário LOGISTICS é elegível para rastreamento próprio", () => {
+    assert.equal(isLogisticsSupervisorRole("LOGISTICS"), true);
     assert.equal(isLogisticsTrackingRole("LOGISTICS"), true);
     assert.equal(isLogisticsTrackingRole("OPERATIONS_MANAGER"), false);
+  });
+
+  test("usuário LOGISTICS atua como supervisor dos motoristas do próprio tenant", () => {
+    assert.equal(canAccessDriverRecord({ role: "LOGISTICS", empresaId: 10 }, driverA), true);
+    assert.equal(canAccessDriverRecord({ role: "LOGISTICS", empresaId: 10 }, driverB), false);
   });
 
   test("MASTER global preserva acesso aos motoristas", () => {

@@ -41,10 +41,13 @@ export function isDriver(role: string | null | undefined): boolean {
   return role === "DRIVER" || role === "MOTORISTA";
 }
 
-/** The LOGISTICS role shares its own browser location with the operations map. */
-export function isLogisticsTrackingRole(role: string | null | undefined): boolean {
+/** LOGISTICS is a supervisor: it shares its own location and can monitor drivers. */
+export function isLogisticsSupervisorRole(role: string | null | undefined): boolean {
   return role === "LOGISTICS";
 }
+
+/** Backward-compatible name for the self-location capability. */
+export const isLogisticsTrackingRole = isLogisticsSupervisorRole;
 
 export function isInternal(role: string | null | undefined): boolean {
   return !!role && LOGISTICS_INTERNAL_ROLES.includes(role);

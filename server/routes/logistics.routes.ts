@@ -511,7 +511,10 @@ export async function register(app: Express): Promise<void> {
       // The read remains side-effect free: missing operational records are
       // virtual until the driver sends a real GPS position.
       const userConditions: SQL<unknown>[] = [
-        inArray(usersTable.role, ["MOTORISTA", "DRIVER"]),
+        // LOGISTICS accounts are supervisors. Keep them in the compatibility
+        // path too, so they can monitor driver accounts even on installations
+        // where the modular router is not the first matching route.
+        inArray(usersTable.role, ["MOTORISTA", "DRIVER", "LOGISTICS"]),
         eq(usersTable.active, true),
       ];
       if (actor.empresaId) userConditions.push(eq(usersTable.empresaId, actor.empresaId));
