@@ -37,6 +37,11 @@ const router = Router();
 router.use((req: Request, res: Response, next: NextFunction) => {
   const session = (req as any).session;
   if (!session?.userId && !session?.companyId) return next();
+  // A legacy/global LOGISTICS supervisor may have no empresaId yet. The
+  // GPS controller and service still authenticate the session and restrict
+  // global visibility to the explicit supervisor role. Do not bypass tenant
+  // resolution for any other logistics operation.
+  if (req.path === "/drivers/gps" && session.userId) return next();
   return tenantContext(req, res, next);
 });
 

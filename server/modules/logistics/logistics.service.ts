@@ -19,6 +19,7 @@ import {
 } from "../../shared/errors/AppError";
 import { currentTenantId } from "../../core/tenant/context";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
+import { isLogisticsSupervisorRole } from "./driver.access";
 import type {
   ActorRef,
   CalculateDistanceInput,
@@ -325,7 +326,7 @@ export class LogisticsService {
     const globalGpsAccess = ["MASTER", "ADMIN", "DIRECTOR"].includes(actor.role);
     const canReadGlobal =
       globalGpsAccess ||
-      (!actor.empresaId && LOGISTICS_AUTH_ROLES.includes(actor.role as any));
+      (!actor.empresaId && isLogisticsSupervisorRole(actor.role));
 
     if (!actor.empresaId && !canReadGlobal) {
       throw new ForbiddenError("Empresa não definida para este usuário");

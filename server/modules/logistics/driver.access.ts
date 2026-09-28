@@ -69,7 +69,7 @@ export function isGlobalLogisticsActor(actor: {
   return !!actor
     && actor.empresaId == null
     && !!actor.role
-    && LOGISTICS_INTERNAL_ROLES.includes(actor.role);
+    && ["MASTER", "ADMIN", "DIRECTOR", "LOGISTICS"].includes(actor.role);
 }
 
 export function canAccessDriverRecord(

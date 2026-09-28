@@ -15,6 +15,7 @@ const adminA = { role: "ADMIN", empresaId: 10 };
 const developerA = { role: "DEVELOPER", empresaId: 10 };
 const masterGlobal = { role: "MASTER", empresaId: null };
 const directorGlobal = { role: "DIRECTOR", empresaId: null };
+const logisticsSupervisorGlobal = { role: "LOGISTICS", empresaId: null };
 
 function fakeGpsWrite(
   actor: { role: string; empresaId: number | null },
@@ -76,6 +77,11 @@ describe("GPS de motoristas — ownership multi-tenant", () => {
   test("DIRECTOR global preserva acesso aos motoristas", () => {
     assert.equal(isGlobalLogisticsActor(directorGlobal), true);
     assert.equal(canAccessDriverRecord(directorGlobal, driverB), true);
+  });
+
+  test("LOGISTICS sem empresa pode supervisionar o GPS global legado", () => {
+    assert.equal(isGlobalLogisticsActor(logisticsSupervisorGlobal), true);
+    assert.equal(canAccessDriverRecord(logisticsSupervisorGlobal, driverA), true);
   });
 
   test("motoristas não recebem acesso interno arbitrário por driverId", () => {
