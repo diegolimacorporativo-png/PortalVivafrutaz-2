@@ -17,10 +17,11 @@ class SecureStore(context: Context) {
         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
     )
 
-    fun baseUrl(): String = preferences.getString(KEY_BASE_URL, "") ?: ""
+    fun baseUrl(): String =
+        normalizeBaseUrl(preferences.getString(KEY_BASE_URL, "") ?: "")
 
     fun saveBaseUrl(value: String) {
-        preferences.edit().putString(KEY_BASE_URL, value.trim().trimEnd('/')).apply()
+        preferences.edit().putString(KEY_BASE_URL, normalizeBaseUrl(value)).apply()
     }
 
     fun deviceId(): String {
@@ -48,6 +49,19 @@ class SecureStore(context: Context) {
 
     fun decode(value: String): String =
         String(Base64.decode(value, Base64.NO_WRAP), Charsets.UTF_8)
+
+    /**
+     * The API paths in TrackerApi already include /api. Accepting a copied
+     * server URL that ends in /api would otherwise produce /api/api/... and
+     * the server correctly returns 404 for that path.
+     */
+    private fun normalizeBaseUrl(value: String): String {
+        var normalized = value.trim().trimEnd('/')
+        if (normalized.endsWith("/api", ignoreCase = true)) {
+            normalized = normalized.dropLast(4).trimEnd('/')
+        }
+        return normalized
+    }
 
     private companion object {
         const val KEY_BASE_URL = "base_url"

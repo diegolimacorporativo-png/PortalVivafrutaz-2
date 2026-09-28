@@ -1,4 +1,4 @@
 sdk.dir=C\:\\Users\\User\\AppData\\Local\\Android\\Sdk
 # Use the HTTPS origin of the live Node/Express deployment or API gateway.
 # Do not use localhost, a .replit.dev preview URL, or an inactive deployment.
-TRACKER_BASE_URL=
+TRACKER_BASE_URL=https://portal-vivafrutaz-2-1--replitcod02.replit.app

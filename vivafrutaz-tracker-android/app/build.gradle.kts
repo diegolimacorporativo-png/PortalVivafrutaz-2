@@ -11,7 +11,12 @@ val localProperties = Properties().apply {
     if (file.exists()) file.inputStream().use { load(it) }
 }
 val trackerBaseUrl = providers.gradleProperty("TRACKER_BASE_URL")
-    .orElse(localProperties.getProperty("TRACKER_BASE_URL", ""))
+    .orElse(
+        localProperties.getProperty(
+            "TRACKER_BASE_URL",
+            "https://portal-vivafrutaz-2-1--replitcod02.replit.app",
+        ),
+    )
     .orElse("")
     .get()
     .replace("\\", "\\\\")
