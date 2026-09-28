@@ -46,7 +46,10 @@ O workspace atual não possui Java, Android SDK ou Gradle disponíveis localment
 1. Abra `vivafrutaz-tracker-android/` no Android Studio.
 2. Configure um SDK Android compatível com `compileSdk 35`.
 3. Copie `local.properties.example` para `local.properties`.
-4. Defina `TRACKER_BASE_URL` nesse `local.properties` ou como propriedade Gradle.
+4. Defina `TRACKER_BASE_URL` nesse `local.properties` ou como propriedade Gradle,
+   usando a origem HTTPS de um deployment ativo do backend Node/Express ou de um
+   gateway que encaminhe `/api/*`. Não use `localhost`, uma URL `.replit.dev`
+   ou um deployment inativo.
 5. Execute:
 
 No Android Studio, execute a tarefa `app > Tasks > build > assembleDebug` no painel Gradle.
