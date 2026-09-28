@@ -281,7 +281,14 @@ function ProtectedRoute({
 
   if (tabKey && user && !FULL_ACCESS_ROLES.includes(user.role)) {
     const tabPerms = (user as any).tabPermissions as string[] | null | undefined;
-    if (tabPerms && tabPerms.length > 0 && !tabPerms.includes(tabKey)) {
+    const isLogisticsGpsSupervisor =
+      user.role === 'LOGISTICS' && tabKey === 'gps-tracking';
+    if (
+      tabPerms &&
+      tabPerms.length > 0 &&
+      !tabPerms.includes(tabKey) &&
+      !isLogisticsGpsSupervisor
+    ) {
       return <UnauthorizedModule />;
     }
   }

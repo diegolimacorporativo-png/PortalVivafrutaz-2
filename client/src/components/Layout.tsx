@@ -187,11 +187,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const userTabPerms = user?.tabPermissions as string[] | null | undefined;
   const isMaster = user?.role === 'MASTER';
+  const isLogisticsSupervisor = user?.role === 'LOGISTICS';
   const isFullAccessRole = ['MASTER', 'ADMIN', 'DIRECTOR'].includes(staffRole);
   const links = isStaff 
     ? adminLinks.filter(l => {
         if (isMaster) return true; // MASTER sees everything
         if (!l.roles.includes(user?.role || '')) return false;
+        // LOGISTICS is the GPS supervisor role. Preserve GPS access even
+        // when an older custom tab list was saved before this capability.
+        if (isLogisticsSupervisor && l.tabKey === 'gps-tracking') return true;
         // Full-access roles must not be hidden by stale/custom tab permissions.
         // Route protection already treats these roles as unrestricted.
         if (isFullAccessRole) return true;
