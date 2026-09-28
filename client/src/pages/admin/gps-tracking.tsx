@@ -164,7 +164,7 @@ export default function GpsTracking() {
               <h1 className="text-2xl font-bold text-foreground">GPS em Tempo Real</h1>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
-              Localização direta dos motoristas, com ou sem rota atribuída.
+              Localização direta da equipe de logística, com ou sem rota atribuída.
             </p>
           </div>
           <button
@@ -189,7 +189,7 @@ export default function GpsTracking() {
           <div className="rounded-2xl border border-border bg-card p-4">
             <Users className="w-5 h-5 text-primary mb-2" />
             <p className="text-2xl font-bold">{activeDrivers.length}</p>
-            <p className="text-xs text-muted-foreground">Motoristas ativos</p>
+             <p className="text-xs text-muted-foreground">Equipe de logística ativa</p>
           </div>
           <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
             <Radio className="w-5 h-5 text-green-600 mb-2" />
@@ -216,7 +216,7 @@ export default function GpsTracking() {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_360px] gap-5">
           <div className="rounded-2xl overflow-hidden border border-border bg-card shadow-sm">
             <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-              <h2 className="font-semibold">Mapa dos motoristas</h2>
+               <h2 className="font-semibold">Mapa da equipe de logística</h2>
               <span className="text-xs text-muted-foreground">Atualiza a cada 10 segundos</span>
             </div>
             <div className="h-[520px]">

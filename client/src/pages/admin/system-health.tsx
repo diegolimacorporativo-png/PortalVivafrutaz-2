@@ -134,6 +134,13 @@ export default function SystemHealth() {
 
   return (
     <div className="space-y-6">
+      <BackHeader
+        fallback="/admin"
+        breadcrumb={[
+          { label: "Sistema", href: "/admin" },
+          { label: "Saúde do Sistema" },
+        ]}
+      />
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

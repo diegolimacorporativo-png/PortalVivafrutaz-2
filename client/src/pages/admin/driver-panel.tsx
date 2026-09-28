@@ -132,7 +132,7 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
   const cancelledRef = useRef(false);
 
   useEffect(() => {
-    if (role !== 'DRIVER' && role !== 'MOTORISTA') return;
+    if (role !== 'DRIVER' && role !== 'MOTORISTA' && role !== 'LOGISTICS') return;
     if (!navigator.geolocation) {
       setState('unavailable');
       return;
@@ -415,7 +415,7 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
     };
   }, [role]);
 
-  if (role !== 'DRIVER' && role !== 'MOTORISTA') return null;
+  if (role !== 'DRIVER' && role !== 'MOTORISTA' && role !== 'LOGISTICS') return null;
 
   const label = state === 'active' ? 'GPS ativo — localização compartilhada'
     : state === 'denied' ? 'GPS bloqueado — permita a localização no navegador'
@@ -465,7 +465,7 @@ function LiveDriverLocations({ drivers }: { drivers: LiveDriverLocation[] }) {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <MapPin className="w-4 h-4 text-violet-600" />
-          <h2 className="text-sm font-semibold text-foreground">Motoristas localizados</h2>
+          <h2 className="text-sm font-semibold text-foreground">Equipe de logística localizada</h2>
         </div>
         <span className="text-[10px] text-muted-foreground">Atualização automática</span>
       </div>

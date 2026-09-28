@@ -41,6 +41,11 @@ export function isDriver(role: string | null | undefined): boolean {
   return role === "DRIVER" || role === "MOTORISTA";
 }
 
+/** The LOGISTICS role shares its own browser location with the operations map. */
+export function isLogisticsTrackingRole(role: string | null | undefined): boolean {
+  return role === "LOGISTICS";
+}
+
 export function isInternal(role: string | null | undefined): boolean {
   return !!role && LOGISTICS_INTERNAL_ROLES.includes(role);
 }

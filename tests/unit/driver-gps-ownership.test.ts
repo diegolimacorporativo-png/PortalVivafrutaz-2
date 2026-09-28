@@ -4,6 +4,7 @@ import { requireAuth } from "../../server/core/http/requireAuth";
 import {
   canAccessDriverRecord,
   isGlobalLogisticsActor,
+  isLogisticsTrackingRole,
   resolveDriverGpsSubmissionId,
 } from "../../server/modules/logistics/driver.access";
 
@@ -53,6 +54,11 @@ describe("GPS de motoristas — ownership multi-tenant", () => {
 
   test("motorista A não consegue substituir o próprio ID pelo de B", () => {
     assert.equal(resolveDriverGpsSubmissionId(driverB.id, driverA.id), null);
+  });
+
+  test("usuário LOGISTICS é elegível para rastreamento próprio", () => {
+    assert.equal(isLogisticsTrackingRole("LOGISTICS"), true);
+    assert.equal(isLogisticsTrackingRole("OPERATIONS_MANAGER"), false);
   });
 
   test("MASTER global preserva acesso aos motoristas", () => {

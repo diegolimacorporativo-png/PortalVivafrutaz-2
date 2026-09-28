@@ -46,7 +46,9 @@ export class LogisticsRepository {
       rows.filter(
         (user: any) =>
           user.active !== false &&
-          (user.role === "MOTORISTA" || user.role === "DRIVER"),
+          (user.role === "MOTORISTA" ||
+            user.role === "DRIVER" ||
+            user.role === "LOGISTICS"),
       ),
     );
   }

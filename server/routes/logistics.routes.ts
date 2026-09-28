@@ -9,6 +9,7 @@ import {
   isDriverOrInternal,
   isGlobalLogisticsActor,
   isInternal,
+  isLogisticsTrackingRole,
   resolveDriverGpsSubmissionId,
   resolveOwnDriverId,
 } from "../modules/logistics/driver.access";
@@ -444,12 +445,12 @@ export async function register(app: Express): Promise<void> {
       // first real GPS update is the one read endpoint allowed to provision
       // that operational link.
       let driverId = requestedDriverId ? Number(requestedDriverId) : null;
-      if (isDriver(actor.role)) {
+      if (isDriver(actor.role) || isLogisticsTrackingRole(actor.role)) {
         const ownDriverId = await ensureOwnDriverId(storage, actor);
         const safeDriverId = resolveDriverGpsSubmissionId(driverId, ownDriverId);
         if (!safeDriverId) {
           if (!ownDriverId) {
-            return res.status(403).json({ message: 'Motorista sem cadastro vinculado ao usuário' });
+            return res.status(403).json({ message: 'Usuário sem cadastro de logística vinculado' });
           }
           return res.status(403).json({ message: 'Motorista não pode enviar GPS de outra conta' });
         }
@@ -462,7 +463,7 @@ export async function register(app: Express): Promise<void> {
       // Internal staff may post on behalf of a driver only after validating
       // driver → empresa → tenant. Global internal roles retain their
       // existing cross-tenant operational access.
-      if (!isDriver(actor.role)) {
+      if (!isDriver(actor.role) && !isLogisticsTrackingRole(actor.role)) {
         const [targetDriver] = await db
           .select({ id: driversTable.id, empresaId: driversTable.empresaId })
           .from(driversTable)
