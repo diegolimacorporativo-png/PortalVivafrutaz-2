@@ -6,7 +6,8 @@ Aplicativo Android separado, escrito em Kotlin, para manter o rastreamento GPS d
 
 A base do MVP está implementada:
 
-- login pelo `POST /api/auth/login` com `type: "admin"`;
+- login pelo `POST /api/driver/auth/login`, usando uma sessão própria para o
+  Tracker e aceitando apenas contas `DRIVER`, `MOTORISTA` ou `LOGISTICS`;
 - cookie `sessionId` persistido com armazenamento criptografado do Android;
 - `X-Device-Id` persistente e enviado nas chamadas;
 - validação por `GET /api/auth/me`;

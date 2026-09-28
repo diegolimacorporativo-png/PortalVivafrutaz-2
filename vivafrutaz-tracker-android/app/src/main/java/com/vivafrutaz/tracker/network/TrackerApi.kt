@@ -66,12 +66,11 @@ class TrackerApi(context: Context) {
         val body = JSONObject()
             .put("email", email.trim().lowercase())
             .put("password", password)
-            .put("type", "admin")
             .put("deviceId", store.deviceId())
             .toString()
 
         try {
-            val response = execute("/api/auth/login", "POST", body)
+            val response = execute("/api/driver/auth/login", "POST", body)
             if (!response.isSuccessful) {
                 return@withContext LoginResult.Failure(response.failure())
             }

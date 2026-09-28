@@ -1,5 +1,6 @@
 import type { Express, Router } from "express";
 import { definition as authModule } from "./auth";
+import { driverAuthRouter } from "./auth/driver-auth.routes";
 import { definition as companiesModule } from "./companies";
 import { definition as financeModule } from "./finance";
 import { definition as fiscalModule } from "./fiscal";
@@ -70,6 +71,7 @@ const MODULES: readonly ModuleDefinition[] = [
  * endpoints retain the legacy non-envelope response shape.
  */
 const AUX_MODULES: readonly ModuleDefinition[] = [
+  { name: "driver-auth", basePath: "/api/driver/auth", router: driverAuthRouter },
   categoriesModule,
   usersAdminModule,
   pricingAdminModule,

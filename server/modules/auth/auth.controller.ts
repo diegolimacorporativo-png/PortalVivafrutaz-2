@@ -33,9 +33,34 @@ export class AuthController {
 
   // ── POST /api/auth/login ───────────────────────────────────────────────
   login = async (req: Request, res: Response): Promise<void> => {
+    await this.handleLogin(req, res);
+  };
+
+  // ── POST /api/driver/auth/login ────────────────────────────────────────
+  /**
+   * Dedicated login contract for the Android Tracker.
+   *
+   * The web login accepts every internal admin role. The Tracker endpoint
+   * intentionally accepts only accounts that are allowed to use the driver
+   * panel, while keeping the same session cookie contract used by the ERP.
+   * `type` is forced to `admin` so the APK cannot accidentally enter through
+   * the company-portal branch.
+   */
+  driverLogin = async (req: Request, res: Response): Promise<void> => {
+    await this.handleLogin(req, res, ["DRIVER", "MOTORISTA", "LOGISTICS"]);
+  };
+
+  private handleLogin = async (
+    req: Request,
+    res: Response,
+    allowedRoles?: readonly string[],
+  ): Promise<void> => {
     let input;
     try {
-      input = loginSchema.parse(req.body);
+      const payload = allowedRoles
+        ? { ...(req.body ?? {}), type: "admin" }
+        : req.body;
+      input = loginSchema.parse(payload);
     } catch (err) {
       if (err instanceof ZodError) {
         // F1-E6: was 400 — credentials endpoint must return 401 per RFC 7235
@@ -54,6 +79,15 @@ export class AuthController {
 
     if (outcome.kind === "failure") {
       res.status(outcome.status).json({ message: outcome.message });
+      return;
+    }
+
+    if (
+      allowedRoles &&
+      outcome.kind === "admin-success" &&
+      !allowedRoles.includes(outcome.user.role)
+    ) {
+      res.status(403).json({ message: "Esta conta não possui acesso ao Tracker." });
       return;
     }
 
