@@ -63,7 +63,7 @@ export function parseOrderCatalog(buffer: Buffer): { categories: string[]; rows:
   const rows = [...byRow.values()];
   const variantMap = new Map<string, ProductVariant>();
   for (const row of rows) {
-    const variantKey = `${key(row.name)}\0${unitFromMeasure(row.measure)}\0${key(row.measure)}`;
+    const variantKey = `${key(row.category)}\0${key(row.name)}\0${unitFromMeasure(row.measure)}\0${key(row.measure)}`;
     const variant = variantMap.get(variantKey) || { name: row.name, unit: unitFromMeasure(row.measure), measure: row.measure, category: row.category, prices: [] };
     const existing = variant.prices.find((p) => key(p.category) === key(row.category));
     if (row.price != null && row.price > 0) {
@@ -93,16 +93,16 @@ export async function importOrderCatalog(buffer: Buffer, mode: "preview" | "comm
     for (const variant of parsed.variants) {
       const observation = `Medida original da planilha: ${variant.measure}`;
       const condition = empresaId == null
-        ? and(sql`lower(${products.name}) = ${key(variant.name)}`, eq(products.unit, variant.unit), eq(products.observation, observation))
-        : and(eq(products.empresaId, empresaId), sql`lower(${products.name}) = ${key(variant.name)}`, eq(products.unit, variant.unit), eq(products.observation, observation));
+        ? and(sql`lower(${products.name}) = ${key(variant.name)}`, eq(products.category, variant.category), eq(products.unit, variant.unit), eq(products.observation, observation))
+        : and(eq(products.empresaId, empresaId), sql`lower(${products.name}) = ${key(variant.name)}`, eq(products.category, variant.category), eq(products.unit, variant.unit), eq(products.observation, observation));
       const existing = await tx.select().from(products).where(condition).limit(1);
       let product = existing[0];
       if (!product) {
-        const [created] = await tx.insert(products).values({ name: variant.name, category: variant.category, unit: variant.unit, active: true, basePrice: null, isIndustrialized: key(variant.category).includes("industrializado") || key(variant.category).includes("bebida"), isSeasonal: false, observation, empresaId }).returning();
+        const [created] = await tx.insert(products).values({ name: variant.name, category: variant.category, unit: variant.unit, active: true, basePrice: variant.prices[0]?.price != null ? String(variant.prices[0].price) : null, isIndustrialized: key(variant.category).includes("industrializado") || key(variant.category).includes("bebida"), isSeasonal: false, observation, empresaId }).returning();
         product = created;
         productsCreated++;
       } else {
-        await tx.update(products).set({ active: true, observation }).where(eq(products.id, product.id));
+        await tx.update(products).set({ active: true, basePrice: variant.prices[0]?.price != null ? String(variant.prices[0].price) : product.basePrice, observation, category: variant.category }).where(eq(products.id, product.id));
         productsUpdated++;
       }
       for (const price of variant.prices) {

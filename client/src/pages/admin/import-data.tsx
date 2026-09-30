@@ -207,6 +207,12 @@ export default function ImportData() {
       });
       if (!res.ok) throw new Error((await res.json()).message || "Erro ao processar arquivo");
       const data = await res.json();
+      if (data.specialized === "order-catalog") {
+        setCatalogPreview(data);
+        setStatus("ready");
+        toast({ title: "Tabela de pedidos reconhecida", description: `${data.products} produtos e ${data.categories.length} categorias identificados.` });
+        return;
+      }
       setRows(data.rows || []);
       setSelectedRows(new Set((data.rows || []).map((_: any, i: number) => i)));
       setStatus("ready");

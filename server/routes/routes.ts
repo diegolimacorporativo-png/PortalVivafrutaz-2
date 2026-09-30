@@ -40,6 +40,7 @@ import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { resolveTenant } from "../core/tenant/context";
+import { parseOrderCatalog } from "../modules/products/catalog-import";
 // MT-3B M4 — crossTenant() marks intentional global reads; greppable audit trail.
 import { crossTenant } from "../core/tenant/scope";
 import { logSecurityEvent } from "../core/security/securityLogger";
@@ -980,6 +981,22 @@ export async function registerRoutes(
       } else {
         // Excel / CSV
         const wb = XLSX.read(buffer, { type: 'buffer' });
+        if (ext === 'xls' || ext === 'xlsx') {
+          const catalog = parseOrderCatalog(buffer);
+          if (catalog.products.length > 0 && catalog.categories.length > 0) {
+            return res.json({
+              specialized: 'order-catalog',
+              sourceSheets: catalog.sourceSheets,
+              sourceRows: catalog.rows.length,
+              categories: catalog.categories,
+              products: catalog.variants.length,
+              subCategories: catalog.variants.reduce((n, p) => n + p.prices.length, 0),
+              rows: [],
+              total: catalog.variants.length,
+              filename: originalname,
+            });
+          }
+        }
         const firstSheetName = wb.SheetNames[0];
         if (!firstSheetName) {
           throw new BadRequestError('Planilha sem abas válidas');
@@ -4484,5 +4501,4 @@ function getWeekNumber(d: Date) {
   var weekNo = Math.ceil(( ( (d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
   return weekNo;
 }
-
 
