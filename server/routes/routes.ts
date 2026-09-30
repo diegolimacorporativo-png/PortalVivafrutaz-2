@@ -984,6 +984,15 @@ export async function registerRoutes(
         if (ext === 'xls' || ext === 'xlsx') {
           const catalog = parseOrderCatalog(buffer);
           if (catalog.products.length > 0 && catalog.categories.length > 0) {
+            const catalogRows = catalog.variants.map((variant) => ({
+              tipo: 'produto',
+              catalogVariant: true,
+              nome: variant.name,
+              preco: variant.prices[0]?.price ?? 0,
+              unidade: variant.unit,
+              medida: variant.measure,
+              categoria: variant.category,
+            }));
             return res.json({
               specialized: 'order-catalog',
               sourceSheets: catalog.sourceSheets,
@@ -991,8 +1000,8 @@ export async function registerRoutes(
               categories: catalog.categories,
               products: catalog.variants.length,
               subCategories: catalog.variants.reduce((n, p) => n + p.prices.length, 0),
-              rows: [],
-              total: catalog.variants.length,
+              rows: catalogRows,
+              total: catalogRows.length,
               filename: originalname,
             });
           }
@@ -1038,6 +1047,10 @@ export async function registerRoutes(
       const existingProducts = await storage.getProducts();
       const productCodeMap = Object.fromEntries(existingProducts.map((p: any) => [String(p.productCode || p.code || '').toLowerCase(), p]));
       const productNameMap = Object.fromEntries(existingProducts.map((p: any) => [String(p.name || '').toLowerCase(), p]));
+      const productCatalogMap = Object.fromEntries(existingProducts.map((p: any) => [
+        `${String(p.name || '').trim().toLowerCase()}|${String(p.category || '').trim().toLowerCase()}|${String(p.unit || '').trim().toLowerCase()}|${String(p.observation || '').trim().toLowerCase()}`,
+        p,
+      ]));
 
       void crossTenant();
       const existingCompanies = await storage.getCompanies();
@@ -1051,7 +1064,11 @@ export async function registerRoutes(
             const nome = String(row.nome || row.name || '').trim();
             const codigo = String(row.codigo || row.code || row.id || '').trim();
             if (!nome) { results.skipped++; continue; }
-            if (productNameMap[nome.toLowerCase()] || (codigo && productCodeMap[codigo.toLowerCase()])) {
+            const categoria = String(row.categoria || row.category || 'Importado').trim();
+            const unidade = String(row.unidade || row.unit || 'KG').trim();
+            const observacao = row.catalogVariant ? `Medida original da planilha: ${String(row.medida || '').trim()}` : '';
+            const catalogKey = `${nome.toLowerCase()}|${categoria.toLowerCase()}|${unidade.toLowerCase()}|${observacao.toLowerCase()}`;
+            if ((row.catalogVariant ? productCatalogMap[catalogKey] : productNameMap[nome.toLowerCase()]) || (codigo && productCodeMap[codigo.toLowerCase()])) {
               results.skipped++;
               continue;
             }
@@ -1060,11 +1077,13 @@ export async function registerRoutes(
               name: nome,
               productCode: codigo || undefined,
               price: String(preco),
-              category: row.categoria || row.category || 'Importado',
-              unit: row.unidade || row.unit || 'KG',
+              category: categoria,
+              unit: unidade,
+              observation: observacao || undefined,
               active: true,
             } as any);
             productNameMap[nome.toLowerCase()] = true;
+            productCatalogMap[catalogKey] = true;
             results.created++;
           } else if (tipo === 'cliente' || tipo === 'clients' || mode === 'clients') {
             const nome = String(row.nome || row.name || '').trim();
@@ -4501,4 +4520,3 @@ function getWeekNumber(d: Date) {
   var weekNo = Math.ceil(( ( (d.getTime() - yearStart.getTime()) / 86400000) + 1)/7);
   return weekNo;
 }
-
