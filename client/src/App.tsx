@@ -281,13 +281,10 @@ function ProtectedRoute({
 
   if (tabKey && user && !FULL_ACCESS_ROLES.includes(user.role)) {
     const tabPerms = (user as any).tabPermissions as string[] | null | undefined;
-    const isLogisticsGpsSupervisor =
-      user.role === 'LOGISTICS' && tabKey === 'gps-tracking';
     if (
       tabPerms &&
       tabPerms.length > 0 &&
-      !tabPerms.includes(tabKey) &&
-      !isLogisticsGpsSupervisor
+      !tabPerms.includes(tabKey)
     ) {
       return <UnauthorizedModule />;
     }
@@ -507,7 +504,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminDriverPanel} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA']} tabKey="driver-panel" />}
       </Route>
       <Route path="/admin/gps-tracking">
-        {() => <ProtectedRoute component={GpsTracking} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER']} tabKey="gps-tracking" />}
+        {() => <ProtectedRoute component={GpsTracking} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL']} tabKey="gps-tracking" />}
       </Route>
       <Route path="/admin/saas-dashboard">
         {() => <ProtectedRoute component={SaasDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS']} tabKey="saas-dashboard" />}

@@ -262,8 +262,9 @@ export async function register(app: Express): Promise<void> {
         myDriver = driverRows[0] ?? null;
       }
 
-      // Search the selected period. Drivers can view unassigned orders from
-      // every company, while status mutations remain ownership-protected below.
+      // Search the selected period. Driver accounts are filtered below by
+      // the authenticated driver and assigned routes; they never receive
+      // unassigned deliveries or the order-bridge fallback.
       const deliveryFilters: any = { dateFrom, dateTo };
       if (actorCompanyId) {
         deliveryFilters.companyId = actorCompanyId;
@@ -331,8 +332,20 @@ export async function register(app: Express): Promise<void> {
       // Internal staff keep the legacy "unassigned-or-mine" semantics.
       let deliveries: any[];
       if (isDriver(actor.role)) {
+        const assignedRouteIds = myDriver
+          ? new Set(
+              (await db
+                .select({ id: routesTable.id })
+                .from(routesTable)
+                .where(eq(routesTable.driverId, myDriver.id)))
+                .map((route: any) => Number(route.id)),
+            )
+          : new Set<number>();
         deliveries = myDriver
-          ? allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id)
+          ? allDeliveries.filter((d: any) =>
+              Number(d.driverId) === Number(myDriver.id) ||
+              (d.routeId != null && assignedRouteIds.has(Number(d.routeId))),
+            )
           : [];
       } else if (myDriver) {
         deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);

@@ -43,9 +43,9 @@ const DEFAULT_PERMS: Record<string, boolean> = Object.fromEntries(
 
 // All system tabs with labels and role access
 const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
-  { key: 'dashboard', label: 'Dashboard (Painel)', roles: ['ADMIN', 'DIRECTOR', 'LOGISTICS', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO'] },
-  { key: 'orders', label: 'Pedidos', roles: ['ADMIN', 'DIRECTOR', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'SISTEMA_TESTE'] },
-  { key: 'special-orders', label: 'Pedidos Pontuais', roles: ['ADMIN', 'DIRECTOR', 'OPERATIONS_MANAGER', 'DEVELOPER', 'LOGISTICS', 'SISTEMA_TESTE'] },
+  { key: 'dashboard', label: 'Dashboard (Painel)', roles: ['ADMIN', 'DIRECTOR', 'LOGISTICS', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'COMERCIAL', 'MASTER_COMERCIAL'] },
+  { key: 'orders', label: 'Pedidos', roles: ['ADMIN', 'DIRECTOR', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'SISTEMA_TESTE'] },
+  { key: 'special-orders', label: 'Pedidos Pontuais', roles: ['ADMIN', 'DIRECTOR', 'OPERATIONS_MANAGER', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'SISTEMA_TESTE'] },
   { key: 'companies', label: 'Empresas', roles: ['ADMIN', 'DIRECTOR'] },
   { key: 'products', label: 'Produtos', roles: ['ADMIN', 'DIRECTOR'] },
   { key: 'categories', label: 'Categorias', roles: ['ADMIN', 'DIRECTOR'] },
@@ -56,17 +56,19 @@ const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
   { key: 'industrialized', label: 'Industrializados', roles: ['ADMIN', 'DIRECTOR', 'PURCHASE_MANAGER'] },
   { key: 'financial', label: 'Painel Financeiro', roles: ['ADMIN', 'DIRECTOR', 'FINANCEIRO'] },
   { key: 'password-reset', label: 'Senhas de Clientes', roles: ['ADMIN', 'DIRECTOR'] },
-  { key: 'tasks', label: 'Tarefas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'] },
-  { key: 'incidents', label: 'Ocorrências de Clientes', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'] },
-  { key: 'internal-incidents', label: 'Ocorrências Internas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'] },
-  { key: 'logistics', label: 'Logística', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS'] },
-  { key: 'quotations', label: 'Cotação de Empresas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'] },
+  { key: 'tasks', label: 'Tarefas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
+  { key: 'incidents', label: 'Ocorrências de Clientes', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
+  { key: 'internal-incidents', label: 'Ocorrências Internas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
+  { key: 'logistics', label: 'Logística', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
+  { key: 'driver-panel', label: 'Painel do Motorista', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA'] },
+  { key: 'gps-tracking', label: 'GPS em Tempo Real', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
+  { key: 'quotations', label: 'Cotação de Empresas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'COMERCIAL', 'MASTER_COMERCIAL'] },
   { key: 'users', label: 'Usuários do Sistema', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'backups', label: 'Backup & E-mails', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'developer', label: 'Área do Desenvolvedor', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'executive', label: 'Dashboard Executivo', roles: ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER'] },
   { key: 'announcements', label: 'Painel de Avisos', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
-  { key: 'waste-control', label: 'Controle de Desperdício', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'] },
+  { key: 'waste-control', label: 'Controle de Desperdício', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
   { key: 'purchase-planning', label: 'Planejamento de Compras', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'PURCHASE_MANAGER', 'OPERATIONS_MANAGER'] },
   { key: 'sanitary', label: 'Vigilância Sanitária', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA', 'OPERATIONS_MANAGER'] },
 ];
@@ -80,6 +82,8 @@ const ROLES = [
   { value: "FINANCEIRO", label: "Financeiro", desc: "Pedidos, painel financeiro e exportações", icon: BarChart3, color: "text-emerald-600 bg-emerald-100" },
   { value: "DEVELOPER", label: "Desenvolvedor", desc: "Acesso técnico + logs + backups", icon: Code, color: "text-purple-600 bg-purple-100" },
   { value: "LOGISTICS", label: "Logística", desc: "Pedidos, rotas, motoristas e ocorrências", icon: AlertTriangle, color: "text-orange-600 bg-orange-100" },
+  { value: "COMERCIAL", label: "Comercial", desc: "Clientes, pedidos, cotações e acompanhamento comercial", icon: UserCircle, color: "text-indigo-600 bg-indigo-100" },
+  { value: "MASTER_COMERCIAL", label: "Master Comercial", desc: "Acesso ampliado às funções comerciais e operacionais", icon: Crown, color: "text-indigo-700 bg-indigo-100" },
   { value: "MOTORISTA", label: "Motorista", desc: "Acesso restrito: Painel do Motorista, GPS, rotas do dia e notas fiscais da rota", icon: Truck, color: "text-teal-600 bg-teal-100" },
   { value: "NUTRICIONISTA", label: "Nutricionista", desc: "Acesso total ao módulo de Vigilância Sanitária — checklist, avaliações e relatórios", icon: Leaf, color: "text-lime-700 bg-lime-100" },
   { value: "SISTEMA_TESTE", label: "Usuário de Teste", desc: "Acesso para testes — pedidos marcados como TESTE", icon: FlaskConical, color: "text-cyan-700 bg-cyan-100" },
@@ -449,7 +453,7 @@ export default function UsersAdminPage() {
               {ROLES.map(r => {
                 const Icon = r.icon;
                 return (
-                  <button key={r.value} type="button" onClick={() => setForm({ ...form, role: r.value })}
+                  <button key={r.value} type="button" onClick={() => setForm({ ...form, role: r.value, tabPermissions: form.tabPermissions ? roleTabsForRole(r.value).map(t => t.key) : null })}
                     aria-pressed={form.role === r.value}
                     data-testid={`role-option-${r.value}`}
                     className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all ${form.role === r.value ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
