@@ -1636,6 +1636,12 @@ export type DeliveryChecklist = typeof deliveryChecklists.$inferSelect;
 export const insertDeliveryChecklistSchema = createInsertSchema(deliveryChecklists).omit({ id: true, createdAt: true });
 export type InsertDeliveryChecklist = z.infer<typeof insertDeliveryChecklistSchema>;
 
+// ─── Driver operational records ─────────────────────────────────────────────
+export const driverJourneys = pgTable("driver_journeys", { id: serial("id").primaryKey(), driverId: integer("driver_id").references(() => logisticsDrivers.id).notNull(), empresaId: integer("empresa_id").references(() => companies.id), vehicleId: integer("vehicle_id").references(() => logisticsVehicles.id), status: text("status").notNull().default("active"), startedAt: timestamp("started_at").defaultNow().notNull(), endedAt: timestamp("ended_at"), startLatitude: numeric("start_latitude", { precision: 10, scale: 7 }), startLongitude: numeric("start_longitude", { precision: 10, scale: 7 }), endLatitude: numeric("end_latitude", { precision: 10, scale: 7 }), endLongitude: numeric("end_longitude", { precision: 10, scale: 7 }), startOdometer: numeric("start_odometer", { precision: 12, scale: 2 }), endOdometer: numeric("end_odometer", { precision: 12, scale: 2 }), observation: text("observation"), deviceId: text("device_id"), idempotencyKey: text("idempotency_key").notNull().unique() });
+export const driverOdometerEntries = pgTable("driver_odometer_entries", { id: serial("id").primaryKey(), driverId: integer("driver_id").references(() => logisticsDrivers.id).notNull(), empresaId: integer("empresa_id").references(() => companies.id), vehicleId: integer("vehicle_id").references(() => logisticsVehicles.id), journeyId: integer("journey_id").references(() => driverJourneys.id), value: numeric("value", { precision: 12, scale: 2 }).notNull(), entryType: text("entry_type").notNull(), observation: text("observation"), recordedAt: timestamp("recorded_at").defaultNow().notNull(), idempotencyKey: text("idempotency_key").notNull().unique() });
+export const driverFuelEntries = pgTable("driver_fuel_entries", { id: serial("id").primaryKey(), driverId: integer("driver_id").references(() => logisticsDrivers.id).notNull(), empresaId: integer("empresa_id").references(() => companies.id), vehicleId: integer("vehicle_id").references(() => logisticsVehicles.id), liters: numeric("liters", { precision: 10, scale: 3 }).notNull(), unitPrice: numeric("unit_price", { precision: 10, scale: 2 }).notNull(), totalAmount: numeric("total_amount", { precision: 12, scale: 2 }).notNull(), odometer: numeric("odometer", { precision: 12, scale: 2 }), fuelType: text("fuel_type").notNull(), stationName: text("station_name"), receiptBase64: text("receipt_base64"), observation: text("observation"), recordedAt: timestamp("recorded_at").defaultNow().notNull(), idempotencyKey: text("idempotency_key").notNull().unique() });
+export const deliveryProofs = pgTable("delivery_proofs", { id: serial("id").primaryKey(), deliveryId: integer("delivery_id").references(() => deliveries.id).notNull(), driverId: integer("driver_id").references(() => logisticsDrivers.id).notNull(), empresaId: integer("empresa_id").references(() => companies.id), signatureBase64: text("signature_base64"), photosJson: text("photos_json"), observation: text("observation"), latitude: numeric("latitude", { precision: 10, scale: 7 }), longitude: numeric("longitude", { precision: 10, scale: 7 }), capturedAt: timestamp("captured_at").defaultNow().notNull(), idempotencyKey: text("idempotency_key").notNull().unique() });
+export type DriverJourney = typeof driverJourneys.$inferSelect; export type DriverOdometerEntry = typeof driverOdometerEntries.$inferSelect; export type DriverFuelEntry = typeof driverFuelEntries.$inferSelect; export type DeliveryProof = typeof deliveryProofs.$inferSelect;
 // ─── SaaS: Bancos de Recebimento ─────────────────────────────────────────────
 export const bancosRecebimento = pgTable("bancos_recebimento", {
   id: serial("id").primaryKey(),
@@ -2260,6 +2266,10 @@ export function validateSchemaIntegrity(): void {
     logisticsAuditLogs,
     driverGpsPositions,
     deliveryChecklists,
+    driverJourneys,
+    driverOdometerEntries,
+    driverFuelEntries,
+    deliveryProofs,
     bancosRecebimento,
     contratosClientes,
     faturasSaas,

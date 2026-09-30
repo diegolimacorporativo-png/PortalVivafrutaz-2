@@ -4,10 +4,16 @@ import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
+import android.view.MotionEvent
+import android.view.View
+import android.util.Base64
 import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
-import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -39,6 +45,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 class MainActivity : AppCompatActivity() {
     private lateinit var api: TrackerApi
@@ -48,6 +55,20 @@ class MainActivity : AppCompatActivity() {
     private var stateRefreshJob: Job? = null
     private var pendingSessionName = "Motorista"
     private var pendingSessionRole = ""
+    private var proofDeliveryId: Long? = null
+    private val proofPicker = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val deliveryId = proofDeliveryId ?: return@registerForActivityResult
+        if (uri == null) return@registerForActivityResult
+        lifecycleScope.launch {
+            val bytes = contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return@launch
+            if (bytes.size > 4_000_000) { Toast.makeText(this@MainActivity, "Imagem muito grande", Toast.LENGTH_LONG).show(); return@launch }
+            val encoded = "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP)
+            when (val result = api.sendProof(deliveryId, null, listOf(encoded), "Foto da entrega", UUID.randomUUID().toString())) {
+                is com.vivafrutaz.tracker.network.OperationResult.Success -> Toast.makeText(this@MainActivity, "Foto enviada", Toast.LENGTH_SHORT).show()
+                is com.vivafrutaz.tracker.network.OperationResult.Failure -> Toast.makeText(this@MainActivity, result.error.message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -294,6 +315,35 @@ class MainActivity : AppCompatActivity() {
         val routeContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         content.addView(routeContainer, marginParams(top = 8))
         loadRoute(routeStatus, routeContainer)
+        addOperationsPanel()
+    }
+
+    private fun addOperationsPanel() {
+        content.addView(TextView(this).apply { text = "Operação"; textSize = 21f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(27, 94, 32)) }, marginParams(top = 26))
+        val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        row.addView(Button(this).apply { text = "Iniciar jornada"; isAllCaps = false; setOnClickListener { journeyDialog(false) } }, LinearLayout.LayoutParams(0, -2, 1f))
+        row.addView(Button(this).apply { text = "Encerrar jornada"; isAllCaps = false; setOnClickListener { journeyDialog(true) } }, LinearLayout.LayoutParams(0, -2, 1f))
+        content.addView(row, marginParams(top = 8))
+        content.addView(Button(this).apply { text = "Registrar abastecimento"; isAllCaps = false; setOnClickListener { fuelDialog() } }, marginParams(top = 6))
+    }
+
+    private fun journeyDialog(end: Boolean) {
+        val odometer = EditText(this).apply { hint = "Odômetro ${if (end) "final" else "inicial"}"; inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL }
+        val observation = EditText(this).apply { hint = "Observação (opcional)" }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle(if (end) "Encerrar jornada" else "Iniciar jornada").setView(LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), 0, dp(18), 0); addView(odometer); addView(observation) }).setNegativeButton("Cancelar", null).setPositiveButton("Confirmar", null).create()
+        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { val value = odometer.text.toString().toDoubleOrNull(); if (value == null) { odometer.error = "Informe o odômetro"; return@setOnClickListener }; lifecycleScope.launch { val key = UUID.randomUUID().toString(); val result = if (end) api.endJourney(value, observation.text.toString(), key) else api.startJourney(value, null, observation.text.toString(), key); when (result) { is com.vivafrutaz.tracker.network.OperationResult.Success -> { dialog.dismiss(); Toast.makeText(this@MainActivity, if (end) "Jornada encerrada" else "Jornada iniciada", Toast.LENGTH_SHORT).show() }; is com.vivafrutaz.tracker.network.OperationResult.Failure -> Toast.makeText(this@MainActivity, result.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.show()
+    }
+
+    private fun fuelDialog() {
+        val liters = EditText(this).apply { hint = "Litros"; inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL }
+        val total = EditText(this).apply { hint = "Valor total"; inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL }
+        val type = EditText(this).apply { hint = "Combustível (ex.: diesel)" }
+        val station = EditText(this).apply { hint = "Posto" }
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(18), 0, dp(18), 0); addView(liters); addView(total); addView(type); addView(station) }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Registrar abastecimento").setView(box).setNegativeButton("Cancelar", null).setPositiveButton("Salvar", null).create()
+        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { val l = liters.text.toString().toDoubleOrNull(); val t = total.text.toString().toDoubleOrNull(); if (l == null || t == null || type.text.isNullOrBlank()) { Toast.makeText(this, "Preencha litros, valor e combustível", Toast.LENGTH_LONG).show(); return@setOnClickListener }; lifecycleScope.launch { when (val r = api.recordFuel(l, t / l, t, type.text.toString(), station.text.toString(), null, null, "", UUID.randomUUID().toString())) { is com.vivafrutaz.tracker.network.OperationResult.Success -> { dialog.dismiss(); Toast.makeText(this@MainActivity, "Abastecimento salvo", Toast.LENGTH_SHORT).show() }; is com.vivafrutaz.tracker.network.OperationResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.show()
     }
 
     private fun loadRoute(status: TextView, container: LinearLayout) {
@@ -317,6 +367,8 @@ class MainActivity : AppCompatActivity() {
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
         actions.addView(Button(this).apply { text = "Entregue"; isAllCaps = false; setOnClickListener { openChecklist(delivery, card) } }, LinearLayout.LayoutParams(0, -2, 1f))
         actions.addView(Button(this).apply { text = "Ocorrência"; isAllCaps = false; setOnClickListener { updateStop(delivery, "problema") } }, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(Button(this).apply { text = "Assinar"; isAllCaps = false; setOnClickListener { signatureDialog(delivery.id) } }, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(Button(this).apply { text = "Foto"; isAllCaps = false; setOnClickListener { proofDeliveryId = delivery.id; proofPicker.launch("image/*") } }, LinearLayout.LayoutParams(0, -2, 1f))
         card.addView(actions, marginParams(top = 8)); container.addView(card, marginParams(top = 10))
     }
 
@@ -331,6 +383,13 @@ class MainActivity : AppCompatActivity() {
         val input = EditText(this).apply { hint = "Descreva a ocorrência"; minLines = 2 }
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Registrar ocorrência").setView(input).setNegativeButton("Cancelar", null).setPositiveButton("Registrar", null).create()
         dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { lifecycleScope.launch { when (val r = api.updateStopStatus(delivery.id, status, input.text.toString())) { is StopStatusSendResult.Success -> { dialog.dismiss(); Toast.makeText(this@MainActivity, "Status atualizado", Toast.LENGTH_SHORT).show() }; is StopStatusSendResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.show()
+    }
+
+    private fun signatureDialog(deliveryId: Long) {
+        val pad = SignaturePadView(this)
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Assinatura do recebedor").setMessage("Desenhe a assinatura no quadro abaixo.").setView(pad).setNegativeButton("Limpar") { _, _ -> pad.clear() }.setPositiveButton("Enviar", null).create()
+        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { val encoded = pad.pngBase64(); if (encoded == null) { Toast.makeText(this, "Faça a assinatura antes de enviar", Toast.LENGTH_LONG).show(); return@setOnClickListener }; lifecycleScope.launch { when (val r = api.sendProof(deliveryId, encoded, emptyList(), "Assinatura do recebedor", UUID.randomUUID().toString())) { is com.vivafrutaz.tracker.network.OperationResult.Success -> { dialog.dismiss(); Toast.makeText(this@MainActivity, "Assinatura enviada", Toast.LENGTH_SHORT).show() }; is com.vivafrutaz.tracker.network.OperationResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
         dialog.show()
     }
 
@@ -481,4 +540,17 @@ class MainActivity : AppCompatActivity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+}
+
+private class SignaturePadView(context: android.content.Context) : View(context) {
+    private val path = Path()
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK; style = Paint.Style.STROKE; strokeWidth = 5f; strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
+    private var bitmap: Bitmap? = null
+    private var canvas: Canvas? = null
+    private var touched = false
+    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) { bitmap = Bitmap.createBitmap(w.coerceAtLeast(1), h.coerceAtLeast(1), Bitmap.Config.ARGB_8888); canvas = Canvas(bitmap!!).also { it.drawColor(Color.WHITE) } }
+    override fun onDraw(c: Canvas) { super.onDraw(c); bitmap?.let { c.drawBitmap(it, 0f, 0f, null) }; c.drawLine(20f, height - 24f, width - 20f, height - 24f, paint) }
+    override fun onTouchEvent(event: MotionEvent): Boolean { when (event.action) { MotionEvent.ACTION_DOWN -> { path.moveTo(event.x, event.y); touched = true }; MotionEvent.ACTION_MOVE -> { path.lineTo(event.x, event.y); canvas?.drawPath(path, paint); path.reset(); path.moveTo(event.x, event.y); invalidate() }; MotionEvent.ACTION_UP -> { canvas?.drawPath(path, paint); path.reset(); invalidate() } }; return true }
+    fun clear() { canvas?.drawColor(Color.WHITE); touched = false; invalidate() }
+    fun pngBase64(): String? { val b = bitmap ?: return null; if (!touched) return null; val out = java.io.ByteArrayOutputStream(); b.compress(Bitmap.CompressFormat.PNG, 100, out); return "data:image/png;base64," + Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP) }
 }

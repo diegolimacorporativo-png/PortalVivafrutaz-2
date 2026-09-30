@@ -1,49 +1,45 @@
 # Módulos operacionais do motorista
 
-## Implementado no APK
+## Implementado
 
-O `VivaFrutaz Tracker` agora mantém o rastreamento GPS existente e também consome os contratos operacionais já publicados pelo backend:
+| Fluxo | Endpoint | Backend | Android |
+|---|---|---|---|
+| Rota do dia | `GET /api/driver/route-today` | existente | lista de paradas |
+| Checklist | `GET/POST /api/deliveries/:id/checklist` | existente | confirmação e observação |
+| Status de parada | `POST /api/deliveries/:id/stop-status` | existente | ocorrência |
+| Jornada | `GET /api/driver/journey/today` | novo | iniciar/encerrar |
+| Odômetro | `GET/POST /api/driver/odometer/today`, `/api/driver/odometer` | novo | lançamento no início/fim |
+| Abastecimento | `GET/POST /api/driver/fuel` | novo | litros, valor, tipo e posto |
+| Prova digital | `POST /api/deliveries/:id/proof` | novo | assinatura manuscrita e foto |
+| GPS | `POST /api/driver/gps` | existente | foreground service + fila |
 
-| Fluxo | Método | Endpoint | Implementação Android |
-|---|---:|---|---|
-| Rota do dia | GET | `/api/driver/route-today` | Lista ordenada de paradas, endereço, janela e status |
-| Checklist | GET | `/api/deliveries/:id/checklist` | Cliente preparado para leitura |
-| Confirmar entrega | POST | `/api/deliveries/:id/checklist` | Observação opcional e confirmação |
-| Status da parada | POST | `/api/deliveries/:id/stop-status` | Registro de ocorrência (`problema`) |
-| Rastreamento | POST | `/api/driver/gps` | Serviço foreground, fila Room e reenvio existentes |
+## Segurança e resiliência
 
-A autenticação continua usando a sessão criada por `/api/driver/auth/login`, cookie protegido pelo Android Keystore/EncryptedSharedPreferences e `X-Device-Id`. O APK não envia `driverId` para o GPS: o backend resolve o motorista pela sessão.
+- Todos os endpoints usam `requireAuthCore` e o motorista é resolvido pela sessão.
+- Entregas passam por `getAuthorizedDelivery`, preservando tenant e vínculo de rota.
+- Operações de escrita exigem `Idempotency-Key` (ou `idempotencyKey` no corpo).
+- Jornada ativa única por motorista, com validação de odômetro final maior ou igual ao inicial.
+- Coordenadas e valores numéricos são validados no backend.
+- Limites de tamanho são aplicados a comprovante, assinatura e fotos.
+- O APK usa cookie protegido, `X-Device-Id` e não armazena senha.
+- A captura de assinatura usa canvas nativo e a foto usa seletor de imagem do Android.
 
-## Lacunas verificadas no backend atual
+## Banco
 
-Não existem, neste checkout, rotas HTTP dedicadas ou tabelas para:
+A migration `migrations/20260930_driver_operations.sql` cria:
 
-- iniciar/encerrar jornada;
-- lançamento de quilometragem/odômetro;
-- abastecimento;
-- upload de assinatura do recebedor;
-- upload de fotos de comprovação.
+- `driver_journeys`;
+- `driver_odometer_entries`;
+- `driver_fuel_entries`;
+- `delivery_proofs`.
 
-A tabela `delivery_checklists` possui apenas os campos `assinaturaUrl` e `fotoUrl`, mas o endpoint POST atual sempre grava esses campos como `null` e não oferece upload. Por segurança, o APK não inventa endpoints ou payloads para esses fluxos.
+Aplicar a migration no ambiente do backend antes de usar os novos endpoints. O arquivo é aditivo e possui chaves únicas para idempotência.
 
-## Próximo contrato recomendado para fechar o escopo
-
-Antes de implementar a segunda etapa no APK, o backend deve publicar e documentar, no mínimo:
-
-- `POST /api/driver/journey/start`
-- `POST /api/driver/journey/end`
-- `POST /api/driver/odometer`
-- `POST /api/driver/fuel`
-- `POST /api/deliveries/:id/proof` com multipart para `signature` e `photos[]`
-
-Todos devem usar `requireAuthCore`, resolver o motorista pela sessão, validar tenant/entrega e aplicar limite de tamanho/tipo aos arquivos. Depois que esses contratos existirem, eles podem ser adicionados ao mesmo `TrackerApi` sem alterar o serviço GPS.
-
-## Build local
-
-O sandbox desta execução não possui Android SDK. No Android Studio:
+## Build do APK
 
 ```bash
-cp local.properties.example local.properties
-# defina sdk.dir e TRACKER_BASE_URL conforme o ambiente
+cd vivafrutaz-tracker-android
 ./gradlew :app:assembleDebug
 ```
+
+O artefato é gerado em `app/build/outputs/apk/debug/app-debug.apk`.
