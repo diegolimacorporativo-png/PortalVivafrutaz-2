@@ -24,6 +24,16 @@ A base do MVP está implementada:
 - nenhuma ação comum no app para desligar o rastreamento;
 - nenhuma senha, chave administrativa ou token escrito no código.
 
+## Sessão durante o turno
+
+O login do Tracker cria uma sessão específica com validade longa de 30 dias.
+Cada envio de GPS renova a validade no servidor, permitindo que o APK permaneça
+conectado durante turnos de 24 horas ou mais sem pedir a senha novamente.
+Essa sessão continua revogável pelo servidor por logout, alteração de senha,
+`tokenVersion` ou validação do dispositivo. Portanto, o comportamento é de
+conexão contínua enquanto o APK estiver ativo, e não de credencial permanente
+impossível de revogar.
+
 ## Contrato enviado
 
 O app preserva o payload atual:
@@ -75,8 +85,8 @@ Teste prioritariamente em:
 
 Em aparelhos com gerenciamento agressivo de bateria, o usuário/administrador pode precisar permitir a execução do app em segundo plano nas configurações do sistema.
 
-## Limite de autenticação que exige decisão de backend
+## Política de autenticação
 
-A sessão atual do ERP possui validade aproximada de 24 horas e não oferece refresh token. O app já persiste a sessão, revalida em `/api/auth/me` e não armazena a senha. Porém, renovação silenciosa depois que o servidor expira a sessão não pode ser implementada com segurança apenas no APK.
-
-Por isso, nenhuma alteração foi feita no backend. A proposta isolada para o Tracker está em `docs/TRACKER-AUTH-PROPOSAL.md` e precisa de aprovação antes de qualquer mudança de autenticação.
+A sessão comum do ERP continua com a política própria do ERP. O Tracker usa a
+sessão longa específica descrita acima e renova sua validade a cada envio de
+GPS; o APK persiste somente o cookie protegido, não a senha.

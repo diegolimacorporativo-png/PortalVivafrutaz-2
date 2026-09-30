@@ -1,8 +1,13 @@
 # Proposta específica: autenticação renovável do Tracker
 
+> **Status atual:** a sessão do Tracker já foi separada da sessão comum do ERP
+> e recebeu validade de 30 dias, renovada a cada envio de GPS. Isso atende
+> turnos contínuos de 24 horas. O refresh token rotativo abaixo continua sendo
+> a evolução recomendada para não depender de cookie de longa duração.
+
 ## Motivo
 
-O ERP atual usa uma sessão `sessionId` com validade aproximada de 24 horas e não possui refresh token. Persistir o cookie no Android resolve fechamento, minimização e reinicialização do aparelho enquanto a sessão ainda estiver válida, mas não permite renovar a sessão depois da expiração sem guardar a senha do motorista.
+O ERP comum usa uma sessão `sessionId` com validade aproximada de 24 horas e não possui refresh token. O Tracker agora usa uma sessão específica de 30 dias, renovada no endpoint de GPS, mas ainda não possui refresh token rotativo.
 
 Guardar a senha no APK, em `SharedPreferences` ou em banco local não é aceitável.
 
@@ -52,6 +57,10 @@ Adicionar um fluxo isolado para o Tracker, sem alterar o login do ERP e sem alte
 
 Essa proposta altera somente o módulo de autenticação específico do Tracker e a persistência necessária para seus tokens. Não altera o login do ERP, não cria outro endpoint GPS e não muda o schema operacional de motoristas ou posições.
 
-## Aprovação necessária
+## Próxima evolução recomendada
 
-Esta proposta deve ser aprovada antes de criar rotas, tabelas ou migrations no backend. Até essa aprovação, o Tracker permanece implementado somente sobre a sessão atual de 24 horas e não declara o requisito de login único como concluído.
+O comportamento atual já atende conexão contínua durante 24 horas ou mais,
+desde que o APK esteja ativo e enviando GPS. A implementação de refresh token
+rotativo continua recomendada antes de transformar a sessão em uma credencial
+de longa duração permanente, pois permite revogação por dispositivo sem
+guardar senha no APK e reduz a exposição de um cookie longo.

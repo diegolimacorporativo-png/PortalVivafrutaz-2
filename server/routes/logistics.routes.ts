@@ -426,6 +426,13 @@ export async function register(app: Express): Promise<void> {
     try {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      // Tracker sessions use a long-lived cookie so the Android service can
+      // operate through a full shift. The session remains revocable through
+      // tokenVersion/device checks; this does not change ERP session policy.
+      if (req.session.trackerSession) {
+        req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
+        req.session.touch();
+      }
 
       // STEP 8.7 — gate the endpoint to DRIVER + internal logistics roles.
       if (!isDriverOrInternal(actor.role)) {

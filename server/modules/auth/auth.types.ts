@@ -50,6 +50,8 @@ export interface SessionPayload {
   userId?: number;
   companyId?: number;
   userType?: LoginType;
+  /** True only for sessions issued by the Android Tracker login. */
+  trackerSession?: boolean;
   /**
    * Cached role for the logged-in admin user. Stored at login so
    * requireRole() can authorize without an extra DB round-trip per request.
