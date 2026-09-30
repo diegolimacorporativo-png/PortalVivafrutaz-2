@@ -16,6 +16,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
+import { importOrderCatalog } from "./catalog-import";
 
 const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "products");
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -45,7 +46,38 @@ const upload = multer({
   },
 });
 
+const catalogUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!new Set([".xls", ".xlsx"]).has(path.extname(file.originalname).toLowerCase())) {
+      return cb(new Error("Envie uma planilha .xls ou .xlsx."));
+    }
+    cb(null, true);
+  },
+});
+
 const router = Router();
+
+router.post(
+  "/import-order-catalog",
+  requireAuth,
+  requireRole(["ADMIN", "MASTER", "DEVELOPER", "DIRECTOR"]),
+  (req: Request, res: Response) => {
+    catalogUpload.single("file")(req, res, async (err: any) => {
+      if (err) return res.status(400).json({ message: err.message || "Falha ao ler a planilha." });
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) return res.status(400).json({ message: "Nenhuma planilha enviada." });
+      const mode = req.body?.mode === "commit" ? "commit" : "preview";
+      try {
+        res.json(await importOrderCatalog(file.buffer, mode));
+      } catch (e: any) {
+        console.error("[catalog-import] failed", e);
+        res.status(400).json({ message: e?.message || "Não foi possível processar a planilha." });
+      }
+    });
+  },
+);
 
 router.post(
   "/upload-image",

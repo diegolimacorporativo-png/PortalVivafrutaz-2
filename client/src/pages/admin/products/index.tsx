@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProducts, useProductsPaginated } from "@/hooks/use-catalog";
 import { PaginationBar } from "@/components/ui/PaginationBar";
 import { Layout } from "@/components/Layout";
@@ -10,13 +11,16 @@ import { PriceAlertsSection } from "./components/PriceAlertsSection";
 import { SafraAlertsSection } from "./components/SafraAlertsSection";
 import { ProductCard } from "./components/ProductCard";
 import { ProductModal } from "./dialogs/ProductModal";
+import { ImportCatalogModal } from "./dialogs/ImportCatalogModal";
 import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function ProductsPage() {
   const { data: products } = useProducts();
+  const queryClient = useQueryClient();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState("ALL");
@@ -54,7 +58,7 @@ export default function ProductsPage() {
         fallback="/admin"
         breadcrumb={[{ label: "Painel", href: "/admin" }, { label: "Produtos" }]}
       />
-      <ProductsHeader onAddNew={openCreate} />
+      <ProductsHeader onAddNew={openCreate} onImport={() => setIsImportOpen(true)} />
 
       <PriceAlertsSection />
       {products && <SafraAlertsSection allProducts={products as any[]} />}
@@ -100,6 +104,14 @@ export default function ProductsPage() {
         editingProduct={editingProduct}
         onClose={closeModal}
         onSaved={closeModal}
+      />
+      <ImportCatalogModal
+        isOpen={isImportOpen}
+        onClose={() => setIsImportOpen(false)}
+        onImported={() => {
+          queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+        }}
       />
     </Layout>
   );
