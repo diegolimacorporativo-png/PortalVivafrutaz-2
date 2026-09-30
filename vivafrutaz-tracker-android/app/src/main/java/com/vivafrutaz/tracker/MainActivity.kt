@@ -14,6 +14,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -24,6 +25,10 @@ import com.vivafrutaz.tracker.data.TrackingStateStore
 import com.vivafrutaz.tracker.network.LoginResult
 import com.vivafrutaz.tracker.network.SessionResult
 import com.vivafrutaz.tracker.network.TrackerApi
+import com.vivafrutaz.tracker.network.RouteResult
+import com.vivafrutaz.tracker.network.ChecklistResult
+import com.vivafrutaz.tracker.network.StopStatusSendResult
+import com.vivafrutaz.tracker.model.DriverDelivery
 import com.vivafrutaz.tracker.tracking.TrackingService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -278,6 +283,55 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, dp(18), 0, 0)
         }
         content.addView(scopeNote)
+        val routeTitle = TextView(this).apply {
+            text = "Rota do dia"
+            textSize = 21f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+            setTextColor(Color.rgb(27, 94, 32))
+        }
+        content.addView(routeTitle, marginParams(top = 26))
+        val routeStatus = addStatus("Carregando rota…")
+        val routeContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(routeContainer, marginParams(top = 8))
+        loadRoute(routeStatus, routeContainer)
+    }
+
+    private fun loadRoute(status: TextView, container: LinearLayout) {
+        lifecycleScope.launch {
+            when (val result = api.getRouteToday()) {
+                is RouteResult.Success -> {
+                    status.text = if (result.route.deliveries.isEmpty()) "Nenhuma parada programada para hoje." else "${result.route.deliveries.size} parada(s)"
+                    container.removeAllViews()
+                    result.route.deliveries.sortedBy { it.routePosition ?: Int.MAX_VALUE }.forEach { renderDelivery(container, it) }
+                }
+                is RouteResult.Failure -> { status.text = result.error.message; status.setTextColor(Color.rgb(183, 28, 28)) }
+            }
+        }
+    }
+
+    private fun renderDelivery(container: LinearLayout, delivery: DriverDelivery) {
+        val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE); setPadding(dp(16), dp(14), dp(16), dp(14)) }
+        card.addView(TextView(this).apply { text = "${delivery.routePosition?.let { "$it. " } ?: ""}${delivery.companyName}"; textSize = 17f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(35, 55, 35)) })
+        card.addView(TextView(this).apply { text = listOf(delivery.address, delivery.city).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Endereço não informado" }; textSize = 14f; setPadding(0, dp(5), 0, 0) })
+        card.addView(TextView(this).apply { text = "Status: ${delivery.status}${delivery.deliveryWindow?.let { " • Janela: $it" } ?: ""}"; textSize = 13f; setTextColor(Color.DKGRAY); setPadding(0, dp(5), 0, 0) })
+        val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
+        actions.addView(Button(this).apply { text = "Entregue"; isAllCaps = false; setOnClickListener { openChecklist(delivery, card) } }, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(Button(this).apply { text = "Ocorrência"; isAllCaps = false; setOnClickListener { updateStop(delivery, "problema") } }, LinearLayout.LayoutParams(0, -2, 1f))
+        card.addView(actions, marginParams(top = 8)); container.addView(card, marginParams(top = 10))
+    }
+
+    private fun openChecklist(delivery: DriverDelivery, card: LinearLayout) {
+        val input = EditText(this).apply { hint = "Observação da entrega (opcional)"; minLines = 2 }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Confirmar entrega").setMessage("${delivery.companyName}\n${delivery.address}").setView(input).setNegativeButton("Cancelar", null).setPositiveButton("Confirmar", null).create()
+        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { lifecycleScope.launch { when (val r = api.confirmChecklist(delivery.id, input.text.toString())) { is ChecklistResult.Success -> { dialog.dismiss(); card.alpha = 0.6f; Toast.makeText(this@MainActivity, "Entrega confirmada", Toast.LENGTH_SHORT).show() }; is ChecklistResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.show()
+    }
+
+    private fun updateStop(delivery: DriverDelivery, status: String) {
+        val input = EditText(this).apply { hint = "Descreva a ocorrência"; minLines = 2 }
+        val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Registrar ocorrência").setView(input).setNegativeButton("Cancelar", null).setPositiveButton("Registrar", null).create()
+        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { lifecycleScope.launch { when (val r = api.updateStopStatus(delivery.id, status, input.text.toString())) { is StopStatusSendResult.Success -> { dialog.dismiss(); Toast.makeText(this@MainActivity, "Status atualizado", Toast.LENGTH_SHORT).show() }; is StopStatusSendResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.show()
     }
 
     private fun renderTrackingState(

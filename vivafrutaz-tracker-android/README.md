@@ -6,6 +6,9 @@ Aplicativo Android separado, escrito em Kotlin, para manter o rastreamento GPS d
 
 A base do MVP está implementada:
 
+- painel operacional nativo com rota do dia via `/api/driver/route-today`;
+- confirmação de entrega via `/api/deliveries/:id/checklist`;
+- registro de ocorrência/status via `/api/deliveries/:id/stop-status`;
 - login pelo `POST /api/driver/auth/login`, usando uma sessão própria para o
   Tracker e aceitando apenas contas `DRIVER`, `MOTORISTA` ou `LOGISTICS`;
 - cookie `sessionId` persistido com armazenamento criptografado do Android;
@@ -23,6 +26,11 @@ A base do MVP está implementada:
   `SEM INTERNET` ou `ERRO` em tempo real enquanto a Activity está aberta;
 - nenhuma ação comum no app para desligar o rastreamento;
 - nenhuma senha, chave administrativa ou token escrito no código.
+
+Os contratos de jornada, quilometragem, abastecimento, assinatura e fotos não
+estão publicados no backend deste checkout. A lacuna e o contrato recomendado
+estão registrados em `docs/DRIVER-OPERATIONS.md`; o APK não inventa endpoints
+ou payloads para esses fluxos.
 
 ## Sessão durante o turno
 
