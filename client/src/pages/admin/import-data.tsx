@@ -14,6 +14,7 @@ import {
 type PreviewRow = Record<string, any>;
 type ImportMode = "auto" | "products" | "clients";
 type ImportStatus = "idle" | "previewing" | "ready" | "importing" | "done" | "error";
+type CatalogPreview = { sourceSheets: string[]; sourceRows: number; categories: string[]; products: number; subCategories: number };
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   produto: { label: "Produto", color: "bg-green-100 text-green-700" },
@@ -170,17 +171,36 @@ export default function ImportData() {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [mode, setMode] = useState<ImportMode>("auto");
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; message: string } | null>(null);
+  const [catalogPreview, setCatalogPreview] = useState<CatalogPreview | null>(null);
+  const [catalogResult, setCatalogResult] = useState<any>(null);
 
   const handleFile = async (f: File) => {
     setFile(f);
     setStatus("previewing");
     setRows([]);
     setResult(null);
+    setCatalogPreview(null);
+    setCatalogResult(null);
 
     const formData = new FormData();
     formData.append("file", f);
 
     try {
+      if (/\.(xls|xlsx)$/i.test(f.name)) {
+        const catalogBody = new FormData();
+        catalogBody.append("file", f);
+        catalogBody.append("mode", "preview");
+        const catalogRes = await fetchWithAuth("/api/admin/products/import-order-catalog", { method: "POST", body: catalogBody });
+        if (catalogRes.ok) {
+          const catalogData = await catalogRes.json();
+          if (catalogData.products > 0 && catalogData.categories?.length > 0) {
+            setCatalogPreview(catalogData);
+            setStatus("ready");
+            toast({ title: "Tabela de pedidos reconhecida", description: `${catalogData.products} produtos e ${catalogData.categories.length} categorias identificados.` });
+            return;
+          }
+        }
+      }
       const res = await fetchWithAuth("/api/import/preview", {
         method: "POST",
         body: formData,
@@ -221,12 +241,33 @@ export default function ImportData() {
     }
   };
 
+  const handleCatalogImport = async () => {
+    if (!file || !catalogPreview) return;
+    setStatus("importing");
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("mode", "commit");
+      const res = await fetchWithAuth("/api/admin/products/import-order-catalog", { method: "POST", body });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Erro na importação especializada");
+      setCatalogResult(data);
+      setStatus("done");
+      toast({ title: "Catálogo importado!", description: `${data.productsCreated} produto(s) criado(s) e ${data.productsUpdated} atualizado(s).` });
+    } catch (e: any) {
+      setStatus("error");
+      toast({ title: "Erro na importação", description: e.message, variant: "destructive" });
+    }
+  };
+
   const handleReset = () => {
     setFile(null);
     setStatus("idle");
     setRows([]);
     setSelectedRows(new Set());
     setResult(null);
+    setCatalogPreview(null);
+    setCatalogResult(null);
   };
 
   const toggleRow = (i: number) => {
@@ -309,6 +350,31 @@ export default function ImportData() {
             <Loader2 className="w-10 h-10 animate-spin mx-auto text-primary/40 mb-4" />
             <p className="font-medium text-foreground">Lendo arquivo...</p>
             <p className="text-sm text-muted-foreground mt-1">{file?.name}</p>
+          </div>
+        )}
+
+        {catalogPreview && (
+          <div className="space-y-5">
+            <div className="flex items-center gap-3 bg-card border border-border rounded-xl p-4">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><FileSpreadsheet className="w-5 h-5 text-primary" /></div>
+              <div className="flex-1 min-w-0"><p className="font-semibold text-sm truncate">{file?.name}</p><p className="text-xs text-muted-foreground">Tabela de pedidos VivaFrutaz reconhecida automaticamente</p></div>
+              <StatusBadge status={status} />
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+              <div className="rounded-xl bg-muted p-3"><b className="text-xl">{catalogPreview.sourceRows}</b><p className="text-xs">linhas lidas</p></div>
+              <div className="rounded-xl bg-muted p-3"><b className="text-xl">{catalogPreview.categories.length}</b><p className="text-xs">categorias</p></div>
+              <div className="rounded-xl bg-muted p-3"><b className="text-xl">{catalogPreview.products}</b><p className="text-xs">produtos/variações</p></div>
+              <div className="rounded-xl bg-muted p-3"><b className="text-xl">{catalogPreview.subCategories}</b><p className="text-xs">preços por categoria</p></div>
+            </div>
+            <div className="rounded-xl border p-4"><p className="text-xs font-bold mb-2">Categorias identificadas</p><div className="flex flex-wrap gap-1.5">{catalogPreview.categories.map(c => <span key={c} className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{c}</span>)}</div></div>
+            {catalogResult ? (
+              <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 space-y-1"><p className="font-bold">Importação concluída</p><p className="text-sm">Categorias criadas: <b>{catalogResult.categoriesCreated}</b></p><p className="text-sm">Produtos criados: <b>{catalogResult.productsCreated}</b></p><p className="text-sm">Produtos atualizados: <b>{catalogResult.productsUpdated}</b></p><p className="text-sm">Preços por categoria criados: <b>{catalogResult.subCategoriesCreated}</b></p></div>
+            ) : (
+              <>
+                <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">O sistema vai preservar categorias e medidas, atualizar produtos já existentes e evitar duplicações.</div>
+                <Button type="button" onClick={handleCatalogImport} disabled={status === "importing"} className="w-full gap-2">{status === "importing" ? <><Loader2 className="w-4 h-4 animate-spin" /> Importando...</> : <><ChevronRight className="w-4 h-4" /> Confirmar criação/atualização</>}</Button>
+              </>
+            )}
           </div>
         )}
 
