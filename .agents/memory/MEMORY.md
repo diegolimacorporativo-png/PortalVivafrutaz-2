@@ -8,6 +8,7 @@
 - [Node runtime recovery](node-runtime-recovery.md) — erros de módulo ausente no boot podem indicar node_modules incompleto, não defeito da aplicação.
 - [GPS em segundo plano na PWA](gps-pwa-background.md) — retomada e fila melhoram a PWA, mas tela bloqueada exige Tracker Android nativo.
 - [GPS global access](gps-global-access.md) — endpoint modular; MASTER/ADMIN/DIRECTOR têm visão global, demais internos seguem tenant-scoped.
+- [PostgreSQL JSONB membership](postgres-jsonb-membership.md) — em consultas Drizzle, prefira containment JSONB para verificar itens quando o operador `?` deixa parâmetro sem tipo.
 - [Password reset history](password-reset-security.md) — pedidos de reset nunca persistem a senha original; a senha só vai ao cadastro protegido da empresa.
 - [Users CRUD tenant scope](users-crud-tenant-scope.md) — CRUD filtra pela empresa; MASTER/DIRECTOR globais só mutam usuário explícito com empresa confirmada no banco.
 - [Reports tenant scope](reports-tenant-scope.md) — relatórios comuns são tenant-bound; somente MASTER/DIRECTOR sem empresa vinculada mantêm visão global explícita.
