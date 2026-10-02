@@ -1,0 +1,341 @@
+Analise e corrija o repositório GitHub:
+
+https://github.com/diegolimacorporativo-png/PortalVivafrutaz-2.git
+
+Você deve trabalhar **DIRETAMENTE no repositório GitHub** e fazer o commit das correções na branch `main`.
+
+## REGRA PRINCIPAL
+
+**NÃO INVENTE NADA NOVO.**
+
+Não faça redesign, refatoração ampla, reorganização desnecessária ou criação de funcionalidades novas.
+
+O objetivo é **corrigir somente problemas REAIS encontrados no código atual**, especialmente o erro de build da Vercel.
+
+**NÃO DUPLIQUE NADA.**
+
+Antes de criar qualquer arquivo, configuração, rota, componente, variável ou funcionalidade, procure no projeto inteiro se aquilo já existe.
+
+Se já existir, **corrija ou reutilize o que existe**.
+
+Não crie uma segunda versão de algo que já existe.
+
+---
+
+# CONTEXTO
+
+O projeto é um monorepo/workspace.
+
+Estrutura principal:
+
+```text
+PortalVivafrutaz-2/
+├── client/
+├── server/
+├── shared/
+└── ...
+```
+
+O backend já está funcionando no Render:
+
+```text
+https://portalvivafrutaz-2.onrender.com/
+```
+
+**NÃO altere o backend.**
+
+O frontend será publicado na Vercel usando:
+
+```text
+Root Directory: client
+```
+
+---
+
+# ERRO REAL DA VERCEL
+
+O build atual da Vercel chega ao Vite, mas falha:
+
+```text
+[vite]: Rollup failed to resolve import "@/components/ui/toaster"
+from "/vercel/path0/client/src/App.tsx"
+```
+
+O arquivo `toaster` foi encontrado na auditoria do projeto:
+
+```text
+client/src/components/ui/toaster.tsx
+```
+
+Portanto:
+
+**NÃO crie outro `toaster.tsx`.**
+
+O problema deve ser investigado na resolução do alias/configuração do Vite/TypeScript/workspace.
+
+---
+
+# O QUE VOCÊ DEVE FAZER
+
+Faça primeiro uma auditoria do código existente.
+
+Verifique:
+
+1. `client/src/App.tsx`
+2. `client/src/components/ui/toaster.tsx`
+3. configuração atual do Vite
+4. configuração atual do TypeScript
+5. `package.json` da raiz
+6. `client/package.json`
+7. `pnpm-workspace.yaml`, se existir
+8. `pnpm-lock.yaml`
+9. todos os aliases `@`
+10. imports `@/...` existentes no frontend
+11. configuração atual do Tailwind
+12. configuração atual de build
+13. configuração existente para Vercel, se houver.
+
+---
+
+# CORREÇÃO DO ALIAS
+
+Descubra como o alias `@` está configurado atualmente.
+
+O objetivo é fazer:
+
+```text
+@/components/ui/toaster
+```
+
+resolver para:
+
+```text
+client/src/components/ui/toaster.tsx
+```
+
+**Não crie outro componente.**
+
+Se a configuração existente estiver errada para o Vercel com `Root Directory = client`, faça apenas o ajuste mínimo necessário.
+
+Se já existir `vite.config`, **edite o existente**.
+
+Não crie uma segunda configuração Vite sem necessidade.
+
+Se já existir `tsconfig`, **edite o existente**.
+
+Não crie outro `tsconfig` duplicado sem necessidade.
+
+---
+
+# VERCEL
+
+Verifique se já existe configuração Vercel.
+
+Procure:
+
+```text
+vercel.json
+```
+
+em todo o projeto.
+
+Se já existir, **não crie outro**.
+
+Se não existir e somente se for realmente necessário para o funcionamento do frontend no Vercel, crie a configuração mínima necessária.
+
+---
+
+# API / RENDER
+
+Audite como o frontend atual chama o backend.
+
+Procure:
+
+```text
+fetch(
+axios
+/api/
+VITE_
+API_URL
+import.meta.env
+process.env
+```
+
+O frontend atualmente utiliza chamadas `/api/...`.
+
+Verifique como essas chamadas são encaminhadas no projeto.
+
+Se for necessário configurar um rewrite para o backend, use:
+
+```text
+https://portalvivafrutaz-2.onrender.com
+```
+
+Mas:
+
+**NÃO crie uma nova arquitetura de API.**
+
+**NÃO altere todos os fetches existentes sem necessidade.**
+
+**NÃO duplique endpoints.**
+
+**NÃO crie uma segunda camada de API.**
+
+Preserve o mecanismo atual e faça somente o ajuste necessário para o frontend hospedado na Vercel conseguir acessar o backend existente no Render.
+
+---
+
+# TAILWIND
+
+A Vercel também mostrou:
+
+```text
+The `content` option in your Tailwind CSS configuration is missing or empty.
+```
+
+Investigue o arquivo de configuração Tailwind existente.
+
+Se estiver realmente incorreto, faça a correção mínima.
+
+Se for apenas um warning que não impede o funcionamento e a configuração atual estiver deliberada, não faça alterações desnecessárias.
+
+---
+
+# PNPM
+
+A Vercel detectou:
+
+```text
+pnpm@10.26.1
+```
+
+e:
+
+```text
+Scope: all 4 workspace projects
+```
+
+O projeto usa pnpm/workspaces.
+
+**Não troque para npm.**
+
+**Não remova `pnpm-lock.yaml`.**
+
+**Não faça downgrade de dependências.**
+
+**Não atualize dependências sem necessidade.**
+
+---
+
+# NÃO ALTERAR
+
+Preserve completamente:
+
+* backend
+* Render
+* Supabase
+* banco de dados
+* autenticação
+* sessão
+* `SESSION_SECRET`
+* Edge Functions
+* regras de negócio
+* rotas existentes
+* telas existentes
+* componentes existentes
+* layout
+* identidade visual
+* funcionalidades do ERP
+* integrações existentes.
+
+Não faça melhorias fora do problema atual.
+
+---
+
+# AUDITORIA DE DUPLICAÇÃO
+
+Antes de criar qualquer coisa, pesquise no projeto.
+
+Especialmente:
+
+* `vercel.json`
+* `vite.config.*`
+* `tsconfig.*`
+* `toaster.*`
+* componentes Toast
+* aliases
+* rotas
+* endpoints
+* arquivos `.env`
+* configurações de API.
+
+Se houver duplicação existente, **não replique a duplicação**.
+
+Corrija a estrutura existente.
+
+---
+
+# TESTE OBRIGATÓRIO
+
+Depois da correção:
+
+1. Rode o build exatamente como o Vercel executará.
+2. Confirme que o erro:
+
+```text
+@/components/ui/toaster
+```
+
+desapareceu.
+3. Procure outros imports quebrados.
+4. Procure erros TypeScript.
+5. Procure arquivos inexistentes referenciados pelo frontend.
+6. Verifique se o alias `@` funciona.
+7. Verifique se o frontend continua usando o backend do Render.
+8. Verifique se não houve alteração desnecessária no backend.
+
+Se aparecer outro erro REAL durante o build, corrija-o somente se ele for consequência necessária do build/deploy.
+
+Não faça alterações preventivas sem evidência.
+
+---
+
+# COMMIT NO GITHUB
+
+Depois de corrigir e testar:
+
+Faça o commit diretamente na:
+
+```text
+main
+```
+
+Não crie uma nova branch se não for necessário.
+
+Mensagem sugerida:
+
+```text
+fix: corrigir build do frontend para Vercel
+```
+
+No final informe:
+
+1. causa exata do erro;
+2. arquivos realmente alterados;
+3. o que foi alterado em cada arquivo;
+4. resultado do build;
+5. confirmação de que não foram criados componentes/funcionalidades duplicados;
+6. hash do commit;
+7. confirmação de que o backend do Render não foi alterado.
+
+## REGRA FINAL
+
+Se você encontrar algo que **não precisa ser alterado**, NÃO altere.
+
+Se já existe uma solução no projeto, **reutilize-a**.
+
+Se não houver evidência de que uma alteração é necessária, **não faça a alteração**.
+
+O objetivo é:
+
+**CORRIGIR O PROBLEMA EXISTENTE, NÃO RECONSTRUIR O PROJETO.**
