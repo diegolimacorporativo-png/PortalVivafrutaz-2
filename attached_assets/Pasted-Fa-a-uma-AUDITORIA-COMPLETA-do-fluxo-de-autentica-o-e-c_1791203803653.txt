@@ -1,0 +1,106 @@
+Faça uma AUDITORIA COMPLETA do fluxo de autenticação e conexão do projeto PortalVivafrutaz-2.
+
+IMPORTANTE:
+
+* NÃO faça alterações no código ainda.
+* NÃO crie novas funcionalidades.
+* NÃO altere arquitetura.
+* NÃO gere variáveis aleatórias.
+* Primeiro investigue e me entregue um diagnóstico preciso.
+* O projeto está publicado com frontend na Vercel e backend no Render.
+* Backend atual: https://portalvivafrutaz-2.onrender.com/
+* O banco utilizado é Supabase/PostgreSQL.
+
+O problema atual é:
+
+O frontend publicado na Vercel abre normalmente, porém ao tentar fazer login com credenciais que deveriam funcionar, o sistema retorna "acesso negado".
+
+No Vercel já existem várias Environment Variables, incluindo:
+
+SUPABASE_URL
+SUPABASE_ANON_KEY
+SUPABASE_SECRET_KEY
+SUPABASE_JWT_SECRET
+POSTGRES_URL
+POSTGRES_PRISMA_URL
+POSTGRES_HOST
+POSTGRES_DATABASE
+POSTGRES_USER
+POSTGRES_PASSWORD
+
+Também existe uma variável VITE_API_URL apontando para:
+
+https://portalvivafrutaz-2.onrender.com
+
+Quero que você descubra exatamente como este projeto está implementado.
+
+AUDITE:
+
+1. FRONTEND
+
+* Identifique exatamente qual arquivo implementa a tela/login.
+* Identifique para qual URL/endpoint o frontend envia usuário e senha.
+* Verifique se usa:
+
+  * Supabase Auth diretamente;
+  * API própria do backend;
+  * /api/auth/login;
+  * outra rota.
+* Identifique exatamente quais Environment Variables o frontend espera.
+* Procure por:
+  VITE_API_URL
+  VITE_SUPABASE_URL
+  VITE_SUPABASE_ANON_KEY
+  SUPABASE_URL
+  SUPABASE_ANON_KEY
+  /api/auth/login
+  fetch(
+  axios
+  credentials: "include"
+* Verifique se existe configuração de proxy/rewrite no Vercel.
+* Verifique se o frontend está realmente usando a variável VITE_API_URL ou se ela foi criada no Vercel mas nunca é utilizada pelo código.
+
+2. BACKEND
+
+* Identifique exatamente a rota responsável pelo login.
+* Mostre o fluxo completo:
+  frontend → endpoint → autenticação → banco → sessão/cookie/JWT.
+* Verifique como o backend acessa o Supabase/PostgreSQL.
+* Identifique quais Environment Variables o backend realmente espera.
+* NÃO exponha valores secretos. Apenas informe os NOMES das variáveis.
+* Verifique se o backend espera SUPABASE_DATABASE_URL, DATABASE_URL, POSTGRES_URL ou outra variável.
+* Verifique se existe incompatibilidade entre os nomes usados pelo código e os nomes configurados no Render/Vercel.
+
+3. BANCO / SUPABASE
+
+* Verifique qual tabela é utilizada para autenticar usuários.
+* Verifique se o sistema usa Supabase Auth ou uma tabela própria de usuários.
+* Identifique o mecanismo de senha utilizado.
+* Verifique se existe alguma condição de status, role, tenant, empresa, ativo/inativo ou permissão que possa gerar "acesso negado".
+* Não altere usuários ou senhas.
+
+4. SESSÃO
+
+* Verifique se o login depende de cookie/session.
+* Verifique:
+
+  * SameSite
+  * Secure
+  * CORS
+  * credentials: include
+  * domínio do cookie
+  * origem Vercel → Render
+* Verifique se o backend está configurado para aceitar requisições vindas do domínio atual da Vercel.
+
+5. VERCEL
+
+* Verifique se o frontend precisa de variáveis VITE_*.
+* Verifique se VITE_API_URL realmente é utilizada.
+* Verifique se existe vercel.json, rewrites, redirects ou qualquer configuração necessária para /api.
+* Verifique se as variáveis precisam estar em Production.
+* Não peça para eu criar nenhuma variável antes de concluir a auditoria.
+
+6. RENDER
+
+* Verifique no código quais variáveis o backend espera.
+* Verifique se a U
