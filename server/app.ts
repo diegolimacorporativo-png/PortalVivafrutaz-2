@@ -51,6 +51,7 @@ export async function buildApp(): Promise<BuildAppResult> {
   const allowedOrigins = [
     /\.replit\.dev$/,
     /\.replit\.app$/,
+    "https://portalvivafrutaz-2-client-psi.vercel.app",
     /^http:\/\/localhost(:\d+)?$/,
     /^http:\/\/127\.0\.0\.1(:\d+)?$/,
   ];
