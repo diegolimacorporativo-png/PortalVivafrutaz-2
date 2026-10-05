@@ -1,0 +1,82 @@
+Com base na auditoria que você acabou de concluir, agora faça SOMENTE a correção necessária para permitir que o frontend publicado na Vercel consiga realizar login através do backend Render.
+
+CAUSA CONFIRMADA:
+
+O backend em `server/app.ts` possui um filtro de origem que atualmente aceita apenas origens do Replit e ambientes locais.
+
+Quando uma requisição chega do frontend Vercel, o backend responde:
+
+403 {"message":"Acesso negado"}
+
+Esse bloqueio acontece ANTES da autenticação.
+
+O frontend usa:
+
+POST /api/auth/login
+
+e o `client/vercel.json` encaminha `/api/...` para:
+
+https://portalvivafrutaz-2.onrender.com/api/...
+
+OBJETIVO:
+
+Permitir o domínio real da Vercel no filtro de origem do backend, sem remover a proteção existente.
+
+REGRAS:
+
+1. NÃO remover o filtro de origem.
+2. NÃO liberar `*`.
+3. NÃO permitir qualquer origem.
+4. NÃO desabilitar CORS.
+5. NÃO alterar o sistema de autenticação.
+6. NÃO alterar banco de dados.
+7. NÃO alterar usuários ou senhas.
+8. NÃO migrar para Supabase Auth.
+9. NÃO criar novas formas de login.
+10. NÃO alterar o fluxo de sessão.
+11. Preservar express-session, connect-pg-simple e credentials: "include".
+12. Manter as origens locais e Replit que já funcionam.
+13. Adicionar somente o domínio real de produção da Vercel.
+14. Se o projeto possuir uma forma adequada de configurar a origem via variável de ambiente, prefira essa solução; caso contrário, adicione a origem explicitamente no local correto.
+15. Não adicionar secrets ao frontend.
+
+ANTES DE ALTERAR:
+
+Confirme no código qual é exatamente o filtro responsável pelo:
+
+403 {"message":"Acesso negado"}
+
+e mostre qual lista/condição está causando o bloqueio.
+
+DEPOIS DA ALTERAÇÃO:
+
+1. Verifique se o TypeScript continua compilando.
+2. Rode o build/teste disponível no projeto.
+3. Verifique que:
+
+   * requisição sem Origin continua funcionando como antes;
+   * origem local continua permitida;
+   * origens Replit continuam permitidas;
+   * origem Vercel passa pelo filtro;
+   * origem aleatória continua sendo bloqueada.
+4. Não altere outras partes do projeto.
+
+IMPORTANTE SOBRE O DOMÍNIO:
+
+Use o domínio de produção REAL configurado no projeto Vercel. Não invente um domínio.
+
+Se o domínio não estiver disponível no código/configuração, pare antes de fazer a alteração e me informe exatamente qual domínio você precisa que eu forneça.
+
+DEPOIS:
+
+* Mostre os arquivos modificados.
+* Mostre resumidamente a alteração.
+* Confirme o resultado do build/teste.
+* Faça commit das alterações na branch `main`.
+* NÃO faça alterações adicionais.
+
+O objetivo é somente corrigir:
+
+Vercel → Render → 403 Acesso negado
+
+sem modificar o restante do sistema.
