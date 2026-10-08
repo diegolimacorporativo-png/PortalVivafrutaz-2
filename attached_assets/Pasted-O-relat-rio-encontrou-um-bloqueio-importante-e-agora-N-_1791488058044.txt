@@ -1,0 +1,295 @@
+O relatório encontrou um bloqueio importante e agora NÃO quero que você tente contorná-lo.
+
+O problema principal é:
+
+`public.driver_journeys` não foi encontrada na conexão Supabase consultada pelo ambiente Replit.
+
+Porém:
+
+* o backend público no Render responde `200`;
+* o health check informa Supabase conectado;
+* existe no projeto a migration:
+  `migrations/20260930_driver_operations.sql`
+* essa migration deveria criar `driver_journeys`;
+* o Tracking/ETA depende dessa estrutura.
+
+Antes de criar qualquer dado de teste ou aplicar qualquer migration, precisamos descobrir exatamente qual banco está sendo utilizado em cada ambiente.
+
+## 1. NÃO APLICAR MIGRATION AINDA
+
+NÃO execute:
+
+* migration;
+* ALTER TABLE;
+* CREATE TABLE;
+* DROP;
+* DELETE;
+* UPDATE;
+* qualquer alteração estrutural no Supabase.
+
+Primeiro faça somente diagnóstico/leitura.
+
+Não quero corrigir o banco no escuro.
+
+## 2. COMPARAR AS CONEXÕES
+
+Determine:
+
+### Replit
+
+Qual banco/conexão o ambiente Replit está utilizando?
+
+### Render
+
+Qual banco/conexão o backend público está utilizando?
+
+Não mostre secrets, passwords ou URLs completas contendo credenciais.
+
+Mostre somente informações não sensíveis suficientes para identificar se é o mesmo banco/projeto.
+
+Por exemplo:
+
+* Supabase project ref, se disponível;
+* host mascarado;
+* banco/schema;
+* ambiente;
+* origem da configuração.
+
+## 3. VERIFICAR A TABELA
+
+Faça uma consulta SOMENTE DE LEITURA para confirmar:
+
+* `public.driver_journeys`
+* `public.route_stops`
+* tabelas relacionadas ao tracking;
+* tabelas relacionadas a deliveries;
+* tabelas relacionadas a drivers;
+* tabelas relacionadas a routes.
+
+Não basta dizer que `driver_journeys` não existe.
+
+Confirme também se:
+
+* existe outro schema contendo `driver_journeys`;
+* existe nome semelhante;
+* existe view;
+* existe tabela equivalente;
+* existe alguma migration alternativa que criou essa estrutura com outro nome.
+
+## 4. VERIFICAR A MIGRATION
+
+Leia:
+
+`migrations/20260930_driver_operations.sql`
+
+Determine exatamente:
+
+* quais tabelas ela cria;
+* quais índices cria;
+* quais constraints cria;
+* quais outras tabelas dependem dela;
+* se o código atual realmente espera essa migration.
+
+NÃO aplique a migration.
+
+## 5. VERIFICAR HISTÓRICO DE MIGRATIONS
+
+Descubra como esse projeto controla migrations.
+
+Verifique:
+
+* tabela de migrations;
+* mecanismo utilizado pelo Drizzle;
+* scripts de migration;
+* migrations aplicadas;
+* migrations pendentes.
+
+Quero saber especificamente se:
+
+`20260930_driver_operations.sql`
+
+está:
+
+* aplicada;
+* pendente;
+* registrada como aplicada mas ausente no banco;
+* ou fora do mecanismo atual de migration.
+
+## 6. COMPARAR COM O RENDER
+
+Como o backend público está no Render, precisamos saber se o Render está usando exatamente o mesmo banco que o Replit.
+
+NÃO exponha nenhuma credencial.
+
+Faça apenas diagnóstico.
+
+Se não for possível consultar diretamente o banco pelo Render, utilize os endpoints existentes de forma segura para confirmar indiretamente a configuração, sem alterar dados.
+
+## 7. NÃO CRIAR DADOS E2E AINDA
+
+Não crie:
+
+* empresa TESTE;
+* cliente TESTE;
+* pedido TESTE;
+* entrega TESTE;
+* rota TESTE;
+* motorista TESTE.
+
+Ainda não.
+
+Primeiro precisamos resolver a dúvida do banco/schema.
+
+## 8. SOBRE OS 408 TESTES
+
+Os 408 testes unitários passaram.
+
+Isso é um resultado positivo e deve ser preservado.
+
+Porém, foi identificado que:
+
+`tests/regression/billing-nfe-equivalence.test.ts`
+
+faz operações de escrita no Supabase e altera temporariamente configuração fiscal.
+
+NÃO execute novamente essa suíte de escrita enquanto não separar claramente:
+
+### testes somente leitura/unitários
+
+de
+
+### testes que escrevem no banco.
+
+Não altere o teste para mascarar o problema.
+
+Não delete o teste.
+
+Apenas identifique quais testes fazem escrita no banco real.
+
+## 9. OUTRO PROBLEMA ENCONTRADO
+
+O health check informa:
+
+`XSD ainda não carregado`
+
+e o uso de heap ficou aproximadamente entre 89% e 93%.
+
+Não corrija isso ainda.
+
+Apenas investigue de forma não destrutiva:
+
+* se é esperado em produção;
+* se é warning ou condição real de indisponibilidade;
+* se o XSD é necessário para o fluxo atual;
+* se o consumo de memória é persistente ou apenas durante o teste.
+
+Não faça otimização de memória agora.
+
+## 10. BUILD
+
+O build passou.
+
+Os avisos encontrados foram:
+
+* `import.meta` no validador XSD/CommonJS;
+* chunk frontend de aproximadamente 8 MB;
+* imports dinâmicos/estáticos misturados.
+
+Não faça refatoração agora.
+
+Só determine se algum desses avisos realmente impede o runtime publicado.
+
+## 11. OBJETIVO DESTE PASSO
+
+Neste momento não quero funcionalidades novas.
+
+Quero responder com certeza:
+
+### PERGUNTA 1
+
+O Render e o Replit estão conectados ao MESMO banco Supabase?
+
+### PERGUNTA 2
+
+`driver_journeys` deveria existir nesse banco?
+
+### PERGUNTA 3
+
+A migration `20260930_driver_operations.sql` está aplicada?
+
+### PERGUNTA 4
+
+Se está pendente, qual é o mecanismo correto e seguro usado pelo projeto para aplicá-la?
+
+### PERGUNTA 5
+
+Aplicar essa migration seria apenas colocar o schema esperado pelo código ou existe algum risco de alteração de dados existentes?
+
+NÃO aplique ainda.
+
+## 12. IMPORTANTE
+
+O portal está em produção, mas ainda não possui clientes/operação real.
+
+Depois que tivermos certeza de que:
+
+* Render;
+* Replit;
+* Supabase;
+* migrations;
+
+estão todos alinhados, aí sim vamos fazer o teste E2E real com registros identificados como:
+
+`TESTE VIVAFRUTAZ`
+
+Mas esse será o próximo passo.
+
+Primeiro quero diagnóstico do schema.
+
+## RELATÓRIO
+
+No final responda exatamente:
+
+### Banco Replit
+
+* Projeto:
+* Schema:
+* Tabelas principais:
+* `driver_journeys`: EXISTE / NÃO EXISTE
+
+### Banco Render
+
+* Projeto:
+* Schema:
+* Supabase conectado:
+* Mesmo banco do Replit: SIM / NÃO / NÃO FOI POSSÍVEL CONFIRMAR
+
+### Migration
+
+* Arquivo:
+* Status:
+* Mecanismo:
+* Pendente: SIM / NÃO
+
+### Tracking
+
+* `driver_journeys` necessária: SIM / NÃO
+* `route_stops`: OK / PROBLEMA
+* outras dependências:
+
+### Testes
+
+* check:
+* build:
+* unit:
+* testes que escrevem no banco real:
+
+### Conclusão
+
+Explique em linguagem simples qual é o problema e qual é o próximo passo seguro.
+
+NÃO aplique migration.
+NÃO crie dados.
+NÃO delete dados.
+NÃO altere produção.
+NÃO faça Git push.
