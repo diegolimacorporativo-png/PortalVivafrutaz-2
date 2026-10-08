@@ -163,9 +163,14 @@
       "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
     },
     "tar": "^7.0.0",
-    "shell-quote": "^1.8.2",
+    "shell-quote": "^1.12.0",
     "semver": "^7.6.0",
     "got": "^12.6.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "shell-quote": "^1.12.0"
+    }
   },
   "optionalDependencies": {
     "bufferutil": "^4.0.8"
