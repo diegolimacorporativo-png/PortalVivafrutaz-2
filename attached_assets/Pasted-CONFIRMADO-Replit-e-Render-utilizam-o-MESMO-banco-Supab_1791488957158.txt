@@ -1,0 +1,483 @@
+CONFIRMADO:
+
+Replit e Render utilizam o MESMO banco Supabase de produção.
+
+Portanto, o diagnóstico anterior está encerrado.
+
+O banco real atualmente NÃO possui:
+
+* `driver_journeys`
+* `driver_odometer_entries`
+* `driver_fuel_entries`
+* `delivery_proofs`
+
+A migration existente:
+
+`migrations/20260930_driver_operations.sql`
+
+é justamente responsável por criar essas estruturas.
+
+Ela é aditiva e não contém UPDATE ou DELETE de dados existentes.
+
+Agora podemos avançar.
+
+# ETAPA 1 — APLICAR A MIGRATION
+
+Antes de qualquer teste E2E, leia novamente:
+
+`migrations/20260930_driver_operations.sql`
+
+Confirme exatamente o DDL que será executado.
+
+Depois aplique SOMENTE essa migration no banco Supabase utilizado pelo Replit e Render.
+
+IMPORTANTE:
+
+NÃO use `db:push` para isso.
+
+NÃO faça uma sincronização ampla do schema.
+
+NÃO altere outras tabelas.
+
+NÃO execute migrations não relacionadas.
+
+NÃO faça alterações fiscais.
+
+NÃO altere usuários.
+
+NÃO altere empresas existentes.
+
+NÃO execute DELETE.
+
+A alteração autorizada neste momento é exclusivamente a criação das estruturas presentes em:
+
+`migrations/20260930_driver_operations.sql`
+
+## Depois de aplicar
+
+Faça consultas SOMENTE DE LEITURA para confirmar a existência de:
+
+* `driver_journeys`
+* `driver_odometer_entries`
+* `driver_fuel_entries`
+* `delivery_proofs`
+
+Confirme também:
+
+* colunas;
+* primary keys;
+* foreign keys;
+* índices;
+* constraints relevantes.
+
+## ETAPA 2 — VALIDAR O BACKEND
+
+Depois da migration:
+
+1. Não reinicie o sistema desnecessariamente.
+2. Verifique o backend Render.
+3. Health check.
+4. Confirme que o Supabase continua conectado.
+5. Confirme que não apareceu erro de schema.
+6. Confirme que os endpoints relacionados a jornada conseguem consultar a nova tabela.
+
+Não faça alterações adicionais se o sistema estiver funcionando.
+
+# ETAPA 3 — TESTE E2E REAL
+
+Agora sim vamos executar o teste real que foi solicitado anteriormente.
+
+O portal está em produção, porém ainda NÃO possui clientes/operação real.
+
+Portanto, podemos criar dados controlados diretamente no banco de produção.
+
+TODOS os dados criados precisam ser claramente identificados como:
+
+`TESTE VIVAFRUTAZ`
+
+ou
+
+`TESTE E2E`
+
+Não utilize clientes, empresas, motoristas ou pedidos reais.
+
+## Criar somente o mínimo necessário
+
+Criar:
+
+### Empresa
+
+`TESTE VIVAFRUTAZ`
+
+### Cliente
+
+`TESTE TRACKING E2E`
+
+### Pedido
+
+`TESTE TRACKING E2E`
+
+### Entrega
+
+`TESTE E2E`
+
+### Rota
+
+`TESTE E2E`
+
+### Motorista
+
+`MOTORISTA TESTE`
+
+Se o sistema exigir veículo:
+
+`VEÍCULO TESTE`
+
+Guardar TODOS os IDs criados.
+
+# ETAPA 4 — PEDIDO
+
+Criar um pedido de teste através do fluxo existente do sistema, quando possível.
+
+Confirmar:
+
+* empresa;
+* cliente;
+* endereço;
+* produtos;
+* status;
+* vínculo com tenant.
+
+# ETAPA 5 — ENTREGA
+
+Criar a entrega.
+
+Confirmar:
+
+* pedido;
+* endereço;
+* data;
+* janela;
+* status;
+* empresa.
+
+# ETAPA 6 — ROTA
+
+Criar uma rota de teste.
+
+Idealmente utilizar 3 paradas para validar sequência:
+
+1. TESTE — parada anterior
+2. TESTE — entrega atual
+3. TESTE — próxima entrega
+
+Confirmar que `route_stops` é a sequência oficial.
+
+NÃO utilizar `deliveries.route_position` quando existir `route_stops`.
+
+# ETAPA 7 — MOTORISTA
+
+Criar/usar somente o motorista TESTE.
+
+Associar à rota.
+
+Associar veículo TESTE se necessário.
+
+# ETAPA 8 — JORNADA
+
+Criar/iniciar uma `driver_journey`.
+
+Confirmar:
+
+* motorista;
+* rota;
+* jornada;
+* horário de início;
+* status.
+
+Esse era o ponto anteriormente bloqueado pela ausência de `driver_journeys`.
+
+# ETAPA 9 — GPS
+
+Enviar GPS controlado para o motorista TESTE.
+
+Validar:
+
+* latitude;
+* longitude;
+* timestamp;
+* motorista;
+* jornada;
+* rota.
+
+Depois testar uma posição antiga/stale.
+
+# ETAPA 10 — TRACKING AVAILABLE
+
+Testar os estados:
+
+### Sem rota
+
+`trackingAvailable = false`
+
+### Com rota, sem jornada
+
+`trackingAvailable = false`
+
+### Jornada ativa, sem GPS recente
+
+`trackingAvailable = false`
+
+### Jornada ativa + GPS recente
+
+`trackingAvailable = true`
+
+Confirmar que `SHIPPED` sozinho não ativa o rastreamento detalhado.
+
+# ETAPA 11 — TOKEN PÚBLICO
+
+Gerar o token público da entrega TESTE.
+
+Testar:
+
+* token válido;
+* token inválido;
+* entrega correta;
+* dados públicos;
+* mapa;
+* posição;
+* ETA;
+* status.
+
+Confirmar que o endpoint público NÃO expõe:
+
+* dados internos;
+* outras entregas;
+* outras empresas;
+* informações sensíveis do motorista.
+
+# ETAPA 12 — ETA
+
+Com GPS ativo:
+
+validar:
+
+* posição;
+* distância;
+* velocidade;
+* sequência;
+* paradas anteriores;
+* ETA;
+* intervalo;
+* janela;
+* atraso.
+
+Confirmar que a sequência oficial vem de `route_stops`.
+
+# ETAPA 13 — PARADAS ANTERIORES
+
+Com 3 paradas:
+
+Parada 1 → anterior
+Parada 2 → atual
+Parada 3 → próxima
+
+Confirmar que o cálculo considera corretamente as paradas anteriores.
+
+# ETAPA 14 — INCIDENTE
+
+Se o recurso de incidente já estiver implementado:
+
+criar um incidente SOMENTE na rota TESTE.
+
+Verificar se o ETA responde conforme a implementação existente.
+
+NÃO implementar novo mecanismo de incidentes agora.
+
+# ETAPA 15 — CHEGADA
+
+Simular:
+
+motorista a caminho
+→ chegada
+→ atendimento
+→ entrega concluída
+
+Confirmar que chegada não significa automaticamente entrega concluída.
+
+# ETAPA 16 — ENTREGA CONCLUÍDA
+
+Finalizar a entrega TESTE.
+
+Confirmar:
+
+* pedido;
+* entrega;
+* rota;
+* histórico;
+* status;
+* tracking;
+* ETA.
+
+Confirmar que a entrega não continua aparecendo como "a caminho".
+
+# ETAPA 17 — PWA
+
+Abrir o tracking público pelo frontend publicado.
+
+Validar:
+
+* página;
+* token;
+* mapa;
+* GPS;
+* ETA;
+* status;
+* atualização;
+* conclusão.
+
+# ETAPA 18 — TESTES AUTOMATIZADOS
+
+Depois da migration e do E2E:
+
+`npm run check`
+
+`npm run build`
+
+`npm run test:unit`
+
+Não execute novamente testes conhecidos por escrever no banco sem analisar o comportamento primeiro.
+
+Em especial, NÃO execute automaticamente:
+
+`billing-nfe-equivalence.test.ts`
+
+nem scripts fiscais/manuais que escrevem no banco.
+
+Eles são independentes do objetivo deste teste.
+
+# ETAPA 19 — LIMPEZA
+
+Depois do teste:
+
+NÃO faça limpeza automática imediatamente.
+
+Primeiro liste:
+
+* empresa criada;
+* cliente;
+* pedido;
+* entrega;
+* rota;
+* motorista;
+* veículo;
+* jornada;
+* GPS;
+* token;
+* demais registros criados.
+
+Depois avalie as dependências.
+
+Se for seguro excluir os dados TESTE sem quebrar histórico, foreign keys, auditoria ou integridade, remova SOMENTE esses registros.
+
+Se não for seguro excluir, mantenha-os claramente identificados como TESTE e informe.
+
+NUNCA execute DELETE amplo.
+
+# IMPORTANTE SOBRE O XSD E MEMÓRIA
+
+O problema:
+
+`xsd.ok=false`
+
+é fiscal e não faz parte deste teste de Tracking.
+
+Não corrija agora.
+
+Também não faça otimização de memória agora.
+
+O objetivo desta etapa é Tracking + ETA + Jornada + GPS.
+
+# NÃO FAZER
+
+Não implementar:
+
+* Push;
+* ML;
+* trânsito em tempo real;
+* nova arquitetura;
+* novo tracking;
+* novo banco;
+* novo sistema de autenticação;
+* refatoração geral;
+* otimização não relacionada;
+* Git Push.
+
+# RELATÓRIO FINAL
+
+Informe:
+
+## Migration
+
+* aplicada:
+* tabelas criadas:
+* índices:
+* constraints:
+* erros:
+
+## Ambiente
+
+* Render:
+* Replit:
+* Supabase:
+* API:
+* Frontend:
+
+## E2E
+
+| Etapa             | Resultado               |
+| ----------------- | ----------------------- |
+| Empresa           | PASSOU/FALHOU           |
+| Pedido            | PASSOU/FALHOU           |
+| Entrega           | PASSOU/FALHOU           |
+| Rota              | PASSOU/FALHOU           |
+| Motorista         | PASSOU/FALHOU           |
+| Jornada           | PASSOU/FALHOU           |
+| GPS               | PASSOU/FALHOU           |
+| trackingAvailable | PASSOU/FALHOU           |
+| Token             | PASSOU/FALHOU           |
+| Tracking público  | PASSOU/FALHOU           |
+| ETA               | PASSOU/FALHOU           |
+| Janela            | PASSOU/FALHOU           |
+| Incidente         | PASSOU/FALHOU/BLOQUEADO |
+| Chegada           | PASSOU/FALHOU           |
+| Entrega concluída | PASSOU/FALHOU           |
+
+## Testes
+
+* check:
+* build:
+* unit:
+
+## Dados de teste
+
+* criados:
+* IDs:
+* removidos:
+* mantidos:
+
+## PROBLEMAS ENCONTRADOS
+
+Liste somente problemas reais encontrados durante o teste.
+
+Para cada um:
+
+* problema;
+* causa;
+* impacto;
+* arquivo/API responsável;
+* correção necessária.
+
+NÃO corrija problemas secundários automaticamente.
+
+Primeiro conclua o teste E2E.

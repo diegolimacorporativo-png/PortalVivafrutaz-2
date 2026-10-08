@@ -5,6 +5,7 @@
 - [Supabase secret formatting](supabase-secret-formatting.md) — normalize espaços e aspas externas antes da validação estrita da URL, mantendo fail-closed.
 - [Driver panel tenant scope](driver-panel-scope.md) — aplique o tenant antes de unir deliveries e pedidos CONFIRMED ou processar filtros.
 - [Cloudflare Node gateway](cloudflare-node-gateway.md) — o Worker serve assets e encaminha APIs ao backend Node publicado; não migrar o Express/pg TCP diretamente para Workers.
+- [Shared production Supabase](shared-production-supabase.md) — Replit e Render apontam para o mesmo Supabase de produção; nenhum dos dois deve ser tratado como staging.
 - [Node runtime recovery](node-runtime-recovery.md) — erros de módulo ausente no boot podem indicar node_modules incompleto, não defeito da aplicação.
 - [GPS em segundo plano na PWA](gps-pwa-background.md) — retomada e fila melhoram a PWA, mas tela bloqueada exige Tracker Android nativo.
 - [GPS global access](gps-global-access.md) — endpoint modular; MASTER/ADMIN/DIRECTOR têm visão global, demais internos seguem tenant-scoped.
