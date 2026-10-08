@@ -34,6 +34,8 @@ export interface EtaInputStop {
   /** Pre-known status — "entregue" stops still consume their leg time but
    *  contribute zero dwell time (already done). */
   status?: string | null;
+  /** Set false when this row is the destination: arrival ETA excludes unloading time. */
+  includeDwell?: boolean;
   [key: string]: any;
 }
 
@@ -92,6 +94,20 @@ export function calculateETA(
   return stops.map((stop) => {
     const point = toGeo(stop.latitude, stop.longitude);
 
+    const normalizedStatus = String(stop.status ?? "").trim().toLocaleLowerCase("pt-BR");
+    const alreadyCompleted = ["entregue", "delivered", "cancelado", "cancelled"].includes(normalizedStatus);
+    if (alreadyCompleted) {
+      // The current GPS already represents where the driver is now. Completed
+      // route stops must not add their old travel leg or dwell time again.
+      return {
+        ...stop,
+        distanceKm: 0,
+        legMinutes: 0,
+        etaMinutes: Math.round(cumulativeMinutes),
+        etaTime: new Date(startedAtMs + cumulativeMinutes * 60_000).toISOString(),
+      };
+    }
+
     // Stop without coordinates → keep ETA flat, do not advance cursor.
     if (!point) {
       return {
@@ -111,8 +127,8 @@ export function calculateETA(
     const legMinutes = (legKm / AVG_SPEED_KMH) * 60;
     cumulativeMinutes += legMinutes;
 
-    // Add dwell time for stops that haven't been delivered yet.
-    if (stop.status !== "entregue") {
+    // Add dwell time for earlier stops, but not the customer's own destination.
+    if (stop.includeDwell !== false) {
       const dwell = typeof stop.tempoEstimadoMin === "number" && stop.tempoEstimadoMin > 0
         ? stop.tempoEstimadoMin
         : STOP_DWELL_MINS;

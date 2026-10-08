@@ -87,6 +87,13 @@ router.get(
 );
 
 router.get(
+  "/:id/tracking",
+  ordersController.ensureNumericId,
+  validate(idParamSchema, "params"),
+  asyncHandler(ordersController.tracking),
+);
+
+router.get(
   "/:id",
   ordersController.ensureNumericId,
   validate(idParamSchema, "params"),

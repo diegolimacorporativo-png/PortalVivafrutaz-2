@@ -629,8 +629,9 @@ export class LogisticsController {
 
   // ── ROUTE TRACKING (signed public token or authenticated internal session) ─
   /**
-   * GET /api/logistics/track/:token — public access requires a signed token.
-   * Authenticated internal callers may still use a numeric route id.
+   * GET /api/logistics/track/:token — route maps are internal-only, even when
+   * the caller holds a signed route capability. Customer links use delivery
+   * capabilities from /api/track/:token instead.
    *   • logistics_routes  → route header + driver assignment
    *   • logistics_drivers → driver name/phone (LEFT JOIN, may be null)
    *   • route_stops       → ordered sequence (by ordem_parada)
@@ -649,53 +650,47 @@ export class LogisticsController {
       const sessionUserId: number | undefined = (req as any).session?.userId;
       let numericActor: ActorRef | null = null;
 
-      // Do not let malformed, expired, or numeric anonymous URLs reach the
-      // database. The numeric compatibility path is session-bound only.
-      if (!publicClaims && (!sessionUserId || !/^[1-9]\d*$/.test(rawResource))) {
+      // A route token is not a customer tracking link: require a session for
+      // both token and numeric paths before querying any route details.
+      if (!sessionUserId || (!publicClaims && !/^[1-9]\d*$/.test(rawResource))) {
         return res.status(403).json({
-          error: "Link de rastreamento inválido ou expirado",
+          error: "Autenticação necessária para visualizar a rota",
         });
       }
 
-      // Numeric route ids are an authenticated compatibility path, not a
-      // public capability. Resolve the actor and tenant before any route,
-      // stop, delivery, or GPS query. A session alone must not turn a route
-      // id into a cross-company read.
-      if (!publicClaims) {
-        numericActor = await (this.service as any).repo.getUser(sessionUserId);
-        const isInternalRole =
-          numericActor &&
-          (LOGISTICS_AUTH_ROLES as readonly string[]).includes(numericActor.role);
-        const isDriverRole =
-          numericActor?.role === "DRIVER" || numericActor?.role === "MOTORISTA";
-        const isGlobalActor =
-          numericActor &&
-          numericActor.empresaId == null &&
-          (numericActor.role === "MASTER" || numericActor.role === "DIRECTOR");
+      // Resolve role and tenant ownership before querying stops, deliveries,
+      // or GPS. Signed capabilities do not bypass the internal route scope.
+      numericActor = await (this.service as any).repo.getUser(sessionUserId);
+      const isInternalRole =
+        numericActor &&
+        (LOGISTICS_AUTH_ROLES as readonly string[]).includes(numericActor.role);
+      const isDriverRole =
+        numericActor?.role === "DRIVER" || numericActor?.role === "MOTORISTA";
+      const isGlobalActor =
+        numericActor &&
+        numericActor.empresaId == null &&
+        (numericActor.role === "MASTER" || numericActor.role === "DIRECTOR");
 
-        if (!numericActor || (!isInternalRole && !isDriverRole)) {
-          return res.status(403).json({ error: "Sem permissão para rastrear esta rota" });
-        }
-        if (numericActor.empresaId == null && !isGlobalActor) {
-          return res.status(403).json({ error: "Empresa não definida" });
-        }
+      if (!numericActor || (!isInternalRole && !isDriverRole)) {
+        return res.status(403).json({ error: "Sem permissão para rastrear esta rota" });
+      }
+      if (numericActor.empresaId == null && !isGlobalActor) {
+        return res.status(403).json({ error: "Empresa não definida" });
       }
 
       const routeId = publicClaims?.resourceId ?? Number(rawResource);
-      if (numericActor) {
-        const ownedRoute = numericActor.empresaId == null
-          ? await (this.service as any).repo.getRoute(routeId)
-          : await (this.service as any).repo.getRouteForCompany(
-              routeId,
-              numericActor.empresaId,
-            );
-        if (!ownedRoute) {
-          return res.status(404).json({ error: "Route not found" });
-        }
+      const ownedRoute = numericActor.empresaId == null
+        ? await (this.service as any).repo.getRoute(routeId)
+        : await (this.service as any).repo.getRouteForCompany(
+            routeId,
+            numericActor.empresaId,
+          );
+      if (!ownedRoute) {
+        return res.status(404).json({ error: "Route not found" });
       }
 
       const tenantRoutePredicate =
-        numericActor && numericActor.empresaId != null
+        numericActor.empresaId != null
           ? sql`AND lr.empresa_id = ${numericActor.empresaId}`
           : sql``;
 

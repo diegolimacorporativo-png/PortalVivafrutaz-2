@@ -26,6 +26,7 @@ import {
 } from "../core/security/publicTrackingToken";
 import { publicTrackingLimiter } from "../core/security/rateLimit";
 import { buildPublicDeliveryTrackingPayload } from "../modules/logistics/public-tracking.dto";
+import { getPublicDeliveryTracking } from "../modules/logistics/delivery-tracking.service";
 import { db } from "../database/db";
 import {
   logisticsDrivers as driversTable,
@@ -786,6 +787,9 @@ export async function register(app: Express): Promise<void> {
       }
       const delivery = await getAuthorizedDelivery(deliveryId, actor);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
+      if (!delivery.routeId || delivery.status === 'cancelado') {
+        return res.status(409).json({ message: 'O link de rastreamento ficará disponível quando a entrega estiver vinculada a uma rota.' });
+      }
 
       const issued = createPublicTrackingToken('delivery', deliveryId);
       res.json({
@@ -805,49 +809,11 @@ export async function register(app: Express): Promise<void> {
         return res.status(403).json({ message: 'Link de rastreamento inválido ou expirado' });
       }
 
-      const delivery = await storage.getDelivery(claims.resourceId);
-      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
-
-      // Get route info for position calculation
-      const allDeliveries = delivery.scheduledDate
-        ? await storage.getDeliveries({ date: delivery.scheduledDate })
-        : [];
-      const routeDeliveries = delivery.routeId
-        ? allDeliveries.filter((d: any) => d.routeId === delivery.routeId).sort((a: any, b: any) => (a.routePosition || 0) - (b.routePosition || 0))
-        : [];
-
-      const completedBefore = routeDeliveries.filter((d: any) =>
-        d.status === 'entregue' && (d.routePosition || 0) < (delivery.routePosition || 0)
-      ).length;
-
-      // ETA calculation: 15 min per stop
-      const stopsRemaining = (delivery.routePosition || 1) - completedBefore;
-      const etaMinutes = Math.max(0, stopsRemaining * 15);
-      const etaTime = new Date(Date.now() + etaMinutes * 60000);
-
-      // GPS position if available
-      let driverPosition = null;
-      if (delivery.driverId) {
-        driverPosition = await storage.getLatestGpsPosition(delivery.driverId);
+      const payload = await getPublicDeliveryTracking(claims.resourceId);
+      if (!payload) {
+        return res.status(410).json({ message: 'Este link de rastreamento não está mais disponível.' });
       }
-
-      res.json(buildPublicDeliveryTrackingPayload({
-        status: delivery.status,
-        scheduledDate: delivery.scheduledDate,
-        deliveredAt: delivery.deliveredAt,
-        routePosition: delivery.routePosition,
-        totalStopsInRoute: routeDeliveries.length,
-        stopsAhead: stopsRemaining,
-        etaMinutes,
-        etaTime: etaTime.toISOString(),
-        driverPosition: driverPosition
-          ? {
-              latitude: driverPosition.latitude,
-              longitude: driverPosition.longitude,
-              recordedAt: driverPosition.recordedAt,
-            }
-          : null,
-      }));
+      res.json(payload);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   // ─── Driver Operations: journey, odometer, fuel and delivery proof ───────────

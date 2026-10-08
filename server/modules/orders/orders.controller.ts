@@ -10,6 +10,9 @@ import type { OrderStatus } from "./orders.workflow";
 // o errorHandler central traduz para o status correto sem que o controller
 // precise tocar no shape da resposta.
 import { validateOrderTenant } from "../../core/security/tenantGuard";
+import { requireTenantId } from "../../core/tenant/context";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../../shared/errors/AppError";
+import { getOrderDeliveryTracking } from "../logistics/delivery-tracking.service";
 
 /**
  * OrdersController — thin HTTP adapter.
@@ -87,6 +90,20 @@ export class OrdersController {
       requestedChange: o?.requestedChange ?? null,
     });
     return ok(res, detail);
+  };
+
+  /** GET /api/orders/:id/tracking — safe customer-facing delivery status. */
+  tracking = async (req: Request, res: Response) => {
+    const session: any = (req as any).session || {};
+    if (!session.userId) throw new UnauthorizedError("Não autenticado");
+    if ((session.userRole ?? session.role) !== "CLIENT") {
+      throw new ForbiddenError("Acompanhamento disponível somente para a empresa do pedido");
+    }
+    const companyId = requireTenantId();
+    const orderId = Number((req.params as any).id);
+    const tracking = await getOrderDeliveryTracking(orderId, companyId);
+    if (!tracking) throw new NotFoundError("Pedido não encontrado");
+    return ok(res, tracking);
   };
 
   /** GET /api/orders/export */

@@ -537,7 +537,7 @@ function Router() {
         {() => <TrackDelivery />}
       </Route>
       <Route path="/driver-map/:token">
-        {() => <DriverMap />}
+        {() => <ProtectedRoute component={DriverMap} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'MOTORISTA', 'DRIVER']} />}
       </Route>
       <Route path="/test-clara">
         {() => <ProtectedRoute component={TestClaraPage} role="admin" allowedRoles={['MASTER']} tabKey="test-clara" />}
@@ -576,6 +576,9 @@ function Router() {
       </Route>
       <Route path="/client/history">
         {() => <ProtectedRoute component={ClientOrderHistory} role="client" />}
+      </Route>
+      <Route path="/client/tracking/:orderId">
+        {() => <ProtectedRoute component={TrackDelivery} role="client" />}
       </Route>
       <Route path="/client/special-order">
         {() => <ProtectedRoute component={ClientSpecialOrder} role="client" />}

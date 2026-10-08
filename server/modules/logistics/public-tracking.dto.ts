@@ -1,12 +1,22 @@
 export interface PublicDeliveryTrackingInput {
   status: string;
+  deliveryStatus: string;
+  trackingAvailable: boolean;
   scheduledDate: string | null;
+  deliveryWindow: { startTime: string; endTime: string } | null;
   deliveredAt: Date | string | null;
-  routePosition: number | null;
-  totalStopsInRoute: number;
-  stopsAhead: number;
-  etaMinutes: number;
-  etaTime: string;
+  lastUpdatedAt: Date | string | null;
+  etaRange: { from: string; to: string } | null;
+  stopsBefore: number | null;
+  isNextStop: boolean;
+  isDriverNearby: boolean;
+  delayed: boolean;
+  delayMinutes: number;
+  message: string;
+  deliveryLocation: {
+    latitude: unknown;
+    longitude: unknown;
+  } | null;
   driverPosition: {
     latitude: unknown;
     longitude: unknown;
@@ -61,13 +71,31 @@ export function buildPublicDeliveryTrackingPayload(
 ) {
   return {
     status: input.status,
+    deliveryStatus: input.deliveryStatus,
+    trackingAvailable: input.trackingAvailable,
     scheduledDate: input.scheduledDate,
+    deliveryWindow: input.deliveryWindow,
     deliveredAt: publicTimestamp(input.deliveredAt),
-    routePosition: input.routePosition,
-    totalStopsInRoute: input.totalStopsInRoute,
-    stopsAhead: input.stopsAhead,
-    etaMinutes: input.etaMinutes,
-    etaTime: input.etaTime,
+    lastUpdatedAt: publicTimestamp(input.lastUpdatedAt),
+    etaRange: input.etaRange,
+    stopsBefore: input.stopsBefore,
+    isNextStop: input.isNextStop,
+    isDriverNearby: input.isDriverNearby,
+    delayed: input.delayed,
+    delayMinutes: input.delayMinutes,
+    message: input.message,
+    deliveryLocation: input.deliveryLocation
+      ? {
+          // This point belongs only to the delivery represented by this
+          // capability, so retain enough precision for its own destination.
+          lat: Number.isFinite(Number(input.deliveryLocation.latitude))
+            ? String(input.deliveryLocation.latitude)
+            : null,
+          lng: Number.isFinite(Number(input.deliveryLocation.longitude))
+            ? String(input.deliveryLocation.longitude)
+            : null,
+        }
+      : null,
     driverPosition: input.driverPosition
       ? {
           lat: publicCoordinate(input.driverPosition.latitude),
@@ -83,36 +111,13 @@ export function buildPublicRouteTrackingPayload(
 ) {
   return {
     route: {
-      name: input.route.name,
       status: input.route.status,
       deliveryDate: input.route.deliveryDate,
     },
-    // A public viewer can see that a driver is active, but not identify or
-    // contact the driver.
     driver: null,
-    stops: input.stops.map((stop) => ({
-      ordem: stop.ordem,
-      cidade: stop.cidade,
-      estado: stop.estado,
-      latitude: publicCoordinate(stop.latitude),
-      longitude: publicCoordinate(stop.longitude),
-      status: stop.status ?? null,
-    })),
-    deliveries: input.deliveries.map((delivery) => ({
-      status: delivery.status,
-      routePosition: delivery.routePosition,
-      latitude: publicCoordinate(delivery.latitude),
-      longitude: publicCoordinate(delivery.longitude),
-      scheduledDate: delivery.scheduledDate,
-      deliveredAt: publicTimestamp(delivery.deliveredAt),
-    })),
-    driverPosition: input.driverPosition
-      ? {
-          lat: publicCoordinate(input.driverPosition.lat),
-          lng: publicCoordinate(input.driverPosition.lng),
-          updatedAt: publicTimestamp(input.driverPosition.recordedAt),
-        }
-      : null,
+    stops: [],
+    deliveries: [],
+    driverPosition: null,
     viewerScope: "public" as const,
   };
 }

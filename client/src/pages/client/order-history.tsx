@@ -592,6 +592,13 @@ export default function OrderHistoryPage() {
                         <Eye className="w-3.5 h-3.5" /> Visualizar
                       </button>
 
+                      <Link
+                        href={`/client/tracking/${order.id}`}
+                        data-testid={`button-track-order-${order.id}`}
+                        className="flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors font-bold text-sm">
+                        <Truck className="w-3.5 h-3.5" /> Acompanhar entrega
+                      </Link>
+
                       {/* Edit button — only when OPEN_FOR_EDITING */}
                       {order.status === 'OPEN_FOR_EDITING' && (
                         <button
