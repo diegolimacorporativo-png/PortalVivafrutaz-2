@@ -1,0 +1,235 @@
+Agora que o problema de inicialização foi corrigido, vamos avançar SOMENTE para validação do ambiente e do fluxo completo de Tracking + ETA.
+
+NÃO implemente funcionalidades novas nesta etapa.
+
+O objetivo é provar que o que já foi implementado funciona de ponta a ponta.
+
+## 1. VALIDAR O AMBIENTE
+
+Primeiro confirme:
+
+* servidor inicia corretamente;
+* API responde;
+* frontend/PWA carrega;
+* banco está conectado;
+* migrations/schema estão compatíveis;
+* autenticação funciona;
+* configuração de tenant funciona.
+
+Verifique as variáveis de ambiente necessárias sem expor nenhum secret.
+
+Se houver referência a `heliumdb`, descubra exatamente de onde ela vem e qual é a configuração esperada.
+
+NÃO remova proteção de banco.
+
+NÃO substitua banco real por banco fictício apenas para fazer o teste passar.
+
+NÃO altere credenciais no código.
+
+## 2. NÃO EXECUTAR E2E DESTRUTIVO EM PRODUÇÃO
+
+Antes de executar Playwright ou qualquer teste que faça:
+
+* POST
+* PATCH
+* PUT
+* DELETE
+* INSERT
+* UPDATE
+
+confirme que existe um ambiente/banco de teste isolado.
+
+Se não houver banco isolado, NÃO execute testes destrutivos contra produção.
+
+Nesse caso, faça diagnóstico e informe exatamente o que falta.
+
+## 3. VALIDAR O FLUXO COMPLETO
+
+Se o ambiente seguro estiver disponível, valide este fluxo:
+
+### Empresa
+
+Criar ou utilizar uma empresa de teste.
+
+Confirmar:
+
+* tenant correto;
+* isolamento;
+* dados pertencendo à empresa correta.
+
+### Pedido
+
+Criar pedido de teste.
+
+Confirmar:
+
+* cliente;
+* produtos;
+* endereço;
+* status;
+* vínculo com empresa.
+
+### Entrega
+
+Criar entrega vinculada ao pedido.
+
+Confirmar:
+
+* data;
+* janela de entrega;
+* endereço;
+* status;
+* vínculo correto.
+
+### Rota
+
+Criar/usar rota de teste.
+
+Confirmar:
+
+* rota pertence ao tenant correto;
+* entrega está vinculada;
+* `route_stops` possui sequência oficial;
+* ordem das paradas está correta.
+
+### Motorista
+
+Associar motorista à rota.
+
+Confirmar:
+
+* motorista correto;
+* rota correta;
+* tenant correto.
+
+### Jornada
+
+Iniciar a jornada.
+
+Confirmar que o sistema diferencia:
+
+* entrega atribuída;
+* rota criada;
+* jornada iniciada;
+* GPS ativo.
+
+Não considerar simplesmente `SHIPPED` como prova de que o rastreamento está ativo.
+
+## 4. GPS
+
+Enviar uma posição GPS de teste.
+
+Validar:
+
+* latitude;
+* longitude;
+* timestamp;
+* motorista;
+* jornada;
+* rota.
+
+Depois testar GPS antigo/stale.
+
+Confirmar que uma posição muito antiga NÃO mantém o rastreamento detalhado como ativo.
+
+## 5. TRACKING AVAILABLE
+
+Validar explicitamente os estados:
+
+### Estado A
+
+Entrega sem rota.
+
+Esperado:
+`trackingAvailable = false`
+
+### Estado B
+
+Entrega com rota, mas sem jornada iniciada.
+
+Esperado:
+`trackingAvailable = false`
+
+### Estado C
+
+Jornada iniciada, mas sem GPS recente.
+
+Esperado:
+`trackingAvailable = false`
+
+### Estado D
+
+Jornada iniciada + GPS recente + motorista correto.
+
+Esperado:
+`trackingAvailable = true`
+
+Esse ponto é importante.
+
+Não quero que o sistema mostre "motorista a caminho" apenas porque a entrega possui status SHIPPED.
+
+## 6. TOKEN PÚBLICO
+
+Gerar/utilizar token público de tracking.
+
+Validar:
+
+* token válido permite consultar SOMENTE a entrega correspondente;
+* token inválido retorna erro adequado;
+* token de uma empresa não consegue acessar outra empresa;
+* endpoint público não expõe dados internos desnecessários;
+* não retorna toda a rota;
+* não retorna dados sensíveis do motorista.
+
+Testar especificamente isolamento multi-tenant.
+
+## 7. ETA
+
+Com GPS ativo, validar:
+
+* posição atual;
+* distância;
+* velocidade;
+* sequência das paradas;
+* tempo estimado;
+* janela de entrega;
+* intervalo de ETA;
+* atraso.
+
+Confirmar que o ETA utiliza a sequência oficial de `route_stops`.
+
+Se houver sequência oficial, NÃO usar `deliveries.route_position` como fonte concorrente.
+
+Só utilizar fallback legado quando realmente não existir sequência oficial.
+
+## 8. PARADAS ANTERIORES
+
+Criar/usar uma rota com múltiplas entregas.
+
+Confirmar que o ETA de uma entrega considera corretamente as paradas anteriores da rota.
+
+Exemplo:
+
+Parada 1 → entregue
+Parada 2 → atual
+Parada 3 → futura
+
+O ETA da parada 3 deve considerar o deslocamento/paradas necessárias antes dela.
+
+## 9. JANELA DE ENTREGA
+
+Testar pelo menos:
+
+* dentro da janela;
+* ETA antes da janela;
+* ETA dentro da janela;
+* ETA depois da janela;
+* janela já encerrada.
+
+Confirmar que o sistema diferencia corretamente:
+
+* ETA previsto;
+* janela de entrega;
+* atraso.
+
+Não inventar regras novas; usar a lógica já e

@@ -1,0 +1,424 @@
+Agora que o problema de inicialização foi corrigido, vamos avançar SOMENTE para validação do ambiente e do fluxo completo de Tracking + ETA.
+
+NÃO implemente funcionalidades novas nesta etapa.
+
+O objetivo é provar que o que já foi implementado funciona de ponta a ponta.
+
+## 1. VALIDAR O AMBIENTE
+
+Primeiro confirme:
+
+* servidor inicia corretamente;
+* API responde;
+* frontend/PWA carrega;
+* banco está conectado;
+* migrations/schema estão compatíveis;
+* autenticação funciona;
+* configuração de tenant funciona.
+
+Verifique as variáveis de ambiente necessárias sem expor nenhum secret.
+
+Se houver referência a `heliumdb`, descubra exatamente de onde ela vem e qual é a configuração esperada.
+
+NÃO remova proteção de banco.
+
+NÃO substitua banco real por banco fictício apenas para fazer o teste passar.
+
+NÃO altere credenciais no código.
+
+## 2. NÃO EXECUTAR E2E DESTRUTIVO EM PRODUÇÃO
+
+Antes de executar Playwright ou qualquer teste que faça:
+
+* POST
+* PATCH
+* PUT
+* DELETE
+* INSERT
+* UPDATE
+
+confirme que existe um ambiente/banco de teste isolado.
+
+Se não houver banco isolado, NÃO execute testes destrutivos contra produção.
+
+Nesse caso, faça diagnóstico e informe exatamente o que falta.
+
+## 3. VALIDAR O FLUXO COMPLETO
+
+Se o ambiente seguro estiver disponível, valide este fluxo:
+
+### Empresa
+
+Criar ou utilizar uma empresa de teste.
+
+Confirmar:
+
+* tenant correto;
+* isolamento;
+* dados pertencendo à empresa correta.
+
+### Pedido
+
+Criar pedido de teste.
+
+Confirmar:
+
+* cliente;
+* produtos;
+* endereço;
+* status;
+* vínculo com empresa.
+
+### Entrega
+
+Criar entrega vinculada ao pedido.
+
+Confirmar:
+
+* data;
+* janela de entrega;
+* endereço;
+* status;
+* vínculo correto.
+
+### Rota
+
+Criar/usar rota de teste.
+
+Confirmar:
+
+* rota pertence ao tenant correto;
+* entrega está vinculada;
+* `route_stops` possui sequência oficial;
+* ordem das paradas está correta.
+
+### Motorista
+
+Associar motorista à rota.
+
+Confirmar:
+
+* motorista correto;
+* rota correta;
+* tenant correto.
+
+### Jornada
+
+Iniciar a jornada.
+
+Confirmar que o sistema diferencia:
+
+* entrega atribuída;
+* rota criada;
+* jornada iniciada;
+* GPS ativo.
+
+Não considerar simplesmente `SHIPPED` como prova de que o rastreamento está ativo.
+
+## 4. GPS
+
+Enviar uma posição GPS de teste.
+
+Validar:
+
+* latitude;
+* longitude;
+* timestamp;
+* motorista;
+* jornada;
+* rota.
+
+Depois testar GPS antigo/stale.
+
+Confirmar que uma posição muito antiga NÃO mantém o rastreamento detalhado como ativo.
+
+## 5. TRACKING AVAILABLE
+
+Validar explicitamente os estados:
+
+### Estado A
+
+Entrega sem rota.
+
+Esperado:
+`trackingAvailable = false`
+
+### Estado B
+
+Entrega com rota, mas sem jornada iniciada.
+
+Esperado:
+`trackingAvailable = false`
+
+### Estado C
+
+Jornada iniciada, mas sem GPS recente.
+
+Esperado:
+`trackingAvailable = false`
+
+### Estado D
+
+Jornada iniciada + GPS recente + motorista correto.
+
+Esperado:
+`trackingAvailable = true`
+
+Esse ponto é importante.
+
+Não quero que o sistema mostre "motorista a caminho" apenas porque a entrega possui status SHIPPED.
+
+## 6. TOKEN PÚBLICO
+
+Gerar/utilizar token público de tracking.
+
+Validar:
+
+* token válido permite consultar SOMENTE a entrega correspondente;
+* token inválido retorna erro adequado;
+* token de uma empresa não consegue acessar outra empresa;
+* endpoint público não expõe dados internos desnecessários;
+* não retorna toda a rota;
+* não retorna dados sensíveis do motorista.
+
+Testar especificamente isolamento multi-tenant.
+
+## 7. ETA
+
+Com GPS ativo, validar:
+
+* posição atual;
+* distância;
+* velocidade;
+* sequência das paradas;
+* tempo estimado;
+* janela de entrega;
+* intervalo de ETA;
+* atraso.
+
+Confirmar que o ETA utiliza a sequência oficial de `route_stops`.
+
+Se houver sequência oficial, NÃO usar `deliveries.route_position` como fonte concorrente.
+
+Só utilizar fallback legado quando realmente não existir sequência oficial.
+
+## 8. PARADAS ANTERIORES
+
+Criar/usar uma rota com múltiplas entregas.
+
+Confirmar que o ETA de uma entrega considera corretamente as paradas anteriores da rota.
+
+Exemplo:
+
+Parada 1 → entregue
+Parada 2 → atual
+Parada 3 → futura
+
+O ETA da parada 3 deve considerar o deslocamento/paradas necessárias antes dela.
+
+## 9. JANELA DE ENTREGA
+
+Testar pelo menos:
+
+* dentro da janela;
+* ETA antes da janela;
+* ETA dentro da janela;
+* ETA depois da janela;
+* janela já encerrada.
+
+Confirmar que o sistema diferencia corretamente:
+
+* ETA previsto;
+* janela de entrega;
+* atraso.
+
+Não inventar regras novas; usar a lógica já existente.
+
+## 10. INCIDENTE
+
+Se a funcionalidade de incidente já estiver implementada, criar um incidente de teste que afete a rota.
+
+Confirmar:
+
+* incidente fica vinculado à rota/entrega correta;
+* ETA é recalculado conforme a implementação existente;
+* histórico permanece registrado.
+
+Se o sistema ainda não tiver suporte completo para determinado tipo de incidente, NÃO implementar agora. Apenas documente.
+
+## 11. CHEGADA
+
+Testar a transição:
+
+rota em andamento
+→ motorista chega
+→ entrega em atendimento
+→ entrega concluída
+
+Validar que:
+
+* chegada não significa automaticamente entrega concluída;
+* o status correto é mantido em cada etapa;
+* timestamps são registrados corretamente.
+
+## 12. CONCLUSÃO
+
+Finalizar a entrega.
+
+Confirmar:
+
+* status final;
+* histórico;
+* rota;
+* pedido;
+* tracking;
+* ETA;
+* eventos/outbox, se aplicável.
+
+Depois verificar que uma entrega concluída não continua aparecendo como "a caminho".
+
+## 13. PWA
+
+Validar a página pública de tracking.
+
+Confirmar:
+
+* carregamento;
+* token;
+* status;
+* mapa;
+* posição;
+* ETA;
+* janela;
+* atualização;
+* estado de entrega concluída.
+
+Não transformar o PWA em aplicativo de GPS.
+
+O GPS continua vindo do Android Tracker/motorista.
+
+## 14. ANDROID TRACKER
+
+Não alterar o Android Tracker nesta etapa.
+
+Apenas confirmar que a arquitetura continua:
+
+Android Tracker
+→ GPS
+→ API
+→ rota/jornada
+→ Tracking público/PWA.
+
+Não implementar localização em segundo plano pelo navegador.
+
+## 15. TESTES EXISTENTES
+
+Depois da validação:
+
+Executar:
+
+`npm run check`
+
+`npm run build`
+
+`npm run test:unit`
+
+Se houver suíte E2E segura e isolada, executar também.
+
+Não mascarar falhas.
+
+Não apagar testes.
+
+Não modificar testes somente para fazê-los passar.
+
+## 16. SE O BANCO BLOQUEAR O E2E
+
+Se o ambiente continuar bloqueando o E2E por banco/configuração:
+
+NÃO tente contornar removendo proteções.
+
+Informe:
+
+* qual variável está faltando;
+* qual conexão está sendo usada;
+* qual proteção está impedindo;
+* se o banco está acessível;
+* qual seria a configuração necessária;
+* quais testes puderam ser executados;
+* quais ficaram bloqueados.
+
+NÃO exponha valores de secrets.
+
+## 17. NÃO IMPLEMENTAR NESTA ETAPA
+
+Não mexer agora em:
+
+* Push Notifications
+* ML de ETA
+* trânsito em tempo real
+* capacidade avançada de veículos
+* nova arquitetura
+* refatoração geral
+* novo sistema de tracking
+* novo banco
+* nova autenticação
+* GitHub/Git Push
+
+O objetivo agora é VALIDAR, não expandir.
+
+## RELATÓRIO FINAL
+
+Ao terminar, entregue:
+
+### Ambiente
+
+* Start:
+* API:
+* Frontend:
+* Banco:
+* Auth:
+
+### Testes
+
+* check:
+* build:
+* unit:
+* E2E:
+
+### Tracking
+
+* rota:
+* motorista:
+* jornada:
+* GPS:
+* trackingAvailable:
+* token público:
+* multi-tenant:
+
+### ETA
+
+* sequência:
+* GPS:
+* velocidade:
+* paradas anteriores:
+* janela:
+* atraso:
+* incidente:
+
+### Fluxo final
+
+Pedido → Entrega → Rota → Motorista → Jornada → GPS → Tracking → ETA → Chegada → Entrega concluída
+
+Informe claramente:
+
+* PASSOU
+* FALHOU
+* BLOQUEADO
+
+para cada etapa.
+
+Se encontrar um bug funcional real, descreva primeiro o bug, a causa provável e o impacto.
+
+NÃO saia corrigindo vários pontos automaticamente.
+
+Só faça correções se forem pequenas, diretamente relacionadas ao fluxo e seguras. Para qualquer alteração estrutural, pare e reporte antes.

@@ -1,0 +1,459 @@
+Agora vamos fazer a validação real do Portal Vivafrutaz.
+
+IMPORTANTE: O projeto está em produção e o banco utilizado é o banco REAL da aplicação.
+
+NÃO EXISTE banco de teste separado.
+
+O site está no ar, porém AINDA NÃO POSSUI CLIENTES REAIS nem operação real acontecendo.
+
+Portanto, neste momento, vamos utilizar o próprio ambiente de produção para realizar um teste controlado de ponta a ponta.
+
+NÃO invente a necessidade de criar banco de testes, staging ou outro ambiente.
+
+## OBJETIVO
+
+Quero validar o funcionamento REAL do sistema:
+
+Empresa → Pedido → Entrega → Rota → Motorista → Jornada → GPS → Tracking → ETA → Chegada → Entrega concluída.
+
+Como ainda não existem clientes reais, podemos criar registros de teste diretamente no banco de produção.
+
+TODOS os registros criados para teste devem ser claramente identificáveis como TESTE para podermos localizá-los e removê-los posteriormente.
+
+Exemplo de identificação:
+
+* Empresa: TESTE VIVAFRUTAZ
+* Cliente: TESTE TRACKING
+* Pedido: TESTE TRACKING E2E
+* Entrega: TESTE E2E
+* Rota: TESTE E2E
+* Motorista: MOTORISTA TESTE
+
+Não utilizar dados de clientes reais.
+
+## REGRA MAIS IMPORTANTE
+
+NÃO altere registros que não foram criados especificamente para este teste.
+
+NÃO delete dados existentes.
+
+NÃO execute DELETE amplo.
+
+NÃO faça UPDATE em massa.
+
+NÃO altere configurações de empresas existentes.
+
+NÃO altere usuários reais.
+
+NÃO altere credenciais reais.
+
+NÃO mexa em dados fiscais reais.
+
+NÃO altere configurações de produção sem necessidade.
+
+O teste deve ficar isolado nos registros identificados como TESTE.
+
+## 1. PRIMEIRO: VALIDAR O AMBIENTE
+
+Antes de criar qualquer dado:
+
+* iniciar a aplicação;
+* confirmar que API responde;
+* confirmar frontend;
+* confirmar banco;
+* confirmar autenticação;
+* confirmar que o tenant funciona;
+* confirmar que o sistema está operacional.
+
+Executar:
+
+`npm run check`
+
+`npm run build`
+
+`npm run test:unit`
+
+Não modificar testes apenas para fazê-los passar.
+
+## 2. CRIAR DADOS CONTROLADOS DE TESTE
+
+Utilize os próprios mecanismos do sistema sempre que possível.
+
+Criar uma estrutura mínima de teste:
+
+### Empresa
+
+`TESTE VIVAFRUTAZ`
+
+### Cliente
+
+`TESTE TRACKING E2E`
+
+### Pedido
+
+`TESTE TRACKING E2E`
+
+### Entrega
+
+`TESTE E2E`
+
+### Rota
+
+`TESTE E2E`
+
+### Motorista
+
+`MOTORISTA TESTE`
+
+Não criar dados desnecessários.
+
+Guardar os IDs dos registros criados para o teste.
+
+## 3. PEDIDO
+
+Criar um pedido de teste e confirmar:
+
+* empresa;
+* cliente;
+* endereço;
+* produtos;
+* status;
+* vínculo correto.
+
+## 4. ENTREGA
+
+Criar a entrega de teste.
+
+Confirmar:
+
+* pedido;
+* empresa;
+* endereço;
+* data;
+* janela de entrega;
+* status.
+
+## 5. ROTA
+
+Criar uma rota de teste com pelo menos 3 paradas, se o sistema permitir.
+
+Exemplo:
+
+1. TESTE E2E — parada anterior
+2. TESTE E2E — entrega atual
+3. TESTE E2E — próxima entrega
+
+O objetivo é validar que o ETA considera a sequência oficial.
+
+Confirmar que `route_stops` é a fonte oficial da ordem das paradas.
+
+## 6. MOTORISTA
+
+Associar o motorista de teste à rota.
+
+Não utilizar motorista real de operação.
+
+## 7. JORNADA
+
+Iniciar a jornada de teste.
+
+Confirmar que:
+
+* rota está ativa;
+* jornada está ativa;
+* motorista está vinculado;
+* entrega está vinculada à rota.
+
+## 8. GPS
+
+Enviar posições GPS CONTROLADAS para o motorista de teste.
+
+Utilizar coordenadas de teste apropriadas.
+
+Validar:
+
+* latitude;
+* longitude;
+* timestamp;
+* motorista;
+* jornada;
+* rota.
+
+Depois testar também uma posição antiga para confirmar o comportamento de GPS stale.
+
+## 9. TRACKING AVAILABLE
+
+Validar explicitamente:
+
+### Antes da rota
+
+`trackingAvailable = false`
+
+### Rota criada, mas jornada não iniciada
+
+`trackingAvailable = false`
+
+### Jornada iniciada sem GPS recente
+
+`trackingAvailable = false`
+
+### Jornada iniciada + GPS recente
+
+`trackingAvailable = true`
+
+Confirmar que o sistema NÃO considera simplesmente `SHIPPED` como "motorista a caminho".
+
+## 10. TRACKING PÚBLICO
+
+Gerar o token público da entrega de teste.
+
+Abrir o tracking público.
+
+Confirmar:
+
+* token funciona;
+* entrega correta aparece;
+* mapa funciona;
+* posição aparece;
+* ETA aparece;
+* status aparece;
+* informações sensíveis não são expostas.
+
+Também testar token inválido.
+
+## 11. ISOLAMENTO MULTI-TENANT
+
+Usando os dados de teste, confirmar que uma empresa não consegue acessar dados de outra empresa.
+
+NÃO criar uma estrutura complexa apenas para isso.
+
+Use os próprios mecanismos existentes do sistema para validar o isolamento.
+
+## 12. ETA
+
+Com GPS ativo, validar:
+
+* posição atual;
+* distância;
+* velocidade;
+* sequência das paradas;
+* ETA;
+* intervalo do ETA;
+* janela de entrega;
+* atraso.
+
+Confirmar que a sequência oficial `route_stops` está sendo utilizada.
+
+Se existir sequência oficial, não usar `deliveries.route_position` como fonte concorrente.
+
+## 13. PARADAS ANTERIORES
+
+Com as 3 paradas de teste:
+
+Parada 1 → anterior
+Parada 2 → atual
+Parada 3 → próxima
+
+Validar que o ETA da parada 2 considera corretamente a rota e as condições existentes.
+
+## 14. JANELA DE ENTREGA
+
+Testar uma entrega dentro da janela.
+
+Depois simular uma situação em que o ETA ultrapasse a janela.
+
+Confirmar:
+
+* ETA;
+* janela;
+* atraso.
+
+Não criar novas regras de negócio.
+
+## 15. INCIDENTE
+
+Se a funcionalidade de incidentes já estiver implementada:
+
+criar um incidente SOMENTE na rota de teste.
+
+Confirmar se ele influencia o ETA conforme a implementação atual.
+
+Se não estiver implementado completamente, NÃO desenvolver agora.
+
+Apenas documentar.
+
+## 16. CHEGADA
+
+Simular a chegada do motorista.
+
+Confirmar a diferença entre:
+
+* motorista a caminho;
+* chegada;
+* atendimento;
+* entrega concluída.
+
+Não permitir que "chegou" seja tratado automaticamente como "entregue", salvo se essa for explicitamente a regra existente.
+
+## 17. CONCLUSÃO
+
+Finalizar a entrega de teste.
+
+Confirmar:
+
+* pedido;
+* entrega;
+* rota;
+* histórico;
+* tracking;
+* status final;
+* eventos/outbox, quando aplicável.
+
+Depois verificar que a entrega concluída não continua aparecendo como "a caminho".
+
+## 18. PWA
+
+Validar o tracking diretamente pelo site/PWA.
+
+Confirmar:
+
+* carregamento;
+* token;
+* mapa;
+* GPS;
+* ETA;
+* status;
+* atualização;
+* conclusão.
+
+O navegador NÃO deve ser usado como fonte de GPS em segundo plano.
+
+O GPS continua vindo do Android Tracker/motorista.
+
+## 19. TESTES AUTOMATIZADOS
+
+Executar:
+
+`npm run check`
+
+`npm run build`
+
+`npm run test:unit`
+
+Depois realizar o teste funcional real descrito acima.
+
+NÃO execute Playwright de forma indiscriminada se ele puder criar/modificar dados fora do conjunto TESTE.
+
+Como estamos usando produção real, qualquer teste automatizado que faça escrita deve ser analisado antes.
+
+## 20. LIMPEZA
+
+Depois de validar tudo:
+
+NÃO apagar automaticamente os dados sem antes verificar o resultado.
+
+Primeiro liste exatamente quais registros de teste foram criados.
+
+Depois me informe:
+
+* IDs;
+* tipos de registro;
+* quantidade.
+
+Se for seguro excluir, remova SOMENTE os registros criados para este teste e SOMENTE quando isso não quebrar histórico, foreign keys, auditoria ou integridade do sistema.
+
+Se a exclusão não for segura, mantenha os registros identificados como TESTE e informe isso.
+
+NUNCA fazer limpeza por condição ampla como "apagar tudo criado hoje".
+
+## 21. NÃO FAZER NESTA ETAPA
+
+Não implementar:
+
+* Push Notifications
+* ML de ETA
+* trânsito em tempo real
+* nova arquitetura
+* nova API
+* novo sistema de tracking
+* nova autenticação
+* novo banco
+* staging
+* refatoração geral
+* capacidade avançada de veículos
+* Git Push
+* alterações no GitHub
+
+Estamos VALIDANDO o sistema existente.
+
+## RELATÓRIO FINAL
+
+Entregue um relatório objetivo:
+
+### Ambiente
+
+* Start:
+* API:
+* Frontend:
+* Banco:
+* Auth:
+
+### Dados de teste
+
+* Empresa:
+* Cliente:
+* Pedido:
+* Entrega:
+* Rota:
+* Motorista:
+
+### Tracking
+
+* rota:
+* jornada:
+* GPS:
+* trackingAvailable:
+* token:
+* tracking público:
+* multi-tenant:
+
+### ETA
+
+* GPS:
+* velocidade:
+* sequência:
+* paradas anteriores:
+* janela:
+* atraso:
+* incidente:
+
+### Fluxo final
+
+Pedido
+→ Entrega
+→ Rota
+→ Motorista
+→ Jornada
+→ GPS
+→ Tracking
+→ ETA
+→ Chegada
+→ Entrega concluída
+
+Para cada etapa informe:
+
+PASSOU / FALHOU / BLOQUEADO
+
+No final informe também:
+
+* quais registros de TESTE foram criados;
+* se foram removidos;
+* se algum ficou no banco;
+* quais problemas reais foram encontrados;
+* quais correções, se houver, foram necessárias.
+
+NÃO invente problemas de infraestrutura que não existem.
+
+NÃO crie um banco de testes separado.
+
+NÃO trate o ambiente como se houvesse clientes reais: atualmente NÃO HÁ clientes reais, então o objetivo é justamente aproveitar esse momento para fazer o teste completo com dados controlados.
