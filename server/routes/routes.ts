@@ -958,7 +958,7 @@ export async function registerRoutes(
         const wb = XLSX.read(buffer, { type: 'buffer' });
         if (ext === 'xls' || ext === 'xlsx') {
           const catalog = parseOrderCatalog(buffer);
-          if (catalog.products.length > 0 && catalog.categories.length > 0) {
+          if (catalog.variants.length > 0 && catalog.categories.length > 0) {
             const catalogRows = catalog.variants.map((variant) => ({
               tipo: 'produto',
               catalogVariant: true,

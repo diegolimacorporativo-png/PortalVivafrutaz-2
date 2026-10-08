@@ -175,18 +175,18 @@ describe("authenticated numeric route tracking ownership", () => {
   });
 });
 
-describe("public route tracking token compatibility", () => {
-  test("valid route token still uses the public tracking flow", async () => {
+describe("public route token authorization", () => {
+  test("valid route token does not bypass the internal session requirement", async () => {
     const issued = createPublicTrackingToken("route", 10);
     const { controller, repo } = makeController();
     const { result, calls } = await withTrackingDb(
       async () => [routeRow],
       () => callTracking(controller, issued.token),
     );
-    assert.equal(result.statusCode, 200);
+    assert.equal(result.statusCode, 403);
+    assert.equal(calls, 0);
     assert.equal(repo._calls.getRoute, undefined);
     assert.equal(repo._calls.getRouteForCompany, undefined);
-    assert.ok(calls >= 3);
   });
 
   test("tampered route token is rejected before any database query", async () => {

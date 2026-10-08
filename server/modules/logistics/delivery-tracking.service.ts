@@ -1,8 +1,10 @@
 import { sql } from "drizzle-orm";
-import { db } from "../../database/db";
+import { calculateDistance } from "../../services/logistics/routeOptimizer";
 import {
   calculateTrackingEta,
+  calculateTrackingDelay,
   getDeliveryWindow,
+  getEffectiveDeliveryWindow,
   isDriverNearby,
   isFreshTrackingGps,
   localDateTimeToInstant,
@@ -14,6 +16,15 @@ import {
 import { buildPublicDeliveryTrackingPayload } from "./public-tracking.dto";
 
 type DbRow = Record<string, any>;
+type TrackingDatabase = {
+  execute(query: unknown): Promise<unknown>;
+};
+
+async function getTrackingDatabase(database?: TrackingDatabase): Promise<TrackingDatabase> {
+  if (database) return database;
+  const { db } = await import("../../database/db");
+  return db as unknown as TrackingDatabase;
+}
 
 function rowsOf<T extends DbRow = DbRow>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
@@ -51,13 +62,11 @@ function buildScheduledPayload(input: {
   const windowEnd = window && input.scheduledDate
     ? localDateTimeToInstant(input.scheduledDate, window.endTime)
     : null;
+  const delay = calculateTrackingDelay(null, windowEnd, now);
   const delayed = deliveryStatus !== "delivered" &&
     deliveryStatus !== "cancelled" &&
-    !!windowEnd &&
-    now.getTime() > windowEnd.getTime();
-  const delayMinutes = delayed && windowEnd
-    ? Math.max(1, Math.ceil((now.getTime() - windowEnd.getTime()) / 60_000))
-    : 0;
+    delay.delayed;
+  const delayMinutes = delayed ? delay.delayMinutes : 0;
 
   return buildPublicDeliveryTrackingPayload({
     status: deliveryStatus,
@@ -88,8 +97,13 @@ function buildScheduledPayload(input: {
   });
 }
 
-async function getDeliveryTracking(deliveryId: number, now: Date, expectedCompanyId?: number) {
-  const baseRows = rowsOf(await db.execute(sql`
+async function getDeliveryTracking(
+  deliveryId: number,
+  now: Date,
+  expectedCompanyId: number | undefined,
+  database: TrackingDatabase,
+) {
+  const baseRows = rowsOf(await database.execute(sql`
     SELECT d.id,
            d.order_id,
            d.company_id,
@@ -113,6 +127,12 @@ async function getDeliveryTracking(deliveryId: number, now: Date, expectedCompan
            r.empresa_id AS route_company_id,
            r.driver_id AS route_driver_id,
            r.status AS route_status,
+           r.start_time AS route_start_time,
+           EXISTS (
+             SELECT 1
+             FROM route_stops official_stops
+             WHERE official_stops.route_id = d.route_id
+           ) AS route_has_stops,
            ld.empresa_id AS driver_company_id
     FROM deliveries d
     LEFT JOIN orders o ON o.id = d.order_id
@@ -198,8 +218,8 @@ async function getDeliveryTracking(deliveryId: number, now: Date, expectedCompan
   const routeActive = normalizeTrackingStatus(delivery.route_status) === "in_progress";
   if (!routeActive) return basePayload;
 
-  const journeyRows = rowsOf(await db.execute(sql`
-    SELECT id
+  const journeyRows = rowsOf(await database.execute(sql`
+    SELECT id, started_at
     FROM driver_journeys
     WHERE driver_id = ${driverId}
       AND status = 'active'
@@ -208,10 +228,13 @@ async function getDeliveryTracking(deliveryId: number, now: Date, expectedCompan
     LIMIT 1
   `));
   if (journeyRows.length === 0) return basePayload;
+  const journeyStartedAtMs = new Date(journeyRows[0].started_at).getTime();
+  if (!Number.isFinite(journeyStartedAtMs)) return basePayload;
 
-  const gpsRows = rowsOf(await db.execute(sql`
+  const gpsRows = rowsOf(await database.execute(sql`
     SELECT latitude::text AS latitude,
            longitude::text AS longitude,
+           speed::text AS speed,
            recorded_at
     FROM driver_gps_positions
     WHERE driver_id = ${driverId}
@@ -222,55 +245,180 @@ async function getDeliveryTracking(deliveryId: number, now: Date, expectedCompan
   if (
     !gps ||
     !isFreshTrackingGps(gps.recorded_at, now) ||
+    !Number.isFinite(new Date(gps.recorded_at).getTime()) ||
+    new Date(gps.recorded_at).getTime() < journeyStartedAtMs ||
     !Number.isFinite(Number(gps.latitude)) ||
     !Number.isFinite(Number(gps.longitude))
   ) return basePayload;
 
-  const routeRows = rowsOf<DbRow>(await db.execute(sql`
+  const routeStopRows = rowsOf<DbRow>(await database.execute(sql`
+    SELECT id,
+           company_id,
+           ordem_parada,
+           latitude::text AS latitude,
+           longitude::text AS longitude,
+           janela_inicio,
+           janela_fim,
+           tempo_estimado_min
+    FROM route_stops
+    WHERE route_id = ${routeId}
+      AND company_id = ${companyId}
+    ORDER BY ordem_parada ASC NULLS LAST, id ASC
+  `));
+  const hasOfficialRouteStops =
+    delivery.route_has_stops === true ||
+    delivery.route_has_stops === "true" ||
+    delivery.route_has_stops === "t" ||
+    routeStopRows.length > 0;
+  if (hasOfficialRouteStops && routeStopRows.length === 0) return basePayload;
+  const routeStopsWithPosition: Array<DbRow & {
+    sequencePosition: number;
+    stopId: number;
+  }> = routeStopRows.map((stop, index) => ({
+    ...stop,
+    sequencePosition: index,
+    stopId: Number(stop.id),
+  }));
+
+  const routeRows = rowsOf<DbRow>(await database.execute(sql`
     SELECT d.id,
            d.route_position,
            d.status,
            d.stop_status,
+           COALESCE(d.company_id, o.company_id) AS effective_company_id,
            COALESCE(d.latitude, c.latitude)::text AS latitude,
-           COALESCE(d.longitude, c.longitude)::text AS longitude
+           COALESCE(d.longitude, c.longitude)::text AS longitude,
+           latest_event.status AS latest_event_status
     FROM deliveries d
     LEFT JOIN orders o ON o.id = d.order_id
     LEFT JOIN companies c ON c.id = COALESCE(d.company_id, o.company_id)
+    LEFT JOIN LATERAL (
+      SELECT e.status
+      FROM delivery_stop_events e
+      WHERE e.delivery_id = d.id
+      ORDER BY e.registered_at DESC, e.id DESC
+      LIMIT 1
+    ) latest_event ON TRUE
     WHERE d.route_id = ${routeId}
       AND COALESCE(d.company_id, o.company_id) = ${companyId}
     ORDER BY d.route_position ASC NULLS LAST, d.id ASC
   `));
-  const routeStops: TrackingStop[] = routeRows.map((row) => ({
-    id: Number(row.id),
-    routePosition: row.route_position == null ? null : Number(row.route_position),
-    status: row.status == null ? null : String(row.status),
-    stopStatus: row.stop_status == null ? null : String(row.stop_status),
-    latitude: row.latitude,
-    longitude: row.longitude,
-  }));
+  const routeStopByDeliveryId = new Map<number, DbRow>();
+  const usedRouteStopIds = new Set<number>();
+  for (const row of routeRows) {
+    const rowCompanyId = Number(row.effective_company_id);
+    const candidates = routeStopsWithPosition.filter(
+      (stop) => Number(stop.company_id) === rowCompanyId,
+    );
+    if (candidates.length === 0) continue;
+
+    const available = candidates.filter((stop) => !usedRouteStopIds.has(stop.stopId));
+    const candidatePool = available.length > 0 ? available : candidates;
+    const deliveryLat = Number(row.latitude);
+    const deliveryLng = Number(row.longitude);
+    const hasDeliveryCoordinates = Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng);
+    const officialStop = candidatePool.reduce<DbRow | null>((best, stop) => {
+      if (!hasDeliveryCoordinates) return best ?? stop;
+      const stopLat = Number(stop.latitude);
+      const stopLng = Number(stop.longitude);
+      if (!Number.isFinite(stopLat) || !Number.isFinite(stopLng)) return best;
+      const distance = calculateDistance(
+        { lat: deliveryLat, lng: deliveryLng },
+        { lat: stopLat, lng: stopLng },
+      );
+      if (!best) return { ...stop, matchDistance: distance };
+      return distance < Number(best.matchDistance)
+        ? { ...stop, matchDistance: distance }
+        : best;
+    }, null) ?? candidatePool[0];
+
+    if (available.length > 0) usedRouteStopIds.add(officialStop.stopId);
+    routeStopByDeliveryId.set(Number(row.id), officialStop);
+  }
+  const routeStops: TrackingStop[] = routeRows.map((row) => {
+    const officialStop = routeStopByDeliveryId.get(Number(row.id));
+    return {
+      id: Number(row.id),
+      routePosition: hasOfficialRouteStops
+        ? officialStop?.sequencePosition ?? null
+        : row.route_position == null ? null : Number(row.route_position),
+      status: row.status == null ? null : String(row.status),
+      stopStatus: row.latest_event_status == null
+        ? row.stop_status == null ? null : String(row.stop_status)
+        : String(row.latest_event_status),
+      occurrenceStatus: row.latest_event_status == null
+        ? row.stop_status == null ? null : String(row.stop_status)
+        : String(row.latest_event_status),
+      latitude: row.latitude,
+      longitude: row.longitude,
+      tempoEstimadoMin: officialStop?.tempo_estimado_min == null
+        ? null
+        : Number(officialStop.tempo_estimado_min),
+      routeWindowStart: officialStop?.janela_inicio == null
+        ? null
+        : String(officialStop.janela_inicio),
+      routeWindowEnd: officialStop?.janela_fim == null
+        ? null
+        : String(officialStop.janela_fim),
+    };
+  });
+  // When route_stops exists it is authoritative. If the target delivery is
+  // not represented there, a legacy route_position must not silently replace
+  // the official operational sequence.
+  if (
+    hasOfficialRouteStops &&
+    !routeStops.some((stop) => stop.id === Number(delivery.id) && stop.routePosition != null)
+  ) return basePayload;
+
+  const speedMetersPerSecond = Number(gps.speed);
+  const speedKmh = Number.isFinite(speedMetersPerSecond) && speedMetersPerSecond > 0
+    ? speedMetersPerSecond * 3.6
+    : null;
+  const plannedRouteStart = scheduledDate && delivery.route_start_time
+    ? localDateTimeToInstant(scheduledDate, String(delivery.route_start_time))
+    : null;
+  const etaReferenceTime = new Date(Math.max(
+    now.getTime(),
+    journeyStartedAtMs,
+    plannedRouteStart?.getTime() ?? Number.NEGATIVE_INFINITY,
+  ));
   const trackingEta = calculateTrackingEta(
     routeStops,
     Number(delivery.id),
     { lat: gps.latitude, lng: gps.longitude },
-    now,
+    etaReferenceTime,
+    speedKmh,
   );
   if (!routeStops.some((stop) => stop.id === Number(delivery.id))) return basePayload;
 
-  const etaRange = makeEtaRange(trackingEta.etaAt);
-  const window = getDeliveryWindow(delivery.delivery_config_json, scheduledDate);
+  const targetRouteStop = routeStopByDeliveryId.get(Number(delivery.id));
+  const window = getEffectiveDeliveryWindow(
+    delivery.delivery_config_json,
+    scheduledDate,
+    targetRouteStop?.janela_inicio == null ? null : String(targetRouteStop.janela_inicio),
+    targetRouteStop?.janela_fim == null ? null : String(targetRouteStop.janela_fim),
+  );
+  const windowStart = window && scheduledDate
+    ? localDateTimeToInstant(scheduledDate, window.startTime)
+    : null;
   const windowEnd = window && scheduledDate
     ? localDateTimeToInstant(scheduledDate, window.endTime)
     : null;
-  const etaEnd = etaRange ? new Date(etaRange.to) : null;
+  const etaEarliestAt = Math.max(
+    windowStart?.getTime() ?? Number.NEGATIVE_INFINITY,
+    journeyStartedAtMs,
+    plannedRouteStart?.getTime() ?? Number.NEGATIVE_INFINITY,
+  );
+  const etaRange = makeEtaRange(
+    trackingEta.etaAt,
+    undefined,
+    Number.isFinite(etaEarliestAt) ? new Date(etaEarliestAt) : null,
+  );
+  const delay = calculateTrackingDelay(trackingEta.etaAt, windowEnd, now);
   const delayed = status !== "delivered" &&
     status !== "cancelled" &&
-    (!!windowEnd && (
-      now.getTime() > windowEnd.getTime() ||
-      (!!etaEnd && etaEnd.getTime() > windowEnd.getTime())
-    ));
-  const delayMinutes = delayed && windowEnd
-    ? Math.max(1, Math.ceil(((etaEnd && etaEnd > windowEnd ? etaEnd : now).getTime() - windowEnd.getTime()) / 60_000))
-    : 0;
+    delay.delayed;
+  const delayMinutes = delayed ? delay.delayMinutes : 0;
   const isNearby = isDriverNearby(
     { lat: gps.latitude, lng: gps.longitude },
     { lat: deliveryLocation.latitude, lng: deliveryLocation.longitude },
@@ -308,12 +456,14 @@ export async function getOrderDeliveryTracking(
   orderId: number,
   companyId: number,
   now: Date = new Date(),
+  databaseOverride?: TrackingDatabase,
 ) {
   if (!Number.isInteger(orderId) || orderId <= 0 || !Number.isInteger(companyId) || companyId <= 0) {
     return null;
   }
 
-  const orderRows = rowsOf(await db.execute(sql`
+  const database = await getTrackingDatabase(databaseOverride);
+  const orderRows = rowsOf(await database.execute(sql`
     SELECT o.id,
            o.company_id,
            o.status,
@@ -330,7 +480,7 @@ export async function getOrderDeliveryTracking(
   const order = orderRows[0];
   if (!order) return null;
 
-  const deliveryRows = rowsOf(await db.execute(sql`
+  const deliveryRows = rowsOf(await database.execute(sql`
     SELECT id
     FROM deliveries
     WHERE order_id = ${orderId}
@@ -339,7 +489,7 @@ export async function getOrderDeliveryTracking(
     LIMIT 1
   `));
   if (deliveryRows[0]) {
-    return getDeliveryTracking(Number(deliveryRows[0].id), now, companyId);
+    return getDeliveryTracking(Number(deliveryRows[0].id), now, companyId, database);
   }
 
   const orderStatus = String(order.status ?? "");
@@ -360,9 +510,11 @@ export async function getOrderDeliveryTracking(
 export async function getPublicDeliveryTracking(
   deliveryId: number,
   now: Date = new Date(),
+  databaseOverride?: TrackingDatabase,
 ) {
   if (!Number.isInteger(deliveryId) || deliveryId <= 0) return null;
-  const payload = await getDeliveryTracking(deliveryId, now);
+  const database = await getTrackingDatabase(databaseOverride);
+  const payload = await getDeliveryTracking(deliveryId, now, undefined, database);
   if (!payload) return null;
 
   const isTerminal = payload.deliveryStatus === "cancelled" || payload.deliveryStatus === "delivered";
@@ -374,7 +526,7 @@ export async function getPublicDeliveryTracking(
     }
   }
 
-  const routeRows = rowsOf(await db.execute(sql`
+  const routeRows = rowsOf(await database.execute(sql`
     SELECT d.route_id,
            COALESCE(d.company_id, o.company_id) AS company_id,
            r.empresa_id AS route_company_id

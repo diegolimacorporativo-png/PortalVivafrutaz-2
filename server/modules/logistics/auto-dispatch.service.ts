@@ -65,14 +65,21 @@ interface RouteRow {
   vehicle_id: number | null;
   vehicle_plate: string | null;
   delivery_date: string | null;
+  has_route_stops?: boolean | string;
 }
 
 interface AssignedStopRow {
   route_id: number;
+  company_id: number | null;
   latitude: string | null;
   longitude: string | null;
   route_position: number | null;
+  ordem_parada?: number | null;
 }
+
+type DispatchDriverRoute = DriverRoute & {
+  sequenceSource: "route_stops" | "deliveries";
+};
 
 function rowsOf<T = any>(result: unknown): T[] {
   if (Array.isArray(result)) return result as T[];
@@ -93,53 +100,92 @@ function rowsOf<T = any>(result: unknown): T[] {
 async function loadDriverRoutesForDate(
   date: string | null,
   companyId: number,
-): Promise<DriverRoute[]> {
+): Promise<DispatchDriverRoute[]> {
   const routes = rowsOf<RouteRow>(
     await db.execute(
       date
-        ? sql`SELECT id, driver_id, driver_name, vehicle_id, vehicle_plate,
-                     delivery_date::text AS delivery_date
-              FROM   logistics_routes
-              WHERE  delivery_date = ${date}::date
-                AND  empresa_id    = ${companyId}
-                AND  status IN ('SCHEDULED', 'IN_PROGRESS')`
-        : sql`SELECT id, driver_id, driver_name, vehicle_id, vehicle_plate,
-                     delivery_date::text AS delivery_date
-              FROM   logistics_routes
-              WHERE  empresa_id = ${companyId}
-                AND  status IN ('SCHEDULED', 'IN_PROGRESS')`,
+        ? sql`SELECT lr.id, lr.driver_id, lr.driver_name, lr.vehicle_id, lr.vehicle_plate,
+                     lr.delivery_date::text AS delivery_date,
+                     EXISTS (
+                       SELECT 1 FROM route_stops rs WHERE rs.route_id = lr.id
+                     ) AS has_route_stops
+              FROM   logistics_routes lr
+              WHERE  lr.delivery_date = ${date}::date
+                AND  lr.empresa_id    = ${companyId}
+                AND  lr.driver_id IS NOT NULL
+                AND  lr.status IN ('SCHEDULED', 'IN_PROGRESS')`
+        : sql`SELECT lr.id, lr.driver_id, lr.driver_name, lr.vehicle_id, lr.vehicle_plate,
+                     lr.delivery_date::text AS delivery_date,
+                     EXISTS (
+                       SELECT 1 FROM route_stops rs WHERE rs.route_id = lr.id
+                     ) AS has_route_stops
+              FROM   logistics_routes lr
+              WHERE  lr.empresa_id = ${companyId}
+                AND  lr.driver_id IS NOT NULL
+                AND  lr.status IN ('SCHEDULED', 'IN_PROGRESS')`,
     ),
   );
 
   if (routes.length === 0) return [];
 
   const routeIds = routes.map((r) => r.id);
-  const stops = rowsOf<AssignedStopRow>(
+  const assignedDeliveries = rowsOf<AssignedStopRow>(
     await db.execute(
       sql`SELECT route_id,
+                 COALESCE(d.company_id, o.company_id) AS company_id,
                  latitude::text  AS latitude,
                  longitude::text AS longitude,
                  route_position
-          FROM   deliveries
+          FROM   deliveries d
+          LEFT   JOIN orders o ON o.id = d.order_id
+          WHERE  d.route_id = ANY(${routeIds}::int[])
+            AND  COALESCE(d.company_id, o.company_id) = ${companyId}
+            AND  d.latitude  IS NOT NULL
+            AND  d.longitude IS NOT NULL
+          ORDER  BY d.route_position NULLS LAST, d.id ASC`,
+    ),
+  );
+  const routeStops = rowsOf<AssignedStopRow>(
+    await db.execute(
+      sql`SELECT route_id,
+                 company_id,
+                 latitude::text  AS latitude,
+                 longitude::text AS longitude,
+                 ordem_parada
+          FROM   route_stops
           WHERE  route_id = ANY(${routeIds}::int[])
-            AND  latitude  IS NOT NULL
+            AND  company_id = ${companyId}
+            AND  latitude IS NOT NULL
             AND  longitude IS NOT NULL
-          ORDER  BY route_position NULLS LAST, id ASC`,
+          ORDER  BY route_id ASC, ordem_parada ASC NULLS LAST, id ASC`,
     ),
   );
 
-  const stopsByRoute = new Map<number, GeoPoint[]>();
-  for (const s of stops) {
+  const deliveryStopsByRoute = new Map<number, GeoPoint[]>();
+  for (const s of assignedDeliveries) {
     const lat = s.latitude ? parseFloat(s.latitude) : NaN;
     const lng = s.longitude ? parseFloat(s.longitude) : NaN;
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
-    const arr = stopsByRoute.get(s.route_id) ?? [];
-    arr.push({ lat, lng });
-    stopsByRoute.set(s.route_id, arr);
+    const arr = deliveryStopsByRoute.get(s.route_id) ?? [];
+    arr.push({ lat, lng, companyId: s.company_id ?? undefined });
+    deliveryStopsByRoute.set(s.route_id, arr);
+  }
+  const routeStopsByRoute = new Map<number, GeoPoint[]>();
+  for (const s of routeStops) {
+    const lat = s.latitude ? parseFloat(s.latitude) : NaN;
+    const lng = s.longitude ? parseFloat(s.longitude) : NaN;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+    const arr = routeStopsByRoute.get(s.route_id) ?? [];
+    arr.push({ lat, lng, companyId: s.company_id ?? undefined });
+    routeStopsByRoute.set(s.route_id, arr);
   }
 
-  return routes.map<DriverRoute>((r) => {
-    const points = stopsByRoute.get(r.id) ?? [];
+  return routes.map<DispatchDriverRoute>((r) => {
+    const canonicalStops = routeStopsByRoute.get(r.id);
+    const hasOfficialStops = r.has_route_stops === true || r.has_route_stops === "true" || r.has_route_stops === "t";
+    const points = hasOfficialStops
+      ? canonicalStops ?? []
+      : deliveryStopsByRoute.get(r.id) ?? [];
     let totalDistance = 0;
     return {
       driverId:    r.driver_id ?? 0,
@@ -153,9 +199,17 @@ async function loadDriverRoutesForDate(
       })),
       totalDistance,
       estimatedMinutes: 0,
+      sequenceSource: hasOfficialStops ? "route_stops" : "deliveries",
     };
   });
 }
+
+// The current optimizer ranks insertions by incremental distance. Route date,
+// tenant, active state, and assigned driver are hard eligibility checks above.
+// Delivery windows and vehicle capacity are not yet safe optimizer constraints:
+// route windows are per-stop text fields and vehicle capacity has no normalized
+// unit/load contract, so inferring either here could reject valid work or
+// overfill a vehicle without a defensible measurement.
 
 /**
  * Single tick of the auto-dispatcher.
@@ -181,7 +235,7 @@ export async function autoDispatchReadyOrders(): Promise<number> {
       await db.execute(
         sql`SELECT d.id,
                    d.order_id,
-                   d.company_id,
+                    COALESCE(d.company_id, o.company_id) AS company_id,
                    COALESCE(d.scheduled_date::text,
                             o.delivery_date::date::text) AS delivery_date,
                    COALESCE(d.latitude, c.latitude)::text  AS latitude,
@@ -191,6 +245,7 @@ export async function autoDispatchReadyOrders(): Promise<number> {
             LEFT   JOIN companies  c ON c.id = COALESCE(d.company_id, o.company_id)
             WHERE  d.route_id IS NULL
               AND  d.status   = 'pendente'
+              AND  COALESCE(d.company_id, o.company_id) IS NOT NULL
               AND  COALESCE(d.latitude,  c.latitude)  IS NOT NULL
               AND  COALESCE(d.longitude, c.longitude) IS NOT NULL
             ORDER  BY d.id ASC
@@ -241,6 +296,12 @@ export async function autoDispatchReadyOrders(): Promise<number> {
       );
       continue;
     }
+    if (!group.date) {
+      console.warn(
+        `[AUTO-DISPATCH] Grupo ${groupKey} sem data de entrega — ${group.deliveries.length} delivery(ies) ignorada(s) para evitar atribuição em data incorreta`,
+      );
+      continue;
+    }
 
     const tenantPrincipal: TenantPrincipal = {
       kind: "admin",
@@ -252,7 +313,7 @@ export async function autoDispatchReadyOrders(): Promise<number> {
     await runWithTenant(
       { principal: tenantPrincipal, empresaId: group.companyId },
       async () => {
-        let driverRoutes: DriverRoute[];
+        let driverRoutes: DispatchDriverRoute[];
         try {
           // FASE 8.6I — sempre passa o companyId para o loader de rotas.
           driverRoutes = await loadDriverRoutesForDate(
@@ -280,41 +341,132 @@ export async function autoDispatchReadyOrders(): Promise<number> {
               lat,
               lng,
               deliveryId: d.id,
-              companyId:  d.company_id ?? undefined,
+              companyId: group.companyId ?? undefined,
               orderId:    d.order_id ?? undefined,
             };
 
             const suggestion = suggestInsertion(point, driverRoutes);
             if (!suggestion || !suggestion.routeId) continue;
 
-            const updated = rowsOf<{ id: number }>(
-              await db.execute(
-                sql`UPDATE deliveries
-                    SET    route_id           = ${suggestion.routeId},
-                           driver_id          = COALESCE(driver_id, NULLIF(${suggestion.driverId}::int, 0)),
-                           route_position     = ${suggestion.insertAtPosition},
-                           distance_from_prev = ${suggestion.extraDistance.toFixed(3)}::numeric,
-                           updated_at         = NOW()
-                    WHERE  id        = ${d.id}
-                      AND  route_id  IS NULL
-                      AND  status    = 'pendente'
-                    RETURNING id`,
-              ),
-            );
+            const targetRoute = driverRoutes.find((r) => r.routeId === suggestion.routeId);
+            if (!targetRoute) continue;
+            // Route_stop sequences owned by a different tenant are never
+            // mutated or silently replaced with delivery.route_position.
+            if (targetRoute.sequenceSource === "route_stops" && targetRoute.stops.length === 0) continue;
+            const existingOfficialStop = targetRoute.sequenceSource === "route_stops"
+              ? targetRoute.stops.findIndex((stop) => stop.companyId === group.companyId)
+              : -1;
+            const insertAtPosition = existingOfficialStop >= 0
+              ? existingOfficialStop
+              : suggestion.insertAtPosition;
 
-            if (updated.length > 0) {
+            const wasAssigned = await db.transaction(async (tx) => {
+              const routeRows = rowsOf<{ id: number }>(
+                await tx.execute(sql`
+                  SELECT id
+                  FROM logistics_routes
+                  WHERE id = ${suggestion.routeId}
+                    AND empresa_id = ${group.companyId}
+                    AND delivery_date = ${group.date}::date
+                    AND driver_id = ${suggestion.driverId}
+                    AND status IN ('SCHEDULED', 'IN_PROGRESS')
+                  FOR UPDATE
+                `),
+              );
+              if (routeRows.length === 0) return false;
+
+              const candidateRows = rowsOf<{ id: number }>(
+                await tx.execute(sql`
+                  SELECT d.id
+                  FROM deliveries d
+                  LEFT JOIN orders o ON o.id = d.order_id
+                  WHERE d.id = ${d.id}
+                    AND d.route_id IS NULL
+                    AND d.status = 'pendente'
+                    AND COALESCE(d.company_id, o.company_id) = ${group.companyId}
+                  FOR UPDATE OF d
+                `),
+              );
+              if (candidateRows.length === 0) return false;
+
+              await tx.execute(sql`
+                UPDATE deliveries existing
+                SET route_position = existing.route_position + 1,
+                    updated_at = NOW()
+                WHERE existing.route_id = ${suggestion.routeId}
+                  AND existing.route_position >= ${insertAtPosition}
+                  AND COALESCE(
+                    existing.company_id,
+                    (SELECT o.company_id FROM orders o WHERE o.id = existing.order_id)
+                  ) = ${group.companyId}
+              `);
+
+              if (
+                targetRoute.sequenceSource === "route_stops" &&
+                existingOfficialStop < 0
+              ) {
+                const existingStopRows = rowsOf<{ ordem_parada: number | null }>(
+                  await tx.execute(sql`
+                    SELECT ordem_parada
+                    FROM route_stops
+                    WHERE route_id = ${suggestion.routeId}
+                      AND company_id = ${group.companyId}
+                    ORDER BY ordem_parada ASC NULLS LAST, id ASC
+                    FOR UPDATE
+                  `),
+                );
+                const firstOrder = existingStopRows
+                  .map((stop) => Number(stop.ordem_parada))
+                  .find(Number.isFinite);
+                const orderOffset = firstOrder != null && firstOrder >= 1 ? 1 : 0;
+                const officialOrder = insertAtPosition + orderOffset;
+
+                await tx.execute(sql`
+                  UPDATE route_stops
+                  SET ordem_parada = ordem_parada + 1
+                  WHERE route_id = ${suggestion.routeId}
+                    AND company_id = ${group.companyId}
+                    AND ordem_parada >= ${officialOrder}
+                `);
+                await tx.execute(sql`
+                  INSERT INTO route_stops (
+                    route_id, company_id, latitude, longitude,
+                    ordem_parada, tempo_estimado_min
+                  )
+                  VALUES (
+                    ${suggestion.routeId}, ${group.companyId},
+                    ${lat}, ${lng}, ${officialOrder}, 8
+                  )
+                `);
+              }
+
+              const assignedRows = rowsOf<{ id: number }>(
+                await tx.execute(sql`
+                  UPDATE deliveries
+                  SET route_id = ${suggestion.routeId},
+                      driver_id = ${suggestion.driverId},
+                      route_position = ${insertAtPosition},
+                      distance_from_prev = ${suggestion.extraDistance.toFixed(3)}::numeric,
+                      updated_at = NOW()
+                  WHERE id = ${d.id}
+                    AND route_id IS NULL
+                    AND status = 'pendente'
+                  RETURNING id
+                `),
+              );
+              return assignedRows.length > 0;
+            });
+
+            if (wasAssigned) {
               assigned++;
               // Reflect the new stop in our in-memory snapshot so subsequent
               // suggestions in this same tick account for it.
-              const targetRoute = driverRoutes.find(
-                (r) => r.routeId === suggestion.routeId,
-              );
-              if (targetRoute) {
+              if (existingOfficialStop < 0 || targetRoute.sequenceSource === "deliveries") {
                 targetRoute.stops.splice(suggestion.insertAtPosition, 0, {
                   lat,
                   lng,
                   position: suggestion.insertAtPosition,
-                  companyId: d.company_id ?? undefined,
+                  companyId: group.companyId ?? undefined,
                   deliveryId: d.id,
                 });
                 targetRoute.stops.forEach((s, i) => (s.position = i));

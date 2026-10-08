@@ -117,9 +117,7 @@ describe("DTOs públicos de rastreamento", () => {
 
     assert.equal(payload.driver, null);
     assert.equal("id" in payload.route, false);
-    assert.equal("companyId" in payload.stops[0], false);
-    assert.equal("endereco" in payload.stops[0], false);
-    assert.equal("accuracy" in payload.driverPosition!, false);
-    assert.equal(payload.driverPosition?.lat, "-23.55");
+    assert.deepEqual(payload.stops, []);
+    assert.equal(payload.driverPosition, null);
   });
 });

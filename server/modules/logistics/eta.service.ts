@@ -36,6 +36,8 @@ export interface EtaInputStop {
   status?: string | null;
   /** Set false when this row is the destination: arrival ETA excludes unloading time. */
   includeDwell?: boolean;
+  /** Additional operational delay from an unresolved stop occurrence. */
+  delayMinutes?: number | null;
   [key: string]: any;
 }
 
@@ -55,6 +57,11 @@ export interface EtaSummary {
   totalMinutes: number;
   totalEtaTime: string;
   avgSpeedKmh: number;
+}
+
+export interface EtaOptions {
+  /** Current GPS speed in km/h. Invalid, stopped, or implausible values use the route average. */
+  speedKmh?: number | null;
 }
 
 /**
@@ -82,9 +89,14 @@ export function calculateETA(
   stops: EtaInputStop[],
   driverPosition?: { lat?: string | number | null; lng?: string | number | null } | null,
   now: Date = new Date(),
+  options: EtaOptions = {},
 ): EtaStop[] {
   if (!stops || stops.length === 0) return [];
 
+  const measuredSpeed = Number(options.speedKmh);
+  const avgSpeedKmh = Number.isFinite(measuredSpeed) && measuredSpeed >= 5 && measuredSpeed <= 80
+    ? measuredSpeed
+    : AVG_SPEED_KMH;
   const startedAtMs = now.getTime();
   let cursor: GeoPoint | null = driverPosition
     ? toGeo(driverPosition.lat, driverPosition.lng)
@@ -124,7 +136,7 @@ export function calculateETA(
     if (cursor) {
       legKm = calculateDistance(cursor, point);
     }
-    const legMinutes = (legKm / AVG_SPEED_KMH) * 60;
+    const legMinutes = (legKm / avgSpeedKmh) * 60;
     cumulativeMinutes += legMinutes;
 
     // Add dwell time for earlier stops, but not the customer's own destination.
@@ -132,7 +144,10 @@ export function calculateETA(
       const dwell = typeof stop.tempoEstimadoMin === "number" && stop.tempoEstimadoMin > 0
         ? stop.tempoEstimadoMin
         : STOP_DWELL_MINS;
-      cumulativeMinutes += dwell;
+      const occurrenceDelay = Number(stop.delayMinutes);
+      cumulativeMinutes += dwell + (
+        Number.isFinite(occurrenceDelay) ? Math.max(0, occurrenceDelay) : 0
+      );
     }
 
     cursor = point;

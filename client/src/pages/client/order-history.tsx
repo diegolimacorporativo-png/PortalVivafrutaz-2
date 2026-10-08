@@ -13,7 +13,7 @@ import { ptBR } from "date-fns/locale";
 import {
   Receipt, Calendar, Plus, Filter, X, Clock, Lock, Unlock, CalendarDays,
   ClipboardEdit, Pencil, AlertCircle, Search, Info, Eye,
-  Package, ChevronRight, ShoppingCart, FileText, Ban
+  Package, ChevronRight, ShoppingCart, FileText, Ban, Truck
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { api } from "@shared/routes";

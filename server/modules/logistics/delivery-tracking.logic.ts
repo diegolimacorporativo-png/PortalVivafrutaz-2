@@ -31,6 +31,9 @@ export interface TrackingStop {
   latitude: string | number | null;
   longitude: string | number | null;
   tempoEstimadoMin?: number | null;
+  occurrenceStatus?: string | null;
+  routeWindowStart?: string | null;
+  routeWindowEnd?: string | null;
 }
 
 export interface TrackingEta {
@@ -107,6 +110,24 @@ export function getDeliveryWindow(
   return { startTime, endTime };
 }
 
+export function getEffectiveDeliveryWindow(
+  deliveryConfigJson: string | null | undefined,
+  deliveryDate: string | null | undefined,
+  routeWindowStart?: string | null,
+  routeWindowEnd?: string | null,
+): DeliveryWindow | null {
+  const routeStart = normalizeTime(routeWindowStart);
+  const routeEnd = normalizeTime(routeWindowEnd);
+  if (
+    routeStart &&
+    routeEnd &&
+    timeToMinutes(routeEnd) > timeToMinutes(routeStart)
+  ) {
+    return { startTime: routeStart, endTime: routeEnd };
+  }
+  return getDeliveryWindow(deliveryConfigJson, deliveryDate);
+}
+
 function normalizeTime(value: unknown): string | null {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value ?? "").trim());
   return match ? `${match[1]}:${match[2]}` : null;
@@ -145,6 +166,7 @@ export function calculateTrackingEta(
   targetDeliveryId: number,
   driverPosition: { lat: string | number; lng: string | number },
   now: Date = new Date(),
+  speedKmh?: number | null,
 ): TrackingEta {
   const ordered = [...routeStops].sort((a, b) =>
     (a.routePosition ?? Number.MAX_SAFE_INTEGER) - (b.routePosition ?? Number.MAX_SAFE_INTEGER) ||
@@ -167,9 +189,10 @@ export function calculateTrackingEta(
       longitude: stop.longitude,
       status: Number(stop.id) === targetDeliveryId ? null : stop.status,
       tempoEstimadoMin: stop.tempoEstimadoMin,
+      delayMinutes: occurrenceDelayMinutes(stop.occurrenceStatus),
       includeDwell: Number(stop.id) !== targetDeliveryId,
     }));
-  const estimates = calculateETA(activeStops, driverPosition, now);
+  const estimates = calculateETA(activeStops, driverPosition, now, { speedKmh });
   const estimate = estimates.find((stop) => Number(stop.id) === targetDeliveryId);
   if (!estimate || !Number.isFinite(new Date(estimate.etaTime).getTime())) {
     return { etaAt: null, stopsBefore, isNextStop: stopsBefore === 0 };
@@ -180,6 +203,23 @@ export function calculateTrackingEta(
     stopsBefore,
     isNextStop: stopsBefore === 0,
   };
+}
+
+const OCCURRENCE_DELAY_MINUTES: Record<string, number> = {
+  cliente_ausente: 15,
+  endereco_incorreto: 10,
+  recusado: 15,
+  reagendado: 5,
+  problema: 20,
+  vehicle_problem: 20,
+  traffic: 10,
+  transito: 10,
+  atraso: 10,
+  espera_portaria: 10,
+};
+
+function occurrenceDelayMinutes(value: unknown): number {
+  return OCCURRENCE_DELAY_MINUTES[normalizeTrackingStatus(value)] ?? 0;
 }
 
 export function isDriverNearby(
@@ -198,11 +238,44 @@ export function isDriverNearby(
 export function makeEtaRange(
   etaAt: Date | null,
   marginMinutes: number = TRACKING_ETA_MARGIN_MINUTES,
+  earliestAt?: Date | null,
 ): { from: string; to: string } | null {
   if (!etaAt || !Number.isFinite(etaAt.getTime())) return null;
   const interval = 5 * 60_000;
   const margin = Math.max(0, marginMinutes) * 60_000;
-  const from = Math.floor((etaAt.getTime() - margin) / interval) * interval;
-  const to = Math.ceil((etaAt.getTime() + margin) / interval) * interval;
+  const minimum = earliestAt && Number.isFinite(earliestAt.getTime())
+    ? earliestAt.getTime()
+    : Number.NEGATIVE_INFINITY;
+  const adjustedEta = Math.max(etaAt.getTime(), minimum);
+  const from = Math.max(
+    Math.floor((adjustedEta - margin) / interval) * interval,
+    Math.ceil(minimum / interval) * interval,
+  );
+  const to = Math.max(
+    Math.ceil((adjustedEta + margin) / interval) * interval,
+    from,
+  );
   return { from: new Date(from).toISOString(), to: new Date(to).toISOString() };
+}
+
+export function calculateTrackingDelay(
+  etaAt: Date | null,
+  windowEnd: Date | null,
+  now: Date = new Date(),
+): { delayed: boolean; delayMinutes: number } {
+  if (!windowEnd || !Number.isFinite(windowEnd.getTime())) {
+    return { delayed: false, delayMinutes: 0 };
+  }
+  const expectedAt = etaAt && Number.isFinite(etaAt.getTime())
+    ? Math.max(now.getTime(), etaAt.getTime())
+    : now.getTime();
+  const delayMs = expectedAt - windowEnd.getTime();
+  if (delayMs <= 0) return { delayed: false, delayMinutes: 0 };
+  const windowOverrunMs = now.getTime() - windowEnd.getTime();
+  return {
+    delayed: true,
+    delayMinutes: windowOverrunMs > 0
+      ? Math.max(1, Math.ceil(windowOverrunMs / 60_000))
+      : 0,
+  };
 }
