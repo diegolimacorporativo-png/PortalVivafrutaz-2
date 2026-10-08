@@ -1,0 +1,634 @@
+# ETAPA 3 — VALIDAÇÃO REAL DO TRACKING E2E
+
+Continuamos trabalhando **diretamente no projeto atual do Replit**.
+
+## REGRA ABSOLUTA
+
+**NÃO mexer em Git Push, GitHub, remote, branch ou configurações de Git.**
+
+Ignorar completamente qualquer problema relacionado a Git Push.
+
+**NÃO criar outro sistema de tracking.**
+
+**NÃO criar outro aplicativo.**
+
+Manter:
+
+* PWA para o cliente;
+* Android Tracker para o motorista;
+* backend atual;
+* API pública `/api/track/:token`;
+* tokens existentes;
+* arquitetura multi-tenant existente.
+
+---
+
+# OBJETIVO
+
+A implementação de Tracking + ETA inteligente já foi realizada.
+
+Agora NÃO quero uma nova grande implementação.
+
+Quero **validar o fluxo real de ponta a ponta** e corrigir somente os problemas encontrados.
+
+O objetivo é provar que o fluxo funciona em ambiente real:
+
+PEDIDO
+→ ENTREGA
+→ ROTA
+→ MOTORISTA
+→ JORNADA
+→ GPS
+→ ETA
+→ TRACKING PÚBLICO
+→ OCORRÊNCIA
+→ NOVO ETA
+→ CHEGADA
+→ ENTREGA CONCLUÍDA
+
+---
+
+# 1. PRIMEIRO: DIAGNOSTICAR O AMBIENTE
+
+O último relatório informou:
+
+> o workflow não inicia porque a proteção do projeto rejeita o banco configurado como `heliumdb`.
+
+Também foram observados testes tentando acessar:
+
+`db.example.invalid`
+
+Antes de alterar qualquer código:
+
+## Investigue
+
+* configuração do banco;
+* variáveis de ambiente;
+* configuração do Replit;
+* configuração do workflow;
+* configuração de proteção do banco;
+* configuração do Supabase;
+* qual variável o backend usa para conexão;
+* qual variável os testes usam;
+* se existem configurações diferentes entre desenvolvimento, teste e produção.
+
+NÃO exponha nenhuma credencial no relatório.
+
+NÃO mostre:
+
+* senha;
+* service role key;
+* JWT secret;
+* connection string completa;
+* token;
+* qualquer segredo.
+
+Se encontrar credenciais no ambiente, apenas informe que a variável existe e está configurada, sem revelar seu valor.
+
+---
+
+# 2. NÃO REMOVER A PROTEÇÃO DO BANCO
+
+Se o projeto estiver bloqueando `heliumdb`, NÃO simplesmente desative a proteção.
+
+Primeiro descubra:
+
+* por que `heliumdb` está sendo utilizado;
+* qual banco deveria ser utilizado;
+* se o Supabase já está configurado;
+* se existe diferença entre banco de desenvolvimento e banco de produção.
+
+Somente alterar configuração se houver uma forma segura e claramente definida no projeto.
+
+Se a proteção precisar de uma ação manual no Replit:
+
+não faça workaround inseguro.
+
+Informe exatamente o que precisa ser configurado manualmente.
+
+---
+
+# 3. VALIDAR O BANCO
+
+Depois que o ambiente estiver corretamente configurado:
+
+iniciar o servidor.
+
+Confirmar:
+
+* servidor inicia;
+* banco conecta;
+* migrations/schema estão disponíveis;
+* autenticação funciona;
+* API responde;
+* PWA carrega.
+
+Não considerar "servidor iniciou" suficiente.
+
+Fazer pelo menos uma consulta real ao banco.
+
+---
+
+# 4. VALIDAR O FLUXO DE PEDIDO
+
+Criar ou utilizar dados de teste de forma segura.
+
+Não modificar dados reais de clientes.
+
+Criar um cenário isolado para teste.
+
+Fluxo:
+
+### Empresa
+
+Criar uma empresa de teste ou utilizar fixture existente.
+
+### Pedido
+
+Criar pedido de teste.
+
+### Entrega
+
+Gerar delivery associado.
+
+### Rota
+
+Criar rota.
+
+### Motorista
+
+Associar motorista.
+
+### Jornada
+
+Iniciar jornada.
+
+### GPS
+
+Enviar uma posição de GPS de teste.
+
+---
+
+# 5. VALIDAR trackingAvailable
+
+Testar TODOS os estados.
+
+## Estado 1
+
+Pedido sem rota.
+
+Esperado:
+
+tracking detalhado indisponível.
+
+---
+
+## Estado 2
+
+Pedido com rota, mas jornada não iniciada.
+
+Esperado:
+
+tracking detalhado indisponível.
+
+---
+
+## Estado 3
+
+Jornada iniciada, mas sem GPS.
+
+Esperado:
+
+tracking detalhado indisponível ou estado equivalente já definido.
+
+---
+
+## Estado 4
+
+Jornada iniciada + GPS recente.
+
+Esperado:
+
+tracking disponível.
+
+---
+
+## Estado 5
+
+GPS antigo.
+
+Esperado:
+
+tracking degradado ou localização indisponível.
+
+Nunca apresentar GPS antigo como atual.
+
+---
+
+# 6. VALIDAR TOKEN PÚBLICO
+
+Testar:
+
+### Token válido
+
+Deve retornar somente dados permitidos para o cliente.
+
+### Token inválido
+
+Deve retornar erro seguro.
+
+### Token expirado, se existir
+
+Deve ser rejeitado.
+
+### Token de outra empresa
+
+Deve ser rejeitado.
+
+### ID de outra entrega
+
+Não pode permitir acesso indevido.
+
+---
+
+# 7. VALIDAR MULTI-TENANT
+
+Criar dois contextos:
+
+Empresa A
+
+Empresa B
+
+Garantir que:
+
+Empresa A não consegue acessar:
+
+* pedidos da B;
+* deliveries da B;
+* rotas da B;
+* GPS da B;
+* tracking da B.
+
+Testar isso tanto:
+
+* autenticado;
+* quanto no tracking público.
+
+Essa validação é OBRIGATÓRIA.
+
+---
+
+# 8. VALIDAR ETA
+
+Com motorista em posição conhecida:
+
+calcular ETA.
+
+Confirmar que:
+
+* usa sequência oficial;
+* considera entregas anteriores;
+* considera distância;
+* considera velocidade;
+* considera janela;
+* considera início da rota;
+* considera GPS;
+* retorna intervalo;
+* identifica atraso quando aplicável.
+
+Registrar um exemplo real do teste no relatório.
+
+Não inventar números.
+
+---
+
+# 9. VALIDAR SEQUÊNCIA
+
+Criar uma rota com pelo menos:
+
+Entrega A
+Entrega B
+Entrega C
+
+Garantir que a ordem utilizada pelo ETA corresponde à sequência oficial.
+
+Testar também:
+
+entrega sem posição oficial.
+
+Esperado:
+
+o sistema NÃO deve inventar posição.
+
+---
+
+# 10. VALIDAR OCORRÊNCIA
+
+Criar uma ocorrência de teste.
+
+Exemplo:
+
+`TRAFFIC`
+
+Registrar:
+
+* início;
+* duração/impacto;
+* entrega ou rota afetada.
+
+Calcular ETA antes.
+
+Depois registrar ocorrência.
+
+Calcular ETA novamente.
+
+Esperado:
+
+o ETA deve refletir o impacto da ocorrência.
+
+Depois encerrar a ocorrência.
+
+Calcular novamente.
+
+Garantir que o impacto não continue sendo acumulado indefinidamente.
+
+---
+
+# 11. VALIDAR CHEGADA
+
+Simular motorista chegando à empresa.
+
+Atualizar GPS para posição próxima ao destino.
+
+Confirmar mudança de estado conforme as regras existentes.
+
+Validar:
+
+* ETA;
+* status;
+* tracking;
+* eventual indicador de chegada.
+
+---
+
+# 12. VALIDAR ENTREGA CONCLUÍDA
+
+Finalizar a entrega.
+
+Consultar tracking novamente.
+
+Esperado:
+
+status final equivalente a:
+
+`DELIVERED`
+
+ou o enum/status oficial já existente.
+
+Não criar novo status se já houver um equivalente.
+
+---
+
+# 13. TESTAR PWA DO CLIENTE
+
+Abrir a página de tracking.
+
+Validar visualmente e funcionalmente:
+
+* status;
+* ETA;
+* intervalo de horário;
+* atraso;
+* localização;
+* atualização;
+* estado sem GPS;
+* estado concluído.
+
+Não fazer redesign.
+
+Somente corrigir problemas funcionais encontrados.
+
+---
+
+# 14. TESTAR ANDROID TRACKER
+
+Não criar novas funcionalidades agora.
+
+Somente confirmar:
+
+Android Tracker
+→ envia GPS
+→ backend recebe
+→ posição é armazenada
+→ tracking consulta posição
+→ ETA utiliza posição.
+
+Se existir um endpoint oficial de GPS, utilizar o existente.
+
+---
+
+# 15. TESTES AUTOMATIZADOS
+
+Executar:
+
+`npm run check`
+
+`npm run build`
+
+`npm run test:unit`
+
+E o comando E2E existente, se houver.
+
+Se o projeto tiver outro comando oficial para testes:
+
+identificar e utilizar.
+
+---
+
+# 16. OS 6 TESTES QUE FALHARAM
+
+Os últimos testes falharam porque tentaram acessar:
+
+`db.example.invalid`
+
+Depois de corrigir/configurar o ambiente:
+
+executar novamente.
+
+Não alterar os testes somente para fazê-los passar.
+
+Se continuarem falhando:
+
+investigar individualmente.
+
+Classificar cada falha:
+
+* ambiente;
+* banco;
+* fixture;
+* código;
+* teste incorreto.
+
+---
+
+# 17. NÃO IMPLEMENTAR AINDA
+
+Nesta etapa NÃO implementar:
+
+* Push;
+* VAPID;
+* capacidade de veículo;
+* otimização avançada de rota;
+* machine learning;
+* trânsito em tempo real;
+* novo aplicativo;
+* nova arquitetura;
+* novo sistema de tracking.
+
+Esses itens virão depois.
+
+---
+
+# 18. CORRIGIR SOMENTE O NECESSÁRIO
+
+Se encontrar um bug real no fluxo E2E:
+
+corrigir.
+
+Mas evitar:
+
+* refatorações gigantes;
+* trocar arquitetura;
+* renomear centenas de arquivos;
+* substituir serviços existentes;
+* criar módulos duplicados.
+
+A prioridade é estabilizar.
+
+---
+
+# 19. CRITÉRIO DE CONCLUSÃO
+
+Só considerar esta etapa concluída se for possível demonstrar:
+
+### Fluxo positivo
+
+Pedido
+→ entrega
+→ rota
+→ motorista
+→ jornada
+→ GPS
+→ ETA
+→ tracking
+→ ocorrência
+→ alteração de ETA
+→ chegada
+→ entregue.
+
+### Segurança
+
+Empresa A não acessa Empresa B.
+
+### GPS
+
+GPS recente funciona.
+
+GPS antigo é tratado corretamente.
+
+### ETA
+
+ETA utiliza a sequência correta.
+
+### Banco
+
+Servidor consegue conectar ao banco correto.
+
+### PWA
+
+Cliente consegue acompanhar a entrega.
+
+---
+
+# 20. RELATÓRIO FINAL OBRIGATÓRIO
+
+Ao terminar, responder exatamente nestas seções:
+
+## 1. Ambiente
+
+* banco utilizado;
+* servidor iniciou?
+* workflow iniciou?
+* configuração necessária.
+
+NUNCA mostrar credenciais.
+
+## 2. E2E
+
+Informar cada etapa:
+
+* pedido;
+* delivery;
+* rota;
+* motorista;
+* jornada;
+* GPS;
+* ETA;
+* tracking;
+* ocorrência;
+* chegada;
+* entrega concluída.
+
+Para cada uma:
+
+PASSOU / FALHOU
+
+## 3. Segurança
+
+* token;
+* multi-tenant;
+* GPS;
+* acesso indevido.
+
+## 4. Testes
+
+Informar:
+
+* check;
+* build;
+* unit;
+* E2E.
+
+Com quantidade real de testes.
+
+## 5. Correções
+
+Listar somente o que realmente foi alterado.
+
+## 6. Pendências
+
+Listar o que ainda falta.
+
+## 7. Próxima etapa recomendada
+
+Não implementar automaticamente a próxima etapa.
+
+Apenas recomendar.
+
+---
+
+# REGRA FINAL
+
+O objetivo desta etapa é **provar que o Tracking funciona de verdade**, não aumentar o tamanho do código.
+
+Não considerar "build passou" como prova de funcionamento.
+
+Precisamos validar o fluxo real.
+
+E novamente:
+
+**NÃO MEXER NO GIT PUSH.**
+**NÃO MEXER NO GITHUB.**
+**NÃO ALTERAR REMOTE.**
+**NÃO CRIAR NOVO TRACKING.**
+**NÃO CRIAR NOVO APLICATIVO.**
