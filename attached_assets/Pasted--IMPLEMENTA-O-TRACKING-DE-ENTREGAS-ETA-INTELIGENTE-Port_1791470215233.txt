@@ -1,0 +1,1021 @@
+# IMPLEMENTAÇÃO — TRACKING DE ENTREGAS + ETA INTELIGENTE
+
+## Portal Vivafrutaz — PWA do cliente + Android Tracker do motorista
+
+Você está trabalhando no projeto existente **PortalVivafrutaz-2**.
+
+IMPORTANTE: NÃO recrie o sistema do zero e NÃO substitua as estruturas existentes sem necessidade.
+
+O projeto já possui infraestrutura de:
+
+* pedidos;
+* empresas;
+* entregas;
+* rotas;
+* paradas de rota;
+* motoristas;
+* jornadas;
+* GPS;
+* Android Tracker do motorista;
+* tracking público;
+* tokens de tracking;
+* cálculo de ETA;
+* janelas de entrega;
+* permissões;
+* proteção multi-tenant.
+
+Seu trabalho é **AUDITAR, REUTILIZAR, INTEGRAR, IMPLEMENTAR E VALIDAR** essas estruturas.
+
+---
+
+# 1. REGRA PRINCIPAL
+
+Antes de alterar qualquer código:
+
+1. Faça uma nova auditoria do código atual.
+2. Localize as estruturas existentes relacionadas a:
+
+   * orders;
+   * deliveries;
+   * companies;
+   * logistics_routes;
+   * route_stops;
+   * logistics_drivers;
+   * driver_journeys;
+   * driver_gps_positions;
+   * delivery_stop_events;
+   * tracking público;
+   * tokens;
+   * ETA;
+   * deliveryConfigJson;
+   * permissões/RBAC;
+   * tenant isolation;
+   * Android Tracker.
+3. Leia os serviços existentes antes de criar novos.
+4. Reutilize funções, tabelas, endpoints e componentes existentes sempre que possível.
+5. NÃO duplique tabelas ou mecanismos que já existem.
+6. NÃO remova funcionalidades existentes.
+7. NÃO altere autenticação, usuários, senhas ou multi-tenant sem necessidade.
+8. NÃO exponha service-role keys ou credenciais no frontend.
+9. NÃO transforme o cliente em aplicativo Android.
+10. O cliente continuará usando exclusivamente o **Portal/PWA**.
+
+Antes de implementar, gere internamente um mapa das dependências e só depois altere o código.
+
+---
+
+# 2. ARQUITETURA OBRIGATÓRIA
+
+A arquitetura deve permanecer:
+
+CLIENTE:
+
+PWA / Site
+↓
+Backend
+↓
+Pedido / Entrega / Rota / ETA
+
+MOTORISTA:
+
+Android Tracker
+↓
+GPS / jornada / rota
+↓
+Backend
+↓
+Entrega / ETA
+↓
+PWA do cliente
+
+O Android Tracker NÃO é o aplicativo do cliente.
+
+O cliente NÃO deve precisar instalar aplicativo.
+
+---
+
+# 3. OBJETIVO
+
+Adicionar ao Portal Vivafrutaz um sistema completo para o cliente acompanhar a entrega.
+
+O cliente deve conseguir visualizar:
+
+* situação do pedido;
+* data da entrega;
+* janela de entrega;
+* status operacional;
+* previsão inteligente;
+* se o motorista já saiu;
+* se está em rota;
+* quantidade de entregas antes da sua;
+* quando for a próxima parada;
+* aproximação do motorista;
+* entrega atrasada;
+* entrega concluída.
+
+---
+
+# 4. REGRA DE DISPONIBILIDADE DO TRACKING
+
+NÃO mostrar GPS ou localização do motorista simplesmente porque o pedido existe.
+
+Criar uma regra operacional clara.
+
+Estados conceituais:
+
+PEDIDO CRIADO
+↓
+APROVADO
+↓
+PROGRAMADO
+↓
+ATRIBUÍDO À ROTA
+↓
+ROTA INICIADA
+↓
+EM DESLOCAMENTO
+↓
+PRÓXIMA PARADA
+↓
+CHEGANDO
+↓
+ENTREGUE
+
+O tracking detalhado para o cliente somente deve ficar disponível quando houver condição operacional real.
+
+No mínimo:
+
+* delivery vinculada a uma rota;
+* motorista atribuído;
+* rota ativa;
+* jornada do motorista iniciada ou equivalente operacional;
+* GPS recente disponível.
+
+Antes disso, mostrar apenas:
+
+"Entrega programada"
+
+ou
+
+"Entrega prevista para hoje"
+
+sem expor localização do motorista.
+
+---
+
+# 5. PWA DO CLIENTE
+
+O cliente continuará usando o Portal/PWA existente.
+
+NÃO criar aplicativo Android para cliente.
+
+Adicionar a experiência dentro do Portal existente.
+
+Exemplo:
+
+PEDIDO #VF-000123
+
+Status:
+
+✓ Pedido confirmado
+✓ Pedido programado
+✓ Rota preparada
+✓ Motorista saiu
+● Em rota
+○ Entregue
+
+Previsão:
+
+09:35 – 09:50
+
+2 entregas antes da sua
+
+[ Acompanhar entrega ]
+
+Quando for a próxima:
+
+"Você é a próxima entrega"
+
+Quando estiver próximo:
+
+"Sua entrega está chegando"
+
+Quando entregue:
+
+"Entrega realizada às 09:43"
+
+---
+
+# 6. ETA INTELIGENTE
+
+O projeto já possui lógica de ETA.
+
+NÃO criar um segundo ETA independente sem antes avaliar o existente.
+
+Localize e reutilize o serviço existente de ETA.
+
+O novo ETA deve considerar, sempre que os dados estiverem disponíveis:
+
+1. GPS atual do motorista;
+2. hora atual;
+3. posição atual do motorista;
+4. sequência da rota;
+5. paradas já concluídas;
+6. paradas pendentes;
+7. distância até a próxima parada;
+8. distância até a empresa do cliente;
+9. velocidade/tempo estimado de deslocamento;
+10. tempo estimado de atendimento/parada;
+11. horário de início planejado da rota;
+12. horário real de início da jornada;
+13. janela de entrega da empresa;
+14. atrasos ocorridos anteriormente na rota;
+15. ocorrências registradas pelo motorista;
+16. status atual de cada parada.
+
+O ETA NÃO deve ser simplesmente:
+
+"número de paradas × 15 minutos".
+
+Se essa lógica existir em algum endpoint público, substituir pela lógica correta reutilizando o serviço de ETA existente.
+
+---
+
+# 7. JANELA DE ENTREGA DA EMPRESA
+
+A empresa já possui configuração de horário de entrega.
+
+Usar a configuração existente.
+
+Exemplo:
+
+Empresa:
+
+08:00–10:00
+
+Se o cálculo físico indicar:
+
+07:42
+
+não informar 07:42 como previsão de entrega.
+
+A previsão operacional deverá respeitar a janela:
+
+08:00 em diante.
+
+Se o ETA ultrapassar a janela:
+
+mostrar situação de atraso.
+
+Exemplo:
+
+"Entrega atrasada"
+
+"Nova previsão: 10:20–10:35"
+
+---
+
+# 8. FAIXA DE ETA
+
+NÃO apresentar uma precisão falsa como:
+
+"09:37"
+
+quando não houver certeza.
+
+Preferir:
+
+"09:35–09:50"
+
+ou:
+
+"Em aproximadamente 10 minutos".
+
+A faixa deve ser recalculada conforme o GPS e o andamento da rota.
+
+---
+
+# 9. ENTREGAS ANTES DO CLIENTE
+
+Usar a sequência real da rota.
+
+Exemplo:
+
+1. Empresa A — entregue
+2. Empresa B — em atendimento
+3. Empresa C — cliente atual
+4. Empresa D
+
+Mostrar:
+
+"1 entrega antes da sua"
+
+Quando chegar na vez:
+
+"Você é a próxima entrega"
+
+Não criar uma segunda sequência paralela se `route_stops.ordemParada` já for a fonte oficial.
+
+Definir uma única fonte de verdade para a sequência.
+
+---
+
+# 10. GPS
+
+O GPS continua sendo enviado pelo Android Tracker do motorista.
+
+NÃO mover essa responsabilidade para o PWA do cliente.
+
+Fluxo:
+
+Android Tracker
+↓
+POST GPS existente
+↓
+Backend
+↓
+driver_gps_positions
+↓
+ETA
+↓
+PWA cliente
+
+O cliente deve receber somente os dados necessários.
+
+Não expor:
+
+* bateria;
+* identificadores do dispositivo;
+* precisão desnecessária;
+* dados internos do motorista;
+* informações privadas da rota;
+* dados de outras empresas.
+
+---
+
+# 11. LOCALIZAÇÃO DO MOTORISTA
+
+Quando necessário, o cliente poderá visualizar a localização operacional do veículo no mapa.
+
+Porém:
+
+* não expor dados pessoais desnecessários;
+* não expor outras entregas;
+* não expor empresas de outros clientes;
+* respeitar multi-tenant;
+* não permitir alterar rota pelo cliente;
+* não permitir manipular GPS.
+
+Se o mapa já existir, reutilizar o componente existente.
+
+---
+
+# 12. TOKEN DE TRACKING
+
+Reutilizar o sistema seguro de token público existente.
+
+NÃO criar:
+
+/track/123
+
+ou qualquer URL que exponha diretamente IDs internos.
+
+Manter token seguro, expirável e não previsível.
+
+Validar:
+
+* assinatura;
+* expiração;
+* tipo;
+* entrega;
+* empresa;
+* rota;
+* status operacional.
+
+Um token criptograficamente válido NÃO significa que o tracking deve continuar disponível.
+
+Se a entrega for:
+
+* cancelada;
+* concluída há muito tempo;
+* removida da rota;
+* invalidada;
+
+o endpoint deve respeitar a regra operacional.
+
+---
+
+# 13. MULTI-TENANT
+
+Esta funcionalidade é CRÍTICA.
+
+Cliente da empresa A:
+
+NUNCA pode visualizar:
+
+* pedido da empresa B;
+* entrega da empresa B;
+* rota da empresa B;
+* motorista da empresa B;
+* GPS da empresa B;
+* quantidade de paradas de outras empresas;
+* endereço de outras empresas.
+
+Usar as funções existentes de tenant isolation.
+
+Não confiar apenas no frontend.
+
+Todas as validações importantes devem ocorrer no backend.
+
+---
+
+# 14. ATUALIZAÇÃO DO PWA
+
+Inicialmente, pode utilizar polling controlado enquanto a tela de tracking estiver aberta.
+
+Preferência inicial:
+
+10–15 segundos.
+
+Não deixar polling agressivo em todas as páginas do Portal.
+
+O polling deve ocorrer somente enquanto:
+
+* o usuário estiver na tela de acompanhamento;
+* a entrega estiver em estado rastreável.
+
+Quando a entrega não estiver ativa, reduzir ou interromper consultas.
+
+Se já existir infraestrutura Realtime/WebSocket/SSE adequada, avaliar reutilização.
+
+NÃO criar infraestrutura complexa apenas por criar.
+
+---
+
+# 15. PUSH / NOTIFICAÇÕES
+
+Avaliar a infraestrutura de Push existente.
+
+Criar eventos para o cliente, quando suportado:
+
+1. "Sua entrega foi programada."
+2. "Seu pedido saiu para entrega."
+3. "Sua entrega está a caminho."
+4. "Você é a próxima entrega."
+5. "O motorista está chegando."
+6. "Sua entrega sofreu um atraso."
+7. "Sua entrega foi concluída."
+
+Não enviar notificações duplicadas.
+
+Criar controle de idempotência.
+
+---
+
+# 16. ATRASO
+
+Criar regra clara para detectar atraso.
+
+Exemplo:
+
+Janela:
+
+08:00–10:00
+
+Agora:
+
+10:12
+
+Pedido ainda não entregue.
+
+Mostrar:
+
+⚠️ Entrega atrasada
+
+Nova previsão:
+
+10:25–10:40
+
+O ETA deve continuar sendo recalculado.
+
+---
+
+# 17. OCORRÊNCIAS
+
+Utilizar os eventos/ocorrências já existentes.
+
+Exemplos:
+
+* trânsito;
+* endereço incorreto;
+* cliente ausente;
+* problema no veículo;
+* atraso operacional;
+* espera na portaria;
+* outra ocorrência.
+
+Sempre que uma ocorrência alterar o tempo esperado da rota, o ETA deve ser recalculado.
+
+---
+
+# 18. JORNADA DO MOTORISTA
+
+Diferenciar:
+
+PEDIDO SHIPPED
+
+de:
+
+ROTA INICIADA
+
+e:
+
+GPS ATIVO.
+
+Não considerar simplesmente:
+
+SHIPPED = motorista está fisicamente em rota.
+
+O tracking detalhado só deve ser liberado quando a operação realmente estiver ativa.
+
+---
+
+# 19. ROTAS
+
+Reutilizar:
+
+* logistics_routes;
+* route_stops;
+* deliveries;
+* driver_journeys;
+* driver_gps_positions.
+
+Não criar uma nova tabela de rotas.
+
+Garantir consistência entre:
+
+delivery.routePosition
+
+e
+
+route_stops.ordemParada.
+
+Se houver duas fontes concorrentes para a sequência, escolher uma fonte oficial e sincronizar a outra.
+
+Preferência:
+
+route_stops.ordemParada
+
+caso a arquitetura existente confirme que essa é a sequência operacional oficial.
+
+---
+
+# 20. AUTO-DISPATCH
+
+Auditar o Auto-Dispatch existente.
+
+Não quebrar o funcionamento atual.
+
+Verificar se a inserção automática de novas entregas considera:
+
+* janela da empresa;
+* data;
+* capacidade;
+* motorista;
+* rota;
+* sequência;
+* tempo estimado.
+
+Se não considerar alguma dessas variáveis, NÃO reescrever tudo automaticamente.
+
+Documentar o problema e fazer a alteração mínima necessária.
+
+---
+
+# 21. API DO CLIENTE
+
+Criar ou adaptar endpoint seguro para retornar algo parecido com:
+
+{
+status,
+trackingAvailable,
+deliveryStatus,
+scheduledDate,
+deliveryWindow,
+eta,
+etaMin,
+etaMax,
+stopsBefore,
+isNextStop,
+isDriverNearby,
+driverLocation,
+lastUpdatedAt,
+delay,
+message
+}
+
+NÃO retornar dados internos desnecessários.
+
+NÃO retornar GPS bruto se não for necessário.
+
+---
+
+# 22. STATUS PÚBLICOS
+
+Não expor necessariamente os status internos do banco.
+
+Criar uma camada de tradução.
+
+Exemplo:
+
+INTERNO:
+
+READY
+
+PÚBLICO:
+
+"Pedido preparado"
+
+INTERNO:
+
+SHIPPED
+
+PÚBLICO:
+
+"Em rota"
+
+INTERNO:
+
+DELIVERED
+
+PÚBLICO:
+
+"Entregue"
+
+O cliente deve receber linguagem comercial simples.
+
+---
+
+# 23. INTERFACE
+
+A interface deve seguir o design existente do Portal Vivafrutaz.
+
+Não criar um layout completamente diferente.
+
+Priorizar:
+
+* mobile;
+* responsivo;
+* PWA;
+* carregamento rápido;
+* boa leitura;
+* acessibilidade.
+
+A tela deve funcionar muito bem no celular.
+
+---
+
+# 24. MAPA
+
+Se já existir componente de mapa no Portal:
+
+REUTILIZAR.
+
+O mapa deve mostrar apenas o necessário.
+
+Exemplo:
+
+📍 Local da empresa
+
+🚚 posição aproximada do motorista
+
+Opcionalmente:
+
+linha simplificada da rota.
+
+Não mostrar:
+
+* todas as empresas da rota;
+* endereços de terceiros;
+* dados comerciais de outros clientes.
+
+---
+
+# 25. TESTES OBRIGATÓRIOS
+
+Não considerar a implementação concluída apenas porque:
+
+"npm run build"
+
+passou.
+
+Criar/atualizar testes para:
+
+### Tracking
+
+* pedido sem rota;
+* pedido com rota;
+* rota sem motorista;
+* motorista sem GPS;
+* rota não iniciada;
+* rota iniciada;
+* GPS antigo;
+* GPS atual;
+* entrega concluída;
+* entrega cancelada.
+
+### ETA
+
+* dentro da janela;
+* antes da janela;
+* depois da janela;
+* atraso;
+* múltiplas paradas;
+* próxima parada;
+* motorista sem GPS;
+* GPS desatualizado;
+* ocorrência adicionando tempo;
+* rota iniciada atrasada.
+
+### Segurança
+
+* empresa A tentando acessar empresa B;
+* token inválido;
+* token expirado;
+* token adulterado;
+* delivery inexistente;
+* route inexistente;
+* acesso direto por ID;
+* acesso sem autorização.
+
+### Sequência
+
+* 1 parada;
+* 2 paradas;
+* 10 paradas;
+* parada concluída;
+* inserção de nova parada;
+* alteração da ordem.
+
+### Cliente
+
+* usuário não autenticado;
+* usuário autenticado;
+* cliente correto;
+* cliente de outra empresa;
+* tracking indisponível;
+* tracking disponível.
+
+---
+
+# 26. TESTE E2E PRINCIPAL
+
+Criar pelo menos um cenário completo:
+
+EMPRESA A
+↓
+PEDIDO
+↓
+ENTREGA
+↓
+ROTA
+↓
+MOTORISTA
+↓
+JORNADA INICIADA
+↓
+GPS RECEBIDO
+↓
+ETA CALCULADO
+↓
+CLIENTE ABRE PWA
+↓
+TRACKING DISPONÍVEL
+↓
+GPS ATUALIZA
+↓
+ETA MUDA
+↓
+MOTORISTA CHEGA
+↓
+ENTREGA CONCLUÍDA
+↓
+CLIENTE VÊ "ENTREGUE"
+
+Esse cenário deve ser validado automaticamente sempre que possível.
+
+---
+
+# 27. VALIDAÇÃO CONTÍNUA
+
+Trabalhe em ciclos.
+
+Para cada alteração:
+
+1. alterar;
+2. testar;
+3. verificar TypeScript;
+4. verificar lint;
+5. executar testes relacionados;
+6. executar testes de segurança;
+7. executar build;
+8. verificar se não quebrou funcionalidades existentes;
+9. somente então avançar.
+
+Não faça 50 alterações e teste somente no final.
+
+---
+
+# 28. NÃO FAZER
+
+NÃO:
+
+* recriar banco;
+* recriar rotas;
+* recriar GPS;
+* criar outro sistema de motorista;
+* criar aplicativo para cliente;
+* remover o Android Tracker;
+* substituir o PWA;
+* remover autenticação;
+* remover multi-tenant;
+* expor service-role key;
+* colocar IDs internos no tracking público;
+* confiar somente em validação frontend;
+* usar "15 minutos × paradas" como ETA final;
+* expor GPS de outros clientes;
+* quebrar funcionalidades existentes.
+
+---
+
+# 29. CRITÉRIOS DE ACEITE
+
+A funcionalidade só será considerada concluída quando:
+
+[ ] Cliente consegue ver pedido programado.
+
+[ ] Cliente não vê GPS antes da rota estar operacional.
+
+[ ] Motorista inicia jornada pelo fluxo existente.
+
+[ ] Android envia GPS normalmente.
+
+[ ] Backend recebe GPS.
+
+[ ] Entrega é associada corretamente à rota.
+
+[ ] Sequência da rota é respeitada.
+
+[ ] ETA considera posição atual.
+
+[ ] ETA considera paradas anteriores.
+
+[ ] ETA considera janela da empresa.
+
+[ ] ETA considera horário real de início da rota.
+
+[ ] ETA pode indicar atraso.
+
+[ ] Cliente vê faixa de horário.
+
+[ ] Cliente vê quantidade de entregas antes da sua.
+
+[ ] Cliente vê "próxima entrega" quando aplicável.
+
+[ ] Cliente recebe atualização no PWA.
+
+[ ] Cliente pode visualizar mapa quando permitido.
+
+[ ] Cliente não vê dados de outras empresas.
+
+[ ] Token público permanece seguro.
+
+[ ] Pedido entregue encerra tracking ativo.
+
+[ ] Ocorrências podem alterar ETA.
+
+[ ] Testes automatizados passam.
+
+[ ] Build passa.
+
+[ ] Testes existentes continuam passando.
+
+[ ] Não existem erros TypeScript relacionados à implementação.
+
+[ ] Não existem regressões de autenticação.
+
+[ ] Não existem regressões de multi-tenant.
+
+---
+
+# 30. ENTREGA DO TRABALHO
+
+Ao terminar cada etapa, apresente:
+
+### 1. O que encontrou
+
+Arquivos e funções relevantes.
+
+### 2. O que reutilizou
+
+Tabelas, endpoints, serviços e componentes existentes.
+
+### 3. O que alterou
+
+Arquivo por arquivo.
+
+### 4. O que criou
+
+Somente aquilo que realmente não existia.
+
+### 5. Testes executados
+
+Com resultado real.
+
+### 6. Problemas encontrados
+
+Mesmo que não estejam diretamente relacionados.
+
+### 7. Próxima etapa
+
+Não avance para mudanças grandes sem validar a etapa anterior.
+
+---
+
+# 31. ORDEM DE IMPLEMENTAÇÃO
+
+Siga esta ordem:
+
+FASE 1
+Auditoria final e mapeamento.
+
+FASE 2
+Padronizar estado operacional da entrega e regra de trackingAvailable.
+
+FASE 3
+Integrar rota + motorista + jornada + GPS.
+
+FASE 4
+Corrigir/consolidar ETA.
+
+FASE 5
+Integrar janela da empresa.
+
+FASE 6
+Adicionar faixa de ETA + atraso + entregas antes.
+
+FASE 7
+API segura de tracking para PWA.
+
+FASE 8
+Tela de tracking no PWA do cliente.
+
+FASE 9
+Atualização periódica/realtime.
+
+FASE 10
+Notificações.
+
+FASE 11
+Testes automatizados.
+
+FASE 12
+Testes E2E.
+
+FASE 13
+Build final e auditoria de regressão.
+
+---
+
+# 32. REGRA FINAL
+
+O objetivo não é simplesmente "criar uma tela bonita de mapa".
+
+O objetivo é criar um sistema operacionalmente confiável onde:
+
+PEDIDO
+→ ENTREGA
+→ ROTA
+→ MOTORISTA
+→ JORNADA
+→ GPS
+→ ETA
+→ PWA DO CLIENTE
+
+sejam uma única cadeia de informação.
+
+Se alguma informação necessária já existir no sistema, REUTILIZE.
+
+Se algo estiver incompleto, corrija.
+
+Se algo não existir, crie somente o necessário.
+
+Antes de qualquer alteração estrutural grande, explique o motivo.
+
+E, principalmente:
+
+**TRABALHE VALIDANDO A CADA ETAPA.**
+
+Não declare concluído apenas porque o código compila.
+
+A implementação final precisa passar por testes funcionais, segurança, multi-tenant, ETA, tracking e regressão.
