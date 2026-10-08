@@ -4,6 +4,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  OperationalDeadlineError,
   UnauthorizedError,
 } from "../../shared/errors/AppError";
 import { inArray } from "drizzle-orm";
@@ -12,7 +13,11 @@ import { orders as ordersTable, orderItems as orderItemsTable } from "@shared/sc
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { currentTenantId } from "../../core/tenant/context";
-import { calculateOrderModificationDeadline } from "../../utils/orderDeadline";
+import {
+  calculateOrderModificationDeadline,
+  ORDER_MODIFICATION_EXPIRED_MESSAGE,
+  REOPENED_ORDER_EXPIRED_MESSAGE,
+} from "../../utils/orderDeadline";
 // FASE 9D — safe async observability for afterCreate
 import { logSecurity } from "../../core/security/securityLogger";
 import { auditLog } from "../../utils/auditLogger";
@@ -112,6 +117,8 @@ export interface ActorContext {
   userId?: number;
   companyId?: number;
   ip?: string;
+  role?: string;
+  email?: string;
 }
 
 /**
@@ -1111,7 +1118,11 @@ export class OrdersService {
   async update(
     id: number,
     body: { status?: string; adminNote?: string; nimbiExpiration?: string | null; [k: string]: any },
+    actor: ActorContext = {},
   ): Promise<Order> {
+    if (body.status === "CANCELLED") {
+      await this.assertOperationalDeadline(id, "cancel", actor);
+    }
     // FASE NF.7.9.2 — guard de fechamento mensal. Roda ANTES de qualquer
     // escrita. Se o pedido caiu num mês já fechado para a empresa, recusa
     // com 403. Se o pedido não existir / não tiver createdAt / não houver
@@ -1222,6 +1233,9 @@ export class OrdersService {
     // ── Phase 2: Validation (pure — all reads are done, no writes yet) ───────
     assertTransitionAllowed(from, to);
     assertTransitionRole(to, user.role);
+    if (to === OrderStatus.CANCELLED) {
+      await this.assertOperationalDeadline(id, "cancel", actor, undefined, orderRow);
+    }
 
     // STEP 7.1 — Skip-step guard: APPROVED → INVOICED is allowed by the state
     // machine (legacy fast path), but only privileged roles can use it. Regular
@@ -1547,9 +1561,15 @@ export class OrdersService {
         "Pedido já entrou em separação e não pode mais ser editado.",
       );
     }
-    // Prazo operacional: bloqueia solicitação de alteração após 13:00 BRT
+    // Prazo operacional: bloqueia solicitação de alteração após 12:00 BRT
     // do penúltimo dia útil antes da entrega.
-    await this.assertOperationalDeadline(id, "reopen-request", actor);
+    await this.assertOperationalDeadline(
+      id,
+      "request-change",
+      actor,
+      undefined,
+      data.order as any,
+    );
 
     // FASE NF.7.9.10 — bloqueio de reabertura em mês fechado.
     // Reaproveita assertPeriodOpen (mesmo helper de update/remove/replace-items).
@@ -1579,6 +1599,13 @@ export class OrdersService {
         "Pedido não está em solicitação de alteração.",
       );
     }
+    await this.assertOperationalDeadline(
+      id,
+      "reopen-approve",
+      actor,
+      REOPENED_ORDER_EXPIRED_MESSAGE,
+      data.order as any,
+    );
     // FASE NF.7.9.10 — bloqueio de aprovação de reabertura em mês fechado.
     // Mesma proteção de update/remove/replace-items: 403 PERIODO_FECHADO.
     await this.assertPeriodOpen(id, "reopen-approve");
@@ -1675,7 +1702,8 @@ export class OrdersService {
       id,
       "finalize-edit",
       actor,
-      "Este pedido foi reaberto, porém o prazo operacional para alterações já expirou.",
+      REOPENED_ORDER_EXPIRED_MESSAGE,
+      data.order as any,
     );
 
     const candidateItems =
@@ -1744,6 +1772,12 @@ export class OrdersService {
 
   async replaceItems(id: number, items: any[], actor?: ActorContext): Promise<OrderDetail> {
     if (!Array.isArray(items)) throw new BadRequestError("items required");
+
+    await this.assertOperationalDeadline(
+      id,
+      "replace-items",
+      actor ?? {},
+    );
 
     // 🔒 FASE 6.1 — BLOQUEIO DE PERÍODO FECHADO (replace-items).
     // Mesmo padrão de update() (linha 718) e remove() (linha 1032). Se o
@@ -2415,56 +2449,107 @@ export class OrdersService {
    * Se o pedido não existir, segue normal (NotFoundError será emitido
    * mais à frente pelo repo, mantendo o fluxo de erro preexistente).
    */
+  async auditOperationalDeadline(
+    orderId: number,
+    action: string,
+    actor: ActorContext,
+  ): Promise<{ deadline: string | null; canModify: boolean; reason: string | null }> {
+    if (!actor.userId) throw new UnauthorizedError();
+    if (!["edit", "request-change", "request-cancellation", "reopen"].includes(action)) {
+      throw new BadRequestError("Ação de auditoria inválida.");
+    }
+    const data = await this.repo.get(orderId);
+    if (!data) throw new NotFoundError("Pedido não encontrado");
+    const order = data.order as any;
+    if (actor.companyId && Number(order.companyId) !== Number(actor.companyId)) {
+      throw new ForbiddenError("Sem permissão");
+    }
+    if (
+      !actor.companyId &&
+      !["MASTER", "DIRECTOR"].includes(String(actor.role ?? "").toUpperCase())
+    ) {
+      throw new ForbiddenError("Sem permissão");
+    }
+    return this.recordOperationalDeadlineCheck(order, action, actor);
+  }
+
   /**
-   * Verifica o prazo operacional para alteração de pedido.
-   * Bloqueia se agora > deadline (2 dias úteis antes da entrega, às 13:00 BRT).
-   * Registra auditoria em log em toda tentativa (permitida ou bloqueada).
-   *
-   * @param expiredMessage - mensagem customizada para quando o prazo já expirou.
-   *   Se omitida, usa a mensagem padrão ao cliente.
+   * Checks and records the operational cutoff before a mutation. The optional
+   * snapshot avoids an extra read in workflows that already loaded the order.
    */
   private async assertOperationalDeadline(
     orderId: number,
     source: string,
     actor: ActorContext,
     expiredMessage?: string,
+    orderSnapshot?: Record<string, any>,
   ): Promise<void> {
-    const data = await this.repo.get(orderId);
-    if (!data) return; // not-found será emitido pelo chamador
+    const data = orderSnapshot ? null : await this.repo.get(orderId);
+    const order = orderSnapshot ?? (data?.order as any);
+    if (!order) return; // the caller preserves its existing not-found behavior
 
-    const order = data.order as any;
-    if (!order.deliveryDate) return; // sem data de entrega — sem prazo calculável
-
-    const now = new Date();
-    const { deadline, canModify } = calculateOrderModificationDeadline(order.deliveryDate);
-
-    // Auditoria mandatória: pedido, empresa, usuário, tentativa, deadline, atual, permitido, motivo
-    await this.repo.createLog({
-      action: 'ORDER_MODIFICATION_DEADLINE_CHECK',
-      description: JSON.stringify({
-        orderId,
-        orderCode: order.orderCode ?? null,
-        companyId: order.companyId ?? actor.companyId ?? null,
-        userId: actor.userId ?? null,
-        source,
-        attemptedAt: now.toISOString(),
-        deadlineCalculated: deadline.toISOString(),
-        currentTime: now.toISOString(),
-        allowed: canModify,
-        blockedReason: canModify ? null : 'PRAZO_OPERACIONAL_EXPIRADO',
-      }),
-      companyId: order.companyId ?? actor.companyId,
-      userId: actor.userId,
-      userRole: 'CLIENT',
-      level: canModify ? 'INFO' : 'WARN',
-    });
-
-    if (!canModify) {
-      throw new ForbiddenError(
-        expiredMessage ??
-          'O prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado. Para pedidos com entrega em dias úteis, alterações são permitidas somente até às 13h00 do último dia útil permitido antes da entrega. Caso necessite de atendimento excepcional, entre em contato com nossa equipe comercial.',
+    const result = await this.recordOperationalDeadlineCheck(order, source, actor);
+    if (!result.canModify) {
+      throw new OperationalDeadlineError(
+        expiredMessage ?? ORDER_MODIFICATION_EXPIRED_MESSAGE,
+        {
+          orderId,
+          deadline: result.deadline,
+          reason: result.reason,
+        },
       );
     }
+  }
+
+  private async recordOperationalDeadlineCheck(
+    order: Record<string, any>,
+    source: string,
+    actor: ActorContext,
+  ): Promise<{ deadline: string | null; canModify: boolean; reason: string | null }> {
+    const now = new Date();
+    let deadline: Date | null = null;
+    let canModify = false;
+    let reason: string | null = null;
+
+    if (!order.deliveryDate) {
+      reason = "DATA_ENTREGA_AUSENTE";
+    } else {
+      try {
+        const eligibility = calculateOrderModificationDeadline(order.deliveryDate, { now });
+        deadline = eligibility.deadline;
+        canModify = eligibility.canModify;
+        reason = canModify ? null : "PRAZO_OPERACIONAL_EXPIRADO";
+      } catch {
+        reason = "DATA_ENTREGA_INVALIDA";
+      }
+    }
+
+    const nowIso = now.toISOString();
+    const deadlineIso = deadline?.toISOString() ?? null;
+    const companyId = Number(order.companyId ?? actor.companyId ?? 0) || null;
+    const orderId = Number(order.id ?? 0) || null;
+    const orderCode = order.orderCode ?? order.vfCode ?? (orderId ? `#${orderId}` : null);
+    await this.repo.createLog({
+      action: "ORDER_MODIFICATION_DEADLINE_CHECK",
+      description: JSON.stringify({
+        orderId,
+        orderCode,
+        companyId,
+        userId: actor.userId ?? null,
+        source,
+        attemptDate: nowIso,
+        deadlineCalculated: deadlineIso,
+        currentDate: nowIso,
+        allowed: canModify,
+        reason,
+      }),
+      companyId: companyId ?? undefined,
+      userId: actor.userId,
+      userEmail: actor.email,
+      userRole: actor.role ?? (actor.companyId ? "CLIENT" : "INTERNAL"),
+      level: canModify ? "INFO" : "WARN",
+    });
+    return { deadline: deadlineIso, canModify, reason };
   }
 
   private async assertPeriodOpen(orderId: number, source: string): Promise<void> {

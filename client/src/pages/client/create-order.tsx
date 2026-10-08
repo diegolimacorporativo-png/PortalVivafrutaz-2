@@ -56,7 +56,11 @@ function fmtBRL(n: number) {
 const ORDER_NOTE_PLACEHOLDER = "Ex: Bananas mais verdes, solicito produto que não está na planilha (informar nome), entregar antes das 9h...";
 
 import { BackHeader } from "@/components/navigation/BackHeader";
-import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import {
+  calculateOrderModificationDeadline,
+  isOperationalDeadlineError,
+  logDeadlineAudit,
+} from "@/lib/order-deadline";
 import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
 import { WeeklyBillingIndicator } from "@/components/orders/WeeklyBillingIndicator";
 
@@ -109,7 +113,10 @@ export default function CreateOrderPage() {
       setReopenSuccess(true);
       toast({ title: 'Solicitação enviada!', description: 'O administrador irá analisar e liberar a edição do pedido.' });
     },
-    onError: (e: any) => toast({ title: e?.message || 'Erro ao solicitar alteração', variant: 'destructive' }),
+    onError: (e: any) => {
+      if (isOperationalDeadlineError(e)) setShowDeadlineExpired(true);
+      else toast({ title: e?.message || 'Erro ao solicitar alteração', variant: 'destructive' });
+    },
   });
 
   if (!authLoading && !company) {

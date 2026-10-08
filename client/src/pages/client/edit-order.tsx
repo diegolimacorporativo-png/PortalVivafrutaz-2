@@ -21,7 +21,11 @@ import { ShoppingCart, Package, Minus, Plus, Trash2, CheckCircle2, Lock, Ban, Se
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { api } from "@shared/routes";
 import { buildOrderCatalog, itemToCartKey, type ProductEntry } from "@/utils/buildOrderCatalog";
-import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import {
+  calculateOrderModificationDeadline,
+  isOperationalDeadlineError,
+  logDeadlineAudit,
+} from "@/lib/order-deadline";
 import { WeeklyBillingIndicator } from "@/components/orders/WeeklyBillingIndicator";
 
 function fmtBRL(n: number) {
@@ -45,6 +49,7 @@ export default function EditOrderPage() {
   const [initialized, setInitialized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [search, setSearch] = useState("");
+  const [serverDeadlineExpired, setServerDeadlineExpired] = useState(false);
 
   // ── Pre-fill cart from existing order items once loaded ─────────────────────
   // Maps each existing item to the same cartKey format used in create-order.
@@ -244,6 +249,10 @@ export default function EditOrderPage() {
       toast({ title: "Pedido atualizado e confirmado com sucesso!" });
       navigate("/client/history");
     } catch (e: any) {
+      if (isOperationalDeadlineError(e)) {
+        setServerDeadlineExpired(true);
+        return;
+      }
       const message = e?.message || "Erro ao salvar pedido";
       const isBillingError = /faturamento mínimo|programação da semana/i.test(message);
       toast({
@@ -266,7 +275,8 @@ export default function EditOrderPage() {
   const deadlineCheck = order?.deliveryDate
     ? calculateOrderModificationDeadline(order.deliveryDate)
     : null;
-  const deadlineExpired = deadlineCheck ? !deadlineCheck.canModify : false;
+  const deadlineExpired =
+    serverDeadlineExpired || (deadlineCheck ? !deadlineCheck.canModify : false);
 
   console.log("[EDIT-ORDER][DEADLINE]", {
     deliveryDate: order?.deliveryDate,
@@ -314,10 +324,10 @@ export default function EditOrderPage() {
             <div>
               <p className="font-bold text-red-700 text-base mb-1">Prazo operacional expirado</p>
               <p className="text-sm text-red-600">
-                Este pedido foi reaberto, porém o prazo operacional para alterações já foi encerrado.
+                Este pedido foi reaberto, porém o prazo operacional para alterações já expirou.
               </p>
               <p className="text-sm text-red-600 mt-2">
-                Alterações são permitidas somente até às 13h00 do segundo dia útil anterior à data de entrega.
+                Alterações são permitidas somente até às 12h00 do segundo dia útil anterior à data de entrega.
               </p>
             </div>
           </div>

@@ -44,8 +44,15 @@ export class UnauthorizedError extends AppError {
 
 /** 403 — authenticated but not allowed. */
 export class ForbiddenError extends AppError {
-  constructor(message = "Acesso negado") {
-    super(message, 403, "FORBIDDEN");
+  constructor(message = "Acesso negado", details?: unknown) {
+    super(message, 403, "FORBIDDEN", details);
+  }
+}
+
+/** 403 — operational order-modification deadline has expired. */
+export class OperationalDeadlineError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super(message, 403, "OPERATIONAL_DEADLINE_EXPIRED", details);
   }
 }
 

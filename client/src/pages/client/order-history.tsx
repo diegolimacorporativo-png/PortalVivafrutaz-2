@@ -18,7 +18,11 @@ import {
 import { Link, useLocation } from "wouter";
 import { api } from "@shared/routes";
 import { OrderTimeline } from "@/components/OrderTimeline";
-import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import {
+  calculateOrderModificationDeadline,
+  isOperationalDeadlineError,
+  logDeadlineAudit,
+} from "@/lib/order-deadline";
 import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
 
 const SIXTY_DAYS_AGO = subDays(new Date(), 60);
@@ -263,10 +267,11 @@ function OrderDetailModal({ order, onClose, onReopen, onDeadlineExpired }: {
 }
 
 /* ── Reopen request modal ───────────────────────────────────── */
-function ReopenRequestModal({ order, onClose, onSuccess }: {
+function ReopenRequestModal({ order, onClose, onSuccess, onDeadlineExpired }: {
   order: any;
   onClose: () => void;
   onSuccess: () => void;
+  onDeadlineExpired: () => void;
 }) {
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -293,13 +298,19 @@ function ReopenRequestModal({ order, onClose, onSuccess }: {
         body: JSON.stringify({ reason: reason.trim() }),
       });
       if (!res.ok) {
-        const d = await res.json();
-        throw new Error(d.message || 'Erro ao enviar solicitação.');
+        const d = await res.json().catch(() => ({}));
+        const apiError = d?.error ?? d;
+        if (apiError?.code === "OPERATIONAL_DEADLINE_EXPIRED") {
+          onDeadlineExpired();
+          return;
+        }
+        throw new Error(apiError?.message || 'Erro ao enviar solicitação.');
       }
       toast({ title: "Solicitação enviada! Aguarde análise do time VivaFrutaz." });
       onSuccess();
     } catch (e: any) {
-      toast({ title: e.message || "Erro", variant: "destructive" });
+      if (isOperationalDeadlineError(e)) onDeadlineExpired();
+      else toast({ title: e.message || "Erro", variant: "destructive" });
     } finally {
       setSubmitting(false);
     }
@@ -639,6 +650,10 @@ export default function OrderHistoryPage() {
         <ReopenRequestModal
           order={reopenOrder}
           onClose={() => setReopenOrder(null)}
+          onDeadlineExpired={() => {
+            setReopenOrder(null);
+            setDeadlineExpired(true);
+          }}
           onSuccess={() => {
             setReopenOrder(null);
             queryClient.invalidateQueries({ queryKey: [api.orders.companyOrders.path] });

@@ -13,6 +13,7 @@ import {
   createOrderBodySchema,
   createProgramacaoBodySchema,
   createWithDeliveryBodySchema,
+  deadlineAuditBodySchema,
   deleteOrderBodySchema,
   exportQuerySchema,
   finalizeEditBodySchema,
@@ -157,6 +158,13 @@ router.post(
   checkPlanLimit("pedidos"),
   validate(createProgramacaoBodySchema, "body"),
   asyncHandler(ordersController.createProgramacao),
+);
+
+router.post(
+  "/:id/deadline-audit",
+  validate(idParamSchema, "params"),
+  validate(deadlineAuditBodySchema, "body"),
+  asyncHandler(ordersController.auditDeadline),
 );
 
 router.post(

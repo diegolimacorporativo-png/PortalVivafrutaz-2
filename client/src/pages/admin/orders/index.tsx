@@ -94,7 +94,10 @@ export default function OrdersPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error('Failed to update order');
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(normalizeError(d).message || 'Falha ao atualizar o pedido.');
+    }
     queryClient.invalidateQueries({ queryKey: [api.orders.list.path] });
   };
 
@@ -106,8 +109,13 @@ export default function OrdersPage() {
 
   const cancelOrderFn = async () => {
     if (!cancelOrder) return;
-    await patchOrder(cancelOrder.id, { status: 'CANCELLED' });
-    toast({ title: "Pedido cancelado.", variant: "destructive" });
+    try {
+      await patchOrder(cancelOrder.id, { status: 'CANCELLED' });
+      toast({ title: "Pedido cancelado.", variant: "destructive" });
+      setCancelOrder(null);
+    } catch (e: any) {
+      toast({ title: e?.message || "Não foi possível cancelar o pedido.", variant: "destructive" });
+    }
   };
 
   const restoreOrder = useCallback(async (order: Order) => {

@@ -20,7 +20,11 @@ import {
 } from "lucide-react";
 import { buildOrderCatalog, type ProductEntry } from "@/utils/buildOrderCatalog";
 import { BackHeader } from "@/components/navigation/BackHeader";
-import { calculateOrderModificationDeadline, logDeadlineAudit } from "@/lib/order-deadline";
+import {
+  calculateOrderModificationDeadline,
+  isOperationalDeadlineError,
+  logDeadlineAudit,
+} from "@/lib/order-deadline";
 import { DeadlineExpiredModal } from "@/components/DeadlineExpiredModal";
 
 // ─────────────────── helpers ───────────────────────────────────────────────
@@ -546,7 +550,10 @@ export default function WeeklySchedulePage() {
       setReopenSuccess(true);
       toast({ title: "Solicitação enviada!", description: "O administrador irá analisar e liberar a edição do pedido." });
     },
-    onError: (e: any) => toast({ title: e?.message || "Erro ao solicitar alteração", variant: "destructive" }),
+    onError: (e: any) => {
+      if (isOperationalDeadlineError(e)) setShowDeadlineExpired(true);
+      else toast({ title: e?.message || "Erro ao solicitar alteração", variant: "destructive" });
+    },
   });
 
   // Test / maintenance mode
@@ -902,7 +909,7 @@ export default function WeeklySchedulePage() {
                 Após o envio não será possível alterar os pedidos sem solicitar uma reabertura.
               </p>
               <p className="text-muted-foreground font-medium">
-                 Alterações somente poderão ser solicitadas até o segundo dia útil anterior à entrega, até 13:00 (horário de Brasília).
+                 Alterações somente poderão ser solicitadas até o segundo dia útil anterior à entrega, até 12:00 (horário de Brasília).
               </p>
             </div>
 
@@ -979,7 +986,7 @@ export default function WeeklySchedulePage() {
               <p className="font-bold text-green-800">Programação já enviada para esta semana.</p>
               <p className="text-green-700 text-sm mt-1">
                  Você enviou {weekOrders.length} pedido(s) para a {weekNum}.
-                 Para solicitar alterações, use o botão abaixo em cada pedido até o segundo dia útil anterior à entrega, às 13:00 (horário de Brasília).
+                 Para solicitar alterações, use o botão abaixo em cada pedido até o segundo dia útil anterior à entrega, às 12:00 (horário de Brasília).
               </p>
             </div>
           </div>

@@ -41,6 +41,8 @@ export class OrdersController {
     return {
       userId: s.userId,
       companyId: s.companyId,
+      role: s.userRole ?? s.role,
+      email: s.email,
       ip:
         (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
         req.socket.remoteAddress ||
@@ -135,7 +137,7 @@ export class OrdersController {
   /** PATCH /api/orders/:id */
   update = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
-    return ok(res, await this.service.update(id, req.body));
+    return ok(res, await this.service.update(id, req.body, this.actor(req)));
   };
 
   /** DELETE /api/orders/:id */
@@ -155,6 +157,16 @@ export class OrdersController {
     const id = Number((req.params as any).id);
     const { reason } = req.body as { reason: string };
     return ok(res, await this.service.requestReopen(id, reason, this.actor(req)));
+  };
+
+  /** POST /api/orders/:id/deadline-audit */
+  auditDeadline = async (req: Request, res: Response) => {
+    const id = Number((req.params as any).id ?? (req.params as any).orderId);
+    const { action } = req.body as { action: string };
+    return ok(
+      res,
+      await this.service.auditOperationalDeadline(id, action, this.actor(req)),
+    );
   };
 
   /** POST /api/orders/:id/approve-reopen */

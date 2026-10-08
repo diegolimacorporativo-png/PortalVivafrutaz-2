@@ -118,6 +118,10 @@ export const requestReopenBodySchema = z.object({
     .min(3, { message: "Informe o motivo da alteração." }),
 });
 
+export const deadlineAuditBodySchema = z.object({
+  action: z.enum(["edit", "request-change", "request-cancellation", "reopen"]),
+});
+
 /** `POST /api/orders/:id/finalize-edit`. */
 export const finalizeEditBodySchema = z.object({
   items: z.array(z.record(z.string(), z.any())).optional(),

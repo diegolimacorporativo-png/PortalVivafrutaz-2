@@ -1,35 +1,9 @@
-/**
- * Regra de prazo para alteração / cancelamento / reabertura de pedidos.
- *
- * Prazo: até às 13:00 BRT (16:00 UTC) do SEGUNDO DIA ÚTIL anterior à entrega.
- * Dias úteis: segunda a sexta. Sábado e domingo são ignorados.
- * Feriados: parâmetro `holidays` reservado para implementação futura.
- *
- * TODOS os pontos de ação (editar, solicitar alteração, solicitar cancelamento,
- * solicitar reabertura) devem usar exclusivamente esta função — sem duplicação
- * de regra em outros arquivos.
- */
-
-// ─── Tipos públicos ────────────────────────────────────────────────────────────
-
-export interface DeadlineResult {
-  /** Data/hora limite: 13:00 BRT (16:00 UTC) do 2º dia útil antes da entrega */
-  deadline: Date;
-  /** true quando now ≤ deadline (dentro do prazo) */
-  canModify: boolean;
-  /** Motivo do bloqueio quando canModify = false; string vazia quando dentro do prazo */
-  reason: string;
-}
-
-export interface DeadlineOptions {
-  /**
-   * Lista de feriados a serem ignorados como dias úteis.
-   * Reservado para suporte futuro — ainda não aplicado ao cálculo.
-   */
-  holidays?: Date[];
-  /** Sobrescreve "agora" — útil exclusivamente em testes unitários */
-  now?: Date;
-}
+export {
+  calculateOrderModificationDeadline,
+  ORDER_MODIFICATION_EXPIRED_MESSAGE,
+  REOPENED_ORDER_EXPIRED_MESSAGE,
+} from "@shared/utils/orderDeadline";
+export type { DeadlineOptions, DeadlineResult } from "@shared/utils/orderDeadline";
 
 export type DeadlineAction =
   | "edit"
@@ -48,72 +22,13 @@ export interface DeadlineAuditPayload {
   action: DeadlineAction;
 }
 
-// ─── Função interna ────────────────────────────────────────────────────────────
-
-/**
- * Retrocede `n` dias úteis (seg–sex) a partir de `date`.
- * Sábado (UTC day 6) e domingo (UTC day 0) são pulados.
- *
- * @param date     Ponto de partida
- * @param n        Quantidade de dias úteis a retroceder
- * @param _holidays Reservado — nenhuma verificação de feriado ainda
- */
-function subtractBusinessDays(date: Date, n: number, _holidays: Date[] = []): Date {
-  const result = new Date(date);
-  let remaining = n;
-  while (remaining > 0) {
-    result.setUTCDate(result.getUTCDate() - 1);
-    const dow = result.getUTCDay();
-    if (dow !== 0 && dow !== 6) {
-      // TODO: quando holidays for implementado, verificar colisão aqui também
-      remaining--;
-    }
-  }
-  return result;
-}
-
-// ─── API pública ───────────────────────────────────────────────────────────────
-
-/**
- * Calcula o prazo para alteração / cancelamento / reabertura de um pedido.
- *
- * **Regra:** prazo = segundo dia útil anterior à entrega às 13:00 BRT (16:00 UTC).
- *
- * @example
- * // Entrega segunda 03/08/2026 → prazo quinta 31/07/2026 às 13:00 BRT
- * calculateOrderModificationDeadline("2026-08-04")
- * // { deadline: Date("2026-07-31T16:00:00Z"), canModify: ..., reason: "..." }
- *
- * @param deliveryDate Data de entrega (Date ou string ISO/YYYY-MM-DD)
- * @param options      { holidays?: Date[]; now?: Date }
- */
-export function calculateOrderModificationDeadline(
-  deliveryDate: Date | string,
-  options: DeadlineOptions = {},
-): DeadlineResult {
-  const { holidays = [], now = new Date() } = options;
-
-  const delivery = new Date(deliveryDate);
-  const deadlineDay = subtractBusinessDays(delivery, 2, holidays);
-
-  const deadline = new Date(deadlineDay);
-  deadline.setUTCHours(16, 0, 0, 0); // 13:00 BRT = UTC-3 → 16:00 UTC
-
-  const canModify = now <= deadline;
-  const reason = canModify
-     ? ""
-    : "Prazo encerrado: alterações são permitidas somente até às 13h00 do segundo dia útil anterior à data de entrega.";
-
-  return { deadline, canModify, reason };
-}
-
 // ─── Auditoria ─────────────────────────────────────────────────────────────────
 
 /**
  * Envia um registro de auditoria ao servidor (fire-and-forget).
  *
  * - Nunca lança exceção; erros de rede são silenciados.
- * - O servidor registra via logger.info sem alterar banco de dados.
+ * - O servidor recalcula os dados usando a sessão e persiste a auditoria.
  *
  * @param payload Dados do registro: pedido, empresa, usuário, datas, resultado
  */
@@ -122,8 +37,19 @@ export function logDeadlineAudit(payload: DeadlineAuditPayload): void {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
-    body: JSON.stringify(payload),
+    // The server must recalculate the deadline and identify the actor from
+    // the authenticated session; never trust audit values supplied by UI.
+    body: JSON.stringify({ action: payload.action }),
   }).catch(() => {
     // Silently ignore — erros de rede nunca devem bloquear a UX
   });
+}
+
+export function isOperationalDeadlineError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("OPERATIONAL_DEADLINE_EXPIRED") ||
+    message.includes("Prazo para solicitar alterações ou cancelamentos deste pedido foi encerrado") ||
+    message.includes("prazo operacional para alterações já expirou")
+  );
 }

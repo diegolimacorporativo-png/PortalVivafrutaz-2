@@ -35,6 +35,8 @@ export class OrdersControllerV2 {
     return {
       userId: s.userId,
       companyId: s.companyId,
+      role: s.userRole ?? s.role,
+      email: s.email,
       ip:
         (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
         req.socket.remoteAddress ||
@@ -94,7 +96,7 @@ export class OrdersControllerV2 {
   /** PATCH /api/v2/orders/:id → 200 with updated resource */
   update = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
-    return ok(res, await this.service.update(id, req.body));
+    return ok(res, await this.service.update(id, req.body, this.actor(req)));
   };
 
   // ── DELETE ──────────────────────────────────────────────────────────
@@ -160,7 +162,7 @@ export class OrdersControllerV2 {
   replaceItems = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
     const { items } = req.body as { items: any[] };
-    return ok(res, await this.service.replaceItems(id, items));
+    return ok(res, await this.service.replaceItems(id, items, this.actor(req)));
   };
 
   /** POST /api/v2/orders/:id/substitute-item */
