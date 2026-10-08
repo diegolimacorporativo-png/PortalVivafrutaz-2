@@ -24,7 +24,27 @@ function useOrderExceptions() {
     queryKey: ['/api/order-exceptions'],
     queryFn: async () => {
       const res = await fetchWithAuth('/api/order-exceptions');
-      return res.json() as Promise<OrderException[]>;
+      const payload = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        const message =
+          payload?.error?.message ||
+          payload?.message ||
+          "Não foi possível carregar as exceções de pedidos.";
+        throw new Error(message);
+      }
+
+      const exceptions = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : null;
+
+      if (!exceptions) {
+        throw new Error("A resposta de exceções de pedidos veio em um formato inesperado.");
+      }
+
+      return exceptions as OrderException[];
     }
   });
 }
@@ -42,7 +62,13 @@ function isExpired(date: string | null): boolean {
 }
 
 export default function OrderExceptionsPage() {
-  const { data: exceptions, isLoading } = useOrderExceptions();
+  const {
+    data: exceptions,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useOrderExceptions();
   const { data: companies } = useCompanies();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -114,8 +140,9 @@ export default function OrderExceptionsPage() {
   };
 
   const isPending = create.isPending || update.isPending;
-  const active = exceptions?.filter(e => e.active && !isExpired(e.expiryDate)) || [];
-  const inactive = exceptions?.filter(e => !e.active || isExpired(e.expiryDate)) || [];
+  const exceptionList = Array.isArray(exceptions) ? exceptions : [];
+  const active = exceptionList.filter(e => e.active && !isExpired(e.expiryDate));
+  const inactive = exceptionList.filter(e => !e.active || isExpired(e.expiryDate));
 
   return (
     <Layout>
@@ -158,7 +185,7 @@ export default function OrderExceptionsPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Exceções Ativas</p>
-            <p className="text-2xl font-display font-bold text-foreground">{active.length}</p>
+            <p className="text-2xl font-display font-bold text-foreground">{isError ? "—" : active.length}</p>
           </div>
         </div>
         <div className="bg-card rounded-2xl p-5 border border-border/50 premium-shadow flex items-center gap-4">
@@ -167,7 +194,7 @@ export default function OrderExceptionsPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Inativas / Expiradas</p>
-            <p className="text-2xl font-display font-bold text-foreground">{inactive.length}</p>
+            <p className="text-2xl font-display font-bold text-foreground">{isError ? "—" : inactive.length}</p>
           </div>
         </div>
       </div>
@@ -186,6 +213,21 @@ export default function OrderExceptionsPage() {
           <tbody className="divide-y divide-border/50">
             {isLoading ? (
               <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Carregando...</td></tr>
+            ) : isError ? (
+              <tr>
+                <td colSpan={5} className="px-6 py-8 text-center">
+                  <p className="text-sm text-red-600">
+                    {error instanceof Error ? error.message : "Não foi possível carregar as exceções."}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void refetch()}
+                    className="mt-3 rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-muted"
+                  >
+                    Tentar novamente
+                  </button>
+                </td>
+              </tr>
             ) : !exceptions?.length ? (
               <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Nenhuma exceção cadastrada.</td></tr>
             ) : (
