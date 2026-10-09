@@ -12,6 +12,7 @@ import { requestIdMiddleware } from "./middleware/requestId";
 import { requestContextMiddleware } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { responseLogger } from "./middleware/responseLogger";
+import { redactTrackingTokenFromPath } from "./core/security/logRedaction";
 import {
   apiLimiter,
   nfeLimiter,
@@ -201,7 +202,9 @@ export async function buildApp(): Promise<BuildAppResult> {
       if (tenantId) incRequestsByTenant(tenantId);
       const start = Date.now();
       res.on("finish", () => {
-        try { recordLatency(req.path, Date.now() - start); } catch { /* */ }
+        try {
+          recordLatency(redactTrackingTokenFromPath(req.path), Date.now() - start);
+        } catch { /* */ }
       });
     } catch {
       // never disrupt the request path

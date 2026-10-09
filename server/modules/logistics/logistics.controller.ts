@@ -36,7 +36,15 @@
 import type { Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../../database/db";
+import { calculateDistance } from "../../services/logistics/routeOptimizer";
 import { calculateETA, summariseETA } from "./eta.service";
+import {
+  getEffectiveDeliveryWindow,
+  hasValidTrackingCoordinates,
+  isFreshTrackingGps,
+  localDateTimeToInstant,
+  normalizeTrackingStatus,
+} from "./delivery-tracking.logic";
 import { LogisticsService, logisticsService } from "./logistics.service";
 import { resolveOwnDriverId } from "./driver.access";
 import {
@@ -52,6 +60,88 @@ import { buildPublicRouteTrackingPayload } from "./public-tracking.dto";
 /** Drizzle's `db.execute` returns either { rows } or an array depending on driver. */
 function rowsOf<T = any>(r: any): T[] {
   return Array.isArray(r) ? r : (r?.rows ?? []);
+}
+
+function dateOnly(value: unknown): string | null {
+  const text = value instanceof Date
+    ? value.toISOString().slice(0, 10)
+    : String(value ?? "").slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function etaWindowInstants(
+  config: unknown,
+  scheduledDate: string | null,
+  start?: unknown,
+  end?: unknown,
+) {
+  const window = getEffectiveDeliveryWindow(
+    typeof config === "string" ||
+      (config != null && typeof config === "object" && !Array.isArray(config))
+      ? config as Record<string, unknown> | string
+      : null,
+    scheduledDate,
+    start == null ? null : String(start),
+    end == null ? null : String(end),
+  );
+  return {
+    windowStartAt: window && scheduledDate
+      ? localDateTimeToInstant(scheduledDate, window.startTime)
+      : null,
+    windowEndAt: window && scheduledDate
+      ? localDateTimeToInstant(scheduledDate, window.endTime)
+      : null,
+  };
+}
+
+function closestDeliveryForRouteStop(stop: any, candidates: any[]): any | undefined {
+  if (candidates.length === 0) return undefined;
+  if (!hasValidTrackingCoordinates(stop.latitude, stop.longitude)) return candidates[0];
+  const withCoordinates = candidates.filter((candidate) =>
+    hasValidTrackingCoordinates(candidate.latitude, candidate.longitude),
+  );
+  if (withCoordinates.length === 0) return candidates[0];
+  const point = { lat: Number(stop.latitude), lng: Number(stop.longitude) };
+  return withCoordinates.reduce((best, candidate) => {
+    const distance = calculateDistance(point, {
+      lat: Number(candidate.latitude),
+      lng: Number(candidate.longitude),
+    });
+    const bestDistance = calculateDistance(point, {
+      lat: Number(best.latitude),
+      lng: Number(best.longitude),
+    });
+    return distance < bestDistance ? candidate : best;
+  });
+}
+
+function closestRouteStopIndex(
+  delivery: any,
+  stops: any[],
+  candidateIndexes: number[],
+): number | null {
+  if (candidateIndexes.length === 0) return null;
+  if (!hasValidTrackingCoordinates(delivery.latitude, delivery.longitude)) {
+    return candidateIndexes[0];
+  }
+  const withCoordinates = candidateIndexes.filter((index) =>
+    hasValidTrackingCoordinates(stops[index].latitude, stops[index].longitude),
+  );
+  if (withCoordinates.length === 0) return candidateIndexes[0];
+  const point = { lat: Number(delivery.latitude), lng: Number(delivery.longitude) };
+  return withCoordinates.reduce((bestIndex, index) => {
+    const stop = stops[index];
+    const bestStop = stops[bestIndex];
+    const distance = calculateDistance(point, {
+      lat: Number(stop.latitude),
+      lng: Number(stop.longitude),
+    });
+    const bestDistance = calculateDistance(point, {
+      lat: Number(bestStop.latitude),
+      lng: Number(bestStop.longitude),
+    });
+    return distance < bestDistance ? index : bestIndex;
+  });
 }
 
 export class LogisticsController {
@@ -638,10 +728,9 @@ export class LogisticsController {
    *   • deliveries        → status overlay per stop (route_position order)
    *   • driver_gps_positions → latest GPS ping for the assigned driver
    *
-   * No new tables, no new schema. Public endpoint by design — the same URL
-   * is consumed by the admin map, the driver app, and the customer tracking
-   * page. See STEP 8.4 spec: "✔ cliente usa delivery.route_id; chama mesmo
-   * endpoint".
+    * The signed route token is only an opaque identifier, not authorization:
+    * this endpoint still requires an authenticated, authorized session.
+    * Customer delivery links use the separate public delivery tracking DTO.
    */
   routeTracking = async (req: Request, res: Response) => {
     try {
@@ -697,6 +786,7 @@ export class LogisticsController {
       // 1. Route header + driver (LEFT JOIN — route may have no driver yet)
       const routeRows = rowsOf<any>(await db.execute(sql`
         SELECT lr.id,
+                lr.empresa_id AS route_company_id,
                lr.driver_id,
                lr.vehicle_id,
                lr.status,
@@ -749,6 +839,7 @@ export class LogisticsController {
                d.longitude,
                d.scheduled_date,
                d.delivered_at,
+               c.delivery_config_json AS company_delivery_config_json,
                c.company_name AS company_name
         FROM deliveries d
         LEFT JOIN companies c ON c.id = d.company_id
@@ -756,26 +847,76 @@ export class LogisticsController {
         ORDER BY d.route_position ASC NULLS LAST, d.id ASC
       `));
 
-      // 4. Latest GPS ping (only if driver assigned)
+      const now = new Date();
+      const routeIsActive = normalizeTrackingStatus(route.status) === "in_progress";
+      let journeyStartedAtMs: number | null = null;
+      if (route.driver_id && routeIsActive) {
+        const journeyRows = rowsOf<any>(await db.execute(sql`
+          SELECT started_at
+          FROM driver_journeys
+          WHERE driver_id = ${route.driver_id}
+            AND status = 'active'
+            AND (empresa_id = ${route.route_company_id} OR empresa_id IS NULL)
+          ORDER BY started_at DESC, id DESC
+          LIMIT 1
+        `));
+        const startedAt = journeyRows[0]?.started_at == null
+          ? Number.NaN
+          : new Date(journeyRows[0].started_at).getTime();
+        if (Number.isFinite(startedAt)) journeyStartedAtMs = startedAt;
+      }
+
+      // 4. Latest GPS ping (keep its timestamp visible, but only use a fresh
+      // post-journey position for ETA calculations).
       let driverPosition: any = null;
+      let gpsStatus:
+        | "no_position"
+        | "invalid_position"
+        | "stale"
+        | "route_not_active"
+        | "journey_inactive"
+        | "before_journey"
+        | "fresh" = "no_position";
+      let gpsFreshForEta = false;
       if (route.driver_id) {
         const gpsRows = rowsOf<any>(await db.execute(sql`
-          SELECT latitude, longitude, accuracy, speed, heading, recorded_at
+          SELECT latitude::text AS latitude,
+                 longitude::text AS longitude,
+                 accuracy::text AS accuracy,
+                 speed::text AS speed,
+                 heading::text AS heading,
+                 recorded_at
           FROM driver_gps_positions
           WHERE driver_id = ${route.driver_id}
-          ORDER BY recorded_at DESC
+          ORDER BY recorded_at DESC, id DESC
           LIMIT 1
         `));
         const g = gpsRows[0];
         if (g) {
-          driverPosition = {
-            lat: g.latitude,
-            lng: g.longitude,
-            accuracy: g.accuracy,
-            speed: g.speed,
-            heading: g.heading,
-            updatedAt: g.recorded_at,
-          };
+          if (!hasValidTrackingCoordinates(g.latitude, g.longitude)) {
+            gpsStatus = "invalid_position";
+          } else {
+            driverPosition = {
+              lat: g.latitude,
+              lng: g.longitude,
+              accuracy: g.accuracy,
+              speed: g.speed,
+              heading: g.heading,
+              updatedAt: g.recorded_at,
+            };
+            if (!isFreshTrackingGps(g.recorded_at, now)) {
+              gpsStatus = "stale";
+            } else if (!routeIsActive) {
+              gpsStatus = "route_not_active";
+            } else if (journeyStartedAtMs == null) {
+              gpsStatus = "journey_inactive";
+            } else if (new Date(g.recorded_at).getTime() < journeyStartedAtMs) {
+              gpsStatus = "before_journey";
+            } else {
+              gpsStatus = "fresh";
+              gpsFreshForEta = true;
+            }
+          }
         }
       }
 
@@ -784,21 +925,120 @@ export class LogisticsController {
       // if there are none, fall back to deliveries ordered by route_position
       // so the customer ETA still works on routes that don't yet have
       // route_stops materialised.
-      const now = new Date();
-      const etaSourceFromStops = stops.map((s) => ({
-        ...s,
-        // Match a delivery by company so dwell time is skipped for delivered ones.
-        status: deliveries.find((d) => d.company_id === s.company_id)?.status,
-        tempoEstimadoMin: s.tempo_estimado_min,
-      }));
+      const deliveryStopIndexById = new Map<number, number>();
+      const usedDeliveryIds = new Set<number>();
+      const routeStopCountByCompany = new Map<number, number>();
+      for (const stop of stops) {
+        if (stop.company_id == null) continue;
+        const companyId = Number(stop.company_id);
+        routeStopCountByCompany.set(
+          companyId,
+          (routeStopCountByCompany.get(companyId) ?? 0) + 1,
+        );
+      }
+      const etaSourceFromStops = stops.map((s, stopIndex) => {
+        const sameCompanyDeliveries = s.company_id == null
+          ? []
+          : deliveries.filter((d) => Number(d.company_id) === Number(s.company_id));
+        const stopCount = s.company_id == null
+          ? 0
+          : routeStopCountByCompany.get(Number(s.company_id)) ?? 0;
+        const availableDeliveries = sameCompanyDeliveries.filter(
+          (d) => !usedDeliveryIds.has(Number(d.id)),
+        );
+        let delivery = stopCount === 1
+          ? closestDeliveryForRouteStop(s, sameCompanyDeliveries)
+          : closestDeliveryForRouteStop(s, availableDeliveries);
+        if (stopCount === 1) {
+          // A single route stop can represent multiple orders to one destination.
+          for (const candidate of sameCompanyDeliveries) {
+            deliveryStopIndexById.set(Number(candidate.id), stopIndex);
+          }
+          delivery = sameCompanyDeliveries.find(
+            (candidate) =>
+              !["delivered", "cancelled"].includes(
+                normalizeTrackingStatus(candidate.status),
+              ),
+          ) ?? delivery;
+        } else if (delivery) {
+          usedDeliveryIds.add(Number(delivery.id));
+          deliveryStopIndexById.set(Number(delivery.id), stopIndex);
+        }
+        const scheduledDate = dateOnly(delivery?.scheduled_date ?? route.delivery_date);
+        return {
+          ...s,
+          status: delivery?.status,
+          tempoEstimadoMin: s.tempo_estimado_min,
+          ...etaWindowInstants(
+            delivery?.company_delivery_config_json,
+            scheduledDate,
+            s.janela_inicio,
+            s.janela_fim,
+          ),
+        };
+      });
+      for (const delivery of deliveries) {
+        if (deliveryStopIndexById.has(Number(delivery.id))) continue;
+        const companyStopIndexes = stops.flatMap((stop, index) =>
+          stop.company_id != null &&
+          Number(stop.company_id) === Number(delivery.company_id)
+            ? [index]
+            : [],
+        );
+        const nearestIndex = closestRouteStopIndex(
+          delivery,
+          stops,
+          companyStopIndexes,
+        );
+        if (nearestIndex != null) {
+          deliveryStopIndexById.set(Number(delivery.id), nearestIndex);
+        }
+      }
       const etaSourceFromDeliveries = deliveries.map((d) => ({
         ...d,
         tempoEstimadoMin: null,
+        ...etaWindowInstants(
+          d.company_delivery_config_json,
+          dateOnly(d.scheduled_date ?? route.delivery_date),
+        ),
       }));
       const useStops = etaSourceFromStops.length > 0;
       const etaSource = useStops ? etaSourceFromStops : etaSourceFromDeliveries;
-      const etaResults = calculateETA(etaSource, driverPosition, now);
-      const etaSummary = summariseETA(etaResults, now);
+      const activeEtaStops = etaSource.filter(
+        (stop) => !["delivered", "cancelled"].includes(normalizeTrackingStatus(stop.status)),
+      );
+      const hasCoordinatesForEta = activeEtaStops.length > 0 &&
+        activeEtaStops.every((stop) =>
+          hasValidTrackingCoordinates(stop.latitude, stop.longitude),
+        );
+      const speedMetersPerSecond = Number(driverPosition?.speed);
+      const speedKmh = Number.isFinite(speedMetersPerSecond) && speedMetersPerSecond > 0
+        ? speedMetersPerSecond * 3.6
+        : null;
+      const etaAvailable = routeIsActive &&
+        gpsFreshForEta &&
+        hasCoordinatesForEta;
+      const etaResults = etaAvailable
+        ? calculateETA(etaSource, driverPosition, now, { speedKmh })
+        : [];
+      const etaSummary = etaResults.length > 0
+        ? summariseETA(etaResults, now, speedKmh)
+        : null;
+      const etaUnavailableReason = etaAvailable
+        ? null
+        : !routeIsActive
+          ? "route_not_active"
+          : !route.driver_id
+            ? "driver_unassigned"
+            : !driverPosition
+              ? "gps_unavailable"
+              : gpsStatus === "stale"
+                ? "gps_stale"
+                : gpsStatus === "before_journey" || gpsStatus === "journey_inactive"
+                  ? "journey_inactive"
+                  : !hasCoordinatesForEta
+                    ? "stop_coordinates_missing"
+                    : "gps_unavailable";
 
       // Build the output stops array (always derived from route_stops when
       // available so legacy callers see the same shape).
@@ -817,17 +1057,21 @@ export class LogisticsController {
             janelaInicio: s.janela_inicio,
             janelaFim: s.janela_fim,
             tempoEstimadoMin: s.tempo_estimado_min,
-            distanceKm: etaResults[i]?.distanceKm ?? 0,
-            legMinutes: etaResults[i]?.legMinutes ?? 0,
-            etaMinutes: etaResults[i]?.etaMinutes ?? 0,
+            distanceKm: etaResults[i]?.distanceKm ?? null,
+            legMinutes: etaResults[i]?.legMinutes ?? null,
+            etaMinutes: etaResults[i]?.etaMinutes ?? null,
             etaTime: etaResults[i]?.etaTime ?? null,
-             status: etaSourceFromStops[i]?.status ?? null,
+            status: etaSourceFromStops[i]?.status ?? null,
           }))
         : [];
 
       const deliveriesOut = deliveries.map((d, i) => {
-        // When ETA was computed off the deliveries array, attach per-row.
-        const etaRow = !useStops ? etaResults[i] : undefined;
+        const mappedStopIndex = deliveryStopIndexById.get(Number(d.id));
+        const etaRow = !useStops
+          ? etaResults[i]
+          : mappedStopIndex == null
+            ? undefined
+            : etaResults[mappedStopIndex];
         return {
           id: d.id,
           orderId: d.order_id,
@@ -839,41 +1083,17 @@ export class LogisticsController {
           longitude: d.longitude,
           scheduledDate: d.scheduled_date,
           deliveredAt: d.delivered_at,
-          // ETA — when stops drove the calc, mirror the matching stop's ETA
-          // so the customer page gets a number even when there are no
-          // route_stops rows enriched on this delivery.
-          etaMinutes: etaRow
-            ? etaRow.etaMinutes
-            : (() => {
-                const matched = etaResults.find(
-                  (r: any) => r.company_id === d.company_id,
-                );
-                return matched?.etaMinutes ?? null;
-              })(),
-          etaTime: etaRow
-            ? etaRow.etaTime
-            : (() => {
-                const matched = etaResults.find(
-                  (r: any) => r.company_id === d.company_id,
-                );
-                return matched?.etaTime ?? null;
-              })(),
+          etaMinutes: etaRow?.etaMinutes ?? null,
+          etaTime: etaRow?.etaTime ?? null,
         };
       });
 
       // ── STEP 8.5B — gate ETA detail by role ─────────────────────────────
-      // Internal staff (logistics ops, admins, drivers' supervisors) see the
-      // full ETA / distance / leg breakdown. Customers, anonymous visitors
-      // and any other role get only "status simples" — no minutes, no
-      // distance, no ETA timestamps — so the operational reality cannot be
-      // reverse-engineered from the public tracking link.
-      //
-      // We deliberately avoid duplicating the role list: LOGISTICS_AUTH_ROLES
-      // is the canonical "internal logistics user" set already used by every
-      // other write endpoint in this controller. Customers (role "CLIENT")
-      // and unauthenticated requests both fall through to the redacted path.
+      // Only the internal logistics roles and drivers who passed the session,
+      // tenant, and own-route checks above reach this point. The route token
+      // never turns the authenticated map endpoint into a public capability.
       let isInternal = false;
-      if (!publicClaims && numericActor) {
+      if (numericActor) {
         try {
           const actor = numericActor;
           if (LOGISTICS_AUTH_ROLES.includes(actor.role as any)) {
@@ -922,7 +1142,10 @@ export class LogisticsController {
          stops: stopsOut,
          deliveries: deliveriesOut,
         driverPosition,
-         viewerScope: "internal",
+        gpsStatus,
+        etaAvailable,
+        etaUnavailableReason,
+        viewerScope: "internal",
       };
       if (isInternal) internalPayload.eta = etaSummary;
 

@@ -5,6 +5,7 @@ import viteConfig from "../vite.config";
 import fs from "fs";
 import path from "path";
 import { randomUUID } from "node:crypto";
+import { redactTrackingTokenFromPath } from "./core/security/logRedaction";
 
 const viteLogger = createLogger();
 
@@ -36,11 +37,11 @@ export async function setupVite(server: Server, app: Express) {
   // reached for unhandled routes because vite.middlewares swallows them.
   app.use((req, res, next) => {
     if (req.originalUrl.startsWith("/api")) {
-      console.log(`[API_404_GUARD_VITE] returning 404 for ${req.originalUrl}`);
+      console.log(`[API_404_GUARD_VITE] returning 404 for ${redactTrackingTokenFromPath(req.originalUrl)}`);
       res.status(404).json({
         success: false,
         error: "API route not found",
-        path: req.originalUrl,
+        path: redactTrackingTokenFromPath(req.originalUrl),
       });
       return;
     }

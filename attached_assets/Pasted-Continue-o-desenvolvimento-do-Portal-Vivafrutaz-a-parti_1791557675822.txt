@@ -1,0 +1,102 @@
+Continue o desenvolvimento do Portal Vivafrutaz a partir do código atual do repositório.
+
+A etapa anterior validou a finalização de pedidos e entregas por meio da API real e de um PostgreSQL temporário isolado.
+
+Resultados reportados:
+
+* Testes unitários de finalização: 26/26 aprovados.
+* Seis cenários integrados de finalização aprovados.
+* `npm run check`: aprovado.
+* `npm run build`: aprovado, com avisos existentes.
+* `git diff --check`: aprovado.
+
+Preserve essas correções. Não reescreva os fluxos de pedidos e entregas sem encontrar um defeito concreto.
+
+## OBJETIVO
+
+Realizar uma auditoria técnica do rastreamento GPS, das rotas e do cálculo de ETA, identificando falhas concretas e corrigindo apenas o que for necessário.
+
+### 1. RASTREAMENTO PÚBLICO
+
+Inspecione os endpoints e a página pública de rastreamento.
+
+Verifique:
+
+* Validação dos tokens públicos.
+* Separação de dados entre empresas.
+* Ausência de exposição de dados internos ou sensíveis.
+* Comportamento para tokens inválidos ou expirados, se houver expiração implementada.
+* Disponibilidade do rastreamento apenas quando as condições reais de rota, jornada e GPS forem satisfeitas.
+* Comportamento após a conclusão ou o cancelamento da entrega.
+
+Não torne públicas rotas administrativas nem reduza os requisitos de autenticação.
+
+### 2. GPS E JORNADAS
+
+Verifique a integração entre o aplicativo Android Tracker, o recebimento de GPS e o portal do cliente.
+
+Confirme:
+
+* Validação das coordenadas recebidas.
+* Associação da posição ao motorista e à jornada corretos.
+* Tratamento de posições antigas.
+* Tratamento de posições duplicadas ou fora de ordem.
+* Comportamento quando o motorista perde conexão.
+* Coerência entre rota ativa, jornada ativa e última posição recebida.
+
+Não invente funcionalidades que não existem nem presuma que o dispositivo está enviando dados se isso não puder ser comprovado.
+
+### 3. ROTAS E ETA
+
+Verifique se o cálculo utiliza a sequência oficial de paradas em `route_stops` quando ela existe e se o campo legado `deliveries.route_position` é usado apenas no fallback previsto.
+
+Analise:
+
+* Sequência das entregas.
+* Distância e velocidade utilizadas no cálculo.
+* GPS desatualizado.
+* Tempo de atendimento das paradas anteriores.
+* Janelas de entrega da empresa.
+* Ausência de dados suficientes para calcular uma previsão confiável.
+
+O ETA não deve aparentar precisão que os dados disponíveis não sustentam.
+
+### 4. TESTES E SEGURANÇA
+
+Primeiro, execute somente verificações estáticas e testes unitários seguros.
+
+Antes de iniciar o servidor ou executar testes de integração, confirme a identidade do banco utilizado.
+
+O preview isolado deve usar exclusivamente o PostgreSQL descartável. Não permita fallback silencioso para o Supabase compartilhado.
+
+Não execute migrations, seeds, workers ou testes fiscais contra produção. Não reinicie o Render e não apague registros existentes.
+
+Se os testes exigirem escrita, use exclusivamente um banco descartável cuja identidade tenha sido verificada antes das operações.
+
+### 5. ALTERAÇÕES
+
+Não faça uma refatoração ampla.
+
+Para cada problema encontrado:
+
+1. Descreva o comportamento atual.
+2. Demonstre por que ele está incorreto ou inseguro.
+3. Corrija o problema de forma mínima.
+4. Acrescente ou atualize um teste de regressão seguro.
+5. Execute as verificações relevantes.
+
+Se não encontrar um defeito, não altere o código apenas para produzir mudanças.
+
+### 6. RELATÓRIO FINAL
+
+Informe:
+
+* Componentes e endpoints inspecionados.
+* Problemas encontrados e correções realizadas.
+* Testes executados e resultados reais.
+* Quais partes do rastreamento foram efetivamente testadas.
+* O que depende de GPS real do Android Tracker e não pode ser comprovado em ambiente isolado.
+* Confirmação do banco utilizado nos testes integrados.
+* Pendências e próximos passos.
+
+Não faça commit nem push. Eu farei isso manualmente.

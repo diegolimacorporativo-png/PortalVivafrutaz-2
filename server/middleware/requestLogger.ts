@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { redactTrackingTokenFromPath } from "../core/security/logRedaction";
 
 /**
  * Request entry/exit logger.
@@ -31,12 +32,13 @@ export function requestLogger(
 ): void {
   const start = Date.now();
 
-  console.info(`[${req.requestId}] --> ${req.method} ${req.path}`);
+  const safePath = redactTrackingTokenFromPath(req.path);
+  console.info(`[${req.requestId}] --> ${req.method} ${safePath}`);
 
   res.on("finish", () => {
     const duration = Date.now() - start;
     console.info(
-      `[${req.requestId}] <-- ${req.method} ${req.path} ${res.statusCode} ${duration}ms`,
+      `[${req.requestId}] <-- ${req.method} ${safePath} ${res.statusCode} ${duration}ms`,
     );
   });
 

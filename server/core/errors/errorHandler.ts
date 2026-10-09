@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { redactTrackingTokenFromPath } from "../security/logRedaction";
 import { ZodError } from "zod";
 import { AppError } from "../../shared/errors/AppError";
 import { recordError } from "../observability/error-store";
@@ -30,7 +31,7 @@ export function errorHandler(
   // ── Zod validation error ────────────────────────────────────────────
   if (err instanceof ZodError) {
     // [DIAG] Log Zod field-level errors so the exact failing field is visible
-    console.error(`[ORDER_CREATE][ZOD_ERROR] path=${req.path}`, {
+    console.error(`[ORDER_CREATE][ZOD_ERROR] path=${redactTrackingTokenFromPath(req.path)}`, {
       issues: err.errors.map((e) => ({
         field: e.path.join("."),
         message: e.message,
@@ -106,7 +107,7 @@ function _captureError(
 
     recordError({
       requestId: req.requestId ?? "unknown",
-      endpoint: req.path,
+      endpoint: redactTrackingTokenFromPath(req.path),
       method: req.method,
       statusCode,
       severity,
@@ -120,7 +121,7 @@ function _captureError(
     });
 
     incTotalErrors();
-    incErrorsByRoute(req.path);
+    incErrorsByRoute(redactTrackingTokenFromPath(req.path));
 
     // Increment NF-e failure counter for fiscal/nfe routes
     if (req.path.includes("/nfe") || req.path.includes("/fiscal")) {

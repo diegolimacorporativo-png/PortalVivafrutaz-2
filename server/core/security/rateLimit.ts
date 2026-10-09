@@ -27,6 +27,7 @@ import type { Request, Response, NextFunction } from "express";
 // FASE 7.1 — feed all security events into the centralised observer.
 // FASE 6.5 — logSecurity replaces scattered console.warn/error calls.
 import { logSecurityEvent, logSecurity } from "./securityLogger";
+import { redactTrackingTokenFromPath } from "./logRedaction";
 // IP limiter config centralised in rateSchedule.ts — single source of truth.
 import { IP_LOGIN_RATE_LIMIT } from "../auth/rateSchedule";
 
@@ -40,12 +41,6 @@ function getClientIp(req: Request): string {
 
 function getRequestId(req: Request): string {
   return (req as any).requestId ?? "unknown";
-}
-
-function redactSecurityPath(path: string): string {
-  return path
-    .replace(/(\/api\/track\/)[^/?]+/, "$1:token")
-    .replace(/(\/api\/logistics\/track\/)[^/?]+/, "$1:token");
 }
 
 // ── Core factory ──────────────────────────────────────────────────────────────
@@ -96,14 +91,14 @@ function createRateLimiter(
     if (win.count > maxRequests) {
       const retryAfter = Math.ceil((win.resetAt - now) / 1000);
       const rid = getRequestId(req);
-      const safePath = redactSecurityPath(req.path);
+      const safePath = redactTrackingTokenFromPath(req.path);
       logSecurity(
         `[SECURITY] RATE_LIMITED | ip=${ip} | path=${safePath} | requestId=${rid}`,
       );
       logSecurityEvent({
         type: "RATE_LIMITED",
         ip,
-        path: redactSecurityPath(req.originalUrl),
+        path: redactTrackingTokenFromPath(req.originalUrl),
         requestId: rid,
       });
       res.setHeader("Retry-After", String(retryAfter));
@@ -248,13 +243,13 @@ export function highRiskActionLogger(
     const ip = getClientIp(req);
     const rid = getRequestId(req);
     logSecurity(
-      `[SECURITY] HIGH_RISK_ACTION | method=${req.method} | path=${req.path} | ip=${ip} | requestId=${rid}`,
+      `[SECURITY] HIGH_RISK_ACTION | method=${req.method} | path=${redactTrackingTokenFromPath(req.path)} | ip=${ip} | requestId=${rid}`,
     );
     const session = (req as any).session ?? {};
     logSecurityEvent({
       type: "HIGH_RISK_ACTION",
       ip,
-      path: req.originalUrl,
+      path: redactTrackingTokenFromPath(req.originalUrl),
       requestId: rid,
       userId: session.userId ?? undefined,
     });
@@ -323,7 +318,7 @@ export function criticalActionLogger(
     logSecurityEvent({
       type: "CRITICAL_ACTION",
       ip,
-      path: req.originalUrl,
+      path: redactTrackingTokenFromPath(req.originalUrl),
       requestId: rid,
       userId: session.userId ?? undefined,
     });
@@ -406,7 +401,7 @@ export const loginIpStrategicLimiter = (function () {
     // pass through without consuming from the IP window.
     if (email && _strategicEmailLoginSet.has(email)) {
       logSecurity(
-        `[SECURITY] STRATEGIC_BYPASS_IP | ip=${ip} | email=${email} | path=${req.path} | requestId=${getRequestId(req)}`,
+        `[SECURITY] STRATEGIC_BYPASS_IP | ip=${ip} | email=${email} | path=${redactTrackingTokenFromPath(req.path)} | requestId=${getRequestId(req)}`,
       );
       next();
       return;
@@ -427,9 +422,14 @@ export const loginIpStrategicLimiter = (function () {
       const retryAfter = Math.ceil((win.resetAt - now) / 1000);
       const rid = getRequestId(req);
       logSecurity(
-        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${req.path} | requestId=${rid}`,
+        `[SECURITY] RATE_LIMITED | ip=${ip} | path=${redactTrackingTokenFromPath(req.path)} | requestId=${rid}`,
       );
-      logSecurityEvent({ type: "RATE_LIMITED", ip, path: req.originalUrl, requestId: rid });
+      logSecurityEvent({
+        type: "RATE_LIMITED",
+        ip,
+        path: redactTrackingTokenFromPath(req.originalUrl),
+        requestId: rid,
+      });
       res.setHeader("Retry-After", String(retryAfter));
       res.status(429).json({ message });
       return;
@@ -483,7 +483,7 @@ export const loginEmailIpLimiter = (function () {
     // without counting or blocking. Audit log preserved for tracking.
     if (_strategicEmailLoginSet.has(email)) {
       logSecurity(
-        `[SECURITY] STRATEGIC_BYPASS | ip=${ip} | email=${email} | path=${req.path} | requestId=${getRequestId(req)}`,
+        `[SECURITY] STRATEGIC_BYPASS | ip=${ip} | email=${email} | path=${redactTrackingTokenFromPath(req.path)} | requestId=${getRequestId(req)}`,
       );
       next();
       return;
@@ -505,15 +505,20 @@ export const loginEmailIpLimiter = (function () {
       const retryAfter = Math.ceil((win.resetAt - now) / 1000);
       const rid = getRequestId(req);
       logSecurity(
-        `[SECURITY] RATE_LIMITED | ip=${ip} | email=${email} | path=${req.path} | requestId=${rid}`,
+        `[SECURITY] RATE_LIMITED | ip=${ip} | email=${email} | path=${redactTrackingTokenFromPath(req.path)} | requestId=${rid}`,
       );
       logSecurityEvent({
         type: "RATE_LIMITED",
         ip,
-        path: req.originalUrl,
+        path: redactTrackingTokenFromPath(req.originalUrl),
         requestId: rid,
       });
-      console.warn("[RATE_LIMIT]", { ip, email, path: req.path, timestamp: new Date().toISOString() });
+      console.warn("[RATE_LIMIT]", {
+        ip,
+        email,
+        path: redactTrackingTokenFromPath(req.path),
+        timestamp: new Date().toISOString(),
+      });
       res.setHeader("Retry-After", String(retryAfter));
       res.status(429).json({
         message: `Muitas tentativas. Aguarde ${Math.ceil(WINDOW_MS / 60_000)} minutos e tente novamente.`,

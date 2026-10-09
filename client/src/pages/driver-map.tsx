@@ -70,7 +70,7 @@ interface TrackingResponse {
     latitude: string | null; longitude: string | null;
     janelaInicio?: string | null; janelaFim?: string | null; tempoEstimadoMin?: number | null;
     status?: string | null;
-    distanceKm?: number; legMinutes?: number; etaMinutes?: number; etaTime?: string | null;
+    distanceKm?: number | null; legMinutes?: number | null; etaMinutes?: number | null; etaTime?: string | null;
   }>;
   deliveries: Array<{
     id?: number; orderId?: number | null; companyId?: number | null; companyName?: string | null;
@@ -80,6 +80,9 @@ interface TrackingResponse {
     etaMinutes?: number | null; etaTime?: string | null;
   }>;
   driverPosition: { lat: string | null; lng: string | null; accuracy?: string | null; speed?: string | null; heading?: string | null; updatedAt: string | null } | null;
+  gpsStatus?: "no_position" | "invalid_position" | "stale" | "route_not_active" | "journey_inactive" | "before_journey" | "fresh";
+  etaAvailable?: boolean;
+  etaUnavailableReason?: string | null;
   eta?: { totalDistanceKm: number; totalMinutes: number; totalEtaTime: string; avgSpeedKmh: number };
 }
 
@@ -258,8 +261,17 @@ export default function DriverMap() {
           </span>
           {data.driverPosition && (
             <span className="flex items-center gap-1 text-gray-600" data-testid="text-gps-updated">
-              <Clock className="w-3.5 h-3.5 text-emerald-500" />
-              GPS: {data.driverPosition.updatedAt
+              <Clock className={`w-3.5 h-3.5 ${data.gpsStatus === "fresh" ? "text-emerald-500" : "text-amber-500"}`} />
+              {data.gpsStatus === "stale"
+                ? "GPS desatualizado"
+                : data.gpsStatus === "before_journey"
+                  ? "GPS anterior à jornada"
+                  : data.gpsStatus === "journey_inactive"
+                    ? "Jornada não iniciada"
+                    : data.gpsStatus === "route_not_active"
+                      ? "Rota não iniciada"
+                      : "GPS"}
+              : {data.driverPosition.updatedAt
                 ? new Date(data.driverPosition.updatedAt).toLocaleTimeString("pt-BR")
                 : "sem horário"}
             </span>
@@ -267,14 +279,35 @@ export default function DriverMap() {
           {!data.driverPosition && (
             <span className="flex items-center gap-1 text-gray-500" data-testid="text-no-gps">
               <MapPin className="w-3.5 h-3.5" />
-              GPS ainda não recebido
+              {data.gpsStatus === "invalid_position"
+                ? "Última posição GPS inválida"
+                : "GPS ainda não recebido"}
+            </span>
+          )}
+          {!data.etaAvailable && data.etaUnavailableReason && (
+            <span
+              className="text-amber-700"
+              data-testid="text-eta-unavailable"
+              title="A estimativa só aparece com rota e jornada ativas, posição GPS válida e recente, e coordenadas das paradas."
+            >
+              ETA indisponível: {data.etaUnavailableReason === "gps_stale"
+                ? "GPS desatualizado"
+                : data.etaUnavailableReason === "journey_inactive"
+                  ? "jornada sem GPS posterior ao início"
+                  : data.etaUnavailableReason === "stop_coordinates_missing"
+                    ? "faltam coordenadas de parada"
+                    : data.etaUnavailableReason === "driver_unassigned"
+                      ? "motorista não atribuído"
+                      : data.etaUnavailableReason === "route_not_active"
+                        ? "rota não iniciada"
+                        : "GPS indisponível"}
             </span>
           )}
           {data.eta && data.eta.totalMinutes > 0 && (
             <span
               className="flex items-center gap-1 text-gray-700 ml-auto"
               data-testid="text-route-eta-total"
-              title={`Velocidade média ${data.eta.avgSpeedKmh} km/h • ${data.eta.totalDistanceKm.toFixed(1)} km`}
+              title={`Estimativa simplificada, sem trânsito e por distância em linha reta • velocidade ${data.eta.avgSpeedKmh} km/h • ${data.eta.totalDistanceKm.toFixed(1)} km`}
             >
               <Clock className="w-3.5 h-3.5 text-blue-500" />
               Rota total: <strong>{formatEtaMinutes(data.eta.totalMinutes)}</strong>

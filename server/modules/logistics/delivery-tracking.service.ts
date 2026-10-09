@@ -7,6 +7,7 @@ import {
   getEffectiveDeliveryWindow,
   isDriverNearby,
   isFreshTrackingGps,
+  hasValidTrackingCoordinates,
   localDateTimeToInstant,
   makeEtaRange,
   normalizeTrackingStatus,
@@ -224,7 +225,7 @@ async function getDeliveryTracking(
     WHERE driver_id = ${driverId}
       AND status = 'active'
       AND (empresa_id = ${companyId} OR empresa_id IS NULL)
-    ORDER BY started_at DESC
+    ORDER BY started_at DESC, id DESC
     LIMIT 1
   `));
   if (journeyRows.length === 0) return basePayload;
@@ -232,13 +233,13 @@ async function getDeliveryTracking(
   if (!Number.isFinite(journeyStartedAtMs)) return basePayload;
 
   const gpsRows = rowsOf(await database.execute(sql`
-    SELECT latitude::text AS latitude,
-           longitude::text AS longitude,
+     SELECT latitude::text AS latitude,
+            longitude::text AS longitude,
            speed::text AS speed,
            recorded_at
     FROM driver_gps_positions
     WHERE driver_id = ${driverId}
-    ORDER BY recorded_at DESC
+     ORDER BY recorded_at DESC, id DESC
     LIMIT 1
   `));
   const gps = gpsRows[0];
@@ -247,8 +248,7 @@ async function getDeliveryTracking(
     !isFreshTrackingGps(gps.recorded_at, now) ||
     !Number.isFinite(new Date(gps.recorded_at).getTime()) ||
     new Date(gps.recorded_at).getTime() < journeyStartedAtMs ||
-    !Number.isFinite(Number(gps.latitude)) ||
-    !Number.isFinite(Number(gps.longitude))
+    !hasValidTrackingCoordinates(gps.latitude, gps.longitude)
   ) return basePayload;
 
   const routeStopRows = rowsOf<DbRow>(await database.execute(sql`
@@ -288,6 +288,7 @@ async function getDeliveryTracking(
            COALESCE(d.company_id, o.company_id) AS effective_company_id,
            COALESCE(d.latitude, c.latitude)::text AS latitude,
            COALESCE(d.longitude, c.longitude)::text AS longitude,
+            c.delivery_config_json AS company_delivery_config_json,
            latest_event.status AS latest_event_status
     FROM deliveries d
     LEFT JOIN orders o ON o.id = d.order_id
@@ -314,14 +315,17 @@ async function getDeliveryTracking(
 
     const available = candidates.filter((stop) => !usedRouteStopIds.has(stop.stopId));
     const candidatePool = available.length > 0 ? available : candidates;
-    const deliveryLat = Number(row.latitude);
-    const deliveryLng = Number(row.longitude);
-    const hasDeliveryCoordinates = Number.isFinite(deliveryLat) && Number.isFinite(deliveryLng);
+    const hasDeliveryCoordinates = hasValidTrackingCoordinates(
+      row.latitude,
+      row.longitude,
+    );
     const officialStop = candidatePool.reduce<DbRow | null>((best, stop) => {
       if (!hasDeliveryCoordinates) return best ?? stop;
+      if (!hasValidTrackingCoordinates(stop.latitude, stop.longitude)) return best;
+      const deliveryLat = Number(row.latitude);
+      const deliveryLng = Number(row.longitude);
       const stopLat = Number(stop.latitude);
       const stopLng = Number(stop.longitude);
-      if (!Number.isFinite(stopLat) || !Number.isFinite(stopLng)) return best;
       const distance = calculateDistance(
         { lat: deliveryLat, lng: deliveryLng },
         { lat: stopLat, lng: stopLng },
@@ -337,6 +341,12 @@ async function getDeliveryTracking(
   }
   const routeStops: TrackingStop[] = routeRows.map((row) => {
     const officialStop = routeStopByDeliveryId.get(Number(row.id));
+    const effectiveWindow = getEffectiveDeliveryWindow(
+      row.company_delivery_config_json ?? delivery.delivery_config_json,
+      scheduledDate,
+      officialStop?.janela_inicio == null ? null : String(officialStop.janela_inicio),
+      officialStop?.janela_fim == null ? null : String(officialStop.janela_fim),
+    );
     return {
       id: Number(row.id),
       routePosition: hasOfficialRouteStops
@@ -360,6 +370,12 @@ async function getDeliveryTracking(
       routeWindowEnd: officialStop?.janela_fim == null
         ? null
         : String(officialStop.janela_fim),
+      windowStartAt: effectiveWindow && scheduledDate
+        ? localDateTimeToInstant(scheduledDate, effectiveWindow.startTime)
+        : null,
+      windowEndAt: effectiveWindow && scheduledDate
+        ? localDateTimeToInstant(scheduledDate, effectiveWindow.endTime)
+        : null,
     };
   });
   // When route_stops exists it is authoritative. If the target delivery is

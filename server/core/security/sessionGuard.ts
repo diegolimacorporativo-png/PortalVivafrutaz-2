@@ -19,6 +19,7 @@
  */
 
 import type { Request, Response, NextFunction } from "express";
+import { redactTrackingTokenFromPath } from "./logRedaction";
 import { authCoreService, AUTH_EVENTS } from "../auth/authCore.service";
 
 function getClientIp(req: Request): string {
@@ -69,7 +70,7 @@ export async function sessionVersionGuard(
       tokenVersion: session.tokenVersion,
       deviceId: session.deviceId,
       requestDeviceId,
-      path: req.path,
+      path: redactTrackingTokenFromPath(req.path),
     });
   }
 
@@ -93,7 +94,7 @@ export async function sessionVersionGuard(
       userId,
       companyId,
       ip,
-      path: req.originalUrl,
+      path: redactTrackingTokenFromPath(req.originalUrl),
       requestId: (req as any).requestId,
       reason,
       metadata: { sessionTokenVersion: session.tokenVersion, requestDeviceId },
@@ -103,7 +104,7 @@ export async function sessionVersionGuard(
       reason,
       userId,
       companyId,
-      path: req.path,
+      path: redactTrackingTokenFromPath(req.path),
     });
 
     req.session.destroy(() => {});

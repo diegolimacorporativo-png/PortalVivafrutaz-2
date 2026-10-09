@@ -35,6 +35,7 @@ import {
 import { publicTrackingLimiter } from "../core/security/rateLimit";
 import { buildPublicDeliveryTrackingPayload } from "../modules/logistics/public-tracking.dto";
 import { getPublicDeliveryTracking } from "../modules/logistics/delivery-tracking.service";
+import { validateGpsSubmission } from "../modules/logistics/gps-submission";
 import { db } from "../database/db";
 import {
   logisticsDrivers as driversTable,
@@ -581,11 +582,23 @@ export async function register(app: Express): Promise<void> {
         return res.status(403).json({ message: 'Acesso negado' });
       }
 
-      const { driverId: requestedDriverId, latitude, longitude, accuracy, speed, heading } = req.body ?? {};
-      const lat = Number(latitude);
-      const lng = Number(longitude);
-      if (!Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        return res.status(400).json({ message: 'latitude e longitude válidas são obrigatórias' });
+      const gpsSubmission = validateGpsSubmission(req.body);
+      if (!gpsSubmission.ok) {
+        return res.status(gpsSubmission.status).json({
+          code: gpsSubmission.code,
+          message: gpsSubmission.message,
+        });
+      }
+      const requestedDriverIdRaw = req.body?.driverId;
+      const requestedDriverId =
+        requestedDriverIdRaw == null || requestedDriverIdRaw === ""
+          ? null
+          : Number(requestedDriverIdRaw);
+      if (
+        requestedDriverId !== null &&
+        (!Number.isInteger(requestedDriverId) || requestedDriverId <= 0)
+      ) {
+        return res.status(400).json({ message: "driverId inválido" });
       }
 
       // A logged-in driver does not need to send an identity field. Resolve it
@@ -593,7 +606,7 @@ export async function register(app: Express): Promise<void> {
       // Legacy driver accounts may not have a logistics_drivers row yet. The
       // first real GPS update is the one read endpoint allowed to provision
       // that operational link.
-      let driverId = requestedDriverId ? Number(requestedDriverId) : null;
+      let driverId = requestedDriverId;
       if (isDriver(actor.role) || isLogisticsTrackingRole(actor.role)) {
         const ownDriverId = await ensureOwnDriverId(storage, actor);
         const safeDriverId = resolveDriverGpsSubmissionId(driverId, ownDriverId);
@@ -623,13 +636,14 @@ export async function register(app: Express): Promise<void> {
         }
       }
 
-      const pos = await storage.createGpsPosition({
+      const pos = await storage.createGpsPositionIdempotently({
         driverId,
-        latitude: String(lat),
-        longitude: String(lng),
-        accuracy: accuracy == null ? undefined : String(Number(accuracy)),
-        speed: speed == null ? undefined : String(Number(speed)),
-        heading: heading == null ? undefined : String(Number(heading)),
+        latitude: gpsSubmission.latitude,
+        longitude: gpsSubmission.longitude,
+        accuracy: gpsSubmission.accuracy,
+        speed: gpsSubmission.speed,
+        heading: gpsSubmission.heading,
+        recordedAt: gpsSubmission.recordedAt,
       });
       res.json(pos);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

@@ -147,10 +147,10 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
       writePendingGpsPositions(pendingRef.current);
     };
 
-    const enqueuePosition = (payload: GpsPayload) => {
+    const enqueuePosition = (payload: GpsPayload, capturedAt: number) => {
       pendingRef.current = [
         ...pendingRef.current,
-        { payload, capturedAt: Date.now() },
+        { payload, capturedAt },
       ].slice(-GPS_QUEUE_LIMIT);
       updateQueueState();
     };
@@ -171,7 +171,8 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
 
     const postPosition = async (
       payload: GpsPayload,
-    ): Promise<{ ok: boolean; retryable: boolean; message?: string }> => {
+      capturedAt: number,
+    ): Promise<{ ok: boolean; retryable: boolean; discarded?: boolean; message?: string }> => {
       if (!navigator.onLine) {
         return { ok: false, retryable: true, message: 'Sem conexão' };
       }
@@ -184,12 +185,20 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
           method: 'POST',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...payload, capturedAt }),
           signal: controller.signal,
         });
         if (response.ok) return { ok: true, retryable: false };
         if (response.status === 401 || response.status === 403) {
           return { ok: false, retryable: false, message: 'Sessão sem autorização para enviar GPS' };
+        }
+        if (response.status === 400 || response.status === 409) {
+          return {
+            ok: false,
+            retryable: false,
+            discarded: true,
+            message: 'Posição GPS inválida, repetida ou expirada',
+          };
         }
         return { ok: false, retryable: true, message: `Servidor respondeu ${response.status}` };
       } catch (error) {
@@ -214,7 +223,12 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
       try {
         while (pendingRef.current.length > 0 && navigator.onLine && !authBlockedRef.current) {
           const pending = pendingRef.current[0];
-          const result = await postPosition(pending.payload);
+          const result = await postPosition(pending.payload, pending.capturedAt);
+          if (result.discarded) {
+            pendingRef.current = pendingRef.current.slice(1);
+            updateQueueState();
+            continue;
+          }
           if (!result.ok) {
             if (!cancelledRef.current) {
               setState(result.retryable ? 'error' : 'denied');
@@ -271,6 +285,14 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
     const sendPosition = async (position: GeolocationPosition, force = false) => {
       if (cancelledRef.current) return;
 
+      const capturedAt = Math.trunc(position.timestamp);
+      if (!Number.isSafeInteger(capturedAt) || capturedAt <= 0) {
+        if (!cancelledRef.current) {
+          setState('error');
+          setLastError('Horário da captura GPS inválido');
+        }
+        return;
+      }
       const payload: GpsPayload = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -278,15 +300,15 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
         speed: position.coords.speed,
         heading: position.coords.heading,
       };
-      setLastCapturedAt(Date.now());
+      setLastCapturedAt(capturedAt);
 
       if (!force && Date.now() - lastSentAtRef.current < GPS_SEND_INTERVAL_MS) return;
       if (sendingRef.current) {
-        enqueuePosition(payload);
+        enqueuePosition(payload, capturedAt);
         return;
       }
       if (!navigator.onLine || authBlockedRef.current) {
-        enqueuePosition(payload);
+        enqueuePosition(payload, capturedAt);
         if (!cancelledRef.current) {
           setState(authBlockedRef.current ? 'denied' : 'offline');
           setLastError(authBlockedRef.current ? 'Sessão sem autorização para enviar GPS' : 'Sem conexão');
@@ -298,8 +320,14 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
       sendingRef.current = true;
       let shouldFlushQueue = false;
       try {
-        const result = await postPosition(payload);
-        if (result.ok) {
+        const result = await postPosition(payload, capturedAt);
+        if (result.discarded) {
+          if (!cancelledRef.current) {
+            setState('error');
+            setLastError(result.message || 'Posição GPS descartada');
+          }
+          shouldFlushQueue = pendingRef.current.length > 0;
+        } else if (result.ok) {
           lastSentAtRef.current = Date.now();
           if (!cancelledRef.current) {
             setLastSentAt(lastSentAtRef.current);
@@ -308,7 +336,7 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
           }
           shouldFlushQueue = pendingRef.current.length > 0;
         } else {
-          enqueuePosition(payload);
+          enqueuePosition(payload, capturedAt);
           if (!cancelledRef.current) {
             setState(result.retryable ? 'error' : 'denied');
             setLastError(result.message || 'Falha ao enviar GPS');

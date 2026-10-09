@@ -5,6 +5,7 @@ import {
   calculateTrackingEta,
   getDeliveryWindow,
   getEffectiveDeliveryWindow,
+  hasValidTrackingCoordinates,
   isFreshTrackingGps,
   localDateTimeToInstant,
   makeEtaRange,
@@ -23,6 +24,14 @@ describe("delivery tracking GPS and delivery windows", () => {
     assert.equal(isFreshTrackingGps("not-a-date", fixedNow), false);
   });
 
+  test("requires real in-range coordinate values", () => {
+    assert.equal(hasValidTrackingCoordinates("-23.5", "-46.6"), true);
+    assert.equal(hasValidTrackingCoordinates(null, "-46.6"), false);
+    assert.equal(hasValidTrackingCoordinates("", "-46.6"), false);
+    assert.equal(hasValidTrackingCoordinates(91, 0), false);
+    assert.equal(hasValidTrackingCoordinates(0, 181), false);
+  });
+
   test("selects the configured weekday window and prefers a valid route-stop window", () => {
     const config = JSON.stringify({
       "quinta-feira": { enabled: true, startTime: "08:00", endTime: "10:00" },
@@ -37,6 +46,12 @@ describe("delivery tracking GPS and delivery windows", () => {
     );
     assert.deepEqual(
       getEffectiveDeliveryWindow(config, "2026-10-08", "12:00", "10:00"),
+      { startTime: "08:00", endTime: "10:00" },
+    );
+    assert.deepEqual(
+      getDeliveryWindow({
+        "quinta-feira": { enabled: true, startTime: "08:00", endTime: "10:00" },
+      }, "2026-10-08"),
       { startTime: "08:00", endTime: "10:00" },
     );
   });
@@ -93,8 +108,62 @@ describe("delivery tracking route ETA", () => {
     const slow = calculateETA(stops, { lat: 0, lng: 0 }, fixedNow, { speedKmh: 20 })[0];
     const fast = calculateETA(stops, { lat: 0, lng: 0 }, fixedNow, { speedKmh: 60 })[0];
     const invalid = calculateETA(stops, { lat: 0, lng: 0 }, fixedNow, { speedKmh: 0 })[0];
-    assert.ok(slow.etaMinutes > invalid.etaMinutes);
-    assert.ok(fast.etaMinutes < invalid.etaMinutes);
+    assert.ok(slow.etaMinutes! > invalid.etaMinutes!);
+    assert.ok(fast.etaMinutes! < invalid.etaMinutes!);
+  });
+
+  test("reports arrival before service time and includes that service before the next stop", () => {
+    const estimates = calculateETA([
+      { id: 1, latitude: 0, longitude: 0, tempoEstimadoMin: 12 },
+      { id: 2, latitude: 0, longitude: 0, includeDwell: false },
+    ], { lat: 0, lng: 0 }, fixedNow);
+
+    assert.equal(estimates[0].etaMinutes, 0);
+    assert.equal(estimates[1].etaMinutes, 12);
+  });
+
+  test("waits for a prior stop's delivery window before estimating later stops", () => {
+    const windowStartAt = new Date(fixedNow.getTime() + 30 * 60_000);
+    const estimates = calculateETA([
+      { id: 1, latitude: 0, longitude: 0, tempoEstimadoMin: 10 },
+      { id: 2, latitude: 0, longitude: 0, includeDwell: false, windowStartAt },
+    ], { lat: 0, lng: 0 }, fixedNow);
+
+    assert.equal(estimates[0].etaMinutes, 0);
+    assert.equal(estimates[1].etaMinutes, 30);
+  });
+
+  test("public route ETA includes an earlier stop's window wait and service time", () => {
+    const result = calculateTrackingEta([
+      {
+        id: 1,
+        routePosition: 0,
+        status: "pendente",
+        stopStatus: null,
+        latitude: 0,
+        longitude: 0,
+        tempoEstimadoMin: 8,
+        windowStartAt: new Date(fixedNow.getTime() + 45 * 60_000),
+      },
+      {
+        id: 2,
+        routePosition: 1,
+        status: "pendente",
+        stopStatus: null,
+        latitude: 0,
+        longitude: 0,
+      },
+    ], 2, { lat: 0, lng: 0 }, fixedNow);
+
+    assert.equal(result.etaAt?.getTime(), fixedNow.getTime() + 53 * 60_000);
+  });
+
+  test("does not invent an ETA when no usable driver position is supplied", () => {
+    const result = calculateETA([
+      { id: 1, latitude: 0, longitude: 1, includeDwell: false },
+    ], null, fixedNow)[0];
+    assert.equal(result.etaMinutes, null);
+    assert.equal(result.etaTime, null);
   });
 
   test("adds time for a prior unresolved occurrence without exposing its text", () => {
@@ -110,6 +179,15 @@ describe("delivery tracking route ETA", () => {
     );
     const normal = calculateTrackingEta(base, 2, { lat: 0, lng: 0 }, fixedNow);
     assert.equal(delayed.etaAt!.getTime() - normal.etaAt!.getTime(), 20 * 60_000);
+  });
+
+  test("does not estimate a destination beyond a pending stop without coordinates", () => {
+    const result = calculateTrackingEta([
+      { id: 1, routePosition: 0, status: "pendente", stopStatus: null, latitude: null, longitude: null },
+      { id: 2, routePosition: 1, status: "pendente", stopStatus: null, latitude: 0, longitude: 1 },
+    ], 2, { lat: 0, lng: 0 }, fixedNow);
+
+    assert.equal(result.etaAt, null);
   });
 
   test("clamps early ETAs to the start of the delivery window and flags ETAs past its end", () => {

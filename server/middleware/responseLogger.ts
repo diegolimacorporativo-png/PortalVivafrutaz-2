@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { redactTrackingTokenFromPath } from "../core/security/logRedaction";
 
 /**
  * Safe API response completion logger.
@@ -13,6 +14,7 @@ export function responseLogger(
   next: NextFunction,
 ): void {
   const start = Date.now();
+  const safePath = redactTrackingTokenFromPath(req.path);
 
   res.on("finish", () => {
     if (!req.path.startsWith("/api")) return;
@@ -22,7 +24,7 @@ export function responseLogger(
     const contentLength = res.getHeader("content-length");
     const size = contentLength !== undefined ? ` ${String(contentLength)}b` : "";
     console.log(
-      `${time} [${req.requestId}] [express] ${req.method} ${req.path} ${res.statusCode} in ${duration}ms${size}`,
+      `${time} [${req.requestId}] [express] ${req.method} ${safePath} ${res.statusCode} in ${duration}ms${size}`,
     );
   });
 

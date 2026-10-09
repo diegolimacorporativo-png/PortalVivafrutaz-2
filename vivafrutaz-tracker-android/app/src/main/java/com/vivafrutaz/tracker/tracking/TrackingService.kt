@@ -181,13 +181,21 @@ class TrackingService : Service() {
             handlePermissionLost()
             return
         }
+        if (location.time <= 0L) {
+            stateStore.updateStatus(
+                TrackingState.STATUS_ERROR,
+                dao.count(),
+                "Horário da posição GPS inválido.",
+            )
+            return
+        }
         val payload = GpsPayload(
             latitude = location.latitude,
             longitude = location.longitude,
             accuracy = location.accuracy.toDouble(),
             speed = if (location.hasSpeed()) location.speed.toDouble() else null,
             heading = if (location.hasBearing()) location.bearing.toDouble() else null,
-            capturedAt = System.currentTimeMillis(),
+            capturedAt = location.time,
         )
         val fingerprint = listOf(
             payload.capturedAt,
@@ -294,13 +302,27 @@ class TrackingService : Service() {
                             // Invalid payloads must not block every later position forever.
                             dao.delete(item.id)
                             stateStore.updateStatus(
-                                TrackingState.STATUS_ERROR,
+                                if (error is ApiFailure.Http && error.status == 409) {
+                                    TrackingState.STATUS_NO_SIGNAL
+                                } else {
+                                    TrackingState.STATUS_ERROR
+                                },
                                 dao.count(),
-                                error.message,
+                                if (error is ApiFailure.Http && error.status == 409) {
+                                    null
+                                } else {
+                                    error.message
+                                },
                             )
-                            updateNotification("Erro ao enviar posição")
+                            updateNotification(
+                                if (error is ApiFailure.Http && error.status == 409) {
+                                    "Posição antiga descartada"
+                                } else {
+                                    "Erro ao enviar posição"
+                                },
+                            )
                         }
-                        return
+                        if (error.retryable) return
                     }
                 }
             }

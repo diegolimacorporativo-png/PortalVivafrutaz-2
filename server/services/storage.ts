@@ -437,6 +437,9 @@ export interface IStorage {
   getLogisticsAuditLogs(filters?: { modulo?: string; usuarioId?: number; limit?: number }): Promise<LogisticsAuditLog[]>;
   // Driver GPS Positions
   createGpsPosition(data: InsertDriverGpsPosition): Promise<DriverGpsPosition>;
+  createGpsPositionIdempotently(
+    data: InsertDriverGpsPosition & { driverId: number; recordedAt: Date },
+  ): Promise<DriverGpsPosition>;
   getLatestGpsPosition(driverId: number): Promise<DriverGpsPosition | undefined>;
   // Delivery Checklists
   createDeliveryChecklist(data: InsertDeliveryChecklist): Promise<DeliveryChecklist>;
@@ -3096,10 +3099,31 @@ export class DatabaseStorage implements IStorage {
     const [r] = await db.insert(driverGpsPositions).values(data).returning();
     return r;
   }
+  async createGpsPositionIdempotently(
+    data: InsertDriverGpsPosition & { driverId: number; recordedAt: Date },
+  ): Promise<DriverGpsPosition> {
+    return db.transaction(async (tx) => {
+      // Serialize submissions from multiple devices for the same driver so a
+      // retry with the same captured sample cannot create duplicate rows.
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(22086, ${data.driverId})`);
+      const [existing] = await tx.select().from(driverGpsPositions)
+        .where(and(
+          eq(driverGpsPositions.driverId, data.driverId),
+          eq(driverGpsPositions.recordedAt, data.recordedAt),
+          eq(driverGpsPositions.latitude, String(data.latitude)),
+          eq(driverGpsPositions.longitude, String(data.longitude)),
+        ))
+        .limit(1);
+      if (existing) return existing;
+
+      const [created] = await tx.insert(driverGpsPositions).values(data).returning();
+      return created;
+    });
+  }
   async getLatestGpsPosition(driverId: number): Promise<DriverGpsPosition | undefined> {
     const [r] = await db.select().from(driverGpsPositions)
       .where(eq(driverGpsPositions.driverId, driverId))
-      .orderBy(desc(driverGpsPositions.recordedAt))
+      .orderBy(desc(driverGpsPositions.recordedAt), desc(driverGpsPositions.id))
       .limit(1);
     return r;
   }

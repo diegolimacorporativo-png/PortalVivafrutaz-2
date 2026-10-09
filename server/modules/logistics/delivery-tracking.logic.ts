@@ -34,6 +34,8 @@ export interface TrackingStop {
   occurrenceStatus?: string | null;
   routeWindowStart?: string | null;
   routeWindowEnd?: string | null;
+  windowStartAt?: Date | string | null;
+  windowEndAt?: Date | string | null;
 }
 
 export interface TrackingEta {
@@ -82,15 +84,35 @@ export function isFreshTrackingGps(
   return age <= TRACKING_GPS_MAX_AGE_MS && age >= -TRACKING_GPS_FUTURE_TOLERANCE_MS;
 }
 
+export function hasValidTrackingCoordinates(latitude: unknown, longitude: unknown): boolean {
+  const parse = (value: unknown): number | null => {
+    if (typeof value === "number") return Number.isFinite(value) ? value : null;
+    if (typeof value !== "string" || value.trim() === "") return null;
+    const parsed = Number(value.trim());
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const lat = parse(latitude);
+  const lng = parse(longitude);
+  if (lat == null || lng == null) return false;
+  return Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180;
+}
+
 export function getDeliveryWindow(
-  deliveryConfigJson: string | null | undefined,
+  deliveryConfigJson: string | Record<string, unknown> | null | undefined,
   deliveryDate: string | null | undefined,
 ): DeliveryWindow | null {
   if (!deliveryConfigJson || !deliveryDate) return null;
 
   let config: Record<string, any>;
   try {
-    const parsed = JSON.parse(deliveryConfigJson);
+    const parsed = typeof deliveryConfigJson === "string"
+      ? JSON.parse(deliveryConfigJson)
+      : deliveryConfigJson;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     config = parsed;
   } catch {
@@ -111,7 +133,7 @@ export function getDeliveryWindow(
 }
 
 export function getEffectiveDeliveryWindow(
-  deliveryConfigJson: string | null | undefined,
+  deliveryConfigJson: string | Record<string, unknown> | null | undefined,
   deliveryDate: string | null | undefined,
   routeWindowStart?: string | null,
   routeWindowEnd?: string | null,
@@ -180,7 +202,16 @@ export function calculateTrackingEta(
     .slice(0, targetIndex)
     .filter((stop) => !isCompletedTrackingStop(stop))
     .length;
-
+  const requiredStops = ordered
+    .slice(0, targetIndex + 1)
+    .filter((stop) =>
+      !isCompletedTrackingStop(stop) || Number(stop.id) === targetDeliveryId,
+    );
+  if (requiredStops.some((stop) =>
+    !hasValidTrackingCoordinates(stop.latitude, stop.longitude),
+  )) {
+    return { etaAt: null, stopsBefore, isNextStop: stopsBefore === 0 };
+  }
   const activeStops = ordered
     .filter((stop) => !isCompletedTrackingStop(stop) || Number(stop.id) === targetDeliveryId)
     .map((stop) => ({
@@ -190,11 +221,16 @@ export function calculateTrackingEta(
       status: Number(stop.id) === targetDeliveryId ? null : stop.status,
       tempoEstimadoMin: stop.tempoEstimadoMin,
       delayMinutes: occurrenceDelayMinutes(stop.occurrenceStatus),
+      windowStartAt: stop.windowStartAt,
       includeDwell: Number(stop.id) !== targetDeliveryId,
     }));
   const estimates = calculateETA(activeStops, driverPosition, now, { speedKmh });
   const estimate = estimates.find((stop) => Number(stop.id) === targetDeliveryId);
-  if (!estimate || !Number.isFinite(new Date(estimate.etaTime).getTime())) {
+  if (
+    !estimate ||
+    estimate.etaTime == null ||
+    !Number.isFinite(new Date(estimate.etaTime).getTime())
+  ) {
     return { etaAt: null, stopsBefore, isNextStop: stopsBefore === 0 };
   }
 
@@ -227,11 +263,14 @@ export function isDriverNearby(
   deliveryPosition: { lat: string | number; lng: string | number } | null | undefined,
 ): boolean {
   if (!driverPosition || !deliveryPosition) return false;
+  if (
+    !hasValidTrackingCoordinates(driverPosition.lat, driverPosition.lng) ||
+    !hasValidTrackingCoordinates(deliveryPosition.lat, deliveryPosition.lng)
+  ) return false;
   const lat1 = Number(driverPosition.lat);
   const lng1 = Number(driverPosition.lng);
   const lat2 = Number(deliveryPosition.lat);
   const lng2 = Number(deliveryPosition.lng);
-  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return false;
   return calculateDistance({ lat: lat1, lng: lng1 }, { lat: lat2, lng: lng2 }) <= TRACKING_NEARBY_DISTANCE_KM;
 }
 

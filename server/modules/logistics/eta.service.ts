@@ -6,8 +6,8 @@
  *
  * Inputs:
  *   • stops — ordered list of route stops, each with lat/lng (string or number).
- *   • driverPosition — optional latest GPS ping; when missing we start the
- *     trip from the first stop (cumulative ETA still works for sequencing).
+ *   • driverPosition — the latest usable GPS ping. Without it, pending stops
+ *     receive no ETA rather than an invented zero-distance estimate.
  *
  * Output: array of `EtaStop` enriched with `legMinutes`, `etaMinutes`
  * (cumulative from "now"), `etaTime` (ISO timestamp), and `distanceKm`.
@@ -38,18 +38,20 @@ export interface EtaInputStop {
   includeDwell?: boolean;
   /** Additional operational delay from an unresolved stop occurrence. */
   delayMinutes?: number | null;
+  /** Earliest arrival time derived from the stop's local delivery window. */
+  windowStartAt?: Date | string | null;
   [key: string]: any;
 }
 
 export interface EtaStop extends EtaInputStop {
   /** Distance in km from the previous waypoint (driver, then prior stop). */
-  distanceKm: number;
+  distanceKm: number | null;
   /** Driving minutes for this leg only. */
-  legMinutes: number;
+  legMinutes: number | null;
   /** Cumulative minutes from "now" until arrival at this stop. */
-  etaMinutes: number;
+  etaMinutes: number | null;
   /** ISO timestamp of the predicted arrival at this stop. */
-  etaTime: string;
+  etaTime: string | null;
 }
 
 export interface EtaSummary {
@@ -70,18 +72,30 @@ export interface EtaOptions {
 function toGeo(lat: unknown, lng: unknown): GeoPoint | null {
   const a = typeof lat === "number" ? lat : parseFloat(String(lat ?? ""));
   const b = typeof lng === "number" ? lng : parseFloat(String(lng ?? ""));
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (
+    !Number.isFinite(a) ||
+    !Number.isFinite(b) ||
+    a < -90 ||
+    a > 90 ||
+    b < -180 ||
+    b > 180
+  ) return null;
   return { lat: a, lng: b };
+}
+
+function parseWindowStart(value: Date | string | null | undefined): number | null {
+  if (value == null) return null;
+  const timestamp = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 /**
  * Calculates per-stop ETAs in cumulative minutes from "now".
  *
  * Behaviour notes:
- *   • Stops without parseable coordinates are returned with zeroed metrics
- *     and inherit the previous cumulative ETA (so the chain doesn't break).
- *   • If `driverPosition` is null we start from the first usable stop
- *     (first leg ⇒ 0km / 0min) and accumulate from there.
+ *   • A pending stop without parseable coordinates has null ETA metrics, and
+ *     later pending stops also remain unknown because their leg is uncertain.
+ *   • If `driverPosition` is missing or invalid, pending stops have null ETAs.
  *   • Stops already marked "entregue" are still emitted (UI may grey them
  *     out) but contribute 0 dwell time — they do not delay later ETAs.
  */
@@ -102,6 +116,7 @@ export function calculateETA(
     ? toGeo(driverPosition.lat, driverPosition.lng)
     : null;
   let cumulativeMinutes = 0;
+  let sequenceHasMissingCoordinates = !cursor;
 
   return stops.map((stop) => {
     const point = toGeo(stop.latitude, stop.longitude);
@@ -120,18 +135,19 @@ export function calculateETA(
       };
     }
 
-    // Stop without coordinates → keep ETA flat, do not advance cursor.
-    if (!point) {
+    // Do not invent zero-minute ETAs or continue through an unknown waypoint.
+    if (!point || sequenceHasMissingCoordinates) {
+      sequenceHasMissingCoordinates = true;
       return {
         ...stop,
-        distanceKm: 0,
-        legMinutes: 0,
-        etaMinutes: Math.round(cumulativeMinutes),
-        etaTime: new Date(startedAtMs + cumulativeMinutes * 60_000).toISOString(),
+        distanceKm: null,
+        legMinutes: null,
+        etaMinutes: null,
+        etaTime: null,
       };
     }
 
-    // First useful waypoint when there's no driver fix → leg = 0.
+    // The cursor is valid here because a missing driver fix blocks pending ETAs.
     let legKm = 0;
     if (cursor) {
       legKm = calculateDistance(cursor, point);
@@ -139,7 +155,17 @@ export function calculateETA(
     const legMinutes = (legKm / avgSpeedKmh) * 60;
     cumulativeMinutes += legMinutes;
 
-    // Add dwell time for earlier stops, but not the customer's own destination.
+    // Arrival is the displayed ETA. Waiting for an unopened delivery window
+    // affects this stop and every following stop.
+    const windowStartAt = parseWindowStart(stop.windowStartAt);
+    const estimatedArrivalAt = startedAtMs + cumulativeMinutes * 60_000;
+    if (windowStartAt != null && windowStartAt > estimatedArrivalAt) {
+      cumulativeMinutes = (windowStartAt - startedAtMs) / 60_000;
+    }
+    const etaMinutes = Math.round(cumulativeMinutes);
+    const etaTime = new Date(startedAtMs + cumulativeMinutes * 60_000).toISOString();
+
+    // Service time belongs between this arrival and the next stop's ETA.
     if (stop.includeDwell !== false) {
       const dwell = typeof stop.tempoEstimadoMin === "number" && stop.tempoEstimadoMin > 0
         ? stop.tempoEstimadoMin
@@ -156,8 +182,8 @@ export function calculateETA(
       ...stop,
       distanceKm: parseFloat(legKm.toFixed(3)),
       legMinutes: Math.round(legMinutes * 10) / 10,
-      etaMinutes: Math.round(cumulativeMinutes),
-      etaTime: new Date(startedAtMs + cumulativeMinutes * 60_000).toISOString(),
+      etaMinutes,
+      etaTime,
     };
   });
 }
@@ -165,14 +191,22 @@ export function calculateETA(
 /**
  * Aggregates per-stop results into a route-level summary.
  */
-export function summariseETA(stops: EtaStop[], now: Date = new Date()): EtaSummary {
+export function summariseETA(
+  stops: EtaStop[],
+  now: Date = new Date(),
+  speedKmh?: number | null,
+): EtaSummary {
   const totalDistanceKm = stops.reduce((acc, s) => acc + (s.distanceKm || 0), 0);
   const last = stops[stops.length - 1];
-  const totalMinutes = last ? last.etaMinutes : 0;
+  const totalMinutes = last?.etaMinutes ?? 0;
+  const measuredSpeed = Number(speedKmh);
+  const avgSpeedKmh = Number.isFinite(measuredSpeed) && measuredSpeed >= 5 && measuredSpeed <= 80
+    ? measuredSpeed
+    : AVG_SPEED_KMH;
   return {
     totalDistanceKm: parseFloat(totalDistanceKm.toFixed(3)),
     totalMinutes,
     totalEtaTime: new Date(now.getTime() + totalMinutes * 60_000).toISOString(),
-    avgSpeedKmh: AVG_SPEED_KMH,
+    avgSpeedKmh,
   };
 }
