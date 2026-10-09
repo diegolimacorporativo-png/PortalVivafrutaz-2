@@ -106,7 +106,18 @@ export class UsersService {
     requireTenantId();
     const target = await this.repo.getById(id);
     if (!target) throw new NotFoundError("Usuário não encontrado");
-    await this.repo.delete(id);
+    try {
+      await this.repo.delete(id);
+    } catch (err: any) {
+      // Keep historical records intact: users referenced by operational data
+      // cannot be hard-deleted, but return an actionable message to the UI.
+      if (err?.code === "23503") {
+        throw new ConflictError(
+          "Este usuário possui registros vinculados e não pode ser excluído. Desative a conta para bloquear o acesso e preservar o histórico.",
+        );
+      }
+      throw err;
+    }
   }
 
   // ── Privileged password change ─────────────────────────────────────────

@@ -69,7 +69,7 @@ router.put(
 router.delete(
   "/:id",
   requireAuth,
-  requireRole(["MASTER", "ADMIN"]),
+  requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]),
   validate(idParamSchema, "params"),
   asyncHandler(usersController.remove),
 );

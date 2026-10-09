@@ -230,12 +230,21 @@ export default function UsersAdminPage() {
 
   const del = useMutation({
     mutationFn: async (id: number) => {
-      await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
+      const res = await fetchWithAuth(`/api/users/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const message = payload?.message || payload?.error?.message || payload?.error ||
+          `Não foi possível excluir o usuário (erro ${res.status}).`;
+        throw new Error(typeof message === "string" ? message : `Não foi possível excluir o usuário (erro ${res.status}).`);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       toast({ title: "Usuário removido." });
       setConfirmDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({ title: "Não foi possível excluir", description: error.message, variant: "destructive" });
     },
   });
 

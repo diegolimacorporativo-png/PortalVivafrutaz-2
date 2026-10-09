@@ -8,7 +8,7 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { UsersService } from "../../server/modules/users/users.service";
 import { runWithTenant } from "../../server/core/tenant/context";
-import { NotFoundError } from "../../server/shared/errors/AppError";
+import { ConflictError, NotFoundError } from "../../server/shared/errors/AppError";
 
 const actor = {
   id: 1,
@@ -65,6 +65,7 @@ function makeService(overrides: Record<string, any> = {}) {
     },
     delete: async (id: number) => {
       calls.delete.push(id);
+      if (overrides.delete) return overrides.delete(id);
     },
     getById: async (id: number) => {
       calls.getById.push(id);
@@ -146,6 +147,21 @@ describe("UsersService — isolamento multi-tenant", () => {
       );
     });
     assert.equal(calls.delete.length, 0);
+  });
+
+  test("exclusão com registros relacionados informa que o usuário deve ser desativado", async () => {
+    const { service, calls } = makeService({
+      delete: async () => { throw { code: "23503" }; },
+    });
+
+    await withTenant(10, async () => {
+      await assert.rejects(
+        () => service.delete(target.id),
+        (error: any) => error instanceof ConflictError &&
+          error.status === 409 && error.message.includes("Desative a conta"),
+      );
+    });
+    assert.deepEqual(calls.delete, [target.id]);
   });
 
   test("tenant A não pode desbloquear usuário de outro tenant", async () => {
