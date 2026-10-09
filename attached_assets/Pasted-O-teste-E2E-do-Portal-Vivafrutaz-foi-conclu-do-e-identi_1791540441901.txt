@@ -1,0 +1,169 @@
+O teste E2E do Portal Vivafrutaz foi concluído e identificou uma inconsistência real.
+
+Atualmente, ao concluir uma entrega pelo fluxo seguro testado:
+
+* a entrega passa para `entregue`;
+* o pedido permanece `ACTIVE`/`SHIPPED`;
+* não é gravado o evento correspondente em `delivery_stop_events`.
+
+O endpoint alternativo que registra o histórico também modifica `fiscal_status`. Esse comportamento não pode ser introduzido no fluxo de correção.
+
+Quero corrigir essa inconsistência sem refatoração geral.
+
+## 1. INVESTIGAR ANTES DE ALTERAR
+
+Inspecione:
+
+* endpoint usado para concluir a entrega;
+* serviço responsável pela atualização;
+* transações e repositórios envolvidos;
+* modelo de pedidos e entregas;
+* regras atuais de transição de status;
+* tabela `delivery_stop_events`;
+* endpoint alternativo que registra o histórico;
+* testes existentes de conclusão e sincronização.
+
+Identifique por que o fluxo atual não sincroniza o pedido nem registra o evento.
+
+Não copie simplesmente a implementação do endpoint alternativo.
+
+## 2. REGRAS OBRIGATÓRIAS
+
+### Fiscal
+
+NÃO alterar:
+
+* `fiscal_status`;
+* status de NF-e;
+* dados fiscais;
+* configurações fiscais;
+* rotinas de emissão ou transmissão fiscal.
+
+A correção deve ser exclusivamente operacional.
+
+### Pedido
+
+Verifique se um pedido pode possuir múltiplas entregas.
+
+O pedido só pode receber seu status final de conclusão quando todas as condições previstas pelas regras existentes forem satisfeitas.
+
+Não marque automaticamente o pedido como concluído apenas porque uma entrega foi concluída.
+
+Preserve os demais status válidos.
+
+### Histórico
+
+Ao concluir uma entrega, registre o evento operacional adequado em `delivery_stop_events`, seguindo o modelo existente.
+
+O evento e a alteração de status devem ser consistentes entre si.
+
+Evite situações em que a entrega seja concluída sem histórico ou em que o evento seja gravado sem a atualização correspondente.
+
+### Transações
+
+Sempre que possível, faça a atualização da entrega, o registro do evento e a eventual atualização do pedido dentro de uma única transação.
+
+Se a arquitetura atual não permitir isso, explique o motivo e utilize o mecanismo consistente já adotado pelo projeto.
+
+### Idempotência
+
+Repetir a mesma requisição não deve duplicar eventos nem produzir transições inconsistentes.
+
+Utilize os mecanismos existentes de idempotência ou crie uma proteção mínima compatível com o modelo atual.
+
+### Multi-tenant
+
+Valide o vínculo entre empresa, pedido, entrega e rota conforme as regras existentes.
+
+Não permita que uma operação de uma empresa atualize registros de outra.
+
+## 3. PRODUÇÃO E DADOS EXISTENTES
+
+O Replit e o Render utilizam o mesmo Supabase de produção.
+
+O teste E2E deixou registros identificados como TESTE, incluindo:
+
+* empresa 242;
+* usuários 22 e 23;
+* motorista 8;
+* veículo 1;
+* rota 5;
+* pedidos 285, 286 e 287;
+* entregas 18, 19 e 20;
+* jornada 1, encerrada.
+
+A entrega 19 está concluída. As entregas 18 e 20 permanecem em rota. A rota 5 continua `IN_PROGRESS`.
+
+NÃO altere nem exclua esses registros automaticamente.
+
+NÃO utilize esses registros para validar a nova correção sem primeiro verificar seu estado atual e as dependências.
+
+NÃO faça alterações em pedidos, entregas ou rotas fora do conjunto de teste.
+
+Antes de qualquer teste que grave no Supabase, explique quais registros serão afetados e como serão identificados.
+
+## 4. TESTES
+
+Crie ou atualize testes para cobrir:
+
+1. Conclusão de uma entrega única.
+2. Conclusão da primeira entre várias entregas de um mesmo pedido.
+3. Conclusão da última entrega pendente.
+4. Registro do evento operacional.
+5. Requisição repetida e idempotência.
+6. Falha na transação.
+7. Isolamento multi-tenant.
+8. Preservação integral dos campos fiscais.
+9. Entrega já concluída.
+10. Pedido que não deve ser concluído porque ainda possui entregas pendentes.
+
+Não execute testes que escrevem no Supabase de produção sem analisar previamente o código e os efeitos.
+
+A suíte `regression-billing-nfe-equivalence.test.ts` já foi identificada como um teste com escrita no banco real. Não a execute nesta etapa.
+
+Prefira testes unitários e de integração isolados para validar as regras da correção.
+
+## 5. VALIDAÇÃO
+
+Execute:
+
+* `npm run check`
+* `npm run build`
+* os testes específicos criados;
+* os testes unitários seguros que não gravam no banco real.
+
+Informe explicitamente quais testes foram excluídos por possuírem efeitos colaterais.
+
+Não altere testes apenas para fazê-los passar.
+
+## 6. ESCOPO
+
+Não implementar:
+
+* Push Notifications;
+* novas funcionalidades de ETA;
+* novo sistema de tracking;
+* mudanças fiscais;
+* nova arquitetura;
+* refatoração geral;
+* migrações não relacionadas;
+* mudanças de infraestrutura;
+* Git push ou deploy.
+
+Não faça commit nem deploy.
+
+## 7. RELATÓRIO FINAL
+
+Apresente:
+
+* causa raiz;
+* arquivos alterados;
+* comportamento anterior e posterior;
+* regras utilizadas para concluir um pedido com múltiplas entregas;
+* como o evento operacional é registrado;
+* como a idempotência é garantida;
+* evidência de preservação dos campos fiscais;
+* resultados dos testes;
+* riscos remanescentes.
+
+Se descobrir que a regra de negócio não está suficientemente definida para concluir um pedido, não invente uma regra: pare e apresente a dúvida antes de implementá-la.
