@@ -1,0 +1,105 @@
+Você está continuando o desenvolvimento do Portal Vivafrutaz a partir do repositório atualizado no GitHub, no commit `rastreio`.
+
+O Agent anterior não terminou a tarefa. Continue exatamente do estado atual do código, sem recomeçar, reverter alterações ou refazer funcionalidades que já foram concluídas.
+
+## 1. CONTEXTO DA ÚLTIMA EXECUÇÃO
+
+O trabalho em andamento tem dois objetivos:
+
+1. Automatizar os seis cenários de conclusão de pedidos e entregas.
+2. Preparar o schema de um PostgreSQL temporário com validação de identidade, para permitir testes integrados sem tocar no banco compartilhado.
+
+Durante a última execução, o Agent informou:
+
+* A primeira tentativa de inicialização falhou porque o SQL retornava campos em `snake_case`, mas a validação esperava `camelCase`.
+* O mapeamento foi corrigido.
+* A preparação do schema passou e a identidade do banco foi confirmada.
+* A primeira tentativa de login da conta sintética retornou `401`; o Agent verificou o contrato real de login e ajustou o fixture.
+* Após esse ajuste, os seis cenários passaram pela API real.
+* Um log de inicialização que dizia “supabase” mesmo com o banco isolado foi corrigido.
+* Ainda faltava conferir o último início do workflow e executar as validações finais após essa correção.
+
+**Não presuma que todas essas etapas estão concluídas. Inspecione o código e os resultados existentes para determinar o estado real.**
+
+## 2. PRESERVE O QUE JÁ FOI IMPLEMENTADO
+
+Verifique as alterações no mecanismo de preparação do banco temporário, na validação da identidade da conexão, nos testes automatizados e no log de inicialização.
+
+Não sobrescreva essas alterações com uma implementação nova se já estiverem corretas.
+
+O objetivo é concluir e validar a implementação atual, corrigindo apenas problemas comprovados.
+
+## 3. REVISE A PROTEÇÃO DO BANCO TEMPORÁRIO
+
+Inspecione o mecanismo que prepara o schema e confirme que:
+
+* A identidade do banco é verificada antes de qualquer DDL.
+* A conexão é validada usando os dados efetivamente retornados pelo banco, com o mapeamento correto dos campos.
+* A preparação recusa conexões que não sejam inequivocamente reconhecidas como descartáveis.
+* O mecanismo não pode executar migrations por engano no Supabase ou Render.
+* O nome de uma variável de ambiente, sozinho, não é tratado como prova suficiente de isolamento.
+* Não existe fallback silencioso para o banco compartilhado.
+* Seeds, workers e schedulers de produção permanecem desativados no preview isolado.
+
+Não execute DDL até verificar que a conexão aponta para o banco temporário esperado.
+
+Se encontrar uma brecha real, corrija-a e acrescente um teste de regressão seguro.
+
+## 4. CONFIRME OS SEIS CENÁRIOS
+
+Verifique se os seis cenários foram incorporados aos testes automatizados do projeto e se todos realmente passaram pela API e pelo banco isolado:
+
+1. Uma entrega pendente bloqueia a finalização sem modificar o pedido nem gravar evento.
+2. Todas as entregas concluídas permitem a finalização e registram o evento esperado.
+3. Entregas concluídas e canceladas permitem a finalização quando não há pendências.
+4. Repetir a finalização não duplica eventos.
+5. Uma falha na gravação do outbox causa rollback integral.
+6. Cancelar uma entrega não modifica a entrega irmã pendente nem finaliza indevidamente o pedido.
+
+Confirme também que o login sintético segue o contrato real da aplicação e que o teste não depende de uma autenticação artificial que ignore as proteções normais.
+
+Não execute esses testes contra o Supabase compartilhado.
+
+## 5. CONCLUA AS VERIFICAÇÕES PENDENTES
+
+O Agent anterior corrigiu um log de inicialização que identificava incorretamente o banco como “supabase” durante o preview isolado.
+
+Confira se a correção está correta e se não existem outros logs ou verificações que confundam o banco temporário com o compartilhado.
+
+Depois, execute as verificações finais, incluindo:
+
+* `npm run check`
+* `npm run build`
+* `git diff --check`
+* testes unitários seguros relevantes
+* os seis testes integrados no PostgreSQL temporário, caso seja possível executá-los com segurança e sem repetir operações desnecessárias.
+
+Não diga que os testes passaram sem conferir os resultados reais da execução atual.
+
+## 6. REGRAS DE SEGURANÇA
+
+* Não escreva no Supabase compartilhado.
+* Não reinicie o backend do Render.
+* Não execute migrations, seeds ou workers de produção.
+* Não altere dados ou configurações fiscais.
+* Não apague registros existentes.
+* Não desative autenticação, CORS ou isolamento entre empresas.
+* Não execute a suíte fiscal de regressão identificada anteriormente como potencialmente perigosa.
+* Não faça commit nem push; eu farei isso manualmente.
+
+Se o workflow já estiver executando uma validação segura, verifique o estado antes de iniciar outra execução concorrente. Evite dois processos que disputem a mesma porta ou o mesmo diretório temporário.
+
+## 7. RELATÓRIO FINAL OBRIGATÓRIO
+
+Ao concluir, informe:
+
+1. O que encontrou no commit recebido.
+2. Quais correções do Agent anterior foram preservadas.
+3. Quais arquivos foram alterados nesta etapa.
+4. Se os seis cenários estão automatizados e passaram pela API real.
+5. Como o mecanismo comprova que o banco é descartável antes de aplicar o schema.
+6. Resultados reais do typecheck, build, diff e testes.
+7. Se houve qualquer tentativa ou operação de escrita no Supabase compartilhado ou Render.
+8. O que ainda está pendente.
+
+**Prioridade:** concluir a tarefa existente, tornar a preparação do preview repetível e segura e preservar as correções de rastreamento e sincronização entre pedidos e entregas. Não comece novas funcionalidades fora desse escopo.
