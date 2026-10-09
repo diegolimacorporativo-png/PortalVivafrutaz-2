@@ -1,0 +1,176 @@
+Continue o trabalho do Agent anterior no Portal Vivafrutaz, a partir do estado atual do repositório GitHub, incluindo o commit `rastreio`.
+
+O Agent anterior atingiu o limite de execução antes de concluir a auditoria de rastreamento. Ele já identificou problemas concretos e começou a implementar correções.
+
+**Sua missão é inspecionar as alterações existentes, concluir o que estiver pendente e validar o resultado. Não recomece a auditoria do zero, não reverta correções e não reescreva funcionalidades que já estejam corretas.**
+
+## 1. CONTEXTO DO TRABALHO ANTERIOR
+
+O Agent informou ter encontrado os seguintes problemas:
+
+### GPS e fila offline
+
+O aplicativo Android Tracker e a PWA armazenavam o horário real de captura das posições, mas não o enviavam ao servidor. Assim, uma posição antiga reenviada após ficar offline podia ser tratada como atual.
+
+O Agent começou a implementar:
+
+* Envio do horário real de captura.
+* Rejeição de coordenadas inválidas ou posições antigas.
+* Proteção contra posições duplicadas.
+
+### ETA e jornada
+
+O Agent identificou que:
+
+* A rota interna calculava ETA mesmo sem GPS recente ou jornada ativa.
+* O tempo de descarga era somado antes de exibir a chegada à parada correspondente.
+* As janelas de entrega anteriores não atrasavam corretamente as previsões das paradas seguintes.
+
+Ele começou a corrigir esses comportamentos.
+
+### Tokens e logs
+
+O Agent encontrou um logger que registrava o token completo de rastreamento e começou a implementar a mascaragem.
+
+Os links de rastreamento analisados exigem sessão interna no fluxo correspondente. Não confunda esse mapa interno autenticado com o link público de rastreamento por token de entrega: são fluxos distintos.
+
+O Agent informou que ainda estava fechando os testes de regressão e verificando todos os pontos que recebem GPS ou registram URLs com tokens.
+
+## 2. PRIMEIRO: INSPECIONE O ESTADO ATUAL
+
+Antes de modificar qualquer arquivo:
+
+1. Leia as alterações existentes no código.
+2. Identifique os arquivos modificados pelo Agent anterior.
+3. Localize os testes novos ou alterados.
+4. Verifique se as correções descritas já estão implementadas total ou parcialmente.
+5. Identifique quais testes foram executados e quais ficaram pendentes.
+
+Não presuma que uma correção está completa apenas porque existe código para ela.
+
+Não reverta alterações apenas para reconstruir a solução.
+
+## 3. CONCLUA O ENVIO DO HORÁRIO DE CAPTURA
+
+Revise o fluxo completo, desde a captura até a persistência:
+
+* Aplicativo Android Tracker.
+* PWA e eventual fila offline.
+* Reenvio de posições após recuperação da conexão.
+* Endpoint de recebimento de GPS.
+* Validação e persistência no backend.
+* Leitura da última posição pelos cálculos de ETA e rastreamento.
+
+Garanta que o horário original de captura sobreviva ao armazenamento local, à serialização, ao reenvio e à gravação no servidor.
+
+Uma posição capturada antes de uma desconexão não pode parecer recente apenas porque foi reenviada agora.
+
+Valide o formato do horário, fusos e valores inválidos. Se a origem não fornecer um horário confiável, não invente um horário de captura retroativo.
+
+Confirme que posições antigas ou fora de ordem não substituem indevidamente uma posição mais recente.
+
+## 4. VALIDE A PROTEÇÃO CONTRA GPS INVÁLIDO OU DUPLICADO
+
+Revise os critérios implementados para:
+
+* Coordenadas inválidas ou fora dos limites geográficos.
+* Horários ausentes, inválidos ou excessivamente antigos.
+* Posições duplicadas.
+* Posições fora de ordem.
+* Reenvio da fila offline.
+* Perda de conexão e recuperação.
+
+Não introduza uma regra arbitrária que descarte todas as posições legítimas após determinado intervalo sem analisar os requisitos existentes.
+
+A validação deve impedir que dados antigos produzam uma falsa indicação de localização atual.
+
+Adicione ou ajuste testes de regressão para os comportamentos relevantes.
+
+## 5. CORRIJA E VALIDE O ETA
+
+Verifique os serviços que calculam a previsão de chegada tanto no rastreamento público quanto no mapa interno.
+
+Quando o fluxo exigir jornada ativa e GPS recente, o sistema não deve apresentar um ETA confiável se essas condições não forem satisfeitas.
+
+Confirme que:
+
+* A sequência oficial de `route_stops` prevalece quando está disponível.
+* `deliveries.route_position` só é usado no fallback previsto pelo projeto.
+* O horário de captura do GPS é considerado, e não apenas o horário de recebimento no servidor.
+* A chegada à parada não inclui indevidamente o tempo de descarga daquela própria parada.
+* O tempo de atendimento de uma parada pode afetar as previsões das paradas seguintes.
+* Janelas de entrega anteriores são consideradas ao calcular os horários das paradas posteriores.
+* A ausência de dados suficientes resulta em um estado de ETA indisponível ou incerto, conforme o contrato existente, em vez de uma previsão enganosa.
+
+Não prometa precisão de trânsito em tempo real se o sistema não possuir dados de trânsito.
+
+Preserve as regras de disponibilidade do rastreamento e a separação entre o mapa interno autenticado e os links públicos por token.
+
+## 6. PROTEJA OS TOKENS NOS LOGS
+
+Conclua a revisão da mascaragem dos tokens de rastreamento.
+
+Procure todos os locais relevantes que possam registrar:
+
+* Tokens completos.
+* URLs com tokens.
+* Parâmetros de consulta que contenham tokens.
+* Erros HTTP ou mensagens de depuração com credenciais de rastreamento.
+
+Mascarar os logs não pode invalidar os links nem alterar os tokens utilizados pelo fluxo de autenticação.
+
+Não enfraqueça autenticação, autorização, CORS ou isolamento entre empresas.
+
+Acrescente testes para garantir que o token completo não apareça nos logs relevantes.
+
+## 7. SEGURANÇA DO AMBIENTE
+
+O projeto utiliza Replit, Vercel, Render e Supabase, e o ambiente de desenvolvimento já compartilhou banco com o Render.
+
+Portanto:
+
+* Comece por inspeção estática e testes unitários seguros.
+* Não execute testes integrados antes de identificar e confirmar o banco utilizado.
+* Não faça escritas no Supabase compartilhado.
+* Não reinicie o Render.
+* Não execute migrations, seeds, workers ou schedulers de produção.
+* Não apague registros existentes.
+* Não execute testes fiscais.
+* Não altere pedidos, entregas ou campos fiscais para facilitar a auditoria.
+
+Se precisar de testes integrados, utilize exclusivamente o mecanismo de preview com PostgreSQL descartável e confirme a identidade da conexão antes de qualquer operação de escrita.
+
+Se o preview isolado não estiver disponível, continue com os testes que podem ser executados com segurança e informe a limitação.
+
+## 8. VALIDAÇÃO FINAL
+
+Execute as verificações aplicáveis, incluindo:
+
+* `npm run check`
+* `npm run build`
+* `git diff --check`
+* Testes unitários relevantes para GPS, fila offline, ETA, rastreamento público e mascaragem de tokens.
+* Testes integrados isolados, somente se for seguro e necessário.
+
+Não execute indiscriminadamente a suíte inteira se houver testes que escrevem no banco compartilhado.
+
+Não declare uma validação concluída sem evidências da execução.
+
+## 9. RELATÓRIO FINAL
+
+Informe:
+
+1. Quais alterações do Agent anterior foram preservadas.
+2. Quais problemas foram corrigidos ou já estavam resolvidos.
+3. Quais arquivos foram alterados.
+4. Quais testes foram executados e seus resultados.
+5. Como o horário original de captura é preservado na fila offline.
+6. Como posições antigas, inválidas e duplicadas são tratadas.
+7. Como o ETA se comporta sem GPS recente ou jornada ativa.
+8. Como a mascaragem de tokens foi validada.
+9. Qual banco foi utilizado nos testes integrados e se houve alguma escrita no Supabase compartilhado.
+10. Quais pendências permanecem.
+
+Não faça commit nem push. Eu farei isso manualmente.
+
+**Prioridade máxima:** concluir as correções iniciadas pelo Agent anterior, testar os cenários de regressão e preservar o funcionamento do rastreamento sem comprometer o banco compartilhado.

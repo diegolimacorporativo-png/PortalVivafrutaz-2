@@ -51,17 +51,21 @@ function Check-Dir {
 # Função para verificar variável .env
 function Check-Env {
     param($key)
-    if (Test-Path ".env") {
-        $envContent = Get-Content ".env" | Select-String $key
-        if ($envContent) {
-            Write-Host "✅ $key existe em .env" -ForegroundColor Green
+    $environmentValue = [Environment]::GetEnvironmentVariable($key)
+    if (-not [string]::IsNullOrWhiteSpace($environmentValue)) {
+        Write-Host "✅ $key configurada no ambiente" -ForegroundColor Green
+        $script:PASS++
+    } elseif (Test-Path ".env" -PathType Leaf) {
+        $pattern = '^\s*' + [regex]::Escape($key) + '\s*='
+        if (Select-String -Path ".env" -Pattern $pattern -Quiet) {
+            Write-Host "✅ $key configurada em .env" -ForegroundColor Green
             $script:PASS++
         } else {
-            Write-Host "⚠️  $key NÃO encontrado em .env" -ForegroundColor Yellow
+            Write-Host "⚠️  $key não configurada no ambiente nem em .env" -ForegroundColor Yellow
             $script:WARN++
         }
     } else {
-        Write-Host "⚠️  .env não encontrado" -ForegroundColor Yellow
+        Write-Host "⚠️  $key não configurada no ambiente nem em .env" -ForegroundColor Yellow
         $script:WARN++
     }
 }
@@ -86,7 +90,13 @@ Check-Dir "docs"
 Write-Host ""
 Write-Host "📄 ARQUIVOS CRÍTICOS" -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
-Check-File ".env"
+if (Test-Path ".env" -PathType Leaf) {
+    Write-Host "✅ Arquivo existe: .env" -ForegroundColor Green
+    $PASS++
+} else {
+    Write-Host "⚠️  .env ausente; secrets e variáveis do ambiente são aceitos" -ForegroundColor Yellow
+    $WARN++
+}
 Check-File "package.json"
 Check-File "tsconfig.json"
 Check-File "server/index.ts"

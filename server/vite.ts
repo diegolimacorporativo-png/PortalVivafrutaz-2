@@ -61,7 +61,7 @@ export async function setupVite(server: Server, app: Express) {
       res.status(404).json({
         success: false,
         error: "API route not found",
-        path: url,
+        path: redactTrackingTokenFromPath(url),
       });
       return;
     }

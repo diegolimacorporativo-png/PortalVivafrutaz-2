@@ -24,6 +24,7 @@
 
 // FASE 11 — import must be at module top-level (ES module hoisting)
 import { pushAlert } from "./alertEngine";
+import { redactTrackingTokenFromPath } from "./logRedaction";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +52,13 @@ const events: SecurityEvent[] = [];
  */
 export function logSecurityEvent(event: Omit<SecurityEvent, "timestamp"> & { timestamp?: number }): void {
   try {
-    events.push({ ...event, timestamp: event.timestamp ?? Date.now() });
+    events.push({
+      ...event,
+      path: event.path === undefined
+        ? undefined
+        : redactTrackingTokenFromPath(event.path),
+      timestamp: event.timestamp ?? Date.now(),
+    });
     if (events.length > MAX_EVENTS) {
       events.shift();
     }
@@ -100,11 +107,12 @@ export function getTopIPs(n = 10): Array<{ ip: string; count: number }> {
  * existing log behaviour or any caller.
  */
 export function logSecurity(message: string): void {
-  console.error(message);
+  const safeMessage = redactTrackingTokenFromPath(message);
+  console.error(safeMessage);
   try {
-    const typeMatch = message.match(/\[(.*?)\]/);
+    const typeMatch = safeMessage.match(/\[(.*?)\]/);
     const type = typeMatch ? typeMatch[1] : "UNKNOWN";
-    pushAlert(type, message);
+    pushAlert(type, safeMessage);
   } catch {
     // never break the log path
   }

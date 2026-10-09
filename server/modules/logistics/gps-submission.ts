@@ -56,8 +56,7 @@ function optionalNumber(
   return { value: parsed };
 }
 
-function parseCaptureTime(value: unknown, now: Date): number | null {
-  if (value === undefined) return now.getTime(); // compatibility with older tracker builds
+function parseCaptureTime(value: unknown): number | null {
   if (typeof value !== "number" && typeof value !== "string") return null;
   if (typeof value === "string" && !/^\d{1,16}$/.test(value.trim())) return null;
   const timestamp = Number(value);
@@ -102,13 +101,13 @@ export function validateGpsSubmission(
   const telemetryError = accuracy.error ?? speed.error ?? heading.error;
   if (telemetryError) return telemetryError;
 
-  const capturedAt = parseCaptureTime(input.capturedAt, now);
+  const capturedAt = parseCaptureTime(input.capturedAt);
   if (capturedAt === null) {
     return {
       ok: false,
       code: "GPS_CAPTURE_TIME_INVALID",
       status: 400,
-      message: "Horário da captura GPS inválido",
+      message: "Horário da captura GPS obrigatório e válido",
     };
   }
 

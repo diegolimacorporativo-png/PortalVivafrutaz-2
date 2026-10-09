@@ -1,6 +1,7 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import { redactTrackingTokenFromPath } from "./core/security/logRedaction";
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "public");
@@ -19,7 +20,7 @@ export function serveStatic(app: Express) {
       res.status(404).json({
         success: false,
         error: "API route not found",
-        path: req.originalUrl,
+        path: redactTrackingTokenFromPath(req.originalUrl),
       });
       return;
     }

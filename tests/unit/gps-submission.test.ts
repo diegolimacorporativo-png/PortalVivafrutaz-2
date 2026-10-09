@@ -24,7 +24,7 @@ describe("GPS submission validation", () => {
     assert.equal(result.heading, "0.00");
   });
 
-  test("keeps older tracker clients compatible without trusting optional null fields", () => {
+  test("rejects missing capture times rather than replacing them with server time", () => {
     const result = validateGpsSubmission({
       latitude: 0,
       longitude: 0,
@@ -33,10 +33,11 @@ describe("GPS submission validation", () => {
       heading: null,
     }, now);
 
-    assert.equal(result.ok, true);
-    if (!result.ok) return;
-    assert.equal(result.recordedAt.getTime(), now.getTime());
-    assert.equal(result.accuracy, undefined);
+    assert.equal(result.ok, false);
+    if (!result.ok) {
+      assert.equal(result.status, 400);
+      assert.equal(result.code, "GPS_CAPTURE_TIME_INVALID");
+    }
   });
 
   test("rejects empty, null, and out-of-range coordinates rather than coercing them to zero", () => {
@@ -65,14 +66,16 @@ describe("GPS submission validation", () => {
     assert.equal(invalidSpeed.ok, false);
     if (!invalidSpeed.ok) assert.equal(invalidSpeed.code, "GPS_TELEMETRY_INVALID");
 
-    const invalidTimestamp = validateGpsSubmission({
-      latitude: 0,
-      longitude: 0,
-      capturedAt: null,
-    }, now);
-    assert.equal(invalidTimestamp.ok, false);
-    if (!invalidTimestamp.ok) {
-      assert.equal(invalidTimestamp.code, "GPS_CAPTURE_TIME_INVALID");
+    for (const capturedAt of [null, "", "2026-10-09T15:00:00.000Z", Number.MAX_SAFE_INTEGER + 1]) {
+      const invalidTimestamp = validateGpsSubmission({
+        latitude: 0,
+        longitude: 0,
+        capturedAt,
+      }, now);
+      assert.equal(invalidTimestamp.ok, false);
+      if (!invalidTimestamp.ok) {
+        assert.equal(invalidTimestamp.code, "GPS_CAPTURE_TIME_INVALID");
+      }
     }
   });
 

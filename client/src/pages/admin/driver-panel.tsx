@@ -14,6 +14,12 @@ import {
   UserX, Home, ThumbsDown, CalendarClock, TriangleAlert, History, LogOut,
 } from 'lucide-react';
 import { BackHeader } from '@/components/navigation/BackHeader';
+import {
+  GPS_QUEUE_LIMIT,
+  readPendingGpsPositions,
+  writePendingGpsPositions,
+  type PendingGpsPosition,
+} from '@/lib/gps-pending-queue';
 
 interface DeliveryItem {
   id: number;
@@ -51,13 +57,6 @@ type GpsPayload = {
   heading: number | null;
 };
 
-type PendingGpsPosition = {
-  payload: GpsPayload;
-  capturedAt: number;
-};
-
-const GPS_QUEUE_STORAGE_KEY = 'vivafrutaz:gps-pending:v1';
-const GPS_QUEUE_LIMIT = 20;
 const GPS_SEND_INTERVAL_MS = 15000;
 const GPS_REQUEST_TIMEOUT_MS = 10000;
 const GPS_OPTIONS: PositionOptions = {
@@ -65,49 +64,6 @@ const GPS_OPTIONS: PositionOptions = {
   maximumAge: 10000,
   timeout: 20000,
 };
-
-function readPendingGpsPositions(): PendingGpsPosition[] {
-  try {
-    const raw = window.localStorage.getItem(GPS_QUEUE_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((entry): entry is PendingGpsPosition => {
-        const payload = entry?.payload;
-        return Boolean(
-          payload &&
-          Number.isFinite(Number(payload.latitude)) &&
-          Number.isFinite(Number(payload.longitude)) &&
-          Number.isFinite(Number(entry.capturedAt)),
-        );
-      })
-      .slice(-GPS_QUEUE_LIMIT)
-      .map(entry => ({
-        capturedAt: Number(entry.capturedAt),
-        payload: {
-          latitude: Number(entry.payload.latitude),
-          longitude: Number(entry.payload.longitude),
-          accuracy: entry.payload.accuracy == null ? null : Number(entry.payload.accuracy),
-          speed: entry.payload.speed == null ? null : Number(entry.payload.speed),
-          heading: entry.payload.heading == null ? null : Number(entry.payload.heading),
-        },
-      }));
-  } catch {
-    return [];
-  }
-}
-
-function writePendingGpsPositions(queue: PendingGpsPosition[]): void {
-  try {
-    window.localStorage.setItem(
-      GPS_QUEUE_STORAGE_KEY,
-      JSON.stringify(queue.slice(-GPS_QUEUE_LIMIT)),
-    );
-  } catch {
-    // Storage can be unavailable in private/restricted browser contexts.
-  }
-}
 
 function formatGpsTime(timestamp: number | null): string {
   if (!timestamp) return '—';
@@ -139,12 +95,12 @@ function DriverGpsReporter({ role }: { role?: string | null }) {
     }
 
     cancelledRef.current = false;
-    pendingRef.current = readPendingGpsPositions();
+    pendingRef.current = readPendingGpsPositions(window.localStorage);
     setPendingCount(pendingRef.current.length);
 
     const updateQueueState = () => {
       if (!cancelledRef.current) setPendingCount(pendingRef.current.length);
-      writePendingGpsPositions(pendingRef.current);
+      writePendingGpsPositions(window.localStorage, pendingRef.current);
     };
 
     const enqueuePosition = (payload: GpsPayload, capturedAt: number) => {

@@ -55,11 +55,14 @@ check_dir() {
 
 # Função para verificar variável .env
 check_env() {
-    if grep -q "$1" .env 2>/dev/null; then
-        echo -e "${GREEN}✅${NC} $1 existe em .env"
+    if [[ -n "${!1:-}" ]]; then
+        echo -e "${GREEN}✅${NC} $1 configurada no ambiente"
+        ((PASS++))
+    elif [ -f .env ] && grep -Eq "^[[:space:]]*$1[[:space:]]*=" .env 2>/dev/null; then
+        echo -e "${GREEN}✅${NC} $1 configurada em .env"
         ((PASS++))
     else
-        echo -e "${YELLOW}⚠️${NC}  $1 NÃO encontrado em .env"
+        echo -e "${YELLOW}⚠️${NC}  $1 não configurada no ambiente nem em .env"
         ((WARN++))
     fi
 }
@@ -86,7 +89,13 @@ check_dir "docs"
 echo ""
 echo -e "${BLUE}📄 ARQUIVOS CRÍTICOS${NC}"
 echo "=========================================="
-check_file ".env"
+if [ -f ".env" ]; then
+    echo -e "${GREEN}✅${NC} Arquivo existe: .env"
+    ((PASS++))
+else
+    echo -e "${YELLOW}⚠️${NC}  .env ausente; secrets e variáveis do ambiente são aceitos"
+    ((WARN++))
+fi
 check_file "package.json"
 check_file "tsconfig.json"
 check_file "server/index.ts"

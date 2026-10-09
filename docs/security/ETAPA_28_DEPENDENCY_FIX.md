@@ -52,7 +52,7 @@ e o pacote travado como:
 ```json
 "node_modules/cors": {
   "version": "2.8.6",
-  "resolved": "http://package-firewall.replit.local/npm/cors/-/cors-2.8.6.tgz",
+  "resolved": "https://registry.npmjs.org/cors/-/cors-2.8.6.tgz",
   "integrity": "sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw=="
 }
 ```

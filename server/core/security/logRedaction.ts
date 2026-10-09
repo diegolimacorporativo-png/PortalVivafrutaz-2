@@ -4,6 +4,6 @@
  */
 export function redactTrackingTokenFromPath(path: string): string {
   return path
-    .replace(/(\/api\/track\/)[^/?]+/g, "$1:token")
-    .replace(/(\/api\/logistics\/track\/)[^/?]+/g, "$1:token");
+    .replace(/(\/(?:api\/logistics\/track|api\/track|driver-map|track)\/)[^/?#]+/gi, "$1:token")
+    .replace(/([?#&][^=&#]*token[^=&#]*=)[^&#]*/gi, "$1[REDACTED]");
 }
