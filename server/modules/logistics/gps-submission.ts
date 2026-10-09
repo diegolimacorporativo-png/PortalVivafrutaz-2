@@ -26,6 +26,18 @@ export type GpsSubmissionResult =
       message: string;
     };
 
+export function isNewerGpsCapture(
+  capturedAt: Date,
+  latestCapturedAt: Date | null | undefined,
+): boolean {
+  const capturedTime = capturedAt.getTime();
+  if (!Number.isFinite(capturedTime)) return false;
+  if (latestCapturedAt == null) return true;
+
+  const latestTime = latestCapturedAt.getTime();
+  return Number.isFinite(latestTime) && capturedTime > latestTime;
+}
+
 function finiteNumber(value: unknown): number | null {
   if (typeof value === "number") {
     return Number.isFinite(value) ? value : null;

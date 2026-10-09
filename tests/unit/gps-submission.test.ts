@@ -1,6 +1,9 @@
 import { describe, test } from "node:test";
 import assert from "node:assert/strict";
-import { validateGpsSubmission } from "../../server/modules/logistics/gps-submission";
+import {
+  isNewerGpsCapture,
+  validateGpsSubmission,
+} from "../../server/modules/logistics/gps-submission";
 
 const now = new Date("2026-10-09T15:00:00.000Z");
 
@@ -95,5 +98,16 @@ describe("GPS submission validation", () => {
         assert.equal(result.code, "GPS_CAPTURE_TIME_STALE");
       }
     }
+  });
+
+  test("only advances the latest GPS position for a strictly newer capture", () => {
+    const latest = new Date(now.getTime());
+
+    assert.equal(isNewerGpsCapture(new Date(now.getTime() + 1), latest), true);
+    assert.equal(isNewerGpsCapture(new Date(now.getTime()), latest), false);
+    assert.equal(isNewerGpsCapture(new Date(now.getTime() - 1), latest), false);
+    assert.equal(isNewerGpsCapture(new Date(Number.NaN), latest), false);
+    assert.equal(isNewerGpsCapture(new Date(now.getTime()), new Date(Number.NaN)), false);
+    assert.equal(isNewerGpsCapture(new Date(now.getTime()), null), true);
   });
 });

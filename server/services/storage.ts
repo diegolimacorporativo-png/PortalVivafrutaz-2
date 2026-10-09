@@ -5,6 +5,7 @@ import { companiesRepository } from "../modules/companies/companies.repository";
 import { cache } from "./cache";
 import { invalidateUsageCache } from "../modules/billing/usage-cache";
 import { logSecurity } from "../core/security/securityLogger";
+import { isNewerGpsCapture } from "../modules/logistics/gps-submission";
 import {
   tenantWhere,
   tenantAnd,
@@ -3103,18 +3104,17 @@ export class DatabaseStorage implements IStorage {
     data: InsertDriverGpsPosition & { driverId: number; recordedAt: Date },
   ): Promise<DriverGpsPosition> {
     return db.transaction(async (tx) => {
-      // Serialize submissions from multiple devices for the same driver so a
-      // retry with the same captured sample cannot create duplicate rows.
+      // Serialize submissions across devices and server instances for one
+      // driver. The latest capture wins; equal-time retries or out-of-order
+      // offline samples return the current row instead of replacing it.
       await tx.execute(sql`SELECT pg_advisory_xact_lock(22086, ${data.driverId})`);
-      const [existing] = await tx.select().from(driverGpsPositions)
-        .where(and(
-          eq(driverGpsPositions.driverId, data.driverId),
-          eq(driverGpsPositions.recordedAt, data.recordedAt),
-          eq(driverGpsPositions.latitude, String(data.latitude)),
-          eq(driverGpsPositions.longitude, String(data.longitude)),
-        ))
+      const [latest] = await tx.select().from(driverGpsPositions)
+        .where(eq(driverGpsPositions.driverId, data.driverId))
+        .orderBy(desc(driverGpsPositions.recordedAt), desc(driverGpsPositions.id))
         .limit(1);
-      if (existing) return existing;
+      if (latest && !isNewerGpsCapture(data.recordedAt, latest.recordedAt)) {
+        return latest;
+      }
 
       const [created] = await tx.insert(driverGpsPositions).values(data).returning();
       return created;

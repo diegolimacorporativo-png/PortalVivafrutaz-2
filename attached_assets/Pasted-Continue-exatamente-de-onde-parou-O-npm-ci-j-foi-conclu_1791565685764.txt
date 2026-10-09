@@ -1,0 +1,45 @@
+Continue exatamente de onde parou. O `npm ci` já foi concluído com sucesso e o lockfile foi sincronizado. Não recomece a auditoria nem reverta as alterações existentes.
+
+**1. Verifique o ambiente**
+
+* Confira as alterações feitas em `package.json` e `package-lock.json`.
+* Verifique a compatibilidade do `libxmljs2` com a versão do Node usada no deploy.
+* Não atualize a versão do Node nem outras dependências sem comprovar que é necessário.
+
+**2. Finalize a auditoria de GPS e ETA**
+
+* Preserve o horário original da captura GPS, inclusive quando uma posição fica na fila offline e é enviada posteriormente.
+* Impessa que posições antigas, inválidas ou duplicadas substituam posições mais recentes.
+* Garanta que o ETA considere a jornada ativa, a atualidade do GPS, a sequência oficial de `route_stops` e as janelas de entrega.
+* Não some o tempo de descarga à chegada da mesma parada.
+* Quando não houver dados suficientes, informe que o ETA está indisponível, em vez de inventar um horário.
+* Oculte tokens completos de rastreamento nos logs.
+
+**3. Execute as validações**
+
+* `npm run check`
+* `npm run build`
+* `git diff --check`
+* Testes unitários e regressivos específicos das alterações de GPS, rastreamento e ETA.
+
+Corrija os erros encontrados e repita os testes pertinentes.
+
+**4. Proteja o banco de dados**
+
+* Antes de reiniciar qualquer processo ou executar testes de integração, confirme que ele utiliza exclusivamente o PostgreSQL temporário isolado.
+* Não execute migrations, seeds, workers ou schedulers contra o Supabase compartilhado.
+* Não reinicie o Render.
+* Não execute testes fiscais nem scripts que alterem dados de produção.
+* Não crie nem exclua registros no Supabase compartilhado.
+
+**5. Ao concluir**
+Apresente um relatório objetivo informando:
+
+1. Arquivos alterados.
+2. Correções efetivamente concluídas.
+3. Resultado de cada teste e do build.
+4. Compatibilidade do Node e das dependências.
+5. Confirmação de qual banco foi utilizado.
+6. Pendências que ainda impedem o deploy, se houver.
+
+Não faça commit nem push. Não declare o projeto pronto para deploy se alguma validação obrigatória tiver falhado.
