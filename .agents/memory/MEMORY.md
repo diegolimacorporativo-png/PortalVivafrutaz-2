@@ -34,3 +34,4 @@
 - [Order modification deadline](order-modification-deadline.md) — alterações, reabertura e cancelamento seguem o corte de 12:00 BRT calculado pela data de entrega.
 - [Package firewall installs](package-firewall-installs.md) — resolva 403s com versões corrigidas no package manager ativo; não contorne o firewall.
 - [Isolated preview background jobs](isolated-preview-background-jobs.md) — gate jobs iniciados durante importação; desabilitar workers explícitos no boot não interrompe timers importados.
+- [Isolated preview database safety](isolated-preview-database.md) — valide identidade e diretório temporário antes do DDL; `inet_server_addr()` pode incluir máscara CIDR.

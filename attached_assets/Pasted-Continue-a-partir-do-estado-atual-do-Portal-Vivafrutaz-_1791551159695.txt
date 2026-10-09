@@ -1,0 +1,82 @@
+Continue a partir do estado atual do Portal Vivafrutaz, preservando todas as alterações existentes.
+
+A última etapa foi concluída com:
+
+* `npm run check` aprovado;
+* `npm run build` aprovado;
+* `git diff --check` aprovado;
+* 43 testes direcionados aprovados;
+* aplicação iniciada em preview isolado, com PostgreSQL temporário;
+* nenhuma escrita no Supabase compartilhado.
+
+Não refaça essas etapas sem necessidade.
+
+## 1. TESTAR A FINALIZAÇÃO MANUAL COM A API
+
+O código e os testes unitários indicam que a finalização manual respeita a regra de entregas pendentes, mas ainda falta uma validação integrada com a API e um PostgreSQL descartável que tenha o schema da aplicação.
+
+Prepare o ambiente isolado utilizando o mecanismo de teste já existente no projeto, se houver.
+
+Antes de executar migrations, confirme que a conexão aponta exclusivamente para o banco temporário. Não utilize o Supabase compartilhado.
+
+Valide os seguintes cenários por meio da API ou dos handlers reais:
+
+1. Pedido com uma entrega pendente: tentar finalizar deve ser bloqueado.
+2. Pedido com todas as entregas concluídas: a finalização deve ser permitida.
+3. Pedido com entregas concluídas e canceladas, sem pendências: a finalização deve ser permitida.
+4. Falha durante a operação: nenhuma alteração parcial deve permanecer.
+5. Repetir a mesma operação: não deve duplicar eventos.
+6. Cancelar uma entrega: as demais entregas devem manter seus status.
+
+Utilize dados sintéticos claramente identificados como testes e mantenha tudo no banco descartável.
+
+Se o projeto não tiver uma forma segura de preparar o schema nesse ambiente, investigue a estrutura de migrations e proponha a alternativa mínima. Não improvise comandos contra o banco compartilhado.
+
+## 2. INVESTIGAR O ERRO 500 DA CONFIGURAÇÃO DA LOGO
+
+Descubra qual rota gerou o erro e como ela deveria se comportar sem autenticação.
+
+Verifique:
+
+* Se a rota é pública ou exige autenticação.
+* Se o frontend faz uma chamada indevida sem sessão.
+* Se o backend trata corretamente a ausência de autenticação.
+* Se a resposta deveria ser 401/403, um valor padrão ou outra resposta prevista pelo contrato atual.
+
+Não torne a rota pública se ela não deveria ser. Não remova autenticação nem exponha configurações administrativas.
+
+Se for um problema real, corrija-o de forma mínima e adicione um teste de regressão.
+
+## 3. PRESERVAR O BANCO E AS FUNCIONALIDADES
+
+Não escreva no Supabase compartilhado.
+Não execute testes fiscais que alterem dados reais.
+Não apague registros existentes.
+Não execute seeds ou workers contra produção.
+Não reinicie o backend do Render.
+Não altere campos fiscais, autenticação ou isolamento entre empresas sem necessidade comprovada.
+
+## 4. VERIFICAÇÃO FINAL
+
+Execute:
+
+* `npm run check`;
+* `npm run build`;
+* `git diff --check`;
+* testes unitários seguros;
+* testes integrados isolados que conseguir preparar.
+
+Informe claramente quais testes executaram a API real e quais foram apenas unitários.
+
+## 5. RELATÓRIO
+
+Ao concluir, informe:
+
+* Arquivos alterados;
+* Cenários testados e resultados;
+* Se o endpoint de finalização manual foi exercitado de ponta a ponta no ambiente isolado;
+* Causa do erro 500 da logo e correção, se necessária;
+* Confirmação de que o Supabase compartilhado não foi alterado;
+* Pendências restantes.
+
+Não faça commit nem push. Eu farei isso manualmente.
