@@ -1,0 +1,62 @@
+Existe uma falha no aplicativo Android Tracker após as alterações recentes no fluxo de GPS.
+
+**Erro exibido no aplicativo:** "Horário de captura GPS obrigatório e válido".
+
+O aplicativo não está conseguindo enviar a localização dos motoristas, comprometendo o rastreamento no portal Vivafrutaz.
+
+Investigue a causa real e corrija o fluxo completo. Não faça apenas uma alteração superficial para esconder a mensagem.
+
+### 1. Identifique a origem do erro
+
+Inspecione o código do Android Tracker e o endpoint do servidor que recebe as posições GPS.
+
+Verifique:
+
+* Como o Android obtém a localização do motorista.
+* Como registra a data e a hora da captura.
+* Como serializa o horário no JSON enviado ao servidor.
+* Se o campo enviado pelo aplicativo tem o mesmo nome e formato que a API espera.
+* Se o horário é perdido durante a fila offline, a persistência local ou o reenvio.
+* Se a validação do servidor rejeita um formato que o próprio aplicativo está produzindo.
+
+### 2. Corrija a captura e o envio
+
+* Gere o horário de captura no momento em que o Android recebe a posição GPS.
+* Envie o horário no campo e no formato esperados pela API, preferencialmente ISO 8601 com fuso horário explícito.
+* Preserve o horário original ao armazenar e reenviar posições que ficaram offline.
+* Não substitua o horário original pela hora do reenvio.
+* Trate corretamente localização nula, coordenadas inválidas e falhas de permissão ou de obtenção do GPS.
+* Não invente horários antigos nem desative a validação do servidor para fazer o erro desaparecer.
+
+### 3. Confira a compatibilidade entre aplicativo e servidor
+
+Siga o dado desde a captura no Android até a validação, persistência e leitura pelo portal.
+
+Corrija a incompatibilidade na origem. Não altere o contrato da API sem verificar todos os consumidores, incluindo o PWA e a fila offline.
+
+### 4. Teste os cenários
+
+* Captura GPS nova com horário válido.
+* Captura com localização indisponível.
+* Posição armazenada offline e enviada posteriormente.
+* Horário ausente ou inválido.
+* Posição antiga recebida depois de uma posição mais recente.
+* Recuperação do envio após perda de conexão.
+
+Confirme que uma posição válida é aceita e que o portal consegue recebê-la, respeitando as regras de jornada ativa e atualização do GPS.
+
+### 5. Proteção obrigatória
+
+* Não reinicie o Render.
+* Não faça gravações no Supabase compartilhado para testar.
+* Não execute migrations, seeds ou workers contra a base compartilhada.
+* Não remova as validações de segurança.
+* Não altere dados de pedidos, entregas ou informações fiscais.
+
+Execute as verificações de código, build e testes automatizados pertinentes. Se precisar de teste de integração, utilize somente o ambiente PostgreSQL temporário isolado, depois de confirmar sua identidade.
+
+### 6. Relatório final
+
+Informe a causa exata, os arquivos alterados, a correção realizada e os testes executados. Diferencie claramente o que foi validado em testes do que ainda precisa ser confirmado no celular de um motorista.
+
+Prioridade máxima: restaurar o envio da localização GPS sem comprometer a segurança nem a integridade dos dados.

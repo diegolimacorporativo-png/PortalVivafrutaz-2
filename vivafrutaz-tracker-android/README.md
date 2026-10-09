@@ -27,6 +27,11 @@ A base do MVP está implementada:
 - nenhuma ação comum no app para desligar o rastreamento;
 - nenhuma senha, chave administrativa ou token escrito no código.
 
+> **Atenção:** o APK versionado em `releases/vivafrutaz-tracker-debug.apk` é da
+> versão 0.1.0, anterior ao envio obrigatório de `capturedAt`, e não deve ser
+> distribuído. Gere e teste a versão 0.2.0 a partir deste código antes de
+> atualizar os aparelhos.
+
 Os contratos de jornada, quilometragem, abastecimento, assinatura e fotos não
 estão publicados no backend deste checkout. A lacuna e o contrato recomendado
 estão registrados em `docs/DRIVER-OPERATIONS.md`; o APK não inventa endpoints
@@ -52,9 +57,14 @@ O app preserva o payload atual:
   "longitude": -46.6333,
   "accuracy": 12.5,
   "speed": 8.2,
-  "heading": 180
+  "heading": 180,
+  "capturedAt": 1791567600000
 }
 ```
+
+`capturedAt` é um número inteiro de milissegundos desde o Unix epoch, obtido da
+captura Android (`Location.time`). A fila Room persiste e reenvia o mesmo valor;
+o horário do reenvio nunca substitui o original.
 
 O `driverId` não é enviado. O backend resolve o motorista pela sessão autenticada, como a PWA atual.
 

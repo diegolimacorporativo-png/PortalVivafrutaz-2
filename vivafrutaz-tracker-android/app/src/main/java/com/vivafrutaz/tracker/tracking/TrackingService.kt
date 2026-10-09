@@ -56,6 +56,10 @@ class TrackingService : Service() {
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
+            if (result.locations.isEmpty()) {
+                reportLocationUnavailable()
+                return
+            }
             result.locations.forEach { location -> capture(location) }
         }
 
@@ -176,25 +180,49 @@ class TrackingService : Service() {
         }
     }
 
-    private fun capture(location: Location) {
+    private fun capture(location: Location?) {
         if (!hasLocationPermission()) {
             handlePermissionLost()
             return
         }
+        if (location == null) {
+            reportLocationUnavailable()
+            return
+        }
         if (location.time <= 0L) {
-            stateStore.updateStatus(
-                TrackingState.STATUS_ERROR,
-                dao.count(),
-                "Horário da posição GPS inválido.",
-            )
+            reportInvalidPosition("Horário da posição GPS inválido.")
+            return
+        }
+        val latitude = location.latitude
+        val longitude = location.longitude
+        if (
+            !latitude.isFinite() ||
+            !longitude.isFinite() ||
+            latitude !in -90.0..90.0 ||
+            longitude !in -180.0..180.0
+        ) {
+            reportInvalidPosition("Coordenadas GPS inválidas.")
             return
         }
         val payload = GpsPayload(
-            latitude = location.latitude,
-            longitude = location.longitude,
-            accuracy = location.accuracy.toDouble(),
-            speed = if (location.hasSpeed()) location.speed.toDouble() else null,
-            heading = if (location.hasBearing()) location.bearing.toDouble() else null,
+            latitude = latitude,
+            longitude = longitude,
+            accuracy = if (location.hasAccuracy()) {
+                location.accuracy.toDouble()
+                    .takeIf { it.isFinite() && it in 0.0..999_999.99 }
+            } else {
+                null
+            },
+            speed = if (location.hasSpeed()) {
+                location.speed.toDouble().takeIf { it.isFinite() && it in 0.0..100.0 }
+            } else {
+                null
+            },
+            heading = if (location.hasBearing()) {
+                location.bearing.toDouble().takeIf { it.isFinite() && it in 0.0..360.0 }
+            } else {
+                null
+            },
             capturedAt = location.time,
         )
         val fingerprint = listOf(
@@ -227,6 +255,44 @@ class TrackingService : Service() {
             } else {
                 updateNotification("Sem conexão — posição guardada")
             }
+        }
+    }
+
+    private fun reportInvalidPosition(message: String) {
+        serviceScope.launch {
+            stateStore.updateStatus(
+                TrackingState.STATUS_ERROR,
+                dao.count(),
+                message,
+            )
+            updateNotification("Posição GPS inválida")
+        }
+    }
+
+    private fun reportLocationUnavailable() {
+        serviceScope.launch {
+            if (!hasLocationPermission()) {
+                handlePermissionLost()
+                return@launch
+            }
+            val networkAvailable = hasNetwork()
+            stateStore.updateStatus(
+                status = if (networkAvailable) {
+                    TrackingState.STATUS_NO_SIGNAL
+                } else {
+                    TrackingState.STATUS_NO_INTERNET
+                },
+                pendingCount = dao.count(),
+                errorMessage = if (networkAvailable) {
+                    "GPS indisponível. Verifique se a localização está ligada."
+                } else {
+                    null
+                },
+            )
+            updateNotification(
+                if (networkAvailable) "GPS indisponível"
+                else "Sem conexão — posição guardada",
+            )
         }
     }
 
