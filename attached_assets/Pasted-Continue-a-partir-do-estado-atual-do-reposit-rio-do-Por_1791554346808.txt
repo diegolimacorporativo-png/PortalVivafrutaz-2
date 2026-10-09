@@ -1,0 +1,80 @@
+Continue a partir do estado atual do repositório do Portal Vivafrutaz. Preserve todas as correções e os testes já realizados.
+
+A validação integrada mais recente foi concluída com sucesso: seis cenários de finalização passaram pela API real, autenticada com uma conta sintética, em um PostgreSQL temporário com schema de teste.
+
+Também passaram o typecheck, o build, 50 testes unitários seguros e `git diff --check`.
+
+Nenhuma escrita foi feita no Supabase compartilhado, nenhum restart do Render foi executado e não houve commit ou push.
+
+### OBJETIVO 1 — TORNAR PERMANENTES OS TESTES DE FINALIZAÇÃO
+
+Localize os testes existentes e identifique a melhor maneira de incorporar os seis cenários já validados à suíte automatizada do projeto.
+
+Os cenários são:
+
+1. Uma entrega pendente bloqueia a finalização sem alterar o pedido nem registrar evento.
+2. Todas as entregas concluídas permitem a finalização e geram o evento esperado.
+3. Entregas concluídas e canceladas permitem a finalização quando não restam pendências.
+4. Repetir a finalização não duplica eventos.
+5. Uma falha na gravação do outbox provoca rollback integral da transação.
+6. Cancelar uma entrega não modifica a entrega irmã pendente nem finaliza indevidamente o pedido.
+
+Reutilize os helpers, a infraestrutura e os padrões de teste existentes. Evite duplicar testes que já cubram exatamente os mesmos comportamentos.
+
+Os testes devem usar banco isolado e dados sintéticos. Não devem depender do Supabase compartilhado nem modificar configurações fiscais.
+
+### OBJETIVO 2 — TORNAR A PREPARAÇÃO DO PREVIEW REPETÍVEL
+
+Investigue como o PostgreSQL descartável e o schema foram preparados na última validação.
+
+Crie, se necessário, o menor mecanismo seguro para preparar o schema do preview isolado de forma repetível.
+
+Requisitos obrigatórios:
+
+* Confirmar a identidade do banco antes de executar qualquer migration.
+* Permitir migrations somente em um banco explicitamente reconhecido como descartável.
+* Recusar a execução caso a conexão aponte para Supabase, Render ou qualquer banco cuja identidade não possa ser confirmada.
+* Não confiar apenas no nome da variável de ambiente para determinar se o banco é seguro.
+* Não executar seeds, workers ou schedulers de produção.
+* Não utilizar o banco temporário como fallback silencioso para a conexão de produção.
+* Não alterar a configuração de produção.
+* Não introduzir comandos destrutivos genéricos.
+* Documentar como iniciar o preview e como verificar o banco utilizado.
+
+Se já existir um mecanismo seguro que cumpra esses requisitos, reutilize-o em vez de criar outro.
+
+### OBJETIVO 3 — PRESERVAR O ESTADO ATUAL
+
+Não altere os fluxos funcionais de pedidos, entregas, rastreamento ou configuração da logo sem encontrar um defeito concreto.
+
+Não altere autenticação, CORS, isolamento entre empresas ou regras fiscais.
+
+Não execute a suíte fiscal de regressão que escreve no banco compartilhado. Inspecione os scripts antes de executar qualquer teste de integração.
+
+### VALIDAÇÃO FINAL
+
+Execute:
+
+* `npm run check`;
+* `npm run build`;
+* `git diff --check`;
+* os testes unitários seguros relevantes;
+* os novos testes automatizados em ambiente isolado.
+
+Confirme que os testes não gravaram dados no Supabase compartilhado.
+
+Não faça commit nem push.
+
+### RELATÓRIO
+
+Informe:
+
+1. Quais arquivos foram criados ou alterados.
+2. Quais testes já existiam e quais foram acrescentados.
+3. Se os seis cenários estão automatizados.
+4. Como o banco descartável é identificado e protegido.
+5. Quais comandos permitem repetir a validação.
+6. Resultados reais dos testes.
+7. Qualquer pendência que não tenha sido resolvida.
+
+Não se limite a propor mudanças: implemente o que puder ser feito com segurança e apresente as limitações reais.

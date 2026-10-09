@@ -81,7 +81,7 @@ console.log("[DB_PROVIDER_SELECTED]", {
 });
 
 console.log("[BOOT_VALIDATION_OK]", {
-  provider: "supabase",
+  provider: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
   env: _env,
   pid: _pid,
   ts: _ts(),

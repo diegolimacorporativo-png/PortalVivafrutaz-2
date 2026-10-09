@@ -54,6 +54,35 @@ export function validateIsolatedPreviewDatabaseUrl(
   return databaseUrl;
 }
 
+export type IsolatedPreviewDatabaseIdentity = {
+  database: string;
+  username: string;
+  address: string;
+  port: number | string;
+  dataDirectory: string;
+};
+
+export function assertIsolatedPreviewDatabaseIdentity(
+  identity: IsolatedPreviewDatabaseIdentity,
+  expectedDataDirectory: string,
+): void {
+  const addressIsLoopback =
+    identity.address === "127.0.0.1" ||
+    identity.address === "127.0.0.1/32";
+
+  if (
+    identity.database !== "vivafrutaz_preview" ||
+    identity.username !== "preview" ||
+    !addressIsLoopback ||
+    Number(identity.port) !== 55439 ||
+    path.resolve(identity.dataDirectory) !== path.resolve(expectedDataDirectory)
+  ) {
+    throw new Error(
+      "A identidade do servidor PostgreSQL não corresponde ao banco temporário descartável.",
+    );
+  }
+}
+
 export function getRuntimeDatabaseUrl(): string {
   if (isIsolatedPreviewMode()) {
     return validateIsolatedPreviewDatabaseUrl(

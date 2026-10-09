@@ -30,6 +30,11 @@ case "$TMP_ROOT" in
     ;;
 esac
 
+ISOLATED_PREVIEW_NONCE="${TMP_ROOT##*.}"
+printf 'vivafrutaz-isolated-preview-v1:%s\n' "$ISOLATED_PREVIEW_NONCE" \
+  > "$TMP_ROOT/.isolated-preview-marker"
+chmod 600 "$TMP_ROOT/.isolated-preview-marker"
+
 PG_DATA="$TMP_ROOT/postgres"
 PG_LOG="$TMP_ROOT/postgres.log"
 PG_PORT=55439
@@ -79,7 +84,18 @@ env -i PATH="$PATH" HOME="${HOME:-/tmp}" LC_ALL=C \
 ISOLATED_PREVIEW_DATABASE_URL="postgresql://preview@127.0.0.1:${PG_PORT}/vivafrutaz_preview"
 ISOLATED_PREVIEW_SESSION_SECRET="local-isolated-preview-session-${TMP_ROOT##*.}"
 
-echo "[ISOLATED_PREVIEW] PostgreSQL efêmero em loopback; sem seeds, migrations, workers ou credenciais externas."
+env -i \
+  PATH="$PATH" \
+  HOME="${HOME:-/tmp}" \
+  PWD="$ROOT_DIR" \
+  NODE_ENV=development \
+  ISOLATED_PREVIEW_MODE=1 \
+  ISOLATED_PREVIEW_DATABASE_URL="$ISOLATED_PREVIEW_DATABASE_URL" \
+  ISOLATED_PREVIEW_DATA_DIR="$TMP_ROOT" \
+  DOTENV_CONFIG_PATH=/dev/null \
+  node_modules/.bin/tsx scripts/prepare-isolated-preview-db.ts
+
+echo "[ISOLATED_PREVIEW] PostgreSQL efêmero em loopback; schema preparado após validar a identidade; sem seeds, workers, schedulers ou credenciais externas."
 
 env -i \
   PATH="$PATH" \

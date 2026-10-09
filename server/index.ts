@@ -217,7 +217,7 @@ process.on("uncaughtException", (err: Error) => {
 
   if (isIsolatedPreviewMode()) {
     console.info(
-      "[ISOLATED_PREVIEW] startup DDL, NF-e recovery, account unlocks, and seeds are disabled.",
+      "[ISOLATED_PREVIEW] Runtime migrations, NF-e recovery, account unlocks, and seeds are disabled; the launcher prepared the isolated schema.",
     );
   } else {
     await runStartupMigrations();
