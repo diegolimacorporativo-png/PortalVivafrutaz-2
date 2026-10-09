@@ -2,8 +2,11 @@ import dotenv from "dotenv";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
+import { getRuntimeDatabaseUrl, isIsolatedPreviewMode } from "../core/runtimeMode";
 
-dotenv.config();
+if (!isIsolatedPreviewMode()) {
+  dotenv.config();
+}
 
 const { Pool } = pg;
 
@@ -18,10 +21,7 @@ const _ts = () => new Date().toISOString();
 
 // Secret entry can preserve harmless wrapping whitespace/quotes. Normalize
 // only that accidental formatting; never allow a local/Replit database.
-const supabaseUrl = (process.env.SUPABASE_DATABASE_URL ?? process.env.DATABASE_URL ?? "")
-  .trim()
-  .replace(/^(['"])(.*)\1$/, "$2")
-  .trim();
+const supabaseUrl = getRuntimeDatabaseUrl();
 
 if (!supabaseUrl) {
   console.error("[SUPABASE_REQUIRED]", {
@@ -50,7 +50,7 @@ const BLOCKED_PATTERNS: Array<{ pattern: RegExp | string; reason: string }> = [
   { pattern: /^(?!postgresql:\/\/|postgres:\/\/)/, reason: "protocolo não-PostgreSQL proibido" },
 ];
 
-for (const { pattern, reason } of BLOCKED_PATTERNS) {
+for (const { pattern, reason } of isIsolatedPreviewMode() ? [] : BLOCKED_PATTERNS) {
   const matched = typeof pattern === "string"
     ? supabaseUrl.includes(pattern)
     : pattern.test(supabaseUrl);
@@ -68,9 +68,13 @@ for (const { pattern, reason } of BLOCKED_PATTERNS) {
 }
 
 console.log("[DB_PROVIDER_SELECTED]", {
-  provider: "supabase",
-  source: process.env.SUPABASE_DATABASE_URL ? "SUPABASE_DATABASE_URL" : "DATABASE_URL",
-  ssl: true,
+  provider: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
+  source: isIsolatedPreviewMode()
+    ? "ISOLATED_PREVIEW_DATABASE_URL"
+    : process.env.SUPABASE_DATABASE_URL
+      ? "SUPABASE_DATABASE_URL"
+      : "DATABASE_URL",
+  ssl: !isIsolatedPreviewMode(),
   env: _env,
   pid: _pid,
   ts: _ts(),
@@ -85,7 +89,7 @@ console.log("[BOOT_VALIDATION_OK]", {
 
 export const pool = new Pool({
   connectionString: supabaseUrl,
-  ssl: { rejectUnauthorized: false },
+  ssl: isIsolatedPreviewMode() ? false : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,

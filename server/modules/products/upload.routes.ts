@@ -16,9 +16,10 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
+import { getRuntimeUploadsDirectory } from "../../core/runtimeMode";
 import { importOrderCatalog } from "./catalog-import";
 
-const UPLOAD_DIR = path.resolve(process.cwd(), "uploads", "products");
+const UPLOAD_DIR = path.join(getRuntimeUploadsDirectory(), "products");
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_BYTES = 5 * 1024 * 1024;
 

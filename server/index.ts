@@ -23,8 +23,11 @@ import {
   alertUnhandledRejection,
 } from "./core/alerts/operational-alerts.service";
 import { authService } from "./modules/auth/auth.service";
+import { getRuntimeDatabaseUrl, isIsolatedPreviewMode } from "./core/runtimeMode";
 
-dotenv.config();
+if (!isIsolatedPreviewMode()) {
+  dotenv.config();
+}
 
 const _bootAt = Date.now();
 const _env = process.env.NODE_ENV ?? "development";
@@ -42,17 +45,18 @@ const _env = process.env.NODE_ENV ?? "development";
     fails.push(`NODE_ENV inválido: "${process.env.NODE_ENV}". Valores aceitos: ${validEnvs.join(", ")}`);
   }
 
-  // Obrigatório em TODOS os ambientes — banco local/Replit nunca é aceito.
-  // Keep normalization aligned with server/database/db.ts because secret
-  // values may arrive with harmless outer whitespace or quotes.
-  const databaseUrl = (process.env.SUPABASE_DATABASE_URL ?? process.env.DATABASE_URL ?? "")
-    .trim()
-    .replace(/^(['"])(.*)\1$/, "$2")
-    .trim();
+  let databaseUrl = "";
+  try {
+    databaseUrl = getRuntimeDatabaseUrl();
+  } catch (error) {
+    fails.push(error instanceof Error ? error.message : "URL do banco inválida.");
+  }
 
   if (!databaseUrl) {
-    fails.push("SUPABASE_DATABASE_URL ou DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
-  } else {
+    if (!isIsolatedPreviewMode()) {
+      fails.push("SUPABASE_DATABASE_URL ou DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
+    }
+  } else if (!isIsolatedPreviewMode()) {
     const blockedDatabaseUrlPatterns: Array<{ pattern: RegExp; reason: string }> = [
       { pattern: /heliumdb/i, reason: "banco Replit (heliumdb) proibido" },
       { pattern: /localhost/i, reason: "PostgreSQL local proibido" },
@@ -92,8 +96,8 @@ const _env = process.env.NODE_ENV ?? "development";
 
   console.log("[BOOT_VALIDATION_OK]", {
     env: process.env.NODE_ENV ?? "development",
-    provider: "supabase",
-    supabase: true,
+    provider: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
+    supabase: !isIsolatedPreviewMode(),
     pid: process.pid,
     ts: new Date().toISOString(),
   });
@@ -167,7 +171,9 @@ process.on("unhandledRejection", (reason: unknown) => {
     uptime: process.uptime().toFixed(1),
     env: _env,
   });
-  try { alertUnhandledRejection(msg); } catch {}
+  if (!isIsolatedPreviewMode()) {
+    try { alertUnhandledRejection(msg); } catch {}
+  }
 });
 
 process.on("uncaughtException", (err: Error) => {
@@ -177,7 +183,9 @@ process.on("uncaughtException", (err: Error) => {
     uptime: process.uptime().toFixed(1),
     env: _env,
   });
-  try { alertUncaughtException(err.message); } catch {}
+  if (!isIsolatedPreviewMode()) {
+    try { alertUncaughtException(err.message); } catch {}
+  }
   // uncaughtException leaves the process in an undefined state — exit safely.
   process.exit(1);
 });
@@ -196,7 +204,7 @@ process.on("uncaughtException", (err: Error) => {
   try {
     await pool.query("SELECT 1 AS ok");
     console.log("[DB_CONNECTED]", {
-      db: "supabase",
+      db: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
       uptime: process.uptime().toFixed(1),
       ts: new Date().toISOString(),
     });
@@ -207,13 +215,19 @@ process.on("uncaughtException", (err: Error) => {
     });
   }
 
-  await runStartupMigrations();
-  await recoverStuckNFes();
+  if (isIsolatedPreviewMode()) {
+    console.info(
+      "[ISOLATED_PREVIEW] startup DDL, NF-e recovery, account unlocks, and seeds are disabled.",
+    );
+  } else {
+    await runStartupMigrations();
+    await recoverStuckNFes();
 
-  // ETAPA 2 — DESBLOQUEIO IMEDIATO: reset is_locked + login_attempts for all
-  // MASTER/ADMIN/DIRECTOR/DEVELOPER accounts and pre-register their emails in
-  // the loginEmailIpLimiter bypass set. Fail-safe — never throws.
-  await authService.unlockStrategicAccounts();
+    // ETAPA 2 — DESBLOQUEIO IMEDIATO: reset is_locked + login_attempts for all
+    // MASTER/ADMIN/DIRECTOR/DEVELOPER accounts and pre-register their emails in
+    // the loginEmailIpLimiter bypass set. Fail-safe — never throws.
+    await authService.unlockStrategicAccounts();
+  }
   app.get("/user", getUser);
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
@@ -222,39 +236,45 @@ process.on("uncaughtException", (err: Error) => {
     await setupVite(httpServer, app);
   }
 
-  // FASE 1.8 — Pre-warm XSD NF-e 4.00 cache on boot.
-  import('./services/nfe/nfeXsdValidator').then(({ warmupXsdCache }) => {
-    warmupXsdCache();
-  }).catch((err) => {
-    console.warn('[NFE_XSD_WARMUP_IMPORT_FAIL]', err?.message);
-  });
+  if (isIsolatedPreviewMode()) {
+    console.info(
+      "[ISOLATED_PREVIEW] workers, schedulers, backup/storage checks, and NF-e warmup are disabled.",
+    );
+  } else {
+    // FASE 1.8 — Pre-warm XSD NF-e 4.00 cache on boot.
+    import('./services/nfe/nfeXsdValidator').then(({ warmupXsdCache }) => {
+      warmupXsdCache();
+    }).catch((err) => {
+      console.warn('[NFE_XSD_WARMUP_IMPORT_FAIL]', err?.message);
+    });
 
-  console.log("[WORKER_START]", { workers: ["outbox", "auto-dispatch", "billing", "faturamento", "proactive-alerts", "schedulers", "backup"], ts: new Date().toISOString() });
-  startFiscalRuntimeMonitor(300_000);
-  startOutboxWorker();
-  startAutoDispatchWorker();
-  startBillingCron();
-  startAnalyticsWorker();
-  startFaturamentoCron();
-  startRecurringOrdersCron();
-  startProactiveAlertsScheduler();
-  initSchedulers();
-  scheduleBackups();
+    console.log("[WORKER_START]", { workers: ["outbox", "auto-dispatch", "billing", "faturamento", "proactive-alerts", "schedulers", "backup"], ts: new Date().toISOString() });
+    startFiscalRuntimeMonitor(300_000);
+    startOutboxWorker();
+    startAutoDispatchWorker();
+    startBillingCron();
+    startAnalyticsWorker();
+    startFaturamentoCron();
+    startRecurringOrdersCron();
+    startProactiveAlertsScheduler();
+    initSchedulers();
+    scheduleBackups();
 
-  // BACKUP PERSISTENTE — inicializa bucket Supabase e status do monitor.
-  ensureStorageBucket().catch(e => console.warn("[BACKUP_STORAGE_INIT_FAIL]", e?.message));
-  backupMonitorStatus().catch(e => console.warn("[BACKUP_MONITOR_INIT_FAIL]", e?.message));
+    // BACKUP PERSISTENTE — inicializa bucket Supabase e status do monitor.
+    ensureStorageBucket().catch(e => console.warn("[BACKUP_STORAGE_INIT_FAIL]", e?.message));
+    backupMonitorStatus().catch(e => console.warn("[BACKUP_MONITOR_INIT_FAIL]", e?.message));
 
-  // ALERTAS OPERACIONAIS — probe periódico a cada 60s: DB, fila, memória,
-  // circuit breaker, workers, backup. Dedup + cooldown em memória.
-  startOperationalMonitor(60_000);
+    // ALERTAS OPERACIONAIS — probe periódico a cada 60s: DB, fila, memória,
+    // circuit breaker, workers, backup. Dedup + cooldown em memória.
+    startOperationalMonitor(60_000);
+  }
 
   // Memory monitoring — log [MEMORY_WARNING] when RSS exceeds 1 GB.
   // RSS is the real OS-level memory consumption; heapPct is misleading because
   // V8 grows heapTotal lazily (97% heap before a GC cycle is normal behaviour,
   // not OOM). A 1 GB RSS threshold catches actual memory pressure.
   const RSS_WARN_MB = 1024;
-  setInterval(() => {
+  if (!isIsolatedPreviewMode()) setInterval(() => {
     const m = process.memoryUsage();
     const rssMB = (m.rss / 1024 / 1024).toFixed(2);
     const heapUsedMB = (m.heapUsed / 1024 / 1024).toFixed(2);
@@ -285,7 +305,7 @@ process.on("uncaughtException", (err: Error) => {
       pid: process.pid,
       bootMs,
       uptime: process.uptime().toFixed(1),
-      db: "supabase",
+      db: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
       ts: new Date().toISOString(),
     });
   });
@@ -302,10 +322,12 @@ process.on("uncaughtException", (err: Error) => {
     // Stop workers that have explicit stop functions first to prevent
     // mid-batch interruptions and stale job-registry entries.
     try {
-      stopOutboxWorker();
-      stopAutoDispatchWorker();
-      stopOperationalMonitor();
-      console.log("[WORKER_STOP]", { workers: ["outbox", "auto-dispatch", "operational-monitor"], ts: new Date().toISOString() });
+      if (!isIsolatedPreviewMode()) {
+        stopOutboxWorker();
+        stopAutoDispatchWorker();
+        stopOperationalMonitor();
+        console.log("[WORKER_STOP]", { workers: ["outbox", "auto-dispatch", "operational-monitor"], ts: new Date().toISOString() });
+      }
     } catch (err) {
       console.error("[WORKER_STOP_ERROR]", err instanceof Error ? err.message : String(err));
     }

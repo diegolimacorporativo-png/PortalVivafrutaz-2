@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { registerModules, registerV1Modules, registerV2Modules } from "./modules";
 import { registerRoutes } from "./routes/routes";
+import { getRuntimeUploadsDirectory } from "./core/runtimeMode";
 import { errorHandler } from "./core/errors/errorHandler";
 import { createSessionMiddleware } from "./core/http/session";
 import { requestIdMiddleware } from "./middleware/requestId";
@@ -153,7 +154,7 @@ export async function buildApp(): Promise<BuildAppResult> {
     next();
   });
 
-  const UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
+  const UPLOADS_DIR = getRuntimeUploadsDirectory();
   if (!fs.existsSync(UPLOADS_DIR)) {
     fs.mkdirSync(UPLOADS_DIR, { recursive: true });
   }

@@ -31,6 +31,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 // FASE 7.1 — `path` import removed (0 usages confirmed). bcrypt/fs/db kept (in use).
 import { db } from "../database/db.ts";
+import { isIsolatedPreviewMode } from "../core/runtimeMode";
 import { uploadInMemory } from "../infra/upload";
 import { parsePdf } from "../infra/pdfParser";
 import { orders, orderItems, companies, products, aiInteractions, nfManual, cronFaturamentoRuns, cronAlertLogs } from "@shared/schema";
@@ -193,22 +194,24 @@ export async function registerRoutes(
   // FASE 13.6 — Rate limit global (unauthenticated IPs, 60 req/min)
   app.use(simpleRateLimit);
 
-  // Start backup scheduler
-  scheduleBackups();
+  if (!isIsolatedPreviewMode()) {
+    // Start backup scheduler
+    scheduleBackups();
 
-  // Auto-cleanup: remove logs older than 90 days, daily at 03:00
-  (async () => {
-    const cron = (await import('node-cron')).default;
-    cron.schedule('0 3 * * *', async () => {
-      try {
-        const removed = await storage.cleanOldLogs(90);
-        if (removed > 0) {
-          await storage.createLog({ action: 'CLEAN_LOGS', description: `Limpeza automática: ${removed} log(s) com mais de 90 dias removidos`, level: 'INFO' });
-          console.log(`[LOGS] Limpeza automática: ${removed} logs antigos removidos.`);
-        }
-      } catch (err) { console.error('[LOGS] Erro na limpeza automática de logs:', err); }
-    });
-  })();
+    // Auto-cleanup: remove logs older than 90 days, daily at 03:00
+    (async () => {
+      const cron = (await import('node-cron')).default;
+      cron.schedule('0 3 * * *', async () => {
+        try {
+          const removed = await storage.cleanOldLogs(90);
+          if (removed > 0) {
+            await storage.createLog({ action: 'CLEAN_LOGS', description: `Limpeza automática: ${removed} log(s) com mais de 90 dias removidos`, level: 'INFO' });
+            console.log(`[LOGS] Limpeza automática: ${removed} logs antigos removidos.`);
+          }
+        } catch (err) { console.error('[LOGS] Erro na limpeza automática de logs:', err); }
+      });
+    })();
+  }
 
   // Health check route — MOVED TO health.routes.ts
   // app.get("/health", (req, res) => {
@@ -4171,9 +4174,13 @@ export async function registerRoutes(
   // PATCH  /api/sanitary/evaluations/:id
   // PATCH  /api/sanitary/evaluations/:id/items/:itemId
 
-  // Seed DB Function
-  await seedDatabase();
-  await ensureDefaultNotificationSettings();
+  if (!isIsolatedPreviewMode()) {
+    // Seed DB Function
+    await seedDatabase();
+    await ensureDefaultNotificationSettings();
+  } else {
+    console.info("[ISOLATED_PREVIEW] application seeds and default notification settings are disabled.");
+  }
 
   return httpServer;
 }

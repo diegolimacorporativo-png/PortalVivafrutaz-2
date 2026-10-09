@@ -20,6 +20,7 @@
 import expressSession, { type SessionOptions } from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import { pool } from "../../database/db";
+import { isIsolatedPreviewMode } from "../runtimeMode";
 
 const PgSessionStore = connectPgSimple(expressSession);
 
@@ -37,7 +38,7 @@ export function createSessionMiddleware() {
     saveUninitialized: false,
     store: new PgSessionStore({
       pool,
-      createTableIfMissing: true,
+      createTableIfMissing: !isIsolatedPreviewMode(),
       // Prune expired sessions every 24h
       pruneSessionInterval: 60 * 60 * 24,
     }),

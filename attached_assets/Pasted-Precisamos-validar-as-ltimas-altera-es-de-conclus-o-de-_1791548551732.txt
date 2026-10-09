@@ -1,0 +1,138 @@
+Precisamos validar as últimas alterações de conclusão de entregas e pedidos, mas o projeto utiliza o mesmo Supabase de produção no Replit e no Render.
+
+O workflow atual não foi reiniciado porque sua inicialização pode executar seeds e workers que escrevem no banco compartilhado.
+
+Quero resolver isso com segurança, sem desfazer as correções já implementadas.
+
+## 1. PRESERVAR O ESTADO ATUAL
+
+As últimas alterações corrigiram os fluxos:
+
+* `PATCH /status`;
+* `PUT` do formulário;
+* checklist;
+* `stop-status`.
+
+A conclusão da entrega, o evento operacional e a eventual finalização do pedido passaram a ocorrer na mesma transação.
+
+A regra atual é que o pedido só passa para `DELIVERED` quando todas as entregas vinculadas estão `entregue` ou `cancelado`.
+
+A correção também contempla idempotência, recuperação de evento ausente e preservação dos campos fiscais.
+
+NÃO reverta essas alterações.
+
+NÃO refaça a implementação.
+
+NÃO altere a regra de negócio nesta etapa.
+
+## 2. INVESTIGAR O STARTUP
+
+Inspecione o comando de inicialização, o workflow do Replit e o código de bootstrap da aplicação.
+
+Identifique exatamente:
+
+* quais seeds são executados na inicialização;
+* quais workers são iniciados;
+* quais deles escrevem no Supabase;
+* quais executam migrations ou DDL;
+* quais atualizam pedidos ou configurações;
+* quais operações podem ser executadas sem risco.
+
+Não execute esses processos novamente apenas para descobrir seus efeitos.
+
+Faça inspeção estática primeiro.
+
+## 3. CRIAR UM MODO SEGURO DE VALIDAÇÃO
+
+Investigue se já existe um mecanismo para iniciar a aplicação sem executar seeds, workers ou rotinas de inicialização que escrevam no banco.
+
+Se existir, utilize-o.
+
+Se não existir, proponha a menor alteração necessária para separar:
+
+* inicialização do servidor HTTP;
+* inicialização de workers;
+* execução de seeds;
+* rotinas de manutenção.
+
+Não faça essa alteração antes de explicar quais componentes seriam separados e como o comportamento normal de produção seria preservado.
+
+O modo seguro não pode desabilitar autenticação, autorização, CORS, isolamento multi-tenant ou outras proteções.
+
+Não introduza um bypass que possa ser ativado acidentalmente em produção.
+
+## 4. VALIDAR AS ALTERAÇÕES
+
+Enquanto o startup seguro não estiver disponível:
+
+* execute `npm run check`;
+* execute `npm run build`;
+* execute os testes unitários seguros;
+* confirme que os testes específicos da correção de conclusão continuam passando.
+
+Não execute novamente `regression-billing-nfe-equivalence.test.ts`, pois ele pode gravar na base de produção.
+
+Não execute testes de integração com escrita sem analisar previamente seus efeitos.
+
+## 5. PREVIEW
+
+Somente depois de confirmar que o modo seguro não executará seeds, workers ou rotinas de escrita, inicie o preview.
+
+Valide:
+
+* servidor HTTP;
+* frontend;
+* rotas da API;
+* carregamento da aplicação;
+* autenticação;
+* acesso protegido.
+
+Não altere nem exclua registros de produção.
+
+Não faça requisições que concluam entregas reais.
+
+Não use os registros E2E anteriores sem verificar seus estados atuais.
+
+## 6. TESTES FUNCIONAIS DA CORREÇÃO
+
+Priorize testes unitários ou de integração isolados para estes cenários:
+
+1. Todas as entregas entregues → pedido `DELIVERED`.
+2. Entregas entregues e canceladas, sem pendências → pedido `DELIVERED`.
+3. Uma entrega pendente → pedido não é `DELIVERED`.
+4. Uma entrega em andamento → pedido não é `DELIVERED`.
+5. Todas as entregas canceladas → pedido não é marcado como `DELIVERED`.
+6. Repetição da conclusão → sem eventos duplicados.
+7. Entrega concluída sem evento → retry recupera o evento sem alterar o horário original.
+8. Falha durante a transação → nenhuma atualização parcial.
+9. Vínculo entre tenant, pedido, entrega e rota inválido → operação rejeitada.
+10. Campos fiscais permanecem inalterados.
+
+## 7. NÃO FAZER
+
+Não:
+
+* reiniciar o processo atual sem entender seus efeitos;
+* executar `db:push`;
+* aplicar migrations;
+* rodar seeds;
+* executar workers que escrevem no banco;
+* alterar dados reais;
+* fazer Git push;
+* fazer deploy;
+* modificar regras fiscais;
+* implementar novas funcionalidades.
+
+## 8. RELATÓRIO FINAL
+
+Informe:
+
+* quais operações de escrita acontecem no startup;
+* quais proteções foram utilizadas;
+* se foi possível iniciar um preview seguro;
+* quais testes passaram;
+* quais testes foram excluídos e por quê;
+* se o código atualizado foi efetivamente carregado;
+* se ainda existe algum risco de escrita involuntária no Supabase.
+
+Se não for possível provar que o preview pode iniciar sem escrita, não o reinicie. Apresente o bloqueio e a menor solução necessária.

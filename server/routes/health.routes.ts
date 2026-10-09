@@ -9,6 +9,7 @@ import { pool } from "../database/db";
 import fs from "fs";
 import path from "path";
 import { alertReadinessFail } from "../core/alerts/operational-alerts.service";
+import { getRuntimeUploadsDirectory } from "../core/runtimeMode";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 let healthTestRunning = false;
@@ -66,7 +67,7 @@ function checkMemory(): { ok: boolean; heapPct: string; rssMB: string; message: 
 }
 
 function checkFilesystem(): { ok: boolean; message: string } {
-  const uploadsDir = path.resolve(process.cwd(), "uploads");
+  const uploadsDir = getRuntimeUploadsDirectory();
   try {
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });

@@ -1,0 +1,91 @@
+Continue a partir das correções já implementadas no fluxo de entregas. O objetivo agora é **recarregar e validar o preview em execução sem realizar nenhuma gravação na base Supabase de produção**.
+
+### 1. Isolamento obrigatório
+
+* Antes de reiniciar qualquer processo, inspecione os scripts de inicialização, configurações, seeds, workers e conexões com o banco.
+* Identifique todos os pontos que podem executar gravações, migrações, seeds ou processamento automático durante o startup.
+* Não reinicie o workflow compartilhado enquanto houver possibilidade de acessar ou modificar a base de produção.
+* Não execute testes de escrita, migrações, seeds ou workers contra o Supabase compartilhado.
+* Não exponha, copie para logs ou registre credenciais, tokens ou dados sensíveis de produção.
+* Não altere nem exclua dados reais para realizar os testes.
+
+### 2. Preparar uma inicialização segura
+
+Crie, se necessário, um modo específico para desenvolvimento e preview, com isolamento explícito da produção.
+
+Esse modo deve:
+
+* Utilizar um banco de dados isolado ou um banco in-memory compatível com a aplicação.
+* Desabilitar seeds e workers que possam acessar serviços compartilhados.
+* Impedir a inicialização caso a configuração aponte para a base de produção.
+* Evitar que a aplicação utilize silenciosamente as credenciais de produção como alternativa.
+* Manter as configurações normais de produção intactas.
+* Não alterar o comportamento dos ambientes existentes sem necessidade.
+
+Se não for possível garantir o isolamento com as ferramentas disponíveis, não reinicie o processo. Informe o bloqueio e apresente a alternativa segura.
+
+### 3. Validar as correções já implementadas
+
+Execute os testes em ambiente isolado e valide os seguintes cenários:
+
+**Conclusão do pedido**
+
+1. Todas as entregas estão `entregue` → pedido passa para `DELIVERED`.
+2. Todas as entregas estão `entregue` ou `cancelado` → pedido passa para `DELIVERED`.
+3. Existe pelo menos uma entrega pendente → pedido não passa para `DELIVERED`.
+4. Cancelar uma entrega não altera indevidamente o status das demais.
+5. Cancelar a última entrega pendente permite concluir o pedido, desde que todas as outras estejam encerradas.
+
+**Histórico e idempotência**
+6. Atualizar endereço ou observações pelo `PUT` não reinicia a data original da entrega.
+7. Repetir uma requisição não duplica eventos.
+8. Se uma entrega já estiver concluída sem evento correspondente, o retry registra o evento ausente sem alterar o horário original da conclusão.
+9. O checklist e a conclusão do pedido mantêm a consistência dos dados.
+10. Os vínculos entre empresa, pedido, entrega e rota continuam sendo validados.
+11. Os campos fiscais permanecem inalterados.
+
+### 4. Validar o preview em execução
+
+Depois de confirmar o isolamento:
+
+* Inicialize o preview usando exclusivamente a configuração segura.
+* Confirme que a aplicação iniciou sem acessar a base compartilhada.
+* Verifique se o código atualizado está realmente carregado.
+* Execute testes de integração usando somente dados isolados.
+* Confira os logs de inicialização para identificar tentativas de conexão ou gravação em serviços externos.
+* Não considere o preview validado apenas porque o build passou.
+
+### 5. Preservar as verificações anteriores
+
+As verificações anteriores já reportadas foram:
+
+* `npm run check`: aprovado.
+* Build: aprovado.
+* 416 testes unitários: aprovados.
+
+Preserve esses resultados como referência. Não execute `regression-billing-nfe-equivalence.test.ts` contra a base de produção ou compartilhada. Caso esse teste seja necessário, procure uma forma de executá-lo com banco isolado e dados controlados.
+
+### 6. Próximos pontos de atenção
+
+Após a validação principal, avalie separadamente:
+
+* Impedir a finalização manual de pedidos que ainda tenham entregas pendentes.
+* Garantir que o checklist e a conclusão sejam atômicos, evitando estados inconsistentes em caso de falha concorrente.
+
+Não amplie o escopo nem modifique funcionalidades não relacionadas sem necessidade.
+
+### 7. Relatório final obrigatório
+
+Ao terminar, apresente:
+
+1. Arquivos alterados.
+2. Estratégia usada para isolar o ambiente.
+3. Comandos executados.
+4. Testes aprovados e reprovados.
+5. Evidências de que a base de produção não foi acessada para escrita.
+6. Confirmação de que o preview está executando o código atualizado.
+7. Limitações restantes e próximos passos.
+
+**Critério de sucesso:** o preview deve executar as correções atualizadas e passar pelos testes de integração isolados, sem executar seeds, workers ou operações de escrita contra a base Supabase compartilhada.
+
+Não declare a validação concluída sem evidências. Se alguma etapa não puder ser executada com segurança, pare nessa etapa, explique o motivo e proponha uma alternativa.
