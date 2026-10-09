@@ -22,6 +22,7 @@ import { storage } from "./storage";
 import { logSecurity } from "../core/security/securityLogger";
 import { sendAdminBroadcast, mailerStatus } from "./mailer";
 import { recordAlertLog, persistAlertLog, pruneOldAlertLogs } from "../modules/nfe/alerts-log.store";
+import { isIsolatedPreviewMode } from "../core/runtimeMode";
 // STEP 9.3F.12 — camada de entrega aditiva (mock por enquanto).
 // Plugada de forma fire-and-forget: NUNCA bloqueia, NUNCA altera `results`.
 import { deliverAlert } from "./alerts.delivery";
@@ -33,7 +34,7 @@ const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000; // 10 minutos
 // Guard global evita múltiplos intervals em hot-reload (tsx) ou multi-instância.
 const ALERT_PRUNE_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24h
 const ALERT_PRUNE_DAYS = 90;
-if (!(globalThis as any).__alertPruneStarted) {
+if (!isIsolatedPreviewMode() && !(globalThis as any).__alertPruneStarted) {
   (globalThis as any).__alertPruneStarted = true;
   setInterval(() => {
     void pruneOldAlertLogs(ALERT_PRUNE_DAYS);

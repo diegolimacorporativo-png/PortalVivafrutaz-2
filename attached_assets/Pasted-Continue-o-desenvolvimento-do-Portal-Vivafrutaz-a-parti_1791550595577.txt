@@ -1,0 +1,102 @@
+Continue o desenvolvimento do Portal Vivafrutaz a partir do estado atual do repositório GitHub, incluindo o último commit `rastreio`.
+
+O Agent anterior não concluiu o trabalho. Sua primeira tarefa é inspecionar o código e identificar exatamente o que já foi feito, o que está incompleto e o que ainda precisa ser validado.
+
+**Não recomece o projeto, não reverta alterações e não refaça funcionalidades que já estejam implementadas.**
+
+### CONTEXTO
+
+O projeto utiliza React/Vite no frontend, Express no backend e PostgreSQL/Supabase como banco de dados. O frontend está na Vercel e o backend no Render.
+
+Replit e Render compartilham o mesmo banco Supabase. Portanto, qualquer inicialização, teste ou rotina com possibilidade de escrita deve ser analisada antes da execução.
+
+### 1. CONTINUE DE ONDE O AGENT ANTERIOR PAROU
+
+O último problema informado foi uma falha ao iniciar um PostgreSQL local porque o diretório do socket `/run/postgresql` não existia no container.
+
+O Agent pretendia corrigir o caminho do socket para um diretório temporário e repetir o teste isolado.
+
+Verifique o estado atual antes de tentar novamente. Determine se essa alteração foi feita e se o teste chegou a ser executado.
+
+Não presuma que o servidor iniciou. Não declare a validação concluída sem evidências.
+
+Se a inicialização local não for necessária para validar o código, não gaste tempo reconstruindo o ambiente sem antes avaliar alternativas mais simples e seguras.
+
+### 2. PRESERVE A SINCRONIZAÇÃO DE PEDIDOS E ENTREGAS
+
+O trabalho anterior corrigiu os caminhos de atualização de status, incluindo `PATCH /status`, `PUT`, checklist e `stop-status`.
+
+Verifique e preserve estas regras:
+
+* Um pedido só pode ser finalizado quando todas as entregas vinculadas estiverem `entregue` ou `cancelado`.
+* Cancelar uma entrega não deve alterar indevidamente as demais.
+* Atualização da entrega, registro do evento e finalização do pedido devem ocorrer na mesma transação.
+* Repetir uma conclusão não deve duplicar eventos.
+* A data original de conclusão deve ser preservada em entregas já concluídas.
+* Os vínculos entre empresa, pedido e rota precisam ser validados.
+* Os campos fiscais não devem ser modificados por essas operações.
+
+### 3. VERIFIQUE A FINALIZAÇÃO MANUAL DE PEDIDOS
+
+Investigue se algum endpoint, botão, formulário ou processo automático permite finalizar um pedido que ainda tenha entregas pendentes.
+
+Se encontrar essa possibilidade, corrija-a utilizando os padrões já existentes no projeto.
+
+Verifique pelo menos estes cenários:
+
+1. Todas as entregas concluídas: o pedido pode ser finalizado.
+2. Entregas concluídas ou canceladas, sem pendências: o pedido pode ser finalizado.
+3. Existe pelo menos uma entrega pendente: a finalização deve ser bloqueada.
+4. Uma entrega é cancelada: as demais mantêm seus status.
+5. A mesma conclusão é enviada novamente: o histórico não é duplicado.
+6. Uma operação falha: os dados não ficam parcialmente atualizados.
+
+### 4. VERIFIQUE A ATOMICIDADE DO CHECKLIST
+
+Inspecione o fluxo de checklist e conclusão da entrega.
+
+Se houver risco de salvar o checklist sem concluir corretamente a operação, ou concluir a entrega sem registrar as informações correspondentes, corrija o problema utilizando transações quando apropriado.
+
+Não reescreva o fluxo inteiro sem necessidade.
+
+### 5. TESTES E AMBIENTE
+
+Execute primeiro as verificações que não escrevem no banco:
+
+* `npm run check`
+* `npm run build`
+* `git diff --check`
+* Testes unitários seguros e relacionados às alterações.
+
+Antes de executar qualquer teste de integração, script, seed, worker ou rotina de inicialização, verifique se ela escreve no banco.
+
+Não execute automaticamente `tests/unit/regression-billing-nfe-equivalence.test.ts`: ele foi identificado anteriormente como potencialmente perigoso porque pode modificar dados fiscais e realizar operações de limpeza no banco compartilhado.
+
+Não reinicie o backend de produção para testar alterações.
+
+Não apague os registros de teste que já existem no Supabase. Não execute migrations nem operações destrutivas sem avaliar os efeitos e obter autorização quando necessário.
+
+Não desative autenticação, CORS, isolamento entre empresas ou validações de negócio para fazer os testes passarem.
+
+### 6. CONCLUA O TRABALHO POSSÍVEL NESTA ETAPA
+
+Não se limite a apresentar um plano. Depois de inspecionar o estado atual, execute as correções necessárias dentro do escopo, rode as verificações seguras e informe objetivamente o que conseguiu concluir.
+
+Se algo depender de um ambiente ou recurso indisponível, explique o bloqueio e continue com as outras tarefas que possam ser realizadas com segurança.
+
+Não faça novos commits ou pushes. Eu farei isso manualmente.
+
+### 7. RELATÓRIO FINAL OBRIGATÓRIO
+
+Informe:
+
+* O que encontrou no código atual.
+* O que já estava pronto.
+* O que alterou, incluindo os arquivos.
+* Quais testes executou e seus resultados reais.
+* Se o servidor iniciou e se o código atualizado foi carregado.
+* Se houve alguma escrita no banco e em qual ambiente.
+* O que continua pendente.
+* Qual é o próximo passo recomendado.
+
+**Prioridade:** continuar o trabalho existente, concluir as correções necessárias e validar o rastreamento e a consistência de pedidos e entregas sem comprometer o banco compartilhado.
