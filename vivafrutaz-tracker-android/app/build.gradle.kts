@@ -22,6 +22,14 @@ val trackerBaseUrl = providers.gradleProperty("TRACKER_BASE_URL")
     .replace("\\", "\\\\")
     .replace("\"", "\\\"")
 
+val trackerKeystoreFile = System.getenv("TRACKER_KEYSTORE_FILE")
+    ?.takeIf { it.isNotBlank() }
+    ?.let(::file)
+val trackerKeystorePassword = System.getenv("TRACKER_KEYSTORE_PASSWORD")
+    ?.takeIf { it.isNotBlank() }
+val trackerKeyAlias = System.getenv("TRACKER_KEY_ALIAS")
+    ?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "com.vivafrutaz.tracker"
     compileSdk = 35
@@ -38,6 +46,31 @@ android {
 
     buildFeatures {
         buildConfig = true
+    }
+
+    signingConfigs {
+        create("trackerPermanent") {
+            if (trackerKeystoreFile != null &&
+                trackerKeystorePassword != null &&
+                trackerKeyAlias != null
+            ) {
+                storeFile = trackerKeystoreFile
+                storePassword = trackerKeystorePassword
+                keyAlias = trackerKeyAlias
+                keyPassword = trackerKeystorePassword
+            }
+        }
+    }
+
+    buildTypes {
+        getByName("debug") {
+            if (trackerKeystoreFile != null &&
+                trackerKeystorePassword != null &&
+                trackerKeyAlias != null
+            ) {
+                signingConfig = signingConfigs.getByName("trackerPermanent")
+            }
+        }
     }
 
     compileOptions {

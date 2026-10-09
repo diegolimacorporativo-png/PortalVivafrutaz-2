@@ -37,6 +37,24 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --version
 
+      - name: Configure permanent Tracker signing
+        if: ${{ secrets.TRACKER_KEYSTORE_BASE64 != '' && secrets.TRACKER_KEYSTORE_PASSWORD != '' && secrets.TRACKER_KEY_ALIAS != '' }}
+        shell: bash
+        env:
+          TRACKER_KEYSTORE_BASE64: ${{ secrets.TRACKER_KEYSTORE_BASE64 }}
+          TRACKER_KEYSTORE_PASSWORD: ${{ secrets.TRACKER_KEYSTORE_PASSWORD }}
+          TRACKER_KEY_ALIAS: ${{ secrets.TRACKER_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          key_path="$GITHUB_WORKSPACE/vivafrutaz-tracker-android/tracker-permanent.jks"
+          printf '%s' "$TRACKER_KEYSTORE_BASE64" | base64 --decode > "$key_path"
+          chmod 600 "$key_path"
+          {
+            echo "TRACKER_KEYSTORE_FILE=$key_path"
+            echo "TRACKER_KEYSTORE_PASSWORD=$TRACKER_KEYSTORE_PASSWORD"
+            echo "TRACKER_KEY_ALIAS=$TRACKER_KEY_ALIAS"
+          } >> "$GITHUB_ENV"
+
       - name: Build debug APK with Gradle Wrapper
         working-directory: vivafrutaz-tracker-android
         shell: bash
