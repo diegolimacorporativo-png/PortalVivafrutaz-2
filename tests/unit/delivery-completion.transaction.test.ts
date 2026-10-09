@@ -2,8 +2,13 @@ import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import {
   completeDelivery,
+  deleteDeliveryBeforeShipment,
+  updateDeliveryNonterminal,
+  areOrderDeliveriesTerminal,
   DeliveryCompletionLinkError,
   type DeliveryCompletionActor,
+  type DeliveryCompletionChecklistInput,
+  type DeliveryCompletionChecklistRecord,
   type DeliveryCompletionOrder,
   type DeliveryCompletionRow,
   type DeliveryCompletionStore,
@@ -22,11 +27,12 @@ type TestState = {
   deliveries: DeliveryCompletionRow[];
   routes: Array<{ id: number; companyId: number | null }>;
   events: DeliveryStopEventInput[];
+  checklists: DeliveryCompletionChecklistRecord[];
 };
 
 class MemoryCompletionStore implements DeliveryCompletionStore {
   state: TestState;
-  failAt: "event" | "finalize" | null = null;
+  failAt: "checklist" | "event" | "finalize" | null = null;
   lockCalls: string[] = [];
 
   constructor(state: TestState) {
@@ -80,6 +86,16 @@ class MemoryCompletionStore implements DeliveryCompletionStore {
         draft.events.some(
           (event) => event.deliveryId === deliveryId && event.status === "entregue",
         ),
+      hasStopStatusEvent: async (deliveryId, status, observacao, registeredAt) =>
+        draft.events.some(
+          (event) =>
+            event.deliveryId === deliveryId &&
+            event.status === status &&
+            event.observacao === observacao &&
+            Math.abs(
+              event.registeredAt.getTime() - registeredAt.getTime(),
+            ) <= 5_000,
+        ),
       markDeliveryTerminal: async (input) => {
         const row = draft.deliveries.find(
           (candidate) =>
@@ -108,9 +124,55 @@ class MemoryCompletionStore implements DeliveryCompletionStore {
         }
         return row;
       },
-      insertDeliveredEvent: async (event) => {
+      markDeliveryNonterminal: async (input) => {
+        const row = draft.deliveries.find(
+          (candidate) =>
+            candidate.id === input.deliveryId &&
+            candidate.companyId === input.companyId,
+        );
+        if (!row) return undefined;
+        Object.assign(row, input.additionalUpdates, { status: input.status });
+        if (input.recordStopStatus) {
+          Object.assign(row, {
+            stopStatus: input.status,
+            stopStatusAt: input.now,
+            stopStatusBy: input.actor.name || input.actor.email || null,
+            stopStatusByRole: input.actor.role || null,
+            stopObservacao: input.observacao,
+          });
+        }
+        return row;
+      },
+      insertStopStatusEvent: async (event) => {
         if (this.failAt === "event") throw new Error("event insert failed");
         draft.events.push(event);
+      },
+      getConfirmedChecklist: async (deliveryId) =>
+        draft.checklists.find(
+          (checklist) =>
+            checklist.deliveryId === deliveryId &&
+            checklist.entregaConfirmada === true,
+        ),
+      insertChecklist: async (input) => {
+        if (this.failAt === "checklist") throw new Error("checklist insert failed");
+        const checklist: DeliveryCompletionChecklistRecord = {
+          ...input,
+          id: draft.checklists.length + 1,
+          entregaConfirmada: input.entregaConfirmada,
+          createdAt: input.horarioEntrega,
+        };
+        draft.checklists.push(checklist);
+        return checklist;
+      },
+      deleteDelivery: async (deliveryId, companyId) => {
+        const index = draft.deliveries.findIndex(
+          (candidate) =>
+            candidate.id === deliveryId &&
+            candidate.companyId === companyId,
+        );
+        if (index < 0) return false;
+        draft.deliveries.splice(index, 1);
+        return true;
       },
       markOrderDelivered: async (orderId, companyId) => {
         if (this.failAt === "finalize") throw new Error("order update failed");
@@ -140,6 +202,15 @@ const actor: DeliveryCompletionActor = {
   role: "DRIVER",
 };
 const completedAt = new Date("2026-10-09T12:00:00.000Z");
+const confirmedChecklist: DeliveryCompletionChecklistInput = {
+  deliveryId: 101,
+  driverId: 70,
+  entregaConfirmada: true,
+  observacao: "Recebido",
+  assinaturaUrl: null,
+  fotoUrl: null,
+  horarioEntrega: completedAt,
+};
 
 function makeStore(statuses = ["em_rota"]): MemoryCompletionStore {
   const orders: TestOrder[] = [
@@ -174,6 +245,7 @@ function makeStore(statuses = ["em_rota"]): MemoryCompletionStore {
     deliveries,
     routes,
     events: [],
+    checklists: [],
   });
 }
 
@@ -192,6 +264,25 @@ function complete(
 }
 
 describe("conclusão transacional de entregas", () => {
+  test("a finalização aceita somente entregas entregues ou canceladas", () => {
+    assert.equal(areOrderDeliveriesTerminal([]), false);
+    assert.equal(areOrderDeliveriesTerminal([{ status: "entregue" }]), true);
+    assert.equal(
+      areOrderDeliveriesTerminal([
+        { status: "entregue" },
+        { status: "cancelado" },
+      ]),
+      true,
+    );
+    assert.equal(
+      areOrderDeliveriesTerminal([
+        { status: "entregue" },
+        { status: "em_rota" },
+      ]),
+      false,
+    );
+  });
+
   test("uma única entrega conclui o pedido e grava evento sem tocar nos campos fiscais", async () => {
     const store = makeStore();
     const fiscalBefore = {
@@ -311,6 +402,137 @@ describe("conclusão transacional de entregas", () => {
     assert.equal(repeated?.orderFinalized, false);
     assert.equal(store.state.events.length, 1);
     assert.equal(store.state.orders[0].workflowStatus, "DELIVERED");
+  });
+
+  test("checklist confirmado e conclusão são atômicos e idempotentes", async () => {
+    const store = makeStore();
+    const input = {
+      deliveryId: 101,
+      tenantId: 10,
+      actor,
+      now: completedAt,
+      checklist: confirmedChecklist,
+    };
+
+    const first = await completeDelivery(store, input);
+    const repeated = await completeDelivery(store, input);
+
+    assert.ok(first?.checklist);
+    assert.equal(repeated?.checklist?.id, first?.checklist?.id);
+    assert.equal(store.state.checklists.length, 1);
+    assert.equal(store.state.events.length, 1);
+    assert.equal(store.state.deliveries[0].deliveredAt?.getTime(), completedAt.getTime());
+    assert.equal(store.state.orders[0].workflowStatus, "DELIVERED");
+  });
+
+  test("falha ao inserir checklist não altera entrega, evento ou pedido", async () => {
+    const store = makeStore();
+    store.failAt = "checklist";
+
+    await assert.rejects(
+      () =>
+        completeDelivery(store, {
+          deliveryId: 101,
+          tenantId: 10,
+          actor,
+          now: completedAt,
+          checklist: confirmedChecklist,
+        }),
+      /checklist insert failed/,
+    );
+
+    assert.equal(store.state.deliveries[0].status, "em_rota");
+    assert.equal(store.state.checklists.length, 0);
+    assert.equal(store.state.events.length, 0);
+    assert.equal(store.state.orders[0].workflowStatus, "SHIPPED");
+  });
+
+  test("falha no histórico desfaz também checklist e conclusão", async () => {
+    const store = makeStore();
+    store.failAt = "event";
+
+    await assert.rejects(
+      () =>
+        completeDelivery(store, {
+          deliveryId: 101,
+          tenantId: 10,
+          actor,
+          now: completedAt,
+          checklist: confirmedChecklist,
+        }),
+      /event insert failed/,
+    );
+
+    assert.equal(store.state.deliveries[0].status, "em_rota");
+    assert.equal(store.state.checklists.length, 0);
+    assert.equal(store.state.events.length, 0);
+    assert.equal(store.state.orders[0].workflowStatus, "SHIPPED");
+  });
+
+  test("stop-status atualiza entrega e histórico juntos sem duplicar retry", async () => {
+    const store = makeStore();
+    const input = {
+      deliveryId: 101,
+      tenantId: 10,
+      actor,
+      status: "cliente_ausente",
+      observacao: "  Ninguém atendeu  ",
+      recordStopEvent: true,
+      now: completedAt,
+    };
+
+    const first = await updateDeliveryNonterminal(store, input);
+    const repeated = await updateDeliveryNonterminal(store, {
+      ...input,
+      now: new Date(completedAt.getTime() + 60_000),
+    });
+
+    assert.equal(first?.delivery.status, "cliente_ausente");
+    assert.equal(first?.delivery.stopObservacao, "Ninguém atendeu");
+    assert.equal(first?.registeredAt?.getTime(), completedAt.getTime());
+    assert.equal(repeated?.changed, false);
+    assert.equal(repeated?.registeredAt?.getTime(), completedAt.getTime());
+    assert.equal(store.state.events.length, 1);
+    assert.equal(store.state.orders[0].workflowStatus, "SHIPPED");
+  });
+
+  test("falha ao registrar stop-status desfaz a atualização da entrega", async () => {
+    const store = makeStore();
+    store.failAt = "event";
+
+    await assert.rejects(
+      () =>
+        updateDeliveryNonterminal(store, {
+          deliveryId: 101,
+          tenantId: 10,
+          actor,
+          status: "problema",
+          observacao: "Acesso bloqueado",
+          recordStopEvent: true,
+          now: completedAt,
+        }),
+      /event insert failed/,
+    );
+
+    assert.equal(store.state.deliveries[0].status, "em_rota");
+    assert.equal(store.state.deliveries[0].stopStatus, null);
+    assert.equal(store.state.events.length, 0);
+  });
+
+  test("entrega vinculada a pedido expedido não pode ser apagada para contornar a finalização", async () => {
+    const store = makeStore(["entregue", "em_rota"]);
+
+    await assert.rejects(
+      () =>
+        deleteDeliveryBeforeShipment(store, {
+          deliveryId: 102,
+          tenantId: 10,
+        }),
+      /Não remova uma entrega expedida/,
+    );
+
+    assert.equal(store.state.deliveries.length, 2);
+    assert.equal(store.state.deliveries[1].status, "em_rota");
   });
 
   test("entrega já concluída sem histórico recebe um único evento no retry", async () => {

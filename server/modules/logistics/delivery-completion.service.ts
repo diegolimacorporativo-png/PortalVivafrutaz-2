@@ -39,13 +39,30 @@ export type OrderDeliveryForCompletion = {
 
 export type DeliveryStopEventInput = {
   deliveryId: number;
-  status: "entregue";
+  status: string;
   observacao: string | null;
   registeredAt: Date;
   registeredById: number;
   registeredBy: string | null;
   registeredByRole: string | null;
 };
+
+export type DeliveryCompletionChecklistInput = {
+  deliveryId: number;
+  driverId: number | null;
+  entregaConfirmada: boolean;
+  observacao: string | null;
+  assinaturaUrl: string | null;
+  fotoUrl: string | null;
+  horarioEntrega: Date;
+};
+
+export type DeliveryCompletionChecklistRecord =
+  Omit<DeliveryCompletionChecklistInput, "entregaConfirmada"> & {
+    id: number;
+    entregaConfirmada: boolean | null;
+    createdAt: Date;
+  };
 
 export interface DeliveryCompletionTransaction {
   findDeliveryLink(
@@ -61,6 +78,12 @@ export interface DeliveryCompletionTransaction {
   getRouteCompany(routeId: number): Promise<number | null | undefined>;
   getDeliveriesForOrder(orderId: number): Promise<OrderDeliveryForCompletion[]>;
   hasDeliveredEvent(deliveryId: number): Promise<boolean>;
+  hasStopStatusEvent(
+    deliveryId: number,
+    status: string,
+    observacao: string | null,
+    registeredAt: Date,
+  ): Promise<boolean>;
   markDeliveryTerminal(input: {
     deliveryId: number;
     companyId: number | null;
@@ -71,8 +94,25 @@ export interface DeliveryCompletionTransaction {
     actor: DeliveryCompletionActor;
     observacao: string | null;
   }): Promise<DeliveryCompletionRow | undefined>;
-  insertDeliveredEvent(input: DeliveryStopEventInput): Promise<void>;
+  markDeliveryNonterminal(input: {
+    deliveryId: number;
+    companyId: number | null;
+    status: string;
+    additionalUpdates?: Record<string, unknown>;
+    recordStopStatus: boolean;
+    now: Date;
+    actor: DeliveryCompletionActor;
+    observacao: string | null;
+  }): Promise<DeliveryCompletionRow | undefined>;
+  insertStopStatusEvent(input: DeliveryStopEventInput): Promise<void>;
+  getConfirmedChecklist(
+    deliveryId: number,
+  ): Promise<DeliveryCompletionChecklistRecord | undefined>;
+  insertChecklist(
+    input: DeliveryCompletionChecklistInput,
+  ): Promise<DeliveryCompletionChecklistRecord>;
   markOrderDelivered(orderId: number, companyId: number): Promise<boolean>;
+  deleteDelivery(deliveryId: number, companyId: number | null): Promise<boolean>;
 }
 
 export interface DeliveryCompletionStore {
@@ -99,9 +139,19 @@ export type DeliveryCompletionResult = {
   delivery: DeliveryCompletionRow;
   changed: boolean;
   orderFinalized: boolean;
+  checklist?: DeliveryCompletionChecklistRecord;
 };
 
 const TERMINAL_DELIVERY_STATUSES = new Set(["entregue", "cancelado"]);
+
+export function areOrderDeliveriesTerminal(
+  deliveries: Array<{ status: string }>,
+): boolean {
+  return (
+    deliveries.length > 0 &&
+    deliveries.every((delivery) => TERMINAL_DELIVERY_STATUSES.has(delivery.status))
+  );
+}
 
 /**
  * Completes or cancels a delivery atomically. An order is finalized only after
@@ -117,60 +167,34 @@ export async function completeDelivery(
     additionalUpdates?: Record<string, unknown>;
     observacao?: string | null;
     now?: Date;
+    checklist?: DeliveryCompletionChecklistInput;
   },
 ): Promise<DeliveryCompletionResult | null> {
   return store.transaction(async (tx) => {
-    const link = await tx.findDeliveryLink(input.deliveryId, input.tenantId);
-    if (!link) return null;
-
-    // Order workflows use this same transaction-level lock. Acquire it before
-    // locking the delivery row so concurrent order/delivery transitions serialize
-    // without taking locks in opposite order.
-    if (link.orderId != null) {
-      await tx.lockOrderSerialization(link.orderId);
-    }
-
-    const order = link.orderId == null
-      ? undefined
-      : await tx.lockOrder(link.orderId);
-    const delivery = await tx.lockDelivery(input.deliveryId, input.tenantId);
-    if (!delivery) return null;
-
-    if (
-      delivery.orderId !== link.orderId ||
-      delivery.companyId !== link.companyId ||
-      delivery.routeId !== link.routeId
-    ) {
-      throw new DeliveryCompletionConflictError();
-    }
-
-    if (delivery.orderId != null && !order) {
-      throw new DeliveryCompletionLinkError();
-    }
-
-    const effectiveCompanyId = delivery.companyId ?? order?.companyId ?? null;
-    if (
-      effectiveCompanyId == null ||
-      (input.tenantId != null && effectiveCompanyId !== input.tenantId) ||
-      (order != null && order.companyId !== effectiveCompanyId)
-    ) {
-      throw new DeliveryCompletionLinkError();
-    }
-
-    let siblingDeliveries: OrderDeliveryForCompletion[] = [];
-    if (order) {
-      siblingDeliveries = await tx.getDeliveriesForOrder(order.id);
-      validateOrderDeliveryLinks(siblingDeliveries, order.companyId, delivery.id);
-    } else if (delivery.routeId != null) {
-      const routeCompanyId = await tx.getRouteCompany(delivery.routeId);
-      if (routeCompanyId == null || routeCompanyId !== effectiveCompanyId) {
-        throw new DeliveryCompletionLinkError();
-      }
-    }
+    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId);
+    if (!context) return null;
+    const { delivery, order, siblingDeliveries } = context;
 
     const now = input.now ?? new Date();
     const observacao = input.observacao?.trim() || null;
     const targetStatus = input.status ?? "entregue";
+    let checklist: DeliveryCompletionChecklistRecord | undefined;
+    if (input.checklist) {
+      if (input.checklist.deliveryId !== delivery.id) {
+        throw new DeliveryCompletionLinkError(
+          "O checklist não corresponde à entrega concluída.",
+        );
+      }
+      if (!input.checklist.entregaConfirmada) {
+        throw new DeliveryCompletionConflictError(
+          "O checklist precisa confirmar a entrega para concluir a parada.",
+        );
+      }
+      checklist =
+        (await tx.getConfirmedChecklist(delivery.id)) ??
+        (await tx.insertChecklist(input.checklist));
+    }
+
     const alreadyAtTarget = delivery.status === targetStatus;
     let changed = false;
     let completedDelivery = delivery;
@@ -180,7 +204,7 @@ export async function completeDelivery(
     // using the delivery's original completion timestamp when available.
     if (targetStatus === "entregue" && alreadyAtTarget) {
       if (!(await tx.hasDeliveredEvent(delivery.id))) {
-        await tx.insertDeliveredEvent({
+        await tx.insertStopStatusEvent({
           deliveryId: delivery.id,
           status: "entregue",
           observacao: delivery.stopObservacao ?? observacao,
@@ -210,7 +234,7 @@ export async function completeDelivery(
       }
 
       if (targetStatus === "entregue") {
-        await tx.insertDeliveredEvent({
+        await tx.insertStopStatusEvent({
           deliveryId: delivery.id,
           status: "entregue",
           observacao,
@@ -252,9 +276,7 @@ export async function completeDelivery(
         ? siblingDeliveries
         : await tx.getDeliveriesForOrder(order.id);
       validateOrderDeliveryLinks(currentDeliveries, order.companyId, delivery.id);
-      const allDeliveriesClosed =
-        currentDeliveries.length > 0 &&
-        currentDeliveries.every((row) => TERMINAL_DELIVERY_STATUSES.has(row.status));
+      const allDeliveriesClosed = areOrderDeliveriesTerminal(currentDeliveries);
 
       if (allDeliveriesClosed && order.workflowStatus === "SHIPPED") {
         orderFinalized = await tx.markOrderDelivered(order.id, order.companyId);
@@ -271,8 +293,202 @@ export async function completeDelivery(
       delivery: completedDelivery,
       changed,
       orderFinalized,
+      checklist,
     };
   });
+}
+
+/**
+ * Applies an ordinary nonterminal status update, optionally recording a stop
+ * event. The order lock is shared with workflow transitions and completion so
+ * an update cannot race order finalization.
+ */
+export async function updateDeliveryNonterminal(
+  store: DeliveryCompletionStore,
+  input: {
+    deliveryId: number;
+    tenantId: number | null;
+    actor: DeliveryCompletionActor;
+    status: string;
+    additionalUpdates?: Record<string, unknown>;
+    recordStopEvent?: boolean;
+    observacao?: string | null;
+    now?: Date;
+  },
+): Promise<{
+  delivery: DeliveryCompletionRow;
+  changed: boolean;
+  registeredAt: Date | null;
+} | null> {
+  return store.transaction(async (tx) => {
+    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId);
+    if (!context) return null;
+    const { delivery, order } = context;
+
+    if (
+      TERMINAL_DELIVERY_STATUSES.has(delivery.status) ||
+      order?.workflowStatus === "DELIVERED"
+    ) {
+      throw new DeliveryCompletionConflictError(
+        "Uma entrega concluída ou cancelada não pode voltar a um status pendente.",
+      );
+    }
+    if (TERMINAL_DELIVERY_STATUSES.has(input.status)) {
+      throw new DeliveryCompletionConflictError(
+        "Use o fluxo de conclusão para entregar ou cancelar a parada.",
+      );
+    }
+
+    const now = input.now ?? new Date();
+    const observacao = input.observacao?.trim() || null;
+    const recordStopEvent = input.recordStopEvent === true;
+
+    if (
+      recordStopEvent &&
+      delivery.status === input.status &&
+      delivery.stopStatus === input.status &&
+      (delivery.stopObservacao ?? null) === observacao &&
+      delivery.stopStatusAt
+    ) {
+      const registeredAt = delivery.stopStatusAt;
+      if (
+        await tx.hasStopStatusEvent(
+          delivery.id,
+          input.status,
+          observacao,
+          registeredAt,
+        )
+      ) {
+        return { delivery, changed: false, registeredAt };
+      }
+
+      await tx.insertStopStatusEvent({
+        deliveryId: delivery.id,
+        status: input.status,
+        observacao,
+        registeredAt,
+        registeredById: input.actor.id,
+        registeredBy: input.actor.name || input.actor.email || null,
+        registeredByRole: input.actor.role || null,
+      });
+      return { delivery, changed: true, registeredAt };
+    }
+
+    const updatedDelivery = await tx.markDeliveryNonterminal({
+      deliveryId: delivery.id,
+      companyId: delivery.companyId,
+      status: input.status,
+      additionalUpdates: input.additionalUpdates,
+      recordStopStatus: recordStopEvent,
+      now,
+      actor: input.actor,
+      observacao,
+    });
+    if (!updatedDelivery) {
+      throw new DeliveryCompletionConflictError();
+    }
+
+    if (recordStopEvent) {
+      await tx.insertStopStatusEvent({
+        deliveryId: delivery.id,
+        status: input.status,
+        observacao,
+        registeredAt: now,
+        registeredById: input.actor.id,
+        registeredBy: input.actor.name || input.actor.email || null,
+        registeredByRole: input.actor.role || null,
+      });
+    }
+
+    return {
+      delivery: updatedDelivery,
+      changed: true,
+      registeredAt: recordStopEvent ? now : null,
+    };
+  });
+}
+
+export async function deleteDeliveryBeforeShipment(
+  store: DeliveryCompletionStore,
+  input: { deliveryId: number; tenantId: number | null },
+): Promise<boolean | null> {
+  return store.transaction(async (tx) => {
+    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId);
+    if (!context) return null;
+    const { delivery, order } = context;
+
+    if (
+      TERMINAL_DELIVERY_STATUSES.has(delivery.status) ||
+      order?.workflowStatus === "SHIPPED" ||
+      order?.workflowStatus === "DELIVERED" ||
+      order?.status === "DELIVERED"
+    ) {
+      throw new DeliveryCompletionConflictError(
+        "Não remova uma entrega expedida, concluída ou cancelada. Cancele apenas a parada quando necessário.",
+      );
+    }
+
+    const deleted = await tx.deleteDelivery(delivery.id, delivery.companyId);
+    if (!deleted) throw new DeliveryCompletionConflictError();
+    return true;
+  });
+}
+
+async function loadDeliveryContext(
+  tx: DeliveryCompletionTransaction,
+  deliveryId: number,
+  tenantId: number | null,
+): Promise<{
+  delivery: DeliveryCompletionRow;
+  order: DeliveryCompletionOrder | undefined;
+  siblingDeliveries: OrderDeliveryForCompletion[];
+} | null> {
+  const link = await tx.findDeliveryLink(deliveryId, tenantId);
+  if (!link) return null;
+
+  // All delivery changes and order workflow changes take this lock first.
+  if (link.orderId != null) {
+    await tx.lockOrderSerialization(link.orderId);
+  }
+
+  const order = link.orderId == null
+    ? undefined
+    : await tx.lockOrder(link.orderId);
+  const delivery = await tx.lockDelivery(deliveryId, tenantId);
+  if (!delivery) return null;
+
+  if (
+    delivery.orderId !== link.orderId ||
+    delivery.companyId !== link.companyId ||
+    delivery.routeId !== link.routeId
+  ) {
+    throw new DeliveryCompletionConflictError();
+  }
+  if (delivery.orderId != null && !order) {
+    throw new DeliveryCompletionLinkError();
+  }
+
+  const effectiveCompanyId = delivery.companyId ?? order?.companyId ?? null;
+  if (
+    effectiveCompanyId == null ||
+    (tenantId != null && effectiveCompanyId !== tenantId) ||
+    (order != null && order.companyId !== effectiveCompanyId)
+  ) {
+    throw new DeliveryCompletionLinkError();
+  }
+
+  let siblingDeliveries: OrderDeliveryForCompletion[] = [];
+  if (order) {
+    siblingDeliveries = await tx.getDeliveriesForOrder(order.id);
+    validateOrderDeliveryLinks(siblingDeliveries, order.companyId, delivery.id);
+  } else if (delivery.routeId != null) {
+    const routeCompanyId = await tx.getRouteCompany(delivery.routeId);
+    if (routeCompanyId == null || routeCompanyId !== effectiveCompanyId) {
+      throw new DeliveryCompletionLinkError();
+    }
+  }
+
+  return { delivery, order, siblingDeliveries };
 }
 
 function validateOrderDeliveryLinks(

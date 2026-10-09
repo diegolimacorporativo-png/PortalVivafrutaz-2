@@ -1130,6 +1130,22 @@ export class OrdersService {
     await this.assertPeriodOpen(id, "update");
 
     const { status, adminNote, nimbiExpiration } = body;
+    if (status === "DELIVERED") {
+      const transition = await this.transition(
+        id,
+        OrderStatus.DELIVERED,
+        actor,
+      );
+      const supplementalUpdates: Record<string, unknown> = {};
+      if (adminNote !== undefined) supplementalUpdates.adminNote = adminNote;
+      if (nimbiExpiration !== undefined) {
+        supplementalUpdates.nimbiExpiration = nimbiExpiration || null;
+      }
+      return Object.keys(supplementalUpdates).length > 0
+        ? this.repo.update(id, supplementalUpdates)
+        : transition.order;
+    }
+
     const updates: any = {};
     if (status !== undefined) updates.status = status;
     if (adminNote !== undefined) updates.adminNote = adminNote;

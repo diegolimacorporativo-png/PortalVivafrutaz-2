@@ -1,8 +1,9 @@
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lte, sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import {
   deliveries,
   deliveryStopEvents,
+  deliveryChecklists,
   logisticsRoutes,
   orders,
 } from "@shared/schema";
@@ -104,6 +105,27 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
           return Boolean(row);
         },
 
+        async hasStopStatusEvent(deliveryId, status, observacao, registeredAt) {
+          const earliest = new Date(registeredAt.getTime() - 5_000);
+          const latest = new Date(registeredAt.getTime() + 5_000);
+          const [row] = await tx
+            .select({ id: deliveryStopEvents.id })
+            .from(deliveryStopEvents)
+            .where(
+              and(
+                eq(deliveryStopEvents.deliveryId, deliveryId),
+                eq(deliveryStopEvents.status, status),
+                observacao == null
+                  ? isNull(deliveryStopEvents.observacao)
+                  : eq(deliveryStopEvents.observacao, observacao),
+                gte(deliveryStopEvents.registeredAt, earliest),
+                lte(deliveryStopEvents.registeredAt, latest),
+              ),
+            )
+            .limit(1);
+          return Boolean(row);
+        },
+
         async markDeliveryTerminal(input) {
           const companyCondition = input.companyId == null
             ? isNull(deliveries.companyId)
@@ -138,8 +160,57 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
           return row;
         },
 
-        async insertDeliveredEvent(input) {
+        async markDeliveryNonterminal(input) {
+          const companyCondition = input.companyId == null
+            ? isNull(deliveries.companyId)
+            : eq(deliveries.companyId, input.companyId);
+          const [row] = await tx
+            .update(deliveries)
+            .set({
+              ...input.additionalUpdates,
+              status: input.status,
+              ...(input.recordStopStatus
+                ? {
+                    stopStatus: input.status,
+                    stopStatusAt: input.now,
+                    stopStatusBy: input.actor.name || input.actor.email || null,
+                    stopStatusByRole: input.actor.role || null,
+                    stopObservacao: input.observacao,
+                  }
+                : {}),
+              updatedAt: input.now,
+            } as any)
+            .where(and(eq(deliveries.id, input.deliveryId), companyCondition))
+            .returning();
+          return row;
+        },
+
+        async insertStopStatusEvent(input) {
           await tx.insert(deliveryStopEvents).values(input);
+        },
+
+        async getConfirmedChecklist(deliveryId) {
+          const [row] = await tx
+            .select()
+            .from(deliveryChecklists)
+            .where(
+              and(
+                eq(deliveryChecklists.deliveryId, deliveryId),
+                eq(deliveryChecklists.entregaConfirmada, true),
+              ),
+            )
+            .orderBy(deliveryChecklists.createdAt)
+            .limit(1);
+          return row;
+        },
+
+        async insertChecklist(input) {
+          const [row] = await tx
+            .insert(deliveryChecklists)
+            .values(input)
+            .returning();
+          if (!row) throw new Error("Não foi possível registrar o checklist da entrega.");
+          return row;
         },
 
         async markOrderDelivered(orderId, companyId) {
@@ -154,6 +225,17 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
               ),
             )
             .returning({ id: orders.id });
+          return Boolean(row);
+        },
+
+        async deleteDelivery(deliveryId, companyId) {
+          const companyCondition = companyId == null
+            ? isNull(deliveries.companyId)
+            : eq(deliveries.companyId, companyId);
+          const [row] = await tx
+            .delete(deliveries)
+            .where(and(eq(deliveries.id, deliveryId), companyCondition))
+            .returning({ id: deliveries.id });
           return Boolean(row);
         },
       };

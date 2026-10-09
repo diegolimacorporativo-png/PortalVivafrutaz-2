@@ -763,31 +763,6 @@ export async function registerRoutes(
     }
   });
 
-  // POST /api/deliveries/:id/stop-status — register stop status + event history
-  app.post('/api/deliveries/:id/stop-status', requireAuthCore, async (req: Request, res: Response) => {
-    try {
-      const deliveryId = Number(req.params.id);
-      const { status, observacao } = req.body as { status: string; observacao?: string };
-      const VALID = ['entregue','cliente_ausente','endereco_incorreto','recusado','reagendado','problema'];
-      if (!status || !VALID.includes(status)) {
-        return res.status(400).json({ message: `Status inválido. Valores permitidos: ${VALID.join(', ')}` });
-      }
-      const session = (req as any).session;
-      const actor = await storage.getUser(session.userId);
-      const updated = await storage.registerDeliveryStopStatus(
-        deliveryId,
-        status,
-        observacao ?? null,
-        actor?.id ?? null,
-        actor?.email ?? actor?.name ?? null,
-        actor?.role ?? null,
-      );
-      res.json(updated);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
   // GET /api/deliveries/:id/stop-events — full history for a delivery stop
   app.get('/api/deliveries/:id/stop-events', requireAuthCore, async (req: Request, res: Response) => {
     try {

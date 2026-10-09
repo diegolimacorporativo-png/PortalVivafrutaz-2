@@ -21,8 +21,10 @@ import {
 } from "../modules/logistics/delivery.access";
 import {
   completeDelivery,
+  deleteDeliveryBeforeShipment,
   DeliveryCompletionConflictError,
   DeliveryCompletionLinkError,
+  updateDeliveryNonterminal,
 } from "../modules/logistics/delivery-completion.service";
 import { deliveryCompletionStore } from "../modules/logistics/delivery-completion.repository";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
@@ -56,6 +58,25 @@ const VALID_STOP_STATUSES = new Set([
   "reagendado",
   "problema",
 ]);
+const VALID_DELIVERY_STATUSES = new Set([
+  "pendente",
+  "em_rota",
+  "entregue",
+  "cancelado",
+]);
+const DELIVERY_MANAGED_FIELDS = [
+  "id",
+  "companyId",
+  "orderId",
+  "routeId",
+  "deliveredAt",
+  "stopStatus",
+  "stopStatusAt",
+  "stopStatusBy",
+  "stopStatusByRole",
+  "stopObservacao",
+  "updatedAt",
+] as const;
 
 function respondToDeliveryCompletionError(res: any, error: unknown): boolean {
   if (
@@ -148,31 +169,24 @@ export async function register(app: Express): Promise<void> {
       if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
       const updates = sanitizeDeliveryUpdateBody(req.body);
       const status = updates.status;
+      if (
+        'status' in updates &&
+        (typeof status !== 'string' || !VALID_DELIVERY_STATUSES.has(status))
+      ) {
+        return res.status(400).json({ message: 'Status de entrega inválido' });
+      }
+      if (DELIVERY_MANAGED_FIELDS.some((field) => field in updates)) {
+        return res.status(400).json({
+          message: 'Vínculos e campos de conclusão são gerenciados pelo fluxo operacional.',
+        });
+      }
       if (status === 'entregue' || status === 'cancelado') {
         const access = resolveDeliveryAccess(actor);
         if (!access.allowed) {
           return res.status(access.status).json({ message: access.message });
         }
-        if ('orderId' in updates || 'routeId' in updates) {
-          return res.status(400).json({
-            message: 'Altere o vínculo da entrega separadamente da conclusão.',
-          });
-        }
         const additionalUpdates = { ...updates };
-        for (const field of [
-          'id',
-          'status',
-          'companyId',
-          'deliveredAt',
-          'stopStatus',
-          'stopStatusAt',
-          'stopStatusBy',
-          'stopStatusByRole',
-          'stopObservacao',
-          'updatedAt',
-        ]) {
-          delete additionalUpdates[field];
-        }
+        delete additionalUpdates.status;
         const completion = await completeDelivery(deliveryCompletionStore, {
           deliveryId,
           tenantId: access.tenantId,
@@ -183,6 +197,25 @@ export async function register(app: Express): Promise<void> {
         if (!completion) return res.status(404).json({ message: 'Entrega não encontrada' });
         return res.json(completion.delivery);
       }
+
+      if (typeof status === 'string') {
+        const access = resolveDeliveryAccess(actor);
+        if (!access.allowed) {
+          return res.status(access.status).json({ message: access.message });
+        }
+        const additionalUpdates = { ...updates };
+        delete additionalUpdates.status;
+        const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
+          deliveryId,
+          tenantId: access.tenantId,
+          actor,
+          status,
+          additionalUpdates,
+        });
+        if (!result) return res.status(404).json({ message: 'Entrega não encontrada' });
+        return res.json(result.delivery);
+      }
+
       const delivery = await storage.updateDelivery(deliveryId, updates as any);
       res.json(delivery);
     } catch (err: any) {
@@ -199,6 +232,9 @@ export async function register(app: Express): Promise<void> {
       const current = await getAuthorizedDelivery(deliveryId, actor);
       if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
       const { status } = req.body;
+      if (typeof status !== 'string' || !VALID_DELIVERY_STATUSES.has(status)) {
+        return res.status(400).json({ message: 'Status de entrega inválido' });
+      }
       if (status === 'entregue' || status === 'cancelado') {
         const access = resolveDeliveryAccess(actor);
         if (!access.allowed) {
@@ -214,9 +250,18 @@ export async function register(app: Express): Promise<void> {
         if (!result) return res.status(404).json({ message: 'Entrega não encontrada' });
         return res.json(result.delivery);
       }
-      const updates: any = { status };
-      const delivery = await storage.updateDelivery(deliveryId, updates);
-      res.json(delivery);
+      const access = resolveDeliveryAccess(actor);
+      if (!access.allowed) {
+        return res.status(access.status).json({ message: access.message });
+      }
+      const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
+        deliveryId,
+        tenantId: access.tenantId,
+        actor,
+        status,
+      });
+      if (!result) return res.status(404).json({ message: 'Entrega não encontrada' });
+      return res.json(result.delivery);
     } catch (err: any) {
       if (respondToDeliveryCompletionError(res, err)) return;
       res.status(500).json({ message: err.message });
@@ -230,9 +275,20 @@ export async function register(app: Express): Promise<void> {
       const deliveryId = Number(req.params.id);
       const current = await getAuthorizedDelivery(deliveryId, actor);
       if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
-      await storage.deleteDelivery(deliveryId);
+      const access = resolveDeliveryAccess(actor);
+      if (!access.allowed) {
+        return res.status(access.status).json({ message: access.message });
+      }
+      const deleted = await deleteDeliveryBeforeShipment(deliveryCompletionStore, {
+        deliveryId,
+        tenantId: access.tenantId,
+      });
+      if (!deleted) return res.status(404).json({ message: 'Entrega não encontrada' });
       res.json({ success: true });
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      if (respondToDeliveryCompletionError(res, err)) return;
+      res.status(500).json({ message: err.message });
+    }
   });
 
   // ─── Logistics Audit Helper (kept here: still used by /api/deliveries/:id/checklist) ───
@@ -724,31 +780,39 @@ export async function register(app: Express): Promise<void> {
       const delivery = await getAuthorizedDelivery(deliveryId, actor);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       const { observacao, driverId, entregaConfirmada } = req.body;
+      const access = resolveDeliveryAccess(actor);
+      if (!access.allowed) {
+        return res.status(access.status).json({ message: access.message });
+      }
 
-      // Create checklist record
-      const checklist = await storage.createDeliveryChecklist({
+      const now = new Date();
+      const checklistInput = {
         deliveryId,
         driverId: driverId || null,
         entregaConfirmada: entregaConfirmada !== false,
         observacao: observacao || null,
         assinaturaUrl: null,
         fotoUrl: null,
-        horarioEntrega: new Date(),
-      });
+        horarioEntrega: now,
+      };
+      let checklist;
 
-      // Update delivery status to 'entregue'
       if (entregaConfirmada !== false) {
-        const access = resolveDeliveryAccess(actor);
-        if (!access.allowed) {
-          return res.status(access.status).json({ message: access.message });
-        }
         const completion = await completeDelivery(deliveryCompletionStore, {
           deliveryId,
           tenantId: access.tenantId,
           actor,
           observacao,
+          now,
+          checklist: checklistInput,
         });
         if (!completion) return res.status(404).json({ message: 'Entrega não encontrada' });
+        if (!completion.checklist) {
+          throw new Error('Checklist confirmado não retornado pela transação.');
+        }
+        checklist = completion.checklist;
+      } else {
+        checklist = await storage.createDeliveryChecklist(checklistInput);
       }
 
       // Audit log
@@ -808,29 +872,20 @@ export async function register(app: Express): Promise<void> {
         return res.json({ success: true, status, registeredAt: registeredAt.toISOString() });
       }
 
-      const now = new Date();
-
-      // 1. Create history event
-      await db.insert(deliveryStopEvents).values({
+      const access = resolveDeliveryAccess(actor);
+      if (!access.allowed) {
+        return res.status(access.status).json({ message: access.message });
+      }
+      const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
         deliveryId,
+        tenantId: access.tenantId,
+        actor,
         status,
-        observacao: observacao?.trim() || null,
-        registeredById: actor.id,
-        registeredBy: actor.name || actor.email || null,
-        registeredByRole: actor.role || null,
+        observacao,
+        recordStopEvent: true,
       });
+      if (!result) return res.status(404).json({ message: 'Entrega não encontrada' });
 
-      // 2. Update delivery with new status + metadata
-      const deliveryUpdate: any = {
-        status: status === 'entregue' ? 'entregue' : status,
-        stopStatusAt: now,
-        stopStatusBy: actor.name || actor.email || null,
-        stopStatusByRole: actor.role || null,
-        stopObservacao: observacao?.trim() || null,
-      };
-      await storage.updateDelivery(deliveryId, deliveryUpdate);
-
-      // 3. Logistics audit
       await logisticsAudit(
         req,
         `STOP_STATUS_${status.toUpperCase()}`,
@@ -839,7 +894,8 @@ export async function register(app: Express): Promise<void> {
         'delivery',
       );
 
-      res.json({ success: true, status, registeredAt: now.toISOString() });
+      const registeredAt = result.registeredAt ?? new Date();
+      res.json({ success: true, status, registeredAt: registeredAt.toISOString() });
     } catch (err: any) {
       if (respondToDeliveryCompletionError(res, err)) return;
       res.status(500).json({ message: err.message });

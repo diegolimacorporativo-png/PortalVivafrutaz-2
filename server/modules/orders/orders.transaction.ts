@@ -5,13 +5,12 @@ import {
   inventorySettings,
   inventoryMovements,
   accountsReceivable,
-  deliveries,
-  systemLogs,
   workflowEvents,
   type WorkflowEventPayload,
 } from "@shared/schema";
 import { legacyStatusFor, OrderStatus } from "./orders.workflow";
 import { BadRequestError, ConflictError } from "../../shared/errors/AppError";
+import { areOrderDeliveriesTerminal } from "../logistics/delivery-completion.service";
 import { buildPixPayload } from "../../shared/utils/pix";
 // FASE 9C — financial consistency guard
 import { logSecurity } from "../../core/security/securityLogger";
@@ -168,9 +167,15 @@ export async function executeWorkflowTransaction(
     //
     // Re-read the current workflow_status now that we hold the advisory lock.
     // If it changed, a concurrent request already committed a transition.
-    const currentRow = rowsOf<{ workflow_status: string }>(
+    const currentRow = rowsOf<{
+      workflow_status: string;
+      company_id: number;
+    }>(
       await tx.execute(
-        sql`SELECT workflow_status FROM orders WHERE id = ${orderId}`,
+        sql`SELECT workflow_status, company_id
+            FROM orders
+            WHERE id = ${orderId}
+            FOR UPDATE`,
       ),
     )[0];
 
@@ -191,6 +196,62 @@ export async function executeWorkflowTransaction(
           currentWorkflowStatus: currentRow.workflow_status,
         },
       );
+    }
+    if (currentRow.company_id !== orderSnapshot.companyId) {
+      throw new ConflictError(
+        "A empresa do pedido foi alterada durante a operação. Recarregue e tente novamente.",
+      );
+    }
+
+    // Finalization is allowed only after every linked delivery is already
+    // terminal. Never use the order transition to manufacture delivered rows:
+    // the delivery/checklist completion flow owns delivery timestamps and events.
+    if (to === OrderStatus.DELIVERED) {
+      const linkedDeliveries = rowsOf<{
+        id: number;
+        company_id: number | null;
+        status: string;
+        route_id: number | null;
+        route_company_id: number | null;
+      }>(
+        await tx.execute(
+          sql`SELECT d.id,
+                     d.company_id,
+                     d.status,
+                     d.route_id,
+                     r.empresa_id AS route_company_id
+              FROM deliveries d
+              LEFT JOIN logistics_routes r ON r.id = d.route_id
+              WHERE d.order_id = ${orderId}
+              ORDER BY d.id
+              FOR UPDATE OF d`,
+        ),
+      );
+
+      if (linkedDeliveries.length === 0) {
+        throw new BadRequestError(
+          "O pedido não pode ser entregue sem entregas vinculadas.",
+        );
+      }
+
+      for (const delivery of linkedDeliveries) {
+        if (
+          (delivery.company_id != null &&
+            delivery.company_id !== orderSnapshot.companyId) ||
+          (delivery.route_id != null &&
+            delivery.route_company_id !== orderSnapshot.companyId)
+        ) {
+          throw new BadRequestError(
+            "O vínculo entre pedido, empresa, entrega e rota é inconsistente.",
+          );
+        }
+      }
+
+      if (!areOrderDeliveriesTerminal(linkedDeliveries)) {
+        throw new BadRequestError(
+          "O pedido só pode ser finalizado quando todas as entregas estiverem entregues ou canceladas.",
+        );
+      }
     }
 
     // ── Step 3: Commit the state transition ─────────────────────────────────
@@ -455,49 +516,6 @@ export async function executeWorkflowTransaction(
       );
 
       deliveryUpdated = updated.length > 0;
-    }
-
-    // ── Step 4d: DELIVERED — sync deliveries row to 'entregue' ──────────────
-    //
-    // Mirrors the SHIPPED block above. Without this, an order can move to
-    // DELIVERED while deliveries.status remains 'em_rota', breaking the
-    // driver-finalisation flow and any downstream tracking/reporting.
-    //
-    // Idempotent: only updates rows that are NOT already 'entregue', so
-    // re-running the transition is a no-op. Fail-safe: any error is
-    // swallowed so it can never abort the main state transition.
-    if (to === OrderStatus.DELIVERED) {
-      try {
-        const delivered = rowsOf<{ id: number }>(
-          await tx.execute(
-            sql`UPDATE deliveries
-                SET    status       = 'entregue',
-                       delivered_at = NOW(),
-                       updated_at   = NOW()
-                WHERE  order_id     = ${orderId}
-                  AND  status      != 'entregue'
-                RETURNING id`,
-          ),
-        );
-
-        if (delivered.length > 0) {
-          deliveryUpdated = true;
-          try {
-            await tx.insert(systemLogs).values({
-              action:      "DELIVERY_COMPLETED",
-              description: `Entrega concluída para pedido ${orderSnapshot.orderCode || `#${orderId}`}`,
-              userId:      actor?.id ?? null,
-              userEmail:   actor?.email ?? null,
-              userRole:    actor?.role ?? null,
-              level:       "INFO",
-            });
-          } catch {
-            // never break the main flow on log-write failure
-          }
-        }
-      } catch {
-        // never break the main flow on delivery-sync failure
-      }
     }
 
     // ── Step 5: Write outbox event (transactional reliability) ──────────────

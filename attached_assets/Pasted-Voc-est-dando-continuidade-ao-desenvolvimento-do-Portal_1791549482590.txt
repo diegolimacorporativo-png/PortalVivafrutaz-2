@@ -1,0 +1,108 @@
+Você está dando continuidade ao desenvolvimento do Portal Vivafrutaz a partir do código já existente no GitHub, salvo no commit `rastreio`.
+
+**Não recomece o projeto, não reverta alterações existentes e não reimplemente funcionalidades que já estão prontas.** Primeiro, leia o código atual e identifique o que já foi desenvolvido.
+
+### CONTEXTO DO PROJETO
+
+O portal utiliza frontend React/Vite, backend Express, banco PostgreSQL/Supabase, frontend hospedado na Vercel e backend no Render.
+
+O ambiente Replit e o backend Render compartilham o mesmo banco Supabase. Portanto, qualquer teste, inicialização ou rotina que escreva no banco deve ser analisado com cuidado.
+
+O trabalho recente envolveu rastreamento, atualização de status de entregas e sincronização entre entregas e pedidos.
+
+### 1. PRESERVE AS CORREÇÕES EXISTENTES
+
+As seguintes regras já foram implementadas e precisam ser verificadas no código antes de qualquer alteração:
+
+* Um pedido só passa para `DELIVERED` quando todas as entregas vinculadas estão `entregue` ou `cancelado`.
+* Cancelar uma entrega não altera indevidamente as demais entregas.
+* Atualização da entrega, registro do evento e finalização do pedido devem ocorrer na mesma transação.
+* Repetir uma conclusão não deve duplicar eventos.
+* Uma entrega concluída anteriormente não deve perder sua data original de conclusão.
+* Os vínculos entre empresa, pedido e rota devem ser validados.
+* Essas correções não devem modificar campos fiscais.
+
+Confira os endpoints e fluxos envolvidos, incluindo `PATCH /status`, `PUT`, checklist e `stop-status`. Preserve a arquitetura e os comportamentos existentes sempre que estiverem corretos.
+
+### 2. RETOME A VALIDAÇÃO DO AMBIENTE
+
+O Agent anterior tentou iniciar um PostgreSQL local, mas o processo falhou porque o diretório `/run/postgresql` não existia no container.
+
+Ele planejou utilizar um diretório temporário para o socket e repetir o teste isolado.
+
+Primeiro, verifique o estado atual dos arquivos, processos e alterações existentes. Não presuma que a tentativa anterior foi concluída.
+
+Se continuar esse teste:
+
+* Mantenha o PostgreSQL local isolado.
+* Não conecte a aplicação acidentalmente ao banco local se isso mascarar a configuração real.
+* Não execute migrations, seeds, workers ou rotinas de inicialização com efeitos de escrita no Supabase compartilhado sem analisar previamente seus efeitos.
+* Não reinicie serviços de produção como forma de teste.
+* Identifique claramente qual banco cada processo utiliza.
+* Se não for possível validar com segurança, documente o bloqueio e apresente a menor alternativa segura.
+
+O objetivo é descobrir se o código atualizado consegue iniciar e ser validado, não modificar a infraestrutura por conveniência.
+
+### 3. INVESTIGUE POSSÍVEIS BRECHAS NA FINALIZAÇÃO DOS PEDIDOS
+
+Depois de verificar o estado atual, investigue se algum endpoint, ação manual ou rotina automática consegue marcar um pedido como `DELIVERED` enquanto ainda existem entregas pendentes.
+
+Se encontrar uma brecha, corrija-a seguindo os padrões existentes do projeto.
+
+A validação deve contemplar:
+
+* Todas as entregas concluídas: o pedido pode ser finalizado.
+* Entregas concluídas e canceladas, sem pendências: o pedido pode ser finalizado.
+* Pelo menos uma entrega pendente: o pedido não pode ser finalizado.
+* Cancelamento de uma entrega: as demais mantêm seus status.
+* Repetição da mesma requisição: não duplica o histórico.
+* Falha durante a operação: não deixa pedido, entrega e histórico em estados inconsistentes.
+
+### 4. REVISE A ATOMICIDADE DO CHECKLIST
+
+Verifique se o checklist e a conclusão da entrega são executados de forma consistente.
+
+Caso uma etapa falhe, não permita que a operação deixe dados parcialmente gravados. Utilize transações e os padrões de persistência já existentes, sem criar mecanismos paralelos desnecessários.
+
+Não altere o comportamento funcional do checklist sem identificar primeiro sua implementação atual e seus efeitos.
+
+### 5. TESTES E SEGURANÇA
+
+Execute inicialmente verificações que não escrevam no banco:
+
+* `npm run check`
+* `npm run build`
+* `git diff --check`
+* Testes unitários seguros e relevantes para as alterações.
+
+Não execute automaticamente testes de regressão fiscais que escrevam no banco de produção. O teste `tests/unit/regression-billing-nfe-equivalence.test.ts` foi identificado como potencialmente perigoso por importar uma rotina que altera dados fiscais e realiza operações de limpeza no banco.
+
+Antes de executar qualquer outro teste, script, seed ou worker, examine seu comportamento e suas operações de escrita.
+
+Não desative autenticação, CORS, autorização, isolamento entre empresas ou validações de negócio para facilitar os testes.
+
+### 6. REGRAS DE EXECUÇÃO
+
+* Não altere configurações fiscais.
+* Não modifique usuários, senhas ou permissões sem necessidade comprovada.
+* Não apague os registros de teste já existentes no Supabase.
+* Não faça limpeza indiscriminada de dados.
+* Não execute operações destrutivas ou irreversíveis sem autorização.
+* Não altere o Git remoto nem faça novos commits ou pushes sem que isso seja solicitado.
+* Não implemente novas funcionalidades fora deste escopo.
+* Não afirme que algo foi validado se o teste não chegou a executar o código correspondente.
+
+### 7. RELATÓRIO FINAL
+
+Ao concluir, apresente:
+
+1. O que encontrou no código existente.
+2. O que já estava implementado e foi preservado.
+3. Quais arquivos foram alterados e por quê.
+4. Quais testes realmente foram executados e seus resultados.
+5. Se o servidor iniciou e se o código atualizado foi carregado.
+6. Se houve qualquer operação de escrita no banco e em qual ambiente.
+7. Quais pontos continuam pendentes.
+8. Qual é o próximo passo recomendado.
+
+**Prioridade máxima:** preservar as correções existentes, validar com segurança e impedir que os fluxos de pedidos e entregas produzam estados inconsistentes.
