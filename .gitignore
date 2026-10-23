@@ -5,4 +5,59 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .env
+.env.*
+!.env.example
+!.env.*.example
 .wrangler
+
+# Operational backups and local recovery files
+/backups/*.json
+/backups/*.sql
+
+# Runtime uploads are local data; keep product image assets versionable
+/uploads/**
+!/uploads/products/
+!/uploads/products/*.png
+!/uploads/products/*.jpg
+!/uploads/products/*.jpeg
+!/uploads/products/*.webp
+!/uploads/products/*.gif
+!/uploads/products/*.svg
+
+# Private certificate containers and signing material
+*.pfx
+*.p12
+*.p7b
+*.jks
+*.keystore
+*.key
+*.pem
+*.p8
+id_rsa*
+id_ed25519*
+!tests/fixtures/**/*.pfx
+!tests/fixtures/**/*.p12
+!tests/fixtures/**/*.p7b
+!tests/fixtures/**/*.jks
+!tests/fixtures/**/*.keystore
+!tests/fixtures/**/*.key
+!tests/fixtures/**/*.pem
+!tests/fixtures/**/*.p8
+!tests/fixtures/**/id_rsa*
+!tests/fixtures/**/id_ed25519*
+
+# Local secret/config files (examples remain versionable)
+*.local
+*.local.*
+*.secrets.json
+*.secrets.*
+*.secret
+*.secret.*
+
+# Generated test output; keep source tests and synthetic fixtures
+/test-results/
+/playwright-report/
+/tests/videos/
+/tests/reports/
+*.trace
+*.trace.zip

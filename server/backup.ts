@@ -6,7 +6,7 @@ import { db } from "./database/db";
 import { logSecurity } from "./core/security/securityLogger";
 import { registerJob, startJobRun, finishJobRun } from "./core/jobs/job-registry";
 import { incJobFailures } from "./core/observability/metrics";
-import { runBackupStoragePipeline, ensureStorageBucket, backupMonitorStatus } from "./backup-storage.service";
+import { runBackupStoragePipeline, ensureStorageBucket, backupMonitorStatus, getExternallyVerifiedBackupFilenames } from "./backup-storage.service";
 
 const BACKUP_JOB = "backup-daily";
 registerJob(BACKUP_JOB);
@@ -20,6 +20,27 @@ import {
 
 const BACKUP_DIR = path.join(process.cwd(), "backups");
 const MAX_BACKUPS = 30;
+
+// This queue serializes manual and scheduled backup pipelines within this
+// Node.js process only. It does not coordinate separate application instances.
+let backupLockTail: Promise<void> = Promise.resolve();
+export async function runBackupExclusively<T>(operation: () => Promise<T>): Promise<T> {
+  const previous = backupLockTail;
+  let release!: () => void;
+  backupLockTail = new Promise<void>(resolve => { release = resolve; });
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+  }
+}
+
+export function createBackupFilename(date: Date, extension: "json" | "sql"): string {
+  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "_");
+  const timeStr = date.toISOString().replace(/[:.]/g, "-").slice(11, 19);
+  return `backup_vivafrutaz_${dateStr}_${timeStr}_${randomUUID()}.${extension}`;
+}
 
 // T806 — Durability audit: /backups is on the local filesystem.
 // In Replit Deployments (Autoscale), each instance has its own ephemeral
@@ -141,12 +162,14 @@ async function fetchAllData() {
 }
 
 // ─── JSON Backup ───────────────────────────────────────────────
-export async function runBackup(): Promise<string> {
+async function generateJsonBackup(): Promise<{ filename: string; storageStatus: Awaited<ReturnType<typeof runBackupStoragePipeline>> }> {
+  return runBackupExclusively(generateJsonBackupUnlocked);
+}
+
+async function generateJsonBackupUnlocked(): Promise<{ filename: string; storageStatus: Awaited<ReturnType<typeof runBackupStoragePipeline>> }> {
   ensureBackupDir();
   const date = new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "_");
-  const timeStr = date.toISOString().replace(/[:.]/g, "-").slice(11, 19);
-  const filename = `backup_vivafrutaz_${dateStr}_${timeStr}.json`;
+  const filename = createBackupFilename(date, "json");
   const filepath = path.join(BACKUP_DIR, filename);
 
   const data = await fetchAllData();
@@ -189,24 +212,32 @@ export async function runBackup(): Promise<string> {
   };
 
   fs.writeFileSync(filepath, JSON.stringify(backup, null, 2), "utf-8");
-  const sizeMb = (fs.statSync(filepath).size / 1024 / 1024).toFixed(2);
+  const storageStatus = await runBackupStoragePipeline(filepath, filename, "scheduled");
+  console.info("[BACKUP_RESULT]", {
+    filename,
+    localStatus: "ok",
+    uploadStatus: storageStatus.uploadStatus,
+    integrityStatus: storageStatus.verifyStatus,
+    externalCopy: storageStatus.externalStatus === "verified" ? "confirmed-by-hash-check" : "not-confirmed",
+    restoreTested: false,
+  });
+  await rotateBackups();
+  return { filename, storageStatus };
+}
 
-  // BACKUP PERSISTENTE — upload para Supabase Storage após escrita local
-  runBackupStoragePipeline(filepath, filename, "scheduled").catch(e =>
-    console.error("[BACKUP_STORAGE_PIPELINE_FAIL]", e?.message)
-  );
-
-  rotateBackups();
-  return filename;
+export async function runBackup(): Promise<string> {
+  return (await generateJsonBackup()).filename;
 }
 
 // ─── SQL Backup ────────────────────────────────────────────────
-export async function runBackupSQL(): Promise<string> {
+async function generateSqlBackup(): Promise<{ filename: string; storageStatus: Awaited<ReturnType<typeof runBackupStoragePipeline>> }> {
+  return runBackupExclusively(generateSqlBackupUnlocked);
+}
+
+async function generateSqlBackupUnlocked(): Promise<{ filename: string; storageStatus: Awaited<ReturnType<typeof runBackupStoragePipeline>> }> {
   ensureBackupDir();
   const date = new Date();
-  const dateStr = date.toISOString().slice(0, 10).replace(/-/g, "_");
-  const timeStr = date.toISOString().replace(/[:.]/g, "-").slice(11, 19);
-  const filename = `backup_vivafrutaz_${dateStr}_${timeStr}.sql`;
+  const filename = createBackupFilename(date, "sql");
   const filepath = path.join(BACKUP_DIR, filename);
 
   const data = await fetchAllData();
@@ -249,19 +280,25 @@ export async function runBackupSQL(): Promise<string> {
   ].join("\n");
 
   fs.writeFileSync(filepath, sqlContent, "utf-8");
-  const sizeMb = (fs.statSync(filepath).size / 1024 / 1024).toFixed(2);
+  const storageStatus = await runBackupStoragePipeline(filepath, filename, "scheduled");
+  console.info("[BACKUP_RESULT]", {
+    filename,
+    localStatus: "ok",
+    uploadStatus: storageStatus.uploadStatus,
+    integrityStatus: storageStatus.verifyStatus,
+    externalCopy: storageStatus.externalStatus === "verified" ? "confirmed-by-hash-check" : "not-confirmed",
+    restoreTested: false,
+  });
+  await rotateBackups();
+  return { filename, storageStatus };
+}
 
-  // BACKUP PERSISTENTE — upload para Supabase Storage após escrita local
-  runBackupStoragePipeline(filepath, filename, "scheduled").catch(e =>
-    console.error("[BACKUP_STORAGE_PIPELINE_FAIL]", e?.message)
-  );
-
-  rotateBackups();
-  return filename;
+export async function runBackupSQL(): Promise<string> {
+  return (await generateSqlBackup()).filename;
 }
 
 // ─── Rotate to keep MAX_BACKUPS ────────────────────────────────
-function rotateBackups() {
+async function rotateBackups(): Promise<void> {
   const files = fs
     .readdirSync(BACKUP_DIR)
     .filter(f => f.startsWith("backup_") && (f.endsWith(".json") || f.endsWith(".sql")))
@@ -269,9 +306,15 @@ function rotateBackups() {
     .sort((a, b) => b.time - a.time);
 
   if (files.length > MAX_BACKUPS) {
-    files.slice(MAX_BACKUPS).forEach(f => {
-      fs.unlinkSync(path.join(BACKUP_DIR, f.name));
-    });
+    const candidates = files.slice(MAX_BACKUPS);
+    const externallyVerified = await getExternallyVerifiedBackupFilenames(candidates.map(file => ({
+      filename: file.name,
+      filepath: path.join(BACKUP_DIR, file.name),
+    })));
+    for (const file of candidates) {
+      if (!externallyVerified.has(file.name)) continue;
+      fs.unlinkSync(path.join(BACKUP_DIR, file.name));
+    }
   }
 }
 
@@ -609,10 +652,12 @@ export function scheduleBackups() {
     }
     try {
       console.log("[BACKUP] Iniciando backup automático diário (17:00)...");
-      const filename = await runBackup();
-      console.log(`[BACKUP] Backup concluído: ${filename}`);
+      const { filename, storageStatus } = await generateJsonBackup();
+      console.log(`[BACKUP] Arquivo local gerado: ${filename}; upload=${storageStatus.uploadStatus}; integridade=${storageStatus.verifyStatus}; cópia externa=${storageStatus.externalStatus === "verified" ? "confirmada por hash" : "não confirmada"}; restauração testada=false`);
       sendBackupEmail(filename).catch(e => console.error("[BACKUP] Erro no email:", e));
-      finishJobRun(BACKUP_JOB, true);
+      const completed = storageStatus.localStatus === "ok" && storageStatus.externalStatus === "verified";
+      finishJobRun(BACKUP_JOB, completed, completed ? undefined : "Cópia local criada, mas cópia externa não foi confirmada.");
+      if (!completed) incJobFailures();
     } catch (err: any) {
       logSecurity(`[BACKUP_FAILED] step=scheduled_run | error=${err?.message ?? "unknown"}`);
       console.error("[BACKUP] Erro no backup automático:", err);

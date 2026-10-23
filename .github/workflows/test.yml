@@ -1,8 +1,13 @@
 name: CI
 
+permissions:
+  contents: read
+
 on:
+  pull_request:
   push:
     branches: ["main"]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -10,15 +15,40 @@ jobs:
 
     steps:
       - name: Checkout código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Ativar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
 
       - name: Setup Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
 
-      - name: Instalar dependências
-        run: npm install
+      - name: Instalar dependências congeladas
+        run: pnpm install --frozen-lockfile
 
-      - name: Teste básico
-        run: echo "CI funcionando"
+      - name: Bloquear novos arquivos sensíveis rastreados
+        run: node scripts/check-sensitive-tracked.mjs
+
+      - name: Detectar secrets
+        uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+          GITLEAKS_ENABLE_SUMMARY: "false"
+
+      - name: Typecheck
+        run: pnpm check
+
+      - name: Testes unitários isolados
+        run: pnpm exec tsx --test tests/unit/backup-storage.pipeline.test.ts
+
+      - name: Build
+        run: pnpm build
