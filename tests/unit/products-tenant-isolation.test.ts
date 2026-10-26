@@ -6,12 +6,31 @@
  */
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PgDialect } from "drizzle-orm/pg-core";
+import { productSubCategories } from "@shared/schema";
 import {
   assertCatalogMutation,
+  catalogReadTenantWhere,
   canMutateCatalogRow,
   canReadCatalogRow,
   catalogTenantForCreate,
 } from "../../server/modules/products/products.tenant";
+
+test("confirmed global-admin price lookup does not require a tenant", () => {
+  const query = new PgDialect().sqlToQuery(
+    catalogReadTenantWhere(productSubCategories.empresaId, null),
+  );
+  assert.match(query.sql, /true/i);
+  assert.deepEqual(query.params, []);
+});
+
+test("tenant catalog price lookup includes global and current-tenant rows only", () => {
+  const query = new PgDialect().sqlToQuery(
+    catalogReadTenantWhere(productSubCategories.empresaId, 242),
+  );
+  assert.match(query.sql, /empresa_id.*is null.*or.*empresa_id.*=/i);
+  assert.deepEqual(query.params, [242]);
+});
 
 test("tenant A can read global and tenant A catalog rows", () => {
   assert.equal(canReadCatalogRow(null, 10), true);

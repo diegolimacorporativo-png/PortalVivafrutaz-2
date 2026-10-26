@@ -33,7 +33,7 @@ export default function ProductsPage() {
 
   useEffect(() => { setPage(1); }, [filterCat, filterStatus, onlyImportados]);
 
-  const { data: paginatedProducts, isLoading } = useProductsPaginated({
+  const { data: paginatedProducts, isLoading, isError, refetch } = useProductsPaginated({
     page, limit, search: debouncedSearch, category: filterCat, status: filterStatus, onlyImportados,
   });
 
@@ -75,6 +75,14 @@ export default function ProductsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {isLoading ? (
           <div className="col-span-full p-8 text-center text-muted-foreground">Carregando produtos...</div>
+        ) : isError ? (
+          <div role="alert" className="col-span-full rounded-xl border border-red-200 bg-red-50 p-6 text-center text-red-800">
+            <p className="font-semibold">Não foi possível carregar os produtos.</p>
+            <p className="mt-1 text-sm">Verifique sua conexão e tente novamente.</p>
+            <button type="button" onClick={() => void refetch()} className="mt-3 rounded-lg border border-red-300 px-3 py-1.5 text-sm font-semibold hover:bg-red-100">
+              Tentar novamente
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="col-span-full p-8 text-center text-muted-foreground">Nenhum produto encontrado.</div>
         ) : filtered.map(product => (

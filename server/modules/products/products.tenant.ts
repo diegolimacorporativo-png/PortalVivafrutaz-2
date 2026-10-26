@@ -1,3 +1,5 @@
+import { eq, isNull, or, sql, type Column, type SQL } from "drizzle-orm";
+
 /**
  * Tenant policy for the hybrid catalog.
  *
@@ -19,6 +21,14 @@ export function canReadCatalogRow(
   currentTenant: number | null,
 ): boolean {
   return currentTenant == null || resourceTenant == null || resourceTenant === currentTenant;
+}
+
+/** Global catalog rows are visible everywhere; tenant rows are visible only
+ * in their own tenant. A confirmed global-admin context can see all rows. */
+export function catalogReadTenantWhere(column: Column, tenantId: number | null): SQL {
+  return tenantId === null
+    ? sql`true`
+    : or(isNull(column), eq(column, tenantId))!;
 }
 
 export function canMutateCatalogRow(

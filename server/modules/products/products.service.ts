@@ -12,7 +12,10 @@ import type {
 import { db } from "../../database/db";
 import { productPrices as productPricesTable, productSubCategories as productSubCategoriesTable } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
+import { getTenantContext } from "../../core/tenant/context";
+import { UnauthorizedError } from "../../shared/errors/AppError";
 import { tenantWhere } from "../../core/tenant/scope";
+import { catalogReadTenantWhere } from "./products.tenant";
 // Price Resolver — imported for future activation only. Do NOT call it
 // from any persisted-write path yet. See utils/priceResolver.ts.
 // FUTURE:
@@ -143,11 +146,16 @@ export class ProductService {
   }): Promise<{ data: NormalizedProduct[]; total: number; page: number; limit: number; totalPages: number }> {
     const { data, ...meta } = await storage.getProductsPaginated(params);
     const productIds = data.map((product) => product.id);
+    const tenantContext = getTenantContext();
+    if (productIds.length > 0 && !tenantContext) {
+      throw new UnauthorizedError("Tenant context ausente — esta operação exige autenticação tenant-scoped");
+    }
+    const tenantId = tenantContext?.empresaId ?? null;
     const categoryPrices = productIds.length > 0
       ? await db.select().from(productSubCategoriesTable).where(and(
           inArray(productSubCategoriesTable.productId, productIds),
           eq(productSubCategoriesTable.active, true),
-          tenantWhere(productSubCategoriesTable),
+          catalogReadTenantWhere(productSubCategoriesTable.empresaId, tenantId),
         ))
       : [];
     const pricesByProduct = new Map<number, typeof categoryPrices>();
