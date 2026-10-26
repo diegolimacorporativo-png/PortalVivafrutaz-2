@@ -521,6 +521,7 @@ export function VirtualAssistant() {
                   placeholder={
                     sessionContext?.action === 'create_company' ? 'Responda à pergunta acima...' :
                     sessionContext?.action === 'create_task' ? 'Responda à pergunta acima...' :
+                    sessionContext?.action === 'create_product' ? 'Responda à pergunta acima...' :
                     'Digite sua pergunta à Clara...'
                   }
                   disabled={isTyping}

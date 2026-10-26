@@ -18,6 +18,8 @@ import {
   resolveClaraDataScope,
 } from "../core/tenant/claraScope";
 import { inventorySettings, orderWindows } from "@shared/schema";
+import { getClaraWeather, getClaraJoke, isClaraJokeRequest, isClaraWeatherRequest } from "../modules/clara/weather";
+import { advanceProductCreation, createClaraProduct } from "../modules/clara/product-creation";
 
 export function register(app: Express) {
   // ─── IA ASSISTENTE VIRTUAL (Interactive AI Chat) ──────────────
@@ -239,7 +241,7 @@ export function register(app: Express) {
     }
 
     // ── Task creation multi-turn ─────────────────────────────────────
-    if (sessionContext?.action === 'create_task') {
+    else if (sessionContext?.action === 'create_task') {
       const step = sessionContext.step;
       const data = sessionContext.data || {};
 
@@ -291,10 +293,53 @@ export function register(app: Express) {
       }
     }
 
+    // ── Multi-turn: product creation (database assigns the primary key) ──
+    else if (sessionContext?.action === 'create_product') {
+      intent = 'create_product';
+      if (!isAdmin) {
+        intent = 'permission_denied';
+        response = '⚠️ Apenas usuários internos autorizados podem cadastrar produtos.';
+        newContext = null;
+      } else {
+        const categories = ['name', 'category'].includes(sessionContext.step)
+          ? await storage.getCategories()
+          : [];
+        const availableCategories = categories.filter((category: any) => category.active).map((category: any) => category.name);
+        const result = advanceProductCreation(sessionContext, message, availableCategories);
+        response = result.response;
+        if (result.context?.step === 'category') {
+          response += availableCategories.length
+            ? `\n\nCategorias ativas: ${availableCategories.join(', ')}`
+            : '\n\nNão há categorias ativas. Cadastre uma categoria no catálogo antes de continuar.';
+        }
+        newContext = result.context;
+        if (result.create) {
+          try {
+            const product = await createClaraProduct(
+              result.create,
+              (draft) => storage.createProduct(draft),
+            );
+            actionExecuted = 'create_product';
+            actionData = { productId: product.id, name: product.name, category: product.category };
+            intent = 'create_product_done';
+            response = `✅ **Produto cadastrado!**\n\n• ID gerado pelo banco: **#${product.id}**\n• Nome: ${product.name}\n• Categoria: ${product.category}\n• Unidade: ${product.unit}\n\nO preço por categoria pode ser configurado no catálogo de produtos.`;
+          } catch (error) {
+            console.error('[CLARA_PRODUCT] Falha ao cadastrar produto:', error instanceof Error ? error.message : 'erro desconhecido');
+            intent = 'create_product_failed';
+            response = '❌ Não foi possível cadastrar o produto agora. Os dados continuam preenchidos; tente confirmar novamente ou digite "cancelar".';
+            newContext = sessionContext;
+          }
+        } else if (result.cancelled) {
+          intent = 'cancel';
+        }
+      }
+    }
+
     // ── Single-turn intents ─────────────────────────────────────────
     // Check Clara training data first
     else if (await (async () => {
       try {
+        if (isClaraJokeRequest(message) || isClaraWeatherRequest(message) || /(?:criar|cadastrar|adicionar|novo|nova) (?:um |uma )?produto/.test(msg)) return false;
         const trainings = await storage.getClaraTrainings();
         const active = trainings.filter((t: any) => t.active);
         for (const t of active) {
@@ -311,95 +356,23 @@ export function register(app: Express) {
       return false;
     })()) { /* response already set above */ }
 
-    else if (/^(oi|olá|ola|bom dia|boa tarde|boa noite|oi tudo|tudo bem|olá clara|clara)/.test(msg)) {
+    else if (isClaraJokeRequest(message)) {
+      intent = 'joke';
+      response = getClaraJoke();
+    }
+
+    else if (/^(oi|olá|ola|bom dia|boa tarde|boa noite|oi tudo|tudo bem|olá clara|clara[!.?]?$|clara[, ]+(?:oi|olá|ola|bom dia|boa tarde|boa noite)\b)/.test(msg)) {
       intent = 'greeting';
       const name = user?.name?.split(' ')[0] || company?.companyName?.split(' ')[0] || '';
       response = `Olá${name ? `, ${name}` : ''}! 👋 Sou a **Clara**, assistente inteligente da VivaFrutaz.\n\nPosso ajudar com:\n• 📦 Pedidos e entregas\n• 🏢 Empresas e cadastros\n• 📊 Estoque e produtos\n• 🚚 Logística e rotas\n• 🛒 Planejamento de compras\n• 🌤️ Clima para entregas\n• ✅ Criar tarefas e cadastros`;
     }
 
-    else if (/clima|tempo|previsão do tempo|previsao do tempo|chuva|temperatura|vai chover|como está o tempo/.test(msg)) {
+    else if (isClaraWeatherRequest(message)) {
       intent = 'weather';
       try {
-        // Extract city — stop before trailing temporal words so "clima em SP hoje" → "SP"
-        const cityRaw = msg
-          .match(/em\s+([a-záàâãéèêíïóôõöúçñü\s]+?)(?:\s+(?:hoje|amanhã|amanha|agora|semana|nessa|nesta|essa|esta|para|no|na|do|da)|\s*$)/i)?.[1]?.trim()
-          || msg.match(/em\s+([a-záàâãéèêíïóôõöúçñü\s]+)/i)?.[1]?.trim()
-          || 'São Paulo';
-
-        // ── Step 1: Geocode city → lat/lon (Open-Meteo geocoding, free, no key) ──
-        const geoRes = await fetch(
-          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityRaw)}&count=1&language=pt&format=json`,
-          { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'VivaFrutaz/1.0' } },
-        );
-
-        if (!geoRes.ok) throw new Error(`Geocoding HTTP ${geoRes.status}`);
-        const geoData = await geoRes.json() as any;
-        const location = geoData?.results?.[0];
-
-        if (!location) {
-          response = `⚠️ Cidade **"${cityRaw}"** não encontrada. Tente com outro nome (ex: "São Paulo", "Rio de Janeiro").`;
-        } else {
-          const { latitude, longitude, name: cityName, country } = location;
-
-          // ── Step 2: Fetch current weather (Open-Meteo, free, no key) ──────────
-          const weatherRes = await fetch(
-            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}` +
-            `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weathercode,windspeed_10m` +
-            `&timezone=auto&forecast_days=1`,
-            { signal: AbortSignal.timeout(8000), headers: { 'User-Agent': 'VivaFrutaz/1.0' } },
-          );
-
-          if (!weatherRes.ok) throw new Error(`Weather HTTP ${weatherRes.status}`);
-          const weatherData = await weatherRes.json() as any;
-          const cur = weatherData?.current;
-
-          // WMO weather code → Portuguese description + emoji
-          const WMO_CODES: Record<number, [string, string]> = {
-            0:  ['Céu limpo', '☀️'],
-            1:  ['Principalmente limpo', '🌤️'],
-            2:  ['Parcialmente nublado', '⛅'],
-            3:  ['Nublado', '☁️'],
-            45: ['Névoa', '🌫️'],
-            48: ['Névoa com geada', '🌫️'],
-            51: ['Garoa leve', '🌦️'],
-            53: ['Garoa moderada', '🌦️'],
-            55: ['Garoa intensa', '🌦️'],
-            61: ['Chuva leve', '🌧️'],
-            63: ['Chuva moderada', '🌧️'],
-            65: ['Chuva forte', '🌧️'],
-            71: ['Neve leve', '🌨️'],
-            73: ['Neve moderada', '🌨️'],
-            75: ['Neve forte', '🌨️'],
-            77: ['Grãos de neve', '🌨️'],
-            80: ['Chuva rápida leve', '🌦️'],
-            81: ['Chuva rápida moderada', '🌦️'],
-            82: ['Chuva rápida forte', '⛈️'],
-            85: ['Neve rápida leve', '🌨️'],
-            86: ['Neve rápida forte', '🌨️'],
-            95: ['Tempestade', '⛈️'],
-            96: ['Tempestade com granizo', '⛈️'],
-            99: ['Tempestade forte com granizo', '⛈️'],
-          };
-
-          const code = cur?.weathercode ?? 0;
-          const [descricao, emoji] = WMO_CODES[code] ?? ['Condição desconhecida', '🌡️'];
-          const temperatura = Math.round(cur?.temperature_2m ?? 0);
-          const sensacao = Math.round(cur?.apparent_temperature ?? temperatura);
-          const umidade = cur?.relative_humidity_2m ?? 0;
-          const vento = Math.round(cur?.windspeed_10m ?? 0);
-          const atualizadoEm = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' });
-
-          // Structured weather object (matches spec: {cidade, temperatura, descricao, atualizadoEm})
-          const weatherPayload = { cidade: `${cityName}, ${country}`, temperatura, descricao, atualizadoEm };
-          actionData = weatherPayload;
-
-          response = `${emoji} **Clima em ${cityName}${country ? `, ${country}` : ''}**\n\n` +
-            `• 🌡️ Temperatura: **${temperatura}°C** (sensação ${sensacao}°C)\n` +
-            `• ${emoji} Condição: **${descricao}**\n` +
-            `• 💧 Umidade: **${umidade}%**\n` +
-            `• 💨 Vento: **${vento} km/h**\n\n` +
-            `_Atualizado em: ${atualizadoEm} — Open-Meteo (tempo real)_`;
-        }
+        const result = await getClaraWeather(message);
+        response = result.response;
+        actionData = result.data ?? null;
       } catch (err: any) {
         console.error('[CLARA_WEATHER] Erro ao buscar clima:', err?.message ?? err);
         response = '⚠️ Serviço de clima temporariamente indisponível. Tente novamente em instantes.';
@@ -414,6 +387,17 @@ export function register(app: Express) {
         intent = 'create_company';
         newContext = { action: 'create_company', step: 'name', data: {} };
         response = '🏢 **Criar Nova Empresa**\n\nVou te guiar pelo cadastro. Digite **"cancelar"** a qualquer momento para desistir.\n\nPrimeiro, informe o **nome da empresa**:';
+      }
+    }
+
+    else if (isInternal && /(?:criar|cadastrar|adicionar|novo|nova) (?:um |uma )?produto/.test(msg)) {
+      if (!isAdmin) {
+        intent = 'permission_denied';
+        response = '⚠️ Apenas usuários internos autorizados podem cadastrar produtos pelo assistente.';
+      } else {
+        intent = 'create_product';
+        newContext = { action: 'create_product', step: 'name', data: {} };
+        response = '📦 **Criar produto**\n\nVou coletar os dados e mostrar um resumo antes de cadastrar. O banco gera o ID automaticamente. Digite **"cancelar"** a qualquer momento.\n\nQual é o **nome do produto**?';
       }
     }
 
@@ -887,8 +871,7 @@ export function register(app: Express) {
     else if (/ajuda|menu|opções|opcoes|o que (você|voce) (faz|pode)/.test(msg)) {
       intent = 'help';
       if (isInternal) {
-        const extras = isAdmin ? '\n• "Criar empresa" — cadastrar nova empresa' : '';
-        response = `🤖 **O que posso fazer:**\n\n📦 Consultas:\n• "Pedidos hoje" / "pedidos pendentes"\n• "Empresas que não fizeram pedido"\n\n📊 Inteligência:\n• "Analisar clientes" / "Clientes em risco"\n• "Prever faturamento" / "Ranking de clientes"\n• "Analisar logística" / "Agenda de entregas"\n• "Eficiência do sistema"\n\n📦 Operacional:\n• "Estoque baixo" / "Lista de compras"\n• "Criar tarefa"${extras}\n\n🌤️ Clima:\n• "Qual o clima em São Paulo?"\n\n❓ Novas funcionalidades:\n• "Como funciona o escopo contratual?"\n• "Como gerar uma nota fiscal?"\n• "Como funciona o custo médio?"\n• "Como funciona o ID de produto base?"`;
+        response = `🤖 **O que posso fazer:**\n\n📦 Consultas:\n• "Pedidos hoje" / "pedidos pendentes"\n• "Empresas que não fizeram pedido"\n\n📊 Inteligência:\n• "Analisar clientes" / "Clientes em risco"\n• "Prever faturamento" / "Ranking de clientes"\n• "Analisar logística" / "Agenda de entregas"\n• "Eficiência do sistema"\n\n📦 Operacional:\n• "Estoque baixo" / "Lista de compras"\n• "Criar tarefa"\n${isAdmin ? '• "Criar produto" / "Criar empresa"\n' : ''}\n🌤️ Clima:\n• "Qual o clima em São Paulo?" / "Vai chover amanhã em Curitiba?"\n\n😄 Diversão:\n• "Me conta uma piada"\n\n❓ Novas funcionalidades:\n• "Como funciona o escopo contratual?"\n• "Como gerar uma nota fiscal?"\n• "Como funciona o custo médio?"\n• "Como funciona o ID de produto base?"`;
       } else {
         response = `🤖 **Posso ajudar com:**\n\n• "Meus pedidos" — ver status\n• "Previsão de entrega" — datas da janela\n• "Meu escopo" — frutas e quantidades do contrato\n• "Clima" — previsão do tempo\n• "Suporte" — contato com a equipe`;
       }
