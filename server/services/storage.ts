@@ -3846,6 +3846,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(products)
       .where(where)
+      .orderBy(desc(products.id))
       .limit(limit)
       .offset(offset);
 

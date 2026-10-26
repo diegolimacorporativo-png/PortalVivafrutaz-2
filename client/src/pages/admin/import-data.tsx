@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { Layout } from "@/components/Layout";
 import { BackHeader } from "@/components/navigation/BackHeader";
@@ -8,13 +10,28 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Upload, FileText, FileSpreadsheet, AlertCircle, CheckCircle2,
   Loader2, X, Eye, Download, Package, Users, RefreshCw, FileCode2,
-  ChevronRight, Info,
+  ChevronRight, Info, Search,
 } from "lucide-react";
 
 type PreviewRow = Record<string, any>;
 type ImportMode = "auto" | "products" | "clients";
 type ImportStatus = "idle" | "previewing" | "ready" | "importing" | "done" | "error";
-type CatalogPreview = { sourceSheets: string[]; sourceRows: number; categories: string[]; products: number; subCategories: number };
+type CatalogPreviewVariant = {
+  name: string;
+  category: string;
+  unit: string;
+  measure: string;
+  prices: Array<{ category: string; price: number }>;
+};
+type CatalogPreview = {
+  sourceSheets: string[];
+  sourceRows: number;
+  categories: string[];
+  products: number;
+  subCategories: number;
+  missingPriceProducts: number;
+  variants: CatalogPreviewVariant[];
+};
 
 const TYPE_LABELS: Record<string, { label: string; color: string }> = {
   produto: { label: "Produto", color: "bg-green-100 text-green-700" },
@@ -165,6 +182,7 @@ function TemplateDownload() {
 
 export default function ImportData() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<ImportStatus>("idle");
   const [rows, setRows] = useState<PreviewRow[]>([]);
@@ -173,6 +191,7 @@ export default function ImportData() {
   const [result, setResult] = useState<{ created: number; skipped: number; errors: string[]; message: string } | null>(null);
   const [catalogPreview, setCatalogPreview] = useState<CatalogPreview | null>(null);
   const [catalogResult, setCatalogResult] = useState<any>(null);
+  const [catalogProductSearch, setCatalogProductSearch] = useState("");
 
   const handleFile = async (f: File) => {
     setFile(f);
@@ -181,6 +200,7 @@ export default function ImportData() {
     setResult(null);
     setCatalogPreview(null);
     setCatalogResult(null);
+    setCatalogProductSearch("");
 
     const formData = new FormData();
     formData.append("file", f);
@@ -259,6 +279,10 @@ export default function ImportData() {
       if (!res.ok) throw new Error(data.message || "Erro na importação especializada");
       setCatalogResult(data);
       setStatus("done");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["/api/products"] }),
+        queryClient.invalidateQueries({ queryKey: ["/api/categories"] }),
+      ]);
       toast({ title: "Catálogo importado!", description: `${data.productsCreated} produto(s) criado(s) e ${data.productsUpdated} atualizado(s).` });
     } catch (e: any) {
       setStatus("error");
@@ -274,6 +298,7 @@ export default function ImportData() {
     setResult(null);
     setCatalogPreview(null);
     setCatalogResult(null);
+    setCatalogProductSearch("");
   };
 
   const toggleRow = (i: number) => {
@@ -295,6 +320,18 @@ export default function ImportData() {
   const productos = rows.filter(r => r.tipo === "produto").length;
   const clientes = rows.filter(r => r.tipo === "cliente").length;
   const outros = rows.length - productos - clientes;
+  const normalizedCatalogSearch = catalogProductSearch.trim().toLocaleLowerCase("pt-BR");
+  const visibleCatalogVariants = (catalogPreview?.variants ?? []).filter((variant) =>
+    !normalizedCatalogSearch ||
+    `${variant.name} ${variant.category} ${variant.measure}`.toLocaleLowerCase("pt-BR").includes(normalizedCatalogSearch)
+  );
+  const variantIdentity = (variant: Pick<CatalogPreviewVariant, "name" | "category" | "unit" | "measure">) =>
+    `${variant.category}\0${variant.name}\0${variant.unit}\0${variant.measure}`;
+  const importedIds = new Map<string, number>(
+    (catalogResult?.importedProducts ?? []).map((product: { id: number; name: string; category: string; unit: string; measure: string }) => [
+      variantIdentity(product), product.id,
+    ]),
+  );
 
   return (
     <Layout>
@@ -372,13 +409,73 @@ export default function ImportData() {
               <div className="rounded-xl bg-muted p-3"><b className="text-xl">{catalogPreview.products}</b><p className="text-xs">produtos/variações</p></div>
               <div className="rounded-xl bg-muted p-3"><b className="text-xl">{catalogPreview.subCategories}</b><p className="text-xs">preços por categoria</p></div>
             </div>
+            <div className="rounded-xl border p-4 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-bold">Produtos identificados</p>
+                  <p className="text-xs text-muted-foreground">Variações do mesmo produto aparecem separadas por categoria e medida.</p>
+                </div>
+                <span className="shrink-0 text-xs font-semibold text-muted-foreground">
+                  {visibleCatalogVariants.length} de {catalogPreview.variants.length}
+                </span>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  value={catalogProductSearch}
+                  onChange={(event) => setCatalogProductSearch(event.target.value)}
+                  placeholder="Buscar produto, categoria ou medida..."
+                  aria-label="Buscar produtos da planilha"
+                  className="w-full rounded-xl border border-border py-2.5 pl-9 pr-3 text-sm outline-none focus:border-primary"
+                />
+              </div>
+              <div className="max-h-96 overflow-y-auto rounded-xl border border-border divide-y divide-border">
+                {visibleCatalogVariants.length === 0 ? (
+                  <p className="p-4 text-sm text-muted-foreground">Nenhum produto corresponde à busca.</p>
+                ) : visibleCatalogVariants.map((variant, index) => (
+                  <div key={`${variant.category}:${variant.name}:${variant.measure}:${index}`} className="flex flex-col gap-1.5 p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">{variant.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">{variant.category} · {variant.measure}</p>
+                      <p className="text-xs font-mono text-muted-foreground">
+                        {importedIds.has(variantIdentity(variant)) ? `ID #${importedIds.get(variantIdentity(variant))}` : "ID gerado ao salvar"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap gap-1.5">
+                      {variant.prices.map((price, priceIndex) => (
+                        <span key={`${price.category}:${priceIndex}`} className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-800">
+                          {price.category}: {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price.price)}
+                        </span>
+                      ))}
+                      {variant.prices.length === 0 && (
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">Preço não identificado</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="rounded-xl border p-4"><p className="text-xs font-bold mb-2">Categorias identificadas</p><div className="flex flex-wrap gap-1.5">{catalogPreview.categories.map(c => <span key={c} className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">{c}</span>)}</div></div>
             {catalogResult ? (
-              <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 space-y-1"><p className="font-bold">Importação concluída</p><p className="text-sm">Categorias criadas: <b>{catalogResult.categoriesCreated}</b></p><p className="text-sm">Produtos criados: <b>{catalogResult.productsCreated}</b></p><p className="text-sm">Produtos atualizados: <b>{catalogResult.productsUpdated}</b></p><p className="text-sm">Preços por categoria criados: <b>{catalogResult.subCategoriesCreated}</b></p></div>
+              <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 space-y-1">
+                <p className="font-bold">Importação concluída</p>
+                <p className="text-sm">Categorias criadas: <b>{catalogResult.categoriesCreated}</b></p>
+                <p className="text-sm">Produtos criados: <b>{catalogResult.productsCreated}</b></p>
+                <p className="text-sm">Produtos atualizados: <b>{catalogResult.productsUpdated}</b></p>
+                <p className="text-sm">Preços por categoria criados: <b>{catalogResult.subCategoriesCreated}</b></p>
+                <Link href="/admin/products" className="mt-2 inline-flex items-center gap-1 text-sm font-bold text-green-900 underline underline-offset-2">
+                  Ver produtos no catálogo <ChevronRight className="h-4 w-4" />
+                </Link>
+              </div>
             ) : (
               <>
+                {catalogPreview.missingPriceProducts > 0 && (
+                  <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                    {catalogPreview.missingPriceProducts} produto(s) sem preço válido. Corrija a planilha; a importação será bloqueada para evitar cadastros incompletos.
+                  </div>
+                )}
                 <div className="rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800">O sistema vai preservar categorias e medidas, atualizar produtos já existentes e evitar duplicações.</div>
-                <Button type="button" onClick={handleCatalogImport} disabled={status === "importing"} className="w-full gap-2">{status === "importing" ? <><Loader2 className="w-4 h-4 animate-spin" /> Importando...</> : <><ChevronRight className="w-4 h-4" /> Confirmar criação/atualização</>}</Button>
+                <Button type="button" onClick={handleCatalogImport} disabled={status === "importing" || catalogPreview.missingPriceProducts > 0} className="w-full gap-2">{status === "importing" ? <><Loader2 className="w-4 h-4 animate-spin" /> Importando...</> : <><ChevronRight className="w-4 h-4" /> Confirmar criação/atualização</>}</Button>
               </>
             )}
           </div>

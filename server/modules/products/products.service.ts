@@ -10,8 +10,8 @@ import type {
   InsertCategory,
 } from "@shared/schema";
 import { db } from "../../database/db";
-import { productPrices as productPricesTable } from "@shared/schema";
-import { eq, and } from "drizzle-orm";
+import { productPrices as productPricesTable, productSubCategories as productSubCategoriesTable } from "@shared/schema";
+import { eq, and, inArray } from "drizzle-orm";
 import { tenantWhere } from "../../core/tenant/scope";
 // Price Resolver — imported for future activation only. Do NOT call it
 // from any persisted-write path yet. See utils/priceResolver.ts.
@@ -142,7 +142,33 @@ export class ProductService {
     category?: string; status?: string; onlyImportados?: boolean;
   }): Promise<{ data: NormalizedProduct[]; total: number; page: number; limit: number; totalPages: number }> {
     const { data, ...meta } = await storage.getProductsPaginated(params);
-    return { ...meta, data: data.map(p => this.normalize(p)) };
+    const productIds = data.map((product) => product.id);
+    const categoryPrices = productIds.length > 0
+      ? await db.select().from(productSubCategoriesTable).where(and(
+          inArray(productSubCategoriesTable.productId, productIds),
+          eq(productSubCategoriesTable.active, true),
+          tenantWhere(productSubCategoriesTable),
+        ))
+      : [];
+    const pricesByProduct = new Map<number, typeof categoryPrices>();
+    for (const price of categoryPrices) {
+      const rows = pricesByProduct.get(price.productId) ?? [];
+      rows.push(price);
+      pricesByProduct.set(price.productId, rows);
+    }
+
+    return {
+      ...meta,
+      data: data.map((product) => {
+        const subCategories = pricesByProduct.get(product.id) ?? [];
+        const categoryPrice = subCategories.find((price) => price.categoryName === product.category);
+        return {
+          ...this.normalize(product),
+          subCategories: subCategories.map((price) => ({ ...price, price: Number(price.price) })),
+          ...(categoryPrice ? { subCategoryPrice: Number(categoryPrice.price) } : {}),
+        };
+      }),
+    };
   }
 
   async getProduct(id: number): Promise<NormalizedProduct> {

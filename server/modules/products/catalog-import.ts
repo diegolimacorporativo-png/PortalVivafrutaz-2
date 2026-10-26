@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import { categories, products, productSubCategories } from "@shared/schema";
 import { currentTenantId } from "../../core/tenant/context";
@@ -108,15 +108,33 @@ export function parseOrderCatalog(buffer: Buffer): { categories: string[]; rows:
 
 export async function importOrderCatalog(buffer: Buffer, mode: "preview" | "commit") {
   const parsed = parseOrderCatalog(buffer);
-  if (mode === "preview") return { mode, sourceSheets: parsed.sourceSheets, sourceRows: parsed.rows.length, categories: parsed.categories, products: parsed.variants.length, subCategories: parsed.variants.reduce((n, p) => n + p.prices.length, 0), variants: parsed.variants };
+  const missingPriceProducts = parsed.variants.filter((variant) => variant.prices.length === 0);
+  if (mode === "preview") return {
+    mode,
+    sourceSheets: parsed.sourceSheets,
+    sourceRows: parsed.rows.length,
+    categories: parsed.categories,
+    products: parsed.variants.length,
+    subCategories: parsed.variants.reduce((n, p) => n + p.prices.length, 0),
+    missingPriceProducts: missingPriceProducts.length,
+    variants: parsed.variants,
+  };
+  if (missingPriceProducts.length > 0) {
+    throw new Error(`Importação cancelada: ${missingPriceProducts.length} produto(s) estão sem preço válido. Corrija a planilha e tente novamente.`);
+  }
+
   const empresaId = currentTenantId();
   let categoriesCreated = 0;
   let productsCreated = 0;
   let productsUpdated = 0;
   let subCategoriesCreated = 0;
+  const importedProducts: Array<{ id: number; name: string; category: string; unit: string; measure: string }> = [];
   await db.transaction(async (tx) => {
     for (const name of parsed.categories) {
-      const existing = await tx.select().from(categories).where(eq(categories.name, name)).limit(1);
+      const categoryCondition = empresaId == null
+        ? and(eq(categories.name, name), isNull(categories.empresaId))
+        : and(eq(categories.name, name), eq(categories.empresaId, empresaId));
+      const existing = await tx.select().from(categories).where(categoryCondition).limit(1);
       if (existing[0]) continue;
       await tx.insert(categories).values({ name, description: "Importada da tabela de pedidos", active: true, empresaId });
       categoriesCreated++;
@@ -136,9 +154,27 @@ export async function importOrderCatalog(buffer: Buffer, mode: "preview" | "comm
         await tx.update(products).set({ active: true, basePrice: null, observation, category: variant.category }).where(eq(products.id, product.id));
         productsUpdated++;
       }
+      importedProducts.push({
+        id: product.id,
+        name: variant.name,
+        category: variant.category,
+        unit: variant.unit,
+        measure: variant.measure,
+      });
       for (const price of variant.prices) {
         const categoryName = price.category;
-        const existingSub = await tx.select().from(productSubCategories).where(and(eq(productSubCategories.productId, product.id), eq(productSubCategories.categoryName, categoryName))).limit(1);
+        const priceCondition = empresaId == null
+          ? and(
+              eq(productSubCategories.productId, product.id),
+              eq(productSubCategories.categoryName, categoryName),
+              isNull(productSubCategories.empresaId),
+            )
+          : and(
+              eq(productSubCategories.productId, product.id),
+              eq(productSubCategories.categoryName, categoryName),
+              eq(productSubCategories.empresaId, empresaId),
+            );
+        const existingSub = await tx.select().from(productSubCategories).where(priceCondition).limit(1);
         if (existingSub[0]) {
           await tx.update(productSubCategories).set({ price: String(price.price), active: true, empresaId }).where(eq(productSubCategories.id, existingSub[0].id));
         } else {
@@ -148,5 +184,16 @@ export async function importOrderCatalog(buffer: Buffer, mode: "preview" | "comm
       }
     }
   });
-  return { mode, sourceSheets: parsed.sourceSheets, sourceRows: parsed.rows.length, categories: parsed.categories.length, products: parsed.variants.length, categoriesCreated, productsCreated, productsUpdated, subCategoriesCreated };
+  return {
+    mode,
+    sourceSheets: parsed.sourceSheets,
+    sourceRows: parsed.rows.length,
+    categories: parsed.categories.length,
+    products: parsed.variants.length,
+    categoriesCreated,
+    productsCreated,
+    productsUpdated,
+    subCategoriesCreated,
+    importedProducts,
+  };
 }

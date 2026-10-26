@@ -77,11 +77,16 @@ export function ProductCard({ product, onEdit }: ProductCardProps) {
         </div>
       )}
 
-      {(product as any).productCode && (
-        <span className="mb-1 text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono font-bold">
-          #{(product as any).productCode}
+      <div className="mb-1 flex flex-wrap justify-center gap-1">
+        <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono font-bold">
+          ID #{product.id}
         </span>
-      )}
+        {(product as any).productCode && (
+          <span className="text-xs bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-md font-mono font-bold">
+            Base #{(product as any).productCode}
+          </span>
+        )}
+      </div>
 
       <div className="flex items-center justify-center gap-2 flex-wrap">
         <h3 className="text-lg font-bold text-foreground">{product.name}</h3>

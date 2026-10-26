@@ -953,6 +953,7 @@ export async function registerRoutes(
               categories: catalog.categories,
               products: catalog.variants.length,
               subCategories: catalog.variants.reduce((n, p) => n + p.prices.length, 0),
+              variants: catalog.variants,
               rows: catalogRows,
               total: catalogRows.length,
               filename: originalname,
