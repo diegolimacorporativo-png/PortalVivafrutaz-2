@@ -9,11 +9,35 @@ type ProductVariant = { name: string; unit: string; measure: string; category: s
 
 const clean = (value: unknown) => String(value ?? "").replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim();
 const key = (value: string) => clean(value).toLocaleLowerCase("pt-BR");
+const headerKey = (value: unknown) => clean(value)
+  .normalize("NFD")
+  .replace(/[\u0300-\u036f]/g, "")
+  .toLocaleLowerCase("pt-BR")
+  .replace(/[^a-z0-9]/g, "");
 const numberValue = (value: unknown): number | null => {
   if (value == null || value === "") return null;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  const n = Number(String(value).replace(/R\$\s?/gi, "").replace(/\./g, "").replace(",", ".").trim());
+  let raw = String(value).replace(/R\$\s?/gi, "").replace(/\s/g, "").trim();
+  if (raw.includes(",") && raw.includes(".")) raw = raw.replace(/\./g, "").replace(",", ".");
+  else if (raw.includes(",")) raw = raw.replace(",", ".");
+  else if (/^-?\d{1,3}(\.\d{3})+$/.test(raw)) raw = raw.replace(/\./g, "");
+  const n = Number(raw);
   return Number.isFinite(n) ? n : null;
+};
+type CatalogHeader = { product: number; measure: number; price: number; category: number | null };
+const findCatalogHeader = (row: unknown[]): CatalogHeader | null => {
+  const headers = row.map(headerKey);
+  const find = (aliases: string[]) => headers.findIndex(value => aliases.includes(value));
+  const product = find(["produto", "produtos", "nomeproduto", "nomedoproduto", "descricaoproduto", "item", "descricao"]);
+  const measure = find(["unidademedida", "unidadedemedida", "unidade", "medida", "apresentacao", "embalagem", "formatovenda", "formatodevenda"]);
+  if (product < 0 || measure < 0) return null;
+
+  let price = headers.findIndex(value =>
+    ["precounitario", "valorunitario", "valorunit", "preco", "valor", "price", "unitprice"].includes(value),
+  );
+  if (price < 0) price = measure + 1;
+  const category = find(["categoria", "category", "grupo"]);
+  return { product, measure, price, category: category < 0 ? null : category };
 };
 const unitFromMeasure = (measure: string) => {
   const m = key(measure);
@@ -33,28 +57,35 @@ export function parseOrderCatalog(buffer: Buffer): { categories: string[]; rows:
   const byRow = new Map<string, CatalogRow>();
   for (const sheetName of orderedSheets) {
     const matrix = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], { header: 1, raw: true, defval: null });
-    let headerFound = false;
+    let header: CatalogHeader | null = null;
     let category = "";
     for (let i = 0; i < matrix.length; i++) {
       const row = matrix[i] || [];
-      const c1 = clean(row[1]);
-      const c2 = clean(row[2]);
-      const c3 = clean(row[3]);
-      const c4 = clean(row[4]);
-      if (c1.toLocaleLowerCase("pt-BR") === "produtos" && c2.toLocaleLowerCase("pt-BR") === "unidade medida") {
-        headerFound = true;
+      const detectedHeader = findCatalogHeader(row);
+      if (detectedHeader) {
+        header = detectedHeader;
+        category = "";
         continue;
       }
-      if (!headerFound || !c1) continue;
-      const isSection = !c2 && !c3 && !c4;
-      if (isSection) {
-        category = c1;
+      if (!header) continue;
+
+      const name = clean(row[header.product]);
+      const measure = clean(row[header.measure]);
+      const categoryCell = header.category == null ? "" : clean(row[header.category]);
+      const priceCell = row[header.price];
+      const price = numberValue(priceCell);
+      if (!name) continue;
+
+      // Workbooks may put category names in section rows, or provide a
+      // category column on every product row.
+      if (header.category == null && !measure && price == null) {
+        category = name;
         continue;
       }
-      if (!category || !c2) continue;
-      const price = numberValue(row[3]);
-      const item: CatalogRow = { category, name: c1, measure: c2, price, sourceSheet: sheetName, sourceRow: i + 1 };
-      const rowKey = `${key(category)}\0${key(c1)}\0${key(c2)}`;
+      const rowCategory = categoryCell || category;
+      if (!rowCategory || !measure) continue;
+      const item: CatalogRow = { category: rowCategory, name, measure, price, sourceSheet: sheetName, sourceRow: i + 1 };
+      const rowKey = `${key(rowCategory)}\0${key(name)}\0${key(measure)}`;
       // The dedicated internal sheet is authoritative when the same catalog row
       // is repeated in the weekday tabs.
       byRow.set(rowKey, item);
@@ -98,11 +129,11 @@ export async function importOrderCatalog(buffer: Buffer, mode: "preview" | "comm
       const existing = await tx.select().from(products).where(condition).limit(1);
       let product = existing[0];
       if (!product) {
-        const [created] = await tx.insert(products).values({ name: variant.name, category: variant.category, unit: variant.unit, active: true, basePrice: variant.prices[0]?.price != null ? String(variant.prices[0].price) : null, isIndustrialized: key(variant.category).includes("industrializado") || key(variant.category).includes("bebida"), isSeasonal: false, observation, empresaId }).returning();
+        const [created] = await tx.insert(products).values({ name: variant.name, category: variant.category, unit: variant.unit, active: true, basePrice: null, isIndustrialized: key(variant.category).includes("industrializado") || key(variant.category).includes("bebida"), isSeasonal: false, observation, empresaId }).returning();
         product = created;
         productsCreated++;
       } else {
-        await tx.update(products).set({ active: true, basePrice: variant.prices[0]?.price != null ? String(variant.prices[0].price) : product.basePrice, observation, category: variant.category }).where(eq(products.id, product.id));
+        await tx.update(products).set({ active: true, basePrice: null, observation, category: variant.category }).where(eq(products.id, product.id));
         productsUpdated++;
       }
       for (const price of variant.prices) {
