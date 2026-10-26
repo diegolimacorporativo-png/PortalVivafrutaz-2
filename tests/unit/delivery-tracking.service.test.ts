@@ -172,6 +172,7 @@ describe("public delivery tracking operational availability", () => {
     assert.equal(result?.stopsBefore, 0);
     assert.equal(result?.isNextStop, true);
     assert.equal("speed" in (result?.driverPosition ?? {}), false);
+    assert.equal("operationalState" in (result ?? {}), false);
   });
 
   test("recalculates the ETA when the driver's current GPS moves", async () => {
@@ -394,17 +395,27 @@ describe("public delivery tracking operational availability", () => {
 });
 
 describe("authenticated order tracking fallback", () => {
+  const order = {
+    id: 90,
+    company_id: 3,
+    status: "CONFIRMED",
+    delivery_date: "2026-10-08",
+    delivery_config_json: activeDelivery.delivery_config_json,
+    company_latitude: "-23.55",
+    company_longitude: "-46.63",
+  };
+
+  function resultsForDelivery(overrides: Parameters<typeof validTrackingResults>[0] = {}) {
+    return [
+      [order],
+      [{ id: 40 }],
+      ...validTrackingResults(overrides),
+    ];
+  }
+
   test("shows a scheduled state for an order with no delivery row and scopes the order by company", async () => {
     const results = [
-      [{
-        id: 90,
-        company_id: 3,
-        status: "CONFIRMED",
-        delivery_date: "2026-10-08",
-        delivery_config_json: activeDelivery.delivery_config_json,
-        company_latitude: "-23.55",
-        company_longitude: "-46.63",
-      }],
+      [order],
       [],
     ];
     const { result, calls } = await withDbResults(results, (database) =>
@@ -413,5 +424,66 @@ describe("authenticated order tracking fallback", () => {
     assert.equal(calls(), 2);
     assert.equal(result?.trackingAvailable, false);
     assert.equal(result?.status, "scheduled");
+    assert.equal(result?.operationalState, "scheduled");
+  });
+
+  test("finds an order-linked delivery with a null company_id without crossing the order tenant", async () => {
+    const { result, calls } = await withDbResults(
+      [
+        [order],
+        [{ id: 40 }],
+        [{ ...activeDelivery, company_id: null, route_id: null, driver_id: null }],
+      ],
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(calls(), 3);
+    assert.equal(result?.trackingAvailable, false);
+    assert.equal(result?.operationalState, "scheduled");
+
+    const otherTenant = await withDbResults(
+      [[]],
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(otherTenant.result, null);
+    assert.equal(otherTenant.calls(), 1);
+  });
+
+  test("distinguishes assignment, route start, missing GPS, stale GPS, and active tracking", async () => {
+    const unassigned = await withDbResults(
+      resultsForDelivery({ delivery: { driver_id: null, route_driver_id: null } }),
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(unassigned.result?.operationalState, "awaiting_assignment");
+
+    const notStarted = await withDbResults(
+      resultsForDelivery({ delivery: { route_status: "scheduled" } }),
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(notStarted.result?.operationalState, "awaiting_start");
+
+    const missingGps = await withDbResults(
+      resultsForDelivery({ gps: null }),
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(missingGps.result?.operationalState, "awaiting_gps");
+
+    const lastGpsAt = new Date(now.getTime() - 6 * 60_000);
+    const staleGps = await withDbResults(
+      resultsForDelivery({
+        journey: { id: 5, started_at: new Date(now.getTime() - 10 * 60_000) },
+        gps: { latitude: "-23.56", longitude: "-46.64", speed: null, recorded_at: lastGpsAt },
+      }),
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(staleGps.result?.operationalState, "location_stale");
+    assert.equal(staleGps.result?.gpsRecordedAt, lastGpsAt);
+    assert.equal(staleGps.result?.driverPosition, null);
+
+    const active = await withDbResults(
+      resultsForDelivery(),
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(active.result?.operationalState, "in_transit");
+    assert.equal(active.result?.trackingAvailable, true);
   });
 });

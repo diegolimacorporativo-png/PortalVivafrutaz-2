@@ -11,12 +11,22 @@ import {
   localDateTimeToInstant,
   makeEtaRange,
   normalizeTrackingStatus,
+  TRACKING_GPS_MAX_AGE_MS,
   PUBLIC_DELIVERED_RETENTION_MS,
   type TrackingStop,
 } from "./delivery-tracking.logic";
 import { buildPublicDeliveryTrackingPayload } from "./public-tracking.dto";
 
 type DbRow = Record<string, any>;
+export type OrderTrackingOperationalState =
+  | "scheduled"
+  | "awaiting_assignment"
+  | "awaiting_start"
+  | "awaiting_gps"
+  | "location_stale"
+  | "awaiting_route_data"
+  | "in_transit";
+
 type TrackingDatabase = {
   execute(query: unknown): Promise<unknown>;
 };
@@ -98,11 +108,26 @@ function buildScheduledPayload(input: {
   });
 }
 
+function withOrderOperationalState<T extends Record<string, any>>(
+  payload: T,
+  state: OrderTrackingOperationalState | "delivered" | "cancelled",
+  includeOperationalState: boolean,
+  gpsRecordedAt?: Date | string | null,
+) {
+  if (!includeOperationalState) return payload;
+  return {
+    ...payload,
+    operationalState: state,
+    ...(gpsRecordedAt != null ? { gpsRecordedAt } : {}),
+  };
+}
+
 async function getDeliveryTracking(
   deliveryId: number,
   now: Date,
   expectedCompanyId: number | undefined,
   database: TrackingDatabase,
+  includeOperationalState = false,
 ) {
   const baseRows = rowsOf(await database.execute(sql`
     SELECT d.id,
@@ -168,25 +193,25 @@ async function getDeliveryTracking(
         : delivery.delivery_status;
   const status = normalizeTrackingStatus(effectiveDeliveryStatus);
   if (status === "cancelled") {
-    return buildScheduledPayload({
+    return withOrderOperationalState(buildScheduledPayload({
       deliveryStatus: "cancelled",
       scheduledDate,
       deliveryConfigJson: delivery.delivery_config_json,
       ...deliveryLocation,
       deliveredAt: delivery.delivered_at,
       updatedAt: delivery.updated_at,
-    }, now);
+    }, now), "cancelled", includeOperationalState);
   }
 
   if (status === "delivered") {
-    return buildScheduledPayload({
+    return withOrderOperationalState(buildScheduledPayload({
       deliveryStatus: "delivered",
       scheduledDate,
       deliveryConfigJson: delivery.delivery_config_json,
       ...deliveryLocation,
       deliveredAt: delivery.delivered_at,
       updatedAt: delivery.updated_at,
-    }, now);
+    }, now), "delivered", includeOperationalState);
   }
 
   const basePayload = buildScheduledPayload({
@@ -197,14 +222,22 @@ async function getDeliveryTracking(
     deliveredAt: delivery.delivered_at,
     updatedAt: delivery.updated_at,
   }, now);
+  const markedInRoute = normalizeTrackingStatus(effectiveDeliveryStatus) === "in_progress";
+  const fallbackState: OrderTrackingOperationalState = markedInRoute ? "awaiting_gps" : "scheduled";
+  const fallback = (
+    state: OrderTrackingOperationalState = fallbackState,
+    gpsRecordedAt?: Date | string | null,
+  ) => withOrderOperationalState(basePayload, state, includeOperationalState, gpsRecordedAt);
 
   const routeId = Number(delivery.route_id);
   const driverId = Number(delivery.driver_id ?? delivery.route_driver_id);
   const routeCompanyId = Number(delivery.route_company_id);
   const driverCompanyId = Number(delivery.driver_company_id);
+  if (!Number.isInteger(routeId) || routeId <= 0) return fallback();
+  if (routeCompanyId !== companyId) return fallback();
+  if (!Number.isInteger(driverId) || driverId <= 0) return fallback("awaiting_assignment");
+
   const consistentRoute =
-    Number.isInteger(routeId) && routeId > 0 &&
-    routeCompanyId === companyId &&
     (delivery.driver_id == null || delivery.route_driver_id == null ||
       Number(delivery.driver_id) === Number(delivery.route_driver_id)) &&
     (delivery.driver_id == null || driverCompanyId === companyId) &&
@@ -213,11 +246,11 @@ async function getDeliveryTracking(
   // A public delivery capability is no longer useful after route unlinking.
   // The authenticated order page still receives the safe scheduled state.
   if (!consistentRoute || !Number.isInteger(driverId) || driverId <= 0) {
-    return basePayload;
+    return fallback();
   }
 
   const routeActive = normalizeTrackingStatus(delivery.route_status) === "in_progress";
-  if (!routeActive) return basePayload;
+  if (!routeActive) return fallback("awaiting_start");
 
   const journeyRows = rowsOf(await database.execute(sql`
     SELECT id, started_at
@@ -228,9 +261,9 @@ async function getDeliveryTracking(
     ORDER BY started_at DESC, id DESC
     LIMIT 1
   `));
-  if (journeyRows.length === 0) return basePayload;
+  if (journeyRows.length === 0) return fallback("awaiting_start");
   const journeyStartedAtMs = new Date(journeyRows[0].started_at).getTime();
-  if (!Number.isFinite(journeyStartedAtMs)) return basePayload;
+  if (!Number.isFinite(journeyStartedAtMs)) return fallback("awaiting_start");
 
   const gpsRows = rowsOf(await database.execute(sql`
      SELECT latitude::text AS latitude,
@@ -243,13 +276,17 @@ async function getDeliveryTracking(
     LIMIT 1
   `));
   const gps = gpsRows[0];
-  if (
-    !gps ||
-    !isFreshTrackingGps(gps.recorded_at, now) ||
-    !Number.isFinite(new Date(gps.recorded_at).getTime()) ||
-    new Date(gps.recorded_at).getTime() < journeyStartedAtMs ||
-    !hasValidTrackingCoordinates(gps.latitude, gps.longitude)
-  ) return basePayload;
+  if (!gps) return fallback("awaiting_gps");
+  const gpsTimestamp = new Date(gps.recorded_at).getTime();
+  if (!Number.isFinite(gpsTimestamp) || gpsTimestamp < journeyStartedAtMs) {
+    return fallback("awaiting_gps");
+  }
+  if (now.getTime() - gpsTimestamp > TRACKING_GPS_MAX_AGE_MS) {
+    return fallback("location_stale", gps.recorded_at);
+  }
+  if (!isFreshTrackingGps(gps.recorded_at, now) || !hasValidTrackingCoordinates(gps.latitude, gps.longitude)) {
+    return fallback("awaiting_gps", gps.recorded_at);
+  }
 
   const routeStopRows = rowsOf<DbRow>(await database.execute(sql`
     SELECT id,
@@ -384,7 +421,7 @@ async function getDeliveryTracking(
   if (
     hasOfficialRouteStops &&
     !routeStops.some((stop) => stop.id === Number(delivery.id) && stop.routePosition != null)
-  ) return basePayload;
+  ) return fallback("awaiting_route_data");
 
   const speedMetersPerSecond = Number(gps.speed);
   const speedKmh = Number.isFinite(speedMetersPerSecond) && speedMetersPerSecond > 0
@@ -405,7 +442,7 @@ async function getDeliveryTracking(
     etaReferenceTime,
     speedKmh,
   );
-  if (!routeStops.some((stop) => stop.id === Number(delivery.id))) return basePayload;
+  if (!routeStops.some((stop) => stop.id === Number(delivery.id))) return fallback("awaiting_route_data");
 
   const targetRouteStop = routeStopByDeliveryId.get(Number(delivery.id));
   const window = getEffectiveDeliveryWindow(
@@ -440,7 +477,7 @@ async function getDeliveryTracking(
     { lat: deliveryLocation.latitude, lng: deliveryLocation.longitude },
   );
 
-  return buildPublicDeliveryTrackingPayload({
+  const payload = buildPublicDeliveryTrackingPayload({
     status: isNearby ? "driver_nearby" : delayed ? "delayed" : "in_transit",
     deliveryStatus: "in_transit",
     trackingAvailable: true,
@@ -466,6 +503,7 @@ async function getDeliveryTracking(
       recordedAt: gps.recorded_at,
     },
   });
+  return withOrderOperationalState(payload, "in_transit", includeOperationalState, gps.recorded_at);
 }
 
 export async function getOrderDeliveryTracking(
@@ -497,15 +535,17 @@ export async function getOrderDeliveryTracking(
   if (!order) return null;
 
   const deliveryRows = rowsOf(await database.execute(sql`
-    SELECT id
-    FROM deliveries
-    WHERE order_id = ${orderId}
-      AND company_id = ${companyId}
-    ORDER BY id DESC
+    SELECT d.id
+    FROM deliveries d
+    JOIN orders o ON o.id = d.order_id
+    WHERE d.order_id = ${orderId}
+      AND o.company_id = ${companyId}
+      AND (d.company_id IS NULL OR d.company_id = o.company_id)
+    ORDER BY d.id DESC
     LIMIT 1
   `));
   if (deliveryRows[0]) {
-    return getDeliveryTracking(Number(deliveryRows[0].id), now, companyId, database);
+    return getDeliveryTracking(Number(deliveryRows[0].id), now, companyId, database, true);
   }
 
   const orderStatus = String(order.status ?? "");
@@ -514,13 +554,13 @@ export async function getOrderDeliveryTracking(
     : orderStatus === "CANCELLED"
       ? "cancelled"
       : "scheduled";
-  return buildScheduledPayload({
+  return withOrderOperationalState(buildScheduledPayload({
     deliveryStatus,
     scheduledDate: dateOnly(order.delivery_date),
     deliveryConfigJson: order.delivery_config_json,
     latitude: order.company_latitude,
     longitude: order.company_longitude,
-  }, now);
+  }, now), deliveryStatus === "delivered" ? "delivered" : deliveryStatus === "cancelled" ? "cancelled" : "scheduled", true);
 }
 
 export async function getPublicDeliveryTracking(

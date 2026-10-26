@@ -31,6 +31,17 @@ type TrackingData = {
   message: string;
   deliveryLocation: { lat: string | null; lng: string | null } | null;
   driverPosition: { lat: string | null; lng: string | null; updatedAt: string | null } | null;
+  operationalState?:
+    | "scheduled"
+    | "awaiting_assignment"
+    | "awaiting_start"
+    | "awaiting_gps"
+    | "location_stale"
+    | "awaiting_route_data"
+    | "in_transit"
+    | "delivered"
+    | "cancelled";
+  gpsRecordedAt?: string | null;
 };
 
 const STATUS_PRESENTATION: Record<string, {
@@ -81,6 +92,50 @@ const STATUS_PRESENTATION: Record<string, {
     icon: AlertCircle,
     color: "text-red-700",
     border: "border-red-300",
+  },
+};
+
+const OPERATIONAL_STATE_PRESENTATION: Partial<Record<NonNullable<TrackingData["operationalState"]>, {
+  title: string;
+  description: string;
+  icon: typeof Clock3;
+  color: string;
+  border: string;
+}>> = {
+  awaiting_assignment: {
+    title: "Preparando sua entrega",
+    description: "A operação logística ainda está aguardando a atribuição do motorista.",
+    icon: Clock3,
+    color: "text-amber-700",
+    border: "border-amber-300",
+  },
+  awaiting_start: {
+    title: "Aguardando início da operação",
+    description: "A rota ainda não teve o início da jornada do motorista confirmado.",
+    icon: Clock3,
+    color: "text-amber-700",
+    border: "border-amber-300",
+  },
+  awaiting_gps: {
+    title: "Aguardando localização",
+    description: "A operação foi iniciada, mas ainda não recebemos uma posição GPS válida.",
+    icon: Navigation,
+    color: "text-blue-700",
+    border: "border-blue-300",
+  },
+  location_stale: {
+    title: "Localização desatualizada",
+    description: "Não recebemos uma posição recente. A localização anterior não será exibida como atual.",
+    icon: AlertCircle,
+    color: "text-orange-700",
+    border: "border-orange-300",
+  },
+  awaiting_route_data: {
+    title: "Atualizando dados da rota",
+    description: "A operação está em andamento, mas os dados da parada ainda não permitem mostrar o acompanhamento.",
+    icon: RefreshCw,
+    color: "text-blue-700",
+    border: "border-blue-300",
   },
 };
 
@@ -161,11 +216,11 @@ export default function TrackDelivery() {
 
   const { data, isLoading, error, refetch } = useQuery<TrackingData>({
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const path = token
         ? `/api/track/${encodeURIComponent(token)}`
         : `/api/orders/${encodeURIComponent(orderId || "")}/tracking`;
-      const response = await fetchWithAuth(path);
+      const response = await fetchWithAuth(path, token ? undefined : { signal });
       if (!response.ok) {
         throw new Error(response.status === 410
           ? "Este link de rastreamento não está mais disponível."
@@ -174,11 +229,27 @@ export default function TrackDelivery() {
       return response.json();
     },
     enabled: Boolean(token || orderId),
-    refetchInterval: (query) => query.state.data?.trackingAvailable ? 12_000 : false,
+    staleTime: token ? undefined : 0,
+    refetchOnWindowFocus: !token,
+    refetchOnReconnect: !token,
+    refetchInterval: (query) => {
+      const current = query.state.data;
+      // Keep the separate public-link cadence unchanged.
+      if (token) return current?.trackingAvailable ? 12_000 : false;
+      if (!current) return 60_000;
+      if (current.deliveryStatus === "delivered" || current.deliveryStatus === "cancelled") return false;
+      return current.trackingAvailable ? 15_000 : 60_000;
+    },
     refetchIntervalInBackground: false,
   });
 
-  const status = data ? (STATUS_PRESENTATION[data.status] ?? STATUS_PRESENTATION.scheduled) : null;
+  const operationalPresentation = data?.operationalState
+    ? OPERATIONAL_STATE_PRESENTATION[data.operationalState]
+    : undefined;
+  const status = data
+    ? (!token && !data.trackingAvailable ? operationalPresentation : undefined) ??
+      STATUS_PRESENTATION[data.status] ?? STATUS_PRESENTATION.scheduled
+    : null;
   const StatusIcon = status?.icon ?? PackageCheck;
 
   return (
@@ -240,6 +311,11 @@ export default function TrackDelivery() {
                   <span className="font-medium text-green-700">{formatTime(data.deliveredAt)}</span>
                 </div>
               )}
+              {!token && data.operationalState === "location_stale" && data.gpsRecordedAt && (
+                <p className="mt-3 border-t pt-3 text-xs text-orange-800">
+                  Último sinal recebido às {formatTime(data.gpsRecordedAt)}. A posição atual está temporariamente indisponível.
+                </p>
+              )}
             </section>
 
             {data.delayed && (
@@ -276,6 +352,11 @@ export default function TrackDelivery() {
                       </p>
                     </div>
                   </div>
+                )}
+                {!data.etaRange && (
+                  <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-gray-600">
+                    A previsão de chegada está temporariamente indisponível. A localização continuará sendo atualizada.
+                  </p>
                 )}
                 {data.lastUpdatedAt && (
                   <p className="mt-3 text-xs text-gray-500">
