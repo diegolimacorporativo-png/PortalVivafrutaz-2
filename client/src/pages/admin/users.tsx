@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, Truck, Leaf } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
-import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, DENY_ALL_TAB_PERMISSIONS, GLOBAL_ADMIN_ROLES, GLOBAL_SCOPE_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_ADMIN_ROLES, GLOBAL_SCOPE_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 type ActionModule = (typeof ACTION_PERMISSION_MODULES)[number];
 type ActionType = (typeof ACTION_PERMISSION_ACTIONS)[number];
@@ -82,6 +82,49 @@ const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
   { key: 'waste-control', label: 'Controle de Desperdício', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
   { key: 'purchase-planning', label: 'Planejamento de Compras', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'PURCHASE_MANAGER', 'OPERATIONS_MANAGER'] },
   { key: 'sanitary', label: 'Vigilância Sanitária', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA', 'OPERATIONS_MANAGER'] },
+  // Keep the configurable tab list aligned with the protected routes in App.tsx.
+  { key: 'system-health', label: 'Saúde do Sistema', roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'] },
+  { key: 'security', label: 'Central de Segurança', roles: ['MASTER', 'ADMIN'] },
+  { key: 'security-audit', label: 'Auditoria de Segurança', roles: ['MASTER', 'DIRECTOR'] },
+  { key: 'governance', label: 'Governança', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'security-intelligence', label: 'Inteligência de Segurança', roles: ['MASTER', 'ADMIN'] },
+  { key: 'master-control', label: 'Painel MASTER', roles: ['MASTER', 'DIRECTOR'] },
+  { key: 'support', label: 'Configuração de Suporte', roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'] },
+  { key: 'production', label: 'Produção', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'] },
+  { key: 'inventory', label: 'Estoque / Inventário', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'PURCHASE_MANAGER'] },
+  { key: 'fiscal', label: 'Gestão Fiscal', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'fiscal-config', label: 'Configurações Fiscais', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'fiscal-diagnostics', label: 'Diagnóstico Fiscal', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'contracts', label: 'Gestão de Contratos', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'] },
+  { key: 'about-us', label: 'Quem Somos Nós', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'] },
+  { key: 'smtp-config', label: 'Configuração SMTP', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'clara-training', label: 'Treinar Clara', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'commercial-intelligence', label: 'Inteligência Comercial', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'] },
+  { key: 'financial-intelligence', label: 'Inteligência Financeira', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'FINANCEIRO'] },
+  { key: 'finance', label: 'Contas & Caixa', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'] },
+  { key: 'nfe-dashboard', label: 'Dashboard NF-e', roles: ['MASTER', 'ADMIN', 'DEVELOPER'] },
+  { key: 'nfe-recovery', label: 'Recuperação NF-e', roles: ['MASTER', 'ADMIN', 'DEVELOPER'] },
+  { key: 'nfe', label: 'Emissão de NF-e', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'] },
+  { key: 'faturamento', label: 'Central de Faturamento', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'] },
+  { key: 'insert-nf-manual', label: 'Inserir NF manual', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'] },
+  { key: 'banco', label: 'Integração Bancária', roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'] },
+  { key: 'ai-developer', label: 'AI Developer', roles: ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'] },
+  { key: 'logistics-intelligence', label: 'Inteligência Logística', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'] },
+  { key: 'saas-dashboard', label: 'Gestão SaaS', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS'] },
+  { key: 'system-updates', label: 'Atualizações do Sistema', roles: ['MASTER', 'ADMIN', 'DEVELOPER'] },
+  { key: 'saas-financeiro', label: 'Painel Financeiro SaaS', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'GESTOR_CONTRATOS'] },
+  { key: 'marketplace', label: 'Loja de Módulos', roles: ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'] },
+  { key: 'white-label', label: 'White Label', roles: ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'] },
+  { key: 'treinamento', label: 'Central de Treinamento', roles: ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR', 'OPERATIONS_MANAGER', 'LOGISTICS', 'FINANCEIRO', 'PURCHASE_MANAGER'] },
+  { key: 'import-data', label: 'Importar Dados', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER'] },
+  { key: 'control-center', label: 'Central de Controle', roles: ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'] },
+  { key: 'test-clara', label: 'Teste da Clara', roles: ['MASTER', 'DIRECTOR'] },
+  { key: 'intelligence', label: 'IA Operacional', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'] },
+  { key: 'notification-settings', label: 'Notificações Push', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'scope-simulations', label: 'Simulação Comercial', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'] },
+  { key: 'settings', label: 'Minha Conta', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'PURCHASE_MANAGER', 'NUTRICIONISTA', 'MOTORISTA'] },
+  { key: 'observability', label: 'Observabilidade', roles: ['MASTER', 'DIRECTOR'] },
+  { key: 'operations-timeline', label: 'Linha do Tempo Operacional', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'] },
 ];
 
 const ROLES = [
@@ -131,6 +174,7 @@ export default function UsersAdminPage() {
 
   const canManageUsers = me && USER_MANAGEMENT_ROLES.some((role) => role === me.role);
   const isGlobalAdmin = isGlobalAdminRole(me?.role);
+  const formHasFullSystemAccess = (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(form.role);
   const { data: companies = [], isLoading: loadingCompanies } = useQuery<CompanyOption[]>({
     queryKey: ["/api/companies"],
     select: normalizeList,
@@ -140,13 +184,15 @@ export default function UsersAdminPage() {
   const companyNameById = new Map(companies.map((company) => [company.id, company.companyName || company.name || `Empresa #${company.id}`]));
   const createTargetEmpresaId = /^\d+$/.test(newUserTargetTenant) ? Number(newUserTargetTenant) : null;
   const targetIsGlobalProfile = !!modal.editing && modal.editing.empresaId == null && (GLOBAL_SCOPE_ROLES as readonly string[]).includes(modal.editing.role);
-  const availableRoles = ROLES.filter((role) => {
+  const isRoleAvailable = (role: (typeof ROLES)[number]) => {
     const isGlobalProfile = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value);
     const isInternalStaff = role.value === "COMERCIAL" || role.value === "LOGISTICS";
     if (targetIsGlobalProfile) {
       if (modal.editing && (me as any)?.id !== modal.editing.id) return role.value === modal.editing.role;
       return isGlobalProfile;
     }
+    // Require an explicit scope before offering a profile during global user creation.
+    if (!modal.editing && isGlobalAdmin && !newUserTargetTenant) return false;
     if (isGlobalProfile) return isGlobalAdmin && !modal.editing && newUserTargetTenant === "global";
     if (!modal.editing && isGlobalAdmin && (createTargetEmpresaId == null || newUserTargetTenant === "global")) {
       return newUserTargetTenant === "global" && (isGlobalProfile || isInternalStaff);
@@ -157,7 +203,8 @@ export default function UsersAdminPage() {
     }
     return TENANT_ASSIGNABLE_USER_ROLES.some((allowed) => allowed === role.value) ||
       modal.editing?.role === role.value;
-  });
+  };
+  const availableRoles = ROLES.filter(isRoleAvailable);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['/api/users'],
@@ -460,18 +507,19 @@ export default function UsersAdminPage() {
             <div className="col-span-2">
               <label className="block text-sm font-semibold mb-1.5">Nome completo *</label>
               <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                required
                 className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" placeholder="Nome do membro" />
             </div>
             <div>
               <label className="block text-sm font-semibold mb-1.5">Email *</label>
-              <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+              <input type="email" required value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                 className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" placeholder="email@vivafrutaz.com" />
             </div>
             {!modal.editing && (
               <div>
                 <label className="block text-sm font-semibold mb-1.5">Senha *</label>
-                <input type="password" minLength={12} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                  className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" placeholder="••••••••" />
+                <input type="password" required minLength={12} autoComplete="new-password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+                  className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" placeholder="Mínimo de 12 caracteres" />
               </div>
             )}
           </div>
@@ -486,14 +534,26 @@ export default function UsersAdminPage() {
             {!modal.editing && isGlobalAdmin && !newUserTargetTenant && (
               <p className="text-xs text-amber-700 mb-2" role="status">Selecione primeiro uma empresa ativa ou “Conta interna” para carregar os perfis permitidos.</p>
             )}
+            <p className="text-xs text-muted-foreground mb-2" role="status">
+              {modal.editing
+                ? "Os perfis aparecem conforme a conta e o escopo já atribuídos."
+                : isGlobalAdmin && !newUserTargetTenant
+                  ? "Escolha primeiro o escopo para liberar os perfis compatíveis."
+                  : newUserTargetTenant === "global"
+                    ? "Conta interna: perfis administrativos e equipe Comercial/Logística."
+                    : "Conta vinculada: perfis operacionais da empresa selecionada."}
+            </p>
             <div className="grid grid-cols-2 gap-2">
-              {availableRoles.map(r => {
+              {ROLES.map(r => {
                 const Icon = r.icon;
+                const roleAvailable = isRoleAvailable(r);
                 return (
-                  <button key={r.value} type="button" onClick={() => setForm({ ...form, role: r.value, tabPermissions: form.tabPermissions ? roleTabsForRole(r.value).map(t => t.key) : null })}
+                  <button key={r.value} type="button" disabled={!roleAvailable} title={!roleAvailable ? "Perfil indisponível para este escopo ou para sua autorização." : undefined}
+                    onClick={() => setForm({ ...form, role: r.value, tabPermissions: form.tabPermissions ? roleTabsForRole(r.value).map(t => t.key) : null })}
                     aria-pressed={form.role === r.value}
                     data-testid={`role-option-${r.value}`}
-                    className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all ${form.role === r.value ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
+                    aria-disabled={!roleAvailable}
+                    className={`flex items-center gap-2 p-3 rounded-xl border-2 text-left transition-all ${!roleAvailable ? 'border-border/50 opacity-45 cursor-not-allowed' : form.role === r.value ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${r.color}`}>
                       <Icon className="w-4 h-4" />
                     </div>
@@ -505,9 +565,7 @@ export default function UsersAdminPage() {
                 );
               })}
             </div>
-            {!form.role && (
-              <p className="text-xs text-red-600 mt-2" role="alert">Selecione um perfil de acesso.</p>
-            )}
+            {availableRoles.length === 0 && <p className="text-xs text-amber-700 mt-2" role="status">Nenhum perfil pode ser selecionado neste escopo. Verifique a empresa escolhida ou as permissões da sua conta.</p>}
             {isDriverRole(form.role) && (
               <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-xs text-teal-800">
                 <strong>Configuração de motorista obrigatória:</strong> o GPS será vinculado a esta conta quando o motorista abrir o Painel do Motorista e permitir a localização.
@@ -547,8 +605,14 @@ export default function UsersAdminPage() {
             </button>
           </div>
 
+          {canManageUsers && formHasFullSystemAccess && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900" role="status">
+              Este perfil tem acesso a todos os módulos. Restrições personalizadas de abas e ações não serão aplicadas; as verificações específicas do servidor para operações sensíveis continuam ativas.
+            </div>
+          )}
+
           {/* Tab visibility also denies access to opted-in APIs; role/action policies remain authoritative. */}
-          {canManageUsers && (
+          {canManageUsers && !formHasFullSystemAccess && (
             <div className="border border-border/60 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -602,7 +666,7 @@ export default function UsersAdminPage() {
             </div>
           )}
 
-          {canManageUsers && (
+          {canManageUsers && !formHasFullSystemAccess && (
             <div className="border border-border/60 rounded-xl p-4 space-y-3">
               <div>
                 <p className="font-semibold text-sm text-foreground">Permissões por ação</p>
@@ -631,11 +695,23 @@ export default function UsersAdminPage() {
           )}
 
           <button type="button" onClick={() => {
-            if (!form.name || !form.email || !form.role || (!modal.editing && form.password.trim().length < 12)) {
-              toast({ title: "Preencha todos os campos obrigatórios.", variant: "destructive" }); return;
+            if (!form.name.trim()) {
+              toast({ title: "Informe o nome completo do usuário.", variant: "destructive" }); return;
+            }
+            if (!form.email.trim()) {
+              toast({ title: "Informe o e-mail do usuário.", variant: "destructive" }); return;
+            }
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+              toast({ title: "Informe um e-mail válido.", variant: "destructive" }); return;
             }
             if (!modal.editing && isGlobalAdmin && !newUserTargetTenant) {
-              toast({ title: "Selecione uma empresa de destino ou uma conta global.", variant: "destructive" }); return;
+              toast({ title: "Selecione uma empresa ou escolha Conta interna antes de criar o usuário.", variant: "destructive" }); return;
+            }
+            if (!form.role || !ROLES.some((role) => role.value === form.role) || !isRoleAvailable(ROLES.find((role) => role.value === form.role)!)) {
+              toast({ title: "Escolha um perfil disponível para o escopo selecionado.", variant: "destructive" }); return;
+            }
+            if (!modal.editing && form.password.trim().length < 12) {
+              toast({ title: "A senha deve ter pelo menos 12 caracteres.", variant: "destructive" }); return;
             }
             save.mutate();
           }}

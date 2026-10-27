@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { UnauthorizedError, ForbiddenError } from "../../shared/errors/AppError";
 import { storage } from "../../services/storage";
-import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
+import { FULL_SYSTEM_ACCESS_ROLES, GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
 
 /**
  * Auth middleware — replaces the inline `if (!req.session?.userId)` checks
@@ -67,7 +67,6 @@ export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
     // Tenant/global administrators retain legacy broad access unless an
     // endpoint opts into strict role matching. DEVELOPER is intentionally not
     // a universal bypass; it must be named on the route that needs it.
-    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
     let isGlobalAdminAccount = true;
     if (opts?.strict && role && GLOBAL_ADMIN_ROLES.some((globalRole) => globalRole === role)) {
       try {
@@ -82,7 +81,7 @@ export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
     }
     const passes = opts?.strict
       ? (!!role && allowed.includes(role) && isGlobalAdminAccount)
-      : (!!role && (FULL_ACCESS_ROLES.includes(role) || allowed.includes(role)));
+      : (!!role && ((FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role) || allowed.includes(role)));
     if (!passes) {
       return next(new ForbiddenError("Sem permissão para esta operação"));
     }

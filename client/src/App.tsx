@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { tabPermissionAllows } from "@shared/user-roles";
+import { FULL_SYSTEM_ACCESS_ROLES, tabPermissionAllows } from "@shared/user-roles";
 
 // Keep-alive: ping every 5 minutes to prevent Replit sleep
 function KeepAlive() {
@@ -172,8 +172,6 @@ function MaintenanceScreen() {
   );
 }
 
-const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
-
 // Auth Guard Wrapper
 function UnauthorizedModule() {
   const { logout } = useAuth();
@@ -249,7 +247,7 @@ function ProtectedRoute({
     return <Redirect to="/admin" />;
   }
 
-  if (allowedRoles && user && !FULL_ACCESS_ROLES.includes(user.role) && !allowedRoles.includes(user.role)) {
+  if (allowedRoles && user && !(FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(user.role) && !allowedRoles.includes(user.role)) {
     fetchWithAuth('/api/auth/log-unauthorized', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -282,7 +280,7 @@ function ProtectedRoute({
 
   if (tabKey && user) {
     const tabPerms = (user as any).tabPermissions as string[] | null | undefined;
-    if (!tabPermissionAllows(tabPerms, tabKey)) {
+    if (!tabPermissionAllows(tabPerms, tabKey, user.role)) {
       return <UnauthorizedModule />;
     }
   }

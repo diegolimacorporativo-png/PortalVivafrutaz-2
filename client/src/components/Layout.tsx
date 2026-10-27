@@ -18,7 +18,7 @@ import { WhatsNewModal } from './WhatsNewModal';
 import { TrainingModeProvider, TrainingModeButton } from './TrainingMode';
 import { GlobalSearch } from './GlobalSearch';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
-import { GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
+import { FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, company, isStaff, isClient, logout } = useAuth();
@@ -228,17 +228,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const userTabPerms = user?.tabPermissions as string[] | null | undefined;
   const canUseGlobalScope = GLOBAL_SCOPE_ROLES.includes(staffRole as any);
-  const isLogisticsSupervisor = user?.role === 'LOGISTICS';
-  const isFullAccessRole = ['MASTER', 'ADMIN', 'DIRECTOR'].includes(staffRole);
+  const isFullAccessRole = (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(staffRole);
   const links = isStaff 
     ? adminLinks.filter(l => {
         if (!isFullAccessRole && !l.roles.includes(user?.role || '')) return false;
-        // LOGISTICS is the GPS supervisor role. Preserve GPS access even
-        // when an older custom tab list was saved before this capability.
-        if (isLogisticsSupervisor && l.tabKey === 'gps-tracking') return true;
-        // Global administrative roles may reach every module by role, while
-        // an explicitly saved tab list can still narrow that user's access.
-        if (!tabPermissionAllows(userTabPerms, l.tabKey)) return false;
+        // Global administrator and logistics GPS exceptions are centralized
+        // in tabPermissionAllows so menus, routes and APIs agree.
+        if (!tabPermissionAllows(userTabPerms, l.tabKey, user?.role)) return false;
         if (isFullAccessRole) return true;
         if (userTabPerms == null) {
           // Apply module filtering for non-admin roles when modules are loaded

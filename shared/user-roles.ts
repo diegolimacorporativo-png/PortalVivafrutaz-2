@@ -40,7 +40,9 @@ export function actionPermissionAllows(
   stored: unknown,
   module: ActionPermissionModule,
   action: ActionPermissionAction,
+  role?: string | null,
 ): boolean {
+  if (role && (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role)) return true;
   if (stored == null || typeof stored !== "object" || Array.isArray(stored)) return true;
   const config = (stored as Record<string, unknown>)[ACTION_PERMISSION_KEY];
   if (config === undefined) return true;
@@ -52,7 +54,11 @@ export function actionPermissionAllows(
   return value === undefined || value === true;
 }
 
-export function tabPermissionAllows(permissions: unknown, tabKey: string): boolean {
+export function tabPermissionAllows(permissions: unknown, tabKey: string, role?: string | null): boolean {
+  if (role && (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role)) return true;
+  // LOGISTICS must retain the live GPS screen even if an old custom tab list
+  // predates this module or contains a deny-all marker.
+  if (role === "LOGISTICS" && tabKey === "gps-tracking") return true;
   if (permissions == null || (Array.isArray(permissions) && permissions.length === 0)) return true;
   if (!Array.isArray(permissions) || !permissions.every((value) => typeof value === "string")) return false;
   if (permissions.includes(DENY_ALL_TAB_PERMISSIONS)) return false;
@@ -61,6 +67,9 @@ export function tabPermissionAllows(permissions: unknown, tabKey: string): boole
 
 /** MASTER and DIRECTOR have identical global administration authority. */
 export const GLOBAL_ADMIN_ROLES = ["MASTER", "DIRECTOR"] as const;
+
+/** Profiles that must retain access to all system modules regardless of per-user UI restrictions. */
+export const FULL_SYSTEM_ACCESS_ROLES = ["MASTER", "ADMIN", "DIRECTOR"] as const;
 
 /** Profiles whose unbound accounts can select any company for ordinary work. */
 export const GLOBAL_SCOPE_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;

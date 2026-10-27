@@ -49,7 +49,11 @@ export function requireActionPermission(module: ActionPermissionModule) {
     try {
       const user = await storage.getUser(session.userId);
       if (!user || user.active === false) return next(new UnauthorizedError());
-      if (!actionPermissionAllows(user.permissions, module, action)) {
+      const requestPath = (req.originalUrl || req.path || "").split("?", 1)[0].replace(/\/+$/, "");
+      const isLogisticsGpsRead = user.role === "LOGISTICS" && module === "logistics" && action === "read" && (
+        requestPath === "/api/logistics/drivers/gps" || /^\/api\/driver\/\d+\/gps$/.test(requestPath)
+      );
+      if (!isLogisticsGpsRead && !actionPermissionAllows(user.permissions, module, action, user.role)) {
         return next(new ForbiddenError("Ação não autorizada para este usuário"));
       }
       return next();

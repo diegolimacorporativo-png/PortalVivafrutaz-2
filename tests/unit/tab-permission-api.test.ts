@@ -35,16 +35,18 @@ describe("permissões personalizadas de abas no backend", () => {
     } finally { lookup.mock.restore(); }
   });
 
-  test("conta cliente mantém o próprio fluxo; perfil global respeita lista personalizada", async () => {
+  test("conta cliente mantém o próprio fluxo; MASTER, ADMIN e DIRECTOR não são bloqueados por abas", async () => {
     let nextCalled = false;
     await requireTabPermission("finance")({ session: { companyId: 5 } } as any, {} as any, () => { nextCalled = true; });
     assert.equal(nextCalled, true);
-    const lookup = mock.method(storage, "getUser", async () => ({ id: 3, role: "ADMIN", active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
-    try {
-      let nextError: unknown;
-      await requireTabPermission("finance")({ session: { userId: 3 } } as any, {} as any, (error?: unknown) => { nextError = error; });
-      assert.ok(nextError instanceof ForbiddenError);
-    } finally { lookup.mock.restore(); }
+    for (const [index, role] of ["MASTER", "ADMIN", "DIRECTOR"].entries()) {
+      const lookup = mock.method(storage, "getUser", async () => ({ id: index + 3, role, active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
+      try {
+        let nextError: unknown;
+        await requireTabPermission("finance")({ session: { userId: index + 3 } } as any, {} as any, (error?: unknown) => { nextError = error; });
+        assert.equal(nextError, undefined, `${role} não deve ser bloqueado por tabPermissions`);
+      } finally { lookup.mock.restore(); }
+    }
   });
 
   test("ADMIN sem personalização usa as políticas padrão do perfil", async () => {
@@ -62,6 +64,15 @@ describe("permissões personalizadas de abas no backend", () => {
       let nextError: unknown;
       await requireTabPermission("logistics")({ session: { userId: 4 } } as any, {} as any, (error?: unknown) => { nextError = error; });
       assert.ok(nextError instanceof ForbiddenError);
+    } finally { lookup.mock.restore(); }
+  });
+
+  test("LOGISTICS sempre mantém a aba de GPS, mesmo com lista antiga restritiva", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({ id: 7, role: "LOGISTICS", active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
+    try {
+      let nextError: unknown;
+      await requireTabPermission("gps-tracking")({ session: { userId: 7 } } as any, {} as any, (error?: unknown) => { nextError = error; });
+      assert.equal(nextError, undefined);
     } finally { lookup.mock.restore(); }
   });
 });

@@ -542,6 +542,7 @@ export default function AdminTreinamento() {
                 <Info className="w-4 h-4" /> Resolução de Problemas do GPS
               </p>
               {[
+                { q: 'Quem pode acessar o GPS em tempo real?', a: 'O perfil LOGISTICS mantém acesso ao menu, à tela e à leitura de GPS, mesmo que exista uma configuração antiga de abas ou ações. Se a conta não estiver vinculada a uma empresa, selecione a Empresa de trabalho antes de consultar as posições; o servidor restringe a consulta à empresa autorizada.' },
                 { q: 'GPS não aparece no mapa', a: 'No Android, confirme permissão, serviço em primeiro plano, jornada/rota ativa, rede e horário do último envio. No painel web, confira a permissão do navegador e mantenha a tela ativa.' },
                 { q: 'Posição desatualizada', a: 'Sem coordenadas recentes o mapa não consegue mostrar a posição; confira se o dispositivo ainda está compartilhando localização.' },
                 { q: 'Cliente não vê o mapa', a: 'O rastreamento do pedido mostra status sem exigir que haja posição GPS. O mapa aparece somente quando existe uma transmissão disponível.' },

@@ -18,7 +18,7 @@ export function requireTabPermission(tabKey: string | ((req: Request) => string)
       const user = await storage.getUser(session.userId);
       if (!user || user.active === false) return next(new UnauthorizedError());
       const key = typeof tabKey === "function" ? tabKey(req) : tabKey;
-      if (!tabPermissionAllows(user.tabPermissions, key)) return next(new ForbiddenError("Módulo não autorizado para este usuário"));
+      if (!tabPermissionAllows(user.tabPermissions, key, user.role)) return next(new ForbiddenError("Módulo não autorizado para este usuário"));
       return next();
     } catch (error) {
       return next(error);
