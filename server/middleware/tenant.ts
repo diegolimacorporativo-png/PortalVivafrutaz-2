@@ -121,6 +121,22 @@ async function resolveAdminTenant(
     return { kind: "admin", empresaId: companyId, userId, role: user.role };
   }
 
+  // An unbound driver must be able to submit their own GPS ping. This narrow
+  // exception is only for the self-scoped endpoint; it does not grant global
+  // tenant access, and any client-supplied tenant selector is rejected.
+  if (isUnboundDriverGpsSubmission(req, user.role)) {
+    const selectedTenant = resolveClientTenant(req);
+    const body = req.body;
+    const bodySelectsTenant = body && typeof body === "object" &&
+      ["empresaId", "tenantId", "companyId"].some((key) =>
+        Object.prototype.hasOwnProperty.call(body, key),
+      );
+    if (selectedTenant !== null || bodySelectsTenant) {
+      throw new ForbiddenError("Motorista não pode selecionar uma empresa");
+    }
+    return { kind: "admin", empresaId: null, userId, role: user.role };
+  }
+
   // Internal staff may select one company per request, but must not fall
   // through to unscoped/global queries. Identity comes from storage above.
   if (!(CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role)) {
@@ -137,6 +153,15 @@ async function resolveAdminTenant(
     }
   }
   return { kind: "admin", empresaId: target, userId, role: user.role };
+}
+
+function isUnboundDriverGpsSubmission(req: Request, role: string): boolean {
+  if (role !== "MOTORISTA" && role !== "DRIVER") return false;
+  if (String(req.method ?? "").toUpperCase() !== "POST") return false;
+  const path = String(req.originalUrl ?? req.path ?? "")
+    .split("?")[0]
+    .replace(/\/+$/, "");
+  return path === "/api/driver/gps";
 }
 
 /**

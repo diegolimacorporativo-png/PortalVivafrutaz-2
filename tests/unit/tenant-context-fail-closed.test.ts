@@ -194,6 +194,77 @@ describe("tenantContext — fail-closed resolution", () => {
     }
   });
 
+  test("unbound MOTORISTA may submit only an identity-scoped GPS ping", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 41, empresaId: null, role: "MOTORISTA", active: true,
+    } as any));
+    try {
+      let context: ReturnType<typeof getTenantContext>;
+      let received: unknown;
+      await tenantContext(
+        {
+          session: { userId: 41 },
+          method: "POST",
+          originalUrl: "/api/driver/gps",
+          path: "/gps",
+          query: {},
+          body: { latitude: -23.5, longitude: -46.6 },
+          header: () => undefined,
+        } as any,
+        {} as any,
+        (error?: unknown) => { received = error; context = getTenantContext(); },
+      );
+      assert.equal(received, undefined);
+      assert.equal(context?.empresaId, null);
+      assert.deepEqual(context?.principal, {
+        kind: "admin", empresaId: null, userId: 41, role: "MOTORISTA",
+      });
+    } finally {
+      lookup.mock.restore();
+    }
+  });
+
+  test("unbound MOTORISTA cannot use the GPS exception to select a tenant or another endpoint", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 42, empresaId: null, role: "MOTORISTA", active: true,
+    } as any));
+    try {
+      const requests = [
+        {
+          method: "POST", originalUrl: "/api/driver/gps?empresaId=20",
+          query: { empresaId: "20" }, body: {}, header: () => undefined,
+        },
+        {
+          method: "POST", originalUrl: "/api/driver/gps",
+          query: {}, body: {}, header: () => "20",
+        },
+        {
+          method: "POST", originalUrl: "/api/driver/gps",
+          query: {}, body: { empresaId: 20 }, header: () => undefined,
+        },
+        {
+          method: "GET", originalUrl: "/api/driver/gps",
+          query: {}, body: {}, header: () => undefined,
+        },
+        {
+          method: "POST", originalUrl: "/api/driver/route-today",
+          query: {}, body: {}, header: () => undefined,
+        },
+      ];
+      for (const request of requests) {
+        let received: unknown;
+        await tenantContext(
+          { session: { userId: 42 }, ...request } as any,
+          {} as any,
+          (error?: unknown) => { received = error; },
+        );
+        assert.ok(received instanceof ForbiddenError);
+      }
+    } finally {
+      lookup.mock.restore();
+    }
+  });
+
   test("all four global profiles retain global flow without a target", async () => {
     for (const role of ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]) {
       const lookup = mock.method(storage, "getUser", async () => ({
