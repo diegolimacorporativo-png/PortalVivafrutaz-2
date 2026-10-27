@@ -5,41 +5,19 @@ import { BackHeader } from "@/components/navigation/BackHeader";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
-import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, ChevronDown, ChevronRight, Truck, Leaf } from "lucide-react";
+import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, Truck, Leaf } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { normalizeList } from "@/lib/normalizeResponse";
+import { GLOBAL_ADMIN_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 type AdminUser = {
   id: number; name: string; email: string; password: string; role: string; active: boolean;
   tabPermissions: string[] | null;
   testMode: boolean;
-  permissions: Record<string, boolean> | null;
+  empresaId?: number | null;
 };
 
-const PERMISSIONS_CONFIG: { key: string; label: string; group: string; defaultOn: boolean }[] = [
-  { key: 'verPedidos', label: 'Ver Pedidos', group: 'Pedidos', defaultOn: true },
-  { key: 'criarPedidos', label: 'Criar Pedidos', group: 'Pedidos', defaultOn: true },
-  { key: 'editarPedidos', label: 'Editar Pedidos', group: 'Pedidos', defaultOn: true },
-  { key: 'excluirPedidos', label: 'Excluir Pedidos', group: 'Pedidos', defaultOn: false },
-  { key: 'verCompras', label: 'Ver Compras', group: 'Compras', defaultOn: true },
-  { key: 'criarCompras', label: 'Criar Compras', group: 'Compras', defaultOn: false },
-  { key: 'acessarInventario', label: 'Acessar Inventário', group: 'Compras', defaultOn: true },
-  { key: 'editarInventario', label: 'Editar Inventário', group: 'Compras', defaultOn: false },
-  { key: 'verFinanceiro', label: 'Ver Financeiro', group: 'Financeiro', defaultOn: true },
-  { key: 'editarFinanceiro', label: 'Editar Financeiro', group: 'Financeiro', defaultOn: false },
-  { key: 'gerarNotaFiscal', label: 'Gerar Nota Fiscal', group: 'Financeiro', defaultOn: true },
-  { key: 'exportarBling', label: 'Exportar para Bling', group: 'Financeiro', defaultOn: true },
-  { key: 'editarClientes', label: 'Editar Clientes', group: 'Clientes', defaultOn: true },
-  { key: 'excluirClientes', label: 'Excluir Clientes', group: 'Clientes', defaultOn: false },
-  { key: 'verRelatorios', label: 'Ver Relatórios', group: 'Relatórios', defaultOn: true },
-  { key: 'acessarVigilanciaSanitaria', label: 'Acessar Vigilância Sanitária', group: 'Qualidade', defaultOn: false },
-  { key: 'editarVigilanciaSanitaria', label: 'Editar Checklist/Avaliações', group: 'Qualidade', defaultOn: false },
-];
-
-const PERMISSIONS_GROUPS = ['Pedidos', 'Compras', 'Financeiro', 'Clientes', 'Relatórios', 'Qualidade'];
-
-const DEFAULT_PERMS: Record<string, boolean> = Object.fromEntries(
-  PERMISSIONS_CONFIG.map(p => [p.key, p.defaultOn])
-);
+type CompanyOption = { id: number; companyName?: string; name?: string; active?: boolean };
 
 // All system tabs with labels and role access
 const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
@@ -63,7 +41,8 @@ const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
   { key: 'driver-panel', label: 'Painel do Motorista', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA'] },
   { key: 'gps-tracking', label: 'GPS em Tempo Real', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'] },
   { key: 'quotations', label: 'Cotação de Empresas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'COMERCIAL', 'MASTER_COMERCIAL'] },
-  { key: 'users', label: 'Usuários do Sistema', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
+  { key: 'users', label: 'Usuários do Sistema', roles: ['ADMIN', 'DIRECTOR'] },
+  { key: 'email-management', label: 'Central de E-mails', roles: ['MANAGER', 'OPERATIONS_MANAGER'] },
   { key: 'backups', label: 'Backup & E-mails', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'developer', label: 'Área do Desenvolvedor', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'executive', label: 'Dashboard Executivo', roles: ['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER'] },
@@ -74,19 +53,21 @@ const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
 ];
 
 const ROLES = [
-  { value: "MASTER", label: "Master", desc: "Controle absoluto do sistema — acesso irrestrito", icon: Shield, color: "text-purple-700 bg-purple-100" },
-  { value: "ADMIN", label: "Administrador", desc: "Acesso total ao sistema", icon: Shield, color: "text-red-600 bg-red-100" },
-  { value: "DIRECTOR", label: "Diretor", desc: "Acesso total + alterar qualquer senha", icon: Crown, color: "text-yellow-700 bg-yellow-100" },
+  { value: "MASTER", label: "Master", desc: "Administrador global; mesmas permissões do Diretor", icon: Shield, color: "text-purple-700 bg-purple-100" },
+  { value: "ADMIN", label: "Administrador", desc: "Administra usuários operacionais da própria empresa", icon: Shield, color: "text-red-600 bg-red-100" },
+  { value: "DIRECTOR", label: "Diretor", desc: "Administrador global; mesmas permissões do Master", icon: Crown, color: "text-yellow-700 bg-yellow-100" },
   { value: "OPERATIONS_MANAGER", label: "Gerente de Operações", desc: "Janelas de pedido e pedidos", icon: ShieldCheck, color: "text-blue-600 bg-blue-100" },
   { value: "PURCHASE_MANAGER", label: "Gerente de Compras", desc: "Compras e relatórios", icon: DollarSign, color: "text-green-600 bg-green-100" },
   { value: "FINANCEIRO", label: "Financeiro", desc: "Pedidos, painel financeiro e exportações", icon: BarChart3, color: "text-emerald-600 bg-emerald-100" },
   { value: "DEVELOPER", label: "Desenvolvedor", desc: "Acesso técnico + logs + backups", icon: Code, color: "text-purple-600 bg-purple-100" },
+  { value: "MANAGER", label: "Gerente", desc: "Acesso de gestão operacional e central de e-mails", icon: ShieldCheck, color: "text-blue-700 bg-blue-100" },
   { value: "LOGISTICS", label: "Logística", desc: "Pedidos, rotas, motoristas e ocorrências", icon: AlertTriangle, color: "text-orange-600 bg-orange-100" },
   { value: "COMERCIAL", label: "Comercial", desc: "Clientes, pedidos, cotações e acompanhamento comercial", icon: UserCircle, color: "text-indigo-600 bg-indigo-100" },
   { value: "MASTER_COMERCIAL", label: "Master Comercial", desc: "Acesso ampliado às funções comerciais e operacionais", icon: Crown, color: "text-indigo-700 bg-indigo-100" },
   { value: "MOTORISTA", label: "Motorista", desc: "Acesso restrito: Painel do Motorista, GPS, rotas do dia e notas fiscais da rota", icon: Truck, color: "text-teal-600 bg-teal-100" },
   { value: "NUTRICIONISTA", label: "Nutricionista", desc: "Acesso total ao módulo de Vigilância Sanitária — checklist, avaliações e relatórios", icon: Leaf, color: "text-lime-700 bg-lime-100" },
   { value: "SISTEMA_TESTE", label: "Usuário de Teste", desc: "Acesso para testes — pedidos marcados como TESTE", icon: FlaskConical, color: "text-cyan-700 bg-cyan-100" },
+  { value: "GESTOR_CONTRATOS", label: "Gestor de Contratos", desc: "Acesso aos fluxos contratuais autorizados", icon: ShieldCheck, color: "text-sky-700 bg-sky-100" },
 ];
 
 // DRIVER is kept as a read-compatible alias for accounts created before the
@@ -95,95 +76,13 @@ const ROLES = [
 const normalizeRole = (role: string) => role === "DRIVER" ? "MOTORISTA" : role;
 const isDriverRole = (role: string) => role === "MOTORISTA" || role === "DRIVER";
 
-const PRIVILEGED_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'];
-const TEMP_PASSWORD = "Viva2026@";
+const isGlobalAdminRole = (role?: string) => GLOBAL_ADMIN_ROLES.some((item) => item === role);
 
 const blank = {
-  name: "", email: "", password: "", role: "ADMIN", active: true,
+  name: "", email: "", password: "", role: "OPERATIONS_MANAGER", active: true,
   tabPermissions: null as string[] | null,
   testMode: false,
-  permissions: null as Record<string, boolean> | null,
 };
-
-function AdvancedPermissionsSection({
-  permissions,
-  onChange,
-}: {
-  permissions: Record<string, boolean> | null;
-  onChange: (perms: Record<string, boolean> | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const active = permissions !== null;
-
-  const toggle = (key: string) => {
-    const current = permissions ?? DEFAULT_PERMS;
-    onChange({ ...current, [key]: !current[key] });
-  };
-
-  const getVal = (key: string) => {
-    if (permissions === null) return DEFAULT_PERMS[key] ?? true;
-    return permissions[key] ?? true;
-  };
-
-  return (
-    <div className={`border rounded-xl overflow-hidden ${active ? 'border-violet-200' : 'border-border/60'}`}>
-      <button type="button"
-        onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between p-4 text-left hover:bg-muted/20 transition-colors">
-        <div className="flex items-center gap-2">
-          <Shield className="w-4 h-4 text-violet-500" />
-          <p className="font-semibold text-sm text-foreground">Permissões Avançadas</p>
-          {active && <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-700 font-bold">Personalizado</span>}
-        </div>
-        <div className="flex items-center gap-2">
-          {!active && (
-            <button type="button"
-              onClick={e => { e.stopPropagation(); onChange(DEFAULT_PERMS); setOpen(true); }}
-              className="text-xs px-2 py-1 rounded-lg bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 font-medium">
-              Personalizar
-            </button>
-          )}
-          {active && (
-            <button type="button"
-              onClick={e => { e.stopPropagation(); onChange(null); }}
-              className="text-xs px-2 py-1 rounded-lg bg-muted text-muted-foreground border border-border/50 hover:bg-muted/80 font-medium">
-              Usar padrão
-            </button>
-          )}
-          {open ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-        </div>
-      </button>
-
-      {open && (
-        <div className="px-4 pb-4 space-y-3 border-t border-border/40 pt-3">
-          {!active && (
-            <p className="text-xs text-muted-foreground">As permissões seguem os padrões do perfil do usuário. Clique em "Personalizar" para definir permissões específicas.</p>
-          )}
-          {active && PERMISSIONS_GROUPS.map(group => {
-            const groupPerms = PERMISSIONS_CONFIG.filter(p => p.group === group);
-            return (
-              <div key={group}>
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">{group}</p>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {groupPerms.map(p => (
-                    <label key={p.key}
-                      className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer border transition-colors ${getVal(p.key) ? 'bg-violet-50 border-violet-200' : 'bg-muted/30 border-border/40'}`}>
-                      <input type="checkbox" checked={getVal(p.key)}
-                        onChange={() => toggle(p.key)}
-                        data-testid={`perm-${p.key}`}
-                        className="w-3.5 h-3.5 rounded accent-violet-600" />
-                      <span className={`text-xs font-medium ${getVal(p.key) ? 'text-foreground' : 'text-muted-foreground'}`}>{p.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function UsersAdminPage() {
   const { toast } = useToast();
@@ -191,13 +90,38 @@ export default function UsersAdminPage() {
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<{ open: boolean; editing: AdminUser | null }>({ open: false, editing: null });
   const [form, setForm] = useState(blank);
+  const [newUserTargetTenant, setNewUserTargetTenant] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
   const [pwdModal, setPwdModal] = useState<AdminUser | null>(null);
   const [pwdConfirm, setPwdConfirm] = useState<{ user: AdminUser; newPwd: string } | null>(null);
-  const [newPwd, setNewPwd] = useState(TEMP_PASSWORD);
-  const [useCustomPwd, setUseCustomPwd] = useState(false);
+  const [newPwd, setNewPwd] = useState("");
 
-  const canManageUsers = me && PRIVILEGED_ROLES.includes(me.role);
+  const canManageUsers = me && USER_MANAGEMENT_ROLES.some((role) => role === me.role);
+  const isGlobalAdmin = isGlobalAdminRole(me?.role);
+  const { data: companies = [], isLoading: loadingCompanies } = useQuery<CompanyOption[]>({
+    queryKey: ["/api/companies"],
+    select: normalizeList,
+    enabled: Boolean(isGlobalAdmin),
+  });
+  const selectableCompanies = companies.filter((company) => company.active !== false);
+  const companyNameById = new Map(companies.map((company) => [company.id, company.companyName || company.name || `Empresa #${company.id}`]));
+  const createTargetEmpresaId = /^\d+$/.test(newUserTargetTenant) ? Number(newUserTargetTenant) : null;
+  const targetIsGlobalProfile = !!modal.editing && modal.editing.empresaId == null && isGlobalAdminRole(modal.editing.role);
+  const availableRoles = ROLES.filter((role) => {
+    const isGlobalProfile = isGlobalAdminRole(role.value);
+    if (targetIsGlobalProfile) {
+      if (modal.editing && (me as any)?.id !== modal.editing.id) return role.value === modal.editing.role;
+      return isGlobalProfile;
+    }
+    if (isGlobalProfile) return isGlobalAdmin && !modal.editing && newUserTargetTenant === "global";
+    if (!modal.editing && isGlobalAdmin && (createTargetEmpresaId == null || newUserTargetTenant === "global")) return false;
+    if (role.value === "ADMIN") {
+      return (isGlobalAdmin && (createTargetEmpresaId != null || modal.editing?.role === "ADMIN")) ||
+        modal.editing?.role === role.value;
+    }
+    return TENANT_ASSIGNABLE_USER_ROLES.some((allowed) => allowed === role.value) ||
+      modal.editing?.role === role.value;
+  });
 
   const { data: users, isLoading } = useQuery({
     queryKey: ['/api/users'],
@@ -211,9 +135,13 @@ export default function UsersAdminPage() {
     mutationFn: async () => {
       const isEdit = !!modal.editing;
       const url = isEdit ? `/api/users/${modal.editing?.id}` : '/api/users';
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (!isEdit && isGlobalAdmin && createTargetEmpresaId != null) {
+        headers['X-Empresa-Id'] = String(createTargetEmpresaId);
+      }
       const res = await fetchWithAuth(url, {
         method: isEdit ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(form),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
@@ -224,6 +152,7 @@ export default function UsersAdminPage() {
       toast({ title: modal.editing ? "Usuário atualizado!" : "Usuário criado!" });
       setModal({ open: false, editing: null });
       setForm(blank);
+      setNewUserTargetTenant("");
     },
     onError: (e: any) => toast({ title: e.message || "Erro ao salvar", variant: "destructive" }),
   });
@@ -262,19 +191,21 @@ export default function UsersAdminPage() {
       toast({ title: "Senha alterada com sucesso!" });
       setPwdConfirm(null);
       setPwdModal(null);
-      setNewPwd(TEMP_PASSWORD);
-      setUseCustomPwd(false);
+      setNewPwd("");
     },
     onError: (e: any) => toast({ title: e.message, variant: "destructive" }),
   });
 
-  const openCreate = () => { setForm(blank); setModal({ open: true, editing: null }); };
+  const openCreate = () => {
+    setNewUserTargetTenant("");
+    setForm({ ...blank, role: isGlobalAdmin ? "ADMIN" : "OPERATIONS_MANAGER" });
+    setModal({ open: true, editing: null });
+  };
   const openEdit = (u: AdminUser) => {
     setForm({
       name: u.name, email: u.email, password: '', role: normalizeRole(u.role), active: u.active !== false,
       tabPermissions: u.tabPermissions ?? null,
       testMode: u.testMode ?? false,
-      permissions: u.permissions ?? null,
     });
     setModal({ open: true, editing: u });
   };
@@ -305,8 +236,7 @@ export default function UsersAdminPage() {
       toast({ title: "Acesso restrito. Apenas diretoria ou administração podem alterar esta senha.", variant: "destructive" });
       return;
     }
-    setNewPwd(TEMP_PASSWORD);
-    setUseCustomPwd(false);
+    setNewPwd("");
     setPwdModal(u);
   };
 
@@ -359,6 +289,7 @@ export default function UsersAdminPage() {
               <tr className="bg-muted/30 border-b border-border/50 text-muted-foreground text-xs uppercase tracking-wider">
                 <th className="px-6 py-4 font-semibold">Nome</th>
                 <th className="px-6 py-4 font-semibold">Email</th>
+                {isGlobalAdmin && <th className="px-6 py-4 font-semibold">Empresa</th>}
                 <th className="px-6 py-4 font-semibold">Perfil</th>
                 <th className="px-6 py-4 font-semibold">Status</th>
                 {canManageUsers && <th className="px-6 py-4 font-semibold text-right">Ações</th>}
@@ -366,7 +297,7 @@ export default function UsersAdminPage() {
             </thead>
             <tbody className="divide-y divide-border/50">
               {isLoading ? (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-muted-foreground">Carregando...</td></tr>
+                <tr><td colSpan={isGlobalAdmin ? 6 : 5} className="px-6 py-8 text-center text-muted-foreground">Carregando...</td></tr>
               ) : users?.map(u => {
                  const role = ROLES.find(r => r.value === normalizeRole(u.role));
                 const Icon = role?.icon || UserCircle;
@@ -385,6 +316,7 @@ export default function UsersAdminPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">{u.email}</td>
+                    {isGlobalAdmin && <td className="px-6 py-4 text-sm text-muted-foreground">{u.empresaId == null ? "Global" : companyNameById.get(u.empresaId) || `Empresa #${u.empresaId}`}</td>}
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${role?.color || (isDriverRole(u.role) ? 'text-teal-600 bg-teal-100' : 'bg-muted text-muted-foreground')}`}>
                         <Icon className="w-3 h-3" /> {role?.label || (isDriverRole(u.role) ? 'Motorista' : u.role)}
@@ -431,6 +363,40 @@ export default function UsersAdminPage() {
       <Modal isOpen={modal.open} onClose={() => setModal({ open: false, editing: null })}
         title={modal.editing ? `Editar Usuário — ${modal.editing.name}` : "Novo Usuário"} maxWidth="max-w-2xl">
         <div className="space-y-4 overflow-y-auto max-h-[80vh] pr-1">
+          {!modal.editing && isGlobalAdmin && (
+            <div>
+              <label className="block text-sm font-semibold mb-1.5">Empresa de destino *</label>
+              <select
+                value={newUserTargetTenant}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setNewUserTargetTenant(value);
+                  setForm((current) => ({
+                    ...current,
+                    role: value === "global"
+                      ? (isGlobalAdminRole(current.role) ? current.role : "MASTER")
+                      : isGlobalAdminRole(current.role) ? "ADMIN" : current.role,
+                  }));
+                }}
+                data-testid="select-user-target-tenant"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-border bg-background focus:border-primary outline-none"
+              >
+                <option value="">Selecione a empresa onde o usuário atuará</option>
+                <option value="global">Conta global (sem empresa)</option>
+                {selectableCompanies.map((company) => (
+                  <option key={company.id} value={String(company.id)}>
+                    {company.companyName || company.name || `Empresa #${company.id}`}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Usuários operacionais precisam de uma empresa. MASTER e DIRECTOR são contas globais sem empresa.
+              </p>
+              {!loadingCompanies && selectableCompanies.length === 0 && (
+                <p className="text-xs text-amber-700 mt-1" role="status">Não foi possível carregar empresas ativas para selecionar.</p>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-semibold mb-1.5">Nome completo *</label>
@@ -445,7 +411,7 @@ export default function UsersAdminPage() {
             {!modal.editing && (
               <div>
                 <label className="block text-sm font-semibold mb-1.5">Senha *</label>
-                <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
+                <input type="password" minLength={12} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
                   className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" placeholder="••••••••" />
               </div>
             )}
@@ -458,8 +424,11 @@ export default function UsersAdminPage() {
             <p className="text-xs text-muted-foreground mb-2">
               Selecione um perfil obrigatório. Para contas de motorista, escolha <strong>Motorista</strong> para habilitar o painel e o compartilhamento do GPS.
             </p>
+            {!modal.editing && isGlobalAdmin && !newUserTargetTenant && (
+              <p className="text-xs text-amber-700 mb-2" role="status">Selecione primeiro uma empresa ativa ou “Conta global” para carregar os perfis permitidos.</p>
+            )}
             <div className="grid grid-cols-2 gap-2">
-              {ROLES.map(r => {
+              {availableRoles.map(r => {
                 const Icon = r.icon;
                 return (
                   <button key={r.value} type="button" onClick={() => setForm({ ...form, role: r.value, tabPermissions: form.tabPermissions ? roleTabsForRole(r.value).map(t => t.key) : null })}
@@ -519,13 +488,13 @@ export default function UsersAdminPage() {
             </button>
           </div>
 
-          {/* Tab Permissions Section — only ADMIN/DIRECTOR/DEVELOPER can edit */}
-          {canManageUsers && (
+          {/* Tab visibility is a navigation preference, not backend authorization. */}
+          {canManageUsers && !['MASTER', 'ADMIN', 'DIRECTOR'].includes(form.role) && (
             <div className="border border-border/60 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {form.tabPermissions ? <Lock className="w-4 h-4 text-orange-500" /> : <Unlock className="w-4 h-4 text-green-500" />}
-                  <p className="font-semibold text-sm text-foreground">Permissões de Acesso a Abas</p>
+                  <p className="font-semibold text-sm text-foreground">Visibilidade de Abas</p>
                 </div>
                 <div className="flex gap-2">
                   {form.tabPermissions && (
@@ -549,7 +518,7 @@ export default function UsersAdminPage() {
               ) : (
                 <div>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Marque apenas as abas que este usuário pode acessar. Abas desmarcadas exibem mensagem de acesso negado.
+                    Define quais abas aparecem na navegação. A autorização real continua sendo validada pelo perfil e pela empresa no servidor.
                   </p>
                   <div className="grid grid-cols-2 gap-2">
                     {roleTabsForRole(form.role).map(tab => (
@@ -574,17 +543,12 @@ export default function UsersAdminPage() {
             </div>
           )}
 
-          {/* Advanced Permissions Section */}
-          {canManageUsers && (
-            <AdvancedPermissionsSection
-              permissions={form.permissions}
-              onChange={(perms) => setForm(f => ({ ...f, permissions: perms }))}
-            />
-          )}
-
           <button type="button" onClick={() => {
-            if (!form.name || !form.email || !form.role || (!modal.editing && !form.password)) {
+            if (!form.name || !form.email || !form.role || (!modal.editing && form.password.trim().length < 12)) {
               toast({ title: "Preencha todos os campos obrigatórios.", variant: "destructive" }); return;
+            }
+            if (!modal.editing && isGlobalAdmin && !newUserTargetTenant) {
+              toast({ title: "Selecione uma empresa de destino ou uma conta global.", variant: "destructive" }); return;
             }
             save.mutate();
           }}
@@ -597,63 +561,30 @@ export default function UsersAdminPage() {
 
       {/* Password Change Modal */}
       {pwdModal && !pwdConfirm && (
-        <Modal isOpen onClose={() => { setPwdModal(null); setNewPwd(TEMP_PASSWORD); setUseCustomPwd(false); }}
+        <Modal isOpen onClose={() => { setPwdModal(null); setNewPwd(""); }}
           title={`Alterar Senha — ${pwdModal.name}`} maxWidth="max-w-md">
           <div className="space-y-4">
-            <div className="flex items-center gap-3 p-3 bg-orange-50 rounded-xl border border-orange-100">
-              <KeyRound className="w-5 h-5 text-orange-600 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-bold text-orange-800">Usuário: {pwdModal.email}</p>
-                <p className="text-xs text-orange-600">Perfil: {ROLES.find(r => r.value === pwdModal.role)?.label || pwdModal.role}</p>
-              </div>
+            <p className="text-sm text-muted-foreground">Defina uma senha individual com pelo menos 12 caracteres.</p>
+            <div>
+              <label className="block text-sm font-semibold mb-1.5">Nova senha *</label>
+              <input type="password" minLength={12} value={newPwd} onChange={e => setNewPwd(e.target.value)}
+                data-testid="input-new-password" autoComplete="new-password"
+                placeholder="Mínimo de 12 caracteres"
+                className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" />
             </div>
-
-            <div className="flex items-center gap-3 p-3 bg-muted/30 rounded-xl border border-border/50">
-              <button type="button" onClick={() => { setUseCustomPwd(false); setNewPwd(TEMP_PASSWORD); }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${!useCustomPwd ? 'bg-primary text-white' : 'border border-border text-muted-foreground'}`}>
-                Senha Temporária
-              </button>
-              <button type="button" onClick={() => { setUseCustomPwd(true); setNewPwd(""); }}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${useCustomPwd ? 'bg-primary text-white' : 'border border-border text-muted-foreground'}`}>
-                Senha Personalizada
-              </button>
-            </div>
-
-            {!useCustomPwd ? (
-              <div className="p-4 bg-green-50 rounded-xl border border-green-100 text-center">
-                <p className="text-xs font-bold text-green-700 uppercase tracking-wider mb-1">Senha Temporária</p>
-                <p className="text-2xl font-mono font-bold text-green-800">{TEMP_PASSWORD}</p>
-                <p className="text-xs text-green-600 mt-2">O usuário deverá alterar a senha no próximo acesso.</p>
-              </div>
-            ) : (
-              <div>
-                <label className="block text-sm font-semibold mb-1.5">Nova Senha *</label>
-                <input type="text" value={newPwd} onChange={e => setNewPwd(e.target.value)}
-                  data-testid="input-new-password"
-                  placeholder="Digite a nova senha"
-                  className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none font-mono" />
-              </div>
-            )}
-
             <div className="flex gap-3">
-              <button onClick={() => { setPwdModal(null); setNewPwd(TEMP_PASSWORD); setUseCustomPwd(false); }}
-                className="flex-1 py-2.5 border-2 border-border font-bold rounded-xl text-muted-foreground hover:bg-muted">
-                Cancelar
-              </button>
-              <button
-                data-testid="button-confirm-password-change"
+              <button onClick={() => { setPwdModal(null); setNewPwd(""); }}
+                className="flex-1 py-2.5 border-2 border-border font-bold rounded-xl text-muted-foreground hover:bg-muted">Cancelar</button>
+              <button data-testid="button-confirm-password-change"
                 onClick={() => {
-                  if (!newPwd.trim()) { toast({ title: "Digite uma senha válida.", variant: "destructive" }); return; }
+                  if (newPwd.trim().length < 12) { toast({ title: "A senha deve ter pelo menos 12 caracteres.", variant: "destructive" }); return; }
                   setPwdConfirm({ user: pwdModal, newPwd: newPwd.trim() });
                 }}
-                className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-colors">
-                Prosseguir
-              </button>
+                className="flex-1 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-colors">Prosseguir</button>
             </div>
           </div>
         </Modal>
       )}
-
       {/* Password Confirmation Modal */}
       {pwdConfirm && (
         <Modal isOpen onClose={() => setPwdConfirm(null)} title="Confirmar Alteração de Senha" maxWidth="max-w-sm">

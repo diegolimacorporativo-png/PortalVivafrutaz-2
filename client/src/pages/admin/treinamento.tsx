@@ -215,11 +215,12 @@ const MODULES: ModuleInfo[] = [
     description: 'Gerenciamento de usuários internos com controle granular de permissões por role e por aba do sistema.',
     features: [
       'Roles: MASTER, ADMIN, DIRECTOR, DEVELOPER, LOGISTICS, FINANCEIRO, etc.',
+      'Ao criar um usuário como MASTER/DIRECTOR, selecione uma empresa ativa para um perfil operacional ou “Conta global” para MASTER/DIRECTOR; a empresa do novo usuário aparece na lista',
       'Controle de acesso por tab do sistema',
       'Bloqueio automático após múltiplas tentativas de login falhas',
       'Auditoria de ações do sistema',
     ],
-    access: ['ADMIN', 'DEVELOPER', 'DIRECTOR'],
+    access: ['MASTER', 'ADMIN', 'DIRECTOR'],
   },
   {
     id: 'marketplace',

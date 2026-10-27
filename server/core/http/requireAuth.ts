@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { UnauthorizedError, ForbiddenError } from "../../shared/errors/AppError";
 import { storage } from "../../services/storage";
+import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
 
 /**
  * Auth middleware — replaces the inline `if (!req.session?.userId)` checks
@@ -63,11 +64,24 @@ export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
         /* fall through — treated as missing role */
       }
     }
-    // FULL_ACCESS_ROLES: strategic accounts bypass per-endpoint role requirements
-    // unless the endpoint uses strict mode. DEVELOPER added per HOTFIX protocol.
-    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'];
+    // Tenant/global administrators retain legacy broad access unless an
+    // endpoint opts into strict role matching. DEVELOPER is intentionally not
+    // a universal bypass; it must be named on the route that needs it.
+    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
+    let isGlobalAdminAccount = true;
+    if (opts?.strict && role && GLOBAL_ADMIN_ROLES.some((globalRole) => globalRole === role)) {
+      try {
+        const currentUser = session?.userId ? await storage.getUser(session.userId) : undefined;
+        // These profiles are global only when the account itself has no
+        // empresaId. Tenant selection for an eligible global account remains
+        // request-scoped; tenant-bound copies of the same role fail closed.
+        isGlobalAdminAccount = !!currentUser && currentUser.role === role && currentUser.empresaId == null;
+      } catch {
+        isGlobalAdminAccount = false;
+      }
+    }
     const passes = opts?.strict
-      ? (!!role && allowed.includes(role))
+      ? (!!role && allowed.includes(role) && isGlobalAdminAccount)
       : (!!role && (FULL_ACCESS_ROLES.includes(role) || allowed.includes(role)));
     if (!passes) {
       return next(new ForbiddenError("Sem permissão para esta operação"));

@@ -3,6 +3,7 @@ import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { usersController } from "./users.controller";
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { tenantContext } from "../../middleware/tenant";
+import { USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 /**
  * Admin-prefixed users router — mounted at `/api/admin/users`.
@@ -22,7 +23,7 @@ router.use(tenantContext);
 router.post(
   "/:id/unlock",
   requireAuth,
-  requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]),
+  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
   asyncHandler(usersController.unlock),
 );
 

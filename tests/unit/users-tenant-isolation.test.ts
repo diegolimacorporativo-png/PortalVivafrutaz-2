@@ -6,9 +6,14 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { UsersService } from "../../server/modules/users/users.service";
-import { runWithTenant } from "../../server/core/tenant/context";
-import { ConflictError, NotFoundError } from "../../server/shared/errors/AppError";
+
+process.env.NODE_ENV = "development";
+process.env.ISOLATED_PREVIEW_MODE = "1";
+process.env.ISOLATED_PREVIEW_DATABASE_URL = "postgresql://preview@127.0.0.1:55439/vivafrutaz_preview";
+
+const { UsersService } = await import("../../server/modules/users/users.service");
+const { runWithTenant } = await import("../../server/core/tenant/context");
+const { BadRequestError, ConflictError, NotFoundError } = await import("../../server/shared/errors/AppError");
 
 const actor = {
   id: 1,
@@ -37,6 +42,7 @@ function makeService(overrides: Record<string, any> = {}) {
     changePasswordForTarget: [],
     unlockUserForTarget: [],
     delete: [],
+    deleteUserForTarget: [],
     getById: [],
     log: [],
   };
@@ -67,6 +73,12 @@ function makeService(overrides: Record<string, any> = {}) {
       calls.delete.push(id);
       if (overrides.delete) return overrides.delete(id);
     },
+    deleteUserForTarget: async (id: number, empresaId: number | null) => {
+      calls.deleteUserForTarget.push([id, empresaId]);
+      return overrides.deleteUserForTarget
+        ? overrides.deleteUserForTarget(id, empresaId)
+        : true;
+    },
     getById: async (id: number) => {
       calls.getById.push(id);
       return overrides.getById ? overrides.getById(id, calls.getById.length) : target;
@@ -92,6 +104,13 @@ function withGlobalAdmin<T>(role: "MASTER" | "DIRECTOR", fn: () => Promise<T>) {
   );
 }
 
+function withGlobalAdminTarget<T>(role: "MASTER" | "DIRECTOR", empresaId: number, fn: () => Promise<T>) {
+  return runWithTenant(
+    { principal: { kind: "admin", empresaId, userId: actor.id, role }, empresaId },
+    fn,
+  );
+}
+
 describe("UsersService — isolamento multi-tenant", () => {
   test("tenant A cria usuário sempre no tenant A, ignorando empresaId do body", async () => {
     const { service, calls } = makeService();
@@ -107,6 +126,40 @@ describe("UsersService — isolamento multi-tenant", () => {
     });
 
     assert.equal(calls.create[0].empresaId, 10);
+  });
+
+  for (const role of ["MASTER", "DIRECTOR"] as const) {
+    test(`${role} global cria usuário da empresa somente com tenant alvo selecionado`, async () => {
+      const { service, calls } = makeService();
+
+      await withGlobalAdminTarget(role, 55, async () => {
+        await service.create({
+          name: "Novo usuário",
+          email: "novo@example.com",
+          password: "a-strong-test-password",
+          role: "ADMIN",
+          empresaId: 99,
+        } as any);
+      });
+
+      assert.equal(calls.create[0].empresaId, 55);
+    });
+  }
+
+  test("MASTER global recebe orientação explícita quando tenta criar usuário sem empresa-alvo", async () => {
+    const { service } = makeService();
+
+    await withGlobalAdmin("MASTER", async () => {
+      await assert.rejects(
+        () => service.create({
+          name: "Novo usuário",
+          email: "novo@example.com",
+          password: "a-strong-test-password",
+          role: "ADMIN",
+        } as any),
+        (error: any) => error instanceof BadRequestError && error.message.includes("empresa de destino"),
+      );
+    });
   });
 
   test("tenant A atualiza somente com empresaId do tenant A", async () => {
@@ -162,6 +215,43 @@ describe("UsersService — isolamento multi-tenant", () => {
       );
     });
     assert.deepEqual(calls.delete, [target.id]);
+  });
+
+  for (const role of ["MASTER", "DIRECTOR"] as const) {
+    test(`${role} global exclui o usuário explícito no tenant obtido do cadastro`, async () => {
+      const globalActor = { ...actor, role, empresaId: null };
+      const targetInOtherTenant = { ...target, empresaId: 55 };
+      const { service, calls } = makeService({
+        getById: (id: number) =>
+          id === globalActor.id ? globalActor : targetInOtherTenant,
+      });
+
+      await withGlobalAdmin(role, async () => {
+        await service.delete(targetInOtherTenant.id);
+      });
+
+      assert.deepEqual(calls.deleteUserForTarget, [[target.id, 55]]);
+      assert.deepEqual(calls.delete, []);
+    });
+  }
+
+  test("exclusão global falha fechada se o tenant do alvo mudar durante a operação", async () => {
+    const globalActor = { ...actor, role: "MASTER", empresaId: null };
+    const targetInOtherTenant = { ...target, empresaId: 55 };
+    const { service, calls } = makeService({
+      getById: (id: number) =>
+        id === globalActor.id ? globalActor : targetInOtherTenant,
+      deleteUserForTarget: () => false,
+    });
+
+    await withGlobalAdmin("MASTER", async () => {
+      await assert.rejects(
+        () => service.delete(targetInOtherTenant.id),
+        (error: any) => error instanceof NotFoundError && error.status === 404,
+      );
+    });
+
+    assert.deepEqual(calls.deleteUserForTarget, [[target.id, 55]]);
   });
 
   test("tenant A não pode desbloquear usuário de outro tenant", async () => {

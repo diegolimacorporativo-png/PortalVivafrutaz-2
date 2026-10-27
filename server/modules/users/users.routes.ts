@@ -9,10 +9,11 @@ import {
   changePasswordSchema,
   idParamSchema,
 } from "./users.validation";
-// C2-FIX: users CRUD endpoints were completely unauthenticated — now require
-// a valid admin session. Role enforcement (ADMIN/MASTER) is applied per route.
+// User-management endpoints require an authenticated MASTER, ADMIN, or DIRECTOR.
+// Service rules further constrain tenant admins and protect global profiles.
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { tenantContext } from "../../middleware/tenant";
+import { USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 /**
  * Users router — wires HTTP method+path → middleware chain → controller.
@@ -24,17 +25,9 @@ import { tenantContext } from "../../middleware/tenant";
  *   - `asyncHandler`  from `shared/utils/asyncHandler`
  *   - `validate`      from `shared/middlewares/validate`
  *
- * AUTH NOTE:
- * Unlike orders (where `tenantContext` secures every endpoint), the legacy
- * users routes did NOT enforce session checks on the CRUD endpoints, and the
- * existing frontend / E2E flow rely on that. We preserve that exact behaviour
- * to avoid breaking callers. Authorisation for the privileged password-change
- * route is enforced INSIDE the service (matching the legacy actor-lookup +
- * role-gate + audit-log pattern), so the response shape stays identical too.
- *
- * ⚠ Tightening these to requireAuth + requireRole(['ADMIN', ...]) is the
- * recommended next step, but should be done as a separate, deliberate change
- * coordinated with a frontend pass — not silently during this refactor.
+ * Tenant context and strict server-side role checks protect each operation.
+ * Fine-grained tab visibility is only a UI preference; APIs enforce role and
+ * tenant scope independently.
  */
 const router = Router();
 // Resolve and pin the tenant before any user query. Tenant-bound accounts
@@ -43,13 +36,13 @@ const router = Router();
 router.use(tenantContext);
 
 // ── List ────────────────────────────────────────────────────────────────
-router.get("/", requireAuth, requireRole(["MASTER", "ADMIN", "DEVELOPER", "DIRECTOR"]), asyncHandler(usersController.list));
+router.get("/", requireAuth, requireRole([...USER_MANAGEMENT_ROLES], { strict: true }), asyncHandler(usersController.list));
 
 // ── Create ──────────────────────────────────────────────────────────────
 router.post(
   "/",
   requireAuth,
-  requireRole(["MASTER", "ADMIN"]),
+  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
   checkPlanLimit("usuarios"),
   validate(createUserSchema, "body"),
   asyncHandler(usersController.create),
@@ -59,7 +52,7 @@ router.post(
 router.put(
   "/:id",
   requireAuth,
-  requireRole(["MASTER", "ADMIN"]),
+  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
   validate(idParamSchema, "params"),
   validate(updateUserSchema, "body"),
   asyncHandler(usersController.update),
@@ -69,7 +62,7 @@ router.put(
 router.delete(
   "/:id",
   requireAuth,
-  requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]),
+  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
   validate(idParamSchema, "params"),
   asyncHandler(usersController.remove),
 );
@@ -78,7 +71,7 @@ router.delete(
 router.put(
   "/:id/password",
   requireAuth,
-  requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]),
+  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
   validate(idParamSchema, "params"),
   validate(changePasswordSchema, "body"),
   asyncHandler(usersController.changePassword),

@@ -1,4 +1,5 @@
 import {
+  BadRequestError,
   ConflictError,
   ForbiddenError,
   NotFoundError,
@@ -18,22 +19,53 @@ import {
   getTenantContext,
   requireTenantId,
 } from "../../core/tenant/context";
+import {
+  GLOBAL_ADMIN_ROLES,
+  TENANT_ASSIGNABLE_USER_ROLES,
+} from "@shared/user-roles";
 
 /** Roles allowed to change another user's password. Mirrors legacy gate. */
 const PASSWORD_CHANGE_ROLES = [
   "MASTER",
   "ADMIN",
   "DIRECTOR",
-  "DEVELOPER",
 ] as const;
 
 /** Roles allowed to unlock a locked user account. Mirrors legacy gate. */
 const ACCOUNT_UNLOCK_ROLES = [
   "MASTER",
   "ADMIN",
-  "DEVELOPER",
   "DIRECTOR",
 ] as const;
+
+function isGlobalAdminRole(role: string | undefined): boolean {
+  return GLOBAL_ADMIN_ROLES.some((candidate) => candidate === role);
+}
+
+function currentActorRole(): string | undefined {
+  const principal = getTenantContext()?.principal;
+  return principal?.kind === "admin" ? principal.role : undefined;
+}
+
+function assertCanManageTarget(target: User): void {
+  const actorRole = currentActorRole();
+  if (isGlobalAdminRole(actorRole)) return;
+  if (actorRole === "ADMIN" && ["MASTER", "DIRECTOR", "DEVELOPER"].includes(target.role)) {
+    throw new ForbiddenError("Somente MASTER ou DIRECTOR podem administrar este perfil.");
+  }
+}
+
+function assertCanAssignRole(role: string, currentRole?: string): void {
+  const actorRole = currentActorRole();
+  if (isGlobalAdminRole(actorRole)) return;
+  if (actorRole !== "ADMIN") {
+    throw new ForbiddenError("Perfil sem autorização para administrar usuários.");
+  }
+  if (role === "ADMIN" && currentRole === "ADMIN") return;
+  if (!TENANT_ASSIGNABLE_USER_ROLES.some((candidate) => candidate === role)) {
+    throw new ForbiddenError("Administradores da empresa só podem atribuir perfis operacionais.");
+  }
+}
 
 /** Mask the bcrypt hash before sending a User over the wire. */
 function toSafe(user: User): SafeUser {
@@ -46,7 +78,7 @@ function isGlobalUserManagementAdmin(): boolean {
     currentTenantId() == null &&
     principal?.kind === "admin" &&
     principal.empresaId == null &&
-    ["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+    isGlobalAdminRole(principal.role)
   );
 }
 
@@ -70,8 +102,22 @@ export class UsersService {
   // ── Create ─────────────────────────────────────────────────────────────
   async create(input: InsertUser): Promise<SafeUser> {
     try {
-      const tenantId = requireTenantId();
-      const scopedInput = { ...input, empresaId: tenantId };
+      assertCanAssignRole(input.role);
+      const createsGlobalAdmin = isGlobalAdminRole(input.role);
+      if (createsGlobalAdmin && !isGlobalUserManagementAdmin()) {
+        throw new ForbiddenError("Perfis MASTER e DIRECTOR só podem ser criados por um administrador global sem empresa selecionada.");
+      }
+      if (
+        !createsGlobalAdmin &&
+        currentTenantId() == null &&
+        isGlobalAdminRole(currentActorRole())
+      ) {
+        throw new BadRequestError("Selecione uma empresa de destino antes de criar um usuário.");
+      }
+      const tenantId = createsGlobalAdmin ? null : requireTenantId();
+      const safeInput = { ...input } as any;
+      delete safeInput.permissions;
+      const scopedInput = { ...safeInput, empresaId: tenantId };
       const user = await this.repo.create(scopedInput);
       return toSafe(user);
     } catch (err: any) {
@@ -90,25 +136,54 @@ export class UsersService {
     //     by the client). Strip it so storage doesn't re-hash a literal "***".
     //   - tabPermissions === null is meaningful (reset to defaults). Keep it.
     const updates: Partial<InsertUser> = { ...input };
+    delete (updates as any).permissions;
     if (updates.password === "***" || updates.password === "") {
       delete updates.password;
     }
-    // A tenant-bound actor can never move an account to another tenant.
-    updates.empresaId = requireTenantId();
+    const globalTargeting = isGlobalUserManagementAdmin();
+    if (!globalTargeting) requireTenantId();
+    const target = await this.repo.getById(id);
+    if (!target) throw new NotFoundError("Usuário não encontrado");
+    assertCanManageTarget(target);
+    if (updates.role) {
+      assertCanAssignRole(updates.role, target.role);
+      if (isGlobalAdminRole(updates.role) !== isGlobalAdminRole(target.role)) {
+        throw new ForbiddenError("A troca entre perfil global e perfil de empresa exige um fluxo de transferência de escopo.");
+      }
+      const actorId = getTenantContext()?.principal.userId;
+      if (isGlobalAdminRole(target.role) && actorId !== target.id && updates.role !== target.role) {
+        throw new ForbiddenError("Não é permitido alterar o perfil de outro administrador global.");
+      }
+    }
 
-    const user = await this.repo.update(id, updates);
+    // Tenant-bound writes use the request tenant. A global MASTER/DIRECTOR
+    // without a selected tenant pins this update to the target's stored tenant.
+    const user = globalTargeting
+      ? await this.repo.updateUserForTarget(id, target.empresaId ?? null, updates)
+      : await this.repo.update(id, { ...updates, empresaId: requireTenantId() });
     if (!user) throw new NotFoundError("Usuário não encontrado");
     return toSafe(user);
   }
 
   // ── Delete ─────────────────────────────────────────────────────────────
   async delete(id: number): Promise<void> {
-    requireTenantId();
+    const globalTargeting = isGlobalUserManagementAdmin();
+    if (!globalTargeting) requireTenantId();
     const target = await this.repo.getById(id);
     if (!target) throw new NotFoundError("Usuário não encontrado");
+    assertCanManageTarget(target);
     try {
-      await this.repo.delete(id);
+      if (globalTargeting) {
+        const deleted = await this.repo.deleteUserForTarget(
+          id,
+          target.empresaId ?? null,
+        );
+        if (!deleted) throw new NotFoundError("Usuário não encontrado");
+      } else {
+        await this.repo.delete(id);
+      }
     } catch (err: any) {
+      if (err instanceof NotFoundError) throw err;
       // Keep historical records intact: users referenced by operational data
       // cannot be hard-deleted, but return an actionable message to the UI.
       if (err?.code === "23503") {
@@ -133,6 +208,10 @@ export class UsersService {
   async changePassword(input: ChangePasswordInput): Promise<{ ok: true }> {
     const { targetUserId, newPassword, actorUserId, ip } = input;
     const tenantId = currentTenantId();
+
+    if (typeof newPassword !== "string" || newPassword.trim().length < 12) {
+      throw new BadRequestError("A senha deve ter pelo menos 12 caracteres.");
+    }
 
     // A global administrator may act on the explicit user ID in this request.
     // The repository then pins the mutation to that user's company as stored
@@ -162,6 +241,7 @@ export class UsersService {
 
     const target = await this.repo.getById(targetUserId);
     if (!target) throw new NotFoundError("Usuário não encontrado");
+    assertCanManageTarget(target);
 
     const updated = await this.repo.changePasswordForTarget(
       targetUserId,
@@ -214,6 +294,7 @@ export class UsersService {
     if (!target) {
       throw new NotFoundError("Usuário não encontrado.");
     }
+    assertCanManageTarget(target);
 
     const updated = await this.repo.unlockUserForTarget(
       targetUserId,

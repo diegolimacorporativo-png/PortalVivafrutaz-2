@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { insertUserSchema } from "@shared/schema";
+import { USER_ROLE_VALUES } from "@shared/user-roles";
 
 /**
  * Validation layer for the users module.
@@ -12,13 +13,13 @@ import { insertUserSchema } from "@shared/schema";
 
 // ── Create ──────────────────────────────────────────────────────────────
 // Mirrors the legacy POST /api/users contract: name, email, password, role
-// required; `active` defaults to true. Other columns (permissions,
-// tabPermissions, security flags) are accepted but optional.
-export const createUserSchema = insertUserSchema.extend({
+// required; `active` defaults to true. Fine-grained `permissions` are legacy
+// data only and are deliberately not accepted until server enforcement exists.
+export const createUserSchema = insertUserSchema.omit({ permissions: true }).extend({
   name: z.string().min(1, "Nome é obrigatório"),
   email: z.string().email("Email inválido"),
-  password: z.string().min(3, "Senha muito curta"),
-  role: z.string().trim().min(1, "Perfil é obrigatório"),
+  password: z.string().min(12, "A senha deve ter pelo menos 12 caracteres"),
+  role: z.enum(USER_ROLE_VALUES, { message: "Perfil de acesso inválido" }),
   active: z.boolean().optional().default(true),
 });
 
@@ -26,22 +27,22 @@ export const createUserSchema = insertUserSchema.extend({
 // Partial update. The legacy route deliberately ignores `password` when its
 // value is the masked placeholder "***" — we preserve that behaviour in the
 // service layer (not here) so validation stays pure.
-export const updateUserSchema = insertUserSchema.partial().extend({
+export const updateUserSchema = insertUserSchema.omit({ permissions: true }).partial().extend({
   // A role may be omitted on an unrelated edit, but an explicitly supplied
   // role can never be blank. This keeps the driver profile selection required
   // instead of allowing an account to lose its access profile via the API.
-  role: z.string().trim().min(1, "Perfil é obrigatório").optional(),
-  // tabPermissions intentionally allows `null` to "reset to no restriction".
+  role: z.enum(USER_ROLE_VALUES, { message: "Perfil de acesso inválido" }).optional(),
+  // null restores the role's default tab visibility; [] explicitly hides all tabs.
   tabPermissions: z.union([z.array(z.string()), z.null()]).optional(),
 });
 
 // ── Change password (privileged) ────────────────────────────────────────
-// Used only by PUT /api/users/:id/password. Length floor mirrors legacy.
+// Used only by PUT /api/users/:id/password.
 export const changePasswordSchema = z.object({
   newPassword: z
     .string()
     .transform((s) => s.trim())
-    .refine((s) => s.length >= 3, { message: "Senha inválida" }),
+    .refine((s) => s.length >= 12, { message: "A senha deve ter pelo menos 12 caracteres" }),
 });
 
 // ── Path params ─────────────────────────────────────────────────────────

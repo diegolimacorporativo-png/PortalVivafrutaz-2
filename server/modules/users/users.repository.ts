@@ -78,6 +78,30 @@ export class UsersRepository implements IUsersRepository {
     return updated!;
   }
 
+  /** Update one global-admin target only while it remains in its trusted tenant. */
+  async updateUserForTarget(
+    id: number,
+    expectedEmpresaId: number | null,
+    updates: Partial<InsertUser>,
+  ): Promise<User | undefined> {
+    const toUpdate = { ...updates } as any;
+    delete toUpdate.empresaId;
+    if (updates.password) {
+      toUpdate.password = await bcrypt.hash(updates.password, 10);
+    }
+    const scope =
+      expectedEmpresaId == null
+        ? isNull(usersTable.empresaId)
+        : eq(usersTable.empresaId, expectedEmpresaId);
+    const [updated] = await db
+      .update(usersTable)
+      .set(toUpdate)
+      .where(and(eq(usersTable.id, id), scope))
+      .returning();
+    if (updated?.empresaId) invalidateUsageCache(updated.empresaId);
+    return updated;
+  }
+
   /**
    * Change one user's password while pinning the update to the target's
    * server-resolved company. Global MASTER/DIRECTOR actions have no tenant in
@@ -144,6 +168,26 @@ export class UsersRepository implements IUsersRepository {
       .where(this.scopedIdWhere(id))
       .returning();
     if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
+  }
+
+  /** Delete one explicitly selected target for a global MASTER/DIRECTOR.
+   * The expected company comes from the target row read by the service, never
+   * from request data, so a tenant move between read and delete fails closed.
+   */
+  async deleteUserForTarget(
+    id: number,
+    expectedEmpresaId: number | null,
+  ): Promise<boolean> {
+    const scope =
+      expectedEmpresaId == null
+        ? isNull(usersTable.empresaId)
+        : eq(usersTable.empresaId, expectedEmpresaId);
+    const [deleted] = await db
+      .delete(usersTable)
+      .where(and(eq(usersTable.id, id), scope))
+      .returning({ id: usersTable.id, empresaId: usersTable.empresaId });
+    if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
+    return Boolean(deleted);
   }
 
   // ── Auditoria ─────────────────────────────────────────────────────────────

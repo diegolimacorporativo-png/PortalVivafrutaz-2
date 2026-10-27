@@ -22,6 +22,12 @@ export interface IUsersRepository {
   getUsers(limit?: number): Promise<User[]>;
   getUsersSafe(empresaId: number): Promise<User[]>;
   deleteUser(id: number): Promise<void>;
+  updateUserForTarget(
+    id: number,
+    expectedEmpresaId: number | null,
+    updates: Partial<InsertUser>,
+  ): Promise<User | undefined>;
+  deleteUserForTarget(id: number, expectedEmpresaId: number | null): Promise<boolean>;
 
   // ── Auditoria ─────────────────────────────────────────────────────────────
   // Implementado com Drizzle direto para evitar dependência circular em
