@@ -61,6 +61,11 @@ export function DeleteHistoryModal({ orders, companies, onClose, onDeleted }: De
       toast({ title: 'Informe o motivo da exclusão.', variant: 'destructive' });
       return;
     }
+    const tenantIds = new Set(targets.map((order) => Number(order.companyId)).filter((id) => Number.isInteger(id) && id > 0));
+    if (tenantIds.size !== 1 || targets.some((order) => !Number.isInteger(Number(order.companyId)) || Number(order.companyId) <= 0)) {
+      toast({ title: 'Selecione pedidos de uma única empresa por vez.', variant: 'destructive' });
+      return;
+    }
     setSelectedIds(targets.map(o => o.id));
     setStep('review');
   };
@@ -68,7 +73,9 @@ export function DeleteHistoryModal({ orders, companies, onClose, onDeleted }: De
   const handleDelete = async (forceConfirm = false) => {
     setLoading(true);
     try {
-      const res = await fetchWithAuth('/api/orders/bulk', {
+      const targets = orders.filter((order) => selectedIds.includes(order.id));
+      const tenantId = Number(targets[0]?.companyId);
+      const res = await fetchWithAuth(`/api/orders/bulk?empresaId=${encodeURIComponent(String(tenantId))}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderIds: selectedIds, motivo, confirmar: forceConfirm }),

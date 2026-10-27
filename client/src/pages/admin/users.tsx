@@ -8,11 +8,43 @@ import { useAuth } from "@/hooks/use-auth";
 import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, Truck, Leaf } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
-import { GLOBAL_ADMIN_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, DENY_ALL_TAB_PERMISSIONS, GLOBAL_ADMIN_ROLES, GLOBAL_SCOPE_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+
+type ActionModule = (typeof ACTION_PERMISSION_MODULES)[number];
+type ActionType = (typeof ACTION_PERMISSION_ACTIONS)[number];
+type ActionOverrides = Partial<Record<ActionModule, Partial<Record<ActionType, boolean>>>>;
+type ActionPermissionsInput = { actionOverridesV1: ActionOverrides | null } | null;
+
+const ACTION_MODULE_LABELS: Record<ActionModule, string> = {
+  orders: "Pedidos",
+  logistics: "Logística e Entregas",
+  quotations: "Cotações",
+  "special-orders": "Pedidos Pontuais",
+};
+const ACTION_LABELS: Record<ActionType, string> = { read: "Visualizar", create: "Criar", edit: "Editar", delete: "Excluir" };
+
+function readActionOverrides(value: unknown): ActionOverrides {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const raw = (value as Record<string, unknown>)[ACTION_PERMISSION_KEY];
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const result: ActionOverrides = {};
+  for (const module of ACTION_PERMISSION_MODULES) {
+    const rawModule = (raw as Record<string, unknown>)[module];
+    if (!rawModule || typeof rawModule !== "object" || Array.isArray(rawModule)) continue;
+    const safeModule: Partial<Record<ActionType, boolean>> = {};
+    for (const action of ACTION_PERMISSION_ACTIONS) {
+      const value = (rawModule as Record<string, unknown>)[action];
+      if (typeof value === "boolean") safeModule[action] = value;
+    }
+    if (Object.keys(safeModule).length) result[module] = safeModule;
+  }
+  return result;
+}
 
 type AdminUser = {
   id: number; name: string; email: string; password: string; role: string; active: boolean;
   tabPermissions: string[] | null;
+  permissions?: unknown;
   testMode: boolean;
   empresaId?: number | null;
 };
@@ -81,6 +113,7 @@ const isGlobalAdminRole = (role?: string) => GLOBAL_ADMIN_ROLES.some((item) => i
 const blank = {
   name: "", email: "", password: "", role: "OPERATIONS_MANAGER", active: true,
   tabPermissions: null as string[] | null,
+  permissions: null as ActionPermissionsInput,
   testMode: false,
 };
 
@@ -106,15 +139,18 @@ export default function UsersAdminPage() {
   const selectableCompanies = companies.filter((company) => company.active !== false);
   const companyNameById = new Map(companies.map((company) => [company.id, company.companyName || company.name || `Empresa #${company.id}`]));
   const createTargetEmpresaId = /^\d+$/.test(newUserTargetTenant) ? Number(newUserTargetTenant) : null;
-  const targetIsGlobalProfile = !!modal.editing && modal.editing.empresaId == null && isGlobalAdminRole(modal.editing.role);
+  const targetIsGlobalProfile = !!modal.editing && modal.editing.empresaId == null && (GLOBAL_SCOPE_ROLES as readonly string[]).includes(modal.editing.role);
   const availableRoles = ROLES.filter((role) => {
-    const isGlobalProfile = isGlobalAdminRole(role.value);
+    const isGlobalProfile = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value);
+    const isInternalStaff = role.value === "COMERCIAL" || role.value === "LOGISTICS";
     if (targetIsGlobalProfile) {
       if (modal.editing && (me as any)?.id !== modal.editing.id) return role.value === modal.editing.role;
       return isGlobalProfile;
     }
     if (isGlobalProfile) return isGlobalAdmin && !modal.editing && newUserTargetTenant === "global";
-    if (!modal.editing && isGlobalAdmin && (createTargetEmpresaId == null || newUserTargetTenant === "global")) return false;
+    if (!modal.editing && isGlobalAdmin && (createTargetEmpresaId == null || newUserTargetTenant === "global")) {
+      return newUserTargetTenant === "global" && (isGlobalProfile || isInternalStaff);
+    }
     if (role.value === "ADMIN") {
       return (isGlobalAdmin && (createTargetEmpresaId != null || modal.editing?.role === "ADMIN")) ||
         modal.editing?.role === role.value;
@@ -204,32 +240,55 @@ export default function UsersAdminPage() {
   const openEdit = (u: AdminUser) => {
     setForm({
       name: u.name, email: u.email, password: '', role: normalizeRole(u.role), active: u.active !== false,
-      tabPermissions: u.tabPermissions ?? null,
+      tabPermissions: u.tabPermissions?.length ? u.tabPermissions : null,
+      permissions: Object.keys(readActionOverrides(u.permissions)).length
+        ? { actionOverridesV1: readActionOverrides(u.permissions) }
+        : null,
       testMode: u.testMode ?? false,
     });
     setModal({ open: true, editing: u });
   };
 
   // Tab permissions helpers
-  const roleTabsForRole = (role: string) => ALL_TABS.filter(t => t.roles.includes(role));
+  const roleTabsForRole = (role: string) => (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role)
+    ? ALL_TABS
+    : ALL_TABS.filter(t => t.roles.includes(role));
   const isTabChecked = (key: string) => {
     if (!form.tabPermissions) return true; // null = all allowed
+    if (form.tabPermissions.includes(DENY_ALL_TAB_PERMISSIONS)) return false;
     return form.tabPermissions.includes(key);
   };
   const toggleTab = (key: string) => {
     const roleTabs = roleTabsForRole(form.role).map(t => t.key);
-    if (!form.tabPermissions) {
+    if (!form.tabPermissions || form.tabPermissions.length === 0) {
       // First toggle: set to all minus this one
-      setForm(f => ({ ...f, tabPermissions: roleTabs.filter(k => k !== key) }));
+      const remaining = roleTabs.filter(k => k !== key);
+      setForm(f => ({ ...f, tabPermissions: remaining.length ? remaining : [DENY_ALL_TAB_PERMISSIONS] }));
+    } else if (form.tabPermissions.includes(DENY_ALL_TAB_PERMISSIONS)) {
+      setForm(f => ({ ...f, tabPermissions: [key] }));
     } else {
       const newPerms = form.tabPermissions.includes(key)
         ? form.tabPermissions.filter(k => k !== key)
         : [...form.tabPermissions, key];
-      setForm(f => ({ ...f, tabPermissions: newPerms.length === roleTabs.length ? null : newPerms }));
+      setForm(f => ({ ...f, tabPermissions: newPerms.length === roleTabs.length ? null : newPerms.length === 0 ? [DENY_ALL_TAB_PERMISSIONS] : newPerms }));
     }
   };
   const resetTabPerms = () => setForm(f => ({ ...f, tabPermissions: null }));
   const enableCustomPerms = () => setForm(f => ({ ...f, tabPermissions: roleTabsForRole(f.role).map(t => t.key) }));
+  const getActionSetting = (module: ActionModule, action: ActionType): string => {
+    const value = readActionOverrides(form.permissions)[module]?.[action];
+    return value === undefined ? "default" : value ? "allow" : "deny";
+  };
+  const setActionSetting = (module: ActionModule, action: ActionType, setting: string) => {
+    const overrides = readActionOverrides(form.permissions);
+    const moduleSettings = { ...(overrides[module] ?? {}) };
+    if (setting === "default") delete moduleSettings[action];
+    else moduleSettings[action] = setting === "allow";
+    const next = { ...overrides };
+    if (Object.keys(moduleSettings).length) next[module] = moduleSettings;
+    else delete next[module];
+    setForm(f => ({ ...f, permissions: Object.keys(next).length ? { actionOverridesV1: next } : null }));
+  };
 
   const openPasswordChange = (u: AdminUser) => {
     if (!canManageUsers) {
@@ -365,7 +424,7 @@ export default function UsersAdminPage() {
         <div className="space-y-4 overflow-y-auto max-h-[80vh] pr-1">
           {!modal.editing && isGlobalAdmin && (
             <div>
-              <label className="block text-sm font-semibold mb-1.5">Empresa de destino *</label>
+              <label className="block text-sm font-semibold mb-1.5">Empresa de destino</label>
               <select
                 value={newUserTargetTenant}
                 onChange={(event) => {
@@ -382,7 +441,7 @@ export default function UsersAdminPage() {
                 className="w-full px-4 py-2.5 rounded-xl border-2 border-border bg-background focus:border-primary outline-none"
               >
                 <option value="">Selecione a empresa onde o usuário atuará</option>
-                <option value="global">Conta global (sem empresa)</option>
+                <option value="global">Conta interna (sem empresa cliente)</option>
                 {selectableCompanies.map((company) => (
                   <option key={company.id} value={String(company.id)}>
                     {company.companyName || company.name || `Empresa #${company.id}`}
@@ -390,7 +449,7 @@ export default function UsersAdminPage() {
                 ))}
               </select>
               <p className="text-xs text-muted-foreground mt-1.5">
-                Usuários operacionais precisam de uma empresa. MASTER e DIRECTOR são contas globais sem empresa.
+                MASTER e DIRECTOR são globais. COMERCIAL e LOGISTICS podem ser funcionários internos sem empresa; os demais perfis operacionais ficam vinculados à empresa selecionada.
               </p>
               {!loadingCompanies && selectableCompanies.length === 0 && (
                 <p className="text-xs text-amber-700 mt-1" role="status">Não foi possível carregar empresas ativas para selecionar.</p>
@@ -425,7 +484,7 @@ export default function UsersAdminPage() {
               Selecione um perfil obrigatório. Para contas de motorista, escolha <strong>Motorista</strong> para habilitar o painel e o compartilhamento do GPS.
             </p>
             {!modal.editing && isGlobalAdmin && !newUserTargetTenant && (
-              <p className="text-xs text-amber-700 mb-2" role="status">Selecione primeiro uma empresa ativa ou “Conta global” para carregar os perfis permitidos.</p>
+              <p className="text-xs text-amber-700 mb-2" role="status">Selecione primeiro uma empresa ativa ou “Conta interna” para carregar os perfis permitidos.</p>
             )}
             <div className="grid grid-cols-2 gap-2">
               {availableRoles.map(r => {
@@ -488,8 +547,8 @@ export default function UsersAdminPage() {
             </button>
           </div>
 
-          {/* Tab visibility is a navigation preference, not backend authorization. */}
-          {canManageUsers && !['MASTER', 'ADMIN', 'DIRECTOR'].includes(form.role) && (
+          {/* Tab visibility also denies access to opted-in APIs; role/action policies remain authoritative. */}
+          {canManageUsers && (
             <div className="border border-border/60 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -536,10 +595,38 @@ export default function UsersAdminPage() {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">
-                    {form.tabPermissions.length} de {roleTabsForRole(form.role).length} abas ativas
+                    {form.tabPermissions.includes(DENY_ALL_TAB_PERMISSIONS) ? 0 : form.tabPermissions.length} de {roleTabsForRole(form.role).length} abas ativas
                   </p>
                 </div>
               )}
+            </div>
+          )}
+
+          {canManageUsers && (
+            <div className="border border-border/60 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="font-semibold text-sm text-foreground">Permissões por ação</p>
+                <p className="mt-1 text-xs text-muted-foreground">Bloqueios são aplicados pelo servidor. Permitir mantém as regras do perfil, da empresa e da operação; não concede privilégios adicionais.</p>
+              </div>
+              <div className="space-y-3">
+                {ACTION_PERMISSION_MODULES.map(module => (
+                  <fieldset key={module} className="rounded-lg border border-border/50 p-3">
+                    <legend className="px-1 text-xs font-semibold">{ACTION_MODULE_LABELS[module]}</legend>
+                    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+                      {ACTION_PERMISSION_ACTIONS.map(action => (
+                        <label key={action} className="flex flex-col gap-1 text-xs">
+                          <span>{ACTION_LABELS[action]}</span>
+                          <select value={getActionSetting(module, action)} onChange={event => setActionSetting(module, action, event.target.value)} className="rounded-md border border-border bg-background px-2 py-1.5">
+                            <option value="default">Padrão do perfil</option>
+                            <option value="allow">Permitir se o perfil autorizar</option>
+                            <option value="deny">Bloquear</option>
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                ))}
+              </div>
             </div>
           )}
 

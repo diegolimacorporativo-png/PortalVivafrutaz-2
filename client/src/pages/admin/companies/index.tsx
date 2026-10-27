@@ -10,8 +10,12 @@ import { CompaniesTable }   from "./components/CompaniesTable";
 import { CompanyModal }     from "./dialogs/CompanyModal";
 import { TempPasswordModal } from "./dialogs/TempPasswordModal";
 import { BackHeader } from "@/components/navigation/BackHeader";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { normalizeError } from "@/lib/normalizeResponse";
+import { useToast } from "@/hooks/use-toast";
 
 export default function AdminCompanies() {
+  const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
   const [tempPasswordModal, setTempPasswordModal] = useState<{
@@ -31,7 +35,7 @@ export default function AdminCompanies() {
 
   const { data: priceGroups = [] } = usePriceGroups();
 
-  const { data: paginatedData, isLoading } = useCompaniesPaginated({
+  const { data: paginatedData, isLoading, refetch } = useCompaniesPaginated({
     search:     debouncedSearch,
     status:     filterStatus,
     clientType: filterType,
@@ -51,6 +55,27 @@ export default function AdminCompanies() {
   function openEdit(company: Company) {
     setEditingCompany(company);
     setIsModalOpen(true);
+  }
+
+  async function handlePermanentDelete(company: Company) {
+    const confirmed = window.confirm(
+      `Excluir permanentemente a empresa "${company.companyName}"?\n\nA empresa será removida do banco de dados. Se houver registros vinculados, a exclusão será bloqueada para preservar o histórico.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      const response = await fetchWithAuth(`/api/companies/${company.id}/permanent`, { method: "DELETE" });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        const error = normalizeError(body);
+        toast({ title: error.message || "Não foi possível excluir a empresa.", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Empresa excluída permanentemente." });
+      await refetch();
+    } catch {
+      toast({ title: "Erro de conexão ao excluir a empresa.", variant: "destructive" });
+    }
   }
 
   function closeModal() {
@@ -101,6 +126,7 @@ export default function AdminCompanies() {
               totalPages={totalPages}
               totalCount={totalCount}
               onEdit={openEdit}
+              onDelete={handlePermanentDelete}
               onPageChange={setPage}
             />
           )}

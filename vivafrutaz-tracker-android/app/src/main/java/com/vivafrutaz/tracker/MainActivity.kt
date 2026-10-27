@@ -74,13 +74,24 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.RequestMultiplePermissions(),
     ) {
         if (hasForegroundLocationPermission()) {
-            startTracking()
-            showTracking(pendingSessionName)
+            startTrackingAndShow()
         } else {
             showMessage(
                 "A permissão de localização é obrigatória para manter o rastreamento ativo.",
                 isError = true,
             )
+        }
+    }
+
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(
+                this,
+                "O rastreamento continua ativo. Ative notificações para acompanhar o serviço na barra do Android.",
+                Toast.LENGTH_LONG,
+            ).show()
         }
     }
 
@@ -211,22 +222,32 @@ class MainActivity : AppCompatActivity() {
         val permissions = buildList {
             add(Manifest.permission.ACCESS_FINE_LOCATION)
             add(Manifest.permission.ACCESS_COARSE_LOCATION)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
         }
-        if (hasForegroundLocationPermission() &&
-            (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS,
-                ) == PackageManager.PERMISSION_GRANTED)
-        ) {
-            startTracking()
-            showTracking(pendingSessionName)
+        if (hasForegroundLocationPermission()) {
+            startTrackingAndShow()
         } else {
             permissionLauncher.launch(permissions.toTypedArray())
         }
+    }
+
+    private fun startTrackingAndShow() {
+        startTracking()
+        showTracking(pendingSessionName)
+        requestOptionalNotificationPermission()
+    }
+
+    private fun requestOptionalNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
+        ) return
+
+        val preferences = getPreferences(MODE_PRIVATE)
+        if (preferences.getBoolean("notification_permission_requested", false)) return
+        preferences.edit().putBoolean("notification_permission_requested", true).apply()
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun showTracking(name: String) {
@@ -298,7 +319,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val scopeNote = TextView(this).apply {
-            text = "A tela acompanha o estado persistido pelo serviço. O Foreground Service continua coletando mesmo quando esta Activity é fechada. Não existe um botão comum para desligar o rastreamento."
+            text = "A localização é necessária para rastrear; notificações são opcionais. A tela acompanha o serviço, que continua coletando quando esta Activity é fechada. Não existe um botão comum para desligar o rastreamento."
             textSize = 12f
             setTextColor(Color.DKGRAY)
             setPadding(0, dp(18), 0, 0)
@@ -313,6 +334,11 @@ class MainActivity : AppCompatActivity() {
         content.addView(routeTitle, marginParams(top = 26))
         val routeStatus = addStatus("Carregando rota…")
         val routeContainer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(Button(this).apply {
+            text = "Atualizar rota"
+            isAllCaps = false
+            setOnClickListener { loadRoute(routeStatus, routeContainer) }
+        }, marginParams(top = 6))
         content.addView(routeContainer, marginParams(top = 8))
         loadRoute(routeStatus, routeContainer)
         addOperationsPanel()
@@ -352,38 +378,98 @@ class MainActivity : AppCompatActivity() {
                 is RouteResult.Success -> {
                     status.text = if (result.route.deliveries.isEmpty()) "Nenhuma parada programada para hoje." else "${result.route.deliveries.size} parada(s)"
                     container.removeAllViews()
-                    result.route.deliveries.sortedBy { it.routePosition ?: Int.MAX_VALUE }.forEach { renderDelivery(container, it) }
+                    result.route.deliveries.sortedBy { it.routePosition ?: Int.MAX_VALUE }.forEach { renderDelivery(container, status, it) }
                 }
                 is RouteResult.Failure -> { status.text = result.error.message; status.setTextColor(Color.rgb(183, 28, 28)) }
             }
         }
     }
 
-    private fun renderDelivery(container: LinearLayout, delivery: DriverDelivery) {
+    private fun renderDelivery(container: LinearLayout, routeStatus: TextView, delivery: DriverDelivery) {
         val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE); setPadding(dp(16), dp(14), dp(16), dp(14)) }
         card.addView(TextView(this).apply { text = "${delivery.routePosition?.let { "$it. " } ?: ""}${delivery.companyName}"; textSize = 17f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(35, 55, 35)) })
         card.addView(TextView(this).apply { text = listOf(delivery.address, delivery.city).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Endereço não informado" }; textSize = 14f; setPadding(0, dp(5), 0, 0) })
         card.addView(TextView(this).apply { text = "Status: ${delivery.status}${delivery.deliveryWindow?.let { " • Janela: $it" } ?: ""}"; textSize = 13f; setTextColor(Color.DKGRAY); setPadding(0, dp(5), 0, 0) })
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }
-        actions.addView(Button(this).apply { text = "Entregue"; isAllCaps = false; setOnClickListener { openChecklist(delivery, card) } }, LinearLayout.LayoutParams(0, -2, 1f))
-        actions.addView(Button(this).apply { text = "Ocorrência"; isAllCaps = false; setOnClickListener { updateStop(delivery, "problema") } }, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(Button(this).apply { text = "Entregue"; isAllCaps = false; setOnClickListener { openChecklist(delivery, card, routeStatus, container) } }, LinearLayout.LayoutParams(0, -2, 1f))
+        actions.addView(Button(this).apply { text = "Ocorrência"; isAllCaps = false; setOnClickListener { updateStop(delivery, "problema", routeStatus, container) } }, LinearLayout.LayoutParams(0, -2, 1f))
         actions.addView(Button(this).apply { text = "Assinar"; isAllCaps = false; setOnClickListener { signatureDialog(delivery.id) } }, LinearLayout.LayoutParams(0, -2, 1f))
         actions.addView(Button(this).apply { text = "Foto"; isAllCaps = false; setOnClickListener { proofDeliveryId = delivery.id; proofPicker.launch("image/*") } }, LinearLayout.LayoutParams(0, -2, 1f))
         card.addView(actions, marginParams(top = 8)); container.addView(card, marginParams(top = 10))
     }
 
-    private fun openChecklist(delivery: DriverDelivery, card: LinearLayout) {
+    private fun openChecklist(delivery: DriverDelivery, card: LinearLayout, routeStatus: TextView, routeContainer: LinearLayout) {
         val input = EditText(this).apply { hint = "Observação da entrega (opcional)"; minLines = 2 }
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Confirmar entrega").setMessage("${delivery.companyName}\n${delivery.address}").setView(input).setNegativeButton("Cancelar", null).setPositiveButton("Confirmar", null).create()
-        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { lifecycleScope.launch { when (val r = api.confirmChecklist(delivery.id, input.text.toString())) { is ChecklistResult.Success -> { dialog.dismiss(); card.alpha = 0.6f; Toast.makeText(this@MainActivity, "Entrega confirmada", Toast.LENGTH_SHORT).show() }; is ChecklistResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.setOnShowListener {
+            val confirm = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            confirm.setOnClickListener {
+                confirm.isEnabled = false
+                lifecycleScope.launch {
+                    when (val r = api.confirmChecklist(delivery.id, input.text.toString())) {
+                        is ChecklistResult.Success -> {
+                            dialog.dismiss()
+                            card.alpha = 0.6f
+                            Toast.makeText(this@MainActivity, "Entrega confirmada; atualizando rota", Toast.LENGTH_SHORT).show()
+                            refreshRoute(routeStatus, routeContainer)
+                        }
+                        is ChecklistResult.Failure -> {
+                            confirm.isEnabled = true
+                            Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
         dialog.show()
     }
 
-    private fun updateStop(delivery: DriverDelivery, status: String) {
+    private fun updateStop(delivery: DriverDelivery, status: String, routeStatus: TextView, routeContainer: LinearLayout) {
         val input = EditText(this).apply { hint = "Descreva a ocorrência"; minLines = 2 }
         val dialog = androidx.appcompat.app.AlertDialog.Builder(this).setTitle("Registrar ocorrência").setView(input).setNegativeButton("Cancelar", null).setPositiveButton("Registrar", null).create()
-        dialog.setOnShowListener { dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener { lifecycleScope.launch { when (val r = api.updateStopStatus(delivery.id, status, input.text.toString())) { is StopStatusSendResult.Success -> { dialog.dismiss(); Toast.makeText(this@MainActivity, "Status atualizado", Toast.LENGTH_SHORT).show() }; is StopStatusSendResult.Failure -> Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show() } } } }
+        dialog.setOnShowListener {
+            val submit = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+            submit.setOnClickListener {
+                submit.isEnabled = false
+                lifecycleScope.launch {
+                    when (val r = api.updateStopStatus(delivery.id, status, input.text.toString())) {
+                        is StopStatusSendResult.Success -> {
+                            dialog.dismiss()
+                            Toast.makeText(this@MainActivity, "Status registrado; atualizando rota", Toast.LENGTH_SHORT).show()
+                            refreshRoute(routeStatus, routeContainer)
+                        }
+                        is StopStatusSendResult.Failure -> {
+                            submit.isEnabled = true
+                            Toast.makeText(this@MainActivity, r.error.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            }
+        }
         dialog.show()
+    }
+
+    private fun refreshRoute(routeStatus: TextView, routeContainer: LinearLayout) {
+        routeStatus?.text = "Atualizando rota…"
+        routeStatus?.setTextColor(Color.DKGRAY)
+        lifecycleScope.launch {
+            when (val result = api.getRouteToday()) {
+                is RouteResult.Success -> {
+                    routeContainer.removeAllViews()
+                    result.route.deliveries.sortedBy { it.routePosition ?: Int.MAX_VALUE }
+                        .forEach { renderDelivery(routeContainer, routeStatus, it) }
+                    routeStatus?.text = if (result.route.deliveries.isEmpty()) {
+                        "Nenhuma parada programada para hoje."
+                    } else {
+                        "${result.route.deliveries.size} parada(s) • atualizado agora"
+                    }
+                }
+                is RouteResult.Failure -> {
+                    routeStatus?.text = "Ação registrada; não foi possível atualizar a rota. Atualize novamente quando houver conexão."
+                    routeStatus?.setTextColor(Color.rgb(173, 91, 0))
+                }
+            }
+        }
     }
 
     private fun signatureDialog(deliveryId: Long) {

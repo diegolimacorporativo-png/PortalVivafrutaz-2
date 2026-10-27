@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { tenantContext } from "../middleware/tenant";
+import { requireTabPermission } from "../middleware/requireTabPermission";
+import { requireActionPermission } from "../middleware/requireActionPermission";
 import { currentTenantId } from "../core/tenant/context";
 import {
   canAccessDriverRecord,
@@ -16,6 +18,8 @@ import {
 import {
   isDeliveryInTenant,
   resolveDeliveryAccess,
+  isDeliveryInternalRole,
+  isDeliveryDriverRole,
   sanitizeDeliveryCreateBody,
   sanitizeDeliveryUpdateBody,
 } from "../modules/logistics/delivery.access";
@@ -35,10 +39,12 @@ import {
 import { publicTrackingLimiter } from "../core/security/rateLimit";
 import { buildPublicDeliveryTrackingPayload } from "../modules/logistics/public-tracking.dto";
 import { getPublicDeliveryTracking } from "../modules/logistics/delivery-tracking.service";
+import { dateInTimeZone } from "../modules/logistics/local-date";
 import { validateGpsSubmission } from "../modules/logistics/gps-submission";
 import { db } from "../database/db";
 import {
   logisticsDrivers as driversTable,
+  logisticsVehicles as vehiclesTable,
   users as usersTable,
   logisticsRoutes as routesTable,
   orders as ordersTable,
@@ -91,6 +97,14 @@ function respondToDeliveryCompletionError(res: any, error: unknown): boolean {
 }
 
 export async function register(app: Express): Promise<void> {
+  app.use('/api/deliveries', requireAuthCore, tenantContext, requireTabPermission('logistics'), requireActionPermission('logistics'));
+  app.use(
+    '/api/driver',
+    requireAuthCore,
+    tenantContext,
+    requireTabPermission((req) => req.path.includes('/gps') ? 'gps-tracking' : 'driver-panel'),
+    requireActionPermission('logistics'),
+  );
   app.get('/api/geo/cep/:cep', async (req: any, res) => {
     try {
       const { lookupCepWithCoords } = await import('../services/logistics/geoService');
@@ -120,7 +134,12 @@ export async function register(app: Express): Promise<void> {
   // unscoped MASTER may target a different companyId via ?companyId=N.
   app.get('/api/deliveries', tenantContext, async (req: any, res) => {
     try {
+      const actor = await storage.getUser(req.session.userId);
+      if (!actor) return res.status(401).json({ message: 'Não autenticado' });
+      if (!isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
       const tenantId = currentTenantId();
+      const access = resolveDeliveryAccess(actor, tenantId);
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
       const filters: any = {};
       if (tenantId != null) {
         // Pinned: ignore body/query overrides; force own tenant.
@@ -153,8 +172,10 @@ export async function register(app: Express): Promise<void> {
     try {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
-      const access = resolveDeliveryAccess(actor);
+      const access = resolveDeliveryAccess(actor, currentTenantId());
       if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para criar a entrega' });
+      if (!isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
       const data = sanitizeDeliveryCreateBody(req.body, access.tenantId);
       const delivery = await storage.createDelivery(data as any);
       res.status(201).json(delivery);
@@ -166,6 +187,9 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
+      const access = resolveDeliveryAccess(actor, currentTenantId());
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.tenantId == null || !isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
       const current = await getAuthorizedDelivery(deliveryId, actor);
       if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
       const updates = sanitizeDeliveryUpdateBody(req.body);
@@ -182,10 +206,6 @@ export async function register(app: Express): Promise<void> {
         });
       }
       if (status === 'entregue' || status === 'cancelado') {
-        const access = resolveDeliveryAccess(actor);
-        if (!access.allowed) {
-          return res.status(access.status).json({ message: access.message });
-        }
         const additionalUpdates = { ...updates };
         delete additionalUpdates.status;
         const completion = await completeDelivery(deliveryCompletionStore, {
@@ -200,10 +220,6 @@ export async function register(app: Express): Promise<void> {
       }
 
       if (typeof status === 'string') {
-        const access = resolveDeliveryAccess(actor);
-        if (!access.allowed) {
-          return res.status(access.status).json({ message: access.message });
-        }
         const additionalUpdates = { ...updates };
         delete additionalUpdates.status;
         const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
@@ -217,7 +233,11 @@ export async function register(app: Express): Promise<void> {
         return res.json(result.delivery);
       }
 
-      const delivery = await storage.updateDelivery(deliveryId, updates as any);
+      const [delivery] = await db.update(deliveriesTable)
+        .set(updates as any)
+        .where(and(eq(deliveriesTable.id, deliveryId), eq(deliveriesTable.companyId, access.tenantId)))
+        .returning();
+      if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       res.json(delivery);
     } catch (err: any) {
       if (respondToDeliveryCompletionError(res, err)) return;
@@ -230,6 +250,9 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
+      const access = resolveDeliveryAccess(actor, currentTenantId());
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.tenantId == null || !isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
       const current = await getAuthorizedDelivery(deliveryId, actor);
       if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
       const { status } = req.body;
@@ -237,10 +260,6 @@ export async function register(app: Express): Promise<void> {
         return res.status(400).json({ message: 'Status de entrega inválido' });
       }
       if (status === 'entregue' || status === 'cancelado') {
-        const access = resolveDeliveryAccess(actor);
-        if (!access.allowed) {
-          return res.status(access.status).json({ message: access.message });
-        }
         const result = await completeDelivery(deliveryCompletionStore, {
           deliveryId,
           tenantId: access.tenantId,
@@ -250,10 +269,6 @@ export async function register(app: Express): Promise<void> {
         });
         if (!result) return res.status(404).json({ message: 'Entrega não encontrada' });
         return res.json(result.delivery);
-      }
-      const access = resolveDeliveryAccess(actor);
-      if (!access.allowed) {
-        return res.status(access.status).json({ message: access.message });
       }
       const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
         deliveryId,
@@ -274,12 +289,11 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
+      const access = resolveDeliveryAccess(actor, currentTenantId());
+      if (!access.allowed) return res.status(access.status).json({ message: access.message });
+      if (access.tenantId == null || !isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
       const current = await getAuthorizedDelivery(deliveryId, actor);
       if (!current) return res.status(404).json({ message: 'Entrega não encontrada' });
-      const access = resolveDeliveryAccess(actor);
-      if (!access.allowed) {
-        return res.status(access.status).json({ message: access.message });
-      }
       const deleted = await deleteDeliveryBeforeShipment(deliveryCompletionStore, {
         deliveryId,
         tenantId: access.tenantId,
@@ -312,7 +326,7 @@ export async function register(app: Express): Promise<void> {
    * the existing not-found response and do not reveal another tenant's row.
    */
   async function getAuthorizedDelivery(deliveryId: number, actor: any): Promise<any | undefined> {
-    const access = resolveDeliveryAccess(actor);
+    const access = resolveDeliveryAccess(actor, currentTenantId());
     if (!access.allowed) {
       return undefined;
     }
@@ -360,13 +374,17 @@ export async function register(app: Express): Promise<void> {
       if (!isDriverOrInternal(actor.role)) {
         return res.status(403).json({ message: 'Acesso negado' });
       }
-      const today = new Date().toISOString().split('T')[0];
+      // Route dates are business dates in Brazil, not UTC calendar dates.
+      const today = dateInTimeZone(new Date(), "America/Sao_Paulo");
       const dateFrom = typeof req.query.dateFrom === 'string' ? req.query.dateFrom : today;
       const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : dateFrom;
       const selectedCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
 
       const allCompanies = await storage.getCompanies();
-      const actorCompanyId = actor.empresaId ? Number(actor.empresaId) : undefined;
+      const selectedTenantId = currentTenantId();
+      const actorCompanyId = actor.empresaId != null
+        ? Number(actor.empresaId)
+        : selectedTenantId ?? undefined;
       // A tenant-pinned internal user may only query its own company. Do this
       // before both delivery and order queries so a crafted companyId cannot
       // bypass the scope by taking the orders branch.
@@ -382,7 +400,9 @@ export async function register(app: Express): Promise<void> {
       // Use the same normalized email/name resolver as GPS POST. This keeps
       // route lookup and position lookup on exactly the same driver identity,
       // including legacy rows with casing/whitespace differences.
-      const ownDriverId = await resolveOwnDriverId(storage, actor);
+      const ownDriverId = isDriver(actor.role)
+        ? await resolveOwnDriverId(storage, actor)
+        : null;
       if (ownDriverId) {
         const driverRows = await db
           .select()
@@ -631,7 +651,7 @@ export async function register(app: Express): Promise<void> {
           .from(driversTable)
           .where(eq(driversTable.id, driverId))
           .limit(1);
-        if (!canAccessDriverRecord(actor, targetDriver)) {
+        if (!canAccessDriverRecord(actor, targetDriver, currentTenantId())) {
           return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }
@@ -764,7 +784,7 @@ export async function register(app: Express): Promise<void> {
           .from(driversTable)
           .where(eq(driversTable.id, targetDriverId))
           .limit(1);
-        if (!canAccessDriverRecord(actor, targetDriver)) {
+        if (!canAccessDriverRecord(actor, targetDriver, currentTenantId())) {
           return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }
@@ -794,15 +814,32 @@ export async function register(app: Express): Promise<void> {
       const delivery = await getAuthorizedDelivery(deliveryId, actor);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       const { observacao, driverId, entregaConfirmada } = req.body;
-      const access = resolveDeliveryAccess(actor);
+      const access = resolveDeliveryAccess(actor, currentTenantId());
       if (!access.allowed) {
         return res.status(access.status).json({ message: access.message });
+      }
+      if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
+
+      let checklistDriverId: number | null = null;
+      if (isDeliveryDriverRole(actor.role)) {
+        checklistDriverId = await resolveOwnDriverId(storage, actor);
+      } else if (driverId != null && driverId !== '') {
+        const targetDriverId = Number(driverId);
+        if (!Number.isInteger(targetDriverId) || targetDriverId <= 0) {
+          return res.status(400).json({ message: 'Motorista inválido' });
+        }
+        const [targetDriver] = await db.select({ id: driversTable.id })
+          .from(driversTable)
+          .where(and(eq(driversTable.id, targetDriverId), eq(driversTable.empresaId, access.tenantId)))
+          .limit(1);
+        if (!targetDriver) return res.status(404).json({ message: 'Motorista não encontrado' });
+        checklistDriverId = targetDriver.id;
       }
 
       const now = new Date();
       const checklistInput = {
         deliveryId,
-        driverId: driverId || null,
+        driverId: checklistDriverId,
         entregaConfirmada: entregaConfirmada !== false,
         observacao: observacao || null,
         assinaturaUrl: null,
@@ -860,10 +897,11 @@ export async function register(app: Express): Promise<void> {
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
 
       if (status === 'entregue') {
-        const access = resolveDeliveryAccess(actor);
+        const access = resolveDeliveryAccess(actor, currentTenantId());
         if (!access.allowed) {
           return res.status(access.status).json({ message: access.message });
         }
+        if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
         const completion = await completeDelivery(deliveryCompletionStore, {
           deliveryId,
           tenantId: access.tenantId,
@@ -886,10 +924,11 @@ export async function register(app: Express): Promise<void> {
         return res.json({ success: true, status, registeredAt: registeredAt.toISOString() });
       }
 
-      const access = resolveDeliveryAccess(actor);
+      const access = resolveDeliveryAccess(actor, currentTenantId());
       if (!access.allowed) {
         return res.status(access.status).json({ message: access.message });
       }
+      if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
       const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
         deliveryId,
         tenantId: access.tenantId,
@@ -982,9 +1021,34 @@ export async function register(app: Express): Promise<void> {
     const actor = await storage.getUser(req.session.userId);
     if (!actor) { res.status(401).json({ message: 'Não autenticado' }); return null; }
     if (!isDriverOrInternal(actor.role)) { res.status(403).json({ message: 'Acesso negado' }); return null; }
-    const ownDriverId = await resolveOwnDriverId(storage, actor);
-    if (isDriver(actor.role) && !ownDriverId) { res.status(403).json({ message: 'Motorista sem cadastro operacional vinculado' }); return null; }
-    return { actor, driverId: ownDriverId ?? (Number(req.body?.driverId) || null) };
+    const tenantId = currentTenantId() ?? actor.empresaId ?? null;
+    if (tenantId == null) { res.status(403).json({ message: 'Selecione uma empresa para esta operação' }); return null; }
+    let driverId: number | null = null;
+    if (isDriver(actor.role)) {
+      driverId = await resolveOwnDriverId(storage, actor);
+      const requestedDriverId = numberOrNull(req.body?.driverId);
+      if (!driverId || (requestedDriverId != null && requestedDriverId !== driverId)) {
+        res.status(403).json({ message: 'Motorista sem cadastro operacional vinculado ou ID não autorizado' });
+        return null;
+      }
+    } else {
+      const requestedDriverId = numberOrNull(req.body?.driverId);
+      if (requestedDriverId != null) {
+        if (!Number.isInteger(requestedDriverId) || requestedDriverId <= 0) {
+          res.status(400).json({ message: 'Motorista inválido' });
+          return null;
+        }
+        const [targetDriver] = await db.select({ id: driversTable.id })
+          .from(driversTable)
+          .where(and(eq(driversTable.id, requestedDriverId), eq(driversTable.empresaId, tenantId)))
+          .limit(1);
+        if (!targetDriver) { res.status(404).json({ message: 'Motorista não encontrado' }); return null; }
+        driverId = targetDriver.id;
+      } else {
+        driverId = await resolveOwnDriverId(storage, { ...actor, empresaId: tenantId });
+      }
+    }
+    return { actor, driverId, tenantId };
   };
   const numberOrNull = (value: unknown) => value == null || value === '' ? null : Number(value);
   const validCoordinate = (lat: unknown, lng: unknown) => {
@@ -993,28 +1057,28 @@ export async function register(app: Express): Promise<void> {
   };
   const idempotent = (req: any) => String(req.get('Idempotency-Key') || req.body?.idempotencyKey || '').trim();
   app.get('/api/driver/journey/today', requireAuthCore, async (req: any, res) => {
-    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const rows = await db.select().from(driverJourneys).where(eq(driverJourneys.driverId, ctx.driverId)).orderBy(desc(driverJourneys.startedAt)).limit(10); res.json(rows); } catch (e: any) { res.status(500).json({ message: e.message }); }
+    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const rows = await db.select().from(driverJourneys).where(and(eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.empresaId, ctx.tenantId))).orderBy(desc(driverJourneys.startedAt)).limit(10); res.json(rows); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post('/api/driver/journey/start', requireAuthCore, async (req: any, res) => {
-    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req); if (!key) return res.status(400).json({ message: 'Idempotency-Key é obrigatório' }); const existing = await db.select().from(driverJourneys).where(eq(driverJourneys.idempotencyKey, key)).limit(1); if (existing[0]) return res.json(existing[0]); const active = await db.select().from(driverJourneys).where(and(eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.status, 'active'))).limit(1); if (active[0]) return res.status(409).json({ message: 'Já existe uma jornada ativa', journey: active[0] }); const lat = numberOrNull(req.body?.latitude), lng = numberOrNull(req.body?.longitude), odo = numberOrNull(req.body?.odometer); if (!validCoordinate(lat, lng) || (odo != null && (!Number.isFinite(odo) || odo < 0))) return res.status(400).json({ message: 'Localização ou odômetro inválido' }); const [row] = await db.insert(driverJourneys).values({ driverId: ctx.driverId, empresaId: ctx.actor.empresaId ?? null, vehicleId: numberOrNull(req.body?.vehicleId), startLatitude: lat?.toString(), startLongitude: lng?.toString(), startOdometer: odo?.toString(), observation: String(req.body?.observation || '').trim() || null, deviceId: req.get('X-Device-Id') || null, idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
+    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req); if (!key) return res.status(400).json({ message: 'Idempotency-Key é obrigatório' }); const existing = await db.select().from(driverJourneys).where(and(eq(driverJourneys.idempotencyKey, key), eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.empresaId, ctx.tenantId))).limit(1); if (existing[0]) return res.json(existing[0]); const active = await db.select().from(driverJourneys).where(and(eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.status, 'active'))).limit(1); if (active[0]) return res.status(409).json({ message: 'Já existe uma jornada ativa', journey: active[0] }); const lat = numberOrNull(req.body?.latitude), lng = numberOrNull(req.body?.longitude), odo = numberOrNull(req.body?.odometer); if (!validCoordinate(lat, lng) || (odo != null && (!Number.isFinite(odo) || odo < 0))) return res.status(400).json({ message: 'Localização ou odômetro inválido' }); const [row] = await db.insert(driverJourneys).values({ driverId: ctx.driverId, empresaId: ctx.tenantId, vehicleId: numberOrNull(req.body?.vehicleId), startLatitude: lat?.toString(), startLongitude: lng?.toString(), startOdometer: odo?.toString(), observation: String(req.body?.observation || '').trim() || null, deviceId: req.get('X-Device-Id') || null, idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post('/api/driver/journey/end', requireAuthCore, async (req: any, res) => {
-    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req); if (!key) return res.status(400).json({ message: 'Idempotency-Key é obrigatório' }); const existing = await db.select().from(driverJourneys).where(eq(driverJourneys.idempotencyKey, key)).limit(1); if (existing[0]) return res.json(existing[0]); const active = await db.select().from(driverJourneys).where(and(eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.status, 'active'))).orderBy(desc(driverJourneys.startedAt)).limit(1); if (!active[0]) return res.status(409).json({ message: 'Nenhuma jornada ativa' }); const odo = numberOrNull(req.body?.odometer), start = active[0].startOdometer == null ? null : Number(active[0].startOdometer); if (odo != null && (!Number.isFinite(odo) || (start != null && odo < start))) return res.status(400).json({ message: 'Odômetro final inválido' }); const lat = numberOrNull(req.body?.latitude), lng = numberOrNull(req.body?.longitude); if (!validCoordinate(lat, lng)) return res.status(400).json({ message: 'Localização inválida' }); const [row] = await db.update(driverJourneys).set({ status: 'ended', endedAt: new Date(), endLatitude: lat?.toString(), endLongitude: lng?.toString(), endOdometer: odo?.toString(), observation: String(req.body?.observation || '').trim() || active[0].observation, idempotencyKey: key }).where(eq(driverJourneys.id, active[0].id)).returning(); res.json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
+    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req); if (!key) return res.status(400).json({ message: 'Idempotency-Key é obrigatório' }); const existing = await db.select().from(driverJourneys).where(and(eq(driverJourneys.idempotencyKey, key), eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.empresaId, ctx.tenantId))).limit(1); if (existing[0]) return res.json(existing[0]); const active = await db.select().from(driverJourneys).where(and(eq(driverJourneys.driverId, ctx.driverId), eq(driverJourneys.status, 'active'))).orderBy(desc(driverJourneys.startedAt)).limit(1); if (!active[0]) return res.status(409).json({ message: 'Nenhuma jornada ativa' }); const odo = numberOrNull(req.body?.odometer), start = active[0].startOdometer == null ? null : Number(active[0].startOdometer); if (odo != null && (!Number.isFinite(odo) || (start != null && odo < start))) return res.status(400).json({ message: 'Odômetro final inválido' }); const lat = numberOrNull(req.body?.latitude), lng = numberOrNull(req.body?.longitude); if (!validCoordinate(lat, lng)) return res.status(400).json({ message: 'Localização inválida' }); const [row] = await db.update(driverJourneys).set({ status: 'ended', endedAt: new Date(), endLatitude: lat?.toString(), endLongitude: lng?.toString(), endOdometer: odo?.toString(), observation: String(req.body?.observation || '').trim() || active[0].observation, idempotencyKey: key }).where(eq(driverJourneys.id, active[0].id)).returning(); res.json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.get('/api/driver/odometer/today', requireAuthCore, async (req: any, res) => {
     try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); res.json(await db.select().from(driverOdometerEntries).where(eq(driverOdometerEntries.driverId, ctx.driverId)).orderBy(desc(driverOdometerEntries.recordedAt)).limit(100)); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post('/api/driver/odometer', requireAuthCore, async (req: any, res) => {
-    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req); const value = numberOrNull(req.body?.odometer); if (!key || value == null || !Number.isFinite(value) || value < 0) return res.status(400).json({ message: 'Idempotency-Key e odômetro válido são obrigatórios' }); const existing = await db.select().from(driverOdometerEntries).where(eq(driverOdometerEntries.idempotencyKey, key)).limit(1); if (existing[0]) return res.json(existing[0]); const [row] = await db.insert(driverOdometerEntries).values({ driverId: ctx.driverId, empresaId: ctx.actor.empresaId ?? null, vehicleId: numberOrNull(req.body?.vehicleId), journeyId: numberOrNull(req.body?.journeyId), value: value.toString(), entryType: String(req.body?.type || 'manual'), observation: String(req.body?.observation || '').trim() || null, idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
+    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req); const value = numberOrNull(req.body?.odometer); if (!key || value == null || !Number.isFinite(value) || value < 0) return res.status(400).json({ message: 'Idempotency-Key e odômetro válido são obrigatórios' }); const existing = await db.select().from(driverOdometerEntries).where(and(eq(driverOdometerEntries.idempotencyKey, key), eq(driverOdometerEntries.driverId, ctx.driverId), eq(driverOdometerEntries.empresaId, ctx.tenantId))).limit(1); if (existing[0]) return res.json(existing[0]); const [row] = await db.insert(driverOdometerEntries).values({ driverId: ctx.driverId, empresaId: ctx.tenantId, vehicleId: numberOrNull(req.body?.vehicleId), journeyId: numberOrNull(req.body?.journeyId), value: value.toString(), entryType: String(req.body?.type || 'manual'), observation: String(req.body?.observation || '').trim() || null, idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.get('/api/driver/fuel', requireAuthCore, async (req: any, res) => {
     try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); res.json(await db.select().from(driverFuelEntries).where(eq(driverFuelEntries.driverId, ctx.driverId)).orderBy(desc(driverFuelEntries.recordedAt)).limit(100)); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post('/api/driver/fuel', requireAuthCore, async (req: any, res) => {
-    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req), liters = numberOrNull(req.body?.liters), unitPrice = numberOrNull(req.body?.unitPrice), total = numberOrNull(req.body?.totalAmount); if (!key || liters == null || unitPrice == null || total == null || liters <= 0 || unitPrice < 0 || total < 0 || !req.body?.fuelType) return res.status(400).json({ message: 'Dados de abastecimento inválidos' }); if (String(req.body?.receiptBase64 || '').length > 8_000_000) return res.status(413).json({ message: 'Comprovante excede o limite de tamanho' }); const existing = await db.select().from(driverFuelEntries).where(eq(driverFuelEntries.idempotencyKey, key)).limit(1); if (existing[0]) return res.json(existing[0]); const [row] = await db.insert(driverFuelEntries).values({ driverId: ctx.driverId, empresaId: ctx.actor.empresaId ?? null, vehicleId: numberOrNull(req.body?.vehicleId), liters: liters.toString(), unitPrice: unitPrice.toString(), totalAmount: total.toString(), odometer: numberOrNull(req.body?.odometer)?.toString(), fuelType: String(req.body.fuelType).slice(0, 40), stationName: String(req.body?.stationName || '').slice(0, 160) || null, receiptBase64: req.body?.receiptBase64 || null, observation: String(req.body?.observation || '').slice(0, 1000) || null, idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
+    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const key = idempotent(req), liters = numberOrNull(req.body?.liters), unitPrice = numberOrNull(req.body?.unitPrice), total = numberOrNull(req.body?.totalAmount); if (!key || liters == null || unitPrice == null || total == null || liters <= 0 || unitPrice < 0 || total < 0 || !req.body?.fuelType) return res.status(400).json({ message: 'Dados de abastecimento inválidos' }); if (String(req.body?.receiptBase64 || '').length > 8_000_000) return res.status(413).json({ message: 'Comprovante excede o limite de tamanho' }); const existing = await db.select().from(driverFuelEntries).where(and(eq(driverFuelEntries.idempotencyKey, key), eq(driverFuelEntries.driverId, ctx.driverId), eq(driverFuelEntries.empresaId, ctx.tenantId))).limit(1); if (existing[0]) return res.json(existing[0]); const [row] = await db.insert(driverFuelEntries).values({ driverId: ctx.driverId, empresaId: ctx.tenantId, vehicleId: numberOrNull(req.body?.vehicleId), liters: liters.toString(), unitPrice: unitPrice.toString(), totalAmount: total.toString(), odometer: numberOrNull(req.body?.odometer)?.toString(), fuelType: String(req.body.fuelType).slice(0, 40), stationName: String(req.body?.stationName || '').slice(0, 160) || null, receiptBase64: req.body?.receiptBase64 || null, observation: String(req.body?.observation || '').slice(0, 1000) || null, idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
   app.post('/api/deliveries/:id/proof', requireAuthCore, async (req: any, res) => {
-    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const delivery = await getAuthorizedDelivery(Number(req.params.id), ctx.actor); if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' }); const key = idempotent(req), signature = String(req.body?.signatureBase64 || ''), photos = Array.isArray(req.body?.photos) ? req.body.photos : []; if (!key || (!signature && photos.length === 0)) return res.status(400).json({ message: 'Idempotency-Key e assinatura ou foto são obrigatórios' }); if (signature.length > 2_000_000 || photos.length > 3 || photos.some((p: any) => String(p).length > 6_000_000)) return res.status(413).json({ message: 'Arquivos excedem os limites permitidos' }); const existing = await db.select().from(deliveryProofs).where(eq(deliveryProofs.idempotencyKey, key)).limit(1); if (existing[0]) return res.json(existing[0]); const [row] = await db.insert(deliveryProofs).values({ deliveryId: Number(req.params.id), driverId: ctx.driverId, empresaId: ctx.actor.empresaId ?? null, signatureBase64: signature || null, photosJson: photos.length ? JSON.stringify(photos) : null, observation: String(req.body?.observation || '').slice(0, 1000) || null, latitude: numberOrNull(req.body?.latitude)?.toString(), longitude: numberOrNull(req.body?.longitude)?.toString(), idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
+    try { const ctx = await operationalActor(req, res); if (!ctx?.driverId) return res.status(400).json({ message: 'Motorista não identificado' }); const delivery = await getAuthorizedDelivery(Number(req.params.id), ctx.actor); if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' }); const key = idempotent(req), signature = String(req.body?.signatureBase64 || ''), photos = Array.isArray(req.body?.photos) ? req.body.photos : []; if (!key || (!signature && photos.length === 0)) return res.status(400).json({ message: 'Idempotency-Key e assinatura ou foto são obrigatórios' }); if (signature.length > 2_000_000 || photos.length > 3 || photos.some((p: any) => String(p).length > 6_000_000)) return res.status(413).json({ message: 'Arquivos excedem os limites permitidos' }); const existing = await db.select().from(deliveryProofs).where(and(eq(deliveryProofs.idempotencyKey, key), eq(deliveryProofs.driverId, ctx.driverId), eq(deliveryProofs.empresaId, ctx.tenantId), eq(deliveryProofs.deliveryId, Number(req.params.id)))).limit(1); if (existing[0]) return res.json(existing[0]); const [row] = await db.insert(deliveryProofs).values({ deliveryId: Number(req.params.id), driverId: ctx.driverId, empresaId: ctx.tenantId, signatureBase64: signature || null, photosJson: photos.length ? JSON.stringify(photos) : null, observation: String(req.body?.observation || '').slice(0, 1000) || null, latitude: numberOrNull(req.body?.latitude)?.toString(), longitude: numberOrNull(req.body?.longitude)?.toString(), idempotencyKey: key }).returning(); res.status(201).json(row); } catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
 }

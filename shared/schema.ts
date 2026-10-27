@@ -13,7 +13,7 @@ export const users = pgTable("users", {
   active: boolean("active").default(true).notNull(),
   tabPermissions: jsonb("tab_permissions"), // string[] | null — null means no restriction (use role defaults)
   testMode: boolean("test_mode").default(false).notNull(),
-  permissions: jsonb("permissions"), // { verPedidos, criarPedidos, editarPedidos, excluirPedidos, verCompras, criarCompras, verFinanceiro, editarFinanceiro, gerarNotaFiscal, exportarBling, editarClientes, excluirClientes, acessarInventario, editarInventario, verRelatorios } | null
+  permissions: jsonb("permissions"), // Namespaced action overrides plus preserved opaque legacy JSON; no schema migration required.
   // Security
   loginAttempts: integer("login_attempts").default(0).notNull(),
   isLocked: boolean("is_locked").default(false).notNull(),
@@ -1941,6 +1941,7 @@ export interface WorkflowEventPayload {
   orderId:     number;
   orderCode:   string | null;
   companyId:   number;
+  deliveryId?: number;
   from:        string;
   to:          string;
   actor:       { id: number; email: string; role: string; name?: string };

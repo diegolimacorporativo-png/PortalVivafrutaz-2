@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -78,6 +79,8 @@ export function useAuth() {
       await fetch(api.auth.logout.path, { method: "POST", credentials: "include" });
     },
     onSuccess: () => {
+      localStorage.removeItem("staff_tenant_owner");
+      localStorage.removeItem("staff_tenant_id");
       queryClient.setQueryData([api.auth.me.path], null);
       queryClient.clear();
       setLocation("/login");
@@ -85,6 +88,12 @@ export function useAuth() {
   });
 
   const authData = meQuery.data;
+  useEffect(() => {
+    if (authData?.company) {
+      localStorage.removeItem("staff_tenant_owner");
+      localStorage.removeItem("staff_tenant_id");
+    }
+  }, [authData?.company]);
 
   // T804 — DEV-only: avoid leaking auth state into prod console on every query refetch.
   if (import.meta.env.DEV) {

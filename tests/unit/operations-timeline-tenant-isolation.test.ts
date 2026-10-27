@@ -85,6 +85,7 @@ function mockDatabase(orderRows: unknown[]) {
 }
 
 function mockTenantUser(user: { id: number; empresaId: number | null; role: string }) {
+  mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
   return mock.method(storage, "getUser", async () => user as any);
 }
 

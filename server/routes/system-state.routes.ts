@@ -7,6 +7,7 @@ import { desc, or, isNull, eq } from "drizzle-orm";
 import { storage } from "../services/storage";
 import { queryFirewall } from "../core/security/queryFirewall";
 import { logSecurity } from "../core/security/securityLogger";
+import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
 import { runWithTenant } from "../core/tenant/context";
 
 export function registerSystemStateRoutes(app: Express) {
@@ -23,7 +24,8 @@ export function registerSystemStateRoutes(app: Express) {
         (req as any).user = currentUser
           ? { id: currentUser.id, role: currentUser.role, tenantId: currentUser.empresaId != null ? String(currentUser.empresaId) : null }
           : undefined;
-        const effectiveTenantId = userRole === "MASTER" ? (typeof session?.empresaId === "number" ? session.empresaId : null) : (currentUser?.empresaId ?? null);
+        const isGlobalAdmin = GLOBAL_ADMIN_ROLES.includes(userRole as typeof GLOBAL_ADMIN_ROLES[number]);
+        const effectiveTenantId = isGlobalAdmin ? (typeof session?.empresaId === "number" ? session.empresaId : null) : (currentUser?.empresaId ?? null);
         const state = systemState.get();
         const sqlScope = effectiveTenantId ?? "GLOBAL_READ_ONLY";
 
@@ -77,7 +79,7 @@ export function registerSystemStateRoutes(app: Express) {
                 ? dbPolicies.map((p) => ({ id: p.id, name: p.name, type: p.type, enabled: p.enabled, priority: p.priority, tenantId: p.tenantId ?? null }))
                 : state.policies.map((p) => ({ ...p, tenantId: null }));
 
-            if (userRole === "MASTER" && effectiveTenantId != null) {
+            if (isGlobalAdmin && effectiveTenantId != null) {
               logSecurity(`[SECURITY] TENANT_SWITCH | userId=${userId ?? "unknown"} | toTenant=${effectiveTenantId} | timestamp=${Date.now()}`);
             }
 
@@ -91,7 +93,7 @@ export function registerSystemStateRoutes(app: Express) {
               recommendation: state.recommendation,
               updatedAt: state.updatedAt,
               tenantScope: effectiveTenantId ?? "global",
-              isMaster: userRole === "MASTER",
+              isMaster: isGlobalAdmin,
               legacyReadOnly: true,
             };
           },

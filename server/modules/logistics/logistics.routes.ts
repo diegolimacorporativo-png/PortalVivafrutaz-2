@@ -27,6 +27,8 @@ import {
 import { publicTrackingLimiter } from "../../core/security/rateLimit";
 import { storage } from "../../services/storage";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
+import { requireTabPermission } from "../../middleware/requireTabPermission";
+import { requireActionPermission } from "../../middleware/requireActionPermission";
 
 const router = Router();
 
@@ -37,13 +39,10 @@ const router = Router();
 router.use((req: Request, res: Response, next: NextFunction) => {
   const session = (req as any).session;
   if (!session?.userId && !session?.companyId) return next();
-  // A legacy/global LOGISTICS supervisor may have no empresaId yet. The
-  // GPS controller and service still authenticate the session and restrict
-  // global visibility to the explicit supervisor role. Do not bypass tenant
-  // resolution for any other logistics operation.
-  if (req.path === "/drivers/gps" && session.userId) return next();
   return tenantContext(req, res, next);
 });
+router.use(requireTabPermission((req) => req.path.startsWith("/drivers/gps") ? "gps-tracking" : "logistics"));
+router.use(requireActionPermission("logistics"));
 
 // ── Drivers ────────────────────────────────────────────────────────────
 router.get("/drivers", logisticsController.listDrivers);

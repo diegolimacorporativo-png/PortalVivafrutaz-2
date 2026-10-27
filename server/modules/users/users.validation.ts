@@ -2,6 +2,24 @@ import { z } from "zod";
 import { insertUserSchema } from "@shared/schema";
 import { USER_ROLE_VALUES } from "@shared/user-roles";
 
+const actionPermissionsSchema = z.object({
+  read: z.boolean().optional(),
+  create: z.boolean().optional(),
+  edit: z.boolean().optional(),
+  delete: z.boolean().optional(),
+}).strict();
+
+const actionOverridesSchema = z.object({
+  orders: actionPermissionsSchema.optional(),
+  logistics: actionPermissionsSchema.optional(),
+  quotations: actionPermissionsSchema.optional(),
+  "special-orders": actionPermissionsSchema.optional(),
+}).strict();
+
+const permissionsInputSchema = z.object({
+  actionOverridesV1: z.union([actionOverridesSchema, z.null()]).optional(),
+}).strict().nullable();
+
 /**
  * Validation layer for the users module.
  *
@@ -13,14 +31,15 @@ import { USER_ROLE_VALUES } from "@shared/user-roles";
 
 // ── Create ──────────────────────────────────────────────────────────────
 // Mirrors the legacy POST /api/users contract: name, email, password, role
-// required; `active` defaults to true. Fine-grained `permissions` are legacy
-// data only and are deliberately not accepted until server enforcement exists.
+// required; `active` defaults to true. Existing permissions JSONB accepts only
+// the namespaced action overrides; opaque legacy fields remain server-owned.
 export const createUserSchema = insertUserSchema.omit({ permissions: true }).extend({
   name: z.string().min(1, "Nome é obrigatório"),
   email: z.string().email("Email inválido"),
   password: z.string().min(12, "A senha deve ter pelo menos 12 caracteres"),
   role: z.enum(USER_ROLE_VALUES, { message: "Perfil de acesso inválido" }),
   active: z.boolean().optional().default(true),
+  permissions: permissionsInputSchema.optional(),
 });
 
 // ── Update ──────────────────────────────────────────────────────────────
@@ -32,8 +51,9 @@ export const updateUserSchema = insertUserSchema.omit({ permissions: true }).par
   // role can never be blank. This keeps the driver profile selection required
   // instead of allowing an account to lose its access profile via the API.
   role: z.enum(USER_ROLE_VALUES, { message: "Perfil de acesso inválido" }).optional(),
-  // null restores the role's default tab visibility; [] explicitly hides all tabs.
+  // null restores the role's default tab visibility; [] retains legacy defaults.
   tabPermissions: z.union([z.array(z.string()), z.null()]).optional(),
+  permissions: permissionsInputSchema.optional(),
 });
 
 // ── Change password (privileged) ────────────────────────────────────────

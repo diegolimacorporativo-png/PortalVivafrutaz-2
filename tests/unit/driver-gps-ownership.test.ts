@@ -79,9 +79,10 @@ describe("GPS de motoristas — ownership multi-tenant", () => {
     assert.equal(canAccessDriverRecord(directorGlobal, driverB), true);
   });
 
-  test("LOGISTICS sem empresa pode supervisionar o GPS global legado", () => {
-    assert.equal(isGlobalLogisticsActor(logisticsSupervisorGlobal), true);
-    assert.equal(canAccessDriverRecord(logisticsSupervisorGlobal, driverA), true);
+  test("LOGISTICS sem empresa precisa selecionar tenant para supervisionar o GPS", () => {
+    assert.equal(isGlobalLogisticsActor(logisticsSupervisorGlobal), false);
+    assert.equal(canAccessDriverRecord(logisticsSupervisorGlobal, driverA), false);
+    assert.equal(canAccessDriverRecord(logisticsSupervisorGlobal, driverA, 10), true);
   });
 
   test("motoristas não recebem acesso interno arbitrário por driverId", () => {

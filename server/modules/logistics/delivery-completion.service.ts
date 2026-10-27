@@ -108,6 +108,14 @@ export interface DeliveryCompletionTransaction {
   getConfirmedChecklist(
     deliveryId: number,
   ): Promise<DeliveryCompletionChecklistRecord | undefined>;
+  enqueueDeliveryStatusNotification(input: {
+    orderId: number;
+    deliveryId: number;
+    companyId: number;
+    from: string;
+    to: string;
+    actor: DeliveryCompletionActor;
+  }): Promise<void>;
   insertChecklist(
     input: DeliveryCompletionChecklistInput,
   ): Promise<DeliveryCompletionChecklistRecord>;
@@ -151,6 +159,12 @@ export function areOrderDeliveriesTerminal(
     deliveries.length > 0 &&
     deliveries.every((delivery) => TERMINAL_DELIVERY_STATUSES.has(delivery.status))
   );
+}
+
+export function areOrderDeliveriesDelivered(
+  deliveries: Array<{ status: string }>,
+): boolean {
+  return deliveries.length > 0 && deliveries.every((delivery) => delivery.status === "entregue");
 }
 
 /**
@@ -276,9 +290,8 @@ export async function completeDelivery(
         ? siblingDeliveries
         : await tx.getDeliveriesForOrder(order.id);
       validateOrderDeliveryLinks(currentDeliveries, order.companyId, delivery.id);
-      const allDeliveriesClosed = areOrderDeliveriesTerminal(currentDeliveries);
 
-      if (allDeliveriesClosed && order.workflowStatus === "SHIPPED") {
+      if (areOrderDeliveriesDelivered(currentDeliveries) && order.workflowStatus === "SHIPPED") {
         orderFinalized = await tx.markOrderDelivered(order.id, order.companyId);
         if (!orderFinalized) {
           throw new DeliveryCompletionConflictError(
@@ -286,6 +299,19 @@ export async function completeDelivery(
           );
         }
         changed = true;
+      }
+
+      // Queue the customer notification in the same transaction as the stop
+      // update. Delivery pushes are sent asynchronously by the existing outbox.
+      if (!alreadyAtTarget && order) {
+        await tx.enqueueDeliveryStatusNotification({
+          orderId: order.id,
+          deliveryId: delivery.id,
+          companyId: order.companyId,
+          from: delivery.status,
+          to: targetStatus,
+          actor: input.actor,
+        });
       }
     }
 
@@ -397,6 +423,17 @@ export async function updateDeliveryNonterminal(
         registeredById: input.actor.id,
         registeredBy: input.actor.name || input.actor.email || null,
         registeredByRole: input.actor.role || null,
+      });
+    }
+
+    if (order && delivery.status !== input.status) {
+      await tx.enqueueDeliveryStatusNotification({
+        orderId: order.id,
+        deliveryId: delivery.id,
+        companyId: order.companyId,
+        from: delivery.status,
+        to: input.status,
+        actor: input.actor,
       });
     }
 

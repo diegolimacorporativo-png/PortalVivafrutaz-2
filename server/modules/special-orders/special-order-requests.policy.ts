@@ -13,6 +13,7 @@ export const SPECIAL_ORDER_VIEW_ROLES = [
   "DEVELOPER",
   "OPERATIONS_MANAGER",
   "LOGISTICS",
+  "COMERCIAL",
 ] as const;
 
 export const SPECIAL_ORDER_MANAGE_ROLES = [
@@ -64,10 +65,12 @@ export function resolveSpecialOrderScope(
       : null;
   }
 
+  if (
+    tenantId != null &&
+    ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "COMERCIAL", "LOGISTICS"].includes(principal.role)
+  ) return { companyId: tenantId, global: false };
   if (SPECIAL_ORDER_GLOBAL_ROLES.includes(principal.role as any)) {
-    return tenantId != null
-      ? { companyId: tenantId, global: false }
-      : { companyId: null, global: true };
+    return { companyId: null, global: true };
   }
 
   return null;

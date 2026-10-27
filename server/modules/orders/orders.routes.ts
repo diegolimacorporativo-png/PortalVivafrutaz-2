@@ -2,6 +2,8 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validate } from "../../shared/middlewares/validate";
 import { tenantContext } from "../../middleware/tenant";
+import { requireTabPermission } from "../../middleware/requireTabPermission";
+import { requireActionPermission } from "../../middleware/requireActionPermission";
 import { ordersController } from "./orders.controller";
 import {
   requireActiveSubscription,
@@ -67,6 +69,8 @@ import {
  */
 const router = Router();
 router.use(tenantContext);
+router.use(requireTabPermission("orders"));
+router.use(requireActionPermission("orders"));
 
 // ── GETs (literals BEFORE /:id) ────────────────────────────────────────
 router.get(

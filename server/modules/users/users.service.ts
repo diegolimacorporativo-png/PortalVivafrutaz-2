@@ -21,7 +21,10 @@ import {
 } from "../../core/tenant/context";
 import {
   GLOBAL_ADMIN_ROLES,
+  GLOBAL_SCOPE_ROLES,
+  INTERNAL_STAFF_ROLES,
   TENANT_ASSIGNABLE_USER_ROLES,
+  ACTION_PERMISSION_KEY,
 } from "@shared/user-roles";
 
 /** Roles allowed to change another user's password. Mirrors legacy gate. */
@@ -72,6 +75,17 @@ function toSafe(user: User): SafeUser {
   return { ...user, password: "***" };
 }
 
+function mergeActionPermissionConfig(existing: unknown, incoming: any): unknown {
+  const base: Record<string, unknown> = existing && typeof existing === "object" && !Array.isArray(existing)
+    ? { ...(existing as Record<string, unknown>) }
+    : existing == null ? {} : { legacyPermissions: existing };
+
+  const overrides = incoming?.actionOverridesV1;
+  if (overrides == null) delete base[ACTION_PERMISSION_KEY];
+  else base[ACTION_PERMISSION_KEY] = overrides;
+  return Object.keys(base).length ? base : null;
+}
+
 function isGlobalUserManagementAdmin(): boolean {
   const principal = getTenantContext()?.principal;
   return (
@@ -104,19 +118,28 @@ export class UsersService {
     try {
       assertCanAssignRole(input.role);
       const createsGlobalAdmin = isGlobalAdminRole(input.role);
+      const createsGlobalScopeAccount = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(input.role);
       if (createsGlobalAdmin && !isGlobalUserManagementAdmin()) {
         throw new ForbiddenError("Perfis MASTER e DIRECTOR só podem ser criados por um administrador global sem empresa selecionada.");
       }
+      const createsUnboundInternalAccount =
+        currentTenantId() == null &&
+        (createsGlobalScopeAccount || INTERNAL_STAFF_ROLES.some((role) => role === input.role));
+      if (createsUnboundInternalAccount && !isGlobalUserManagementAdmin()) {
+        throw new ForbiddenError("Contas internas sem empresa só podem ser criadas por MASTER ou DIRECTOR.");
+      }
       if (
-        !createsGlobalAdmin &&
+        !createsUnboundInternalAccount &&
         currentTenantId() == null &&
         isGlobalAdminRole(currentActorRole())
       ) {
         throw new BadRequestError("Selecione uma empresa de destino antes de criar um usuário.");
       }
-      const tenantId = createsGlobalAdmin ? null : requireTenantId();
+      const tenantId = createsUnboundInternalAccount ? null : requireTenantId();
       const safeInput = { ...input } as any;
-      delete safeInput.permissions;
+      if (Object.prototype.hasOwnProperty.call(safeInput, "permissions")) {
+        safeInput.permissions = mergeActionPermissionConfig(null, safeInput.permissions);
+      }
       const scopedInput = { ...safeInput, empresaId: tenantId };
       const user = await this.repo.create(scopedInput);
       return toSafe(user);
@@ -136,7 +159,6 @@ export class UsersService {
     //     by the client). Strip it so storage doesn't re-hash a literal "***".
     //   - tabPermissions === null is meaningful (reset to defaults). Keep it.
     const updates: Partial<InsertUser> = { ...input };
-    delete (updates as any).permissions;
     if (updates.password === "***" || updates.password === "") {
       delete updates.password;
     }
@@ -145,6 +167,9 @@ export class UsersService {
     const target = await this.repo.getById(id);
     if (!target) throw new NotFoundError("Usuário não encontrado");
     assertCanManageTarget(target);
+    if (Object.prototype.hasOwnProperty.call(updates, "permissions")) {
+      (updates as any).permissions = mergeActionPermissionConfig(target.permissions, updates.permissions);
+    }
     if (updates.role) {
       assertCanAssignRole(updates.role, target.role);
       if (isGlobalAdminRole(updates.role) !== isGlobalAdminRole(target.role)) {

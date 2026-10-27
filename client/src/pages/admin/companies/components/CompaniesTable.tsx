@@ -9,11 +9,12 @@ interface CompaniesTableProps {
   totalPages: number;
   totalCount: number;
   onEdit: (c: Company) => void;
+  onDelete: (c: Company) => void;
   onPageChange: (p: number) => void;
 }
 
 export function CompaniesTable({
-  companies, priceGroups, page, totalPages, totalCount, onEdit, onPageChange,
+  companies, priceGroups, page, totalPages, totalCount, onEdit, onDelete, onPageChange,
 }: CompaniesTableProps) {
   return (
     <div>
@@ -45,6 +46,7 @@ export function CompaniesTable({
                   company={company}
                   priceGroupName={priceGroups.find((pg: any) => pg.id === company.priceGroupId)?.groupName}
                   onEdit={onEdit}
+                  onDelete={onDelete}
                 />
               ))
             )}

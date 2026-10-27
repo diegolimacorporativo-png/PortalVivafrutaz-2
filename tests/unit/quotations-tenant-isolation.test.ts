@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { requireAuth } from "../../server/core/http/requireAuth";
 import {
   canDeleteQuotations,
+  canWriteQuotations,
   hasQuotationTenantOverride,
   resolveQuotationScope,
   sanitizeQuotationCreateBody,
@@ -117,6 +118,23 @@ describe("quotations — isolamento multi-tenant", () => {
     ]);
     assert.equal(repo.list(resolveQuotationScope(globalMaster)).length, 3);
     assert.equal(repo.list(resolveQuotationScope(globalDirector)).length, 3);
+  });
+
+  test("COMERCIAL sem vínculo só acessa a empresa explicitamente selecionada", () => {
+    const repo = makeFakeRepository([
+      { id: 1, empresaId: 10, status: "PENDING" },
+      { id: 2, empresaId: 20, status: "PENDING" },
+    ]);
+    const scope = resolveQuotationScope({ role: "COMERCIAL", empresaId: null, selectedTenantId: 20 });
+    assert.deepEqual(repo.list(scope).map(row => row.id), [2]);
+    assert.equal(resolveQuotationScope({ role: "COMERCIAL", empresaId: null }), null);
+  });
+
+  test("controle de escrita em cotações continua separado da leitura por política de perfil", () => {
+    assert.equal(canWriteQuotations("COMERCIAL"), true);
+    assert.equal(canWriteQuotations("LOGISTICS"), true);
+    assert.equal(canWriteQuotations("FINANCEIRO"), false);
+    assert.equal(canDeleteQuotations("COMERCIAL"), false);
   });
 
   test("ADMIN/DEVELOPER vinculados permanecem tenant-bound", () => {

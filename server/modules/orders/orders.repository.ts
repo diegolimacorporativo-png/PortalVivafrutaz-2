@@ -9,6 +9,7 @@ import {
   withTenantAll,
   stripTenantFields,
 } from "../../core/tenant/scope";
+import { GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { getRequestIdForLog } from "../../core/context/requestContext";
 import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
@@ -51,7 +52,7 @@ export class OrdersRepository {
   private isCrossTenantOrdersAdmin(): boolean {
     const principal = getTenantContext()?.principal;
     return principal?.kind === "admin" &&
-      ["MASTER", "DIRECTOR"].includes(principal.role ?? "");
+      (GLOBAL_SCOPE_ROLES as readonly string[]).includes(principal.role ?? "");
   }
 
   // ── Reads ───────────────────────────────────────────────────────────────
@@ -63,8 +64,9 @@ export class OrdersRepository {
    */
   list(filter: OrdersListFilter = {}): Promise<Order[]> {
     const tenantId = currentTenantId();
-    if (tenantId == null || this.isCrossTenantOrdersAdmin()) {
-      // Cross-tenant admin path. The legacy contract preserved.
+    if (tenantId == null) {
+      if (!this.isCrossTenantOrdersAdmin()) requireTenantId();
+      // Explicitly global read is available only when no tenant was selected.
       return storage.getOrders(filter.empresaId as number | undefined);
     }
     return db
@@ -91,11 +93,7 @@ export class OrdersRepository {
       orderStatus: (detail?.order as any)?.status ?? null,
     });
     if (!detail) return undefined;
-    if (
-      tenantId != null &&
-      !this.isCrossTenantOrdersAdmin() &&
-      (detail.order as any).companyId !== tenantId
-    ) {
+    if (tenantId != null && (detail.order as any).companyId !== tenantId) {
       // Tenant mismatch — pretend not found.
       console.log('[REPO_GET_ORDER_TENANT_MISMATCH]', {
         id,
@@ -104,6 +102,7 @@ export class OrdersRepository {
       });
       return undefined;
     }
+    if (tenantId == null && !this.isCrossTenantOrdersAdmin()) requireTenantId();
     return detail;
   }
 
@@ -114,6 +113,7 @@ export class OrdersRepository {
    */
   listByCompany(companyId: number): Promise<Order[]> {
     const tenantId = currentTenantId();
+    if (tenantId == null && !this.isCrossTenantOrdersAdmin()) requireTenantId();
     if (tenantId != null && tenantId !== companyId) {
       // Hard-stop: pinned tenant trying to read another tenant.
       throw new ForbiddenError("Tenant não autorizado a acessar esta empresa");
@@ -127,6 +127,7 @@ export class OrdersRepository {
    */
   listByCompanyId(companyId: number): Promise<Order[]> {
     const tenantId = currentTenantId();
+    if (tenantId == null && !this.isCrossTenantOrdersAdmin()) requireTenantId();
     if (tenantId != null && tenantId !== companyId) {
       throw new ForbiddenError("Tenant não autorizado a acessar esta empresa");
     }

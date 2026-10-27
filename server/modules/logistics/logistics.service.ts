@@ -18,8 +18,8 @@ import {
   NotFoundError,
 } from "../../shared/errors/AppError";
 import { currentTenantId } from "../../core/tenant/context";
+import { GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
-import { isLogisticsSupervisorRole } from "./driver.access";
 import { dateInTimeZone } from "./local-date";
 import type {
   ActorRef,
@@ -226,9 +226,9 @@ export class LogisticsService {
       return { tenantId: actorTenant, global: false };
     }
 
-    // Only these existing global profiles may intentionally operate without
-    // a tenant target. Unbound ADMIN/DEVELOPER accounts fail closed.
-    if (actor.role === "MASTER" || actor.role === "DIRECTOR") {
+    // All four global profiles may read across tenants without a target.
+    // Individual write paths still require a tenant-scoped operation.
+    if ((GLOBAL_SCOPE_ROLES as readonly string[]).includes(actor.role)) {
       return { tenantId: null, global: true };
     }
 
@@ -324,16 +324,8 @@ export class LogisticsService {
    * to actor.empresaId. Other internal roles keep their tenant scope.
    */
   async listLiveDriverLocations(actor: ActorRef) {
-    const globalGpsAccess = ["MASTER", "ADMIN", "DIRECTOR"].includes(actor.role);
-    const canReadGlobal =
-      globalGpsAccess ||
-      (!actor.empresaId && isLogisticsSupervisorRole(actor.role));
-
-    if (!actor.empresaId && !canReadGlobal) {
-      throw new ForbiddenError("Empresa não definida para este usuário");
-    }
-
-    const scopedEmpresaId = canReadGlobal ? undefined : actor.empresaId ?? undefined;
+    const scope = this.analyticsScope(actor);
+    const scopedEmpresaId = scope.global ? undefined : scope.tenantId!;
     let driverRows = (await (scopedEmpresaId
       ? this.repo.getDriversSafe(scopedEmpresaId)
       : this.repo.getDrivers())) as any[];

@@ -16,8 +16,8 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { BackHeader } from "@/components/navigation/BackHeader";
 
 type TrackingData = {
-  status: "scheduled" | "in_transit" | "driver_nearby" | "delayed" | "delivered" | "cancelled";
-  deliveryStatus: "scheduled" | "in_transit" | "delivered" | "cancelled";
+  status: "scheduled" | "in_transit" | "driver_nearby" | "delayed" | "partially_delivered" | "delivered" | "cancelled";
+  deliveryStatus: "scheduled" | "in_transit" | "partially_delivered" | "delivered" | "cancelled";
   trackingAvailable: boolean;
   scheduledDate: string | null;
   deliveryWindow: { startTime: string; endTime: string } | null;
@@ -86,6 +86,13 @@ const STATUS_PRESENTATION: Record<string, {
     icon: CheckCircle2,
     color: "text-green-700",
     border: "border-green-300",
+  },
+  partially_delivered: {
+    title: "Entrega parcial",
+    description: "Parte do pedido foi entregue e as demais entregas continuam em acompanhamento.",
+    icon: PackageCheck,
+    color: "text-violet-700",
+    border: "border-violet-300",
   },
   cancelled: {
     title: "Pedido cancelado",
@@ -248,7 +255,7 @@ export default function TrackDelivery() {
     ? OPERATIONAL_STATE_PRESENTATION[data.operationalState]
     : undefined;
   const status = data
-    ? (!token && !data.trackingAvailable ? operationalPresentation : undefined) ??
+    ? (!token && !data.trackingAvailable && data.status !== "partially_delivered" ? operationalPresentation : undefined) ??
       STATUS_PRESENTATION[data.status] ?? STATUS_PRESENTATION.scheduled
     : null;
   const StatusIcon = status?.icon ?? PackageCheck;
@@ -264,6 +271,7 @@ export default function TrackDelivery() {
       </header>
 
       <div className="mx-auto max-w-xl space-y-4 px-4 py-6">
+        {orderId && <BackHeader fallback="/client/history" breadcrumb={[{ label: "Meus Pedidos", href: "/client/history" }, { label: "Rastreamento" }]} className="border-slate-200" />}
         {isLoading && (
           <div className="rounded-2xl border bg-white p-12 text-center shadow-sm">
             <RefreshCw className="mx-auto mb-3 h-9 w-9 animate-spin text-blue-600" />
@@ -271,7 +279,6 @@ export default function TrackDelivery() {
           </div>
         )}
 
-        {orderId && <BackHeader fallback="/client/history" breadcrumb={[{ label: "Meus Pedidos", href: "/client/history" }, { label: "Rastreamento" }]} className="border-slate-200" />}
         {error && (
           <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">
             <AlertCircle className="mx-auto mb-3 h-10 w-10 text-red-500" />

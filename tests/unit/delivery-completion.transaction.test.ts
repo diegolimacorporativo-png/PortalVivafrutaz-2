@@ -5,6 +5,7 @@ import {
   deleteDeliveryBeforeShipment,
   updateDeliveryNonterminal,
   areOrderDeliveriesTerminal,
+  areOrderDeliveriesDelivered,
   DeliveryCompletionLinkError,
   type DeliveryCompletionActor,
   type DeliveryCompletionChecklistInput,
@@ -28,6 +29,7 @@ type TestState = {
   routes: Array<{ id: number; companyId: number | null }>;
   events: DeliveryStopEventInput[];
   checklists: DeliveryCompletionChecklistRecord[];
+  notifications: Array<Record<string, unknown>>;
 };
 
 class MemoryCompletionStore implements DeliveryCompletionStore {
@@ -153,6 +155,9 @@ class MemoryCompletionStore implements DeliveryCompletionStore {
             checklist.deliveryId === deliveryId &&
             checklist.entregaConfirmada === true,
         ),
+      enqueueDeliveryStatusNotification: async (input) => {
+        draft.notifications.push(input);
+      },
       insertChecklist: async (input) => {
         if (this.failAt === "checklist") throw new Error("checklist insert failed");
         const checklist: DeliveryCompletionChecklistRecord = {
@@ -246,6 +251,7 @@ function makeStore(statuses = ["em_rota"]): MemoryCompletionStore {
     routes,
     events: [],
     checklists: [],
+    notifications: [],
   });
 }
 
@@ -281,6 +287,15 @@ describe("conclusão transacional de entregas", () => {
       ]),
       false,
     );
+    assert.equal(areOrderDeliveriesDelivered([]), false);
+    assert.equal(areOrderDeliveriesDelivered([{ status: "entregue" }]), true);
+    assert.equal(
+      areOrderDeliveriesDelivered([
+        { status: "entregue" },
+        { status: "cancelado" },
+      ]),
+      false,
+    );
   });
 
   test("uma única entrega conclui o pedido e grava evento sem tocar nos campos fiscais", async () => {
@@ -296,6 +311,8 @@ describe("conclusão transacional de entregas", () => {
     assert.equal(result?.delivery.stopStatus, "entregue");
     assert.equal(result?.orderFinalized, true);
     assert.equal(store.state.events.length, 1);
+    assert.equal(store.state.notifications.length, 1);
+    assert.equal(store.state.notifications[0].to, "entregue");
     assert.equal(store.state.events[0].observacao, "Recebido pelo cliente");
     assert.deepEqual(
       {
@@ -363,19 +380,19 @@ describe("conclusão transacional de entregas", () => {
     assert.equal(store.state.events.length, 1);
   });
 
-  test("a última entrega pendente conclui o pedido e preserva a entrega cancelada", async () => {
+  test("uma entrega cancelada não permite declarar o pedido inteiro como entregue", async () => {
     const store = makeStore(["entregue", "cancelado", "em_rota"]);
 
     const result = await complete(store, 103);
 
-    assert.equal(result?.orderFinalized, true);
-    assert.equal(store.state.orders[0].workflowStatus, "DELIVERED");
+    assert.equal(result?.orderFinalized, false);
+    assert.equal(store.state.orders[0].workflowStatus, "SHIPPED");
     assert.equal(store.state.deliveries[0].status, "entregue");
     assert.equal(store.state.deliveries[1].status, "cancelado");
     assert.equal(store.state.deliveries[2].status, "entregue");
   });
 
-  test("cancelar a última entrega pendente também conclui o pedido", async () => {
+  test("cancelar a última parada não marca o pedido como entregue", async () => {
     const store = makeStore(["entregue", "cancelado", "em_rota"]);
 
     const result = await completeDelivery(store, {
@@ -386,8 +403,8 @@ describe("conclusão transacional de entregas", () => {
       now: completedAt,
     });
 
-    assert.equal(result?.orderFinalized, true);
-    assert.equal(store.state.orders[0].workflowStatus, "DELIVERED");
+    assert.equal(result?.orderFinalized, false);
+    assert.equal(store.state.orders[0].workflowStatus, "SHIPPED");
     assert.equal(store.state.deliveries[2].status, "cancelado");
     assert.equal(store.state.events.length, 0);
   });
@@ -401,6 +418,7 @@ describe("conclusão transacional de entregas", () => {
     assert.equal(repeated?.changed, false);
     assert.equal(repeated?.orderFinalized, false);
     assert.equal(store.state.events.length, 1);
+    assert.equal(store.state.notifications.length, 1);
     assert.equal(store.state.orders[0].workflowStatus, "DELIVERED");
   });
 

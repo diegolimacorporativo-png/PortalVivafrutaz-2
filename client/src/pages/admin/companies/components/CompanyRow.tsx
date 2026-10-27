@@ -1,4 +1,4 @@
-import { Building2, Mail, Phone, Hash, Clock, CheckCircle, XCircle, Edit2 } from "lucide-react";
+import { Building2, Mail, Phone, Hash, Clock, CheckCircle, XCircle, Edit2, Trash2 } from "lucide-react";
 import { getBillingLabel, getBillingFormatLabel } from "../constants";
 import type { Company } from "@shared/schema";
 
@@ -6,9 +6,10 @@ interface CompanyRowProps {
   company: Company;
   priceGroupName: string | undefined;
   onEdit: (company: Company) => void;
+  onDelete: (company: Company) => void;
 }
 
-export function CompanyRow({ company, priceGroupName, onEdit }: CompanyRowProps) {
+export function CompanyRow({ company, priceGroupName, onEdit, onDelete }: CompanyRowProps) {
   const deliveryRange = (() => {
     try {
       const cfg =
@@ -115,6 +116,16 @@ export function CompanyRow({ company, priceGroupName, onEdit }: CompanyRowProps)
           className="p-2 rounded-lg text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
         >
           <Edit2 className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          data-testid={`button-delete-company-${company.id}`}
+          onClick={() => onDelete(company)}
+          aria-label={`Excluir permanentemente ${company.companyName}`}
+          title="Excluir permanentemente"
+          className="p-2 rounded-lg text-red-600 hover:bg-red-50 transition-colors"
+        >
+          <Trash2 className="w-4 h-4" />
         </button>
       </td>
     </tr>

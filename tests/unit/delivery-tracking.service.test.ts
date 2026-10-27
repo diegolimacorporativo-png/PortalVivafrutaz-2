@@ -394,6 +394,36 @@ describe("public delivery tracking operational availability", () => {
   });
 });
 
+test("order tracking reports partial completion and keeps the remaining route active", async () => {
+  const deliveredAt = new Date(now.getTime() - 15 * 60_000);
+  const multiDeliveryResults = [
+    [{
+      id: 90,
+      company_id: 3,
+      status: "DELIVERED",
+      delivery_date: "2026-10-08",
+      delivery_config_json: activeDelivery.delivery_config_json,
+      company_latitude: "-23.55",
+      company_longitude: "-46.63",
+    }],
+    [
+      { id: 39, status: "entregue", delivered_at: deliveredAt },
+      { id: 40, status: "em_rota", delivered_at: null },
+    ],
+    [{ ...activeDelivery, id: 39, delivery_status: "entregue", delivered_at: deliveredAt }],
+    ...validTrackingResults({ delivery: { id: 40 } }).slice(0),
+  ];
+  const { result } = await withDbResults(multiDeliveryResults, (database) =>
+    getOrderDeliveryTracking(90, 3, now, database),
+  );
+
+  assert.equal(result?.status, "partially_delivered");
+  assert.equal(result?.deliveryStatus, "partially_delivered");
+  assert.equal(result?.trackingAvailable, true);
+  assert.match(result?.message ?? "", /1 de 2 entregas/);
+  assert.equal(result?.deliveredAt, deliveredAt.toISOString());
+});
+
 describe("authenticated order tracking fallback", () => {
   const order = {
     id: 90,

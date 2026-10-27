@@ -6,6 +6,7 @@ import {
   deliveryChecklists,
   logisticsRoutes,
   orders,
+  workflowEvents,
 } from "@shared/schema";
 import type {
   DeliveryCompletionStore,
@@ -202,6 +203,28 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
             .orderBy(deliveryChecklists.createdAt)
             .limit(1);
           return row;
+        },
+
+        async enqueueDeliveryStatusNotification(input) {
+          await tx.insert(workflowEvents).values({
+            orderId: input.orderId,
+            eventType: "DELIVERY_STATUS",
+            payload: {
+              orderId: input.orderId,
+              orderCode: null,
+              companyId: input.companyId,
+              deliveryId: input.deliveryId,
+              from: input.from,
+              to: input.to,
+              actor: {
+                id: input.actor.id,
+                email: input.actor.email ?? "",
+                role: input.actor.role ?? "DRIVER",
+                ...(input.actor.name ? { name: input.actor.name } : {}),
+              },
+              result: { deliveryUpdated: true },
+            },
+          });
         },
 
         async insertChecklist(input) {

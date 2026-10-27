@@ -7,6 +7,7 @@ export const QUOTATION_VIEW_ROLES = [
   "DEVELOPER",
   "OPERATIONS_MANAGER",
   "LOGISTICS",
+  "COMERCIAL",
 ] as const;
 
 export const QUOTATION_DELETE_ROLES = [
@@ -16,11 +17,16 @@ export const QUOTATION_DELETE_ROLES = [
   "DEVELOPER",
 ] as const;
 
+export const QUOTATION_WRITE_ROLES = [
+  "MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "OPERATIONS_MANAGER", "LOGISTICS", "COMERCIAL",
+] as const;
+
 export const GLOBAL_QUOTATION_ROLES = ["MASTER", "DIRECTOR"] as const;
 
 export type QuotationActor = {
   role: string;
   empresaId: number | null | undefined;
+  selectedTenantId?: number | null;
 };
 
 export type QuotationScope =
@@ -71,6 +77,10 @@ export function canDeleteQuotations(role: string): boolean {
   return (QUOTATION_DELETE_ROLES as readonly string[]).includes(role);
 }
 
+export function canWriteQuotations(role: string): boolean {
+  return (QUOTATION_WRITE_ROLES as readonly string[]).includes(role);
+}
+
 /**
  * Null empresaId means that the actor is not pinned to a tenant. Only the
  * existing global roles retain cross-tenant quotation access.
@@ -82,6 +92,10 @@ export function resolveQuotationScope(
 
   if (actor.empresaId != null) {
     return { global: false, empresaId: actor.empresaId };
+  }
+
+  if (actor.selectedTenantId != null && ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "COMERCIAL", "LOGISTICS"].includes(actor.role)) {
+    return { global: false, empresaId: actor.selectedTenantId };
   }
 
   if ((GLOBAL_QUOTATION_ROLES as readonly string[]).includes(actor.role)) {

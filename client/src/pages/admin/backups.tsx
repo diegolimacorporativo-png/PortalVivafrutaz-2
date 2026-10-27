@@ -498,7 +498,7 @@ function ValidationModal({ result, onClose }: { result: ValidationResult; onClos
 // ─── Main Page ─────────────────────────────────────────────────
 export default function BackupsPage() {
   const { user } = useAuth();
-  const isMaster = user?.role === "MASTER";
+  const isMaster = ['MASTER', 'DIRECTOR'].includes(user?.role || '');
 
   const { data: backups, isLoading, refetch } = useQuery<Backup[]>({ queryKey: ['/api/admin/backups'] });
   const { data: statsData } = useQuery<{ success: boolean; data: BackupStats }>({

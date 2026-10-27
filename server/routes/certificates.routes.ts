@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
+import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
 
 export async function register(app: Express) {
   // Visão agregada read-only do estado dos certificados na frota. NÃO retorna
@@ -11,7 +12,7 @@ export async function register(app: Express) {
   app.get(
     '/api/admin/certificates/audit',
     requireAuthCore,
-    requireRole(['MASTER'], { strict: true }),
+    requireRole([...GLOBAL_ADMIN_ROLES], { strict: true }),
     async (_req, res) => {
       try {
         const { auditCertificates } = await import(
@@ -39,7 +40,7 @@ export async function register(app: Express) {
   app.post(
     '/api/admin/certificates/migrate-legacy',
     requireAuthCore,
-    requireRole(['MASTER'], { strict: true }),
+    requireRole([...GLOBAL_ADMIN_ROLES], { strict: true }),
     async (_req, res) => {
       try {
         const { migrateLegacyCertificates } = await import(

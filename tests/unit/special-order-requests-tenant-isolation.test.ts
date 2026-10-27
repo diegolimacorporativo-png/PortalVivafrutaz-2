@@ -89,6 +89,12 @@ describe("special order requests — isolamento e autorização", () => {
     assert.deepEqual(scope, { companyId: 10, global: false });
   });
 
+  test("COMERCIAL sem vínculo usa somente o tenant selecionado no contexto", () => {
+    const scope = resolveSpecialOrderScope({ tenantId: 20, userEmpresaId: null, role: "COMERCIAL" });
+    assert.deepEqual(scope, { companyId: 20, global: false });
+    assert.equal(resolveSpecialOrderScope({ userEmpresaId: null, role: "COMERCIAL" }), null);
+  });
+
   test("papel global autorizado mantém a listagem global", () => {
     const scope = resolveSpecialOrderScope({ role: "MASTER" }, SPECIAL_ORDER_VIEW_ROLES);
     assert.deepEqual(scope, { companyId: null, global: true });

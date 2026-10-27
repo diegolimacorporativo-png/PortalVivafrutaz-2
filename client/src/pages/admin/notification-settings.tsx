@@ -20,6 +20,7 @@ const EVENT_LABELS: Record<string, { label: string; description: string; icon: s
   order_created:   { label: "Novo pedido recebido",      description: "Quando um cliente cria um novo pedido",                  icon: "🛒" },
   order_cancelled: { label: "Pedido cancelado",           description: "Quando um pedido é cancelado",                          icon: "❌" },
   order_updated:   { label: "Pedido atualizado",          description: "Quando o status de um pedido muda",                     icon: "📝" },
+  delivery_status: { label: "Entrega atualizada para cliente", description: "Quando uma parada vinculada ao pedido muda de status", icon: "🚚" },
   client_inactive: { label: "Cliente sem pedidos",        description: "Quando um cliente fica sem pedidos por muitos dias",    icon: "⚠️" },
   low_stock:       { label: "Estoque baixo",              description: "Quando o estoque de um produto fica crítico",           icon: "📦" },
   clara_task:      { label: "Nova tarefa da Clara IA",    description: "Quando a Clara cria uma tarefa automaticamente",        icon: "🌿" },
@@ -82,6 +83,7 @@ export default function AdminNotificationSettings() {
 
   return (
     <div className="space-y-8">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Notificações Push" }]} />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Notificações Push</h1>

@@ -14,6 +14,7 @@ const PUSH_SETTING_EVENTS = new Set([
   "order_created",
   "order_cancelled",
   "order_updated",
+  "delivery_status",
   "client_inactive",
   "low_stock",
   "clara_task",

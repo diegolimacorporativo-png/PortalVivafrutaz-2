@@ -12,7 +12,7 @@ import { db } from "../../database/db";
 import { orders as ordersTable, orderItems as orderItemsTable } from "@shared/schema";
 import { ordersRepository, OrdersRepository } from "./orders.repository";
 import { getRequestIdForLog } from "../../core/context/requestContext";
-import { currentTenantId } from "../../core/tenant/context";
+import { currentTenantId, requireTenantId } from "../../core/tenant/context";
 import {
   calculateOrderModificationDeadline,
   ORDER_MODIFICATION_EXPIRED_MESSAGE,
@@ -1507,9 +1507,26 @@ export class OrdersService {
     actor: ActorContext,
   ): Promise<{ success: true; deleted: number }> {
     const user = await this.requireRole(actor, DELETE_ROLES, "Sem permissão para excluir pedidos");
-    const ids = (body.orderIds || []).map((x) => Number(x));
+    const ids = [...new Set((body.orderIds || []).map((x) => Number(x)))];
+    if (ids.length === 0 || ids.some((id) => !Number.isInteger(id) || id <= 0)) {
+      throw new BadRequestError("Informe pedidos válidos para exclusão");
+    }
+    // Cross-tenant admins must explicitly select a target using
+    // ?empresaId=N. The repository's write guard enforces the same rule.
+    const tenantId = requireTenantId();
 
     const orderResults = await Promise.all(ids.map((i) => this.repo.get(i)));
+    if (orderResults.some((result) => !result)) {
+      throw new NotFoundError("Um ou mais pedidos não foram encontrados");
+    }
+    if (orderResults.some((result) => Number((result!.order as any).companyId) !== tenantId)) {
+      throw new ForbiddenError("Todos os pedidos devem pertencer ao tenant selecionado");
+    }
+    // Validate the entire batch before deleting any row. This also prevents
+    // partial deletion when a fiscal period is closed for one of the orders.
+    for (const result of orderResults) {
+      await this.assertPeriodOpenForOrder(result!.order as any, "remove");
+    }
     const fiscalOrders = orderResults.filter(
       (r) =>
         r &&

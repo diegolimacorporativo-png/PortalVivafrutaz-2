@@ -188,9 +188,7 @@ async function getDeliveryTracking(
   const effectiveDeliveryStatus =
     String(delivery.order_status ?? "").toUpperCase() === "CANCELLED"
       ? "cancelled"
-      : String(delivery.order_status ?? "").toUpperCase() === "DELIVERED"
-        ? "delivered"
-        : delivery.delivery_status;
+      : delivery.delivery_status;
   const status = normalizeTrackingStatus(effectiveDeliveryStatus);
   if (status === "cancelled") {
     return withOrderOperationalState(buildScheduledPayload({
@@ -535,32 +533,107 @@ export async function getOrderDeliveryTracking(
   if (!order) return null;
 
   const deliveryRows = rowsOf(await database.execute(sql`
-    SELECT d.id
+    SELECT d.id, d.status, d.delivered_at
     FROM deliveries d
     JOIN orders o ON o.id = d.order_id
     WHERE d.order_id = ${orderId}
       AND o.company_id = ${companyId}
       AND (d.company_id IS NULL OR d.company_id = o.company_id)
-    ORDER BY d.id DESC
-    LIMIT 1
+    ORDER BY d.scheduled_date ASC NULLS LAST, d.route_position ASC NULLS LAST, d.id ASC
   `));
-  if (deliveryRows[0]) {
-    return getDeliveryTracking(Number(deliveryRows[0].id), now, companyId, database, true);
-  }
-
   const orderStatus = String(order.status ?? "");
   const deliveryStatus = orderStatus === "DELIVERED"
     ? "delivered"
     : orderStatus === "CANCELLED"
       ? "cancelled"
       : "scheduled";
-  return withOrderOperationalState(buildScheduledPayload({
+  const scheduledPayload = withOrderOperationalState(buildScheduledPayload({
     deliveryStatus,
     scheduledDate: dateOnly(order.delivery_date),
     deliveryConfigJson: order.delivery_config_json,
     latitude: order.company_latitude,
     longitude: order.company_longitude,
   }, now), deliveryStatus === "delivered" ? "delivered" : deliveryStatus === "cancelled" ? "cancelled" : "scheduled", true);
+
+  if (deliveryRows.length === 0) return scheduledPayload;
+
+  const deliveryPayloads = await Promise.all(
+    deliveryRows.map((row) =>
+      getDeliveryTracking(Number(row.id), now, companyId, database, true),
+    ),
+  );
+  if (deliveryRows.length === 1) return deliveryPayloads[0] ?? scheduledPayload;
+
+  if (orderStatus.toUpperCase() === "CANCELLED") {
+    return scheduledPayload;
+  }
+
+  const statuses = deliveryRows.map((row) => normalizeTrackingStatus(row.status));
+  const deliveredIndexes = statuses.flatMap((status, index) => status === "delivered" ? [index] : []);
+  const cancelledIndexes = statuses.flatMap((status, index) => status === "cancelled" ? [index] : []);
+  const openIndexes = statuses.flatMap((status, index) =>
+    status === "delivered" || status === "cancelled" ? [] : [index],
+  );
+
+  const deliveredAt = deliveredIndexes
+    .map((index) => deliveryRows[index]?.delivered_at ?? deliveryPayloads[index]?.deliveredAt)
+    .filter((value): value is Date | string => value != null)
+    .sort((left, right) => timestampMillis(right) - timestampMillis(left))[0] ?? null;
+
+  if (deliveredIndexes.length === deliveryRows.length) {
+    const latest = deliveryPayloads[deliveredIndexes[0]] ?? scheduledPayload;
+    return {
+      ...latest,
+      status: "delivered",
+      deliveryStatus: "delivered",
+      trackingAvailable: false,
+      deliveredAt,
+      message: "Todas as entregas deste pedido foram concluídas.",
+    };
+  }
+
+  if (cancelledIndexes.length === deliveryRows.length) {
+    return {
+      ...(deliveryPayloads[cancelledIndexes[0]] ?? scheduledPayload),
+      status: "cancelled",
+      deliveryStatus: "cancelled",
+      trackingAvailable: false,
+      message: "Todas as entregas deste pedido foram canceladas.",
+    };
+  }
+
+  const activeIndexes = openIndexes.length > 0
+    ? openIndexes
+    : [...deliveredIndexes, ...cancelledIndexes];
+  const selectedIndex = activeIndexes.find((index) => deliveryPayloads[index]?.trackingAvailable) ?? activeIndexes[0];
+  const current = selectedIndex == null ? scheduledPayload : deliveryPayloads[selectedIndex] ?? scheduledPayload;
+
+  if (deliveredIndexes.length > 0) {
+    return {
+      ...current,
+      status: "partially_delivered",
+      deliveryStatus: "partially_delivered",
+      deliveredAt: deliveredAt == null
+        ? null
+        : deliveredAt instanceof Date
+          ? deliveredAt.toISOString()
+          : new Date(deliveredAt).toISOString(),
+      message: `${deliveredIndexes.length} de ${deliveryRows.length} entregas deste pedido foram concluídas. ${openIndexes.length > 0 ? "As demais ainda estão em andamento." : "As demais paradas foram canceladas."}`,
+    };
+  }
+
+  if (cancelledIndexes.length > 0) {
+    return {
+      ...current,
+      message: "Uma parada foi cancelada. Acompanhe as demais entregas deste pedido.",
+    };
+  }
+
+  return current;
+}
+
+function timestampMillis(value: Date | string): number {
+  return value instanceof Date ? value.getTime() : new Date(value).getTime();
 }
 
 export async function getPublicDeliveryTracking(

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation, Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { 
   Leaf, LayoutDashboard, Users, Package, Tag, 
@@ -18,12 +18,15 @@ import { WhatsNewModal } from './WhatsNewModal';
 import { TrainingModeProvider, TrainingModeButton } from './TrainingMode';
 import { GlobalSearch } from './GlobalSearch';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, company, isStaff, isClient, logout } = useAuth();
   const [location, navigate] = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarSearch, setSidebarSearch] = useState('');
+  const [selectedTenantId, setSelectedTenantId] = useState(() => localStorage.getItem('staff_tenant_id') || '');
+  const queryClient = useQueryClient();
   const push = usePushNotifications();
 
   // White-label: Apply company colors
@@ -95,6 +98,44 @@ export function Layout({ children }: { children: React.ReactNode }) {
   });
 
   const staffRole = user?.role || '';
+  const crossCompanyRoles = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'COMERCIAL', 'LOGISTICS'];
+  const canSelectTenant = Boolean(isStaff && user?.empresaId == null && crossCompanyRoles.includes(staffRole));
+  const { data: tenantOptions = [] } = useQuery<{ id: number; companyName: string }[]>({
+    queryKey: ['/api/companies/tenant-options', user?.id],
+    queryFn: async () => {
+      const response = await fetchWithAuth('/api/companies/tenant-options');
+      if (!response.ok) throw new Error('Não foi possível carregar as empresas disponíveis.');
+      return response.json();
+    },
+    enabled: canSelectTenant,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const owner = localStorage.getItem('staff_tenant_owner');
+    if (owner !== String(user.id)) {
+      localStorage.removeItem('staff_tenant_id');
+      setSelectedTenantId('');
+    }
+    if (canSelectTenant) localStorage.setItem('staff_tenant_owner', String(user.id));
+    else {
+      localStorage.removeItem('staff_tenant_owner');
+      localStorage.removeItem('staff_tenant_id');
+      setSelectedTenantId('');
+    }
+  }, [user?.id, canSelectTenant]);
+
+  const changeTenant = async (value: string) => {
+    if (!user?.id || value === selectedTenantId) return;
+    localStorage.setItem('staff_tenant_owner', String(user.id));
+    if (value) localStorage.setItem('staff_tenant_id', value);
+    else localStorage.removeItem('staff_tenant_id');
+    setSelectedTenantId(value);
+    await queryClient.cancelQueries();
+    queryClient.removeQueries({ predicate: query => query.queryKey[0] !== '/api/auth/me' });
+    navigate(['COMERCIAL', 'LOGISTICS'].includes(staffRole) ? '/admin/logistics' : '/admin');
+  };
   const isAdminRole = ['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR'].includes(staffRole);
   const { data: allowedModulos } = useQuery<string[]>({
     queryKey: ['/api/saas/minha-assinatura/modulos'],
@@ -149,10 +190,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/logistics-intelligence', label: 'Inteligência Logística', icon: Route, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'], tabKey: 'logistics-intelligence', category: 'Inteligência', moduloChave: 'logistica_inteligente' },
     { href: '/admin/clara-training', label: 'Treinar Clara', icon: GraduationCap, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'clara-training', category: 'Inteligência' },
     { href: '/admin/treinamento', label: 'Central de Treinamento', icon: BookOpen, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'FINANCEIRO', 'PURCHASE_MANAGER'], tabKey: 'treinamento', category: 'Treinamento' },
-    { href: '/admin/users', label: 'Usuários do Sistema', icon: UserCog, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'users', category: 'Sistema' },
+    { href: '/admin/users', label: 'Usuários do Sistema', icon: UserCog, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'users', category: 'Sistema' },
     { href: '/admin/system-health', label: 'Saúde do Sistema', icon: Activity, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'system-health', category: 'Sistema' },
     { href: '/admin/backups', label: 'Backup & E-mails', icon: HardDrive, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'backups', category: 'Sistema' },
-    { href: '/admin/email-management', label: 'Central de E-mails', icon: Mail, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'], tabKey: 'email-management', category: 'Sistema' },
+    { href: '/admin/email-management', label: 'Central de E-mails', icon: Mail, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'MANAGER'], tabKey: 'email-management', category: 'Sistema' },
     { href: '/admin/smtp-config', label: 'Configuração SMTP', icon: Settings, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'smtp-config', category: 'Sistema' },
     { href: '/admin/notification-settings', label: 'Notificações Push', icon: Bell, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'notification-settings', category: 'Sistema' },
     { href: '/admin/about-us', label: 'Quem Somos Nós', icon: Building2, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS'], tabKey: 'about-us', category: 'Sistema' },
@@ -186,27 +227,26 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const userTabPerms = user?.tabPermissions as string[] | null | undefined;
-  const isMaster = user?.role === 'MASTER';
+  const canUseGlobalScope = GLOBAL_SCOPE_ROLES.includes(staffRole as any);
   const isLogisticsSupervisor = user?.role === 'LOGISTICS';
   const isFullAccessRole = ['MASTER', 'ADMIN', 'DIRECTOR'].includes(staffRole);
   const links = isStaff 
     ? adminLinks.filter(l => {
-        if (isMaster) return true; // MASTER sees everything
-        if (!l.roles.includes(user?.role || '')) return false;
+        if (!isFullAccessRole && !l.roles.includes(user?.role || '')) return false;
         // LOGISTICS is the GPS supervisor role. Preserve GPS access even
         // when an older custom tab list was saved before this capability.
         if (isLogisticsSupervisor && l.tabKey === 'gps-tracking') return true;
-        // Full-access roles must not be hidden by stale/custom tab permissions.
-        // Route protection already treats these roles as unrestricted.
+        // Global administrative roles may reach every module by role, while
+        // an explicitly saved tab list can still narrow that user's access.
+        if (!tabPermissionAllows(userTabPerms, l.tabKey)) return false;
         if (isFullAccessRole) return true;
-        if (!userTabPerms || userTabPerms.length === 0) {
+        if (userTabPerms == null) {
           // Apply module filtering for non-admin roles when modules are loaded
           if (l.moduloChave && !isAdminRole && allowedModulos && allowedModulos.length > 0) {
             return allowedModulos.includes(l.moduloChave);
           }
           return true;
         }
-        if (!userTabPerms.includes(l.tabKey)) return false;
         // Apply module filtering for non-admin roles when modules are loaded
         if (l.moduloChave && !isAdminRole && allowedModulos && allowedModulos.length > 0) {
           return allowedModulos.includes(l.moduloChave);
@@ -276,6 +316,22 @@ export function Layout({ children }: { children: React.ReactNode }) {
               className="w-full pl-9 pr-3 py-2 text-sm bg-muted/50 border border-border/50 rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
             />
           </div>
+        </div>
+      )}
+
+      {canSelectTenant && (
+        <div className="px-3 py-2">
+          <label htmlFor="staff-tenant-selector" className="mb-1 block text-xs font-semibold text-muted-foreground">Empresa de trabalho</label>
+          <select
+            id="staff-tenant-selector"
+            data-testid="staff-tenant-selector"
+            value={selectedTenantId}
+            onChange={event => void changeTenant(event.target.value)}
+            className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="">{canUseGlobalScope ? 'Visão global' : 'Selecione uma empresa'}</option>
+            {tenantOptions.map(option => <option key={option.id} value={String(option.id)}>{option.companyName}</option>)}
+          </select>
         </div>
       )}
 
@@ -443,7 +499,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto">
-            {children}
+            {canSelectTenant && !selectedTenantId && !canUseGlobalScope ? (
+              <section className="mx-auto mt-8 max-w-2xl rounded-2xl border border-amber-300 bg-amber-50 p-6 text-amber-950" role="status">
+                <h2 className="text-lg font-semibold">Selecione a empresa de trabalho</h2>
+                <p className="mt-2 text-sm">As áreas internas precisam de uma empresa selecionada para limitar cada consulta e operação ao escopo correto. Use o seletor no menu lateral.</p>
+              </section>
+            ) : children}
           </div>
         </main>
       </div>

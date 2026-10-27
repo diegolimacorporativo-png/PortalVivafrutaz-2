@@ -69,7 +69,7 @@ export function isGlobalLogisticsActor(actor: {
   return !!actor
     && actor.empresaId == null
     && !!actor.role
-    && ["MASTER", "ADMIN", "DIRECTOR", "LOGISTICS"].includes(actor.role);
+    && ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"].includes(actor.role);
 }
 
 export function canAccessDriverRecord(
@@ -80,10 +80,12 @@ export function canAccessDriverRecord(
   driver: {
     empresaId?: number | null;
   } | null | undefined,
+  selectedTenantId: number | null = null,
 ): boolean {
   if (!actor || !driver || !isInternal(actor.role)) return false;
-  if (isGlobalLogisticsActor(actor)) return true;
-  return actor.empresaId != null && driver.empresaId === actor.empresaId;
+  const tenantId = selectedTenantId ?? actor.empresaId ?? null;
+  if (tenantId != null) return Number(driver.empresaId) === Number(tenantId);
+  return isGlobalLogisticsActor(actor);
 }
 
 /**

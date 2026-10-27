@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { tabPermissionAllows } from "@shared/user-roles";
 
 // Keep-alive: ping every 5 minutes to prevent Replit sleep
 function KeepAlive() {
@@ -279,13 +280,9 @@ function ProtectedRoute({
     );
   }
 
-  if (tabKey && user && !FULL_ACCESS_ROLES.includes(user.role)) {
+  if (tabKey && user) {
     const tabPerms = (user as any).tabPermissions as string[] | null | undefined;
-    if (
-      tabPerms &&
-      tabPerms.length > 0 &&
-      !tabPerms.includes(tabKey)
-    ) {
+    if (!tabPermissionAllows(tabPerms, tabKey)) {
       return <UnauthorizedModule />;
     }
   }
@@ -378,10 +375,10 @@ function Router() {
         {() => <ProtectedRoute component={PasswordResetRequestsPage} role="admin" allowedRoles={['ADMIN', 'DIRECTOR']} tabKey="password-reset" />}
       </Route>
       <Route path="/admin/special-orders">
-        {() => <ProtectedRoute component={AdminSpecialOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS']} tabKey="special-orders" />}
+        {() => <ProtectedRoute component={AdminSpecialOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL']} tabKey="special-orders" />}
       </Route>
       <Route path="/admin/users">
-        {() => <ProtectedRoute component={AdminUsers} role="admin" allowedRoles={['ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="users" />}
+        {() => <ProtectedRoute component={AdminUsers} role="admin" allowedRoles={['ADMIN', 'DIRECTOR']} tabKey="users" />}
       </Route>
       <Route path="/admin/backups">
         {() => <ProtectedRoute component={AdminBackups} role="admin" allowedRoles={['ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="backups" />}
@@ -393,7 +390,7 @@ function Router() {
         {() => <ProtectedRoute component={SecurityDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN']} tabKey="security" />}
       </Route>
       <Route path="/admin/security-audit">
-        {() => <ProtectedRoute component={AdminSecurityAudit} role="admin" allowedRoles={['MASTER']} tabKey="security-audit" />}
+        {() => <ProtectedRoute component={AdminSecurityAudit} role="admin" allowedRoles={['MASTER', 'DIRECTOR']} tabKey="security-audit" />}
       </Route>
       <Route path="/admin/governance">
         {() => <ProtectedRoute component={GovernanceDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="governance" />}
@@ -405,7 +402,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminDeveloper} role="admin" allowedRoles={['DEVELOPER', 'ADMIN', 'DIRECTOR', 'MASTER']} tabKey="developer" />}
       </Route>
       <Route path="/admin/master-control">
-        {() => <ProtectedRoute component={AdminMasterControl} role="admin" allowedRoles={['MASTER']} tabKey="master-control" />}
+        {() => <ProtectedRoute component={AdminMasterControl} role="admin" allowedRoles={['MASTER', 'DIRECTOR']} tabKey="master-control" />}
       </Route>
       <Route path="/admin/support">
         {() => <ProtectedRoute component={AdminSupportConfig} role="admin" allowedRoles={['ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="support" />}
@@ -456,7 +453,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminContracts} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER']} tabKey="contracts" />}
       </Route>
       <Route path="/admin/email-management">
-        {() => <ProtectedRoute component={AdminEmailManagement} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER']} tabKey="email-management" />}
+        {() => <ProtectedRoute component={AdminEmailManagement} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'MANAGER']} tabKey="email-management" />}
       </Route>
       <Route path="/admin/about-us">
         {() => <ProtectedRoute component={AdminAboutUs} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS']} tabKey="about-us" />}
@@ -540,7 +537,7 @@ function Router() {
         {() => <ProtectedRoute component={DriverMap} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'MOTORISTA', 'DRIVER']} />}
       </Route>
       <Route path="/test-clara">
-        {() => <ProtectedRoute component={TestClaraPage} role="admin" allowedRoles={['MASTER']} tabKey="test-clara" />}
+        {() => <ProtectedRoute component={TestClaraPage} role="admin" allowedRoles={['MASTER', 'DIRECTOR']} tabKey="test-clara" />}
       </Route>
       <Route path="/admin/intelligence">
         {() => <ProtectedRoute component={AdminIntelligence} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="intelligence" />}
@@ -555,7 +552,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminSettings} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'PURCHASE_MANAGER', 'NUTRICIONISTA', 'MOTORISTA']} tabKey="settings" />}
       </Route>
       <Route path="/admin/observability">
-        {() => <ProtectedRoute component={AdminObservability} role="admin" allowedRoles={['MASTER']} tabKey="observability" />}
+        {() => <ProtectedRoute component={AdminObservability} role="admin" allowedRoles={['MASTER', 'DIRECTOR']} tabKey="observability" />}
       </Route>
       <Route path="/admin/operations/timeline/:orderId">
         {() => <ProtectedRoute component={OperationsTimeline} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="operations-timeline" />}

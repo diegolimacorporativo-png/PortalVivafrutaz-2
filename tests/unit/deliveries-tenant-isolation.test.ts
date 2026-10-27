@@ -6,7 +6,12 @@
  */
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
+import express from "express";
+import http from "node:http";
+import { mock } from "node:test";
 import { requireAuth } from "../../server/core/http/requireAuth";
+import { register as registerLegacyLogistics } from "../../server/routes/logistics.routes";
+import { storage } from "../../server/services/storage";
 import {
   isDeliveryInTenant,
   resolveDeliveryAccess,
@@ -63,6 +68,9 @@ const developerA = { role: "DEVELOPER", empresaId: 10 };
 const globalMaster = { role: "MASTER", empresaId: null };
 const globalDirector = { role: "DIRECTOR", empresaId: null };
 const globalAdmin = { role: "ADMIN", empresaId: null };
+const globalDeveloper = { role: "DEVELOPER", empresaId: null };
+const internalCommercial = { role: "COMERCIAL", empresaId: null };
+const internalLogistics = { role: "LOGISTICS", empresaId: null };
 
 describe("deliveries — isolamento multi-tenant", () => {
   test("tenant A pode consultar delivery A", () => {
@@ -157,8 +165,21 @@ describe("deliveries — isolamento multi-tenant", () => {
     );
   });
 
-  test("ADMIN sem tenant não recebe acesso global automaticamente", () => {
-    assert.equal(resolveDeliveryAccess(globalAdmin).allowed, false);
+  test("ADMIN e DEVELOPER unbound têm leitura global, mas gravações exigem tenant", () => {
+    assert.deepEqual(resolveDeliveryAccess(globalAdmin), { allowed: true, tenantId: null });
+    assert.deepEqual(resolveDeliveryAccess(globalDeveloper), { allowed: true, tenantId: null });
+  });
+
+  test("COMERCIAL e LOGISTICS selecionam um tenant validado para operações de logística", () => {
+    assert.deepEqual(resolveDeliveryAccess(internalCommercial, 10), { allowed: true, tenantId: 10 });
+    assert.deepEqual(resolveDeliveryAccess(internalLogistics, 20), { allowed: true, tenantId: 20 });
+    assert.equal(resolveDeliveryAccess(internalCommercial).allowed, false);
+    assert.equal(resolveDeliveryAccess({ role: "FINANCEIRO", empresaId: null }, 10).allowed, false);
+  });
+
+  test("papel global selecionado fica preso ao tenant escolhido para entregas", () => {
+    assert.deepEqual(resolveDeliveryAccess(globalAdmin, 10), { allowed: true, tenantId: 10 });
+    assert.equal(resolveDeliveryAccess({ role: "ADMIN", empresaId: 20 }, 10).allowed, false);
   });
 
   test("usuário sem autenticação recebe 401", () => {
@@ -180,5 +201,73 @@ describe("deliveries — isolamento multi-tenant", () => {
     assert.equal(repo.update(2, 10, { status: "entregue" }), undefined);
     assert.equal(repo.delete(2, 10), false);
     assert.deepEqual(repo.snapshot(), before);
+  });
+
+  test("rota HTTP força o tenant selecionado sobre companyId da query para COMERCIAL", async () => {
+    const userLookup = mock.method(storage, "getUser", async () => ({
+      id: 41, role: "COMERCIAL", empresaId: null, active: true, tabPermissions: null,
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({
+      id, active: true,
+    } as any));
+    const deliveriesLookup = mock.method(storage, "getDeliveries", async (filters: any) => {
+      assert.equal(filters.companyId, 10);
+      return [];
+    });
+    const app = express();
+    app.use((req, _res, next) => { (req as any).session = { userId: 41 }; next(); });
+    await registerLegacyLogistics(app as any);
+    app.use((error: any, _req: any, res: any, _next: any) => {
+      res.status(error?.status ?? 500).json({ message: error?.message });
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string");
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/deliveries?companyId=99`,
+        { headers: { "X-Empresa-Id": "10" } },
+      );
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), []);
+      assert.ok(deliveriesLookup.mock.callCount() > 0);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      deliveriesLookup.mock.restore();
+      companyLookup.mock.restore();
+      userLookup.mock.restore();
+    }
+  });
+
+  test("rota HTTP bloqueia leitura de entregas quando a ação está negada", async () => {
+    const userLookup = mock.method(storage, "getUser", async () => ({
+      id: 42, role: "COMERCIAL", empresaId: null, active: true, tabPermissions: null,
+      permissions: { actionOverridesV1: { logistics: { read: false } } },
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    const deliveriesLookup = mock.method(storage, "getDeliveries", async () => []);
+    const app = express();
+    app.use((req, _res, next) => { (req as any).session = { userId: 42 }; next(); });
+    await registerLegacyLogistics(app as any);
+    app.use((error: any, _req: any, res: any, _next: any) => {
+      res.status(error?.status ?? 500).json({ message: error?.message });
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string");
+      const response = await fetch(`http://127.0.0.1:${address.port}/api/deliveries`, {
+        headers: { "X-Empresa-Id": "10" },
+      });
+      assert.equal(response.status, 403);
+      assert.equal(deliveriesLookup.mock.callCount(), 0);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      deliveriesLookup.mock.restore();
+      companyLookup.mock.restore();
+      userLookup.mock.restore();
+    }
   });
 });

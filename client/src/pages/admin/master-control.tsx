@@ -651,13 +651,13 @@ export default function MasterControl() {
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
-  if (user?.role !== 'MASTER') {
+  if (!['MASTER', 'DIRECTOR'].includes(user?.role || '')) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Shield className="w-16 h-16 text-destructive mx-auto mb-4" />
           <p className="text-xl font-bold text-foreground">Acesso Restrito</p>
-          <p className="text-muted-foreground mt-1">Esta área é exclusiva para usuários MASTER.</p>
+          <p className="text-muted-foreground mt-1">Esta área está disponível para MASTER e DIRECTOR, com as mesmas permissões globais.</p>
         </div>
       </div>
     );
@@ -687,7 +687,7 @@ export default function MasterControl() {
           <Shield className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Painel MASTER — SaaS</h1>
+          <h1 className="text-2xl font-bold text-foreground">Painel Global — SaaS</h1>
           <p className="text-sm text-muted-foreground">Gestão completa da plataforma VivaFrutaz</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -1140,11 +1140,11 @@ export default function MasterControl() {
                     <p className="text-xs text-muted-foreground mt-0.5">{u.email}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {!(u.role === 'MASTER' && u.id !== user.id) && (
+                    {!(['MASTER', 'DIRECTOR'].includes(u.role) && u.id !== user.id) && (
                       <Select value={u.role} onValueChange={role => updateUserMutation.mutate({ id: u.id, updates: { role } })}>
                         <SelectTrigger className="h-8 text-xs w-44" data-testid={`select-role-${u.id}`}><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          {ROLES.map(r => <SelectItem key={r} value={r} data-testid={`option-role-${r}-${u.id}`}>{ROLE_LABELS[r]}</SelectItem>)}
+                          {ROLES.filter(r => u.empresaId == null || !['MASTER', 'DIRECTOR'].includes(r)).map(r => <SelectItem key={r} value={r} data-testid={`option-role-${r}-${u.id}`}>{ROLE_LABELS[r]}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     )}

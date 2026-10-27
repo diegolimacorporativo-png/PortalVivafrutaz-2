@@ -17,6 +17,7 @@ import { companySettingsService } from "../services/companySettingsService.ts";
 import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
 import { z } from "zod";
+import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
 import expressSession from "express-session";
 import MemoryStore from "memorystore";
 import {
@@ -320,7 +321,7 @@ export async function registerRoutes(
   app.get(
     '/api/admin/security/tenant-mismatch-events',
     requireAuthCore,
-    requireRole(['MASTER'], { strict: true }),
+    requireRole([...GLOBAL_ADMIN_ROLES], { strict: true }),
     async (req, res) => {
       try {
         console.log('[SECURITY_AUDIT] Tenant mismatch audit requested');
@@ -346,7 +347,7 @@ export async function registerRoutes(
   app.post(
     '/api/admin/security/unblock',
     requireAuthCore,
-    requireRole(['MASTER'], { strict: true }),
+    requireRole([...GLOBAL_ADMIN_ROLES], { strict: true }),
     async (req, res) => {
       try {
         const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';

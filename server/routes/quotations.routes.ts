@@ -1,8 +1,13 @@
 import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
+import { tenantContext } from "../middleware/tenant";
+import { currentTenantId } from "../core/tenant/context";
+import { requireTabPermission } from "../middleware/requireTabPermission";
+import { requireActionPermission } from "../middleware/requireActionPermission";
 import {
   canDeleteQuotations,
+  canWriteQuotations,
   hasQuotationTenantOverride,
   resolveQuotationScope,
   sanitizeQuotationCreateBody,
@@ -30,10 +35,11 @@ function parseDate(value: unknown): Date | undefined {
 }
 
 export function register(app: Express) {
+  app.use('/api/quotations', requireAuthCore, tenantContext, requireTabPermission('quotations'), requireActionPermission('quotations'));
   app.get('/api/quotations', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(403).json({ message: 'Sem permissão' });
-    const scope = resolveQuotationScope(user);
+    const scope = resolveQuotationScope({ ...user, selectedTenantId: currentTenantId() });
     if (!scope) return res.status(403).json({ message: 'Sem permissão' });
     try { res.json(await storage.getQuotations(scope)); } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });
@@ -41,8 +47,8 @@ export function register(app: Express) {
   app.post('/api/quotations', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(403).json({ message: 'Sem permissão' });
-    const scope = resolveQuotationScope(user);
-    if (!scope) return res.status(403).json({ message: 'Sem permissão' });
+    const scope = resolveQuotationScope({ ...user, selectedTenantId: currentTenantId() });
+    if (!scope || !canWriteQuotations(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const body = (req.body ?? {}) as Record<string, unknown>;
       const data = sanitizeQuotationCreateBody(body);
@@ -69,8 +75,8 @@ export function register(app: Express) {
   app.patch('/api/quotations/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(403).json({ message: 'Sem permissão' });
-    const scope = resolveQuotationScope(user);
-    if (!scope) return res.status(403).json({ message: 'Sem permissão' });
+    const scope = resolveQuotationScope({ ...user, selectedTenantId: currentTenantId() });
+    if (!scope || !canWriteQuotations(user.role)) return res.status(403).json({ message: 'Sem permissão' });
     try {
       const id = parseQuotationId(req.params.id);
       if (id == null) return res.status(400).json({ message: 'ID inválido' });
@@ -106,7 +112,7 @@ export function register(app: Express) {
   app.delete('/api/quotations/:id', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(403).json({ message: 'Sem permissão' });
-    const scope = resolveQuotationScope(user);
+    const scope = resolveQuotationScope({ ...user, selectedTenantId: currentTenantId() });
     if (!scope || !canDeleteQuotations(user.role)) {
       return res.status(403).json({ message: 'Sem permissão' });
     }

@@ -1,9 +1,20 @@
-export const DELIVERY_GLOBAL_ROLES = ["MASTER", "DIRECTOR"] as const;
+import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
+
+export const DELIVERY_GLOBAL_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
+export const DELIVERY_DRIVER_ROLES = ["DRIVER", "MOTORISTA"] as const;
 
 export type DeliveryActor = {
   role?: string | null;
   empresaId?: number | null;
 };
+
+export function isDeliveryInternalRole(role: string | null | undefined): boolean {
+  return !!role && (LOGISTICS_AUTH_ROLES as readonly string[]).includes(role);
+}
+
+export function isDeliveryDriverRole(role: string | null | undefined): boolean {
+  return !!role && (DELIVERY_DRIVER_ROLES as readonly string[]).includes(role);
+}
 
 export type DeliveryAccess =
   | { allowed: true; tenantId: number | null }
@@ -15,26 +26,35 @@ export type DeliveryAccess =
  * A tenant-bound user is always pinned to its own company. Only the existing
  * global profiles may operate without a company binding.
  */
-export function resolveDeliveryAccess(actor: DeliveryActor): DeliveryAccess {
-  if (!actor.role) {
+export function resolveDeliveryAccess(
+  actor: DeliveryActor,
+  selectedTenantId: number | null = null,
+): DeliveryAccess {
+  if (!isDeliveryInternalRole(actor.role) && !isDeliveryDriverRole(actor.role)) {
     return { allowed: false, status: 403, message: "Acesso negado" };
   }
 
   if (actor.empresaId != null) {
     const tenantId = Number(actor.empresaId);
-    if (!Number.isInteger(tenantId) || tenantId <= 0) {
+    if (!Number.isInteger(tenantId) || tenantId <= 0 ||
+      (selectedTenantId != null && selectedTenantId !== tenantId)) {
       return { allowed: false, status: 403, message: "Acesso negado" };
     }
     return { allowed: true, tenantId };
   }
 
-  if (
-    !(DELIVERY_GLOBAL_ROLES as readonly string[]).includes(actor.role)
-  ) {
+  if (selectedTenantId != null) {
+    if (!Number.isInteger(selectedTenantId) || selectedTenantId <= 0 || !isDeliveryInternalRole(actor.role)) {
+      return { allowed: false, status: 403, message: "Acesso negado" };
+    }
+    return { allowed: true, tenantId: selectedTenantId };
+  }
+
+  if (!(DELIVERY_GLOBAL_ROLES as readonly string[]).includes(actor.role ?? "")) {
     return {
       allowed: false,
       status: 403,
-      message: "Este perfil precisa estar vinculado a uma empresa",
+      message: "Selecione uma empresa para esta operação",
     };
   }
 

@@ -10,7 +10,7 @@ export function requireRole(...roles: string[]) {
     // Session stores the role under `userRole` (set by auth controller at login).
     // Previously this used `session.role` which is never set → always undefined → always 403.
     const userRole = (req as any).session?.userRole as string | undefined;
-    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'];
+    const FULL_ACCESS_ROLES = ['MASTER', 'ADMIN', 'DIRECTOR'];
     if (!userRole || (!FULL_ACCESS_ROLES.includes(userRole) && !roles.includes(userRole))) {
       return next(new ForbiddenError());
     }

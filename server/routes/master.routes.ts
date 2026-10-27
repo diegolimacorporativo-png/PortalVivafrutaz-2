@@ -2,18 +2,19 @@ import type { Express } from "express";
 import { storage } from "../services/storage.ts";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { auditLog } from "../utils/auditLogger";
+import { GLOBAL_ADMIN_ROLES, USER_ROLE_VALUES } from "@shared/user-roles";
 import {
   validateWebhookSignature,
   checkWebhookIdempotency,
 } from "../modules/billing/subscription.middleware";
 
-const requireMaster = [requireAuthCore, requireRole(['MASTER'], { strict: true })];
+const requireMaster = [requireAuthCore, requireRole([...GLOBAL_ADMIN_ROLES], { strict: true })];
 
 export async function register(app: Express): Promise<void> {
   app.get('/api/master/users', ...requireMaster, async (req: any, res) => {
     try {
       const allUsers = await storage.getUsers();
-      res.json(allUsers);
+      res.json(allUsers.map((user) => ({ ...user, password: "***" })));
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -23,7 +24,9 @@ export async function register(app: Express): Promise<void> {
     try {
       const masterUser = await storage.getUser(req.session.userId);
       const { userId, newPassword } = req.body;
-      if (!userId || !newPassword) return res.status(400).json({ message: 'userId e newPassword são obrigatórios' });
+      if (!Number.isInteger(Number(userId)) || Number(userId) <= 0 || typeof newPassword !== 'string' || newPassword.trim().length < 12) {
+        return res.status(400).json({ message: 'Informe um usuário válido e uma senha com pelo menos 12 caracteres' });
+      }
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
       auditLog("RESET_USER_PASSWORD", {
@@ -34,7 +37,7 @@ export async function register(app: Express): Promise<void> {
         details: { targetEmail: targetUser.email },
       });
       await storage.updateUser(userId, { password: newPassword });
-      await storage.createLog({ action: 'MASTER_RESET_PASSWORD', description: `[MASTER] Senha resetada para: ${targetUser.email} (ID ${userId})`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
+      await storage.createLog({ action: 'MASTER_RESET_PASSWORD', description: `[${masterUser!.role}] Senha resetada para: ${targetUser.email} (ID ${userId})`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: masterUser!.role, level: 'WARN' });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -47,10 +50,20 @@ export async function register(app: Express): Promise<void> {
       const targetId = parseInt(req.params.id);
       const targetUser = await storage.getUser(targetId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
-      if (targetUser.role === 'MASTER' && targetId !== masterUser!.id && req.body.role && req.body.role !== 'MASTER') {
-        return res.status(403).json({ message: 'Não é possível rebaixar outro usuário MASTER' });
+      if (Number.isNaN(targetId) || targetId <= 0) return res.status(400).json({ message: 'ID de usuário inválido' });
+      if (['MASTER', 'DIRECTOR'].includes(targetUser.role) && targetId !== masterUser!.id && req.body.role && req.body.role !== targetUser.role) {
+        return res.status(403).json({ message: 'Não é possível alterar o perfil de outro administrador global' });
       }
-      const allowed = ['role', 'active', 'isLocked', 'tabPermissions', 'permissions'];
+      if (req.body.role !== undefined && !USER_ROLE_VALUES.includes(req.body.role)) {
+        return res.status(400).json({ message: 'Perfil de usuário inválido' });
+      }
+      if (req.body.role !== undefined && ['MASTER', 'DIRECTOR'].includes(req.body.role) && targetUser.empresaId != null) {
+        return res.status(403).json({ message: 'Perfis globais não podem ser atribuídos a contas vinculadas a uma empresa' });
+      }
+      if (req.body.role !== undefined && ['MASTER', 'DIRECTOR'].includes(req.body.role) !== ['MASTER', 'DIRECTOR'].includes(targetUser.role)) {
+        return res.status(403).json({ message: 'A troca entre perfil global e perfil de empresa exige um fluxo de transferência de escopo' });
+      }
+      const allowed = ['role', 'active', 'isLocked', 'tabPermissions'];
       const updates: any = {};
       for (const key of allowed) { if (req.body[key] !== undefined) updates[key] = req.body[key]; }
       auditLog("UPDATE_USER", {
@@ -61,7 +74,7 @@ export async function register(app: Express): Promise<void> {
         details: { targetEmail: targetUser.email, updates },
       });
       await storage.updateUser(targetId, updates);
-      await storage.createLog({ action: 'MASTER_UPDATE_USER', description: `[MASTER] Usuário atualizado: ${targetUser.email} — ${JSON.stringify(updates)}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
+      await storage.createLog({ action: 'MASTER_UPDATE_USER', description: `[${masterUser!.role}] Usuário atualizado: ${targetUser.email} — ${JSON.stringify(updates)}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: masterUser!.role, level: 'WARN' });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -75,7 +88,7 @@ export async function register(app: Express): Promise<void> {
       const targetUser = await storage.getUser(userId);
       if (!targetUser) return res.status(404).json({ message: 'Usuário não encontrado' });
       await storage.updateUser(userId, { isLocked: false, loginAttempts: 0 });
-      await storage.createLog({ action: 'MASTER_UNLOCK_USER', description: `[MASTER] Conta desbloqueada: ${targetUser.email}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: 'MASTER', level: 'WARN' });
+      await storage.createLog({ action: 'MASTER_UNLOCK_USER', description: `[${masterUser!.role}] Conta desbloqueada: ${targetUser.email}`, userId: masterUser!.id, userEmail: masterUser!.email, userRole: masterUser!.role, level: 'WARN' });
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });

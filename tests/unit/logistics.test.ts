@@ -361,19 +361,18 @@ describe("logistics — happy paths and edge cases", () => {
     assert.equal(body.message, "Sem permissão");
   });
 
-  test("tenant-bound analytics fails closed for an unbound ADMIN → 403", async () => {
+  test("ADMIN global scope can access analytical logistics without selecting one tenant", async () => {
     const repo = makeStubRepo({
       getUser: async () => ({ id: 1, role: "ADMIN", empresaId: null }),
     });
     const app = makeApp(repo);
-    const { status, body } = await call(
+    const { status } = await call(
       app,
       "GET",
       "/api/logistics/smart-search?q=Cliente",
       { session: { userId: 1 } },
     );
-    assert.equal(status, 403);
-    assert.match(body.message, /empresa/i);
+    assert.equal(status, 200);
   });
 
   test("analytical endpoints require a session", async () => {

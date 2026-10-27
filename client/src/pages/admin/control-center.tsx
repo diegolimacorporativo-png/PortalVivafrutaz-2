@@ -50,7 +50,7 @@ export default function ControlCenter() {
   const [tenantInput, setTenantInput] = useState("");
   const [activeTenantId, setActiveTenantId] = useState("");
 
-  const isMaster = user?.role === "MASTER";
+  const isMaster = ['MASTER', 'DIRECTOR'].includes(user?.role || '');
   const apiUrl = useMemo(() => {
     const base = "/api/admin/system-state";
     return isMaster && activeTenantId ? `${base}?tenantId=${encodeURIComponent(activeTenantId)}` : base;

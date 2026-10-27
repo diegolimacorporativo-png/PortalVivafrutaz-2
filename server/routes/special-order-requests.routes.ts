@@ -5,6 +5,8 @@ import { requireAuth as requireAuthCore } from "../core/http/requireAuth";
 import { requireRole } from "../core/http/requireAuth";
 import { requireSessionOrCompany } from "../core/http/requireSessionOrCompany";
 import { tenantContext } from "../middleware/tenant";
+import { requireTabPermission } from "../middleware/requireTabPermission";
+import { requireActionPermission } from "../middleware/requireActionPermission";
 import { currentTenantId, runWithTenant } from "../core/tenant/context";
 import { ordersService } from "../modules/orders/orders.service";
 import { productService } from "../modules/products/products.service";
@@ -16,16 +18,20 @@ import {
   resolveSpecialOrderScope,
 } from "../modules/special-orders/special-order-requests.policy";
 
-const SPECIAL_ORDER_SESSION_MIDDLEWARE = [requireSessionOrCompany, tenantContext] as const;
+const SPECIAL_ORDER_SESSION_MIDDLEWARE = [requireSessionOrCompany, tenantContext, requireActionPermission("special-orders")] as const;
 const SPECIAL_ORDER_ADMIN_MIDDLEWARE = [
   requireAuthCore,
   requireRole([...SPECIAL_ORDER_VIEW_ROLES], { strict: true }),
   tenantContext,
+  requireTabPermission("special-orders"),
+  requireActionPermission("special-orders"),
 ] as const;
 const SPECIAL_ORDER_MANAGER_MIDDLEWARE = [
   requireAuthCore,
   requireRole([...SPECIAL_ORDER_MANAGE_ROLES], { strict: true }),
   tenantContext,
+  requireTabPermission("special-orders"),
+  requireActionPermission("special-orders"),
 ] as const;
 
 function isoWeekReference(dateValue: string): string {

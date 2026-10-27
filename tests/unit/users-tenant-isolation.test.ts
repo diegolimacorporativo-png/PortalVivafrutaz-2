@@ -112,6 +112,37 @@ function withGlobalAdminTarget<T>(role: "MASTER" | "DIRECTOR", empresaId: number
 }
 
 describe("UsersService — isolamento multi-tenant", () => {
+  test("persiste overrides de ação sem descartar configurações legadas", async () => {
+    const legacy = { oldPermissionSet: ["keep-me"], actionOverridesV1: { orders: { read: false } } };
+    const { service, calls } = makeService({
+      getById: async () => ({ ...target, permissions: legacy }),
+    });
+
+    await withTenant(10, async () => {
+      await service.update(20, {
+        permissions: { actionOverridesV1: { quotations: { delete: false } } },
+      } as any);
+    });
+
+    assert.deepEqual(calls.update[0][1].permissions, {
+      oldPermissionSet: ["keep-me"],
+      actionOverridesV1: { quotations: { delete: false } },
+    });
+  });
+
+  test("remover overrides não remove os demais dados legados de permissions", async () => {
+    const legacy = { oldPermissionSet: ["keep-me"], actionOverridesV1: { orders: { read: false } } };
+    const { service, calls } = makeService({
+      getById: async () => ({ ...target, permissions: legacy }),
+    });
+
+    await withTenant(10, async () => {
+      await service.update(20, { permissions: null } as any);
+    });
+
+    assert.deepEqual(calls.update[0][1].permissions, { oldPermissionSet: ["keep-me"] });
+  });
+
   test("tenant A cria usuário sempre no tenant A, ignorando empresaId do body", async () => {
     const { service, calls } = makeService();
 
@@ -146,7 +177,7 @@ describe("UsersService — isolamento multi-tenant", () => {
     });
   }
 
-  test("MASTER global recebe orientação explícita quando tenta criar usuário sem empresa-alvo", async () => {
+  test("MASTER global recebe orientação explícita ao criar perfil operacional sem empresa-alvo", async () => {
     const { service } = makeService();
 
     await withGlobalAdmin("MASTER", async () => {
@@ -155,11 +186,41 @@ describe("UsersService — isolamento multi-tenant", () => {
           name: "Novo usuário",
           email: "novo@example.com",
           password: "a-strong-test-password",
-          role: "ADMIN",
+          role: "OPERATIONS_MANAGER",
         } as any),
         (error: any) => error instanceof BadRequestError && error.message.includes("empresa de destino"),
       );
     });
+  });
+
+  for (const role of ["COMERCIAL", "LOGISTICS"] as const) {
+    test(`${role} pode ser criado como funcionário interno sem empresa por MASTER/DIRECTOR`, async () => {
+      const { service, calls } = makeService();
+      await withGlobalAdmin("DIRECTOR", async () => {
+        await service.create({
+          name: "Funcionário interno",
+          email: `${role.toLowerCase()}@example.com`,
+          password: "a-strong-test-password",
+          role,
+          empresaId: 99,
+        } as any);
+      });
+      assert.equal(calls.create[0].empresaId, null);
+    });
+  }
+
+  test("ADMIN tenant-bound cria COMERCIAL/LOGISTICS somente no próprio tenant", async () => {
+    const { service, calls } = makeService();
+    await withTenant(10, async () => {
+      await service.create({
+        name: "Funcionário da empresa",
+        email: "staff@example.com",
+        password: "a-strong-test-password",
+        role: "LOGISTICS",
+        empresaId: 99,
+      } as any);
+    });
+    assert.equal(calls.create[0].empresaId, 10);
   });
 
   test("tenant A atualiza somente com empresaId do tenant A", async () => {

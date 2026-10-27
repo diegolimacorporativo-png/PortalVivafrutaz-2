@@ -45,6 +45,13 @@ export const DEFAULT_NOTIFICATION_SETTINGS = [
     targetAudience: "staff",
   },
   {
+    event: "delivery_status",
+    enabled: true,
+    title: "Atualização da entrega",
+    body: "Pedido #{orderId}: {status}. Acompanhe no portal da empresa.",
+    targetAudience: "company",
+  },
+  {
     event: "client_inactive",
     enabled: true,
     title: "⚠️ Cliente inativo",
@@ -95,59 +102,50 @@ export async function ensureDefaultNotificationSettings() {
 
 // Get notification setting by event
 async function getNotifSetting(event: string) {
-  try {
-    const rows = await db
-      .select()
-      .from(notificationSettings)
-      .where(eq(notificationSettings.event, event))
-      .limit(1);
-    return rows[0] || null;
-  } catch (err: any) {
-    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=get_setting | event=${event} | error=${err?.message ?? "unknown"}`);
-    return null;
-  }
+  const rows = await db
+    .select()
+    .from(notificationSettings)
+    .where(eq(notificationSettings.event, event))
+    .limit(1);
+  return rows[0] || null;
 }
 
 // Get all active subscriptions
 async function getActiveSubscriptions(audience: "staff" | "all" | "company", companyId?: number) {
-  try {
-    if (audience === "company" && companyId) {
-      return db
-        .select()
-        .from(pushSubscriptions)
-        .where(and(eq(pushSubscriptions.active, true), eq(pushSubscriptions.companyId, companyId)));
-    }
-    if (audience === "staff") {
-      // FASE 8.6N — staff isolado por tenant: companyId obrigatório
-      if (!companyId) {
-        console.warn("[PUSH] staff audience sem companyId — bloqueado por segurança");
-        return [];
-      }
-      return db
-        .select()
-        .from(pushSubscriptions)
-        .where(
-          and(
-            eq(pushSubscriptions.active, true),
-            eq(pushSubscriptions.companyId, companyId)
-          )
-        );
+  if (audience === "company") {
+    if (!companyId) return [];
+    return db
+      .select()
+      .from(pushSubscriptions)
+      .where(and(eq(pushSubscriptions.active, true), eq(pushSubscriptions.companyId, companyId)));
+  }
+  if (audience === "staff") {
+    // FASE 8.6N — staff isolado por tenant: companyId obrigatório
+    if (!companyId) {
+      console.warn("[PUSH] staff audience sem companyId — bloqueado por segurança");
+      return [];
     }
     return db
       .select()
       .from(pushSubscriptions)
-      .where(eq(pushSubscriptions.active, true));
-  } catch (err: any) {
-    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=get_subscriptions | audience=${audience} | companyId=${companyId ?? "null"} | error=${err?.message ?? "unknown"}`);
-    return [];
+      .where(
+        and(
+          eq(pushSubscriptions.active, true),
+          eq(pushSubscriptions.companyId, companyId)
+        ),
+      );
   }
+  return db
+    .select()
+    .from(pushSubscriptions)
+    .where(eq(pushSubscriptions.active, true));
 }
 
 // Send a push notification to a single subscription
 async function sendPushToSubscription(
   sub: { endpoint: string; p256dh: string; auth: string },
   payload: { title: string; body: string; url?: string; icon?: string }
-) {
+): Promise<boolean> {
   try {
     await webpush.sendNotification(
       {
@@ -163,6 +161,7 @@ async function sendPushToSubscription(
       }),
       { TTL: 3600 }
     );
+    return true;
   } catch (err: any) {
     if (err?.statusCode === 410 || err?.statusCode === 404) {
       // Subscription expired — deactivate it
@@ -174,7 +173,10 @@ async function sendPushToSubscription(
       } catch (deactivateErr: any) {
         logSecurity(`[PUSH_NOTIFICATION_FAILED] step=deactivate_subscription | error=${deactivateErr?.message ?? "unknown"}`);
       }
+      return true;
     }
+    logSecurity(`[PUSH_NOTIFICATION_FAILED] step=send | statusCode=${Number(err?.statusCode) || "unknown"}`);
+    return false;
   }
 }
 
@@ -184,11 +186,11 @@ export async function sendClientPush(
   payload: { title: string; body: string; url?: string }
 ) {
   try {
+    if (!PUSH_ENABLED) return;
     const subs = await getActiveSubscriptions("company", companyId);
-    for (const sub of subs) {
-      // FASE 3.2 — await: garantir que erros de envio individual não sejam
-      // silenciosamente engolidos. Sem await, falhas de push são fire-and-forget.
-      await sendPushToSubscription(sub, payload);
+    const results = await Promise.all(subs.map((sub) => sendPushToSubscription(sub, payload)));
+    if (results.some((sent) => !sent)) {
+      logSecurity(`[PUSH_NOTIFICATION_FAILED] step=client_push | companyId=${companyId} | failed=${results.filter((sent) => !sent).length}`);
     }
   } catch (err: any) {
     logSecurity(`[PUSH_NOTIFICATION_FAILED] step=client_push | companyId=${companyId} | error=${err?.message ?? "unknown"}`);
@@ -201,10 +203,20 @@ export async function fireNotification(
   event: string,
   variables: Record<string, string> = {},
   options: { url?: string; companyId?: number } = {}
-) {
+): Promise<{
+  sent: number;
+  failed: number;
+  skipped: boolean;
+  skipReason?: "provider_unconfigured" | "event_disabled";
+}> {
+  if (!PUSH_ENABLED) {
+    return { sent: 0, failed: 0, skipped: true, skipReason: "provider_unconfigured" };
+  }
   try {
     const setting = await getNotifSetting(event);
-    if (!setting || !setting.enabled) return;
+    if (!setting || !setting.enabled) {
+      return { sent: 0, failed: 0, skipped: true, skipReason: "event_disabled" };
+    }
 
     // Replace template variables
     let title = setting.title;
@@ -215,11 +227,13 @@ export async function fireNotification(
     }
 
     const subs = await getActiveSubscriptions(setting.targetAudience as any, options.companyId);
-    for (const sub of subs) {
-      sendPushToSubscription(sub, { title, body, url: options.url });
-    }
+    const results = await Promise.all(
+      subs.map((sub) => sendPushToSubscription(sub, { title, body, url: options.url })),
+    );
+    const failed = results.filter((sent) => !sent).length;
+    return { sent: results.length - failed, failed, skipped: false };
   } catch (err: any) {
     logSecurity(`[PUSH_NOTIFICATION_FAILED] step=fire_event | event=${event} | error=${err?.message ?? "unknown"}`);
-    console.error(`[PUSH] Error firing event ${event}:`, err);
+    return { sent: 0, failed: 1, skipped: false };
   }
 }

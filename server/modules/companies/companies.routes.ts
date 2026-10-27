@@ -1,10 +1,15 @@
 import { Router } from "express";
 import { asyncHandler } from "../../core/http/asyncHandler";
 import { tenantContext } from "../../middleware/tenant";
-import { requireAuth } from "../../core/http/requireAuth";
+import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { requireAuthOrService } from "../../middleware/serviceAuth";
 import { validateRequest } from "../../core/validation/validateRequest";
 import { companiesController } from "./companies.controller";
+import { db } from "../../database/db";
+import { companies } from "@shared/schema";
+import { asc, eq } from "drizzle-orm";
+import { storage } from "../../services/storage";
+import { CROSS_COMPANY_STAFF_ROLES } from "@shared/user-roles";
 import {
   idParamSchema,
   scopeParamSchema,
@@ -75,6 +80,18 @@ const readGate = [requireAuthOrService, tenantContext] as const;
 // implicit behavior.
 const writeGate = [requireAuth, tenantContext] as const;
 
+// Metadata-only tenant selector for verified, unbound internal accounts.
+router.get("/tenant-options", requireAuth, asyncHandler(async (req, res) => {
+  const userId = (req as any).session?.userId;
+  const user = userId ? await storage.getUser(userId) : null;
+  if (!user || user.active === false || user.empresaId != null || !(CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role)) {
+    return res.status(403).json({ message: "Sem permissão para selecionar empresas" });
+  }
+  const options = await db.select({ id: companies.id, companyName: companies.companyName })
+    .from(companies).where(eq(companies.active, true)).orderBy(asc(companies.companyName));
+  return res.json(options);
+}));
+
 // ── Literals BEFORE /:id ───────────────────────────────────────────────
 // Read — usable by service callers (e.g. logistics map needs to enumerate
 // delivery windows on a daily cron).
@@ -121,9 +138,20 @@ router.put(
   asyncHandler(companiesController.update),
 );
 
+// Explicit permanent-delete endpoint for the admin UI. The tenant guard still
+// limits pinned admins to their own company; only MASTER/DIRECTOR can invoke it.
+router.delete(
+  "/:id/permanent",
+  ...writeGate,
+  requireRole(["MASTER", "DIRECTOR"], { strict: true }),
+  validateRequest(idParamSchema, "params"),
+  asyncHandler(companiesController.remove),
+);
+
 router.delete(
   "/:id",
   ...writeGate,
+  requireRole(["MASTER", "DIRECTOR"], { strict: true }),
   validateRequest(idParamSchema, "params"),
   asyncHandler(companiesController.remove),
 );

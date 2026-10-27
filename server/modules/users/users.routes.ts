@@ -26,8 +26,8 @@ import { USER_MANAGEMENT_ROLES } from "@shared/user-roles";
  *   - `validate`      from `shared/middlewares/validate`
  *
  * Tenant context and strict server-side role checks protect each operation.
- * Fine-grained tab visibility is only a UI preference; APIs enforce role and
- * tenant scope independently.
+ * Persisted tab restrictions are deny-only gates on the modules that opt in;
+ * role/action policies and tenant scope remain independently authoritative.
  */
 const router = Router();
 // Resolve and pin the tenant before any user query. Tenant-bound accounts

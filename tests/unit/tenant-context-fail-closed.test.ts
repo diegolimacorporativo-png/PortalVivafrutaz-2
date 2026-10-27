@@ -105,31 +105,45 @@ describe("tenantContext — fail-closed resolution", () => {
     assert.ok(received instanceof UnauthorizedError);
   });
 
-  test("ADMIN without a company is 403 even when query selects a tenant", async () => {
+  test("ADMIN without a company may use global scope or select an explicit tenant", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({
       id: 10,
       empresaId: null,
       role: "ADMIN",
     } as any));
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 20, active: true } as any));
     try {
       let received: unknown;
+      const request: any = { session: { userId: 10 }, query: { empresaId: "20" }, header: () => undefined };
       await tenantContext(
-        { session: { userId: 10 }, query: { empresaId: "20" }, header: () => undefined } as any,
+        request,
         {} as any,
         (error?: unknown) => { received = error; },
       );
-      assert.ok(received instanceof ForbiddenError);
+      assert.equal(received, undefined);
+      assert.equal(request.empresaId, 20);
+
+      let noTargetError: unknown;
+      await tenantContext(
+        { session: { userId: 10 }, query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { noTargetError = error; },
+      );
+      assert.equal(noTargetError, undefined);
     } finally {
+      companyLookup.mock.restore();
       lookup.mock.restore();
     }
   });
 
-  test("DEVELOPER without a company is not promoted to global scope", async () => {
+  test("DEVELOPER without company may use global scope and selects only existing tenants", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({
       id: 11,
       empresaId: null,
       role: "DEVELOPER",
     } as any));
+    let companyAvailable = false;
+    const companyLookup = mock.method(storage, "getCompany", async () => companyAvailable ? ({ id: 23, active: true } as any) : undefined);
     try {
       let received: unknown;
       await tenantContext(
@@ -137,14 +151,51 @@ describe("tenantContext — fail-closed resolution", () => {
         {} as any,
         (error?: unknown) => { received = error; },
       );
-      assert.ok(received instanceof ForbiddenError);
+      assert.equal(received, undefined);
+
+      companyAvailable = true;
+      const request: any = { session: { userId: 11 }, query: { empresaId: "23" }, header: () => undefined };
+      let targetError: unknown;
+      await tenantContext(request, {} as any, (error?: unknown) => { targetError = error; });
+      assert.equal(targetError, undefined);
+      assert.equal(request.empresaId, 23);
     } finally {
+      companyLookup.mock.restore();
       lookup.mock.restore();
     }
   });
 
-  test("MASTER and DIRECTOR retain explicit global flow without a target", async () => {
-    for (const role of ["MASTER", "DIRECTOR"]) {
+  test("COMERCIAL internal requires and receives only an explicit tenant target", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 13, empresaId: null, role: "COMERCIAL",
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 22, active: true } as any));
+    try {
+      let withoutTarget: unknown;
+      await tenantContext(
+        { session: { userId: 13 }, query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { withoutTarget = error; },
+      );
+      assert.ok(withoutTarget instanceof ForbiddenError);
+
+      let targetError: unknown;
+      const request: any = { session: { userId: 13 }, query: { empresaId: "22" }, header: () => undefined };
+      await tenantContext(
+        request,
+        {} as any,
+        (error?: unknown) => { targetError = error; },
+      );
+      assert.equal(targetError, undefined);
+      assert.equal(request.empresaId, 22);
+    } finally {
+      companyLookup.mock.restore();
+      lookup.mock.restore();
+    }
+  });
+
+  test("all four global profiles retain global flow without a target", async () => {
+    for (const role of ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]) {
       const lookup = mock.method(storage, "getUser", async () => ({
         id: 12,
         empresaId: null,
@@ -179,6 +230,57 @@ describe("tenantContext — fail-closed resolution", () => {
     }
   });
 
+  test("tenant-bound account on inactive company is rejected", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 15, empresaId: 10, role: "COMERCIAL",
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 10, active: false } as any));
+    try {
+      let received: unknown;
+      await tenantContext(
+        { session: { userId: 15 }, query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { received = error; },
+      );
+      assert.ok(received instanceof ForbiddenError);
+    } finally {
+      companyLookup.mock.restore();
+      lookup.mock.restore();
+    }
+  });
+
+  test("conta interna desativada não cria contexto mesmo com sessão antiga", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 16, empresaId: null, role: "MASTER", active: false,
+    } as any));
+    try {
+      let received: unknown;
+      await tenantContext(
+        { session: { userId: 16 }, query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { received = error; },
+      );
+      assert.ok(received instanceof UnauthorizedError);
+    } finally {
+      lookup.mock.restore();
+    }
+  });
+
+  test("company portal remains pinned and inactive company sessions are rejected", async () => {
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 30, active: false } as any));
+    try {
+      let received: unknown;
+      await tenantContext(
+        { session: { companyId: 30 }, query: { empresaId: "31" }, header: () => "31" } as any,
+        {} as any,
+        (error?: unknown) => { received = error; },
+      );
+      assert.ok(received instanceof ForbiddenError);
+    } finally {
+      companyLookup.mock.restore();
+    }
+  });
+
   test("legacy resolveTenant never trusts req.user or client-controlled values", () => {
     assert.equal(
       resolveTenant({ user: { role: "MASTER" }, query: { tenantId: "20" } }),
@@ -204,6 +306,7 @@ describe("real companies route — handler boundary", () => {
       empresaId: 10,
       role: "ADMIN",
     } as any));
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 10, active: true } as any));
     const original = companiesService.list;
     let handlerCalls = 0;
     (companiesService as any).list = async () => {
@@ -221,6 +324,7 @@ describe("real companies route — handler boundary", () => {
       assert.equal(handlerCalls, 0);
     } finally {
       lookup.mock.restore();
+      companyLookup.mock.restore();
       (companiesService as any).list = original;
     }
   });
@@ -292,6 +396,7 @@ describe("real orders and reports routes — tenant precedence", () => {
       empresaId: 10,
       role: "ADMIN",
     } as any));
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 10, active: true } as any));
     const original = ordersService.list;
     let serviceCalls = 0;
     (ordersService as any).list = async () => {
@@ -308,6 +413,7 @@ describe("real orders and reports routes — tenant precedence", () => {
       assert.equal(serviceCalls, 0);
     } finally {
       lookup.mock.restore();
+      companyLookup.mock.restore();
       (ordersService as any).list = original;
     }
   });
@@ -318,6 +424,7 @@ describe("real orders and reports routes — tenant precedence", () => {
       empresaId: 10,
       role: "ADMIN",
     } as any));
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 10, active: true } as any));
     const original = storage.getPurchasingReport;
     const calls: any[] = [];
     (storage as any).getPurchasingReport = async (params: any) => {
@@ -334,6 +441,7 @@ describe("real orders and reports routes — tenant precedence", () => {
       assert.equal(calls[0].companyId, 10);
     } finally {
       lookup.mock.restore();
+      companyLookup.mock.restore();
       (storage as any).getPurchasingReport = original;
     }
   });

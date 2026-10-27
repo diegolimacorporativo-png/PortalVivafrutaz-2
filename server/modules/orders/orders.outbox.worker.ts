@@ -86,14 +86,21 @@ async function processBatch(): Promise<void> {
     payload: WorkflowEventPayload;
     retry_count: number;
   }>(
-    `SELECT   id, order_id, event_type, payload, retry_count
-     FROM     workflow_events
-     WHERE    processed_at IS NULL
-       AND    dead_letter   = false
-       AND    (next_retry_at IS NULL OR next_retry_at <= NOW())
-     ORDER BY created_at
-     LIMIT    $1
-     FOR UPDATE SKIP LOCKED`,
+    `WITH candidates AS (
+       SELECT id
+       FROM workflow_events
+       WHERE processed_at IS NULL
+         AND dead_letter = false
+         AND (next_retry_at IS NULL OR next_retry_at <= NOW())
+       ORDER BY created_at
+       LIMIT $1
+       FOR UPDATE SKIP LOCKED
+     )
+     UPDATE workflow_events AS event
+     SET next_retry_at = NOW() + INTERVAL '10 minutes'
+     FROM candidates
+     WHERE event.id = candidates.id
+     RETURNING event.id, event.order_id, event.event_type, event.payload, event.retry_count`,
     [BATCH_SIZE],
   );
 
@@ -174,8 +181,11 @@ async function dispatchEvent(
   payload: WorkflowEventPayload,
 ): Promise<void> {
   if (eventType !== "TRANSITION") {
-    console.warn(`[OUTBOX] Unknown event type "${eventType}" — skipping`);
-    return;
+    if (eventType === "DELIVERY_STATUS") {
+      await handleDeliveryStatusEvent(payload);
+      return;
+    }
+    throw new Error("Unknown workflow event type");
   }
 
   await handleTransitionEvent(payload);
@@ -185,7 +195,7 @@ async function dispatchEvent(
 async function handleTransitionEvent(p: WorkflowEventPayload): Promise<void> {
   // ── Push notification ────────────────────────────────────────────────────
   try {
-    fireNotification(
+    const result = await fireNotification(
       p.to === "CANCELLED" ? "order_cancelled" : "order_updated",
       {
         code:    p.orderCode || `#${p.orderId}`,
@@ -197,8 +207,10 @@ async function handleTransitionEvent(p: WorkflowEventPayload): Promise<void> {
         companyId: p.companyId,
       },
     );
+    if (result.failed > 0) throw new Error("One or more order notifications failed");
   } catch (pushErr) {
-    console.warn("[OUTBOX] Push notification failed:", pushErr);
+    console.warn("[OUTBOX] Push notification failed; event will be retried");
+    throw pushErr;
   }
 
   // ── Audit log ────────────────────────────────────────────────────────────
@@ -222,6 +234,39 @@ async function handleTransitionEvent(p: WorkflowEventPayload): Promise<void> {
     userRole:    p.actor.role,
     level:       "INFO",
   });
+}
+
+const DELIVERY_STATUS_LABELS: Record<string, string> = {
+  pendente: "Aguardando saída",
+  em_rota: "Em rota",
+  entregue: "Entregue",
+  cancelado: "Cancelado",
+  cliente_ausente: "Cliente ausente",
+  endereco_incorreto: "Endereço incorreto",
+  recusado: "Entrega recusada",
+  reagendado: "Entrega reagendada",
+  problema: "Ocorrência registrada",
+};
+
+async function handleDeliveryStatusEvent(p: WorkflowEventPayload): Promise<void> {
+  if (!p.deliveryId || !p.companyId || !p.orderId) {
+    throw new Error("Delivery outbox event is missing its tenant or resource identity");
+  }
+  const result = await fireNotification(
+    "delivery_status",
+    {
+      orderId: String(p.orderId),
+      status: DELIVERY_STATUS_LABELS[p.to] || "Atualização registrada",
+    },
+    {
+      companyId: p.companyId,
+      url: `/client/tracking/${p.orderId}`,
+    },
+  );
+  if (result.skipReason === "provider_unconfigured") {
+    throw new Error("Delivery push provider is not configured");
+  }
+  if (result.failed > 0) throw new Error("One or more delivery notifications failed");
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────

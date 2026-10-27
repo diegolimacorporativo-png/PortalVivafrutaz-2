@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { runWithTenant, type TenantPrincipal } from "../core/tenant/context";
 import { UnauthorizedError, ForbiddenError } from "../shared/errors/AppError";
 import { storage } from "../services/storage";
+import { CROSS_COMPANY_STAFF_ROLES, GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 
 /**
  * Tenant middleware — the single place where the authenticated session is
@@ -51,26 +52,31 @@ export function tenantContext(req: Request, res: Response, next: NextFunction) {
 
   // Company portal: the tenant is the company itself. No override possible.
   if (session?.companyId) {
-    let clientTarget: number | null;
-    try {
-      clientTarget = resolveClientTenant(req);
-    } catch (error) {
-      return next(error);
-    }
-    if (clientTarget !== null && clientTarget !== session.companyId) {
-      return next(new ForbiddenError("Tenant da sessão não pode ser substituído"));
-    }
-    const principal: TenantPrincipal = {
-      kind: "company",
-      empresaId: session.companyId,
-      userId: session.userId,
-    };
-    (req as any).empresaId = session.companyId;
-    if (session.userId) (req as any).userId = session.userId;
-    return runWithTenant(
-      { principal, empresaId: session.companyId },
-      () => next(),
-    );
+    return storage.getCompany(Number(session.companyId)).then((company) => {
+      if (!company || company.active === false) {
+        return next(new ForbiddenError("Empresa da sessão inexistente ou inativa"));
+      }
+      let clientTarget: number | null;
+      try {
+        clientTarget = resolveClientTenant(req);
+      } catch (error) {
+        return next(error);
+      }
+      if (clientTarget !== null && clientTarget !== Number(session.companyId)) {
+        return next(new ForbiddenError("Tenant da sessão não pode ser substituído"));
+      }
+      const principal: TenantPrincipal = {
+        kind: "company",
+        empresaId: Number(session.companyId),
+        userId: session.userId,
+      };
+      (req as any).empresaId = Number(session.companyId);
+      if (session.userId) (req as any).userId = session.userId;
+      return runWithTenant(
+        { principal, empresaId: Number(session.companyId) },
+        () => next(),
+      );
+    }).catch(next);
   }
 
   // Admin portal: tenant comes from the user's empresaId. Cross-tenant admins
@@ -96,23 +102,40 @@ async function resolveAdminTenant(
   userId: number,
 ): Promise<TenantPrincipal> {
   const user = await storage.getUser(userId);
-  if (!user) throw new UnauthorizedError("Sessão inválida");
+  if (!user || user.active === false) throw new UnauthorizedError("Sessão inválida");
 
   // 1. Admin pinned to a tenant — no override allowed.
   if (user.empresaId != null) {
+    const companyId = Number(user.empresaId);
+    if (!Number.isInteger(companyId) || companyId <= 0) {
+      throw new ForbiddenError("Empresa do usuário inválida");
+    }
+    const company = await storage.getCompany(companyId);
+    if (!company || company.active === false) {
+      throw new ForbiddenError("Empresa do usuário inexistente ou inativa");
+    }
     const clientTarget = resolveClientTenant(req);
-    if (clientTarget !== null && clientTarget !== user.empresaId) {
+    if (clientTarget !== null && clientTarget !== companyId) {
       throw new ForbiddenError("Tenant da sessão não pode ser substituído");
     }
-    return { kind: "admin", empresaId: user.empresaId, userId, role: user.role };
+    return { kind: "admin", empresaId: companyId, userId, role: user.role };
   }
 
-  // 2. Only explicitly global operator roles retain the global flow.
-  // ADMIN/DEVELOPER without a company are not global by default.
-  if (!["MASTER", "DIRECTOR"].includes(user.role)) {
+  // Internal staff may select one company per request, but must not fall
+  // through to unscoped/global queries. Identity comes from storage above.
+  if (!(CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role)) {
     throw new ForbiddenError("Este perfil precisa de uma empresa vinculada");
   }
   const target = resolveClientTenant(req);
+  if (target == null && !(GLOBAL_SCOPE_ROLES as readonly string[]).includes(user.role)) {
+    throw new ForbiddenError("Selecione uma empresa para esta operação");
+  }
+  if (target != null) {
+    const company = await storage.getCompany(target);
+    if (!company || company.active === false) {
+      throw new ForbiddenError("Empresa selecionada inexistente ou inativa");
+    }
+  }
   return { kind: "admin", empresaId: target, userId, role: user.role };
 }
 

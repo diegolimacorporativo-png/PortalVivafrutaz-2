@@ -64,6 +64,10 @@ export async function fetchWithAuth(
     headers: {
       ...(options.headers ?? {}),
       "X-Device-Id": safeDeviceId,
+      ...(url.startsWith("/api/") && !url.startsWith("/api/auth/") &&
+        localStorage.getItem("staff_tenant_owner") && localStorage.getItem("staff_tenant_id")
+        ? { "X-Empresa-Id": localStorage.getItem("staff_tenant_id")! }
+        : {}),
     },
   });
 

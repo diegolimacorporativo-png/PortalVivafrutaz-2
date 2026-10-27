@@ -43,7 +43,7 @@ import {
   getTenantContext,
   requireTenantId,
 } from "../../core/tenant/context";
-import { ForbiddenError } from "../../shared/errors/AppError";
+import { ConflictError, ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import { expectOne } from "../../shared/repositories/repository.utils";
 import type { LogEntry } from "../../shared/types/log.types";
 import type { ICompaniesRepository, PaginatedCompanies, CompaniesPaginatedParams } from "./interfaces/ICompaniesRepository";
@@ -164,7 +164,18 @@ export class CompaniesRepository implements ICompaniesRepository {
 
   async delete(id: number): Promise<void> {
     this.assertCompanyAccess(id);
-    await db.delete(companies).where(eq(companies.id, id));
+    try {
+      const deleted = await db.delete(companies).where(eq(companies.id, id)).returning({ id: companies.id });
+      if (deleted.length === 0) throw new NotFoundError("Empresa não encontrada");
+    } catch (error: any) {
+      if (error instanceof NotFoundError) throw error;
+      // Preserve linked orders, invoices, and operational history. The FK
+      // restriction prevents a hard delete from silently erasing that history.
+      if (error?.code === "23503" || error?.cause?.code === "23503") {
+        throw new ConflictError("Esta empresa possui registros vinculados e não pode ser excluída permanentemente");
+      }
+      throw error;
+    }
   }
 
   // ── Contract Scopes (tenant-scoped via `companyId`) ───────────────────────
