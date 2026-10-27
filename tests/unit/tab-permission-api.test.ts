@@ -3,6 +3,7 @@ import { describe, mock, test } from "node:test";
 import { requireTabPermission } from "../../server/middleware/requireTabPermission";
 import { storage } from "../../server/services/storage";
 import { ForbiddenError } from "../../server/shared/errors/AppError";
+import { driverTabForRequest } from "../../server/modules/logistics/driver.access";
 
 describe("permissões personalizadas de abas no backend", () => {
   test("aba persistida permite entrada no módulo, sem conceder papel", async () => {
@@ -74,5 +75,22 @@ describe("permissões personalizadas de abas no backend", () => {
       await requireTabPermission("gps-tracking")({ session: { userId: 7 } } as any, {} as any, (error?: unknown) => { nextError = error; });
       assert.equal(nextError, undefined);
     } finally { lookup.mock.restore(); }
+  });
+
+  test("envio GPS do motorista usa a aba do painel, não a aba de monitoramento", () => {
+    assert.equal(driverTabForRequest("POST", "/gps"), "driver-panel");
+    assert.equal(driverTabForRequest("POST", "/api/driver/gps"), "driver-panel");
+    assert.equal(driverTabForRequest("GET", "/api/driver/27/gps"), "gps-tracking");
+  });
+
+  test("motorista com painel permitido pode enviar GPS sem receber acesso à aba de monitoramento", async () => {
+    mock.method(storage, "getUser", async () => ({ id: 9, role: "MOTORISTA", active: true, tabPermissions: ["driver-panel"] } as any));
+    let nextError: unknown;
+    await requireTabPermission((req) => driverTabForRequest(req.method, req.path))(
+      { method: "POST", path: "/gps", session: { userId: 9 } } as any,
+      {} as any,
+      (error?: unknown) => { nextError = error; },
+    );
+    assert.equal(nextError, undefined);
   });
 });

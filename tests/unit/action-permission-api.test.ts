@@ -64,6 +64,20 @@ describe("permissões personalizadas por ação", () => {
     assert.equal(nextError, undefined);
   });
 
+  test("GPS enviado pelo dispositivo do motorista não é bloqueado como criação CRUD", async () => {
+    mock.method(storage, "getUser", async () => ({
+      id: 11, role: "MOTORISTA", active: true,
+      permissions: { actionOverridesV1: { logistics: { create: false } } },
+    } as any));
+    let nextCalled = false;
+    await requireActionPermission("logistics")({
+      method: "POST",
+      originalUrl: "/api/driver/gps",
+      session: { userId: 11 },
+    } as any, {} as any, () => { nextCalled = true; });
+    assert.equal(nextCalled, true);
+  });
+
   test("configuração namespaced malformada falha fechada para perfil sem acesso total", async () => {
     mock.method(storage, "getUser", async () => ({ id: 4, role: "COMERCIAL", active: true, permissions: { actionOverridesV1: { orders: "all" } } } as any));
     let nextError: unknown;

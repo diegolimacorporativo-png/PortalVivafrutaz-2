@@ -6,6 +6,7 @@ import { requireActionPermission } from "../middleware/requireActionPermission";
 import { currentTenantId } from "../core/tenant/context";
 import {
   canAccessDriverRecord,
+  driverTabForRequest,
   ensureOwnDriverId,
   isDriver,
   isDriverOrInternal,
@@ -102,7 +103,7 @@ export async function register(app: Express): Promise<void> {
     '/api/driver',
     requireAuthCore,
     tenantContext,
-    requireTabPermission((req) => req.path.includes('/gps') ? 'gps-tracking' : 'driver-panel'),
+    requireTabPermission((req) => driverTabForRequest(req.method, req.path)),
     requireActionPermission('logistics'),
   );
   app.get('/api/geo/cep/:cep', async (req: any, res) => {

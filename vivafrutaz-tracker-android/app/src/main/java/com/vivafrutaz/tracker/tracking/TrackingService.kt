@@ -347,12 +347,17 @@ class TrackingService : Service() {
                             return
                         }
                         if (error is ApiFailure.Http && (error.status == 401 || error.status == 403)) {
+                            val accessMessage = if (error.status == 401) {
+                                "Sessão expirada. Abra o app para entrar novamente."
+                            } else {
+                                error.message.ifBlank { "Acesso ao envio de GPS negado pelo servidor." }
+                            }
                             stateStore.updateStatus(
                                 TrackingState.STATUS_ERROR,
                                 pendingCount,
-                                "Sessão rejeitada pelo servidor. Abra o app para entrar novamente.",
+                                accessMessage,
                             )
-                            updateNotification("Sessão precisa ser revalidada")
+                            updateNotification(if (error.status == 401) "Sessão precisa ser revalidada" else "Acesso ao GPS negado")
                             stopLocationUpdates()
                             stopSelf()
                             return

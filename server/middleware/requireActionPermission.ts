@@ -12,6 +12,16 @@ function actionForRequest(
   path: string,
   module: ActionPermissionModule,
 ): ActionPermissionAction | null {
+  // GPS ingestion is telemetry from the authenticated driver's own device,
+  // not a user-created logistics record. The route itself still enforces
+  // login, an allowed role, and ownership of the driver's operational link.
+  const normalizedPath = path.split("?", 1)[0].replace(/\/+$/, "") || "/";
+  if (
+    module === "logistics"
+    && method.toUpperCase() === "POST"
+    && normalizedPath === "/api/driver/gps"
+  ) return null;
+
   switch (method.toUpperCase()) {
     case "GET":
     case "HEAD": return "read";

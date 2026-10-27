@@ -58,6 +58,20 @@ export function isDriverOrInternal(role: string | null | undefined): boolean {
 }
 
 /**
+ * The driver's GPS upload is part of the mobile driver panel, while GPS
+ * viewing endpoints belong to the logistics monitoring tab. Express strips
+ * the mounted `/api/driver` prefix from `req.path`, but accepting either form
+ * keeps this helper useful to route tests too.
+ */
+export function driverTabForRequest(method: string, path: string): "driver-panel" | "gps-tracking" {
+  const normalizedPath = path.split("?", 1)[0].replace(/\/+$/, "") || "/";
+  const isGpsSubmission = method.toUpperCase() === "POST"
+    && (normalizedPath === "/gps" || normalizedPath === "/api/driver/gps");
+  if (isGpsSubmission) return "driver-panel";
+  return normalizedPath.includes("/gps") ? "gps-tracking" : "driver-panel";
+}
+
+/**
  * Preserve the existing global-logistics behavior for unbound internal
  * accounts. Once an account is pinned to a tenant, its driver operations must
  * be checked against that tenant instead of relying on the submitted ID.
