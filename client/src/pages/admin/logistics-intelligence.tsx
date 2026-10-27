@@ -1279,8 +1279,19 @@ function SmartSearchPanel() {
   const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [routeInsertion, setRouteInsertion] = useState<any>(null);
-  const [bestDriver, setBestDriver] = useState<any>(null);
+  const [routeLoading, setRouteLoading] = useState(false);
   const [activeCompany, setActiveCompany] = useState<any>(null);
+
+  function saoPauloDate() {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Sao_Paulo',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const dateParts = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return `${dateParts.year}-${dateParts.month}-${dateParts.day}`;
+  }
 
   async function doSearch() {
     const q = query.trim();
@@ -1298,26 +1309,30 @@ function SmartSearchPanel() {
   }
 
   async function loadRouteInsertion(companyId: number) {
+    setRouteLoading(true);
     try {
-      const resp = await apiRequest('POST', '/api/logistics/route-insertion', { companyId });
+      const resp = await apiRequest('POST', '/api/logistics/route-insertion', {
+        companyId,
+        date: saoPauloDate(),
+      });
       const data = await resp.json();
-      setRouteInsertion(data.suggestion);
-    } catch (_) {}
-  }
-
-  async function loadBestDriver() {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const resp = await fetchWithAuth(`/api/logistics/best-driver?date=${today}`);
-      const data = await resp.json();
-      setBestDriver(data.driver);
-    } catch (_) {}
+      setRouteInsertion(data);
+    } catch (error: any) {
+      setRouteInsertion(null);
+      toast({
+        title: 'Não foi possível sugerir uma rota',
+        description: error?.message || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRouteLoading(false);
+    }
   }
 
   function selectCompany(r: any) {
     setActiveCompany(r);
+    setRouteInsertion(null);
     loadRouteInsertion(r.company.id);
-    loadBestDriver();
   }
 
   return (
@@ -1383,11 +1398,13 @@ function SmartSearchPanel() {
                       <span className="text-xs font-semibold text-blue-700 dark:text-blue-400">Motorista Recomendado</span>
                     </div>
                     <div className="text-sm font-medium">
-                      {bestDriver ? bestDriver.name : r.suggestion.bestDriver?.name || '—'}
+                      {routeInsertion?.suggestion?.driver?.name || (routeLoading ? 'Calculando…' : '—')}
                     </div>
-                    {bestDriver && (
-                      <div className="text-[10px] text-muted-foreground mt-0.5">Menor carga do dia</div>
-                    )}
+                    <div className="text-[10px] text-muted-foreground mt-0.5">
+                      {routeInsertion?.suggestion?.currentLoad != null
+                        ? `${routeInsertion.suggestion.currentLoad} parada(s) em aberto na rota`
+                        : 'Motorista da rota elegível'}
+                    </div>
                   </div>
                   {/* Route */}
                   <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3">
@@ -1396,11 +1413,11 @@ function SmartSearchPanel() {
                       <span className="text-xs font-semibold text-green-700 dark:text-green-400">Rota Sugerida</span>
                     </div>
                     <div className="text-sm font-medium">
-                      {routeInsertion ? routeInsertion.routeName : r.suggestion.suggestedRoute?.name || '—'}
+                      {routeInsertion?.suggestion?.routeName || (routeLoading ? 'Calculando…' : 'Sem rota elegível')}
                     </div>
-                    {routeInsertion && (
+                    {routeInsertion?.suggestion && (
                       <div className="text-[10px] text-muted-foreground mt-0.5">
-                        Parada #{routeInsertion.insertAtPosition} · {routeInsertion.reason}
+                        Parada #{routeInsertion.suggestion.insertAtPosition} · {routeInsertion.suggestion.reason}
                       </div>
                     )}
                   </div>
@@ -1408,11 +1425,15 @@ function SmartSearchPanel() {
                   <div className="bg-orange-50 dark:bg-orange-950/30 rounded-lg p-3">
                     <div className="flex items-center gap-1.5 mb-1">
                       <Clock className="w-3.5 h-3.5 text-orange-600" />
-                      <span className="text-xs font-semibold text-orange-700 dark:text-orange-400">Janela de Entrega</span>
+                      <span className="text-xs font-semibold text-orange-700 dark:text-orange-400">Distância adicional estimada</span>
                     </div>
-                    <div className="text-sm font-medium">{r.suggestion.suggestedDeliveryWindow}</div>
+                    <div className="text-sm font-medium">
+                      {routeInsertion?.suggestion
+                        ? `${Number(routeInsertion.suggestion.extraDistanceKm).toFixed(1)} km`
+                        : '—'}
+                    </div>
                     <div className="text-[10px] text-muted-foreground mt-0.5">
-                      ~{routeInsertion?.extraTimeEstimateMin || r.suggestion.estimatedTimeMin} min adicionais
+                      {routeInsertion?.estimation || routeInsertion?.message || 'Sem cálculo de rota para esta data.'}
                     </div>
                   </div>
                 </div>

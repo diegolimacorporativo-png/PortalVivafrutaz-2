@@ -18,6 +18,8 @@ function makeTenantRepo() {
       addressCity: "São Paulo",
       addressStreet: "Rua A",
       addressZip: "01000000",
+      latitude: "-23.5505",
+      longitude: "-46.6333",
       deliveryConfigJson: JSON.stringify({ monday: { enabled: true } }),
     },
     {
@@ -27,6 +29,8 @@ function makeTenantRepo() {
       addressCity: "Rio de Janeiro",
       addressStreet: "Rua B",
       addressZip: "20000000",
+      latitude: "-22.9068",
+      longitude: "-43.1729",
       deliveryConfigJson: JSON.stringify({ monday: { enabled: true } }),
     },
   ];
@@ -91,6 +95,10 @@ function makeTenantRepo() {
     getRoutes: async () => routes,
     getRoutesSafe: async (tenantId: number) =>
       routes.filter((route) => route.empresaId === tenantId),
+    getRouteForCompany: async (id: number, tenantId: number) =>
+      routes.find((route) => route.id === id && route.empresaId === tenantId),
+    getRouteStops: async () => [],
+    getRouteStopsForCompany: async () => [],
     getDeliveries: async (filters: any = {}) =>
       deliveries.filter((delivery) =>
         (!filters.companyId || delivery.companyId === filters.companyId) &&
@@ -110,8 +118,8 @@ test("analytics tenant-bound uses only tenant A for search and recommendations",
 
   const search = await service.smartSearch("Tenant", actorA);
   assert.deepEqual(search.map((item) => item.company.id), [1]);
-  assert.equal(search[0]?.suggestion.bestDriver?.id, 11);
-  assert.equal(search[0]?.suggestion.suggestedRoute?.id, 111);
+  assert.equal(search[0]?.suggestion.bestDriver, null);
+  assert.equal(search[0]?.suggestion.suggestedRoute, null);
 
   const best = await service.bestDriver("2026-09-14", actorA);
   assert.equal(best.driver?.id, 11);
@@ -146,6 +154,38 @@ test("route-insertion rejects a companyId from another tenant", async () => {
     service.routeInsertion({ companyId: 2, date: "2026-09-14" }, actorA),
     /não pertence ao tenant autorizado/i,
   );
+});
+
+test("route-insertion chooses a same-date route and its assigned active driver", async () => {
+  const { repo } = makeTenantRepo();
+  const service = new LogisticsService(repo);
+
+  const result = await service.routeInsertion(
+    { companyId: 1, date: "2026-09-14" },
+    actorA,
+  );
+
+  assert.equal(result.date, "2026-09-14");
+  assert.equal(result.routesAnalyzed, 1);
+  assert.equal(result.suggestion.routeId, 111);
+  assert.equal(result.suggestion.driver.id, 11);
+  assert.equal(result.suggestion.currentLoad, 1);
+  assert.equal(typeof result.suggestion.extraDistanceKm, "number");
+  assert.match(result.estimation, /linha reta/i);
+});
+
+test("route-insertion does not recommend routes from another date", async () => {
+  const { repo } = makeTenantRepo();
+  const service = new LogisticsService(repo);
+
+  const result = await service.routeInsertion(
+    { companyId: 1, date: "2026-09-15" },
+    actorA,
+  );
+
+  assert.equal(result.routesAnalyzed, 0);
+  assert.equal(result.suggestion, null);
+  assert.match(result.message, /não há rota agendada/i);
 });
 
 test("suggest-route, simulate-day and delivery reports use tenant A inputs only", async () => {

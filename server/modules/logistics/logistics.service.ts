@@ -20,6 +20,7 @@ import {
 import { currentTenantId } from "../../core/tenant/context";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 import { isLogisticsSupervisorRole } from "./driver.access";
+import { dateInTimeZone } from "./local-date";
 import type {
   ActorRef,
   CalculateDistanceInput,
@@ -1173,26 +1174,10 @@ export class LogisticsService {
         .slice(0, 15);
     }
 
-    const [drivers, routes] = await Promise.all([
-      this.visibleDrivers(scope),
-      this.visibleRoutes(scope),
-    ]);
-    const activeDrivers = (drivers as any[]).filter((d: any) => d.active);
-
     return companies.map((company: any) => {
       const zip = company.addressZip || company.zip || "";
       const city = company.addressCity || company.city || "";
       const neighborhood = company.addressNeighborhood || "";
-
-      const matchRoute =
-        (routes as any[]).find(
-          (r: any) =>
-            (r.name || "").toLowerCase().includes(city.toLowerCase()) ||
-            (r.name || "").toLowerCase().includes(neighborhood.toLowerCase()),
-        ) || ((routes as any[]).length > 0 ? (routes as any[])[0] : null);
-
-      const suggestedDriver =
-        activeDrivers.length > 0 ? activeDrivers[0] : null;
 
       let deliveryConfig: any = {};
       try {
@@ -1217,14 +1202,12 @@ export class LogisticsService {
           deliveryWindowEnd: windowEnd,
         },
         suggestion: {
-          bestDriver: suggestedDriver
-            ? { id: suggestedDriver.id, name: suggestedDriver.name }
-            : null,
-          suggestedRoute: matchRoute
-            ? { id: matchRoute.id, name: matchRoute.name }
-            : null,
+          // Route and driver recommendations are loaded separately from the
+          // date-aware route-insertion endpoint. Do not imply a match based
+          // only on city-name substring or array order.
+          bestDriver: null,
+          suggestedRoute: null,
           suggestedDeliveryWindow: `${windowStart} – ${windowEnd}`,
-          estimatedTimeMin: 20,
           nearbyCompanies: companies
             .filter(
               (cc: any) =>
@@ -1268,46 +1251,157 @@ export class LogisticsService {
   // ─── ROUTE INSERTION ──────────────────────────────────────────────────
   async routeInsertion(body: { companyId?: number; date?: string }, actor: ActorRef) {
     const { companyId, date } = body || {};
-    if (!companyId) throw new BadRequestError("Informe companyId");
+    if (!Number.isInteger(Number(companyId)) || Number(companyId) <= 0) {
+      throw new BadRequestError("Informe companyId válido");
+    }
+    if (date != null) {
+      const parsedDate = typeof date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? new Date(`${date}T00:00:00.000Z`)
+        : null;
+      if (!parsedDate || !Number.isFinite(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== date) {
+        throw new BadRequestError("Informe uma data válida (AAAA-MM-DD)");
+      }
+    }
 
     const scope = this.analyticsScope(actor);
     const companies = await this.visibleCompanies(scope);
-    if (!companies.some((company: any) => company.id === Number(companyId))) {
+    const company = (companies as any[]).find((item) => Number(item.id) === Number(companyId));
+    if (!company) {
       throw new ForbiddenError("Empresa não pertence ao tenant autorizado.");
     }
 
-    const routes = (await this.visibleRoutes(scope)) as any[];
-    const drivers = (await this.visibleDrivers(scope)) as any[];
-
-    if (!routes.length) {
-      return { suggestion: null, message: "Nenhuma rota cadastrada" };
+    const latitude = company.latitude == null || String(company.latitude).trim() === ""
+      ? NaN
+      : Number(company.latitude);
+    const longitude = company.longitude == null || String(company.longitude).trim() === ""
+      ? NaN
+      : Number(company.longitude);
+    if (
+      !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+      !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+      (latitude === 0 && longitude === 0)
+    ) {
+      return {
+        date: date ?? dateInTimeZone(new Date(), "America/Sao_Paulo"),
+        suggestion: null,
+        routesAnalyzed: 0,
+        message: "A empresa não possui coordenadas válidas para sugerir uma rota.",
+      };
     }
 
-    const deliveries = date
-      ? ((await this.visibleDeliveries(scope, { date })) as any[])
-      : [];
-    const routeLoad: Record<number, number> = {};
-    deliveries.forEach((d: any) => {
-      if (d.routeId) routeLoad[d.routeId] = (routeLoad[d.routeId] || 0) + 1;
-    });
+    const targetDate = date ?? dateInTimeZone(new Date(), "America/Sao_Paulo");
+    const [{ suggestInsertion, routeDistance }, routes, drivers, deliveries] = await Promise.all([
+      import("../../services/logistics/routeOptimizer"),
+      this.visibleRoutes(scope),
+      this.visibleDrivers(scope),
+      this.visibleDeliveries(scope, { date: targetDate }),
+    ]);
+    const activeDrivers = new Map(
+      (drivers as any[])
+        .filter((driver) => driver.active !== false)
+        .map((driver) => [Number(driver.id), driver]),
+    );
+    const sameDayRoutes = (routes as any[]).filter((route) =>
+      String(route.deliveryDate ?? "").slice(0, 10) === targetDate &&
+      ["SCHEDULED", "IN_PROGRESS"].includes(String(route.status ?? "SCHEDULED").toUpperCase()) &&
+      route.driverId != null && activeDrivers.has(Number(route.driverId)),
+    );
+    const eligibleRoutes: any[] = [];
+    const driverRoutes: any[] = [];
 
-    const ranked = routes
-      .map((r: any) => ({ ...r, load: routeLoad[r.id] || 0 }))
-      .sort((a: any, b: any) => a.load - b.load);
-    const best = ranked[0];
-    const assignedDriver = drivers.find((d: any) => d.active);
+    for (const route of sameDayRoutes) {
+      const routeDeliveries = (deliveries as any[]).filter(
+        (delivery) => Number(delivery.routeId) === Number(route.id) &&
+          !["entregue", "cancelado"].includes(String(delivery.status ?? "").toLowerCase()),
+      );
+      const officialStops = await this.getRouteStops(Number(route.id), actor);
+      let orderedPoints: Array<{ lat: number; lng: number; companyId?: number }> = [];
+
+      if (officialStops.length > 0) {
+        const points = officialStops.map((stop: any) => ({
+          lat: stop.latitude == null || String(stop.latitude).trim() === "" ? NaN : Number(stop.latitude),
+          lng: stop.longitude == null || String(stop.longitude).trim() === "" ? NaN : Number(stop.longitude),
+          companyId: stop.companyId == null ? undefined : Number(stop.companyId),
+        }));
+        // Official stops are authoritative; do not silently route around a
+        // stop whose coordinates are missing or malformed.
+        if (points.some((point) =>
+          !Number.isFinite(point.lat) || point.lat < -90 || point.lat > 90 ||
+          !Number.isFinite(point.lng) || point.lng < -180 || point.lng > 180
+        )) continue;
+        orderedPoints = points;
+      } else {
+        const points = routeDeliveries.map((delivery: any) => ({
+          lat: delivery.latitude == null || String(delivery.latitude).trim() === "" ? NaN : Number(delivery.latitude),
+          lng: delivery.longitude == null || String(delivery.longitude).trim() === "" ? NaN : Number(delivery.longitude),
+          companyId: delivery.companyId == null ? undefined : Number(delivery.companyId),
+        }));
+        if (points.some((point) =>
+          !Number.isFinite(point.lat) || point.lat < -90 || point.lat > 90 ||
+          !Number.isFinite(point.lng) || point.lng < -180 || point.lng > 180
+        )) continue;
+        orderedPoints = points;
+      }
+
+      const driver = activeDrivers.get(Number(route.driverId));
+      if (!driver) continue;
+      const routeStops = orderedPoints.map((point, index) => ({ ...point, position: index }));
+      eligibleRoutes.push(route);
+      driverRoutes.push({
+        driverId: Number(driver.id),
+        driverName: driver.name || route.driverName || "Motorista",
+        vehicleId: route.vehicleId ?? undefined,
+        vehiclePlate: route.vehiclePlate ?? undefined,
+        routeId: Number(route.id),
+        stops: routeStops,
+        totalDistance: routeDistance(routeStops),
+        estimatedMinutes: 0,
+      });
+    }
+
+    if (driverRoutes.length === 0) {
+      return {
+        date: targetDate,
+        suggestion: null,
+        routesAnalyzed: 0,
+        message: sameDayRoutes.length === 0
+          ? "Não há rota agendada para esta data com motorista ativo atribuído."
+          : "As rotas desta data não têm paradas com coordenadas suficientes para estimar a inserção.",
+      };
+    }
+
+    const loadByRoute = new Map<number, number>();
+    for (const delivery of deliveries as any[]) {
+      const routeId = Number(delivery.routeId);
+      if (Number.isFinite(routeId) && !["entregue", "cancelado"].includes(String(delivery.status ?? "").toLowerCase())) {
+        loadByRoute.set(routeId, (loadByRoute.get(routeId) ?? 0) + 1);
+      }
+    }
+    // Tie-break empty/equal-distance routes by the current number of open
+    // deliveries. This does not change the driver assignment of a route.
+    driverRoutes.sort((left, right) =>
+      (loadByRoute.get(left.routeId) ?? 0) - (loadByRoute.get(right.routeId) ?? 0),
+    );
+    const result = suggestInsertion({ lat: latitude, lng: longitude, companyId: Number(companyId) }, driverRoutes);
+    if (!result) {
+      return { date: targetDate, suggestion: null, routesAnalyzed: 0, message: "Nenhuma rota elegível encontrada." };
+    }
+    const selectedRoute = eligibleRoutes.find((route) => Number(route.id) === Number(result.routeId));
+    const selectedDriver = activeDrivers.get(Number(result.driverId));
 
     return {
+      date: targetDate,
+      routesAnalyzed: driverRoutes.length,
+      estimation: "Distância em linha reta; não considera ruas, trânsito ou restrições do veículo.",
       suggestion: {
-        routeId: best.id,
-        routeName: best.name,
-        insertAtPosition: (routeLoad[best.id] || 0) + 1,
-        currentLoad: routeLoad[best.id] || 0,
-        driver: assignedDriver
-          ? { id: assignedDriver.id, name: assignedDriver.name }
-          : null,
-        extraTimeEstimateMin: 15,
-        reason: `Rota com menor carga atual (${routeLoad[best.id] || 0} entregas)`,
+        routeId: selectedRoute?.id,
+        routeName: selectedRoute?.name,
+        driver: selectedDriver ? { id: selectedDriver.id, name: selectedDriver.name } : null,
+        insertAtPosition: result.insertAtPosition + 1,
+        currentLoad: loadByRoute.get(Number(result.routeId)) ?? 0,
+        extraDistanceKm: result.extraDistance,
+        newTotalDistanceKm: result.newTotalDistance,
+        reason: result.reason,
       },
     };
   }

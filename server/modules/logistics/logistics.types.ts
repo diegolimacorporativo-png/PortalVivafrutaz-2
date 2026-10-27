@@ -147,7 +147,6 @@ export interface SmartSearchResult {
     bestDriver: { id: number; name: string } | null;
     suggestedRoute: { id: number; name: string } | null;
     suggestedDeliveryWindow: string;
-    estimatedTimeMin: number;
     nearbyCompanies: Array<{ id: number; name: string }>;
   };
 }
