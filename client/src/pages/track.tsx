@@ -13,6 +13,7 @@ import {
 import { CircleMarker, MapContainer, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { BackHeader } from "@/components/navigation/BackHeader";
 
 type TrackingData = {
   status: "scheduled" | "in_transit" | "driver_nearby" | "delayed" | "delivered" | "cancelled";
@@ -270,6 +271,7 @@ export default function TrackDelivery() {
           </div>
         )}
 
+        {orderId && <BackHeader fallback="/client/history" breadcrumb={[{ label: "Meus Pedidos", href: "/client/history" }, { label: "Rastreamento" }]} className="border-slate-200" />}
         {error && (
           <div className="rounded-2xl border bg-white p-10 text-center shadow-sm">
             <AlertCircle className="mx-auto mb-3 h-10 w-10 text-red-500" />

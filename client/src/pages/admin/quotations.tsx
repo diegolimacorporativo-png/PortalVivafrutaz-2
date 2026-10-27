@@ -469,6 +469,7 @@ export default function QuotationsPage() {
 
   return (
     <div className="space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Cotações" }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Cotação de Empresas</h1>

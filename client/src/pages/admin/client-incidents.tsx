@@ -323,6 +323,7 @@ export default function AdminClientIncidentsPage() {
   return (
     <Layout>
     <div className="space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Ocorrências de Clientes" }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Ocorrências de Clientes</h1>

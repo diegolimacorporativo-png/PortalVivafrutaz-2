@@ -90,6 +90,7 @@ export default function AdminSettings() {
 
   return (
     <div className="max-w-xl mx-auto py-8 px-4 space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Minha Conta" }]} />
       <div>
         <h1 className="text-2xl font-bold text-foreground">Minha Conta</h1>
         <p className="text-sm text-muted-foreground mt-1">Gerencie suas informações e segurança</p>

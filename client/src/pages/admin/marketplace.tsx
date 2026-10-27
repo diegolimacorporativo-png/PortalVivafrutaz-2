@@ -191,6 +191,7 @@ export default function Marketplace() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <BackHeader fallback="/admin/saas-dashboard" breadcrumb={[{ label: "Marketplace" }]} />
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>

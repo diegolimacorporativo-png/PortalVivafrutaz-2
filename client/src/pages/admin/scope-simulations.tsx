@@ -14,10 +14,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { calculateWeightedAverages } from "@/lib/scope-simulation-math";
 import {
   Plus, Trash2, Save, Search, Building2, TrendingUp, Package,
   ChevronRight, Copy, UserCheck, BarChart3, AlertTriangle,
-  CheckCircle2, XCircle, RefreshCw, FileText, Edit3, X,
+  Check, CheckCircle2, XCircle, RefreshCw, FileText, Edit3, X,
   ArrowUpRight, Banknote, Route, Calendar, Users
 } from "lucide-react";
 
@@ -71,6 +74,13 @@ type Product = {
   basePrice: number | null;
   active: boolean;
   outOfSeason: boolean;
+};
+
+type NewItemDraft = {
+  productId: number;
+  quantity: number;
+  unitPrice: number;
+  avgCost: number;
 };
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -127,11 +137,13 @@ export default function ScopeSimulationsPage() {
     notes: "",
   });
   const [items, setItems] = useState<SimItem[]>([]);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
 
   // ─── New item form ──────────────────────────────────────────────────────
   const [newItem, setNewItem] = useState({
-    productId: 0, dayOfWeek: "Segunda-feira", quantity: 1, frequency: 1, unitPrice: 0, avgCost: 0,
+    dayOfWeek: "Segunda-feira", frequency: 1,
   });
+  const [newItemDrafts, setNewItemDrafts] = useState<NewItemDraft[]>([]);
 
   // ─── Fetch all simulations ──────────────────────────────────────────────
   const { data: simulations = [], isLoading } = useQuery<Simulation[]>({
@@ -231,38 +243,57 @@ export default function ScopeSimulationsPage() {
   });
 
   // ─── Item management ─────────────────────────────────────────────────────
-  function selectProduct(productId: number) {
-    const p = activeProducts.find((x) => x.id === productId);
-    if (!p) return;
-    setNewItem((prev) => ({
-      ...prev,
-      productId: p.id,
-      unitPrice: p.basePrice ?? 0,
-      avgCost: (p.basePrice ?? 0) * 0.6,
-    }));
+  function toggleProduct(productId: number) {
+    setNewItemDrafts((prev) => {
+      const existing = prev.find((draft) => draft.productId === productId);
+      if (existing) return prev.filter((draft) => draft.productId !== productId);
+      const product = activeProducts.find((candidate) => candidate.id === productId);
+      if (!product) return prev;
+      const price = product.basePrice ?? 0;
+      return [...prev, {
+        productId,
+        quantity: 1,
+        unitPrice: price,
+        avgCost: price * 0.6,
+      }];
+    });
   }
 
   function addItem() {
-    const p = activeProducts.find((x) => x.id === newItem.productId);
-    if (!p) return toast({ title: "Selecione um produto", variant: "destructive" });
+    if (newItemDrafts.length === 0) return toast({ title: "Selecione ao menos um produto", variant: "destructive" });
     if (!newItem.dayOfWeek) return toast({ title: "Selecione o dia", variant: "destructive" });
-    const weeklyValue = newItem.quantity * newItem.unitPrice * newItem.frequency;
-    const entry: SimItem = {
+    const selected = newItemDrafts.map((draft) => ({
+      draft,
+      product: activeProducts.find((product) => product.id === draft.productId),
+    }));
+    if (selected.some(({ product }) => !product)) {
+      return toast({ title: "Um dos produtos não está mais disponível", variant: "destructive" });
+    }
+    if (selected.some(({ draft }) => !Number.isFinite(draft.quantity) || draft.quantity <= 0 || !Number.isFinite(draft.unitPrice) || draft.unitPrice < 0 || !Number.isFinite(draft.avgCost) || draft.avgCost < 0)) {
+      return toast({ title: "Confira quantidade, preço e custo dos produtos selecionados", variant: "destructive" });
+    }
+    const entries = selected.map(({ draft, product }) => ({
       _key: genKey(),
-      productId: p.id,
-      productName: p.name,
-      category: p.category,
-      quantity: newItem.quantity,
-      unit: p.unit,
+      productId: product!.id,
+      productName: product!.name,
+      category: product!.category,
+      quantity: draft.quantity,
+      unit: product!.unit,
       dayOfWeek: newItem.dayOfWeek,
       frequency: newItem.frequency,
-      unitPrice: newItem.unitPrice,
-      avgCost: newItem.avgCost,
-      weeklyValue,
-    };
-    setItems((prev) => [...prev, entry]);
-    setNewItem({ productId: 0, dayOfWeek: "Segunda-feira", quantity: 1, frequency: 1, unitPrice: 0, avgCost: 0 });
+      unitPrice: draft.unitPrice,
+      avgCost: draft.avgCost,
+      weeklyValue: draft.quantity * draft.unitPrice * newItem.frequency,
+    } satisfies SimItem));
+    setItems((prev) => [...prev, ...entries]);
+    setNewItemDrafts([]);
     setDirty(true);
+  }
+
+  function updateNewItemDraft(productId: number, field: keyof Omit<NewItemDraft, "productId">, value: number) {
+    setNewItemDrafts((prev) => prev.map((draft) =>
+      draft.productId === productId ? { ...draft, [field]: value } : draft,
+    ));
   }
 
   function removeItem(key: string) {
@@ -286,6 +317,7 @@ export default function ScopeSimulationsPage() {
   function startNew() {
     setIsNew(true);
     setSelectedId(null);
+    setNewItemDrafts([]);
     setForm({
       companyName: "", cnpj: "", city: "", contactName: "", phone: "", email: "",
       modelType: "a_definir",
@@ -301,6 +333,7 @@ export default function ScopeSimulationsPage() {
   function duplicateSim(sim: Simulation) {
     setIsNew(true);
     setSelectedId(null);
+    setNewItemDrafts([]);
     setForm({
       companyName: `${sim.companyName} (cópia)`,
       cnpj: sim.cnpj || "", city: sim.city || "",
@@ -333,11 +366,24 @@ export default function ScopeSimulationsPage() {
     if (!itemsByDay[item.dayOfWeek]) itemsByDay[item.dayOfWeek] = [];
     itemsByDay[item.dayOfWeek].push(item);
   }
+  const pendingAverageByUnit = calculateWeightedAverages(newItemDrafts.flatMap((draft) => {
+    const product = activeProducts.find((candidate) => candidate.id === draft.productId);
+    return product ? [{
+      unit: product.unit,
+      quantity: draft.quantity,
+      frequency: newItem.frequency,
+      unitPrice: draft.unitPrice,
+      avgCost: draft.avgCost,
+    }] : [];
+  }));
 
   return (
     <div className="flex h-[calc(100vh-64px)] overflow-hidden bg-background">
       {/* ─── Left Panel: List ─────────────────────────────────────────── */}
       <aside className="w-80 flex-shrink-0 border-r flex flex-col bg-card">
+        <div className="border-b px-3 py-2">
+          <BackHeader fallback="/admin" breadcrumb={[{ label: "Simulações Comerciais" }]} className="mb-0 border-0 pb-0" />
+        </div>
         {/* Header */}
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-3">
@@ -394,7 +440,7 @@ export default function ScopeSimulationsPage() {
                   <button
                     key={sim.id}
                     data-testid={`item-simulation-${sim.id}`}
-                    onClick={() => { setSelectedId(sim.id); setIsNew(false); }}
+                    onClick={() => { setSelectedId(sim.id); setIsNew(false); setNewItemDrafts([]); }}
                     className={`w-full text-left p-3 hover:bg-accent transition-colors ${isSelected ? "bg-accent" : ""}`}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -782,111 +828,119 @@ export default function ScopeSimulationsPage() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="grid grid-cols-6 gap-3 items-end">
-                          <div className="col-span-2">
-                            <Label className="text-xs">Produto</Label>
-                            <Select
-                              value={newItem.productId ? String(newItem.productId) : ""}
-                              onValueChange={(v) => selectProduct(Number(v))}
-                            >
-                              <SelectTrigger className="mt-1 h-8 text-xs" data-testid="select-product">
-                                <SelectValue placeholder="Selecionar produto..." />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {activeProducts.map((p) => (
-                                  <SelectItem key={p.id} value={String(p.id)} className="text-xs">
-                                    {p.name} <span className="text-muted-foreground">({p.category})</span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                          <div className="md:col-span-6">
+                            <Label className="text-xs">Produtos (busque por nome ou categoria)</Label>
+                            <Popover open={productPickerOpen} onOpenChange={setProductPickerOpen}>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={productPickerOpen}
+                                  className="mt-1 h-8 w-full justify-between text-xs font-normal"
+                                  data-testid="select-product"
+                                >
+                                  {newItemDrafts.length
+                                    ? `${newItemDrafts.length} produto(s) selecionado(s)`
+                                    : "Buscar e selecionar produtos..."}
+                                  <Search className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[min(26rem,90vw)] p-0" align="start">
+                                <Command>
+                                  <CommandInput placeholder="Filtrar produto ou categoria..." data-testid="input-filter-products" />
+                                  <CommandList>
+                                    <CommandEmpty>Nenhum produto ativo encontrado.</CommandEmpty>
+                                    <CommandGroup>
+                                      {activeProducts.map((product) => {
+                                        const isSelected = newItemDrafts.some((draft) => draft.productId === product.id);
+                                        return (
+                                          <CommandItem
+                                            key={product.id}
+                                            value={`${product.name} ${product.category} ${product.unit}`}
+                                            onSelect={() => toggleProduct(product.id)}
+                                            className="text-xs"
+                                          >
+                                            <Check className={`mr-2 h-4 w-4 ${isSelected ? "opacity-100" : "opacity-0"}`} />
+                                            <span className="min-w-0 flex-1 truncate">{product.name}</span>
+                                            <span className="ml-2 shrink-0 text-muted-foreground">{product.category} · {product.unit}</span>
+                                          </CommandItem>
+                                        );
+                                      })}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
                           </div>
-                          <div>
+                          <div className="md:col-span-2">
                             <Label className="text-xs">Dia</Label>
-                            <Select
-                              value={newItem.dayOfWeek}
-                              onValueChange={(v) => setNewItem(n => ({ ...n, dayOfWeek: v }))}
-                            >
-                              <SelectTrigger className="mt-1 h-8 text-xs" data-testid="select-day">
-                                <SelectValue />
-                              </SelectTrigger>
+                            <Select value={newItem.dayOfWeek} onValueChange={(v) => setNewItem((n) => ({ ...n, dayOfWeek: v }))}>
+                              <SelectTrigger className="mt-1 h-8 text-xs" data-testid="select-day"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                {DAYS.map((d) => <SelectItem key={d} value={d} className="text-xs">{d.split("-")[0]}</SelectItem>)}
+                                {DAYS.map((day) => <SelectItem key={day} value={day} className="text-xs">{day.split("-")[0]}</SelectItem>)}
                               </SelectContent>
                             </Select>
                           </div>
-                          <div>
-                            <Label className="text-xs">Qtd</Label>
-                            <Input
-                              type="number"
-                              min={1}
-                              value={newItem.quantity}
-                              onChange={(e) => setNewItem(n => ({ ...n, quantity: Number(e.target.value) }))}
-                              className="mt-1 h-8 text-xs"
-                              data-testid="input-quantity"
-                            />
+                          <div className="md:col-span-2">
+                            <Label className="text-xs">Frequência</Label>
+                            <Select value={String(newItem.frequency)} onValueChange={(v) => setNewItem((n) => ({ ...n, frequency: Number(v) }))}>
+                              <SelectTrigger className="mt-1 h-8 text-xs"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="1" className="text-xs">Toda semana (1x/sem)</SelectItem>
+                                <SelectItem value="0.5" className="text-xs">Quinzenal (0,5x/sem)</SelectItem>
+                                <SelectItem value="2" className="text-xs">2x por semana</SelectItem>
+                                <SelectItem value="3" className="text-xs">3x por semana</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </div>
-                          <div>
-                            <Label className="text-xs">Preço Unit. (R$)</Label>
-                            <Input
-                              type="number"
-                              step="0.01"
-                              min={0}
-                              value={newItem.unitPrice}
-                              onChange={(e) => setNewItem(n => ({ ...n, unitPrice: Number(e.target.value) }))}
-                              className="mt-1 h-8 text-xs"
-                              data-testid="input-unit-price"
-                            />
-                          </div>
-                          <div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              className="w-full h-8 text-xs mt-5"
-                              onClick={addItem}
-                              data-testid="button-add-item"
-                            >
-                              <Plus className="w-3 h-3 mr-1" />
-                              Adicionar
+                          <div className="md:col-span-2">
+                            <Button type="button" size="sm" className="h-8 w-full text-xs" onClick={addItem} data-testid="button-add-item" disabled={newItemDrafts.length === 0}>
+                              <Plus className="mr-1 h-3 w-3" /> Adicionar {newItemDrafts.length || "produtos"}
                             </Button>
                           </div>
                         </div>
-                        {/* Custo médio field */}
-                        {newItem.productId > 0 && (
-                          <div className="mt-3 grid grid-cols-6 gap-3">
-                            <div className="col-span-2">
-                              <Label className="text-xs">Frequência</Label>
-                              <Select
-                                value={String(newItem.frequency)}
-                                onValueChange={(v) => setNewItem(n => ({ ...n, frequency: Number(v) }))}
-                              >
-                                <SelectTrigger className="mt-1 h-8 text-xs">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="1" className="text-xs">Toda semana (1x/sem)</SelectItem>
-                                  <SelectItem value="0.5" className="text-xs">Quinzenal (0,5x/sem)</SelectItem>
-                                  <SelectItem value="2" className="text-xs">2x por semana</SelectItem>
-                                  <SelectItem value="3" className="text-xs">3x por semana</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Custo Médio (R$)</Label>
-                              <Input
-                                type="number"
-                                step="0.01"
-                                min={0}
-                                value={newItem.avgCost}
-                                onChange={(e) => setNewItem(n => ({ ...n, avgCost: Number(e.target.value) }))}
-                                className="mt-1 h-8 text-xs"
-                                data-testid="input-avg-cost"
-                              />
-                            </div>
-                            <div className="flex items-end pb-0">
-                              <div className="text-xs text-muted-foreground">
-                                <span className="font-medium text-foreground">{fmt(newItem.quantity * newItem.unitPrice * newItem.frequency)}</span>
-                                <span> /sem</span>
+
+                        {newItemDrafts.length > 0 && (
+                          <div className="mt-4 space-y-2">
+                            <p className="text-xs text-muted-foreground">Cada produto mantém seu ID, categoria e unidade. Ajuste quantidade, preço e custo de cada linha antes de adicionar.</p>
+                            {newItemDrafts.map((draft) => {
+                              const product = activeProducts.find((candidate) => candidate.id === draft.productId);
+                              if (!product) return null;
+                              return (
+                                <div key={draft.productId} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_5rem_7rem_7rem_auto] gap-2 items-end rounded-md border p-2">
+                                  <div className="min-w-0 pb-1">
+                                    <p className="truncate text-xs font-medium">{product.name}</p>
+                                    <p className="text-[10px] text-muted-foreground">{product.category} · {product.unit}</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-[10px]">Qtd/{product.unit}</Label>
+                                    <Input type="number" min={0.001} step="0.001" value={draft.quantity} onChange={(event) => updateNewItemDraft(product.id, "quantity", Number(event.target.value))} className="mt-1 h-8 text-xs" data-testid={`input-bulk-quantity-${product.id}`} />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[10px]">Preço unit. (R$)</Label>
+                                    <Input type="number" min={0} step="0.01" value={draft.unitPrice} onChange={(event) => updateNewItemDraft(product.id, "unitPrice", Number(event.target.value))} className="mt-1 h-8 text-xs" data-testid={`input-bulk-price-${product.id}`} />
+                                  </div>
+                                  <div>
+                                    <Label className="text-[10px]">Custo médio (R$)</Label>
+                                    <Input type="number" min={0} step="0.01" value={draft.avgCost} onChange={(event) => updateNewItemDraft(product.id, "avgCost", Number(event.target.value))} className="mt-1 h-8 text-xs" data-testid={`input-bulk-cost-${product.id}`} />
+                                  </div>
+                                  <Button type="button" variant="ghost" size="icon" className="h-8 w-8" onClick={() => toggleProduct(product.id)} aria-label={`Remover ${product.name} da seleção`}>
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                            <div className="rounded-md bg-muted/40 px-3 py-2 text-xs" data-testid="bulk-weighted-averages">
+                              <p className="mb-1 font-medium">Média ponderada dos produtos selecionados</p>
+                              <p className="text-muted-foreground">Calculada por quantidade × frequência; unidades diferentes ficam separadas.</p>
+                              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1">
+                                {pendingAverageByUnit.map((average) => (
+                                  <span key={average.unit}>
+                                    {average.productCount} produto(s) · {average.unit}: preço médio {fmt(average.averageUnitPrice)} · custo médio {fmt(average.averageUnitCost)}
+                                  </span>
+                                ))}
                               </div>
                             </div>
                           </div>
@@ -907,6 +961,7 @@ export default function ScopeSimulationsPage() {
                       {DAYS.filter(d => itemsByDay[d]?.length > 0).map((day) => {
                         const dayItems = itemsByDay[day] || [];
                         const dayTotal = dayItems.reduce((a, i) => a + i.weeklyValue, 0);
+                        const dayAverages = calculateWeightedAverages(dayItems);
                         return (
                           <Card key={day}>
                             <CardHeader className="py-2 px-4">
@@ -916,6 +971,11 @@ export default function ScopeSimulationsPage() {
                                 </CardTitle>
                                 <span className="text-xs font-medium text-primary">{fmt(dayTotal)}/sem</span>
                               </div>
+                              {dayAverages.length > 0 && (
+                                <p className="mt-1 text-[10px] text-muted-foreground" data-testid={`text-weighted-average-${day}`}>
+                                  Média ponderada: {dayAverages.map((average) => `${average.unit} — preço ${fmt(average.averageUnitPrice)}, custo ${fmt(average.averageUnitCost)} (${average.productCount} produtos)`).join(" · ")}
+                                </p>
+                              )}
                             </CardHeader>
                             <CardContent className="p-0">
                               <div className="divide-y">

@@ -407,6 +407,7 @@ export default function ClientIncidentsPage() {
   return (
     <Layout>
     <div className="space-y-6">
+      <BackHeader fallback="/client" breadcrumb={[{ label: "Minhas Ocorrências" }]} />
       <div className="flex items-center justify-between">
         <div>
           <div className="flex items-center gap-2">

@@ -352,11 +352,12 @@ const GPS_TUTORIAL_STEPS = [
 ];
 
 export default function AdminTreinamento() {
-  const [activeSection, setActiveSection] = useState<'guide' | 'gps' | 'modules' | 'plans' | 'faq'>('guide');
+  const [activeSection, setActiveSection] = useState<'guide' | 'simulations' | 'gps' | 'modules' | 'plans' | 'faq'>('guide');
 
   const sections = [
     { key: 'guide' as const, label: 'Início Rápido', icon: Zap },
     { key: 'gps' as const, label: 'Tutorial GPS', icon: Navigation },
+    { key: 'simulations' as const, label: 'Simulação Comercial', icon: BarChart3 },
     { key: 'modules' as const, label: 'Módulos do Sistema', icon: Layers },
     { key: 'plans' as const, label: 'Planos SaaS', icon: Star },
     { key: 'faq' as const, label: 'Perguntas Frequentes', icon: Info },
@@ -430,6 +431,16 @@ export default function AdminTreinamento() {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+        {activeSection === 'simulations' && (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-200">
+              Em Simulação Comercial → Escopo, use a busca para localizar produtos pelo nome, categoria ou unidade. Selecione vários produtos, ajuste quantidade, preço e custo médio por produto e adicione as linhas ao dia escolhido.
+            </div>
+            <div className="rounded-xl border border-border/60 bg-card p-4 text-sm text-muted-foreground">
+              A média apresentada é ponderada por quantidade semanal (quantidade × frequência). Preços e custos médios são calculados separadamente por unidade, para não misturar, por exemplo, quilos e unidades. Cada item continua salvo separadamente com sua própria categoria, preço e custo; a média é apenas informativa e não altera os valores das linhas.
             </div>
           </div>
         )}

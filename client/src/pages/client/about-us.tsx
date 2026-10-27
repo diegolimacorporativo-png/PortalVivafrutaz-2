@@ -19,6 +19,7 @@ export default function ClientAboutUs() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
+      <BackHeader fallback="/client" breadcrumb={[{ label: "Quem Somos" }]} />
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">

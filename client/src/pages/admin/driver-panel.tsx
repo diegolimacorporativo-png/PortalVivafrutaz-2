@@ -1096,6 +1096,9 @@ export default function DriverPanel() {
 
   return (
     <div className="min-h-screen bg-background">
+      <div className="px-4 pt-3">
+        <BackHeader fallback={isDriverUser ? "/" : "/admin/logistics"} breadcrumb={[{ label: "Painel do Motorista" }]} />
+      </div>
       <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white px-4 pt-6 pb-16">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">

@@ -385,6 +385,7 @@ export default function BancoPage() {
 
   return (
     <div className="p-6 space-y-5">
+      <BackHeader fallback="/admin/finance" breadcrumb={[{ label: "Financeiro", href: "/admin/finance" }, { label: "Integração Bancária" }]} />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">

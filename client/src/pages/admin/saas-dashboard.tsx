@@ -1403,6 +1403,7 @@ export default function SaasDashboard() {
 
   return (
     <div className="space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Painel SaaS" }]} />
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center shadow-lg">

@@ -234,6 +234,7 @@ export default function InternalIncidentsPage() {
 
   return (
     <div className="space-y-6">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Ocorrências Internas" }]} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Ocorrências Internas</h1>

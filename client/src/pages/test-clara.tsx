@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, User, Settings, Bot, Shield } from 'lucide-react';
+import { BackHeader } from '@/components/navigation/BackHeader';
 
 const TestClaraPage: React.FC = () => {
   const [status, setStatus] = useState<'Ativa' | 'Inativa'>('Ativa');
@@ -21,6 +22,7 @@ const TestClaraPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 md:p-8">
+      <BackHeader fallback="/admin" breadcrumb={[{ label: "Diagnóstico da Clara IA" }]} className="mx-auto max-w-4xl" />
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-800 mb-2">
