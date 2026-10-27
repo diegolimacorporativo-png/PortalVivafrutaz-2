@@ -56,9 +56,12 @@ export function actionPermissionAllows(
 
 export function tabPermissionAllows(permissions: unknown, tabKey: string, role?: string | null): boolean {
   if (role && (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role)) return true;
-  // LOGISTICS must retain the live GPS screen even if an old custom tab list
-  // predates this module or contains a deny-all marker.
-  if (role === "LOGISTICS" && tabKey === "gps-tracking") return true;
+  // Logistics monitoring is an operational capability explicitly assigned to
+  // these profiles; legacy per-user tab lists must not hide the GPS screen.
+  if (
+    tabKey === "gps-tracking"
+    && ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(role ?? "")
+  ) return true;
   if (permissions == null || (Array.isArray(permissions) && permissions.length === 0)) return true;
   if (!Array.isArray(permissions) || !permissions.every((value) => typeof value === "string")) return false;
   if (permissions.includes(DENY_ALL_TAB_PERMISSIONS)) return false;

@@ -68,13 +68,16 @@ describe("permissões personalizadas de abas no backend", () => {
     } finally { lookup.mock.restore(); }
   });
 
-  test("LOGISTICS sempre mantém a aba de GPS, mesmo com lista antiga restritiva", async () => {
-    const lookup = mock.method(storage, "getUser", async () => ({ id: 7, role: "LOGISTICS", active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
-    try {
-      let nextError: unknown;
-      await requireTabPermission("gps-tracking")({ session: { userId: 7 } } as any, {} as any, (error?: unknown) => { nextError = error; });
-      assert.equal(nextError, undefined);
-    } finally { lookup.mock.restore(); }
+  test("LOGISTICS, COMERCIAL e MASTER_COMERCIAL mantêm a aba GPS apesar de listas antigas", async () => {
+    for (const [index, role] of ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].entries()) {
+      const userId = 7 + index;
+      const lookup = mock.method(storage, "getUser", async () => ({ id: userId, role, active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
+      try {
+        let nextError: unknown;
+        await requireTabPermission("gps-tracking")({ session: { userId } } as any, {} as any, (error?: unknown) => { nextError = error; });
+        assert.equal(nextError, undefined, `${role} deve manter monitoramento GPS`);
+      } finally { lookup.mock.restore(); }
+    }
   });
 
   test("envio GPS do motorista usa a aba do painel, não a aba de monitoramento", () => {

@@ -57,11 +57,15 @@ describe("permissões personalizadas por ação", () => {
     }
   });
 
-  test("LOGISTICS mantém leitura do GPS mesmo quando a ação logística está bloqueada", async () => {
-    mock.method(storage, "getUser", async () => ({ id: 8, role: "LOGISTICS", active: true, permissions: { actionOverridesV1: { logistics: { read: false } } } } as any));
-    let nextError: unknown;
-    await requireActionPermission("logistics")({ method: "GET", originalUrl: "/api/logistics/drivers/gps", session: { userId: 8 } } as any, {} as any, (error?: unknown) => { nextError = error; });
-    assert.equal(nextError, undefined);
+  test("LOGISTICS, COMERCIAL e MASTER_COMERCIAL mantêm leitura do GPS apesar de overrides antigos", async () => {
+    for (const [index, role] of ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].entries()) {
+      const userId = 8 + index;
+      mock.method(storage, "getUser", async () => ({ id: userId, role, active: true, permissions: { actionOverridesV1: { logistics: { read: false } } } } as any));
+      let nextError: unknown;
+      await requireActionPermission("logistics")({ method: "GET", originalUrl: "/api/logistics/drivers/gps", session: { userId } } as any, {} as any, (error?: unknown) => { nextError = error; });
+      assert.equal(nextError, undefined, `${role} deve poder ler o GPS`);
+      mock.restoreAll();
+    }
   });
 
   test("GPS enviado pelo dispositivo do motorista não é bloqueado como criação CRUD", async () => {
