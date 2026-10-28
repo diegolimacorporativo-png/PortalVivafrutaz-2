@@ -9,7 +9,7 @@ import {
   changePasswordSchema,
   idParamSchema,
 } from "./users.validation";
-// User-management endpoints require an authenticated MASTER, ADMIN, or DIRECTOR.
+// User-management endpoints require an authenticated privileged system profile.
 // Service rules further constrain tenant admins and protect global profiles.
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { tenantContext } from "../../middleware/tenant";

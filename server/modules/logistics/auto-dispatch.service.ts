@@ -113,6 +113,10 @@ async function loadDriverRoutesForDate(
               WHERE  lr.delivery_date = ${date}::date
                 AND  lr.empresa_id    = ${companyId}
                 AND  lr.driver_id IS NOT NULL
+                AND  EXISTS (
+                  SELECT 1 FROM logistics_drivers ld
+                  WHERE ld.id = lr.driver_id AND ld.active = TRUE
+                )
                 AND  lr.status IN ('SCHEDULED', 'IN_PROGRESS')`
         : sql`SELECT lr.id, lr.driver_id, lr.driver_name, lr.vehicle_id, lr.vehicle_plate,
                      lr.delivery_date::text AS delivery_date,
@@ -122,6 +126,10 @@ async function loadDriverRoutesForDate(
               FROM   logistics_routes lr
               WHERE  lr.empresa_id = ${companyId}
                 AND  lr.driver_id IS NOT NULL
+                AND  EXISTS (
+                  SELECT 1 FROM logistics_drivers ld
+                  WHERE ld.id = lr.driver_id AND ld.active = TRUE
+                )
                 AND  lr.status IN ('SCHEDULED', 'IN_PROGRESS')`,
     ),
   );

@@ -300,6 +300,10 @@ export default function DriverMap() {
                       ? "motorista não atribuído"
                       : data.etaUnavailableReason === "route_not_active"
                         ? "rota não iniciada"
+                        : data.etaUnavailableReason === "road_routing_unconfigured"
+                          ? "serviço de rotas viárias não configurado"
+                          : data.etaUnavailableReason === "road_route_unavailable"
+                            ? "serviço de rotas indisponível agora"
                         : "GPS indisponível"}
             </span>
           )}
@@ -307,7 +311,7 @@ export default function DriverMap() {
             <span
               className="flex items-center gap-1 text-gray-700 ml-auto"
               data-testid="text-route-eta-total"
-              title={`Estimativa simplificada, sem trânsito e por distância em linha reta • velocidade ${data.eta.avgSpeedKmh} km/h • ${data.eta.totalDistanceKm.toFixed(1)} km`}
+              title={`Estimativa pela malha viária OpenStreetMap, sem trânsito ao vivo • ${data.eta.totalDistanceKm.toFixed(1)} km de percurso`}
             >
               <Clock className="w-3.5 h-3.5 text-blue-500" />
               Rota total: <strong>{formatEtaMinutes(data.eta.totalMinutes)}</strong>

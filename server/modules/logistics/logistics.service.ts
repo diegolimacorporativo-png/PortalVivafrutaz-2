@@ -18,7 +18,7 @@ import {
   NotFoundError,
 } from "../../shared/errors/AppError";
 import { currentTenantId } from "../../core/tenant/context";
-import { GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
+import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 import { dateInTimeZone } from "./local-date";
 import type {
@@ -204,7 +204,10 @@ export class LogisticsService {
     return ids;
   }
 
-  private analyticsScope(actor: ActorRef): { tenantId: number | null; global: boolean } {
+  private analyticsScope(
+    actor: ActorRef,
+    allowMultiCompanyRead = false,
+  ): { tenantId: number | null; global: boolean } {
     const contextTenant = currentTenantId();
     const actorTenant =
       actor.empresaId == null ? null : Number(actor.empresaId);
@@ -226,9 +229,14 @@ export class LogisticsService {
       return { tenantId: actorTenant, global: false };
     }
 
-    // All four global profiles may read across tenants without a target.
-    // Individual write paths still require a tenant-scoped operation.
-    if ((GLOBAL_SCOPE_ROLES as readonly string[]).includes(actor.role)) {
+    // The existing explicit global-admin policy applies here. ADMIN can still
+    // use a validated selected tenant; being unbound alone does not grant a
+    // cross-company analytics scope. Individual write paths stay tenant-bound.
+    if ((GLOBAL_ADMIN_ROLES as readonly string[]).includes(actor.role)) {
+      return { tenantId: null, global: true };
+    }
+
+    if (allowMultiCompanyRead && ["LOGISTICS", "COMERCIAL"].includes(actor.role)) {
       return { tenantId: null, global: true };
     }
 
@@ -324,13 +332,18 @@ export class LogisticsService {
    * to actor.empresaId. Other internal roles keep their tenant scope.
    */
   async listLiveDriverLocations(actor: ActorRef) {
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const scopedEmpresaId = scope.global ? undefined : scope.tenantId!;
     let driverRows = (await (scopedEmpresaId
       ? this.repo.getDriversSafe(scopedEmpresaId)
       : this.repo.getDrivers())) as any[];
+    // Removed/deactivated drivers remain in route history but are not current
+    // live-tracking targets. Keep this filtering at the API boundary as well
+    // as the UI so stale records cannot reappear in a GPS client.
+    driverRows = driverRows.filter((driver: any) => driver.active !== false);
 
-    const driverUsers = (await this.repo.getDriverAccounts(scopedEmpresaId)) as any[];
+    const driverUsers = ((await this.repo.getDriverAccounts(scopedEmpresaId)) as any[])
+      .filter((user: any) => user.active !== false);
     const normalizeIdentity = (value: unknown) =>
       String(value ?? "").trim().toLocaleLowerCase("pt-BR");
     const matchedUserIds = new Set<number>();
@@ -649,7 +662,7 @@ export class LogisticsService {
     actor: ActorRef,
   ): Promise<RouteAssistantItem[]> {
     const { day, date } = query;
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const allCompanies = await this.visibleCompanies(scope);
 
     let companiesWithOrders: Set<number> = new Set();
@@ -724,7 +737,7 @@ export class LogisticsService {
     const { suggestInsertion } = await import(
       "../../services/logistics/routeOptimizer"
     );
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const routes = await this.visibleRoutes(scope);
     const filteredRoutes = date
       ? routes.filter((r: any) => r.deliveryDate === date)
@@ -759,7 +772,7 @@ export class LogisticsService {
     const { date } = query;
     if (!date) throw new BadRequestError("Informe a data (date)");
 
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const allOrders = await this.visibleOrders(scope);
     const allCompanies = await this.visibleCompanies(scope);
     const companyMap = Object.fromEntries(
@@ -833,7 +846,7 @@ export class LogisticsService {
   ) {
     const { date, depotLat, depotLng } = body || {};
     if (!date) throw new BadRequestError("Informe a data de simulação");
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
 
     const { simulateRouteDay } = await import(
       "../../services/logistics/routeOptimizer"
@@ -965,7 +978,7 @@ export class LogisticsService {
   // ─── REPORTS / DELIVERIES ─────────────────────────────────────────────
   async deliveriesReport(query: DeliveriesReportFilters, actor: ActorRef) {
     const { companyId, driverId, startDate, endDate, status } = query || {};
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const filters: any = {};
     if (scope.global && companyId) filters.companyId = Number(companyId);
     if (driverId) filters.driverId = Number(driverId);
@@ -1009,11 +1022,11 @@ export class LogisticsService {
   }
 
   // ─── ROUTE STOPS ──────────────────────────────────────────────────────
-  private async routeStopScope(routeId: number, actor: ActorRef) {
+  private async routeStopScope(routeId: number, actor: ActorRef, allowMultiCompanyRead = false) {
     if (!Number.isInteger(routeId) || routeId <= 0) {
       throw new BadRequestError("Rota inválida");
     }
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, allowMultiCompanyRead);
     const route = scope.global
       ? await this.repo.getRoute(routeId)
       : await this.repo.getRouteForCompany(routeId, scope.tenantId!);
@@ -1022,7 +1035,7 @@ export class LogisticsService {
   }
 
   async getRouteStops(routeId: number, actor: ActorRef): Promise<RouteStop[]> {
-    const { scope } = await this.routeStopScope(routeId, actor);
+    const { scope } = await this.routeStopScope(routeId, actor, true);
     return scope.global
       ? this.repo.getRouteStops(routeId)
       : this.repo.getRouteStopsForCompany(routeId, scope.tenantId!);
@@ -1140,7 +1153,7 @@ export class LogisticsService {
       throw new BadRequestError("Informe nome, CNPJ, CEP ou endereço");
     }
 
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const allComps = await this.visibleCompanies(scope);
     let companies: any[] = [];
 
@@ -1218,7 +1231,7 @@ export class LogisticsService {
 
   // ─── BEST DRIVER ──────────────────────────────────────────────────────
   async bestDriver(date: string | undefined, actor: ActorRef) {
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const drivers = (await this.visibleDrivers(scope)) as any[];
     const active = drivers.filter((d: any) => d.active);
     if (!active.length) {
@@ -1400,7 +1413,7 @@ export class LogisticsService {
 
   // ─── SMART ROUTE PLAN ─────────────────────────────────────────────────
   async smartRoutePlan(date: string | undefined, actor: ActorRef) {
-    const scope = this.analyticsScope(actor);
+    const scope = this.analyticsScope(actor, true);
     const [deliveries, drivers, routes] = await Promise.all([
       this.visibleDeliveries(scope, date ? { date } : {}),
       this.visibleDrivers(scope),

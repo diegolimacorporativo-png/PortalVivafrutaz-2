@@ -146,6 +146,36 @@ test("day-orders and route-assistant do not aggregate tenant B", async () => {
   assert.equal(assistant[0]?.hasOrderForDate, true);
 });
 
+test("LOGISTICS and COMERCIAL can read authorized logistics data across companies without selection", async () => {
+  const { repo } = makeTenantRepo();
+  const service = new LogisticsService(repo);
+  const unboundLogistics = { ...actorA, empresaId: null };
+  const unboundCommercial = { ...unboundLogistics, role: "COMERCIAL" };
+
+  for (const actor of [unboundLogistics, unboundCommercial]) {
+    const day = await service.dayOrders({ date: "2026-09-14" }, actor);
+    assert.equal(day.total, 2);
+    assert.deepEqual(day.orders.map((order) => order.companyId).sort(), [1, 2]);
+
+    const search = await service.smartSearch("Tenant", actor);
+    assert.deepEqual(search.map((item) => item.company.id).sort(), [1, 2]);
+
+    const plan = await service.smartRoutePlan("2026-09-14", actor);
+    assert.equal(plan.totalDeliveries, 2);
+  }
+});
+
+test("multi-company read scope does not allow route writes without a selected tenant", async () => {
+  const { repo } = makeTenantRepo();
+  const service = new LogisticsService(repo);
+  const unboundLogistics = { ...actorA, empresaId: null };
+
+  await assert.rejects(
+    service.routeInsertion({ companyId: 1, date: "2026-09-14" }, unboundLogistics),
+    /precisa estar vinculado a uma empresa/i,
+  );
+});
+
 test("route-insertion rejects a companyId from another tenant", async () => {
   const { repo } = makeTenantRepo();
   const service = new LogisticsService(repo);

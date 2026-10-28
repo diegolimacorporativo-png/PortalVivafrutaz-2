@@ -21,6 +21,7 @@ import {
 } from "../../core/tenant/context";
 import {
   GLOBAL_ADMIN_ROLES,
+  GLOBAL_USER_MANAGEMENT_ROLES,
   GLOBAL_SCOPE_ROLES,
   INTERNAL_STAFF_ROLES,
   TENANT_ASSIGNABLE_USER_ROLES,
@@ -32,6 +33,7 @@ const PASSWORD_CHANGE_ROLES = [
   "MASTER",
   "ADMIN",
   "DIRECTOR",
+  "DEVELOPER",
 ] as const;
 
 /** Roles allowed to unlock a locked user account. Mirrors legacy gate. */
@@ -39,6 +41,7 @@ const ACCOUNT_UNLOCK_ROLES = [
   "MASTER",
   "ADMIN",
   "DIRECTOR",
+  "DEVELOPER",
 ] as const;
 
 function isGlobalAdminRole(role: string | undefined): boolean {
@@ -52,7 +55,7 @@ function currentActorRole(): string | undefined {
 
 function assertCanManageTarget(target: User): void {
   const actorRole = currentActorRole();
-  if (isGlobalAdminRole(actorRole)) return;
+  if (GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === actorRole)) return;
   if (actorRole === "ADMIN" && ["MASTER", "DIRECTOR", "DEVELOPER"].includes(target.role)) {
     throw new ForbiddenError("Somente MASTER ou DIRECTOR podem administrar este perfil.");
   }
@@ -60,7 +63,7 @@ function assertCanManageTarget(target: User): void {
 
 function assertCanAssignRole(role: string, currentRole?: string): void {
   const actorRole = currentActorRole();
-  if (isGlobalAdminRole(actorRole)) return;
+  if (GLOBAL_USER_MANAGEMENT_ROLES.some((candidate) => candidate === actorRole)) return;
   if (actorRole !== "ADMIN") {
     throw new ForbiddenError("Perfil sem autorização para administrar usuários.");
   }
@@ -92,7 +95,7 @@ function isGlobalUserManagementAdmin(): boolean {
     currentTenantId() == null &&
     principal?.kind === "admin" &&
     principal.empresaId == null &&
-    isGlobalAdminRole(principal.role)
+    GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === principal.role)
   );
 }
 
@@ -120,7 +123,7 @@ export class UsersService {
       const createsGlobalAdmin = isGlobalAdminRole(input.role);
       const createsGlobalScopeAccount = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(input.role);
       if (createsGlobalAdmin && !isGlobalUserManagementAdmin()) {
-        throw new ForbiddenError("Perfis MASTER e DIRECTOR só podem ser criados por um administrador global sem empresa selecionada.");
+        throw new ForbiddenError("Perfis globais só podem ser criados por um administrador global sem empresa selecionada.");
       }
       const createsUnboundInternalAccount =
         currentTenantId() == null &&

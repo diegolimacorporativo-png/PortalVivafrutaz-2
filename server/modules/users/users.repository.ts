@@ -14,12 +14,13 @@
  */
 import bcrypt from "bcryptjs";
 import { db } from "../../database/db";
-import { users as usersTable, systemLogs } from "@shared/schema";
+import { users as usersTable, systemLogs, logisticsDrivers } from "@shared/schema";
 import type { User, InsertUser } from "./users.types";
 import type { IUsersRepository, LogEntry } from "./interfaces/IUsersRepository";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { invalidateUsageCache } from "../billing/usage-cache";
+import { GLOBAL_USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 export class UsersRepository implements IUsersRepository {
   private scopedIdWhere(id: number) {
@@ -163,11 +164,44 @@ export class UsersRepository implements IUsersRepository {
   }
 
   async deleteUser(id: number): Promise<void> {
-    const [deleted] = await db
-      .delete(usersTable)
-      .where(this.scopedIdWhere(id))
-      .returning();
+    const scope = this.scopedIdWhere(id);
+    const deleted = await this.deleteUserAndDeactivateDriver(id, scope);
     if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
+  }
+
+  /**
+   * Remove the login and deactivate its matching operational driver record in
+   * one transaction. Route/GPS history keeps its foreign keys, while inactive
+   * drivers stop being eligible for live tracking and route assignment.
+   */
+  private async deleteUserAndDeactivateDriver(id: number, scope: any) {
+    return db.transaction(async (tx) => {
+      const [target] = await tx
+        .select({ role: usersTable.role, email: usersTable.email, empresaId: usersTable.empresaId })
+        .from(usersTable)
+        .where(scope)
+        .limit(1);
+      if (!target) return undefined;
+
+      if ((target.role === "MOTORISTA" || target.role === "DRIVER") && target.email) {
+        const companyScope = target.empresaId == null
+          ? isNull(logisticsDrivers.empresaId)
+          : eq(logisticsDrivers.empresaId, target.empresaId);
+        await tx
+          .update(logisticsDrivers)
+          .set({ active: false })
+          .where(and(
+            sql`lower(trim(${logisticsDrivers.email})) = ${target.email.trim().toLowerCase()}`,
+            companyScope,
+          ));
+      }
+
+      const [deleted] = await tx
+        .delete(usersTable)
+        .where(scope)
+        .returning({ id: usersTable.id, empresaId: usersTable.empresaId });
+      return deleted;
+    });
   }
 
   /** Delete one explicitly selected target for a global MASTER/DIRECTOR.
@@ -182,10 +216,7 @@ export class UsersRepository implements IUsersRepository {
       expectedEmpresaId == null
         ? isNull(usersTable.empresaId)
         : eq(usersTable.empresaId, expectedEmpresaId);
-    const [deleted] = await db
-      .delete(usersTable)
-      .where(and(eq(usersTable.id, id), scope))
-      .returning({ id: usersTable.id, empresaId: usersTable.empresaId });
+    const deleted = await this.deleteUserAndDeactivateDriver(id, and(eq(usersTable.id, id), scope));
     if (deleted?.empresaId) invalidateUsageCache(deleted.empresaId);
     return Boolean(deleted);
   }
@@ -210,7 +241,7 @@ export class UsersRepository implements IUsersRepository {
   /**
    * Tenant-scoped list.
    *   - tenantId definido → WHERE empresaId = tenantId (escopo, eficiente)
-   *   - tenantId null     → sem WHERE (MASTER cross-tenant, explícito por design)
+   *   - tenantId null     → sem WHERE (usuários globais autorizados, explicitamente)
    */
   list(): Promise<User[]> {
     const tenantId = currentTenantId();
@@ -223,13 +254,13 @@ export class UsersRepository implements IUsersRepository {
     const principal = getTenantContext()?.principal;
     if (
       principal?.kind !== "admin" ||
-      !["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+      !GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === principal.role)
     ) {
       // No context is an authentication bug; a non-global role without a
       // target is an authorization failure. Neither may become a global list.
       requireTenantId();
     }
-    // Explicit cross-tenant read: MASTER/DIRECTOR without a target.
+    // Explicit cross-tenant read: a globally scoped, authorized user manager.
     return db.select().from(usersTable) as unknown as Promise<User[]>;
   }
 
@@ -237,7 +268,7 @@ export class UsersRepository implements IUsersRepository {
     const principal = getTenantContext()?.principal;
     if (currentTenantId() == null && (
       principal?.kind !== "admin" ||
-      !["MASTER", "DIRECTOR"].includes(principal.role ?? "")
+      !GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === principal.role)
     )) {
       requireTenantId();
     }

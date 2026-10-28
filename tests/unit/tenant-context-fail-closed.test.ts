@@ -218,7 +218,7 @@ describe("tenantContext — fail-closed resolution", () => {
     }
   });
 
-  test("COMERCIAL internal requires and receives only an explicit tenant target", async () => {
+  test("COMERCIAL without tenant can read across companies but writes require a target", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({
       id: 13, empresaId: null, role: "COMERCIAL",
     } as any));
@@ -226,11 +226,19 @@ describe("tenantContext — fail-closed resolution", () => {
     try {
       let withoutTarget: unknown;
       await tenantContext(
-        { session: { userId: 13 }, query: {}, header: () => undefined } as any,
+        { session: { userId: 13 }, method: "GET", query: {}, header: () => undefined } as any,
         {} as any,
         (error?: unknown) => { withoutTarget = error; },
       );
-      assert.ok(withoutTarget instanceof ForbiddenError);
+      assert.equal(withoutTarget, undefined);
+
+      let writeWithoutTarget: unknown;
+      await tenantContext(
+        { session: { userId: 13 }, method: "POST", query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { writeWithoutTarget = error; },
+      );
+      assert.ok(writeWithoutTarget instanceof ForbiddenError);
 
       let targetError: unknown;
       const request: any = { session: { userId: 13 }, query: { empresaId: "22" }, header: () => undefined };
@@ -243,6 +251,31 @@ describe("tenantContext — fail-closed resolution", () => {
       assert.equal(request.empresaId, 22);
     } finally {
       companyLookup.mock.restore();
+      lookup.mock.restore();
+    }
+  });
+
+  test("LOGISTICS sem empresa pode consultar sem seleção e ainda precisa de tenant para escrita", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 57, empresaId: null, role: "LOGISTICS", active: true,
+    } as any));
+    try {
+      let readError: unknown;
+      await tenantContext(
+        { session: { userId: 57 }, method: "GET", query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { readError = error; },
+      );
+      assert.equal(readError, undefined);
+
+      let writeError: unknown;
+      await tenantContext(
+        { session: { userId: 57 }, method: "POST", query: {}, header: () => undefined } as any,
+        {} as any,
+        (error?: unknown) => { writeError = error; },
+      );
+      assert.ok(writeError instanceof ForbiddenError);
+    } finally {
       lookup.mock.restore();
     }
   });

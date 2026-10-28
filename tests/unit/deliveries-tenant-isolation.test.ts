@@ -170,10 +170,13 @@ describe("deliveries — isolamento multi-tenant", () => {
     assert.deepEqual(resolveDeliveryAccess(globalDeveloper), { allowed: true, tenantId: null });
   });
 
-  test("COMERCIAL e LOGISTICS selecionam um tenant validado para operações de logística", () => {
+  test("COMERCIAL e LOGISTICS leem entre empresas sem seleção, mas operações seguem exigindo tenant", () => {
     assert.deepEqual(resolveDeliveryAccess(internalCommercial, 10), { allowed: true, tenantId: 10 });
     assert.deepEqual(resolveDeliveryAccess(internalLogistics, 20), { allowed: true, tenantId: 20 });
     assert.equal(resolveDeliveryAccess(internalCommercial).allowed, false);
+    assert.deepEqual(resolveDeliveryAccess(internalCommercial, null, true), { allowed: true, tenantId: null });
+    assert.deepEqual(resolveDeliveryAccess(internalLogistics, null, true), { allowed: true, tenantId: null });
+    assert.equal(resolveDeliveryAccess(internalLogistics, null).allowed, false);
     assert.equal(resolveDeliveryAccess({ role: "FINANCEIRO", empresaId: null }, 10).allowed, false);
   });
 

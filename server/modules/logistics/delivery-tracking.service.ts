@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { calculateDistance } from "../../services/logistics/routeOptimizer";
+import { calculateRoadEta, isRoadRoutingConfigured } from "./road-routing.service";
 import {
-  calculateTrackingEta,
   calculateTrackingDelay,
   getDeliveryWindow,
   getEffectiveDeliveryWindow,
@@ -11,6 +11,7 @@ import {
   localDateTimeToInstant,
   makeEtaRange,
   normalizeTrackingStatus,
+  isCompletedTrackingStop,
   TRACKING_GPS_MAX_AGE_MS,
   PUBLIC_DELIVERED_RETENTION_MS,
   type TrackingStop,
@@ -154,6 +155,7 @@ async function getDeliveryTracking(
            r.driver_id AS route_driver_id,
            r.status AS route_status,
            r.start_time AS route_start_time,
+           ld.active AS driver_active,
            EXISTS (
              SELECT 1
              FROM route_stops official_stops
@@ -245,6 +247,11 @@ async function getDeliveryTracking(
   // The authenticated order page still receives the safe scheduled state.
   if (!consistentRoute || !Number.isInteger(driverId) || driverId <= 0) {
     return fallback();
+  }
+  // A deleted driver account deactivates its operational record. Keep the
+  // route and delivery history, but stop sharing the driver's live location.
+  if (delivery.driver_active === false || delivery.driver_active === "false") {
+    return fallback("awaiting_assignment");
   }
 
   const routeActive = normalizeTrackingStatus(delivery.route_status) === "in_progress";
@@ -421,10 +428,6 @@ async function getDeliveryTracking(
     !routeStops.some((stop) => stop.id === Number(delivery.id) && stop.routePosition != null)
   ) return fallback("awaiting_route_data");
 
-  const speedMetersPerSecond = Number(gps.speed);
-  const speedKmh = Number.isFinite(speedMetersPerSecond) && speedMetersPerSecond > 0
-    ? speedMetersPerSecond * 3.6
-    : null;
   const plannedRouteStart = scheduledDate && delivery.route_start_time
     ? localDateTimeToInstant(scheduledDate, String(delivery.route_start_time))
     : null;
@@ -433,14 +436,32 @@ async function getDeliveryTracking(
     journeyStartedAtMs,
     plannedRouteStart?.getTime() ?? Number.NEGATIVE_INFINITY,
   ));
-  const trackingEta = calculateTrackingEta(
-    routeStops,
-    Number(delivery.id),
-    { lat: gps.latitude, lng: gps.longitude },
-    etaReferenceTime,
-    speedKmh,
+  const orderedRouteStops = [...routeStops].sort((left, right) =>
+    (left.routePosition ?? Number.MAX_SAFE_INTEGER) - (right.routePosition ?? Number.MAX_SAFE_INTEGER) ||
+    left.id - right.id,
   );
-  if (!routeStops.some((stop) => stop.id === Number(delivery.id))) return fallback("awaiting_route_data");
+  const targetStopIndex = orderedRouteStops.findIndex((stop) => stop.id === Number(delivery.id));
+  if (targetStopIndex < 0) return fallback("awaiting_route_data");
+  const stopsBefore = orderedRouteStops
+    .slice(0, targetStopIndex)
+    .filter((stop) => !isCompletedTrackingStop(stop)).length;
+  const stopsThroughTarget = orderedRouteStops
+    .slice(0, targetStopIndex + 1)
+    .filter((stop, index) => index === targetStopIndex || !isCompletedTrackingStop(stop))
+    .map((stop, index, list) => ({
+      ...stop,
+      // The legacy stop-status column can hold delivery completion even when
+      // the delivery status itself has not yet been normalized.
+      status: isCompletedTrackingStop(stop) ? "delivered" : stop.status,
+      includeDwell: index < list.length - 1,
+    }));
+  const roadEta = await calculateRoadEta(
+    stopsThroughTarget,
+    { latitude: gps.latitude, longitude: gps.longitude },
+    etaReferenceTime,
+  );
+  const targetEta = roadEta?.stops.at(-1);
+  const etaAt = targetEta?.etaTime ? new Date(targetEta.etaTime) : null;
 
   const targetRouteStop = routeStopByDeliveryId.get(Number(delivery.id));
   const window = getEffectiveDeliveryWindow(
@@ -461,11 +482,11 @@ async function getDeliveryTracking(
     plannedRouteStart?.getTime() ?? Number.NEGATIVE_INFINITY,
   );
   const etaRange = makeEtaRange(
-    trackingEta.etaAt,
-    undefined,
+    etaAt,
+    5,
     Number.isFinite(etaEarliestAt) ? new Date(etaEarliestAt) : null,
   );
-  const delay = calculateTrackingDelay(trackingEta.etaAt, windowEnd, now);
+  const delay = calculateTrackingDelay(etaAt, windowEnd, now);
   const delayed = status !== "delivered" &&
     status !== "cancelled" &&
     delay.delayed;
@@ -484,16 +505,24 @@ async function getDeliveryTracking(
     deliveredAt: null,
     lastUpdatedAt: gps.recorded_at,
     etaRange,
-    stopsBefore: trackingEta.stopsBefore,
-    isNextStop: trackingEta.isNextStop,
+    stopsBefore,
+    isNextStop: stopsBefore === 0,
     isDriverNearby: isNearby,
+    etaMethod: etaAt ? "osrm_openstreetmap" : null,
+    roadDistanceKm: targetEta?.distanceKm == null
+      ? null
+      : Number(roadEta?.stops.reduce((total, stop) => total + (stop.distanceKm ?? 0), 0).toFixed(1)),
     delayed,
     delayMinutes,
     message: isNearby
       ? "O motorista está nas proximidades do endereço da entrega."
       : delayed
         ? "A previsão foi ajustada para fora da janela prevista."
-        : "A entrega está em rota. A previsão pode mudar conforme o trânsito e o andamento da rota.",
+        : etaAt
+          ? "Previsão calculada pela malha viária. Ela pode mudar conforme a rota avança; o serviço não fornece trânsito ao vivo."
+          : isRoadRoutingConfigured()
+            ? "A posição está atualizada, mas o provedor de rotas não retornou uma estimativa agora."
+            : "A posição está atualizada. A estimativa pela malha viária aguarda configuração do serviço de rotas.",
     deliveryLocation,
     driverPosition: {
       latitude: gps.latitude,

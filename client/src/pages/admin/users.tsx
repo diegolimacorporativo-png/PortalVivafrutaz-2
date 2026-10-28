@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, Truck, Leaf } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
-import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_ADMIN_ROLES, GLOBAL_SCOPE_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, GLOBAL_USER_MANAGEMENT_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 type ActionModule = (typeof ACTION_PERMISSION_MODULES)[number];
 type ActionType = (typeof ACTION_PERMISSION_ACTIONS)[number];
@@ -151,7 +151,7 @@ const ROLES = [
 const normalizeRole = (role: string) => role === "DRIVER" ? "MOTORISTA" : role;
 const isDriverRole = (role: string) => role === "MOTORISTA" || role === "DRIVER";
 
-const isGlobalAdminRole = (role?: string) => GLOBAL_ADMIN_ROLES.some((item) => item === role);
+const isGlobalUserManagerRole = (role?: string) => GLOBAL_USER_MANAGEMENT_ROLES.some((item) => item === role);
 
 const blank = {
   name: "", email: "", password: "", role: "OPERATIONS_MANAGER", active: true,
@@ -173,7 +173,9 @@ export default function UsersAdminPage() {
   const [newPwd, setNewPwd] = useState("");
 
   const canManageUsers = me && USER_MANAGEMENT_ROLES.some((role) => role === me.role);
-  const isGlobalAdmin = isGlobalAdminRole(me?.role);
+  // Only an unbound system-user manager may choose a tenant. Bound accounts
+  // remain pinned to their server-resolved company even when their role is privileged.
+  const isGlobalAdmin = isGlobalUserManagerRole(me?.role) && (me as any)?.empresaId == null;
   const formHasFullSystemAccess = (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(form.role);
   const { data: companies = [], isLoading: loadingCompanies } = useQuery<CompanyOption[]>({
     queryKey: ["/api/companies"],
@@ -227,7 +229,11 @@ export default function UsersAdminPage() {
         headers,
         body: JSON.stringify(form),
       });
-      if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erro'); }
+      if (!res.ok) {
+        const d = await res.json().catch(() => null);
+        const message = d?.message || d?.error?.message || d?.error || d?.details?.[0]?.message;
+        throw new Error(typeof message === "string" ? message : `Não foi possível salvar o usuário (erro ${res.status}).`);
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -280,8 +286,10 @@ export default function UsersAdminPage() {
   });
 
   const openCreate = () => {
-    setNewUserTargetTenant("");
-    setForm({ ...blank, role: isGlobalAdmin ? "ADMIN" : "OPERATIONS_MANAGER" });
+    // This page creates internal system accounts; start at that explicit scope.
+    // The empty role forces an intentional profile choice before submission.
+    setNewUserTargetTenant(isGlobalAdmin ? "global" : "");
+    setForm({ ...blank, role: isGlobalAdmin ? "" : "OPERATIONS_MANAGER" });
     setModal({ open: true, editing: null });
   };
   const openEdit = (u: AdminUser) => {
@@ -480,8 +488,8 @@ export default function UsersAdminPage() {
                   setForm((current) => ({
                     ...current,
                     role: value === "global"
-                      ? (isGlobalAdminRole(current.role) ? current.role : "MASTER")
-                      : isGlobalAdminRole(current.role) ? "ADMIN" : current.role,
+                      ? (isGlobalUserManagerRole(current.role) ? current.role : "")
+                      : isGlobalUserManagerRole(current.role) ? "" : current.role,
                   }));
                 }}
                 data-testid="select-user-target-tenant"
@@ -496,7 +504,7 @@ export default function UsersAdminPage() {
                 ))}
               </select>
               <p className="text-xs text-muted-foreground mt-1.5">
-                MASTER e DIRECTOR são globais. COMERCIAL e LOGISTICS podem ser funcionários internos sem empresa; os demais perfis operacionais ficam vinculados à empresa selecionada.
+                MASTER, DIRECTOR e DEVELOPER podem administrar contas globais. COMERCIAL e LOGISTICS podem ser funcionários internos sem empresa; os demais perfis operacionais ficam vinculados à empresa selecionada.
               </p>
               {!loadingCompanies && selectableCompanies.length === 0 && (
                 <p className="text-xs text-amber-700 mt-1" role="status">Não foi possível carregar empresas ativas para selecionar.</p>
@@ -707,7 +715,11 @@ export default function UsersAdminPage() {
             if (!modal.editing && isGlobalAdmin && !newUserTargetTenant) {
               toast({ title: "Selecione uma empresa ou escolha Conta interna antes de criar o usuário.", variant: "destructive" }); return;
             }
-            if (!form.role || !ROLES.some((role) => role.value === form.role) || !isRoleAvailable(ROLES.find((role) => role.value === form.role)!)) {
+            if (!form.role) {
+              toast({ title: "Escolha um perfil para o novo usuário.", variant: "destructive" }); return;
+            }
+            const selectedRole = ROLES.find((role) => role.value === form.role);
+            if (!selectedRole || !isRoleAvailable(selectedRole)) {
               toast({ title: "Escolha um perfil disponível para o escopo selecionado.", variant: "destructive" }); return;
             }
             if (!modal.editing && form.password.trim().length < 12) {

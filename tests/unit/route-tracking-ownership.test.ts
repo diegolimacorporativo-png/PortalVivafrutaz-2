@@ -1,5 +1,6 @@
-import { test, describe } from "node:test";
+import { test, describe, mock } from "node:test";
 import assert from "node:assert/strict";
+import { calculateDistance } from "../../server/services/logistics/routeOptimizer";
 import { db } from "../../server/database/db";
 import { LogisticsController } from "../../server/modules/logistics/logistics.controller";
 import { LogisticsService } from "../../server/modules/logistics/logistics.service";
@@ -71,6 +72,34 @@ async function withTrackingDb<T>(
 ): Promise<{ result: T; calls: number }> {
   const database = db as any;
   const original = database.execute;
+  const previousRouter = process.env.OSRM_ROUTING_URL;
+  process.env.OSRM_ROUTING_URL = "https://osrm.synthetic.test";
+  const fetchMock = mock.method(globalThis, "fetch", async (input: any) => {
+    const path = new URL(String(input)).pathname
+      .split("/route/v1/driving/")[1]
+      .split(";")
+      .map((coordinate) => {
+        const [longitude, latitude] = coordinate.split(",").map(Number);
+        return { longitude, latitude };
+      });
+    const legs = path.slice(1).map((point, index) => {
+      const previous = path[index];
+      const distanceMeters = calculateDistance(
+        { lat: previous.latitude, lng: previous.longitude },
+        { lat: point.latitude, lng: point.longitude },
+      ) * 1300;
+      return {
+        duration: Math.max(60, Math.round(distanceMeters / 1000 / 35 * 3600)),
+        distance: distanceMeters,
+      };
+    });
+    const totalDistanceMeters = legs.reduce((sum, leg) => sum + leg.distance, 0);
+    const totalDurationSeconds = legs.reduce((sum, leg) => sum + leg.duration, 0);
+    return new Response(JSON.stringify({
+      code: "Ok",
+      routes: [{ duration: totalDurationSeconds, distance: totalDistanceMeters, legs }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
   let calls = 0;
   database.execute = async (...args: any[]) => {
     calls++;
@@ -80,6 +109,9 @@ async function withTrackingDb<T>(
     return { result: await callback(), calls };
   } finally {
     database.execute = original;
+    fetchMock.mock.restore();
+    if (previousRouter === undefined) delete process.env.OSRM_ROUTING_URL;
+    else process.env.OSRM_ROUTING_URL = previousRouter;
   }
 }
 
@@ -92,6 +124,7 @@ const routeRow = {
   route_name: "Rota A",
   driver_name: null,
   driver_phone: null,
+  driver_active: true,
 };
 
 describe("authenticated numeric route tracking ownership", () => {
@@ -225,6 +258,7 @@ describe("public route token authorization", () => {
         ...routeRow,
         route_company_id: 1,
         driver_id: 22,
+        driver_active: true,
         status: "IN_PROGRESS",
       }],
       [{
@@ -293,6 +327,7 @@ describe("public route token authorization", () => {
         ...routeRow,
         route_company_id: 1,
         driver_id: 22,
+        driver_active: true,
         status: "IN_PROGRESS",
       }],
       [{
@@ -338,7 +373,7 @@ describe("public route token authorization", () => {
     assert.equal(result.payload.eta, null);
   });
 
-  test("fresh GPS after the active journey produces an internal ETA using measured speed", async () => {
+  test("fresh GPS after the active journey produces an internal ETA using road legs", async () => {
     const issued = createPublicTrackingToken("route", 10);
     const actor = { id: 1, role: "LOGISTICS", empresaId: 1 };
     const { controller } = makeController({
@@ -351,6 +386,7 @@ describe("public route token authorization", () => {
         ...routeRow,
         route_company_id: 1,
         driver_id: 22,
+        driver_active: true,
         status: "IN_PROGRESS",
       }],
       [{
@@ -412,7 +448,7 @@ describe("public route token authorization", () => {
     assert.equal(result.statusCode, 200);
     assert.equal(result.payload.gpsStatus, "fresh");
     assert.equal(result.payload.etaAvailable, true);
-    assert.equal(result.payload.eta.avgSpeedKmh, 36);
+    assert.equal(result.payload.eta.avgSpeedKmh, 35);
     assert.ok(result.payload.stops[0].etaMinutes > 0);
     assert.ok(result.payload.stops[1].etaMinutes > result.payload.stops[0].etaMinutes);
     assert.ok(
@@ -420,6 +456,40 @@ describe("public route token authorization", () => {
         result.payload.deliveries[0].etaMinutes,
     );
     assert.ok(result.payload.stops[0].etaTime);
+  });
+
+  test("inactive assigned driver is hidden from route details and live GPS", async () => {
+    const issued = createPublicTrackingToken("route", 10);
+    const actor = { id: 1, role: "LOGISTICS", empresaId: 1 };
+    const { controller } = makeController({
+      actor,
+      ownedRoute: { id: 10, empresaId: 1 },
+    });
+    const responses = [
+      [{
+        ...routeRow,
+        route_company_id: 1,
+        driver_id: 22,
+        driver_name: "Inactive driver",
+        driver_phone: "private",
+        driver_active: false,
+        status: "IN_PROGRESS",
+      }],
+      [],
+      [],
+    ];
+    let responseIndex = 0;
+    const { result, calls } = await withTrackingDb(
+      async () => responses[responseIndex++] ?? [],
+      () => callTracking(controller, issued.token, actor),
+    );
+
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.payload.route.driverId, null);
+    assert.equal(result.payload.driver, null);
+    assert.equal(result.payload.driverPosition, null);
+    assert.equal(result.payload.etaAvailable, false);
+    assert.equal(calls, 3, "must not query journey or GPS for an inactive driver");
   });
 
   test("tampered route token is rejected before any database query", async () => {

@@ -68,11 +68,14 @@ export function tabPermissionAllows(permissions: unknown, tabKey: string, role?:
   return permissions.includes(tabKey);
 }
 
-/** MASTER and DIRECTOR have identical global administration authority. */
-export const GLOBAL_ADMIN_ROLES = ["MASTER", "DIRECTOR"] as const;
+/** Global platform administrators; their account must still be unbound for global data scope. */
+export const GLOBAL_ADMIN_ROLES = ["MASTER", "DIRECTOR", "DEVELOPER"] as const;
+
+/** Roles allowed to manage system users when their account has global scope. */
+export const GLOBAL_USER_MANAGEMENT_ROLES = GLOBAL_ADMIN_ROLES;
 
 /** Profiles that must retain access to all system modules regardless of per-user UI restrictions. */
-export const FULL_SYSTEM_ACCESS_ROLES = ["MASTER", "ADMIN", "DIRECTOR"] as const;
+export const FULL_SYSTEM_ACCESS_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
 
 /** Profiles whose unbound accounts can select any company for ordinary work. */
 export const GLOBAL_SCOPE_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
@@ -101,4 +104,4 @@ export const TENANT_ASSIGNABLE_USER_ROLES = [
   "GESTOR_CONTRATOS",
 ] as const;
 
-export const USER_MANAGEMENT_ROLES = ["MASTER", "ADMIN", "DIRECTOR"] as const;
+export const USER_MANAGEMENT_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;

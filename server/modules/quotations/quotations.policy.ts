@@ -105,6 +105,25 @@ export function resolveQuotationScope(
   return null;
 }
 
+/** Read scope for authorized internal staff; unlike writes, list reads may
+ * cover all companies when no optional company filter is selected. */
+export function resolveQuotationReadScope(
+  actor: QuotationActor | null | undefined,
+): QuotationScope | null {
+  const scoped = resolveQuotationScope(actor);
+  if (scoped) return scoped;
+  if (
+    actor &&
+    actor.empresaId == null &&
+    actor.selectedTenantId == null &&
+    ["LOGISTICS", "COMERCIAL"].includes(actor.role) &&
+    canViewQuotations(actor.role)
+  ) {
+    return { global: true, empresaId: null };
+  }
+  return null;
+}
+
 export function hasQuotationTenantOverride(
   body: Record<string, unknown>,
 ): boolean {

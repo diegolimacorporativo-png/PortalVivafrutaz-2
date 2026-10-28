@@ -7,6 +7,8 @@ export interface PublicDeliveryTrackingInput {
   deliveredAt: Date | string | null;
   lastUpdatedAt: Date | string | null;
   etaRange: { from: string; to: string } | null;
+  etaMethod?: "osrm_openstreetmap" | null;
+  roadDistanceKm?: number | null;
   stopsBefore: number | null;
   isNextStop: boolean;
   isDriverNearby: boolean;
@@ -78,6 +80,8 @@ export function buildPublicDeliveryTrackingPayload(
     deliveredAt: publicTimestamp(input.deliveredAt),
     lastUpdatedAt: publicTimestamp(input.lastUpdatedAt),
     etaRange: input.etaRange,
+    etaMethod: input.etaMethod ?? null,
+    roadDistanceKm: input.roadDistanceKm ?? null,
     stopsBefore: input.stopsBefore,
     isNextStop: input.isNextStop,
     isDriverNearby: input.isDriverNearby,

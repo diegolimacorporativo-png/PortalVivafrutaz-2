@@ -52,6 +52,28 @@ describe("OrdersRepository — tenant selecionado prevalece sobre papel global",
     } finally { legacyRead.mock.restore(); }
   });
 
+  test("LOGISTICS e COMERCIAL podem ler pedidos sem seleção, mas não podem criar sem tenant", async () => {
+    const read = mock.method(storage, "getOrders", async () => [
+      { id: 1, companyId: 10 }, { id: 2, companyId: 20 },
+    ] as any);
+    const create = mock.method(storage, "createOrder", async () => ({ id: 3 } as any));
+    try {
+      for (const role of ["LOGISTICS", "COMERCIAL"]) {
+        const rows = await withTenant(role, null, () => new OrdersRepository().list());
+        assert.deepEqual(rows, [{ id: 1, companyId: 10 }, { id: 2, companyId: 20 }]);
+        await assert.rejects(
+          withTenant(role, null, () => new OrdersRepository().create({} as any, [])),
+          /tenant alvo/i,
+        );
+      }
+      assert.equal(read.mock.callCount(), 2);
+      assert.equal(create.mock.callCount(), 0);
+    } finally {
+      create.mock.restore();
+      read.mock.restore();
+    }
+  });
+
   test("ID de pedido de outra empresa não passa quando MASTER selecionou um tenant", async () => {
     const orderRead = mock.method(storage, "getOrder", async () => ({ order: { id: 8, companyId: 99 }, items: [] } as any));
     try {

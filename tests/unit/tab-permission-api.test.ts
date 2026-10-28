@@ -36,11 +36,11 @@ describe("permissões personalizadas de abas no backend", () => {
     } finally { lookup.mock.restore(); }
   });
 
-  test("conta cliente mantém o próprio fluxo; MASTER, ADMIN e DIRECTOR não são bloqueados por abas", async () => {
+  test("conta cliente mantém o próprio fluxo; perfis de acesso total não são bloqueados por abas", async () => {
     let nextCalled = false;
     await requireTabPermission("finance")({ session: { companyId: 5 } } as any, {} as any, () => { nextCalled = true; });
     assert.equal(nextCalled, true);
-    for (const [index, role] of ["MASTER", "ADMIN", "DIRECTOR"].entries()) {
+    for (const [index, role] of ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"].entries()) {
       const lookup = mock.method(storage, "getUser", async () => ({ id: index + 3, role, active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
       try {
         let nextError: unknown;
@@ -59,12 +59,12 @@ describe("permissões personalizadas de abas no backend", () => {
     } finally { lookup.mock.restore(); }
   });
 
-  test("DEVELOPER respeita restrição de aba, mantendo seu escopo global separado", async () => {
+  test("DEVELOPER mantém acesso às abas do sistema mesmo com restrição antiga persistida", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({ id: 4, role: "DEVELOPER", active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
     try {
       let nextError: unknown;
       await requireTabPermission("logistics")({ session: { userId: 4 } } as any, {} as any, (error?: unknown) => { nextError = error; });
-      assert.ok(nextError instanceof ForbiddenError);
+      assert.equal(nextError, undefined);
     } finally { lookup.mock.restore(); }
   });
 

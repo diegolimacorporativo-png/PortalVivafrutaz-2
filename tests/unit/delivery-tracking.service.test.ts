@@ -1,5 +1,6 @@
-import { test, describe } from "node:test";
+import { test, describe, mock } from "node:test";
 import assert from "node:assert/strict";
+import { calculateDistance } from "../../server/services/logistics/routeOptimizer";
 import {
   getOrderDeliveryTracking,
   getPublicDeliveryTracking,
@@ -34,6 +35,7 @@ const activeDelivery = {
   route_driver_id: 7,
   route_status: "IN_PROGRESS",
   route_start_time: "08:00",
+  driver_active: true,
   route_has_stops: true,
   driver_company_id: 3,
 };
@@ -56,7 +58,41 @@ async function withDbResults<T>(
       return result;
     },
   };
-  return { result: await callback(database), calls: () => calls };
+  const previousRouter = process.env.OSRM_ROUTING_URL;
+  process.env.OSRM_ROUTING_URL = "https://osrm.synthetic.test";
+  const fetchMock = mock.method(globalThis, "fetch", async (input: any) => {
+    const path = new URL(String(input)).pathname
+      .split("/route/v1/driving/")[1]
+      .split(";")
+      .map((coordinate) => {
+        const [longitude, latitude] = coordinate.split(",").map(Number);
+        return { longitude, latitude };
+      });
+    const legs = path.slice(1).map((point, index) => {
+      const previous = path[index];
+      const distanceMeters = calculateDistance(
+        { lat: previous.latitude, lng: previous.longitude },
+        { lat: point.latitude, lng: point.longitude },
+      ) * 1300;
+      return {
+        duration: Math.max(60, Math.round(distanceMeters / 1000 / 35 * 3600)),
+        distance: distanceMeters,
+      };
+    });
+    const totalDistanceMeters = legs.reduce((sum, leg) => sum + leg.distance, 0);
+    const totalDurationSeconds = legs.reduce((sum, leg) => sum + leg.duration, 0);
+    return new Response(JSON.stringify({
+      code: "Ok",
+      routes: [{ duration: totalDurationSeconds, distance: totalDistanceMeters, legs }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  try {
+    return { result: await callback(database), calls: () => calls };
+  } finally {
+    fetchMock.mock.restore();
+    if (previousRouter === undefined) delete process.env.OSRM_ROUTING_URL;
+    else process.env.OSRM_ROUTING_URL = previousRouter;
+  }
 }
 
 function validTrackingResults(overrides: {
@@ -515,5 +551,15 @@ describe("authenticated order tracking fallback", () => {
     );
     assert.equal(active.result?.operationalState, "in_transit");
     assert.equal(active.result?.trackingAvailable, true);
+  });
+
+  test("stops sharing live GPS when the assigned driver has been deactivated", async () => {
+    const removedDriver = await withDbResults(
+      resultsForDelivery({ delivery: { driver_active: false } }),
+      (database) => getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(removedDriver.result?.trackingAvailable, false);
+    assert.equal(removedDriver.result?.operationalState, "awaiting_assignment");
+    assert.equal(removedDriver.result?.driverPosition, null);
   });
 });

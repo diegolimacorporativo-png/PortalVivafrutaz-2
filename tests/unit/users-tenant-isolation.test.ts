@@ -97,14 +97,14 @@ function withTenant<T>(empresaId: number, fn: () => Promise<T>) {
   );
 }
 
-function withGlobalAdmin<T>(role: "MASTER" | "DIRECTOR", fn: () => Promise<T>) {
+function withGlobalAdmin<T>(role: "MASTER" | "DIRECTOR" | "DEVELOPER", fn: () => Promise<T>) {
   return runWithTenant(
     { principal: { kind: "admin", empresaId: null, userId: actor.id, role }, empresaId: null },
     fn,
   );
 }
 
-function withGlobalAdminTarget<T>(role: "MASTER" | "DIRECTOR", empresaId: number, fn: () => Promise<T>) {
+function withGlobalAdminTarget<T>(role: "MASTER" | "DIRECTOR" | "DEVELOPER", empresaId: number, fn: () => Promise<T>) {
   return runWithTenant(
     { principal: { kind: "admin", empresaId, userId: actor.id, role }, empresaId },
     fn,
@@ -208,6 +208,28 @@ describe("UsersService — isolamento multi-tenant", () => {
       assert.equal(calls.create[0].empresaId, null);
     });
   }
+
+  test("DEVELOPER global cria conta interna e seleciona o perfil explicitamente autorizado", async () => {
+    const { service, calls } = makeService();
+    await withGlobalAdmin("DEVELOPER", async () => {
+      await service.create({
+        name: "Funcionário interno",
+        email: "developer-created-staff@example.com",
+        password: "a-strong-test-password",
+        role: "COMERCIAL",
+        empresaId: 99,
+      } as any);
+      await service.create({
+        name: "Administrador global de teste",
+        email: "developer-created-director@example.com",
+        password: "another-strong-test-password",
+        role: "DIRECTOR",
+      } as any);
+    });
+    assert.equal(calls.create[0].empresaId, null);
+    assert.equal(calls.create[1].role, "DIRECTOR");
+    assert.equal(calls.create[1].empresaId, null);
+  });
 
   test("ADMIN tenant-bound cria COMERCIAL/LOGISTICS somente no próprio tenant", async () => {
     const { service, calls } = makeService();

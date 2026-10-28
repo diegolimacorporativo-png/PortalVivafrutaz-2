@@ -24,6 +24,8 @@ type TrackingData = {
   deliveredAt: string | null;
   lastUpdatedAt: string | null;
   etaRange: { from: string; to: string } | null;
+  etaMethod?: "osrm_openstreetmap" | null;
+  roadDistanceKm?: number | null;
   stopsBefore: number | null;
   isNextStop: boolean;
   isDriverNearby: boolean;
@@ -355,16 +357,27 @@ export default function TrackDelivery() {
                   <div className="mt-4 flex items-start gap-2 rounded-xl bg-blue-50 p-3">
                     <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
                     <div>
-                      <p className="text-xs text-blue-800">Previsão estimada de chegada</p>
+                      <p className="text-xs text-blue-800">
+                        {data.etaMethod === "osrm_openstreetmap"
+                          ? "Previsão pela malha viária (sem trânsito ao vivo)"
+                          : "Previsão estimada de chegada"}
+                      </p>
                       <p className="font-semibold text-blue-900">
                         {formatTime(data.etaRange.from)}–{formatTime(data.etaRange.to)}
                       </p>
+                      {data.roadDistanceKm != null && (
+                        <p className="mt-1 text-xs text-blue-800">
+                          Percurso viário estimado: {data.roadDistanceKm.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
                 {!data.etaRange && (
                   <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-gray-600">
-                    A previsão de chegada está temporariamente indisponível. A localização continuará sendo atualizada.
+                    {data.etaMethod === null
+                      ? "A localização continua sendo atualizada; a estimativa viária aguarda configuração ou resposta do serviço de rotas."
+                      : "A previsão de chegada está temporariamente indisponível. A localização continuará sendo atualizada."}
                   </p>
                 )}
                 {data.lastUpdatedAt && (

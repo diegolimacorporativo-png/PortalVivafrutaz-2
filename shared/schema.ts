@@ -67,10 +67,8 @@ export const companies = pgTable("companies", {
   deliveryConfigJson: text("delivery_config_json"),
   // Taxa administrativa (%)
   adminFee: numeric("admin_fee", { precision: 5, scale: 2 }).default("0"),
-  // Feature flag — quando true, o pedido desta empresa passa a calcular
-  // unitPrice via Price Resolver (basePrice + adminFee). Default false:
-  // nenhuma empresa muda comportamento automaticamente. Rollback imediato
-  // basta UPDATE companies SET use_new_pricing = false WHERE id = X.
+  // Legacy rollout flag for the full contract/category/base price resolver.
+  // The administrative fee is applied independently whenever adminFee > 0.
   useNewPricing: boolean("use_new_pricing").default(false).notNull(),
   // Financeiro
   billingTerm: text("billing_term"),

@@ -99,7 +99,8 @@ export function canAccessDriverRecord(
   if (!actor || !driver || !isInternal(actor.role)) return false;
   const tenantId = selectedTenantId ?? actor.empresaId ?? null;
   if (tenantId != null) return Number(driver.empresaId) === Number(tenantId);
-  return isGlobalLogisticsActor(actor);
+  return isGlobalLogisticsActor(actor)
+    || ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(actor.role ?? "");
 }
 
 /**

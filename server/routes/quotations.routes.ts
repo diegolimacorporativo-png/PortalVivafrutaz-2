@@ -9,6 +9,7 @@ import {
   canDeleteQuotations,
   canWriteQuotations,
   hasQuotationTenantOverride,
+  resolveQuotationReadScope,
   resolveQuotationScope,
   sanitizeQuotationCreateBody,
   sanitizeQuotationUpdateBody,
@@ -39,7 +40,7 @@ export function register(app: Express) {
   app.get('/api/quotations', requireAuthCore, async (req, res) => {
     const user = await storage.getUser(req.session.userId!);
     if (!user) return res.status(403).json({ message: 'Sem permissão' });
-    const scope = resolveQuotationScope({ ...user, selectedTenantId: currentTenantId() });
+    const scope = resolveQuotationReadScope({ ...user, selectedTenantId: currentTenantId() });
     if (!scope) return res.status(403).json({ message: 'Sem permissão' });
     try { res.json(await storage.getQuotations(scope)); } catch (e) { res.status(500).json({ message: 'Erro' }); }
   });

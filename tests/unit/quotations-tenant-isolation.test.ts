@@ -5,6 +5,7 @@ import {
   canDeleteQuotations,
   canWriteQuotations,
   hasQuotationTenantOverride,
+  resolveQuotationReadScope,
   resolveQuotationScope,
   sanitizeQuotationCreateBody,
   sanitizeQuotationUpdateBody,
@@ -128,6 +129,16 @@ describe("quotations — isolamento multi-tenant", () => {
     const scope = resolveQuotationScope({ role: "COMERCIAL", empresaId: null, selectedTenantId: 20 });
     assert.deepEqual(repo.list(scope).map(row => row.id), [2]);
     assert.equal(resolveQuotationScope({ role: "COMERCIAL", empresaId: null }), null);
+  });
+
+  test("COMERCIAL e LOGISTICS podem listar cotações globais sem liberar criação global", () => {
+    for (const role of ["COMERCIAL", "LOGISTICS"]) {
+      assert.deepEqual(
+        resolveQuotationReadScope({ role, empresaId: null }),
+        { global: true, empresaId: null },
+      );
+      assert.equal(resolveQuotationScope({ role, empresaId: null }), null);
+    }
   });
 
   test("controle de escrita em cotações continua separado da leitura por política de perfil", () => {

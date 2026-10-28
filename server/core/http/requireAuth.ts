@@ -64,9 +64,9 @@ export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
         /* fall through — treated as missing role */
       }
     }
-    // Tenant/global administrators retain legacy broad access unless an
-    // endpoint opts into strict role matching. DEVELOPER is intentionally not
-    // a universal bypass; it must be named on the route that needs it.
+    // Full-system profiles retain broad access unless an endpoint opts into
+    // strict role matching. Strict global roles are still validated against
+    // the server-side account and must have no tenant association.
     let isGlobalAdminAccount = true;
     if (opts?.strict && role && GLOBAL_ADMIN_ROLES.some((globalRole) => globalRole === role)) {
       try {

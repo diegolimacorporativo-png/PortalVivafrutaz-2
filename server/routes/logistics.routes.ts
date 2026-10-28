@@ -139,7 +139,7 @@ export async function register(app: Express): Promise<void> {
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       if (!isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
       const tenantId = currentTenantId();
-      const access = resolveDeliveryAccess(actor, tenantId);
+      const access = resolveDeliveryAccess(actor, tenantId, true);
       if (!access.allowed) return res.status(access.status).json({ message: access.message });
       const filters: any = {};
       if (tenantId != null) {
@@ -163,7 +163,7 @@ export async function register(app: Express): Promise<void> {
     try {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
-      const d = await getAuthorizedDelivery(Number(req.params.id), actor);
+      const d = await getAuthorizedDelivery(Number(req.params.id), actor, true);
       if (!d) return res.status(404).json({ message: 'Entrega não encontrada' });
       res.json(d);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -326,8 +326,12 @@ export async function register(app: Express): Promise<void> {
    * Cross-tenant requests intentionally return undefined so callers preserve
    * the existing not-found response and do not reveal another tenant's row.
    */
-  async function getAuthorizedDelivery(deliveryId: number, actor: any): Promise<any | undefined> {
-    const access = resolveDeliveryAccess(actor, currentTenantId());
+  async function getAuthorizedDelivery(
+    deliveryId: number,
+    actor: any,
+    allowMultiCompanyRead = false,
+  ): Promise<any | undefined> {
+    const access = resolveDeliveryAccess(actor, currentTenantId(), allowMultiCompanyRead);
     if (!access.allowed) {
       return undefined;
     }
@@ -648,11 +652,11 @@ export async function register(app: Express): Promise<void> {
       // existing cross-tenant operational access.
       if (!isDriver(actor.role) && !isLogisticsTrackingRole(actor.role)) {
         const [targetDriver] = await db
-          .select({ id: driversTable.id, empresaId: driversTable.empresaId })
+          .select({ id: driversTable.id, empresaId: driversTable.empresaId, active: driversTable.active })
           .from(driversTable)
           .where(eq(driversTable.id, driverId))
           .limit(1);
-        if (!canAccessDriverRecord(actor, targetDriver, currentTenantId())) {
+        if (!canAccessDriverRecord(actor, targetDriver, currentTenantId()) || targetDriver.active === false) {
           return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }
@@ -672,21 +676,32 @@ export async function register(app: Express): Promise<void> {
 
   // Latest position for every active driver visible to the authenticated
   // logistics user. This intentionally does not depend on a route assignment.
-  app.get('/api/logistics/drivers/gps', requireAuthCore, async (req: any, res) => {
+  app.get(
+    '/api/logistics/drivers/gps',
+    requireAuthCore,
+    tenantContext,
+    requireTabPermission('gps-tracking'),
+    requireActionPermission('logistics'),
+    async (req: any, res) => {
     try {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       if (!isInternal(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
-      // A consulta global só é válida para perfis centrais. Para os demais
-      // perfis internos, a ausência de tenant deve falhar fechado em vez de
-      // expor posições de todas as empresas.
-      if (!isGlobalLogisticsActor(actor) && actor.empresaId == null) {
+      const selectedTenantId = currentTenantId();
+      const canReadAllCompanyGps = isGlobalLogisticsActor(actor) ||
+        ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(actor.role);
+      // Unbound logistics/commercial staff are authorized for operational
+      // GPS across companies. Other tenant-bound internal accounts stay
+      // pinned; unbound roles without this capability fail closed.
+      if (selectedTenantId == null && actor.empresaId == null && !canReadAllCompanyGps) {
         return res.status(403).json({ message: 'Empresa não definida para este usuário' });
       }
 
-      let driverRows = actor.empresaId
-        ? await db.select().from(driversTable).where(eq(driversTable.empresaId, actor.empresaId)).orderBy(driversTable.name)
+      const tenantFilter = selectedTenantId ?? actor.empresaId ?? null;
+      let driverRows = tenantFilter != null
+        ? await db.select().from(driversTable).where(eq(driversTable.empresaId, tenantFilter)).orderBy(driversTable.name)
         : await db.select().from(driversTable).orderBy(driversTable.name);
+      driverRows = driverRows.filter((driver: any) => driver.active !== false);
 
       // Some legacy installations registered drivers as user accounts with
       // role MOTORISTA/DRIVER but never created the corresponding
@@ -701,7 +716,7 @@ export async function register(app: Express): Promise<void> {
         inArray(usersTable.role, ["MOTORISTA", "DRIVER", "LOGISTICS"]),
         eq(usersTable.active, true),
       ];
-      if (actor.empresaId) userConditions.push(eq(usersTable.empresaId, actor.empresaId));
+      if (tenantFilter != null) userConditions.push(eq(usersTable.empresaId, tenantFilter));
       const driverUsers = await db
         .select({
           id: usersTable.id,
@@ -785,7 +800,8 @@ export async function register(app: Express): Promise<void> {
           .from(driversTable)
           .where(eq(driversTable.id, targetDriverId))
           .limit(1);
-        if (!canAccessDriverRecord(actor, targetDriver, currentTenantId())) {
+        const scopedTenantId = currentTenantId() ?? actor.empresaId ?? null;
+        if (!canAccessDriverRecord(actor, targetDriver, scopedTenantId)) {
           return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }
@@ -800,7 +816,7 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
-      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor, true);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       const checklist = await storage.getDeliveryChecklist(deliveryId);
       res.json(checklist || null);
@@ -894,7 +910,7 @@ export async function register(app: Express): Promise<void> {
         });
       }
 
-      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor, true);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
 
       if (status === 'entregue') {
@@ -963,7 +979,7 @@ export async function register(app: Express): Promise<void> {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
       const deliveryId = Number(req.params.id);
-      const delivery = await getAuthorizedDelivery(deliveryId, actor);
+      const delivery = await getAuthorizedDelivery(deliveryId, actor, true);
       if (!delivery) return res.status(404).json({ message: 'Entrega não encontrada' });
       const events = await db
         .select()

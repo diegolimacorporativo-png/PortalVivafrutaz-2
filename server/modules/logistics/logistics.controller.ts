@@ -37,7 +37,7 @@ import type { Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import { calculateDistance } from "../../services/logistics/routeOptimizer";
-import { calculateETA, summariseETA } from "./eta.service";
+import { calculateRoadEta, isRoadRoutingConfigured } from "./road-routing.service";
 import {
   getEffectiveDeliveryWindow,
   hasValidTrackingCoordinates,
@@ -793,7 +793,8 @@ export class LogisticsController {
                lr.delivery_date,
                lr.name           AS route_name,
                ld.name           AS driver_name,
-               ld.phone          AS driver_phone
+               ld.phone          AS driver_phone,
+               ld.active         AS driver_active
         FROM logistics_routes lr
         LEFT JOIN logistics_drivers ld ON ld.id = lr.driver_id
         WHERE lr.id = ${routeId} ${tenantRoutePredicate}
@@ -849,8 +850,9 @@ export class LogisticsController {
 
       const now = new Date();
       const routeIsActive = normalizeTrackingStatus(route.status) === "in_progress";
+      const assignedDriverActive = route.driver_active === true || route.driver_active === "true" || route.driver_active === "t";
       let journeyStartedAtMs: number | null = null;
-      if (route.driver_id && routeIsActive) {
+      if (route.driver_id && assignedDriverActive && routeIsActive) {
         const journeyRows = rowsOf<any>(await db.execute(sql`
           SELECT started_at
           FROM driver_journeys
@@ -878,7 +880,7 @@ export class LogisticsController {
         | "before_journey"
         | "fresh" = "no_position";
       let gpsFreshForEta = false;
-      if (route.driver_id) {
+      if (route.driver_id && assignedDriverActive) {
         const gpsRows = rowsOf<any>(await db.execute(sql`
           SELECT latitude::text AS latitude,
                  longitude::text AS longitude,
@@ -1011,24 +1013,24 @@ export class LogisticsController {
         activeEtaStops.every((stop) =>
           hasValidTrackingCoordinates(stop.latitude, stop.longitude),
         );
-      const speedMetersPerSecond = Number(driverPosition?.speed);
-      const speedKmh = Number.isFinite(speedMetersPerSecond) && speedMetersPerSecond > 0
-        ? speedMetersPerSecond * 3.6
-        : null;
-      const etaAvailable = routeIsActive &&
+      const gpsReadyForEta = routeIsActive &&
         gpsFreshForEta &&
         hasCoordinatesForEta;
-      const etaResults = etaAvailable
-        ? calculateETA(etaSource, driverPosition, now, { speedKmh })
-        : [];
-      const etaSummary = etaResults.length > 0
-        ? summariseETA(etaResults, now, speedKmh)
+      const roadEta = gpsReadyForEta
+        ? await calculateRoadEta(
+            etaSource,
+            { latitude: driverPosition?.lat, longitude: driverPosition?.lng },
+            now,
+          )
         : null;
+      const etaAvailable = Boolean(roadEta?.stops.length);
+      const etaResults = roadEta?.stops ?? [];
+      const etaSummary = roadEta?.summary ?? null;
       const etaUnavailableReason = etaAvailable
         ? null
         : !routeIsActive
           ? "route_not_active"
-          : !route.driver_id
+          : !route.driver_id || !assignedDriverActive
             ? "driver_unassigned"
             : !driverPosition
               ? "gps_unavailable"
@@ -1038,7 +1040,11 @@ export class LogisticsController {
                   ? "journey_inactive"
                   : !hasCoordinatesForEta
                     ? "stop_coordinates_missing"
-                    : "gps_unavailable";
+                  : !isRoadRoutingConfigured()
+                    ? "road_routing_unconfigured"
+                    : gpsReadyForEta
+                      ? "road_route_unavailable"
+                      : "gps_unavailable";
 
       // Build the output stops array (always derived from route_stops when
       // available so legacy callers see the same shape).
@@ -1129,10 +1135,10 @@ export class LogisticsController {
           name: route.route_name,
           status: route.status,
           deliveryDate: route.delivery_date,
-          driverId: route.driver_id,
+          driverId: assignedDriverActive ? route.driver_id : null,
           vehicleId: route.vehicle_id,
         },
-        driver: route.driver_id
+        driver: route.driver_id && assignedDriverActive
           ? {
               id: route.driver_id,
               name: route.driver_name,

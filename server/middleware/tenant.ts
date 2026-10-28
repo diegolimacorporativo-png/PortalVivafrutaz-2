@@ -144,7 +144,15 @@ async function resolveAdminTenant(
     throw new ForbiddenError("Este perfil precisa de uma empresa vinculada");
   }
   const target = resolveClientTenant(req);
-  if (target == null && !(GLOBAL_SCOPE_ROLES as readonly string[]).includes(user.role)) {
+  const multiCompanyRead =
+    target == null &&
+    ["COMERCIAL", "LOGISTICS"].includes(user.role) &&
+    ["GET", "HEAD"].includes(String(req.method ?? "").toUpperCase());
+  if (
+    target == null &&
+    !(GLOBAL_SCOPE_ROLES as readonly string[]).includes(user.role) &&
+    !multiCompanyRead
+  ) {
     throw new ForbiddenError("Selecione uma empresa para esta operação");
   }
   if (target != null) {

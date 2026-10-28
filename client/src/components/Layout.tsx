@@ -190,7 +190,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/logistics-intelligence', label: 'Inteligência Logística', icon: Route, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'], tabKey: 'logistics-intelligence', category: 'Inteligência', moduloChave: 'logistica_inteligente' },
     { href: '/admin/clara-training', label: 'Treinar Clara', icon: GraduationCap, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'clara-training', category: 'Inteligência' },
     { href: '/admin/treinamento', label: 'Central de Treinamento', icon: BookOpen, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'FINANCEIRO', 'PURCHASE_MANAGER'], tabKey: 'treinamento', category: 'Treinamento' },
-    { href: '/admin/users', label: 'Usuários do Sistema', icon: UserCog, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'users', category: 'Sistema' },
+    { href: '/admin/users', label: 'Usuários do Sistema', icon: UserCog, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'users', category: 'Sistema' },
     { href: '/admin/system-health', label: 'Saúde do Sistema', icon: Activity, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'system-health', category: 'Sistema' },
     { href: '/admin/backups', label: 'Backup & E-mails', icon: HardDrive, roles: ['ADMIN', 'DEVELOPER', 'DIRECTOR'], tabKey: 'backups', category: 'Sistema' },
     { href: '/admin/email-management', label: 'Central de E-mails', icon: Mail, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'MANAGER'], tabKey: 'email-management', category: 'Sistema' },
@@ -317,7 +317,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {canSelectTenant && (
         <div className="px-3 py-2">
-          <label htmlFor="staff-tenant-selector" className="mb-1 block text-xs font-semibold text-muted-foreground">Empresa de trabalho</label>
+          <label htmlFor="staff-tenant-selector" className="mb-1 block text-xs font-semibold text-muted-foreground">Filtro de empresa (opcional)</label>
           <select
             id="staff-tenant-selector"
             data-testid="staff-tenant-selector"
@@ -325,7 +325,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onChange={event => void changeTenant(event.target.value)}
             className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
           >
-            <option value="">{canUseGlobalScope ? 'Visão global' : 'Selecione uma empresa'}</option>
+            <option value="">{canUseGlobalScope ? 'Visão global' : 'Todas as empresas autorizadas'}</option>
             {tenantOptions.map(option => <option key={option.id} value={String(option.id)}>{option.companyName}</option>)}
           </select>
         </div>
@@ -495,12 +495,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto">
-            {canSelectTenant && !selectedTenantId && !canUseGlobalScope ? (
-              <section className="mx-auto mt-8 max-w-2xl rounded-2xl border border-amber-300 bg-amber-50 p-6 text-amber-950" role="status">
-                <h2 className="text-lg font-semibold">Selecione a empresa de trabalho</h2>
-                <p className="mt-2 text-sm">As áreas internas precisam de uma empresa selecionada para limitar cada consulta e operação ao escopo correto. Use o seletor no menu lateral.</p>
-              </section>
-            ) : children}
+            {children}
           </div>
         </main>
       </div>

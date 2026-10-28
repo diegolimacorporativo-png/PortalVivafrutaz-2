@@ -29,6 +29,7 @@ export type DeliveryAccess =
 export function resolveDeliveryAccess(
   actor: DeliveryActor,
   selectedTenantId: number | null = null,
+  allowMultiCompanyRead = false,
 ): DeliveryAccess {
   if (!isDeliveryInternalRole(actor.role) && !isDeliveryDriverRole(actor.role)) {
     return { allowed: false, status: 403, message: "Acesso negado" };
@@ -51,6 +52,9 @@ export function resolveDeliveryAccess(
   }
 
   if (!(DELIVERY_GLOBAL_ROLES as readonly string[]).includes(actor.role ?? "")) {
+    if (allowMultiCompanyRead && ["LOGISTICS", "COMERCIAL"].includes(actor.role ?? "")) {
+      return { allowed: true, tenantId: null };
+    }
     return {
       allowed: false,
       status: 403,

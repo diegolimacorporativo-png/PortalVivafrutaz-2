@@ -290,6 +290,10 @@ export class AuthController {
       res.status(401).json({ message: "Não autenticado." });
       return;
     }
+    if (session.userType !== "admin") {
+      res.status(403).json({ message: "A troca de senha está disponível apenas para usuários do sistema." });
+      return;
+    }
 
     const { currentPassword, newPassword } = req.body as {
       currentPassword?: string;

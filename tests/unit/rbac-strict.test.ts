@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import test, { describe } from "node:test";
+import test, { describe, mock } from "node:test";
 import { requireAuth, requireRole } from "../../server/core/http/requireAuth";
 import { ForbiddenError, UnauthorizedError } from "../../server/shared/errors/AppError";
+import { storage } from "../../server/services/storage";
 
 type Middleware = (
   req: any,
@@ -43,10 +44,14 @@ describe("RBAC strict mode", () => {
     ];
 
     for (const role of knownRoles) {
-      const error = await runChain(
-        [requireAuth, requireRole(["MASTER"], { strict: true })],
-        { session: { userId: 7, userRole: role } },
-      );
+      const lookup = mock.method(storage, "getUser", async () => ({ id: 7, role, empresaId: null } as any));
+      let error: unknown;
+      try {
+        error = await runChain(
+          [requireAuth, requireRole(["MASTER"], { strict: true })],
+          { session: { userId: 7, userRole: role } },
+        );
+      } finally { lookup.mock.restore(); }
 
       if (role === "MASTER") {
         assert.equal(error, undefined, `role ${role} deve passar`);
@@ -65,13 +70,16 @@ describe("RBAC strict mode", () => {
     assert.ok(error instanceof UnauthorizedError);
   });
 
-  test("strict mode preserves explicitly allowed mixed administrative roles", async () => {
-    for (const role of ["MASTER", "DIRECTOR"]) {
-      const error = await runMiddleware(
-        requireRole(["MASTER", "DIRECTOR"], { strict: true }),
-        { session: { userId: 7, userRole: role } },
-      );
-      assert.equal(error, undefined, `role ${role} deve continuar autorizada`);
+  test("strict mode preserves explicitly allowed global roles only for unbound accounts", async () => {
+    for (const role of ["MASTER", "DIRECTOR", "DEVELOPER"]) {
+      const lookup = mock.method(storage, "getUser", async () => ({ id: 7, role, empresaId: null } as any));
+      try {
+        const error = await runMiddleware(
+          requireRole(["MASTER", "DIRECTOR", "DEVELOPER"], { strict: true }),
+          { session: { userId: 7, userRole: role } },
+        );
+        assert.equal(error, undefined, `role ${role} deve continuar autorizada`);
+      } finally { lookup.mock.restore(); }
     }
   });
 
