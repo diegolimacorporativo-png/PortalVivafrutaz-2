@@ -16,7 +16,7 @@
 
 import { and, desc, eq, ilike, or, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { db } from "../../database/db";
+import { db, pool } from "../../database/db";
 import {
   companies,
   contractScopes,
@@ -43,8 +43,9 @@ import {
   getTenantContext,
   requireTenantId,
 } from "../../core/tenant/context";
-import { ConflictError, ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
+import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import { expectOne } from "../../shared/repositories/repository.utils";
+import { purgeCompanyAndReferences } from "./company-purge";
 import type { LogEntry } from "../../shared/types/log.types";
 import type { ICompaniesRepository, PaginatedCompanies, CompaniesPaginatedParams } from "./interfaces/ICompaniesRepository";
 import type {
@@ -164,18 +165,7 @@ export class CompaniesRepository implements ICompaniesRepository {
 
   async delete(id: number): Promise<void> {
     this.assertCompanyAccess(id);
-    try {
-      const deleted = await db.delete(companies).where(eq(companies.id, id)).returning({ id: companies.id });
-      if (deleted.length === 0) throw new NotFoundError("Empresa não encontrada");
-    } catch (error: any) {
-      if (error instanceof NotFoundError) throw error;
-      // Preserve linked orders, invoices, and operational history. The FK
-      // restriction prevents a hard delete from silently erasing that history.
-      if (error?.code === "23503" || error?.cause?.code === "23503") {
-        throw new ConflictError("Esta empresa possui registros vinculados e não pode ser excluída permanentemente");
-      }
-      throw error;
-    }
+    await purgeCompanyAndReferences(pool, id);
   }
 
   // ── Contract Scopes (tenant-scoped via `companyId`) ───────────────────────
@@ -437,7 +427,7 @@ export class CompaniesRepository implements ICompaniesRepository {
   }
 
   async deleteCompany(id: number): Promise<void> {
-    await db.delete(companies).where(eq(companies.id, id));
+    return this.delete(id);
   }
 
   // ── Contract Scopes (raw) ─────────────────────────────────────────────────
