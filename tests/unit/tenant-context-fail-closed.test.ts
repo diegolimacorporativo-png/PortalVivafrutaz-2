@@ -136,6 +136,59 @@ describe("tenantContext — fail-closed resolution", () => {
     }
   });
 
+  test("LOGISTICS sem empresa pode enviar apenas seu próprio GPS sem selecionar tenant", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 55,
+      role: "LOGISTICS",
+      empresaId: null,
+      active: true,
+    } as any));
+    try {
+      const request: any = {
+        session: { userId: 55 },
+        method: "POST",
+        originalUrl: "/api/driver/gps",
+        path: "/api/driver/gps",
+        query: {},
+        body: { latitude: -23.5, longitude: -46.6 },
+        header: () => undefined,
+      };
+      let received: unknown;
+      await tenantContext(request, {} as any, (error?: unknown) => { received = error; });
+      assert.equal(received, undefined);
+      assert.equal(request.empresaId, null);
+    } finally {
+      lookup.mock.restore();
+    }
+  });
+
+  test("LOGISTICS sem empresa não pode escolher o tenant no envio próprio de GPS", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 56,
+      role: "LOGISTICS",
+      empresaId: null,
+      active: true,
+    } as any));
+    try {
+      for (const request of [
+        { header: () => "20", query: {}, body: { latitude: -23.5, longitude: -46.6 } },
+        { header: () => undefined, query: {}, body: { latitude: -23.5, longitude: -46.6, empresaId: 20 } },
+      ]) {
+        let received: unknown;
+        await tenantContext({
+          ...request,
+          session: { userId: 56 },
+          method: "POST",
+          originalUrl: "/api/driver/gps",
+          path: "/api/driver/gps",
+        } as any, {} as any, (error?: unknown) => { received = error; });
+        assert.ok(received instanceof ForbiddenError);
+      }
+    } finally {
+      lookup.mock.restore();
+    }
+  });
+
   test("DEVELOPER without company may use global scope and selects only existing tenants", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({
       id: 11,
