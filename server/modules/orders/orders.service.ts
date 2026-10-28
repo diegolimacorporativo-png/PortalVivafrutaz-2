@@ -39,24 +39,18 @@ import {
   sendOrderStatusChanged,
   sendAdminNewOrder,
 } from "../../services/mailer";
-// Price Resolver — imported for future activation only. Currently used
-// only for opportunistic divergence logging via logPriceDivergence; no
-// persisted value depends on it. See products/utils/priceResolver.ts.
-// FUTURE:
-//   - enableCategoryPricing flag
-//   - enableAdminMarkup flag
-//   - enableContractOverride flag
+// Price resolver is authoritative when a company administrative fee is set
+// or the legacy full pricing rollout is enabled.
 import {
   resolveProductPrice,
   logPriceDivergence,
 } from "../products/utils/priceResolver";
+import { shouldResolveCompanyPricing } from "./companyPricing";
 import {
   calculateWeeklyBillingTotal,
   minimumWeeklyBillingMessage,
   type WeeklyBillingOrder,
 } from "./weekly-billing";
-void resolveProductPrice;
-void logPriceDivergence;
 
 /**
  * Module-local 60-second duplicate-submission window.
@@ -366,6 +360,98 @@ export class OrdersService {
   // ║ CREATE                                                           ║
   // ╚══════════════════════════════════════════════════════════════════╝
 
+  /** Rebuild order line prices from the server catalog for the owning company. */
+  private async resolveCompanyOrderItems(companyId: number, items: any[]): Promise<any[]> {
+    const company: any = await this.repo.getCompany(companyId);
+    if (!company) throw new BadRequestError("Empresa não encontrada para calcular os preços do pedido.");
+    if (!shouldResolveCompanyPricing(company)) return items;
+
+    const fee = Number(company.adminFee ?? 0);
+    const productCache = new Map<number, any>();
+    const subCategoryCache = new Map<number, any>();
+    const contractCache = new Map<number, any>();
+    const resolvedItems: any[] = [];
+
+    for (const item of items ?? []) {
+      const productId = Number(item.productId);
+      if (!Number.isInteger(productId) || productId <= 0) {
+        if (Number.isFinite(fee) && fee > 0) {
+          throw new BadRequestError("Não foi possível validar um produto para aplicar a taxa administrativa.");
+        }
+        resolvedItems.push(item);
+        continue;
+      }
+
+      let product = productCache.get(productId);
+      if (!product) {
+        product = await this.repo.getProductById(productId);
+        if (product) productCache.set(productId, product);
+      }
+      if (!product) {
+        if (Number.isFinite(fee) && fee > 0) {
+          throw new BadRequestError("Não foi possível validar um produto para aplicar a taxa administrativa.");
+        }
+        resolvedItems.push(item);
+        continue;
+      }
+
+      let subCategoryPrice: number | null = null;
+      if (item.subCategoryId != null) {
+        const subCategoryId = Number(item.subCategoryId);
+        let subCategory = subCategoryCache.get(subCategoryId);
+        if (subCategory === undefined) {
+          subCategory = await this.repo.getProductSubCategoryById(subCategoryId);
+          subCategoryCache.set(subCategoryId, subCategory ?? null);
+        }
+        if (subCategory && Number(subCategory.productId) !== productId) {
+          throw new BadRequestError("A categoria selecionada não pertence ao produto do pedido.");
+        }
+        const rawPrice = subCategory?.price;
+        if (rawPrice != null && Number.isFinite(Number(rawPrice))) {
+          subCategoryPrice = Number(rawPrice);
+        }
+      }
+
+      let contractPrice: number | null = null;
+      let contractScope = contractCache.get(productId);
+      if (contractScope === undefined) {
+        contractScope = await this.repo.getContractScope(companyId, productId);
+        contractCache.set(productId, contractScope ?? null);
+      }
+      const rawContractPrice = contractScope?.unitPrice;
+      if (rawContractPrice != null && Number.isFinite(Number(rawContractPrice))) {
+        contractPrice = Number(rawContractPrice);
+      }
+      // Match the customer catalog: company-specific contract scope wins;
+      // otherwise use the company's price-group entry before category/base.
+      if (contractPrice == null && company.priceGroupId != null) {
+        const priceGroupEntry = await this.repo.getPriceGroupPrice(companyId, productId);
+        const rawGroupPrice = priceGroupEntry?.price;
+        if (rawGroupPrice != null && Number.isFinite(Number(rawGroupPrice))) {
+          contractPrice = Number(rawGroupPrice);
+        }
+      }
+
+      const unitPrice = resolveProductPrice({
+        basePrice: Number(product.basePrice),
+        subCategoryPrice,
+        contractPrice,
+        adminFee: Number.isFinite(fee) ? fee : 0,
+      });
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+        throw new BadRequestError("Não foi possível calcular o preço atualizado do produto.");
+      }
+      const quantity = Number(item.quantity ?? 0);
+      resolvedItems.push({
+        ...item,
+        unitPrice: unitPrice.toFixed(2),
+        totalPrice: (unitPrice * quantity).toFixed(2),
+      });
+    }
+
+    return resolvedItems;
+  }
+
   /**
    * `POST /api/orders` — create a customer-facing order.
    *
@@ -481,6 +567,11 @@ export class OrdersService {
       };
     }
 
+    // Recalculate from the company's current server-side prices before any
+    // weekly minimum check or persistence. This also prevents stale browser
+    // prices from bypassing a newly configured administrative fee.
+    const pricedItems = await this.resolveCompanyOrderItems(Number(order.companyId), items);
+
     // 3) duplicate-submission window
     const dupKey = `${order.companyId}:${order.deliveryDate || ""}:${order.orderWindowId || ""}`;
     const lastSubmit = recentOrders.get(dupKey);
@@ -518,7 +609,7 @@ export class OrdersService {
       await this.assertMinimumWeeklyBilling({
         companyId: actor.companyId ?? Number(order.companyId),
         weekReference: order.weekReference,
-        candidateItems: items,
+        candidateItems: pricedItems,
       });
     }
 
@@ -527,7 +618,7 @@ export class OrdersService {
     // This guards against API callers that provide unitPrice+quantity but omit
     // totalPrice — the DB column is NOT NULL so an absent value causes a 500.
     // Auto-compute totalValue from normalised items when the caller omits it.
-    const { normalisedItems, normalisedTotal } = this._normaliseItems(items, order);
+    const { normalisedItems, normalisedTotal } = this._normaliseItems(pricedItems, order);
     const newOrder = await this.repo.create(
       { ...order, status: "CONFIRMED", totalValue: normalisedTotal },
       normalisedItems,
@@ -546,7 +637,7 @@ export class OrdersService {
     if (tx) {
       const afterCreateThunk = async () => {
         try {
-          await this.afterCreate(newOrder, order, items);
+          await this.afterCreate(newOrder, order, pricedItems);
         } catch (err: any) {
           logSecurity(
             `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} | error=${err?.message ?? "unknown"}`,
@@ -558,7 +649,7 @@ export class OrdersService {
 
     setImmediate(async () => {
       try {
-        await this.afterCreate(newOrder, order, items);
+        await this.afterCreate(newOrder, order, pricedItems);
       } catch (err: any) {
         logSecurity(
           `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} | error=${err?.message ?? "unknown"}`,
@@ -608,10 +699,17 @@ export class OrdersService {
     const companyId = actor.companyId ?? activeDays[0].companyId;
     if (companyId) {
       const existingOrders = await this.repo.listByCompanyId(Number(companyId));
+      const pricedCandidateItems = (
+        await Promise.all(
+          activeDays.map((day) =>
+            this.resolveCompanyOrderItems(Number(companyId), day.items ?? []),
+          ),
+        )
+      ).flat();
       await this.assertMinimumWeeklyBilling({
         companyId: Number(companyId),
         weekReference: activeDays[0].weekReference,
-        candidateItems: activeDays.flatMap((day) => day.items ?? []),
+        candidateItems: pricedCandidateItems,
         existingOrders,
       });
     }
@@ -698,7 +796,10 @@ export class OrdersService {
     }
 
     // — Normalise items and totalValue via shared helper —
-    const { normalisedItems, normalisedTotal } = this._normaliseItems(items, order);
+    const pricedItems = order.companyId
+      ? await this.resolveCompanyOrderItems(Number(order.companyId), items)
+      : items;
+    const { normalisedItems, normalisedTotal } = this._normaliseItems(pricedItems, order);
 
     // Cast to `any` mirrors `create()` — the caller is responsible for
     // providing a valid order shape (companyId, deliveryDate, etc.).
@@ -711,7 +812,7 @@ export class OrdersService {
     const actorRole = ctx.actorRole ?? "SISTEMA";
     setImmediate(async () => {
       try {
-        await this.afterCreate(newOrder, order, items, actorRole);
+        await this.afterCreate(newOrder, order, pricedItems, actorRole);
       } catch (err: any) {
         logSecurity(
           `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} source=${ctx.source ?? "internal"} | error=${err?.message ?? "unknown"}`,
@@ -928,15 +1029,13 @@ export class OrdersService {
       console.warn("[priceResolver] observer error (createWithDelivery)", e);
     }
 
-    // ── FEATURE FLAG — per-company new pricing (STEP 3.8) ──
-    // Default = legacy. Only flips when company.useNewPricing === true
-    // (strict equality — undefined / null / truthy-soup never count).
-    // When ON, we replace each item's unitPrice/totalPrice using the
-    // central resolver and recompute the order totalValue. Rollback is
-    // a single UPDATE: companies.use_new_pricing = false.
+    // Recalculate prices whenever the company has an administrative fee;
+    // `useNewPricing` still enables the full resolver for legacy companies
+    // without a fee. The fee is tenant-specific and never mutates catalog prices.
     let computedTotal = totalValue;
-    const useNewPricing = company?.useNewPricing === true;
-    if (useNewPricing) {
+    const adminFeeValue = Number(company?.adminFee ?? 0);
+    const applyCompanyPricing = shouldResolveCompanyPricing(company);
+    if (applyCompanyPricing) {
       try {
         const adminFee =
           company && company.adminFee != null && company.adminFee !== ""
@@ -956,7 +1055,12 @@ export class OrdersService {
             product = await this.repo.getProductById(it.productId);
             if (product) productCache.set(it.productId, product);
           }
-          if (!product) continue;
+          if (!product) {
+            if (Number.isFinite(adminFeeValue) && adminFeeValue > 0) {
+              throw new BadRequestError("Não foi possível validar um produto para aplicar a taxa administrativa.");
+            }
+            continue;
+          }
           // STEP 4 — resolve subCategoryPrice (optional). Fallback to
           // basePrice on any miss, invalid id, null price, or repo error.
           let subCategoryPrice: number | null = null;
@@ -1044,20 +1148,23 @@ export class OrdersService {
           companyId,
         });
       } catch (e) {
-        // If anything in the new path blows up, log loudly and fall back
-        // to the legacy values that the client already sent.
+        // Never accept client-submitted legacy prices when a company fee is
+        // active and authoritative recalculation failed.
         console.error(
-          "[pricing] new pricing FAILED — falling back to legacy",
+          "[pricing] company pricing recalculation failed",
           { companyId, err: (e as Error)?.message },
         );
+        if (Number.isFinite(adminFeeValue) && adminFeeValue > 0) {
+          throw new BadRequestError("Não foi possível atualizar os preços com a taxa administrativa. Tente novamente.");
+        }
         computedTotal = totalValue;
       }
     }
 
     // Normalise items via the shared helper (guards against missing totalPrice
     // when the price resolver path is inactive, keeping parity with create()).
-    // The resolver may have already updated unitPrice/totalPrice on items in
-    // the useNewPricing branch; _normaliseItems only fills gaps, never overwrites.
+    // The resolver may already have updated unitPrice/totalPrice above;
+    // _normaliseItems only fills gaps, never overwrites.
     const orderShapeForNorm = {
       totalValue: String(Math.round(computedTotal * 100) / 100),
     };
@@ -1864,13 +1971,14 @@ export class OrdersService {
       console.warn("[priceResolver] observer error (replaceItems)", e);
     }
 
-    // ── FEATURE FLAG — per-company new pricing (STEP 3.8) ──
-    // Reuse the company already loaded for the observer above. Only
-    // touches item prices when company.useNewPricing === true.
+    // Reuse the company already loaded for the observer above. An active
+    // administrative fee always triggers server-side repricing.
     try {
       if (observedCompanyId != null) {
         const company: any = await this.repo.getCompany(observedCompanyId);
-        if (company?.useNewPricing === true) {
+        const configuredFee = Number(company?.adminFee ?? 0);
+        observedMarkup = Number.isFinite(configuredFee) ? configuredFee : null;
+        if (shouldResolveCompanyPricing(company)) {
           const adminFee =
             company.adminFee != null && company.adminFee !== ""
               ? Number(company.adminFee)
@@ -1886,7 +1994,12 @@ export class OrdersService {
               product = await this.repo.getProductById(it.productId);
               if (product) productCache.set(it.productId, product);
             }
-            if (!product) continue;
+            if (!product) {
+              if (Number.isFinite(configuredFee) && configuredFee > 0) {
+                throw new BadRequestError("Não foi possível validar um produto para aplicar a taxa administrativa.");
+              }
+              continue;
+            }
             // STEP 4 — resolve subCategoryPrice (optional, with fallback).
             let subCategoryPrice: number | null = null;
             if (it.subCategoryId != null) {
@@ -1977,9 +2090,12 @@ export class OrdersService {
       }
     } catch (e) {
       console.error(
-        "[pricing] new pricing FAILED — falling back to legacy",
+        "[pricing] company pricing recalculation failed",
         { method: "replaceItems", orderId: id, err: (e as Error)?.message },
       );
+      if (observedMarkup != null && observedMarkup > 0) {
+        throw new BadRequestError("Não foi possível atualizar os preços com a taxa administrativa. Tente novamente.");
+      }
     }
 
     await this.repo.updateItems(id, items as any);
@@ -2087,13 +2203,13 @@ export class OrdersService {
         console.warn("[priceResolver] observer error (substituteItem.replace)", e);
       }
 
-      // ── FEATURE FLAG — per-company new pricing (STEP 3.8) ──
-      // Only takes effect when company.useNewPricing === true.
+      // Apply company-specific pricing when the fee is configured, even if
+      // the legacy rollout flag is off.
       try {
         const cId = (detail.order as any)?.companyId ?? null;
         if (cId != null) {
           const company: any = await this.repo.getCompany(cId);
-          if (company?.useNewPricing === true) {
+          if (shouldResolveCompanyPricing(company)) {
             const adminFee =
               company.adminFee != null && company.adminFee !== ""
                 ? Number(company.adminFee)
@@ -2186,7 +2302,7 @@ export class OrdersService {
         }
       } catch (e) {
         console.error(
-          "[pricing] new pricing FAILED — falling back to legacy",
+          "[pricing] company pricing recalculation failed",
           {
             method: "substituteItem.replace",
             orderId,
@@ -2194,6 +2310,14 @@ export class OrdersService {
             err: (e as Error)?.message,
           },
         );
+        const cId = (detail.order as any)?.companyId ?? null;
+        if (cId != null) {
+          const company: any = await this.repo.getCompany(cId);
+          const fee = Number(company?.adminFee ?? 0);
+          if (Number.isFinite(fee) && fee > 0) {
+            throw new BadRequestError("Não foi possível atualizar os preços com a taxa administrativa. Tente novamente.");
+          }
+        }
       }
     } else if (action === "discount" && discountPct !== undefined) {
       const pct = Number(discountPct);

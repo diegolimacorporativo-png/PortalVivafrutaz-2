@@ -195,7 +195,7 @@ export function register(app: Express) {
                basePrice: Number((product as any).basePrice ?? 0),
                subCategoryPrice: subCategory ? Number(subCategory.price) : null,
                contractPrice: (product as any).contractPrice != null ? Number((product as any).contractPrice) : null,
-               adminFee: company?.useNewPricing ? Number(company.adminFee ?? 0) : 0,
+               adminFee: Number(company?.adminFee ?? 0),
              });
              if (unitPrice <= 0) throw new Error(`O produto ${product.name} não possui preço válido.`);
 

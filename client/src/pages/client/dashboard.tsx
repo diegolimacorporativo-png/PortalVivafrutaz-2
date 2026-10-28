@@ -173,7 +173,7 @@ export default function ClientDashboard() {
 
           <div className="relative z-10">
             <h1 className="text-3xl sm:text-4xl font-display font-extrabold tracking-tight">
-              Olá, {company?.contactName}!
+              Olá, {company?.companyName}!
             </h1>
             <p className="mt-2 text-lg text-primary-foreground/90 font-medium">
               Bem-vindo ao portal da VivaFrutaz.

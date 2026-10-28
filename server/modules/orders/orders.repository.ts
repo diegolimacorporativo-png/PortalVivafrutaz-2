@@ -246,6 +246,16 @@ export class OrdersRepository {
     return storage.getContractScope(companyId, productId);
   }
 
+  /** Resolve the company's price-group override for a product. */
+  async getPriceGroupPrice(companyId: number, productId: number) {
+    const [company, prices] = await Promise.all([
+      storage.getCompany(companyId),
+      storage.getProductPricesByProductId(productId),
+    ]);
+    if (!company?.priceGroupId) return null;
+    return prices.find((price) => Number(price.priceGroupId) === Number(company.priceGroupId)) ?? null;
+  }
+
   getCompanyConfig() {
     return storage.getCompanyConfig();
   }

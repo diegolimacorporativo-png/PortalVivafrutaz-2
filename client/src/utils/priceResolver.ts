@@ -6,8 +6,8 @@
  * Priority for the SOURCE price (highest wins):
  *   contractPrice  >  subCategoryPrice  >  basePrice
  *
- * Then, ONLY when the company has the `useNewPricing` flag enabled, the
- * `adminFee` (in percent) is applied on top. The fee is NEVER shown to
+ * Then the company's `adminFee` (in percent), when configured, is applied
+ * regardless of the legacy `useNewPricing` flag. The fee is NEVER shown to
  * the customer — it just changes the final number that appears on screen.
  *
  * Pure function, deterministic, safe with NaN / Infinity / null /
@@ -62,11 +62,9 @@ export function resolvePrice({
     price = contract ?? sub ?? base ?? 0;
   }
 
-  if (useNewPricing === true) {
-    const fee = toNum(adminFee);
-    if (fee !== null && fee !== 0) {
-      price = price * (1 + fee / 100);
-    }
+  const fee = toNum(adminFee);
+  if (fee !== null && fee !== 0) {
+    price = price * (1 + fee / 100);
   }
 
   if (!Number.isFinite(price) || price < 0) return 0;

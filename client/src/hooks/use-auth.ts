@@ -22,6 +22,8 @@ export function useAuth() {
     },
     retry: false,
     staleTime: 60000,
+    // Keep customer-specific fees current while a client leaves the portal open.
+    refetchInterval: (query) => (query.state.data?.company ? 60000 : false),
   });
 
   const loginMutation = useMutation({
