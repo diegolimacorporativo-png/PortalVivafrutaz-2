@@ -17,6 +17,11 @@ export function requireTabPermission(tabKey: string | ((req: Request) => string)
     try {
       const user = await storage.getUser(session.userId);
       if (!user || user.active === false) return next(new UnauthorizedError());
+      // A GPS ping is a device telemetry operation, not access to the whole
+      // driver panel. Keep the route's authentication, role, tenant and
+      // ownership checks, but do not let an old UI tab override stop a
+      // LOGISTICS/driver account from sending its own position.
+      if (isTrackerGpsSubmission(req, user.role)) return next();
       const key = typeof tabKey === "function" ? tabKey(req) : tabKey;
       if (!tabPermissionAllows(user.tabPermissions, key, user.role)) return next(new ForbiddenError("Módulo não autorizado para este usuário"));
       return next();
@@ -24,4 +29,13 @@ export function requireTabPermission(tabKey: string | ((req: Request) => string)
       return next(error);
     }
   };
+}
+
+function isTrackerGpsSubmission(req: Request, role: string): boolean {
+  if (!["LOGISTICS", "MOTORISTA", "DRIVER"].includes(role)) return false;
+  if (String(req.method ?? "").toUpperCase() !== "POST") return false;
+  const path = String(req.originalUrl ?? req.path ?? "")
+    .split("?", 1)[0]
+    .replace(/\/+$/, "");
+  return path === "/api/driver/gps" || path === "/gps";
 }
