@@ -1140,7 +1140,7 @@ export default function MasterControl() {
                     <p className="text-xs text-muted-foreground mt-0.5">{u.email}</p>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    {!(['MASTER', 'DIRECTOR'].includes(u.role) && u.id !== user.id) && (
+                    {!(['MASTER', 'DIRECTOR'].includes(u.role) && u.id !== user?.id) && (
                       <Select value={u.role} onValueChange={role => updateUserMutation.mutate({ id: u.id, updates: { role } })}>
                         <SelectTrigger className="h-8 text-xs w-44" data-testid={`select-role-${u.id}`}><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -1150,7 +1150,7 @@ export default function MasterControl() {
                     )}
                     <Button type="button" size="sm" variant={u.active ? 'outline' : 'secondary'} className="h-8 text-xs"
                       onClick={() => updateUserMutation.mutate({ id: u.id, updates: { active: !u.active } })}
-                      disabled={u.id === user.id} data-testid={`button-toggle-active-${u.id}`}>
+                      disabled={!user || u.id === user.id} data-testid={`button-toggle-active-${u.id}`}>
                       {u.active ? 'Desativar' : 'Ativar'}
                     </Button>
                     {u.isLocked && (

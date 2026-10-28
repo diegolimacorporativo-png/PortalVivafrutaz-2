@@ -21,13 +21,15 @@ type Slot = "body" | "query" | "params";
  * fields back onto the original slot so legacy controllers that still read
  * `req.query.foo` keep working.
  */
-declare module "express-serve-static-core" {
-  interface Request {
-    validated?: {
-      body?: unknown;
-      query?: unknown;
-      params?: unknown;
-    };
+declare global {
+  namespace Express {
+    interface Request {
+      validated?: {
+        body?: unknown;
+        query?: unknown;
+        params?: unknown;
+      };
+    }
   }
 }
 
