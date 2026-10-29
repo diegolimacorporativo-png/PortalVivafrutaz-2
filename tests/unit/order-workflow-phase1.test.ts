@@ -4,6 +4,8 @@ import {
   ALLOWED_TRANSITIONS,
   LEGACY_STATUS_MAP,
   OrderStatus,
+  assertTransitionAllowed,
+  assertTransitionRole,
   validateBusinessRules,
 } from "../../server/modules/orders/orders.workflow";
 
@@ -20,6 +22,24 @@ test("Fase 1 — mantém INVOICED e permite o pipeline operacional", () => {
     OrderStatus.CANCELLED,
   ]);
   assert.equal(LEGACY_STATUS_MAP[OrderStatus.INVOICED], "CONFIRMED");
+  assert.equal(LEGACY_STATUS_MAP[OrderStatus.CUSTOMER_CONFIRMED], "ACTIVE");
+});
+
+test("customer-confirmed orders may only be released through APPROVED", () => {
+  assert.deepEqual(ALLOWED_TRANSITIONS[OrderStatus.CUSTOMER_CONFIRMED], [
+    OrderStatus.APPROVED,
+    OrderStatus.CANCELLED,
+  ]);
+  assert.throws(() => assertTransitionAllowed(OrderStatus.CREATED, OrderStatus.APPROVED));
+  assert.throws(() => assertTransitionAllowed(OrderStatus.CUSTOMER_CONFIRMED, OrderStatus.INVOICED));
+  assert.throws(() => assertTransitionRole(OrderStatus.APPROVED, "CLIENT"));
+  assert.doesNotThrow(() => assertTransitionRole(OrderStatus.APPROVED, "DIRECTOR"));
+});
+
+test("special and recurring orders retain their distinct starting states", () => {
+  assert.equal(OrderStatus.PENDING_APPROVAL, "PENDING_APPROVAL");
+  assert.equal(LEGACY_STATUS_MAP[OrderStatus.PENDING_APPROVAL], "ACTIVE");
+  assert.equal(OrderStatus.CREATED, "CREATED");
 });
 
 test("Fase 1 — SHIPPED não exige NF, pré-nota ou status fiscal", () => {

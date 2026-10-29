@@ -65,7 +65,12 @@ const companyNumericOverrides = {
 export const createCompanySchema = insertCompanySchema
   .omit({ password: true })
   .extend(companyNumericOverrides);
-export const updateCompanySchema = createCompanySchema.partial();
+// Password changes are accepted only on the authenticated internal update
+// flow (the controller rejects company-portal sessions). Creation keeps its
+// existing server-generated temporary-password flow.
+export const updateCompanySchema = createCompanySchema.partial().extend({
+  password: z.string().min(8, "A senha deve ter pelo menos 8 caracteres").optional(),
+});
 
 // ── /my/preferred-order-type (company portal self-service) ──────────────
 export const updatePreferredOrderTypeSchema = z.object({

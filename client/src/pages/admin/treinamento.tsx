@@ -53,13 +53,13 @@ const MODULES: ModuleInfo[] = [
       'Busca inteligente por nome, CEP, bairro, cidade',
       'Múltiplos endereços de entrega por empresa',
       'Histórico de pedidos e ocorrências',
-      'Exclusão permanente disponível apenas para MASTER e DIRECTOR; remove em transação os registros vinculados por chaves estrangeiras',
+      'Exclusão permanente disponível apenas para MASTER e DIRECTOR; apaga em uma transação pedidos, notas fiscais e demais registros vinculados por chaves estrangeiras ou pelos campos de empresa legados',
     ],
     access: ['ADMIN', 'DIRECTOR'],
     tips: [
       'Use a busca por CEP para localizar empresas rapidamente.',
       'Configure as janelas de entrega corretamente para que o sistema calcule rotas.',
-      'Inativar preserva o cadastro e o histórico. Excluir permanentemente apaga também os registros vinculados da empresa; é irreversível. Se houver relação fora do escopo seguro ou falha, toda a operação é cancelada.',
+      'Inativar preserva o cadastro e o histórico. Excluir permanentemente apaga pedidos, entregas, notas fiscais, usuários e demais registros vinculados; é irreversível. Se houver relação cíclica não suportada ou qualquer falha, toda a operação é cancelada.',
     ],
   },
   {

@@ -87,6 +87,7 @@ function workflowStatusLabel(ws: string): string {
   const map: Record<string, string> = {
     CREATED:           "Criado",
     PENDING_APPROVAL:  "Aguardando aprovação",
+    CUSTOMER_CONFIRMED: "Confirmado pelo cliente; aguardando liberação operacional",
     APPROVED:          "Aprovado",
     REJECTED:          "Rejeitado",
     INVOICED:          "Liberado para entrega",

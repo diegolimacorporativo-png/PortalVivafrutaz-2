@@ -100,21 +100,39 @@ export function CompanyModal({ isOpen, editingCompany, onClose, onSuccess }: Com
   }, [toast]);
 
   const buscarCoordenadas = useCallback(async () => {
-    const { addressStreet, addressNumber, addressCity, addressState } = formData;
-    if (!addressStreet || !addressCity) return;
+    const { addressStreet, addressNumber, addressNeighborhood, addressCity, addressState, addressZip } = formData;
+    if ((!addressStreet && !addressZip) || !addressCity) {
+      toast({ title: "Endereço incompleto", description: "Informe rua e cidade, ou CEP e cidade, antes de buscar as coordenadas.", variant: "destructive" });
+      return;
+    }
     setGeocoding(true);
     try {
-      const query = encodeURIComponent(`${addressStreet}, ${addressNumber || ""}, ${addressCity}, ${addressState}, Brasil`);
-      const r = await fetch(`/api/geocode?q=${query}`);
-      const d = await r.json();
-      if (d.length > 0) {
-        setFormData(prev => ({ ...prev, latitude: d[0].lat, longitude: d[0].lon }));
-        toast({ title: "Coordenadas obtidas", description: `Lat: ${d[0].lat}, Lon: ${d[0].lon}` });
+      const params = new URLSearchParams({
+        street: addressStreet || "",
+        number: addressNumber || "",
+        neighborhood: addressNeighborhood || "",
+        city: addressCity || "",
+        state: addressState || "",
+        postalcode: addressZip || "",
+      });
+      const r = await fetch(`/api/geocode?${params.toString()}`, { credentials: "include" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: "Falha ao localizar endereço", description: data.message || "O serviço de mapas não conseguiu atender a busca.", variant: "destructive" });
+        return;
+      }
+
+      const result = Array.isArray(data) ? data[0] : null;
+      const latitude = Number(result?.lat);
+      const longitude = Number(result?.lon);
+      if (result && Number.isFinite(latitude) && Number.isFinite(longitude)) {
+        setFormData(prev => ({ ...prev, latitude: String(latitude), longitude: String(longitude) }));
+        toast({ title: "Coordenadas obtidas", description: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` });
       } else {
-        toast({ title: "Endereço não encontrado no mapa", variant: "destructive" });
+        toast({ title: "Endereço não encontrado", description: "Confira rua, número, bairro, cidade e CEP. Você também pode informar latitude e longitude manualmente.", variant: "destructive" });
       }
     } catch {
-      toast({ title: "Erro ao buscar coordenadas", variant: "destructive" });
+      toast({ title: "Erro ao buscar coordenadas", description: "Verifique sua conexão e tente novamente.", variant: "destructive" });
     } finally {
       setGeocoding(false);
     }

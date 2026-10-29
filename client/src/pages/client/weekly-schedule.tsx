@@ -235,7 +235,9 @@ function DayPanel({
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-xs text-muted-foreground font-medium">
-                {statusLabel[existingOrder.status] || existingOrder.status}
+                {existingOrder.workflowStatus === "CUSTOMER_CONFIRMED"
+                  ? "Confirmado pelo cliente — aguardando liberação"
+                  : statusLabel[existingOrder.status] || existingOrder.status}
               </p>
               <p className="font-bold text-green-700 text-sm">
                 R$ {fmtBRL(parseFloat(existingOrder.totalValue || "0"))}
@@ -530,6 +532,7 @@ export default function WeeklySchedulePage() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [successOrders, setSuccessOrders] = useState<any[] | null>(null);
+  const [pendingRetryPayload, setPendingRetryPayload] = useState<any | null>(null);
   const [showDeadlineExpired, setShowDeadlineExpired] = useState(false);
 
   // Reopen flow
@@ -719,10 +722,14 @@ export default function WeeklySchedulePage() {
     const payload = buildPayload();
     if (!payload || payload.days.length === 0) return;
     setSubmitting(true);
+    setPendingRetryPayload(payload);
     try {
       const result = await createProgramacao.mutateAsync(payload);
       setShowConfirmModal(false);
       setSuccessOrders(result.orders || []);
+      if (!(result.orders || []).some((order: any) => order.operationalReleasePending)) {
+        setPendingRetryPayload(null);
+      }
     } catch {
       // toast is handled in the hook's onError
     } finally {
@@ -785,7 +792,11 @@ export default function WeeklySchedulePage() {
             <PartyPopper className="w-12 h-12 text-green-600" />
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground">Programação Enviada!</h1>
-          <p className="text-muted-foreground mt-2 text-lg">Sua programação da semana foi enviada com sucesso.</p>
+          <p className="text-muted-foreground mt-2 text-lg">
+            {successOrders.some((order: any) => order.operationalReleasePending)
+              ? "A programação foi confirmada. Os pedidos que aguardam validação operacional estão identificados abaixo."
+              : "Sua programação da semana foi confirmada e liberada para a operação."}
+          </p>
           <div className="mt-8 bg-card rounded-2xl border-2 border-primary/20 p-6 premium-shadow text-left">
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-4">
               {activeWindow.weekReference} — {successOrders.length} pedido(s) criado(s)
@@ -800,6 +811,9 @@ export default function WeeklySchedulePage() {
                   <span className="font-bold text-sm text-foreground">
                     R$ {fmtBRL(parseFloat(order.totalValue || "0"))}
                   </span>
+                  {order.operationalReleasePending && (
+                    <span className="text-xs font-semibold text-amber-700">Aguardando liberação</span>
+                  )}
                 </div>
               ))}
             </div>
@@ -811,6 +825,24 @@ export default function WeeklySchedulePage() {
             </div>
           </div>
           <div className="flex gap-3 justify-center mt-8">
+            {successOrders.some((order: any) => order.operationalReleasePending) && (
+              <button onClick={async () => {
+                if (!pendingRetryPayload || submitting) return;
+                setSubmitting(true);
+                try {
+                  const result = await createProgramacao.mutateAsync(pendingRetryPayload);
+                  setSuccessOrders(result.orders || []);
+                  if (!(result.orders || []).some((order: any) => order.operationalReleasePending)) {
+                    setPendingRetryPayload(null);
+                  }
+                } finally {
+                  setSubmitting(false);
+                }
+              }} disabled={submitting}
+                className="px-6 py-3 bg-amber-100 text-amber-900 font-bold rounded-xl hover:bg-amber-200 transition-colors">
+                {submitting ? "Tentando..." : "Tentar liberação novamente"}
+              </button>
+            )}
             <a href="/client/history" className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:-translate-y-0.5 transition-transform">
               Ver Meus Pedidos
             </a>
@@ -903,7 +935,7 @@ export default function WeeklySchedulePage() {
                 Você está enviando sua programação da {weekNum}.
               </p>
               <p className="text-muted-foreground">
-                Após a confirmação ela será enviada para produção.
+                Após a confirmação, cada pedido segue para validação e liberação operacional automática.
               </p>
               <p className="text-muted-foreground">
                 Após o envio não será possível alterar os pedidos sem solicitar uma reabertura.
@@ -1019,7 +1051,11 @@ export default function WeeklySchedulePage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground font-medium">{statusLabel[order.status] || order.status}</p>
+            <p className="text-xs text-muted-foreground font-medium">
+              {order.workflowStatus === "CUSTOMER_CONFIRMED"
+                ? "Confirmado pelo cliente — aguardando liberação"
+                : statusLabel[order.status] || order.status}
+            </p>
                     <p className="font-bold text-primary">R$ {fmtBRL(parseFloat(order.totalValue || "0"))}</p>
                   </div>
                   {order.status === "CONFIRMED" && check?.canModify && (

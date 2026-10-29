@@ -202,7 +202,7 @@ export function TabBasico({
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Coordenadas GPS</p>
             <button type="button" data-testid="button-buscar-coordenadas" onClick={buscarCoordenadas}
-              disabled={geocoding || !formData.addressStreet || !formData.addressCity}
+              disabled={geocoding || (!formData.addressStreet && !formData.addressZip) || !formData.addressCity}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-primary/10 text-primary hover:bg-primary/20 border border-primary/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               {geocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MapPin className="w-3.5 h-3.5" />}
               {geocoding ? "Buscando..." : "Gerar Coordenadas"}
@@ -223,9 +223,9 @@ export function TabBasico({
             </div>
           </div>
           <p className="text-xs text-muted-foreground mt-1.5">
-            {cepFilled && formData.addressNumber
-              ? `Endereço: ${formData.addressStreet}, ${formData.addressNumber} — ${formData.addressCity}/${viaCepUF}`
-              : "Preencha o CEP e o número para gerar as coordenadas automaticamente."}
+            {cepFilled && formData.addressCity
+              ? `Endereço: ${formData.addressStreet || "rua não informada"}${formData.addressNumber ? `, ${formData.addressNumber}` : ""} — ${formData.addressCity}/${viaCepUF}`
+              : "Informe rua e cidade, ou CEP e cidade, para buscar as coordenadas. Mapa: OpenStreetMap."}
           </p>
         </div>
       </div>

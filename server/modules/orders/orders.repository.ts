@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { db } from "../../database/db";
 import { orders, orderItems, accountsReceivable } from "@shared/schema";
 import { storage } from "../../services/storage";
@@ -151,6 +151,25 @@ export class OrdersRepository {
     const safeOrder = { ...order, companyId: tenantId } as InsertOrder;
     const safeItems = items.map((it) => ({ ...it, empresaId: tenantId }));
     return storage.createOrder(safeOrder, safeItems as any, tx);
+  }
+
+  /** Serialize the business-unique company/day slot across all DB instances. */
+  async lockCreationSlot(companyId: number, dateKey: string, tx: any): Promise<void> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext('orders:create-slot'), hashtext(${`${companyId}:${dateKey}`}))`);
+  }
+
+  /** Find the non-cancelled order for a company/UTC delivery date inside caller's transaction. */
+  async findForCreationSlot(companyId: number, dateKey: string, tx: any): Promise<OrderDetail[]> {
+    const start = new Date(`${dateKey}T00:00:00.000Z`);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+    const matchingOrders = await tx.select().from(orders).where(and(
+      eq(orders.companyId, companyId), gte(orders.deliveryDate, start), lt(orders.deliveryDate, end),
+      ne(orders.status, "CANCELLED"),
+    )).orderBy(desc(orders.createdAt));
+    return Promise.all(matchingOrders.map(async (order: any) => {
+      const items = await tx.select().from(orderItems).where(eq(orderItems.orderId, order.id));
+      return { order, items } as OrderDetail;
+    }));
   }
 
   /**

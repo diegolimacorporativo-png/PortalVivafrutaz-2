@@ -14,6 +14,7 @@ export function register(app: Express) {
       const eightWeeksAgo = new Date(); eightWeeksAgo.setDate(eightWeeksAgo.getDate() - 56);
       const recentOrders = allOrders.filter(o =>
         VALID_PURCHASE_ORDER_STATUSES.has(o.status) &&
+        o.workflowStatus !== "CUSTOMER_CONFIRMED" &&
         new Date(o.deliveryDate) >= eightWeeksAgo
       );
 

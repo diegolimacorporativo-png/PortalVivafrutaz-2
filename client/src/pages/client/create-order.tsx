@@ -89,7 +89,7 @@ export default function CreateOrderPage() {
   const [orderNote, setOrderNote] = useState("");
   const [replicating, setReplicating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [successOrder, setSuccessOrder] = useState<{ orderCode: string; total: number } | null>(null);
+  const [successOrder, setSuccessOrder] = useState<{ orderCode: string; total: number; operationalReleasePending: boolean } | null>(null);
   const [filterCategory, setFilterCategory] = useState("ALL");
   const [search, setSearch] = useState("");
   const [showBillingWarning, setShowBillingWarning] = useState(false);
@@ -411,11 +411,12 @@ export default function CreateOrderPage() {
       });
 
       // Clear saved cart after successful submission
-      if (cartKey) localStorage.removeItem(cartKey);
+      if (!result.operationalReleasePending && cartKey) localStorage.removeItem(cartKey);
 
       setSuccessOrder({
         orderCode: result.orderCode || `VF-${new Date().getFullYear()}-${String(result.id).padStart(6, '0')}`,
         total: cartTotal,
+        operationalReleasePending: result.operationalReleasePending === true,
       });
     } catch (err: any) {
       setSubmitting(false);
@@ -458,7 +459,11 @@ export default function CreateOrderPage() {
             <PartyPopper className="w-12 h-12 text-green-600" />
           </div>
           <h1 className="text-3xl font-display font-bold text-foreground">Pedido Realizado!</h1>
-          <p className="text-muted-foreground mt-2 text-lg">Seu pedido foi enviado com sucesso.</p>
+          <p className="text-muted-foreground mt-2 text-lg">
+            {successOrder.operationalReleasePending
+              ? "Seu pedido foi confirmado, mas a liberação operacional ainda não foi concluída. Tente novamente mais tarde ou contate a equipe VivaFrutaz."
+              : "Seu pedido foi confirmado e liberado para a operação."}
+          </p>
           <div className="mt-8 bg-card rounded-2xl border-2 border-primary/20 p-8 premium-shadow">
             <p className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-2">Código do Pedido</p>
             <p className="text-4xl font-display font-bold text-primary tracking-wider">{successOrder.orderCode}</p>
@@ -468,6 +473,12 @@ export default function CreateOrderPage() {
             </div>
           </div>
           <div className="flex gap-3 justify-center mt-8">
+            {successOrder.operationalReleasePending && (
+              <button onClick={() => setSuccessOrder(null)}
+                className="px-6 py-3 bg-amber-100 text-amber-900 font-bold rounded-xl hover:bg-amber-200 transition-colors">
+                Tentar liberação novamente
+              </button>
+            )}
             <a href="/client/history" className="px-6 py-3 bg-primary text-white font-bold rounded-xl hover:-translate-y-0.5 transition-transform">
               Ver Meus Pedidos
             </a>

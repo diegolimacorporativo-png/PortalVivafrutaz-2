@@ -46,22 +46,12 @@ import {
   logPriceDivergence,
 } from "../products/utils/priceResolver";
 import { shouldResolveCompanyPricing } from "./companyPricing";
+import { customerOrderIntentMatches } from "./order-confirmation";
 import {
   calculateWeeklyBillingTotal,
   minimumWeeklyBillingMessage,
   type WeeklyBillingOrder,
 } from "./weekly-billing";
-
-/**
- * Module-local 60-second duplicate-submission window.
- *
- * Mirrors the legacy `recentOrders` Map declared inline in `routes.ts`. It
- * lives here (not in the repository) because it's a behavior — debouncing —
- * not persistence. Same key shape (`companyId:deliveryDate:orderWindowId`)
- * and same TTL guarantee identical UX with the legacy endpoint.
- */
-const recentOrders = new Map<string, number>();
-const DUPLICATE_WINDOW_MS = 60_000;
 
 /**
  * Roles allowed to delete orders. Replicated from legacy.
@@ -471,8 +461,10 @@ export class OrdersService {
     body: { order: any; items: any[] },
     actor: ActorContext,
     tx?: any,
-  ): Promise<{ data: any; isTest: boolean; status: 201; afterCreateThunk?: () => Promise<void> }> {
-    const { order, items } = body;
+  ): Promise<{ data: any; isTest: boolean; status: 201; newlyCreated?: boolean; operationalReleasePending?: boolean }> {
+    const companyId = actor.companyId ?? requireTenantId();
+    const order = { ...body.order, companyId };
+    const items = body.items;
 
     // [DIAG-5] Service reached
     console.log("[ORDER_CREATE][5_SERVICE] service.create reached", {
@@ -567,39 +559,13 @@ export class OrdersService {
       };
     }
 
-    // Recalculate from the company's current server-side prices before any
+    // Recalculate from the authenticated company's server-side prices before any
     // weekly minimum check or persistence. This also prevents stale browser
     // prices from bypassing a newly configured administrative fee.
     const pricedItems = await this.resolveCompanyOrderItems(Number(order.companyId), items);
 
-    // 3) duplicate-submission window
-    const dupKey = `${order.companyId}:${order.deliveryDate || ""}:${order.orderWindowId || ""}`;
-    const lastSubmit = recentOrders.get(dupKey);
-    if (lastSubmit && Date.now() - lastSubmit < DUPLICATE_WINDOW_MS) {
-      throw new ConflictError(
-        "Pedido já enviado. Aguarde a confirmação antes de enviar novamente.",
-      );
-    }
-    recentOrders.set(dupKey, Date.now());
-
-    // 4) date-lock guard
     const requestedDate = new Date(order.deliveryDate);
     const requestedDateStr = requestedDate.toISOString().split("T")[0];
-    const companyOrders = await this.repo.listByCompanyId(order.companyId);
-    const existingForDate = companyOrders.find((o: any) => {
-      if (["CANCELLED"].includes(o.status)) return false;
-      const d = new Date(o.deliveryDate).toISOString().split("T")[0];
-      return d === requestedDateStr;
-    });
-    if (existingForDate) {
-      throw new ConflictError(
-        "Você já possui um pedido registrado para essa data de entrega.",
-        {
-          existingOrderId: (existingForDate as any).id,
-          existingOrderCode: (existingForDate as any).orderCode,
-        },
-      );
-    }
 
     // createProgramacao validates the complete week's items once before
     // opening its transaction. Do not re-validate each individual day here:
@@ -607,10 +573,50 @@ export class OrdersService {
     // submitted week reaches it.
     if (!tx) {
       await this.assertMinimumWeeklyBilling({
-        companyId: actor.companyId ?? Number(order.companyId),
+        companyId,
         weekReference: order.weekReference,
         candidateItems: pricedItems,
       });
+    }
+
+    // A durable slot lock replaces the per-process debounce. It serializes
+    // same-company/same-day confirmations across Node processes. Existing
+    // intermediate orders are resumed only when their requested contents match.
+    if (!tx) {
+      const persisted = await db.transaction((creationTx) =>
+        this.create({ order, items }, actor, creationTx),
+      );
+      return this.finishCustomerConfirmation(persisted, actor);
+    }
+    await this.repo.lockCreationSlot(companyId, requestedDateStr, tx);
+    const existingForSlot = await this.repo.findForCreationSlot(companyId, requestedDateStr, tx);
+    const { normalisedItems, normalisedTotal } = this._normaliseItems(pricedItems, order);
+    if (existingForSlot.length > 1) {
+      throw new ConflictError("Há mais de um pedido ativo para essa data. A equipe precisa revisar os registros antes de retomar.", {
+        existingOrderIds: existingForSlot.map((entry) => entry.order.id),
+      });
+    }
+    const existing = existingForSlot[0];
+    if (existing) {
+      const sameIntent = customerOrderIntentMatches(
+        existing.order,
+        existing.items,
+        order,
+        normalisedItems,
+      );
+      if (!sameIntent) {
+        throw new ConflictError("Já existe um pedido diferente para essa data de entrega.", {
+          existingOrderId: existing.order.id,
+          existingOrderCode: existing.order.orderCode,
+        });
+      }
+      if (![OrderStatus.CUSTOMER_CONFIRMED, OrderStatus.APPROVED].includes(existing.order.workflowStatus as any)) {
+        throw new ConflictError("Já existe um pedido em outro fluxo para essa data.", {
+          existingOrderId: existing.order.id,
+          existingOrderCode: existing.order.orderCode,
+        });
+      }
+      return { data: existing.order, isTest: false, status: 201, newlyCreated: false };
     }
 
     // 5) persist
@@ -618,46 +624,52 @@ export class OrdersService {
     // This guards against API callers that provide unitPrice+quantity but omit
     // totalPrice — the DB column is NOT NULL so an absent value causes a 500.
     // Auto-compute totalValue from normalised items when the caller omits it.
-    const { normalisedItems, normalisedTotal } = this._normaliseItems(pricedItems, order);
     const newOrder = await this.repo.create(
-      { ...order, status: "CONFIRMED", totalValue: normalisedTotal },
+      { ...order, status: "ACTIVE", workflowStatus: OrderStatus.CUSTOMER_CONFIRMED, totalValue: normalisedTotal },
       normalisedItems,
       tx,
     );
 
-    // 6) side-effects — behaviour depends on whether we are inside an
-    //    external transaction:
-    //
-    //    • tx provided (createProgramacao ACID path): do NOT call setImmediate
-    //      here — the transaction has not committed yet.  Return a thunk; the
-    //      caller executes it after db.transaction() resolves (i.e. after COMMIT).
-    //
-    //    • no tx (standalone HTTP request, legacy path): fire-and-forget via
-    //      setImmediate exactly as before (FASE 9D).
-    if (tx) {
-      const afterCreateThunk = async () => {
-        try {
-          await this.afterCreate(newOrder, order, pricedItems);
-        } catch (err: any) {
-          logSecurity(
-            `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} | error=${err?.message ?? "unknown"}`,
-          );
-        }
-      };
-      return { data: newOrder, isTest: false, status: 201, afterCreateThunk };
-    }
+    return { data: newOrder, isTest: false, status: 201, newlyCreated: true };
+  }
 
-    setImmediate(async () => {
+  private async finishCustomerConfirmation(
+    result: { data: any; isTest: boolean; status: 201; newlyCreated?: boolean },
+    actor: ActorContext,
+  ): Promise<{ data: any; isTest: boolean; status: 201; newlyCreated?: boolean; operationalReleasePending?: boolean }> {
+    if (result.isTest) return result;
+    const current = await this.repo.get(Number(result.data.id));
+    if (!current) throw new NotFoundError("Pedido confirmado não encontrado");
+    let releasedNow = false;
+    if (current.order.workflowStatus === OrderStatus.CUSTOMER_CONFIRMED) {
       try {
-        await this.afterCreate(newOrder, order, pricedItems);
-      } catch (err: any) {
-        logSecurity(
-          `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} | error=${err?.message ?? "unknown"}`,
-        );
+        await this.transition(Number(current.order.id), OrderStatus.APPROVED, actor, undefined, true);
+        releasedNow = true;
+      } catch (error: any) {
+        // The confirmation is durable; failed business or transient release
+        // checks leave it resumable in CUSTOMER_CONFIRMED.
+        const status = Number(error?.status ?? 0);
+        const failureType = status >= 400 && status < 500 ? "business" : "technical";
+        logSecurity(`[ORDER_OPERATIONAL_RELEASE_PENDING] orderId=${current.order.id} | type=${failureType} | code=${error?.code ?? "unknown"} | status=${status || "unknown"}`);
       }
-    });
-
-    return { data: newOrder, isTest: false, status: 201 };
+    }
+    const finalDetail = await this.repo.get(Number(result.data.id));
+    if (!finalDetail) throw new NotFoundError("Pedido confirmado não encontrado");
+    if (releasedNow) {
+      setImmediate(async () => {
+        try {
+          await this.afterCreate(finalDetail.order, finalDetail.order, finalDetail.items, "CLIENT");
+        } catch (err: any) {
+          logSecurity(`[ORDER_AFTER_CREATE_FAILED] orderId=${finalDetail.order.id} | error=${err?.message ?? "unknown"}`);
+        }
+      });
+    }
+    const operationalReleasePending = finalDetail.order.workflowStatus === OrderStatus.CUSTOMER_CONFIRMED;
+    return {
+      ...result,
+      data: { ...finalDetail.order, operationalReleasePending },
+      operationalReleasePending,
+    };
   }
 
   /**
@@ -696,7 +708,7 @@ export class OrdersService {
 
     // Enforce minimum weekly billing — checked against the WHOLE week's total,
     // not per individual order.
-    const companyId = actor.companyId ?? activeDays[0].companyId;
+    const companyId = actor.companyId ?? requireTenantId();
     if (companyId) {
       const existingOrders = await this.repo.listByCompanyId(Number(companyId));
       const pricedCandidateItems = (
@@ -720,15 +732,15 @@ export class OrdersService {
     // If any create() throws, drizzle automatically rolls back the entire
     // transaction — no manual compensation or delete-on-failure needed.
     //
-    // afterCreate() side-effects (push notifications, emails, auto-logistics)
-    // are intentionally deferred: create() returns a thunk instead of calling
-    // setImmediate() when a tx is provided.  The thunks run only after
-    // db.transaction() resolves, guaranteeing side-effects fire after COMMIT.
-    const createdOrders: any[] = [];
-    const thunks: Array<() => Promise<void>> = [];
+    // Operational release and its stock/AR effects happen after this creation
+    // transaction commits, once per independent daily order.
+    const createdOrders: Array<{ result: any; order: any; items: any[] }> = [];
+    const orderedDays = [...activeDays].sort((a, b) =>
+      new Date(a.deliveryDate).toISOString().slice(0, 10).localeCompare(new Date(b.deliveryDate).toISOString().slice(0, 10)),
+    );
 
     await db.transaction(async (tx) => {
-      for (const day of activeDays) {
+      for (const day of orderedDays) {
         const result = await this.create(
           {
             order: {
@@ -744,18 +756,20 @@ export class OrdersService {
           actor,
           tx,
         );
-        createdOrders.push(result.data);
-        if (result.afterCreateThunk) thunks.push(result.afterCreateThunk);
+        createdOrders.push({ result, order: result.data, items: day.items });
       }
       // Any uncaught throw here causes drizzle to rollback automatically.
     });
 
-    // COMMIT succeeded — execute all deferred side-effects in insertion order.
-    for (const thunk of thunks) {
-      await thunk();
+    // Commit each independent day, then release operationally. A failure on
+    // one day leaves that order resumable and does not undo other days.
+    const finalized: any[] = [];
+    for (const entry of createdOrders) {
+      const result = await this.finishCustomerConfirmation(entry.result, actor);
+      finalized.push(result.data);
     }
 
-    return { orders: createdOrders };
+    return { orders: finalized };
   }
 
   /**
@@ -1331,6 +1345,7 @@ export class OrdersService {
     to: OrderStatus,
     actor: ActorContext,
     reason?: string,
+    customerConfirmationRelease = false,
   ): Promise<{ order: Order; workflowStatus: OrderStatus; from: string; details: Record<string, unknown> }> {
 
     // ── Phase 1: Pre-flight reads (no DB writes, no locks yet) ────────────────
@@ -1355,7 +1370,15 @@ export class OrdersService {
 
     // ── Phase 2: Validation (pure — all reads are done, no writes yet) ───────
     assertTransitionAllowed(from, to);
-    assertTransitionRole(to, user.role);
+    const authorizedCustomerRelease = customerConfirmationRelease &&
+      to === OrderStatus.APPROVED &&
+      from === OrderStatus.CUSTOMER_CONFIRMED &&
+      actor.companyId != null && Number(actor.companyId) === Number(orderRow.companyId) &&
+      currentTenantId() != null && Number(currentTenantId()) === Number(orderRow.companyId);
+    if (customerConfirmationRelease && !authorizedCustomerRelease) {
+      throw new ForbiddenError("Liberação automática não autorizada para este pedido.");
+    }
+    if (!authorizedCustomerRelease) assertTransitionRole(to, user.role);
     if (to === OrderStatus.CANCELLED) {
       await this.assertOperationalDeadline(id, "cancel", actor, undefined, orderRow);
     }

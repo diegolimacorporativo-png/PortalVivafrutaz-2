@@ -240,7 +240,7 @@ export const orders = pgTable("orders", {
   workflowStatus: text("workflow_status").default("CREATED").notNull(),
   // PEDIDO RECORRENTE — true quando gerado automaticamente pelo cron semanal de escopo contratual
   isRecurring: boolean("is_recurring").default(false).notNull(),
-  // workflowStatus values: CREATED, PENDING_APPROVAL, APPROVED, REJECTED, INVOICED, SHIPPED, DELIVERED, CANCELLED
+  // workflowStatus values include CUSTOMER_CONFIRMED between client confirmation and operational release.
   adminNote: text("admin_note"),
   companyId: integer("company_id").references(() => companies.id).notNull(),
   orderDate: timestamp("order_date").defaultNow().notNull(),

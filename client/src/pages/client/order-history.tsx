@@ -39,6 +39,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 
 // Operational pipeline labels (workflowStatus) — extra badge for the customer.
 const WF_LABELS: Record<string, { label: string; color: string }> = {
+  CUSTOMER_CONFIRMED: { label: "Confirmado pelo cliente — aguardando liberação", color: "bg-amber-50 text-amber-800 border border-amber-200" },
   APPROVED:   { label: "Aprovado",      color: "bg-blue-50 text-blue-700 border border-blue-200" },
   PROCESSING: { label: "Em Separação",  color: "bg-amber-50 text-amber-700 border border-amber-200" },
   READY:      { label: "Pedido Pronto", color: "bg-violet-50 text-violet-700 border border-violet-200" },

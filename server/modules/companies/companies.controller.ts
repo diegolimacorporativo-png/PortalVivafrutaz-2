@@ -5,7 +5,7 @@ import {
   CompaniesService,
 } from "./companies.service";
 import { ok, created, noContent } from "../../core/http/apiResponse";
-import { UnauthorizedError } from "../../shared/errors/AppError";
+import { ForbiddenError, UnauthorizedError } from "../../shared/errors/AppError";
 
 /**
  * CompaniesController — thin HTTP adapter.
@@ -72,7 +72,24 @@ export class CompaniesController {
 
   update = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
-    return ok(res, await this.service.update(id, req.body));
+    const updates = req.body as Record<string, unknown>;
+    const session = (req as any).session;
+    if (updates.password !== undefined && (session?.companyId != null || session?.userId == null)) {
+      throw new ForbiddenError("A redefinição da senha da empresa só pode ser feita pela equipe interna.");
+    }
+
+    const payload = updates.password !== undefined
+      ? {
+          ...updates,
+          mustChangePassword: false,
+          passwordTemporary: false,
+          passwordChangedAt: new Date(),
+          loginAttempts: 0,
+          isLocked: false,
+        }
+      : updates;
+    const { password: _passwordHash, ...safeCompany } = await this.service.update(id, payload as any);
+    return ok(res, safeCompany);
   };
 
   remove = async (req: Request, res: Response) => {

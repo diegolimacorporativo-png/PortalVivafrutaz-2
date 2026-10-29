@@ -1,7 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { ConflictError, NotFoundError } from "../../shared/errors/AppError";
 
-const MAX_PURGED_ROWS = 100_000;
 const DISCOVERY_BATCH_SIZE = 500;
 
 type ForeignKeyEdge = {
@@ -18,8 +17,38 @@ type ForeignKeyEdge = {
   parentKind: string;
 };
 
+type RawForeignKeyEdge = Omit<ForeignKeyEdge, "childColumns" | "parentColumns"> & {
+  childColumns: unknown;
+  parentColumns: unknown;
+};
+
 type QueryClient = Pick<PoolClient, "query" | "release">;
 type PoolLike = Pick<Pool, "connect">;
+
+type TenantColumnTable = {
+  tableOid: number;
+  schema: string;
+  table: string;
+  companyColumns: unknown;
+};
+
+function readColumnNames(value: unknown): string[] {
+  let candidate = value;
+  // node-postgres may expose JSON metadata as its decoded array, while custom
+  // type parsers can return the serialized JSON string. Accept both shapes so
+  // catalog metadata never falls through to an unhandled `.map` TypeError.
+  if (typeof candidate === "string") {
+    try {
+      candidate = JSON.parse(candidate);
+    } catch {
+      candidate = null;
+    }
+  }
+  if (!Array.isArray(candidate) || candidate.length === 0 || !candidate.every((item) => typeof item === "string" && item.length > 0)) {
+    throw new ConflictError("Não foi possível interpretar com segurança as relações da empresa; nenhum dado foi removido.");
+  }
+  return candidate;
+}
 
 function quoteIdentifier(value: string): string {
   return `"${value.replace(/"/g, '""')}"`;
@@ -32,6 +61,7 @@ function qualifiedName(schema: string, table: string): string {
 function orderForDeletion(
   selectedTables: Set<number>,
   edges: ForeignKeyEdge[],
+  rootOid: number,
 ): number[] {
   const children = new Map<number, Set<number>>();
   for (const edge of edges) {
@@ -59,16 +89,22 @@ function orderForDeletion(
     result.push(tableOid);
   };
 
-  for (const tableOid of selectedTables) visit(tableOid);
+  // Include orphaned tenant rows (legacy tables without FK constraints) before
+  // deleting the company root. FK relationships still determine child-first
+  // ordering among all connected tables.
+  for (const tableOid of selectedTables) {
+    if (tableOid !== rootOid) visit(tableOid);
+  }
+  if (selectedTables.has(rootOid)) visit(rootOid);
   return result;
 }
 
 /**
- * Permanently removes a company and every row reachable through a public-schema
- * foreign key, in one transaction. It discovers the FK graph at runtime so new
- * relations are included without a stale hand-maintained table list. External
- * schema references, cycles, oversized purges, or any SQL failure abort and roll
- * back the entire operation. No row contents are read into application logs.
+ * Permanently removes a company and its public-schema tenant data in one
+ * transaction. It follows foreign keys recursively and also discovers legacy
+ * tenant columns (`empresa_id` / `company_id`) without FK constraints, such as
+ * fiscal audit rows. Any unsupported relation, cycle, or SQL failure
+ * aborts and rolls back the entire operation. No row contents are logged.
  */
 export async function purgeCompanyAndReferences(
   pool: PoolLike,
@@ -92,7 +128,7 @@ export async function purgeCompanyAndReferences(
     );
     if (rootResult.rows.length === 0) throw new NotFoundError("Empresa não encontrada");
 
-    const foreignKeys = await client.query<ForeignKeyEdge>(
+    const foreignKeys = await client.query<RawForeignKeyEdge>(
       `/* company-purge:foreign-keys */
        SELECT con.oid::int AS "constraintId",
               con.conrelid::int AS "childOid",
@@ -101,8 +137,8 @@ export async function purgeCompanyAndReferences(
               child.relname AS "childTable",
               parent_ns.nspname AS "parentSchema",
               parent.relname AS "parentTable",
-              array_agg(child_att.attname ORDER BY child_key.ordinality) AS "childColumns",
-              array_agg(parent_att.attname ORDER BY parent_key.ordinality) AS "parentColumns",
+              to_json(array_agg(child_att.attname::text ORDER BY child_key.ordinality)) AS "childColumns",
+              to_json(array_agg(parent_att.attname::text ORDER BY parent_key.ordinality)) AS "parentColumns",
               child.relkind AS "childKind",
               parent.relkind AS "parentKind"
        FROM pg_constraint con
@@ -124,12 +160,22 @@ export async function purgeCompanyAndReferences(
                 parent.relname, child.relkind, parent.relkind`,
     );
 
-    const edges = foreignKeys.rows;
+    const edges: ForeignKeyEdge[] = foreignKeys.rows.map((edge) => ({
+      ...edge,
+      constraintId: Number(edge.constraintId),
+      childOid: Number(edge.childOid),
+      parentOid: Number(edge.parentOid),
+      childColumns: readColumnNames(edge.childColumns),
+      parentColumns: readColumnNames(edge.parentColumns),
+    }));
+    if (edges.some((edge) => edge.childColumns.length !== edge.parentColumns.length)) {
+      throw new ConflictError("As relações da empresa estão inconsistentes; nenhum dado foi removido.");
+    }
     const edgesByParent = new Map<number, ForeignKeyEdge[]>();
     const tableNames = new Map<number, { schema: string; table: string; kind: string }>();
     for (const edge of edges) {
       const outgoing = edgesByParent.get(Number(edge.parentOid)) ?? [];
-      outgoing.push({ ...edge, childOid: Number(edge.childOid), parentOid: Number(edge.parentOid) });
+      outgoing.push(edge);
       edgesByParent.set(Number(edge.parentOid), outgoing);
       tableNames.set(Number(edge.childOid), { schema: edge.childSchema, table: edge.childTable, kind: edge.childKind });
       tableNames.set(Number(edge.parentOid), { schema: edge.parentSchema, table: edge.parentTable, kind: edge.parentKind });
@@ -143,10 +189,60 @@ export async function purgeCompanyAndReferences(
     const queue: Array<{ tableOid: number; rowRefs: string[] }> = [
       { tableOid: rootOid, rowRefs: [root.row_ref] },
     ];
-    let discoveredRows = 1;
+
+    // Some legacy records were created without a declared FK. Find rows whose
+    // conventional company/tenant columns point at this company, and seed them
+    // into the same recursive graph so their own dependent rows are also purged.
+    const tenantColumnTables = await client.query<TenantColumnTable>(
+      `/* company-purge:tenant-column-tables */
+       SELECT relation.oid::int AS "tableOid",
+              namespace.nspname AS schema,
+              relation.relname AS table,
+              to_json(array_agg(attribute.attname::text ORDER BY attribute.attname::text)) AS "companyColumns"
+       FROM pg_class relation
+       JOIN pg_namespace namespace ON namespace.oid = relation.relnamespace
+       JOIN pg_attribute attribute ON attribute.attrelid = relation.oid
+       WHERE namespace.nspname = 'public'
+         AND relation.relkind IN ('r', 'p')
+         AND relation.relispartition = false
+         AND relation.oid <> 'public.companies'::regclass
+         AND attribute.attnum > 0
+         AND NOT attribute.attisdropped
+         AND attribute.attname IN ('empresa_id', 'company_id')
+       GROUP BY relation.oid, namespace.nspname, relation.relname`,
+    );
+
+    for (const candidate of tenantColumnTables.rows) {
+      const companyColumns = readColumnNames(candidate.companyColumns);
+      const tableOid = Number(candidate.tableOid);
+      const tableName = qualifiedName(candidate.schema, candidate.table);
+      const predicate = companyColumns
+        .map((column) => `tenant_row.${quoteIdentifier(column)}::text = $1::text`)
+        .join(" OR ");
+      const tenantRows = await client.query<{ row_ref: string }>(
+        `/* company-purge:discover-tenant-rows */
+         SELECT tenant_row.tableoid::text || ':' || tenant_row.ctid::text AS row_ref
+         FROM ${tableName} AS tenant_row
+         WHERE ${predicate}
+         FOR UPDATE OF tenant_row`,
+        [companyId],
+      );
+      if (tenantRows.rows.length === 0) continue;
+
+      const knownRefs = refsByTable.get(tableOid) ?? new Set<string>();
+      const newlyDiscovered = tenantRows.rows
+        .map((row) => row.row_ref)
+        .filter((rowRef) => !knownRefs.has(rowRef));
+      if (newlyDiscovered.length === 0) continue;
+      for (const rowRef of newlyDiscovered) knownRefs.add(rowRef);
+      refsByTable.set(tableOid, knownRefs);
+      tableNames.set(tableOid, { schema: candidate.schema, table: candidate.table, kind: "r" });
+      queue.push({ tableOid, rowRefs: newlyDiscovered });
+    }
 
     while (queue.length > 0) {
-      const current = queue.shift()!;
+      const current = queue.shift();
+      if (!current) continue;
       const processed = processedByTable.get(current.tableOid) ?? new Set<string>();
       const newParentRefs = current.rowRefs.filter((rowRef) => !processed.has(rowRef));
       if (newParentRefs.length === 0) continue;
@@ -154,9 +250,6 @@ export async function purgeCompanyAndReferences(
       processedByTable.set(current.tableOid, processed);
 
       for (const edge of edgesByParent.get(current.tableOid) ?? []) {
-        if (edge.childKind === "p" || edge.parentKind === "p") {
-          throw new ConflictError("A empresa possui relações particionadas que exigem tratamento manual; nenhum dado foi removido.");
-        }
         const childName = qualifiedName(edge.childSchema, edge.childTable);
         const parentName = qualifiedName(edge.parentSchema, edge.parentTable);
         const join = edge.childColumns
@@ -187,10 +280,6 @@ export async function purgeCompanyAndReferences(
           newlyDiscovered.push(rowRef);
         }
         if (newlyDiscovered.length > 0) {
-          discoveredRows += newlyDiscovered.length;
-          if (discoveredRows > MAX_PURGED_ROWS) {
-            throw new ConflictError("A empresa excede o limite de exclusão automática segura; nenhum dado foi removido.");
-          }
           refsByTable.set(edge.childOid, knownChildRefs);
           queue.push({ tableOid: edge.childOid, rowRefs: newlyDiscovered });
         }
@@ -200,6 +289,7 @@ export async function purgeCompanyAndReferences(
     const deletionOrder = orderForDeletion(
       new Set(refsByTable.keys()),
       edges.filter((edge) => matchedEdges.has(Number(edge.constraintId))),
+      rootOid,
     );
     for (const tableOid of deletionOrder) {
       const refs = [...(refsByTable.get(tableOid) ?? [])];

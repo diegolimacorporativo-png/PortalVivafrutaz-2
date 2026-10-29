@@ -12,8 +12,8 @@ import { BadRequestError, ForbiddenError } from "../../shared/errors/AppError";
  * any code change on their side.
  *
  * Mapping rationale:
- *  CREATED / PENDING_APPROVAL → "ACTIVE"    (order exists, not yet actionable)
- *  APPROVED / INVOICED / SHIPPED → "CONFIRMED" (admin-approved, progressing)
+ *  CREATED / PENDING_APPROVAL / CUSTOMER_CONFIRMED → "ACTIVE" (not operationally released)
+ *  APPROVED / INVOICED / SHIPPED → "CONFIRMED" (operationally released, progressing)
  *  DELIVERED  → "DELIVERED"
  *  REJECTED   → "CANCELLED"  (terminal rejection ≡ cancelled in legacy)
  *  CANCELLED  → "CANCELLED"
@@ -21,6 +21,7 @@ import { BadRequestError, ForbiddenError } from "../../shared/errors/AppError";
 export const LEGACY_STATUS_MAP: Record<string, string> = {
   CREATED:          "ACTIVE",
   PENDING_APPROVAL: "ACTIVE",
+  CUSTOMER_CONFIRMED: "ACTIVE",
   APPROVED:         "CONFIRMED",
   PROCESSING:       "CONFIRMED",
   READY:            "CONFIRMED",
@@ -51,6 +52,7 @@ export function legacyStatusFor(workflowStatus: string, current: string): string
 export const OrderStatus = {
   CREATED:          "CREATED",
   PENDING_APPROVAL: "PENDING_APPROVAL",
+  CUSTOMER_CONFIRMED: "CUSTOMER_CONFIRMED",
   APPROVED:         "APPROVED",
   PROCESSING:       "PROCESSING",
   READY:            "READY",
@@ -70,7 +72,8 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
  * Value = set of statuses the order can legally move to from here.
  *
  * Rationale for each arc:
- *  CREATED          → PENDING_APPROVAL (normal flow) | CANCELLED (abort before review)
+ *  CREATED          → PENDING_APPROVAL | CANCELLED
+ *  CUSTOMER_CONFIRMED → APPROVED (automatic operational release) | CANCELLED
  *  PENDING_APPROVAL → APPROVED (admin approves) | REJECTED (admin rejects) | CANCELLED
  *  APPROVED         → INVOICED (operationally released for delivery) | CANCELLED
  *  REJECTED         → terminal (no recovery — create a new order if needed)
@@ -81,6 +84,7 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
  */
 export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.CREATED]:          [OrderStatus.PENDING_APPROVAL, OrderStatus.CANCELLED],
+  [OrderStatus.CUSTOMER_CONFIRMED]: [OrderStatus.APPROVED, OrderStatus.CANCELLED],
   [OrderStatus.PENDING_APPROVAL]: [OrderStatus.APPROVED, OrderStatus.REJECTED, OrderStatus.CANCELLED],
   // APPROVED can either go straight to INVOICED (legacy fast path) or step
   // through the operational pipeline PROCESSING → READY before invoicing.

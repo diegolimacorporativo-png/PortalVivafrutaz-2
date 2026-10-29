@@ -59,7 +59,7 @@ export default function AdminCompanies() {
 
   async function handlePermanentDelete(company: Company) {
     const confirmed = window.confirm(
-      `Excluir permanentemente a empresa "${company.companyName}"?\n\nA empresa será removida do banco de dados. Se houver registros vinculados, a exclusão será bloqueada para preservar o histórico.`,
+      `Excluir permanentemente a empresa "${company.companyName}"?\n\nEsta ação também apaga pedidos, entregas, notas fiscais, usuários e demais registros vinculados encontrados. A operação é irreversível.`,
     );
     if (!confirmed) return;
 

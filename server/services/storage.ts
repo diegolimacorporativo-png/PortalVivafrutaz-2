@@ -91,7 +91,7 @@ import {
   sanitaryEvaluationItems, type SanitaryEvaluationItem, type InsertSanitaryEvaluationItem,
   cnabImportHistory, type CnabImportHistory, type InsertCnabImportHistory,
 } from "@shared/schema";
-import { eq, and, desc, gte, gt, lte, sql, inArray, or, ilike, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, gt, lte, sql, inArray, or, ilike, isNull, ne } from "drizzle-orm";
 import { usersRepository } from "../modules/users/users.repository";
 import type { QuotationScope } from "../modules/quotations/quotations.policy";
 
@@ -1343,10 +1343,12 @@ export class DatabaseStorage implements IStorage {
       conditions.push(lte(orders.deliveryDate, to));
     }
 
-    // Purchasing uses operational orders only. ACTIVE covers orders that
-    // are already actionable but not yet promoted to CONFIRMED; both are
-    // valid demand. CANCELLED and every other workflow state stay out.
-    conditions.push(or(eq(orders.status, 'ACTIVE'), eq(orders.status, 'CONFIRMED')));
+    // Purchasing demand excludes customer-confirmed orders still blocked
+    // from operational release. Legacy ACTIVE orders remain included.
+    conditions.push(or(
+      and(eq(orders.status, 'ACTIVE'), ne(orders.workflowStatus, 'CUSTOMER_CONFIRMED')),
+      eq(orders.status, 'CONFIRMED'),
+    ));
 
     const rows = await db
       .select({

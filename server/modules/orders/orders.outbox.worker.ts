@@ -63,6 +63,7 @@ registerJob(JOB_NAME);
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING_APPROVAL: "Aguardando aprovação",
+  CUSTOMER_CONFIRMED: "Confirmado pelo cliente; aguardando liberação operacional",
   APPROVED:         "Aprovado",
   REJECTED:         "Rejeitado",
   INVOICED:         "Liberado para entrega",

@@ -24,7 +24,14 @@ export function register(app: Express) {
       const allReqs = await storage.getPasswordResetRequests();
       const pr = allReqs.find(r => r.id === id);
       if (newPassword && status === 'APPROVED' && pr) {
-        await storage.updateCompany(pr.companyId, { password: newPassword } as any);
+        await storage.updateCompany(pr.companyId, {
+          password: newPassword,
+          loginAttempts: 0,
+          isLocked: false,
+          mustChangePassword: false,
+          passwordTemporary: false,
+          passwordChangedAt: new Date(),
+        } as any);
       }
       const updated = await storage.updatePasswordResetRequest(id, updates);
       res.json(updated);

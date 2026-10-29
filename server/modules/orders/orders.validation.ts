@@ -170,6 +170,7 @@ export const transitionBodySchema = z.object({
   to: z.enum([
     "CREATED",
     "PENDING_APPROVAL",
+    "CUSTOMER_CONFIRMED",
     "APPROVED",
     "PROCESSING",
     "READY",
