@@ -1947,6 +1947,7 @@ export interface WorkflowEventPayload {
     preNotaNumber?:          string | null;
     inventoryLinesDeducted?: number;
     arCreated?:              boolean;
+    deliveryCreated?:         boolean;
     deliveryUpdated?:        boolean;
   };
 }

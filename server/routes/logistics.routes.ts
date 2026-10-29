@@ -4,6 +4,8 @@ import { tenantContext } from "../middleware/tenant";
 import { requireTabPermission } from "../middleware/requireTabPermission";
 import { requireActionPermission } from "../middleware/requireActionPermission";
 import { currentTenantId } from "../core/tenant/context";
+import { ordersRepository } from "../modules/orders/orders.repository";
+import { AppError } from "../shared/errors/AppError";
 import {
   canAccessDriverRecord,
   driverTabForRequest,
@@ -22,6 +24,7 @@ import {
   isDeliveryInternalRole,
   isDeliveryDriverRole,
   sanitizeDeliveryCreateBody,
+  validateDeliveryOrderLink,
   sanitizeDeliveryUpdateBody,
 } from "../modules/logistics/delivery.access";
 import {
@@ -178,9 +181,29 @@ export async function register(app: Express): Promise<void> {
       if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para criar a entrega' });
       if (!isDeliveryInternalRole(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
       const data = sanitizeDeliveryCreateBody(req.body, access.tenantId);
-      const delivery = await storage.createDelivery(data as any);
+      const orderLink = await validateDeliveryOrderLink(
+        data.orderId,
+        access.tenantId,
+        async (orderId) => (await storage.getOrder(orderId))?.order,
+      );
+      if (!orderLink.valid) return res.status(orderLink.status).json({ message: orderLink.message });
+      let delivery: any;
+      if (orderLink.orderId == null) {
+        delete data.orderId;
+        delivery = await storage.createDelivery(data as any);
+      } else {
+        data.orderId = orderLink.orderId;
+        delivery = await ordersRepository.createManualDeliveryForOrder(
+          orderLink.orderId,
+          access.tenantId,
+          data,
+        );
+      }
       res.status(201).json(delivery);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      if (err instanceof AppError) return res.status(err.status).json({ message: err.message });
+      res.status(500).json({ message: err.message });
+    }
   });
 
   app.put('/api/deliveries/:id', requireAuthCore, async (req: any, res) => {

@@ -236,8 +236,8 @@ router.post(
  * Controlled state machine for the order workflow.
  * Body: { to: OrderStatus, reason?: string }
  *
- * This endpoint is purely ADDITIVE — it only updates `workflowStatus`.
- * The legacy `status` field and all existing endpoints remain unchanged.
+ * The transition service validates the state, synchronizes the legacy
+ * `status`, and commits critical order/logistics effects atomically.
  */
 router.post(
   "/:id/transition",

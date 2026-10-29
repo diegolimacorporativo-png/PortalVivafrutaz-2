@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, ne, sql } from "drizzle-orm";
 import { db } from "../../database/db";
-import { orders, orderItems, accountsReceivable } from "@shared/schema";
+import { orders, orderItems, accountsReceivable, deliveries, companies } from "@shared/schema";
 import { storage } from "../../services/storage";
 import {
   tenantWhere,
@@ -12,7 +12,7 @@ import {
 import { GLOBAL_SCOPE_ROLES, INTERNAL_STAFF_ROLES } from "@shared/user-roles";
 import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { getRequestIdForLog } from "../../core/context/requestContext";
-import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import {
   executeWorkflowTransaction,
   type TransactionInput,
@@ -151,6 +151,100 @@ export class OrdersRepository {
     const safeOrder = { ...order, companyId: tenantId } as InsertOrder;
     const safeItems = items.map((it) => ({ ...it, empresaId: tenantId }));
     return storage.createOrder(safeOrder, safeItems as any, tx);
+  }
+
+  /** Persist an admin-created order and its required initial delivery atomically. */
+  async createOrderWithDelivery(
+    order: InsertOrder,
+    items: InsertOrderItem[],
+    delivery: Record<string, any>,
+  ): Promise<{ order: Order; delivery: any }> {
+    return db.transaction(async (tx) => {
+      const tenantId = requireTenantId();
+      if (Number(order.companyId) !== tenantId) {
+        throw new ForbiddenError("Empresa não autorizada para esta operação");
+      }
+      const companyResult: any = await tx.execute(sql`
+        SELECT id, active, is_locked
+        FROM companies
+        WHERE id = ${tenantId}
+        FOR SHARE
+      `);
+      const companyRows = Array.isArray(companyResult) ? companyResult : companyResult?.rows ?? [];
+      const company = companyRows[0];
+      if (!company || !company.active || company.is_locked) {
+        throw new BadRequestError("A empresa selecionada não está disponível para novos pedidos.");
+      }
+      const createdOrder = await this.create(order, items, tx);
+      const [createdDelivery] = await tx
+        .insert(deliveries)
+        .values({
+          ...delivery,
+          orderId: createdOrder.id,
+          companyId: createdOrder.companyId,
+        })
+        .returning();
+      return { order: createdOrder, delivery: createdDelivery };
+    });
+  }
+
+  /** Create an additional linked delivery while serializing with every
+   * order workflow that uses the transaction-level advisory lock. Split
+   * deliveries remain supported; this deliberately adds no uniqueness rule. */
+  async createManualDeliveryForOrder(
+    orderId: number,
+    tenantId: number,
+    delivery: Record<string, any>,
+  ): Promise<any> {
+    return db.transaction(async (tx) => {
+      await tx.execute(sql`SELECT pg_advisory_xact_lock(${orderId}::bigint)`);
+      const result: any = await tx.execute(sql`
+        SELECT o.id, o.company_id, o.workflow_status, o.status,
+               c.id AS verified_company_id, c.active, c.is_locked
+        FROM orders o
+        INNER JOIN companies c ON c.id = o.company_id
+        WHERE o.id = ${orderId}
+        FOR UPDATE OF o
+        FOR SHARE OF c
+      `);
+      const rows = Array.isArray(result) ? result : result?.rows ?? [];
+      const order = rows[0];
+      if (!order || Number(order.company_id) !== tenantId || Number(order.verified_company_id) !== tenantId) {
+        // Hide both missing and cross-tenant order identifiers.
+        throw new NotFoundError("Pedido não encontrado para a empresa selecionada");
+      }
+      if (!order.active || order.is_locked) {
+        throw new ConflictError("A empresa não está disponível para novas entregas.");
+      }
+      const terminalStates = new Set(["DELIVERED", "CANCELLED", "REJECTED"]);
+      if (terminalStates.has(String(order.workflow_status ?? "").toUpperCase()) ||
+          terminalStates.has(String(order.status ?? "").toUpperCase())) {
+        throw new ConflictError("Não é possível adicionar uma entrega a um pedido finalizado ou cancelado.");
+      }
+
+      const [created] = await tx.insert(deliveries).values({
+        ...delivery,
+        orderId,
+        companyId: tenantId,
+      }).returning();
+      return created;
+    });
+  }
+
+  /** Global worker query, deliberately limited to resumable customer confirmations. */
+  listCustomerConfirmedForRetry(limit: number) {
+    return db
+      .select({ order: orders })
+      .from(orders)
+      .innerJoin(companies, eq(companies.id, orders.companyId))
+      .where(and(
+        eq(orders.workflowStatus, "CUSTOMER_CONFIRMED"),
+        eq(companies.active, true),
+        eq(companies.isLocked, false),
+      ))
+      .orderBy(asc(orders.createdAt))
+      .limit(limit)
+      .then((rows) => rows.map(({ order }) => order));
   }
 
   /** Serialize the business-unique company/day slot across all DB instances. */
@@ -319,6 +413,26 @@ export class OrdersRepository {
 
   getDeliveryByOrder(orderId: number) {
     return storage.getDeliveryByOrder(orderId);
+  }
+
+  /** Ensure one auto-created delivery per order across app instances. */
+  async ensureDeliveryForOrder(data: any) {
+    return db.transaction(async (tx) => {
+      await tx.execute(
+        // Share the same transaction-level per-order lock used by workflow
+        // transitions. This serializes automatic initial delivery creation
+        // across Node.js instances without constraining legitimate split rows.
+        sql`SELECT pg_advisory_xact_lock(${Number(data.orderId)}::bigint)`,
+      );
+      const [existing] = await tx
+        .select()
+        .from(deliveries)
+        .where(eq(deliveries.orderId, data.orderId))
+        .limit(1);
+      if (existing) return { delivery: existing, created: false };
+      const [created] = await tx.insert(deliveries).values(data).returning();
+      return { delivery: created, created: true };
+    });
   }
 
   createDelivery(data: any) {

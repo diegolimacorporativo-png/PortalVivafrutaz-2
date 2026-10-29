@@ -43,6 +43,7 @@
 import { pool } from "../../database/db";
 import { type WorkflowEventPayload } from "@shared/schema";
 import { ordersRepository } from "./orders.repository";
+import { ordersService } from "./orders.service";
 import { fireNotification } from "../../services/pushService";
 import { runWithTenant, type TenantPrincipal } from "../../core/tenant/context";
 import { incJobFailures, incDeadLetterCount } from "../../core/observability/metrics";
@@ -55,6 +56,7 @@ import {
 } from "../../core/jobs/job-registry";
 
 const POLL_INTERVAL_MS = 5_000;
+const CUSTOMER_CONFIRMATION_RETRY_INTERVAL_MS = 60_000;
 const BATCH_SIZE       = 10;
 const MAX_RETRIES      = 5;
 const JOB_NAME         = "outbox-worker";
@@ -273,6 +275,7 @@ async function handleDeliveryStatusEvent(p: WorkflowEventPayload): Promise<void>
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 let workerTimer: ReturnType<typeof setInterval> | null = null;
+let lastCustomerConfirmationRetryAt = 0;
 
 export function startOutboxWorker(): void {
   if (workerTimer !== null) return;
@@ -285,6 +288,18 @@ export function startOutboxWorker(): void {
     recoverStaleJob(JOB_NAME, 2 * 60_000); // stale lock after 2 min (5s poll × safety margin)
     if (!startJobRun(JOB_NAME)) return;    // skip if previous tick still running
     try {
+      if (Date.now() - lastCustomerConfirmationRetryAt >= CUSTOMER_CONFIRMATION_RETRY_INTERVAL_MS) {
+        lastCustomerConfirmationRetryAt = Date.now();
+        try {
+          const result = await ordersService.retryPendingCustomerConfirmations();
+          if (result.released > 0 || result.failed > 0) {
+            console.info("[ORDER_CONFIRMATION_RETRY]", result);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error("[ORDER_CONFIRMATION_RETRY] Worker query failed:", msg);
+        }
+      }
       await processBatch();
       finishJobRun(JOB_NAME, true);
     } catch (err) {

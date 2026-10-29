@@ -149,7 +149,7 @@ export function assertTransitionRole(to: OrderStatus, userRole: string): void {
  * Each rule is async so it can query the DB. Throw `BadRequestError` to veto.
  *
  * Rules:
- *  → APPROVED  : customer must be active (not locked), no overdue invoices
+ *  → APPROVED  : customer must be active (not locked)
  *  → INVOICED  : order must already be APPROVED (enforced by transition map)
  *  → SHIPPED   : no fiscal document is required; fiscal processing is separate
  */
@@ -158,11 +158,10 @@ export type PreTransitionContext = {
   to: OrderStatus;
   company: any;
   orderRow: any;
-  arByCompany: any[];
 };
 
 export function validateBusinessRules(ctx: PreTransitionContext): void {
-  const { to, company, orderRow, arByCompany } = ctx;
+  const { to, company } = ctx;
 
   if (to === OrderStatus.APPROVED) {
     if (!company) {
@@ -171,12 +170,6 @@ export function validateBusinessRules(ctx: PreTransitionContext): void {
     if (!company.active || company.isLocked) {
       throw new BadRequestError(
         `Empresa "${company.companyName}" está bloqueada e não pode ter pedidos aprovados.`,
-      );
-    }
-    const hasOverdue = arByCompany.some((ar: any) => ar.status === "vencido");
-    if (hasOverdue) {
-      throw new BadRequestError(
-        `Empresa "${company.companyName}" possui cobranças vencidas em aberto. Regularize antes de aprovar.`,
       );
     }
   }

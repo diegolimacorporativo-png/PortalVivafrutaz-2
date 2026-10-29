@@ -28,11 +28,11 @@ import { isPeriodClosed } from "../../services/fiscal/fiscal-closure.service";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {
   OrderStatus,
+  legacyStatusFor,
   assertTransitionAllowed,
   assertTransitionRole,
   validateBusinessRules,
 } from "./orders.workflow";
-import { buildPixPayload } from "../../shared/utils/pix";
 import { fireNotification } from "../../services/pushService";
 import {
   sendOrderPlaced,
@@ -47,6 +47,7 @@ import {
 } from "../products/utils/priceResolver";
 import { shouldResolveCompanyPricing } from "./companyPricing";
 import { customerOrderIntentMatches } from "./order-confirmation";
+import { retryCustomerConfirmations } from "./customer-confirmation-retry";
 import {
   calculateWeeklyBillingTotal,
   minimumWeeklyBillingMessage,
@@ -110,8 +111,8 @@ export interface ActorContext {
  *
  * Architecture decision: services own *behavior*. They orchestrate the
  * repository, enforce invariants, and never touch req/res. Side-effects
- * (push, email, AR seed, inventory deduction, auto-logistics) are kept
- * fire-and-forget exactly as the legacy code did so a transient failure in
+ * (push, email, and auto-logistics) are kept fire-and-forget where they are
+ * non-critical, so a transient failure in
  * a downstream system never fails the primary operation.
  *
  * SCOPE NOTE: every workflow here is a faithful port of the legacy
@@ -451,8 +452,8 @@ export class OrdersService {
    *      then global `test_mode` setting for client sessions).
    *   3. 60-second duplicate guard.
    *   4. Date-lock guard (one active order per company per delivery date).
-   *   5. Persist with status=CONFIRMED.
-   *   6. Fire-and-forget side effects: log, push, emails, auto-logistics.
+   *   5. Persist with CUSTOMER_CONFIRMED, then attempt operational release.
+   *   6. Emit post-release communication and ensure the delivery exists.
    *
    * Returns either the persisted Order or a "test order" payload identical
    * to the legacy 201 response shape.
@@ -732,8 +733,8 @@ export class OrdersService {
     // If any create() throws, drizzle automatically rolls back the entire
     // transaction — no manual compensation or delete-on-failure needed.
     //
-    // Operational release and its stock/AR effects happen after this creation
-    // transaction commits, once per independent daily order.
+    // Operational release happens after this creation transaction commits,
+    // once per independent daily order. The weekly transaction is unchanged.
     const createdOrders: Array<{ result: any; order: any; items: any[] }> = [];
     const orderedDays = [...activeDays].sort((a, b) =>
       new Date(a.deliveryDate).toISOString().slice(0, 10).localeCompare(new Date(b.deliveryDate).toISOString().slice(0, 10)),
@@ -939,26 +940,25 @@ export class OrdersService {
 
     // — Auto-logistics —
     try {
-      const existingDelivery = await this.repo.getDeliveryByOrder(newOrder.id);
-      if (!existingDelivery) {
-        const co: any = await this.repo.getCompany(order.companyId);
-        const delivDate = order.deliveryDate
-          ? String(order.deliveryDate).split("T")[0]
-          : null;
-        await this.repo.createDelivery({
-          orderId: newOrder.id,
-          companyId: order.companyId,
-          status: "pendente",
-          scheduledDate: delivDate,
-          addressStreet: co?.addressStreet || null,
-          addressNumber: co?.addressNumber || null,
-          addressCity: co?.addressCity || null,
-          addressState: co?.addressState || null,
-          addressZip: co?.addressZip?.replace(/\D/g, "") || null,
-          latitude: co?.latitude || null,
-          longitude: co?.longitude || null,
-          notes: `Auto-entrada: pedido ${(newOrder as any).vfCode || `#${newOrder.id}`}`,
-        });
+      const co: any = await this.repo.getCompany(order.companyId);
+      const delivDate = order.deliveryDate
+        ? new Date(order.deliveryDate).toISOString().slice(0, 10)
+        : null;
+      const ensuredDelivery = await this.repo.ensureDeliveryForOrder({
+        orderId: newOrder.id,
+        companyId: order.companyId,
+        status: "pendente",
+        scheduledDate: delivDate,
+        addressStreet: co?.addressStreet || null,
+        addressNumber: co?.addressNumber || null,
+        addressCity: co?.addressCity || null,
+        addressState: co?.addressState || null,
+        addressZip: co?.addressZip?.replace(/\D/g, "") || null,
+        latitude: co?.latitude || null,
+        longitude: co?.longitude || null,
+        notes: `Auto-entrada: pedido ${(newOrder as any).vfCode || `#${newOrder.id}`}`,
+      });
+      if (ensuredDelivery.created) {
         console.log(
           `[AUTO-LOGISTICS] Entrega criada para pedido #${newOrder.id}`,
         );
@@ -993,8 +993,16 @@ export class OrdersService {
     const acting = await this.repo.getUser(actor.userId);
     if (!acting) throw new UnauthorizedError();
 
-    const { companyId, deliveryDate, items, ...rest } = body;
-    if (!companyId) throw new BadRequestError("companyId obrigatório");
+    const authorizedCompanyId = requireTenantId();
+    const { companyId: requestedCompanyId, deliveryDate, items, ...rest } = body;
+    const parsedCompanyId = Number(requestedCompanyId);
+    if (!Number.isSafeInteger(parsedCompanyId) || parsedCompanyId <= 0) {
+      throw new BadRequestError("companyId obrigatório");
+    }
+    if (parsedCompanyId !== authorizedCompanyId) {
+      throw new ForbiddenError("Empresa não autorizada para esta operação");
+    }
+    const companyId = authorizedCompanyId;
 
     const totalValue = (items || []).reduce(
       (s: number, i: any) => s + Number(i.totalPrice || 0),
@@ -1003,10 +1011,8 @@ export class OrdersService {
 
     // Pre-fetch company — validate tenant context before any writes.
     const company: any = await this.repo.getCompany(companyId);
-    if (!company) {
-      throw new BadRequestError(
-        `Empresa ${companyId} não encontrada — contexto de tenant inválido`,
-      );
+    if (!company || !company.active || company.isLocked) {
+      throw new BadRequestError("A empresa selecionada não está disponível para novos pedidos.");
     }
 
     // ── Read-only divergence observation (no behavior change) ──
@@ -1184,7 +1190,7 @@ export class OrdersService {
     };
     const { normalisedItems: finalItems } = this._normaliseItems(items || [], orderShapeForNorm);
 
-    const order = await this.repo.create(
+    const { order, delivery } = await this.repo.createOrderWithDelivery(
       {
         companyId,
         deliveryDate,
@@ -1196,17 +1202,15 @@ export class OrdersService {
         ...rest,
       } as any,
       finalItems,
+      {
+        status: "pendente",
+        scheduledDate: deliveryDate || null,
+        addressStreet: company?.addressStreet || null,
+        addressZip: company?.addressZip || null,
+        addressCity: company?.addressCity || null,
+        addressState: company?.addressState || null,
+      },
     );
-    const delivery = await this.repo.createDelivery({
-      orderId: order.id,
-      companyId,
-      status: "pendente",
-      scheduledDate: deliveryDate || null,
-      addressStreet: company?.addressStreet || null,
-      addressZip: company?.addressZip || null,
-      addressCity: company?.addressCity || null,
-      addressState: company?.addressState || null,
-    });
 
     // Fire the official afterCreate pipeline (audit log, push notification,
     // emails).  afterCreate's auto-logistics step checks for an existing
@@ -1231,19 +1235,14 @@ export class OrdersService {
   // ╚══════════════════════════════════════════════════════════════════╝
 
   /**
-   * `PATCH /api/orders/:id` — admin updates status/notes/nimbi. Persists
-   * the change synchronously and fires status-change side-effects (email,
-   * push, inventory deduction on CONFIRMED, account-receivable seed on
-   * CONFIRMED) as fire-and-forget.
+   * `PATCH /api/orders/:id` — preserves note/expiration edits and routes
+   * supported legacy status changes through the controlled workflow.
    */
   async update(
     id: number,
     body: { status?: string; adminNote?: string; nimbiExpiration?: string | null; [k: string]: any },
     actor: ActorContext = {},
   ): Promise<Order> {
-    if (body.status === "CANCELLED") {
-      await this.assertOperationalDeadline(id, "cancel", actor);
-    }
     // FASE NF.7.9.2 — guard de fechamento mensal. Roda ANTES de qualquer
     // escrita. Se o pedido caiu num mês já fechado para a empresa, recusa
     // com 403. Se o pedido não existir / não tiver createdAt / não houver
@@ -1251,45 +1250,77 @@ export class OrdersService {
     await this.assertPeriodOpen(id, "update");
 
     const { status, adminNote, nimbiExpiration } = body;
-    if (status === "DELIVERED") {
-      const transition = await this.transition(
-        id,
-        OrderStatus.DELIVERED,
-        actor,
-      );
-      const supplementalUpdates: Record<string, unknown> = {};
-      if (adminNote !== undefined) supplementalUpdates.adminNote = adminNote;
-      if (nimbiExpiration !== undefined) {
-        supplementalUpdates.nimbiExpiration = nimbiExpiration || null;
+    let currentOrder: Order | undefined;
+    let statusChanged = false;
+
+    if (status !== undefined) {
+      const current = await this.repo.get(id);
+      if (!current) throw new NotFoundError("Pedido não encontrado");
+      currentOrder = current.order;
+      const currentWorkflow =
+        (current.order as any).workflowStatus || OrderStatus.CREATED;
+
+      if (status === "CONFIRMED") {
+        const target = legacyStatusFor(currentWorkflow, current.order.status);
+        if (currentWorkflow === OrderStatus.CUSTOMER_CONFIRMED || currentWorkflow === OrderStatus.PENDING_APPROVAL) {
+          const transition = await this.transition(id, OrderStatus.APPROVED, actor);
+          currentOrder = transition.order;
+          statusChanged = true;
+        } else if (target !== "CONFIRMED" || current.order.status !== "CONFIRMED") {
+          throw new BadRequestError("O status deve ser alterado pela transição operacional do pedido.");
+        }
+      } else if (status === "DELIVERED" || status === "CANCELLED") {
+        const target = status === "DELIVERED" ? OrderStatus.DELIVERED : OrderStatus.CANCELLED;
+        const transition = await this.transition(id, target, actor);
+        currentOrder = transition.order;
+        statusChanged = true;
+      } else if (status === "ACTIVE") {
+        if (
+          legacyStatusFor(currentWorkflow, current.order.status) !== "ACTIVE" ||
+          current.order.status !== "ACTIVE"
+        ) {
+          throw new BadRequestError("O status deve permanecer sincronizado com a etapa operacional do pedido.");
+        }
+      } else {
+        throw new BadRequestError("Status não permitido nesta atualização. Use a transição operacional correspondente.");
       }
-      return Object.keys(supplementalUpdates).length > 0
-        ? this.repo.update(id, supplementalUpdates)
-        : transition.order;
     }
 
-    const updates: any = {};
-    if (status !== undefined) updates.status = status;
-    if (adminNote !== undefined) updates.adminNote = adminNote;
-    if (nimbiExpiration !== undefined)
-      updates.nimbiExpiration = nimbiExpiration || null;
-
-    const updated = await this.repo.update(id, updates);
-
-    // Side-effects (email + push for status changes) — fire and forget.
-    if (status && ["CONFIRMED", "DELIVERED", "CANCELLED"].includes(status)) {
-      this.afterStatusChange(id, status, adminNote).catch((err) =>
-        console.error("[orders.afterStatusChange]", err),
-      );
+    const supplementalUpdates: Record<string, unknown> = {};
+    if (adminNote !== undefined) supplementalUpdates.adminNote = adminNote;
+    if (nimbiExpiration !== undefined) {
+      supplementalUpdates.nimbiExpiration = nimbiExpiration || null;
     }
-    if (status === "CONFIRMED") {
-      this.deductInventoryOnConfirm(id).catch((err) =>
-        console.error("[INVENTORY] Erro ao baixar estoque do pedido:", err),
-      );
-      this.seedAccountReceivableOnConfirm(id).catch((err) =>
-        console.error("[FINANCE] Erro ao criar conta a receber:", err),
-      );
+
+    if (Object.keys(supplementalUpdates).length > 0) {
+      const updated = await this.repo.update(id, supplementalUpdates);
+      if (statusChanged && status) this.sendLegacyStatusEmail(id, status, adminNote);
+      return updated;
     }
-    return updated;
+    if (statusChanged && status) this.sendLegacyStatusEmail(id, status, adminNote);
+    if (currentOrder) return currentOrder;
+    return this.repo.update(id, {});
+  }
+
+  private sendLegacyStatusEmail(id: number, status: string, adminNote?: string) {
+    setImmediate(async () => {
+      try {
+        const detail = await this.repo.get(id);
+        if (!detail) return;
+        const order = detail.order as any;
+        const company = await this.repo.getCompany(order.companyId);
+        if (!company) return;
+        await sendOrderStatusChanged({
+          toEmail: company.email,
+          companyName: company.companyName,
+          vfCode: order.vfCode || `#${id}`,
+          status,
+          adminNote,
+        });
+      } catch (error) {
+        console.error("[EMAIL] Erro ao enviar email de status:", error);
+      }
+    });
   }
 
   // ╔══════════════════════════════════════════════════════════════════╗
@@ -1304,7 +1335,7 @@ export class OrdersService {
    * ─── Safety contract (4 phases) ────────────────────────────────────────
    *
    * PHASE 1 — Pre-flight reads (no DB writes yet)
-   *   Load order, acting user, company, AR. Fail fast with 4xx before
+   *   Load order, acting user, and company. Fail fast with 4xx before
    *   opening any transaction slot.
    *
    * PHASE 2 — Validation (pure, synchronous after reads)
@@ -1312,13 +1343,14 @@ export class OrdersService {
    *   b. State guard: `assertTransitionAllowed` rejects illegal arcs.
    *   c. RBAC: `assertTransitionRole` rejects under-privileged callers.
    *   d. Business rules: `validateBusinessRules` checks domain invariants
-    *      (customer active/not-locked, no overdue AR; fiscal documents do not
-    *       gate operational shipping).
+    *      (customer active/not-locked; fiscal documents do not gate
+    *       operational shipping).
    *
    * PHASE 3 — Atomic transaction (critical — all-or-nothing)
    *   Calls `executeWorkflowTransaction` which runs inside a single pg BEGIN.
-   *   Writes: workflowStatus + status (legacy sync) + per-transition critical
-    *   ops (inventory deduction, AR creation on approval, delivery status update).
+   *   Writes: workflowStatus + legacy status, initial delivery on approval,
+   *   delivery status updates and the workflow outbox. Orders do not write
+   *   inventory movements or accounts receivable.
    *   Any error causes automatic ROLLBACK — no partial state ever persists.
    *
    * PHASE 4 — Non-critical side effects (fire-and-forget)
@@ -1336,9 +1368,8 @@ export class OrdersService {
    *     In the unlikely event of a crash between COMMIT and log write, the
    *     transition will have occurred but without a log entry. Acceptable
    *     trade-off vs. making the log a blocking critical dependency.
-   *   - Inventory deduction is idempotent only if the workflow state machine
-   *     is respected (APPROVED can only be entered once). The transition guard
-   *     enforces this.
+   *   - The approval transition ensures its initial delivery under a shared
+   *     PostgreSQL advisory lock; later split deliveries remain independent.
    */
   async transition(
     id: number,
@@ -1361,12 +1392,7 @@ export class OrdersService {
     const orderRow: any = orderData.order;
     const from: string  = (orderRow.workflowStatus as string) || OrderStatus.CREATED;
 
-    const [company, arByCompany, allProducts, companyConfig] = await Promise.all([
-      this.repo.getCompany(orderRow.companyId),
-      this.repo.getAccountsReceivableByCompanyId(orderRow.companyId),
-      this.repo.getProducts(),
-      this.repo.getCompanyConfig(),
-    ]);
+    const company = await this.repo.getCompany(orderRow.companyId);
 
     // ── Phase 2: Validation (pure — all reads are done, no writes yet) ───────
     assertTransitionAllowed(from, to);
@@ -1396,17 +1422,7 @@ export class OrdersService {
       }
     }
 
-    validateBusinessRules({ orderId: id, to, company, orderRow, arByCompany });
-
-    // Enrich items with productName before entering the transaction so the tx
-    // body only needs to do writes — no products table lookup under lock.
-    const productMap    = new Map(allProducts.map((p: any) => [p.id, p]));
-    const enrichedItems = (orderData.items as any[]).map((item) => ({
-      ...item,
-      productName:
-        (productMap.get(item.productId) as any)?.name ||
-        `Produto #${item.productId}`,
-    }));
+    validateBusinessRules({ orderId: id, to, company, orderRow });
 
     // ── Phase 3: Atomic transaction — ALL critical writes ─────────────────────
     //
@@ -1420,8 +1436,7 @@ export class OrdersService {
       expectedWorkflowStatus: from,           // optimistic-lock token
       currentLegacyStatus:    orderRow.status,
       orderSnapshot:          orderRow,
-      itemsSnapshot:          enrichedItems,
-      companyConfig,
+      companySnapshot:        company,
       actor: {
         id:    user.id,
         email: user.email,
@@ -1438,8 +1453,7 @@ export class OrdersService {
 
     const details: Record<string, unknown> = {};
     if (txResult.preNotaNumber)          details.preNotaNumber          = txResult.preNotaNumber;
-    if (txResult.inventoryLinesDeducted) details.inventoryLinesDeducted = txResult.inventoryLinesDeducted;
-    if (txResult.arCreated)              details.arCreated              = true;
+    if (txResult.deliveryCreated)         details.deliveryCreated         = true;
     if (txResult.deliveryUpdated)        details.deliveryUpdated        = true;
 
     return {
@@ -1450,130 +1464,50 @@ export class OrdersService {
     };
   }
 
-  private async afterStatusChange(
-    id: number,
-    status: string,
-    adminNote?: string,
-  ) {
-    try {
-      const orderData = await this.repo.get(id);
-      if (!orderData) return;
-      const oa: any = orderData.order;
-      const company = await this.repo.getCompany(oa.companyId);
-      if (company) {
-        await sendOrderStatusChanged({
-          toEmail: company.email,
-          companyName: company.companyName,
-          vfCode: oa.vfCode || `#${id}`,
-          status,
-          adminNote,
+  /** Retry durable customer confirmations from the internal outbox worker. */
+  async retryPendingCustomerConfirmations(
+    limit = 25,
+  ): Promise<{ scanned: number; released: number; skipped: number; failed: number }> {
+    return retryCustomerConfirmations({
+      list: (batchLimit) => this.repo.listCustomerConfirmedForRetry(batchLimit),
+      getCompany: (companyId) => this.repo.getCompany(companyId),
+      release: async (orderRow, company) => {
+        const from = OrderStatus.CUSTOMER_CONFIRMED;
+        assertTransitionAllowed(from, OrderStatus.APPROVED);
+        validateBusinessRules({
+          orderId: orderRow.id,
+          to: OrderStatus.APPROVED,
+          company,
+          orderRow,
         });
-      }
-      const companyName = company?.companyName || `Empresa #${oa.companyId}`;
-      if (status === "CANCELLED") {
-        fireNotification(
-          "order_cancelled",
-          { code: oa.vfCode || `#${id}`, company: companyName },
-          { url: `/admin/orders`, companyId: oa.companyId },
-        );
-      } else {
-        const statusLabel: Record<string, string> = {
-          CONFIRMED: "Confirmado",
-          DELIVERED: "Entregue",
-          CANCELLED: "Cancelado",
-        };
-        fireNotification(
-          "order_updated",
-          {
-            code: oa.vfCode || `#${id}`,
-            company: companyName,
-            status: statusLabel[status] || status,
+
+        // This trusted internal continuation is only reached for a persisted
+        // CUSTOMER_CONFIRMED row. The transaction still rechecks state under
+        // the distributed lock and applies the normal business validations.
+        await this.repo.executeTransition({
+          orderId: orderRow.id,
+          to: OrderStatus.APPROVED,
+          from,
+          expectedWorkflowStatus: from,
+          currentLegacyStatus: orderRow.status,
+          orderSnapshot: orderRow,
+          companySnapshot: company,
+          actor: {
+            id: 0,
+            email: "system:customer-confirmation-retry",
+            role: "SYSTEM",
+            name: "Recuperação automática",
           },
-          { url: `/admin/orders`, companyId: oa.companyId },
+        });
+      },
+      onFailure: (orderId, error: any) => {
+        logSecurity(
+          `[ORDER_CONFIRMATION_RETRY_FAILED] orderId=${orderId} | code=${error?.code ?? "unknown"} | status=${error?.status ?? "unknown"}`,
         );
-      }
-    } catch (emailErr) {
-      console.error("[EMAIL] Erro ao enviar email de status:", emailErr);
-    }
+      },
+    }, limit);
   }
 
-  private async deductInventoryOnConfirm(id: number) {
-    const orderData = await this.repo.get(id);
-    if (!orderData) return;
-    const allProducts = await this.repo.getProducts();
-    const productMap = new Map(allProducts.map((p: any) => [p.id, p]));
-    const today = new Date().toISOString().split("T")[0];
-    for (const item of orderData.items as any[]) {
-      const product: any = productMap.get(item.productId);
-      const productName = product?.name || `Produto #${item.productId}`;
-      const setting =
-        (await this.repo.getInventorySettingByProductId(item.productId)) ||
-        (await this.repo.getInventorySettingByProductName(productName));
-      if (!setting) continue;
-      const prev = parseFloat((setting as any).currentStock || "0");
-      const qty = parseFloat(String(item.quantity || 0));
-      const newStock = Math.max(0, prev - qty);
-      await this.repo.upsertInventorySetting({
-        ...setting,
-        currentStock: String(newStock),
-      });
-      await this.repo.createInventoryMovement({
-        productId: item.productId || null,
-        productName,
-        movementType: "EXIT",
-        quantity: String(qty),
-        balanceAfter: String(newStock),
-        unit: (setting as any).unit,
-        referenceType: "order",
-        referenceId: id,
-        notes: `Pedido confirmado: ${(orderData.order as any).orderCode || `#${id}`}`,
-        date: today,
-        createdBy: "Sistema",
-      });
-    }
-  }
-
-  private async seedAccountReceivableOnConfirm(id: number) {
-    const existing = await this.repo.getAccountReceivableByOrderId(id);
-    if (existing) return;
-    const orderData = await this.repo.get(id);
-    if (!orderData) return;
-    const oa: any = orderData.order;
-    const total = (orderData.items as any[]).reduce(
-      (sum, item) => sum + parseFloat(item.totalPrice || "0"),
-      0,
-    );
-    if (total <= 0) return;
-    const today = new Date();
-    const due = new Date(today);
-    due.setDate(due.getDate() + 30);
-    const toDate = (d: Date) => d.toISOString().split("T")[0];
-    const config: any = await this.repo.getCompanyConfig();
-    const pixPayload = config?.cnpj
-      ? buildPixPayload(config.cnpj, total, config.companyName, config.city)
-      : undefined;
-    await this.repo.createAccountReceivable({
-      companyId: oa.companyId,
-      orderId: id,
-      descricao: `Pedido ${oa.orderCode || oa.vfCode || `#${id}`}`,
-      valor: total.toFixed(2),
-      dataEmissao: toDate(today),
-      dataVencimento: toDate(due),
-      status: "pendente",
-      formaPagamento: "pix",
-      pixPayload,
-    });
-    // FASE FIN.1 — Log de confirmação (aditivo, sem alteração de fluxo).
-    // Marca explicitamente que este AR foi gerado pela automação ligada ao
-    // status === "CONFIRMED" do pedido. Útil para auditoria + observabilidade.
-    console.log("[FIN.1] AR auto-gerado via pedido", {
-      orderId: id,
-      companyId: oa.companyId,
-      source: "CONFIRMED",
-    });
-  }
-
-  // ╔══════════════════════════════════════════════════════════════════╗
   // ║ DELETE                                                           ║
   // ╚══════════════════════════════════════════════════════════════════╝
 

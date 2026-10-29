@@ -270,7 +270,7 @@ function complete(
 }
 
 describe("conclusão transacional de entregas", () => {
-  test("a finalização aceita somente entregas entregues ou canceladas", () => {
+  test("entrega cancelada é terminal em logística, mas não conta para concluir o pedido", () => {
     assert.equal(areOrderDeliveriesTerminal([]), false);
     assert.equal(areOrderDeliveriesTerminal([{ status: "entregue" }]), true);
     assert.equal(

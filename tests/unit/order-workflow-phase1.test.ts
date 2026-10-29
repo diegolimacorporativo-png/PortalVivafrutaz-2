@@ -73,16 +73,14 @@ test("Fase 1 — aprovação continua bloqueando empresa inválida", () => {
   );
 });
 
-test("Fase 1 — aprovação continua bloqueando cobrança vencida", () => {
-  assert.throws(
+test("Fase 1 — aprovação operacional não depende de lançamentos financeiros", () => {
+  assert.doesNotThrow(
     () =>
       validateBusinessRules({
         orderId: 1,
         to: OrderStatus.APPROVED,
         company: activeCompany,
         orderRow: {},
-        arByCompany: [{ status: "vencido" }],
       }),
-    /cobranças vencidas/,
   );
 });

@@ -47,6 +47,7 @@ export const STATUS_LABEL: Record<string, string> = {
 };
 
 export const WF_BADGE: Record<string, string> = {
+  CUSTOMER_CONFIRMED: "bg-amber-50 text-amber-800 border-amber-200",
   APPROVED:   "bg-blue-50 text-blue-700 border-blue-200",
   PROCESSING: "bg-amber-50 text-amber-700 border-amber-200",
   READY:      "bg-violet-50 text-violet-700 border-violet-200",
@@ -58,6 +59,7 @@ export const WF_BADGE: Record<string, string> = {
 export const WF_LABEL: Record<string, string> = {
   CREATED:          "Criado",
   PENDING_APPROVAL: "Aguardando Aprovação",
+  CUSTOMER_CONFIRMED: "Confirmado pelo cliente — aguardando liberação",
   APPROVED:         "Aprovado",
   PROCESSING:       "Em Separação",
   READY:            "Pedido Pronto",

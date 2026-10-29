@@ -168,8 +168,9 @@ export function areOrderDeliveriesDelivered(
 }
 
 /**
- * Completes or cancels a delivery atomically. An order is finalized only after
- * every linked delivery is either delivered or cancelled.
+ * Completes or cancels a delivery atomically. An order transitions to
+ * DELIVERED only when every linked delivery is actually delivered; cancelled
+ * deliveries are terminal for logistics but never count as completed delivery.
  */
 export async function completeDelivery(
   store: DeliveryCompletionStore,

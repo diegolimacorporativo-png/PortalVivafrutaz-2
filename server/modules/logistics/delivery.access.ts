@@ -95,6 +95,33 @@ export function sanitizeDeliveryCreateBody(
   return safe;
 }
 
+export type DeliveryOrderLinkCheck =
+  | { valid: true; orderId: number | null }
+  | { valid: false; status: 400 | 404; message: string };
+
+/** Validate an optional order link without restricting additional deliveries. */
+export async function validateDeliveryOrderLink(
+  value: unknown,
+  authorizedCompanyId: number,
+  findOrder: (orderId: number) => Promise<{ companyId?: number | null } | null | undefined>,
+): Promise<DeliveryOrderLinkCheck> {
+  if (value == null || value === "") return { valid: true, orderId: null };
+
+  const orderId = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+    return { valid: false, status: 400, message: "Pedido vinculado inválido" };
+  }
+
+  const order = await findOrder(orderId);
+  // Use the same response for missing and cross-company IDs to avoid disclosing
+  // whether another tenant's order exists.
+  if (!order || Number(order.companyId) !== authorizedCompanyId) {
+    return { valid: false, status: 404, message: "Pedido não encontrado para a empresa selecionada" };
+  }
+
+  return { valid: true, orderId };
+}
+
 export function sanitizeDeliveryUpdateBody(
   body: unknown,
 ): Record<string, unknown> {

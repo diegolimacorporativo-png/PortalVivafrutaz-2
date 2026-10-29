@@ -1,9 +1,19 @@
 import { z } from "zod";
 
+export const PRODUCTION_INCLUDE_STATUSES = [
+  "CREATED",
+  "PENDING_APPROVAL",
+  "APPROVED",
+  "PROCESSING",
+  "READY",
+  "INVOICED",
+  "SHIPPED",
+] as const;
+
 export const generateBatchBodySchema = z.object({
   productionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
   includeStatuses: z
-    .array(z.string())
+    .array(z.enum(PRODUCTION_INCLUDE_STATUSES))
     .optional()
     .default(["CREATED", "PENDING_APPROVAL", "APPROVED", "INVOICED", "SHIPPED"]),
 });
