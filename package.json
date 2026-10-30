@@ -19,6 +19,7 @@
     "test:unit": "tsx --test tests/unit/*.test.ts",
     "test:unit:order-finalization": "tsx --test tests/unit/delivery-completion.transaction.test.ts tests/unit/isolated-preview-guard.test.ts",
     "test:integration:isolated": "tsx --test tests/integration/order-finalization.api.test.ts",
+    "ops:startup": "tsx scripts/startup-maintenance.ts",
     "test:watch": "tsx --test --watch tests/unit/*.test.ts",
     "test:e2e": "playwright test tests/e2e/clara-erp.spec.ts",
     "test:e2e:debug": "playwright test --debug tests/e2e/clara-erp.spec.ts",

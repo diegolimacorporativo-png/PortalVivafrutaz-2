@@ -317,7 +317,9 @@ export class AuthController {
       return;
     }
 
-    res.json({ ok: true, message: "Senha alterada com sucesso." });
+    req.session.destroy(() => {
+      res.json({ ok: true, message: "Senha alterada com sucesso. Faça login novamente." });
+    });
   };
 
   // ── POST /api/auth/revoke-sessions (FASE 14.6) ────────────────────────

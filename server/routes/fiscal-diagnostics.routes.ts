@@ -637,7 +637,7 @@ export function register(app: Express): void {
   app.get(
     "/api/admin/fiscal/diagnostics",
     requireAuth,
-    requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "FINANCEIRO"]),
+    requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]),
     async (_req, res) => {
       try {
         const diagnostics = await buildDiagnostics();

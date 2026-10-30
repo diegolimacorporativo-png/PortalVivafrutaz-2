@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, Truck, Leaf } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
-import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, GLOBAL_USER_MANAGEMENT_ROLES, TENANT_ASSIGNABLE_USER_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, canAssignInternalUserRole, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, GLOBAL_USER_MANAGEMENT_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 type ActionModule = (typeof ACTION_PERMISSION_MODULES)[number];
 type ActionType = (typeof ACTION_PERMISSION_ACTIONS)[number];
@@ -74,7 +74,7 @@ const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
   { key: 'driver-panel', label: 'Painel do Motorista', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA'] },
   { key: 'gps-tracking', label: 'GPS em Tempo Real', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'MANAGER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'SISTEMA_TESTE', 'GESTOR_CONTRATOS'] },
   { key: 'quotations', label: 'Cotação de Empresas', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'COMERCIAL', 'LOGISTICS', 'FINANCEIRO', 'MASTER_COMERCIAL'] },
-  { key: 'users', label: 'Usuários do Sistema', roles: ['ADMIN', 'DIRECTOR'] },
+  { key: 'users', label: 'Usuários do Sistema', roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'email-management', label: 'Central de E-mails', roles: ['MANAGER', 'OPERATIONS_MANAGER'] },
   { key: 'backups', label: 'Backup & E-mails', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
   { key: 'developer', label: 'Área do Desenvolvedor', roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'] },
@@ -130,7 +130,7 @@ const ALL_TABS: { key: string; label: string; roles: string[] }[] = [
 
 const ROLES = [
   { value: "MASTER", label: "Master", desc: "Administrador global; mesmas permissões do Diretor", icon: Shield, color: "text-purple-700 bg-purple-100" },
-  { value: "ADMIN", label: "Administrador", desc: "Administra usuários operacionais da própria empresa", icon: Shield, color: "text-red-600 bg-red-100" },
+  { value: "ADMIN", label: "Administrador", desc: "Gerencia contas internas e acessos administrativos autorizados", icon: Shield, color: "text-red-600 bg-red-100" },
   { value: "DIRECTOR", label: "Diretor", desc: "Administrador global; mesmas permissões do Master", icon: Crown, color: "text-yellow-700 bg-yellow-100" },
   { value: "OPERATIONS_MANAGER", label: "Gerente de Operações", desc: "Janelas de pedido e pedidos", icon: ShieldCheck, color: "text-blue-600 bg-blue-100" },
   { value: "PURCHASE_MANAGER", label: "Gerente de Compras", desc: "Compras e relatórios", icon: DollarSign, color: "text-green-600 bg-green-100" },
@@ -167,46 +167,40 @@ export default function UsersAdminPage() {
   const queryClient = useQueryClient();
   const [modal, setModal] = useState<{ open: boolean; editing: AdminUser | null }>({ open: false, editing: null });
   const [form, setForm] = useState(blank);
-  const [newUserTargetTenant, setNewUserTargetTenant] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<AdminUser | null>(null);
   const [pwdModal, setPwdModal] = useState<AdminUser | null>(null);
   const [pwdConfirm, setPwdConfirm] = useState<{ user: AdminUser; newPwd: string } | null>(null);
   const [newPwd, setNewPwd] = useState("");
 
   const canManageUsers = me && USER_MANAGEMENT_ROLES.some((role) => role === me.role);
-  // Only an unbound system-user manager may choose a tenant. Bound accounts
-  // remain pinned to their server-resolved company even when their role is privileged.
-  const isGlobalAdmin = isGlobalUserManagerRole(me?.role) && (me as any)?.empresaId == null;
+  // User identity management is global for authorized system managers; the
+  // selected work company is applied only to operational requests.
+  const isGlobalAdmin = isGlobalUserManagerRole(me?.role);
   const formHasFullSystemAccess = (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(form.role);
-  const { data: companies = [], isLoading: loadingCompanies } = useQuery<CompanyOption[]>({
+  const { data: companies = [] } = useQuery<CompanyOption[]>({
     queryKey: ["/api/companies"],
     select: normalizeList,
     enabled: Boolean(isGlobalAdmin),
   });
-  const selectableCompanies = companies.filter((company) => company.active !== false);
   const companyNameById = new Map(companies.map((company) => [company.id, company.companyName || company.name || `Empresa #${company.id}`]));
-  const createTargetEmpresaId = /^\d+$/.test(newUserTargetTenant) ? Number(newUserTargetTenant) : null;
   const targetIsGlobalProfile = !!modal.editing && modal.editing.empresaId == null && (GLOBAL_SCOPE_ROLES as readonly string[]).includes(modal.editing.role);
   const isRoleAvailable = (role: (typeof ROLES)[number]) => {
-    const isGlobalProfile = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value);
-    const isInternalStaff = ["COMERCIAL", "LOGISTICS", "FINANCEIRO"].includes(role.value);
+    if (!canAssignInternalUserRole(me?.role, role.value)) return false;
     if (targetIsGlobalProfile) {
       if (modal.editing && (me as any)?.id !== modal.editing.id) return role.value === modal.editing.role;
-      return isGlobalProfile;
+      return (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value);
     }
-    // An unbound internal account is the default. Only profiles already
-    // authorized by the server for an unbound scope are offered without a
-    // selected company; selecting a company remains an explicit data-scope
-    // choice for profiles whose existing tenant policy requires one.
-    if (!modal.editing && isGlobalAdmin && createTargetEmpresaId == null) {
-      return isGlobalProfile || isInternalStaff;
+    if (isGlobalAdmin) {
+      // A company is an operational context, never a prerequisite for the
+      // internal identity. Global user managers see all server-supported
+      // profiles; the backend still validates which ones they may assign.
+      if (modal.editing?.empresaId != null && (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value)) {
+        return (GLOBAL_SCOPE_ROLES as readonly string[]).includes(modal.editing.role);
+      }
+      return true;
     }
-    if (role.value === "ADMIN") {
-      return (isGlobalAdmin && (createTargetEmpresaId != null || modal.editing?.role === "ADMIN")) ||
-        modal.editing?.role === role.value;
-    }
-    return TENANT_ASSIGNABLE_USER_ROLES.some((allowed) => allowed === role.value) ||
-      modal.editing?.role === role.value;
+    if ((GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value)) return modal.editing?.role === role.value;
+    return modal.editing?.role === role.value || canAssignInternalUserRole(me?.role, role.value);
   };
   const availableRoles = ROLES.filter(isRoleAvailable);
 
@@ -223,9 +217,6 @@ export default function UsersAdminPage() {
       const isEdit = !!modal.editing;
       const url = isEdit ? `/api/users/${modal.editing?.id}` : '/api/users';
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (!isEdit && isGlobalAdmin && createTargetEmpresaId != null) {
-        headers['X-Empresa-Id'] = String(createTargetEmpresaId);
-      }
       const res = await fetchWithAuth(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers,
@@ -243,7 +234,6 @@ export default function UsersAdminPage() {
       toast({ title: modal.editing ? "Usuário atualizado!" : "Usuário criado!" });
       setModal({ open: false, editing: null });
       setForm(blank);
-      setNewUserTargetTenant("");
     },
     onError: (e: any) => toast({ title: e.message || "Erro ao salvar", variant: "destructive" }),
   });
@@ -290,7 +280,6 @@ export default function UsersAdminPage() {
   const openCreate = () => {
     // This page creates internal system accounts; start at that explicit scope.
     // The empty role forces an intentional profile choice before submission.
-    setNewUserTargetTenant("");
     setForm({ ...blank, role: isGlobalAdmin ? "" : "OPERATIONS_MANAGER" });
     setModal({ open: true, editing: null });
   };
@@ -479,39 +468,9 @@ export default function UsersAdminPage() {
       <Modal isOpen={modal.open} onClose={() => setModal({ open: false, editing: null })}
         title={modal.editing ? `Editar Usuário — ${modal.editing.name}` : "Novo Usuário"} maxWidth="max-w-2xl">
         <div className="space-y-4 overflow-y-auto max-h-[80vh] pr-1">
-          {!modal.editing && isGlobalAdmin && (
-            <div>
-              <label className="block text-sm font-semibold mb-1.5">Escopo inicial de dados (opcional)</label>
-              <select
-                value={newUserTargetTenant}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setNewUserTargetTenant(value);
-                  setForm((current) => ({
-                    ...current,
-                    role: value === ""
-                      ? (isGlobalUserManagerRole(current.role) ? current.role : "")
-                      : isGlobalUserManagerRole(current.role) ? "" : current.role,
-                  }));
-                }}
-                data-testid="select-user-target-tenant"
-                className="w-full px-4 py-2.5 rounded-xl border-2 border-border bg-background focus:border-primary outline-none"
-              >
-                <option value="">Conta interna — sem empresa cliente vinculada</option>
-                {selectableCompanies.map((company) => (
-                  <option key={company.id} value={String(company.id)}>
-                    {company.companyName || company.name || `Empresa #${company.id}`}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground mt-1.5">
-                Todos os registros desta tela são usuários internos. A empresa não define módulos nem permissões. Deixe “Conta interna” para criar sem vínculo com cliente nos perfis autorizados pelo servidor; selecione uma empresa somente para os perfis cuja política atual exige um escopo de dados vinculado.
-              </p>
-              {!loadingCompanies && selectableCompanies.length === 0 && (
-                <p className="text-xs text-amber-700 mt-1" role="status">Não foi possível carregar empresas ativas para definir um escopo de dados.</p>
-              )}
-            </div>
-          )}
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-900" role="status">
+            Usuários desta tela são funcionários internos e não precisam de vínculo permanente com uma empresa cliente. O perfil e as permissões definem o que podem fazer; selecione a empresa de trabalho no menu quando uma operação precisar de contexto empresarial.
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-semibold mb-1.5">Nome completo *</label>
@@ -538,26 +497,14 @@ export default function UsersAdminPage() {
               Perfil de Acesso <span className="text-red-500">*</span>
             </label>
             <p className="text-xs text-muted-foreground mb-2">
-                Selecione o perfil interno. O perfil e as permissões definem os módulos permitidos; a empresa, quando exigida pelo servidor, limita somente o escopo dos dados. Para contas de motorista, escolha <strong>Motorista</strong> para habilitar o painel e o compartilhamento do GPS.
-            </p>
-            {!modal.editing && isGlobalAdmin && !newUserTargetTenant && (
-                <p className="text-xs text-amber-700 mb-2" role="status">Sem empresa vinculada, ficam disponíveis os perfis globais e os funcionários internos Comercial, Logística e Financeiro, conforme a política do servidor. Os demais perfis exigem um escopo de dados selecionado.</p>
-            )}
-            <p className="text-xs text-muted-foreground mb-2" role="status">
-              {modal.editing
-                ? "Os perfis aparecem conforme a conta e o escopo já atribuídos."
-                : isGlobalAdmin && !newUserTargetTenant
-                  ? "Conta interna sem empresa cliente; escolha um perfil autorizado para esse escopo."
-                : !newUserTargetTenant
-                    ? "Conta interna sem empresa cliente vinculada."
-                    : "Conta interna com escopo de dados limitado à empresa selecionada."}
+                Selecione o perfil interno. O perfil e as permissões definem os módulos e as ações autorizadas. Para contas de motorista, escolha <strong>Motorista</strong> para habilitar o painel e o compartilhamento do GPS.
             </p>
             <div className="grid grid-cols-2 gap-2">
               {ROLES.map(r => {
                 const Icon = r.icon;
                 const roleAvailable = isRoleAvailable(r);
                 return (
-                  <button key={r.value} type="button" disabled={!roleAvailable} title={!roleAvailable ? "Perfil indisponível para este escopo ou para sua autorização." : undefined}
+                  <button key={r.value} type="button" disabled={!roleAvailable} title={!roleAvailable ? "Perfil indisponível para sua autorização." : undefined}
                     onClick={() => setForm({ ...form, role: r.value, tabPermissions: form.tabPermissions ? roleTabsForRole(r.value).map(t => t.key) : null })}
                     aria-pressed={form.role === r.value}
                     data-testid={`role-option-${r.value}`}
@@ -574,7 +521,7 @@ export default function UsersAdminPage() {
                 );
               })}
             </div>
-            {availableRoles.length === 0 && <p className="text-xs text-amber-700 mt-2" role="status">Nenhum perfil pode ser selecionado neste escopo. Verifique a empresa escolhida ou as permissões da sua conta.</p>}
+            {availableRoles.length === 0 && <p className="text-xs text-amber-700 mt-2" role="status">Nenhum perfil está autorizado para sua conta. Verifique as permissões de gestão de usuários.</p>}
             {isDriverRole(form.role) && (
               <div className="mt-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 text-xs text-teal-800">
                 <strong>Configuração de motorista obrigatória:</strong> o GPS será vinculado a esta conta quando o motorista abrir o Painel do Motorista e permitir a localização.
@@ -718,7 +665,7 @@ export default function UsersAdminPage() {
             }
             const selectedRole = ROLES.find((role) => role.value === form.role);
             if (!selectedRole || !isRoleAvailable(selectedRole)) {
-              toast({ title: "Escolha um perfil disponível para o escopo selecionado.", variant: "destructive" }); return;
+              toast({ title: "Escolha um perfil interno autorizado para sua conta.", variant: "destructive" }); return;
             }
             if (!modal.editing && form.password.trim().length < 12) {
               toast({ title: "A senha deve ter pelo menos 12 caracteres.", variant: "destructive" }); return;

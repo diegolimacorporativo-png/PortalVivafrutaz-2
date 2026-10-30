@@ -12,7 +12,10 @@ import { alertReadinessFail } from "../core/alerts/operational-alerts.service";
 import {
   assertIsolatedPreviewDatabaseIdentity,
   getRuntimeUploadsDirectory,
+  isRemoteHomologationMode,
   isIsolatedPreviewMode,
+  validateRemoteHomologationConfig,
+  verifyRemoteHomologationDatabaseIdentity,
 } from "../core/runtimeMode";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -230,6 +233,30 @@ export async function register(app: Express): Promise<void> {
   // Public health check. In isolated preview mode, expose only a boolean proof
   // that this server's own pool is attached to the marked disposable database.
   app.get('/api/health', async (_req, res) => {
+    if (isRemoteHomologationMode()) {
+      try {
+        const identity = await verifyRemoteHomologationDatabaseIdentity(
+          (text) => pool.query(text),
+          validateRemoteHomologationConfig(),
+        );
+        return res.status(200).json({
+          status: "ok",
+          isolatedRemoteHomologation: true,
+          databaseIdentityVerified: true,
+          projectRef: identity.projectRef,
+          environment: identity.environment,
+          database: identity.database,
+          schema: identity.schema,
+          markerId: identity.markerId,
+        });
+      } catch {
+        return res.status(503).json({
+          status: "unverified",
+          isolatedRemoteHomologation: true,
+          databaseIdentityVerified: false,
+        });
+      }
+    }
     if (!isIsolatedPreviewMode()) {
       return res.status(200).json({ status: "ok", isolatedPreview: false });
     }

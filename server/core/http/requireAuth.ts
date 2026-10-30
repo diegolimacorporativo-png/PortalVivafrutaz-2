@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { UnauthorizedError, ForbiddenError } from "../../shared/errors/AppError";
 import { storage } from "../../services/storage";
-import { FULL_SYSTEM_ACCESS_ROLES, GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
+import { FULL_SYSTEM_ACCESS_ROLES } from "@shared/user-roles";
 
 /**
  * Auth middleware — replaces the inline `if (!req.session?.userId)` checks
@@ -45,8 +45,8 @@ export function requireSession(req: Request, _res: Response, next: NextFunction)
  * Company-portal sessions (no userId) cannot satisfy any role check.
  *
  * opts.strict — when true, disables the FULL_ACCESS_ROLES bypass and checks
- * exclusively against the `allowed` list. Use on cross-tenant endpoints where
- * ADMIN/DIRECTOR must be explicitly excluded (e.g. executive-dashboard).
+ * exclusively against the `allowed` list. A legacy companyId does not change
+ * the identity or role of an authenticated internal user.
  * FASE MT-3A (C3): added strict mode to close the FULL_ACCESS_ROLES bypass.
  */
 export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
@@ -64,23 +64,11 @@ export function requireRole(allowed: string[], opts?: { strict?: boolean }) {
         /* fall through — treated as missing role */
       }
     }
-    // Full-system profiles retain broad access unless an endpoint opts into
-    // strict role matching. Strict global roles are still validated against
-    // the server-side account and must have no tenant association.
-    let isGlobalAdminAccount = true;
-    if (opts?.strict && role && GLOBAL_ADMIN_ROLES.some((globalRole) => globalRole === role)) {
-      try {
-        const currentUser = session?.userId ? await storage.getUser(session.userId) : undefined;
-        // These profiles are global only when the account itself has no
-        // empresaId. Tenant selection for an eligible global account remains
-        // request-scoped; tenant-bound copies of the same role fail closed.
-        isGlobalAdminAccount = !!currentUser && currentUser.role === role && currentUser.empresaId == null;
-      } catch {
-        isGlobalAdminAccount = false;
-      }
-    }
+    // In strict mode the allowlist is the complete policy. Internal identity
+    // is established by userId and the role lookup above; a legacy companyId
+    // must not silently revoke role-authorized access.
     const passes = opts?.strict
-      ? (!!role && allowed.includes(role) && isGlobalAdminAccount)
+      ? (!!role && allowed.includes(role))
       : (!!role && ((FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role) || allowed.includes(role)));
     if (!passes) {
       return next(new ForbiddenError("Sem permissão para esta operação"));

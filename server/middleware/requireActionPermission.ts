@@ -3,7 +3,6 @@ import { storage } from "../services/storage";
 import { ForbiddenError, UnauthorizedError } from "../shared/errors/AppError";
 import {
   actionPermissionAllows,
-  roleCanViewGps,
   type ActionPermissionAction,
   type ActionPermissionModule,
 } from "@shared/user-roles";
@@ -13,15 +12,12 @@ function actionForRequest(
   path: string,
   module: ActionPermissionModule,
 ): ActionPermissionAction | null {
-  // GPS ingestion is telemetry from the authenticated driver's own device,
-  // not a user-created logistics record. The route itself still enforces
-  // login, an allowed role, and ownership of the driver's operational link.
   const normalizedPath = path.split("?", 1)[0].replace(/\/+$/, "") || "/";
   if (
     module === "logistics"
     && method.toUpperCase() === "POST"
     && normalizedPath === "/api/driver/gps"
-  ) return null;
+  ) return "create";
 
   switch (method.toUpperCase()) {
     case "GET":
@@ -61,12 +57,7 @@ export function requireActionPermission(module: ActionPermissionModule) {
     try {
       const user = await storage.getUser(session.userId);
       if (!user || user.active === false) return next(new UnauthorizedError());
-      const requestPath = (req.originalUrl || req.path || "").split("?", 1)[0].replace(/\/+$/, "");
-      const isAuthorizedGpsMonitor = roleCanViewGps(user.role);
-      const isLogisticsGpsRead = isAuthorizedGpsMonitor && module === "logistics" && action === "read" && (
-        requestPath === "/api/logistics/drivers/gps" || /^\/api\/driver\/\d+\/gps$/.test(requestPath)
-      );
-      if (!isLogisticsGpsRead && !actionPermissionAllows(user.permissions, module, action, user.role)) {
+      if (!actionPermissionAllows(user.permissions, module, action, user.role)) {
         return next(new ForbiddenError("Ação não autorizada para este usuário"));
       }
       return next();

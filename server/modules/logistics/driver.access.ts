@@ -103,6 +103,21 @@ export function canAccessDriverRecord(
     || ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(actor.role ?? "");
 }
 
+/** Global data visibility alone is not permission to submit telemetry for another driver. */
+export function canSubmitGpsOnBehalf(
+  actor: {
+    role?: string | null;
+    empresaId?: number | null;
+  } | null | undefined,
+  driver: {
+    empresaId?: number | null;
+  } | null | undefined,
+  selectedTenantId: number | null = null,
+): boolean {
+  if (isGlobalLogisticsActor(actor)) return false;
+  return canAccessDriverRecord(actor, driver, selectedTenantId);
+}
+
 /**
  * A driver may omit driverId (the Android/PWA contract) or repeat its own
  * resolved ID, but it can never select another operational driver.

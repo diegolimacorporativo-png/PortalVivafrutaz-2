@@ -80,7 +80,7 @@ test("tenant mismatch audit keeps the strict global-role guard and response cont
   assert.deepEqual(queryCalls, [30]);
 });
 
-test("tenant-bound global-role account cannot read cross-tenant audit", async (t) => {
+test("legacy company association does not revoke MASTER access to cross-tenant audit", async (t) => {
   t.mock.method(storage, "getUser", async (id: number) => ({
     id,
     role: "MASTER",
@@ -91,7 +91,7 @@ test("tenant-bound global-role account cannot read cross-tenant audit", async (t
     makeApp({ userId: 1, userRole: "MASTER" }),
     "/api/admin/security/tenant-mismatch-events",
   );
-  assert.equal(response.status, 403);
+  assert.equal(response.status, 200);
 });
 
 test("tenant mismatch audit preserves its error envelope", async (t) => {

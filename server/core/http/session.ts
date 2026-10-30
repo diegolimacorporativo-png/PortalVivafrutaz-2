@@ -5,8 +5,8 @@
  * only) with connect-pg-simple backed by the existing PostgreSQL pool. Sessions
  * now survive restarts and are consistent across multiple instances.
  *
- * The `sessions` table is auto-created by connect-pg-simple on first boot
- * (`createTableIfMissing: true`). Schema matches the library default:
+ * The `session` table is provisioned by the explicit migration before release.
+ * Runtime schema creation is disabled so a normal application boot is read-only:
  *   CREATE TABLE "session" (
  *     "sid" varchar NOT NULL COLLATE "default",
  *     "sess" json NOT NULL,
@@ -38,7 +38,7 @@ export function createSessionMiddleware() {
     saveUninitialized: false,
     store: new PgSessionStore({
       pool,
-      createTableIfMissing: !isIsolatedPreviewMode(),
+      createTableIfMissing: false,
       // Prune expired sessions every 24h
       pruneSessionInterval: 60 * 60 * 24,
     }),

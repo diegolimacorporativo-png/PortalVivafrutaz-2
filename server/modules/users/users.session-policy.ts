@@ -1,6 +1,7 @@
 import type { InsertUser } from "./users.types";
 
 const SESSION_INVALIDATING_FIELDS: readonly (keyof InsertUser)[] = [
+  "password",
   "role",
   "active",
   "isLocked",

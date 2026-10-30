@@ -102,6 +102,13 @@ test("CC-e bloqueia perfil sem autorização fiscal antes de consultar ou transm
   assert.equal(response.status, 403);
   assert.equal(response.fiscalCalls.transmit, 0);
   assert.equal(scopedNfe.mock.calls.length, 0);
+
+  const deniedRead = await request(
+    { userId: 21, userRole: "COMERCIAL" }, "GET", "/api/nfe/1/cce", { "X-Empresa-Id": "10" },
+  );
+  assert.equal(deniedRead.status, 403, "consulta do histórico fiscal também exige perfil fiscal");
+  assert.equal(deniedRead.fiscalCalls.history, 0);
+  assert.equal(scopedNfe.mock.calls.length, 0, "perfil negado não consulta a NF-e antes do gate de perfil");
 });
 
 test("CC-e mantém escopo global explícito e bloqueia NF-e sem vínculo ou inexistente", async (t) => {

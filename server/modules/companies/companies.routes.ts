@@ -80,11 +80,11 @@ const readGate = [requireAuthOrService, tenantContext] as const;
 // implicit behavior.
 const writeGate = [requireAuth, tenantContext] as const;
 
-// Metadata-only tenant selector for verified, unbound internal accounts.
+// Metadata-only selector for internal profiles authorized to work across companies.
 router.get("/tenant-options", requireAuth, asyncHandler(async (req, res) => {
   const userId = (req as any).session?.userId;
   const user = userId ? await storage.getUser(userId) : null;
-  if (!user || user.active === false || user.empresaId != null || !(CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role)) {
+  if (!user || user.active === false || !(CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role)) {
     return res.status(403).json({ message: "Sem permissão para selecionar empresas" });
   }
   const options = await db.select({ id: companies.id, companyName: companies.companyName })

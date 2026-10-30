@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { runWithTenant } from "../../server/core/tenant/context";
 import { LogisticsService } from "../../server/modules/logistics/logistics.service";
 
 const actorA = {
@@ -7,6 +8,7 @@ const actorA = {
   role: "LOGISTICS",
   email: "a@example.test",
   empresaId: 1,
+  identityType: "internal" as const,
 };
 
 function makeTenantRepo() {
@@ -254,15 +256,27 @@ test("MASTER without a tenant preserves explicit global analytics access", async
   assert.deepEqual(result.map((item) => item.company.id), [1, 2]);
 });
 
-test("unbound ADMIN fails closed instead of receiving global analytics", async () => {
+test("unbound internal ADMIN receives the global analytics scope assigned to its profile", async () => {
   const { repo } = makeTenantRepo();
   const service = new LogisticsService(repo);
-  await assert.rejects(
-    service.smartSearch("Tenant", {
-      id: 2,
-      role: "ADMIN",
-      empresaId: null,
-    }),
-    /precisa estar vinculado/i,
+  const results = await service.smartSearch("Tenant", {
+    id: 2,
+    role: "ADMIN",
+    empresaId: null,
+    identityType: "internal",
+  });
+  assert.deepEqual(results.map((item) => item.company.id), [1, 2]);
+});
+
+test("funcionário antigo seleciona Empresa B sem usar empresaId legado como limite", async () => {
+  const { repo } = makeTenantRepo();
+  const service = new LogisticsService(repo);
+  const results = await runWithTenant(
+    {
+      principal: { kind: "admin", empresaId: 2, userId: actorA.id, role: actorA.role },
+      empresaId: 2,
+    },
+    () => service.smartSearch("Tenant", actorA),
   );
+  assert.deepEqual(results.map((item) => item.company.id), [2]);
 });

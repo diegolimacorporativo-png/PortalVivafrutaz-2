@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import { storage } from "./storage";
+import { isRemoteHomologationMode } from "../core/runtimeMode";
 
 // In-memory SMTP config cache — loaded from DB + overridden by env vars
 type SmtpCfg = {
@@ -44,6 +45,7 @@ async function isConfigured(): Promise<boolean> {
 }
 
 async function createTransporter() {
+  if (isRemoteHomologationMode()) return null;
   if (!(await isConfigured())) return null;
   const cfg = await getSmtpCfg();
   return nodemailer.createTransport({
@@ -55,6 +57,9 @@ async function createTransporter() {
 }
 
 export async function sendMail(to: string, subject: string, html: string) {
+  if (isRemoteHomologationMode()) {
+    return { sent: false, reason: "Envio externo desabilitado no runtime isolado" };
+  }
   if (!(await isConfigured())) {
     console.log(`[MAILER] Email não enviado (SMTP não configurado). Para: ${to} | Assunto: ${subject}`);
     return { sent: false, reason: "SMTP não configurado" };
@@ -243,6 +248,9 @@ export async function sendMailWithAttachment(
   html: string,
   attachment: { filename: string; filepath: string; contentType: string }
 ): Promise<{ sent: boolean; reason?: string }> {
+  if (isRemoteHomologationMode()) {
+    return { sent: false, reason: "Envio externo desabilitado no runtime isolado" };
+  }
   if (!(await isConfigured())) {
     console.log(`[MAILER] Email com anexo não enviado (SMTP não configurado). Para: ${to}`);
     return { sent: false, reason: "SMTP não configurado" };
@@ -354,6 +362,9 @@ export async function sendAdminBroadcast(opts: {
   message: string;
   senderName?: string;
 }) {
+  if (isRemoteHomologationMode()) {
+    return { sent: false, reason: "Envio externo desabilitado no runtime isolado" };
+  }
   if (!isConfigured()) {
     console.log(`[MAILER] Broadcast não enviado (SMTP não configurado).`);
     return { sent: false, reason: "SMTP não configurado" };
@@ -392,6 +403,9 @@ export async function sendNFeAutorizadaEmail(opts: {
   orderId: number;
   xmlContent: string;
 }): Promise<{ sent: boolean; reason?: string }> {
+  if (isRemoteHomologationMode()) {
+    return { sent: false, reason: "Envio externo desabilitado no runtime isolado" };
+  }
   if (!(await isConfigured())) {
     console.log(`[MAILER] Email NF-e autorizada não enviado (SMTP não configurado). Para: ${opts.toEmail}`);
     return { sent: false, reason: 'SMTP não configurado' };

@@ -2,7 +2,6 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validate } from "../../shared/middlewares/validate";
 import { usersController } from "./users.controller";
-import { checkPlanLimit } from "../billing/subscription.middleware";
 import {
   createUserSchema,
   updateUserSchema,
@@ -25,25 +24,26 @@ import { USER_MANAGEMENT_ROLES } from "@shared/user-roles";
  *   - `asyncHandler`  from `shared/utils/asyncHandler`
  *   - `validate`      from `shared/middlewares/validate`
  *
- * Tenant context and strict server-side role checks protect each operation.
+ * Tenant context and server-side role checks protect each operation. User
+ * identity administration intentionally ignores a legacy companyId: the
+ * allowlist below is the authorization boundary for this router.
  * Persisted tab restrictions are deny-only gates on the modules that opt in;
  * role/action policies and tenant scope remain independently authoritative.
  */
 const router = Router();
-// Resolve and pin the tenant before any user query. Tenant-bound accounts
-// cannot override it with body/query values; global admins may use the
-// existing explicit tenant-targeting convention.
+// Resolve the actor from the session. For authorized user managers the tenant
+// middleware deliberately uses identity-management scope, not the selected
+// operational company; customer accounts remain on their separate routes.
 router.use(tenantContext);
 
 // ── List ────────────────────────────────────────────────────────────────
-router.get("/", requireAuth, requireRole([...USER_MANAGEMENT_ROLES], { strict: true }), asyncHandler(usersController.list));
+router.get("/", requireAuth, requireRole([...USER_MANAGEMENT_ROLES]), asyncHandler(usersController.list));
 
 // ── Create ──────────────────────────────────────────────────────────────
 router.post(
   "/",
   requireAuth,
-  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
-  checkPlanLimit("usuarios"),
+  requireRole([...USER_MANAGEMENT_ROLES]),
   validate(createUserSchema, "body"),
   asyncHandler(usersController.create),
 );
@@ -52,7 +52,7 @@ router.post(
 router.put(
   "/:id",
   requireAuth,
-  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
+  requireRole([...USER_MANAGEMENT_ROLES]),
   validate(idParamSchema, "params"),
   validate(updateUserSchema, "body"),
   asyncHandler(usersController.update),
@@ -62,7 +62,7 @@ router.put(
 router.delete(
   "/:id",
   requireAuth,
-  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
+  requireRole([...USER_MANAGEMENT_ROLES]),
   validate(idParamSchema, "params"),
   asyncHandler(usersController.remove),
 );
@@ -71,7 +71,7 @@ router.delete(
 router.put(
   "/:id/password",
   requireAuth,
-  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
+  requireRole([...USER_MANAGEMENT_ROLES]),
   validate(idParamSchema, "params"),
   validate(changePasswordSchema, "body"),
   asyncHandler(usersController.changePassword),

@@ -8,6 +8,7 @@ import { ordersRepository } from "../modules/orders/orders.repository";
 import { AppError } from "../shared/errors/AppError";
 import {
   canAccessDriverRecord,
+  canSubmitGpsOnBehalf,
   driverTabForRequest,
   ensureOwnDriverId,
   isDriver,
@@ -680,7 +681,7 @@ export async function register(app: Express): Promise<void> {
           .from(driversTable)
           .where(eq(driversTable.id, driverId))
           .limit(1);
-        if (!canAccessDriverRecord(actor, targetDriver, currentTenantId()) || targetDriver.active === false) {
+        if (!canSubmitGpsOnBehalf(actor, targetDriver, currentTenantId()) || targetDriver.active === false) {
           return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }

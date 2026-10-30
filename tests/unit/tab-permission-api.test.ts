@@ -75,14 +75,14 @@ describe("permissões personalizadas de abas no backend", () => {
     } finally { lookup.mock.restore(); }
   });
 
-  test("LOGISTICS, COMERCIAL e MASTER_COMERCIAL mantêm a aba GPS apesar de listas antigas", async () => {
+  test("permissões persistidas podem restringir a aba GPS sem alterar a permissão-base do perfil", async () => {
     for (const [index, role] of ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].entries()) {
       const userId = 7 + index;
       const lookup = mock.method(storage, "getUser", async () => ({ id: userId, role, active: true, tabPermissions: ["__deny_all_tabs__"] } as any));
       try {
         let nextError: unknown;
         await requireTabPermission("gps-tracking")({ session: { userId } } as any, {} as any, (error?: unknown) => { nextError = error; });
-        assert.equal(nextError, undefined, `${role} deve manter monitoramento GPS`);
+        assert.ok(nextError, `${role} deve respeitar a restrição individual de GPS`);
       } finally { lookup.mock.restore(); }
     }
   });
@@ -102,6 +102,17 @@ describe("permissões personalizadas de abas no backend", () => {
       (error?: unknown) => { nextError = error; },
     );
     assert.equal(nextError, undefined);
+  });
+
+  test("aba GPS permite negar individualmente a telemetria mesmo para LOGISTICS", async () => {
+    mock.method(storage, "getUser", async () => ({ id: 10, role: "LOGISTICS", active: true, tabPermissions: ["logistics", "gps-tracking"] } as any));
+    let nextError: unknown;
+    await requireTabPermission((req) => driverTabForRequest(req.method, req.path))(
+      { method: "POST", path: "/gps", session: { userId: 10 } } as any,
+      {} as any,
+      (error?: unknown) => { nextError = error; },
+    );
+    assert.ok(nextError);
   });
 
   test("Inventário e Produção permitem a aba persistida e negam a aba explicitamente removida", async () => {

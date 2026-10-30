@@ -18,7 +18,7 @@ import { WhatsNewModal } from './WhatsNewModal';
 import { TrainingModeProvider, TrainingModeButton } from './TrainingMode';
 import { GlobalSearch } from './GlobalSearch';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
-import { ACTION_PERMISSION_TAB_MODULES, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
+import { ACTION_PERMISSION_TAB_MODULES, CROSS_COMPANY_STAFF_ROLES, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
 import { canPerformAction } from '@/lib/rbac';
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -99,8 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   });
 
   const staffRole = user?.role || '';
-  const crossCompanyRoles = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'COMERCIAL', 'LOGISTICS', 'FINANCEIRO'];
-  const canSelectTenant = Boolean(isStaff && user?.empresaId == null && crossCompanyRoles.includes(staffRole));
+  const canSelectTenant = Boolean(isStaff && (CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(staffRole));
   const { data: tenantOptions = [] } = useQuery<{ id: number; companyName: string }[]>({
     queryKey: ['/api/companies/tenant-options', user?.id],
     queryFn: async () => {
@@ -228,7 +227,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const userTabPerms = user?.tabPermissions as string[] | null | undefined;
-  const canUseGlobalScope = GLOBAL_SCOPE_ROLES.includes(staffRole as any);
+  const canUseGlobalScope = user?.empresaId == null && GLOBAL_SCOPE_ROLES.includes(staffRole as any);
   const isFullAccessRole = (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(staffRole);
   const links = isStaff 
     ? adminLinks.filter(l => {
@@ -328,7 +327,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
             onChange={event => void changeTenant(event.target.value)}
             className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
           >
-            <option value="">{canUseGlobalScope ? 'Visão global' : 'Todas as empresas autorizadas'}</option>
+            <option value="">
+              {canUseGlobalScope
+                ? 'Visão global'
+                : user?.empresaId != null
+                  ? 'Empresa padrão do perfil'
+                  : 'Sem empresa selecionada (quando permitido)'}
+            </option>
             {tenantOptions.map(option => <option key={option.id} value={String(option.id)}>{option.companyName}</option>)}
           </select>
         </div>

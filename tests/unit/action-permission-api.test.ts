@@ -72,15 +72,19 @@ describe("permissões personalizadas por ação", () => {
     }
   });
 
-  test("LOGISTICS, COMERCIAL e MASTER_COMERCIAL mantêm leitura do GPS apesar de overrides antigos", async () => {
+  test("permissão-base mantém leitura GPS, mas o override individual pode restringi-la", async () => {
     for (const [index, role] of ["LOGISTICS", "COMERCIAL", "FINANCEIRO", "MASTER_COMERCIAL", "PURCHASE_MANAGER"].entries()) {
       const userId = 8 + index;
       mock.method(storage, "getUser", async () => ({ id: userId, role, active: true, permissions: { actionOverridesV1: { logistics: { read: false } } } } as any));
       let nextError: unknown;
       await requireActionPermission("logistics")({ method: "GET", originalUrl: "/api/logistics/drivers/gps", session: { userId } } as any, {} as any, (error?: unknown) => { nextError = error; });
-      assert.equal(nextError, undefined, `${role} deve poder ler o GPS`);
+      assert.ok(nextError, `${role} deve respeitar a restrição individual de leitura GPS`);
       mock.restoreAll();
     }
+    mock.method(storage, "getUser", async () => ({ id: 25, role: "COMERCIAL", active: true, permissions: null } as any));
+    let baselineError: unknown;
+    await requireActionPermission("logistics")({ method: "GET", originalUrl: "/api/logistics/drivers/gps", session: { userId: 25 } } as any, {} as any, (error?: unknown) => { baselineError = error; });
+    assert.equal(baselineError, undefined, "COMERCIAL mantém a permissão-base de visualizar GPS");
   });
 
   test("perfis com acesso somente de leitura são bloqueados nas APIs de escrita", async () => {
@@ -109,18 +113,31 @@ describe("permissões personalizadas por ação", () => {
     assert.equal(nextError, undefined);
   });
 
-  test("GPS enviado pelo dispositivo do motorista não é bloqueado como criação CRUD", async () => {
+  test("envio GPS respeita a autorização de criação por ação", async () => {
     mock.method(storage, "getUser", async () => ({
       id: 11, role: "MOTORISTA", active: true,
       permissions: { actionOverridesV1: { logistics: { create: false } } },
     } as any));
-    let nextCalled = false;
+    let nextError: unknown;
     await requireActionPermission("logistics")({
       method: "POST",
       originalUrl: "/api/driver/gps",
       session: { userId: 11 },
-    } as any, {} as any, () => { nextCalled = true; });
-    assert.equal(nextCalled, true);
+    } as any, {} as any, (error?: unknown) => { nextError = error; });
+    assert.ok(nextError instanceof ForbiddenError);
+  });
+
+  test("visualização GPS do COMERCIAL não concede criação; LOGISTICS pode restringir o envio", async () => {
+    mock.method(storage, "getUser", async () => ({ id: 71, role: "COMERCIAL", active: true, permissions: null } as any));
+    let commercialError: unknown;
+    await requireActionPermission("logistics")({ method: "POST", originalUrl: "/api/driver/gps", session: { userId: 71 } } as any, {} as any, (error?: unknown) => { commercialError = error; });
+    assert.ok(commercialError instanceof ForbiddenError);
+
+    mock.restoreAll();
+    mock.method(storage, "getUser", async () => ({ id: 72, role: "LOGISTICS", active: true, permissions: { actionOverridesV1: { logistics: { create: false } } } } as any));
+    let logisticsError: unknown;
+    await requireActionPermission("logistics")({ method: "POST", originalUrl: "/api/driver/gps", session: { userId: 72 } } as any, {} as any, (error?: unknown) => { logisticsError = error; });
+    assert.ok(logisticsError instanceof ForbiddenError);
   });
 
   test("configuração namespaced malformada falha fechada para perfil sem acesso total", async () => {

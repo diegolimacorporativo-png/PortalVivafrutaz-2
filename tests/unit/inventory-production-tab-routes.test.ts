@@ -152,7 +152,7 @@ test("Produção rejeita LOGISTICS e impede que tenant ausente amplie acesso", a
   });
 });
 
-test("Produção limita usuário operacional à própria empresa e mantém seleção global explícita", async () => {
+test("Produção separa acesso ao módulo, troca operacional de empresa e isolamento dos lotes", async () => {
   mock.method(storage, "getUser", async (id: number) => ({
     id,
     role: id === 20 ? "MASTER" : "PURCHASE_MANAGER",
@@ -161,33 +161,50 @@ test("Produção limita usuário operacional à própria empresa e mantém sele�
     tabPermissions: id === 21 ? ["orders"] : ["production"],
   } as any));
   mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
-  const calls: Array<number | null> = [];
+  const listTenantCalls: Array<number | null> = [];
+  const itemWriteTenantCalls: Array<number | null> = [];
+  const companyChecks: number[] = [];
   mock.method(productionService, "list", async (empresaId: number | null) => {
-    calls.push(empresaId);
+    listTenantCalls.push(empresaId);
     return [];
   });
   mock.method(productionService, "getById", async (id: number, empresaId: number | null) => {
-    assert.equal(empresaId, 10, "a consulta por ID recebe o tenant validado pelo middleware");
-    if (id === 999) throw Object.assign(new Error("Lote não encontrado"), { status: 404 });
+    const records = new Map([[999, 10], [1000, 11]]);
+    if (records.get(id) !== empresaId) throw Object.assign(new Error("Lote não encontrado"), { status: 404 });
     return { id, empresaId } as any;
   });
-  mock.method(productionRepository, "updateItemCheck", async (itemId: number) => ({
-    id: itemId, checkedQuantity: "1",
-  } as any));
+  mock.method(storage, "getCompany", async (id: number) => {
+    companyChecks.push(id);
+    return { id, active: true } as any;
+  });
+  mock.method(productionRepository, "updateItemCheck", async (itemId: number, empresaId: number | null) => {
+    itemWriteTenantCalls.push(empresaId);
+    return { id: itemId, empresaId, checkedQuantity: "1" } as any;
+  });
 
   await withApi(async (baseUrl) => {
-    const pinnedMismatch = await fetch(`${baseUrl}/api/production/batches`, {
+    const selectedCompanyB = await fetch(`${baseUrl}/api/production/batches`, {
       headers: {
         "x-test-session": JSON.stringify({ userId: 10, userRole: "PURCHASE_MANAGER" }),
         "x-empresa-id": "11",
       },
     });
-    assert.equal(pinnedMismatch.status, 403, "empresa vinculada não pode ser substituída");
+    assert.equal(selectedCompanyB.status, 200, "vínculo antigo à Empresa A não impede selecionar Empresa B");
+    assert.equal(listTenantCalls[0], 11, "leitura passa ao serviço somente o tenant operacional validado");
+    assert.deepEqual(companyChecks, [11], "o servidor valida que a Empresa B existe e está ativa");
 
-    const otherCompanyRecord = await fetch(`${baseUrl}/api/production/batches/999`, {
+    const recordFromAWhileOnB = await fetch(`${baseUrl}/api/production/batches/999`, {
+      headers: {
+        "x-test-session": JSON.stringify({ userId: 10, userRole: "PURCHASE_MANAGER" }),
+        "x-empresa-id": "11",
+      },
+    });
+    assert.equal(recordFromAWhileOnB.status, 404, "lote da Empresa A permanece oculto enquanto o contexto é B");
+    const recordFromB = await fetch(`${baseUrl}/api/production/batches/1000?empresaId=11`, {
       headers: { "x-test-session": JSON.stringify({ userId: 10, userRole: "PURCHASE_MANAGER" }) },
     });
-    assert.equal(otherCompanyRecord.status, 404, "ID não encontrado no tenant da sessão permanece oculto");
+    assert.equal(recordFromB.status, 200, "lote da Empresa B pode ser consultado pelo seu contexto autorizado");
+    assert.equal((await recordFromB.json() as any).data.empresaId, 11);
 
     const deniedTab = await fetch(`${baseUrl}/api/production/batches`, {
       headers: { "x-test-session": JSON.stringify({ userId: 21, userRole: "PURCHASE_MANAGER" }) },
@@ -212,7 +229,7 @@ test("Produção limita usuário operacional à própria empresa e mantém sele�
     assert.equal(globalA.status, 200);
     assert.equal(globalB.status, 200);
     assert.equal(globalRead.status, 200, "leitura global permanece explícita para perfil global autorizado");
-    assert.deepEqual(calls, [10, 20, null]);
+    assert.deepEqual(listTenantCalls, [11, 10, 20, null]);
 
     const globalWriteWithoutTarget = await fetch(`${baseUrl}/api/production/batch-items/7/check`, {
       method: "PATCH",
@@ -234,6 +251,27 @@ test("Produção limita usuário operacional à própria empresa e mantém sele�
       body: JSON.stringify({ checkedQuantity: 1 }),
     });
     assert.equal(globalWriteWithTarget.status, 200, "perfil global segue podendo operar com tenant explícito");
+
+    const operationalWrite = await fetch(`${baseUrl}/api/production/batch-items/7/check`, {
+      method: "PATCH",
+      headers: {
+        "content-type": "application/json",
+        "x-test-session": JSON.stringify({ userId: 10, userRole: "PURCHASE_MANAGER" }),
+        "x-empresa-id": "11",
+      },
+      body: JSON.stringify({ checkedQuantity: 2, empresaId: 10 }),
+    });
+    assert.equal(operationalWrite.status, 200, "perfil e aba autorizados permitem escrita no tenant selecionado");
+    assert.deepEqual(itemWriteTenantCalls, [20, 11], "cada escrita recebe somente o tenant resolvido pelo servidor; body não substitui o alvo");
+
+    const customer = await fetch(`${baseUrl}/api/production/batches`, {
+      headers: {
+        "x-test-session": JSON.stringify({ companyId: 10 }),
+        "x-empresa-id": "11",
+      },
+    });
+    assert.equal(customer.status, 401, "sessão de cliente continua fora das APIs internas");
+    assert.equal(listTenantCalls.length, 4, "cliente não alcança o serviço de Produção");
   });
 });
 

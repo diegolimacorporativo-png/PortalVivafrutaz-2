@@ -154,6 +154,7 @@ export class CompaniesRepository implements ICompaniesRepository {
     const toUpdate = { ...updates } as any;
     if (updates.password) {
       toUpdate.password = await bcrypt.hash(updates.password, 10);
+      toUpdate.tokenVersion = sql`coalesce(${companies.tokenVersion}, 0) + 1`;
     }
     const rows = await db
       .update(companies)
@@ -417,6 +418,7 @@ export class CompaniesRepository implements ICompaniesRepository {
     const toUpdate = { ...updates } as any;
     if (updates.password) {
       toUpdate.password = await bcrypt.hash(updates.password, 10);
+      toUpdate.tokenVersion = sql`coalesce(${companies.tokenVersion}, 0) + 1`;
     }
     const rows = await db
       .update(companies)

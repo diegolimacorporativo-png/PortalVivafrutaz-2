@@ -22,15 +22,14 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
-import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 
-// ESM-compatible __dirname and require
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const require = createRequire(import.meta.url);
-
-const XSD_DIR = path.resolve(__dirname, 'xsd');
+// The production server is bundled as CommonJS. Resolve runtime assets from
+// the application root instead of import.meta.url, which esbuild removes in
+// that format. Both `start` and the development runner launch from repo root.
+const APP_ROOT = process.cwd();
+const require = createRequire(path.join(APP_ROOT, 'package.json'));
+const XSD_DIR = path.resolve(APP_ROOT, 'server/services/nfe/xsd');
 const PATCHED_DIR = '/tmp/nfe-xsd-patched';
 const DEBUG_DIR = '/tmp/nfe-debug';
 

@@ -184,17 +184,16 @@ describe("Etapa 23 — segurança das rotas de Push", () => {
     assert.equal(own.status, 200);
   });
 
-  test("somente administradores globais sem empresa consultam a configuração", async () => {
+  test("administradores internos consultam a configuração apesar do vínculo empresarial legado", async () => {
     for (const role of ["MASTER", "DIRECTOR", "ADMIN", "DEVELOPER"]) {
-      const { app } = makeApp({ id: 1, role, empresaId: null });
-      const response = await request(app, "GET", "/api/push/settings");
-      assert.equal(response.status, 200, `${role} global deve ser permitido`);
+      for (const empresaId of [null, 10]) {
+        const { app } = makeApp({ id: 1, role, empresaId });
+        const response = await request(app, "GET", "/api/push/settings");
+        assert.equal(response.status, 200, `${role} deve ser permitido com empresaId ${empresaId}`);
+      }
     }
 
     for (const actor of [
-      { id: 2, role: "ADMIN", empresaId: 10 },
-      { id: 3, role: "DEVELOPER", empresaId: 20 },
-      { id: 4, role: "DIRECTOR", empresaId: 30 },
       { id: 5, role: "CLIENT", empresaId: 10 },
       { id: 6, role: "MOTORISTA", empresaId: 10 },
     ] satisfies Actor[]) {
@@ -261,10 +260,12 @@ describe("Etapa 23 — segurança das rotas de Push", () => {
     ]);
   });
 
-  test("a política global rejeita explicitamente administrador vinculado a tenant", () => {
-    assert.equal(canManageGlobalPush({ role: "MASTER", empresaId: null }), true);
-    assert.equal(canManageGlobalPush({ role: "DIRECTOR", empresaId: null }), true);
-    assert.equal(canManageGlobalPush({ role: "ADMIN", empresaId: 10 }), false);
-    assert.equal(canManageGlobalPush({ role: "DEVELOPER", empresaId: 10 }), false);
+  test("a política global depende do perfil interno persistido, não do vínculo legado", () => {
+    assert.equal(canManageGlobalPush({ role: "MASTER", active: true }), true);
+    assert.equal(canManageGlobalPush({ role: "DIRECTOR", active: true }), true);
+    assert.equal(canManageGlobalPush({ role: "ADMIN", active: true }), true);
+    assert.equal(canManageGlobalPush({ role: "DEVELOPER", active: true }), true);
+    assert.equal(canManageGlobalPush({ role: "ADMIN", active: false }), false);
+    assert.equal(canManageGlobalPush({ role: "CLIENT", active: true }), false);
   });
 });

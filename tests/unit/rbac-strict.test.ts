@@ -70,9 +70,9 @@ describe("RBAC strict mode", () => {
     assert.ok(error instanceof UnauthorizedError);
   });
 
-  test("strict mode preserves explicitly allowed global roles only for unbound accounts", async () => {
+  test("strict mode preserves explicitly allowed global roles for legacy company-bound accounts", async () => {
     for (const role of ["MASTER", "DIRECTOR", "DEVELOPER"]) {
-      const lookup = mock.method(storage, "getUser", async () => ({ id: 7, role, empresaId: null } as any));
+      const lookup = mock.method(storage, "getUser", async () => ({ id: 7, role, empresaId: 10 } as any));
       try {
         const error = await runMiddleware(
           requireRole(["MASTER", "DIRECTOR", "DEVELOPER"], { strict: true }),

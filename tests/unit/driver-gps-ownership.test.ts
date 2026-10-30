@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { requireAuth } from "../../server/core/http/requireAuth";
 import {
   canAccessDriverRecord,
+  canSubmitGpsOnBehalf,
   isGlobalLogisticsActor,
   isLogisticsSupervisorRole,
   isLogisticsTrackingRole,
@@ -77,6 +78,12 @@ describe("GPS de motoristas — ownership multi-tenant", () => {
   test("DIRECTOR global preserva acesso aos motoristas", () => {
     assert.equal(isGlobalLogisticsActor(directorGlobal), true);
     assert.equal(canAccessDriverRecord(directorGlobal, driverB), true);
+  });
+
+  test("visibilidade global não autoriza MASTER ou DIRECTOR a enviar GPS em nome de motorista", () => {
+    assert.equal(canSubmitGpsOnBehalf(masterGlobal, driverB), false);
+    assert.equal(canSubmitGpsOnBehalf(directorGlobal, driverB), false);
+    assert.equal(canSubmitGpsOnBehalf(masterGlobal, driverB, 20), false);
   });
 
   test("LOGISTICS e COMERCIAL sem empresa podem supervisionar GPS entre empresas", () => {

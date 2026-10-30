@@ -271,7 +271,7 @@ export class AuthService {
 
     // Update the correct entity
     if (record.userId) {
-      await this.repo.updateUser(record.userId, {
+      await this.repo.changeUserPasswordAndRevokeSessions(record.userId, {
         password: novaSenha,
         loginAttempts: 0,
         isLocked: false,
@@ -829,7 +829,7 @@ export class AuthService {
       return { ok: false, status: 422, message: "A nova senha não pode ser igual à senha temporária." };
     }
 
-    await this.repo.updateUser(user.id, {
+    await this.repo.changeUserPasswordAndRevokeSessions(user.id, {
       password: newPassword,
       mustChangePassword: false,
       passwordTemporary: false,
@@ -875,7 +875,7 @@ export class AuthService {
       return { ok: false, status: 422, error: "SAME_PASSWORD", message: "A nova senha não pode ser igual à senha atual." };
     }
 
-    await this.repo.updateUser(userId, {
+    await this.repo.changeUserPasswordAndRevokeSessions(userId, {
       password: newPassword,
       mustChangePassword: false,
       passwordTemporary: false,
@@ -963,7 +963,7 @@ export class AuthService {
     if (isHashed) return bcrypt.compare(submitted, stored);
     if (stored !== submitted) return false;
     // Legacy plaintext password → upgrade to bcrypt on first successful login.
-    await this.repo.updateUser(userId, { password: submitted });
+    await this.repo.upgradeLegacyUserPassword(userId, submitted);
     return true;
   }
 
@@ -976,23 +976,48 @@ export class AuthService {
       typeof stored === "string" && stored.startsWith("$2");
     if (isHashed) return bcrypt.compare(submitted, stored);
     if (stored !== submitted) return false;
-    await this.repo.updateCompany(companyId, { password: submitted } as any);
+    await this.repo.upgradeLegacyCompanyPassword(companyId, submitted);
     return true;
   }
 
-  // ── ETAPA 2 — Startup unlock of strategic accounts ─────────────────────────
+  // ── Strategic account startup policy ─────────────────────────────────────
   /**
-   * Runs once at server boot. Resets any strategic role accounts that were
-   * incorrectly locked (isLocked=true or loginAttempts>0) by a previous
-   * automatic mechanism, and pre-registers their emails in the loginEmailIpLimiter
-   * bypass set so they are protected from the first request onwards.
+   * Read-only startup operation: load strategic account emails into the
+   * in-memory rate-limit bypass. Account rows and auth_attempts are untouched.
+   */
+  async registerStrategicAccountsForLoginBypass(): Promise<void> {
+    try {
+      const strategicUsers = await this.repo.listStrategicUsersForUnlock(
+        Array.from(STRATEGIC_ROLES),
+      );
+      for (const user of strategicUsers) {
+        if (user.email) markEmailAsStrategic(user.email);
+      }
+      console.info("[STRATEGIC_LOGIN_BYPASS_READY]", {
+        accounts: strategicUsers.filter((user) => user.email).length,
+        databaseWrites: false,
+        ts: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      // Bypass is also registered immediately before an authenticated login.
+      // A read-only cache warmup failure must not modify accounts or block boot.
+      console.error("[STRATEGIC_LOGIN_BYPASS_LOAD_FAIL]", err?.message ?? String(err));
+    }
+  }
+
+  // ── Explicit maintenance: unlock strategic accounts ──────────────────────
+  /**
+   * Resets any strategic role accounts that were incorrectly locked
+   * (isLocked=true or loginAttempts>0) by a previous automatic mechanism.
+   * This is an explicit maintenance action; normal application startup calls
+   * registerStrategicAccountsForLoginBypass() instead and performs no writes.
    *
    * Operations performed per strategic account found locked:
    *   1. Reset is_locked=false and login_attempts=0 in DB
    *   2. Delete auth_attempts rows for that userId (L2 rate-limit reset)
    *   3. Call markEmailAsStrategic(email) (L1 email+IP limiter bypass)
    *
-   * Logs [STRATEGIC_UNLOCK_BOOT] for each account modified.
+   * Logs [STRATEGIC_ACCOUNT_UNLOCK] for each account modified.
    * Fail-safe: individual errors are caught and logged without throwing.
    */
   async unlockStrategicAccounts(): Promise<void> {
@@ -1003,7 +1028,7 @@ export class AuthService {
       );
 
       if (strategicUsers.length === 0) {
-        console.log("[STRATEGIC_UNLOCK_BOOT] Nenhuma conta estratégica encontrada.");
+        console.log("[STRATEGIC_ACCOUNT_UNLOCK] Nenhuma conta estratégica encontrada.");
         return;
       }
 
@@ -1028,7 +1053,7 @@ export class AuthService {
 
           unlockedCount++;
 
-          console.warn("[STRATEGIC_UNLOCK_BOOT]", {
+          console.warn("[STRATEGIC_ACCOUNT_UNLOCK]", {
             userId: u.id,
             role: u.role,
             wasLocked: u.isLocked,
@@ -1037,7 +1062,7 @@ export class AuthService {
             ts: new Date().toISOString(),
           });
         } catch (err: any) {
-          console.error("[STRATEGIC_UNLOCK_BOOT_FAIL]", {
+          console.error("[STRATEGIC_ACCOUNT_UNLOCK_FAIL]", {
             userId: u.id,
             role: u.role,
             error: err?.message ?? String(err),
@@ -1045,7 +1070,7 @@ export class AuthService {
         }
       }
 
-      console.log("[STRATEGIC_UNLOCK_BOOT_DONE]", {
+      console.log("[STRATEGIC_ACCOUNT_UNLOCK_DONE]", {
         total: strategicUsers.length,
         unlocked: unlockedCount,
         bypassed: strategicUsers.filter(u => u.email).length,
@@ -1053,7 +1078,7 @@ export class AuthService {
       });
     } catch (err: any) {
       // Never throw — a DB error at boot must not prevent the server from starting
-      console.error("[STRATEGIC_UNLOCK_BOOT_ERROR]", err?.message ?? String(err));
+      console.error("[STRATEGIC_ACCOUNT_UNLOCK_ERROR]", err?.message ?? String(err));
     }
   }
 

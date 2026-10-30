@@ -23,8 +23,7 @@ import {
   GLOBAL_ADMIN_ROLES,
   GLOBAL_USER_MANAGEMENT_ROLES,
   GLOBAL_SCOPE_ROLES,
-  INTERNAL_STAFF_ROLES,
-  TENANT_ASSIGNABLE_USER_ROLES,
+  canAssignInternalUserRole,
   ACTION_PERMISSION_KEY,
 } from "@shared/user-roles";
 
@@ -61,15 +60,10 @@ function assertCanManageTarget(target: User): void {
   }
 }
 
-function assertCanAssignRole(role: string, currentRole?: string): void {
+function assertCanAssignRole(role: string): void {
   const actorRole = currentActorRole();
-  if (GLOBAL_USER_MANAGEMENT_ROLES.some((candidate) => candidate === actorRole)) return;
-  if (actorRole !== "ADMIN") {
+  if (!canAssignInternalUserRole(actorRole, role)) {
     throw new ForbiddenError("Perfil sem autorização para administrar usuários.");
-  }
-  if (role === "ADMIN" && currentRole === "ADMIN") return;
-  if (!TENANT_ASSIGNABLE_USER_ROLES.some((candidate) => candidate === role)) {
-    throw new ForbiddenError("Administradores da empresa só podem atribuir perfis operacionais.");
   }
 }
 
@@ -121,24 +115,17 @@ export class UsersService {
     try {
       assertCanAssignRole(input.role);
       const createsGlobalAdmin = isGlobalAdminRole(input.role);
-      const createsGlobalScopeAccount = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(input.role);
-      if (createsGlobalAdmin && !isGlobalUserManagementAdmin()) {
-        throw new ForbiddenError("Perfis globais só podem ser criados por um administrador global sem empresa selecionada.");
-      }
-      const createsUnboundInternalAccount =
-        currentTenantId() == null &&
-        (createsGlobalScopeAccount || INTERNAL_STAFF_ROLES.some((role) => role === input.role));
-      if (createsUnboundInternalAccount && !isGlobalUserManagementAdmin()) {
-        throw new ForbiddenError("Contas internas sem empresa só podem ser criadas por MASTER ou DIRECTOR.");
-      }
       if (
-        !createsUnboundInternalAccount &&
-        currentTenantId() == null &&
-        isGlobalAdminRole(currentActorRole())
+        createsGlobalAdmin &&
+        !GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === currentActorRole())
       ) {
-        throw new BadRequestError("Selecione uma empresa de destino antes de criar um usuário.");
+        throw new ForbiddenError("Somente um gestor autorizado pode criar este perfil interno.");
       }
-      const tenantId = createsUnboundInternalAccount ? null : requireTenantId();
+
+      // The users table represents internal staff identities, not customer
+      // portal accounts. A selected/legacy company may scope work requests,
+      // but it must never be copied onto a newly created staff identity.
+      const tenantId = null;
       const safeInput = { ...input } as any;
       if (Object.prototype.hasOwnProperty.call(safeInput, "permissions")) {
         safeInput.permissions = mergeActionPermissionConfig(null, safeInput.permissions);
@@ -174,12 +161,20 @@ export class UsersService {
       (updates as any).permissions = mergeActionPermissionConfig(target.permissions, updates.permissions);
     }
     if (updates.role) {
-      assertCanAssignRole(updates.role, target.role);
-      if (isGlobalAdminRole(updates.role) !== isGlobalAdminRole(target.role)) {
+      assertCanAssignRole(updates.role);
+      if (
+        target.empresaId != null &&
+        (GLOBAL_SCOPE_ROLES as readonly string[]).includes(updates.role) !==
+          (GLOBAL_SCOPE_ROLES as readonly string[]).includes(target.role)
+      ) {
         throw new ForbiddenError("A troca entre perfil global e perfil de empresa exige um fluxo de transferência de escopo.");
       }
       const actorId = getTenantContext()?.principal.userId;
-      if (isGlobalAdminRole(target.role) && actorId !== target.id && updates.role !== target.role) {
+      if (
+        (GLOBAL_SCOPE_ROLES as readonly string[]).includes(target.role) &&
+        actorId !== target.id &&
+        updates.role !== target.role
+      ) {
         throw new ForbiddenError("Não é permitido alterar o perfil de outro administrador global.");
       }
     }
