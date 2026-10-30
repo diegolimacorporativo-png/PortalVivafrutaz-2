@@ -178,3 +178,40 @@ export function canAssignInternalUserRole(
     (GLOBAL_USER_MANAGEMENT_ROLES as readonly string[]).includes(managerRole) &&
     (USER_ROLE_VALUES as readonly string[]).includes(candidateRole);
 }
+
+export interface InternalUserRoleTarget {
+  id: number;
+  role: string;
+  empresaId?: number | null;
+}
+
+/**
+ * Role choices for the internal-user editor. Authorized user managers can
+ * choose every supported profile when creating an account. When editing, the
+ * existing protection for other global administrators and tenant-bound
+ * identities remains in force. The API still validates assignment itself.
+ */
+export function canSelectInternalUserRole(
+  managerRole: string | null | undefined,
+  candidateRole: string,
+  target?: InternalUserRoleTarget | null,
+  managerId?: number,
+): boolean {
+  if (!canAssignInternalUserRole(managerRole, candidateRole)) return false;
+  if (!target) return true;
+
+  const candidateIsGlobal = (GLOBAL_SCOPE_ROLES as readonly string[]).includes(candidateRole);
+  const targetIsGlobal = target.empresaId == null &&
+    (GLOBAL_SCOPE_ROLES as readonly string[]).includes(target.role);
+
+  if (targetIsGlobal) {
+    if (managerId !== target.id) return candidateRole === target.role;
+    return candidateIsGlobal;
+  }
+
+  if (target.empresaId != null && candidateIsGlobal) {
+    return (GLOBAL_SCOPE_ROLES as readonly string[]).includes(target.role);
+  }
+
+  return true;
+}

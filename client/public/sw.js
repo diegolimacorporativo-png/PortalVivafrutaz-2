@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vivafrutaz-v3';
+const CACHE_NAME = 'vivafrutaz-v4';
 const STATIC_ASSETS = [
   '/',
   '/manifest.json',
