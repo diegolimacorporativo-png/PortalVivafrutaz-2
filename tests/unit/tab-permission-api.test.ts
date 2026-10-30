@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import { describe, mock, test } from "node:test";
-import { requireTabPermission } from "../../server/middleware/requireTabPermission";
-import { storage } from "../../server/services/storage";
 import { ForbiddenError } from "../../server/shared/errors/AppError";
-import { driverTabForRequest } from "../../server/modules/logistics/driver.access";
+
+process.env.NODE_ENV = "development";
+process.env.ISOLATED_PREVIEW_MODE = "1";
+process.env.ISOLATED_PREVIEW_DATABASE_URL = "postgresql://preview@127.0.0.1:55439/vivafrutaz_preview";
+
+const [{ requireTabPermission }, { storage }, { driverTabForRequest }] = await Promise.all([
+  import("../../server/middleware/requireTabPermission"),
+  import("../../server/services/storage"),
+  import("../../server/modules/logistics/driver.access"),
+]);
 
 describe("permissões personalizadas de abas no backend", () => {
   test("aba persistida permite entrada no módulo, sem conceder papel", async () => {
@@ -95,5 +102,43 @@ describe("permissões personalizadas de abas no backend", () => {
       (error?: unknown) => { nextError = error; },
     );
     assert.equal(nextError, undefined);
+  });
+
+  test("Inventário e Produção permitem a aba persistida e negam a aba explicitamente removida", async () => {
+    for (const key of ["inventory", "production"]) {
+      const allowedLookup = mock.method(storage, "getUser", async () => ({
+        id: 21, role: "PURCHASE_MANAGER", active: true, tabPermissions: [key],
+      } as any));
+      let allowedError: unknown;
+      await requireTabPermission(key)({ session: { userId: 21 } } as any, {} as any, (error?: unknown) => { allowedError = error; });
+      assert.equal(allowedError, undefined, `${key} permitido deve passar`);
+      allowedLookup.mock.restore();
+
+      const deniedLookup = mock.method(storage, "getUser", async () => ({
+        id: 22, role: "PURCHASE_MANAGER", active: true, tabPermissions: ["orders"],
+      } as any));
+      let deniedError: unknown;
+      await requireTabPermission(key)({ session: { userId: 22 } } as any, {} as any, (error?: unknown) => { deniedError = error; });
+      assert.ok(deniedError instanceof ForbiddenError, `${key} negado deve falhar`);
+      deniedLookup.mock.restore();
+    }
+  });
+
+  test("contas globais autorizadas mantêm Inventário e Produção; sessão de cliente segue o gate próprio", async () => {
+    for (const [index, role] of ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"].entries()) {
+      const lookup = mock.method(storage, "getUser", async () => ({
+        id: 30 + index, role, active: true, tabPermissions: ["__deny_all_tabs__"],
+      } as any));
+      for (const key of ["inventory", "production"]) {
+        let error: unknown;
+        await requireTabPermission(key)({ session: { userId: 30 + index } } as any, {} as any, (nextError?: unknown) => { error = nextError; });
+        assert.equal(error, undefined, `${role} deve manter ${key}`);
+      }
+      lookup.mock.restore();
+    }
+
+    let clientNext = false;
+    await requireTabPermission("inventory")({ session: { companyId: 55 } } as any, {} as any, () => { clientNext = true; });
+    assert.equal(clientNext, true, "o middleware de aba preserva o gate de sessão de cliente");
   });
 });

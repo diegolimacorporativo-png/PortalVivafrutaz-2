@@ -8,10 +8,14 @@
  * IMPORTANTE: nada aqui altera lógica de segurança, schema do banco ou
  * fluxo de logs. É puro read-through.
  */
-import { getSecurityEventsResumo } from "./security.repository";
+import { getSecurityEventsResumo, getTenantMismatchEvents } from "./security.repository";
 
 export const securityService = {
   async getResumo(): Promise<Array<{ type: string; total: number }>> {
     return getSecurityEventsResumo();
+  },
+
+  async getTenantMismatchEvents(days: number) {
+    return getTenantMismatchEvents(days);
   },
 };

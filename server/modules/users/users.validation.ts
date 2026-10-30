@@ -14,6 +14,7 @@ const actionOverridesSchema = z.object({
   logistics: actionPermissionsSchema.optional(),
   quotations: actionPermissionsSchema.optional(),
   "special-orders": actionPermissionsSchema.optional(),
+  finance: actionPermissionsSchema.optional(),
 }).strict();
 
 const permissionsInputSchema = z.object({

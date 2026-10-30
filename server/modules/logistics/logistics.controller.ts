@@ -56,6 +56,7 @@ import {
   verifyPublicTrackingToken,
 } from "../../core/security/publicTrackingToken";
 import { buildPublicRouteTrackingPayload } from "./public-tracking.dto";
+import { roleCanViewGps, GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 
 /** Drizzle's `db.execute` returns either { rows } or an array depending on driver. */
 function rowsOf<T = any>(r: any): T[] {
@@ -165,7 +166,8 @@ export class LogisticsController {
     const user = await (this.service as any).repo.getUser(session.userId);
     if (
       !user ||
-      !LOGISTICS_AUTH_ROLES.includes(user.role as any)
+      (!LOGISTICS_AUTH_ROLES.includes(user.role as any)
+        && !(user.role === "FINANCEIRO" && ["GET", "HEAD"].includes(req.method.toUpperCase())))
     ) {
       res.status(403).json({ message: "Sem permissão" });
       return null;
@@ -219,7 +221,8 @@ export class LogisticsController {
       return null;
     }
     const actor = await (this.service as any).repo.getUser(session.userId);
-    if (!actor || !LOGISTICS_AUTH_ROLES.includes(actor.role as any)) {
+    if (!actor || (!LOGISTICS_AUTH_ROLES.includes(actor.role as any)
+      && !(actor.role === "FINANCEIRO" && ["GET", "HEAD"].includes(req.method.toUpperCase())))) {
       res.status(403).json({ message: "Sem permissão" });
       return null;
     }
@@ -239,8 +242,16 @@ export class LogisticsController {
   };
 
   listLiveDriverLocations = async (req: Request, res: Response) => {
-    const user = await this.logAuth(req, res);
-    if (!user) return;
+    const userId = (req as any).session?.userId;
+    if (!userId) {
+      res.status(401).json({ message: "Not authenticated" });
+      return;
+    }
+    const user = await (this.service as any).repo.getUser(userId);
+    if (!user || !roleCanViewGps(user.role)) {
+      res.status(403).json({ message: "Sem permissão" });
+      return;
+    }
     try {
       res.json(await this.service.listLiveDriverLocations(user));
     } catch (err: any) {

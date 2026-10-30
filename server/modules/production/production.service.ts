@@ -1,5 +1,5 @@
 import { ConflictError, BadRequestError } from "../../shared/errors/AppError";
-import { productionRepository } from "./production.repository";
+import { assertProductionTenantScope, productionRepository } from "./production.repository";
 import type {
   OrderBreakdownEntry,
   RouteBreakdownEntry,
@@ -26,6 +26,7 @@ export const productionService = {
     empresaId: number | null,
     body: GenerateBatchBody,
   ): Promise<BatchWithItems> {
+    assertProductionTenantScope(empresaId, "write");
     const { productionDate, includeStatuses } = body;
 
     // Guard: no duplicate batches per day
@@ -211,6 +212,7 @@ export const productionService = {
     newStatus: string,
     notes?: string,
   ) {
+    assertProductionTenantScope(empresaId, "write");
     const batch = await productionRepository.getById(id, empresaId);
     const allowed = ALLOWED_TRANSITIONS[batch.status] ?? [];
     if (!allowed.includes(newStatus)) {
@@ -227,6 +229,7 @@ export const productionService = {
     checkedQuantity: number,
     notes?: string,
   ) {
+    assertProductionTenantScope(empresaId, "write");
     return productionRepository.updateItemCheck(
       itemId,
       empresaId,
@@ -236,6 +239,7 @@ export const productionService = {
   },
 
   async deleteBatch(id: number, empresaId: number | null) {
+    assertProductionTenantScope(empresaId, "write");
     await productionRepository.getById(id, empresaId); // also enforces tenant scope
     await productionRepository.deleteBatch(id, empresaId);
   },

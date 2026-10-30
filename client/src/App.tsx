@@ -9,7 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect } from "react";
 import NotFound from "@/pages/not-found";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
-import { FULL_SYSTEM_ACCESS_ROLES, tabPermissionAllows } from "@shared/user-roles";
+import { ACTION_PERMISSION_TAB_MODULES, FULL_SYSTEM_ACCESS_ROLES, tabPermissionAllows } from "@shared/user-roles";
+import { canPerformAction } from "@/lib/rbac";
 
 // Keep-alive: ping every 5 minutes to prevent Replit sleep
 function KeepAlive() {
@@ -283,6 +284,10 @@ function ProtectedRoute({
     if (!tabPermissionAllows(tabPerms, tabKey, user.role)) {
       return <UnauthorizedModule />;
     }
+    const actionModule = ACTION_PERMISSION_TAB_MODULES[tabKey];
+    if (actionModule && !canPerformAction(user, actionModule, 'read')) {
+      return <UnauthorizedModule />;
+    }
   }
 
   if (role === 'client' && maintenance?.enabled) {
@@ -358,7 +363,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminOrderExceptions} role="admin" allowedRoles={['ADMIN', 'DIRECTOR']} tabKey="order-exceptions" />}
       </Route>
       <Route path="/admin/orders">
-        {() => <ProtectedRoute component={AdminOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'DIRECTOR', 'LOGISTICS']} tabKey="orders" />}
+        {() => <ProtectedRoute component={AdminOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'DIRECTOR', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL']} tabKey="orders" />}
       </Route>
       <Route path="/admin/purchasing">
         {() => <ProtectedRoute component={PurchasingReport} role="admin" allowedRoles={['ADMIN', 'PURCHASE_MANAGER', 'DIRECTOR']} tabKey="purchasing" />}
@@ -373,7 +378,7 @@ function Router() {
         {() => <ProtectedRoute component={PasswordResetRequestsPage} role="admin" allowedRoles={['ADMIN', 'DIRECTOR']} tabKey="password-reset" />}
       </Route>
       <Route path="/admin/special-orders">
-        {() => <ProtectedRoute component={AdminSpecialOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL']} tabKey="special-orders" />}
+        {() => <ProtectedRoute component={AdminSpecialOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'FINANCEIRO', 'MASTER_COMERCIAL']} tabKey="special-orders" />}
       </Route>
       <Route path="/admin/users">
         {() => <ProtectedRoute component={AdminUsers} role="admin" allowedRoles={['ADMIN', 'DIRECTOR']} tabKey="users" />}
@@ -421,10 +426,10 @@ function Router() {
         {() => <ProtectedRoute component={AdminProduction} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS']} tabKey="production" />}
       </Route>
       <Route path="/admin/logistics">
-        {() => <ProtectedRoute component={AdminLogistics} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS']} tabKey="logistics" />}
+        {() => <ProtectedRoute component={AdminLogistics} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'COMERCIAL', 'FINANCEIRO']} tabKey="logistics" />}
       </Route>
       <Route path="/admin/quotations">
-        {() => <ProtectedRoute component={AdminQuotations} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER']} tabKey="quotations" />}
+        {() => <ProtectedRoute component={AdminQuotations} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'COMERCIAL', 'LOGISTICS', 'FINANCEIRO']} tabKey="quotations" />}
       </Route>
       <Route path="/admin/executive">
         {() => <ProtectedRoute component={AdminExecutiveDashboard} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'FINANCEIRO', 'DEVELOPER']} tabKey="executive" />}
@@ -469,7 +474,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminFinancialIntelligence} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'FINANCEIRO']} tabKey="financial-intelligence" />}
       </Route>
       <Route path="/admin/finance">
-        {() => <ProtectedRoute component={AdminFinance} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR']} tabKey="finance" />}
+        {() => <ProtectedRoute component={AdminFinance} role="admin" allowedRoles={['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'LOGISTICS']} tabKey="finance" />}
       </Route>
       <Route path="/admin/nfe/dashboard">
         {() => <ProtectedRoute component={AdminNfeDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DEVELOPER']} tabKey="nfe-dashboard" />}
@@ -499,7 +504,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminDriverPanel} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA']} tabKey="driver-panel" />}
       </Route>
       <Route path="/admin/gps-tracking">
-        {() => <ProtectedRoute component={GpsTracking} role="admin" allowedRoles={['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL']} tabKey="gps-tracking" />}
+        {() => <ProtectedRoute component={GpsTracking} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'MANAGER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'SISTEMA_TESTE', 'GESTOR_CONTRATOS']} tabKey="gps-tracking" />}
       </Route>
       <Route path="/admin/saas-dashboard">
         {() => <ProtectedRoute component={SaasDashboard} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'GESTOR_CONTRATOS']} tabKey="saas-dashboard" />}

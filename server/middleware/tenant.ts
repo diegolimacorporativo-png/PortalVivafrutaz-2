@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { runWithTenant, type TenantPrincipal } from "../core/tenant/context";
 import { UnauthorizedError, ForbiddenError } from "../shared/errors/AppError";
 import { storage } from "../services/storage";
-import { CROSS_COMPANY_STAFF_ROLES, GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
+import { CROSS_COMPANY_STAFF_ROLES, GLOBAL_SCOPE_ROLES, roleCanViewGps } from "@shared/user-roles";
 
 /**
  * Tenant middleware — the single place where the authenticated session is
@@ -138,6 +138,20 @@ async function resolveAdminTenant(
     return { kind: "admin", empresaId: null, userId, role: user.role };
   }
 
+  // Narrow exception for read-only GPS monitoring. This does not make the
+  // account globally scoped for other endpoints; the GPS handlers still
+  // enforce the profile baseline and validate any requested company/driver.
+  if (isGpsViewRequest(req) && roleCanViewGps(user.role)) {
+    const target = resolveClientTenant(req);
+    if (target != null) {
+      const company = await storage.getCompany(target);
+      if (!company || company.active === false) {
+        throw new ForbiddenError("Empresa selecionada inexistente ou inativa");
+      }
+    }
+    return { kind: "admin", empresaId: target, userId, role: user.role };
+  }
+
   // Internal staff may select one company per request, but must not fall
   // through to unscoped/global queries. Identity comes from storage above.
   if (!(CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role)) {
@@ -146,7 +160,7 @@ async function resolveAdminTenant(
   const target = resolveClientTenant(req);
   const multiCompanyRead =
     target == null &&
-    ["COMERCIAL", "LOGISTICS"].includes(user.role) &&
+    ["COMERCIAL", "LOGISTICS", "FINANCEIRO"].includes(user.role) &&
     ["GET", "HEAD"].includes(String(req.method ?? "").toUpperCase());
   if (
     target == null &&
@@ -171,6 +185,12 @@ function isUnboundSelfGpsSubmission(req: Request, role: string): boolean {
     .split("?")[0]
     .replace(/\/+$/, "");
   return path === "/api/driver/gps";
+}
+
+function isGpsViewRequest(req: Request): boolean {
+  if (!["GET", "HEAD"].includes(String(req.method ?? "").toUpperCase())) return false;
+  const path = String(req.originalUrl ?? req.path ?? "").split("?")[0].replace(/\/+$/, "");
+  return path === "/api/logistics/drivers/gps" || /^\/api\/driver\/\d+\/gps$/.test(path);
 }
 
 /**

@@ -18,7 +18,7 @@ import {
   NotFoundError,
 } from "../../shared/errors/AppError";
 import { currentTenantId } from "../../core/tenant/context";
-import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
+import { GLOBAL_SCOPE_ROLES, roleCanViewGps } from "@shared/user-roles";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 import { dateInTimeZone } from "./local-date";
 import type {
@@ -232,11 +232,11 @@ export class LogisticsService {
     // The existing explicit global-admin policy applies here. ADMIN can still
     // use a validated selected tenant; being unbound alone does not grant a
     // cross-company analytics scope. Individual write paths stay tenant-bound.
-    if ((GLOBAL_ADMIN_ROLES as readonly string[]).includes(actor.role)) {
+      if ((GLOBAL_SCOPE_ROLES as readonly string[]).includes(actor.role)) {
       return { tenantId: null, global: true };
     }
 
-    if (allowMultiCompanyRead && ["LOGISTICS", "COMERCIAL"].includes(actor.role)) {
+      if (allowMultiCompanyRead && roleCanViewGps(actor.role)) {
       return { tenantId: null, global: true };
     }
 

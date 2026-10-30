@@ -10,6 +10,7 @@ import express from "express";
 import http from "node:http";
 import { mock } from "node:test";
 import { requireAuth } from "../../server/core/http/requireAuth";
+import { db } from "../../server/database/db";
 import { register as registerLegacyLogistics } from "../../server/routes/logistics.routes";
 import { storage } from "../../server/services/storage";
 import {
@@ -269,6 +270,94 @@ describe("deliveries — isolamento multi-tenant", () => {
     } finally {
       await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
       deliveriesLookup.mock.restore();
+      companyLookup.mock.restore();
+      userLookup.mock.restore();
+    }
+  });
+
+  test("stop-events retorna 404 e não consulta eventos quando a entrega pertence a outra empresa", async () => {
+    const userLookup = mock.method(storage, "getUser", async () => ({
+      id: 43, role: "ADMIN", empresaId: 10, active: true, tabPermissions: null,
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    const deliveryLookup = mock.method(storage, "getDeliveryForCompany", async (id: number, companyId: number) => {
+      assert.equal(id, 200);
+      assert.equal(companyId, 10);
+      return undefined;
+    });
+    const eventsQuery = mock.method(db, "select", (() => {
+      throw new Error("Eventos não devem ser consultados para outra empresa");
+    }) as any);
+
+    const app = express();
+    app.use((req, _res, next) => { (req as any).session = { userId: 43 }; next(); });
+    await registerLegacyLogistics(app as any);
+    app.use((error: any, _req: any, res: any, _next: any) => {
+      res.status(error?.status ?? 500).json({ message: error?.message });
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string");
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/deliveries/200/stop-events`,
+        { headers: { "X-Empresa-Id": "10" } },
+      );
+      assert.equal(response.status, 404);
+      assert.deepEqual(await response.json(), { message: "Entrega não encontrada" });
+      assert.equal(deliveryLookup.mock.callCount(), 1);
+      assert.equal(eventsQuery.mock.callCount(), 0);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      eventsQuery.mock.restore();
+      deliveryLookup.mock.restore();
+      companyLookup.mock.restore();
+      userLookup.mock.restore();
+    }
+  });
+
+  test("stop-events retorna o histórico para entrega da empresa autorizada", async () => {
+    const events = [{ id: 701, deliveryId: 200, status: "entregue" }];
+    const userLookup = mock.method(storage, "getUser", async () => ({
+      id: 44, role: "ADMIN", empresaId: 10, active: true, tabPermissions: null,
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    const deliveryLookup = mock.method(storage, "getDeliveryForCompany", async (id: number, companyId: number) => {
+      assert.equal(id, 200);
+      assert.equal(companyId, 10);
+      return { id, companyId, driverId: null, routeId: null } as any;
+    });
+    const queryBuilder: any = {
+      from() { return this; },
+      where() { return this; },
+      orderBy() { return Promise.resolve(events); },
+    };
+    const eventsQuery = mock.method(db, "select", (() => queryBuilder) as any);
+
+    const app = express();
+    app.use((req, _res, next) => { (req as any).session = { userId: 44 }; next(); });
+    await registerLegacyLogistics(app as any);
+    app.use((error: any, _req: any, res: any, _next: any) => {
+      res.status(error?.status ?? 500).json({ message: error?.message });
+    });
+    const server = http.createServer(app);
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const address = server.address();
+      assert.ok(address && typeof address !== "string");
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/deliveries/200/stop-events`,
+        { headers: { "X-Empresa-Id": "10" } },
+      );
+      assert.equal(response.status, 200);
+      assert.deepEqual(await response.json(), events);
+      assert.equal(deliveryLookup.mock.callCount(), 1);
+      assert.equal(eventsQuery.mock.callCount(), 1);
+    } finally {
+      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+      eventsQuery.mock.restore();
+      deliveryLookup.mock.restore();
       companyLookup.mock.restore();
       userLookup.mock.restore();
     }

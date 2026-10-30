@@ -18,7 +18,8 @@ import { WhatsNewModal } from './WhatsNewModal';
 import { TrainingModeProvider, TrainingModeButton } from './TrainingMode';
 import { GlobalSearch } from './GlobalSearch';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
-import { FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
+import { ACTION_PERMISSION_TAB_MODULES, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, tabPermissionAllows } from '@shared/user-roles';
+import { canPerformAction } from '@/lib/rbac';
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const { user, company, isStaff, isClient, logout } = useAuth();
@@ -98,7 +99,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   });
 
   const staffRole = user?.role || '';
-  const crossCompanyRoles = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'COMERCIAL', 'LOGISTICS'];
+  const crossCompanyRoles = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'COMERCIAL', 'LOGISTICS', 'FINANCEIRO'];
   const canSelectTenant = Boolean(isStaff && user?.empresaId == null && crossCompanyRoles.includes(staffRole));
   const { data: tenantOptions = [] } = useQuery<{ id: number; companyName: string }[]>({
     queryKey: ['/api/companies/tenant-options', user?.id],
@@ -150,12 +151,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/companies', label: 'Empresas', icon: Users, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'companies', category: 'Comercial' },
     { href: '/admin/contracts', label: 'Gestão de Contratos', icon: ScrollText, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'], tabKey: 'contracts', category: 'Comercial' },
     { href: '/admin/scope-simulations', label: 'Simulação Comercial', icon: PieChart, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER'], tabKey: 'scope-simulations', category: 'Comercial' },
-    { href: '/admin/quotations', label: 'Cotação de Empresas', icon: FileText, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'COMERCIAL', 'MASTER_COMERCIAL'], tabKey: 'quotations', category: 'Comercial' },
+    { href: '/admin/quotations', label: 'Cotação de Empresas', icon: FileText, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'COMERCIAL', 'LOGISTICS', 'FINANCEIRO', 'MASTER_COMERCIAL'], tabKey: 'quotations', category: 'Comercial' },
     { href: '/admin/price-groups', label: 'Grupos de Preço', icon: Tag, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'price-groups', category: 'Comercial' },
     { href: '/admin/products', label: 'Produtos', icon: Package, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'products', category: 'Comercial' },
     { href: '/admin/categories', label: 'Categorias', icon: FolderOpen, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'categories', category: 'Comercial' },
     { href: '/admin/orders', label: 'Pedidos', icon: ShoppingCart, roles: ['ADMIN', 'OPERATIONS_MANAGER', 'FINANCEIRO', 'DIRECTOR', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'], tabKey: 'orders', category: 'Pedidos' },
-    { href: '/admin/special-orders', label: 'Pedidos Pontuais', icon: Star, roles: ['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'], tabKey: 'special-orders', category: 'Pedidos' },
+    { href: '/admin/special-orders', label: 'Pedidos Pontuais', icon: Star, roles: ['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'FINANCEIRO', 'MASTER_COMERCIAL'], tabKey: 'special-orders', category: 'Pedidos' },
     { href: '/admin/order-windows', label: 'Janelas de Pedido', icon: CalendarDays, roles: ['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR'], tabKey: 'order-windows', category: 'Pedidos' },
     { href: '/admin/order-exceptions', label: 'Exceções de Pedido', icon: ShieldCheck, roles: ['ADMIN', 'DIRECTOR'], tabKey: 'order-exceptions', category: 'Pedidos' },
     { href: '/admin/purchasing', label: 'Compras', icon: BarChart3, roles: ['ADMIN', 'PURCHASE_MANAGER', 'DIRECTOR'], tabKey: 'purchasing', category: 'Compras' },
@@ -166,14 +167,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: '/admin/sanitary', label: 'Vigilância Sanitária', icon: ShieldCheck, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'NUTRICIONISTA', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS', 'FINANCEIRO'], tabKey: 'sanitary', category: 'Qualidade' },
     { href: '/admin/import-data', label: 'Importar Dados', icon: Upload, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER'], tabKey: 'import-data', category: 'Gestão' },
     { href: '/admin/production', label: 'Produção', icon: Factory, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'LOGISTICS'], tabKey: 'production', category: 'Pedidos' },
-    { href: '/admin/logistics', label: 'Logística', icon: Truck, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL'], tabKey: 'logistics', category: 'Logística', moduloChave: 'logistica' },
+    { href: '/admin/logistics', label: 'Logística', icon: Truck, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'OPERATIONS_MANAGER', 'LOGISTICS', 'COMERCIAL', 'FINANCEIRO', 'MASTER_COMERCIAL'], tabKey: 'logistics', category: 'Logística', moduloChave: 'logistica' },
     { href: '/admin/driver-panel', label: 'Painel do Motorista', icon: Route, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL', 'MOTORISTA'], tabKey: 'driver-panel', category: 'Logística' },
-    { href: '/admin/gps-tracking', label: 'GPS em Tempo Real', icon: Navigation, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'MASTER', 'COMERCIAL', 'MASTER_COMERCIAL'], tabKey: 'gps-tracking', category: 'Logística' },
+    { href: '/admin/gps-tracking', label: 'GPS em Tempo Real', icon: Navigation, roles: ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER', 'MANAGER', 'OPERATIONS_MANAGER', 'PURCHASE_MANAGER', 'FINANCEIRO', 'LOGISTICS', 'COMERCIAL', 'MASTER_COMERCIAL', 'SISTEMA_TESTE', 'GESTOR_CONTRATOS'], tabKey: 'gps-tracking', category: 'Logística' },
     { href: '/admin/financial', label: 'Painel Financeiro', icon: PieChart, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'financial', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/fiscal', label: 'Gestão de Notas Fiscais', icon: Receipt, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/fiscal-config', label: 'Configurações Fiscais', icon: Settings, roles: ['ADMIN', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal-config', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/fiscal-diagnostics', label: 'Diagnóstico Fiscal', icon: Activity, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'DEVELOPER'], tabKey: 'fiscal-diagnostics', category: 'Financeiro', moduloChave: 'fiscal' },
-    { href: '/admin/finance', label: 'Contas & Caixa', icon: DollarSign, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'finance', category: 'Financeiro', moduloChave: 'financeiro' },
+    { href: '/admin/finance', label: 'Contas & Caixa', icon: DollarSign, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR', 'LOGISTICS'], tabKey: 'finance', category: 'Financeiro', moduloChave: 'financeiro' },
     { href: '/admin/nfe', label: 'Emissão de NF-e', icon: ReceiptText, roles: ['ADMIN', 'FINANCEIRO', 'DIRECTOR'], tabKey: 'nfe', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/nfe/dashboard', label: 'Dashboard NF-e', icon: BarChart3, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'nfe-dashboard', category: 'Financeiro', moduloChave: 'fiscal' },
     { href: '/admin/nfe/recovery', label: 'Recovery NF-e', icon: RotateCcw, roles: ['MASTER', 'ADMIN', 'DEVELOPER'], tabKey: 'nfe-recovery', category: 'Financeiro', moduloChave: 'fiscal' },
@@ -235,6 +236,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         // Global administrator and logistics GPS exceptions are centralized
         // in tabPermissionAllows so menus, routes and APIs agree.
         if (!tabPermissionAllows(userTabPerms, l.tabKey, user?.role)) return false;
+        const actionModule = ACTION_PERMISSION_TAB_MODULES[l.tabKey];
+        if (actionModule && !canPerformAction(user, actionModule, 'read')) return false;
         if (isFullAccessRole) return true;
         if (userTabPerms == null) {
           // Apply module filtering for non-admin roles when modules are loaded

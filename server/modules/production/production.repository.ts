@@ -9,7 +9,9 @@ import {
   companies,
   logisticsRoutes,
 } from "@shared/schema";
-import { NotFoundError } from "../../shared/errors/AppError";
+import { ForbiddenError, NotFoundError, UnauthorizedError } from "../../shared/errors/AppError";
+import { getTenantContext } from "../../core/tenant/context";
+import { GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 import type {
   ProductionBatch,
   ProductionBatchItem,
@@ -56,6 +58,30 @@ export interface RawOrderItemRow {
 
 // ─── Repository ────────────────────────────────────────────────
 
+/**
+ * A null tenant is valid only for an authenticated, server-resolved global
+ * administrator read. Production mutations always require one explicit
+ * company so a missing selector cannot turn a write into a cross-company one.
+ */
+export function assertProductionTenantScope(
+  empresaId: number | null,
+  operation: "read" | "write" = "read",
+): void {
+  const context = getTenantContext();
+  if (!context) throw new UnauthorizedError("Contexto de empresa ausente");
+  if (context.empresaId !== empresaId) {
+    throw new ForbiddenError("A empresa solicitada não corresponde ao contexto autorizado");
+  }
+  if (empresaId !== null) return;
+
+  const principal = context.principal;
+  const globalAdmin = principal.kind === "admin" &&
+    (GLOBAL_SCOPE_ROLES as readonly string[]).includes(principal.role ?? "");
+  if (!globalAdmin || operation === "write") {
+    throw new ForbiddenError("Selecione uma empresa autorizada para esta operação");
+  }
+}
+
 export const productionRepository = {
   /**
    * Fetch all orders items for a given delivery date and status filter.
@@ -66,6 +92,7 @@ export const productionRepository = {
     productionDate: string,
     includeStatuses: string[],
   ): Promise<RawOrderItemRow[]> {
+    assertProductionTenantScope(empresaId);
     const rows = await db
       .select({
         orderId: orders.id,
@@ -107,6 +134,7 @@ export const productionRepository = {
     empresaId: number | null,
     productionDate: string,
   ): Promise<Array<{ id: number; name: string; companyIds: number[] }>> {
+    assertProductionTenantScope(empresaId);
     const rows = await db
       .select({
         id: logisticsRoutes.id,
@@ -133,6 +161,7 @@ export const productionRepository = {
     empresaId: number | null,
     productionDate: string,
   ): Promise<ProductionBatch | null> {
+    assertProductionTenantScope(empresaId);
     const rows = await db
       .select()
       .from(productionBatches)
@@ -153,6 +182,7 @@ export const productionRepository = {
     empresaId: number | null,
     opts: { status?: string; date?: string; page: number; limit: number },
   ) {
+    assertProductionTenantScope(empresaId);
     const conditions = [
       empresaId != null
         ? eq(productionBatches.empresaId, empresaId)
@@ -177,6 +207,7 @@ export const productionRepository = {
     id: number,
     empresaId: number | null,
   ): Promise<BatchWithItems> {
+    assertProductionTenantScope(empresaId);
     const [batch] = await db
       .select()
       .from(productionBatches)
@@ -229,6 +260,7 @@ export const productionRepository = {
       routeBreakdown: RouteBreakdownEntry[];
     }>,
   ): Promise<BatchWithItems> {
+    assertProductionTenantScope(batchData.empresaId, "write");
     return db.transaction(async (tx) => {
       const [batch] = await tx
         .insert(productionBatches)
@@ -283,6 +315,7 @@ export const productionRepository = {
     status: string,
     notes?: string,
   ): Promise<ProductionBatch> {
+    assertProductionTenantScope(empresaId, "write");
     const [updated] = await db
       .update(productionBatches)
       .set({
@@ -310,6 +343,7 @@ export const productionRepository = {
     checkedQuantity: number,
     notes?: string,
   ): Promise<ProductionBatchItem> {
+    assertProductionTenantScope(empresaId, "write");
     const [updated] = await db
       .update(productionBatchItems)
       .set({
@@ -341,6 +375,7 @@ export const productionRepository = {
 
   /** Delete a batch (cascades to items). */
   async deleteBatch(id: number, empresaId: number | null): Promise<void> {
+    assertProductionTenantScope(empresaId, "write");
     await db
       .delete(productionBatches)
       .where(

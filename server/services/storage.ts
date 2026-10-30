@@ -417,6 +417,7 @@ export interface IStorage {
   // FASE MT-3A (C1): companyId filters via subquery JOIN orders.company_id
   getNfeEmissoes(filters?: { orderId?: number; status?: string; companyId?: number }): Promise<NfeEmissao[]>;
   getNfeEmissao(id: number): Promise<NfeEmissao | undefined>;
+  getNfeEmissaoForCompany(id: number, companyId: number): Promise<NfeEmissao | undefined>;
   getNfeEmissaoByOrderId(orderId: number): Promise<NfeEmissao | undefined>;
   createNfeEmissao(data: InsertNfeEmissao): Promise<NfeEmissao>;
   updateNfeEmissao(id: number, data: Partial<InsertNfeEmissao>): Promise<NfeEmissao>;
@@ -3004,6 +3005,20 @@ export class DatabaseStorage implements IStorage {
 
   async getNfeEmissao(id: number): Promise<NfeEmissao | undefined> {
     const [r] = await db.select().from(nfeEmissoes).where(eq(nfeEmissoes.id, id));
+    return r;
+  }
+
+  async getNfeEmissaoForCompany(id: number, companyId: number): Promise<NfeEmissao | undefined> {
+    const [r] = await db
+      .select()
+      .from(nfeEmissoes)
+      .where(and(
+        eq(nfeEmissoes.id, id),
+        inArray(
+          nfeEmissoes.orderId,
+          db.select({ id: orders.id }).from(orders).where(eq(orders.companyId, companyId)),
+        ),
+      ));
     return r;
   }
 

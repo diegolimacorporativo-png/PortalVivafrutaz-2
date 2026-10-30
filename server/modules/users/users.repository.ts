@@ -21,6 +21,16 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { currentTenantId, getTenantContext, requireTenantId } from "../../core/tenant/context";
 import { invalidateUsageCache } from "../billing/usage-cache";
 import { GLOBAL_USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+import { userUpdateRequiresSessionRevocation } from "./users.session-policy";
+
+function addSessionVersionInvalidation(
+  target: Record<string, unknown>,
+  updates: Partial<InsertUser>,
+): void {
+  if (userUpdateRequiresSessionRevocation(updates)) {
+    target.tokenVersion = sql`coalesce(${usersTable.tokenVersion}, 0) + 1`;
+  }
+}
 
 export class UsersRepository implements IUsersRepository {
   private scopedIdWhere(id: number) {
@@ -63,6 +73,7 @@ export class UsersRepository implements IUsersRepository {
 
   async updateUser(id: number, updates: Partial<InsertUser>): Promise<User> {
     const toUpdate = { ...updates } as any;
+    addSessionVersionInvalidation(toUpdate, updates);
     if (updates.password) {
       toUpdate.password = await bcrypt.hash(updates.password, 10);
     }
@@ -86,6 +97,7 @@ export class UsersRepository implements IUsersRepository {
     updates: Partial<InsertUser>,
   ): Promise<User | undefined> {
     const toUpdate = { ...updates } as any;
+    addSessionVersionInvalidation(toUpdate, updates);
     delete toUpdate.empresaId;
     if (updates.password) {
       toUpdate.password = await bcrypt.hash(updates.password, 10);
@@ -121,7 +133,10 @@ export class UsersRepository implements IUsersRepository {
         : eq(usersTable.empresaId, expectedEmpresaId);
     const [updated] = await db
       .update(usersTable)
-      .set({ password: hashedPassword })
+      .set({
+        password: hashedPassword,
+        tokenVersion: sql`coalesce(${usersTable.tokenVersion}, 0) + 1`,
+      } as any)
       .where(and(eq(usersTable.id, id), scope))
       .returning();
     return updated;
@@ -142,7 +157,11 @@ export class UsersRepository implements IUsersRepository {
         : eq(usersTable.empresaId, expectedEmpresaId);
     const [updated] = await db
       .update(usersTable)
-      .set({ isLocked: false, loginAttempts: 0 })
+      .set({
+        isLocked: false,
+        loginAttempts: 0,
+        tokenVersion: sql`coalesce(${usersTable.tokenVersion}, 0) + 1`,
+      } as any)
       .where(and(eq(usersTable.id, id), scope))
       .returning();
     return updated;

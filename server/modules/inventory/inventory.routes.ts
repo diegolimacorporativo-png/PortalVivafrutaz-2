@@ -12,6 +12,7 @@ import { Router } from "express";
 import { inventoryController } from "./inventory.controller";
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { requireTenant, tenantContext } from "../../middleware/tenant";
+import { requireTabPermission } from "../../middleware/requireTabPermission";
 import {
   INVENTORY_READ_ROLES,
   INVENTORY_WRITE_ROLES,
@@ -24,12 +25,14 @@ const readGuards = [
   requireRole([...INVENTORY_READ_ROLES]),
   tenantContext,
   requireTenant,
+  requireTabPermission("inventory"),
 ];
 const writeGuards = [
   requireAuth,
   requireRole([...INVENTORY_WRITE_ROLES]),
   tenantContext,
   requireTenant,
+  requireTabPermission("inventory"),
 ];
 
 // ── Settings ───────────────────────────────────────────────────────────

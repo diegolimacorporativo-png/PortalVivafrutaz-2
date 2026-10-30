@@ -27,6 +27,7 @@ import { ExportOrdersModal } from "./dialogs/ExportOrdersModal";
 import { DeleteHistoryModal } from "./dialogs/DeleteHistoryModal";
 import type { Order } from "./types";
 import { BackHeader } from "@/components/navigation/BackHeader";
+import { canPerformAction } from "@/lib/rbac";
 
 export default function OrdersPage() {
   const { data: orders, isLoading: isAllOrdersLoading } = useOrders();
@@ -36,7 +37,8 @@ export default function OrdersPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const canDeleteOrders = user && ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes((user as any).role);
+  const canEditOrders = canPerformAction(user as any, 'orders', 'edit');
+  const canDeleteOrders = canPerformAction(user as any, 'orders', 'delete');
 
   // ── Filter state ──────────────────────────────────────────────
   const [search, setSearch] = useState("");
@@ -236,7 +238,7 @@ export default function OrdersPage() {
               </div>
             </div>
             <div className="divide-y divide-orange-100">
-              {pendingOrders.map(order => {
+                    {canEditOrders && pendingOrders.map(order => {
                 const company = companies?.find((c: any) => c.id === order.companyId);
                 return (
                   <div key={order.id} className="p-4 hover:bg-orange-100/50 transition-colors">
@@ -372,6 +374,7 @@ export default function OrdersPage() {
                       onApproveReopen={approveReopen}
                       onDenyReopen={denyReopen}
                       onTransition={transitionOrder}
+                      canEdit={canEditOrders}
                     />
                   );
                 })

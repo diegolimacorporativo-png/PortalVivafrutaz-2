@@ -3,6 +3,7 @@ import { storage } from "../services/storage";
 import { ForbiddenError, UnauthorizedError } from "../shared/errors/AppError";
 import {
   actionPermissionAllows,
+  roleCanViewGps,
   type ActionPermissionAction,
   type ActionPermissionModule,
 } from "@shared/user-roles";
@@ -29,11 +30,12 @@ function actionForRequest(
       const pathname = path.split("?", 1)[0].replace(/\/+$/, "") || "/";
       if (module === "orders" && /\/orders\/\d+\/substitute-item$/.test(pathname)) return "edit";
       if (module === "orders" && /\/orders\/reopen-requests\/\d+\/(approve|deny|finalize)$/.test(pathname)) return "edit";
+      if (module === "orders" && /\/api\/(?:v\d+\/)?orders\/\d+\/(approve-reopen|deny-reopen|finalize-edit|transition)$/.test(pathname)) return "edit";
       if (module === "logistics") {
-        if (/\/api\/logistics\/(suggest-route|simulate-day|calculate-distance|route-assistant|smart-search|best-driver|smart-route-plan|day-orders)$/.test(pathname)) return "read";
+        if (/\/api\/logistics\/(suggest-route|simulate-day|calculate-distance|route-assistant|smart-search|best-driver|smart-route-plan|day-orders|route-insertion)$/.test(pathname)) return "read";
         if (/\/api\/driver\/journey\/end$/.test(pathname)) return "edit";
         if (/\/api\/logistics\/routes\/\d+(\/stops\/\d+)?$/.test(pathname)) return "edit";
-        if (/\/api\/deliveries\/\d+\/(status|complete)$/.test(pathname)) return "edit";
+        if (/\/api\/deliveries\/\d+\/(status|complete|stop-status)$/.test(pathname)) return "edit";
       }
       return "create";
     }
@@ -60,7 +62,7 @@ export function requireActionPermission(module: ActionPermissionModule) {
       const user = await storage.getUser(session.userId);
       if (!user || user.active === false) return next(new UnauthorizedError());
       const requestPath = (req.originalUrl || req.path || "").split("?", 1)[0].replace(/\/+$/, "");
-      const isAuthorizedGpsMonitor = ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(user.role);
+      const isAuthorizedGpsMonitor = roleCanViewGps(user.role);
       const isLogisticsGpsRead = isAuthorizedGpsMonitor && module === "logistics" && action === "read" && (
         requestPath === "/api/logistics/drivers/gps" || /^\/api\/driver\/\d+\/gps$/.test(requestPath)
       );

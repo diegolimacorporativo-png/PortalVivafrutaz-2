@@ -25,11 +25,59 @@ export type UserRole = (typeof USER_ROLE_VALUES)[number];
 export const DENY_ALL_TAB_PERMISSIONS = "__deny_all_tabs__";
 
 export const ACTION_PERMISSION_KEY = "actionOverridesV1";
-export const ACTION_PERMISSION_MODULES = ["orders", "logistics", "quotations", "special-orders"] as const;
+export const ACTION_PERMISSION_MODULES = ["orders", "logistics", "quotations", "special-orders", "finance"] as const;
 export const ACTION_PERMISSION_ACTIONS = ["read", "create", "edit", "delete"] as const;
 
 export type ActionPermissionModule = (typeof ACTION_PERMISSION_MODULES)[number];
 export type ActionPermissionAction = (typeof ACTION_PERMISSION_ACTIONS)[number];
+
+/** Frontend routes governed by the existing per-user action permission modules. */
+export const ACTION_PERMISSION_TAB_MODULES: Readonly<Record<string, ActionPermissionModule>> = {
+  orders: "orders",
+  "special-orders": "special-orders",
+  quotations: "quotations",
+  logistics: "logistics",
+  finance: "finance",
+};
+
+/** Every internal role may view GPS except sanitary and driver accounts. */
+export const GPS_VIEW_ROLES = USER_ROLE_VALUES.filter(
+  (role) => !["NUTRICIONISTA", "MOTORISTA", "DRIVER"].includes(role),
+);
+
+export function roleCanViewGps(role: string | null | undefined): boolean {
+  return !!role && (GPS_VIEW_ROLES as readonly string[]).includes(role);
+}
+
+/**
+ * Maximum operational capability by profile. `undefined` preserves existing
+ * module-specific policies for roles not covered by the approved RBAC matrix.
+ * Per-user configuration can only deny capabilities granted by this ceiling.
+ */
+export function roleActionAllows(
+  role: string | null | undefined,
+  module: ActionPermissionModule,
+  action: ActionPermissionAction,
+): boolean | undefined {
+  if (!role || (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role)) return true;
+  const readOnly = action === "read";
+  if (role === "COMERCIAL") {
+    if (module === "logistics") return readOnly;
+    if (["orders", "quotations", "special-orders"].includes(module)) return action !== "delete";
+  }
+  if (role === "LOGISTICS") {
+    if (["orders", "quotations", "special-orders"].includes(module)) return readOnly;
+    if (module === "logistics") return action !== "delete";
+    if (module === "finance") return readOnly;
+  }
+  if (role === "FINANCEIRO") {
+    if (["orders", "quotations", "special-orders", "logistics"].includes(module)) return readOnly;
+    // Preserve the existing finance-role operation policy; custom settings
+    // can restrict it, while existing service rules continue to authorize it.
+    if (module === "finance") return true;
+  }
+  return undefined;
+}
 
 /**
  * Existing `users.permissions` JSONB may contain opaque legacy data. Only the
@@ -43,6 +91,8 @@ export function actionPermissionAllows(
   role?: string | null,
 ): boolean {
   if (role && (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role)) return true;
+  const roleCeiling = roleActionAllows(role, module, action);
+  if (roleCeiling === false) return false;
   if (stored == null || typeof stored !== "object" || Array.isArray(stored)) return true;
   const config = (stored as Record<string, unknown>)[ACTION_PERMISSION_KEY];
   if (config === undefined) return true;
@@ -56,12 +106,16 @@ export function actionPermissionAllows(
 
 export function tabPermissionAllows(permissions: unknown, tabKey: string, role?: string | null): boolean {
   if (role && (FULL_SYSTEM_ACCESS_ROLES as readonly string[]).includes(role)) return true;
-  // Logistics monitoring is an operational capability explicitly assigned to
-  // these profiles; legacy per-user tab lists must not hide the GPS screen.
-  if (
-    tabKey === "gps-tracking"
-    && ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(role ?? "")
-  ) return true;
+  const restrictedTabAccess: Record<string, readonly string[]> = {
+    COMERCIAL: ["dashboard", "orders", "special-orders", "logistics", "quotations", "gps-tracking", "tasks", "incidents", "internal-incidents", "about-us", "treinamento", "settings"],
+    LOGISTICS: ["dashboard", "orders", "special-orders", "logistics", "quotations", "gps-tracking", "tasks", "incidents", "internal-incidents", "about-us", "treinamento", "settings", "logistics-intelligence", "waste-control"],
+    FINANCEIRO: ["dashboard", "orders", "special-orders", "logistics", "quotations", "gps-tracking", "financial", "finance", "fiscal", "fiscal-diagnostics", "nfe", "faturamento", "insert-nf-manual", "banco", "financial-intelligence", "tasks", "about-us", "treinamento", "settings", "executive"],
+  };
+  const roleTabs = role ? restrictedTabAccess[role] : undefined;
+  if (roleTabs && !roleTabs.includes(tabKey)) return false;
+  // GPS is a profile baseline: eligible internal roles always see it, while
+  // sanitary and driver roles remain denied even if a stored tab list grants it.
+  if (tabKey === "gps-tracking" && role) return roleCanViewGps(role);
   if (permissions == null || (Array.isArray(permissions) && permissions.length === 0)) return true;
   if (!Array.isArray(permissions) || !permissions.every((value) => typeof value === "string")) return false;
   if (permissions.includes(DENY_ALL_TAB_PERMISSIONS)) return false;
@@ -72,7 +126,7 @@ export function tabPermissionAllows(permissions: unknown, tabKey: string, role?:
 export const GLOBAL_ADMIN_ROLES = ["MASTER", "DIRECTOR", "DEVELOPER"] as const;
 
 /** Roles allowed to manage system users when their account has global scope. */
-export const GLOBAL_USER_MANAGEMENT_ROLES = GLOBAL_ADMIN_ROLES;
+export const GLOBAL_USER_MANAGEMENT_ROLES = [...GLOBAL_ADMIN_ROLES, "ADMIN"] as const;
 
 /** Profiles that must retain access to all system modules regardless of per-user UI restrictions. */
 export const FULL_SYSTEM_ACCESS_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
@@ -81,11 +135,11 @@ export const FULL_SYSTEM_ACCESS_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOP
 export const GLOBAL_SCOPE_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
 
 /** Internal Vivafrutaz staff profiles; distinct from company portal accounts. */
-export const INTERNAL_STAFF_ROLES = ["COMERCIAL", "LOGISTICS"] as const;
+export const INTERNAL_STAFF_ROLES = ["COMERCIAL", "LOGISTICS", "FINANCEIRO"] as const;
 
 /** Profiles permitted to target a company for cross-company operations. */
 export const CROSS_COMPANY_STAFF_ROLES = [
-  ...GLOBAL_SCOPE_ROLES, "COMERCIAL", "LOGISTICS",
+  ...GLOBAL_SCOPE_ROLES, "COMERCIAL", "LOGISTICS", "FINANCEIRO",
 ] as const;
 
 /** Tenant admins manage staff, but cannot grant platform/developer authority. */

@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label';
 import { Plus, Eye, Pencil, Trash2, Building2, Download, Clock, MapPin, Route, Users, ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { CompanyQuotation, PriceGroup } from '@shared/schema';
+import { useAuth } from '@/hooks/use-auth';
+import { canPerformAction } from '@/lib/rbac';
 
 const STATUS_LABEL: Record<string, string> = { PENDING: 'Pendente', IN_ANALYSIS: 'Em análise', APPROVED: 'Aprovado', REJECTED: 'Rejeitado', HORARIOS_DISPONIVEIS: 'Horários Disponíveis' };
 const STATUS_COLOR: Record<string, string> = {
@@ -444,6 +446,10 @@ function ConvertToCompanyModal({ quotation, onClose }: { quotation: CompanyQuota
 
 export default function QuotationsPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canCreate = canPerformAction(user as any, 'quotations', 'create');
+  const canEdit = canPerformAction(user as any, 'quotations', 'edit');
+  const canDelete = canPerformAction(user as any, 'quotations', 'delete');
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<CompanyQuotation | undefined>();
   const [selected, setSelected] = useState<CompanyQuotation | undefined>();
@@ -488,9 +494,9 @@ export default function QuotationsPage() {
             </SelectContent>
           </Select>
           <Button variant="outline" size="sm" onClick={exportData}><Download className="w-4 h-4 mr-1" /> Exportar</Button>
-          <Button onClick={() => { setEditItem(undefined); setShowForm(true); }} data-testid="button-new-quotation" className="gap-2">
+          {canCreate && <Button onClick={() => { setEditItem(undefined); setShowForm(true); }} data-testid="button-new-quotation" className="gap-2">
             <Plus className="w-4 h-4" /> Nova Cotação
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -532,14 +538,14 @@ export default function QuotationsPage() {
                   <div className="flex flex-col gap-1 items-end shrink-0">
                     <p className="text-xs text-muted-foreground">{new Date(q.createdAt).toLocaleDateString('pt-BR')}</p>
                     <div className="flex gap-1 flex-wrap justify-end">
-                      {q.status === 'APPROVED' && (
+                      {canCreate && q.status === 'APPROVED' && (
                         <Button size="sm" variant="outline" className="h-7 px-2 text-green-700 border-green-300 hover:bg-green-50" onClick={() => setConvertTarget(q)} data-testid={`button-convert-quotation-${q.id}`}>
                           <ArrowRight className="w-3 h-3 mr-1" /> Converter
                         </Button>
                       )}
                       <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => setSelected(q)} data-testid={`button-view-quotation-${q.id}`}><Eye className="w-3.5 h-3.5 mr-1" /> Ver</Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditItem(q); setShowForm(true); }}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(q.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      {canEdit && <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setEditItem(q); setShowForm(true); }}><Pencil className="w-3.5 h-3.5" /></Button>}
+                      {canDelete && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(q.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>}
                     </div>
                   </div>
                 </div>

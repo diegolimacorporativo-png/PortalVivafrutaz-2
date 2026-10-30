@@ -18,10 +18,6 @@ import { authCoreService, AUTH_EVENTS } from "../../core/auth/authCore.service";
 // STRATEGIC BYPASS — email IP+limiter bypass for MASTER/ADMIN/DIRECTOR/DEVELOPER
 import { markEmailAsStrategic } from "../../core/security/rateLimit";
 import { sendGenericEmail } from "../../services/mailer";
-// Direct DB access for startup unlock of strategic accounts
-import { db } from "../../database/db";
-import { users as usersTable, authAttempts } from "@shared/schema";
-import { eq, inArray } from "drizzle-orm";
 
 /** Number of failed attempts before an account is auto-locked. */
 const MAX_ATTEMPTS = 3;
@@ -375,11 +371,18 @@ export class AuthService {
           "WARN",
         );
         authCoreService.logAuthEvent(AUTH_EVENTS.LOGIN_BLOCKED_LOCKED, { ip, ...entityId });
-        // Clear the persisted lock immediately (fire-and-forget, fail-safe)
-        db.update(usersTable)
-          .set({ isLocked: false, loginAttempts: 0 })
-          .where(eq(usersTable.id, delegate.id))
-          .catch(() => {});
+        // Persist the unlock through the users repository so the token version
+        // advances before another session can be issued. Fail closed if it
+        // cannot be persisted; otherwise an old session could resume later.
+        try {
+          await this.repo.updateUser(delegate.id, { isLocked: false, loginAttempts: 0 });
+        } catch {
+          return {
+            kind: "failure",
+            status: 503,
+            message: "Não foi possível validar sua conta. Tente novamente.",
+          };
+        }
         // Continue auth flow — do NOT return early
       } else {
         await delegate.logEvent(
@@ -549,7 +552,10 @@ export class AuthService {
           await this.repo.updateUser(user.id, {
             loginAttempts: strategic ? 0 : newAttempts,
             lastLoginAttempt: new Date(),
-            ...(strategic ? { isLocked: false } : willLock ? { isLocked: true } : {}),
+            // A failed password does not change authorization state. Do not
+            // send isLocked:false for an already-unlocked strategic account:
+            // the repository correctly treats lock changes as session-revoking.
+            ...(!strategic && willLock ? { isLocked: true } : {}),
           });
           await this.repo.log({
             action: "LOGIN_FAILED",
@@ -991,20 +997,10 @@ export class AuthService {
    */
   async unlockStrategicAccounts(): Promise<void> {
     try {
-      const strategicRoles = Array.from(STRATEGIC_ROLES);
-      // Load all strategic-role users in one query (no password field needed —
-      // boot must NEVER overwrite user-set passwords).
-      const strategicUsers = await db
-        .select({
-          id: usersTable.id,
-          email: usersTable.email,
-          role: usersTable.role,
-          isLocked: usersTable.isLocked,
-          loginAttempts: usersTable.loginAttempts,
-          active: usersTable.active,
-        })
-        .from(usersTable)
-        .where(inArray(usersTable.role, strategicRoles));
+      // Passwords are not selected or modified by this startup maintenance.
+      const strategicUsers = await this.repo.listStrategicUsersForUnlock(
+        Array.from(STRATEGIC_ROLES),
+      );
 
       if (strategicUsers.length === 0) {
         console.log("[STRATEGIC_UNLOCK_BOOT] Nenhuma conta estratégica encontrada.");
@@ -1022,15 +1018,13 @@ export class AuthService {
         if (!needsUnlock) continue;
 
         try {
-          await db
-            .update(usersTable)
-            .set({ isLocked: false, loginAttempts: 0 } as any)
-            .where(eq(usersTable.id, u.id));
+          await this.repo.updateUser(u.id, {
+            ...(u.isLocked ? { isLocked: false } : {}),
+            loginAttempts: 0,
+          });
 
           // Clear L2 auth_attempts for this user (rate limit reset)
-          await db
-            .delete(authAttempts)
-            .where(eq(authAttempts.userId, u.id));
+          await this.repo.clearAuthAttemptsForUser(u.id);
 
           unlockedCount++;
 

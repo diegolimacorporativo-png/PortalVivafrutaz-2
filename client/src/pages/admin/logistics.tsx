@@ -1,6 +1,7 @@
 import { useState, useMemo, lazy, Suspense } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/use-auth';
+import { canPerformAction } from '@/lib/rbac';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import { normalizeList } from '@/lib/normalizeResponse';
@@ -37,6 +38,15 @@ const STATUS_LABEL: Record<string, string> = { SCHEDULED: 'Agendado', IN_PROGRES
 const MAINT_TYPE: Record<string, string> = { PREVENTIVE: 'Preventiva', CORRECTIVE: 'Corretiva', INSPECTION: 'Inspeção' };
 const VEHICLE_TYPE: Record<string, string> = { VAN: 'Van', TRUCK: 'Caminhão', MOTORCYCLE: 'Moto', CAR: 'Carro' };
 
+function useModuleActions(module: 'logistics' | 'quotations') {
+  const { user } = useAuth();
+  return {
+    canCreate: canPerformAction(user, module, 'create'),
+    canEdit: canPerformAction(user, module, 'edit'),
+    canDelete: canPerformAction(user, module, 'delete'),
+  };
+}
+
 // ─── CSV/Excel export helper ─────────────────────────────────────────────────
 function exportToCSV(rows: any[], filename: string) {
   if (!rows.length) return;
@@ -55,6 +65,7 @@ function exportToCSV(rows: any[], filename: string) {
 // ─── Motoristas Tab ──────────────────────────────────────────────────────────
 function DriversTab() {
   const { toast } = useToast();
+  const { canCreate, canEdit, canDelete } = useModuleActions('logistics');
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<LogisticsDriver | undefined>();
   const [form, setForm] = useState({ name: '', cpf: '', phone: '', email: '', licenseNumber: '', notes: '' });
@@ -86,9 +97,9 @@ function DriversTab() {
           <Button variant="outline" size="sm" onClick={() => exportToCSV(drivers.map(d => ({ Nome: d.name, CPF: d.cpf, Telefone: d.phone, Email: d.email, CNH: d.licenseNumber, Ativo: d.active ? 'Sim' : 'Não' })), 'motoristas.csv')}>
             <Download className="w-4 h-4 mr-1" /> Exportar
           </Button>
-          <Button size="sm" onClick={openCreate} data-testid="button-new-driver">
+          {canCreate && <Button size="sm" onClick={openCreate} data-testid="button-new-driver">
             <Plus className="w-4 h-4 mr-1" /> Motorista
-          </Button>
+          </Button>}
         </div>
       </div>
       {isLoading ? <div className="h-32 bg-muted rounded-xl animate-pulse" /> : (
@@ -112,8 +123,8 @@ function DriversTab() {
                   </span>
                 ) : (
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(d)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(d.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    {canEdit && <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(d)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                    {canDelete && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(d.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>}
                   </div>
                 )}
               </CardContent>
@@ -122,7 +133,7 @@ function DriversTab() {
           {!isLoading && drivers.length === 0 && <p className="col-span-3 text-center text-muted-foreground py-8">Nenhum motorista cadastrado</p>}
         </div>
       )}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm && (editItem ? canEdit : canCreate)} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editItem ? 'Editar Motorista' : 'Novo Motorista'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -150,6 +161,7 @@ function DriversTab() {
 // ─── Veículos Tab ────────────────────────────────────────────────────────────
 function VehiclesTab() {
   const { toast } = useToast();
+  const { canCreate, canEdit, canDelete } = useModuleActions('logistics');
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<LogisticsVehicle | undefined>();
   const [form, setForm] = useState({ plate: '', model: '', brand: '', year: '', type: 'VAN', capacity: '', notes: '' });
@@ -181,9 +193,9 @@ function VehiclesTab() {
           <Button variant="outline" size="sm" onClick={() => exportToCSV(vehicles.map(v => ({ Placa: v.plate, Modelo: v.model, Marca: v.brand, Ano: v.year, Tipo: VEHICLE_TYPE[v.type] || v.type, Capacidade: v.capacity, Ativo: v.active ? 'Sim' : 'Não' })), 'veiculos.csv')}>
             <Download className="w-4 h-4 mr-1" /> Exportar
           </Button>
-          <Button size="sm" onClick={openCreate} data-testid="button-new-vehicle">
+          {canCreate && <Button size="sm" onClick={openCreate} data-testid="button-new-vehicle">
             <Plus className="w-4 h-4 mr-1" /> Veículo
-          </Button>
+          </Button>}
         </div>
       </div>
       {isLoading ? <div className="h-32 bg-muted rounded-xl animate-pulse" /> : (
@@ -201,8 +213,8 @@ function VehiclesTab() {
                   <p className="text-xs text-muted-foreground">{VEHICLE_TYPE[v.type] || v.type}{v.capacity && ` — ${v.capacity}`}</p>
                 </div>
                 <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(v)}><Pencil className="w-3.5 h-3.5" /></Button>
-                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(v.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>
+                  {canEdit && <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(v)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                  {canDelete && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(v.id)} disabled={delMut.isPending}><Trash2 className="w-3.5 h-3.5" /></Button>}
                 </div>
               </CardContent>
             </Card>
@@ -210,7 +222,7 @@ function VehiclesTab() {
           {!isLoading && vehicles.length === 0 && <p className="col-span-3 text-center text-muted-foreground py-8">Nenhum veículo cadastrado</p>}
         </div>
       )}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm && (editItem ? canEdit : canCreate)} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editItem ? 'Editar Veículo' : 'Novo Veículo'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -275,6 +287,7 @@ interface StopEventRow {
 
 function RouteStopsPanel({ routeId }: { routeId: number }) {
   const { toast } = useToast();
+  const { canEdit } = useModuleActions('logistics');
   const [activeStop, setActiveStop] = useState<number | null>(null);
   const [obs, setObs] = useState('');
   const [showHistory, setShowHistory] = useState<number | null>(null);
@@ -351,14 +364,14 @@ function RouteStopsPanel({ routeId }: { routeId: number }) {
                 >
                   <History className="w-3 h-3 inline mr-0.5" />Histórico
                 </button>
-                <button
+                {canEdit && <button
                   type="button"
                   className="text-[10px] text-primary hover:underline ml-2"
                   onClick={() => { setActiveStop(isExpanded ? null : d.id); setObs(''); }}
                 >
                   {isExpanded ? <ChevronUp className="w-3 h-3 inline" /> : <ChevronDown className="w-3 h-3 inline" />}
                   {isExpanded ? 'Fechar' : 'Registrar'}
-                </button>
+                </button>}
               </div>
             </div>
 
@@ -372,7 +385,7 @@ function RouteStopsPanel({ routeId }: { routeId: number }) {
             )}
 
             {/* Inline status selector */}
-            {isExpanded && (
+            {isExpanded && canEdit && (
               <div className="pl-7 space-y-2">
                 <div className="grid grid-cols-3 gap-1.5">
                   {STOP_STATUS_KEYS_ADMIN.map(key => (
@@ -429,6 +442,7 @@ function RouteStopsPanel({ routeId }: { routeId: number }) {
 // ─── Rotas Tab ───────────────────────────────────────────────────────────────
 function RoutesTab() {
   const { toast } = useToast();
+  const { canCreate, canEdit, canDelete } = useModuleActions('logistics');
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<LogisticsRoute | undefined>();
   const [filterDriver, setFilterDriver] = useState('ALL');
@@ -495,7 +509,7 @@ function RoutesTab() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportRoutes}><Download className="w-4 h-4 mr-1" /> Exportar</Button>
-          <Button size="sm" onClick={openCreate} data-testid="button-new-route"><Plus className="w-4 h-4 mr-1" /> Rota</Button>
+          {canCreate && <Button size="sm" onClick={openCreate} data-testid="button-new-route"><Plus className="w-4 h-4 mr-1" /> Rota</Button>}
         </div>
       </div>
       {isLoading ? <div className="h-32 bg-muted rounded-xl animate-pulse" /> : filtered.length === 0 ? (
@@ -529,10 +543,10 @@ function RoutesTab() {
                         w.document.write(`<html><head><title>Manifesto – ${r.name}</title><style>body{font-family:Arial,sans-serif;padding:20px;color:#111}h1{color:#15803d;font-size:20px;border-bottom:2px solid #15803d;padding-bottom:8px}h2{font-size:13px;color:#666;margin-bottom:16px}.item{border:1px solid #ddd;border-radius:8px;padding:12px;margin-bottom:10px;page-break-inside:avoid}.num{font-size:22px;font-weight:bold;color:#15803d;float:left;margin-right:12px}.name{font-weight:bold;font-size:15px;padding-top:4px}.clear{clear:both}.footer{margin-top:30px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:8px}</style></head><body><h1>🚚 Manifesto – ${r.name}</h1><h2>Motorista: ${r.driverName || '—'} | Veículo: ${r.vehiclePlate || '—'} | Data: ${r.deliveryDate ? new Date(r.deliveryDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—'} | ${r.startTime ? r.startTime + (r.endTime ? ' – ' + r.endTime : '') : ''}</h2>${companies}<div class="footer">VivaFrutaz – Gerado em ${new Date().toLocaleString('pt-BR')}</div></body></html>`);
                         w.document.close(); w.print();
                       }}><Printer className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                      {canEdit && <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(r)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                      {canDelete && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(r.id)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                     </div>
-                    {r.status !== 'COMPLETED' && r.status !== 'CANCELLED' && (
+                    {canEdit && r.status !== 'COMPLETED' && r.status !== 'CANCELLED' && (
                       <Select value={r.status} onValueChange={s => statusMut.mutate({ id: r.id, status: s })}>
                         <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -547,7 +561,7 @@ function RoutesTab() {
           ))}
         </div>
       )}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm && (editItem ? canEdit : canCreate)} onOpenChange={setShowForm}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editItem ? 'Editar Rota' : 'Nova Rota'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -622,6 +636,7 @@ function RoutesTab() {
 // ─── Manutenção Tab ──────────────────────────────────────────────────────────
 function MaintenanceTab() {
   const { toast } = useToast();
+  const { canCreate, canEdit, canDelete } = useModuleActions('logistics');
   const [showForm, setShowForm] = useState(false);
   const [editItem, setEditItem] = useState<LogisticsMaintenance | undefined>();
   const [form, setForm] = useState({ vehicleId: '', vehiclePlate: '', type: 'PREVENTIVE', description: '', cost: '', scheduledDate: '', notes: '' });
@@ -658,7 +673,7 @@ function MaintenanceTab() {
         <p className="text-sm text-muted-foreground">{maintenances.length} registros de manutenção</p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={exportMaint}><Download className="w-4 h-4 mr-1" /> Exportar</Button>
-          <Button size="sm" onClick={openCreate} data-testid="button-new-maintenance"><Plus className="w-4 h-4 mr-1" /> Manutenção</Button>
+          {canCreate && <Button size="sm" onClick={openCreate} data-testid="button-new-maintenance"><Plus className="w-4 h-4 mr-1" /> Manutenção</Button>}
         </div>
       </div>
       {isLoading ? <div className="h-32 bg-muted rounded-xl animate-pulse" /> : maintenances.length === 0 ? (
@@ -683,10 +698,10 @@ function MaintenanceTab() {
                 </div>
                 <div className="flex flex-col gap-1 items-end">
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(m)}><Pencil className="w-3.5 h-3.5" /></Button>
-                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(m.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
+                    {canEdit && <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(m)}><Pencil className="w-3.5 h-3.5" /></Button>}
+                    {canDelete && <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-600" onClick={() => delMut.mutate(m.id)}><Trash2 className="w-3.5 h-3.5" /></Button>}
                   </div>
-                  {m.status !== 'COMPLETED' && (
+                  {canEdit && m.status !== 'COMPLETED' && (
                     <Select value={m.status} onValueChange={s => statusMut.mutate({ id: m.id, status: s })}>
                       <SelectTrigger className="h-7 text-xs w-32"><SelectValue /></SelectTrigger>
                       <SelectContent>
@@ -702,7 +717,7 @@ function MaintenanceTab() {
           ))}
         </div>
       )}
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={showForm && (editItem ? canEdit : canCreate)} onOpenChange={setShowForm}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editItem ? 'Editar Manutenção' : 'Nova Manutenção'}</DialogTitle></DialogHeader>
           <div className="space-y-3">
@@ -781,8 +796,10 @@ function CotacoesTab() {
 
   const { data: quotations = [], isLoading } = useQuery<CompanyQuotation[]>({ queryKey: ['/api/quotations'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
 
-  const canDelete = ['ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user?.role || '');
-  const canEditWindows = ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS'].includes(user?.role || '');
+  const canCreate = canPerformAction(user, 'quotations', 'create');
+  const canEdit = canPerformAction(user, 'quotations', 'edit');
+  const canDelete = canPerformAction(user, 'quotations', 'delete') && ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'MASTER'].includes(user?.role || '');
+  const canEditWindows = canEdit && ['ADMIN', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS'].includes(user?.role || '');
 
   const resetForm = () => setForm({ companyName: '', contactName: '', contactPhone: '', email: '', cnpj: '', city: '', state: '', estimatedVolume: '', productInterest: '', logisticsNote: '' });
 
@@ -853,9 +870,9 @@ function CotacoesTab() {
           <Button size="sm" variant="outline" onClick={() => exportToCSV(filtered.map(q => ({ Empresa: q.companyName, Contato: q.contactName, Telefone: q.contactPhone || '', Email: q.email || '', Cidade: q.city || '', Estado: q.state || '', Produtos: q.productInterest || '', Volume: q.estimatedVolume || '', Status: QUOT_STATUS_LABEL[q.status] || q.status, 'Nota Logística': q.logisticsNote || '', 'Janelas de Entrega': parseWindows(q.deliveryWindowsJson).map(w => `${w.startTime}–${w.endTime}`).join(' | ') })), 'cotacoes.csv')} data-testid="button-export-quotations">
             <Download className="w-4 h-4 mr-1" />Exportar
           </Button>
-          <Button size="sm" onClick={() => { setShowForm(true); setEditItem(null); resetForm(); setDeliveryWindows([]); }} data-testid="button-new-quotation">
+          {canCreate && <Button size="sm" onClick={() => { setShowForm(true); setEditItem(null); resetForm(); setDeliveryWindows([]); }} data-testid="button-new-quotation">
             <Plus className="w-4 h-4 mr-1" />Nova Cotação
-          </Button>
+          </Button>}
         </div>
       </div>
 
@@ -908,8 +925,8 @@ function CotacoesTab() {
                       <p className="text-xs text-muted-foreground mt-1">Registrado em {new Date(q.createdAt).toLocaleDateString('pt-BR')}</p>
                     </div>
                     <div className="flex gap-1 shrink-0">
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openUpdate(q)} data-testid={`button-update-quotation-${q.id}`} title="Atualizar status"><RefreshCw className="w-3.5 h-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(q)} data-testid={`button-edit-quotation-${q.id}`} title="Editar"><Pencil className="w-3.5 h-3.5" /></Button>
+                      {canEdit && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openUpdate(q)} data-testid={`button-update-quotation-${q.id}`} title="Atualizar status"><RefreshCw className="w-3.5 h-3.5" /></Button>}
+                      {canEdit && <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(q)} data-testid={`button-edit-quotation-${q.id}`} title="Editar"><Pencil className="w-3.5 h-3.5" /></Button>}
                       {canDelete && <Button size="icon" variant="ghost" className="h-7 w-7 text-red-600 hover:text-red-700" onClick={() => { if (confirm('Excluir esta cotação?')) deleteMut.mutate(q.id); }} data-testid={`button-delete-quotation-${q.id}`} title="Excluir"><Trash2 className="w-3.5 h-3.5" /></Button>}
                     </div>
                   </div>
@@ -921,7 +938,7 @@ function CotacoesTab() {
       )}
 
       {/* Create / Edit Form Dialog */}
-      <Dialog open={showForm} onOpenChange={v => { setShowForm(v); if (!v) { setEditItem(null); setDeliveryWindows([]); } }}>
+      <Dialog open={showForm && (editItem ? canEdit : canCreate)} onOpenChange={v => { setShowForm(v); if (!v) { setEditItem(null); setDeliveryWindows([]); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editItem ? 'Editar Cotação' : 'Nova Cotação'}</DialogTitle></DialogHeader>
           <div className="grid gap-3 py-2 max-h-[65vh] overflow-y-auto pr-1">
@@ -1003,7 +1020,7 @@ function CotacoesTab() {
       </Dialog>
 
       {/* Update Status Dialog */}
-      <Dialog open={!!updateModal} onOpenChange={v => { if (!v) { setUpdateModal(null); setDeliveryWindows([]); } }}>
+      <Dialog open={!!updateModal && canEdit} onOpenChange={v => { if (!v) { setUpdateModal(null); setDeliveryWindows([]); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Atualizar Status — Cotação</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2 max-h-[70vh] overflow-y-auto">
@@ -1100,6 +1117,7 @@ type RouteCompany = {
 
 function RouteAssistantTab() {
   const { toast } = useToast();
+  const { canCreate } = useModuleActions('logistics');
   const [selectedDay, setSelectedDay] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
   const [companies, setCompanies] = useState<RouteCompany[]>([]);
@@ -1318,9 +1336,9 @@ function RouteAssistantTab() {
               <Button size="sm" variant="outline" onClick={printManifesto} data-testid="button-print-manifesto">
                 <Printer className="w-4 h-4 mr-1" /> Imprimir Manifesto
               </Button>
-              <Button size="sm" onClick={() => { setShowCreateRoute(true); setRouteName(`Rota ${selectedDay}`); }} data-testid="button-create-from-assistant">
+              {canCreate && <Button size="sm" onClick={() => { setShowCreateRoute(true); setRouteName(`Rota ${selectedDay}`); }} data-testid="button-create-from-assistant">
                 <Plus className="w-4 h-4 mr-1" /> Criar Rota
-              </Button>
+              </Button>}
             </div>
           </div>
 
@@ -1419,7 +1437,7 @@ function RouteAssistantTab() {
         </div>
       )}
 
-      <Dialog open={showCreateRoute} onOpenChange={setShowCreateRoute}>
+      <Dialog open={showCreateRoute && canCreate} onOpenChange={setShowCreateRoute}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Criar Rota a partir da Sugestão</DialogTitle></DialogHeader>
           <div className="space-y-3">

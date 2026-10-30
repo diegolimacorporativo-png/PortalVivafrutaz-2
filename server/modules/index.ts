@@ -6,7 +6,7 @@ import { definition as financeModule } from "./finance";
 import { definition as fiscalModule } from "./fiscal";
 import { definition as inventoryModule } from "./inventory";
 import { definition as logisticsModule } from "./logistics";
-import { definition as ordersModule } from "./orders";
+import { definition as ordersModule, companyOrdersDefinition as companyOrdersModule } from "./orders";
 import {
   definition as productsModule,
   categoriesDefinition as categoriesModule,
@@ -15,6 +15,7 @@ import {
 } from "./products";
 import { definition as usersModule, adminDefinition as usersAdminModule } from "./users";
 import { definition as productionModule } from "./production";
+import { definition as securityModule } from "./security";
 
 /**
  * Central module loader.
@@ -58,6 +59,7 @@ const MODULES: readonly ModuleDefinition[] = [
   productsModule,
   usersModule,
   productionModule,
+  securityModule,
   // 🔜 Append future modules here:
   // salesModule, purchasesModule,
   // reportsModule, aiModule,
@@ -71,6 +73,7 @@ const MODULES: readonly ModuleDefinition[] = [
  * endpoints retain the legacy non-envelope response shape.
  */
 const AUX_MODULES: readonly ModuleDefinition[] = [
+  companyOrdersModule,
   { name: "driver-auth", basePath: "/api/driver/auth", router: driverAuthRouter },
   categoriesModule,
   usersAdminModule,

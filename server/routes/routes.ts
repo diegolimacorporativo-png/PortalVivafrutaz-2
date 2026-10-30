@@ -1,7 +1,6 @@
 import type { Express, NextFunction, Request, Response } from "express";
 import type { Server } from "http";
 import { storage } from "../services/storage.ts";
-import { ordersController } from "../modules/orders/orders.controller";
 import { authController } from "../modules/auth/auth.controller";
 import { financeController } from "../modules/finance/finance.controller";
 // FASE FIN.3.5 — singleton de FinanceService para unificar o caminho de
@@ -14,7 +13,6 @@ import { financeRepository } from "../modules/finance/finance.repository";
 import { logisticsController } from "../modules/logistics/logistics.controller";
 import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/driver.access";
 import { companySettingsService } from "../services/companySettingsService.ts";
-import { api } from "@shared/routes";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
 import { z } from "zod";
 import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
@@ -40,6 +38,7 @@ import { orders, orderItems, companies, products, aiInteractions, nfManual, cron
 import { gte, desc, sql } from "drizzle-orm";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
+import { nfeCceReadAccess, nfeCceWriteAccess } from "../modules/nfe/nfe-cce-tenant.middleware";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { resolveTenant } from "../core/tenant/context";
 import { parseOrderCatalog } from "../modules/products/catalog-import";
@@ -98,7 +97,7 @@ import { ENABLE_NFE_IDEMPOTENCY_GUARD } from "../config/flags";
 import { getFaturamentoContext } from "../modules/nfe/faturamento.engine";
 import { getRequestIdForLog } from "../core/context/requestContext";
 // FASE 3/6.5 — guarda de tenant e wrapper multi-tenant
-import { validateOrderTenant, safeGetOrder, withTenantGuard, validateCompanyTenant } from "../core/security/orderSecurity";
+import { validateOrderTenant, safeGetOrder, withTenantGuard } from "../core/security/orderSecurity";
 // FASE 9A — logSecurity for NF-e error visibility
 import { logSecurity } from "../core/security/securityLogger";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
@@ -295,52 +294,6 @@ export async function registerRoutes(
   // POST /api/admin/smtp-test
   // GET  /api/admin/mailer-status
 
-  // --- FASE 6.7 — Resumo agregado de eventos de segurança (admin only) ---
-  // Endpoint super simples para o card "Segurança do Sistema" do dashboard
-  // admin. Retorna `{ success, data: [{ type, total }] }`. Apenas leitura,
-  // apenas papéis administrativos. Não toca em nenhum fluxo de validação,
-  // log ou schema — pass-through puro sobre a tabela já existente
-  // `tenant_mismatch_events`.
-  app.get(
-    '/api/admin/security/resumo',
-    requireAuthCore,
-    requireRole(['MASTER', 'ADMIN', 'DEVELOPER', 'DIRECTOR']),
-    async (req, res, next) => {
-      try {
-        const { securityController } = await import('../modules/security/security.controller');
-        return await securityController.resumo(req, res);
-      } catch (e) {
-        return next(e);
-      }
-    },
-  );
-
-  // --- FASE 6.1 — Tenant Mismatch Audit (read-only, MASTER only) ---
-  // Endpoint de auditoria agregada para tentativas de acesso entre tenants.
-  // Apenas leitura, apenas MASTER, apenas dados agregados (sem orderId/tenantId reais).
-  app.get(
-    '/api/admin/security/tenant-mismatch-events',
-    requireAuthCore,
-    requireRole([...GLOBAL_ADMIN_ROLES], { strict: true }),
-    async (req, res) => {
-      try {
-        console.log('[SECURITY_AUDIT] Tenant mismatch audit requested');
-        const { getTenantMismatchEvents } = await import('../modules/security/security.repository');
-        const days = Number(req.query.days || 7);
-        const data = await getTenantMismatchEvents(days);
-        return res.json({ success: true, data });
-      } catch (e: any) {
-        return res.status(500).json({
-          success: false,
-          error: {
-            code: 'TENANT_MISMATCH_AUDIT_FAILED',
-            message: e?.message || 'Unknown error',
-          },
-        });
-      }
-    },
-  );
-
   // --- FASE 6.8 — Manual unblock (MASTER only) ---
   // Permite ao MASTER liberar um usuário antes do TTL de 5 min expirar.
   // Apenas em memória, idempotente, sem efeito sobre validateOrderTenant.
@@ -421,23 +374,6 @@ export async function registerRoutes(
   // /api/products/safra-alerts, /next-code, /check-code, /check-duplicate,
   // /price-alerts → migrated to server/modules/products/products.routes.ts
   // (mounted at /api/products by registerModules, BEFORE this legacy block).
-
-  // --- Substitute/manage item in order (safra management) ---
-  // Delegated to ordersController.substituteItem — owned by server/modules/orders.
-  // FASE 8.6F — guard de tenant ANTES da delegação. Mesmo padrão das demais
-  // rotas de pedido (`api.orders.get` linha ~1707): bloqueia cross-tenant
-  // antes de tocar o controller. Erros propagam via `next` para o
-  // errorHandler central (AppError → status correto).
-  // H4-FIX: requireAuthCore added — unauthenticated callers were able to reach
-  // the tenant guard and controller without a valid session.
-  app.post('/api/orders/:orderId/substitute-item', requireAuthCore, async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await validateOrderTenant(Number(req.params.orderId));
-      await ordersController.substituteItem(req, res);
-    } catch (e) {
-      next(e);
-    }
-  });
 
   // --- System Logs API ---
   // GET /api/admin/logs — MOVED TO logs.routes.ts
@@ -523,65 +459,10 @@ export async function registerRoutes(
   // DELETE api.orderWindows.delete.path
 
   // Orders
-  // H5-FIX: requireRole added — staff/client sessions could query any company's
-  // orders by passing empresaId. Restricted to internal privileged roles only.
-  app.get(api.orders.list.path, requireAuthCore, requireRole(["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]), async (req, res) => {
-    if (req.query.page !== undefined) {
-      const page = Math.max(1, Number(req.query.page) || 1);
-      const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 25));
-      const search = req.query.search as string | undefined;
-      const status = req.query.status as string | undefined;
-      const fiscalStatus = req.query.fiscalStatus as string | undefined;
-      const empresaId = req.query.empresaId ? Number(req.query.empresaId) : undefined;
-      const result = await storage.getOrdersPaginated({ page, limit, search, status, fiscalStatus, empresaId });
-      return res.json(result);
-    }
-    const orders = await storage.getOrders(Number(req.query.empresaId));
-    res.json(orders);
-  });
-
-  app.get(api.orders.companyOrders.path, async (req, res) => {
-    // FASE 6 BATCH 2 — auth guard.
-    if (!req.session?.userId && !req.session?.companyId) {
-      return res.status(401).json({ message: 'Não autenticado' });
-    }
-    const requestedCompanyId = Number(req.params.companyId);
-    // FASE 6 — padronização: usa validateCompanyTenant (padrão único).
-    // Lança ForbiddenError + log [SECURITY] TENANT_MISMATCH em mismatch.
-    try {
-      validateCompanyTenant(requestedCompanyId, req);
-    } catch (err) {
-      return res.status(403).json({ message: 'Acesso negado' });
-    }
-    const orders = await storage.getCompanyOrders(requestedCompanyId);
-    res.json(orders);
-  });
-
-  app.get(api.orders.get.path, async (req, res) => {
-    const orderId = Number(req.params.id);
-    // FASE 6 — bloqueia leitura de pedido de outro tenant.
-    // Usa o mesmo guard das rotas fiscais (FASE 3); converte AppError
-    // em status HTTP correto (403/404/401) sem alterar o shape do
-    // sucesso (`storage.getOrder` continua sendo a fonte de dados).
-    try {
-      await validateOrderTenant(orderId);
-    } catch (e: any) {
-      if (e instanceof AppError) {
-        return res.status(e.status).json({ message: e.message });
-      }
-      throw e;
-    }
-    const data = await storage.getOrder(orderId);
-    if (!data) {
-      // FASE 8 — observabilidade: registra possível tentativa cross-tenant
-      // que cai no caminho 404. Apenas log; status e body permanecem iguais.
-      console.warn(
-        `[SECURITY] CROSS_TENANT_404 | requestId=${req.requestId ?? "unknown"} | orderId=${orderId} | details=Possible cross-tenant access (404)`,
-      );
-      return res.status(404).json({ message: "Not found" });
-    }
-    res.json(data);
-  });
+  // GET /api/orders and GET /api/orders/:id are handled by
+  // server/modules/orders, mounted before this legacy router. The client
+  // portal URL /api/companies/:id/orders is also implemented by the orders
+  // module's auxiliary router, preserving the existing array response.
 
   // ── POST /api/orders — MIGRADO PARA O MÓDULO (DEAD CODE) ─────────────────────
   // R1 (Refatoração Unificação de Pipeline): este handler foi o ponto de criação
@@ -745,35 +626,6 @@ export async function registerRoutes(
   // handler duplicado já atendido por módulo em server/modules/*
   // REMOVIDO NA FASE 7.4 — código morto
   // handler duplicado já atendido por módulo em server/modules/*
-
-  // ─── DELIVERIES — stop status & history ──────────────────────────────────
-  // GET /api/deliveries — list with optional ?routeId=, ?companyId=, ?status=
-  app.get('/api/deliveries', requireAuthCore, async (req: Request, res: Response) => {
-    try {
-      const { routeId, companyId, driverId, status, date } = req.query as Record<string, string>;
-      const filters: Record<string, any> = {};
-      if (routeId)    filters.routeId    = Number(routeId);
-      if (companyId)  filters.companyId  = Number(companyId);
-      if (driverId)   filters.driverId   = Number(driverId);
-      if (status)     filters.status     = status;
-      if (date)       filters.date       = date;
-      const rows = await storage.getDeliveries(Object.keys(filters).length ? filters : undefined);
-      res.json(rows);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
-
-  // GET /api/deliveries/:id/stop-events — full history for a delivery stop
-  app.get('/api/deliveries/:id/stop-events', requireAuthCore, async (req: Request, res: Response) => {
-    try {
-      const deliveryId = Number(req.params.id);
-      const events = await storage.getDeliveryStopEvents(deliveryId);
-      res.json(events);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
 
   // ─── COTAÇÃO DE EMPRESAS — MOVED TO quotations.routes.ts ─────
   // GET    /api/quotations
@@ -3595,7 +3447,10 @@ export async function registerRoutes(
     // Audit persisted after every successful creation.
 
     // POST /api/nfe/:id/cce — registrar CC-e
-    app.post('/api/nfe/:id/cce', requireAuthCore, async (req: any, res) => {
+    app.post(
+      '/api/nfe/:id/cce',
+      ...nfeCceWriteAccess,
+      async (req: any, res) => {
       const requestId = getRequestIdForLog();
       try {
         const { id } = req.params;
@@ -3610,10 +3465,7 @@ export async function registerRoutes(
           });
         }
 
-        const nfe = await storage.getNfeEmissao(nfeId);
-        if (!nfe) {
-          return res.status(404).json({ success: false, error: { message: "NF-e não encontrada" } });
-        }
+        const nfe = req.authorizedCceNfe;
 
         // ── FASE 14.3 enterprise rules ────────────────────────────────────────
         // Rule 4 — motivo mínimo 10 chars (defensive; route already checks 15)
@@ -3706,18 +3558,23 @@ export async function registerRoutes(
         logSecurity(`[NFE_CCE_ERRO] requestId=${requestId} | error=${e?.message}`);
         return res.status(500).json({ success: false, error: { message: e.message } });
       }
-    });
+      },
+    );
 
     // GET /api/nfe/:id/cce — listar histórico de CC-e
-    app.get('/api/nfe/:id/cce', requireAuthCore, async (req: any, res) => {
+    app.get(
+      '/api/nfe/:id/cce',
+      ...nfeCceReadAccess,
+      async (req: any, res) => {
       try {
         const { id } = req.params;
-        const history = await storage.getNfeCceHistory(Number(id));
+        const history = await storage.getNfeCceHistory(req.authorizedCceNfe.id);
         return res.json({ success: true, history });
       } catch (e: any) {
         return res.status(500).json({ success: false, error: { message: e.message } });
       }
-    });
+      },
+    );
 
     // POST /api/nf-manual — inserir NF manual
     // SECURITY: tenantContext + requireTenant force a pinned tenant; withTenant

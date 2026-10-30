@@ -22,12 +22,14 @@ interface OrderRowProps {
   onApproveReopen: (order: Order) => void;
   onDenyReopen: (order: Order) => void;
   onTransition: (order: Order, to: string, label: string) => Promise<void>;
+  canEdit: boolean;
 }
 
 export const OrderRow = memo(function OrderRow({
   order, companyName, products,
   onNoteEdit, onEdit, onCancel, onRestore,
   onApproveReopen, onDenyReopen, onTransition,
+  canEdit,
 }: OrderRowProps) {
   const [expanded, setExpanded] = useState(false);
   const { data: detail } = useOrderDetail(expanded ? order.id : undefined);
@@ -110,7 +112,7 @@ export const OrderRow = memo(function OrderRow({
         </td>
         <td className="px-5 py-4">
           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-            {isReopenRequested ? (
+            {canEdit && isReopenRequested ? (
               <>
                 <button data-testid={`button-approve-reopen-${order.id}`} onClick={() => onApproveReopen(order)}
                   title="Aprovar reabertura"
@@ -123,7 +125,7 @@ export const OrderRow = memo(function OrderRow({
                   <ThumbsDown className="w-4 h-4" />
                 </button>
               </>
-            ) : !isCancelled ? (
+            ) : canEdit && !isCancelled ? (
               <>
                 {(() => {
                   const wf = order.workflowStatus as string | undefined;
@@ -154,13 +156,13 @@ export const OrderRow = memo(function OrderRow({
                   <XCircle className="w-4 h-4" />
                 </button>
               </>
-            ) : (
+            ) : canEdit ? (
               <button data-testid={`button-restore-${order.id}`} onClick={() => onRestore(order)}
                 title="Restaurar"
                 className="p-1.5 text-muted-foreground hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors">
                 <CheckCircle className="w-4 h-4" />
               </button>
-            )}
+            ) : null}
             <button className="p-1.5 text-muted-foreground">
               {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
             </button>
@@ -192,7 +194,7 @@ export const OrderRow = memo(function OrderRow({
                     {order.reopenRequestedAt && (
                       <p className="text-xs text-orange-600 mt-0.5">{format(new Date(order.reopenRequestedAt), "d MMM yyyy 'às' HH:mm", { locale: ptBR })}</p>
                     )}
-                    {isReopenRequested && (
+                    {isReopenRequested && canEdit && (
                       <div className="flex gap-2 mt-2">
                         <button onClick={() => onApproveReopen(order)} data-testid={`button-approve-expanded-${order.id}`}
                           className="px-3 py-1.5 bg-green-500 text-white text-xs font-bold rounded-lg hover:bg-green-600 transition-colors flex items-center gap-1">

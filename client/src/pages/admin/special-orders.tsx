@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompanies } from "@/hooks/use-admin";
+import { useAuth } from "@/hooks/use-auth";
 import { Layout } from "@/components/Layout";
 import { Modal } from "@/components/Modal";
 import { useToast } from "@/hooks/use-toast";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { canPerformAction } from "@/lib/rbac";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import jsPDF from "jspdf";
@@ -158,6 +160,7 @@ function generateSpecialOrderPDF(req: SpecialOrderRequest, companyName: string) 
 }
 
 export default function SpecialOrdersAdminPage() {
+  const { user } = useAuth();
   const { data: companies } = useCompanies();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -245,6 +248,8 @@ export default function SpecialOrdersAdminPage() {
   });
 
   const pending = requests?.filter(r => r.status === 'PENDING') || [];
+  const canManageSpecialOrders = canPerformAction(user, 'special-orders', 'edit')
+    && ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'].includes(user?.role || '');
 
   return (
     <Layout>
@@ -408,7 +413,7 @@ export default function SpecialOrdersAdminPage() {
                             className={`flex items-center gap-1.5 px-3 py-1.5 font-bold text-xs rounded-xl transition-colors ${
                               req.status === 'PENDING' ? 'bg-primary text-white hover:bg-primary/90' : 'bg-muted text-muted-foreground hover:bg-muted/80'
                             }`}>
-                            <Eye className="w-3.5 h-3.5" /> {req.status === 'PENDING' ? 'Revisar' : 'Ver'}
+                            <Eye className="w-3.5 h-3.5" /> {req.status === 'PENDING' && canManageSpecialOrders ? 'Revisar' : 'Ver'}
                           </button>
                           <button
                             data-testid={`button-pdf-special-order-${req.id}`}
@@ -430,7 +435,7 @@ export default function SpecialOrdersAdminPage() {
 
       {/* Review modal */}
       {reviewing && (
-        <Modal isOpen onClose={closeModal} title="Revisar Pedido Pontual" maxWidth="max-w-2xl">
+        <Modal isOpen onClose={closeModal} title={canManageSpecialOrders ? "Revisar Pedido Pontual" : "Pedido Pontual"} maxWidth="max-w-2xl">
           <div className="space-y-4">
             {/* PDF Button */}
             {(() => {
@@ -485,7 +490,7 @@ export default function SpecialOrdersAdminPage() {
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-4 h-4 text-primary" />
                   <p className="text-sm font-bold text-foreground">Produtos Solicitados</p>
-                  {reviewing.status === 'PENDING' && <span className="text-xs text-muted-foreground">(ajuste as quantidades aprovadas se necessário)</span>}
+                          {reviewing.status === 'PENDING' && canManageSpecialOrders && <span className="text-xs text-muted-foreground">(ajuste as quantidades aprovadas se necessário)</span>}
                 </div>
                 <div className="space-y-2">
                   {editedItems.map((item, idx) => (
@@ -507,7 +512,7 @@ export default function SpecialOrdersAdminPage() {
                         </div>
                         <div>
                           <p className="text-xs text-muted-foreground mb-1">Qtd. solicitada: <strong>{item.quantity}</strong></p>
-                          {reviewing.status === 'PENDING' && (
+                          {reviewing.status === 'PENDING' && canManageSpecialOrders && (
                             <div>
                               <label className="text-xs font-semibold text-muted-foreground">Qtd. aprovada</label>
                               <input
@@ -524,7 +529,7 @@ export default function SpecialOrdersAdminPage() {
                           )}
                         </div>
                       </div>
-                      {reviewing.status === 'PENDING' && editedItems.length > 1 && (
+                      {reviewing.status === 'PENDING' && canManageSpecialOrders && editedItems.length > 1 && (
                         <button type="button" onClick={() => removeEditItem(idx)}
                           className="p-1 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 transition-colors">
                           <Trash2 className="w-3.5 h-3.5" />
@@ -550,10 +555,10 @@ export default function SpecialOrdersAdminPage() {
             )}
 
             {/* Actions — only for PENDING */}
-            {reviewing.status === 'PENDING' && (
+            {reviewing.status === 'PENDING' && canManageSpecialOrders && (
               <>
                 {/* Estimated delivery date */}
-                {(action === 'APPROVE' || !action) && (
+                {canManageSpecialOrders && (action === 'APPROVE' || !action) && (
                   <div>
                     <label className="block text-sm font-semibold mb-1.5 flex items-center gap-1.5">
                       <Calendar className="w-4 h-4 text-primary" /> Previsão de Entrega (opcional)

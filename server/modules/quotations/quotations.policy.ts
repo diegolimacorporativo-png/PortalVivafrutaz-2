@@ -8,6 +8,7 @@ export const QUOTATION_VIEW_ROLES = [
   "OPERATIONS_MANAGER",
   "LOGISTICS",
   "COMERCIAL",
+  "FINANCEIRO",
 ] as const;
 
 export const QUOTATION_DELETE_ROLES = [
@@ -94,7 +95,7 @@ export function resolveQuotationScope(
     return { global: false, empresaId: actor.empresaId };
   }
 
-  if (actor.selectedTenantId != null && ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "COMERCIAL", "LOGISTICS"].includes(actor.role)) {
+  if (actor.selectedTenantId != null && ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER", "COMERCIAL", "LOGISTICS", "FINANCEIRO"].includes(actor.role)) {
     return { global: false, empresaId: actor.selectedTenantId };
   }
 
@@ -116,7 +117,7 @@ export function resolveQuotationReadScope(
     actor &&
     actor.empresaId == null &&
     actor.selectedTenantId == null &&
-    ["LOGISTICS", "COMERCIAL"].includes(actor.role) &&
+    ["LOGISTICS", "COMERCIAL", "FINANCEIRO"].includes(actor.role) &&
     canViewQuotations(actor.role)
   ) {
     return { global: true, empresaId: null };

@@ -11,6 +11,8 @@ import {
   ArrowUpCircle, ArrowDownCircle, RefreshCw, Receipt, ExternalLink, Wand2, History
 } from 'lucide-react';
 import { ImportarRetornoCnab } from '@/components/banking/ImportarRetornoCnab';
+import { useAuth } from '@/hooks/use-auth';
+import { canPerformAction } from '@/lib/rbac';
 
 type AR = {
   id: number; companyId: number | null; orderId: number | null;
@@ -575,6 +577,10 @@ import { BackHeader } from "@/components/navigation/BackHeader";
 
 export default function FinancePage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const canCreateFinance = canPerformAction(user as any, 'finance', 'create');
+  const canEditFinance = canPerformAction(user as any, 'finance', 'edit');
+  const canDeleteFinance = canPerformAction(user as any, 'finance', 'delete');
   const queryClient = useQueryClient();
   const [, navigate] = useLocation();
   // FASE FISCAL 8.2 — controla qual card de rejeição tem o painel de
@@ -925,10 +931,10 @@ export default function FinancePage() {
                   </button>
                   {/* FASE FISCAL 8.1 — botão semi-automático aparece SÓ quando o
                       tipo da sugestão é acionável (RECALCULAR/REEMITIR). */}
-                  {(m.sugestao?.tipo === 'RECALCULAR' || m.sugestao?.tipo === 'REEMITIR') && (
+                  {canEditFinance && (m.sugestao?.tipo === 'RECALCULAR' || m.sugestao?.tipo === 'REEMITIR') && (
                     <CorrigirReenviarButton orderId={m.orderId} tipo={m.sugestao.tipo} />
                   )}
-                  <ReenviarNfeButton orderId={m.orderId} />
+                  {canEditFinance && <ReenviarNfeButton orderId={m.orderId} />}
                   {/* FASE FISCAL 8.2 — toggle do painel de histórico (read-only). */}
                   <button
                     type="button"
@@ -970,7 +976,7 @@ export default function FinancePage() {
       {tab === 'ar' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <ARForm onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['/api/finance/accounts-receivable'] }); queryClient.invalidateQueries({ queryKey: ['/api/finance/dashboard'] }); }} />
+            {canCreateFinance && <ARForm onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['/api/finance/accounts-receivable'] }); queryClient.invalidateQueries({ queryKey: ['/api/finance/dashboard'] }); }} />}
             <select value={filterAR} onChange={e => setFilterAR(e.target.value)} data-testid="select-filter-ar" className="px-3 py-2 rounded-xl border bg-background text-sm">
               <option value="todos">Todos</option>
               <option value="pendente">Pendente</option>
@@ -1021,7 +1027,7 @@ export default function FinancePage() {
                           <td className="px-4 py-3 text-xs text-muted-foreground">{PAYMENT_LABELS[ar.formaPagamento] || ar.formaPagamento}</td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
-                              {ar.status === 'pendente' && (
+                              {canEditFinance && ar.status === 'pendente' && (
                                 <button
                                   type="button"
                                   onClick={() => payAR.mutate(ar.id)}
@@ -1042,7 +1048,7 @@ export default function FinancePage() {
                                   PIX
                                 </button>
                               )}
-                              {ar.status === 'pendente' && (
+                              {canDeleteFinance && ar.status === 'pendente' && (
                                 <button
                                   type="button"
                                   onClick={() => { if (confirm('Cancelar esta conta?')) deleteAR.mutate(ar.id); }}
@@ -1074,7 +1080,7 @@ export default function FinancePage() {
           )}
 
           {/* BANCO.4 — Importar retorno bancário (consome /api/bank/retorno/itau) */}
-          <ImportarRetornoCnab />
+          {canCreateFinance && <ImportarRetornoCnab />}
         </div>
       )}
 
@@ -1082,7 +1088,7 @@ export default function FinancePage() {
       {tab === 'ap' && (
         <div className="space-y-4">
           <div className="flex items-center gap-3 flex-wrap">
-            <APForm onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['/api/finance/accounts-payable'] }); queryClient.invalidateQueries({ queryKey: ['/api/finance/dashboard'] }); }} />
+            {canCreateFinance && <APForm onSuccess={() => { queryClient.invalidateQueries({ queryKey: ['/api/finance/accounts-payable'] }); queryClient.invalidateQueries({ queryKey: ['/api/finance/dashboard'] }); }} />}
             <select value={filterAP} onChange={e => setFilterAP(e.target.value)} data-testid="select-filter-ap" className="px-3 py-2 rounded-xl border bg-background text-sm">
               <option value="todos">Todos</option>
               <option value="pendente">Pendente</option>
@@ -1128,7 +1134,7 @@ export default function FinancePage() {
                           </td>
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
-                              {ap.status === 'pendente' && (
+                              {canEditFinance && ap.status === 'pendente' && (
                                 <button
                                   type="button"
                                   onClick={() => payAP.mutate(ap.id)}
@@ -1139,7 +1145,7 @@ export default function FinancePage() {
                                   Pago ✓
                                 </button>
                               )}
-                              {ap.status === 'pendente' && (
+                              {canDeleteFinance && ap.status === 'pendente' && (
                                 <button
                                   type="button"
                                   onClick={() => { if (confirm('Cancelar esta conta?')) deleteAP.mutate(ap.id); }}

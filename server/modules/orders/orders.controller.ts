@@ -64,6 +64,12 @@ export class OrdersController {
     return ok(res, await this.service.list({ empresaId }));
   };
 
+  /** Legacy client portal contract: GET /api/companies/:id/orders returns an array. */
+  listByCompany = async (req: Request) => {
+    const companyId = Number((req.params as any).id);
+    return this.service.listByCompany(companyId);
+  };
+
   /** GET /api/orders/:id */
   get = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);

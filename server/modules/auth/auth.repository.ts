@@ -2,8 +2,8 @@ import { storage } from "../../services/storage";
 import type { Company, User, InsertUser } from "./auth.types";
 import type { InsertCompany } from "@shared/schema";
 import { db } from "../../database/db";
-import { passwordResetTokens, users as usersTable } from "@shared/schema";
-import { eq, gt, and } from "drizzle-orm";
+import { authAttempts, passwordResetTokens, users as usersTable } from "@shared/schema";
+import { eq, gt, and, inArray } from "drizzle-orm";
 import { currentTenantId } from "../../core/tenant/context";
 import { hashRecoveryToken } from "./recovery-token";
 
@@ -55,6 +55,24 @@ export class AuthRepository {
   // ── Mutations on identity ──────────────────────────────────────────────
   updateUser(id: number, updates: Partial<InsertUser>): Promise<User> {
     return storage.updateUser(id, updates);
+  }
+
+  listStrategicUsersForUnlock(roles: readonly string[]) {
+    return db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        role: usersTable.role,
+        isLocked: usersTable.isLocked,
+        loginAttempts: usersTable.loginAttempts,
+        active: usersTable.active,
+      })
+      .from(usersTable)
+      .where(inArray(usersTable.role, [...roles]));
+  }
+
+  clearAuthAttemptsForUser(userId: number): Promise<unknown> {
+    return db.delete(authAttempts).where(eq(authAttempts.userId, userId));
   }
 
   updateCompany(id: number, updates: Partial<InsertCompany>): Promise<Company> {

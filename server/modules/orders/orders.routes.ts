@@ -1,9 +1,11 @@
-import { Router } from "express";
+import { Router, type RequestHandler } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validate } from "../../shared/middlewares/validate";
 import { tenantContext } from "../../middleware/tenant";
 import { requireTabPermission } from "../../middleware/requireTabPermission";
 import { requireActionPermission } from "../../middleware/requireActionPermission";
+import { storage } from "../../services/storage";
+import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import { ordersController } from "./orders.controller";
 import {
   requireActiveSubscription,
@@ -71,6 +73,40 @@ const router = Router();
 router.use(tenantContext);
 router.use(requireTabPermission("orders"));
 router.use(requireActionPermission("orders"));
+
+/**
+ * The client portal's historical company-orders URL belongs to the orders
+ * module even though its public path is nested below /api/companies.
+ * Company sessions keep their own tenant-only authorization; internal users
+ * additionally pass the existing tab/action deny-only policies.
+ */
+const companyOrdersRouter = Router();
+companyOrdersRouter.use(tenantContext);
+const internalOrderPolicy = (middleware: RequestHandler): RequestHandler =>
+  (req, res, next) => {
+    if (req.session?.companyId) return next();
+    return middleware(req, res, next);
+  };
+companyOrdersRouter.get(
+  "/:id/orders",
+  validate(idParamSchema, "params"),
+  internalOrderPolicy(requireTabPermission("orders")),
+  internalOrderPolicy(requireActionPermission("orders")),
+  asyncHandler(async (req, res) => {
+    const requestedCompanyId = Number(req.params.id);
+    const session = (req as any).session ?? {};
+    const selectedTenantId = (req as any).empresaId as number | null | undefined;
+    if (session.companyId && Number(session.companyId) !== requestedCompanyId) {
+      throw new ForbiddenError("A conta de cliente só pode consultar os próprios pedidos");
+    }
+    if (selectedTenantId != null && Number(selectedTenantId) !== requestedCompanyId) {
+      throw new ForbiddenError("A empresa solicitada não corresponde ao tenant autorizado");
+    }
+    const company = await storage.getCompany(requestedCompanyId);
+    if (!company || company.active === false) throw new NotFoundError("Empresa não encontrada");
+    return res.json(await ordersController.listByCompany(req));
+  }),
+);
 
 // ── GETs (literals BEFORE /:id) ────────────────────────────────────────
 router.get(
@@ -286,3 +322,4 @@ router.delete(
 );
 
 export const ordersRouter = router;
+export { companyOrdersRouter };

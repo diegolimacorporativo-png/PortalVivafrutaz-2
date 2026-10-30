@@ -44,6 +44,7 @@ import { publicTrackingLimiter } from "../core/security/rateLimit";
 import { buildPublicDeliveryTrackingPayload } from "../modules/logistics/public-tracking.dto";
 import { getPublicDeliveryTracking } from "../modules/logistics/delivery-tracking.service";
 import { dateInTimeZone } from "../modules/logistics/local-date";
+import { roleCanViewGps } from "@shared/user-roles";
 import { validateGpsSubmission } from "../modules/logistics/gps-submission";
 import { db } from "../database/db";
 import {
@@ -709,10 +710,10 @@ export async function register(app: Express): Promise<void> {
     try {
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
-      if (!isInternal(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
+      if (!roleCanViewGps(actor.role)) return res.status(403).json({ message: 'Acesso negado' });
       const selectedTenantId = currentTenantId();
       const canReadAllCompanyGps = isGlobalLogisticsActor(actor) ||
-        ["LOGISTICS", "COMERCIAL", "MASTER_COMERCIAL"].includes(actor.role);
+        (actor.empresaId == null && roleCanViewGps(actor.role));
       // Unbound logistics/commercial staff are authorized for operational
       // GPS across companies. Other tenant-bound internal accounts stay
       // pinned; unbound roles without this capability fail closed.
@@ -808,7 +809,7 @@ export async function register(app: Express): Promise<void> {
       // role gate, and DRIVERs can only read their OWN latest position.
       const actor = await storage.getUser(req.session.userId);
       if (!actor) return res.status(401).json({ message: 'Não autenticado' });
-      if (!isDriverOrInternal(actor.role)) {
+      if (!isDriver(actor.role) && !roleCanViewGps(actor.role)) {
         return res.status(403).json({ message: 'Acesso negado' });
       }
       const targetDriverId = Number(req.params.driverId);
@@ -824,7 +825,12 @@ export async function register(app: Express): Promise<void> {
           .where(eq(driversTable.id, targetDriverId))
           .limit(1);
         const scopedTenantId = currentTenantId() ?? actor.empresaId ?? null;
-        if (!canAccessDriverRecord(actor, targetDriver, scopedTenantId)) {
+        const scopedGpsRead = roleCanViewGps(actor.role) && targetDriver && (
+          scopedTenantId == null
+            ? actor.empresaId == null
+            : Number(targetDriver.empresaId) === Number(scopedTenantId)
+        );
+        if (!scopedGpsRead && !canAccessDriverRecord(actor, targetDriver, scopedTenantId)) {
           return res.status(404).json({ message: 'Motorista não encontrado' });
         }
       }

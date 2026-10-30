@@ -84,7 +84,7 @@ const DANFE_ROLES = [
 /**
  * Roles allowed to operate fiscal/ERP exports.
  */
-const FISCAL_ROLES = [
+export const FISCAL_ROLES = [
   "ADMIN",
   "DIRECTOR",
   "FINANCEIRO",

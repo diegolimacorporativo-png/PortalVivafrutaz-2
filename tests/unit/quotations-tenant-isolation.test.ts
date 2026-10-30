@@ -1,7 +1,11 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { requireAuth } from "../../server/core/http/requireAuth";
-import {
+process.env.NODE_ENV = "development";
+process.env.ISOLATED_PREVIEW_MODE = "1";
+process.env.ISOLATED_PREVIEW_DATABASE_URL = "postgresql://preview@127.0.0.1:55439/vivafrutaz_preview";
+
+const { requireAuth } = await import("../../server/core/http/requireAuth");
+const {
   canDeleteQuotations,
   canWriteQuotations,
   hasQuotationTenantOverride,
@@ -9,7 +13,7 @@ import {
   resolveQuotationScope,
   sanitizeQuotationCreateBody,
   sanitizeQuotationUpdateBody,
-} from "../../server/modules/quotations/quotations.policy";
+} = await import("../../server/modules/quotations/quotations.policy");
 
 type Quotation = {
   id: number;
@@ -131,8 +135,8 @@ describe("quotations — isolamento multi-tenant", () => {
     assert.equal(resolveQuotationScope({ role: "COMERCIAL", empresaId: null }), null);
   });
 
-  test("COMERCIAL e LOGISTICS podem listar cotações globais sem liberar criação global", () => {
-    for (const role of ["COMERCIAL", "LOGISTICS"]) {
+  test("COMERCIAL, LOGISTICS e FINANCEIRO podem listar cotações globais sem liberar criação global", () => {
+    for (const role of ["COMERCIAL", "LOGISTICS", "FINANCEIRO"]) {
       assert.deepEqual(
         resolveQuotationReadScope({ role, empresaId: null }),
         { global: true, empresaId: null },

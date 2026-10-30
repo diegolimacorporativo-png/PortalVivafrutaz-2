@@ -76,7 +76,7 @@ export async function sessionVersionGuard(
 
   // Delegate validation to AuthCoreService
   const validation = await authCoreService.validateSession(
-    { userId, companyId, tokenVersion: session.tokenVersion, deviceId: session.deviceId },
+    { userId, companyId, userRole: session.userRole, tokenVersion: session.tokenVersion, deviceId: session.deviceId },
     requestDeviceId,
   );
 

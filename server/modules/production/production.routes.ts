@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../shared/utils/asyncHandler";
 import { validate } from "../../shared/middlewares/validate";
 import { tenantContext } from "../../middleware/tenant";
+import { requireTabPermission } from "../../middleware/requireTabPermission";
 import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { productionController } from "./production.controller";
 import {
@@ -15,12 +16,12 @@ import {
 export const productionRouter = Router();
 
 const PRODUCTION_ROLES = [
+  "MASTER",
   "ADMIN",
   "DIRECTOR",
   "DEVELOPER",
   "OPERATIONS_MANAGER",
   "PURCHASE_MANAGER",
-  "LOGISTICS",
 ];
 
 // Production is an admin-only module. tenantContext then resolves the
@@ -29,6 +30,7 @@ productionRouter.use(
   requireAuth,
   requireRole(PRODUCTION_ROLES),
   tenantContext,
+  requireTabPermission("production"),
 );
 
 // ─── Batch routes ──────────────────────────────────────────────

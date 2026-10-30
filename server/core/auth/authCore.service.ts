@@ -77,7 +77,7 @@ export interface RateCheckResult {
 
 export interface SessionValidation {
   valid: boolean;
-  reason?: "TOKEN_VERSION_MISMATCH" | "DEVICE_MISMATCH" | "ACCOUNT_NOT_FOUND";
+  reason?: "TOKEN_VERSION_MISMATCH" | "DEVICE_MISMATCH" | "ACCOUNT_NOT_FOUND" | "ACCOUNT_DISABLED" | "ROLE_CHANGED";
 }
 
 // ── Service ───────────────────────────────────────────────────────────────────
@@ -221,6 +221,12 @@ class AuthCoreService {
       if (session.userId) {
         const user = await storage.getUser(session.userId);
         if (!user) return { valid: false, reason: "ACCOUNT_NOT_FOUND" };
+        if (user.active === false || user.isLocked === true) {
+          return { valid: false, reason: "ACCOUNT_DISABLED" };
+        }
+        if (session.userRole && session.userRole !== user.role) {
+          return { valid: false, reason: "ROLE_CHANGED" };
+        }
 
         const dbVersion = (user as any).tokenVersion ?? 0;
         if (session.tokenVersion !== dbVersion) {
