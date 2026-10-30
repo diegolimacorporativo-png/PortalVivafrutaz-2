@@ -1,5 +1,6 @@
-import crypto from "crypto";
 import type { Request, Response } from "express";
+import { getTenantContext } from "../../core/tenant/context";
+import { GLOBAL_USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 import {
   companiesService,
   CompaniesService,
@@ -54,12 +55,11 @@ export class CompaniesController {
   };
 
   create = async (req: Request, res: Response) => {
-    const temporaryPassword = crypto.randomBytes(8).toString("hex");
     const body = {
       ...req.body,
-      password: temporaryPassword,
-      mustChangePassword: true,
-      passwordTemporary: true,
+      mustChangePassword: false,
+      passwordTemporary: false,
+      passwordChangedAt: new Date(),
     };
     console.warn("[CREATE_COMPANY_BACKEND]", {
       userId: (req as any).session?.userId,
@@ -67,14 +67,18 @@ export class CompaniesController {
       body: { ...body, password: "[REDACTED]" },
     });
     const company = await this.service.create(body as any);
-    res.status(201).json({ ...company, temporaryPassword });
+    const { password: _passwordHash, ...safeCompany } = company;
+    res.status(201).json(safeCompany);
   };
 
   update = async (req: Request, res: Response) => {
     const id = Number((req.params as any).id);
     const updates = req.body as Record<string, unknown>;
-    const session = (req as any).session;
-    if (updates.password !== undefined && (session?.companyId != null || session?.userId == null)) {
+    const principal = getTenantContext()?.principal;
+    const canManageCompanyPassword =
+      principal?.kind === "admin" &&
+      GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === principal.role);
+    if (updates.password !== undefined && !canManageCompanyPassword) {
       throw new ForbiddenError("A redefinição da senha da empresa só pode ser feita pela equipe interna.");
     }
 

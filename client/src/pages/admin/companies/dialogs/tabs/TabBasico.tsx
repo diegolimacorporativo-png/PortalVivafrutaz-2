@@ -84,12 +84,16 @@ export function TabBasico({
             </>
           ) : (
             <>
-              <label className="block text-sm font-semibold mb-1">Senha de acesso</label>
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-primary/40 bg-primary/5">
-                <KeyRound className="w-4 h-4 text-primary shrink-0" />
-                <span className="text-sm text-primary font-medium">Senha temporária gerada automaticamente</span>
+              <label className="block text-sm font-semibold mb-1">Senha de acesso *</label>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <input required minLength={8} autoComplete="new-password" type="password"
+                  value={formData.password} onChange={e => set("password", e.target.value)}
+                  data-testid="input-company-password"
+                  placeholder="Pelo menos 8 caracteres"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none" />
               </div>
-              <p className="text-xs text-muted-foreground mt-1.5">A senha será exibida após a criação para que você possa compartilhá-la.</p>
+              <p className="text-xs text-muted-foreground mt-1.5">Defina a senha inicial que a empresa usará para acessar o portal.</p>
             </>
           )}
         </div>

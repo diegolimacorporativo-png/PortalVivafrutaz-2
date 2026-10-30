@@ -21,7 +21,7 @@ interface CompanyModalProps {
   isOpen: boolean;
   editingCompany: Company | null;
   onClose: () => void;
-  onSuccess: (result?: { companyName: string; email: string; password: string }) => void;
+  onSuccess: () => void;
 }
 
 export function CompanyModal({ isOpen, editingCompany, onClose, onSuccess }: CompanyModalProps) {
@@ -210,19 +210,9 @@ export function CompanyModal({ isOpen, editingCompany, onClose, onSuccess }: Com
       );
     } else {
       createCompany.mutate(payload, {
-        onSuccess: (res: any) => {
-          const data = res?.data ?? res;
+        onSuccess: () => {
           onClose();
-          if (data?.tempPassword) {
-            onSuccess({
-              companyName: formData.companyName,
-              email: formData.email,
-              password: data.tempPassword,
-            });
-          } else {
-            toast({ title: "Empresa criada com sucesso!" });
-            onSuccess();
-          }
+          onSuccess();
         },
         onError: (e: any) =>
           toast({ title: "Erro ao criar empresa", description: e.message, variant: "destructive" }),

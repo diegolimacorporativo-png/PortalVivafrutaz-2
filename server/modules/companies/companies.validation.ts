@@ -59,15 +59,14 @@ const companyNumericOverrides = {
   manualAvgCost:    numericCoerce,
 };
 
-// The controller generates a temporary password for every new company after
-// validation. Requiring password here made the "Nova Empresa" form fail
-// before the controller could generate that password.
 export const createCompanySchema = insertCompanySchema
   .omit({ password: true })
-  .extend(companyNumericOverrides);
-// Password changes are accepted only on the authenticated internal update
-// flow (the controller rejects company-portal sessions). Creation keeps its
-// existing server-generated temporary-password flow.
+  .extend({
+    ...companyNumericOverrides,
+    password: z.string().min(8, "A senha deve ter pelo menos 8 caracteres"),
+  });
+// Password changes are accepted only on authenticated internal management
+// flows; customer portal sessions cannot change company credentials.
 export const updateCompanySchema = createCompanySchema.partial().extend({
   password: z.string().min(8, "A senha deve ter pelo menos 8 caracteres").optional(),
 });
