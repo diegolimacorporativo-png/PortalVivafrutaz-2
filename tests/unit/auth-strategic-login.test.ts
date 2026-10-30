@@ -65,7 +65,8 @@ test("MASTER, ADMIN e DIRECTOR não acumulam tentativas nem recebem bloqueio ap�
         `${role} deve continuar recebendo falha genérica sem limite de três tentativas`,
       );
       assert.equal(
-        updates.every((patch) => patch.loginAttempts === 0 && patch.isLocked === false),
+        updates.every((patch) => patch.loginAttempts === 0 && patch.isLocked !== true) &&
+          user.loginAttempts === 0 && user.isLocked === false,
         true,
         `${role} não deve acumular contador nem estado de bloqueio`,
       );

@@ -12,10 +12,8 @@ import { startProactiveAlertsScheduler } from "./services/alerts.proactive";
 import { initSchedulers } from "./bootstrap/scheduler";
 import { scheduleBackups } from "./backup";
 import { pool } from "./database/db";
-import { sql } from "drizzle-orm";
-import { db } from "./database/db";
 import { assertFiscalBootSafe, startFiscalRuntimeMonitor } from "./core/fiscal/homologation.guard";
-import { ensureStorageBucket, backupMonitorStatus } from "./backup-storage.service";
+import { backupMonitorStatus } from "./backup-storage.service";
 import {
   startOperationalMonitor,
   stopOperationalMonitor,
@@ -23,9 +21,17 @@ import {
   alertUnhandledRejection,
 } from "./core/alerts/operational-alerts.service";
 import { authService } from "./modules/auth/auth.service";
-import { getRuntimeDatabaseUrl, isIsolatedPreviewMode } from "./core/runtimeMode";
+import {
+  getRuntimeDatabaseProvider,
+  getRuntimeDatabaseUrl,
+  isIsolatedRuntimeMode,
+  isRemoteHomologationMode,
+  validateRemoteHomologationConfig,
+  verifyRemoteHomologationDatabaseIdentity,
+} from "./core/runtimeMode";
+import { assertStartupSchemaReady } from "./bootstrap/startup-schema";
 
-if (!isIsolatedPreviewMode()) {
+if (!isIsolatedRuntimeMode()) {
   dotenv.config();
 }
 
@@ -53,10 +59,10 @@ const _env = process.env.NODE_ENV ?? "development";
   }
 
   if (!databaseUrl) {
-    if (!isIsolatedPreviewMode()) {
+    if (!isIsolatedRuntimeMode()) {
       fails.push("SUPABASE_DATABASE_URL ou DATABASE_URL é obrigatório em todos os ambientes. Configure o secret e reinicie.");
     }
-  } else if (!isIsolatedPreviewMode()) {
+  } else if (!isIsolatedRuntimeMode()) {
     const blockedDatabaseUrlPatterns: Array<{ pattern: RegExp; reason: string }> = [
       { pattern: /heliumdb/i, reason: "banco Replit (heliumdb) proibido" },
       { pattern: /localhost/i, reason: "PostgreSQL local proibido" },
@@ -96,8 +102,8 @@ const _env = process.env.NODE_ENV ?? "development";
 
   console.log("[BOOT_VALIDATION_OK]", {
     env: process.env.NODE_ENV ?? "development",
-    provider: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
-    supabase: !isIsolatedPreviewMode(),
+    provider: getRuntimeDatabaseProvider(),
+    supabase: !isIsolatedRuntimeMode(),
     pid: process.pid,
     ts: new Date().toISOString(),
   });
@@ -106,56 +112,6 @@ const _env = process.env.NODE_ENV ?? "development";
 declare module "http" {
   interface IncomingMessage {
     rawBody: unknown;
-  }
-}
-
-async function runStartupMigrations(): Promise<void> {
-  try {
-    await db.execute(sql`
-      ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_recurring BOOLEAN NOT NULL DEFAULT false
-    `);
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS recurring_order_logs (
-        id SERIAL PRIMARY KEY,
-        company_id INTEGER NOT NULL REFERENCES companies(id),
-        week_key TEXT NOT NULL,
-        day_of_week TEXT NOT NULL,
-        order_id INTEGER REFERENCES orders(id),
-        scope_count INTEGER NOT NULL DEFAULT 0,
-        total_value NUMERIC(10,2),
-        created_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-    await db.execute(sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS recurring_order_logs_unique_week_day
-        ON recurring_order_logs(company_id, week_key, day_of_week)
-    `);
-    await db.execute(sql`
-      ALTER TABLE companies ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP
-    `);
-    await db.execute(sql`
-      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP
-    `);
-    console.log("[STARTUP_MIGRATIONS] OK — recurring_order_logs e is_recurring prontos");
-  } catch (err) {
-    console.error("[STARTUP_MIGRATIONS_FAIL]", err instanceof Error ? err.message : String(err));
-  }
-}
-
-async function recoverStuckNFes(): Promise<void> {
-  try {
-    const result = await db.execute(sql`
-      UPDATE orders
-      SET fiscal_status = 'erro'
-      WHERE fiscal_status = 'enviando'
-      RETURNING id
-    `);
-    const recovered = (result as any).rows?.length ?? 0;
-    if (recovered > 0) {
-      console.warn(`[NFE_STARTUP_RECOVERY] Recovered ${recovered} stuck NF-e(s) from 'enviando' → 'erro'`);
-    }
-  } catch (err) {
-    console.error("[NFE_STARTUP_RECOVERY_FAIL]", err instanceof Error ? err.message : String(err));
   }
 }
 
@@ -171,7 +127,7 @@ process.on("unhandledRejection", (reason: unknown) => {
     uptime: process.uptime().toFixed(1),
     env: _env,
   });
-  if (!isIsolatedPreviewMode()) {
+  if (!isIsolatedRuntimeMode()) {
     try { alertUnhandledRejection(msg); } catch {}
   }
 });
@@ -183,7 +139,7 @@ process.on("uncaughtException", (err: Error) => {
     uptime: process.uptime().toFixed(1),
     env: _env,
   });
-  if (!isIsolatedPreviewMode()) {
+  if (!isIsolatedRuntimeMode()) {
     try { alertUncaughtException(err.message); } catch {}
   }
   // uncaughtException leaves the process in an undefined state — exit safely.
@@ -198,36 +154,59 @@ process.on("uncaughtException", (err: Error) => {
     ts: new Date().toISOString(),
   });
 
-  const { app, httpServer } = await buildApp();
+  let builtApplication: Awaited<ReturnType<typeof buildApp>> | undefined;
+  if (!isRemoteHomologationMode()) {
+    // Preserve the existing startup order for production and the local preview.
+    builtApplication = await buildApp();
+  }
 
-  // Probe DB connectivity and log result at boot.
+  // Probe DB connectivity and verify the pre-provisioned schema. Startup is
+  // read-only; schema changes and data recovery use explicit operator commands.
   try {
     await pool.query("SELECT 1 AS ok");
+    if (isRemoteHomologationMode()) {
+      const remoteIdentity = await verifyRemoteHomologationDatabaseIdentity(
+        (text) => pool.query(text),
+        validateRemoteHomologationConfig(),
+      );
+      console.info("[REMOTE_HOMOLOGATION_DB_IDENTITY_VERIFIED]", {
+        projectRef: remoteIdentity.projectRef,
+        environment: remoteIdentity.environment,
+        database: remoteIdentity.database,
+        schema: remoteIdentity.schema,
+        markerVerified: true,
+      });
+    }
+    await assertStartupSchemaReady((text) => pool.query(text));
     console.log("[DB_CONNECTED]", {
-      db: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
+      db: getRuntimeDatabaseProvider(),
       uptime: process.uptime().toFixed(1),
       ts: new Date().toISOString(),
     });
   } catch (err) {
     console.error("[DB_CONNECTION_FAIL]", {
-      message: err instanceof Error ? err.message : String(err),
+      message: isRemoteHomologationMode()
+        ? "Remote homologation PostgreSQL identity or readiness check failed."
+        : err instanceof Error ? err.message : String(err),
       ts: new Date().toISOString(),
     });
+    throw err;
   }
 
-  if (isIsolatedPreviewMode()) {
-    console.info(
-      "[ISOLATED_PREVIEW] Runtime migrations, NF-e recovery, account unlocks, and seeds are disabled; the launcher prepared the isolated schema.",
-    );
+  if (isIsolatedRuntimeMode()) {
+    console.info("[ISOLATED_PREVIEW] Runtime migrations, NF-e recovery, account unlocks, and seeds are disabled.");
   } else {
-    await runStartupMigrations();
-    await recoverStuckNFes();
-
-    // ETAPA 2 — DESBLOQUEIO IMEDIATO: reset is_locked + login_attempts for all
-    // MASTER/ADMIN/DIRECTOR/DEVELOPER accounts and pre-register their emails in
-    // the loginEmailIpLimiter bypass set. Fail-safe — never throws.
-    await authService.unlockStrategicAccounts();
+    // A read-only lookup populates the in-memory login limiter bypass. Any
+    // account unlock/reset is an explicit maintenance operation.
+    await authService.registerStrategicAccountsForLoginBypass();
   }
+  if (isRemoteHomologationMode()) {
+    // Do not register the API or its session store until PostgreSQL identity
+    // has been attested against the isolated project marker.
+    builtApplication = await buildApp();
+  }
+  if (!builtApplication) throw new Error("Aplicação não foi inicializada.");
+  const { app, httpServer } = builtApplication;
   app.get("/user", getUser);
   if (process.env.NODE_ENV === "production") {
     serveStatic(app);
@@ -236,7 +215,7 @@ process.on("uncaughtException", (err: Error) => {
     await setupVite(httpServer, app);
   }
 
-  if (isIsolatedPreviewMode()) {
+  if (isIsolatedRuntimeMode()) {
     console.info(
       "[ISOLATED_PREVIEW] workers, schedulers, backup/storage checks, and NF-e warmup are disabled.",
     );
@@ -260,8 +239,7 @@ process.on("uncaughtException", (err: Error) => {
     initSchedulers();
     scheduleBackups();
 
-    // BACKUP PERSISTENTE — inicializa bucket Supabase e status do monitor.
-    ensureStorageBucket().catch(e => console.warn("[BACKUP_STORAGE_INIT_FAIL]", e?.message));
+    // Read backup monitor state only. The backup pipeline owns bucket checks.
     backupMonitorStatus().catch(e => console.warn("[BACKUP_MONITOR_INIT_FAIL]", e?.message));
 
     // ALERTAS OPERACIONAIS — probe periódico a cada 60s: DB, fila, memória,
@@ -274,7 +252,7 @@ process.on("uncaughtException", (err: Error) => {
   // V8 grows heapTotal lazily (97% heap before a GC cycle is normal behaviour,
   // not OOM). A 1 GB RSS threshold catches actual memory pressure.
   const RSS_WARN_MB = 1024;
-  if (!isIsolatedPreviewMode()) setInterval(() => {
+  if (!isIsolatedRuntimeMode()) setInterval(() => {
     const m = process.memoryUsage();
     const rssMB = (m.rss / 1024 / 1024).toFixed(2);
     const heapUsedMB = (m.heapUsed / 1024 / 1024).toFixed(2);
@@ -296,7 +274,7 @@ process.on("uncaughtException", (err: Error) => {
   }, 60_000).unref();
 
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen({ port, host: "0.0.0.0" }, () => {
+  httpServer.listen({ port, host: isRemoteHomologationMode() ? "127.0.0.1" : "0.0.0.0" }, () => {
     const bootMs = Date.now() - _bootAt;
     console.log(`serving on port ${port}`);
     console.log("[APP_READY]", {
@@ -305,7 +283,7 @@ process.on("uncaughtException", (err: Error) => {
       pid: process.pid,
       bootMs,
       uptime: process.uptime().toFixed(1),
-      db: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
+      db: getRuntimeDatabaseProvider(),
       ts: new Date().toISOString(),
     });
   });
@@ -322,7 +300,7 @@ process.on("uncaughtException", (err: Error) => {
     // Stop workers that have explicit stop functions first to prevent
     // mid-batch interruptions and stale job-registry entries.
     try {
-      if (!isIsolatedPreviewMode()) {
+      if (!isIsolatedRuntimeMode()) {
         stopOutboxWorker();
         stopAutoDispatchWorker();
         stopOperationalMonitor();

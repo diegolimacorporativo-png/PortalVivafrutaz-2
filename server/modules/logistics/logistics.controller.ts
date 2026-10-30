@@ -172,7 +172,7 @@ export class LogisticsController {
       res.status(403).json({ message: "Sem permissão" });
       return null;
     }
-    return user;
+    return { ...user, identityType: "internal" };
   }
 
   /** Bare session check; returns userId or null after sending 401. */
@@ -206,7 +206,7 @@ export class LogisticsController {
         .json({ message: "Acesso negado. Apenas administradores logísticos." });
       return null;
     }
-    return actor;
+    return { ...actor, identityType: "internal" };
   }
 
   /** Auth gate for analytics/planning endpoints plus their tenant scope. */
@@ -226,7 +226,7 @@ export class LogisticsController {
       res.status(403).json({ message: "Sem permissão" });
       return null;
     }
-    return actor;
+    return { ...actor, identityType: "internal" };
   }
 
   // ── DRIVERS ────────────────────────────────────────────────────────────
@@ -253,7 +253,10 @@ export class LogisticsController {
       return;
     }
     try {
-      res.json(await this.service.listLiveDriverLocations(user));
+      res.json(await this.service.listLiveDriverLocations({
+        ...user,
+        identityType: "internal",
+      }));
     } catch (err: any) {
       console.warn(`[${req.requestId}] [logistics.controller] listLiveDriverLocations failed`, err);
       const status =

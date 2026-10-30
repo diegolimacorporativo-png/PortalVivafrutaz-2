@@ -33,6 +33,7 @@ test("mudanças de autorização revogam tokenVersion; edição de nome não", (
     { empresaId: 19 },
     { tabPermissions: ["orders"] },
     { permissions: { actionOverridesV1: { orders: { edit: false } } } },
+    { password: "synthetic-password" },
   ]) {
     assert.equal(userUpdateRequiresSessionRevocation(update), true);
   }
@@ -119,11 +120,24 @@ function makeStrategicFakeRepository(account: any) {
   const updates: Array<Record<string, unknown>> = [];
   return {
     updates,
+    getUserById: async () => ({ ...account }),
+    getCompanyByEmail: async () => undefined,
     getUserByEmail: async () => ({ ...account }),
     updateUser: async (_id: number, changes: Record<string, unknown>) => {
       updates.push({ ...changes });
       Object.assign(account, changes);
       if (userUpdateRequiresSessionRevocation(changes)) account.tokenVersion += 1;
+      return { ...account };
+    },
+    changeUserPasswordAndRevokeSessions: async (_id: number, changes: Record<string, unknown>) => {
+      updates.push({ ...changes });
+      if (typeof changes.password === "string") account.password = await bcrypt.hash(changes.password, 4);
+      Object.assign(account, { ...changes, password: account.password });
+      account.tokenVersion += 1;
+      return { ...account };
+    },
+    upgradeLegacyUserPassword: async (_id: number, password: string) => {
+      account.password = await bcrypt.hash(password, 4);
       return { ...account };
     },
     log: async () => undefined,
@@ -207,7 +221,7 @@ test("senha incorreta em conta estratégica ativa preserva tokenVersion e sessã
   assert.equal(await callSessionGuard({ userId: 43, userRole: "MASTER", tokenVersion: 12 }), 200);
 });
 
-test("startup limpa tentativas sem revogar quando a conta já estava desbloqueada", async () => {
+test("manutenção explícita limpa tentativas sem revogar quando a conta já estava desbloqueada", async () => {
   const account: any = {
     id: 44,
     name: "Conta sintética",
@@ -227,7 +241,7 @@ test("startup limpa tentativas sem revogar quando a conta já estava desbloquead
   assert.ok(repo.updates.every((update) => !Object.hasOwn(update, "isLocked")));
 });
 
-test("desbloqueio na inicialização também revoga e a sessão antiga não volta", async () => {
+test("desbloqueio explícito também revoga e a sessão antiga não volta", async () => {
   const account: any = {
     id: 42,
     name: "Conta sintética",
@@ -248,4 +262,90 @@ test("desbloqueio na inicialização também revoga e a sessão antiga não volt
   assert.equal(account.tokenVersion, 11);
   assert.equal(await callSessionGuard({ userId: 42, userRole: "DIRECTOR", tokenVersion: 10 }), 401);
   assert.equal(await callSessionGuard({ userId: 42, userRole: "DIRECTOR", tokenVersion: 11 }), 200);
+});
+
+test("a preparação de bypass no startup é somente leitura", async () => {
+  const account: any = {
+    id: 45,
+    name: "Conta sintética",
+    email: "master.readonly.synthetic@example.invalid",
+    role: "MASTER",
+    active: true,
+    isLocked: true,
+    loginAttempts: 3,
+    tokenVersion: 15,
+  };
+  const repo = makeStrategicFakeRepository(account);
+  const auth = new AuthService(repo as any, async () => undefined);
+
+  await auth.registerStrategicAccountsForLoginBypass();
+
+  assert.deepEqual(repo.updates, [], "startup não atualiza usuário nem limpa auth_attempts");
+  assert.equal(account.isLocked, true);
+  assert.equal(account.loginAttempts, 3);
+  assert.equal(account.tokenVersion, 15);
+});
+
+test("troca própria de senha revoga sessão anterior e permite novo login com a senha nova", async () => {
+  const account: any = {
+    id: 46,
+    name: "Usuário sintético",
+    email: "self-password.synthetic@example.invalid",
+    role: "MASTER",
+    active: true,
+    isLocked: false,
+    loginAttempts: 0,
+    tokenVersion: 20,
+    password: await bcrypt.hash("Old-Synthetic-Password-42!", 4),
+    passwordChangedAt: new Date(),
+  };
+  const repo = makeStrategicFakeRepository(account);
+  const auth = new AuthService(repo as any, async () => undefined);
+  mock.method(storage, "getUser", async () => ({ ...account } as any));
+  mock.method(storage, "createLog", async () => undefined);
+  mock.method(authCoreService, "recordAttempt", async () => undefined);
+  mock.method(authCoreService, "logAuthEvent", () => undefined);
+  mock.method(authCoreService, "logSessionInvalidation", async () => undefined);
+
+  const changed = await auth.changePasswordSelf(account.id, "Old-Synthetic-Password-42!", "New-Synthetic-Password-43!", "127.0.0.1");
+  assert.deepEqual(changed, { ok: true });
+  assert.equal(account.tokenVersion, 21);
+  assert.equal(await callSessionGuard({ userId: account.id, userRole: "MASTER", tokenVersion: 20 }), 401);
+  assert.equal(await callSessionGuard({ userId: account.id, userRole: "MASTER", tokenVersion: 21 }), 200);
+
+  const login = await auth.attemptLogin({ email: account.email, password: "New-Synthetic-Password-43!", type: "admin" }, "127.0.0.1");
+  assert.equal(login.kind, "admin-success");
+  if (login.kind === "admin-success") assert.equal(login.user.tokenVersion, 21);
+});
+
+test("troca temporária de senha de usuário interno incrementa tokenVersion", async () => {
+  const account: any = {
+    id: 47,
+    name: "Usuário temporário sintético",
+    email: "temporary-password.synthetic@example.invalid",
+    role: "COMERCIAL",
+    active: true,
+    isLocked: false,
+    loginAttempts: 0,
+    tokenVersion: 6,
+    password: await bcrypt.hash("Temporary-Synthetic-42!", 4),
+    mustChangePassword: true,
+    passwordTemporary: true,
+    passwordChangedAt: null,
+  };
+  const repo = makeStrategicFakeRepository(account);
+  const auth = new AuthService(repo as any, async () => undefined);
+  mock.method(authCoreService, "recordAttempt", async () => undefined);
+  mock.method(authCoreService, "logAuthEvent", () => undefined);
+
+  const result = await auth.forcePasswordChange(
+    account.email,
+    "Temporary-Synthetic-42!",
+    "New-Temporary-Synthetic-43!",
+    "127.0.0.1",
+  );
+  assert.deepEqual(result, { ok: true });
+  assert.equal(account.tokenVersion, 7);
+  assert.equal(account.mustChangePassword, false);
+  assert.equal(await bcrypt.compare("New-Temporary-Synthetic-43!", account.password), true);
 });

@@ -1,9 +1,10 @@
 import { storage } from "../../services/storage";
+import bcrypt from "bcryptjs";
 import type { Company, User, InsertUser } from "./auth.types";
 import type { InsertCompany } from "@shared/schema";
 import { db } from "../../database/db";
-import { authAttempts, passwordResetTokens, users as usersTable } from "@shared/schema";
-import { eq, gt, and, inArray } from "drizzle-orm";
+import { authAttempts, companies as companiesTable, passwordResetTokens, users as usersTable } from "@shared/schema";
+import { eq, gt, and, inArray, sql } from "drizzle-orm";
 import { currentTenantId } from "../../core/tenant/context";
 import { hashRecoveryToken } from "./recovery-token";
 
@@ -55,6 +56,44 @@ export class AuthRepository {
   // ── Mutations on identity ──────────────────────────────────────────────
   updateUser(id: number, updates: Partial<InsertUser>): Promise<User> {
     return storage.updateUser(id, updates);
+  }
+
+  /** Change an internal user's password and revoke all existing sessions atomically. */
+  async changeUserPasswordAndRevokeSessions(
+    id: number,
+    updates: Partial<InsertUser>,
+  ): Promise<User> {
+    const values = { ...updates } as any;
+    if (typeof updates.password === "string") {
+      values.password = await bcrypt.hash(updates.password, 10);
+    }
+    values.tokenVersion = sql`coalesce(${usersTable.tokenVersion}, 0) + 1`;
+    const [updated] = await db
+      .update(usersTable)
+      .set(values)
+      .where(eq(usersTable.id, id))
+      .returning();
+    return updated!;
+  }
+
+  /** Upgrade a legacy plaintext hash during login without invalidating that new login. */
+  async upgradeLegacyUserPassword(id: number, password: string): Promise<User> {
+    const [updated] = await db
+      .update(usersTable)
+      .set({ password: await bcrypt.hash(password, 10) })
+      .where(eq(usersTable.id, id))
+      .returning();
+    return updated!;
+  }
+
+  /** Upgrade a legacy customer password during login without revoking that new session. */
+  async upgradeLegacyCompanyPassword(id: number, password: string): Promise<Company> {
+    const [updated] = await db
+      .update(companiesTable)
+      .set({ password: await bcrypt.hash(password, 10) })
+      .where(eq(companiesTable.id, id))
+      .returning();
+    return updated!;
   }
 
   listStrategicUsersForUnlock(roles: readonly string[]) {

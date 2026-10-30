@@ -19,47 +19,53 @@
  *   client específico do pool NÃO se propaga aos demais — então um
  *   `BEGIN/ROLLBACK` lógico aqui daria falsa segurança.
  *
- *   A garantia equivalente — ZERO escrita permanente — é obtida por:
- *     • TAGs únicas (`_eq_sanity_regress_*` e `EQ_SANITY_REGRESS`) que
- *       isolam fisicamente nossos dados de qualquer outro registro;
- *     • cleanup determinístico em `try/finally` (executado mesmo em
- *       erro fatal ou SIGINT) que remove TUDO que criamos;
- *     • snapshot/restore da `company_config` (singleton) — restauramos
- *       o estado original campo a campo, ou removemos a linha se não
- *       existia antes.
+ *   O teste só executa em um PostgreSQL local descartável cujo diretório
+ *   temporário e marcador são verificados por SQL antes de qualquer escrita.
+ *   Ele não modifica company_config existente e limpa apenas IDs que esta
+ *   execução inseriu. A suíte unitária padrão não carrega este teste.
  *
- *   Validação contínua: o próprio teste, ao final, executa um SELECT
- *   COUNT pelas TAGs e falha se algum residual permanecer.
+ *   Uma falha anterior ao teardown pode deixar dados sintéticos no preview;
+ *   a execução seguinte falha fechada, sem limpeza ampla por prefixo.
  *
- * Run: npm run test
+ * Run only from the marked local preview via the isolated test workflow.
  */
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import bcrypt from "bcryptjs";
-import { eq, like } from "drizzle-orm";
-import { db, pool } from "../../server/database/db";
+import { randomUUID } from "node:crypto";
 import {
-  companies,
-  users,
-  orders,
-  orderItems,
-  products,
-  contractScopes,
-  nfDrafts,
-  companyConfig,
-} from "../../shared/schema";
-import { runWithTenant } from "../../server/core/tenant/context";
-import { buildNFeInput } from "../../server/modules/nfe/nfe-input.builder";
-import { resolveBillingItems } from "../../server/modules/billing/billing.service";
-import {
-  createDraftFromOrder,
-  updateDraft,
-} from "../../server/services/nf.draft";
+  isIsolatedPreviewMode,
+  verifyIsolatedPreviewDatabase,
+} from "../../server/core/runtimeMode";
 
-const TAG = "_EQ_SANITY_REGRESS";
-const EMAIL_PREFIX = "_eq_sanity_regress_";
-const PRODUCT_SUFFIX = "EQ_SANITY_REGRESS";
+if (!isIsolatedPreviewMode() || process.env.NODE_ENV !== "development") {
+  test("FASE 8.4.3 — billing/NF-e regression requires marked disposable local PostgreSQL", {
+    skip: "Database-writing regression is disabled outside the verified local disposable preview.",
+  }, () => {});
+} else {
+  const bcrypt = (await import("bcryptjs")).default;
+  const { eq, inArray } = await import("drizzle-orm");
+  const { db, pool } = await import("../../server/database/db");
+  const {
+    companies, orders, orderItems, products, contractScopes, nfDrafts, companyConfig,
+  } = await import("../../shared/schema");
+  const { runWithTenant } = await import("../../server/core/tenant/context");
+  const { buildNFeInput } = await import("../../server/modules/nfe/nfe-input.builder");
+  const { resolveBillingItems } = await import("../../server/modules/billing/billing.service");
+  const { createDraftFromOrder, updateDraft } = await import("../../server/services/nf.draft");
+  await verifyIsolatedPreviewDatabase(
+    (text) => pool.query(text),
+    process.env.ISOLATED_PREVIEW_DATA_DIR,
+  );
+
+const RUN_ID = randomUUID();
+const TAG = `_EQ_SANITY_REGRESS_${RUN_ID}`;
+const EMAIL_PREFIX = `_eq_sanity_regress_${RUN_ID}_`;
+const PRODUCT_SUFFIX = `EQ_SANITY_REGRESS_${RUN_ID}`;
+const createdCompanyIds: number[] = [];
+const createdOrderIds: number[] = [];
+const createdProductIds: number[] = [];
+let createdCompanyConfigId: number | undefined;
 
 // ── Normalização (mesma fórmula dos dois lados) ─────────────────────────────
 
@@ -98,16 +104,14 @@ function normalizeFromService(item: any): NormalizedItem {
 const totalOf = (l: NormalizedItem[]) =>
   round2(l.reduce((acc, it) => acc + it.totalPrice, 0));
 
-// ── companyConfig snapshot/restore ─────────────────────────────────────────
-
-let configSnapshot: { existed: boolean; row: any | null } = {
-  existed: false,
-  row: null,
-};
+// The singleton config is created only when absent; an existing row is never
+// updated, restored, or deleted by this test.
 
 async function ensureCompanyConfig() {
   const [existing] = await db.select().from(companyConfig).limit(1);
-  configSnapshot = { existed: !!existing, row: existing ?? null };
+  if (existing) {
+    throw new Error("O preview local já contém company_config; a regressão não modificará essa configuração.");
+  }
 
   const sanityFields: any = {
     companyName: "VivaFrutaz Regress",
@@ -124,31 +128,9 @@ async function ensureCompanyConfig() {
     ambienteFiscal: "homologacao",
   };
 
-  if (existing) {
-    await db
-      .update(companyConfig)
-      .set(sanityFields)
-      .where(eq(companyConfig.id, existing.id));
-  } else {
-    await db.insert(companyConfig).values(sanityFields);
-  }
-}
-
-async function restoreCompanyConfig() {
-  if (!configSnapshot.existed) {
-    const rows = await db.select().from(companyConfig);
-    for (const r of rows) {
-      await db.delete(companyConfig).where(eq(companyConfig.id, r.id));
-    }
-    return;
-  }
-  const original = configSnapshot.row;
-  if (!original) return;
-  const { id: _id, ...rest } = original;
-  await db
-    .update(companyConfig)
-    .set(rest)
-    .where(eq(companyConfig.id, original.id));
+  const [created] = await db.insert(companyConfig).values(sanityFields)
+    .returning({ id: companyConfig.id });
+  createdCompanyConfigId = created.id;
 }
 
 // ── Seed/cleanup ───────────────────────────────────────────────────────────
@@ -172,14 +154,6 @@ async function ensureProducts() {
   ];
   const out: any[] = [];
   for (const p of wanted) {
-    const [exists] = await db
-      .select()
-      .from(products)
-      .where(eq(products.name, p.name));
-    if (exists) {
-      out.push(exists);
-      continue;
-    }
     const [created] = await db
       .insert(products)
       .values({
@@ -191,38 +165,29 @@ async function ensureProducts() {
         ncm: p.ncm,
       } as any)
       .returning();
+    createdProductIds.push(created.id);
     out.push(created);
   }
   return out;
 }
 
-async function cleanupAll() {
-  const old = await db
-    .select()
-    .from(companies)
-    .where(like(companies.email, `${EMAIL_PREFIX}%@vivafrutas.com`));
-  for (const c of old) {
-    await db.delete(nfDrafts).where(eq(nfDrafts.companyId, c.id));
-    const ords = await db
-      .select()
-      .from(orders)
-      .where(eq(orders.companyId, c.id));
-    for (const o of ords) {
-      await db.delete(orderItems).where(eq(orderItems.orderId, o.id));
-    }
-    await db.delete(orders).where(eq(orders.companyId, c.id));
-    await db
-      .delete(contractScopes)
-      .where(eq(contractScopes.companyId, c.id));
-    await db.delete(users).where(eq(users.empresaId, c.id));
-    await db.delete(companies).where(eq(companies.id, c.id));
+async function cleanupRunRecords() {
+  if (createdCompanyIds.length) {
+    await db.delete(nfDrafts).where(inArray(nfDrafts.companyId, createdCompanyIds));
+    await db.delete(contractScopes).where(inArray(contractScopes.companyId, createdCompanyIds));
   }
-  const sanityProducts = await db
-    .select()
-    .from(products)
-    .where(like(products.name, `% ${PRODUCT_SUFFIX}`));
-  for (const p of sanityProducts) {
-    await db.delete(products).where(eq(products.id, p.id));
+  if (createdOrderIds.length) {
+    await db.delete(orderItems).where(inArray(orderItems.orderId, createdOrderIds));
+    await db.delete(orders).where(inArray(orders.id, createdOrderIds));
+  }
+  if (createdProductIds.length) {
+    await db.delete(products).where(inArray(products.id, createdProductIds));
+  }
+  if (createdCompanyIds.length) {
+    await db.delete(companies).where(inArray(companies.id, createdCompanyIds));
+  }
+  if (createdCompanyConfigId != null) {
+    await db.delete(companyConfig).where(eq(companyConfig.id, createdCompanyConfigId));
   }
 }
 
@@ -264,6 +229,7 @@ async function createCompany(opts: {
       financialNotes: TAG,
     } as any)
     .returning();
+  createdCompanyIds.push(c.id);
   return c;
 }
 
@@ -281,12 +247,13 @@ async function createOrder(opts: {
       companyId: opts.companyId,
       orderDate: new Date(),
       deliveryDate: new Date(Date.now() + 86400000 * 2),
-      weekReference: "2026-W17",
+      weekReference: `isolated-${RUN_ID}`,
       totalValue: total.toFixed(2),
       status: "ACTIVE",
       workflowStatus: "APPROVED",
     } as any)
     .returning();
+  createdOrderIds.push(o.id);
   for (const it of opts.items) {
     await db.insert(orderItems).values({
       orderId: o.id,
@@ -358,7 +325,6 @@ let setupErr: any = null;
 
 test("FASE 8.4.3 — setup", async () => {
   try {
-    await cleanupAll();
     await ensureCompanyConfig();
     const ps = await ensureProducts();
     pMaca = ps[0];
@@ -536,32 +502,24 @@ test("FASE 8.4.3 — GROUPED: resolveBillingItems ≡ buildNFeInput", async () =
 
 // ── Teardown global: remoção total + restauração + verificação de residuais ─
 
-test("FASE 8.4.3 — teardown + zero residual + restore companyConfig", async () => {
-  // Cleanup determinístico (ROLLBACK lógico — ver cabeçalho do arquivo).
-  await cleanupAll();
-  await restoreCompanyConfig();
+test("FASE 8.4.3 — teardown removes only this execution's records", async () => {
+  await cleanupRunRecords();
 
-  // Verifica que NADA permaneceu no banco (sentinela do "zero escrita
-  // permanente"). Qualquer linha com nossas TAGs falha o build.
-  const residualCompanies = await db
-    .select()
-    .from(companies)
-    .where(like(companies.email, `${EMAIL_PREFIX}%@vivafrutas.com`));
-  assert.equal(
-    residualCompanies.length,
-    0,
-    `residual: ${residualCompanies.length} companies não removidas`,
-  );
-
-  const residualProducts = await db
-    .select()
-    .from(products)
-    .where(like(products.name, `% ${PRODUCT_SUFFIX}`));
-  assert.equal(
-    residualProducts.length,
-    0,
-    `residual: ${residualProducts.length} products não removidos`,
-  );
+  if (createdCompanyIds.length) {
+    const residualCompanies = await db.select().from(companies)
+      .where(inArray(companies.id, createdCompanyIds));
+    assert.equal(residualCompanies.length, 0, "Registros sintéticos próprios ainda existem em companies.");
+  }
+  if (createdProductIds.length) {
+    const residualProducts = await db.select().from(products)
+      .where(inArray(products.id, createdProductIds));
+    assert.equal(residualProducts.length, 0, "Registros sintéticos próprios ainda existem em products.");
+  }
+  if (createdCompanyConfigId != null) {
+    const residualConfig = await db.select().from(companyConfig)
+      .where(eq(companyConfig.id, createdCompanyConfigId));
+    assert.equal(residualConfig.length, 0, "A configuração sintética desta execução ainda existe.");
+  }
 
   // Encerra o pool para o processo de teste finalizar limpo.
   await pool.end();
@@ -570,6 +528,7 @@ test("FASE 8.4.3 — teardown + zero residual + restore companyConfig", async ()
 // ── Safety net: se um teste lançar antes do teardown, garante cleanup ──────
 
 process.on("exit", () => {
-  // best-effort: nada async aqui; cleanup principal está no teste de teardown
-  // e é re-executado idempotente via TAGs únicas em qualquer re-run.
+  // Best-effort cleanup não é possível no evento exit. Se houver interrupção,
+  // a execução seguinte falha fechada; não faz sweep de registros por prefixo.
 });
+}

@@ -13,7 +13,8 @@ process.env.ISOLATED_PREVIEW_DATABASE_URL = "postgresql://preview@127.0.0.1:5543
 
 const { UsersService } = await import("../../server/modules/users/users.service");
 const { runWithTenant } = await import("../../server/core/tenant/context");
-const { BadRequestError, ConflictError, NotFoundError } = await import("../../server/shared/errors/AppError");
+const { USER_ROLE_VALUES } = await import("../../shared/user-roles");
+const { ConflictError, NotFoundError } = await import("../../server/shared/errors/AppError");
 
 const actor = {
   id: 1,
@@ -39,6 +40,7 @@ function makeService(overrides: Record<string, any> = {}) {
   const calls: Record<string, any[]> = {
     create: [],
     update: [],
+    updateForTarget: [],
     changePasswordForTarget: [],
     unlockUserForTarget: [],
     delete: [],
@@ -56,6 +58,12 @@ function makeService(overrides: Record<string, any> = {}) {
       return overrides.update
         ? overrides.update(id, input)
         : { ...target, ...input, id };
+    },
+    updateUserForTarget: async (id: number, empresaId: number | null, input: any) => {
+      calls.updateForTarget.push([id, empresaId, input]);
+      return overrides.updateUserForTarget
+        ? overrides.updateUserForTarget(id, empresaId, input)
+        : { ...target, ...input, id, empresaId };
     },
     changePasswordForTarget: async (id: number, password: string, empresaId: number | null) => {
       calls.changePasswordForTarget.push([id, password, empresaId]);
@@ -112,6 +120,23 @@ function withGlobalAdminTarget<T>(role: "MASTER" | "DIRECTOR" | "DEVELOPER", emp
 }
 
 describe("UsersService — isolamento multi-tenant", () => {
+  test("troca administrativa usa atualização que revoga sessões do alvo", async () => {
+    const { service, calls } = makeService({
+      getById: (id: number) => id === actor.id ? actor : target,
+    });
+
+    await withGlobalAdmin("DIRECTOR", async () => {
+      await service.changePassword({
+        targetUserId: target.id,
+        newPassword: "Senha-Sintetica-42!",
+        actorUserId: actor.id,
+        ip: "127.0.0.1",
+      });
+    });
+
+    assert.deepEqual(calls.changePasswordForTarget, [[target.id, "Senha-Sintetica-42!", target.empresaId]]);
+  });
+
   test("persiste overrides de ação sem descartar configurações legadas", async () => {
     const legacy = { oldPermissionSet: ["keep-me"], actionOverridesV1: { orders: { read: false } } };
     const { service, calls } = makeService({
@@ -143,7 +168,7 @@ describe("UsersService — isolamento multi-tenant", () => {
     assert.deepEqual(calls.update[0][1].permissions, { oldPermissionSet: ["keep-me"] });
   });
 
-  test("tenant A cria usuário sempre no tenant A, ignorando empresaId do body", async () => {
+  test("usuário interno autorizado é criado sem vínculo, ignorando tenant e empresaId do body", async () => {
     const { service, calls } = makeService();
 
     await withTenant(10, async () => {
@@ -156,11 +181,24 @@ describe("UsersService — isolamento multi-tenant", () => {
       } as any);
     });
 
-    assert.equal(calls.create[0].empresaId, 10);
+    assert.equal(calls.create[0].empresaId, null);
+  });
+
+  test("gestor global edita usuário interno sem selecionar empresa", async () => {
+    const unboundTarget = { ...target, empresaId: null, role: "COMERCIAL" };
+    const { service, calls } = makeService({
+      getById: async () => unboundTarget,
+    });
+
+    await withGlobalAdmin("DIRECTOR", async () => {
+      await service.update(unboundTarget.id, { name: "Funcionário atualizado" });
+    });
+
+    assert.deepEqual(calls.updateForTarget, [[unboundTarget.id, null, { name: "Funcionário atualizado" }]]);
   });
 
   for (const role of ["MASTER", "DIRECTOR"] as const) {
-    test(`${role} global cria usuário da empresa somente com tenant alvo selecionado`, async () => {
+    test(`${role} ignora o tenant operacional ao criar uma identidade interna`, async () => {
       const { service, calls } = makeService();
 
       await withGlobalAdminTarget(role, 55, async () => {
@@ -173,28 +211,12 @@ describe("UsersService — isolamento multi-tenant", () => {
         } as any);
       });
 
-      assert.equal(calls.create[0].empresaId, 55);
+      assert.equal(calls.create[0].empresaId, null);
     });
   }
 
-  test("MASTER global recebe orientação explícita ao criar perfil operacional sem empresa-alvo", async () => {
-    const { service } = makeService();
-
-    await withGlobalAdmin("MASTER", async () => {
-      await assert.rejects(
-        () => service.create({
-          name: "Novo usuário",
-          email: "novo@example.com",
-          password: "a-strong-test-password",
-          role: "OPERATIONS_MANAGER",
-        } as any),
-        (error: any) => error instanceof BadRequestError && error.message.includes("empresa de destino"),
-      );
-    });
-  });
-
-  for (const role of ["COMERCIAL", "LOGISTICS"] as const) {
-    test(`${role} pode ser criado como funcionário interno sem empresa por MASTER/DIRECTOR`, async () => {
+  for (const role of USER_ROLE_VALUES) {
+    test(`${role} pode ser cadastrado sem vínculo permanente por um gestor global`, async () => {
       const { service, calls } = makeService();
       await withGlobalAdmin("DIRECTOR", async () => {
         await service.create({
@@ -231,7 +253,7 @@ describe("UsersService — isolamento multi-tenant", () => {
     assert.equal(calls.create[1].empresaId, null);
   });
 
-  test("ADMIN tenant-bound cria COMERCIAL/LOGISTICS somente no próprio tenant", async () => {
+  test("ADMIN com contexto operacional cria funcionário sem vínculo permanente", async () => {
     const { service, calls } = makeService();
     await withTenant(10, async () => {
       await service.create({
@@ -242,7 +264,7 @@ describe("UsersService — isolamento multi-tenant", () => {
         empresaId: 99,
       } as any);
     });
-    assert.equal(calls.create[0].empresaId, 10);
+    assert.equal(calls.create[0].empresaId, null);
   });
 
   test("tenant A atualiza somente com empresaId do tenant A", async () => {
@@ -254,6 +276,25 @@ describe("UsersService — isolamento multi-tenant", () => {
 
     assert.equal(calls.update[0][0], 20);
     assert.equal(calls.update[0][1].empresaId, 10);
+  });
+
+  test("perfil e permissões de funcionário sem empresa podem ser editados sem tenant-alvo", async () => {
+    const unboundTarget = { ...target, empresaId: null, role: "COMERCIAL", permissions: null };
+    const { service, calls } = makeService({ getById: async () => unboundTarget });
+
+    await withGlobalAdmin("DIRECTOR", async () => {
+      await service.update(target.id, {
+        role: "FINANCEIRO",
+        permissions: { actionOverridesV1: { finance: { read: false } } },
+      } as any);
+    });
+
+    assert.equal(calls.updateForTarget.length, 1);
+    assert.equal(calls.updateForTarget[0][1], null);
+    assert.equal(calls.updateForTarget[0][2].role, "FINANCEIRO");
+    assert.deepEqual(calls.updateForTarget[0][2].permissions, {
+      actionOverridesV1: { finance: { read: false } },
+    });
   });
 
   test("alvo de outro tenant é tratado como não encontrado no update", async () => {

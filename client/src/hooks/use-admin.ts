@@ -104,15 +104,21 @@ export function useUpdateCompany() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error("Failed to update company");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const message = typeof body?.error === "string"
+          ? body.error
+          : body?.error?.message || body?.message;
+        throw new Error(message || "Falha ao atualizar empresa");
+      }
       return api.companies.update.responses[200].parse(normalizeOne(await res.json()));
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.companies.list.path] });
       toast({ title: "Empresa atualizada com sucesso!" });
     },
-    onError: () => {
-      toast({ title: "Erro ao atualizar empresa", variant: "destructive" });
+    onError: (err) => {
+      toast({ title: "Erro ao atualizar empresa", description: err.message, variant: "destructive" });
     }
   });
 }

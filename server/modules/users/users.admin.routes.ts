@@ -23,7 +23,7 @@ router.use(tenantContext);
 router.post(
   "/:id/unlock",
   requireAuth,
-  requireRole([...USER_MANAGEMENT_ROLES], { strict: true }),
+  requireRole([...USER_MANAGEMENT_ROLES]),
   asyncHandler(usersController.unlock),
 );
 

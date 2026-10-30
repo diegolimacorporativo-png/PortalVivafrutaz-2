@@ -202,19 +202,26 @@ test("audit logging continues to persist structured events without response-body
 });
 
 test("real health API route remains observable without logging its response body", async () => {
-  const app = express();
-  app.use(requestIdMiddleware);
-  app.use(requestContextMiddleware);
-  app.use(responseLogger);
-  await registerHealth(app);
+  const previousPreviewMode = process.env.ISOLATED_PREVIEW_MODE;
+  delete process.env.ISOLATED_PREVIEW_MODE;
+  try {
+    const app = express();
+    app.use(requestIdMiddleware);
+    app.use(requestContextMiddleware);
+    app.use(responseLogger);
+    await registerHealth(app);
 
-  await captureConsole(async (lines) => {
-    const response = await fetchJson(app, "/api/health?token=TEST_SECRET_TOKEN");
-    assert.equal(response.status, 200);
-    assert.deepEqual(response.body, { status: "ok" });
-    const output = lines.join("\n");
-    assert.match(output, /GET \/api\/health 200 in \d+ms/);
-    assert.equal(output.includes('{"status":"ok"}'), false);
-    assert.equal(output.includes("TEST_SECRET_TOKEN"), false);
-  });
+    await captureConsole(async (lines) => {
+      const response = await fetchJson(app, "/api/health?token=TEST_SECRET_TOKEN");
+      assert.equal(response.status, 200);
+      assert.deepEqual(response.body, { status: "ok", isolatedPreview: false });
+      const output = lines.join("\n");
+      assert.match(output, /GET \/api\/health 200 in \d+ms/);
+      assert.equal(output.includes('{"status":"ok"'), false);
+      assert.equal(output.includes("TEST_SECRET_TOKEN"), false);
+    });
+  } finally {
+    if (previousPreviewMode === undefined) delete process.env.ISOLATED_PREVIEW_MODE;
+    else process.env.ISOLATED_PREVIEW_MODE = previousPreviewMode;
+  }
 });

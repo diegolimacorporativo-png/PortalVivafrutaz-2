@@ -15,6 +15,7 @@ import { ordersRouter } from "../../server/modules/orders/orders.routes";
 import { ordersService } from "../../server/modules/orders/orders.service";
 import { register as registerReports } from "../../server/routes/reports.routes";
 import { OrdersRepository } from "../../server/modules/orders/orders.repository";
+import { db } from "../../server/database/db";
 import { storage } from "../../server/services/storage";
 import {
   getTenantContext,
@@ -136,6 +137,74 @@ describe("tenantContext — fail-closed resolution", () => {
     }
   });
 
+  test("legacy companyId is a default, and a global staff profile may select another tenant", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 17,
+      empresaId: 10,
+      role: "MASTER",
+      active: true,
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    try {
+      const defaultRequest: any = {
+        session: { userId: 17 },
+        method: "GET",
+        query: {},
+        header: () => undefined,
+      };
+      let defaultError: unknown;
+      await tenantContext(defaultRequest, {} as any, (error?: unknown) => { defaultError = error; });
+      assert.equal(defaultError, undefined);
+      assert.equal(defaultRequest.empresaId, 10);
+
+      const selectedRequest: any = {
+        session: { userId: 17 },
+        method: "GET",
+        query: { empresaId: "20" },
+        header: () => undefined,
+      };
+      let selectedError: unknown;
+      await tenantContext(selectedRequest, {} as any, (error?: unknown) => { selectedError = error; });
+      assert.equal(selectedError, undefined);
+      assert.equal(selectedRequest.empresaId, 20);
+      assert.deepEqual(companyLookup.mock.calls.map((call) => call.arguments[0]), [10, 20]);
+    } finally {
+      companyLookup.mock.restore();
+      lookup.mock.restore();
+    }
+  });
+
+  test("MASTER/DIRECTOR company edit scopes to the route target, not stale selected tenant", async () => {
+    const lookup = mock.method(storage, "getUser", async () => ({
+      id: 71,
+      empresaId: 10,
+      role: "DIRECTOR",
+      active: true,
+    } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    try {
+      let context: any;
+      const req: any = {
+        session: { userId: 71 },
+        method: "PUT",
+        originalUrl: "/api/companies/22?empresaId=10",
+        params: { id: "22" },
+        query: { empresaId: "10" },
+        header: () => "10",
+      };
+      await tenantContext(req, {} as any, (error?: unknown) => {
+        assert.equal(error, undefined);
+        context = getTenantContext();
+      });
+      assert.equal(req.empresaId, 22);
+      assert.equal(context?.empresaId, 22);
+      assert.deepEqual(companyLookup.mock.calls.map((call) => call.arguments[0]), [22]);
+    } finally {
+      companyLookup.mock.restore();
+      lookup.mock.restore();
+    }
+  });
+
   test("LOGISTICS sem empresa pode enviar apenas seu próprio GPS sem selecionar tenant", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({
       id: 55,
@@ -249,6 +318,92 @@ describe("tenantContext — fail-closed resolution", () => {
       );
       assert.equal(targetError, undefined);
       assert.equal(request.empresaId, 22);
+    } finally {
+      companyLookup.mock.restore();
+      lookup.mock.restore();
+    }
+  });
+
+  test("all authorized internal profiles can select an active company per request", async () => {
+    const roles = [
+      "MASTER", "ADMIN", "DIRECTOR", "DEVELOPER",
+      "MANAGER", "OPERATIONS_MANAGER", "PURCHASE_MANAGER", "FINANCEIRO", "LOGISTICS",
+      "COMERCIAL", "MASTER_COMERCIAL", "NUTRICIONISTA", "SISTEMA_TESTE", "GESTOR_CONTRATOS",
+    ];
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    try {
+      for (const [index, role] of roles.entries()) {
+        const user = { id: 100 + index, empresaId: 10, role, active: true };
+        const lookup = mock.method(storage, "getUser", async () => user as any);
+        try {
+          const request: any = {
+            session: { userId: user.id },
+            method: "GET",
+            originalUrl: "/api/orders",
+            query: { empresaId: "22" },
+            header: () => undefined,
+          };
+          let received: unknown;
+          let context: ReturnType<typeof getTenantContext>;
+          await tenantContext(request, {} as any, (error?: unknown) => {
+            received = error;
+            context = getTenantContext();
+          });
+          assert.equal(received, undefined, `${role} should be allowed to select a work company`);
+          assert.equal(context?.empresaId, 22, `${role} should be scoped to the selected company`);
+          assert.equal(user.empresaId, 10, `${role} identity must keep its original stored association`);
+        } finally {
+          lookup.mock.restore();
+        }
+      }
+    } finally {
+      companyLookup.mock.restore();
+    }
+  });
+
+  test("user management ignores the bound account company and temporary selector", async () => {
+    const storedAccount = { id: 99, empresaId: 10, role: "DIRECTOR", active: true } as any;
+    const lookup = mock.method(storage, "getUser", async () => storedAccount);
+    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 22, active: true } as any));
+    try {
+      const request: any = {
+        session: { userId: 99 },
+        method: "POST",
+        originalUrl: "/api/users?empresaId=22",
+        baseUrl: "/api/users",
+        path: "/",
+        query: { empresaId: "22" },
+        header: () => "22",
+      };
+      let received: unknown;
+      let context: ReturnType<typeof getTenantContext>;
+      await tenantContext(request, {} as any, (error?: unknown) => {
+        received = error;
+        context = getTenantContext();
+      });
+      assert.equal(received, undefined);
+      assert.equal(context?.empresaId, null);
+      assert.equal(storedAccount.empresaId, 10);
+      assert.equal(companyLookup.mock.callCount(), 0);
+
+      const unlockRequest: any = {
+        session: { userId: 99 },
+        method: "POST",
+        originalUrl: "/api/admin/users/20/unlock?empresaId=22",
+        baseUrl: "/api/admin/users",
+        path: "/20/unlock",
+        query: { empresaId: "22" },
+        header: () => "22",
+      };
+      let unlockError: unknown;
+      let unlockContext: ReturnType<typeof getTenantContext>;
+      await tenantContext(unlockRequest, {} as any, (error?: unknown) => {
+        unlockError = error;
+        unlockContext = getTenantContext();
+      });
+      assert.equal(unlockError, undefined);
+      assert.equal(unlockContext?.empresaId, null);
+      assert.equal(companyLookup.mock.callCount(), 0);
     } finally {
       companyLookup.mock.restore();
       lookup.mock.restore();
@@ -457,13 +612,45 @@ describe("tenantContext — fail-closed resolution", () => {
 });
 
 describe("real companies route — handler boundary", () => {
-  test("tenant A cannot reach the list handler with tenant B in query/header", async () => {
+  test("tenant selector returns company metadata only to authorized internal profiles", async () => {
+    const account = { id: 70, role: "LOGISTICS", active: true, empresaId: null } as any;
+    const userLookup = mock.method(storage, "getUser", async () => account);
+    const query = mock.method(db, "select", () => ({
+      from: () => ({
+        where: () => ({
+          orderBy: async () => [{ id: 22, companyName: "Empresa sintética" }],
+        }),
+      }),
+    }) as any);
+    try {
+      const response = await request(
+        makeCompaniesApp({ userId: 70 }),
+        "GET",
+        "/api/companies/tenant-options",
+      );
+      assert.equal(response.status, 200);
+      assert.deepEqual(response.body, [{ id: 22, companyName: "Empresa sintética" }]);
+
+      account.role = "MOTORISTA";
+      const denied = await request(
+        makeCompaniesApp({ userId: 70 }),
+        "GET",
+        "/api/companies/tenant-options",
+      );
+      assert.equal(denied.status, 403);
+    } finally {
+      query.mock.restore();
+      userLookup.mock.restore();
+    }
+  });
+
+  test("internal staff can switch the work company without changing the stored account", async () => {
     const lookup = mock.method(storage, "getUser", async () => ({
       id: 1,
       empresaId: 10,
       role: "ADMIN",
     } as any));
-    const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 10, active: true } as any));
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
     const original = companiesService.list;
     let handlerCalls = 0;
     (companiesService as any).list = async () => {
@@ -476,13 +663,29 @@ describe("real companies route — handler boundary", () => {
       const headerAttempt = await request(app, "GET", "/api/companies", {
         headers: { "X-Empresa-Id": "20" },
       });
-      assert.equal(queryAttempt.status, 403);
-      assert.equal(headerAttempt.status, 403);
-      assert.equal(handlerCalls, 0);
+      assert.equal(queryAttempt.status, 200);
+      assert.equal(headerAttempt.status, 200);
+      assert.equal(handlerCalls, 2);
+      assert.equal((lookup.mock.calls[0]?.arguments as any[])?.[0], 1);
     } finally {
       lookup.mock.restore();
       companyLookup.mock.restore();
       (companiesService as any).list = original;
+    }
+  });
+
+  test("company portal remains pinned to its own tenant despite selectors", async () => {
+    const companyLookup = mock.method(storage, "getCompany", async (id: number) => ({ id, active: true } as any));
+    try {
+      const app = makeCompaniesApp({ companyId: 30 });
+      const queryAttempt = await request(app, "GET", "/api/companies?empresaId=31");
+      const headerAttempt = await request(app, "GET", "/api/companies", {
+        headers: { "X-Empresa-Id": "31" },
+      });
+      assert.equal(queryAttempt.status, 403);
+      assert.equal(headerAttempt.status, 403);
+    } finally {
+      companyLookup.mock.restore();
     }
   });
 
@@ -547,12 +750,13 @@ describe("orders writes — no global fallback", () => {
 });
 
 describe("real orders and reports routes — tenant precedence", () => {
-  test("tenant A order list rejects tenant B before the controller/service", async () => {
-    const lookup = mock.method(storage, "getUser", async () => ({
+  test("internal ADMIN can switch the operational company without changing account identity", async () => {
+    const storedAccount = {
       id: 1,
       empresaId: 10,
       role: "ADMIN",
-    } as any));
+    } as any;
+    const lookup = mock.method(storage, "getUser", async () => storedAccount);
     const companyLookup = mock.method(storage, "getCompany", async () => ({ id: 10, active: true } as any));
     const original = ordersService.list;
     let serviceCalls = 0;
@@ -566,8 +770,9 @@ describe("real orders and reports routes — tenant precedence", () => {
         "GET",
         "/api/orders?empresaId=20",
       );
-      assert.equal(response.status, 403);
-      assert.equal(serviceCalls, 0);
+      assert.equal(response.status, 200);
+      assert.equal(serviceCalls, 1);
+      assert.equal(storedAccount.empresaId, 10);
     } finally {
       lookup.mock.restore();
       companyLookup.mock.restore();

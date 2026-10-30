@@ -381,7 +381,7 @@ function Router() {
         {() => <ProtectedRoute component={AdminSpecialOrders} role="admin" allowedRoles={['ADMIN', 'OPERATIONS_MANAGER', 'DIRECTOR', 'DEVELOPER', 'LOGISTICS', 'COMERCIAL', 'FINANCEIRO', 'MASTER_COMERCIAL']} tabKey="special-orders" />}
       </Route>
       <Route path="/admin/users">
-        {() => <ProtectedRoute component={AdminUsers} role="admin" allowedRoles={['ADMIN', 'DIRECTOR']} tabKey="users" />}
+        {() => <ProtectedRoute component={AdminUsers} role="admin" allowedRoles={['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']} tabKey="users" />}
       </Route>
       <Route path="/admin/backups">
         {() => <ProtectedRoute component={AdminBackups} role="admin" allowedRoles={['ADMIN', 'DEVELOPER', 'DIRECTOR']} tabKey="backups" />}

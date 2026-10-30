@@ -3,6 +3,7 @@ import { db } from "../database/db";
 import { pushSubscriptions, notificationSettings } from "@shared/schema";
 import { logSecurity } from "../core/security/securityLogger";
 import { eq, and } from "drizzle-orm";
+import { isRemoteHomologationMode } from "../core/runtimeMode";
 
 export const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "";
@@ -185,6 +186,7 @@ export async function sendClientPush(
   companyId: number,
   payload: { title: string; body: string; url?: string }
 ) {
+  if (isRemoteHomologationMode()) return;
   try {
     if (!PUSH_ENABLED) return;
     const subs = await getActiveSubscriptions("company", companyId);
@@ -207,8 +209,11 @@ export async function fireNotification(
   sent: number;
   failed: number;
   skipped: boolean;
-  skipReason?: "provider_unconfigured" | "event_disabled";
+  skipReason?: "provider_unconfigured" | "event_disabled" | "isolated_runtime";
 }> {
+  if (isRemoteHomologationMode()) {
+    return { sent: 0, failed: 0, skipped: true, skipReason: "isolated_runtime" };
+  }
   if (!PUSH_ENABLED) {
     return { sent: 0, failed: 0, skipped: true, skipReason: "provider_unconfigured" };
   }

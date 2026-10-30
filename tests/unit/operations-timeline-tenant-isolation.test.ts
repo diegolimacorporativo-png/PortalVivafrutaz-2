@@ -127,29 +127,48 @@ describe("operations timeline — tenant isolation", () => {
     }
   });
 
-  test("tenant A cannot replace its tenant through query, header, or body", async () => {
+  test("internal ADMIN with legacy Empresa A may select Empresa B for a read", async () => {
     const user = mockTenantUser({ id: 1, empresaId: 10, role: "ADMIN" });
-    const database = mockDatabase([]);
+    const database = mockDatabase([orderB]);
     try {
       const queryResponse = await request(makeApp(), "/api/admin/operations/timeline/202?empresaId=20", {
         session: { userId: 1, userRole: "ADMIN" },
       });
-      assert.equal(queryResponse.status, 403);
+      assert.equal(queryResponse.status, 200);
+      assert.equal(queryResponse.body.data.order.companyId, 20);
+      assert.equal(database.counts().detailedQueryCalls, 6);
+    } finally {
+      user.mock.restore();
+      database.select.mock.restore();
+    }
+  });
 
-      const headerResponse = await request(makeApp(), "/api/admin/operations/timeline/202", {
-        session: { userId: 1, userRole: "ADMIN" },
-        headers: { "X-Empresa-Id": "20" },
-      });
-      assert.equal(headerResponse.status, 403);
-
-      const bodyResponse = await request(makeApp(), "/api/admin/operations/timeline/202", {
+  test("internal request body cannot replace the tenant context", async () => {
+    const user = mockTenantUser({ id: 1, empresaId: 10, role: "ADMIN" });
+    const database = mockDatabase([orderA]);
+    try {
+      const bodyResponse = await request(makeApp(), "/api/admin/operations/timeline/101", {
         session: { userId: 1, userRole: "ADMIN" },
         body: { empresaId: 20, companyId: 20, tenantId: 20 },
       });
-      assert.equal(bodyResponse.status, 404);
-      assert.equal(database.counts().detailedQueryCalls, 0);
+      assert.equal(bodyResponse.status, 200);
+      assert.equal(bodyResponse.body.data.order.companyId, 10);
+      assert.equal(database.counts().detailedQueryCalls, 6);
     } finally {
       user.mock.restore();
+      database.select.mock.restore();
+    }
+  });
+
+  test("conta de empresa cliente não acessa a rota administrativa", async () => {
+    const database = mockDatabase([orderA]);
+    try {
+      const response = await request(makeApp(), "/api/admin/operations/timeline/101", {
+        session: { companyId: 10 },
+      });
+      assert.equal(response.status, 401);
+      assert.equal(database.counts().selectCalls, 0);
+    } finally {
       database.select.mock.restore();
     }
   });

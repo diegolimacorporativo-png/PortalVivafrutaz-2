@@ -110,7 +110,7 @@ test("valid reset updates only the token owner and the same token cannot be reus
       available = false;
       return { userId: 10, companyId: null };
     },
-    updateUser: async (id: number) => {
+    changeUserPasswordAndRevokeSessions: async (id: number) => {
       updates.push(id);
       return {};
     },

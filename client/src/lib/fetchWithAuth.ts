@@ -45,6 +45,8 @@ export async function fetchWithAuth(
     .toString()
     .replace(/[^a-zA-Z0-9-_]/g, "")
     .slice(0, 50);
+  const requestPath = url.split("?", 1)[0];
+  const isUserManagementRequest = /^\/api\/(?:users|admin\/users)(?:\/|$)/.test(requestPath);
 
   // T804 — DEV-only: log device ID and request details (removed from prod to
   // eliminate console noise on every request in deployed environments).
@@ -64,7 +66,7 @@ export async function fetchWithAuth(
     headers: {
       ...(options.headers ?? {}),
       "X-Device-Id": safeDeviceId,
-      ...(url.startsWith("/api/") && !url.startsWith("/api/auth/") &&
+      ...(url.startsWith("/api/") && !url.startsWith("/api/auth/") && !isUserManagementRequest &&
         localStorage.getItem("staff_tenant_owner") && localStorage.getItem("staff_tenant_id")
         ? { "X-Empresa-Id": localStorage.getItem("staff_tenant_id")! }
         : {}),

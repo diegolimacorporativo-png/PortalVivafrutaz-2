@@ -70,7 +70,12 @@ export function createNfeCceTenantMiddleware(
 export const nfeCceTenantMiddleware = createNfeCceTenantMiddleware();
 
 /** Shared exact middleware chains used by both legacy CC-e endpoints. */
-export const nfeCceReadAccess = [requireAuth, tenantContext, nfeCceTenantMiddleware] as const;
+export const nfeCceReadAccess = [
+  requireAuth,
+  requireRole([...FISCAL_ROLES]),
+  tenantContext,
+  nfeCceTenantMiddleware,
+] as const;
 export const nfeCceWriteAccess = [
   requireAuth,
   tenantContext,

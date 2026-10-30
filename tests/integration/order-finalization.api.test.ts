@@ -7,14 +7,23 @@ import test from "node:test";
 import bcrypt from "bcryptjs";
 import { Pool } from "pg";
 import {
+  assertRemoteHomologationDatabaseIsEmpty,
   assertIsolatedPreviewDatabaseIdentity,
+  isRemoteHomologationMode,
+  validateRemoteHomologationApiUrl,
+  validateRemoteHomologationConfig,
   validateIsolatedPreviewDatabaseUrl,
+  verifyRemoteHomologationDatabaseIdentity,
 } from "../../server/core/runtimeMode";
 
-const databaseUrl = validateIsolatedPreviewDatabaseUrl(
-  "postgresql://preview@127.0.0.1:55439/vivafrutaz_preview",
-  "development",
-);
+const remoteMode = isRemoteHomologationMode();
+const remoteConfig = remoteMode ? validateRemoteHomologationConfig() : undefined;
+const databaseUrl = remoteMode
+  ? remoteConfig!.databaseUrl
+  : validateIsolatedPreviewDatabaseUrl(
+      "postgresql://preview@127.0.0.1:55439/vivafrutaz_preview",
+      "development",
+    );
 const markerPrefix = "vivafrutaz-isolated-preview-v1:";
 
 type OrderFixture = {
@@ -93,6 +102,75 @@ async function verifyDisposableDatabase(pool: Pool): Promise<string> {
   return dataRoot;
 }
 
+async function verifyRemoteDatabase(pool: Pool) {
+  if (!remoteConfig) throw new Error("Configuração remota ausente.");
+  const identity = await verifyRemoteHomologationDatabaseIdentity(
+    (text) => pool.query(text),
+    remoteConfig,
+  );
+  await assertRemoteHomologationDatabaseIsEmpty((text) => pool.query(text));
+  return identity;
+}
+
+function sessionIdFromCookie(cookie: string | undefined): string | undefined {
+  if (!cookie) return undefined;
+  const cookieValue = cookie.split(";")[0]?.slice("sessionId=".length);
+  if (!cookieValue) return undefined;
+  const decoded = decodeURIComponent(cookieValue);
+  if (!decoded.startsWith("s:")) return undefined;
+  return decoded.slice(2).split(".")[0] || undefined;
+}
+
+async function cleanupRunRecords(
+  pool: Pool,
+  ids: {
+    companyIds: number[];
+    userIds: number[];
+    orderIds: number[];
+    productIds: number[];
+    sessionId?: string;
+  },
+): Promise<void> {
+  if (ids.sessionId) {
+    await pool.query('DELETE FROM "session" WHERE sid = $1', [ids.sessionId]);
+  }
+  if (ids.orderIds.length) {
+    await pool.query("DELETE FROM workflow_events WHERE order_id = ANY($1::int[])", [ids.orderIds]);
+    await pool.query("DELETE FROM deliveries WHERE order_id = ANY($1::int[])", [ids.orderIds]);
+    await pool.query("DELETE FROM order_items WHERE order_id = ANY($1::int[])", [ids.orderIds]);
+    await pool.query("DELETE FROM accounts_receivable WHERE order_id = ANY($1::int[])", [ids.orderIds]);
+    await pool.query(
+      "DELETE FROM inventory_movements WHERE reference_type = 'order' AND reference_id = ANY($1::int[])",
+      [ids.orderIds],
+    );
+    await pool.query("DELETE FROM orders WHERE id = ANY($1::int[])", [ids.orderIds]);
+  }
+  if (ids.companyIds.length || ids.userIds.length) {
+    await pool.query(
+      "DELETE FROM system_logs WHERE company_id = ANY($1::int[]) OR user_id = ANY($2::int[])",
+      [ids.companyIds, ids.userIds],
+    );
+    await pool.query(
+      "DELETE FROM audit_logs WHERE tenant_id = ANY($1::text[]) OR user_id = ANY($2::text[])",
+      [ids.companyIds.map(String), ids.userIds.map(String)],
+    );
+    await pool.query(
+      "DELETE FROM auth_attempts WHERE company_id = ANY($1::int[]) OR user_id = ANY($2::int[])",
+      [ids.companyIds, ids.userIds],
+    );
+  }
+  if (ids.productIds.length) {
+    await pool.query("DELETE FROM inventory_settings WHERE product_id = ANY($1::int[])", [ids.productIds]);
+    await pool.query("DELETE FROM products WHERE id = ANY($1::int[])", [ids.productIds]);
+  }
+  if (ids.userIds.length) {
+    await pool.query("DELETE FROM users WHERE id = ANY($1::int[])", [ids.userIds]);
+  }
+  if (ids.companyIds.length) {
+    await pool.query("DELETE FROM companies WHERE id = ANY($1::int[])", [ids.companyIds]);
+  }
+}
+
 async function apiRequest(
   baseUrl: URL,
   route: string,
@@ -114,13 +192,20 @@ test(
   "finalização manual de pedidos pelo endpoint real, em PostgreSQL isolado",
   { timeout: 90_000 },
   async (t) => {
-    const devDomain = process.env.REPLIT_DEV_DOMAIN;
-    assert.ok(
-      devDomain && !devDomain.includes("://"),
-      "REPLIT_DEV_DOMAIN é obrigatório; o teste não usa URL de produção",
-    );
-    const baseUrl = new URL(`https://${devDomain}`);
-    assert.equal(baseUrl.protocol, "https:");
+    let baseUrl: URL;
+    if (remoteMode) {
+      baseUrl = validateRemoteHomologationApiUrl(
+        process.env.ISOLATED_REMOTE_HOMOLOGATION_API_URL,
+      );
+    } else {
+      const devDomain = process.env.REPLIT_DEV_DOMAIN;
+      assert.ok(
+        devDomain && !devDomain.includes("://"),
+        "REPLIT_DEV_DOMAIN é obrigatório; o teste não usa URL de produção",
+      );
+      baseUrl = new URL(`https://${devDomain}`);
+      assert.equal(baseUrl.protocol, "https:");
+    }
 
     const pool = new Pool({
       connectionString: databaseUrl,
@@ -129,10 +214,20 @@ test(
       connectionTimeoutMillis: 5_000,
     });
     let servicePool: Pool | undefined;
+    const runRecords = {
+      companyIds: [] as number[],
+      userIds: [] as number[],
+      orderIds: [] as number[],
+      productIds: [] as number[],
+      sessionId: undefined as string | undefined,
+    };
 
     try {
-      const dataRoot = await verifyDisposableDatabase(pool);
-      const isolationId = path.basename(dataRoot).replace(/^vivafrutaz-isolated-preview\./, "");
+      const dataRoot = remoteMode ? undefined : await verifyDisposableDatabase(pool);
+      const remoteIdentity = remoteMode ? await verifyRemoteDatabase(pool) : undefined;
+      const isolationId = dataRoot
+        ? path.basename(dataRoot).replace(/^vivafrutaz-isolated-preview\./, "")
+        : undefined;
 
       // Prove that the HTTP server is attached to the exact temporary PG
       // instance validated by this harness before sending any mutating request.
@@ -140,31 +235,55 @@ test(
       assert.equal(
         health.status,
         200,
-        "Inicie primeiro o workflow Start application com npm run dev:isolated",
+        remoteMode
+          ? "Inicie o servidor de homologação remota em loopback após validar a identidade PostgreSQL."
+          : "Inicie primeiro o workflow Start application com npm run dev:isolated",
       );
-      assert.deepEqual(health.body, {
-        status: "ok",
-        isolatedPreview: true,
-        databaseProvider: "isolated-preview-postgres",
-        databaseIdentityVerified: true,
-        isolationId,
-      }, "O servidor HTTP precisa comprovar a mesma instância PostgreSQL descartável do harness");
+      if (remoteMode) {
+        assert.deepEqual(health.body, {
+          status: "ok",
+          isolatedRemoteHomologation: true,
+          databaseIdentityVerified: true,
+          ...remoteIdentity,
+        }, "O servidor HTTP precisa comprovar o mesmo projeto, banco, esquema e marcador do harness");
+      } else {
+        assert.deepEqual(health.body, {
+          status: "ok",
+          isolatedPreview: true,
+          databaseProvider: "isolated-preview-postgres",
+          databaseIdentityVerified: true,
+          isolationId,
+        }, "O servidor HTTP precisa comprovar a mesma instância PostgreSQL descartável do harness");
+      }
 
       // Configure the test process before importing any service module. This
       // prevents db.ts from loading .env and makes its pool use the exact same
       // validated disposable PostgreSQL as this harness.
-      process.env.NODE_ENV = "development";
-      process.env.ISOLATED_PREVIEW_MODE = "1";
-      process.env.ISOLATED_PREVIEW_DATABASE_URL = databaseUrl;
-      process.env.ISOLATED_PREVIEW_DATA_DIR = dataRoot;
-      process.env.DOTENV_CONFIG_PATH = path.join(dataRoot, ".dotenv-disabled");
+      process.env.NODE_ENV = remoteMode ? process.env.NODE_ENV : "development";
+      if (remoteMode) {
+        process.env.ISOLATED_PREVIEW_MODE = "0";
+      } else {
+        process.env.ISOLATED_PREVIEW_MODE = "1";
+        process.env.ISOLATED_PREVIEW_DATABASE_URL = databaseUrl;
+        process.env.ISOLATED_PREVIEW_DATA_DIR = dataRoot!;
+        process.env.DOTENV_CONFIG_PATH = path.join(dataRoot!, ".dotenv-disabled");
+      }
       const [{ ordersService }, { runWithTenant }, appDatabase] = await Promise.all([
         import("../../server/modules/orders/orders.service"),
         import("../../server/core/tenant/context"),
         import("../../server/database/db"),
       ]);
       servicePool = appDatabase.pool;
-      await verifyDisposableDatabase(servicePool);
+      if (remoteMode) {
+        const serviceIdentity = await verifyRemoteHomologationDatabaseIdentity(
+          (text) => servicePool!.query(text),
+          remoteConfig!,
+        );
+        assert.deepEqual(serviceIdentity, remoteIdentity,
+          "O pool importado pelo serviço deve usar o mesmo projeto, banco, esquema e marcador validado pelo harness");
+      } else {
+        await verifyDisposableDatabase(servicePool);
+      }
 
       const runId = randomBytes(8).toString("hex");
       const password = randomBytes(24).toString("hex");
@@ -182,6 +301,7 @@ test(
         ],
       );
       const companyId = companyResult.rows[0].id;
+      runRecords.companyIds.push(companyId);
       const userResult = await pool.query<{ id: number }>(
         `INSERT INTO users
           (empresa_id, name, email, password, role, password_changed_at)
@@ -206,12 +326,14 @@ test(
       assert.equal(
         login.status,
         200,
-        `Synthetic tenant admin login failed: ${JSON.stringify(login.body)}`,
+        `Synthetic tenant admin login failed with HTTP ${login.status}.`,
       );
       const setCookie = login.headers.get("set-cookie");
       assert.ok(setCookie, "Login did not issue a session cookie");
       const sessionCookie = setCookie.split(";")[0];
       const adminId = userResult.rows[0].id;
+      runRecords.userIds.push(adminId);
+      runRecords.sessionId = sessionIdFromCookie(setCookie);
       const requestJson = (
         route: string,
         method: string,
@@ -239,6 +361,7 @@ test(
           [orderCode, companyId, `isolated-${runId}`],
         );
         const orderId = orderResult.rows[0].id;
+        runRecords.orderIds.push(orderId);
         const deliveryIds: number[] = [];
 
         for (const status of statuses) {
@@ -285,6 +408,7 @@ test(
             [orderCode, companyId, `isolated-${runId}`],
           );
           const orderId = orderResult.rows[0].id;
+          runRecords.orderIds.push(orderId);
           const productResult = await pool.query<{ id: number }>(
             `INSERT INTO products (empresa_id, name, category, unit, active)
              VALUES ($1, $2, 'Synthetic', 'un', true)
@@ -292,6 +416,7 @@ test(
             [companyId, `Synthetic on-demand ${runId}`],
           );
           const productId = productResult.rows[0].id;
+          runRecords.productIds.push(productId);
           await pool.query(
             `INSERT INTO order_items
               (empresa_id, order_id, product_id, quantity, unit_price, total_price)
@@ -444,6 +569,7 @@ test(
             { userId: adminId, companyId, role: "ADMIN" },
           ),
         );
+        runRecords.orderIds.push(created.order.id);
         assert.ok(created.order.id);
         assert.equal(created.delivery.orderId, created.order.id);
         const links = await pool.query<{ count: number }>(
@@ -465,6 +591,7 @@ test(
           [orderCode, companyId, `isolated-${runId}`],
         );
         const orderId = orderResult.rows[0].id;
+        runRecords.orderIds.push(orderId);
         const responses = await Promise.all([
           requestJson(`/api/orders/${orderId}`, "PATCH", { status: "CONFIRMED" }),
           requestJson(`/api/orders/${orderId}`, "PATCH", { status: "CONFIRMED" }),
@@ -649,12 +776,14 @@ test(
            VALUES ($1, $2, $3, $4, '[]'::jsonb) RETURNING id`,
           [`Other isolated ${runId}`, "Synthetic", `other-${runId}@example.invalid`, await bcrypt.hash(randomBytes(24).toString("hex"), 4)],
         );
+        runRecords.companyIds.push(otherCompany.rows[0].id);
         const foreignOrder = await pool.query<{ id: number }>(
           `INSERT INTO orders (order_code, status, workflow_status, company_id, delivery_date, week_reference, total_value)
            VALUES ($1, 'CONFIRMED', 'INVOICED', $2, NOW() + INTERVAL '2 days', $3, 0)
            RETURNING id`,
           [`ISO-${runId}-foreign-order`, otherCompany.rows[0].id, `isolated-${runId}`],
         );
+        runRecords.orderIds.push(foreignOrder.rows[0].id);
         const otherTenant = await requestJson("/api/deliveries", "POST", {
           orderId: foreignOrder.rows[0].id,
           status: "pendente",
@@ -736,6 +865,12 @@ test(
         },
       );
     } finally {
+      if (
+        runRecords.companyIds.length || runRecords.userIds.length ||
+        runRecords.orderIds.length || runRecords.productIds.length || runRecords.sessionId
+      ) {
+        await cleanupRunRecords(pool, runRecords);
+      }
       if (servicePool) await servicePool.end();
       await pool.end();
     }

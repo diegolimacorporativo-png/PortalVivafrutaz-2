@@ -113,9 +113,9 @@ export function tabPermissionAllows(permissions: unknown, tabKey: string, role?:
   };
   const roleTabs = role ? restrictedTabAccess[role] : undefined;
   if (roleTabs && !roleTabs.includes(tabKey)) return false;
-  // GPS is a profile baseline: eligible internal roles always see it, while
-  // sanitary and driver roles remain denied even if a stored tab list grants it.
-  if (tabKey === "gps-tracking" && role) return roleCanViewGps(role);
+  // GPS remains a profile capability ceiling, while an explicit per-user tab
+  // list may restrict (but cannot grant) access to the monitoring module.
+  if (tabKey === "gps-tracking" && role && !roleCanViewGps(role)) return false;
   if (permissions == null || (Array.isArray(permissions) && permissions.length === 0)) return true;
   if (!Array.isArray(permissions) || !permissions.every((value) => typeof value === "string")) return false;
   if (permissions.includes(DENY_ALL_TAB_PERMISSIONS)) return false;
@@ -134,12 +134,17 @@ export const FULL_SYSTEM_ACCESS_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOP
 /** Profiles whose unbound accounts can select any company for ordinary work. */
 export const GLOBAL_SCOPE_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
 
-/** Internal Vivafrutaz staff profiles; distinct from company portal accounts. */
-export const INTERNAL_STAFF_ROLES = ["COMERCIAL", "LOGISTICS", "FINANCEIRO"] as const;
+/** Every role in the users table is an internal staff identity; customer
+ * portal accounts are stored separately in the companies table. */
+export const INTERNAL_STAFF_ROLES = USER_ROLE_VALUES.filter(
+  (role) => !(GLOBAL_SCOPE_ROLES as readonly string[]).includes(role),
+);
 
-/** Profiles permitted to target a company for cross-company operations. */
+/** Internal profiles may select an operational company per request. Driver
+ * identities remain limited to their own driver/journey flow. */
 export const CROSS_COMPANY_STAFF_ROLES = [
-  ...GLOBAL_SCOPE_ROLES, "COMERCIAL", "LOGISTICS", "FINANCEIRO",
+  ...GLOBAL_SCOPE_ROLES,
+  ...INTERNAL_STAFF_ROLES.filter((role) => !["MOTORISTA", "DRIVER"].includes(role)),
 ] as const;
 
 /** Tenant admins manage staff, but cannot grant platform/developer authority. */
@@ -159,3 +164,17 @@ export const TENANT_ASSIGNABLE_USER_ROLES = [
 ] as const;
 
 export const USER_MANAGEMENT_ROLES = ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"] as const;
+
+/**
+ * Profile assignment is an identity-management permission. It depends on the
+ * authenticated manager role, never on the manager's selected or legacy
+ * company association.
+ */
+export function canAssignInternalUserRole(
+  managerRole: string | null | undefined,
+  candidateRole: string,
+): boolean {
+  return !!managerRole &&
+    (GLOBAL_USER_MANAGEMENT_ROLES as readonly string[]).includes(managerRole) &&
+    (USER_ROLE_VALUES as readonly string[]).includes(candidateRole);
+}

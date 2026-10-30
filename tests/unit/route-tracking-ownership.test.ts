@@ -1,10 +1,17 @@
-import { test, describe, mock } from "node:test";
+import { test, describe, mock, after } from "node:test";
 import assert from "node:assert/strict";
 import { calculateDistance } from "../../server/services/logistics/routeOptimizer";
 import { db } from "../../server/database/db";
 import { LogisticsController } from "../../server/modules/logistics/logistics.controller";
 import { LogisticsService } from "../../server/modules/logistics/logistics.service";
 import { createPublicTrackingToken } from "../../server/core/security/publicTrackingToken";
+
+const previousSessionSecret = process.env.SESSION_SECRET;
+process.env.SESSION_SECRET = "synthetic-route-tracking-test-session-secret";
+after(() => {
+  if (previousSessionSecret === undefined) delete process.env.SESSION_SECRET;
+  else process.env.SESSION_SECRET = previousSessionSecret;
+});
 
 type Actor = {
   id: number;

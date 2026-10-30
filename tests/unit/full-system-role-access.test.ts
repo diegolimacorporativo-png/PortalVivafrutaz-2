@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { FISCAL_ROLES } from "../../server/modules/orders/orders.service";
 import {
   actionPermissionAllows,
   FULL_SYSTEM_ACCESS_ROLES,
@@ -9,6 +10,12 @@ import {
   tabPermissionAllows,
   USER_MANAGEMENT_ROLES,
 } from "../../shared/user-roles";
+
+test("MASTER, ADMIN, DIRECTOR e DEVELOPER mantêm acesso às operações fiscais", () => {
+  for (const role of ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]) {
+    assert.ok((FISCAL_ROLES as readonly string[]).includes(role), `${role} deve preservar acesso fiscal global`);
+  }
+});
 
 test("MASTER, ADMIN, DIRECTOR e DEVELOPER preservam acesso completo a módulos e ações", () => {
   for (const role of ["MASTER", "ADMIN", "DIRECTOR", "DEVELOPER"]) {
@@ -49,9 +56,10 @@ test("matriz limita escrita cruzada sem alterar o perfil base de FINANCEIRO", ()
   assert.equal(roleActionAllows("PURCHASE_MANAGER", "orders", "create"), undefined);
 });
 
-test("permissões de aba não podem conceder módulos fora da matriz e GPS segue o perfil", () => {
+test("permissões de aba não podem ampliar o perfil e podem restringir GPS", () => {
   assert.equal(tabPermissionAllows(["finance"], "finance", "COMERCIAL"), false);
   assert.equal(tabPermissionAllows(["users"], "users", "LOGISTICS"), false);
-  assert.equal(tabPermissionAllows(["__deny_all_tabs__"], "gps-tracking", "FINANCEIRO"), true);
+  assert.equal(tabPermissionAllows(["__deny_all_tabs__"], "gps-tracking", "FINANCEIRO"), false);
+  assert.equal(tabPermissionAllows(["logistics"], "gps-tracking", "FINANCEIRO"), false);
   assert.equal(tabPermissionAllows(["gps-tracking"], "gps-tracking", "NUTRICIONISTA"), false);
 });

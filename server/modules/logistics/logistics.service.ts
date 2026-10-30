@@ -215,11 +215,24 @@ export class LogisticsService {
     if (contextTenant != null) {
       if (
         actorTenant != null &&
-        (!Number.isInteger(contextTenant) || actorTenant !== contextTenant)
+        (!Number.isInteger(contextTenant) || actorTenant !== contextTenant) &&
+        actor.identityType !== "internal"
       ) {
         throw new ForbiddenError("O tenant da sessão não corresponde ao usuário.");
       }
       return { tenantId: contextTenant, global: false };
+    }
+
+    // Internal identity and the work tenant are separate. A verified global
+    // profile keeps its role-authorized global read scope even when a legacy
+    // user row still contains empresaId. The tenant middleware may narrow an
+    // individual request by setting contextTenant above.
+    if (
+      actor.identityType === "internal" &&
+      actorTenant == null &&
+      (GLOBAL_SCOPE_ROLES as readonly string[]).includes(actor.role)
+    ) {
+      return { tenantId: null, global: true };
     }
 
     if (actorTenant != null) {

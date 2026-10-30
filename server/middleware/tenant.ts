@@ -2,7 +2,12 @@ import type { Request, Response, NextFunction } from "express";
 import { runWithTenant, type TenantPrincipal } from "../core/tenant/context";
 import { UnauthorizedError, ForbiddenError } from "../shared/errors/AppError";
 import { storage } from "../services/storage";
-import { CROSS_COMPANY_STAFF_ROLES, GLOBAL_SCOPE_ROLES, roleCanViewGps } from "@shared/user-roles";
+import {
+  CROSS_COMPANY_STAFF_ROLES,
+  GLOBAL_SCOPE_ROLES,
+  GLOBAL_USER_MANAGEMENT_ROLES,
+  roleCanViewGps,
+} from "@shared/user-roles";
 
 /**
  * Tenant middleware — the single place where the authenticated session is
@@ -104,21 +109,52 @@ async function resolveAdminTenant(
   const user = await storage.getUser(userId);
   if (!user || user.active === false) throw new UnauthorizedError("Sessão inválida");
 
-  // 1. Admin pinned to a tenant — no override allowed.
+  // User-management requests change staff identity, not operational company
+  // data. Resolve them globally for trusted user-management profiles,
+  // regardless of a legacy company association or selected work tenant. The
+  // user routes still enforce the actor role and service-level target rules.
+  if (
+    GLOBAL_USER_MANAGEMENT_ROLES.some((role) => role === user.role) &&
+    isUserManagementRequest(req)
+  ) {
+    return { kind: "admin", empresaId: null, userId, role: user.role };
+  }
+
+  // A company edit targets the company identified by the authenticated route,
+  // not the operator's currently selected work company. This avoids a stale
+  // X-Empresa-Id rejecting edits opened from the global company directory.
+  // Keep this exception narrow: only the trusted global company managers and
+  // only the root PUT /api/companies/:id route qualify. The repository still
+  // checks the target against this server-established tenant context.
+  const companyUpdateId = getCompanyUpdateTarget(req);
+  if (
+    companyUpdateId !== null &&
+    ["MASTER", "DIRECTOR"].includes(user.role)
+  ) {
+    const company = await storage.getCompany(companyUpdateId);
+    if (!company) throw new ForbiddenError("Empresa de destino inexistente");
+    return { kind: "admin", empresaId: companyUpdateId, userId, role: user.role };
+  }
+
+  // 1. Existing tenant assignment is a backward-compatible default for
+  // internal staff. Profiles authorized for cross-company work may select a
+  // different active company for this request without changing user.empresaId.
   if (user.empresaId != null) {
     const companyId = Number(user.empresaId);
     if (!Number.isInteger(companyId) || companyId <= 0) {
       throw new ForbiddenError("Empresa do usuário inválida");
     }
-    const company = await storage.getCompany(companyId);
-    if (!company || company.active === false) {
-      throw new ForbiddenError("Empresa do usuário inexistente ou inativa");
-    }
     const clientTarget = resolveClientTenant(req);
-    if (clientTarget !== null && clientTarget !== companyId) {
+    const maySelectAnotherCompany = (CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(user.role);
+    if (clientTarget !== null && clientTarget !== companyId && !maySelectAnotherCompany) {
       throw new ForbiddenError("Tenant da sessão não pode ser substituído");
     }
-    return { kind: "admin", empresaId: companyId, userId, role: user.role };
+    const targetId = clientTarget ?? companyId;
+    const company = await storage.getCompany(targetId);
+    if (!company || company.active === false) {
+      throw new ForbiddenError("Empresa selecionada inexistente ou inativa");
+    }
+    return { kind: "admin", empresaId: targetId, userId, role: user.role };
   }
 
   // An unbound driver or logistics supervisor may submit only their own GPS
@@ -185,6 +221,23 @@ function isUnboundSelfGpsSubmission(req: Request, role: string): boolean {
     .split("?")[0]
     .replace(/\/+$/, "");
   return path === "/api/driver/gps";
+}
+
+function isUserManagementRequest(req: Request): boolean {
+  const path = String(req.originalUrl ?? req.baseUrl ?? req.path ?? "").split("?", 1)[0];
+  return path === "/api/users" || path.startsWith("/api/users/") ||
+    path === "/api/admin/users" || path.startsWith("/api/admin/users/");
+}
+
+function getCompanyUpdateTarget(req: Request): number | null {
+  if (String(req.method ?? "").toUpperCase() !== "PUT") return null;
+  const path = String(req.originalUrl ?? req.baseUrl ?? req.path ?? "")
+    .split("?", 1)[0]
+    .replace(/\/$/, "");
+  const match = path.match(/^\/api\/companies\/(\d+)$/);
+  if (!match) return null;
+  const id = Number(match[1]);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 function isGpsViewRequest(req: Request): boolean {

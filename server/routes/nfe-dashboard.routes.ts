@@ -21,7 +21,7 @@ function uid() {
   return Math.random().toString(36).slice(2, 10);
 }
 
-const ROLES = ['MASTER', 'ADMIN', 'DEVELOPER'] as const;
+const ROLES = ['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER'] as const;
 
 export function register(app: Express) {
 

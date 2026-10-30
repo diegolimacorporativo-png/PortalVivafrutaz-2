@@ -4,12 +4,12 @@ import { requireTabPermission } from "../../server/middleware/requireTabPermissi
 import { storage } from "../../server/services/storage";
 import { ForbiddenError } from "../../server/shared/errors/AppError";
 
-test("LOGISTICS envia GPS mesmo com uma lista de abas antiga e restritiva", async () => {
+test("permissão da aba de monitoramento não libera envio GPS pelo painel do motorista", async () => {
   const lookup = mock.method(storage, "getUser", async () => ({
     id: 12,
     role: "LOGISTICS",
     active: true,
-    tabPermissions: ["__deny_all_tabs__"],
+    tabPermissions: ["gps-tracking"],
   } as any));
   try {
     let nextError: unknown;
@@ -18,7 +18,7 @@ test("LOGISTICS envia GPS mesmo com uma lista de abas antiga e restritiva", asyn
       {} as any,
       (error?: unknown) => { nextError = error; },
     );
-    assert.equal(nextError, undefined);
+    assert.ok(nextError instanceof ForbiddenError);
   } finally {
     lookup.mock.restore();
   }

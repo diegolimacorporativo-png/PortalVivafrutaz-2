@@ -4,7 +4,6 @@ import { storage } from "../services/storage.ts";
 import { fireNotification, VAPID_PUBLIC_KEY } from "../services/pushService";
 import {
   requireAuth as requireAuthCore,
-  requireRole,
   requireSession,
 } from "../core/http/requireAuth";
 import { z } from "zod";
@@ -41,7 +40,7 @@ const emptyTestBodySchema = z.object({}).strict();
 
 type PushAdminUser = {
   role?: string | null;
-  empresaId?: number | null;
+  active?: boolean | null;
 };
 
 export type PushRouteDependencies = {
@@ -64,13 +63,13 @@ const defaultDependencies: PushRouteDependencies = {
 
 /**
  * Notification settings are a global table (there is no companyId column).
- * Only unbound administrative accounts may therefore access this surface.
- * A tenant-bound administrator must not be treated as global by role alone.
+ * Access is based on the persisted internal profile, not an obsolete company
+ * association. Customer sessions do not resolve through users.getUser().
  */
 export function canManageGlobalPush(user: PushAdminUser | undefined): boolean {
   return Boolean(
     user &&
-    user.empresaId == null &&
+    user.active !== false &&
     typeof user.role === "string" &&
     PUSH_ADMIN_ROLES.includes(user.role as (typeof PUSH_ADMIN_ROLES)[number]),
   );
@@ -172,7 +171,6 @@ export async function register(
   app.get(
     '/api/push/settings',
     requireAuthCore,
-    requireRole([...PUSH_ADMIN_ROLES], { strict: true }),
     async (req: any, res) => {
     try {
       const user = await dependencies.storage.getUser(req.session.userId);
@@ -191,7 +189,6 @@ export async function register(
   app.patch(
     '/api/push/settings/:event',
     requireAuthCore,
-    requireRole([...PUSH_ADMIN_ROLES], { strict: true }),
     async (req: any, res) => {
     try {
       const user = await dependencies.storage.getUser(req.session.userId);
@@ -221,7 +218,6 @@ export async function register(
   app.post(
     '/api/push/test',
     requireAuthCore,
-    requireRole([...PUSH_ADMIN_ROLES], { strict: true }),
     async (req: any, res) => {
     try {
       const user = await dependencies.storage.getUser(req.session.userId);

@@ -11,6 +11,8 @@
  *  → log crítico + throw fatal → ZERO transmissão real ao SEFAZ.
  */
 
+import { isRemoteHomologationMode } from "../runtimeMode";
+
 const _pid = process.pid;
 const _ts = () => new Date().toISOString();
 
@@ -19,6 +21,10 @@ const _ts = () => new Date().toISOString();
 export function assertFiscalBootSafe(): void {
   const mode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
   const env = process.env.NODE_ENV ?? 'development';
+
+  if (isRemoteHomologationMode() && mode !== "mock") {
+    throw new Error("Runtime isolado exige NFE_SEFAZ_MODE=mock; transmissões externas são bloqueadas.");
+  }
 
   if (mode === 'production') {
     console.error('[FISCAL_PRODUCTION_BLOCKED]', {

@@ -2,9 +2,13 @@ import dotenv from "dotenv";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import * as schema from "@shared/schema";
-import { getRuntimeDatabaseUrl, isIsolatedPreviewMode } from "../core/runtimeMode";
+import {
+  getRuntimeDatabaseProvider,
+  getRuntimeDatabaseUrl,
+  isIsolatedRuntimeMode,
+} from "../core/runtimeMode";
 
-if (!isIsolatedPreviewMode()) {
+if (!isIsolatedRuntimeMode()) {
   dotenv.config();
 }
 
@@ -50,7 +54,7 @@ const BLOCKED_PATTERNS: Array<{ pattern: RegExp | string; reason: string }> = [
   { pattern: /^(?!postgresql:\/\/|postgres:\/\/)/, reason: "protocolo não-PostgreSQL proibido" },
 ];
 
-for (const { pattern, reason } of isIsolatedPreviewMode() ? [] : BLOCKED_PATTERNS) {
+for (const { pattern, reason } of isIsolatedRuntimeMode() ? [] : BLOCKED_PATTERNS) {
   const matched = typeof pattern === "string"
     ? supabaseUrl.includes(pattern)
     : pattern.test(supabaseUrl);
@@ -68,20 +72,22 @@ for (const { pattern, reason } of isIsolatedPreviewMode() ? [] : BLOCKED_PATTERN
 }
 
 console.log("[DB_PROVIDER_SELECTED]", {
-  provider: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
-  source: isIsolatedPreviewMode()
-    ? "ISOLATED_PREVIEW_DATABASE_URL"
+  provider: getRuntimeDatabaseProvider(),
+  source: isIsolatedRuntimeMode()
+    ? process.env.ISOLATED_REMOTE_HOMOLOGATION_MODE === "1"
+      ? "ISOLATED_REMOTE_HOMOLOGATION_DATABASE_URL"
+      : "ISOLATED_PREVIEW_DATABASE_URL"
     : process.env.SUPABASE_DATABASE_URL
       ? "SUPABASE_DATABASE_URL"
       : "DATABASE_URL",
-  ssl: !isIsolatedPreviewMode(),
+  ssl: process.env.ISOLATED_PREVIEW_MODE !== "1",
   env: _env,
   pid: _pid,
   ts: _ts(),
 });
 
 console.log("[BOOT_VALIDATION_OK]", {
-  provider: isIsolatedPreviewMode() ? "isolated-preview-postgres" : "supabase",
+  provider: getRuntimeDatabaseProvider(),
   env: _env,
   pid: _pid,
   ts: _ts(),
@@ -89,7 +95,11 @@ console.log("[BOOT_VALIDATION_OK]", {
 
 export const pool = new Pool({
   connectionString: supabaseUrl,
-  ssl: isIsolatedPreviewMode() ? false : { rejectUnauthorized: false },
+  ssl: process.env.ISOLATED_REMOTE_HOMOLOGATION_MODE === "1"
+    ? { rejectUnauthorized: true }
+    : process.env.ISOLATED_PREVIEW_MODE === "1"
+      ? false
+      : { rejectUnauthorized: false },
   max: 10,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,

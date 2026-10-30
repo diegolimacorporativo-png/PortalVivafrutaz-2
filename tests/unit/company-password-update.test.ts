@@ -73,6 +73,7 @@ test("company persistence hashes the new password accepted by company login", as
   assert.equal(typeof persisted?.password, "string");
   assert.notEqual(persisted?.password, plainPassword);
   assert.equal(await bcrypt.compare(plainPassword, persisted!.password as string), true);
+  assert.ok(persisted?.tokenVersion, "atualização de senha deve incrementar tokenVersion para revogar sessões existentes");
 });
 
 test("internal company update persists password-change flags and never returns the hash", async () => {

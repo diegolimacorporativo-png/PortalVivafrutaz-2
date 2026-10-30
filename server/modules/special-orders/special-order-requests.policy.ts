@@ -29,9 +29,6 @@ export const SPECIAL_ORDER_GLOBAL_ROLES = [
   "ADMIN",
   "DIRECTOR",
   "DEVELOPER",
-  "COMERCIAL",
-  "LOGISTICS",
-  "FINANCEIRO",
 ] as const;
 
 export type SpecialOrderScope =

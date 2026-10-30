@@ -54,6 +54,8 @@ export interface ActorRef {
   role: string;
   name?: string | null;
   empresaId?: number | null;
+  /** Set only after resolving this actor from the authenticated users table. */
+  identityType?: "internal";
 }
 
 // ── Route Assistant ────────────────────────────────────────────────────────

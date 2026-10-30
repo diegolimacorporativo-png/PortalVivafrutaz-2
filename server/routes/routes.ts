@@ -15,7 +15,7 @@ import { isDriverOrInternal, resolveOwnDriverId } from "../modules/logistics/dri
 import { companySettingsService } from "../services/companySettingsService.ts";
 import { fireNotification, ensureDefaultNotificationSettings, VAPID_PUBLIC_KEY } from "../services/pushService";
 import { z } from "zod";
-import { GLOBAL_ADMIN_ROLES } from "@shared/user-roles";
+import { GLOBAL_ADMIN_ROLES, GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 import expressSession from "express-session";
 import MemoryStore from "memorystore";
 import {
@@ -30,7 +30,7 @@ import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 // FASE 7.1 — `path` import removed (0 usages confirmed). bcrypt/fs/db kept (in use).
 import { db } from "../database/db.ts";
-import { isIsolatedPreviewMode } from "../core/runtimeMode";
+import { isIsolatedRuntimeMode } from "../core/runtimeMode";
 import { uploadInMemory } from "../infra/upload";
 import { parsePdf } from "../infra/pdfParser";
 import { orders, orderItems, companies, products, aiInteractions, nfManual, cronFaturamentoRuns, cronAlertLogs } from "@shared/schema";
@@ -39,6 +39,8 @@ import { gte, desc, sql } from "drizzle-orm";
 import { ok, created, noContent, fail } from "../core/http/apiResponse";
 import { tenantContext, requireTenant } from "../middleware/tenant";
 import { nfeCceReadAccess, nfeCceWriteAccess } from "../modules/nfe/nfe-cce-tenant.middleware";
+import { nfeTenantAccessMiddleware } from "../modules/nfe/nfe-tenant-access.middleware";
+import { FISCAL_ROLES } from "../modules/orders/orders.service";
 import { requireAuth as requireAuthCore, requireRole } from "../core/http/requireAuth";
 import { resolveTenant } from "../core/tenant/context";
 import { parseOrderCatalog } from "../modules/products/catalog-import";
@@ -194,7 +196,7 @@ export async function registerRoutes(
   // FASE 13.6 — Rate limit global (unauthenticated IPs, 60 req/min)
   app.use(simpleRateLimit);
 
-  if (!isIsolatedPreviewMode()) {
+  if (!isIsolatedRuntimeMode()) {
     // Start backup scheduler
     scheduleBackups();
 
@@ -715,7 +717,7 @@ export async function registerRoutes(
   //    Inline handlers were removed in 2026-04 to delete dead code.
 
   // POST /api/fiscal-invoices/parse-pdf — extract text from PDF server-side
-  app.post('/api/fiscal-invoices/parse-pdf', requireAuthCore, uploadInMemory.single('file'), async (req: any, res) => {
+  app.post('/api/fiscal-invoices/parse-pdf', requireAuthCore, requireRole([...FISCAL_ROLES]), uploadInMemory.single('file'), async (req: any, res) => {
     resolveTenant(req);
     logSecurityEvent({ type: "FISCAL_INVOICES_PARSE_PDF", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
     const session = req.session as any;
@@ -1021,7 +1023,7 @@ export async function registerRoutes(
     // FASE MT-3A (C1+C2): tenantContext pins empresaId via AsyncLocalStorage;
     // currentTenantId() is passed to getNfeEmissoes which applies a subquery
     // JOIN on orders.company_id. MASTER without ?empresaId sees all (intentional).
-    app.get('/api/nfe', requireAuthCore, tenantContext, async (req: any, res) => {
+    app.get('/api/nfe', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, async (req: any, res) => {
       try {
         logSecurityEvent({ type: "NFE_LIST", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId });
         const { status, orderId } = req.query;
@@ -1035,29 +1037,15 @@ export async function registerRoutes(
     // FASE MT-3A (H1): tenantContext pins empresaId; validateOrderTenant now
     // has a real AsyncLocalStorage context to call requireTenantId() against.
     // orderId == null is treated as forbidden (no ownership proof available).
-    app.get('/api/nfe/:id', requireAuthCore, tenantContext, async (req: any, res) => {
+    app.get('/api/nfe/:id', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, nfeTenantAccessMiddleware, async (req: any, res) => {
       try {
         logSecurityEvent({ type: "NFE_GET", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { id: req.params.id } });
-        const nfe = await storage.getNfeEmissao(Number(req.params.id));
-        if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
-        // NF-e sem orderId não tem prova de ownership — bloqueia.
-        if (!nfe.orderId) {
-          return res.status(403).json({ message: 'NF-e sem pedido associado — acesso negado' });
-        }
-        try {
-          await validateOrderTenant(nfe.orderId);
-        } catch (e: any) {
-          if (e instanceof AppError) {
-            return res.status(e.status).json({ message: e.message });
-          }
-          throw e;
-        }
-        res.json(nfe);
+        res.json(req.authorizedNfe);
       } catch (e: any) { res.status(500).json({ message: e.message }); }
     });
 
     // GET /api/nfe/can-emit/:orderId — validação prévia (mesma lógica do guard)
-    app.get('/api/nfe/can-emit/:orderId', requireAuthCore, requireRole(["MASTER","ADMIN","DEVELOPER","DIRECTOR"]), async (req: any, res) => {
+    app.get('/api/nfe/can-emit/:orderId', requireAuthCore, tenantContext, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       try {
         resolveTenant(req);
         logSecurityEvent({ type: "NFE_CAN_EMIT", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { orderId: req.params.orderId } });
@@ -1104,7 +1092,7 @@ export async function registerRoutes(
     //
     // FASE 9A — status codes corrigidos: 422 em erro de validação, 500 em exception.
     // Violações de tenant/auth continuam retornando 401/403/404.
-    app.get('/api/nfe/preflight/:orderId', requireAuthCore, tenantContext, async (req: any, res) => {
+    app.get('/api/nfe/preflight/:orderId', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, async (req: any, res) => {
       resolveTenant(req);
       logSecurityEvent({ type: "NFE_PREFLIGHT", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { orderId: req.params.orderId } });
       const orderId = Number(req.params.orderId);
@@ -1224,7 +1212,7 @@ export async function registerRoutes(
     // runs in JS for each row — zero additional DB round-trips.
     // MT-3C — tenantContext added: ADMIN/FISCAL/DIRECTOR are per-tenant roles;
     // without scoping they could see eligible orders from other tenants.
-    app.get('/api/nfe/eligible', requireAuthCore, requireRole(["ADMIN", "FISCAL", "DIRECTOR"]), tenantContext, async (req: any, res) => {
+    app.get('/api/nfe/eligible', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, async (req: any, res) => {
       try {
         const tenantId = requireTenantId();
         // One query — same JOIN as canEmitNFe but for all candidates at once.
@@ -1330,7 +1318,7 @@ export async function registerRoutes(
     // GET /api/nfe/cron/history — STEP 9.3E: últimas 50 execuções do cron de faturamento
     // FASE MT-3A (M2): role gate added — cron history reveals orderId/timing
     // of NF-e batches across tenants; restrict to admin roles only.
-    app.get('/api/nfe/cron/history', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req: any, res) => {
+    app.get('/api/nfe/cron/history', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']), async (req: any, res) => {
       try {
         const rows = await db
           .select()
@@ -1736,7 +1724,7 @@ export async function registerRoutes(
     );
 
     // POST /api/nfe/emitir — gerar XML + criar registro
-    app.post('/api/nfe/emitir', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
+    app.post('/api/nfe/emitir', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       try {
         const { orderId } = req.body;
@@ -1759,6 +1747,10 @@ export async function registerRoutes(
         console.log(
           `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=emitir | tenantId=${tenantId} | orderId=${orderId}`,
         );
+
+        // Establish order ownership before any read that can reveal fiscal
+        // eligibility or existing NF-e state.
+        await validateOrderTenant(Number(orderId));
 
         // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
         // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Em modo
@@ -1797,9 +1789,6 @@ export async function registerRoutes(
             reason: check.reason,
           });
         }
-
-        // FASE 3 — bloqueia emissão de NF para pedido de outro tenant.
-        await validateOrderTenant(Number(orderId));
 
         // FASE NF.7.9.2 — guard de fechamento mensal. Recusa emitir NF
         // para pedido cujo `createdAt` cai num mês já fechado para a
@@ -2072,6 +2061,9 @@ export async function registerRoutes(
         });
         res.status(201).json({ success: true, nfe, mensagem: 'XML NF-e gerado [MOCK]. Use /api/nfe/:id/enviar para transmitir ao SEFAZ.' });
       } catch (e: any) {
+        if (e instanceof AppError) {
+          return res.status(e.status).json({ error: e.code, message: e.message });
+        }
         // FASE NF.4.3 — tradução de erro fiscal para mensagem amigável.
         // Mantém status 500 (rule 4) e preserva o erro técnico no log.
         const { translateNFeError } = await import('../services/nfe/diagnostics/nfe-error-parser');
@@ -2119,7 +2111,7 @@ export async function registerRoutes(
     //     terminal de falha. Se a última NF-e está `autorizada`/`enviada`/
     //     `gerada`/`assinada`, a reemissão é REJEITADA (409) — não é o caso
     //     de uso desta rota.
-    app.post('/api/nfe/:orderId/reenviar', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
+    app.post('/api/nfe/:orderId/reenviar', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
@@ -2251,7 +2243,9 @@ export async function registerRoutes(
           rawMessage: e?.message,
           stack: e?.stack,
         });
-        const status = (e?.statusCode && Number.isInteger(e.statusCode)) ? e.statusCode : 500;
+        const status = e instanceof AppError
+          ? e.status
+          : (e?.statusCode && Number.isInteger(e.statusCode)) ? e.statusCode : 500;
         res.status(status).json({ error: parsed.code, message: parsed.message });
       } finally {
         if (lock) {
@@ -2279,7 +2273,7 @@ export async function registerRoutes(
     // (`buildNFeInput → validarNFeInput → gerarNFeXML → createNfeEmissao`),
     // que lê o estado ATUAL do pedido. A premissa é que o operador já
     // corrigiu o pedido antes de clicar.
-    app.post('/api/nfe/:orderId/corrigir-reenviar', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
+    app.post('/api/nfe/:orderId/corrigir-reenviar', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
@@ -2453,7 +2447,9 @@ export async function registerRoutes(
           rawMessage: e?.message,
           stack: e?.stack,
         });
-        const status = (e?.statusCode && Number.isInteger(e.statusCode)) ? e.statusCode : 500;
+        const status = e instanceof AppError
+          ? e.status
+          : (e?.statusCode && Number.isInteger(e.statusCode)) ? e.statusCode : 500;
         res.status(status).json({ error: parsed.code, message: parsed.message });
       } finally {
         if (lock) {
@@ -2475,7 +2471,7 @@ export async function registerRoutes(
     // rejeições. Tenant scope é aplicado no repository (JOIN orders +
     // companyId), então tentar inspecionar pedido de outro tenant devolve
     // lista vazia. NÃO altera nada do fluxo fiscal — apenas SELECT.
-    app.get('/api/nfe/:orderId/historico', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
+    app.get('/api/nfe/:orderId/historico', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
       if (!Number.isFinite(orderId) || orderId <= 0) {
@@ -2509,7 +2505,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
-    app.post('/api/nfe/emitir-lote', requireAuthCore, requireActiveSubscription, async (req: any, res) => {
+    app.post('/api/nfe/emitir-lote', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       try {
         const { orderIds } = req.body;
         if (!Array.isArray(orderIds) || orderIds.length === 0) {
@@ -2542,6 +2538,9 @@ export async function registerRoutes(
                 `[NFE_CONCURRENCY_LOCK_ACQUIRED] requestId=${getRequestIdForLog()} | source=emitir-lote | tenantId=${tenantIdLote} | orderId=${orderId}`,
               );
 
+              // Validate each requested order before checking any fiscal state.
+              await validateOrderTenant(Number(orderId));
+
               // FASE 18 — Guard de idempotência (GAP 2). Roda ANTES de canEmitNFe,
               // ANTES de getNextNfeNumero e ANTES de qualquer escrita. Mesmo
               // comportamento do /api/nfe/emitir e do cron — função única.
@@ -2573,9 +2572,6 @@ export async function registerRoutes(
               if (!check.allowed) {
                 return { orderId, status: 'blocked', reason: check.reason };
               }
-
-              // FASE 3 — valida tenant também na emissão em lote (cada item).
-              await validateOrderTenant(Number(orderId));
 
               // FASE 8.4 — call-site resolve itens ANTES de chamar o builder.
               const resolvedLote = await resolveBillingItems(Number(orderId));
@@ -2622,7 +2618,13 @@ export async function registerRoutes(
                 rawMessage: e?.message,
                 stack: e?.stack,
               });
-              return { orderId, status: 'error', error: parsed.code, reason: parsed.message };
+              return {
+                orderId,
+                status: 'error',
+                statusCode: e instanceof AppError ? e.status : 500,
+                error: e instanceof AppError ? e.code : parsed.code,
+                reason: e instanceof AppError ? e.message : parsed.message,
+              };
             } finally {
               // FASE 20 — release SEMPRE no finally, e SOMENTE se adquirido.
               if (lockItem) {
@@ -2643,19 +2645,16 @@ export async function registerRoutes(
 
         return res.json({ summary: { total, success, blocked, errors, skipped }, results });
       } catch (e: any) {
-        return res.status(500).json({ message: e.message });
+        const status = e instanceof AppError ? e.status : 500;
+        return res.status(status).json({ message: e.message, ...(e instanceof AppError ? { code: e.code } : {}) });
       }
     });
 
     // POST /api/nfe/:id/enviar — transmitir ao SEFAZ
-    app.post('/api/nfe/:id/enviar', requireAuthCore, async (req: any, res) => {
+    app.post('/api/nfe/:id/enviar', requireAuthCore, tenantContext, requireRole([...FISCAL_ROLES]), nfeTenantAccessMiddleware, async (req: any, res) => {
       try {
-        const nfe = await storage.getNfeEmissao(Number(req.params.id));
-        if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
+        const nfe = req.authorizedNfe;
         if (!nfe.xmlGerado) return res.status(400).json({ message: 'XML não gerado. Emita a NF-e primeiro.' });
-
-        // FASE 3 — bloqueia transmissão de NF de outro tenant antes de qualquer ação.
-        if (nfe.orderId) await validateOrderTenant(nfe.orderId);
 
         // FASE NF.3 — modo controlado: 'mock' usa transmissor simulado; qualquer outro valor
         // ('homologacao', 'producao') usa o fluxo real de assinatura + XSD + SOAP SEFAZ.
@@ -2833,13 +2832,9 @@ export async function registerRoutes(
     // GET /api/nfe/:id/danfe — baixar PDF
     // T1104 — fonte da verdade: xmlAutorizado → xmlGerado. Nunca reconstrói do pedido.
     // Juridicamente válido: o conteúdo do DANFE reflecte exactamente o XML autorizado pela SEFAZ.
-    app.get('/api/nfe/:id/danfe', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/:id/danfe', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, nfeTenantAccessMiddleware, async (req: any, res) => {
       try {
-        const nfe = await storage.getNfeEmissao(Number(req.params.id));
-        if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
-
-        // FASE 3 — garante que pertence ao tenant.
-        if (nfe.orderId) await validateOrderTenant(nfe.orderId);
+        const nfe = req.authorizedNfe;
 
         // T1104 — usa XML persistido como única fonte da verdade (juridicamente válido).
         // Prioridade: xmlAutorizado (SEFAZ-validated) → xmlGerado (before auth) → erro.
@@ -2861,22 +2856,9 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/:id/xml — baixar XML
-    app.get('/api/nfe/:id/xml', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/:id/xml', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, nfeTenantAccessMiddleware, async (req: any, res) => {
       try {
-        const nfe = await storage.getNfeEmissao(Number(req.params.id));
-        if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
-        // FASE 6 — multi-tenant hardening: bloqueia download de XML de NF-e
-        // pertencente a outro tenant. Mesmo padrão de /api/nfe/:id/danfe.
-        if (nfe.orderId) {
-          try {
-            await validateOrderTenant(nfe.orderId);
-          } catch (e: any) {
-            if (e instanceof AppError) {
-              return res.status(e.status).json({ message: e.message });
-            }
-            throw e;
-          }
-        }
+        const nfe = req.authorizedNfe;
         const xml = nfe.xmlAutorizado || nfe.xmlGerado;
         if (!xml) return res.status(404).json({ message: 'XML não disponível' });
         res.setHeader('Content-Type', 'application/xml');
@@ -2886,7 +2868,7 @@ export async function registerRoutes(
     });
 
     // ── NF-e Dados Fiscais (emissora + destinatário) ─────────────────────────
-    app.get('/api/nfe/fiscal-data/:orderId', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/fiscal-data/:orderId', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, async (req: any, res) => {
       try {
         const orderId = Number(req.params.orderId);
         // FASE 6 — bloqueia leitura de fiscal-data de pedido de outro tenant.
@@ -2958,21 +2940,21 @@ export async function registerRoutes(
           completudeDestinatario: Math.round(checkDestinatario.filter(c => c.ok).length / checkDestinatario.length * 100),
         });
       } catch (e: any) {
-        // FASE 8 — observabilidade: detecta ausência de tenant context numa
-        // rota protegida (não há tenantContext middleware aqui). Apenas log;
-        // status 500 e body permanecem inalterados.
+        // Keep tenant-context and cross-company authorization failures
+        // distinguishable from unexpected fiscal-data errors.
         if (e?.message?.includes("Tenant context ausente")) {
           console.warn(
             `[SECURITY] MISSING_TENANT | requestId=${req.requestId ?? "unknown"} | orderId=${req.params.orderId} | details=Missing tenant context on protected route`,
           );
         }
-        res.status(500).json({ message: e.message });
+        const status = e instanceof AppError ? e.status : 500;
+        res.status(status).json({ message: e.message, ...(e instanceof AppError ? { code: e.code } : {}) });
       }
     });
 
     // ── NF-e Diagnóstico Fiscal ──────────────────────────────────────────────
     // GET /api/nfe/diagnostics/:orderId — validar dados antes de emitir
-    app.get('/api/nfe/diagnostics/:orderId', requireAuthCore, tenantContext, async (req: any, res) => {
+    app.get('/api/nfe/diagnostics/:orderId', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, async (req: any, res) => {
       try {
         // FASE 6 — diagnóstico de NF-e expõe dados sensíveis do pedido;
         // bloqueia se for de outro tenant.
@@ -2983,12 +2965,13 @@ export async function registerRoutes(
         const result = await validateNFeBeforeSend(Number(req.params.orderId));
         res.json(result);
       } catch (e: any) {
-        res.status(500).json({ message: e.message });
+        const status = e instanceof AppError ? e.status : 500;
+        res.status(status).json({ message: e.message, ...(e instanceof AppError ? { code: e.code } : {}) });
       }
     });
 
     // POST /api/nfe/diagnostics/log-error — registrar erro + solução no training
-    app.post('/api/nfe/diagnostics/log-error', requireAuthCore, async (req: any, res) => {
+    app.post('/api/nfe/diagnostics/log-error', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         const { logNFeError } = await import('../services/nfe/diagnostics/nfe-training.ts');
         const record = await logNFeError({ ...req.body, userId: req.session.userId });
@@ -2997,7 +2980,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/diagnostics/log-errors — registrar múltiplos erros de validação
-    app.post('/api/nfe/diagnostics/log-errors', requireAuthCore, async (req: any, res) => {
+    app.post('/api/nfe/diagnostics/log-errors', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         const { logNFeErrors } = await import('../services/nfe/diagnostics/nfe-training.ts');
         const { errors, orderId, nfeId } = req.body;
@@ -3007,7 +2990,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/diagnostics/training/logs — logs de treinamento
-    app.get('/api/nfe/diagnostics/training/logs', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/diagnostics/training/logs', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         const limit = req.query.limit ? Number(req.query.limit) : 100;
         const orderId = req.query.orderId ? Number(req.query.orderId) : undefined;
@@ -3017,7 +3000,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/diagnostics/training/patterns — padrões aprendidos
-    app.get('/api/nfe/diagnostics/training/patterns', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/diagnostics/training/patterns', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         const { getLearnedPatterns } = await import('../services/nfe/diagnostics/nfe-training.ts');
         res.json(await getLearnedPatterns());
@@ -3025,7 +3008,7 @@ export async function registerRoutes(
     });
 
     // PATCH /api/nfe/diagnostics/training/:id/resolve — marcar erro como resolvido
-    app.patch('/api/nfe/diagnostics/training/:id/resolve', requireAuthCore, async (req: any, res) => {
+    app.patch('/api/nfe/diagnostics/training/:id/resolve', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         const { markNFeErrorResolved } = await import('../services/nfe/diagnostics/nfe-training.ts');
         const record = await markNFeErrorResolved(Number(req.params.id));
@@ -3036,7 +3019,7 @@ export async function registerRoutes(
     // ── FASE 8.6E — MÉTRICAS DE DEFAULTS FISCAIS (in-memory) ─────────────────
     // Telemetria das ocorrências de `[FISCAL_DEFAULT_APPLIED]` (uCom/csosn/cst).
     // Apenas leitura — não toca builder, não bloqueia emissão, não usa banco.
-    app.get('/api/admin/nfe/fiscal-defaults', requireAuthCore, async (req: any, res) => {
+    app.get('/api/admin/nfe/fiscal-defaults', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         const stats = getFiscalDefaultsStats();
         res.json({ ok: true, stats });
@@ -3049,7 +3032,7 @@ export async function registerRoutes(
     // POST /api/admin/nfe/fiscal-defaults/reset — zera contadores+buffer.
     // Útil após corrigir cadastros para medir impacto sem esperar o ciclo
     // natural do ring buffer (200 eventos).
-    app.post('/api/admin/nfe/fiscal-defaults/reset', requireAuthCore, async (req: any, res) => {
+    app.post('/api/admin/nfe/fiscal-defaults/reset', requireAuthCore, requireRole([...GLOBAL_SCOPE_ROLES]), async (req: any, res) => {
       try {
         resetFiscalDefaultsStats();
         res.json({ ok: true });
@@ -3066,7 +3049,7 @@ export async function registerRoutes(
     //   POST /api/admin/nfe/recovery/:id/mark-error   — marcar erro seguro
     // ════════════════════════════════════════════════════════════════════════
 
-    app.get('/api/admin/nfe/recovery', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DEVELOPER']), async (req: any, res) => {
+    app.get('/api/admin/nfe/recovery', requireAuthCore, requireRole(['MASTER', 'ADMIN', 'DIRECTOR', 'DEVELOPER']), async (req: any, res) => {
       const corrId = getRequestIdForLog();
       try {
         const { scanForRecovery } = await import('../modules/nfe/nfe-recovery.service.ts');
@@ -3103,7 +3086,7 @@ export async function registerRoutes(
     // Reenvia ao SEFAZ uma NF-e travada em 'assinada' ou 'enviando' com XML disponível.
     // Protegido por: advisory lock + idempotência + validação de status.
     // PROIBIDO: reenviar autorizada, duplicar chave, alterar ambiente.
-    app.post('/api/admin/nfe/recovery/:id/reprocess', requireAuthCore, requireRole(['MASTER', 'ADMIN']), async (req: any, res) => {
+    app.post('/api/admin/nfe/recovery/:id/reprocess', requireAuthCore, tenantContext, requireRole(['MASTER', 'ADMIN']), nfeTenantAccessMiddleware, async (req: any, res) => {
       const corrId = getRequestIdForLog();
       const nfeId = Number(req.params.id);
       if (!Number.isFinite(nfeId) || nfeId <= 0) {
@@ -3113,8 +3096,7 @@ export async function registerRoutes(
       let lockOrderId: number | null = null;
       let lockTenantId: number | null = null;
       try {
-        const nfe = await storage.getNfeEmissao(nfeId);
-        if (!nfe) return res.status(404).json({ ok: false, message: 'NF-e não encontrada' });
+        const nfe = req.authorizedNfe;
 
         // ETAPA 7 — Fail safety: nunca reprocessar autorizada/cancelada/denegada
         if (['autorizada', 'cancelada', 'denegada'].includes(nfe.status)) {
@@ -3247,15 +3229,14 @@ export async function registerRoutes(
     // POST /api/admin/nfe/recovery/:id/mark-error
     // Marca NF-e como erro de forma segura, preservando TODOS os dados existentes.
     // PROIBIDO: usar em autorizada/cancelada. Preserva XML, protocolo, cStat, SOAP.
-    app.post('/api/admin/nfe/recovery/:id/mark-error', requireAuthCore, requireRole(['MASTER', 'ADMIN']), async (req: any, res) => {
+    app.post('/api/admin/nfe/recovery/:id/mark-error', requireAuthCore, tenantContext, requireRole(['MASTER', 'ADMIN']), nfeTenantAccessMiddleware, async (req: any, res) => {
       const corrId = getRequestIdForLog();
       const nfeId = Number(req.params.id);
       if (!Number.isFinite(nfeId) || nfeId <= 0) {
         return res.status(400).json({ ok: false, message: 'nfeId inválido' });
       }
       try {
-        const nfe = await storage.getNfeEmissao(nfeId);
-        if (!nfe) return res.status(404).json({ ok: false, message: 'NF-e não encontrada' });
+        const nfe = req.authorizedNfe;
 
         // ETAPA 7 — Imutabilidade: nunca sobrescrever autorizada/cancelada/denegada
         if (['autorizada', 'cancelada', 'denegada'].includes(nfe.status)) {
@@ -3301,7 +3282,7 @@ export async function registerRoutes(
     });
 
     // GET /api/nfe/sefaz/status — status do serviço SEFAZ
-    app.get('/api/nfe/sefaz/status', requireAuthCore, async (req: any, res) => {
+    app.get('/api/nfe/sefaz/status', requireAuthCore, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
       try {
         const config = await storage.getCompanyConfig();
         const tpAmb = config?.ambienteFiscal === 'producao' ? '1' : '2';
@@ -3318,22 +3299,11 @@ export async function registerRoutes(
 
     // DELETE /api/nfe/:id — cancelar NF-e
     // T1102 — cancelamento REAL na SEFAZ com validações legais e persistência completa.
-    app.delete('/api/nfe/:id', requireAuthCore, async (req: any, res) => {
+    app.delete('/api/nfe/:id', requireAuthCore, tenantContext, requireRole([...FISCAL_ROLES]), nfeTenantAccessMiddleware, async (req: any, res) => {
       const requestId = getRequestIdForLog();
       try {
         const { motivo } = req.body;
-        const nfe = await storage.getNfeEmissao(Number(req.params.id));
-        if (!nfe) return res.status(404).json({ message: 'NF-e não encontrada' });
-
-        // FASE 6 — bloqueia cancelamento de NF-e de outro tenant.
-        if (nfe.orderId) {
-          try {
-            await validateOrderTenant(nfe.orderId);
-          } catch (e: any) {
-            if (e instanceof AppError) return res.status(e.status).json({ message: e.message });
-            throw e;
-          }
-        }
+        const nfe = req.authorizedNfe;
 
         // T1102 — guard: apenas NF-e AUTORIZADA pode ser cancelada
         if (nfe.status !== 'autorizada') {
@@ -4008,7 +3978,7 @@ export async function registerRoutes(
   // PATCH  /api/sanitary/evaluations/:id
   // PATCH  /api/sanitary/evaluations/:id/items/:itemId
 
-  if (!isIsolatedPreviewMode()) {
+  if (!isIsolatedRuntimeMode()) {
     // Seed DB Function
     await seedDatabase();
     await ensureDefaultNotificationSettings();
