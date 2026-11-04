@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { UserCircle, Plus, Pencil, Trash2, Shield, ShieldCheck, DollarSign, Code, Crown, BarChart3, KeyRound, AlertTriangle, Lock, Unlock, FlaskConical, Truck, Leaf } from "lucide-react";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeList } from "@/lib/normalizeResponse";
-import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, canAssignInternalUserRole, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, GLOBAL_USER_MANAGEMENT_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
+import { ACTION_PERMISSION_ACTIONS, ACTION_PERMISSION_KEY, ACTION_PERMISSION_MODULES, canSelectInternalUserRole, DENY_ALL_TAB_PERMISSIONS, FULL_SYSTEM_ACCESS_ROLES, GLOBAL_SCOPE_ROLES, GLOBAL_USER_MANAGEMENT_ROLES, USER_MANAGEMENT_ROLES } from "@shared/user-roles";
 
 type ActionModule = (typeof ACTION_PERMISSION_MODULES)[number];
 type ActionType = (typeof ACTION_PERMISSION_ACTIONS)[number];
@@ -183,25 +183,14 @@ export default function UsersAdminPage() {
     enabled: Boolean(isGlobalAdmin),
   });
   const companyNameById = new Map(companies.map((company) => [company.id, company.companyName || company.name || `Empresa #${company.id}`]));
-  const targetIsGlobalProfile = !!modal.editing && modal.editing.empresaId == null && (GLOBAL_SCOPE_ROLES as readonly string[]).includes(modal.editing.role);
-  const isRoleAvailable = (role: (typeof ROLES)[number]) => {
-    if (!canAssignInternalUserRole(me?.role, role.value)) return false;
-    if (targetIsGlobalProfile) {
-      if (modal.editing && (me as any)?.id !== modal.editing.id) return role.value === modal.editing.role;
-      return (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value);
-    }
-    if (isGlobalAdmin) {
-      // A company is an operational context, never a prerequisite for the
-      // internal identity. Global user managers see all server-supported
-      // profiles; the backend still validates which ones they may assign.
-      if (modal.editing?.empresaId != null && (GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value)) {
-        return (GLOBAL_SCOPE_ROLES as readonly string[]).includes(modal.editing.role);
-      }
-      return true;
-    }
-    if ((GLOBAL_SCOPE_ROLES as readonly string[]).includes(role.value)) return modal.editing?.role === role.value;
-    return modal.editing?.role === role.value || canAssignInternalUserRole(me?.role, role.value);
-  };
+  const isRoleAvailable = (role: (typeof ROLES)[number]) => canSelectInternalUserRole(
+    me?.role,
+    role.value,
+    modal.editing
+      ? { id: modal.editing.id, role: modal.editing.role, empresaId: modal.editing.empresaId }
+      : null,
+    typeof me?.id === "number" ? me.id : undefined,
+  );
   const availableRoles = ROLES.filter(isRoleAvailable);
 
   const { data: users, isLoading } = useQuery({
