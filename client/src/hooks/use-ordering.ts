@@ -269,12 +269,6 @@ export function useCreateOrder() {
             : undefined) ||
           (body !== null && typeof body === "object" ? (body as any).message : undefined) ||
           `Erro ${res.status} ao enviar pedido`;
-        console.error("[CREATE_ORDER_ERROR]", {
-          status: res.status,
-          rawBody: body,
-          normalizedErr: err,
-          finalMessage: message,
-        });
         throw new Error(message);
       }
       return normalizeOne<any>(body) ?? body;

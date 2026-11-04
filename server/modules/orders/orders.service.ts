@@ -475,17 +475,6 @@ export class OrdersService {
       return safeItem;
     });
 
-    // [DIAG-5] Service reached
-    console.log("[ORDER_CREATE][5_SERVICE] service.create reached", {
-      actorUserId: actor.userId,
-      actorCompanyId: actor.companyId,
-      orderCompanyId: order?.companyId,
-      orderDeliveryDate: order?.deliveryDate,
-      orderTotalValue: order?.totalValue,
-      itemCount: items?.length,
-      itemProductIds: items?.map((i: any) => i.productId),
-    });
-
     // 1) maintenance-mode block (only client sessions)
     const maintenanceMode = await this.repo.getSetting("maintenance_mode");
     if (maintenanceMode === "true" && actor.companyId) {
@@ -1396,13 +1385,30 @@ export class OrdersService {
   ): Promise<{ order: Order; workflowStatus: OrderStatus; from: string; details: Record<string, unknown> }> {
 
     // ── Phase 1: Pre-flight reads (no DB writes, no locks yet) ────────────────
-    if (!actor.userId) throw new UnauthorizedError();
+    // Customer portal sessions are authenticated by companyId and intentionally
+    // have no internal userId. They may only reach this narrow continuation
+    // from finishCustomerConfirmation(), and only for their own tenant. Normal
+    // transition endpoints keep requiring an internal user below.
+    const customerReleaseRequested = customerConfirmationRelease === true;
+    if (customerReleaseRequested) {
+      const tenantId = currentTenantId();
+      if (
+        to !== OrderStatus.APPROVED ||
+        actor.companyId == null ||
+        tenantId == null ||
+        Number(actor.companyId) !== Number(tenantId)
+      ) {
+        throw new ForbiddenError("Liberação automática não autorizada para este pedido.");
+      }
+    } else if (!actor.userId) {
+      throw new UnauthorizedError();
+    }
 
     const [user, orderData] = await Promise.all([
-      this.repo.getUser(actor.userId),
+      actor.userId ? this.repo.getUser(actor.userId) : Promise.resolve(null),
       this.repo.get(id),
     ]);
-    if (!user) throw new UnauthorizedError();
+    if (!customerReleaseRequested && !user) throw new UnauthorizedError();
     if (!orderData) throw new NotFoundError("Pedido não encontrado");
 
     const orderRow: any = orderData.order;
@@ -1412,15 +1418,15 @@ export class OrdersService {
 
     // ── Phase 2: Validation (pure — all reads are done, no writes yet) ───────
     assertTransitionAllowed(from, to);
-    const authorizedCustomerRelease = customerConfirmationRelease &&
+    const authorizedCustomerRelease = customerReleaseRequested &&
       to === OrderStatus.APPROVED &&
       from === OrderStatus.CUSTOMER_CONFIRMED &&
       actor.companyId != null && Number(actor.companyId) === Number(orderRow.companyId) &&
       currentTenantId() != null && Number(currentTenantId()) === Number(orderRow.companyId);
-    if (customerConfirmationRelease && !authorizedCustomerRelease) {
+    if (customerReleaseRequested && !authorizedCustomerRelease) {
       throw new ForbiddenError("Liberação automática não autorizada para este pedido.");
     }
-    if (!authorizedCustomerRelease) assertTransitionRole(to, user.role);
+    if (!authorizedCustomerRelease) assertTransitionRole(to, user!.role);
     if (to === OrderStatus.CANCELLED) {
       await this.assertOperationalDeadline(id, "cancel", actor, undefined, orderRow);
     }
@@ -1430,7 +1436,7 @@ export class OrdersService {
     // operators must follow the operational pipeline:
     //   APPROVED → PROCESSING → READY → INVOICED
     if (from === OrderStatus.APPROVED && to === OrderStatus.INVOICED) {
-      const isPrivileged = user.role === "MASTER" || user.role === "DIRECTOR";
+      const isPrivileged = user?.role === "MASTER" || user?.role === "DIRECTOR";
       if (!isPrivileged) {
         throw new BadRequestError(
           "Fluxo operacional obrigatório: iniciar separação primeiro.",
@@ -1454,10 +1460,10 @@ export class OrdersService {
       orderSnapshot:          orderRow,
       companySnapshot:        company,
       actor: {
-        id:    user.id,
-        email: user.email,
-        role:  user.role,
-        name:  (user as any).name,
+        id:    user?.id ?? 0,
+        email: user?.email ?? "system:customer-confirmation",
+        role:  user?.role ?? "CLIENT",
+        name:  (user as any)?.name ?? "Cliente",
       },
     });
 

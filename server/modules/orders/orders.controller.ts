@@ -130,15 +130,7 @@ export class OrdersController {
   // ── CREATE ──────────────────────────────────────────────────────────
   /** POST /api/orders */
   create = async (req: Request, res: Response) => {
-    // [DIAG-4] Controller reached
-    const actor = this.actor(req);
-    console.log("[ORDER_CREATE][4_CONTROLLER] controller reached", {
-      actorUserId: actor.userId,
-      actorCompanyId: actor.companyId,
-      bodyOrderCompanyId: req.body?.order?.companyId,
-      bodyItemCount: req.body?.items?.length,
-    });
-    const result = await this.service.create(req.body, actor);
+    const result = await this.service.create(req.body, this.actor(req));
     return created(res, result.data);
   };
 
