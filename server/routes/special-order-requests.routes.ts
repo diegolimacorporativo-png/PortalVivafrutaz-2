@@ -9,6 +9,7 @@ import { requireTabPermission } from "../middleware/requireTabPermission";
 import { requireActionPermission } from "../middleware/requireActionPermission";
 import { currentTenantId, runWithTenant } from "../core/tenant/context";
 import { ordersService } from "../modules/orders/orders.service";
+import { makeSourceDescriptionSnapshot } from "../modules/products/product-identification";
 import { productService } from "../modules/products/products.service";
 import { resolveProductPrice } from "../modules/products/utils/priceResolver";
 import {
@@ -201,6 +202,9 @@ export function register(app: Express) {
 
              return {
                productId: product.id,
+                // Preserve the customer's original commercial wording for the
+                // order snapshot; productId remains the canonical identity.
+                sourceDescriptionSnapshot: makeSourceDescriptionSnapshot(item.productName, product.name),
                quantity,
                unitPrice: unitPrice.toFixed(2),
                totalPrice: (unitPrice * quantity).toFixed(2),

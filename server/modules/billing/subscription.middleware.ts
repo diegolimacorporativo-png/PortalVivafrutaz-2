@@ -66,10 +66,11 @@ async function resolveCompanyId(req: any): Promise<{ companyId: number | null; b
   return { companyId: null, bypass: false };
 }
 
-export async function requireActiveSubscription(
+async function enforceSubscription(
   req: any,
   res: Response,
   next: NextFunction,
+  allowMissingSubscription: boolean,
 ) {
   try {
     const { companyId, bypass } = await resolveCompanyId(req);
@@ -82,6 +83,13 @@ export async function requireActiveSubscription(
     }
     const assinatura = await storage.getAssinaturaByCompany(companyId);
     if (!assinatura) {
+      // Core B2B order entry is not conditional on a SaaS billing record.
+      // When a subscription exists, its explicit inactive status remains
+      // enforced below. Paid-feature routes keep using the required guard.
+      if (allowMissingSubscription) {
+        (req as any).assinatura = undefined;
+        return next();
+      }
       console.warn("[ORDER_CREATE][BLOCKED_requireActiveSubscription] Empresa sem assinatura", { companyId, path: req.path });
       return res.status(403).json({ error: "Empresa sem assinatura" });
     }
@@ -97,6 +105,24 @@ export async function requireActiveSubscription(
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
+}
+
+/** Requires a subscription only when one is configured for the company. */
+export function requireActiveSubscriptionIfPresent(
+  req: any,
+  res: Response,
+  next: NextFunction,
+) {
+  return enforceSubscription(req, res, next, true);
+}
+
+/** Requires a configured, active subscription (used by paid-feature routes). */
+export function requireActiveSubscription(
+  req: any,
+  res: Response,
+  next: NextFunction,
+) {
+  return enforceSubscription(req, res, next, false);
 }
 
 async function realComputeUsageAndLimits(companyId: number): Promise<UsageAndLimits> {

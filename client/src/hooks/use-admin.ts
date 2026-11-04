@@ -76,7 +76,7 @@ export function useCreateCompany() {
       }
       return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
     },
-    onSuccess: async (data) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: [api.companies.list.path],
       });
@@ -84,11 +84,7 @@ export function useCreateCompany() {
         queryKey: [api.companies.list.path],
       });
 
-      // Toast is intentionally skipped here when temporaryPassword is present.
-      // The companies page shows a dedicated modal with the credential to copy.
-      if (!data.temporaryPassword) {
-        toast({ title: "Empresa criada com sucesso!" });
-      }
+      toast({ title: "Empresa criada com sucesso!" });
     },
     onError: (err) => {
       console.error("[CREATE_COMPANY_ON_ERROR]", { err, ts: Date.now() });

@@ -8,7 +8,6 @@ import { CompaniesHeader }  from "./components/CompaniesHeader";
 import { CompaniesFilters } from "./components/CompaniesFilters";
 import { CompaniesTable }   from "./components/CompaniesTable";
 import { CompanyModal }     from "./dialogs/CompanyModal";
-import { TempPasswordModal } from "./dialogs/TempPasswordModal";
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { normalizeError } from "@/lib/normalizeResponse";
@@ -18,9 +17,6 @@ export default function AdminCompanies() {
   const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCompany, setEditingCompany] = useState<Company | null>(null);
-  const [tempPasswordModal, setTempPasswordModal] = useState<{
-    companyName: string; email: string; password: string;
-  } | null>(null);
 
   const [search, setSearch]             = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
@@ -83,10 +79,6 @@ export default function AdminCompanies() {
     setEditingCompany(null);
   }
 
-  function handleSuccess(result?: { companyName: string; email: string; password: string }) {
-    if (result) setTempPasswordModal(result);
-  }
-
   function clearFilters() {
     setSearch("");
     setFilterStatus("ALL");
@@ -137,15 +129,8 @@ export default function AdminCompanies() {
         isOpen={isModalOpen}
         editingCompany={editingCompany}
         onClose={closeModal}
-        onSuccess={handleSuccess}
+        onSuccess={() => { void refetch(); }}
       />
-
-      {tempPasswordModal && (
-        <TempPasswordModal
-          data={tempPasswordModal}
-          onClose={() => setTempPasswordModal(null)}
-        />
-      )}
     </Layout>
   );
 }

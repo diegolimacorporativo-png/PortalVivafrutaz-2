@@ -6,6 +6,7 @@ import { cache } from "./cache";
 import { invalidateUsageCache } from "../modules/billing/usage-cache";
 import { logSecurity } from "../core/security/securityLogger";
 import { isNewerGpsCapture } from "../modules/logistics/gps-submission";
+import { makeSourceDescriptionSnapshot } from "../modules/products/product-identification";
 import {
   tenantWhere,
   tenantAnd,
@@ -1284,9 +1285,14 @@ export class DatabaseStorage implements IStorage {
   async updateOrderItems(orderId: number, newItems: { productId: number; quantity: number; unitPrice: string; totalPrice: string; subCategoryId?: number | null; subCategoryName?: string | null }[]): Promise<void> {
     await db.delete(orderItems).where(eq(orderItems.orderId, orderId));
     if (newItems.length > 0) {
+      const productIds = [...new Set(newItems.map(item => item.productId))];
+      const productRows = await db.select({ id: products.id, name: products.name })
+        .from(products).where(inArray(products.id, productIds));
+      const productNameById = new Map(productRows.map(product => [product.id, product.name]));
       await db.insert(orderItems).values(newItems.map(item => ({
         orderId,
         productId: item.productId,
+        sourceDescriptionSnapshot: makeSourceDescriptionSnapshot(null, productNameById.get(item.productId)),
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
@@ -1498,8 +1504,18 @@ export class DatabaseStorage implements IStorage {
 
       // Insert order items
       if (items.length > 0) {
+        const productIds = [...new Set(items.map(item => Number(item.productId)).filter(Number.isSafeInteger))];
+        const productRows = productIds.length
+          ? await runner.select({ id: products.id, name: products.name })
+              .from(products).where(inArray(products.id, productIds))
+          : [];
+        const productNameById = new Map(productRows.map((product: { id: number; name: string }) => [product.id, product.name]));
         const itemsWithOrderId = items.map(item => ({
           ...item,
+          sourceDescriptionSnapshot: makeSourceDescriptionSnapshot(
+            (item as any).sourceDescriptionSnapshot,
+            productNameById.get(Number(item.productId)),
+          ),
           orderId: updatedOrder.id,
         }));
         await runner.insert(orderItems).values(itemsWithOrderId);

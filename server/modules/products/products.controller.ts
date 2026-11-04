@@ -1,6 +1,15 @@
 import type { Request, Response, NextFunction } from "express";
 import { productService } from "./products.service";
-import { createProductSchema, updateProductSchema, productIdParamSchema } from "./products.validation";
+import {
+  createProductAliasBodySchema,
+  createProductSchema,
+  productAliasIdParamSchema,
+  productIdParamSchema,
+  resolveProductIdentityBodySchema,
+  revokeProductAliasBodySchema,
+  updateProductSchema,
+} from "./products.validation";
+import { productIdentificationService } from "./product-identification.service";
 import { storage } from "../../services/storage";
 
 interface SessionLike {
@@ -21,6 +30,68 @@ function getClientIp(req: Request): string {
 }
 
 export class ProductController {
+  async resolveIdentity(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const body = resolveProductIdentityBodySchema.parse(req.body);
+      const role = (req as any).session?.userRole ?? "UNKNOWN";
+      const data = await productIdentificationService.resolve({ ...body, role });
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async listAliases(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = productIdParamSchema.parse(req.params);
+      const rawCompanyId = req.query.companyId;
+      const companyId = rawCompanyId == null || rawCompanyId === "" ? null : Number(rawCompanyId);
+      if (companyId != null && (!Number.isSafeInteger(companyId) || companyId <= 0)) {
+        res.status(400).json({ message: "Empresa inválida" });
+        return;
+      }
+      const role = (req as any).session?.userRole ?? "UNKNOWN";
+      const data = await productIdentificationService.listAliases(id, companyId, role);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async createAlias(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { id } = productIdParamSchema.parse(req.params);
+      const body = createProductAliasBodySchema.parse(req.body);
+      const userId = getSessionUserId(req);
+      if (!userId) {
+        res.status(401).json({ message: "Sessão administrativa necessária" });
+        return;
+      }
+      const role = (req as any).session?.userRole ?? "UNKNOWN";
+      const data = await productIdentificationService.createAlias(id, body, userId, role);
+      res.status(201).json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async revokeAlias(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const { aliasId } = productAliasIdParamSchema.parse(req.params);
+      const { reason } = revokeProductAliasBodySchema.parse(req.body);
+      const userId = getSessionUserId(req);
+      if (!userId) {
+        res.status(401).json({ message: "Sessão administrativa necessária" });
+        return;
+      }
+      const role = (req as any).session?.userRole ?? "UNKNOWN";
+      const data = await productIdentificationService.revokeAlias(aliasId, reason, userId, role);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async list(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       if (req.query.page !== undefined) {

@@ -87,7 +87,7 @@ export const api = {
       method: 'POST' as const,
       path: '/api/companies' as const,
       input: insertCompanySchema,
-      responses: { 201: z.custom<typeof companies.$inferSelect & { temporaryPassword?: string }>() }
+      responses: { 201: z.custom<Omit<typeof companies.$inferSelect, "password">>() }
     },
     update: {
       method: 'PUT' as const,

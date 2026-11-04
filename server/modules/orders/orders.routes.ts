@@ -8,6 +8,7 @@ import { storage } from "../../services/storage";
 import { ForbiddenError, NotFoundError } from "../../shared/errors/AppError";
 import { ordersController } from "./orders.controller";
 import {
+  requireActiveSubscriptionIfPresent,
   requireActiveSubscription,
   checkPlanLimit,
 } from "../billing/subscription.middleware";
@@ -171,7 +172,7 @@ router.post(
     });
     next();
   },
-  requireActiveSubscription,
+  requireActiveSubscriptionIfPresent,
   checkPlanLimit("pedidos"),
   // [DIAG-2] After subscription/plan guards — log validated passage
   (req, _res, next) => {
@@ -201,7 +202,7 @@ router.post(
 // Programação Semanal — literal path BEFORE /:id wildcard
 router.post(
   "/programacao",
-  requireActiveSubscription,
+  requireActiveSubscriptionIfPresent,
   checkPlanLimit("pedidos"),
   validate(createProgramacaoBodySchema, "body"),
   asyncHandler(ordersController.createProgramacao),

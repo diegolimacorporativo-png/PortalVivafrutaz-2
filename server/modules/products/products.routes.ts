@@ -14,10 +14,11 @@ import { Router } from "express";
 import { productController } from "./products.controller";
 // F1-E2: close public GET endpoints — require any valid session (admin or company portal)
 // B2-FIX: mutating endpoints require admin-level role
-import { requireSession, requireRole } from "../../core/http/requireAuth";
+import { requireAuth, requireSession, requireRole } from "../../core/http/requireAuth";
 import { tenantContext } from "../../middleware/tenant";
 
 const router = Router();
+const CATALOG_IDENTITY_ROLES = ["ADMIN", "MASTER", "DEVELOPER", "DIRECTOR"];
 
 // Pin every catalog request to the authenticated company/admin context before
 // repositories resolve products, categories or subcategories.
@@ -29,6 +30,34 @@ router.get("/next-code", requireSession, (req, res, next) => productController.n
 router.get("/check-code", requireSession, (req, res) => productController.checkCode(req, res));
 router.get("/check-duplicate", requireSession, (req, res) => productController.checkDuplicate(req, res));
 router.get("/price-alerts", requireSession, (req, res) => productController.priceAlerts(req, res));
+
+// Product identity suggestions are read-only. They never create products or
+// make a probable match authoritative.
+router.post(
+  "/identity/match",
+  requireAuth,
+  requireRole(CATALOG_IDENTITY_ROLES, { strict: true }),
+  (req, res, next) => productController.resolveIdentity(req, res, next),
+);
+
+router.get(
+  "/:id/aliases",
+  requireAuth,
+  requireRole(CATALOG_IDENTITY_ROLES, { strict: true }),
+  (req, res, next) => productController.listAliases(req, res, next),
+);
+router.post(
+  "/:id/aliases",
+  requireAuth,
+  requireRole(CATALOG_IDENTITY_ROLES, { strict: true }),
+  (req, res, next) => productController.createAlias(req, res, next),
+);
+router.delete(
+  "/aliases/:aliasId",
+  requireAuth,
+  requireRole(CATALOG_IDENTITY_ROLES, { strict: true }),
+  (req, res, next) => productController.revokeAlias(req, res, next),
+);
 
 // ── List + CRUD by id ──────────────────────────────────────────────────
 router.get("/", requireSession, (req, res, next) => productController.list(req, res, next));

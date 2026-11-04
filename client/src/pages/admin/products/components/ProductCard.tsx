@@ -49,6 +49,15 @@ export function ProductCard({ product, onEdit }: ProductCardProps) {
             <Leaf className="w-3 h-3" /> Fora de safra
           </span>
         )}
+        {product.productionClassification ? (
+          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-bold">
+            {product.productionClassification === "IN_NATURA" ? "In Natura" : "Processados"}
+          </span>
+        ) : (
+          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] font-bold">
+            Classificar produção
+          </span>
+        )}
       </div>
 
       {(product as any).imageUrl ? (

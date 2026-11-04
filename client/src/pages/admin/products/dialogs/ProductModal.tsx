@@ -13,6 +13,7 @@ import {
 import type { Product } from "@shared/schema";
 import { useCategories } from "../hooks/useCategories";
 import { ProductCategorySelector } from "./ProductCategorySelector";
+import { ProductAliasesPanel } from "./ProductAliasesPanel";
 import { emptyForm, productToForm, UNITS, DAYS } from "../constants";
 
 interface ProductModalProps {
@@ -219,6 +220,7 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
       cst: formData.cst || null,
       commercialUnit: formData.commercialUnit || null,
       productCode: formData.productCode || null,
+      productionClassification: formData.productionClassification,
       importado: formData.importado === true,
       categoryAvailability: 'all',
       allowedCategories: null,
@@ -329,6 +331,22 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
           <p className="text-xs text-amber-700 mt-1">Conteúdo educativo exibido no assistente virtual e no quadro de curiosidades.</p>
         </div>
 
+        {/* Classification used by the production exports; no inference from legacy flags. */}
+        <div className="rounded-xl border-2 border-emerald-200 bg-emerald-50/70 p-4">
+          <label className="block text-sm font-bold text-emerald-900 mb-1">Classificação operacional da produção</label>
+          <select
+            value={formData.productionClassification ?? ""}
+            onChange={e => set("productionClassification", e.target.value || null)}
+            data-testid="select-production-classification"
+            className="w-full px-3 py-2.5 rounded-lg border-2 border-emerald-200 bg-white focus:border-emerald-500 outline-none text-sm"
+          >
+            <option value="">Pendente — classificar manualmente</option>
+            <option value="IN_NATURA">In Natura</option>
+            <option value="PROCESSADOS">Processados</option>
+          </select>
+          <p className="mt-1 text-xs text-emerald-800">Esta classificação é independente do indicador “Industrializado”. Produtos sem classificação ficam pendentes e não devem ser exportados automaticamente.</p>
+        </div>
+
         {/* Flags industrializado / sazonal */}
         <div className="grid grid-cols-2 gap-4">
           <div className="p-4 rounded-xl border-2 border-orange-200 bg-orange-50">
@@ -356,6 +374,8 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
             </label>
           </div>
         </div>
+
+        {editingProduct && <ProductAliasesPanel productId={editingProduct.id} />}
 
         {/* Out of Season */}
         <div className={`p-4 rounded-xl border-2 transition-colors ${formData.outOfSeason ? 'border-red-300 bg-red-50' : 'border-border bg-muted/20'}`}>

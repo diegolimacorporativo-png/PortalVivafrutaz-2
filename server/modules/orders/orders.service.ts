@@ -466,7 +466,14 @@ export class OrdersService {
   ): Promise<{ data: any; isTest: boolean; status: 201; newlyCreated?: boolean; operationalReleasePending?: boolean }> {
     const companyId = actor.companyId ?? requireTenantId();
     const order = { ...body.order, companyId };
-    const items = body.items;
+    // This endpoint accepts customer-submitted items. A browser cannot choose
+    // the historical source-description snapshot; storage fills that snapshot
+    // from the canonical product name for regular catalog orders.
+    const items = (body.items ?? []).map((item: any) => {
+      const safeItem = { ...(item ?? {}) };
+      delete safeItem.sourceDescriptionSnapshot;
+      return safeItem;
+    });
 
     // [DIAG-5] Service reached
     console.log("[ORDER_CREATE][5_SERVICE] service.create reached", {
@@ -995,7 +1002,15 @@ export class OrdersService {
     if (!acting) throw new UnauthorizedError();
 
     const authorizedCompanyId = requireTenantId();
-    const { companyId: requestedCompanyId, deliveryDate, items, ...rest } = body;
+    const { companyId: requestedCompanyId, deliveryDate, items: requestedItems, ...rest } = body;
+    // Admin HTTP input is still untrusted. Only server-side import/approval
+    // paths may provide an original source description; this endpoint uses
+    // canonical catalog snapshots instead.
+    const items = (requestedItems ?? []).map((item: any) => {
+      const safeItem = { ...(item ?? {}) };
+      delete safeItem.sourceDescriptionSnapshot;
+      return safeItem;
+    });
     const parsedCompanyId = Number(requestedCompanyId);
     if (!Number.isSafeInteger(parsedCompanyId) || parsedCompanyId <= 0) {
       throw new BadRequestError("companyId obrigatório");

@@ -174,6 +174,10 @@ export const products = pgTable("products", {
   outOfSeason: boolean("out_of_season").default(false).notNull(),
   // ID do produto base (ex: "001", "002") — identifica produtos derivados do mesmo item base
   productCode: text("product_code"),
+  // Operational production grouping is explicit; null means the catalog item
+  // still requires human classification. It is intentionally independent of
+  // isIndustrialized, whose legacy meaning is broader.
+  productionClassification: text("production_classification"),
   // Disponibilidade de categorias: 'all' = todas; 'specific' = apenas as listadas em allowedCategories
   categoryAvailability: text("category_availability").notNull().default("all"),
   // Lista de categorias permitidas quando categoryAvailability = 'specific'
@@ -185,7 +189,52 @@ export const products = pgTable("products", {
   imageUrl: text("image_url"),
 }, (table) => ({
   productCodeIdx: index("products_product_code_idx").on(table.productCode),
+  productionClassificationCheck: check(
+    "products_production_classification_check",
+    sql`${table.productionClassification} IS NULL OR ${table.productionClassification} IN ('IN_NATURA', 'PROCESSADOS')`,
+  ),
 }));
+
+export const PRODUCTION_CLASSIFICATIONS = ["IN_NATURA", "PROCESSADOS"] as const;
+export type ProductionClassification = (typeof PRODUCTION_CLASSIFICATIONS)[number];
+
+/** Human-confirmed commercial names for an official catalog product. */
+export const productAliases = pgTable("product_aliases", {
+  id: serial("id").primaryKey(),
+  productId: integer("product_id").references(() => products.id).notNull(),
+  companyId: integer("company_id").references(() => companies.id),
+  alias: text("alias").notNull(),
+  normalizedAlias: text("normalized_alias").notNull(),
+  globalJustification: text("global_justification"),
+  status: text("status").notNull().default("CONFIRMED"),
+  confirmedByUserId: integer("confirmed_by_user_id").references(() => users.id).notNull(),
+  confirmedAt: timestamp("confirmed_at").defaultNow().notNull(),
+  revokedByUserId: integer("revoked_by_user_id").references(() => users.id),
+  revokedAt: timestamp("revoked_at"),
+  revocationReason: text("revocation_reason"),
+}, (table) => ({
+  companyAliasUnique: uniqueIndex("product_aliases_company_normalized_unique")
+    .on(table.companyId, table.normalizedAlias)
+    .where(sql`${table.companyId} IS NOT NULL AND ${table.status} = 'CONFIRMED'`),
+  globalAliasUnique: uniqueIndex("product_aliases_global_normalized_unique")
+    .on(table.normalizedAlias)
+    .where(sql`${table.companyId} IS NULL AND ${table.status} = 'CONFIRMED'`),
+  productIdx: index("product_aliases_product_idx").on(table.productId),
+  companyIdx: index("product_aliases_company_idx").on(table.companyId),
+  statusCheck: check("product_aliases_status_check", sql`${table.status} IN ('CONFIRMED', 'REVOKED')`),
+  globalJustificationCheck: check(
+    "product_aliases_global_justification_check",
+    sql`${table.companyId} IS NOT NULL OR length(trim(coalesce(${table.globalJustification}, ''))) >= 20`,
+  ),
+}));
+
+export const insertProductAliasSchema = createInsertSchema(productAliases).omit({
+  id: true,
+  confirmedAt: true,
+  revokedAt: true,
+});
+export type ProductAlias = typeof productAliases.$inferSelect;
+export type InsertProductAlias = z.infer<typeof insertProductAliasSchema>;
 
 export const productPrices = pgTable("product_prices", {
   id: serial("id").primaryKey(),
@@ -278,6 +327,9 @@ export const orderItems = pgTable("order_items", {
   totalPrice: numeric("total_price", { precision: 10, scale: 2 }).notNull(),
   subCategoryId: integer("sub_category_id").references(() => productSubCategories.id),
   subCategoryName: text("sub_category_name"),
+  // Historical copy of the description received at order time. productId
+  // remains the sole canonical identity used for grouping and pricing.
+  sourceDescriptionSnapshot: text("source_description_snapshot"),
 }, (table) => ({
   orderProductIdx: index("order_items_order_product_idx").on(table.orderId, table.productId),
 }));

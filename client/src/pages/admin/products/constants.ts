@@ -31,6 +31,7 @@ export const emptyForm = {
   cst: "",
   commercialUnit: "",
   productCode: "",
+  productionClassification: null as "IN_NATURA" | "PROCESSADOS" | null,
   importado: false,
   categorySelections: [] as CategorySelection[],
   pricingMode: "category" as PricingMode,
@@ -64,6 +65,10 @@ export function productToForm(p: Product): ProductForm {
     cst: (p as any).cst || "",
     commercialUnit: (p as any).commercialUnit || "",
     productCode: (p as any).productCode || "",
+    productionClassification:
+      p.productionClassification === "IN_NATURA" || p.productionClassification === "PROCESSADOS"
+        ? p.productionClassification
+        : null,
     importado: (p as any).importado === true,
     categorySelections: [],
     pricingMode: inferredMode,
