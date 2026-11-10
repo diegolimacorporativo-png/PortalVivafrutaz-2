@@ -74,10 +74,15 @@ test("interface mostra total, classificação, unidade, origem e pendências sep
   for (const [pattern, description] of checks) assert.ok(pattern.test(page), description);
 });
 
-test("exportação Processados não oferece uma ação que o backend sempre rejeita", () => {
-  assert.match(page, /Excel oficial — Processados \(indisponível\)/);
-  assert.match(page, /disabled title="A exportação depende do turno manhã\/tarde/);
-  assert.match(page, /Processados ainda não pode ser exportado: o lote não registra turno manhã\/tarde/);
+test("exportação Processados solicita turno e registra o responsável autenticado", () => {
+  assert.match(page, /setProcessedExportOpen\(true\)/);
+  assert.match(page, /Selecione o turno para preencher o bloco correspondente/);
+  assert.match(page, /SelectItem value="morning">Manhã/);
+  assert.match(page, /SelectItem value="afternoon">Tarde/);
+  assert.match(page, /\?shift=\$\{shift\}/);
+  assert.match(controller, /storage\.getUser\(userId\)/);
+  assert.match(controller, /responsibleName: user\?\.name/);
+  assert.match(validation, /productionExportQuerySchema[\s\S]*shift: z\.enum\(\["morning", "afternoon"\]\)/);
 });
 
 test("migrations estão ordenadas e índice único interrompe com segurança se houver duplicatas históricas", () => {

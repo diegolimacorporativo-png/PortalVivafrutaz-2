@@ -4,6 +4,7 @@ import { ValidationError } from "../../shared/errors/AppError";
 import { productionRepository } from "./production.repository";
 import type { ProductionExportBatch, ProductionExportItem } from "./production-xlsx-mapping";
 import { renderInNaturaWorkbook } from "./production-xlsx-renderer";
+import { renderProcessedWorkbook, type ProductionShift } from "./production-processed-xlsx-renderer";
 
 export type ProductionWorkbookKind = "in-natura" | "processed";
 
@@ -14,6 +15,11 @@ export interface ProductionWorkbookDownload {
   filename: string;
   contentType: string;
   batchId: number;
+}
+
+export interface ProductionWorkbookExportOptions {
+  shift?: ProductionShift;
+  responsibleName?: string;
 }
 
 function asBatch(value: Awaited<ReturnType<typeof productionRepository.getGlobalBatchById>>): ProductionExportBatch {
@@ -32,7 +38,7 @@ function asBatch(value: Awaited<ReturnType<typeof productionRepository.getGlobal
 }
 
 export const productionExportService = {
-  async exportBatch(batchId: number, kind: ProductionWorkbookKind): Promise<ProductionWorkbookDownload> {
+  async exportBatch(batchId: number, kind: ProductionWorkbookKind, options: ProductionWorkbookExportOptions = {}): Promise<ProductionWorkbookDownload> {
     // Read only the immutable batch. Do not reconstruct exports from current orders/catalog.
     const batch = asBatch(await productionRepository.getGlobalBatchById(batchId));
     const filenameDate = batch.productionDate.replace(/-/g, "");
@@ -40,9 +46,17 @@ export const productionExportService = {
       if (!batch.items.some((item) => item.productionClassification === "PROCESSADOS")) {
         throw new ValidationError("O lote não possui itens classificados como Processados.");
       }
-      throw new ValidationError("A exportação de Processados está bloqueada: o snapshot do lote não registra o turno manhã/tarde necessário para selecionar o bloco correto do modelo oficial. Nenhum dado foi escrito.", {
-        reason: "TURNO_NAO_REGISTRADO_NO_SNAPSHOT",
-      });
+      if (!options.shift) throw new ValidationError("Selecione o turno responsável pela produção antes de exportar Processados.");
+      const responsibleName = options.responsibleName?.trim();
+      if (!responsibleName) throw new ValidationError("Não foi possível identificar o usuário responsável pela exportação.");
+      const template = await readFile(resolve(TEMPLATE_DIRECTORY, "processed-template.xlsx"));
+      const shiftLabel = options.shift === "morning" ? "manha" : "tarde";
+      return {
+        bytes: renderProcessedWorkbook(template, batch, { shift: options.shift, responsibleName }),
+        filename: `producao-processados-${filenameDate}-turno-${shiftLabel}-lote-${batch.id}.xlsx`,
+        contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        batchId: batch.id,
+      };
     }
 
     if (!batch.items.some((item) => item.productionClassification === "IN_NATURA")) {

@@ -104,10 +104,10 @@ export type ProcessedPackaging = "BIO_100G" | "P07_PLASTIC_100G" | "POT_200G" | 
 /** P07 means plastic, while Bio means biodegradable; never infer either from productId alone. */
 export function classifyProcessedPackaging(subCategoryName: string | null | undefined): ProcessedPackaging | null {
   const value = subCategoryName ?? "";
-  if (hasBioMarker(value) && /100\s*g/i.test(value)) return "BIO_100G";
-  if (hasPlasticMarker(value) && /100\s*g/i.test(value)) return "P07_PLASTIC_100G";
-  if (/200\s*g/i.test(value)) return "POT_200G";
+  if (hasBioMarker(value)) return /100\s*g/i.test(value) ? "BIO_100G" : null;
+  if (hasPlasticMarker(value)) return /100\s*g/i.test(value) ? "P07_PLASTIC_100G" : null;
   if (/\bpet\b/i.test(value)) return "PET";
+  if (/200\s*g/i.test(value)) return "POT_200G";
   if (/\bkg\b/i.test(value)) return "KG";
   return null;
 }

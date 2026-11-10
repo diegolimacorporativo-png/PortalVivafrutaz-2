@@ -26,6 +26,8 @@ export type OrderTrackingOperationalState =
   | "awaiting_gps"
   | "location_stale"
   | "awaiting_route_data"
+  | "admin_test_preview"
+  | "admin_test_preview_no_gps"
   | "in_transit";
 
 type TrackingDatabase = {
@@ -145,6 +147,7 @@ async function getDeliveryTracking(
            d.latitude::text AS delivery_latitude,
            d.longitude::text AS delivery_longitude,
            d.updated_at,
+           to_jsonb(d)->>'customer_tracking_preview_until' AS customer_tracking_preview_until,
            o.company_id AS order_company_id,
            o.status AS order_status,
            o.delivery_date::text AS order_delivery_date,
@@ -252,6 +255,55 @@ async function getDeliveryTracking(
   // route and delivery history, but stop sharing the driver's live location.
   if (delivery.driver_active === false || delivery.driver_active === "false") {
     return fallback("awaiting_assignment");
+  }
+
+  // Administrative test preview is a time-limited exception for the client
+  // tracking screen only. It keeps the company/route/driver checks above and
+  // never mutates route, journey, delivery status, or GPS data. A displayed
+  // point is always an actual stored GPS fix and is labelled as possibly stale.
+  const previewUntilMs = delivery.customer_tracking_preview_until == null
+    ? Number.NaN
+    : new Date(delivery.customer_tracking_preview_until).getTime();
+  if (includeOperationalState && Number.isFinite(previewUntilMs) && previewUntilMs > now.getTime()) {
+    const previewGpsRows = rowsOf(await database.execute(sql`
+      SELECT latitude::text AS latitude,
+             longitude::text AS longitude,
+             recorded_at
+      FROM driver_gps_positions
+      WHERE driver_id = ${driverId}
+      ORDER BY recorded_at DESC, id DESC
+      LIMIT 1
+    `));
+    const previewGps = previewGpsRows[0];
+    if (!previewGps || !hasValidTrackingCoordinates(previewGps.latitude, previewGps.longitude)) {
+      return withOrderOperationalState({
+        ...basePayload,
+        trackingAvailable: false,
+        message: "Prévia administrativa de teste habilitada, mas ainda não há posição GPS registrada para exibir.",
+        driverPosition: null,
+        trackingPreview: true,
+      }, "admin_test_preview_no_gps", true);
+    }
+    return withOrderOperationalState({
+      ...basePayload,
+      trackingAvailable: true,
+      etaRange: null,
+      etaMethod: null,
+      roadDistanceKm: null,
+      stopsBefore: null,
+      isNextStop: false,
+      isDriverNearby: false,
+      message: "Prévia administrativa de teste: esta é a última posição registrada e pode estar desatualizada.",
+      trackingPreview: true,
+      driverPosition: {
+        // Keep the same intentionally approximate public shape as live GPS.
+        lat: Number(Number(previewGps.latitude).toFixed(2)).toFixed(2),
+        lng: Number(Number(previewGps.longitude).toFixed(2)).toFixed(2),
+        updatedAt: previewGps.recorded_at instanceof Date
+          ? previewGps.recorded_at.toISOString()
+          : new Date(previewGps.recorded_at).toISOString(),
+      },
+    }, "admin_test_preview", true, previewGps.recorded_at);
   }
 
   const routeActive = normalizeTrackingStatus(delivery.route_status) === "in_progress";

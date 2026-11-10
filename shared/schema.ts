@@ -1593,6 +1593,9 @@ export const deliveries = pgTable("deliveries", {
   stopStatusBy: text("stop_status_by"),
   stopStatusByRole: text("stop_status_by_role"),
   stopObservacao: text("stop_observacao"),
+  // Short-lived administrative test preview; never changes route/driver state.
+  customerTrackingPreviewUntil: timestamp("customer_tracking_preview_until"),
+  customerTrackingPreviewBy: integer("customer_tracking_preview_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

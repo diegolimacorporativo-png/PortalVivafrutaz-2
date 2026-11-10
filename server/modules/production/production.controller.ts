@@ -7,6 +7,7 @@ import type {
   ListBatchesQuery,
 } from "./production.validation";
 import { productionExportService, type ProductionWorkbookKind } from "./production-export.service";
+import { storage } from "../../services/storage";
 
 export const productionController = {
   /** GET /api/production/batches */
@@ -48,7 +49,13 @@ export const productionController = {
   async exportBatch(req: Request, res: Response) {
     const id = Number((req.params as any).id);
     const kind = String((req.params as any).kind) as ProductionWorkbookKind;
-    const file = await productionExportService.exportBatch(id, kind);
+    const shift = (req.query as any).shift as "morning" | "afternoon" | undefined;
+    const userId = (req as any).session?.userId as number | undefined;
+    const user = kind === "processed" && userId ? await storage.getUser(userId) : undefined;
+    const file = await productionExportService.exportBatch(id, kind, {
+      shift,
+      responsibleName: user?.name,
+    });
     res.setHeader("Content-Type", file.contentType);
     res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
     res.setHeader("Content-Length", String(file.bytes.length));

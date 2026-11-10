@@ -477,6 +477,8 @@ export default function AdminProduction() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
   const [exportingWorkbook, setExportingWorkbook] = useState<"in-natura" | "processed" | null>(null);
+  const [processedExportOpen, setProcessedExportOpen] = useState(false);
+  const [processedShift, setProcessedShift] = useState<"morning" | "afternoon" | "">("");
 
   // ── Queries ──────────────────────────────────────────────────
 
@@ -718,11 +720,12 @@ export default function AdminProduction() {
     printBatch(activeBatch, { items, mode: printMode });
   };
 
-  const downloadOfficialWorkbook = async (kind: "in-natura" | "processed") => {
-    if (!activeBatch) return;
+  const downloadOfficialWorkbook = async (kind: "in-natura" | "processed", shift?: "morning" | "afternoon"): Promise<boolean> => {
+    if (!activeBatch) return false;
     setExportingWorkbook(kind);
     try {
-      const response = await fetchWithAuth(`/api/production/batches/${activeBatch.id}/export/${kind}`);
+      const query = kind === "processed" && shift ? `?shift=${shift}` : "";
+      const response = await fetchWithAuth(`/api/production/batches/${activeBatch.id}/export/${kind}${query}`);
       if (!response.ok) {
         const error = await response.json().catch(() => null);
         throw new Error(productionErrorMessage(error, `Não foi possível exportar a planilha (HTTP ${response.status}).`));
@@ -737,8 +740,10 @@ export default function AdminProduction() {
       anchor.click();
       URL.revokeObjectURL(url);
       toast({ title: "Planilha gerada", description: filename });
+      return true;
     } catch (error) {
       toast({ title: "Exportação não concluída", description: error instanceof Error ? error.message : "Falha ao gerar a planilha oficial.", variant: "destructive" });
+      return false;
     } finally {
       setExportingWorkbook(null);
     }
@@ -1049,15 +1054,10 @@ export default function AdminProduction() {
               <Button variant="outline" onClick={() => downloadOfficialWorkbook("in-natura")} disabled={exportingWorkbook !== null || !hasInNaturaItems}>
                 {exportingWorkbook === "in-natura" ? "Gerando In Natura..." : "Excel oficial — In Natura"}
               </Button>
-              <Button variant="outline" disabled title="A exportação depende do turno manhã/tarde, que não é salvo no lote.">
-                Excel oficial — Processados (indisponível)
+              <Button variant="outline" onClick={() => { setProcessedShift(""); setProcessedExportOpen(true); }} disabled={exportingWorkbook !== null || !hasProcessedItems}>
+                Excel oficial — Processados
               </Button>
             </div>
-            {hasProcessedItems && (
-              <p className="pt-2 text-xs text-amber-800">
-                Processados ainda não pode ser exportado: o lote não registra turno manhã/tarde para escolher o bloco correto da planilha.
-              </p>
-            )}
           </CardHeader>
           <CardContent>
             {batchDetailQuery.isPending && (
@@ -1487,6 +1487,41 @@ export default function AdminProduction() {
               disabled={generateMutation.isPending || !consolidationQuery.data?.canGenerate || hasBatch}
             >
               {generateMutation.isPending ? "Gerando..." : "Gerar Lote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Processed export requires an operator to choose the production shift. */}
+      <Dialog open={processedExportOpen} onOpenChange={setProcessedExportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Exportar Processados</DialogTitle>
+            <DialogDescription>
+              Selecione o turno para preencher o bloco correspondente no modelo oficial. O arquivo registra como responsável a conta interna autenticada no momento da exportação.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            <label className="block text-sm font-medium">Turno da produção</label>
+            <Select value={processedShift} onValueChange={(value) => setProcessedShift(value as "morning" | "afternoon")}>
+              <SelectTrigger><SelectValue placeholder="Selecione manhã ou tarde" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="morning">Manhã</SelectItem>
+                <SelectItem value="afternoon">Tarde</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">O nome do responsável vem da sessão autenticada e será inserido nas linhas de produção exportadas.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProcessedExportOpen(false)}>Cancelar</Button>
+            <Button
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+              disabled={!processedShift || exportingWorkbook !== null}
+              onClick={async () => {
+                if (processedShift && await downloadOfficialWorkbook("processed", processedShift)) setProcessedExportOpen(false);
+              }}
+            >
+              {exportingWorkbook === "processed" ? "Gerando Processados..." : "Exportar planilha"}
             </Button>
           </DialogFooter>
         </DialogContent>

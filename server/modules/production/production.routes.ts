@@ -13,6 +13,7 @@ import {
   listBatchesQuerySchema,
   batchIdParamSchema,
   productionExportParamsSchema,
+  productionExportQuerySchema,
 } from "./production.validation";
 import { PRODUCTION_ACCESS_ROLES } from "./production-authorization";
 
@@ -55,6 +56,7 @@ productionRouter.post(
 productionRouter.get(
   "/batches/:id/export/:kind",
   validate(productionExportParamsSchema, "params"),
+  validate(productionExportQuerySchema, "query"),
   asyncHandler(productionController.exportBatch),
 );
 

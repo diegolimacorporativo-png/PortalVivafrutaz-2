@@ -19,6 +19,7 @@ type TrackingData = {
   status: "scheduled" | "in_transit" | "driver_nearby" | "delayed" | "partially_delivered" | "delivered" | "cancelled";
   deliveryStatus: "scheduled" | "in_transit" | "partially_delivered" | "delivered" | "cancelled";
   trackingAvailable: boolean;
+  trackingPreview?: boolean;
   scheduledDate: string | null;
   deliveryWindow: { startTime: string; endTime: string } | null;
   deliveredAt: string | null;
@@ -41,6 +42,8 @@ type TrackingData = {
     | "awaiting_gps"
     | "location_stale"
     | "awaiting_route_data"
+    | "admin_test_preview"
+    | "admin_test_preview_no_gps"
     | "in_transit"
     | "delivered"
     | "cancelled";
@@ -119,6 +122,20 @@ const OPERATIONAL_STATE_PRESENTATION: Partial<Record<NonNullable<TrackingData["o
     color: "text-amber-700",
     border: "border-amber-300",
   },
+  admin_test_preview: {
+    title: "Prévia de rastreamento — teste",
+    description: "A posição exibida é a última registrada e pode não representar a localização atual do motorista.",
+    icon: AlertCircle,
+    color: "text-orange-800",
+    border: "border-orange-300",
+  },
+  admin_test_preview_no_gps: {
+    title: "Prévia de teste habilitada",
+    description: "Ainda não existe posição GPS registrada para este motorista. Nenhuma localização será inventada.",
+    icon: AlertCircle,
+    color: "text-orange-800",
+    border: "border-orange-300",
+  },
   awaiting_start: {
     title: "Aguardando início da operação",
     description: "A rota ainda não teve o início da jornada do motorista confirmado.",
@@ -193,7 +210,9 @@ function TrackingMap({ data }: { data: TrackingData }) {
           <MapPin className="h-4 w-4 text-blue-600" />
           {hasDriver ? "Mapa da sua entrega" : "Endereço da entrega"}
         </h2>
-        {hasDriver && <p className="mt-1 text-xs text-gray-500">A posição do motorista é aproximada.</p>}
+        {hasDriver && <p className="mt-1 text-xs text-gray-500">
+          {data.trackingPreview ? "Última posição registrada — prévia de teste, pode estar desatualizada." : "A posição do motorista é aproximada."}
+        </p>}
       </div>
       <MapContainer center={center} zoom={hasDriver ? 12 : 14} style={{ height: 280, width: "100%" }} scrollWheelZoom={false}>
         <TileLayer
@@ -207,7 +226,7 @@ function TrackingMap({ data }: { data: TrackingData }) {
         )}
         {hasDriver && (
           <CircleMarker center={[driverLat, driverLng]} radius={8} pathOptions={{ color: "#047857", fillColor: "#10b981", fillOpacity: 0.9 }}>
-            <Popup>Posição aproximada do motorista</Popup>
+            <Popup>{data.trackingPreview ? "Última posição registrada (prévia administrativa de teste)" : "Posição aproximada do motorista"}</Popup>
           </CircleMarker>
         )}
       </MapContainer>
@@ -340,13 +359,23 @@ export default function TrackDelivery() {
               </section>
             )}
 
+            {data.trackingPreview && (
+              <section role="status" className="rounded-2xl border border-orange-300 bg-orange-50 p-4 text-sm text-orange-950">
+                <p className="font-semibold">Modo de teste ativado por um administrador.</p>
+                <p className="mt-1">A posição pode estar desatualizada e não deve ser usada como localização em tempo real.</p>
+                {data.driverPosition?.updatedAt && <p className="mt-1">Último GPS registrado: {formatTime(data.driverPosition.updatedAt)}.</p>}
+              </section>
+            )}
+
             {data.trackingAvailable && (
               <section className="rounded-2xl border bg-white p-5 shadow-sm">
                 <h2 className="mb-3 flex items-center gap-2 font-semibold text-gray-900">
                   <Navigation className="h-4 w-4 text-blue-600" />
-                  Progresso da rota
+                  {data.trackingPreview ? "Posição registrada para teste" : "Progresso da rota"}
                 </h2>
-                {data.isNextStop ? (
+                {data.trackingPreview ? (
+                  <p className="text-sm text-orange-800">Prévia administrativa. Não representa necessariamente o local atual do motorista.</p>
+                ) : data.isNextStop ? (
                   <p className="text-sm font-medium text-emerald-700">Sua entrega é a próxima parada.</p>
                 ) : (
                   <p className="text-sm text-gray-700">

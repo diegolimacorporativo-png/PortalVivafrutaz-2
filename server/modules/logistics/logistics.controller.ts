@@ -409,6 +409,77 @@ export class LogisticsController {
     }
   };
 
+  /**
+   * Enables a short-lived, clearly labelled client tracking preview for a
+   * delivery. This does not start a route or journey and does not write GPS.
+   * Only MASTER, DIRECTOR and ADMIN may control it.
+   */
+  setCustomerTrackingTestPreview = async (req: Request, res: Response) => {
+    const actor = await this.logAuth(req, res);
+    if (!actor) return;
+    if (!["MASTER", "DIRECTOR", "ADMIN"].includes(actor.role)) {
+      return res.status(403).json({ message: "Somente MASTER, DIRECTOR ou ADMIN podem controlar a prévia de teste." });
+    }
+    const deliveryId = Number(req.params.id);
+    const enabled = (req.body as any)?.enabled;
+    if (!Number.isSafeInteger(deliveryId) || deliveryId <= 0 || typeof enabled !== "boolean") {
+      return res.status(400).json({ message: "Informe uma entrega válida e enabled como booleano." });
+    }
+
+    try {
+      const tenantId = actor.empresaId == null ? null : Number(actor.empresaId);
+      const scope = tenantId == null ? sql`` : sql`AND COALESCE(d.company_id, o.company_id) = ${tenantId}`;
+      const rows = enabled
+        ? rowsOf<any>(await db.execute(sql`
+            UPDATE deliveries d
+            SET customer_tracking_preview_until = NOW() + INTERVAL '30 minutes',
+                customer_tracking_preview_by = ${actor.id},
+                updated_at = NOW()
+            FROM orders o, logistics_routes r, logistics_drivers ld
+            WHERE d.id = ${deliveryId}
+              AND d.order_id = o.id
+              AND d.route_id = r.id
+              AND r.driver_id = ld.id
+              AND (d.driver_id IS NULL OR d.driver_id = ld.id)
+              AND (d.company_id IS NULL OR d.company_id = o.company_id)
+              AND r.empresa_id = o.company_id
+              AND ld.empresa_id = o.company_id
+              AND ld.active = TRUE
+              AND UPPER(o.status) NOT IN ('CANCELLED', 'DELIVERED')
+              AND LOWER(COALESCE(d.status, '')) NOT IN ('cancelled', 'canceled', 'cancelado', 'delivered', 'entregue')
+              ${scope}
+            RETURNING d.id, d.customer_tracking_preview_until
+          `))
+        : rowsOf<any>(await db.execute(sql`
+            UPDATE deliveries d
+            SET customer_tracking_preview_until = NULL,
+                customer_tracking_preview_by = NULL,
+                updated_at = NOW()
+            FROM orders o
+            WHERE d.id = ${deliveryId}
+              AND d.order_id = o.id
+              ${scope}
+            RETURNING d.id, d.customer_tracking_preview_until
+          `));
+
+      if (!rows[0]) return res.status(404).json({ message: "Entrega não encontrada ou não elegível para a operação." });
+      return res.json({
+        deliveryId: Number(rows[0].id),
+        enabled,
+        expiresAt: rows[0].customer_tracking_preview_until ?? null,
+        message: enabled
+          ? "Prévia de teste liberada por 30 minutos. O cliente verá um aviso de posição possivelmente desatualizada."
+          : "Prévia de teste desativada.",
+      });
+    } catch (error: any) {
+      console.warn(`[${req.requestId}] [logistics.controller] setCustomerTrackingTestPreview failed`, error);
+      if (error?.code === "42703" || error?.cause?.code === "42703") {
+        return res.status(503).json({ message: "A prévia ainda não está habilitada no banco. A migration controlada precisa ser aplicada." });
+      }
+      return res.status(500).json({ message: "Não foi possível atualizar a prévia de rastreamento." });
+    }
+  };
+
   deleteRoute = async (req: Request, res: Response) => {
     const user = await this.logAuth(req, res);
     if (!user) return;

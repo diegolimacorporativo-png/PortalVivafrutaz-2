@@ -67,6 +67,7 @@ router.patch("/vehicles/:id", logisticsController.updateVehicle);
 router.delete("/vehicles/:id", logisticsController.deleteVehicle);
 
 // ── Routes (static FIRST, dynamic LAST) ────────────────────────────────
+router.patch("/deliveries/:id/customer-tracking-test-preview", logisticsController.setCustomerTrackingTestPreview);
 router.get("/routes", logisticsController.listRoutes);
 router.post(
   "/routes",

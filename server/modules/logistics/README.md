@@ -18,7 +18,7 @@ logistics/
 └── README.md                You are here.
 ```
 
-## Endpoints (32)
+## Endpoints (33)
 
 | Method | Path                                      | Auth model       |
 |--------|-------------------------------------------|------------------|
@@ -34,6 +34,7 @@ logistics/
 | POST   | /api/logistics/routes                     | logAuth          |
 | PATCH  | /api/logistics/routes/:id                 | logAuth          |
 | DELETE | /api/logistics/routes/:id                 | logAuth          |
+| PATCH  | /api/logistics/deliveries/:id/customer-tracking-test-preview | MASTER/ADMIN/DIRECTOR |
 | GET    | /api/logistics/maintenance                | logAuth          |
 | POST   | /api/logistics/maintenance                | logAuth          |
 | PATCH  | /api/logistics/maintenance/:id            | logAuth          |

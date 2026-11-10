@@ -22,6 +22,10 @@ export const productionExportParamsSchema = z.object({
   kind: z.enum(["in-natura", "processed"]),
 });
 
+export const productionExportQuerySchema = z.object({
+  shift: z.enum(["morning", "afternoon"]).optional(),
+});
+
 export const updateBatchStatusBodySchema = z.object({
   status: z.enum(["PENDENTE", "EM_PRODUCAO", "CONFERIDO", "FINALIZADO"]),
   notes: z.string().optional(),

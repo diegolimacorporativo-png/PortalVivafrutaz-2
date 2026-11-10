@@ -141,6 +141,69 @@ function validTrackingResults(overrides: {
 }
 
 describe("public delivery tracking operational availability", () => {
+  test("shows only the last real GPS as a labelled admin test preview when enabled", async () => {
+    const previewUntil = new Date(now.getTime() + 5 * 60_000);
+    const orderResults = [
+      [{
+        id: 90,
+        company_id: 3,
+        status: "CONFIRMED",
+        delivery_date: "2026-10-08",
+        delivery_config_json: activeDelivery.delivery_config_json,
+        company_latitude: "-23.55",
+        company_longitude: "-46.63",
+      }],
+      [{ id: 40, status: "pendente", delivered_at: null }],
+      [{ ...activeDelivery, route_status: "SCHEDULED", customer_tracking_preview_until: previewUntil }],
+      [{ latitude: "-23.56", longitude: "-46.64", recorded_at: new Date(now.getTime() - 2 * 60 * 60_000) }],
+    ];
+    const { result } = await withDbResults(orderResults, (database) =>
+      getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(result?.trackingPreview, true);
+    assert.equal(result?.trackingAvailable, true);
+    assert.equal(result?.operationalState, "admin_test_preview");
+    assert.equal(result?.driverPosition?.updatedAt, new Date(now.getTime() - 2 * 60 * 60_000).toISOString());
+    assert.equal(result?.etaRange, null);
+    assert.match(result?.message ?? "", /pode estar desatualizada/);
+  });
+
+  test("does not fabricate a position when an admin preview has no stored GPS", async () => {
+    const orderResults = [
+      [{
+        id: 90,
+        company_id: 3,
+        status: "CONFIRMED",
+        delivery_date: "2026-10-08",
+        delivery_config_json: activeDelivery.delivery_config_json,
+        company_latitude: "-23.55",
+        company_longitude: "-46.63",
+      }],
+      [{ id: 40, status: "pendente", delivered_at: null }],
+      [{ ...activeDelivery, customer_tracking_preview_until: new Date(now.getTime() + 5 * 60_000) }],
+      [],
+    ];
+    const { result } = await withDbResults(orderResults, (database) =>
+      getOrderDeliveryTracking(90, 3, now, database),
+    );
+    assert.equal(result?.trackingPreview, true);
+    assert.equal(result?.trackingAvailable, false);
+    assert.equal(result?.operationalState, "admin_test_preview_no_gps");
+    assert.equal(result?.driverPosition, null);
+  });
+
+  test("does not apply an admin test preview to the public tracking capability", async () => {
+    const publicResults = [
+      [{ ...activeDelivery, route_status: "SCHEDULED", customer_tracking_preview_until: new Date(now.getTime() + 5 * 60_000) }],
+      [routeRow],
+    ];
+    const { result } = await withDbResults(publicResults, (database) =>
+      getPublicDeliveryTracking(40, now, database),
+    );
+    assert.equal(result?.trackingAvailable, false);
+    assert.equal(result?.trackingPreview, undefined);
+  });
+
   test("does not release detailed tracking before route, journey, and fresh post-start GPS exist", async () => {
     const noDriver = [
       [{ ...activeDelivery, driver_id: null, route_driver_id: null }],

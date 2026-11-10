@@ -8,6 +8,8 @@ import {
   resolveInNaturaHeader,
 } from "../../server/modules/production/production-xlsx-mapping";
 import { renderInNaturaWorkbook } from "../../server/modules/production/production-xlsx-renderer";
+import { renderProcessedWorkbook } from "../../server/modules/production/production-processed-xlsx-renderer";
+import { productionExportQuerySchema } from "../../server/modules/production/production.validation";
 import { readXlsxEntries } from "../../server/modules/production/xlsx-ooxml";
 
 test("resolves only exact normalized official product headers", () => {
@@ -39,6 +41,8 @@ test("uses Bio and P07 plastic markers as different packaging classes", () => {
   assert.equal(classifyProcessedPackaging("Pote biodegradável 100g"), "BIO_100G");
   assert.equal(classifyProcessedPackaging("P07 plástico 100g"), "P07_PLASTIC_100G");
   assert.notEqual(classifyProcessedPackaging("Pote biodegradável 100g"), classifyProcessedPackaging("P07 plástico 100g"));
+  assert.equal(classifyProcessedPackaging("Pote biodegradável 200g"), null);
+  assert.equal(classifyProcessedPackaging("P07 plástico 200g"), null);
 });
 
 test("requires the address captured in the production snapshot", () => {
@@ -114,4 +118,72 @@ test("checked-in official templates retain their workbook structure without prio
     return typeof value === "string" && value.trim() && !allowedStructuralLabels.test(value.trim());
   });
   assert.deepEqual(unexpectedCompanyLabels, []);
+});
+
+test("Processados requires an explicit valid shift at export time", () => {
+  assert.equal(productionExportQuerySchema.safeParse({ shift: "morning" }).success, true);
+  assert.equal(productionExportQuerySchema.safeParse({ shift: "afternoon" }).success, true);
+  assert.equal(productionExportQuerySchema.safeParse({ shift: "night" }).success, false);
+});
+
+test("renders Processados from the saved snapshot with distinct delivery addresses and responsible", () => {
+  const template = readFileSync("server/modules/production/templates/processed-template.xlsx");
+  const output = renderProcessedWorkbook(template, {
+    id: 71,
+    productionDate: "2026-11-10",
+    items: [{
+      productId: 45,
+      productName: "MixFrutas",
+      unit: "POTE",
+      productionClassification: "PROCESSADOS",
+      totalQuantity: 8,
+      orderBreakdown: [
+        { itemId: 1001, orderId: 501, companyId: 22, companyName: "Empresa sintética", quantity: 3, subCategoryId: 10, subCategoryName: "Pote biodegradável 100g", deliveryAddressId: 201, deliveryAddress: { id: 201, companyId: 22, label: "Unidade A", logradouro: "Rua de Teste", numero: "10", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+        { itemId: 1002, orderId: 502, companyId: 22, companyName: "Empresa sintética", quantity: 5, subCategoryId: 10, subCategoryName: "Pote biodegradável 100g", deliveryAddressId: 202, deliveryAddress: { id: 202, companyId: 22, label: "Unidade B", logradouro: "Av. de Teste", numero: "20", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+      ],
+    }],
+  }, { shift: "morning", responsibleName: "Responsável Sintético" });
+  const result = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
+  const sheet = result.Sheets[result.SheetNames[0]];
+  const values = Object.values(sheet).filter((cell: any) => cell && typeof cell === "object").map((cell: any) => cell.v);
+  assert.equal(values.filter((value) => typeof value === "string" && value.includes("Empresa sintética — Unidade")).length, 2);
+  assert.ok(values.includes("Responsável Sintético"));
+  assert.ok(values.includes(3));
+  assert.ok(values.includes(5));
+  assert.ok(values.includes("MixFrutas"));
+  assert.equal(sheet.M2.v, 10);
+  assert.equal(sheet.M3.v, "TERÇA-FEIRA");
+  const original = XLSX.read(template, { type: "buffer", cellStyles: true, cellFormula: true });
+  assert.equal(sheet["!merges"].length, original.Sheets[original.SheetNames[0]]["!merges"].length);
+  const formulaCount = (candidate: XLSX.WorkSheet) => Object.keys(candidate).filter((key) => !key.startsWith("!") && Boolean(candidate[key]?.f)).length;
+  assert.equal(formulaCount(sheet), formulaCount(original.Sheets[original.SheetNames[0]]));
+});
+
+test("routes P07 plastic into the selected shift block, separate from biodegradable Bio", () => {
+  const template = readFileSync("server/modules/production/templates/processed-template.xlsx");
+  const batch = {
+    id: 73,
+    productionDate: "2026-11-10",
+    items: [{ productId: 47, productName: "MixFrutas", unit: "POTE", productionClassification: "PROCESSADOS" as const, totalQuantity: 2, orderBreakdown: [
+      { itemId: 1004, orderId: 504, companyId: 24, companyName: "Empresa P07 sintética", quantity: 2, subCategoryId: 12, subCategoryName: "P07 plástico 100g", deliveryAddressId: 204, deliveryAddress: { id: 204, companyId: 24, label: "Unidade P07", logradouro: "Rua de Teste", numero: null, complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+    ] }],
+  };
+  for (const [shift, expectedRow] of [["morning", "B92"], ["afternoon", "B259"]] as const) {
+    const result = XLSX.read(renderProcessedWorkbook(template, batch, { shift, responsibleName: "Responsável Sintético" }), { type: "buffer" });
+    const sheet = result.Sheets[result.SheetNames[0]];
+    assert.match(String(sheet[expectedRow]?.v), /Empresa P07 sintética — Unidade P07/);
+    const bioRow = shift === "morning" ? "B10" : "B310";
+    assert.equal(sheet[bioRow]?.v, undefined);
+  }
+});
+
+test("blocks Processados export when a packaging category has no block in the selected shift", () => {
+  const template = readFileSync("server/modules/production/templates/processed-template.xlsx");
+  assert.throws(() => renderProcessedWorkbook(template, {
+    id: 72,
+    productionDate: "2026-11-10",
+    items: [{ productId: 46, productName: "Produto sintético", unit: "UN", productionClassification: "PROCESSADOS", totalQuantity: 1, orderBreakdown: [
+      { itemId: 1003, orderId: 503, companyId: 23, companyName: "Empresa sintética", quantity: 1, subCategoryName: "Pote 200g", subCategoryId: 11, deliveryAddressId: 203, deliveryAddress: { id: 203, companyId: 23, label: "Unidade C", logradouro: "Rua de Teste", numero: null, complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+    ] }],
+  }, { shift: "afternoon", responsibleName: "Responsável Sintético" }), /não possui bloco de POT_200G para o turno selecionado/);
 });
