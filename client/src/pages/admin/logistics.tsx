@@ -609,8 +609,25 @@ function RoutesTab() {
                         </SelectContent>
                       </Select>
                     )}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => setExpandedStops(previous => {
+                        const next = new Set(previous);
+                        if (next.has(r.id)) next.delete(r.id);
+                        else next.add(r.id);
+                        return next;
+                      })}
+                      aria-expanded={expandedStops.has(r.id)}
+                      data-testid={`button-toggle-route-stops-${r.id}`}
+                    >
+                      {expandedStops.has(r.id) ? 'Ocultar paradas' : 'Ver paradas'}
+                    </Button>
                   </div>
                 </div>
+                {expandedStops.has(r.id) && <RouteStopsPanel routeId={r.id} />}
               </CardContent>
             </Card>
           ))}
