@@ -279,6 +279,7 @@ const STOP_STATUS_KEYS_ADMIN = ['entregue','cliente_ausente','endereco_incorreto
 interface DeliveryRow {
   id: number; companyId: number; status: string; routePosition?: number;
   stopStatusAt?: string; stopStatusBy?: string; stopObservacao?: string;
+  customerTrackingPreviewUntil?: string | Date | null;
 }
 interface StopEventRow {
   id: number; deliveryId: number; status: string; observacao: string | null;
@@ -287,7 +288,9 @@ interface StopEventRow {
 
 function RouteStopsPanel({ routeId }: { routeId: number }) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const { canEdit } = useModuleActions('logistics');
+  const canManageCustomerTrackingPreview = ['MASTER', 'DIRECTOR', 'ADMIN'].includes(user?.role || '');
   const [activeStop, setActiveStop] = useState<number | null>(null);
   const [obs, setObs] = useState('');
   const [showHistory, setShowHistory] = useState<number | null>(null);
@@ -325,6 +328,33 @@ function RouteStopsPanel({ routeId }: { routeId: number }) {
     onError: (e: any) => toast({ title: 'Erro', description: e.message, variant: 'destructive' }),
   });
 
+  const customerTrackingPreviewMutation = useMutation({
+    mutationFn: ({ deliveryId, enabled }: { deliveryId: number; enabled: boolean }) =>
+      fetchWithAuth(`/api/logistics/deliveries/${deliveryId}/customer-tracking-test-preview`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      }).then(async response => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.message || 'Não foi possível atualizar a prévia.');
+        return payload as { message?: string; expiresAt?: string | null };
+      }),
+    onSuccess: (result, { deliveryId, enabled }) => {
+      toast({
+        title: enabled ? 'Prévia do cliente liberada por 30 minutos' : 'Prévia do cliente encerrada',
+        description: result.message,
+      });
+      queryClient.invalidateQueries({ queryKey: [`/api/deliveries?routeId=${routeId}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/deliveries/${deliveryId}`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/orders'] });
+    },
+    onError: (error: Error) => toast({
+      title: 'Não foi possível liberar a visualização',
+      description: error.message,
+      variant: 'destructive',
+    }),
+  });
+
   const sorted = [...deliveries].sort((a, b) => (a.routePosition ?? 999) - (b.routePosition ?? 999));
 
   if (isLoading) return <div className="text-xs text-muted-foreground py-3 pl-2">Carregando paradas...</div>;
@@ -346,6 +376,8 @@ function RouteStopsPanel({ routeId }: { routeId: number }) {
         const label = STOP_LABEL[statusKey] ?? statusKey;
         const isExpanded = activeStop === d.id;
         const isHistoryOpen = showHistory === d.id;
+        const previewUntil = d.customerTrackingPreviewUntil ? new Date(d.customerTrackingPreviewUntil) : null;
+        const previewActive = previewUntil != null && Number.isFinite(previewUntil.getTime()) && previewUntil.getTime() > Date.now();
         return (
           <div key={d.id} className="rounded-xl border bg-muted/30 p-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -382,6 +414,29 @@ function RouteStopsPanel({ routeId }: { routeId: number }) {
                 {d.stopStatusBy && <span> · {d.stopStatusBy}</span>}
                 {d.stopObservacao && <span> — {d.stopObservacao}</span>}
               </p>
+            )}
+
+            {canManageCustomerTrackingPreview && (
+              <div className="pl-7 flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={previewActive ? 'destructive' : 'outline'}
+                  className="h-7 text-[11px]"
+                  disabled={customerTrackingPreviewMutation.isPending}
+                  onClick={() => customerTrackingPreviewMutation.mutate({ deliveryId: d.id, enabled: !previewActive })}
+                  data-testid={`button-customer-tracking-preview-${d.id}`}
+                >
+                  {customerTrackingPreviewMutation.isPending
+                    ? 'Atualizando...'
+                    : previewActive ? 'Encerrar prévia do cliente' : 'Liberar prévia ao cliente (30 min)'}
+                </Button>
+                {previewActive && previewUntil && (
+                  <span className="text-[10px] text-orange-700">
+                    Posição de teste disponível até {previewUntil.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}; pode estar desatualizada.
+                  </span>
+                )}
+              </div>
             )}
 
             {/* Inline status selector */}

@@ -13,16 +13,25 @@ export function SafraAlertsSection({ allProducts }: SafraAlertsSectionProps) {
   const [expanded, setExpanded] = useState(true);
   const [substituteAlert, setSubstituteAlert] = useState<any | null>(null);
 
-  const { data: alerts, isLoading } = useQuery({
+  const { data: alertPayload, isLoading } = useQuery({
     queryKey: ['/api/products/safra-alerts'],
     queryFn: async () => {
       const res = await fetchWithAuth('/api/products/safra-alerts');
+      if (!res.ok) throw new Error("Não foi possível carregar os alertas de safra.");
       return res.json();
     },
     refetchInterval: 30000,
   });
 
-  if (isLoading || !alerts || alerts.length === 0) return null;
+  // This optional panel must never crash the whole catalog when an API error
+  // body (for example, { message }) arrives instead of an alert array.
+  const alerts = Array.isArray(alertPayload)
+    ? alertPayload.filter((alert: any) => alert && typeof alert === "object"
+      && alert.product && typeof alert.product === "object"
+      && Array.isArray(alert.affectedOrders))
+    : [];
+
+  if (isLoading || alerts.length === 0) return null;
 
   return (
     <>
