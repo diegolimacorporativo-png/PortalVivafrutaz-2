@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildGeocodeUrl, register } from "../../server/routes/geocode.routes";
+import { buildGeocodeUrl, buildGeocodeUrls, register } from "../../server/routes/geocode.routes";
 
 function routeHandler() {
   let handler: ((req: any, res: any) => Promise<unknown>) | undefined;
@@ -32,6 +32,24 @@ test("builds a structured Brazil geocoding query including number and CEP", () =
   assert.equal(url.searchParams.get("countrycodes"), "br");
 });
 
+test("builds progressively simpler street queries without falling back to city-only coordinates", () => {
+  const urls = buildGeocodeUrls({
+    street: "Rua Quitanduba", number: "245", neighborhood: "Caxingui",
+    city: "São Paulo", state: "SP", postalcode: "05516-030",
+  });
+
+  assert.equal(urls.length, 3);
+  assert.equal(urls[0].searchParams.get("postalcode"), "05516030");
+  assert.equal(urls[0].searchParams.get("street"), "245 Rua Quitanduba, Caxingui");
+  assert.equal(urls[1].searchParams.get("street"), "245 Rua Quitanduba");
+  assert.equal(urls[1].searchParams.has("postalcode"), false);
+  assert.match(urls[2].searchParams.get("q") || "", /245 Rua Quitanduba.*São Paulo.*Brasil/);
+  for (const url of urls) {
+    assert.equal(url.searchParams.get("countrycodes"), "br");
+    assert.match(url.searchParams.get("street") || url.searchParams.get("q") || "", /Rua Quitanduba/);
+  }
+});
+
 test("rejects an empty geocoding query", async () => {
   const handler = routeHandler();
   const res = responseRecorder();
@@ -51,6 +69,38 @@ test("returns only valid coordinates from the geocoder", async () => {
     await handler({ query: { street: "Synthetic Street 9031", city: "Campinas", postalcode: "13010000" } }, res);
     assert.equal(res.result.statusCode, 200);
     assert.deepEqual(res.result.body, [{ lat: "-23.5", lon: "-46.6", display_name: "Synthetic address" }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("retries with a simpler street query when the complete address has no result", async () => {
+  const handler = routeHandler();
+  const originalFetch = globalThis.fetch;
+  const requestedUrls: URL[] = [];
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    requestedUrls.push(url);
+    if (url.searchParams.has("postalcode")) {
+      return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response(JSON.stringify([
+      { lat: "-23.5817", lon: "-46.7166", display_name: "Rua Quitanduba, Caxingui, São Paulo" },
+    ]), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    const res = responseRecorder();
+    await handler({ query: {
+      street: "Rua Quitanduba", number: "245", neighborhood: "Caxingui",
+      city: "São Paulo", state: "SP", postalcode: "05516-030",
+    } }, res);
+    assert.equal(res.result.statusCode, 200);
+    assert.equal(requestedUrls.length, 2);
+    assert.equal(requestedUrls[1].searchParams.get("street"), "245 Rua Quitanduba");
+    assert.deepEqual(res.result.body, [{
+      lat: "-23.5817", lon: "-46.7166", display_name: "Rua Quitanduba, Caxingui, São Paulo",
+    }]);
   } finally {
     globalThis.fetch = originalFetch;
   }
