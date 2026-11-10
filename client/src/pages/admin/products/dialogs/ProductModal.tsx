@@ -14,6 +14,7 @@ import type { Product } from "@shared/schema";
 import { useCategories } from "../hooks/useCategories";
 import { ProductCategorySelector } from "./ProductCategorySelector";
 import { ProductAliasesPanel } from "./ProductAliasesPanel";
+import { shouldCheckProductCode, shouldCheckProductIdentity } from "./product-identity-change";
 import { emptyForm, productToForm, UNITS, DAYS } from "../constants";
 
 interface ProductModalProps {
@@ -132,6 +133,10 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
 
   const checkCodeUniqueness = async (code: string) => {
     if (!code.trim()) { setCodeError(null); return; }
+    if (editingProduct && !shouldCheckProductCode(code, editingProduct.productCode)) {
+      setCodeError(null);
+      return;
+    }
     try {
       const excludeId = editingProduct?.id;
       const url = `/api/products/check-code?code=${encodeURIComponent(code.trim())}${excludeId ? `&excludeId=${excludeId}` : ''}`;
@@ -179,7 +184,8 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
       }
     }
 
-    if (formData.productCode.trim()) {
+    const codeChanged = !editingProduct || shouldCheckProductCode(formData.productCode, editingProduct.productCode);
+    if (formData.productCode.trim() && codeChanged) {
       const excludeId = editingProduct?.id;
       const codeUrl = `/api/products/check-code?code=${encodeURIComponent(formData.productCode.trim())}${excludeId ? `&excludeId=${excludeId}` : ''}`;
       const codeRes = await fetchWithAuth(codeUrl);
@@ -192,14 +198,20 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
       }
     }
 
-    const dupUrl = `/api/products/check-duplicate?name=${encodeURIComponent(formData.name.trim())}&code=${encodeURIComponent(formData.productCode.trim())}${editingProduct ? `&excludeId=${editingProduct.id}` : ''}`;
-    const dupRes = await fetchWithAuth(dupUrl);
-    const dupData = await dupRes.json();
-    if (dupData.exists) {
-      const msg = `Produto já cadastrado com esse ID (produto existente: "${dupData.product?.name}").`;
-      setDuplicateError(msg);
-      toast({ title: 'Produto duplicado', description: msg, variant: 'destructive' });
-      return;
+    const shouldValidateIdentity = shouldCheckProductIdentity(
+      { name: formData.name, productCode: formData.productCode },
+      editingProduct ? { name: editingProduct.name, productCode: editingProduct.productCode } : null,
+    );
+    if (shouldValidateIdentity) {
+      const dupUrl = `/api/products/check-duplicate?name=${encodeURIComponent(formData.name.trim())}&code=${encodeURIComponent(formData.productCode.trim())}${editingProduct ? `&excludeId=${editingProduct.id}` : ''}`;
+      const dupRes = await fetchWithAuth(dupUrl);
+      const dupData = await dupRes.json();
+      if (dupData.exists) {
+        const msg = `Produto já cadastrado com esse ID (produto existente: "${dupData.product?.name}").`;
+        setDuplicateError(msg);
+        toast({ title: 'Produto duplicado', description: msg, variant: 'destructive' });
+        return;
+      }
     }
 
     const primaryCategory = formData.categorySelections[0]?.categoryName ?? "Geral";
@@ -265,7 +277,7 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
           <div className="flex gap-2">
             <input
               value={formData.productCode}
-              onChange={e => { set("productCode", e.target.value); setCodeError(null); }}
+              onChange={e => { set("productCode", e.target.value); setCodeError(null); setDuplicateError(null); }}
               onBlur={e => checkCodeUniqueness(e.target.value)}
               className={`flex-1 px-4 py-2.5 rounded-xl border-2 outline-none font-mono text-sm ${codeError ? 'border-red-400 focus:border-red-500 bg-white' : 'border-border focus:border-primary'}`}
               placeholder="ex: 001"
@@ -295,7 +307,7 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
         {/* Nome */}
         <div>
           <label className="block text-sm font-semibold mb-1">Nome do Produto *</label>
-          <input required value={formData.name} onChange={e => set("name", e.target.value)}
+          <input required value={formData.name} onChange={e => { set("name", e.target.value); setDuplicateError(null); }}
             className="w-full px-4 py-2.5 rounded-xl border-2 border-border focus:border-primary outline-none"
             placeholder="ex: Banana Nanica" />
         </div>
