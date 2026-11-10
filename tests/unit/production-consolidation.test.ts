@@ -54,6 +54,35 @@ test("descrições alternativas com o mesmo productId consolidam; productIds dis
   assert.equal(result.products.find((product) => product.productId === 8)?.totalQuantity, 3);
 });
 
+test("mantém embalagens Bio e P07 separadas no mesmo produto e preserva o endereço no snapshot de origem", () => {
+  const result = consolidateProduction(date, [
+    source({ itemId: 1, subCategoryId: 11, subCategoryName: "Pote biodegradável 100g", deliveryAddressId: 71, deliveryAddress: {
+      id: 71, companyId: 10, label: "Unidade Centro", logradouro: "Rua A", numero: "10", complemento: null,
+      bairro: "Centro", cidade: "São Paulo", estado: "SP", cep: "01000-000",
+    } }),
+    source({ itemId: 2, subCategoryId: 12, subCategoryName: "P07 plástico 100g", deliveryAddressId: 72, deliveryAddress: {
+      id: 72, companyId: 10, label: "Unidade Norte", logradouro: "Rua B", numero: "20", complemento: null,
+      bairro: "Norte", cidade: "São Paulo", estado: "SP", cep: "02000-000",
+    } }),
+  ], []);
+
+  assert.equal(result.products.length, 2);
+  assert.deepEqual(result.products.map((product) => product.totalQuantity), [100, 100]);
+  assert.deepEqual(result.products.map((product) => product.sources[0].subCategoryName), ["Pote biodegradável 100g", "P07 plástico 100g"]);
+  assert.deepEqual(result.products.map((product) => product.sources[0].deliveryAddressId), [71, 72]);
+});
+
+test("consolida a mesma subcategoria entre empresas mesmo com IDs locais diferentes", () => {
+  const result = consolidateProduction(date, [
+    source({ itemId: 1, companyId: 10, subCategoryId: 101, subCategoryName: "Pote Bio 100g", quantity: 2 }),
+    source({ itemId: 2, companyId: 20, subCategoryId: 902, subCategoryName: "Pote biodegradavel 100g", quantity: 3 }),
+  ], []);
+  assert.equal(result.products.length, 1);
+  assert.equal(result.products[0].totalQuantity, 5);
+  assert.equal(result.products[0].subCategoryId, null);
+  assert.equal(result.products[0].sources.length, 2);
+});
+
 test("não converte unidades nem mistura datas diferentes", () => {
   const result = consolidateProduction(date, [
     source({ itemId: 1, unit: "UN", quantity: 4 }),

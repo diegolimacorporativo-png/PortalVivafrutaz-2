@@ -13,6 +13,21 @@ export interface ProductionConsolidationSource {
   unit: string | null;
   productionClassification: "IN_NATURA" | "PROCESSADOS" | null;
   sourceDescriptionSnapshot?: string | null;
+  subCategoryId?: number | null;
+  subCategoryName?: string | null;
+  deliveryAddressId?: number | null;
+  deliveryAddress?: {
+    id: number;
+    companyId: number;
+    label: string;
+    logradouro: string;
+    numero: string | null;
+    complemento: string | null;
+    bairro: string | null;
+    cidade: string;
+    estado: string | null;
+    cep: string | null;
+  } | null;
   quantity: number;
   workflowStatus: string;
   productionOrigin: ProductionOrderOrigin;
@@ -31,6 +46,10 @@ export interface ProductionSourceBreakdown {
   origin: Exclude<ProductionOrderOrigin, null>;
   routeId: number | null;
   routeName: string;
+  subCategoryId?: number | null;
+  subCategoryName?: string | null;
+  deliveryAddressId?: number | null;
+  deliveryAddress?: ProductionConsolidationSource["deliveryAddress"];
 }
 
 export interface MissingContractOccurrence {
@@ -51,6 +70,8 @@ export interface ProductionConsolidation {
     productId: number;
     productName: string;
     category: string | null;
+    subCategoryId: number | null;
+    subCategoryName: string | null;
     productionClassification: "IN_NATURA" | "PROCESSADOS";
     unit: string;
     totalQuantity: number;
@@ -189,17 +210,30 @@ export function consolidateProduction(
     // identity. Aliases have already resolved to productId upstream; fuzzy
     // similarity never merges separate catalog IDs here.
     const unit = String(row.unit ?? "").trim();
-    const groupKey = `${row.productId}:${unit}`;
+    // Preserve packaging/subcategory variants (e.g. Bio vs P07) as distinct
+    // production rows while still consolidating identical catalog items.
+    // Subcategory IDs can be company-scoped. Consolidate equivalent catalog
+    // labels across tenants, while keeping named packaging variants separate.
+    let normalizedSubCategory = String(row.subCategoryName ?? "").normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
+    const packageWeight = normalizedSubCategory.match(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\b/)?.[0].replace(/\s+/g, "") ?? "";
+    if (/\b(?:bio|biodegradavel)\b/.test(normalizedSubCategory)) normalizedSubCategory = `packaging:bio:${packageWeight}`;
+    else if (/\b(?:p07|plastico|plastica)\b/.test(normalizedSubCategory)) normalizedSubCategory = `packaging:plastic:${packageWeight}`;
+    const subCategoryKey = normalizedSubCategory || `legacy-id:${row.subCategoryId ?? "none"}`;
+    const groupKey = `${row.productId}:${unit}:${subCategoryKey}`;
     const group = productGroups.get(groupKey) ?? {
       productId: row.productId,
       productName: row.productName,
       category: row.category,
+      subCategoryId: row.subCategoryId ?? null,
+      subCategoryName: row.subCategoryName ?? null,
       productionClassification: row.productionClassification,
       unit,
       totalQuantity: 0,
       sources: [],
       routeBreakdown: [],
     };
+    if (group.subCategoryId !== (row.subCategoryId ?? null)) group.subCategoryId = null;
     group.totalQuantity += quantity;
     const route = routeByCompany.get(row.companyId);
     group.sources.push({
@@ -213,6 +247,10 @@ export function consolidateProduction(
       origin: row.productionOrigin!,
       routeId: route?.id ?? null,
       routeName: route?.name ?? "Sem Rota",
+      subCategoryId: row.subCategoryId ?? null,
+      subCategoryName: row.subCategoryName ?? null,
+      deliveryAddressId: row.deliveryAddressId ?? null,
+      deliveryAddress: row.deliveryAddress ?? null,
     });
     productGroups.set(groupKey, group);
   }

@@ -14,7 +14,7 @@ import type { Product } from "@shared/schema";
 import { useCategories } from "../hooks/useCategories";
 import { ProductCategorySelector } from "./ProductCategorySelector";
 import { ProductAliasesPanel } from "./ProductAliasesPanel";
-import { shouldCheckProductCode, shouldCheckProductIdentity } from "./product-identity-change";
+import { resolveProductCodeForEdit, shouldCheckProductCode, shouldCheckProductIdentity } from "./product-identity-change";
 import { emptyForm, productToForm, UNITS, DAYS } from "../constants";
 
 interface ProductModalProps {
@@ -36,18 +36,62 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
   const [codeError, setCodeError] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editIdentity, setEditIdentity] = useState<{ name: string; productCode: string | null } | null>(null);
+  const [editCodeReady, setEditCodeReady] = useState(false);
+  const [editCodeError, setEditCodeError] = useState<string | null>(null);
+  const [retryEditCodeLoad, setRetryEditCodeLoad] = useState(0);
   const [imageMode, setImageMode] = useState<"url" | "upload">("url");
   const [uploadingImage, setUploadingImage] = useState(false);
 
-  // Reset form when modal opens/closes or editing product changes
+  // Load the canonical record before editing so a stale list result cannot
+  // leave the persisted base ID blank or cause a false duplicate error.
   useEffect(() => {
-    if (isOpen) {
-      setFormData(editingProduct ? productToForm(editingProduct) : emptyForm);
-      setPriceError(false);
-      setCodeError(null);
-      setDuplicateError(null);
-    }
+    if (!isOpen) return;
+    setFormData(editingProduct ? productToForm(editingProduct) : emptyForm);
+    setPriceError(false);
+    setCodeError(null);
+    setDuplicateError(null);
+    setEditCodeError(null);
+    setEditIdentity(editingProduct ? {
+      name: editingProduct.name,
+      productCode: editingProduct.productCode ?? null,
+    } : null);
+    setEditCodeReady(!editingProduct);
   }, [isOpen, editingProduct?.id]);
+
+  useEffect(() => {
+    if (!isOpen || !editingProduct) return;
+    let active = true;
+    setEditCodeReady(false);
+    setEditCodeError(null);
+
+    void (async () => {
+      try {
+        const productResponse = await fetchWithAuth(`/api/products/${editingProduct.id}`);
+        if (!productResponse.ok) throw new Error("Não foi possível carregar os dados atuais do produto.");
+        const persisted = await productResponse.json() as Product;
+        let productCode = persisted.productCode ?? null;
+
+        if (!productCode?.trim()) {
+          const codeResponse = await fetchWithAuth("/api/products/next-code");
+          if (!codeResponse.ok) throw new Error("Não foi possível gerar o ID do produto.");
+          const generated = await codeResponse.json() as { nextCode?: string | number };
+          productCode = resolveProductCodeForEdit(productCode, generated.nextCode == null ? "" : String(generated.nextCode));
+          if (!productCode) throw new Error("O servidor não retornou um ID válido para o produto.");
+        }
+
+        if (!active) return;
+        setEditIdentity({ name: persisted.name, productCode: persisted.productCode ?? null });
+        setFormData(current => ({ ...current, productCode }));
+        setEditCodeReady(true);
+      } catch (error: any) {
+        if (!active) return;
+        setEditCodeError(error?.message || "Falha ao carregar ou gerar o ID. Tente novamente.");
+      }
+    })();
+
+    return () => { active = false; };
+  }, [isOpen, editingProduct?.id, retryEditCodeLoad]);
 
   // Load sub-categories when editing
   const { data: editingSubCats = [] } = useQuery<any[]>({
@@ -133,7 +177,8 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
 
   const checkCodeUniqueness = async (code: string) => {
     if (!code.trim()) { setCodeError(null); return; }
-    if (editingProduct && !shouldCheckProductCode(code, editingProduct.productCode)) {
+    const originalCode = editIdentity ? editIdentity.productCode : editingProduct?.productCode;
+    if (editingProduct && !shouldCheckProductCode(code, originalCode)) {
       setCodeError(null);
       return;
     }
@@ -152,6 +197,10 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingProduct && !editCodeReady) {
+      toast({ title: "ID do produto não está pronto", description: editCodeError || "Aguarde o carregamento do ID ou tente novamente.", variant: "destructive" });
+      return;
+    }
     setPriceError(false);
     setCodeError(null);
     setDuplicateError(null);
@@ -184,7 +233,8 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
       }
     }
 
-    const codeChanged = !editingProduct || shouldCheckProductCode(formData.productCode, editingProduct.productCode);
+    const originalCode = editIdentity ? editIdentity.productCode : editingProduct?.productCode;
+    const codeChanged = !editingProduct || shouldCheckProductCode(formData.productCode, originalCode);
     if (formData.productCode.trim() && codeChanged) {
       const excludeId = editingProduct?.id;
       const codeUrl = `/api/products/check-code?code=${encodeURIComponent(formData.productCode.trim())}${excludeId ? `&excludeId=${excludeId}` : ''}`;
@@ -200,7 +250,7 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
 
     const shouldValidateIdentity = shouldCheckProductIdentity(
       { name: formData.name, productCode: formData.productCode },
-      editingProduct ? { name: editingProduct.name, productCode: editingProduct.productCode } : null,
+      editingProduct ? { name: editIdentity?.name ?? editingProduct.name, productCode: originalCode } : null,
     );
     if (shouldValidateIdentity) {
       const dupUrl = `/api/products/check-duplicate?name=${encodeURIComponent(formData.name.trim())}&code=${encodeURIComponent(formData.productCode.trim())}${editingProduct ? `&excludeId=${editingProduct.id}` : ''}`;
@@ -279,11 +329,12 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
               value={formData.productCode}
               onChange={e => { set("productCode", e.target.value); setCodeError(null); setDuplicateError(null); }}
               onBlur={e => checkCodeUniqueness(e.target.value)}
+              readOnly={!!editingProduct}
               className={`flex-1 px-4 py-2.5 rounded-xl border-2 outline-none font-mono text-sm ${codeError ? 'border-red-400 focus:border-red-500 bg-white' : 'border-border focus:border-primary'}`}
-              placeholder="ex: 001"
+              placeholder={editingProduct && !editCodeReady ? "Carregando ID..." : "ex: 001"}
               data-testid="input-product-code"
             />
-            <button type="button" data-testid="button-auto-generate-code"
+            {!editingProduct && <button type="button" data-testid="button-auto-generate-code"
               onClick={async () => {
                 try {
                   const res = await fetchWithAuth('/api/products/next-code');
@@ -293,7 +344,7 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
               }}
               className="px-3 py-2.5 rounded-xl border-2 border-primary/30 text-primary hover:bg-primary/10 transition-colors text-xs font-bold whitespace-nowrap">
               Gerar Auto
-            </button>
+            </button>}
           </div>
           {codeError ? (
             <p className="flex items-start gap-1 text-xs text-red-700 font-semibold mt-1.5">
@@ -301,6 +352,14 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
             </p>
           ) : (
             <p className="text-xs text-muted-foreground mt-1.5">Identifica o produto base. Produtos com mesmo ID são agrupados para análise de custo.</p>
+          )}
+          {editingProduct && editCodeError && (
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-red-700" role="alert">
+              <span>{editCodeError}</span>
+              <button type="button" className="underline font-semibold" onClick={() => setRetryEditCodeLoad(value => value + 1)}>
+                Tentar novamente
+              </button>
+            </div>
           )}
         </div>
 
@@ -658,7 +717,7 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
           </div>
         )}
 
-        <button type="submit" disabled={submitting}
+        <button type="submit" disabled={submitting || (!!editingProduct && !editCodeReady)}
           data-testid="button-submit-product"
           className="w-full py-3 bg-primary text-white font-bold rounded-xl shadow-lg hover:-translate-y-0.5 transition-transform disabled:opacity-50 flex items-center justify-center gap-2">
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />}

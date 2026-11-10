@@ -28,3 +28,11 @@ export function shouldCheckProductCode(
 ): boolean {
   return normalizeCode(currentCode) !== normalizeCode(originalCode);
 }
+
+/** Prefer the persisted ID; only assign the server-generated next ID if absent. */
+export function resolveProductCodeForEdit(
+  persistedCode: string | null | undefined,
+  generatedCode: string | null | undefined,
+): string {
+  return normalizeCode(persistedCode) || normalizeCode(generatedCode);
+}

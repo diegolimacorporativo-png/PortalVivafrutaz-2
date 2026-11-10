@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { shouldCheckProductCode, shouldCheckProductIdentity } from "../../client/src/pages/admin/products/dialogs/product-identity-change";
+import { resolveProductCodeForEdit, shouldCheckProductCode, shouldCheckProductIdentity } from "../../client/src/pages/admin/products/dialogs/product-identity-change";
 
 test("editing without changing name or base ID skips duplicate checks", () => {
   assert.equal(shouldCheckProductIdentity(
@@ -29,4 +29,12 @@ test("new products always run duplicate validation", () => {
 test("the unchanged base ID is not rejected during edit, but a changed ID is checked", () => {
   assert.equal(shouldCheckProductCode(" PES-01 ", "PES-01"), false);
   assert.equal(shouldCheckProductCode("PES-02", "PES-01"), true);
+});
+
+test("edit keeps the persisted base ID instead of a generated replacement", () => {
+  assert.equal(resolveProductCodeForEdit("  PES-001 ", "NEXT-999"), "PES-001");
+});
+
+test("edit fills a missing legacy base ID with the generated value", () => {
+  assert.equal(resolveProductCodeForEdit(null, "NEXT-999"), "NEXT-999");
 });

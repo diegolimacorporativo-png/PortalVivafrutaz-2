@@ -74,6 +74,12 @@ test("interface mostra total, classificação, unidade, origem e pendências sep
   for (const [pattern, description] of checks) assert.ok(pattern.test(page), description);
 });
 
+test("exportação Processados não oferece uma ação que o backend sempre rejeita", () => {
+  assert.match(page, /Excel oficial — Processados \(indisponível\)/);
+  assert.match(page, /disabled title="A exportação depende do turno manhã\/tarde/);
+  assert.match(page, /Processados ainda não pode ser exportado: o lote não registra turno manhã\/tarde/);
+});
+
 test("migrations estão ordenadas e índice único interrompe com segurança se houver duplicatas históricas", () => {
   assert.match(phase1Migration, /CREATE TABLE IF NOT EXISTS recurring_order_log_items/);
   assert.match(phase2Migration, /ALTER TABLE production_batch_items[\s\S]*ADD COLUMN IF NOT EXISTS production_classification/);

@@ -17,6 +17,11 @@ export const batchIdParamSchema = z.object({
   id: z.coerce.number().int().positive(),
 });
 
+export const productionExportParamsSchema = z.object({
+  id: z.coerce.number().int().positive(),
+  kind: z.enum(["in-natura", "processed"]),
+});
+
 export const updateBatchStatusBodySchema = z.object({
   status: z.enum(["PENDENTE", "EM_PRODUCAO", "CONFERIDO", "FINALIZADO"]),
   notes: z.string().optional(),

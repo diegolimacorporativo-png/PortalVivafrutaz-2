@@ -6,6 +6,7 @@ import type {
   UpdateItemCheckBody,
   ListBatchesQuery,
 } from "./production.validation";
+import { productionExportService, type ProductionWorkbookKind } from "./production-export.service";
 
 export const productionController = {
   /** GET /api/production/batches */
@@ -41,6 +42,18 @@ export const productionController = {
     const id = Number((req.params as any).id);
     const batch = await productionService.getById(id, empresaId);
     res.json({ success: true, data: batch });
+  },
+
+  /** Downloads an official workbook generated only from the saved batch snapshot. */
+  async exportBatch(req: Request, res: Response) {
+    const id = Number((req.params as any).id);
+    const kind = String((req.params as any).kind) as ProductionWorkbookKind;
+    const file = await productionExportService.exportBatch(id, kind);
+    res.setHeader("Content-Type", file.contentType);
+    res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
+    res.setHeader("Content-Length", String(file.bytes.length));
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(file.bytes);
   },
 
   /** PATCH /api/production/batches/:id/status */

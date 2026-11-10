@@ -13,6 +13,7 @@ import {
   contractScopes,
   contratosClientes,
   specialOrderRequests,
+  companyAddresses,
 } from "@shared/schema";
 import { ForbiddenError, NotFoundError, UnauthorizedError } from "../../shared/errors/AppError";
 import { getTenantContext } from "../../core/tenant/context";
@@ -38,6 +39,10 @@ export interface OrderBreakdownEntry {
   origin?: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
   routeId?: number | null;
   routeName?: string;
+  subCategoryId?: number | null;
+  subCategoryName?: string | null;
+  deliveryAddressId?: number | null;
+  deliveryAddress?: ProductionConsolidationSource["deliveryAddress"];
 }
 
 export interface RouteBreakdownEntry {
@@ -167,12 +172,27 @@ export const productionRepository = {
         companyId: orders.companyId,
         companyName: companies.companyName,
         deliveryDate: orders.deliveryDate,
+        deliveryAddressId: orders.deliveryAddressId,
+        deliveryAddress: {
+          id: companyAddresses.id,
+          companyId: companyAddresses.companyId,
+          label: companyAddresses.label,
+          logradouro: companyAddresses.logradouro,
+          numero: companyAddresses.numero,
+          complemento: companyAddresses.complemento,
+          bairro: companyAddresses.bairro,
+          cidade: companyAddresses.cidade,
+          estado: companyAddresses.estado,
+          cep: companyAddresses.cep,
+        },
         productId: orderItems.productId,
         productName: products.name,
         category: products.category,
         unit: products.unit,
         productionClassification: products.productionClassification,
         sourceDescriptionSnapshot: orderItems.sourceDescriptionSnapshot,
+        subCategoryId: orderItems.subCategoryId,
+        subCategoryName: orderItems.subCategoryName,
         quantity: orderItems.quantity,
         workflowStatus: orders.workflowStatus,
         productionOrigin: orders.productionOrigin,
@@ -190,6 +210,10 @@ export const productionRepository = {
       .innerJoin(orders, eq(orderItems.orderId, orders.id))
       .leftJoin(products, eq(orderItems.productId, products.id))
       .innerJoin(companies, eq(orders.companyId, companies.id))
+      .leftJoin(companyAddresses, and(
+        eq(companyAddresses.id, orders.deliveryAddressId),
+        eq(companyAddresses.companyId, orders.companyId),
+      ))
       .where(sql`DATE(${orders.deliveryDate}) = ${productionDate}`);
 
     return rows.map((row: any) => ({
@@ -200,6 +224,7 @@ export const productionRepository = {
           ? row.productionClassification
           : null,
       productionOrigin: row.productionOrigin as ProductionConsolidationSource["productionOrigin"],
+      deliveryAddress: row.deliveryAddress?.id ? row.deliveryAddress : null,
       specialRequestApprovedAndMaterialized: row.specialRequestApprovedAndMaterialized === true,
       contractOccurrenceValid: row.contractOccurrenceValid === true,
     }));

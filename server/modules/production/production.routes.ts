@@ -12,6 +12,7 @@ import {
   updateItemCheckBodySchema,
   listBatchesQuerySchema,
   batchIdParamSchema,
+  productionExportParamsSchema,
 } from "./production.validation";
 import { PRODUCTION_ACCESS_ROLES } from "./production-authorization";
 
@@ -47,6 +48,14 @@ productionRouter.post(
   "/batches/generate",
   validate(generateBatchBodySchema, "body"),
   asyncHandler(productionController.generate),
+);
+
+// Exports read the immutable global batch snapshot; the endpoint never
+// recalculates from current orders or catalog rows.
+productionRouter.get(
+  "/batches/:id/export/:kind",
+  validate(productionExportParamsSchema, "params"),
+  asyncHandler(productionController.exportBatch),
 );
 
 // GET  /api/production/batches/:id      — get batch + items

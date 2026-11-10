@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+import { productionErrorMessage } from "./production-error-message";
 import { BackHeader } from "@/components/navigation/BackHeader";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -88,6 +89,10 @@ interface OrderBreakdown {
   origin?: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
   routeId?: number | null;
   routeName?: string;
+  subCategoryId?: number | null;
+  subCategoryName?: string | null;
+  deliveryAddressId?: number | null;
+  deliveryAddress?: { id: number; companyId: number; label: string; logradouro: string; numero: string | null; complemento: string | null; bairro: string | null; cidade: string; estado: string | null; cep: string | null } | null;
 }
 
 interface RouteCompany {
@@ -133,6 +138,8 @@ interface ProductionConsolidationView {
   products: Array<{
     productId: number;
     productName: string;
+    subCategoryId: number | null;
+    subCategoryName: string | null;
     totalQuantity: number;
     unit: string;
     productionClassification: string;
@@ -147,6 +154,10 @@ interface ProductionConsolidationView {
       origin: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
       routeId: number | null;
       routeName: string;
+      subCategoryId?: number | null;
+      subCategoryName?: string | null;
+      deliveryAddressId?: number | null;
+      deliveryAddress?: OrderBreakdown["deliveryAddress"];
     }>;
   }>;
   pending: {
@@ -171,6 +182,8 @@ interface ProductionConsolidationView {
 
 interface CompanyProductSummary {
   productId: number;
+  groupKey: string;
+  subCategoryName: string | null;
   productName: string;
   unit: string;
   quantity: number;
@@ -185,6 +198,7 @@ interface CompanySummary {
 
 interface CompanyViewDiscrepancy {
   productId: number;
+  groupKey: string;
   productName: string;
   expectedQuantity: number;
   companyQuantity: number;
@@ -234,7 +248,7 @@ function today() {
 
 /**
  * Reorganiza o orderBreakdown já carregado no lote, sem consultar o backend.
- * productId e companyId são as chaves de agrupamento para evitar colisões de nomes.
+ * Produto, unidade e subcategoria separam variantes de embalagem do mesmo productId.
  */
 export function buildCompanyView(items: BatchItem[]): CompanyViewData {
   const companyMap = new Map<
@@ -242,12 +256,13 @@ export function buildCompanyView(items: BatchItem[]): CompanyViewData {
     {
       companyId: number;
       companyName: string;
-      products: Map<number, CompanyProductSummary>;
+      products: Map<string, CompanyProductSummary>;
     }
   >();
   const productTotals = new Map<
-    number,
+    string,
     {
+      productId: number;
       productName: string;
       unit: string;
       expectedQuantity: number;
@@ -256,8 +271,19 @@ export function buildCompanyView(items: BatchItem[]): CompanyViewData {
   >();
 
   for (const item of items) {
+    const source = item.orderBreakdown?.[0];
+    const subCategoryName = source?.subCategoryName ?? null;
+    const normalizedSubCategory = (subCategoryName ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
+    const packageWeight = normalizedSubCategory.match(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\b/)?.[0].replace(/\s+/g, "") ?? "";
+    const categoryKey = /\b(?:bio|biodegradavel)\b/.test(normalizedSubCategory)
+      ? `packaging:bio:${packageWeight}`
+      : /\b(?:p07|plastico|plastica)\b/.test(normalizedSubCategory)
+        ? `packaging:plastic:${packageWeight}`
+        : normalizedSubCategory || `legacy-id:${source?.subCategoryId ?? "none"}`;
+    const groupKey = `${item.productId}:${item.unit}:${categoryKey}`;
     const expectedQuantity = Number(item.totalQuantity);
-    const productTotal = productTotals.get(item.productId) ?? {
+    const productTotal = productTotals.get(groupKey) ?? {
+      productId: item.productId,
       productName: item.productName,
       unit: item.unit,
       expectedQuantity: 0,
@@ -266,7 +292,7 @@ export function buildCompanyView(items: BatchItem[]): CompanyViewData {
     productTotal.expectedQuantity += Number.isFinite(expectedQuantity)
       ? expectedQuantity
       : 0;
-    productTotals.set(item.productId, productTotal);
+    productTotals.set(groupKey, productTotal);
 
     for (const order of item.orderBreakdown ?? []) {
       const quantity = Number(order.quantity);
@@ -278,15 +304,17 @@ export function buildCompanyView(items: BatchItem[]): CompanyViewData {
       const company = companyMap.get(companyId) ?? {
         companyId,
         companyName,
-        products: new Map<number, CompanyProductSummary>(),
+        products: new Map<string, CompanyProductSummary>(),
       };
-      const product = company.products.get(item.productId);
+      const product = company.products.get(groupKey);
 
       if (product) {
         product.quantity += quantity;
       } else {
-        company.products.set(item.productId, {
+        company.products.set(groupKey, {
           productId: item.productId,
+          groupKey,
+          subCategoryName,
           productName: item.productName,
           unit: item.unit,
           quantity,
@@ -312,8 +340,9 @@ export function buildCompanyView(items: BatchItem[]): CompanyViewData {
     .sort((a, b) => a.companyName.localeCompare(b.companyName));
 
   const discrepancies = Array.from(productTotals.entries())
-    .map(([productId, product]) => ({
-      productId,
+      .map(([groupKey, product]) => ({
+      productId: product.productId,
+      groupKey,
       productName: product.productName,
       expectedQuantity: product.expectedQuantity,
       companyQuantity: product.companyQuantity,
@@ -447,6 +476,7 @@ export default function AdminProduction() {
   const [printMode, setPrintMode] = useState<PrintMode>("all");
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [exportingWorkbook, setExportingWorkbook] = useState<"in-natura" | "processed" | null>(null);
 
   // ── Queries ──────────────────────────────────────────────────
 
@@ -486,6 +516,8 @@ export default function AdminProduction() {
 
   const activeBatch = batchDetailQuery.data ?? null;
   const activeItems = activeBatch?.items ?? [];
+  const hasInNaturaItems = activeItems.some((item) => item.productionClassification === "IN_NATURA");
+  const hasProcessedItems = activeItems.some((item) => item.productionClassification === "PROCESSADOS");
   const categories = useMemo(
     () =>
       Array.from(
@@ -497,7 +529,7 @@ export default function AdminProduction() {
     () =>
       [...activeItems]
         .sort((a, b) => a.productName.localeCompare(b.productName))
-        .map((item) => ({ id: item.productId, name: item.productName })),
+        .map((item) => ({ id: item.id, name: `${item.productName}${item.orderBreakdown?.[0]?.subCategoryName ? ` — ${item.orderBreakdown[0].subCategoryName}` : ""}` })),
     [activeItems],
   );
   const filteredItems = useMemo(
@@ -506,7 +538,7 @@ export default function AdminProduction() {
         const category = item.category?.trim() || "Sem categoria";
         return (
           (categoryFilter === "all" || category === categoryFilter) &&
-          (productFilter === "all" || String(item.productId) === productFilter)
+          (productFilter === "all" || String(item.id) === productFilter)
         );
       }),
     [activeItems, categoryFilter, productFilter],
@@ -539,8 +571,8 @@ export default function AdminProduction() {
         body: JSON.stringify({ productionDate: selectedDate, previewFingerprint: preview.previewFingerprint }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? err.message ?? "Erro ao gerar lote");
+        const err = await res.json().catch(() => null);
+        throw new Error(productionErrorMessage(err, `Erro ao gerar lote (HTTP ${res.status})`));
       }
       return res.json();
     },
@@ -553,6 +585,7 @@ export default function AdminProduction() {
     },
     onError: async (err: Error) => {
       await queryClient.invalidateQueries({ queryKey: ["/api/production/batches", selectedDate] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/production/consolidated", selectedDate] });
       const existing = (queryClient.getQueryData<Batch[]>(["/api/production/batches", selectedDate]) ?? [])[0];
       if (existing && /já existe|outra execução já criou/i.test(err.message)) setActiveBatchId(existing.id);
       toast({
@@ -685,6 +718,32 @@ export default function AdminProduction() {
     printBatch(activeBatch, { items, mode: printMode });
   };
 
+  const downloadOfficialWorkbook = async (kind: "in-natura" | "processed") => {
+    if (!activeBatch) return;
+    setExportingWorkbook(kind);
+    try {
+      const response = await fetchWithAuth(`/api/production/batches/${activeBatch.id}/export/${kind}`);
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(productionErrorMessage(error, `Não foi possível exportar a planilha (HTTP ${response.status}).`));
+      }
+      const blob = await response.blob();
+      const disposition = response.headers.get("Content-Disposition") ?? "";
+      const filename = disposition.match(/filename="([^"]+)"/)?.[1] ?? `producao-${kind}-${activeBatch.productionDate}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      toast({ title: "Planilha gerada", description: filename });
+    } catch (error) {
+      toast({ title: "Exportação não concluída", description: error instanceof Error ? error.message : "Falha ao gerar a planilha oficial.", variant: "destructive" });
+    } finally {
+      setExportingWorkbook(null);
+    }
+  };
+
   const batches = batchesQuery.data ?? [];
   const hasBatch = batches.length > 0;
 
@@ -799,8 +858,8 @@ export default function AdminProduction() {
                   </TableHeader>
                   <TableBody>
                     {consolidationQuery.data.products.map((product) => (
-                      <TableRow key={`${product.productId}:${product.unit}`}>
-                        <TableCell className="font-medium">{product.productName}</TableCell>
+                      <TableRow key={`${product.productId}:${product.unit}:${product.subCategoryId ?? product.subCategoryName ?? ""}`}>
+                        <TableCell className="font-medium">{product.productName}{product.subCategoryName ? <span className="block text-xs text-muted-foreground">{product.subCategoryName}</span> : null}</TableCell>
                         <TableCell>{product.unit}</TableCell>
                         <TableCell>{product.productionClassification === "IN_NATURA" ? "In Natura" : "Processados"}</TableCell>
                         <TableCell className="text-right">{fmt(product.totalQuantity)}</TableCell>
@@ -813,6 +872,8 @@ export default function AdminProduction() {
                               {product.sources.map((source) => (
                                 <li key={source.itemId}>
                                   {source.companyName} · Pedido {source.orderCode} · Item {source.itemId} · {source.origin === "CONTRACT_FIXED" ? "Programação contratual" : source.origin === "SPECIAL" ? "Pedido pontual" : "Pedido livre"} · {fmt(source.quantity)} {product.unit} · Entrega {source.deliveryDate}
+                                  {source.deliveryAddress ? ` · ${source.deliveryAddress.label}` : " · Endereço não preservado neste lote"}
+                                  {source.subCategoryName ? ` · ${source.subCategoryName}` : ""}
                                   {source.routeName !== "Sem Rota" ? ` · ${source.routeName}` : ""}
                                 </li>
                               ))}
@@ -984,6 +1045,19 @@ export default function AdminProduction() {
                 ? format(new Date(activeBatch.generatedAt), "dd/MM/yyyy HH:mm")
                 : "—"}
             </CardDescription>
+            <div className="flex flex-wrap gap-2 pt-2">
+              <Button variant="outline" onClick={() => downloadOfficialWorkbook("in-natura")} disabled={exportingWorkbook !== null || !hasInNaturaItems}>
+                {exportingWorkbook === "in-natura" ? "Gerando In Natura..." : "Excel oficial — In Natura"}
+              </Button>
+              <Button variant="outline" disabled title="A exportação depende do turno manhã/tarde, que não é salvo no lote.">
+                Excel oficial — Processados (indisponível)
+              </Button>
+            </div>
+            {hasProcessedItems && (
+              <p className="pt-2 text-xs text-amber-800">
+                Processados ainda não pode ser exportado: o lote não registra turno manhã/tarde para escolher o bloco correto da planilha.
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             {batchDetailQuery.isPending && (
@@ -1156,7 +1230,7 @@ export default function AdminProduction() {
                               )}
                             </TableCell>
                             <TableCell className="font-medium">
-                              {item.productName}
+                                  {item.productName}{item.orderBreakdown?.[0]?.subCategoryName ? ` — ${item.orderBreakdown[0].subCategoryName}` : ""}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {item.category ?? "—"}
@@ -1268,9 +1342,9 @@ export default function AdminProduction() {
                               </TableHeader>
                               <TableBody>
                                 {company.products.map((product) => (
-                                  <TableRow key={product.productId}>
+                                  <TableRow key={product.groupKey}>
                                     <TableCell className="font-medium">
-                                      {product.productName}
+                                      {product.productName}{product.subCategoryName ? ` — ${product.subCategoryName}` : ""}
                                     </TableCell>
                                     <TableCell className="text-right font-bold">
                                       {fmt(product.quantity)}
