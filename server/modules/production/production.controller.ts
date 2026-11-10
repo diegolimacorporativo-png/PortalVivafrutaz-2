@@ -23,10 +23,16 @@ export const productionController = {
 
   /** POST /api/production/batches/generate */
   async generate(req: Request, res: Response) {
-    const empresaId = (req as any).empresaId as number | null;
     const body = req.body as GenerateBatchBody;
-    const batch = await productionService.generateBatch(empresaId, body);
+    const batch = await productionService.generateBatch(body);
     res.status(201).json({ success: true, data: batch });
+  },
+
+  /** GET /api/production/consolidated?date=YYYY-MM-DD — global, read-only snapshot. */
+  async consolidated(req: Request, res: Response) {
+    const date = String(req.query.date ?? "");
+    const data = await productionService.getConsolidationForDate(date);
+    res.json({ success: true, data });
   },
 
   /** GET /api/production/batches/:id */

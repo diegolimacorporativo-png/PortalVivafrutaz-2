@@ -465,7 +465,7 @@ export class OrdersService {
     tx?: any,
   ): Promise<{ data: any; isTest: boolean; status: 201; newlyCreated?: boolean; operationalReleasePending?: boolean }> {
     const companyId = actor.companyId ?? requireTenantId();
-    const order = { ...body.order, companyId };
+    const order = { ...body.order, companyId, productionOrigin: "FREE" };
     // This endpoint accepts customer-submitted items. A browser cannot choose
     // the historical source-description snapshot; storage fills that snapshot
     // from the canonical product name for regular catalog orders.
@@ -795,7 +795,7 @@ export class OrdersService {
   async createInternal(
     order: Record<string, any>,
     items: Array<Record<string, any>>,
-    ctx: { source?: string; actorRole?: string } = {},
+    ctx: { source?: string; actorRole?: string; tx?: any } = {},
   ): Promise<any> {
     // — Validate tenant context before writing —
     if (order.companyId) {
@@ -818,21 +818,29 @@ export class OrdersService {
     const newOrder = await this.repo.create(
       { ...order, totalValue: normalisedTotal } as any,
       normalisedItems as any,
+      ctx.tx,
     );
 
-    // — Fire afterCreate side-effects (non-blocking, same as create()) —
+    // Transactional callers dispatch side effects only after commit.
+    if (!ctx.tx) this.dispatchInternalOrderCreated(newOrder, order, pricedItems, ctx);
+
+    return newOrder;
+  }
+
+  dispatchInternalOrderCreated(
+    newOrder: any,
+    order: Record<string, any>,
+    items: any[],
+    ctx: { source?: string; actorRole?: string } = {},
+  ): void {
     const actorRole = ctx.actorRole ?? "SISTEMA";
     setImmediate(async () => {
       try {
-        await this.afterCreate(newOrder, order, pricedItems, actorRole);
+        await this.afterCreate(newOrder, order, items, actorRole);
       } catch (err: any) {
-        logSecurity(
-          `[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} source=${ctx.source ?? "internal"} | error=${err?.message ?? "unknown"}`,
-        );
+        logSecurity(`[ORDER_AFTER_CREATE_FAILED] orderId=${newOrder.id} source=${ctx.source ?? "internal"} | error=${err?.message ?? "unknown"}`);
       }
     });
-
-    return newOrder;
   }
 
   /**
@@ -1198,6 +1206,7 @@ export class OrdersService {
     const { order, delivery } = await this.repo.createOrderWithDelivery(
       {
         companyId,
+        productionOrigin: "FREE",
         deliveryDate,
         totalValue: orderShapeForNorm.totalValue,
         status: "ACTIVE",

@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runWithTenant } from "../../server/core/tenant/context";
-import { OrdersService } from "../../server/modules/orders/orders.service";
+
+// This test uses a mocked repository and never issues SQL. Set the project's
+// explicit isolated-preview mode before loading modules that initialize db.ts.
+process.env.NODE_ENV = "development";
+process.env.ISOLATED_PREVIEW_MODE = "1";
+process.env.ISOLATED_PREVIEW_DATABASE_URL = "postgresql://preview@127.0.0.1:55439/vivafrutaz_preview";
+
+const [{ runWithTenant }, { OrdersService }] = await Promise.all([
+  import("../../server/core/tenant/context"),
+  import("../../server/modules/orders/orders.service"),
+]);
 
 function makeService(company: any = {
   id: 17,

@@ -1,21 +1,16 @@
 import { z } from "zod";
 
 export const PRODUCTION_INCLUDE_STATUSES = [
-  "CREATED",
-  "PENDING_APPROVAL",
   "APPROVED",
-  "PROCESSING",
-  "READY",
-  "INVOICED",
-  "SHIPPED",
 ] as const;
 
 export const generateBatchBodySchema = z.object({
-  productionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)"),
-  includeStatuses: z
-    .array(z.enum(PRODUCTION_INCLUDE_STATUSES))
-    .optional()
-    .default(["CREATED", "PENDING_APPROVAL", "APPROVED", "INVOICED", "SHIPPED"]),
+  productionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)")
+    .refine((value) => {
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    }, "Data de produção inexistente"),
+  previewFingerprint: z.string().regex(/^[a-f0-9]{64}$/, "Prévia inválida ou desatualizada"),
 });
 
 export const batchIdParamSchema = z.object({
@@ -39,7 +34,16 @@ export const listBatchesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
 
+export const productionConsolidationQuerySchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inválida (YYYY-MM-DD)")
+    .refine((value) => {
+      const date = new Date(`${value}T00:00:00.000Z`);
+      return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+    }, "Data de produção inexistente"),
+});
+
 export type GenerateBatchBody = z.infer<typeof generateBatchBodySchema>;
 export type UpdateBatchStatusBody = z.infer<typeof updateBatchStatusBodySchema>;
 export type UpdateItemCheckBody = z.infer<typeof updateItemCheckBodySchema>;
 export type ListBatchesQuery = z.infer<typeof listBatchesQuerySchema>;
+export type ProductionConsolidationQuery = z.infer<typeof productionConsolidationQuerySchema>;

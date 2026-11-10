@@ -68,7 +68,13 @@ export const createCompanySchema = insertCompanySchema
 // Password changes are accepted only on authenticated internal management
 // flows; customer portal sessions cannot change company credentials.
 export const updateCompanySchema = createCompanySchema.partial().extend({
-  password: z.string().min(8, "A senha deve ter pelo menos 8 caracteres").optional(),
+  // Company edit forms from older clients submit password: "" when the
+  // operator is not changing credentials. Treat blank as omitted; non-empty
+  // values still require the normal minimum length.
+  password: z.preprocess(
+    (value) => (value === "" ? undefined : value),
+    z.string().min(8, "A senha deve ter pelo menos 8 caracteres").optional(),
+  ),
 });
 
 // ── /my/preferred-order-type (company portal self-service) ──────────────

@@ -49,6 +49,37 @@ test("company update validation preserves a new password for the internal handle
   assert.equal(parsed.password, "NovaSenhaSegura123");
 });
 
+test("company update treats an empty password field as no password change", () => {
+  const parsed = updateCompanySchema.parse({ companyName: "Empresa sintética", password: "" });
+  assert.equal(parsed.password, undefined);
+  assert.equal(parsed.companyName, "Empresa sintética");
+});
+
+test("blank password on company edit does not trigger password reset metadata", async () => {
+  let received: Record<string, unknown> | undefined;
+  const controller = new CompaniesController({
+    update: async (_id: number, updates: Record<string, unknown>) => {
+      received = updates;
+      return { id: 42, companyName: "Empresa sintética", ...updates } as any;
+    },
+  } as any);
+  const req = {
+    params: { id: "42" },
+    body: updateCompanySchema.parse({ companyName: "Empresa sintética", password: "" }),
+    session: { userId: 9, companyId: null },
+  } as any;
+  const res = { status() { return this; }, json(value: unknown) { return value; } } as any;
+
+  await runWithTenant(
+    { principal: { kind: "admin", empresaId: 42, userId: 9, role: "DIRECTOR" }, empresaId: 42 },
+    () => controller.update(req, res),
+  );
+
+  assert.equal(received?.password, undefined);
+  assert.equal(received?.passwordChangedAt, undefined);
+  assert.equal(received?.tokenVersion, undefined);
+});
+
 test("company update validation rejects passwords shorter than eight characters", () => {
   assert.equal(updateCompanySchema.safeParse({ password: "curta" }).success, false);
 });

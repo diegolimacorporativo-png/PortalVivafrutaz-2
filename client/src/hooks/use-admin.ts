@@ -4,6 +4,22 @@ import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { normalizeList, normalizeOne } from "@/lib/normalizeResponse";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
+
+function companyRequestError(body: any, fallback: string): string {
+  const message = typeof body?.error === "string"
+    ? body.error
+    : body?.error?.message || body?.message;
+  const issues = body?.error?.details ?? body?.details ?? body?.issues;
+  const fieldDetails = Array.isArray(issues)
+    ? issues
+        .map((issue: any) => {
+          const field = Array.isArray(issue?.path) ? issue.path.join(".") : "";
+          return field && issue?.message ? `${field}: ${issue.message}` : null;
+        })
+        .filter((value: string | null): value is string => Boolean(value))
+    : [];
+  return [message || fallback, ...fieldDetails].join(" · ");
+}
 import type { Company } from "@shared/schema";
 
 // ========== COMPANIES ==========
@@ -71,8 +87,7 @@ export function useCreateCompany() {
       if (!res.ok) {
         let errorBody: any = null;
         try { errorBody = await res.json(); } catch { errorBody = null; }
-        console.error("[CREATE_COMPANY_ERROR]", { status: res.status, errorBody });
-        throw new Error(errorBody?.message || errorBody?.error?.message || "Erro ao criar empresa");
+        throw new Error(companyRequestError(errorBody, "Erro ao criar empresa"));
       }
       return api.companies.create.responses[201].parse(normalizeOne(await res.json()));
     },
@@ -87,8 +102,7 @@ export function useCreateCompany() {
       toast({ title: "Empresa criada com sucesso!" });
     },
     onError: (err) => {
-      console.error("[CREATE_COMPANY_ON_ERROR]", { err, ts: Date.now() });
-      toast({ title: "Erro ao criar empresa", variant: "destructive" });
+      toast({ title: "Erro ao criar empresa", description: err.message, variant: "destructive" });
     }
   });
 }
@@ -106,10 +120,7 @@ export function useUpdateCompany() {
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
-        const message = typeof body?.error === "string"
-          ? body.error
-          : body?.error?.message || body?.message;
-        throw new Error(message || "Falha ao atualizar empresa");
+        throw new Error(companyRequestError(body, "Falha ao atualizar empresa"));
       }
       return api.companies.update.responses[200].parse(normalizeOne(await res.json()));
     },

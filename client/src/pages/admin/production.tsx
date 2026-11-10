@@ -78,11 +78,16 @@ type BatchStatus = "PENDENTE" | "EM_PRODUCAO" | "CONFERIDO" | "FINALIZADO";
 type PrintMode = "all" | "category" | "product" | "selected";
 
 interface OrderBreakdown {
+  itemId?: number;
   orderId: number;
   orderCode: string;
   companyId: number;
   companyName: string;
   quantity: number;
+  deliveryDate?: string;
+  origin?: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
+  routeId?: number | null;
+  routeName?: string;
 }
 
 interface RouteCompany {
@@ -104,6 +109,7 @@ interface BatchItem {
   productId: number;
   productName: string;
   category: string | null;
+  productionClassification?: "IN_NATURA" | "PROCESSADOS" | null;
   unit: string;
   totalQuantity: string;
   checkedQuantity: string;
@@ -121,6 +127,46 @@ interface Batch {
   generatedAt: string | null;
   createdAt: string;
   items?: BatchItem[];
+}
+
+interface ProductionConsolidationView {
+  products: Array<{
+    productId: number;
+    productName: string;
+    totalQuantity: number;
+    unit: string;
+    productionClassification: string;
+    sources: Array<{
+      itemId: number;
+      orderId: number;
+      orderCode: string;
+      companyId: number;
+      companyName: string;
+      quantity: number;
+      deliveryDate: string;
+      origin: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
+      routeId: number | null;
+      routeName: string;
+    }>;
+  }>;
+  pending: {
+    missingContractOccurrences: Array<{ companyId: number; companyName: string; contractScopeId: number; productName: string | null; quantity: number; reason: string }>;
+    unidentifiedItems: Array<{ itemId: number; companyName: string; orderCode: string | null; sourceDescription: string | null; quantity: number; reason: string }>;
+    unclassifiedItems: Array<{ itemId: number; companyName: string; orderCode: string | null; productName: string; quantity: number }>;
+    ineligibleOrders: Array<{ companyName: string; orderCode: string | null; workflowStatus: string; reason: string }>;
+    inconsistentOrigins: Array<{ itemId: number; companyName: string; orderCode: string | null; origin: string | null; reason: string }>;
+  };
+  previewFingerprint: string;
+  canGenerate: boolean;
+  blockers: string[];
+  indicators: {
+    productCount: number;
+    companyCount: number;
+    orderCount: number;
+    itemCount: number;
+    pendingCount: number;
+    inconsistencyCount: number;
+  };
 }
 
 interface CompanyProductSummary {
@@ -410,8 +456,19 @@ export default function AdminProduction() {
       const res = await fetchWithAuth(
         `/api/production/batches?date=${selectedDate}&limit=50`,
       );
+      if (!res.ok) throw new Error("Não foi possível consultar os lotes desta data");
       const json = await res.json();
       return (json.data ?? []) as Batch[];
+    },
+  });
+
+  const consolidationQuery = useQuery({
+    queryKey: ["/api/production/consolidated", selectedDate],
+    queryFn: async () => {
+      const res = await fetchWithAuth(`/api/production/consolidated?date=${selectedDate}`);
+      if (!res.ok) throw new Error("Não foi possível consultar a consolidação global");
+      const json = await res.json();
+      return json.data as ProductionConsolidationView;
     },
   });
 
@@ -420,6 +477,7 @@ export default function AdminProduction() {
     queryFn: async () => {
       if (!activeBatchId) return null;
       const res = await fetchWithAuth(`/api/production/batches/${activeBatchId}`);
+      if (!res.ok) throw new Error("Não foi possível carregar o snapshot do lote");
       const json = await res.json();
       return json.data as Batch;
     },
@@ -472,10 +530,13 @@ export default function AdminProduction() {
 
   const generateMutation = useMutation({
     mutationFn: async () => {
+      const preview = consolidationQuery.data;
+      if (!preview) throw new Error("A prévia ainda não foi carregada.");
+      if (!preview.canGenerate) throw new Error(preview.blockers.join(" "));
       const res = await fetchWithAuth("/api/production/batches/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ productionDate: selectedDate }),
+        body: JSON.stringify({ productionDate: selectedDate, previewFingerprint: preview.previewFingerprint }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -484,13 +545,23 @@ export default function AdminProduction() {
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "Lote gerado com sucesso!" });
+      toast({ title: `Lote ${data.data?.id ?? ""} gerado com sucesso!` });
       setGenerateOpen(false);
       queryClient.invalidateQueries({ queryKey: ["/api/production/batches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/consolidated", selectedDate] });
       setActiveBatchId(data.data?.id ?? null);
     },
-    onError: (err: Error) => {
-      toast({ title: "Erro", description: err.message, variant: "destructive" });
+    onError: async (err: Error) => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/production/batches", selectedDate] });
+      const existing = (queryClient.getQueryData<Batch[]>(["/api/production/batches", selectedDate]) ?? [])[0];
+      if (existing && /já existe|outra execução já criou/i.test(err.message)) setActiveBatchId(existing.id);
+      toast({
+        title: err.message.includes("já existe") || err.message.includes("Outra execução já criou")
+          ? "Produção já gerada para esta data"
+          : "Erro ao gerar produção",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -654,6 +725,7 @@ export default function AdminProduction() {
               queryClient.invalidateQueries({
                 queryKey: ["/api/production/batches"],
               });
+              queryClient.invalidateQueries({ queryKey: ["/api/production/consolidated", selectedDate] });
             }}
           >
             <RefreshCw className="w-4 h-4" />
@@ -661,13 +733,130 @@ export default function AdminProduction() {
           <Button
             onClick={() => setGenerateOpen(true)}
             className="bg-orange-500 hover:bg-orange-600 text-white"
-            disabled={hasBatch}
+            disabled={hasBatch || batchesQuery.isPending || batchesQuery.isError || consolidationQuery.isPending || consolidationQuery.isError || !consolidationQuery.data?.canGenerate}
           >
             <Factory className="w-4 h-4 mr-2" />
-            Gerar Produção
+            {hasBatch ? "Produção já gerada" : "Gerar Produção"}
           </Button>
         </div>
       </div>
+
+      {hasBatch && (
+        <Card className="border-blue-200 bg-blue-50/50">
+          <CardContent className="py-3 text-sm">
+            Já existe um lote global para {selectedDate}. A consulta abaixo reflete os pedidos atuais; selecione o cartão do lote para consultar o snapshot persistido e sua composição por empresa, pedido e item de origem.
+          </CardContent>
+        </Card>
+      )}
+
+      {consolidationQuery.data && (() => {
+        const pending = consolidationQuery.data.pending;
+        const missingCount = pending.missingContractOccurrences.length;
+        const unidentifiedCount = pending.unidentifiedItems.length;
+        const unclassifiedCount = pending.unclassifiedItems.length;
+        const ineligibleCount = pending.ineligibleOrders.length;
+        const inconsistentCount = pending.inconsistentOrigins.length;
+        const totalPending = missingCount + unidentifiedCount + unclassifiedCount + ineligibleCount + inconsistentCount;
+        return (
+          <Card className={totalPending ? "border-amber-300 bg-amber-50/50" : "border-emerald-200 bg-emerald-50/40"}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Demanda global elegível — {selectedDate}</CardTitle>
+              <CardDescription>
+                Consulta atual dos pedidos materializados: {consolidationQuery.data.products.length} produto(s) elegíveis · Pendências: {totalPending}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-0">
+              {[
+                ["Data", selectedDate],
+                ["Produtos", consolidationQuery.data.indicators.productCount],
+                ["Empresas", consolidationQuery.data.indicators.companyCount],
+                ["Pedidos", consolidationQuery.data.indicators.orderCount],
+                ["Itens", consolidationQuery.data.indicators.itemCount],
+                ["Inconsistências", consolidationQuery.data.indicators.inconsistencyCount],
+              ].map(([label, value]) => (
+                <div key={String(label)} className="rounded border bg-white px-3 py-2">
+                  <div className="text-xs text-muted-foreground">{label}</div>
+                  <div className="font-semibold">{value}</div>
+                </div>
+              ))}
+              <div className="col-span-2 md:col-span-6 text-xs text-muted-foreground">
+                {consolidationQuery.data.indicators.pendingCount} pendência(s) · {consolidationQuery.data.indicators.inconsistencyCount} inconsistência(s)
+              </div>
+            </CardContent>
+            {consolidationQuery.data.products.length > 0 && (
+              <CardContent className="pt-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Produto</TableHead>
+                      <TableHead>Unidade</TableHead>
+                      <TableHead>Classificação</TableHead>
+                      <TableHead className="text-right">Total</TableHead>
+                      <TableHead>Empresas</TableHead>
+                      <TableHead>Pedidos</TableHead>
+                      <TableHead>Composição</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {consolidationQuery.data.products.map((product) => (
+                      <TableRow key={`${product.productId}:${product.unit}`}>
+                        <TableCell className="font-medium">{product.productName}</TableCell>
+                        <TableCell>{product.unit}</TableCell>
+                        <TableCell>{product.productionClassification === "IN_NATURA" ? "In Natura" : "Processados"}</TableCell>
+                        <TableCell className="text-right">{fmt(product.totalQuantity)}</TableCell>
+                        <TableCell>{new Set(product.sources.map((source) => source.companyId)).size}</TableCell>
+                        <TableCell>{new Set(product.sources.map((source) => source.orderId)).size}</TableCell>
+                        <TableCell>
+                          <details>
+                            <summary className="cursor-pointer text-sm">{product.sources.length} item(ns) de origem</summary>
+                            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                              {product.sources.map((source) => (
+                                <li key={source.itemId}>
+                                  {source.companyName} · Pedido {source.orderCode} · Item {source.itemId} · {source.origin === "CONTRACT_FIXED" ? "Programação contratual" : source.origin === "SPECIAL" ? "Pedido pontual" : "Pedido livre"} · {fmt(source.quantity)} {product.unit} · Entrega {source.deliveryDate}
+                                  {source.routeName !== "Sem Rota" ? ` · ${source.routeName}` : ""}
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            )}
+            {totalPending > 0 && (
+              <CardContent className="pt-0 text-sm space-y-1">
+                {missingCount > 0 && <details><summary className="cursor-pointer">{missingCount} ocorrência(s) contratual(is) ausentes ou incompletas</summary><ul className="ml-5 list-disc">{pending.missingContractOccurrences.map((item) => <li key={`${item.companyId}:${item.contractScopeId}`}>{item.companyName} · Escopo {item.contractScopeId} · {item.productName ?? "Produto não identificado"} · {item.reason}</li>)}</ul></details>}
+                {unidentifiedCount > 0 && <details><summary className="cursor-pointer">{unidentifiedCount} item(ns) sem produto oficial correspondente</summary><ul className="ml-5 list-disc">{pending.unidentifiedItems.map((item) => <li key={item.itemId}>{item.companyName} · Pedido {item.orderCode ?? "—"} · Item {item.itemId} · {item.sourceDescription ?? "Descrição ausente"} · {item.reason}</li>)}</ul></details>}
+                {unclassifiedCount > 0 && <details><summary className="cursor-pointer">{unclassifiedCount} item(ns) sem classificação de produção</summary><ul className="ml-5 list-disc">{pending.unclassifiedItems.map((item) => <li key={item.itemId}>{item.companyName} · Pedido {item.orderCode ?? "—"} · Item {item.itemId} · {item.productName}</li>)}</ul></details>}
+                {ineligibleCount > 0 && <details><summary className="cursor-pointer">{ineligibleCount} pedido(s) não elegíveis ou sem origem comprovada</summary><ul className="ml-5 list-disc">{pending.ineligibleOrders.map((item, index) => <li key={`${item.orderCode ?? item.companyName}:${index}`}>{item.companyName} · Pedido {item.orderCode ?? "—"} · {item.workflowStatus} · {item.reason}</li>)}</ul></details>}
+                {inconsistentCount > 0 && <details><summary className="cursor-pointer">{inconsistentCount} item(ns) com inconsistência de origem</summary><ul className="ml-5 list-disc">{pending.inconsistentOrigins.map((item) => <li key={item.itemId}>{item.companyName} · Pedido {item.orderCode ?? "—"} · Item {item.itemId} · {item.origin ?? "Origem ausente"} · {item.reason}</li>)}</ul></details>}
+              </CardContent>
+            )}
+            {consolidationQuery.data.blockers.length > 0 && (
+              <CardContent className="pt-0">
+                <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+                  <strong>Geração bloqueada:</strong>
+                  <ul className="ml-5 list-disc">{consolidationQuery.data.blockers.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+        );
+      })()}
+
+      {consolidationQuery.isPending && <p className="text-sm text-muted-foreground">Carregando prévia global...</p>}
+      {consolidationQuery.isError && (
+        <Card className="border-red-300 bg-red-50"><CardContent className="py-3 text-sm text-red-800">
+          Não foi possível carregar a prévia. A geração fica indisponível até a consulta ser concluída.
+        </CardContent></Card>
+      )}
+      {batchesQuery.isError && (
+        <Card className="border-red-300 bg-red-50"><CardContent className="py-3 text-sm text-red-800">
+          Não foi possível verificar se já existe um lote para esta data. A geração fica indisponível até a consulta ser concluída.
+        </CardContent></Card>
+      )}
 
       {/* Batches list for selected date */}
       {batchesQuery.isPending && (
@@ -676,7 +865,7 @@ export default function AdminProduction() {
         </div>
       )}
 
-      {!batchesQuery.isPending && !hasBatch && (
+      {!batchesQuery.isPending && !batchesQuery.isError && !hasBatch && (
         <Card className="border-dashed">
           <CardContent className="py-12 text-center text-muted-foreground">
             <Factory className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -777,6 +966,11 @@ export default function AdminProduction() {
       )}
 
       {/* Batch detail */}
+      {batchDetailQuery.isError && (
+        <Card className="border-red-300 bg-red-50"><CardContent className="py-3 text-sm text-red-800">
+          Não foi possível carregar o snapshot persistido deste lote. Tente consultar novamente.
+        </CardContent></Card>
+      )}
       {activeBatch && (
         <Card>
           <CardHeader>
@@ -982,13 +1176,16 @@ export default function AdminProduction() {
                               <TableCell />
                               <TableCell colSpan={6}>
                                 <div className="bg-muted/30 rounded p-3 text-sm space-y-1">
-                                  {item.orderBreakdown.map((o) => (
+                                  {item.orderBreakdown.map((o, sourceIndex) => (
                                     <div
-                                      key={o.orderId}
+                                      key={`${o.itemId ?? o.orderId}-${sourceIndex}`}
                                       className="flex items-center justify-between"
                                     >
                                       <span className="text-muted-foreground">
-                                        {o.companyName}
+                                        {o.companyName} · Pedido {o.orderCode}
+                                        {o.itemId ? ` · Item ${o.itemId}` : ""}
+                                        {o.deliveryDate ? ` · ${o.deliveryDate}` : ""}
+                                        {o.routeName && o.routeName !== "Sem Rota" ? ` · ${o.routeName}` : ""}
                                       </span>
                                       <span className="font-mono font-medium">
                                         {fmt(o.quantity)} {item.unit}
@@ -1191,8 +1388,17 @@ export default function AdminProduction() {
           </DialogHeader>
           <div className="space-y-3 py-2">
             <p className="text-sm text-muted-foreground">
-              Status incluídos: Criado, Aguardando Aprovação, Aprovado, Liberado para Entrega, Enviado.
+              Esta confirmação cria o snapshot definitivo da demanda para a data. O servidor conferirá novamente os dados; se houver mudança desde a prévia, a geração será recusada para nova conferência.
             </p>
+            {consolidationQuery.data && (
+              <div className="rounded border bg-muted/30 p-3 text-sm space-y-1">
+                <p><strong>{consolidationQuery.data.indicators.productCount}</strong> produtos · <strong>{consolidationQuery.data.indicators.companyCount}</strong> empresas · <strong>{consolidationQuery.data.indicators.orderCount}</strong> pedidos · <strong>{consolidationQuery.data.indicators.itemCount}</strong> itens</p>
+                <p>{consolidationQuery.data.indicators.pendingCount} pendência(s) · {consolidationQuery.data.indicators.inconsistencyCount} inconsistência(s)</p>
+                {consolidationQuery.data.blockers.length > 0 && (
+                  <ul className="ml-5 list-disc text-red-700">{consolidationQuery.data.blockers.map((reason) => <li key={reason}>{reason}</li>)}</ul>
+                )}
+              </div>
+            )}
             <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
               ⚠️ Esta ação não pode ser desfeita sem excluir o lote manualmente.
             </p>
@@ -1204,7 +1410,7 @@ export default function AdminProduction() {
             <Button
               className="bg-orange-500 hover:bg-orange-600 text-white"
               onClick={() => generateMutation.mutate()}
-              disabled={generateMutation.isPending}
+              disabled={generateMutation.isPending || !consolidationQuery.data?.canGenerate || hasBatch}
             >
               {generateMutation.isPending ? "Gerando..." : "Gerar Lote"}
             </Button>

@@ -129,7 +129,7 @@ export function CompanyModal({ isOpen, editingCompany, onClose, onSuccess }: Com
         setFormData(prev => ({ ...prev, latitude: String(latitude), longitude: String(longitude) }));
         toast({ title: "Coordenadas obtidas", description: `${latitude.toFixed(6)}, ${longitude.toFixed(6)}` });
       } else {
-        toast({ title: "Endereço não encontrado", description: "Confira rua, número, bairro, cidade e CEP. Você também pode informar latitude e longitude manualmente.", variant: "destructive" });
+        toast({ title: "Endereço não encontrado", description: "Não foi possível localizar automaticamente. As coordenadas já preenchidas foram mantidas; esta busca não impede salvar. Confira o endereço ou informe latitude e longitude manualmente.", variant: "destructive" });
       }
     } catch {
       toast({ title: "Erro ao buscar coordenadas", description: "Verifique sua conexão e tente novamente.", variant: "destructive" });

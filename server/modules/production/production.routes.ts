@@ -7,33 +7,33 @@ import { requireAuth, requireRole } from "../../core/http/requireAuth";
 import { productionController } from "./production.controller";
 import {
   generateBatchBodySchema,
+  productionConsolidationQuerySchema,
   updateBatchStatusBodySchema,
   updateItemCheckBodySchema,
   listBatchesQuerySchema,
   batchIdParamSchema,
 } from "./production.validation";
+import { PRODUCTION_ACCESS_ROLES } from "./production-authorization";
 
 export const productionRouter = Router();
 
-const PRODUCTION_ROLES = [
-  "MASTER",
-  "ADMIN",
-  "DIRECTOR",
-  "DEVELOPER",
-  "OPERATIONS_MANAGER",
-  "PURCHASE_MANAGER",
-];
-
 // Production is an admin-only module. tenantContext then resolves the
-// authoritative tenant from the authenticated session.
+// authenticated internal principal; production queries deliberately use an
+// explicit global scope instead of the currently selected company.
 productionRouter.use(
   requireAuth,
-  requireRole(PRODUCTION_ROLES),
+  requireRole([...PRODUCTION_ACCESS_ROLES]),
   tenantContext,
   requireTabPermission("production"),
 );
 
 // ─── Batch routes ──────────────────────────────────────────────
+
+productionRouter.get(
+  "/consolidated",
+  validate(productionConsolidationQuerySchema, "query"),
+  asyncHandler(productionController.consolidated),
+);
 
 // GET  /api/production/batches          — list batches
 productionRouter.get(

@@ -289,6 +289,9 @@ export const orders = pgTable("orders", {
   workflowStatus: text("workflow_status").default("CREATED").notNull(),
   // PEDIDO RECORRENTE — true quando gerado automaticamente pelo cron semanal de escopo contratual
   isRecurring: boolean("is_recurring").default(false).notNull(),
+  // Trusted provenance. NULL is retained for legacy rows and is never inferred
+  // from isRecurring or free-text notes.
+  productionOrigin: text("production_origin"),
   // workflowStatus values include CUSTOMER_CONFIRMED between client confirmation and operational release.
   adminNote: text("admin_note"),
   companyId: integer("company_id").references(() => companies.id).notNull(),
@@ -349,13 +352,18 @@ export const specialOrderRequests = pgTable("special_order_requests", {
   quantity: text("quantity").notNull(),
   observations: text("observations"),
   status: text("status").default("PENDING").notNull(), // PENDING, APPROVED, REJECTED
+  generatedOrderId: integer("generated_order_id").references(() => orders.id, { onDelete: "set null" }),
   adminNote: text("admin_note"),
   // Multi-item support: JSON array of {productName, quantity, brand?, category, productType, approvedQuantity?}
   items: jsonb("items"),
   estimatedDeliveryDate: text("estimated_delivery_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   resolvedAt: timestamp("resolved_at"),
-});
+}, (table) => ({
+  generatedOrderUnique: uniqueIndex("special_order_requests_generated_order_unique")
+    .on(table.generatedOrderId)
+    .where(sql`${table.generatedOrderId} IS NOT NULL`),
+}));
 
 // Solicitações de recuperação de senha (clientes)
 export const passwordResetRequests = pgTable("password_reset_requests", {
@@ -582,6 +590,9 @@ export const productionBatches = pgTable("production_batches", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 }, (table) => ({
   empresaDateIdx: index("production_batches_empresa_date_idx").on(table.empresaId, table.productionDate),
+  globalDateUnique: uniqueIndex("production_batches_global_date_unique")
+    .on(table.productionDate)
+    .where(sql`${table.empresaId} IS NULL`),
 }));
 
 export const productionBatchItems = pgTable("production_batch_items", {
@@ -590,6 +601,7 @@ export const productionBatchItems = pgTable("production_batch_items", {
   productId: integer("product_id").references(() => products.id).notNull(),
   productName: text("product_name").notNull(),
   category: text("category"),
+  productionClassification: text("production_classification"),
   unit: text("unit").notNull().default("un"),
   totalQuantity: numeric("total_quantity", { precision: 10, scale: 3 }).notNull(),
   checkedQuantity: numeric("checked_quantity", { precision: 10, scale: 3 }).default("0").notNull(),
@@ -601,6 +613,10 @@ export const productionBatchItems = pgTable("production_batch_items", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   batchIdx: index("production_batch_items_batch_idx").on(table.batchId),
+  productionClassificationCheck: check(
+    "production_batch_items_classification_check",
+    sql`${table.productionClassification} IS NULL OR ${table.productionClassification} IN ('IN_NATURA', 'PROCESSADOS')`,
+  ),
 }));
 
 export const insertProductionBatchSchema = createInsertSchema(productionBatches).omit({ id: true, createdAt: true, updatedAt: true });
@@ -2231,6 +2247,8 @@ export const recurringOrderLogs = pgTable("recurring_order_logs", {
   weekKey: text("week_key").notNull(), // ex: "2026-W30"
   dayOfWeek: text("day_of_week").notNull(), // ex: "Segunda-feira"
   orderId: integer("order_id").references(() => orders.id),
+  contractId: integer("contract_id").references(() => contratosClientes.id),
+  deliveryDate: date("delivery_date"),
   scopeCount: integer("scope_count").notNull().default(0),
   totalValue: numeric("total_value", { precision: 10, scale: 2 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2239,9 +2257,23 @@ export const recurringOrderLogs = pgTable("recurring_order_logs", {
     .on(table.companyId, table.weekKey, table.dayOfWeek),
 }));
 
+// Exact scope/item provenance for a materialized contractual occurrence.
+export const recurringOrderLogItems = pgTable("recurring_order_log_items", {
+  id: serial("id").primaryKey(),
+  recurringOrderLogId: integer("recurring_order_log_id").references(() => recurringOrderLogs.id, { onDelete: "cascade" }).notNull(),
+  contractScopeId: integer("contract_scope_id").references(() => contractScopes.id).notNull(),
+  orderItemId: integer("order_item_id").references(() => orderItems.id).notNull(),
+  quantity: integer("quantity").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (table) => ({
+  uniqueScopePerOccurrence: uniqueIndex("recurring_order_log_items_scope_unique").on(table.recurringOrderLogId, table.contractScopeId),
+  uniqueOrderItemOrigin: uniqueIndex("recurring_order_log_items_order_item_unique").on(table.orderItemId),
+}));
+
 export type RecurringOrderLog = typeof recurringOrderLogs.$inferSelect;
 export const insertRecurringOrderLogSchema = createInsertSchema(recurringOrderLogs).omit({ id: true, createdAt: true });
 export type InsertRecurringOrderLog = z.infer<typeof insertRecurringOrderLogSchema>;
+export type RecurringOrderLogItem = typeof recurringOrderLogItems.$inferSelect;
 
 export function validateSchemaIntegrity(): void {
   const tables = [
@@ -2351,6 +2383,7 @@ export function validateSchemaIntegrity(): void {
     accountsReceivable,
     backupHistory,
     recurringOrderLogs,
+    recurringOrderLogItems,
   ];
 
   if (!tables.length) {

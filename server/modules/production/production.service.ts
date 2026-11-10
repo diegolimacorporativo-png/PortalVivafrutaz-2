@@ -1,246 +1,127 @@
-import { ConflictError, BadRequestError } from "../../shared/errors/AppError";
-import { assertProductionTenantScope, productionRepository } from "./production.repository";
-import type {
-  OrderBreakdownEntry,
-  RouteBreakdownEntry,
-  BatchWithItems,
-} from "./production.repository";
+import { BadRequestError, ConflictError } from "../../shared/errors/AppError";
+import { assertProductionGlobalAccess } from "./production-authorization";
+import { productionRepository } from "./production.repository";
+import type { BatchWithItems } from "./production.repository";
+import { consolidateProduction } from "./production-consolidation";
+import { assessProductionPreview, fingerprintProductionConsolidation } from "./production-preview";
 import type { GenerateBatchBody } from "./production.validation";
 
-/**
- * Valid status transitions for a production batch.
- */
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
-  PENDENTE:     ["EM_PRODUCAO"],
-  EM_PRODUCAO:  ["CONFERIDO", "PENDENTE"],
-  CONFERIDO:    ["FINALIZADO", "EM_PRODUCAO"],
-  FINALIZADO:   [],
+  PENDENTE: ["EM_PRODUCAO"],
+  EM_PRODUCAO: ["CONFERIDO", "PENDENTE"],
+  CONFERIDO: ["FINALIZADO", "EM_PRODUCAO"],
+  FINALIZADO: [],
 };
 
+function isGlobalDateConflict(error: any): boolean {
+  return (error?.code === "23505" || error?.cause?.code === "23505") &&
+    (error?.constraint === "production_batches_global_date_unique" || error?.cause?.constraint === "production_batches_global_date_unique");
+}
+
+function isSerializationConflict(error: any): boolean {
+  return error?.code === "40001" || error?.cause?.code === "40001";
+}
+
+async function loadConsolidation(date: string, tx: any) {
+  const [rows, routes, missingContractOccurrences] = await Promise.all([
+    productionRepository.getGlobalSourceRowsForDate(date, tx),
+    productionRepository.getGlobalRoutesForDate(date, tx),
+    productionRepository.getMissingContractOccurrencesForDate(date, tx),
+  ]);
+  return consolidateProduction(date, rows, routes, missingContractOccurrences);
+}
+
+function buildPreview(consolidation: Awaited<ReturnType<typeof loadConsolidation>>) {
+  return {
+    ...consolidation,
+    ...assessProductionPreview(consolidation),
+    previewFingerprint: fingerprintProductionConsolidation(consolidation),
+  };
+}
+
 export const productionService = {
-  /**
-   * Generate a daily production batch from orders with the given delivery date.
-   * Fails if a batch for this date + empresaId already exists.
-   */
-  async generateBatch(
-    empresaId: number | null,
-    body: GenerateBatchBody,
-  ): Promise<BatchWithItems> {
-    assertProductionTenantScope(empresaId, "write");
-    const { productionDate, includeStatuses } = body;
-
-    // Guard: no duplicate batches per day
-    const existing = await productionRepository.findByDateAndEmpresa(
-      empresaId,
-      productionDate,
-    );
-    if (existing) {
-      throw new ConflictError(
-        `Já existe um lote de produção para ${productionDate}. Exclua-o antes de gerar novamente.`,
-      );
-    }
-
-    // Fetch raw order items for the date
-    const rawItems = await productionRepository.getRawOrderItemsForDate(
-      empresaId,
-      productionDate,
-      includeStatuses,
-    );
-
-    if (rawItems.length === 0) {
-      throw new BadRequestError(
-        `Nenhum pedido encontrado para ${productionDate} com os status selecionados.`,
-      );
-    }
-
-    // Fetch logistics routes for the date (to build route breakdown)
-    const routes = await productionRepository.getRoutesForDate(
-      empresaId,
-      productionDate,
-    );
-
-    // Build a map: companyId → routeId + routeName
-    const companyRouteMap = new Map<number, { routeId: number; routeName: string }>();
-    for (const route of routes) {
-      for (const cid of route.companyIds) {
-        companyRouteMap.set(cid, { routeId: route.id, routeName: route.name });
-      }
-    }
-
-    // Aggregate items by product
-    const productMap = new Map<
-      number,
-      {
-        productId: number;
-        productName: string;
-        category: string | null;
-        unit: string;
-        totalQuantity: number;
-        orders: Map<number, OrderBreakdownEntry>;
-      }
-    >();
-
-    for (const row of rawItems) {
-      if (!productMap.has(row.productId)) {
-        productMap.set(row.productId, {
-          productId: row.productId,
-          productName: row.productName,
-          category: row.category,
-          unit: row.unit ?? "un",
-          totalQuantity: 0,
-          orders: new Map(),
-        });
-      }
-      const entry = productMap.get(row.productId)!;
-      entry.totalQuantity += row.quantity;
-
-      // Order breakdown — merge duplicate orders (same orderId, same product)
-      const existing = entry.orders.get(row.orderId);
-      if (existing) {
-        existing.quantity += row.quantity;
-      } else {
-        entry.orders.set(row.orderId, {
-          orderId: row.orderId,
-          orderCode: row.orderCode ?? `#${row.orderId}`,
-          companyId: row.companyId,
-          companyName: row.companyName,
-          quantity: row.quantity,
-        });
-      }
-    }
-
-    // Build items with route breakdown
-    const itemsData = Array.from(productMap.values()).map((entry) => {
-      const orderBreakdown: OrderBreakdownEntry[] = Array.from(
-        entry.orders.values(),
-      ).sort((a, b) => a.companyName.localeCompare(b.companyName));
-
-      // Build route breakdown: group companies by route
-      const routeMap = new Map<
-        string, // "routeId" or "sem-rota"
-        {
-          routeId: number | null;
-          routeName: string;
-          quantity: number;
-          companies: Map<number, { companyId: number; companyName: string; quantity: number }>;
-        }
-      >();
-
-      for (const orderEntry of orderBreakdown) {
-        const routeInfo = companyRouteMap.get(orderEntry.companyId);
-        const key = routeInfo ? String(routeInfo.routeId) : "sem-rota";
-        if (!routeMap.has(key)) {
-          routeMap.set(key, {
-            routeId: routeInfo?.routeId ?? null,
-            routeName: routeInfo?.routeName ?? "Sem Rota",
-            quantity: 0,
-            companies: new Map(),
-          });
-        }
-        const routeEntry = routeMap.get(key)!;
-        routeEntry.quantity += orderEntry.quantity;
-
-        const companyEntry = routeEntry.companies.get(orderEntry.companyId);
-        if (companyEntry) {
-          companyEntry.quantity += orderEntry.quantity;
-        } else {
-          routeEntry.companies.set(orderEntry.companyId, {
-            companyId: orderEntry.companyId,
-            companyName: orderEntry.companyName,
-            quantity: orderEntry.quantity,
-          });
-        }
-      }
-
-      const routeBreakdown: RouteBreakdownEntry[] = Array.from(
-        routeMap.values(),
-      )
-        .map((r) => ({
-          routeId: r.routeId,
-          routeName: r.routeName,
-          quantity: r.quantity,
-          companies: Array.from(r.companies.values()).sort((a, b) =>
-            a.companyName.localeCompare(b.companyName),
-          ),
-        }))
-        .sort((a, b) => a.routeName.localeCompare(b.routeName));
-
-      return {
-        productId: entry.productId,
-        productName: entry.productName,
-        category: entry.category,
-        unit: entry.unit,
-        totalQuantity: entry.totalQuantity,
-        orderBreakdown,
-        routeBreakdown,
-      };
+  async getConsolidationForDate(productionDate: string) {
+    assertProductionGlobalAccess();
+    return productionRepository.withGlobalTransaction(async (tx) => {
+      return buildPreview(await loadConsolidation(productionDate, tx));
     });
-
-    // Sort by category then product name
-    itemsData.sort((a, b) => {
-      const catA = a.category ?? "z";
-      const catB = b.category ?? "z";
-      if (catA !== catB) return catA.localeCompare(catB);
-      return a.productName.localeCompare(b.productName);
-    });
-
-    return productionRepository.createBatch(
-      {
-        empresaId,
-        productionDate,
-        status: "PENDENTE",
-        generatedAt: new Date(),
-      },
-      itemsData,
-    );
   },
 
-  async list(
-    empresaId: number | null,
-    opts: { status?: string; date?: string; page: number; limit: number },
-  ) {
-    return productionRepository.list(empresaId, opts);
+  /** Creates exactly one global daily batch from an isolated, repeatable-read snapshot. */
+  async generateBatch(body: GenerateBatchBody): Promise<BatchWithItems & {
+    pending: any;
+    previewFingerprint: string;
+    indicators: ReturnType<typeof assessProductionPreview>["indicators"];
+  }> {
+    assertProductionGlobalAccess();
+    try {
+      return await productionRepository.withGlobalTransaction(async (tx) => {
+        const existing = await productionRepository.findGlobalBatchByDate(body.productionDate, tx);
+        if (existing) {
+          throw new ConflictError(`Já existe produção global para ${body.productionDate}.`);
+        }
+
+        const consolidation = await loadConsolidation(body.productionDate, tx);
+        const preview = buildPreview(consolidation);
+        if (preview.previewFingerprint !== body.previewFingerprint) {
+          throw new ConflictError("Os pedidos, contratos ou ocorrências mudaram desde a prévia. Atualize a conferência antes de gerar o lote.");
+        }
+        if (!preview.canGenerate) {
+          throw new BadRequestError(`A produção não pode ser gerada: ${preview.blockers.join(" ")}`);
+        }
+
+        const items = consolidation.products.map((product) => ({
+          productId: product.productId,
+          productName: product.productName,
+          category: product.category,
+          productionClassification: product.productionClassification,
+          unit: product.unit,
+          totalQuantity: product.totalQuantity,
+          orderBreakdown: product.sources,
+          routeBreakdown: product.routeBreakdown,
+        }));
+        const batch = await productionRepository.createGlobalBatchInTransaction(tx, body.productionDate, items);
+        return { ...batch, pending: consolidation.pending, previewFingerprint: preview.previewFingerprint, indicators: preview.indicators };
+      }, "serializable");
+    } catch (error) {
+      if (isGlobalDateConflict(error)) {
+        throw new ConflictError(`Outra execução já criou a produção global para ${body.productionDate}.`);
+      }
+      if (isSerializationConflict(error)) {
+        throw new ConflictError("Os dados da produção mudaram durante a confirmação. Atualize a prévia e confirme novamente.");
+      }
+      throw error;
+    }
   },
 
-  async getById(id: number, empresaId: number | null) {
-    return productionRepository.getById(id, empresaId);
+  async list(_empresaId: number | null, opts: { status?: string; date?: string; page: number; limit: number }) {
+    assertProductionGlobalAccess();
+    return productionRepository.listGlobal(opts);
   },
 
-  async updateStatus(
-    id: number,
-    empresaId: number | null,
-    newStatus: string,
-    notes?: string,
-  ) {
-    assertProductionTenantScope(empresaId, "write");
-    const batch = await productionRepository.getById(id, empresaId);
+  async getById(id: number, _empresaId: number | null) {
+    assertProductionGlobalAccess();
+    return productionRepository.getGlobalBatchById(id);
+  },
+
+  async updateStatus(id: number, _empresaId: number | null, newStatus: string, notes?: string) {
+    assertProductionGlobalAccess();
+    const batch = await productionRepository.getGlobalBatchById(id);
     const allowed = ALLOWED_TRANSITIONS[batch.status] ?? [];
     if (!allowed.includes(newStatus)) {
-      throw new BadRequestError(
-        `Transição inválida: ${batch.status} → ${newStatus}. Permitidas: ${allowed.join(", ") || "nenhuma"}`,
-      );
+      throw new BadRequestError(`Transição inválida: ${batch.status} → ${newStatus}. Permitidas: ${allowed.join(", ") || "nenhuma"}`);
     }
-    return productionRepository.updateStatus(id, empresaId, newStatus, notes);
+    return productionRepository.updateGlobalStatus(id, newStatus, notes);
   },
 
-  async updateItemCheck(
-    itemId: number,
-    empresaId: number | null,
-    checkedQuantity: number,
-    notes?: string,
-  ) {
-    assertProductionTenantScope(empresaId, "write");
-    return productionRepository.updateItemCheck(
-      itemId,
-      empresaId,
-      checkedQuantity,
-      notes,
-    );
+  async updateItemCheck(itemId: number, _empresaId: number | null, checkedQuantity: number, notes?: string) {
+    assertProductionGlobalAccess();
+    return productionRepository.updateGlobalItemCheck(itemId, checkedQuantity, notes);
   },
 
-  async deleteBatch(id: number, empresaId: number | null) {
-    assertProductionTenantScope(empresaId, "write");
-    await productionRepository.getById(id, empresaId); // also enforces tenant scope
-    await productionRepository.deleteBatch(id, empresaId);
+  async deleteBatch(id: number, _empresaId: number | null) {
+    assertProductionGlobalAccess();
+    await productionRepository.getGlobalBatchById(id);
+    await productionRepository.deleteGlobalBatch(id);
   },
 };

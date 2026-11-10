@@ -4,8 +4,7 @@ import {
   ForbiddenError,
 } from "../../shared/errors/AppError";
 import { storage } from "../../services/storage";
-// R1: pipeline oficial de criação de pedidos — evita bypass do OrdersService
-import { ordersService } from "../orders/orders.service";
+import { runRecurringOrdersCron } from "../../jobs/recurring-orders.cron";
 import {
   companiesRepository,
   CompaniesRepository,
@@ -305,9 +304,8 @@ export class CompaniesService {
   }
 
   /**
-   * generate-orders-from-scope: builds one order per delivery day of the
-   * current week from the company's contract scope. Cross-domain — touches
-   * the orders boundary via storage. Preserved 1:1 from the legacy handler.
+   * Reuse the idempotent recurring occurrence pipeline. The administrative
+   * endpoint must not materialize a second, untracked copy from contract scopes.
    */
   async generateOrdersFromScope(companyId: number) {
     const company = await this.repo.get(companyId);
@@ -321,98 +319,11 @@ export class CompaniesService {
         "Escopo contratual vazio. Adicione itens ao escopo primeiro.",
       );
     }
-    const products = await storage.getProducts();
-    const prodById = new Map(products.map((p: any) => [p.id, p]));
-
-    const DAY_OFFSET: Record<string, number> = {
-      "Segunda-feira": 0,
-      "Terça-feira": 1,
-      "Quarta-feira": 2,
-      "Quinta-feira": 3,
-      "Sexta-feira": 4,
-    };
-
-    const today = new Date();
-    const isoDay = today.getDay() === 0 ? 7 : today.getDay();
-    const monday = new Date(today);
-    monday.setDate(today.getDate() - (isoDay - 1));
-    monday.setHours(15, 0, 0, 0);
-
-    const year = today.getFullYear();
-    const weekNum = Math.ceil(
-      (monday.getDate() + new Date(year, monday.getMonth(), 1).getDay()) / 7,
-    );
-    const monthName = monday.toLocaleDateString("pt-BR", {
-      month: "short",
-      year: "numeric",
-    });
-    const weekLabel = `Semana ${weekNum} - ${
-      monthName.charAt(0).toUpperCase() + monthName.slice(1)
-    }`;
-
-    const byDay: Record<string, typeof scopes> = {};
-    for (const s of scopes) {
-      // ??= initializes the slot to [] only if absent, then push goes through
-      // a single non-undefined reference (TS narrows the index access).
-      (byDay[s.dayOfWeek] ??= []).push(s);
+    const result = await runRecurringOrdersCron({ companyId });
+    if (result.errors > 0) {
+      throw new BadRequestError("Uma ou mais ocorrências não puderam ser materializadas. Revise os logs de pendência.");
     }
-
-    const createdOrders: any[] = [];
-    for (const [dayName, dayScopes] of Object.entries(byDay)) {
-      const offset = DAY_OFFSET[dayName];
-      if (offset === undefined) continue;
-      const deliveryDate = new Date(monday);
-      deliveryDate.setDate(monday.getDate() + offset);
-
-      const items = dayScopes
-        .map((scope) => {
-          const unitPrice = scope.unitPrice ? Number(scope.unitPrice) : 0;
-          const qty = Number(scope.quantity) || 1;
-          return {
-            productId: scope.productId,
-            quantity: String(qty),
-            unitPrice: String(unitPrice),
-            totalPrice: String(Math.round(unitPrice * qty * 100) / 100),
-          };
-        })
-        .filter((item) => prodById.has(item.productId));
-
-      if (!items.length) continue;
-
-      const totalValue = items.reduce((s, i) => s + Number(i.totalPrice), 0);
-
-      // R1: use o pipeline oficial de criação de pedidos (OrdersService.createInternal)
-      // em vez de storage.createOrder diretamente, garantindo audit log, auto-logistics
-      // e notificações em todos os pedidos gerados por escopo contratual.
-      const order = await ordersService.createInternal(
-        {
-          companyId,
-          deliveryDate,
-          weekReference: weekLabel,
-          totalValue: String(Math.round(totalValue * 100) / 100),
-          status: "ACTIVE",
-          orderNote: `Gerado automaticamente do escopo contratual (${dayName})`,
-          orderDate: new Date(),
-          adminNote: null,
-          allowReplication: false,
-          nimbiExpiration: null,
-          reopenReason: null,
-          reopenRequestedAt: null,
-          fiscalStatus: "nota_pendente",
-          preNotaNumber: null,
-          erpExportStatus: "nao_exportado",
-          erpExportedAt: null,
-          erpId: null,
-          erpExportError: null,
-        },
-        items as any,
-        { source: "generate-orders-from-scope" },
-      );
-
-      createdOrders.push({ ...order, dayName });
-    }
-
-    return { created: createdOrders.length, orders: createdOrders, weekLabel };
+    return { created: result.created, orders: result.orders, weekLabel: result.weekLabel };
   }
 
   // ── Company Addresses ──────────────────────────────────────────────────

@@ -12,6 +12,8 @@ import { ordersService } from "../modules/orders/orders.service";
 import { makeSourceDescriptionSnapshot } from "../modules/products/product-identification";
 import { productService } from "../modules/products/products.service";
 import { resolveProductPrice } from "../modules/products/utils/priceResolver";
+import { db } from "../database/db";
+import { materializeSpecialOrderRequest } from "../modules/special-orders/special-order-materialization";
 import {
   SPECIAL_ORDER_MANAGE_ROLES,
   SPECIAL_ORDER_VIEW_ROLES,
@@ -161,7 +163,11 @@ export function register(app: Express) {
         ? await storage.getSpecialOrderRequest(id)
         : await storage.getSpecialOrderRequestForCompany(id, request.scope.companyId);
       if (!sr) return res.status(404).json({ message: 'Solicitação não encontrada' });
+      if (status === "APPROVED" && sr.generatedOrderId) {
+        return res.status(409).json({ message: "Esta solicitação já foi materializada em pedido." });
+      }
       let generatedOrder: any = null;
+      let updatedFromConversion: any = null;
       let finalAdminNote = adminNote;
 
       // Catalog items become a regular order only after the administrator
@@ -213,31 +219,47 @@ export function register(app: Express) {
              };
            });
 
-           generatedOrder = await runWithTenant(
+           const conversion = await runWithTenant(
              {
                principal: { kind: "admin", empresaId: sr.companyId, userId: req.session.userId!, role: actingUser.role },
                empresaId: sr.companyId,
              },
-             () => ordersService.createInternal(
-               {
-                 companyId: sr.companyId,
-                 deliveryDate: new Date(`${requestedDate}T12:00:00`),
-                 weekReference: isoWeekReference(requestedDate),
-                 workflowStatus: "CREATED",
-                 status: "CONFIRMED",
-                 orderNote: `Gerado a partir do Pedido Pontual PP-${String(sr.id).padStart(6, "0")}${sr.observations ? ` — ${sr.observations}` : ""}`,
-                 allowReplication: false,
-                 isRecurring: false,
-               },
-               orderItems,
-               { source: "special-order-approval", actorRole: actingUser.role },
-             ),
+             () => db.transaction(async (tx) => materializeSpecialOrderRequest(tx, {
+               requestId: id,
+               companyId: sr.companyId,
+               createOrder: () => ordersService.createInternal(
+                 {
+                   companyId: sr.companyId,
+                   deliveryDate: new Date(`${requestedDate}T12:00:00`),
+                   weekReference: isoWeekReference(requestedDate),
+                   workflowStatus: "APPROVED",
+                   status: "CONFIRMED",
+                   productionOrigin: "SPECIAL",
+                   orderNote: `Gerado a partir do Pedido Pontual PP-${String(sr.id).padStart(6, "0")}${sr.observations ? ` — ${sr.observations}` : ""}`,
+                   allowReplication: false,
+                   isRecurring: false,
+                 },
+                 orderItems,
+                 { source: "special-order-approval", actorRole: actingUser.role, tx },
+               ),
+               updateForOrder: (order) => ({
+                 status: "APPROVED",
+                 adminNote: `${adminNote || "Pedido pontual aprovado!"} Pedido encaminhado à programação (${order.orderCode}).`,
+                 resolvedAt: new Date(),
+                 ...(items !== undefined ? { items } : {}),
+                 ...(estimatedDeliveryDate !== undefined ? { estimatedDeliveryDate } : {}),
+               }),
+             })),
            );
+           generatedOrder = conversion.order;
+           updatedFromConversion = conversion.request;
+           if (!generatedOrder) return res.status(409).json({ message: "Esta solicitação já foi materializada em pedido." });
+           ordersService.dispatchInternalOrderCreated(generatedOrder, generatedOrder, orderItems, { source: "special-order-approval", actorRole: actingUser.role });
            finalAdminNote = `${adminNote || "Pedido pontual aprovado!"} Pedido encaminhado à programação (${generatedOrder.orderCode}).`;
          }
        }
 
-      const updated = request.scope.companyId == null
+      const updated = updatedFromConversion ?? (request.scope.companyId == null
         ? await storage.updateSpecialOrderRequest(id, {
             status, adminNote: finalAdminNote, resolvedAt: new Date(),
             ...(items !== undefined ? { items } : {}),
@@ -247,7 +269,7 @@ export function register(app: Express) {
             status, adminNote: finalAdminNote, resolvedAt: new Date(),
             ...(items !== undefined ? { items } : {}),
             ...(estimatedDeliveryDate !== undefined ? { estimatedDeliveryDate } : {}),
-          } as any);
+          } as any));
       if (!updated) return res.status(404).json({ message: 'Solicitação não encontrada' });
       res.json({ ...updated, generatedOrder });
 
