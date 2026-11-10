@@ -47,6 +47,49 @@ export function buildGeocodeUrl(query: Record<string, unknown>): URL | null {
   return url;
 }
 
+/**
+ * Nominatim can return no result when every address component is constrained
+ * at once (a common case for Brazilian CEPs/neighborhood names). Retry only
+ * with progressively simpler descriptions of the same street address. Every
+ * fallback keeps the street and number; we never fall back to city/CEP-only
+ * coordinates that could silently point to a centroid instead of the company.
+ */
+export function buildGeocodeUrls(query: Record<string, unknown>): URL[] {
+  const primary = buildGeocodeUrl(query);
+  if (!primary) return [];
+
+  const street = queryValue(query.street);
+  const number = queryValue(query.number);
+  const city = queryValue(query.city);
+  const state = queryValue(query.state);
+  const neighborhood = queryValue(query.neighborhood);
+  const country = "Brasil";
+  const streetLine = [number, street].filter(Boolean).join(" ");
+  const candidates = [primary];
+
+  if (street && city) {
+    const withoutNeighborhoodAndPostalCode = new URL(NOMINATIM_ENDPOINT);
+    withoutNeighborhoodAndPostalCode.searchParams.set("format", "jsonv2");
+    withoutNeighborhoodAndPostalCode.searchParams.set("limit", "1");
+    withoutNeighborhoodAndPostalCode.searchParams.set("countrycodes", "br");
+    withoutNeighborhoodAndPostalCode.searchParams.set("addressdetails", "1");
+    withoutNeighborhoodAndPostalCode.searchParams.set("street", streetLine);
+    withoutNeighborhoodAndPostalCode.searchParams.set("city", city);
+    if (state) withoutNeighborhoodAndPostalCode.searchParams.set("state", state);
+    candidates.push(withoutNeighborhoodAndPostalCode);
+
+    const freeText = new URL(NOMINATIM_ENDPOINT);
+    freeText.searchParams.set("format", "jsonv2");
+    freeText.searchParams.set("limit", "1");
+    freeText.searchParams.set("countrycodes", "br");
+    freeText.searchParams.set("addressdetails", "1");
+    freeText.searchParams.set("q", [streetLine, neighborhood, city, state, country].filter(Boolean).join(", "));
+    candidates.push(freeText);
+  }
+
+  return [...new Map(candidates.map((url) => [url.toString(), url])).values()];
+}
+
 async function fetchNominatim(url: URL): Promise<Response> {
   // Nominatim's public endpoint asks applications to stay at or below one
   // request per second. This queue and the cache apply within this Node process.
@@ -85,32 +128,38 @@ function normalizeResults(payload: unknown): GeocodeResult[] {
 
 export function register(app: Express) {
   app.get('/api/geocode', async (req, res) => {
-    const url = buildGeocodeUrl(req.query as Record<string, unknown>);
-    if (!url) return res.status(400).json({ message: 'Informe rua, cidade, CEP ou endereço para localizar.' });
-
-    const cacheKey = url.toString();
-    const cached = geocodeCache.get(cacheKey);
-    if (cached && cached.expiresAt > Date.now()) return res.json(cached.results);
+    const urls = buildGeocodeUrls(req.query as Record<string, unknown>);
+    if (!urls.length) return res.status(400).json({ message: 'Informe rua, cidade, CEP ou endereço para localizar.' });
 
     try {
-      const response = await fetchNominatim(url);
-      if (!response.ok) {
-        // Keep the provider's response body out of the API/logs; it may contain
-        // upstream diagnostics and is not useful to the end user.
-        return res.status(response.status === 429 ? 503 : 502).json({
-          message: response.status === 429
-            ? 'O serviço de mapas está temporariamente ocupado. Tente novamente em instantes.'
-            : 'Não foi possível consultar o serviço de mapas agora.',
-        });
-      }
+      for (const url of urls) {
+        const cacheKey = url.toString();
+        const cached = geocodeCache.get(cacheKey);
+        if (cached && cached.expiresAt > Date.now()) {
+          if (cached.results.length) return res.json(cached.results);
+          continue;
+        }
 
-      const results = normalizeResults(await response.json());
-      geocodeCache.set(cacheKey, { results, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
-      if (geocodeCache.size > 500) {
-        const firstKey = geocodeCache.keys().next().value;
-        if (firstKey) geocodeCache.delete(firstKey);
+        const response = await fetchNominatim(url);
+        if (!response.ok) {
+          // Keep the provider's response body out of the API/logs; it may contain
+          // upstream diagnostics and is not useful to the end user.
+          return res.status(response.status === 429 ? 503 : 502).json({
+            message: response.status === 429
+              ? 'O serviço de mapas está temporariamente ocupado. Tente novamente em instantes.'
+              : 'Não foi possível consultar o serviço de mapas agora.',
+          });
+        }
+
+        const results = normalizeResults(await response.json());
+        geocodeCache.set(cacheKey, { results, expiresAt: Date.now() + 24 * 60 * 60 * 1000 });
+        if (geocodeCache.size > 500) {
+          const firstKey = geocodeCache.keys().next().value;
+          if (firstKey) geocodeCache.delete(firstKey);
+        }
+        if (results.length) return res.json(results);
       }
-      return res.json(results);
+      return res.json([]);
     } catch {
       return res.status(503).json({ message: 'O serviço de mapas não respondeu. Confira a conexão e tente novamente.' });
     }
