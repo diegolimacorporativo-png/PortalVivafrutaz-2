@@ -1,4 +1,5 @@
 import type { Product } from "@shared/schema";
+import { resolveProductionClassification } from "@shared/production-classification";
 import type { CategorySelection, PricingMode } from "./types";
 
 export const UNITS = [
@@ -65,10 +66,7 @@ export function productToForm(p: Product): ProductForm {
     cst: (p as any).cst || "",
     commercialUnit: (p as any).commercialUnit || "",
     productCode: (p as any).productCode || "",
-    productionClassification:
-      p.productionClassification === "IN_NATURA" || p.productionClassification === "PROCESSADOS"
-        ? p.productionClassification
-        : null,
+    productionClassification: resolveProductionClassification(p.category, p.productionClassification),
     importado: (p as any).importado === true,
     categorySelections: [],
     pricingMode: inferredMode,
