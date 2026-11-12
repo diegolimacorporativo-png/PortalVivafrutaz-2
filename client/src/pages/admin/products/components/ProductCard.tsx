@@ -1,5 +1,6 @@
 import { Edit2, Package, DollarSign, Factory, Snowflake, Leaf, Layers, Tag } from "lucide-react";
 import type { Product } from "@shared/schema";
+import { resolveProductionClassification } from "@shared/production-classification";
 import { resolvePrice, formatPriceOrDash, priceSource } from "@/utils/priceResolver";
 
 interface ProductCardProps {
@@ -8,6 +9,10 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, onEdit }: ProductCardProps) {
+  const productionClassification = resolveProductionClassification(
+    product.category,
+    product.productionClassification,
+  );
   const productPricingMode = (product as any).pricingMode as "base" | "category" | undefined;
   const resolved = resolvePrice({
     basePrice: product.basePrice,
@@ -49,15 +54,12 @@ export function ProductCard({ product, onEdit }: ProductCardProps) {
             <Leaf className="w-3 h-3" /> Fora de safra
           </span>
         )}
-        {product.productionClassification ? (
-          <span className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-bold">
-            {product.productionClassification === "IN_NATURA" ? "In Natura" : "Processados"}
-          </span>
-        ) : (
-          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded-md text-[10px] font-bold">
-            Classificar produção
-          </span>
-        )}
+        <span
+          data-testid={`badge-production-classification-${product.id}`}
+          className="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-bold"
+        >
+          {productionClassification === "IN_NATURA" ? "In Natura" : "Processados"}
+        </span>
       </div>
 
       {(product as any).imageUrl ? (

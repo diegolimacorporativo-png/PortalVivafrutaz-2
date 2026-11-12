@@ -12,8 +12,16 @@ export function resolveProductionClassification(
   explicit: string | null | undefined,
 ): ProductionClassification {
   const normalized = normalizeCategory(category);
-  if (/\bprocessad[oa]s?\b/.test(normalized)) return "PROCESSADOS";
   if (/\bin natura\b/.test(normalized)) return "IN_NATURA";
+  // These are the processed-production sections used by the official sheets,
+  // even when the catalog category does not literally contain "processados".
+  if (
+    /\bprocessad[oa]s?\b/.test(normalized) ||
+    /\bsnacks saudaveis\b/.test(normalized) ||
+    /\blinha de oleaginosas e secas\b/.test(normalized) ||
+    /\bindustrializados\b/.test(normalized) ||
+    /\bfrutas cortadas e porcionadas\b/.test(normalized)
+  ) return "PROCESSADOS";
   if (explicit === "IN_NATURA" || explicit === "PROCESSADOS") return explicit;
   return "IN_NATURA";
 }
