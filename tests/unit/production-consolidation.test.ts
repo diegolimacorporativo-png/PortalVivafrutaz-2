@@ -111,7 +111,7 @@ test("aplica elegibilidade das três origens e exclui origem sem comprovação",
   assert.equal(result.pending.inconsistentOrigins.length, 2);
 });
 
-test("ocorrências contratuais ausentes, produto desconhecido e classificação pendente não viram quantidade produtiva", () => {
+test("ocorrências contratuais ausentes e produto desconhecido não viram quantidade produtiva; demais categorias recebem In Natura", () => {
   const result = consolidateProduction(date, [
     source({ itemId: 1, productId: null, productName: null, quantity: 8 }),
     source({ itemId: 2, productId: 9, productName: "Kiwi", productionClassification: null, quantity: 12 }),
@@ -120,10 +120,24 @@ test("ocorrências contratuais ausentes, produto desconhecido e classificação 
     productId: 3, productName: "Uva", quantity: 30, deliveryDate: date,
     reason: "OCORRENCIA_CONTRATUAL_SEM_PEDIDO_MATERIALIZADO",
   }]);
-  assert.equal(result.products.length, 0);
+  assert.equal(result.products.length, 1);
+  assert.equal(result.products[0].productionClassification, "IN_NATURA");
+  assert.equal(result.products[0].totalQuantity, 12);
   assert.equal(result.pending.unidentifiedItems.length, 1);
-  assert.equal(result.pending.unclassifiedItems.length, 1);
+  assert.equal(result.pending.unclassifiedItems.length, 0);
   assert.equal(result.pending.missingContractOccurrences.length, 1);
+});
+
+test("classifica automaticamente categorias processadas e aplica In Natura às demais", () => {
+  const result = consolidateProduction(date, [
+    source({ itemId: 1, category: "FRUTAS PROCESSADAS - (EMBALAGEM PLÁSTICA)", productionClassification: null }),
+    source({ itemId: 2, productId: 8, productName: "Pêssego", category: "Frutas In Natura", productionClassification: null }),
+    source({ itemId: 3, productId: 9, productName: "Produto legado", category: "Categoria", productionClassification: null }),
+  ], []);
+  assert.equal(result.products.find((item) => item.productId === 7)?.productionClassification, "PROCESSADOS");
+  assert.equal(result.products.find((item) => item.productId === 8)?.productionClassification, "IN_NATURA");
+  assert.equal(result.products.find((item) => item.productId === 9)?.productionClassification, "IN_NATURA");
+  assert.equal(result.pending.unclassifiedItems.length, 0);
 });
 
 test("acesso global é validado pelo principal interno, não pela empresa selecionada", () => {

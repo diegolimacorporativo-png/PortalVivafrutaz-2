@@ -16,6 +16,7 @@ import { getTenantContext } from "../../core/tenant/context";
 import { UnauthorizedError } from "../../shared/errors/AppError";
 import { tenantWhere } from "../../core/tenant/scope";
 import { catalogReadTenantWhere } from "./products.tenant";
+import { resolveProductionClassification } from "../../../shared/production-classification";
 // Price Resolver — imported for future activation only. Do NOT call it
 // from any persisted-write path yet. See utils/priceResolver.ts.
 // FUTURE:
@@ -76,7 +77,11 @@ export class ProductService {
   constructor(private readonly repo: IProductRepository = productRepository) {}
 
   private normalize(p: Product): NormalizedProduct {
-    return { ...p, basePrice: p.basePrice !== null ? Number(p.basePrice) : null };
+    return {
+      ...p,
+      basePrice: p.basePrice !== null ? Number(p.basePrice) : null,
+      productionClassification: resolveProductionClassification(p.category, p.productionClassification),
+    };
   }
 
   async listProducts(): Promise<NormalizedProduct[]> {

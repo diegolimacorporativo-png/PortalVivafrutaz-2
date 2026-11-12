@@ -29,6 +29,7 @@ function asBatch(value: Awaited<ReturnType<typeof productionRepository.getGlobal
     items: value.items.map((item) => ({
       productId: item.productId,
       productName: item.productName,
+      category: item.category,
       unit: item.unit,
       productionClassification: item.productionClassification as ProductionExportItem["productionClassification"],
       totalQuantity: item.totalQuantity,

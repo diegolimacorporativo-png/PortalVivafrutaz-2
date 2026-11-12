@@ -25,6 +25,7 @@ export interface ProductionExportSource {
 export interface ProductionExportItem {
   productId: number;
   productName: string;
+  category?: string | null;
   unit: string;
   productionClassification: "IN_NATURA" | "PROCESSADOS";
   totalQuantity: string | number;
@@ -53,6 +54,11 @@ function normalize(value: string): string {
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+// Reviewed exact alias from the current catalog to the official In Natura header.
+const IN_NATURA_HEADER_ALIASES: Readonly<Record<string, string>> = {
+  "pessego nacional inicio safra": "pessego",
+};
+
 function hasBioMarker(value: string): boolean {
   return /\b(?:bio|biodegrad[aá]vel)\b/i.test(value);
 }
@@ -71,7 +77,8 @@ export function resolveInNaturaHeader(
   subCategoryName: string | null | undefined,
   candidates: HeaderCandidate[],
 ): HeaderResolution {
-  const productKey = normalize(productName);
+  const normalizedProduct = normalize(productName);
+  const productKey = IN_NATURA_HEADER_ALIASES[normalizedProduct] ?? normalizedProduct;
   if (!productKey) return { status: "unmatched" };
   let matching = candidates.filter((candidate) => normalize(candidate.header) === productKey);
 
@@ -102,10 +109,24 @@ export function deliveryAddressDisplay(source: ProductionExportSource): string |
 export type ProcessedPackaging = "BIO_100G" | "P07_PLASTIC_100G" | "POT_200G" | "PET" | "KG";
 
 /** P07 means plastic, while Bio means biodegradable; never infer either from productId alone. */
-export function classifyProcessedPackaging(subCategoryName: string | null | undefined): ProcessedPackaging | null {
+export function classifyProcessedPackaging(
+  subCategoryName: string | null | undefined,
+  categoryName?: string | null,
+  productName?: string | null,
+): ProcessedPackaging | null {
   const value = subCategoryName ?? "";
+  const category = categoryName ?? "";
+  const normalizedProduct = normalize(productName ?? "");
+  const processedPlastic = hasPlasticMarker(value) || hasPlasticMarker(category);
+  // The approved catalog item is a 170g plastic fruit-and-yogurt pot; the
+  // official Processados template places that exact item in the PET block.
+  if ((normalizedProduct === "de manga e iogurte grego" || normalizedProduct === "manga e iogurte grego") && processedPlastic) return "PET";
   if (hasBioMarker(value)) return /100\s*g/i.test(value) ? "BIO_100G" : null;
-  if (hasPlasticMarker(value)) return /100\s*g/i.test(value) ? "P07_PLASTIC_100G" : null;
+  if (hasPlasticMarker(value) || hasPlasticMarker(category)) {
+    const packagingDescription = `${value} ${category}`;
+    if (/\bpet\b/i.test(packagingDescription)) return "PET";
+    return /100\s*g/i.test(packagingDescription) ? "P07_PLASTIC_100G" : null;
+  }
   if (/\bpet\b/i.test(value)) return "PET";
   if (/200\s*g/i.test(value)) return "POT_200G";
   if (/\bkg\b/i.test(value)) return "KG";
