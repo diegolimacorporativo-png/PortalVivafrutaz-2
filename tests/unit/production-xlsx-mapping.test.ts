@@ -21,6 +21,52 @@ test("resolves only exact normalized official product headers", () => {
   ]), { status: "unmatched" });
 });
 
+test("maps the reviewed Pêssego Nacional início safra catalog name to the unique official PÊSSEGO column", () => {
+  assert.deepEqual(resolveInNaturaHeader("Pêssego Nacional (início safra)", null, [
+    { column: 31, header: "PÊSSEGO" },
+  ]), { column: 31, status: "matched" });
+  assert.deepEqual(resolveInNaturaHeader("Pêssego Nacional (início safra)", null, [
+    { column: 31, header: "PÊSSEGO" },
+    { column: 32, header: "PÊSSEGO" },
+  ]), { status: "ambiguous" });
+});
+
+test("exports Pêssego Nacional as PÊSSEGO while retaining each delivery address on its own row", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  const batch = {
+    id: 79,
+    productionDate: "2026-11-10",
+    items: [{
+      productId: 395,
+      productName: "Pêssego Nacional (início safra)",
+      unit: "UN",
+      productionClassification: "IN_NATURA" as const,
+      totalQuantity: 5,
+      orderBreakdown: [
+        { itemId: 1101, orderId: 601, companyId: 25, companyName: "Empresa teste", quantity: 2, deliveryAddressId: 301, deliveryAddress: { id: 301, companyId: 25, label: "Unidade A", logradouro: "Rua A", numero: "1", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+        { itemId: 1102, orderId: 602, companyId: 25, companyName: "Empresa teste", quantity: 3, deliveryAddressId: 302, deliveryAddress: { id: 302, companyId: 25, label: "Unidade B", logradouro: "Rua B", numero: "2", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+      ],
+    }],
+  };
+  const output = renderInNaturaWorkbook(template, batch);
+  const workbook = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.B12.v, "Empresa teste — Unidade A (Rua A, 1, São Paulo, SP)");
+  assert.equal(sheet.B13.v, "Empresa teste — Unidade B (Rua B, 2, São Paulo, SP)");
+  assert.equal(sheet.AE12.v, 2);
+  assert.equal(sheet.AE13.v, 3);
+});
+
+test("reports an absent delivery address separately from a product mapping failure", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  assert.throws(() => renderInNaturaWorkbook(template, {
+    id: 80,
+    productionDate: "2026-11-10",
+    items: [{ productId: 395, productName: "Pêssego Nacional (início safra)", unit: "UN", productionClassification: "IN_NATURA", totalQuantity: 1,
+      orderBreakdown: [{ itemId: 1103, orderId: 603, companyId: 25, companyName: "Empresa teste", quantity: 1 }] }],
+  }), /endereço de entrega ausente no lote/);
+});
+
 test("does not choose between duplicate official headers without an explicit discriminator", () => {
   const duplicate = [{ column: 15, header: "MAÇÃ" }, { column: 16, header: "Maçã" }];
   assert.deepEqual(resolveInNaturaHeader("Maçã", null, duplicate), { status: "ambiguous" });
@@ -43,6 +89,41 @@ test("uses Bio and P07 plastic markers as different packaging classes", () => {
   assert.notEqual(classifyProcessedPackaging("Pote biodegradável 100g"), classifyProcessedPackaging("P07 plástico 100g"));
   assert.equal(classifyProcessedPackaging("Pote biodegradável 200g"), null);
   assert.equal(classifyProcessedPackaging("P07 plástico 200g"), null);
+});
+
+test("classifies the catalog's 170g Manga e Iogurte Grego plastic pot into the official PET block", () => {
+  assert.equal(classifyProcessedPackaging(
+    null,
+    "FRUTAS PROCESSADAS - (EMBALAGEM PLÁSTICA)",
+    "Pote de Manga e Iogurte Grego",
+  ), "PET");
+});
+
+test("exports the 170g Manga e Iogurte Grego item to the official PET block", () => {
+  const template = readFileSync("server/modules/production/templates/processed-template.xlsx");
+  const output = renderProcessedWorkbook(template, {
+    id: 81,
+    productionDate: "2026-11-10",
+    items: [{
+      productId: 395,
+      productName: "Pote de Manga e Iogurte Grego",
+      category: "FRUTAS PROCESSADAS - (EMBALAGEM PLÁSTICA)",
+      unit: "POTE",
+      productionClassification: "PROCESSADOS",
+      totalQuantity: 4,
+      orderBreakdown: [{
+        itemId: 1104, orderId: 604, companyId: 26, companyName: "Empresa Processados teste", quantity: 4,
+        deliveryAddressId: 303,
+        deliveryAddress: { id: 303, companyId: 26, label: "Unidade PET", logradouro: "Rua Teste", numero: "10", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null },
+      }],
+    }],
+  }, { shift: "morning", responsibleName: "Responsável sintético" });
+  const workbook = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const values = Object.values(sheet).filter((cell: any) => cell && typeof cell === "object").map((cell: any) => cell.v);
+  assert.ok(values.includes("Empresa Processados teste — Unidade PET (Rua Teste, 10, São Paulo, SP)"));
+  assert.ok(values.includes("Pote de Manga e Iogurte Grego"));
+  assert.ok(values.includes(4));
 });
 
 test("requires the address captured in the production snapshot", () => {

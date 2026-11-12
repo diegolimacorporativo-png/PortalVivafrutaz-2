@@ -1,4 +1,5 @@
 import { isProductionOrderEligible, type ProductionOrderOrigin } from "./production-eligibility";
+import { resolveProductionClassification } from "../../../shared/production-classification";
 
 export interface ProductionConsolidationSource {
   itemId: number;
@@ -197,14 +198,7 @@ export function consolidateProduction(
       });
       continue;
     }
-    if (row.productionClassification !== "IN_NATURA" && row.productionClassification !== "PROCESSADOS") {
-      unclassified.push({
-        itemId: row.itemId, orderId: row.orderId, orderCode: row.orderCode,
-        companyId: row.companyId, companyName: row.companyName,
-        productId: row.productId, productName: row.productName, quantity,
-      });
-      continue;
-    }
+    const productionClassification = resolveProductionClassification(row.category, row.productionClassification);
 
     // Canonical productId and exact catalog unit are both part of the group
     // identity. Aliases have already resolved to productId upstream; fuzzy
@@ -220,14 +214,14 @@ export function consolidateProduction(
     if (/\b(?:bio|biodegradavel)\b/.test(normalizedSubCategory)) normalizedSubCategory = `packaging:bio:${packageWeight}`;
     else if (/\b(?:p07|plastico|plastica)\b/.test(normalizedSubCategory)) normalizedSubCategory = `packaging:plastic:${packageWeight}`;
     const subCategoryKey = normalizedSubCategory || `legacy-id:${row.subCategoryId ?? "none"}`;
-    const groupKey = `${row.productId}:${unit}:${subCategoryKey}`;
+    const groupKey = `${row.productId}:${unit}:${productionClassification}:${subCategoryKey}`;
     const group = productGroups.get(groupKey) ?? {
       productId: row.productId,
       productName: row.productName,
       category: row.category,
       subCategoryId: row.subCategoryId ?? null,
       subCategoryName: row.subCategoryName ?? null,
-      productionClassification: row.productionClassification,
+      productionClassification,
       unit,
       totalQuantity: 0,
       sources: [],

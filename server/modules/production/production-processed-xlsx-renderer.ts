@@ -122,7 +122,7 @@ function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, Ad
       continue;
     }
     for (const source of item.orderBreakdown) {
-      const packaging = classifyProcessedPackaging(source.subCategoryName);
+      const packaging = classifyProcessedPackaging(source.subCategoryName, item.category, item.productName);
       const address = source.deliveryAddress;
       if (!packaging) {
         unsupported.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, reason: "EMBALAGEM_OU_BLOCO_NAO_IDENTIFICADO" });

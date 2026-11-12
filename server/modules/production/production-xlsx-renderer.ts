@@ -90,7 +90,24 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
     addresses.set(key, destination);
   }
   if (unresolved.length) {
-    throw new ValidationError("A exportação In Natura foi bloqueada: existem endereços ou produtos sem correspondência inequívoca no modelo oficial.", { unresolved });
+    const explain = (reason: unknown) => {
+      switch (reason) {
+        case "ENDERECO_DE_ENTREGA_AUSENTE_NO_SNAPSHOT": return "endereço de entrega ausente no lote";
+        case "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO": return "sem coluna correspondente no modelo oficial";
+        case "CABECALHO_EXCEL_AMBIGUO": return "mais de uma coluna possível no modelo oficial";
+        case "COLISAO_GLOBAL_DE_IDENTIDADE_NA_COLUNA_EXCEL": return "colisão de produtos na mesma coluna oficial";
+        case "COLISAO_DE_PRODUTO_OU_EMBALAGEM_NA_MESMA_COLUNA": return "produto/embalagem incompatível na coluna oficial";
+        default: return String(reason).toLocaleLowerCase("pt-BR");
+      }
+    };
+    const examples = unresolved.slice(0, 3).map((entry) => {
+      const subject = entry.productName ? `produto “${entry.productName}”` : `pedido ${entry.orderId}`;
+      return `${subject}: ${explain(entry.reason)}`;
+    }).join("; ");
+    throw new ValidationError(
+      `A exportação In Natura foi bloqueada: ${examples}${unresolved.length > 3 ? `; e mais ${unresolved.length - 3} pendência(s)` : ""}.`,
+      { unresolved },
+    );
   }
   if (!addresses.size) throw new ValidationError("O lote não possui itens In Natura com origem para exportar.");
   const addressRows = [...addresses.entries()];

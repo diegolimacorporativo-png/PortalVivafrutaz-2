@@ -53,12 +53,12 @@ test("divergência e item de origem duplicado bloqueiam o lote e aparecem no ind
   assert.ok(readiness.indicators.inconsistencyCount >= 2);
 });
 
-test("impede geração com produto não identificado, classificação ausente ou origem inconsistente", () => {
+test("impede geração com produto não identificado ou origem inconsistente; classificação padrão não bloqueia", () => {
   const withUnknownProduct = preview([source({ productId: null, productName: null })]);
   const withUnclassifiedProduct = preview([source({ productionClassification: null })]);
   const withBadOrigin = preview([source({ productionOrigin: "CONTRACT_FIXED", contractOccurrenceValid: false })]);
   assert.equal(assessProductionPreview(withUnknownProduct).canGenerate, false);
-  assert.equal(assessProductionPreview(withUnclassifiedProduct).canGenerate, false);
+  assert.equal(assessProductionPreview(withUnclassifiedProduct).canGenerate, true);
   assert.equal(assessProductionPreview(withBadOrigin).canGenerate, false);
   assert.ok(assessProductionPreview(withBadOrigin).indicators.inconsistencyCount > 0);
 });
