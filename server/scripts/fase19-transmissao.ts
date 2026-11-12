@@ -22,6 +22,8 @@
 // IMPORTANTE: setar ANTES de importar nfeSender (lido em runtime na função)
 process.env.NFE_SEFAZ_MODE = 'real';
 
+import { assertNfeIssuanceEnabled } from '../modules/nfe/nfe-issuance-lock.js';
+
 import { db } from '../database/db.js';
 import { sql } from 'drizzle-orm';
 import { writeFileSync, mkdirSync } from 'fs';
@@ -34,6 +36,7 @@ const orderArg = process.argv.findIndex(a => a === '--order');
 const ORDER_ID = orderArg >= 0 ? parseInt(process.argv[orderArg + 1], 10) : 13;
 
 async function main() {
+  assertNfeIssuanceEnabled();
   console.log('\n╔═══════════════════════════════════════════════════════╗');
   console.log('║           FASE 1.9 — TRANSMISSÃO SEFAZ (HOM)         ║');
   console.log('╚═══════════════════════════════════════════════════════╝\n');

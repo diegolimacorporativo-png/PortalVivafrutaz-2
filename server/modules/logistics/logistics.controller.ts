@@ -36,7 +36,6 @@
 import type { Request, Response } from "express";
 import { sql } from "drizzle-orm";
 import { db } from "../../database/db";
-import { calculateDistance } from "../../services/logistics/routeOptimizer";
 import { calculateRoadEta, isRoadRoutingConfigured } from "./road-routing.service";
 import {
   getEffectiveDeliveryWindow,
@@ -47,6 +46,7 @@ import {
 } from "./delivery-tracking.logic";
 import { LogisticsService, logisticsService } from "./logistics.service";
 import { resolveOwnDriverId } from "./driver.access";
+import { routeAuthorizesCompany } from "./auto-dispatch.policy";
 import {
   LOGISTICS_ADMIN_ROLES,
   LOGISTICS_AUTH_ROLES,
@@ -93,56 +93,6 @@ function etaWindowInstants(
       ? localDateTimeToInstant(scheduledDate, window.endTime)
       : null,
   };
-}
-
-function closestDeliveryForRouteStop(stop: any, candidates: any[]): any | undefined {
-  if (candidates.length === 0) return undefined;
-  if (!hasValidTrackingCoordinates(stop.latitude, stop.longitude)) return candidates[0];
-  const withCoordinates = candidates.filter((candidate) =>
-    hasValidTrackingCoordinates(candidate.latitude, candidate.longitude),
-  );
-  if (withCoordinates.length === 0) return candidates[0];
-  const point = { lat: Number(stop.latitude), lng: Number(stop.longitude) };
-  return withCoordinates.reduce((best, candidate) => {
-    const distance = calculateDistance(point, {
-      lat: Number(candidate.latitude),
-      lng: Number(candidate.longitude),
-    });
-    const bestDistance = calculateDistance(point, {
-      lat: Number(best.latitude),
-      lng: Number(best.longitude),
-    });
-    return distance < bestDistance ? candidate : best;
-  });
-}
-
-function closestRouteStopIndex(
-  delivery: any,
-  stops: any[],
-  candidateIndexes: number[],
-): number | null {
-  if (candidateIndexes.length === 0) return null;
-  if (!hasValidTrackingCoordinates(delivery.latitude, delivery.longitude)) {
-    return candidateIndexes[0];
-  }
-  const withCoordinates = candidateIndexes.filter((index) =>
-    hasValidTrackingCoordinates(stops[index].latitude, stops[index].longitude),
-  );
-  if (withCoordinates.length === 0) return candidateIndexes[0];
-  const point = { lat: Number(delivery.latitude), lng: Number(delivery.longitude) };
-  return withCoordinates.reduce((bestIndex, index) => {
-    const stop = stops[index];
-    const bestStop = stops[bestIndex];
-    const distance = calculateDistance(point, {
-      lat: Number(stop.latitude),
-      lng: Number(stop.longitude),
-    });
-    const bestDistance = calculateDistance(point, {
-      lat: Number(bestStop.latitude),
-      lng: Number(bestStop.longitude),
-    });
-    return distance < bestDistance ? index : bestIndex;
-  });
 }
 
 export class LogisticsController {
@@ -402,7 +352,7 @@ export class LogisticsController {
       );
     } catch (err: any) {
       console.warn(`[${req.requestId}] [logistics.controller] updateRoute failed`, err);
-      if ([400, 403, 404].includes(err?.status)) {
+      if ([400, 403, 404, 409].includes(err?.status)) {
         return res.status(err.status).json({ message: err.message });
       }
       res.status(500).json({ message: "Erro" });
@@ -872,6 +822,7 @@ export class LogisticsController {
       const routeRows = rowsOf<any>(await db.execute(sql`
         SELECT lr.id,
                 lr.empresa_id AS route_company_id,
+               lr.company_ids,
                lr.driver_id,
                lr.vehicle_id,
                lr.status,
@@ -905,6 +856,7 @@ export class LogisticsController {
       }
 
       // 2. Stops in route order
+      const routeCompanyIds = route.company_ids;
       const stops = rowsOf<any>(await db.execute(sql`
         SELECT id, route_id, cep, endereco, numero, cidade, estado,
                latitude, longitude, ordem_parada, company_id,
@@ -912,13 +864,18 @@ export class LogisticsController {
         FROM route_stops
         WHERE route_id = ${routeId}
         ORDER BY ordem_parada ASC, id ASC
-      `));
+      `)).filter((stop) =>
+        stop.company_id != null &&
+        routeAuthorizesCompany(routeCompanyIds, Number(stop.company_id)),
+      );
 
       // 3. Deliveries on this route — adds order/status/company name overlay
       const deliveries = rowsOf<any>(await db.execute(sql`
         SELECT d.id,
                d.order_id,
-               d.company_id,
+               d.company_id AS delivery_company_id,
+               o.company_id AS order_company_id,
+               COALESCE(d.company_id, o.company_id) AS company_id,
                d.status,
                d.route_position,
                d.latitude,
@@ -928,10 +885,25 @@ export class LogisticsController {
                c.delivery_config_json AS company_delivery_config_json,
                c.company_name AS company_name
         FROM deliveries d
-        LEFT JOIN companies c ON c.id = d.company_id
+        LEFT JOIN orders o ON o.id = d.order_id
+        LEFT JOIN companies c ON c.id = COALESCE(d.company_id, o.company_id)
         WHERE d.route_id = ${routeId}
         ORDER BY d.route_position ASC NULLS LAST, d.id ASC
-      `));
+      `)).filter((delivery) => {
+        const deliveryCompanyId = delivery.delivery_company_id == null
+          ? null
+          : Number(delivery.delivery_company_id);
+        const orderCompanyId = delivery.order_company_id == null
+          ? null
+          : Number(delivery.order_company_id);
+        const effectiveCompanyId = delivery.company_id == null
+          ? null
+          : Number(delivery.company_id);
+        return !(deliveryCompanyId != null && orderCompanyId != null &&
+          deliveryCompanyId !== orderCompanyId) &&
+          effectiveCompanyId != null &&
+          routeAuthorizesCompany(routeCompanyIds, effectiveCompanyId);
+      });
 
       const now = new Date();
       const routeIsActive = normalizeTrackingStatus(route.status) === "in_progress";
@@ -1007,80 +979,10 @@ export class LogisticsController {
         }
       }
 
-      // 5. Compute ETA per stop in memory.
-      // Prefer route_stops for the sequence (richer, ordemParada-based);
-      // if there are none, fall back to deliveries ordered by route_position
-      // so the customer ETA still works on routes that don't yet have
-      // route_stops materialised.
-      const deliveryStopIndexById = new Map<number, number>();
-      const usedDeliveryIds = new Set<number>();
-      const routeStopCountByCompany = new Map<number, number>();
-      for (const stop of stops) {
-        if (stop.company_id == null) continue;
-        const companyId = Number(stop.company_id);
-        routeStopCountByCompany.set(
-          companyId,
-          (routeStopCountByCompany.get(companyId) ?? 0) + 1,
-        );
-      }
-      const etaSourceFromStops = stops.map((s, stopIndex) => {
-        const sameCompanyDeliveries = s.company_id == null
-          ? []
-          : deliveries.filter((d) => Number(d.company_id) === Number(s.company_id));
-        const stopCount = s.company_id == null
-          ? 0
-          : routeStopCountByCompany.get(Number(s.company_id)) ?? 0;
-        const availableDeliveries = sameCompanyDeliveries.filter(
-          (d) => !usedDeliveryIds.has(Number(d.id)),
-        );
-        let delivery = stopCount === 1
-          ? closestDeliveryForRouteStop(s, sameCompanyDeliveries)
-          : closestDeliveryForRouteStop(s, availableDeliveries);
-        if (stopCount === 1) {
-          // A single route stop can represent multiple orders to one destination.
-          for (const candidate of sameCompanyDeliveries) {
-            deliveryStopIndexById.set(Number(candidate.id), stopIndex);
-          }
-          delivery = sameCompanyDeliveries.find(
-            (candidate) =>
-              !["delivered", "cancelled"].includes(
-                normalizeTrackingStatus(candidate.status),
-              ),
-          ) ?? delivery;
-        } else if (delivery) {
-          usedDeliveryIds.add(Number(delivery.id));
-          deliveryStopIndexById.set(Number(delivery.id), stopIndex);
-        }
-        const scheduledDate = dateOnly(delivery?.scheduled_date ?? route.delivery_date);
-        return {
-          ...s,
-          status: delivery?.status,
-          tempoEstimadoMin: s.tempo_estimado_min,
-          ...etaWindowInstants(
-            delivery?.company_delivery_config_json,
-            scheduledDate,
-            s.janela_inicio,
-            s.janela_fim,
-          ),
-        };
-      });
-      for (const delivery of deliveries) {
-        if (deliveryStopIndexById.has(Number(delivery.id))) continue;
-        const companyStopIndexes = stops.flatMap((stop, index) =>
-          stop.company_id != null &&
-          Number(stop.company_id) === Number(delivery.company_id)
-            ? [index]
-            : [],
-        );
-        const nearestIndex = closestRouteStopIndex(
-          delivery,
-          stops,
-          companyStopIndexes,
-        );
-        if (nearestIndex != null) {
-          deliveryStopIndexById.set(Number(delivery.id), nearestIndex);
-        }
-      }
+      // 5. Deliveries are the identified stops for ETA. route_stops has no
+      // delivery_id relation, so company/coordinate similarity is not a safe
+      // identity link. Keep administrative route stops separate from delivery
+      // records rather than attributing status/ETA to an approximate match.
       const etaSourceFromDeliveries = deliveries.map((d) => ({
         ...d,
         tempoEstimadoMin: null,
@@ -1089,8 +991,7 @@ export class LogisticsController {
           dateOnly(d.scheduled_date ?? route.delivery_date),
         ),
       }));
-      const useStops = etaSourceFromStops.length > 0;
-      const etaSource = useStops ? etaSourceFromStops : etaSourceFromDeliveries;
+      const etaSource = etaSourceFromDeliveries;
       const activeEtaStops = etaSource.filter(
         (stop) => !["delivered", "cancelled"].includes(normalizeTrackingStatus(stop.status)),
       );
@@ -1131,10 +1032,9 @@ export class LogisticsController {
                       ? "road_route_unavailable"
                       : "gps_unavailable";
 
-      // Build the output stops array (always derived from route_stops when
-      // available so legacy callers see the same shape).
-      const stopsOut = useStops
-        ? stops.map((s, i) => ({
+      // Keep route_stops as independently managed administrative stops. Since
+      // there is no delivery_id link, do not attach delivery status or ETA.
+      const stopsOut = stops.map((s) => ({
             id: s.id,
             ordem: s.ordem_parada,
             companyId: s.company_id,
@@ -1148,21 +1048,15 @@ export class LogisticsController {
             janelaInicio: s.janela_inicio,
             janelaFim: s.janela_fim,
             tempoEstimadoMin: s.tempo_estimado_min,
-            distanceKm: etaResults[i]?.distanceKm ?? null,
-            legMinutes: etaResults[i]?.legMinutes ?? null,
-            etaMinutes: etaResults[i]?.etaMinutes ?? null,
-            etaTime: etaResults[i]?.etaTime ?? null,
-            status: etaSourceFromStops[i]?.status ?? null,
-          }))
-        : [];
+            distanceKm: null,
+            legMinutes: null,
+            etaMinutes: null,
+            etaTime: null,
+            status: null,
+          }));
 
       const deliveriesOut = deliveries.map((d, i) => {
-        const mappedStopIndex = deliveryStopIndexById.get(Number(d.id));
-        const etaRow = !useStops
-          ? etaResults[i]
-          : mappedStopIndex == null
-            ? undefined
-            : etaResults[mappedStopIndex];
+        const etaRow = etaResults[i];
         return {
           id: d.id,
           orderId: d.order_id,

@@ -47,6 +47,8 @@ import { getPublicDeliveryTracking } from "../modules/logistics/delivery-trackin
 import { dateInTimeZone } from "../modules/logistics/local-date";
 import { roleCanViewGps } from "@shared/user-roles";
 import { validateGpsSubmission } from "../modules/logistics/gps-submission";
+import { isDeliveryVisibleOnDriverRoute, sortDriverRouteDeliveries } from "../modules/logistics/driver-route.policy";
+import { normalizeRouteCompanyIds } from "../modules/logistics/auto-dispatch.policy";
 import { db } from "../database/db";
 import {
   logisticsDrivers as driversTable,
@@ -60,7 +62,7 @@ import {
   deliveryStopEvents,
   driverJourneys, driverOdometerEntries, driverFuelEntries, deliveryProofs,
 } from "@shared/schema";
-import { eq, or, and, gte, lte, lt, desc, inArray, type SQL } from "drizzle-orm";
+import { eq, or, and, gte, lte, lt, desc, asc, inArray, type SQL } from "drizzle-orm";
 
 /** Canonical stop status values accepted by FASE 2. */
 const VALID_STOP_STATUSES = new Set([
@@ -361,33 +363,56 @@ export async function register(app: Express): Promise<void> {
       return undefined;
     }
 
-    const delivery = access.tenantId != null
-      ? await storage.getDeliveryForCompany(deliveryId, access.tenantId)
-      : await storage.getDelivery(deliveryId);
+    // A driver may serve several companies on one explicitly scoped route.
+    // Resolve the delivery without pinning it to the driver's legacy company
+    // field, then prove its route, company scope and driver assignment below.
+    const delivery = isDriver(actor?.role)
+      ? await storage.getDelivery(deliveryId)
+      : access.tenantId != null
+        ? await storage.getDeliveryForCompany(deliveryId, access.tenantId)
+        : await storage.getDelivery(deliveryId);
     if (!delivery) return undefined;
-
-    if (!isDeliveryInTenant(delivery, access.tenantId)) {
-      return undefined;
-    }
 
     if (isDriver(actor?.role)) {
       const ownDriverId = await resolveOwnDriverId(storage, actor);
-      if (!ownDriverId) return undefined;
-
-      let ownsDelivery = Number(delivery.driverId) === ownDriverId;
-      if (!ownsDelivery && delivery.routeId) {
-        const [route] = await db
-          .select({ driverId: routesTable.driverId })
-          .from(routesTable)
-          .where(eq(routesTable.id, Number(delivery.routeId)))
-          .limit(1);
-        ownsDelivery = Number(route?.driverId) === ownDriverId;
-      }
-
-      if (!ownsDelivery) {
-        return undefined;
-      }
+      if (!ownDriverId || !delivery.routeId) return undefined;
+      const [route] = await db.select({
+        id: routesTable.id,
+        driverId: routesTable.driverId,
+        deliveryDate: routesTable.deliveryDate,
+        status: routesTable.status,
+        companyIds: routesTable.companyIds,
+      }).from(routesTable).where(eq(routesTable.id, Number(delivery.routeId))).limit(1);
+      if (!route) return undefined;
+      const order = delivery.orderId == null ? null : (await storage.getOrder(Number(delivery.orderId)))?.order;
+      if (order && delivery.companyId != null && Number(order.companyId) !== Number(delivery.companyId)) return undefined;
+      const effectiveCompanyId = delivery.companyId ?? order?.companyId ?? null;
+      const dateOnly = (value: unknown): string | null => {
+        if (value == null) return null;
+        if (value instanceof Date) return value.toISOString().slice(0, 10);
+        return String(value).slice(0, 10);
+      };
+      const routeScope = {
+        id: Number(route.id),
+        driverId: Number(route.driverId ?? 0),
+        deliveryDate: dateOnly(route.deliveryDate),
+        status: String(route.status ?? ""),
+        companyIds: route.companyIds,
+      };
+      const deliveryScope = {
+        id: Number(delivery.id),
+        routeId: Number(delivery.routeId),
+        driverId: delivery.driverId == null ? null : Number(delivery.driverId),
+        companyId: effectiveCompanyId == null ? null : Number(effectiveCompanyId),
+        deliveryDate: dateOnly(delivery.scheduledDate ?? order?.deliveryDate),
+        status: String(delivery.status ?? ""),
+        routePosition: delivery.routePosition == null ? null : Number(delivery.routePosition),
+      };
+      if (!isDeliveryVisibleOnDriverRoute(routeScope, deliveryScope, ownDriverId)) return undefined;
+      return { ...delivery, companyId: effectiveCompanyId };
     }
+
+    if (!isDeliveryInTenant(delivery, access.tenantId)) return undefined;
 
     return delivery;
   }
@@ -410,7 +435,6 @@ export async function register(app: Express): Promise<void> {
       const dateTo = typeof req.query.dateTo === 'string' ? req.query.dateTo : dateFrom;
       const selectedCompanyId = req.query.companyId ? Number(req.query.companyId) : undefined;
 
-      const allCompanies = await storage.getCompanies();
       const selectedTenantId = currentTenantId();
       const actorCompanyId = actor.empresaId != null
         ? Number(actor.empresaId)
@@ -418,13 +442,9 @@ export async function register(app: Express): Promise<void> {
       // A tenant-pinned internal user may only query its own company. Do this
       // before both delivery and order queries so a crafted companyId cannot
       // bypass the scope by taking the orders branch.
-      if (actorCompanyId && selectedCompanyId && selectedCompanyId !== actorCompanyId) {
+      if (!isDriver(actor.role) && actorCompanyId && selectedCompanyId && selectedCompanyId !== actorCompanyId) {
         return res.status(403).json({ message: 'Acesso negado' });
       }
-      const visibleCompanies = actorCompanyId
-        ? allCompanies.filter((company: any) => Number(company.id) === actorCompanyId)
-        : allCompanies;
-      const companyMap = Object.fromEntries(visibleCompanies.map((c: any) => [c.id, c]));
 
       let myDriver: any = null;
       // Use the same normalized email/name resolver as GPS POST. This keeps
@@ -442,68 +462,136 @@ export async function register(app: Express): Promise<void> {
         myDriver = driverRows[0] ?? null;
       }
 
-      // Search the selected period. Driver accounts are filtered below by
-      // the authenticated driver and assigned routes; they never receive
-      // unassigned deliveries or the order-bridge fallback.
-      const deliveryFilters: any = { dateFrom, dateTo };
-      if (actorCompanyId) {
-        deliveryFilters.companyId = actorCompanyId;
-      } else if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
-        deliveryFilters.companyId = selectedCompanyId;
-      }
-      let allDeliveries = (await storage.getDeliveries(deliveryFilters))
-        .filter((delivery: any) => !['cancelado', 'cancelled'].includes(String(delivery.status ?? '').toLowerCase()));
+      const allCompanies = await storage.getCompanies();
+      let visibleCompanies: any[];
+      let companyMap: Record<number, any>;
+      let allDeliveries: any[];
       let source: 'deliveries' | 'orders' = 'deliveries';
 
-      // Always bridge confirmed orders, not only when the deliveries table is
-      // empty. A delivery row can exist for one company while confirmed
-      // orders from other companies still have no delivery row yet.
-      // FASE MT-1: Drizzle query scoped to tenant + date range in SQL — no full-table scan.
-      const rangeStart = new Date(dateFrom + 'T00:00:00.000Z');
-      const rangeEnd = new Date(dateTo + 'T00:00:00.000Z');
-      rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
-      const orderConds: SQL<unknown>[] = [
-        gte(ordersTable.deliveryDate, rangeStart),
-        lt(ordersTable.deliveryDate, rangeEnd),
-      ];
-      if (actorCompanyId) {
-        orderConds.push(eq(ordersTable.companyId, actorCompanyId));
-      } else if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
-        orderConds.push(eq(ordersTable.companyId, selectedCompanyId));
-      }
-      const dateOrders = (await db.select().from(ordersTable).where(and(...orderConds)))
-        .filter((order: any) => order.status !== 'CANCELLED');
-      const statusMap: Record<string, string> = {
-        CONFIRMED: 'pendente', ACTIVE: 'pendente',
-        DELIVERED: 'entregue', CANCELLED: 'cancelado', LOCKED: 'pendente',
-      };
-      const existingOrderIds = new Set(
-        allDeliveries
-          .map((delivery: any) => delivery.orderId)
-          .filter((orderId: unknown) => orderId != null)
-          .map((orderId: unknown) => Number(orderId)),
-      );
-      const bridgedOrders = dateOrders
-        .filter((order: any) => !existingOrderIds.has(Number(order.id)))
-        .map((o: any, idx: number) => ({
-          id: o.id,
-          companyId: o.companyId,
-          status: statusMap[o.status] || 'pendente',
-          scheduledDate: o.deliveryDate ? new Date(o.deliveryDate).toISOString().slice(0, 10) : dateFrom,
+      if (isDriver(actor.role)) {
+        const routeRows = ownDriverId
+          ? await db.select({
+              id: routesTable.id,
+              driverId: routesTable.driverId,
+              deliveryDate: routesTable.deliveryDate,
+              status: routesTable.status,
+              companyIds: routesTable.companyIds,
+            })
+            .from(routesTable)
+            .where(and(
+              eq(routesTable.driverId, ownDriverId),
+              gte(routesTable.deliveryDate, dateFrom),
+              lte(routesTable.deliveryDate, dateTo),
+            ))
+          : [];
+        const routeIds = routeRows.map((route) => Number(route.id));
+        const linked = routeIds.length > 0
+          ? await db.select().from(deliveriesTable)
+            .where(inArray(deliveriesTable.routeId, routeIds))
+            .orderBy(asc(deliveriesTable.routePosition), asc(deliveriesTable.id))
+          : [];
+        const linkedOrderIds = Array.from(new Set(linked.map((delivery) => delivery.orderId).filter((id): id is number => id != null)));
+        const linkedOrders = linkedOrderIds.length > 0
+          ? await db.select({ id: ordersTable.id, companyId: ordersTable.companyId, deliveryDate: ordersTable.deliveryDate })
+            .from(ordersTable)
+            .where(inArray(ordersTable.id, linkedOrderIds))
+          : [];
+        const linkedOrderMap = new Map(linkedOrders.map((order) => [Number(order.id), order]));
+        const dateOnly = (value: unknown): string | null => {
+          if (value == null) return null;
+          if (value instanceof Date) return value.toISOString().slice(0, 10);
+          return String(value).slice(0, 10);
+        };
+        const normalizedRoutes = routeRows.map((route) => ({
+          ...route,
+          driverId: Number(route.driverId ?? 0),
+          deliveryDate: dateOnly(route.deliveryDate),
+        }));
+        const allowedCompanyIds = new Set(normalizedRoutes.flatMap((route) => normalizeRouteCompanyIds(route.companyIds)));
+        visibleCompanies = allCompanies.filter((company: any) => allowedCompanyIds.has(Number(company.id)));
+        companyMap = Object.fromEntries(visibleCompanies.map((company: any) => [Number(company.id), company]));
+        const normalizedRouteMap = new Map(normalizedRoutes.map((route) => [Number(route.id), route]));
+        allDeliveries = sortDriverRouteDeliveries(linked.flatMap((delivery: any) => {
+          const routeId = delivery.routeId == null ? null : Number(delivery.routeId);
+          const route = routeId == null ? undefined : normalizedRouteMap.get(routeId);
+          const order = delivery.orderId == null ? undefined : linkedOrderMap.get(Number(delivery.orderId));
+          const companyId = delivery.companyId ?? order?.companyId ?? null;
+          const candidate = {
+            id: Number(delivery.id),
+            routeId,
+            driverId: delivery.driverId == null ? null : Number(delivery.driverId),
+            companyId: companyId == null ? null : Number(companyId),
+            deliveryDate: dateOnly(delivery.scheduledDate ?? order?.deliveryDate),
+            status: String(delivery.status ?? ''),
+            routePosition: delivery.routePosition == null ? null : Number(delivery.routePosition),
+          };
+          if (!route || !isDeliveryVisibleOnDriverRoute(route, candidate, Number(ownDriverId))) return [];
+          return [{
+            ...delivery,
+            companyId: candidate.companyId,
+            scheduledDate: candidate.deliveryDate,
+            routeId: candidate.routeId,
+            routePosition: candidate.routePosition,
+            routePositionMissing: candidate.routePosition == null,
+            companyName: companyMap[candidate.companyId!]?.companyName || companyMap[candidate.companyId!]?.name || '—',
+          }];
+        }));
+      } else {
+        visibleCompanies = actorCompanyId
+          ? allCompanies.filter((company: any) => Number(company.id) === actorCompanyId)
+          : allCompanies;
+        companyMap = Object.fromEntries(visibleCompanies.map((company: any) => [Number(company.id), company]));
+        const deliveryFilters: any = { dateFrom, dateTo };
+        if (actorCompanyId) {
+          deliveryFilters.companyId = actorCompanyId;
+        } else if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
+          deliveryFilters.companyId = selectedCompanyId;
+        }
+        allDeliveries = (await storage.getDeliveries(deliveryFilters))
+          .filter((delivery: any) => !['cancelado', 'cancelled'].includes(String(delivery.status ?? '').toLowerCase()));
+
+        // Internal staff retain the legacy confirmed-order bridge. Driver
+        // accounts never receive orders without a route-linked delivery.
+        const rangeStart = new Date(dateFrom + 'T00:00:00.000Z');
+        const rangeEnd = new Date(dateTo + 'T00:00:00.000Z');
+        rangeEnd.setUTCDate(rangeEnd.getUTCDate() + 1);
+        const orderConds: SQL<unknown>[] = [
+          gte(ordersTable.deliveryDate, rangeStart),
+          lt(ordersTable.deliveryDate, rangeEnd),
+        ];
+        if (actorCompanyId) {
+          orderConds.push(eq(ordersTable.companyId, actorCompanyId));
+        } else if (selectedCompanyId && Number.isInteger(selectedCompanyId)) {
+          orderConds.push(eq(ordersTable.companyId, selectedCompanyId));
+        }
+        const dateOrders = (await db.select().from(ordersTable).where(and(...orderConds)))
+          .filter((order: any) => order.status !== 'CANCELLED');
+        const statusMap: Record<string, string> = {
+          CONFIRMED: 'pendente', ACTIVE: 'pendente',
+          DELIVERED: 'entregue', CANCELLED: 'cancelado', LOCKED: 'pendente',
+        };
+        const existingOrderIds = new Set(allDeliveries.map((delivery: any) => delivery.orderId)
+          .filter((orderId: unknown) => orderId != null).map((orderId: unknown) => Number(orderId)));
+        const bridgedOrders = dateOrders.filter((order: any) => !existingOrderIds.has(Number(order.id))).map((order: any, idx: number) => ({
+          id: order.id,
+          companyId: order.companyId,
+          status: statusMap[order.status] || 'pendente',
+          scheduledDate: order.deliveryDate ? new Date(order.deliveryDate).toISOString().slice(0, 10) : dateFrom,
           routePosition: idx + 1,
-          notes: o.orderNote || null,
-          totalValue: o.totalValue,
-          orderCode: o.orderCode,
-          addressStreet: companyMap[o.companyId]?.addressStreet || null,
-          addressCity: companyMap[o.companyId]?.addressCity || null,
-          addressZip: companyMap[o.companyId]?.addressZip || null,
-          latitude: companyMap[o.companyId]?.latitude || null,
-          longitude: companyMap[o.companyId]?.longitude || null,
+          notes: order.orderNote || null,
+          totalValue: order.totalValue,
+          orderCode: order.orderCode,
+          addressStreet: companyMap[order.companyId]?.addressStreet || null,
+          addressCity: companyMap[order.companyId]?.addressCity || null,
+          addressZip: companyMap[order.companyId]?.addressZip || null,
+          latitude: companyMap[order.companyId]?.latitude || null,
+          longitude: companyMap[order.companyId]?.longitude || null,
           isOrderBridge: true,
-        })) as any;
-      if (bridgedOrders.length > 0) {
-        source = allDeliveries.length > 0 ? 'deliveries' : 'orders';
-        allDeliveries = [...allDeliveries, ...bridgedOrders];
+        }));
+        if (bridgedOrders.length > 0) {
+          source = allDeliveries.length > 0 ? 'deliveries' : 'orders';
+          allDeliveries = [...allDeliveries, ...bridgedOrders];
+        }
       }
 
       // STEP 8.7 — both DRIVER and the legacy MOTORISTA alias get a strict
@@ -512,21 +600,7 @@ export async function register(app: Express): Promise<void> {
       // Internal staff keep the legacy "unassigned-or-mine" semantics.
       let deliveries: any[];
       if (isDriver(actor.role)) {
-        const assignedRouteIds = myDriver
-          ? new Set(
-              (await db
-                .select({ id: routesTable.id })
-                .from(routesTable)
-                .where(eq(routesTable.driverId, myDriver.id)))
-                .map((route: any) => Number(route.id)),
-            )
-          : new Set<number>();
-        deliveries = myDriver
-          ? allDeliveries.filter((d: any) =>
-              Number(d.driverId) === Number(myDriver.id) ||
-              (d.routeId != null && assignedRouteIds.has(Number(d.routeId))),
-            )
-          : [];
+        deliveries = myDriver ? allDeliveries : [];
       } else if (myDriver) {
         deliveries = allDeliveries.filter((d: any) => !d.driverId || d.driverId === myDriver.id);
       } else {
@@ -865,12 +939,13 @@ export async function register(app: Express): Promise<void> {
       if (!access.allowed) {
         return res.status(access.status).json({ message: access.message });
       }
-      if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
+      if (access.tenantId == null && !isDeliveryDriverRole(actor.role)) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
 
       let checklistDriverId: number | null = null;
       if (isDeliveryDriverRole(actor.role)) {
         checklistDriverId = await resolveOwnDriverId(storage, actor);
       } else if (driverId != null && driverId !== '') {
+        if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
         const targetDriverId = Number(driverId);
         if (!Number.isInteger(targetDriverId) || targetDriverId <= 0) {
           return res.status(400).json({ message: 'Motorista inválido' });
@@ -898,7 +973,8 @@ export async function register(app: Express): Promise<void> {
       if (entregaConfirmada !== false) {
         const completion = await completeDelivery(deliveryCompletionStore, {
           deliveryId,
-          tenantId: access.tenantId,
+          tenantId: isDeliveryDriverRole(actor.role) ? null : access.tenantId,
+          authenticatedDriverId: isDeliveryDriverRole(actor.role) ? checklistDriverId ?? undefined : undefined,
           actor,
           observacao,
           now,
@@ -948,10 +1024,11 @@ export async function register(app: Express): Promise<void> {
         if (!access.allowed) {
           return res.status(access.status).json({ message: access.message });
         }
-        if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
+        if (access.tenantId == null && !isDeliveryDriverRole(actor.role)) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
         const completion = await completeDelivery(deliveryCompletionStore, {
           deliveryId,
-          tenantId: access.tenantId,
+          tenantId: isDeliveryDriverRole(actor.role) ? null : access.tenantId,
+          authenticatedDriverId: isDeliveryDriverRole(actor.role) ? await resolveOwnDriverId(storage, actor) ?? undefined : undefined,
           actor,
           observacao,
         });
@@ -975,10 +1052,11 @@ export async function register(app: Express): Promise<void> {
       if (!access.allowed) {
         return res.status(access.status).json({ message: access.message });
       }
-      if (access.tenantId == null) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
+      if (access.tenantId == null && !isDeliveryDriverRole(actor.role)) return res.status(403).json({ message: 'Selecione uma empresa para esta operação' });
       const result = await updateDeliveryNonterminal(deliveryCompletionStore, {
         deliveryId,
-        tenantId: access.tenantId,
+        tenantId: isDeliveryDriverRole(actor.role) ? null : access.tenantId,
+        authenticatedDriverId: isDeliveryDriverRole(actor.role) ? await resolveOwnDriverId(storage, actor) ?? undefined : undefined,
         actor,
         status,
         observacao,

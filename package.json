@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "NODE_ENV=development node_modules/.bin/tsx server/index.ts",
     "dev:isolated": "bash scripts/start-isolated-preview.sh",
+    "dev:isolated:windows": "pwsh -NoProfile -File scripts/start-isolated-preview.ps1",
     "build": "node_modules/.bin/tsx script/build.ts",
     "start": "NODE_ENV=production node --max-old-space-size=2048 dist/index.cjs",
     "check": "tsc",

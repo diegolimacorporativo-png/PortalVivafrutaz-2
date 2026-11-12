@@ -21,6 +21,7 @@ import {
 } from './sefazCircuitBreaker';
 import { emitFiscalEvent } from '../../core/nfe/fiscal-store';
 import { validateCertExpiry } from './nfeCertGuard';
+import { assertNfeIssuanceEnabled } from '../../modules/nfe/nfe-issuance-lock';
 
 export type NFeStatus = 'autorizada' | 'rejeitada' | 'denegada' | 'pendente' | 'erro';
 
@@ -280,6 +281,7 @@ export async function enviarNFeSEFAZ(
   certPem?: string,
   certKey?: string
 ): Promise<NFeRetornoSEFAZ> {
+  assertNfeIssuanceEnabled();
   // HOMOLOGATION GUARD — bloqueia qualquer tentativa de transmissão real ao SEFAZ.
   // Deve ser a PRIMEIRA verificação antes de qualquer lógica de transmissão.
   const { validateFiscalHomologationLock } = await import('../../core/fiscal/homologation.guard');
@@ -622,6 +624,7 @@ export async function cancelarNFe(
   cnpjEmit: string,
   ambiente: '1' | '2',
 ): Promise<EventoRetornoSEFAZ> {
+  assertNfeIssuanceEnabled();
   const fiscalRequestId = randomUUID();
 
   const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();
@@ -765,6 +768,7 @@ export async function enviarCCe(
   cnpjEmit: string,
   ambiente: '1' | '2',
 ): Promise<EventoRetornoSEFAZ> {
+  assertNfeIssuanceEnabled();
   const fiscalRequestId = randomUUID();
 
   const sefazMode = (process.env.NFE_SEFAZ_MODE ?? 'mock').toLowerCase();

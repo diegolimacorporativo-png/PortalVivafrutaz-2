@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
-import { realpath, readFile } from "node:fs/promises";
+import { lstatSync, realpathSync } from "node:fs";
+import { lstat, realpath, readFile } from "node:fs/promises";
 
 const ISOLATED_PREVIEW_DATABASE = {
   host: "127.0.0.1",
@@ -37,6 +38,43 @@ export type RemoteHomologationDatabaseIdentity = {
 export type ReadOnlyQuery = (text: string) => Promise<{
   rows: Array<Record<string, unknown>>;
 }>;
+
+function sameCanonicalPath(left: string, right: string): boolean {
+  const normalizedLeft = path.normalize(left);
+  const normalizedRight = path.normalize(right);
+  return process.platform === "win32"
+    ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
+    : normalizedLeft === normalizedRight;
+}
+
+async function assertRegularDirectoryWithoutReparsePoint(
+  targetPath: string,
+  description: string,
+): Promise<void> {
+  const stats = await lstat(targetPath);
+  // On Windows, Node reports symlinks and directory junctions through lstat
+  // as symbolic links. Reject them even when their target remains under TEMP.
+  if (!stats.isDirectory() || stats.isSymbolicLink()) {
+    throw new Error(`${description} deve ser diretório regular, sem symlink ou junction.`);
+  }
+}
+
+async function assertRegularFileWithoutReparsePoint(
+  targetPath: string,
+  description: string,
+): Promise<void> {
+  const stats = await lstat(targetPath);
+  if (!stats.isFile() || stats.isSymbolicLink()) {
+    throw new Error(`${description} deve ser arquivo regular, sem symlink ou reparse point.`);
+  }
+}
+
+function sameFileObject(
+  left: { dev: bigint; ino: bigint },
+  right: { dev: bigint; ino: bigint },
+): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
 
 export function isIsolatedPreviewMode(): boolean {
   return process.env.ISOLATED_PREVIEW_MODE === "1";
@@ -340,6 +378,37 @@ export function validateIsolatedPreviewDatabaseUrl(
   return databaseUrl;
 }
 
+/** Only the local isolated-preview HTTP listener may be used by local API tests. */
+export function validateIsolatedPreviewApiUrl(rawUrl: string | undefined): URL {
+  if (!rawUrl?.trim()) {
+    throw new Error("ISOLATED_PREVIEW_API_URL é obrigatório para testes locais.");
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl.trim());
+  } catch {
+    throw new Error("ISOLATED_PREVIEW_API_URL não é uma URL válida.");
+  }
+
+  if (
+    parsed.protocol !== "http:" ||
+    parsed.hostname !== "127.0.0.1" ||
+    !["5000", "5001"].includes(parsed.port) ||
+    parsed.username !== "" ||
+    parsed.password !== "" ||
+    parsed.pathname !== "/" ||
+    parsed.search !== "" ||
+    parsed.hash !== ""
+  ) {
+    throw new Error(
+      "Preview isolado aceita somente HTTP em 127.0.0.1 nas portas 5000 ou 5001.",
+    );
+  }
+
+  return parsed;
+}
+
 export type IsolatedPreviewDatabaseIdentity = {
   database: string;
   username: string;
@@ -379,10 +448,44 @@ export async function verifyIsolatedPreviewDatabase(
   }
   const configuredRoot = path.resolve(configuredDataDirectory);
   const tempRoot = await realpath(os.tmpdir());
+  await assertRegularDirectoryWithoutReparsePoint(configuredRoot, "A raiz do cluster");
   const root = await realpath(configuredRoot);
+  if (!sameCanonicalPath(root, configuredRoot)) {
+    throw new Error("A raiz configurada do cluster resolve por symlink ou junction.");
+  }
+  const rootObjectBefore = await lstat(root, { bigint: true });
   const relative = path.relative(tempRoot, root);
-  if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+  const rootName = path.basename(root);
+  const prefix = "vivafrutaz-isolated-preview.";
+  const isolationId = rootName.startsWith(prefix) ? rootName.slice(prefix.length) : "";
+  if (
+    !relative ||
+    !sameCanonicalPath(path.dirname(root), tempRoot) ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative) ||
+    !/^[a-f0-9]{32}$/.test(isolationId)
+  ) {
     throw new Error("O cluster local do preview não está em um diretório temporário isolado.");
+  }
+
+  const dataDirectoryPath = path.join(root, "postgres");
+  await assertRegularDirectoryWithoutReparsePoint(dataDirectoryPath, "O diretório PostgreSQL");
+  const dataObjectBefore = await lstat(dataDirectoryPath, { bigint: true });
+  const expectedDataDirectory = await realpath(dataDirectoryPath);
+  const dataRelative = path.relative(root, expectedDataDirectory);
+  if (
+    !sameCanonicalPath(expectedDataDirectory, dataDirectoryPath) ||
+    !sameCanonicalPath(dataRelative, "postgres")
+  ) {
+    throw new Error("O diretório PostgreSQL real não está contido diretamente na raiz temporária.");
+  }
+  const markerPath = path.join(root, ".isolated-preview-marker");
+  await assertRegularFileWithoutReparsePoint(markerPath, "O marcador de isolamento");
+  const markerObjectBefore = await lstat(markerPath, { bigint: true });
+  const marker = await readFile(markerPath, "utf8");
+  if (marker !== `vivafrutaz-isolated-preview-v1:${isolationId}\n`) {
+    throw new Error("O marcador do cluster temporário local não confere.");
   }
 
   const result = await query(`
@@ -395,20 +498,36 @@ export async function verifyIsolatedPreviewDatabase(
   const identity = result.rows[0];
   if (!identity) throw new Error("A identidade PostgreSQL local não foi retornada.");
   const dataDirectory = await realpath(String(identity.data_directory));
-  const expectedDataDirectory = await realpath(path.join(root, "postgres"));
-  const rootName = path.basename(root);
-  const prefix = "vivafrutaz-isolated-preview.";
-  const isolationId = rootName.startsWith(prefix) ? rootName.slice(prefix.length) : "";
   if (
-    path.basename(dataDirectory) !== "postgres" ||
-    dataDirectory !== expectedDataDirectory ||
-    !/^[a-zA-Z0-9]+$/.test(isolationId)
+    !sameCanonicalPath(dataDirectory, expectedDataDirectory) ||
+    path.basename(dataDirectory).toLowerCase() !== "postgres"
   ) {
     throw new Error("O PostgreSQL conectado não corresponde ao cluster temporário configurado.");
   }
-  const marker = await readFile(path.join(root, ".isolated-preview-marker"), "utf8");
-  if (marker !== `vivafrutaz-isolated-preview-v1:${isolationId}\n`) {
-    throw new Error("O marcador do cluster temporário local não confere.");
+
+  // Revalidate object identity after the DB query. This narrows the race
+  // between path checks and use; the Windows runner additionally pins these
+  // objects with handles and a private ACL while the isolated API is alive.
+  const rootAfter = await realpath(configuredRoot);
+  await assertRegularDirectoryWithoutReparsePoint(configuredRoot, "A raiz do cluster após a consulta");
+  await assertRegularDirectoryWithoutReparsePoint(dataDirectoryPath, "O diretório PostgreSQL após a consulta");
+  const dataAfter = await realpath(dataDirectoryPath);
+  await assertRegularFileWithoutReparsePoint(markerPath, "O marcador após a consulta");
+  const markerAfter = await readFile(markerPath, "utf8");
+  const [rootObjectAfter, dataObjectAfter, markerObjectAfter] = await Promise.all([
+    lstat(rootAfter, { bigint: true }),
+    lstat(dataAfter, { bigint: true }),
+    lstat(markerPath, { bigint: true }),
+  ]);
+  if (
+    !sameCanonicalPath(rootAfter, root) ||
+    !sameCanonicalPath(dataAfter, expectedDataDirectory) ||
+    !sameFileObject(rootObjectBefore, rootObjectAfter) ||
+    !sameFileObject(dataObjectBefore, dataObjectAfter) ||
+    !sameFileObject(markerObjectBefore, markerObjectAfter) ||
+    markerAfter !== `vivafrutaz-isolated-preview-v1:${isolationId}\n`
+  ) {
+    throw new Error("A identidade do diretório ou marcador mudou durante a verificação; operação bloqueada.");
   }
   assertIsolatedPreviewDatabaseIdentity({
     database: String(identity.database),
@@ -469,5 +588,28 @@ export function getRuntimeUploadsDirectory(): string {
     throw new Error("Os dados do preview isolado devem ficar dentro do diretório temporário.");
   }
 
-  return path.join(dataRoot, "uploads");
+  // The preview runner uses a fresh nonce directory. If uploads already
+  // exists, refuse links/junctions or any canonical path outside that root.
+  const uploadsDirectory = path.join(dataRoot, "uploads");
+  try {
+    const stats = lstatSync(uploadsDirectory);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) {
+      throw new Error("O diretório de uploads isolado não pode ser link ou reparse point.");
+    }
+    const canonicalRoot = realpathSync(dataRoot);
+    const canonicalUploads = realpathSync(uploadsDirectory);
+    const uploadsRelative = path.relative(canonicalRoot, canonicalUploads);
+    if (
+      !uploadsRelative ||
+      uploadsRelative === ".." ||
+      uploadsRelative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(uploadsRelative)
+    ) {
+      throw new Error("O diretório de uploads isolado resolve para fora da raiz temporária.");
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+
+  return uploadsDirectory;
 }

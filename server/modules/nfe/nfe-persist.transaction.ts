@@ -29,6 +29,7 @@ import { nfeEmissoes, orders, systemLogs } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import { invalidateUsageCache } from "../../modules/billing/usage-cache";
 import type { InsertNfeEmissao, NfeEmissao } from "@shared/schema";
+import { assertNfeIssuanceEnabled } from "./nfe-issuance-lock";
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -86,6 +87,7 @@ function processOrderUpdates(updates: Record<string, any>): Record<string, any> 
 export async function commitNfeCreation(
   params: CommitNfeCreationParams,
 ): Promise<NfeEmissao> {
+  assertNfeIssuanceEnabled();
   const { nfeData, orderId, fiscalStatus, log } = params;
 
   let companyId: number | undefined;
@@ -151,6 +153,7 @@ export async function commitNfeCreation(
 export async function commitNfeSefazResult(
   params: CommitNfeSefazResultParams,
 ): Promise<NfeEmissao> {
+  assertNfeIssuanceEnabled();
   const { nfeId, nfeUpdates, orderId, fiscalStatus, log } = params;
 
   let companyId: number | undefined;
@@ -219,6 +222,7 @@ export async function commitNfeSefazResult(
 export async function commitNfeMockResult(
   params: CommitNfeMockResultParams,
 ): Promise<void> {
+  assertNfeIssuanceEnabled();
   const { nfeId, orderId, fiscalStatus, log } = params;
 
   let companyId: number | undefined;

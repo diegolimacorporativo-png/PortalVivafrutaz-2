@@ -26,6 +26,7 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
               orderId: deliveries.orderId,
               companyId: deliveries.companyId,
               routeId: deliveries.routeId,
+              driverId: deliveries.driverId,
             })
             .from(deliveries)
             .where(and(...conditions))
@@ -66,13 +67,20 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
           return row;
         },
 
-        async getRouteCompany(routeId) {
+        async getRouteScope(routeId) {
           const [row] = await tx
-            .select({ companyId: logisticsRoutes.empresaId })
+            .select({
+              id: logisticsRoutes.id,
+              companyId: logisticsRoutes.empresaId,
+              companyIds: logisticsRoutes.companyIds,
+              driverId: logisticsRoutes.driverId,
+              status: logisticsRoutes.status,
+            })
             .from(logisticsRoutes)
             .where(eq(logisticsRoutes.id, routeId))
+            .for("share")
             .limit(1);
-          return row?.companyId;
+          return row;
         },
 
         async getDeliveriesForOrder(orderId) {
@@ -82,7 +90,10 @@ export const deliveryCompletionStore: DeliveryCompletionStore = {
               companyId: deliveries.companyId,
               status: deliveries.status,
               routeId: deliveries.routeId,
+              driverId: deliveries.driverId,
               routeCompanyId: logisticsRoutes.empresaId,
+              routeCompanyIds: logisticsRoutes.companyIds,
+              routeDriverId: logisticsRoutes.driverId,
             })
             .from(deliveries)
             .leftJoin(

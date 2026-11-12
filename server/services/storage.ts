@@ -95,6 +95,9 @@ import {
 import { eq, and, desc, gte, gt, lte, sql, inArray, or, ilike, isNull, ne } from "drizzle-orm";
 import { usersRepository } from "../modules/users/users.repository";
 import type { QuotationScope } from "../modules/quotations/quotations.policy";
+import { assertActiveDeliveriesMatchRouteScope } from "../modules/logistics/route-scope.policy";
+import { ConflictError } from "../shared/errors/AppError";
+import { areAllRouteDeliveriesTerminal } from "../modules/logistics/driver-route.policy";
 
 export interface IStorage {
   // BANCO.5 — CNAB import history (auditoria de uploads de retorno)
@@ -297,6 +300,12 @@ export interface IStorage {
   getRoutesSafe(empresaId: number): Promise<LogisticsRoute[]>;
   createRoute(data: Partial<LogisticsRoute>): Promise<LogisticsRoute>;
   updateRoute(id: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute>;
+  updateRouteCompanyScope(
+    id: number,
+    empresaId: number | null,
+    data: Partial<LogisticsRoute>,
+    companyIds?: number[],
+  ): Promise<LogisticsRoute | null>;
   deleteRoute(id: number): Promise<void>;
   getMaintenances(): Promise<LogisticsMaintenance[]>;
   createMaintenance(data: Partial<LogisticsMaintenance>): Promise<LogisticsMaintenance>;
@@ -2143,6 +2152,98 @@ export class DatabaseStorage implements IStorage {
       .returning();
     if (r?.empresaId) invalidateUsageCache(r.empresaId);
     return r ?? null;
+  }
+  async updateRouteCompanyScope(
+    id: number,
+    empresaId: number | null,
+    data: Partial<LogisticsRoute>,
+    companyIds?: number[],
+  ): Promise<LogisticsRoute | null> {
+    const result = await db.transaction(async (tx) => {
+      const ownerCondition = empresaId == null
+        ? eq(logisticsRoutes.id, id)
+        : and(eq(logisticsRoutes.id, id), eq(logisticsRoutes.empresaId, empresaId));
+      const [route] = await tx
+        .select({
+          id: logisticsRoutes.id,
+          companyIds: logisticsRoutes.companyIds,
+          driverId: logisticsRoutes.driverId,
+          deliveryDate: logisticsRoutes.deliveryDate,
+        })
+        .from(logisticsRoutes)
+        .where(ownerCondition)
+        .for("update")
+        .limit(1);
+      if (!route) return null;
+
+      // The route row lock serializes this edit with auto-dispatch, which also
+      // locks the route before attaching a delivery. Never remove a company
+      // that still owns a non-terminal delivery on this route.
+      const allowedCompanyIds = (companyIds ?? (Array.isArray(route.companyIds) ? route.companyIds : []))
+        .map(Number)
+        .filter((companyId) => Number.isSafeInteger(companyId) && companyId > 0);
+      if (allowedCompanyIds.length > 0) {
+        const activeCompanies = await tx.execute(sql`
+          SELECT id
+          FROM companies
+          WHERE id = ANY(${allowedCompanyIds}::int[])
+            AND active = TRUE
+          FOR SHARE
+        `);
+        const activeCompanyRows = Array.isArray(activeCompanies)
+          ? activeCompanies as Array<{ id: number }>
+          : ((activeCompanies as any)?.rows ?? []) as Array<{ id: number }>;
+        if (activeCompanyRows.length !== allowedCompanyIds.length) {
+          throw new ConflictError("A rota contém empresa inexistente ou inativa.");
+        }
+      }
+      const desiredDriverId = Object.prototype.hasOwnProperty.call(data, "driverId")
+        ? data.driverId ?? null
+        : route.driverId;
+      const desiredDeliveryDate = Object.prototype.hasOwnProperty.call(data, "deliveryDate")
+        ? data.deliveryDate ?? null
+        : route.deliveryDate;
+      const linked = await tx.execute(sql`
+        SELECT d.id,
+               COALESCE(d.company_id, o.company_id)::int AS company_id,
+               d.driver_id,
+               d.status,
+               COALESCE(d.scheduled_date, o.delivery_date::date)::text AS delivery_date
+        FROM deliveries d
+        LEFT JOIN orders o ON o.id = d.order_id
+        WHERE d.route_id = ${id}
+        FOR UPDATE OF d
+      `);
+      const linkedRows = Array.isArray(linked)
+        ? linked as Array<{ id: number; company_id: number | null; driver_id: number | null; status: string; delivery_date: string | null }>
+        : ((linked as any)?.rows ?? []) as Array<{ id: number; company_id: number | null; driver_id: number | null; status: string; delivery_date: string | null }>;
+      const isCompletingRoute = String(data.status ?? "").toUpperCase() === "COMPLETED";
+      const terminalStatuses = new Set(["entregue", "cancelado", "cancelled", "canceled"]);
+      if (isCompletingRoute && !areAllRouteDeliveriesTerminal(linkedRows)) {
+        throw new ConflictError("A rota só pode ser concluída quando todas as entregas estiverem entregues ou canceladas.");
+      }
+      const activeLinkedRows = linkedRows.filter((row) => !terminalStatuses.has(String(row.status ?? "").toLowerCase()));
+      assertActiveDeliveriesMatchRouteScope({
+        deliveries: activeLinkedRows.map((row) => ({
+          id: Number(row.id),
+          companyId: row.company_id == null ? null : Number(row.company_id),
+          driverId: row.driver_id == null ? null : Number(row.driver_id),
+          deliveryDate: row.delivery_date == null ? null : String(row.delivery_date),
+        })),
+        companyIds: allowedCompanyIds,
+        driverId: desiredDriverId == null ? null : Number(desiredDriverId),
+        deliveryDate: desiredDeliveryDate == null ? null : String(desiredDeliveryDate),
+      });
+
+      const [updated] = await tx
+        .update(logisticsRoutes)
+        .set(data as any)
+        .where(ownerCondition)
+        .returning();
+      return updated ?? null;
+    });
+    if (result?.empresaId) invalidateUsageCache(result.empresaId);
+    return result;
   }
   async deleteRouteOwned(id: number, empresaId: number): Promise<boolean> {
     const [deleted] = await db

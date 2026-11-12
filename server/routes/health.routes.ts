@@ -10,11 +10,11 @@ import fs from "fs";
 import path from "path";
 import { alertReadinessFail } from "../core/alerts/operational-alerts.service";
 import {
-  assertIsolatedPreviewDatabaseIdentity,
   getRuntimeUploadsDirectory,
   isRemoteHomologationMode,
   isIsolatedPreviewMode,
   validateRemoteHomologationConfig,
+  verifyIsolatedPreviewDatabase,
   verifyRemoteHomologationDatabaseIdentity,
 } from "../core/runtimeMode";
 
@@ -262,43 +262,17 @@ export async function register(app: Express): Promise<void> {
     }
 
     try {
-      const configuredRoot = process.env.ISOLATED_PREVIEW_DATA_DIR;
-      if (!configuredRoot) throw new Error("Preview isolado sem diretório temporário.");
-
-      const result = await pool.query<{
-        database: string;
-        username: string;
-        address: string;
-        port: number;
-        data_directory: string;
-      }>(`SELECT current_database() AS database,
-                 current_user AS username,
-                 inet_server_addr()::text AS address,
-                 inet_server_port() AS port,
-                 current_setting('data_directory') AS data_directory`);
-      const identity = result.rows[0];
-      const expectedDataDirectory = await fs.promises.realpath(path.join(configuredRoot, "postgres"));
-      const actualDataDirectory = await fs.promises.realpath(identity.data_directory);
-      assertIsolatedPreviewDatabaseIdentity(
-        { ...identity, dataDirectory: identity.data_directory },
-        expectedDataDirectory,
+      const identity = await verifyIsolatedPreviewDatabase(
+        (text) => pool.query(text),
+        process.env.ISOLATED_PREVIEW_DATA_DIR,
       );
-      if (actualDataDirectory !== expectedDataDirectory) {
-        throw new Error("O pool do servidor não usa o diretório PostgreSQL esperado.");
-      }
-
-      const marker = await fs.promises.readFile(path.join(configuredRoot, ".isolated-preview-marker"), "utf8");
-      const nonce = path.basename(configuredRoot).replace(/^vivafrutaz-isolated-preview\./, "");
-      if (!nonce || marker !== `vivafrutaz-isolated-preview-v1:${nonce}\n`) {
-        throw new Error("Marcador de isolamento do preview não confere.");
-      }
 
       return res.status(200).json({
         status: "ok",
         isolatedPreview: true,
         databaseProvider: "isolated-preview-postgres",
         databaseIdentityVerified: true,
-        isolationId: nonce,
+        isolationId: identity.isolationId,
       });
     } catch {
       return res.status(503).json({

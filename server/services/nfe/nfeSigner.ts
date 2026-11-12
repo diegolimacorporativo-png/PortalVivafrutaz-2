@@ -13,6 +13,7 @@
 
 import { assinarXML as assinarComPfx } from './nfeSignature';
 import { getCertificado } from './nfeCert';
+import { assertNfeIssuanceEnabled } from '../../modules/nfe/nfe-issuance-lock';
 
 /**
  * Assina um XML NF-e usando o certificado A1 configurado em variáveis de
@@ -21,6 +22,7 @@ import { getCertificado } from './nfeCert';
  * @throws Erro descritivo se o cert/senha não estiverem configurados.
  */
 export async function assinarXML(xml: string): Promise<string> {
+  assertNfeIssuanceEnabled();
   const { pfx, passphrase } = getCertificado();
   // `assinarComPfx` aceita Buffer→base64 string ou caminho. Usamos base64
   // direto — evita gravar PFX em disco temporário e funciona com NFE_CERT_BASE64.

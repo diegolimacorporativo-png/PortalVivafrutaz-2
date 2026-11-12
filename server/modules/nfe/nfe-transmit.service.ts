@@ -16,6 +16,7 @@
  */
 import { storage } from '../../services/storage';
 import type { NfeEmissao } from '@shared/schema';
+import { assertNfeIssuanceEnabled } from './nfe-issuance-lock';
 
 const BLOCKED_STATUSES = new Set(['enviada', 'autorizada']);
 const MAX_ATTEMPTS = 3;
@@ -52,6 +53,7 @@ async function callSefazMock(nfe: NfeEmissao): Promise<SefazResponse> {
 }
 
 export async function transmitirNFe(nfeId: number): Promise<TransmitResult> {
+  assertNfeIssuanceEnabled();
   if (!Number.isFinite(nfeId) || nfeId <= 0) {
     throw new Error('NFE_TRANSMIT_INVALID_ID');
   }

@@ -25,8 +25,10 @@ import {
   getRuntimeDatabaseProvider,
   getRuntimeDatabaseUrl,
   isIsolatedRuntimeMode,
+  isIsolatedPreviewMode,
   isRemoteHomologationMode,
   validateRemoteHomologationConfig,
+  verifyIsolatedPreviewDatabase,
   verifyRemoteHomologationDatabaseIdentity,
 } from "./core/runtimeMode";
 import { assertStartupSchemaReady } from "./bootstrap/startup-schema";
@@ -155,7 +157,7 @@ process.on("uncaughtException", (err: Error) => {
   });
 
   let builtApplication: Awaited<ReturnType<typeof buildApp>> | undefined;
-  if (!isRemoteHomologationMode()) {
+  if (!isRemoteHomologationMode() && !isIsolatedPreviewMode()) {
     // Preserve the existing startup order for production and the local preview.
     builtApplication = await buildApp();
   }
@@ -164,6 +166,19 @@ process.on("uncaughtException", (err: Error) => {
   // read-only; schema changes and data recovery use explicit operator commands.
   try {
     await pool.query("SELECT 1 AS ok");
+    if (isIsolatedPreviewMode()) {
+      const localIdentity = await verifyIsolatedPreviewDatabase(
+        (text) => pool.query(text),
+        process.env.ISOLATED_PREVIEW_DATA_DIR,
+      );
+      console.info("[ISOLATED_PREVIEW_DB_IDENTITY_VERIFIED]", {
+        database: "vivafrutaz_preview",
+        username: "preview",
+        address: "127.0.0.1",
+        port: 55439,
+        isolationId: localIdentity.isolationId,
+      });
+    }
     if (isRemoteHomologationMode()) {
       const remoteIdentity = await verifyRemoteHomologationDatabaseIdentity(
         (text) => pool.query(text),
@@ -200,9 +215,9 @@ process.on("uncaughtException", (err: Error) => {
     // account unlock/reset is an explicit maintenance operation.
     await authService.registerStrategicAccountsForLoginBypass();
   }
-  if (isRemoteHomologationMode()) {
-    // Do not register the API or its session store until PostgreSQL identity
-    // has been attested against the isolated project marker.
+  if (!builtApplication) {
+    // Isolated local and remote modes only construct/register routes after
+    // their database identity and marker have been verified above.
     builtApplication = await buildApp();
   }
   if (!builtApplication) throw new Error("Aplicação não foi inicializada.");
@@ -274,7 +289,7 @@ process.on("uncaughtException", (err: Error) => {
   }, 60_000).unref();
 
   const port = parseInt(process.env.PORT || "5000", 10);
-  httpServer.listen({ port, host: isRemoteHomologationMode() ? "127.0.0.1" : "0.0.0.0" }, () => {
+  httpServer.listen({ port, host: isIsolatedRuntimeMode() ? "127.0.0.1" : "0.0.0.0" }, () => {
     const bootMs = Date.now() - _bootAt;
     console.log(`serving on port ${port}`);
     console.log("[APP_READY]", {

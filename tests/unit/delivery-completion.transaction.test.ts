@@ -11,6 +11,7 @@ import {
   type DeliveryCompletionChecklistInput,
   type DeliveryCompletionChecklistRecord,
   type DeliveryCompletionOrder,
+  type DeliveryCompletionRouteScope,
   type DeliveryCompletionRow,
   type DeliveryCompletionStore,
   type DeliveryCompletionTransaction,
@@ -26,7 +27,7 @@ type TestOrder = DeliveryCompletionOrder & {
 type TestState = {
   orders: TestOrder[];
   deliveries: DeliveryCompletionRow[];
-  routes: Array<{ id: number; companyId: number | null }>;
+  routes: Array<DeliveryCompletionRouteScope>;
   events: DeliveryStopEventInput[];
   checklists: DeliveryCompletionChecklistRecord[];
   notifications: Array<Record<string, unknown>>;
@@ -54,6 +55,7 @@ class MemoryCompletionStore implements DeliveryCompletionStore {
           orderId: row.orderId,
           companyId: row.companyId,
           routeId: row.routeId,
+          driverId: row.driverId ?? null,
         };
       },
       lockOrderSerialization: async (orderId) => {
@@ -69,8 +71,8 @@ class MemoryCompletionStore implements DeliveryCompletionStore {
         if (!row || (tenantId != null && row.companyId !== tenantId)) return undefined;
         return row;
       },
-      getRouteCompany: async (routeId) =>
-        draft.routes.find((route) => route.id === routeId)?.companyId,
+      getRouteScope: async (routeId) =>
+        draft.routes.find((route) => route.id === routeId),
       getDeliveriesForOrder: async (orderId): Promise<OrderDeliveryForCompletion[]> =>
         draft.deliveries
           .filter((row) => row.orderId === orderId)
@@ -79,10 +81,13 @@ class MemoryCompletionStore implements DeliveryCompletionStore {
             companyId: row.companyId,
             status: row.status,
             routeId: row.routeId,
+            driverId: row.driverId ?? null,
             routeCompanyId:
               row.routeId == null
                 ? null
                 : draft.routes.find((route) => route.id === row.routeId)?.companyId ?? null,
+            routeCompanyIds: draft.routes.find((route) => route.id === row.routeId)?.companyIds ?? [],
+            routeDriverId: draft.routes.find((route) => route.id === row.routeId)?.driverId ?? null,
           })),
       hasDeliveredEvent: async (deliveryId) =>
         draft.events.some(
@@ -244,6 +249,9 @@ function makeStore(statuses = ["em_rota"]): MemoryCompletionStore {
   const routes = statuses.map((_, index) => ({
     id: 50 + index,
     companyId: 10,
+    companyIds: [10],
+    driverId: 70,
+    status: "IN_PROGRESS",
   }));
   return new MemoryCompletionStore({
     orders,
@@ -613,17 +621,14 @@ describe("conclusão transacional de entregas", () => {
     assert.equal(store.state.orders[0].workflowStatus, "SHIPPED");
   });
 
-  test("rota de outra empresa bloqueia a conclusão antes de qualquer gravação", async () => {
+  test("empresa proprietária da rota não bloqueia delivery autorizada em company_ids", async () => {
     const store = makeStore();
     store.state.routes[0].companyId = 20;
 
-    await assert.rejects(
-      () => complete(store),
-      (error: unknown) => error instanceof DeliveryCompletionLinkError,
-    );
-
-    assert.equal(store.state.deliveries[0].status, "em_rota");
-    assert.equal(store.state.events.length, 0);
+    const result = await complete(store);
+    assert.equal(result?.delivery.status, "entregue");
+    assert.equal(store.state.deliveries[0].status, "entregue");
+    assert.equal(store.state.events.length, 1);
   });
 
   test("o bloqueio do pedido é adquirido antes dos bloqueios de linha", async () => {
@@ -635,5 +640,82 @@ describe("conclusão transacional de entregas", () => {
       "order:1",
       "delivery:101",
     ]);
+  });
+
+  test("conclui somente a entrega solicitada entre 35 de três empresas autorizadas na rota", async () => {
+    const route = { id: 900, companyId: 10, companyIds: [10, 20, 30], driverId: 70, status: "IN_PROGRESS" };
+    const deliveries = Array.from({ length: 35 }, (_, index): DeliveryCompletionRow => ({
+      id: 1000 + index,
+      orderId: null,
+      companyId: index < 15 ? 10 : index < 23 ? 20 : 30,
+      routeId: route.id,
+      driverId: 70,
+      status: "em_rota",
+    }));
+    const store = new MemoryCompletionStore({
+      orders: [], deliveries, routes: [route], events: [], checklists: [], notifications: [],
+    });
+
+    for (const delivery of deliveries) {
+      await completeDelivery(store, {
+        deliveryId: delivery.id, tenantId: null, authenticatedDriverId: 70, actor, now: completedAt,
+      });
+      assert.equal(store.state.deliveries.filter((row) => row.status === "entregue").length,
+        deliveries.indexOf(delivery) + 1);
+      assert.equal(store.state.deliveries.filter((row) => row.status === "em_rota").length,
+        deliveries.length - deliveries.indexOf(delivery) - 1);
+    }
+    assert.equal(store.state.events.length, 35);
+    assert.deepEqual(
+      store.state.deliveries.reduce((counts, delivery) => {
+        counts[delivery.companyId!] = (counts[delivery.companyId!] ?? 0) + 1;
+        return counts;
+      }, {} as Record<number, number>),
+      { 10: 15, 20: 8, 30: 12 },
+    );
+  });
+
+  test("driver completion rejects unscoped company, another driver, another route, and cancelled delivery", async () => {
+    const makeDriverStore = (companyId = 20, driverId = 70, routeId = 500, status = "em_rota") => {
+      const store = new MemoryCompletionStore({
+        orders: [],
+        deliveries: [{ id: 501, orderId: null, companyId, routeId, driverId, status }],
+        routes: [{ id: 500, companyId: 10, companyIds: [10, 20], driverId: 70, status: "IN_PROGRESS" }],
+        events: [], checklists: [], notifications: [],
+      });
+      return store;
+    };
+    const cases = [
+      { store: makeDriverStore(40), driverId: 70, initialStatus: "em_rota" },
+      { store: makeDriverStore(20, 71), driverId: 70, initialStatus: "em_rota" },
+      { store: makeDriverStore(20, 70, 501), driverId: 70, initialStatus: "em_rota" },
+      { store: makeDriverStore(20, 70, 500, "cancelado"), driverId: 70, initialStatus: "cancelado" },
+    ];
+    for (const { store, driverId, initialStatus } of cases) {
+      await assert.rejects(
+        () => completeDelivery(store, {
+          deliveryId: 501, tenantId: null, authenticatedDriverId: driverId, actor, now: completedAt,
+        }),
+        (error: unknown) => error instanceof DeliveryCompletionLinkError || error instanceof Error,
+      );
+      assert.equal(store.state.deliveries[0].status, initialStatus);
+      assert.equal(store.state.events.length, 0);
+    }
+  });
+
+  test("driver retry of delivered delivery does not duplicate completion event", async () => {
+    const store = new MemoryCompletionStore({
+      orders: [],
+      deliveries: [{ id: 501, orderId: null, companyId: 20, routeId: 500, driverId: 70, status: "em_rota" }],
+      routes: [{ id: 500, companyId: 10, companyIds: [10, 20, 30], driverId: 70, status: "IN_PROGRESS" }],
+      events: [], checklists: [], notifications: [],
+    });
+    const input = { deliveryId: 501, tenantId: null, authenticatedDriverId: 70, actor, now: completedAt };
+    const first = await completeDelivery(store, input);
+    const retry = await completeDelivery(store, input);
+    assert.equal(first?.changed, true);
+    assert.equal(retry?.changed, false);
+    assert.equal(store.state.deliveries.length, 1);
+    assert.equal(store.state.events.length, 1);
   });
 });

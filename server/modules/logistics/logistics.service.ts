@@ -18,7 +18,7 @@ import {
   NotFoundError,
 } from "../../shared/errors/AppError";
 import { currentTenantId } from "../../core/tenant/context";
-import { GLOBAL_SCOPE_ROLES, roleCanViewGps } from "@shared/user-roles";
+import { CROSS_COMPANY_STAFF_ROLES, GLOBAL_SCOPE_ROLES, roleCanViewGps } from "@shared/user-roles";
 import { LOGISTICS_AUTH_ROLES } from "./logistics.types";
 import { dateInTimeZone } from "./local-date";
 import type {
@@ -179,6 +179,7 @@ export class LogisticsService {
   private async validateCompanyReferences(
     companyIds: unknown,
     tenantId: number | null,
+    actor?: ActorRef,
   ): Promise<number[] | undefined> {
     if (companyIds === undefined) return undefined;
     if (!Array.isArray(companyIds)) {
@@ -192,16 +193,18 @@ export class LogisticsService {
       }
       return id;
     });
-    const companies = tenantId == null
-      ? await this.repo.getCompanies()
-      : [await this.repo.getCompany(tenantId)];
-    const allowedIds = new Set(
-      (companies as any[]).filter(Boolean).map((company) => Number(company.id)),
-    );
-    if (ids.some((id) => !allowedIds.has(id))) {
-      throw new ForbiddenError("Empresa não pertence ao tenant autorizado.");
+    const canSelectAcrossCompanies = actor?.identityType === "internal" &&
+      (CROSS_COMPANY_STAFF_ROLES as readonly string[]).includes(actor.role);
+    const uniqueIds = [...new Set(ids)];
+    if (!canSelectAcrossCompanies && (tenantId == null || uniqueIds.some((id) => id !== tenantId))) {
+      throw new ForbiddenError("Usuário não está autorizado para todas as empresas da rota.");
     }
-    return ids;
+
+    const companies = await Promise.all(uniqueIds.map((id) => this.repo.getCompany(id)));
+    if (companies.some((company) => !company || company.active === false)) {
+      throw new BadRequestError("A rota contém empresa inexistente ou inativa.");
+    }
+    return uniqueIds;
   }
 
   private analyticsScope(
@@ -519,7 +522,13 @@ export class LogisticsService {
     const tenantId = this.actorTenant(actor);
     const normalizedVehicleId = normalizeOptionalId(vehicleId, "Veículo");
     await this.validateVehicleReference(normalizedVehicleId, tenantId);
-    const normalizedCompanyIds = await this.validateCompanyReferences(companyIds, tenantId);
+    const companyIdsInput = companyIds === undefined && tenantId != null
+      ? [tenantId]
+      : companyIds;
+    const normalizedCompanyIds = await this.validateCompanyReferences(companyIdsInput, tenantId, actor);
+    if (!normalizedCompanyIds?.length) {
+      throw new BadRequestError("Informe ao menos uma empresa autorizada para a rota.");
+    }
     let operationalDriverId = driverId || undefined;
     if (operationalDriverId && Number(operationalDriverId) < 0) {
       // Virtual driver entries come from user accounts that predate the
@@ -594,8 +603,26 @@ export class LogisticsService {
       payload.vehicleId = normalizeOptionalId(payload.vehicleId, "Veículo");
       await this.validateVehicleReference(payload.vehicleId as number | null, tid);
     }
-    if (Object.prototype.hasOwnProperty.call(payload, "companyIds")) {
-      payload.companyIds = await this.validateCompanyReferences(payload.companyIds, tid);
+    const hasCompanyIds = Object.prototype.hasOwnProperty.call(payload, "companyIds");
+    const completingRoute = String(payload.status ?? "").toUpperCase() === "COMPLETED";
+    if (hasCompanyIds) {
+      payload.companyIds = await this.validateCompanyReferences(payload.companyIds, tid, actor);
+      if (!payload.companyIds) {
+        throw new BadRequestError("companyIds inválido");
+      }
+    }
+    if (
+      hasCompanyIds ||
+      completingRoute ||
+      Object.prototype.hasOwnProperty.call(payload, "driverId") ||
+      Object.prototype.hasOwnProperty.call(payload, "deliveryDate")
+    ) {
+      return this.repo.updateRouteCompanyScope(
+        id,
+        tid,
+        payload,
+        hasCompanyIds ? payload.companyIds as number[] : undefined,
+      );
     }
     return tid
       ? this.repo.updateRouteOwned(id, tid, payload)

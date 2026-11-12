@@ -416,9 +416,12 @@ export default function FiscalManagement() {
           {selectedOrders.size > 0 && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-medium text-foreground">{selectedOrders.size} selecionado(s)</span>
+              <span className="text-xs text-amber-700">Emissão fiscal pausada durante a atualização do fluxo operacional.</span>
               <button
                 data-testid="button-bulk-mark-emitida"
                 onClick={() => handleBulkStatus('nota_emitida')}
+                disabled
+                title="Emissão fiscal temporariamente suspensa"
                 className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-colors"
               >
                 → Emitida
@@ -426,6 +429,8 @@ export default function FiscalManagement() {
               <button
                 data-testid="button-bulk-mark-exportada"
                 onClick={() => handleBulkStatus('nota_exportada')}
+                disabled
+                title="Emissão fiscal temporariamente suspensa"
                 className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-colors"
               >
                 → Exportada
@@ -433,6 +438,8 @@ export default function FiscalManagement() {
               <button
                 data-testid="button-bulk-mark-pendente"
                 onClick={() => handleBulkStatus('nota_pendente')}
+                disabled
+                title="Alteração de status fiscal temporariamente suspensa"
                 className="px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-xs font-bold transition-colors"
               >
                 → Pendente
@@ -567,12 +574,14 @@ export default function FiscalManagement() {
                                   <select
                                     value={fStatus}
                                     onChange={e => fiscalMutation.mutate({ orderId: order.id, fiscalStatus: e.target.value })}
+                                    disabled
+                                    title="Alteração de status fiscal temporariamente suspensa"
                                     className={`text-xs font-bold px-2 py-1 rounded-lg border cursor-pointer bg-transparent ${FISCAL_BADGE[fStatus] || 'bg-gray-100 text-gray-600 border-gray-300'}`}
                                     data-testid={`select-fiscal-status-${order.id}`}
                                   >
                                     <option value="nota_pendente">Pendente</option>
-                                    <option value="nota_exportada">Exportada</option>
-                                    <option value="nota_emitida">Emitida</option>
+                                    <option value="nota_exportada" disabled>Exportada — suspensa</option>
+                                    <option value="nota_emitida" disabled>Emitida — suspensa</option>
                                     <option value="nota_cancelada">Cancelada</option>
                                   </select>
                                 </td>

@@ -63,7 +63,7 @@ export const WF_LABEL: Record<string, string> = {
   APPROVED:         "Aprovado",
   PROCESSING:       "Em Separação",
   READY:            "Pedido Pronto",
-  INVOICED:         "Liberado para entrega",
+  INVOICED:         "Faturado (registro histórico)",
   SHIPPED:          "Em Rota",
   DELIVERED:        "Entregue",
   REJECTED:         "Rejeitado",

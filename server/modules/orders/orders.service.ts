@@ -25,6 +25,7 @@ import { auditLog } from "../../utils/auditLogger";
 // cujo `createdAt` cai num mês já consolidado para a empresa. NÃO altera
 // qualquer caminho de leitura nem a ausência de fechamento (default = aberto).
 import { isPeriodClosed } from "../../services/fiscal/fiscal-closure.service";
+import { assertFiscalMutationEnabled } from "../nfe/nfe-issuance-lock";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {
   OrderStatus,
@@ -1440,19 +1441,6 @@ export class OrdersService {
       await this.assertOperationalDeadline(id, "cancel", actor, undefined, orderRow);
     }
 
-    // STEP 7.1 — Skip-step guard: APPROVED → INVOICED is allowed by the state
-    // machine (legacy fast path), but only privileged roles can use it. Regular
-    // operators must follow the operational pipeline:
-    //   APPROVED → PROCESSING → READY → INVOICED
-    if (from === OrderStatus.APPROVED && to === OrderStatus.INVOICED) {
-      const isPrivileged = user?.role === "MASTER" || user?.role === "DIRECTOR";
-      if (!isPrivileged) {
-        throw new BadRequestError(
-          "Fluxo operacional obrigatório: iniciar separação primeiro.",
-        );
-      }
-    }
-
     validateBusinessRules({ orderId: id, to, company, orderRow });
 
     // ── Phase 3: Atomic transaction — ALL critical writes ─────────────────────
@@ -2384,6 +2372,9 @@ export class OrdersService {
     actor: ActorContext,
   ): Promise<Order> {
     const user = await this.requireRole(actor, FISCAL_ROLES, "Sem permissão");
+    // This endpoint changes only fiscal state (status or pre-nota number).
+    // Pause the whole mutation until fiscal processing is explicitly resumed.
+    assertFiscalMutationEnabled();
     const updates: any = {};
     if (body.fiscalStatus) updates.fiscalStatus = body.fiscalStatus;
     if (body.preNotaNumber !== undefined)
@@ -2414,6 +2405,9 @@ export class OrdersService {
     id: number,
     actor: ActorContext,
   ): Promise<{ preNotaNumber: string; order?: Order }> {
+    // Defense in depth: reject direct service calls before role checks, reads,
+    // number generation, persistence, or logging while fiscal processing is paused.
+    assertFiscalMutationEnabled();
     await this.requireRole(actor, FISCAL_ROLES, "Sem permissão");
     const orderData = await this.repo.get(id);
     if (!orderData) throw new NotFoundError("Pedido não encontrado");

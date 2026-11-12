@@ -1,15 +1,12 @@
 import { execFileSync } from "node:child_process";
-import { readFile, realpath } from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
+import { realpath } from "node:fs/promises";
 import { Pool } from "pg";
 import {
   assertIsolatedPreviewDatabaseIdentity,
   validateIsolatedPreviewDatabaseUrl,
+  verifyIsolatedPreviewDatabase,
 } from "../server/core/runtimeMode";
-
-const ISOLATED_ROOT_PREFIX = "vivafrutaz-isolated-preview.";
-const ISOLATED_MARKER_PREFIX = "vivafrutaz-isolated-preview-v1:";
 
 async function main(): Promise<void> {
   if (process.env.ISOLATED_PREVIEW_MODE !== "1") {
@@ -25,35 +22,6 @@ async function main(): Promise<void> {
     throw new Error("ISOLATED_PREVIEW_DATA_DIR é obrigatório.");
   }
 
-  const tempDirectory = await realpath(os.tmpdir());
-  const dataRoot = await realpath(configuredDataRoot);
-  const relativeToTemp = path.relative(tempDirectory, dataRoot);
-  const rootName = path.basename(dataRoot);
-  const nonce = rootName.startsWith(ISOLATED_ROOT_PREFIX)
-    ? rootName.slice(ISOLATED_ROOT_PREFIX.length)
-    : "";
-
-  if (
-    !relativeToTemp ||
-    relativeToTemp === ".." ||
-    relativeToTemp.startsWith(`..${path.sep}`) ||
-    path.isAbsolute(relativeToTemp) ||
-    !/^[a-zA-Z0-9]+$/.test(nonce)
-  ) {
-    throw new Error("O diretório do PostgreSQL não é o temporário dedicado.");
-  }
-
-  const marker = await readFile(
-    path.join(dataRoot, ".isolated-preview-marker"),
-    "utf8",
-  );
-  if (marker !== `${ISOLATED_MARKER_PREFIX}${nonce}\n`) {
-    throw new Error("O marcador do banco temporário está ausente ou inválido.");
-  }
-
-  const expectedDataDirectory = await realpath(
-    path.join(dataRoot, "postgres"),
-  );
   const pool = new Pool({
     connectionString: databaseUrl,
     ssl: false,
@@ -62,6 +30,12 @@ async function main(): Promise<void> {
   });
 
   try {
+    const verified = await verifyIsolatedPreviewDatabase(
+      (text) => pool.query(text),
+      configuredDataRoot,
+    );
+    const dataRoot = verified.dataRoot;
+    const expectedDataDirectory = await realpath(path.join(dataRoot, "postgres"));
     const identityResult = await pool.query<{
       database: string;
       username: string;
@@ -110,20 +84,31 @@ async function main(): Promise<void> {
     });
 
     const rootDirectory = process.cwd();
+    const drizzleKitEntrypoint = path.join(
+      rootDirectory,
+      "node_modules",
+      "drizzle-kit",
+      "bin.cjs",
+    );
     const drizzleEnvironment: NodeJS.ProcessEnv = {
       PATH: process.env.PATH ?? "/usr/bin:/bin",
       HOME: process.env.HOME ?? "/tmp",
       LC_ALL: "C",
       NODE_ENV: "development",
-      DOTENV_CONFIG_PATH: "/dev/null",
+      DOTENV_CONFIG_PATH: process.platform === "win32" ? "NUL" : "/dev/null",
+      ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+      ...(process.env.WINDIR ? { WINDIR: process.env.WINDIR } : {}),
+      ...(process.env.TEMP ? { TEMP: process.env.TEMP } : {}),
+      ...(process.env.TMP ? { TMP: process.env.TMP } : {}),
       // Drizzle receives only the verified loopback URL, never an inherited
       // shared Supabase/Render connection string.
       SUPABASE_DATABASE_URL: databaseUrl,
     };
 
     execFileSync(
-      path.join(rootDirectory, "node_modules/.bin/drizzle-kit"),
+      process.execPath,
       [
+        drizzleKitEntrypoint,
         "push",
         "--dialect=postgresql",
         "--schema=./shared/schema.ts",
@@ -151,6 +136,10 @@ async function main(): Promise<void> {
         current_setting('data_directory') AS data_directory
     `);
     const postPushIdentity = postPushResult.rows[0];
+    await verifyIsolatedPreviewDatabase(
+      (text) => pool.query(text),
+      configuredDataRoot,
+    );
     assertIsolatedPreviewDatabaseIdentity(
       {
         database: postPushIdentity.database,

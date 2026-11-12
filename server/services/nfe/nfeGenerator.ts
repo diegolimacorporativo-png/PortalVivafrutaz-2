@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { NFeInput } from './nfeValidator';
 import { validarCRT } from './nfeValidator';
+import { assertNfeIssuanceEnabled } from '../../modules/nfe/nfe-issuance-lock';
 
 // UF → cUF IBGE codes
 const UF_IBGE: Record<string, string> = {
@@ -122,7 +123,7 @@ function isProdutoImportado(ncm?: string, item?: any): boolean {
 //   5. demais interestaduais (SE/S exceto ES)        → 12%
 //
 // ⚠ Sem ST, sem DIFAL — vem nas próximas fases.
-function getAliquotaICMS(
+export function getAliquotaICMS(
   ufOrigem?: string,
   ufDestino?: string,
   ncm?: string,
@@ -155,6 +156,147 @@ function getAliquotaICMS(
 
   // 5. demais casos interestaduais
   return 12;
+}
+
+export interface IcmsCalculationInput {
+  crt: string;
+  csosn?: string;
+  cst?: string;
+  productValue: number;
+  ufOrigem?: string;
+  ufDestino?: string;
+  ncm?: string;
+  item?: any;
+}
+
+export interface IcmsCalculationResult {
+  rawCsosn: string;
+  rawCst: string;
+  regime: "simples" | "normal";
+  base: number;
+  rate: number;
+  amount: number;
+  emitsBaseAndTax: boolean;
+  reducesBase: boolean;
+  includeInTotals: boolean;
+}
+
+export type IcmsItemStructure =
+  | { kind: "simples"; taxCode: string }
+  | { kind: "normal_minimal"; taxCode: string }
+  | {
+      kind: "normal_calculated";
+      taxCode: string;
+      baseMode: "3";
+      base: number;
+      reductionRate: number | null;
+      rate: number;
+      amount: number;
+    };
+
+export interface NfeItemComposition {
+  itemNumber: number;
+  productCode: string;
+  ean: string;
+  name: string;
+  ncm: string;
+  cfop: string;
+  commercialUnit: string;
+  commercialQuantity: number;
+  commercialUnitValue: number;
+  productValue: number;
+  taxUnit: string;
+  taxQuantity: number;
+  taxUnitValue: number;
+  icms: IcmsCalculationResult;
+  icmsStructure: IcmsItemStructure;
+}
+
+/** Pure mapping from a validated item to the fiscal structure consumed by the renderer. */
+export function buildIcmsItemStructure(tax: IcmsCalculationResult): IcmsItemStructure {
+  if (tax.regime === "simples") {
+    return { kind: "simples", taxCode: tax.rawCsosn };
+  }
+  if (!tax.emitsBaseAndTax) {
+    return { kind: "normal_minimal", taxCode: tax.rawCst };
+  }
+  return {
+    kind: "normal_calculated",
+    taxCode: tax.rawCst,
+    baseMode: "3",
+    base: tax.base,
+    reductionRate: tax.reducesBase ? 0 : null,
+    rate: tax.rate,
+    amount: tax.amount,
+  };
+}
+
+/** Pure item projection used by the XML renderer and testable without emitting a document. */
+export function composeNfeItem(
+  product: NFeInput["produtos"][number],
+  index: number,
+  context: { crt: string; ufOrigem?: string; ufDestino?: string },
+): NfeItemComposition {
+  const icms = calculateIcmsForItem({
+    crt: context.crt,
+    csosn: product.csosn,
+    cst: product.cst,
+    productValue: product.vProd,
+    ufOrigem: context.ufOrigem,
+    ufDestino: context.ufDestino,
+    ncm: product.ncm,
+    item: product,
+  });
+  return {
+    itemNumber: index + 1,
+    productCode: product.cProd || String(index + 1).padStart(6, "0"),
+    ean: product.cEAN || "SEM GTIN",
+    name: product.xProd,
+    ncm: product.ncm.replace(/\D/g, "").slice(0, 8).padEnd(8, "0"),
+    cfop: product.cfop,
+    commercialUnit: product.uCom || "KG",
+    commercialQuantity: product.qCom,
+    commercialUnitValue: product.vUnCom,
+    productValue: product.vProd,
+    taxUnit: product.uTrib || product.uCom || "KG",
+    taxQuantity: product.qTrib || product.qCom,
+    taxUnitValue: product.vUnTrib || product.vUnCom,
+    icms,
+    icmsStructure: buildIcmsItemStructure(icms),
+  };
+}
+
+/** Pure tax decision/calculation helper. It performs no XML or I/O work. */
+export function calculateIcmsForItem(input: IcmsCalculationInput): IcmsCalculationResult {
+  const rawCsosn = input.csosn || "102";
+  if (!/^\d{3}$/.test(rawCsosn)) throw new Error("NFE_INVALID_CSOSN");
+
+  const rawCst = input.cst || "00";
+  if (!/^\d{2}$/.test(rawCst)) throw new Error("NFE_INVALID_CST");
+
+  const base = Number(input.productValue) || 0;
+  const rate = getAliquotaICMS(
+    input.ufOrigem,
+    input.ufDestino,
+    input.ncm,
+    input.item,
+  );
+  const amount = (base * rate) / 100;
+  const regime = input.crt === "1" || input.crt === "2" ? "simples" : "normal";
+  const exemptOrSubstitution = ["40", "41", "50", "60"].includes(rawCst);
+  const emitsBaseAndTax = regime === "normal" && !exemptOrSubstitution;
+
+  return {
+    rawCsosn,
+    rawCst,
+    regime,
+    base,
+    rate,
+    amount,
+    emitsBaseAndTax,
+    reducesBase: emitsBaseAndTax && rawCst === "20",
+    includeInTotals: input.crt === "3" && !exemptOrSubstitution,
+  };
 }
 
 function sanitizeXml(s: string): string {
@@ -216,6 +358,9 @@ export async function gerarNFeXML(
   input: NFeInput,
   numero: number
 ): Promise<NFeGerada> {
+  // Defense in depth: block direct callers before validation or XML work.
+  assertNfeIssuanceEnabled();
+
   // FASE NF.2 — ETAPA 1: validação de entrada antes de qualquer processamento
   if (!input.emitente?.cnpj?.trim()) throw new Error('NFE_XML_MISSING_EMITENTE');
   if (!input.destinatario?.xNome?.trim()) throw new Error('NFE_XML_MISSING_DESTINATARIO');
@@ -280,66 +425,15 @@ export async function gerarNFeXML(
   // Gerar itens
   // FASE NF.2 — ETAPA 3/4: xmlSafe aplicado em xProd; toMoney em valores monetários
   const itenXml = input.produtos.map((p, idx) => {
-    const ncm = p.ncm.replace(/\D/g, '').slice(0, 8).padEnd(8, '0');
-    // FASE NF.5.1 — ETAPA 2: CSOSN realmente dinâmico no XML.
-    // HOTFIX CSOSN: separar valor bruto (nome da tag) do valor escapado (conteúdo).
-    // escapeXml pode introduzir caracteres (&amp;, &apos;) que quebrariam o nome
-    // da tag <ICMSSN...>. O nome da tag usa o valor bruto; o conteúdo do <CSOSN>
-    // continua escapado para defesa em profundidade.
-    const rawCsosn = p.csosn || '102';
-    // HOTFIX CSOSN VALIDATION: bloqueia valores fora do padrão SEFAZ (3 dígitos).
-    // Garante que o nome da tag <ICMSSN${rawCsosn}> seja sempre válido e
-    // evita XML quebrado por letras, símbolos ou strings vazias.
-    if (!/^\d{3}$/.test(rawCsosn)) {
-      throw new Error('NFE_INVALID_CSOSN');
-    }
-    const csosn = escapeXml(rawCsosn);
-
-    // FASE NF.6 — ETAPA 1/2/3: CST dinâmico para regime normal (CRT=3).
-    // - default '00' preserva 100% do XML legado quando p.cst não vem do builder
-    //   (ETAPA 6 — backward compatibility);
-    // - regex /^\d{2}$/ bloqueia valores fora do padrão SEFAZ (ex.: 'A1', '1', '');
-    //   alinhado ao mesmo fail-fast da NF.5.1 para CSOSN.
-    // - cálculo NÃO muda (ETAPA 4): pICMS/vICMS = 0.00, modBC=3, vBC=p.vProd —
-    //   apenas a TAG passa de fixa <ICMS00> para <ICMS${cst}>.
-    const rawCst = (p as any).cst || '00';
-    if (!/^\d{2}$/.test(rawCst)) {
-      throw new Error('NFE_INVALID_CST');
-    }
-    const cstSafe = escapeXml(rawCst);
-
-    // FASE NF.7.1 — estrutura de ICMS por CST.
-    // - default ('00' e demais não mapeados): estrutura completa com base/imposto.
-    // - '20' (redução de base): adiciona <pRedBC>0.00</pRedBC>.
-    // - '40' / '41' / '50' (isento/não tributado): apenas <orig> + <CST>.
-    // - '60' (ICMS ST): estrutura mínima (NF.7.x cuidará de vBCST/vICMSST reais).
-    //
-    // FASE NF.7.2 — cálculo real de ICMS (CRT=3 apenas):
-    // - vBC = p.vProd (sem redução por enquanto);
-    // - pICMS = 18% (alíquota fixa inicial — base para regra por UF na NF.7.x);
-    // - vICMS = vBC * pICMS / 100.
-    // CST 40/41/50/60 NÃO recebem cálculo (estrutura mínima preservada).
-    // CRT 1/2 (Simples Nacional) usa o branch <ICMSSN…> abaixo e icmsContent
-    // é descartado — comportamento de Simples 100% preservado.
-    // ⚠ Sem função separada e sem refatorar o bloco — apenas o switch local.
-    //
-    // FASE NF.7.3 — alíquota encapsulada em getAliquotaICMS() (ponto único
-    // de mudança futura).
-    // FASE NF.7.4 — passamos as UFs de emitente e destinatário (já normalizadas
-    // em uppercase no closure desta função, linhas 167/176) para diferenciar
-    // operação interna × interestadual. Acesso seguro via `?.` mantém o
-    // fallback 18% se algo vier ausente. Estrutura de input NÃO foi alterada.
-    const vBC = Number(p.vProd) || 0;
-    // FASE NF.7.6 — NCM passado como 3º argumento para detecção de importado.
-    // FASE NF.7.7 — item completo (`p`) passado como 4º argumento para
-    // permitir override manual via `p.importado === true` (cadastro/operador).
-    const pICMS = getAliquotaICMS(
-      (input as any).emitente?.uf,
-      (input as any).destinatario?.uf,
-      p.ncm,
-      p,
-    );
-    const vICMS = (vBC * pICMS) / 100;
+    const composition = composeNfeItem(p, idx, {
+      crt,
+      ufOrigem: (input as any).emitente?.uf,
+      ufDestino: (input as any).destinatario?.uf,
+    });
+    const ncm = composition.ncm;
+    const icmsTax = composition.icms;
+    const vBC = icmsTax.base;
+    const vICMS = icmsTax.amount;
 
     // FASE NF.7.1 — soma para o <ICMSTot> APENAS quando o item realmente
     // emite vBC/vICMS no XML. Espelha exatamente o switch abaixo:
@@ -347,34 +441,20 @@ export async function gerarNFeXML(
     //   - CRT 3 + CST 40/41/50/60 → estrutura mínima, sem vBC/vICMS → NÃO soma.
     //   - CRT 3 + demais (00, 20, default) → soma.
     // Garante que somatório do total = somatório dos itens (regra SEFAZ).
-    const itemEmiteIcms =
-      crt === '3' && !['40', '41', '50', '60'].includes(rawCst);
+    const itemEmiteIcms = icmsTax.includeInTotals;
     if (itemEmiteIcms) {
       if (Number.isFinite(vBC)) totalvBC += vBC;
       if (Number.isFinite(vICMS)) totalvICMS += vICMS;
     }
 
-    let icmsContent: string;
-    switch (rawCst) {
-      case '20':
-        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(vBC)}</vBC><pRedBC>0.00</pRedBC><pICMS>${toMoney(pICMS)}</pICMS><vICMS>${toMoney(vICMS)}</vICMS>`;
-        break;
-      case '40':
-      case '41':
-      case '50':
-      case '60':
-        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST>`;
-        break;
-      default:
-        icmsContent = `<orig>0</orig><CST>${cstSafe}</CST><modBC>3</modBC><vBC>${toMoney(vBC)}</vBC><pICMS>${toMoney(pICMS)}</pICMS><vICMS>${toMoney(vICMS)}</vICMS>`;
-        break;
-    }
+    const icmsStructure = composition.icmsStructure;
+    const icmsXml = icmsStructure.kind === "simples"
+      ? `<ICMS><ICMSSN${icmsStructure.taxCode}><orig>0</orig><CSOSN>${escapeXml(icmsStructure.taxCode)}</CSOSN></ICMSSN${icmsStructure.taxCode}></ICMS>`
+      : icmsStructure.kind === "normal_minimal"
+        ? `<ICMS><ICMS${icmsStructure.taxCode}><orig>0</orig><CST>${escapeXml(icmsStructure.taxCode)}</CST></ICMS${icmsStructure.taxCode}></ICMS>`
+        : `<ICMS><ICMS${icmsStructure.taxCode}><orig>0</orig><CST>${escapeXml(icmsStructure.taxCode)}</CST><modBC>${icmsStructure.baseMode}</modBC><vBC>${toMoney(icmsStructure.base)}</vBC>${icmsStructure.reductionRate == null ? "" : `<pRedBC>${toMoney(icmsStructure.reductionRate)}</pRedBC>`}<pICMS>${toMoney(icmsStructure.rate)}</pICMS><vICMS>${toMoney(icmsStructure.amount)}</vICMS></ICMS${icmsStructure.taxCode}></ICMS>`;
 
-    const icmsXml = crt === '1' || crt === '2'
-      ? `<ICMS><ICMSSN${rawCsosn}><orig>0</orig><CSOSN>${csosn}</CSOSN></ICMSSN${rawCsosn}></ICMS>`
-      : `<ICMS><ICMS${rawCst}>${icmsContent}</ICMS${rawCst}></ICMS>`;
-
-    return `<det nItem="${idx + 1}"><prod><cProd>${escapeXml(p.cProd || String(idx + 1).padStart(6, '0'))}</cProd><cEAN>${p.cEAN || 'SEM GTIN'}</cEAN><xProd>${escapeXml(p.xProd)}</xProd><NCM>${ncm}</NCM><CFOP>${p.cfop}</CFOP><uCom>${escapeXml(p.uCom || 'KG')}</uCom><qCom>${fmtValor(p.qCom, 4)}</qCom><vUnCom>${fmtValor(p.vUnCom, 10)}</vUnCom><vProd>${safeNumber(p.vProd, 'item.vProd')}</vProd><cEANTrib>${p.cEAN || 'SEM GTIN'}</cEANTrib><uTrib>${escapeXml(p.uTrib || p.uCom || 'KG')}</uTrib><qTrib>${fmtValor(p.qTrib || p.qCom, 4)}</qTrib><vUnTrib>${fmtValor(p.vUnTrib || p.vUnCom, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
+    return `<det nItem="${composition.itemNumber}"><prod><cProd>${escapeXml(composition.productCode)}</cProd><cEAN>${composition.ean}</cEAN><xProd>${escapeXml(composition.name)}</xProd><NCM>${ncm}</NCM><CFOP>${composition.cfop}</CFOP><uCom>${escapeXml(composition.commercialUnit)}</uCom><qCom>${fmtValor(composition.commercialQuantity, 4)}</qCom><vUnCom>${fmtValor(composition.commercialUnitValue, 10)}</vUnCom><vProd>${safeNumber(composition.productValue, 'item.vProd')}</vProd><cEANTrib>${composition.ean}</cEANTrib><uTrib>${escapeXml(composition.taxUnit)}</uTrib><qTrib>${fmtValor(composition.taxQuantity, 4)}</qTrib><vUnTrib>${fmtValor(composition.taxUnitValue, 10)}</vUnTrib><indTot>1</indTot></prod><imposto><vTotTrib>0.00</vTotTrib>${icmsXml}<PIS><PISNT><CST>07</CST></PISNT></PIS><COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS></imposto></det>`;
   }).join('');
 
   const cnpjDest = input.destinatario.cnpj?.replace(/\D/g, '') || '';

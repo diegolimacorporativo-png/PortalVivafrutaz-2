@@ -503,13 +503,14 @@ function RoutesTab() {
   const [filterDriver, setFilterDriver] = useState('ALL');
   const [filterDate, setFilterDate] = useState('');
   const [form, setForm] = useState({ name: '', driverId: '', driverName: '', vehicleId: '', vehiclePlate: '', deliveryDate: '', notes: '', companyNames: '', startTime: '', endTime: '' });
+  const [selectedCompanyIds, setSelectedCompanyIds] = useState<number[]>([]);
   const [companyPickerVal, setCompanyPickerVal] = useState('_none');
   const [expandedStops, setExpandedStops] = useState<Set<number>>(new Set());
 
   const { data: routes = [], isLoading } = useQuery<LogisticsRoute[]>({ queryKey: ['/api/logistics/routes'], staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: drivers = [] } = useQuery<LogisticsDriver[]>({ queryKey: ['/api/logistics/drivers'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
   const { data: vehicles = [] } = useQuery<LogisticsVehicle[]>({ queryKey: ['/api/logistics/vehicles'], staleTime: 3 * 60 * 1000, refetchOnWindowFocus: false });
-  const { data: allCompanies = [] } = useQuery<any[]>({ queryKey: ['/api/companies'], select: normalizeList, staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
+  const { data: routeCompanyOptions = [] } = useQuery<Array<{ id: number; companyName: string }>>({ queryKey: ['/api/companies/tenant-options'], select: normalizeList, staleTime: 2 * 60 * 1000, refetchOnWindowFocus: false });
 
   const saveMut = useMutation({
     mutationFn: (data: any) => editItem
@@ -529,8 +530,29 @@ function RoutesTab() {
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['/api/logistics/routes'] }); toast({ title: 'Rota excluída' }); },
   });
 
-  const openCreate = () => { setEditItem(undefined); setForm({ name: '', driverId: '', driverName: '', vehicleId: '', vehiclePlate: '', deliveryDate: '', notes: '', companyNames: '', startTime: '', endTime: '' }); setCompanyPickerVal('_none'); setShowForm(true); };
-  const openEdit = (r: LogisticsRoute) => { setEditItem(r); setForm({ name: r.name, driverId: r.driverId?.toString() || '', driverName: r.driverName || '', vehicleId: r.vehicleId?.toString() || '', vehiclePlate: r.vehiclePlate || '', deliveryDate: r.deliveryDate || '', notes: r.notes || '', companyNames: r.companyNames || '', startTime: r.startTime || '', endTime: r.endTime || '' }); setCompanyPickerVal('_none'); setShowForm(true); };
+  const openCreate = () => { setEditItem(undefined); setForm({ name: '', driverId: '', driverName: '', vehicleId: '', vehiclePlate: '', deliveryDate: '', notes: '', companyNames: '', startTime: '', endTime: '' }); setSelectedCompanyIds([]); setCompanyPickerVal('_none'); setShowForm(true); };
+  const openEdit = (r: LogisticsRoute) => {
+    setEditItem(r);
+    setForm({ name: r.name, driverId: r.driverId?.toString() || '', driverName: r.driverName || '', vehicleId: r.vehicleId?.toString() || '', vehiclePlate: r.vehiclePlate || '', deliveryDate: r.deliveryDate || '', notes: r.notes || '', companyNames: r.companyNames || '', startTime: r.startTime || '', endTime: r.endTime || '' });
+    const persistedCompanyIds = Array.isArray(r.companyIds) ? r.companyIds.map(Number).filter(Number.isSafeInteger) : [];
+    // Legacy single-company routes can be explicitly saved into company_ids
+    // by their owner; the backend still revalidates this against active companies.
+    setSelectedCompanyIds(persistedCompanyIds.length ? persistedCompanyIds : (r.empresaId ? [Number(r.empresaId)] : []));
+    setCompanyPickerVal('_none');
+    setShowForm(true);
+  };
+
+  const setRouteCompanies = (ids: number[]) => {
+    const uniqueIds = [...new Set(ids)];
+    setSelectedCompanyIds(uniqueIds);
+    setForm(previous => ({
+      ...previous,
+      companyNames: uniqueIds
+        .map(id => routeCompanyOptions.find(company => Number(company.id) === id)?.companyName)
+        .filter(Boolean)
+        .join(', '),
+    }));
+  };
 
   const filtered = useMemo(() => routes.filter(r => {
     if (filterDriver !== 'ALL' && r.driverId?.toString() !== filterDriver) return false;
@@ -670,11 +692,12 @@ function RoutesTab() {
               <div className="space-y-2 mt-1">
                 <Select value={companyPickerVal} onValueChange={v => {
                   if (v === '_none') return;
-                  const co = allCompanies.find((c: any) => c.id.toString() === v);
+                  const co = routeCompanyOptions.find(c => c.id.toString() === v);
                   if (!co) return;
-                  const addr = [co.addressStreet, co.addressNumber, co.addressNeighborhood, co.addressCity].filter(Boolean).join(', ');
-                  toast({ title: `${co.companyName} adicionada${addr ? ` — ${addr}` : ''}` });
-                  setForm(p => ({ ...p, companyNames: p.companyNames ? p.companyNames + ', ' + co.companyName : co.companyName }));
+                  if (!selectedCompanyIds.includes(Number(co.id))) {
+                    setRouteCompanies([...selectedCompanyIds, Number(co.id)]);
+                    toast({ title: `${co.companyName} adicionada à rota` });
+                  }
                   setCompanyPickerVal('_none');
                 }}>
                   <SelectTrigger data-testid="select-add-company-to-route">
@@ -682,20 +705,36 @@ function RoutesTab() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_none">Selecionar empresa...</SelectItem>
-                    {(allCompanies as any[]).filter(c => c.active).map(c => {
-                      const addr = [c.addressStreet, c.addressNumber, c.addressCity].filter(Boolean).join(', ');
-                      return <SelectItem key={c.id} value={c.id.toString()}>{c.companyName}{addr ? ` — ${addr}` : ''}</SelectItem>;
-                    })}
+                    {routeCompanyOptions.filter(c => !selectedCompanyIds.includes(Number(c.id))).map(c =>
+                      <SelectItem key={c.id} value={c.id.toString()}>{c.companyName}</SelectItem>,
+                    )}
                   </SelectContent>
                 </Select>
-                <Input value={form.companyNames} onChange={e => setForm(p => ({ ...p, companyNames: e.target.value }))} placeholder="ex: Empresa A, Empresa B" data-testid="input-route-companies" />
+                <div className="flex flex-wrap gap-2" data-testid="selected-route-companies">
+                  {selectedCompanyIds.map(id => {
+                    const company = routeCompanyOptions.find(option => Number(option.id) === id);
+                    return (
+                      <span key={id} className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs">
+                        {company?.companyName || `Empresa #${id}`}
+                        <button type="button" className="text-muted-foreground hover:text-destructive" aria-label={`Remover ${company?.companyName || `empresa ${id}`} da rota`} onClick={() => setRouteCompanies(selectedCompanyIds.filter(companyId => companyId !== id))}>
+                          <XCircle className="h-3.5 w-3.5" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                  {selectedCompanyIds.length === 0 && <span className="text-xs text-muted-foreground">Selecione uma ou mais empresas. O servidor validará o acesso e o status de cada uma.</span>}
+                </div>
               </div>
             </div>
             <div><Label>Observações</Label><Textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
-            <Button data-testid="button-save-route" onClick={() => { if (!form.name) { toast({ title: 'Nome obrigatório', variant: 'destructive' }); return; } saveMut.mutate({ ...form, driverId: form.driverId && form.driverId !== 'none' ? parseInt(form.driverId) : undefined, vehicleId: form.vehicleId && form.vehicleId !== 'none' ? parseInt(form.vehicleId) : undefined, deliveryDate: form.deliveryDate || undefined }); }} disabled={saveMut.isPending}>
+            <Button data-testid="button-save-route" onClick={() => {
+              if (!form.name) { toast({ title: 'Nome obrigatório', variant: 'destructive' }); return; }
+              if (selectedCompanyIds.length === 0) { toast({ title: 'Selecione ao menos uma empresa para a rota', variant: 'destructive' }); return; }
+              saveMut.mutate({ ...form, companyIds: selectedCompanyIds, companyNames: selectedCompanyIds.map(id => routeCompanyOptions.find(company => Number(company.id) === id)?.companyName).filter(Boolean).join(', '), driverId: form.driverId && form.driverId !== 'none' ? parseInt(form.driverId) : undefined, vehicleId: form.vehicleId && form.vehicleId !== 'none' ? parseInt(form.vehicleId) : undefined, deliveryDate: form.deliveryDate || undefined });
+            }} disabled={saveMut.isPending}>
               {saveMut.isPending ? 'Salvando...' : 'Salvar'}
             </Button>
           </DialogFooter>

@@ -105,6 +105,7 @@ import { logSecurity } from "../core/security/securityLogger";
 import { tenantWhere, tenantAnd, withTenant } from "../core/tenant/scope";
 import { currentTenantId } from "../core/tenant/context";
 import { NotFoundError, BadRequestError, ConflictError, ForbiddenError, AppError } from "../shared/errors/AppError";
+import { blockNfeIssuance } from "../modules/nfe/nfe-issuance-lock";
 import { register as claraRegister } from './clara.routes';
 import { register as emailRegister } from './email.routes';
 import { register as pushRegister } from './push.routes';
@@ -1092,7 +1093,7 @@ export async function registerRoutes(
     //
     // FASE 9A — status codes corrigidos: 422 em erro de validação, 500 em exception.
     // Violações de tenant/auth continuam retornando 401/403/404.
-    app.get('/api/nfe/preflight/:orderId', requireAuthCore, requireRole([...FISCAL_ROLES]), tenantContext, async (req: any, res) => {
+    app.get('/api/nfe/preflight/:orderId', requireAuthCore, requireRole([...FISCAL_ROLES]), blockNfeIssuance, tenantContext, async (req: any, res) => {
       resolveTenant(req);
       logSecurityEvent({ type: "NFE_PREFLIGHT", userId: req.session?.userId, path: req.originalUrl, requestId: req.requestId, metadata: { orderId: req.params.orderId } });
       const orderId = Number(req.params.orderId);
@@ -1300,7 +1301,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/cron/run — STEP 9.3D: trigger manual do cron de faturamento
-    app.post('/api/nfe/cron/run', sensitiveActionLimiter, requireAuthCore, requireRole(["MASTER", "ADMIN"]), async (req: any, res) => {
+    app.post('/api/nfe/cron/run', sensitiveActionLimiter, requireAuthCore, requireRole(["MASTER", "ADMIN"]), blockNfeIssuance, async (req: any, res) => {
       // Evita execução concorrente: se já está rodando (cron diário ou outro trigger manual), recusa.
       if (isCronRunning()) {
         return res.status(409).json({ error: 'Cron já está em execução. Aguarde terminar.' });
@@ -1724,7 +1725,7 @@ export async function registerRoutes(
     );
 
     // POST /api/nfe/emitir — gerar XML + criar registro
-    app.post('/api/nfe/emitir', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
+    app.post('/api/nfe/emitir', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), blockNfeIssuance, async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       try {
         const { orderId } = req.body;
@@ -2111,7 +2112,7 @@ export async function registerRoutes(
     //     terminal de falha. Se a última NF-e está `autorizada`/`enviada`/
     //     `gerada`/`assinada`, a reemissão é REJEITADA (409) — não é o caso
     //     de uso desta rota.
-    app.post('/api/nfe/:orderId/reenviar', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
+    app.post('/api/nfe/:orderId/reenviar', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), blockNfeIssuance, async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
@@ -2273,7 +2274,7 @@ export async function registerRoutes(
     // (`buildNFeInput → validarNFeInput → gerarNFeXML → createNfeEmissao`),
     // que lê o estado ATUAL do pedido. A premissa é que o operador já
     // corrigiu o pedido antes de clicar.
-    app.post('/api/nfe/:orderId/corrigir-reenviar', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
+    app.post('/api/nfe/:orderId/corrigir-reenviar', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), blockNfeIssuance, async (req: any, res) => {
       let lock: OrderLockHandle | null = null;
       const orderIdRaw = req.params?.orderId;
       const orderId = Number(orderIdRaw);
@@ -2505,7 +2506,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/emitir-lote — STEP 9.3B: emissão em lote (controlada pelo guard)
-    app.post('/api/nfe/emitir-lote', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), async (req: any, res) => {
+    app.post('/api/nfe/emitir-lote', requireAuthCore, tenantContext, requireActiveSubscription, requireRole([...FISCAL_ROLES]), blockNfeIssuance, async (req: any, res) => {
       try {
         const { orderIds } = req.body;
         if (!Array.isArray(orderIds) || orderIds.length === 0) {
@@ -2651,7 +2652,7 @@ export async function registerRoutes(
     });
 
     // POST /api/nfe/:id/enviar — transmitir ao SEFAZ
-    app.post('/api/nfe/:id/enviar', requireAuthCore, tenantContext, requireRole([...FISCAL_ROLES]), nfeTenantAccessMiddleware, async (req: any, res) => {
+    app.post('/api/nfe/:id/enviar', requireAuthCore, tenantContext, requireRole([...FISCAL_ROLES]), blockNfeIssuance, nfeTenantAccessMiddleware, async (req: any, res) => {
       try {
         const nfe = req.authorizedNfe;
         if (!nfe.xmlGerado) return res.status(400).json({ message: 'XML não gerado. Emita a NF-e primeiro.' });
@@ -3086,7 +3087,7 @@ export async function registerRoutes(
     // Reenvia ao SEFAZ uma NF-e travada em 'assinada' ou 'enviando' com XML disponível.
     // Protegido por: advisory lock + idempotência + validação de status.
     // PROIBIDO: reenviar autorizada, duplicar chave, alterar ambiente.
-    app.post('/api/admin/nfe/recovery/:id/reprocess', requireAuthCore, tenantContext, requireRole(['MASTER', 'ADMIN']), nfeTenantAccessMiddleware, async (req: any, res) => {
+    app.post('/api/admin/nfe/recovery/:id/reprocess', requireAuthCore, tenantContext, requireRole(['MASTER', 'ADMIN']), blockNfeIssuance, nfeTenantAccessMiddleware, async (req: any, res) => {
       const corrId = getRequestIdForLog();
       const nfeId = Number(req.params.id);
       if (!Number.isFinite(nfeId) || nfeId <= 0) {
@@ -3229,7 +3230,7 @@ export async function registerRoutes(
     // POST /api/admin/nfe/recovery/:id/mark-error
     // Marca NF-e como erro de forma segura, preservando TODOS os dados existentes.
     // PROIBIDO: usar em autorizada/cancelada. Preserva XML, protocolo, cStat, SOAP.
-    app.post('/api/admin/nfe/recovery/:id/mark-error', requireAuthCore, tenantContext, requireRole(['MASTER', 'ADMIN']), nfeTenantAccessMiddleware, async (req: any, res) => {
+    app.post('/api/admin/nfe/recovery/:id/mark-error', requireAuthCore, requireRole(['MASTER', 'ADMIN']), blockNfeIssuance, tenantContext, nfeTenantAccessMiddleware, async (req: any, res) => {
       const corrId = getRequestIdForLog();
       const nfeId = Number(req.params.id);
       if (!Number.isFinite(nfeId) || nfeId <= 0) {
@@ -3299,7 +3300,7 @@ export async function registerRoutes(
 
     // DELETE /api/nfe/:id — cancelar NF-e
     // T1102 — cancelamento REAL na SEFAZ com validações legais e persistência completa.
-    app.delete('/api/nfe/:id', requireAuthCore, tenantContext, requireRole([...FISCAL_ROLES]), nfeTenantAccessMiddleware, async (req: any, res) => {
+    app.delete('/api/nfe/:id', requireAuthCore, requireRole([...FISCAL_ROLES]), blockNfeIssuance, tenantContext, nfeTenantAccessMiddleware, async (req: any, res) => {
       const requestId = getRequestIdForLog();
       try {
         const { motivo } = req.body;
@@ -3420,6 +3421,7 @@ export async function registerRoutes(
     app.post(
       '/api/nfe/:id/cce',
       ...nfeCceWriteAccess,
+      blockNfeIssuance,
       async (req: any, res) => {
       const requestId = getRequestIdForLog();
       try {
@@ -3549,7 +3551,7 @@ export async function registerRoutes(
     // POST /api/nf-manual — inserir NF manual
     // SECURITY: tenantContext + requireTenant force a pinned tenant; withTenant
     // stamps tenantId from session, ignoring anything in the request body.
-    app.post('/api/nf-manual', tenantContext, requireTenant, async (req: any, res) => {
+    app.post('/api/nf-manual', tenantContext, requireTenant, blockNfeIssuance, async (req: any, res) => {
       try {
         const { numeroNf, dataEmissao, clienteFornecedor, produtos, impostos, observacoes } = req.body;
         if (!numeroNf || !dataEmissao || !clienteFornecedor || !produtos) {
