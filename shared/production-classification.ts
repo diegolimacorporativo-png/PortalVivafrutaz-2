@@ -5,22 +5,17 @@ function normalizeCategory(value: string | null | undefined): string {
     .toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-/** Approved default: categories explicitly marked as processed go to Processados;
- * every other product defaults to In Natura unless it already has an explicit class. */
+/** Approved rule: processed fruit and healthy snack catalog sections go to
+ * Processados; all other sections default to In Natura unless explicitly set. */
 export function resolveProductionClassification(
   category: string | null | undefined,
   explicit: string | null | undefined,
 ): ProductionClassification {
   const normalized = normalizeCategory(category);
   if (/\bin natura\b/.test(normalized)) return "IN_NATURA";
-  // These are the processed-production sections used by the official sheets,
-  // even when the catalog category does not literally contain "processados".
   if (
     /\bprocessad[oa]s?\b/.test(normalized) ||
-    /\bsnacks saudaveis\b/.test(normalized) ||
-    /\blinha de oleaginosas e secas\b/.test(normalized) ||
-    /\bindustrializados\b/.test(normalized) ||
-    /\bfrutas cortadas e porcionadas\b/.test(normalized)
+    /\bsnacks? saudaveis\b/.test(normalized)
   ) return "PROCESSADOS";
   if (explicit === "IN_NATURA" || explicit === "PROCESSADOS") return explicit;
   return "IN_NATURA";
