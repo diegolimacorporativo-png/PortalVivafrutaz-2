@@ -4,7 +4,6 @@ import { test } from "node:test";
 import * as XLSX from "xlsx";
 import {
   classifyProcessedPackaging,
-  deliveryAddressDisplay,
   resolveInNaturaHeader,
 } from "../../server/modules/production/production-xlsx-mapping";
 import { renderInNaturaWorkbook } from "../../server/modules/production/production-xlsx-renderer";
@@ -31,7 +30,7 @@ test("maps the reviewed Pêssego Nacional início safra catalog name to the uniq
   ]), { status: "ambiguous" });
 });
 
-test("exports Pêssego Nacional as PÊSSEGO while retaining each delivery address on its own row", () => {
+test("exports Pêssego Nacional as PÊSSEGO with one company row aggregated across addresses", () => {
   const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
   const batch = {
     id: 79,
@@ -43,28 +42,31 @@ test("exports Pêssego Nacional as PÊSSEGO while retaining each delivery addres
       productionClassification: "IN_NATURA" as const,
       totalQuantity: 5,
       orderBreakdown: [
-        { itemId: 1101, orderId: 601, companyId: 25, companyName: "Empresa teste", quantity: 2, deliveryAddressId: 301, deliveryAddress: { id: 301, companyId: 25, label: "Unidade A", logradouro: "Rua A", numero: "1", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
-        { itemId: 1102, orderId: 602, companyId: 25, companyName: "Empresa teste", quantity: 3, deliveryAddressId: 302, deliveryAddress: { id: 302, companyId: 25, label: "Unidade B", logradouro: "Rua B", numero: "2", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+        { itemId: 1101, orderId: 601, companyId: 25, companyName: "Empresa teste", quantity: 2, routeName: "Rota Norte", deliveryAddressId: 301, deliveryAddress: { id: 301, companyId: 25, label: "Unidade A", logradouro: "Rua A", numero: "1", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
+        { itemId: 1102, orderId: 602, companyId: 25, companyName: "Empresa teste", quantity: 3, routeName: "Rota Sul", deliveryAddressId: 302, deliveryAddress: { id: 302, companyId: 25, label: "Unidade B", logradouro: "Rua B", numero: "2", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null } },
       ],
     }],
   };
   const output = renderInNaturaWorkbook(template, batch);
   const workbook = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  assert.equal(sheet.B12.v, "Empresa teste — Unidade A (Rua A, 1, São Paulo, SP)");
-  assert.equal(sheet.B13.v, "Empresa teste — Unidade B (Rua B, 2, São Paulo, SP)");
-  assert.equal(sheet.AE12.v, 2);
-  assert.equal(sheet.AE13.v, 3);
+  assert.equal(sheet.B12.v, "Empresa teste");
+  assert.equal(sheet.C12.v, "Rota Norte / Rota Sul");
+  assert.equal(sheet.AE12.v, 5);
+  assert.equal(Object.keys(sheet).filter((address) => /^B\d+$/.test(address) && sheet[address]?.v === "Empresa teste").length, 1);
 });
 
-test("reports an absent delivery address separately from a product mapping failure", () => {
+test("exports by company when the source order has no delivery address", () => {
   const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
-  assert.throws(() => renderInNaturaWorkbook(template, {
+  const output = renderInNaturaWorkbook(template, {
     id: 80,
     productionDate: "2026-11-10",
     items: [{ productId: 395, productName: "Pêssego Nacional (início safra)", unit: "UN", productionClassification: "IN_NATURA", totalQuantity: 1,
       orderBreakdown: [{ itemId: 1103, orderId: 603, companyId: 25, companyName: "Empresa teste", quantity: 1 }] }],
-  }), /endereço de entrega ausente no lote/);
+  });
+  const sheet = XLSX.read(output, { type: "buffer" }).Sheets[XLSX.read(template, { type: "buffer" }).SheetNames[0]];
+  assert.equal(sheet.B12.v, "Empresa teste");
+  assert.equal(sheet.AE12.v, 1);
 });
 
 test("does not choose between duplicate official headers without an explicit discriminator", () => {
@@ -113,33 +115,20 @@ test("exports the 170g Manga e Iogurte Grego item to the official PET block", ()
       totalQuantity: 4,
       orderBreakdown: [{
         itemId: 1104, orderId: 604, companyId: 26, companyName: "Empresa Processados teste", quantity: 4,
-        deliveryAddressId: 303,
-        deliveryAddress: { id: 303, companyId: 26, label: "Unidade PET", logradouro: "Rua Teste", numero: "10", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null },
+        routeName: "Rota PET",
       }],
     }],
   }, { shift: "morning", responsibleName: "Responsável sintético" });
   const workbook = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const values = Object.values(sheet).filter((cell: any) => cell && typeof cell === "object").map((cell: any) => cell.v);
-  assert.ok(values.includes("Empresa Processados teste — Unidade PET (Rua Teste, 10, São Paulo, SP)"));
+  assert.ok(values.includes("Empresa Processados teste"));
+  assert.ok(values.includes("Rota PET"));
   assert.ok(values.includes("Pote de Manga e Iogurte Grego"));
   assert.ok(values.includes(4));
 });
 
-test("requires the address captured in the production snapshot", () => {
-  assert.equal(deliveryAddressDisplay({ companyId: 4, companyName: "Empresa teste", orderId: 10, quantity: 1 }), null);
-  assert.equal(deliveryAddressDisplay({
-    companyId: 4, companyName: "Empresa teste", orderId: 10, quantity: 1, deliveryAddressId: 8,
-    deliveryAddress: { id: 8, companyId: 5, label: "Unidade alheia", logradouro: "Rua Teste", numero: null, complemento: null, bairro: null, cidade: "São Paulo", estado: null, cep: null },
-  }), null);
-  assert.equal(deliveryAddressDisplay({
-    companyId: 4, companyName: "Empresa teste", orderId: 10, quantity: 1,
-    deliveryAddressId: 8,
-    deliveryAddress: { id: 8, companyId: 4, label: "Unidade Centro", logradouro: "Rua Teste", numero: "20", complemento: null, bairro: null, cidade: "São Paulo", estado: "SP", cep: null },
-  }), "Empresa teste — Unidade Centro (Rua Teste, 20, São Paulo, SP)");
-});
-
-test("renders one In Natura row per saved delivery address and preserves the workbook structure", () => {
+test("renders one In Natura row per company and preserves the workbook structure", () => {
   const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
   const original = XLSX.read(template, { type: "buffer", cellStyles: true, cellFormula: true });
   const originalSheet = original.Sheets[original.SheetNames[0]];
@@ -161,10 +150,9 @@ test("renders one In Natura row per saved delivery address and preserves the wor
   const result = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
   const resultSheet = result.Sheets[result.SheetNames[0]];
 
-  assert.equal(resultSheet.B12.v, "Empresa sintética — Unidade A (Rua Teste, 1, São Paulo, SP)");
-  assert.equal(resultSheet.B13.v, "Empresa sintética — Unidade B (Av. Teste, 2, São Paulo, SP)");
-  assert.equal(resultSheet.M12.v, 4);
-  assert.equal(resultSheet.M13.v, 7);
+  assert.equal(resultSheet.B12.v, "Empresa sintética");
+  assert.equal(resultSheet.M12.v, 11);
+  assert.equal(Object.keys(resultSheet).filter((address) => /^B\d+$/.test(address) && resultSheet[address]?.v === "Empresa sintética").length, 1);
   assert.match(String(resultSheet.CH3.v), /10\/11\/2026/);
   assert.equal(resultSheet["!merges"].length, originalSheet["!merges"].length);
   const formulaCount = (sheet: XLSX.WorkSheet) => Object.keys(sheet).filter((key) => !key.startsWith("!") && Boolean(sheet[key]?.f)).length;
@@ -207,7 +195,7 @@ test("Processados requires an explicit valid shift at export time", () => {
   assert.equal(productionExportQuerySchema.safeParse({ shift: "night" }).success, false);
 });
 
-test("renders Processados from the saved snapshot with distinct delivery addresses and responsible", () => {
+test("renders Processados from the saved snapshot with one row per company and responsible", () => {
   const template = readFileSync("server/modules/production/templates/processed-template.xlsx");
   const output = renderProcessedWorkbook(template, {
     id: 71,
@@ -227,10 +215,9 @@ test("renders Processados from the saved snapshot with distinct delivery address
   const result = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
   const sheet = result.Sheets[result.SheetNames[0]];
   const values = Object.values(sheet).filter((cell: any) => cell && typeof cell === "object").map((cell: any) => cell.v);
-  assert.equal(values.filter((value) => typeof value === "string" && value.includes("Empresa sintética — Unidade")).length, 2);
+  assert.equal(values.filter((value) => value === "Empresa sintética").length, 1);
   assert.ok(values.includes("Responsável Sintético"));
-  assert.ok(values.includes(3));
-  assert.ok(values.includes(5));
+  assert.ok(values.includes(8));
   assert.ok(values.includes("MixFrutas"));
   assert.equal(sheet.M2.v, 10);
   assert.equal(sheet.M3.v, "TERÇA-FEIRA");
@@ -252,7 +239,7 @@ test("routes P07 plastic into the selected shift block, separate from biodegrada
   for (const [shift, expectedRow] of [["morning", "B92"], ["afternoon", "B259"]] as const) {
     const result = XLSX.read(renderProcessedWorkbook(template, batch, { shift, responsibleName: "Responsável Sintético" }), { type: "buffer" });
     const sheet = result.Sheets[result.SheetNames[0]];
-    assert.match(String(sheet[expectedRow]?.v), /Empresa P07 sintética — Unidade P07/);
+    assert.equal(sheet[expectedRow]?.v, "Empresa P07 sintética");
     const bioRow = shift === "morning" ? "B10" : "B310";
     assert.equal(sheet[bioRow]?.v, undefined);
   }

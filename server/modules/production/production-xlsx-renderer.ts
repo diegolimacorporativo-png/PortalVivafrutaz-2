@@ -1,7 +1,6 @@
 import * as XLSX from "xlsx";
 import { ValidationError } from "../../shared/errors/AppError";
 import {
-  deliveryAddressDisplay,
   resolveInNaturaHeader,
   type HeaderCandidate,
   type ProductionExportBatch,
@@ -48,7 +47,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
   }
   if (!candidates.length) throw new ValidationError("O modelo In Natura está sem cabeçalhos de produtos.");
 
-  const addresses = new Map<string, {
+  const companies = new Map<number, {
     display: string;
     routes: Set<string>;
     productQuantities: Map<number, { quantity: number; subCategoryId: number | null; productId: number }>;
@@ -56,11 +55,6 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
   const unresolved: Array<Record<string, unknown>> = [];
   const columnOwners = new Map<number, string>();
   for (const { item, source } of collectSources(batch, "IN_NATURA")) {
-    const display = deliveryAddressDisplay(source);
-    if (!display) {
-      unresolved.push({ itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, reason: "ENDERECO_DE_ENTREGA_AUSENTE_NO_SNAPSHOT" });
-      continue;
-    }
     const resolved = resolveInNaturaHeader(item.productName, source.subCategoryName, candidates);
     if (resolved.status !== "matched") {
       unresolved.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, productName: item.productName, subCategoryId: source.subCategoryId ?? null, subCategoryName: source.subCategoryName ?? null, reason: resolved.status === "ambiguous" ? "CABECALHO_EXCEL_AMBIGUO" : "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO" });
@@ -74,8 +68,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       continue;
     }
     columnOwners.set(resolved.column, identity);
-    const key = `${source.companyId}:${source.deliveryAddressId}`;
-    const destination = addresses.get(key) ?? { display, routes: new Set<string>(), productQuantities: new Map() };
+    const destination = companies.get(source.companyId) ?? { display: source.companyName, routes: new Set<string>(), productQuantities: new Map() };
     if (source.routeName?.trim() && source.routeName !== "Sem Rota") destination.routes.add(source.routeName.trim());
     const previous = destination.productQuantities.get(resolved.column);
     if (previous && (previous.productId !== item.productId || previous.subCategoryId !== (source.subCategoryId ?? null))) {
@@ -87,12 +80,11 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       productId: item.productId,
       subCategoryId: source.subCategoryId ?? null,
     });
-    addresses.set(key, destination);
+    companies.set(source.companyId, destination);
   }
   if (unresolved.length) {
     const explain = (reason: unknown) => {
       switch (reason) {
-        case "ENDERECO_DE_ENTREGA_AUSENTE_NO_SNAPSHOT": return "endereço de entrega ausente no lote";
         case "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO": return "sem coluna correspondente no modelo oficial";
         case "CABECALHO_EXCEL_AMBIGUO": return "mais de uma coluna possível no modelo oficial";
         case "COLISAO_GLOBAL_DE_IDENTIDADE_NA_COLUNA_EXCEL": return "colisão de produtos na mesma coluna oficial";
@@ -101,7 +93,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       }
     };
     const examples = unresolved.slice(0, 3).map((entry) => {
-      const subject = entry.productName ? `produto “${entry.productName}”` : `pedido ${entry.orderId}`;
+      const subject = entry.productName ? `produto “${entry.productName}”, pedido ${entry.orderId}` : `pedido ${entry.orderId}`;
       return `${subject}: ${explain(entry.reason)}`;
     }).join("; ");
     throw new ValidationError(
@@ -109,18 +101,18 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       { unresolved },
     );
   }
-  if (!addresses.size) throw new ValidationError("O lote não possui itens In Natura com origem para exportar.");
-  const addressRows = [...addresses.entries()];
-  if (addressRows.length > IN_NATURA_LAST_DATA_ROW - IN_NATURA_FIRST_DATA_ROW + 1) {
-    throw new ValidationError(`O modelo In Natura comporta ${IN_NATURA_LAST_DATA_ROW - IN_NATURA_FIRST_DATA_ROW + 1} linhas de destino; o lote possui ${addressRows.length}.`);
+  if (!companies.size) throw new ValidationError("O lote não possui itens In Natura com origem para exportar.");
+  const companyRows = [...companies.entries()];
+  if (companyRows.length > IN_NATURA_LAST_DATA_ROW - IN_NATURA_FIRST_DATA_ROW + 1) {
+    throw new ValidationError(`O modelo In Natura comporta ${IN_NATURA_LAST_DATA_ROW - IN_NATURA_FIRST_DATA_ROW + 1} linhas de empresa; o lote possui ${companyRows.length}.`);
   }
 
   const updates: Map<string, XlsxCellUpdate> = new Map([["CH3", { value: dateLabel(batch.productionDate) }]]);
-  addressRows.forEach(([, address], index) => {
+  companyRows.forEach(([, company], index) => {
     const row = IN_NATURA_FIRST_DATA_ROW + index;
-    updates.set(`B${row}`, { value: address.display });
-    updates.set(`C${row}`, { value: [...address.routes].sort().join(" / ") });
-    for (const [column, value] of address.productQuantities) updates.set(`${excelColumn(column)}${row}`, { value: value.quantity });
+    updates.set(`B${row}`, { value: company.display });
+    updates.set(`C${row}`, { value: [...company.routes].sort().join(" / ") });
+    for (const [column, value] of company.productQuantities) updates.set(`${excelColumn(column)}${row}`, { value: value.quantity });
   });
   return patchXlsxWorksheet(template, "xl/worksheets/sheet1.xml", updates);
 }

@@ -98,14 +98,6 @@ export function resolveInNaturaHeader(
   return { column: matching[0].column, status: "matched" };
 }
 
-export function deliveryAddressDisplay(source: ProductionExportSource): string | null {
-  const address = source.deliveryAddress;
-  if (!source.deliveryAddressId || !address || address.id !== source.deliveryAddressId || address.companyId !== source.companyId) return null;
-  const locality = [address.logradouro, address.numero, address.complemento, address.bairro, address.cidade, address.estado]
-    .filter((part): part is string => Boolean(part?.trim())).join(", ");
-  return `${source.companyName} — ${address.label}${locality ? ` (${locality})` : ""}`;
-}
-
 export type ProcessedPackaging = "BIO_100G" | "P07_PLASTIC_100G" | "POT_200G" | "PET" | "KG";
 
 /** P07 means plastic, while Bio means biodegradable; never infer either from productId alone. */

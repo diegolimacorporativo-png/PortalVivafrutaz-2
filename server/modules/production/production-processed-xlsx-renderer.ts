@@ -26,10 +26,9 @@ const BLOCKS: Record<ProductionShift, ProcessedBlock[]> = {
   ],
 };
 
-interface AddressDemand {
+interface CompanyDemand {
   companyId: number;
-  addressId: number;
-  display: string;
+  companyName: string;
   routes: Set<string>;
   lines: Map<string, { item: ProductionExportItem; quantity: number }>;
 }
@@ -104,8 +103,8 @@ function productSlots(sheet: XLSX.WorkSheet, group: RowGroup): ProductSlot[] {
   return result;
 }
 
-function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, AddressDemand[]> {
-  const grouped = new Map<ProcessedPackaging, Map<string, AddressDemand>>();
+function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, CompanyDemand[]> {
+  const grouped = new Map<ProcessedPackaging, Map<number, CompanyDemand>>();
   const unsupported: Array<{ itemId?: number; orderId: number; productId: number; reason: string }> = [];
   const productNames = new Map<number, string>();
 
@@ -123,13 +122,8 @@ function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, Ad
     }
     for (const source of item.orderBreakdown) {
       const packaging = classifyProcessedPackaging(source.subCategoryName, item.category, item.productName);
-      const address = source.deliveryAddress;
       if (!packaging) {
         unsupported.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, reason: "EMBALAGEM_OU_BLOCO_NAO_IDENTIFICADO" });
-        continue;
-      }
-      if (!source.deliveryAddressId || !address || address.id !== source.deliveryAddressId || address.companyId !== source.companyId) {
-        unsupported.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, reason: "ENDERECO_DE_ENTREGA_AUSENTE_OU_DIVERGENTE_NO_SNAPSHOT" });
         continue;
       }
       if (!Number.isFinite(Number(source.quantity)) || Number(source.quantity) <= 0) {
@@ -137,15 +131,12 @@ function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, Ad
         continue;
       }
       const lineKey = `${item.productId}:${item.unit}:${source.subCategoryId ?? "null"}:${normalize(source.subCategoryName ?? "")}`;
-      const addressKey = `${source.companyId}:${source.deliveryAddressId}`;
       let addresses = grouped.get(packaging);
       if (!addresses) grouped.set(packaging, addresses = new Map());
-      let demand = addresses.get(addressKey);
+      let demand = addresses.get(source.companyId);
       if (!demand) {
-        const locality = [address.logradouro, address.numero, address.complemento, address.bairro, address.cidade, address.estado]
-          .filter((part): part is string => Boolean(part?.trim())).join(", ");
-        demand = { companyId: source.companyId, addressId: source.deliveryAddressId, display: `${source.companyName} — ${address.label}${locality ? ` (${locality})` : ""}`, routes: new Set(), lines: new Map() };
-        addresses.set(addressKey, demand);
+        demand = { companyId: source.companyId, companyName: source.companyName, routes: new Set(), lines: new Map() };
+        addresses.set(source.companyId, demand);
       }
       if (source.routeName?.trim() && source.routeName !== "Sem Rota") demand.routes.add(source.routeName.trim());
       const previous = demand.lines.get(lineKey);
@@ -172,13 +163,13 @@ export function renderProcessedWorkbook(
   if (!demands.size) throw new ValidationError("O lote não possui itens Processados com origem para exportar.");
 
   const updates = workbookDateFields(sheet, batch.productionDate);
-  for (const [packaging, addresses] of demands) {
+  for (const [packaging, companies] of demands) {
     const block = BLOCKS[options.shift].find((candidate) => candidate.packaging === packaging);
     if (!block) throw new ValidationError(`O modelo oficial não possui bloco de ${packaging} para o turno selecionado.`, { shift: options.shift, packaging });
     const groups = blockGroups(sheet, block);
     const assignedGroups = new Set<RowGroup>();
-    for (const address of addresses) {
-      const lines = [...address.lines.values()].sort((a, b) => a.item.productName.localeCompare(b.item.productName, "pt-BR") || a.item.productId - b.item.productId);
+    for (const company of companies) {
+      const lines = [...company.lines.values()].sort((a, b) => a.item.productName.localeCompare(b.item.productName, "pt-BR") || a.item.productId - b.item.productId);
       const lineOptions = groups.map((group) => {
         const available = productSlots(sheet, group);
         const used = new Set<ProductSlot>();
@@ -194,12 +185,12 @@ export function renderProcessedWorkbook(
         return { group, slots };
       }).filter(({ group, slots }) => !assignedGroups.has(group) && slots.every(Boolean));
       const match = lineOptions[0] as { group: RowGroup; slots: ProductSlot[] } | undefined;
-      if (!match) throw new ValidationError("O modelo oficial não tem linhas suficientes para manter cada endereço e produto separados.", { shift: options.shift, packaging, companyId: address.companyId, deliveryAddressId: address.addressId, itemCount: lines.length });
+      if (!match) throw new ValidationError("O modelo oficial não tem linhas suficientes para manter cada empresa e seus produtos separados.", { shift: options.shift, packaging, companyId: company.companyId, itemCount: lines.length });
       assignedGroups.add(match.group);
       const companyCell = mergeAnchor(sheet, 1, match.group.first);
       const routeCell = mergeAnchor(sheet, 2, match.group.first);
-      updates.set(companyCell, { value: address.display });
-      const routes = [...address.routes].sort().join(" / ");
+      updates.set(companyCell, { value: company.companyName });
+      const routes = [...company.routes].sort().join(" / ");
       if (routes) updates.set(routeCell, { value: routes });
       lines.forEach(({ item, quantity }, index) => {
         const slot = match.slots[index];
