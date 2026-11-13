@@ -4,6 +4,7 @@ import { test } from "node:test";
 import * as XLSX from "xlsx";
 import {
   classifyProcessedPackaging,
+  resolveHygieneStatus,
   resolveInNaturaHeader,
 } from "../../server/modules/production/production-xlsx-mapping";
 import { renderInNaturaWorkbook } from "../../server/modules/production/production-xlsx-renderer";
@@ -106,6 +107,67 @@ test("exports by company when the source order has no delivery address", () => {
 test("does not choose between duplicate official headers without an explicit discriminator", () => {
   const duplicate = [{ column: 15, header: "MAÇÃ" }, { column: 16, header: "Maçã" }];
   assert.deepEqual(resolveInNaturaHeader("Maçã", null, duplicate), { status: "ambiguous" });
+});
+
+test("uses the official green and blue header fills as hygiene discriminators", () => {
+  assert.equal(resolveHygieneStatus("MAÇÃ", "FF99FF99"), "NAO_HIGIENIZADA");
+  assert.equal(resolveHygieneStatus("Uva Higienizadas", "DBEEF4"), "HIGIENIZADA");
+  assert.equal(resolveHygieneStatus("Uva Higienizadas", "99FF99"), "CONFLICT");
+  assert.equal(resolveHygieneStatus("Uva", "FFFFFF"), null);
+});
+
+test("resolves duplicate fruit headers by explicit hygiene and leaves missing hygiene ambiguous", () => {
+  const duplicate = [
+    { column: 15, header: "MAÇÃ", hygieneStatus: "HIGIENIZADA" as const },
+    { column: 16, header: "Maçã", hygieneStatus: "NAO_HIGIENIZADA" as const },
+  ];
+  assert.deepEqual(resolveInNaturaHeader("Maçã Gala", null, duplicate, "Frutas In Natura higienizadas"), { status: "unmatched" });
+  assert.deepEqual(resolveInNaturaHeader("Maçã", null, duplicate, "Frutas In Natura não higienizadas"), { column: 16, status: "matched" });
+  assert.deepEqual(resolveInNaturaHeader("Maçã", null, duplicate, "Frutas In Natura higienizadas"), { column: 15, status: "matched" });
+  assert.deepEqual(resolveInNaturaHeader("Maçã", null, duplicate), { status: "ambiguous" });
+  assert.deepEqual(resolveInNaturaHeader("Maçã", "não higienizada", duplicate, "higienizada"), { status: "ambiguous" });
+});
+
+test("applies hygiene distinction to the reviewed Porção de Morango mapping", () => {
+  const candidates = [
+    { column: 20, header: "Morango 50g", hygieneStatus: "NAO_HIGIENIZADA" as const },
+    { column: 21, header: "Morango 50g", hygieneStatus: "HIGIENIZADA" as const },
+    { column: 22, header: "Morango 50g Bio", hygieneStatus: null },
+  ];
+  assert.deepEqual(resolveInNaturaHeader("Porção de Morango", null, candidates, "não higienizado"), { column: 20, status: "matched" });
+  assert.deepEqual(resolveInNaturaHeader("Porção de Morango", null, candidates, "higienizado"), { column: 21, status: "matched" });
+});
+
+test("uses real In Natura template fills to route unwashed and washed source rows separately", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  const output = renderInNaturaWorkbook(template, {
+    id: 83,
+    productionDate: "2026-11-10",
+    items: [
+      {
+        productId: 9002,
+        productName: "Uva Cacho",
+        category: "Frutas In Natura não higienizadas e não embaladas",
+        unit: "KG",
+        productionClassification: "IN_NATURA",
+        totalQuantity: 2,
+        orderBreakdown: [{ itemId: 1203, orderId: 703, companyId: 28, companyName: "Empresa Higiene teste", quantity: 2, subCategoryName: "KG" }],
+      },
+      {
+        productId: 9003,
+        productName: "Uva",
+        category: "Frutas In Natura higienizadas",
+        unit: "KG",
+        productionClassification: "IN_NATURA",
+        totalQuantity: 3,
+        orderBreakdown: [{ itemId: 1204, orderId: 704, companyId: 28, companyName: "Empresa Higiene teste", quantity: 3, subCategoryName: "KG" }],
+      },
+    ],
+  });
+  const workbook = XLSX.read(output, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.AW12.v, 2); // Uva Cacho, green/unhygienized column.
+  assert.equal(sheet.AH12.v, 3); // Uva KG Higienizadas, blue/hygienized column.
 });
 
 test("maps P07 plastic to the non-Bio column when the official header omits the word plastic", () => {

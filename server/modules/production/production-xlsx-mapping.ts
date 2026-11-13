@@ -51,7 +51,10 @@ export interface ProductionExportBatch {
 export interface HeaderCandidate {
   column: number;
   header: string;
+  hygieneStatus?: HygieneStatus | "CONFLICT";
 }
+
+export type HygieneStatus = "HIGIENIZADA" | "NAO_HIGIENIZADA";
 
 export type HeaderResolution =
   | { column: number; status: "matched" }
@@ -59,9 +62,45 @@ export type HeaderResolution =
 
 function normalize(value: string): string {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR")
+    .replace(/\b(?:nao|sem)\s+higienizad[oa]s?\b/g, " ")
+    .replace(/\bhigienizad[oa]s?\b/g, " ")
+    .replace(/\bnao\b/g, " ")
     .replace(/\b(?:biodegradavel|bio|plastico|pouch|pote|embalagem)\b/g, " ")
+    .replace(/\b(?:kg|un|unidade|unidades)\b/g, " ")
     .replace(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\b/g, " ")
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+/**
+ * The official In Natura template uses green for non-hygienized produce and
+ * light blue for hygienized produce. Text markers take precedence only when
+ * they agree with the template color; conflicting evidence fails closed.
+ */
+export function resolveHygieneStatus(
+  description: string | null | undefined,
+  fillColor?: string | null,
+): HygieneStatus | "CONFLICT" | null {
+  const normalized = (description ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR").replace(/[^a-z0-9]+/g, " ").trim();
+  const textSaysUnhygienized = /\b(?:nao|sem) higienizad[oa]s?\b/.test(normalized);
+  const withoutNegativeMarker = normalized.replace(/\b(?:nao|sem) higienizad[oa]s?\b/g, " ");
+  const textSaysHygienized = /\bhigienizad[oa]s?\b/.test(withoutNegativeMarker);
+  if (textSaysUnhygienized && textSaysHygienized) return "CONFLICT";
+  const textStatus: HygieneStatus | null = textSaysUnhygienized
+    ? "NAO_HIGIENIZADA"
+    : textSaysHygienized
+      ? "HIGIENIZADA"
+      : null;
+  const color = (fillColor ?? "").replace(/^#/, "").toUpperCase();
+  const shortColor = color.length === 8 ? color.slice(2) : color;
+  const colorStatus: HygieneStatus | null = shortColor === "99FF99"
+    ? "NAO_HIGIENIZADA"
+    : shortColor === "DBEEF4"
+      ? "HIGIENIZADA"
+      : null;
+
+  if (textStatus && colorStatus && textStatus !== colorStatus) return "CONFLICT";
+  return textStatus ?? colorStatus;
 }
 
 // Reviewed exact alias from the current catalog to the official In Natura header.
@@ -86,17 +125,23 @@ export function resolveInNaturaHeader(
   productName: string,
   subCategoryName: string | null | undefined,
   candidates: HeaderCandidate[],
+  productCategory?: string | null,
 ): HeaderResolution {
   const normalizedProduct = normalize(productName);
+  const sourceHygiene = resolveHygieneStatus(`${productName} ${subCategoryName ?? ""} ${productCategory ?? ""}`);
+  if (sourceHygiene === "CONFLICT") return { status: "ambiguous" };
+
   // Reviewed business mapping: "Porção de Morango" targets the conventional
   // 50g column, not the separate biodegradable Bio column.
   if (normalizedProduct === "porcao de morango") {
-    const matching = candidates.filter((candidate) =>
+    let matching = candidates.filter((candidate) =>
       normalize(candidate.header) === "morango" &&
       weightMarker(candidate.header) === "50g" &&
       !hasBioMarker(candidate.header),
     );
+    if (sourceHygiene) matching = matching.filter((candidate) => candidate.hygieneStatus === sourceHygiene);
     if (matching.length === 0) return { status: "unmatched" };
+    if (matching.some((candidate) => candidate.hygieneStatus === "CONFLICT")) return { status: "ambiguous" };
     if (matching.length !== 1) return { status: "ambiguous" };
     return { column: matching[0].column, status: "matched" };
   }
@@ -115,7 +160,14 @@ export function resolveInNaturaHeader(
   const sourceWeight = weightMarker(subcategory);
   if (sourceWeight) matching = matching.filter((candidate) => weightMarker(candidate.header) === sourceWeight);
 
+  // Hygiene is a product presentation discriminator just like weight or
+  // packaging. It must never be guessed when the order/catalog does not say.
+  if (sourceHygiene) {
+    matching = matching.filter((candidate) => candidate.hygieneStatus === sourceHygiene);
+  }
+
   if (matching.length === 0) return { status: "unmatched" };
+  if (matching.some((candidate) => candidate.hygieneStatus === "CONFLICT")) return { status: "ambiguous" };
   if (matching.length !== 1) return { status: "ambiguous" };
   return { column: matching[0].column, status: "matched" };
 }

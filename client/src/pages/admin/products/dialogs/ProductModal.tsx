@@ -14,6 +14,7 @@ import type { Product } from "@shared/schema";
 import { useCategories } from "../hooks/useCategories";
 import { ProductCategorySelector } from "./ProductCategorySelector";
 import { ProductAliasesPanel } from "./ProductAliasesPanel";
+import { buildProductCategorySyncPlan } from "./product-category-sync";
 import { resolveProductCodeForEdit, shouldCheckProductCode, shouldCheckProductIdentity } from "./product-identity-change";
 import { emptyForm, productToForm, UNITS, DAYS } from "../constants";
 
@@ -94,26 +95,37 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
   }, [isOpen, editingProduct?.id, retryEditCodeLoad]);
 
   // Load sub-categories when editing
-  const { data: editingSubCats = [] } = useQuery<any[]>({
+  const {
+    data: editingSubCats = [],
+    isLoading: editingSubCatsLoading,
+    isFetching: editingSubCatsFetching,
+    isError: editingSubCatsError,
+    refetch: refetchEditingSubCats,
+  } = useQuery<any[]>({
     queryKey: ['/api/products', editingProduct?.id, 'sub-categories'],
     queryFn: async () => {
       const r = await fetchWithAuth(`/api/products/${editingProduct?.id}/sub-categories`);
-      return r.json();
+      if (!r.ok) throw new Error("Não foi possível carregar as categorias atuais do produto.");
+      const rows = await r.json();
+      if (!Array.isArray(rows)) throw new Error("A resposta das categorias do produto é inválida.");
+      return rows;
     },
     enabled: !!editingProduct && isOpen,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   useEffect(() => {
-    if (editingProduct && editingSubCats.length > 0) {
+    if (editingProduct && !editingSubCatsFetching && !editingSubCatsError) {
       setFormData(prev => ({
         ...prev,
-        categorySelections: editingSubCats.map((sc: any) => ({
+        categorySelections: editingSubCats.filter((sc: any) => sc.active).map((sc: any) => ({
           categoryName: sc.categoryName,
           price: String(sc.price),
         })),
       }));
     }
-  }, [editingProduct?.id, editingSubCats]);
+  }, [editingProduct?.id, editingSubCats, editingSubCatsFetching, editingSubCatsError]);
 
   // Clear unused pricing fields when switching mode
   useEffect(() => {
@@ -197,6 +209,15 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (editingProduct && (editingSubCatsLoading || editingSubCatsFetching || editingSubCatsError)) {
+      toast({
+        title: "Categorias ainda não foram carregadas",
+        description: "Para evitar perder vínculos usados por pedidos, atualize as categorias e tente salvar novamente.",
+        variant: "destructive",
+      });
+      if (editingSubCatsError) void refetchEditingSubCats();
+      return;
+    }
     if (editingProduct && !editCodeReady) {
       toast({ title: "ID do produto não está pronto", description: editCodeError || "Aguarde o carregamento do ID ou tente novamente.", variant: "destructive" });
       return;
@@ -296,20 +317,38 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
       if (editingProduct) {
         await updateProduct.mutateAsync({ id: editingProduct.id, data: payload });
         savedProductId = editingProduct.id;
-        await apiRequest('DELETE', `/api/products/${savedProductId}/sub-categories`, {});
+        const plan = buildProductCategorySyncPlan(editingSubCats, formData.categorySelections);
+        for (const category of plan.update) {
+          await apiRequest('PATCH', `/api/products/sub-categories/${category.id}`, {
+            categoryName: category.categoryName,
+            price: category.price,
+            active: category.active,
+          });
+        }
+        for (const categoryId of plan.deactivate) {
+          await apiRequest('PATCH', `/api/products/sub-categories/${categoryId}`, { active: false });
+        }
+        for (const category of plan.create) {
+          await apiRequest('POST', `/api/products/${savedProductId}/sub-categories`, category);
+        }
       } else {
         const created = await createProduct.mutateAsync(payload);
         savedProductId = (created as any).id;
-      }
-      for (const sel of formData.categorySelections) {
-        await apiRequest('POST', `/api/products/${savedProductId}/sub-categories`, {
-          categoryName: sel.categoryName,
-          price: String(Number(sel.price)),
-        });
+        for (const sel of formData.categorySelections) {
+          await apiRequest('POST', `/api/products/${savedProductId}/sub-categories`, {
+            categoryName: sel.categoryName,
+            price: String(Number(sel.price)),
+          });
+        }
       }
       queryClient.invalidateQueries({ queryKey: ['/api/products', savedProductId, 'sub-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
       onSaved();
     } catch (err: any) {
+      if (editingProduct) {
+        queryClient.invalidateQueries({ queryKey: ['/api/products', editingProduct.id, 'sub-categories'] });
+        void refetchEditingSubCats();
+      }
       toast({ title: 'Erro ao salvar produto', description: err?.message || 'Tente novamente.', variant: 'destructive' });
     } finally {
       setSubmitting(false);
@@ -582,6 +621,17 @@ export function ProductModal({ isOpen, editingProduct, onClose, onSaved }: Produ
               </span>
             </div>
             <div className="p-4">
+              {editingProduct && (editingSubCatsLoading || editingSubCatsFetching) && (
+                <p className="mb-3 text-xs text-indigo-700" role="status">Carregando as categorias atuais antes de permitir o salvamento…</p>
+              )}
+              {editingProduct && editingSubCatsError && (
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-red-300 bg-red-50 p-3 text-xs text-red-700" role="alert">
+                  <span>Não foi possível carregar as categorias salvas. O salvamento está bloqueado para preservar os vínculos dos pedidos.</span>
+                  <button type="button" className="shrink-0 font-semibold underline" onClick={() => void refetchEditingSubCats()}>
+                    Tentar novamente
+                  </button>
+                </div>
+              )}
               <p className="text-xs text-indigo-700 dark:text-indigo-300 mb-3">
                 Selecione as categorias aplicáveis ao produto e informe o preço de cada uma. Categorias são gerenciadas na aba <strong>Categorias</strong>.
               </p>

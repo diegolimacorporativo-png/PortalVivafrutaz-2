@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { ValidationError } from "../../shared/errors/AppError";
 import {
   resolveInNaturaHeader,
+  resolveHygieneStatus,
   type HeaderCandidate,
   type ProductionExportBatch,
   type ProductionExportItem,
@@ -25,6 +26,11 @@ function excelColumn(columnNumber: number): string {
   return XLSX.utils.encode_col(columnNumber - 1);
 }
 
+function normalize(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
 function collectSources(batch: ProductionExportBatch, classification: ProductionExportItem["productionClassification"]): Array<{
   item: ProductionExportItem;
   source: ProductionExportSource;
@@ -43,7 +49,14 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
   const candidates: HeaderCandidate[] = [];
   for (let column = 0; column < 126; column++) {
     const cell = sheet[XLSX.utils.encode_cell({ r: 7, c: column })];
-    if (typeof cell?.v === "string" && cell.v.trim()) candidates.push({ column: column + 1, header: cell.v.trim() });
+    if (typeof cell?.v === "string" && cell.v.trim()) {
+      const fillColor = (cell as XLSX.CellObject & { s?: { fgColor?: { rgb?: string } } }).s?.fgColor?.rgb;
+      candidates.push({
+        column: column + 1,
+        header: cell.v.trim(),
+        hygieneStatus: resolveHygieneStatus(cell.v, fillColor) ?? undefined,
+      });
+    }
   }
   if (!candidates.length) throw new ValidationError("O modelo In Natura está sem cabeçalhos de produtos.");
 
@@ -90,7 +103,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       : [];
     const resolved = source.manualExportHeader
       ? (manualMatches.length === 1 ? { column: manualMatches[0].column, status: "matched" as const } : { status: manualMatches.length ? "ambiguous" as const : "unmatched" as const })
-      : resolveInNaturaHeader(item.productName, source.subCategoryName, candidates);
+      : resolveInNaturaHeader(item.productName, source.subCategoryName, candidates, item.category);
     if (resolved.status !== "matched") {
       unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, sourceKey: source.itemId != null ? `item:${source.itemId}` : source.requestId ? `manual:${source.requestId}` : null, sourceType: source.sourceType, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, subCategoryId: source.subCategoryId ?? null, subCategoryName: source.subCategoryName ?? null, reason: resolved.status === "ambiguous" ? "CABECALHO_EXCEL_AMBIGUO" : "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO" });
       continue;
