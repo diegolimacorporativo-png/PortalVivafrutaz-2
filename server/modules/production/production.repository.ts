@@ -52,6 +52,7 @@ export interface OrderBreakdownEntry {
   routeName?: string;
   subCategoryId?: number | null;
   subCategoryName?: string | null;
+  isIndustrialized?: boolean;
   deliveryAddressId?: number | null;
   deliveryAddress?: ProductionConsolidationSource["deliveryAddress"];
 }
@@ -201,6 +202,7 @@ export const productionRepository = {
         category: products.category,
         unit: products.unit,
         productionClassification: products.productionClassification,
+        isIndustrialized: products.isIndustrialized,
         sourceDescriptionSnapshot: orderItems.sourceDescriptionSnapshot,
         subCategoryId: orderItems.subCategoryId,
         subCategoryName: orderItems.subCategoryName,
@@ -234,6 +236,7 @@ export const productionRepository = {
         row.productionClassification === "IN_NATURA" || row.productionClassification === "PROCESSADOS"
           ? row.productionClassification
           : null,
+      isIndustrialized: row.isIndustrialized === true,
       productionOrigin: row.productionOrigin as ProductionConsolidationSource["productionOrigin"],
       deliveryAddress: row.deliveryAddress?.id ? row.deliveryAddress : null,
       specialRequestApprovedAndMaterialized: row.specialRequestApprovedAndMaterialized === true,
@@ -432,6 +435,7 @@ export const productionRepository = {
       const [product] = await tx.select({
         id: products.id, name: products.name, category: products.category, unit: products.unit,
         productionClassification: products.productionClassification, active: products.active,
+        isIndustrialized: products.isIndustrialized,
         empresaId: products.empresaId,
       }).from(products).where(and(eq(products.id, input.productId), eq(products.active, true))).limit(1);
       if (!product) throw new NotFoundError("Produto ativo não encontrado");
@@ -474,6 +478,7 @@ export const productionRepository = {
         companyName: company.companyName,
         quantity: input.quantity,
         deliveryDate: String(batch.productionDate).slice(0, 10),
+        isIndustrialized: product.isIndustrialized === true,
         sourceType: "MANUAL_PRODUCTION",
         manualReference: input.manualReference?.trim() || null,
         recordedByUserId: input.recordedByUserId,
@@ -637,6 +642,7 @@ export const productionRepository = {
         workflowStatus: orders.workflowStatus,
         productionOrigin: orders.productionOrigin,
         productionClassification: products.productionClassification,
+        isIndustrialized: products.isIndustrialized,
         specialRequestApprovedAndMaterialized: exists(
           db.select({ id: specialOrderRequests.id }).from(specialOrderRequests)
             .where(and(

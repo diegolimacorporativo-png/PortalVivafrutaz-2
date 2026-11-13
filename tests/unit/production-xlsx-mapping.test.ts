@@ -30,6 +30,40 @@ test("maps the reviewed Pêssego Nacional início safra catalog name to the uniq
   ]), { status: "ambiguous" });
 });
 
+test("maps Porção de Morango to the conventional official Morango 50g column", () => {
+  assert.deepEqual(resolveInNaturaHeader("Porção de Morango", null, [
+    { column: 54, header: "Morango 50g" },
+    { column: 55, header: "Morango 50g BIODEGRADÁVEL" },
+  ]), { column: 54, status: "matched" });
+  assert.deepEqual(resolveInNaturaHeader("Porção de Morango", null, [
+    { column: 54, header: "Morango 100g" },
+  ]), { status: "unmatched" });
+});
+
+test("exports catalog-classified industrialized products under the generic official header", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  const output = renderInNaturaWorkbook(template, {
+    id: 82,
+    productionDate: "2026-11-10",
+    items: [{
+      productId: 9001,
+      productName: "Coca-Cola Zero 220 ml",
+      category: "Bebidas",
+      unit: "CAIXA",
+      productionClassification: "IN_NATURA",
+      totalQuantity: 2,
+      orderBreakdown: [
+        { itemId: 1201, orderId: 701, companyId: 27, companyName: "Empresa Industrializada", quantity: 1, isIndustrialized: true },
+        { itemId: 1202, orderId: 702, companyId: 27, companyName: "Empresa Industrializada", quantity: 1, isIndustrialized: true },
+      ],
+    }],
+  });
+  const workbook = XLSX.read(output, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.B12.v, "Empresa Industrializada");
+  assert.equal(sheet.CZ12.v, "Coca-Cola Zero 220 ml — 2 CAIXA");
+});
+
 test("exports Pêssego Nacional as PÊSSEGO with one company row aggregated across addresses", () => {
   const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
   const batch = {

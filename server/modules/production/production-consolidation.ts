@@ -13,6 +13,7 @@ export interface ProductionConsolidationSource {
   category: string | null;
   unit: string | null;
   productionClassification: "IN_NATURA" | "PROCESSADOS" | null;
+  isIndustrialized?: boolean;
   sourceDescriptionSnapshot?: string | null;
   subCategoryId?: number | null;
   subCategoryName?: string | null;
@@ -49,6 +50,7 @@ export interface ProductionSourceBreakdown {
   routeName: string;
   subCategoryId?: number | null;
   subCategoryName?: string | null;
+  isIndustrialized?: boolean;
   deliveryAddressId?: number | null;
   deliveryAddress?: ProductionConsolidationSource["deliveryAddress"];
 }
@@ -214,7 +216,8 @@ export function consolidateProduction(
     if (/\b(?:bio|biodegradavel)\b/.test(normalizedSubCategory)) normalizedSubCategory = `packaging:bio:${packageWeight}`;
     else if (/\b(?:p07|plastico|plastica)\b/.test(normalizedSubCategory)) normalizedSubCategory = `packaging:plastic:${packageWeight}`;
     const subCategoryKey = normalizedSubCategory || `legacy-id:${row.subCategoryId ?? "none"}`;
-    const groupKey = `${row.productId}:${unit}:${productionClassification}:${subCategoryKey}`;
+    const isIndustrialized = row.isIndustrialized === true;
+    const groupKey = `${row.productId}:${unit}:${productionClassification}:${subCategoryKey}:industrialized=${isIndustrialized}`;
     const group = productGroups.get(groupKey) ?? {
       productId: row.productId,
       productName: row.productName,
@@ -243,6 +246,7 @@ export function consolidateProduction(
       routeName: route?.name ?? "Sem Rota",
       subCategoryId: row.subCategoryId ?? null,
       subCategoryName: row.subCategoryName ?? null,
+      isIndustrialized,
       deliveryAddressId: row.deliveryAddressId ?? null,
       deliveryAddress: row.deliveryAddress ?? null,
     });

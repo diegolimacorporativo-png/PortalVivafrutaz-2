@@ -54,6 +54,12 @@ test("descrições alternativas com o mesmo productId consolidam; productIds dis
   assert.equal(result.products.find((product) => product.productId === 8)?.totalQuantity, 3);
 });
 
+test("preserva a classificação de industrializado na origem persistida do lote", () => {
+  const result = consolidateProduction(date, [source({ isIndustrialized: true })], []);
+  assert.equal(result.products.length, 1);
+  assert.equal(result.products[0].sources[0].isIndustrialized, true);
+});
+
 test("mantém embalagens Bio e P07 separadas no mesmo produto e preserva o endereço no snapshot de origem", () => {
   const result = consolidateProduction(date, [
     source({ itemId: 1, subCategoryId: 11, subCategoryName: "Pote biodegradável 100g", deliveryAddressId: 71, deliveryAddress: {

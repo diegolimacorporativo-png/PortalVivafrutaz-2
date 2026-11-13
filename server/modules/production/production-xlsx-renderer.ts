@@ -51,10 +51,40 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
     display: string;
     routes: Set<string>;
     productQuantities: Map<number, { quantity: number; subCategoryId: number | null; productId: number }>;
+    industrializedProducts: Map<string, { productName: string; unit: string; quantity: number }>;
   }>();
   const unresolved: Array<Record<string, unknown>> = [];
   const columnOwners = new Map<number, string>();
+  const industrializedHeaders = candidates.filter((candidate) =>
+    normalize(candidate.header).startsWith("produtos industrializados"),
+  );
   for (const { item, source } of collectSources(batch, "IN_NATURA")) {
+    const industrializedHeader = industrializedHeaders.length === 1 ? industrializedHeaders[0] : null;
+    const mappedToIndustrializedHeader = Boolean(industrializedHeader && source.manualExportHeader?.trim() === industrializedHeader.header.trim());
+    const isIndustrialized = source.isIndustrialized === true || mappedToIndustrializedHeader ||
+      /\bindustrializad[oa]s?\b/i.test(item.category ?? "");
+    if (isIndustrialized) {
+      if (!industrializedHeader) {
+        unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, reason: industrializedHeaders.length ? "CABECALHO_INDUSTRIALIZADOS_AMBIGUO" : "COLUNA_INDUSTRIALIZADOS_AUSENTE" });
+        continue;
+      }
+      const destination = companies.get(source.companyId) ?? {
+        display: source.companyName,
+        routes: new Set<string>(),
+        productQuantities: new Map(),
+        industrializedProducts: new Map(),
+      };
+      if (source.routeName?.trim() && source.routeName !== "Sem Rota") destination.routes.add(source.routeName.trim());
+      const key = `${item.productId}:${item.unit}`;
+      const previous = destination.industrializedProducts.get(key);
+      destination.industrializedProducts.set(key, {
+        productName: item.productName,
+        unit: item.unit,
+        quantity: (previous?.quantity ?? 0) + Number(source.quantity),
+      });
+      companies.set(source.companyId, destination);
+      continue;
+    }
     const manualMatches = source.manualExportHeader
       ? candidates.filter((candidate) => candidate.header.trim() === source.manualExportHeader?.trim())
       : [];
@@ -73,7 +103,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       continue;
     }
     columnOwners.set(resolved.column, identity);
-    const destination = companies.get(source.companyId) ?? { display: source.companyName, routes: new Set<string>(), productQuantities: new Map() };
+    const destination = companies.get(source.companyId) ?? { display: source.companyName, routes: new Set<string>(), productQuantities: new Map(), industrializedProducts: new Map() };
     if (source.routeName?.trim() && source.routeName !== "Sem Rota") destination.routes.add(source.routeName.trim());
     const previous = destination.productQuantities.get(resolved.column);
     if (previous && (previous.productId !== item.productId || previous.subCategoryId !== (source.subCategoryId ?? null))) {
@@ -120,6 +150,14 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
     updates.set(`B${row}`, { value: company.display });
     updates.set(`C${row}`, { value: [...company.routes].sort().join(" / ") });
     for (const [column, value] of company.productQuantities) updates.set(`${excelColumn(column)}${row}`, { value: value.quantity });
+    if (company.industrializedProducts.size) {
+      const industrializedColumn = industrializedHeaders[0].column;
+      const details = [...company.industrializedProducts.values()]
+        .sort((a, b) => a.productName.localeCompare(b.productName, "pt-BR"))
+        .map(({ productName, unit, quantity }) => `${productName} — ${quantity.toLocaleString("pt-BR", { maximumFractionDigits: 3 })} ${unit}`)
+        .join("; ");
+      updates.set(`${excelColumn(industrializedColumn)}${row}`, { value: details });
+    }
   });
   return patchXlsxWorksheet(template, "xl/worksheets/sheet1.xml", updates);
 }

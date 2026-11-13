@@ -23,6 +23,8 @@ export interface ProductionExportSource {
   } | null;
   manualExportHeader?: string;
   manualPackaging?: ProcessedPackaging;
+  /** Catalog flag captured in the immutable batch source snapshot. */
+  isIndustrialized?: boolean;
   manualMappingAudit?: { userId: number; at: string; justification: string };
   sourceType?: "ORDER" | "MANUAL_PRODUCTION";
   manualReference?: string | null;
@@ -86,6 +88,18 @@ export function resolveInNaturaHeader(
   candidates: HeaderCandidate[],
 ): HeaderResolution {
   const normalizedProduct = normalize(productName);
+  // Reviewed business mapping: "Porção de Morango" targets the conventional
+  // 50g column, not the separate biodegradable Bio column.
+  if (normalizedProduct === "porcao de morango") {
+    const matching = candidates.filter((candidate) =>
+      normalize(candidate.header) === "morango" &&
+      weightMarker(candidate.header) === "50g" &&
+      !hasBioMarker(candidate.header),
+    );
+    if (matching.length === 0) return { status: "unmatched" };
+    if (matching.length !== 1) return { status: "ambiguous" };
+    return { column: matching[0].column, status: "matched" };
+  }
   const productKey = IN_NATURA_HEADER_ALIASES[normalizedProduct] ?? normalizedProduct;
   if (!productKey) return { status: "unmatched" };
   let matching = candidates.filter((candidate) => normalize(candidate.header) === productKey);
