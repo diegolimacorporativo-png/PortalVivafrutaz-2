@@ -29,6 +29,9 @@ test("maps the reviewed Pêssego Nacional início safra catalog name to the uniq
     { column: 31, header: "PÊSSEGO" },
     { column: 32, header: "PÊSSEGO" },
   ]), { status: "ambiguous" });
+  assert.deepEqual(resolveInNaturaHeader("Pêssego Nacional (início safra)", null, [
+    { column: 31, header: "PÊSSEGO" },
+  ], "Frutas In Natura higienizadas"), { column: 31, status: "matched" });
 });
 
 test("maps Porção de Morango to the conventional official Morango 50g column", () => {
@@ -39,6 +42,20 @@ test("maps Porção de Morango to the conventional official Morango 50g column",
   assert.deepEqual(resolveInNaturaHeader("Porção de Morango", null, [
     { column: 54, header: "Morango 100g" },
   ]), { status: "unmatched" });
+  assert.deepEqual(resolveInNaturaHeader("Porção de Morango", null, [
+    { column: 54, header: "Morango 50g" },
+    { column: 55, header: "Morango 50g BIODEGRADÁVEL" },
+  ], "Frutas In Natura higienizadas"), { column: 54, status: "matched" });
+});
+
+test("uses hygiene color only to distinguish duplicate official product columns", () => {
+  assert.deepEqual(resolveInNaturaHeader("Kiwi", null, [
+    { column: 51, header: "Kiwi", hygieneStatus: "NAO_HIGIENIZADA" },
+  ], "Frutas In Natura higienizadas"), { column: 51, status: "matched" });
+  assert.deepEqual(resolveInNaturaHeader("Kiwi", null, [
+    { column: 51, header: "Kiwi", hygieneStatus: "NAO_HIGIENIZADA" },
+    { column: 52, header: "Kiwi", hygieneStatus: "HIGIENIZADA" },
+  ], "Frutas In Natura higienizadas"), { column: 52, status: "matched" });
 });
 
 test("exports catalog-classified industrialized products under the generic official header", () => {
@@ -65,6 +82,33 @@ test("exports catalog-classified industrialized products under the generic offic
   assert.equal(sheet.CZ12.v, "Coca-Cola Zero 220 ml — 2 CAIXA");
 });
 
+test("routes approved beverage and bar names to the existing industrialized area", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  const products = [
+    { productId: 9004, productName: "Coca cola Zero 220 ml", category: "Bebidas", unit: "CAIXA", quantity: 1 },
+    { productId: 9007, productName: "Suco Natural de Laranja com Morango - 300ml", category: "Bebidas", unit: "UN", quantity: 1 },
+    { productId: 9005, productName: "Suco Natural One - Pink", category: "Bebidas", unit: "UN", quantity: 2 },
+    { productId: 9006, productName: "Barrinha de cereal", category: "Industrializados", unit: "UN", quantity: 3 },
+  ];
+  const output = renderInNaturaWorkbook(template, {
+    id: 84,
+    productionDate: "2026-11-10",
+    items: products.map((product) => ({
+      productId: product.productId,
+      productName: product.productName,
+      category: product.category,
+      unit: product.unit,
+      productionClassification: "IN_NATURA" as const,
+      totalQuantity: product.quantity,
+      orderBreakdown: [{ itemId: product.productId, orderId: 705, companyId: 29, companyName: "Empresa teste industrializados", quantity: product.quantity }],
+    })),
+  });
+  const workbook = XLSX.read(output, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.B12.v, "Empresa teste industrializados");
+  assert.equal(sheet.CZ12.v, "Barrinha de cereal — 3 UN; Coca cola Zero 220 ml — 1 CAIXA; Suco Natural de Laranja com Morango - 300ml — 1 UN; Suco Natural One - Pink — 2 UN");
+});
+
 test("exports Pêssego Nacional as PÊSSEGO with one company row aggregated across addresses", () => {
   const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
   const batch = {
@@ -89,6 +133,24 @@ test("exports Pêssego Nacional as PÊSSEGO with one company row aggregated acro
   assert.equal(sheet.C12.v, "Rota Norte / Rota Sul");
   assert.equal(sheet.AE12.v, 5);
   assert.equal(Object.keys(sheet).filter((address) => /^B\d+$/.test(address) && sheet[address]?.v === "Empresa teste").length, 1);
+});
+
+test("aggregates approved Pêssego catalog names into the same company/template cell", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  const output = renderInNaturaWorkbook(template, {
+    id: 86,
+    productionDate: "2026-11-10",
+    items: [
+      { productId: 395, productName: "Pêssego Nacional (início safra)", category: "Frutas In Natura higienizadas", unit: "UN", productionClassification: "IN_NATURA", totalQuantity: 2,
+        orderBreakdown: [{ itemId: 1401, orderId: 707, companyId: 31, companyName: "Empresa pêssego", quantity: 2, subCategoryName: "Frutas higienizadas" }] },
+      { productId: 396, productName: "Pêssego", category: "Frutas In Natura não higienizadas", unit: "UN", productionClassification: "IN_NATURA", totalQuantity: 3,
+        orderBreakdown: [{ itemId: 1402, orderId: 708, companyId: 31, companyName: "Empresa pêssego", quantity: 3, subCategoryName: "Frutas não higienizadas" }] },
+    ],
+  });
+  const workbook = XLSX.read(output, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.AE12.v, 5);
+  assert.equal(sheet.B12.v, "Empresa pêssego");
 });
 
 test("exports by company when the source order has no delivery address", () => {
@@ -168,6 +230,27 @@ test("uses real In Natura template fills to route unwashed and washed source row
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   assert.equal(sheet.AW12.v, 2); // Uva Cacho, green/unhygienized column.
   assert.equal(sheet.AH12.v, 3); // Uva KG Higienizadas, blue/hygienized column.
+});
+
+test("real template maps unique Pêssego, Kiwi, and Morango columns despite hygiene labels", () => {
+  const template = readFileSync("server/modules/production/templates/in-natura-template.xlsx");
+  const output = renderInNaturaWorkbook(template, {
+    id: 85,
+    productionDate: "2026-11-10",
+    items: [
+      { productId: 9010, productName: "Pêssego Nacional (início safra)", category: "Frutas In Natura higienizadas", unit: "UN", productionClassification: "IN_NATURA", totalQuantity: 2,
+        orderBreakdown: [{ itemId: 1301, orderId: 706, companyId: 30, companyName: "Empresa teste mapeamento", quantity: 2 }] },
+      { productId: 9011, productName: "Kiwi", category: "Frutas In Natura higienizadas", unit: "UN", productionClassification: "IN_NATURA", totalQuantity: 3,
+        orderBreakdown: [{ itemId: 1302, orderId: 706, companyId: 30, companyName: "Empresa teste mapeamento", quantity: 3 }] },
+      { productId: 9012, productName: "Porção de Morango", category: "Frutas In Natura higienizadas", unit: "POTE", productionClassification: "IN_NATURA", totalQuantity: 4,
+        orderBreakdown: [{ itemId: 1303, orderId: 706, companyId: 30, companyName: "Empresa teste mapeamento", quantity: 4 }] },
+    ],
+  });
+  const workbook = XLSX.read(output, { type: "buffer" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  assert.equal(sheet.AE12.v, 2);
+  assert.equal(sheet.AS12.v, 3);
+  assert.equal(sheet.BB12.v, 4);
 });
 
 test("maps P07 plastic to the non-Bio column when the official header omits the word plastic", () => {

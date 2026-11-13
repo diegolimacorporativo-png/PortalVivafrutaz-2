@@ -139,9 +139,14 @@ export function resolveInNaturaHeader(
       weightMarker(candidate.header) === "50g" &&
       !hasBioMarker(candidate.header),
     );
-    if (sourceHygiene) matching = matching.filter((candidate) => candidate.hygieneStatus === sourceHygiene);
     if (matching.length === 0) return { status: "unmatched" };
     if (matching.some((candidate) => candidate.hygieneStatus === "CONFLICT")) return { status: "ambiguous" };
+    // Hygiene color is only a discriminator when the official model has
+    // multiple otherwise-identical columns. A unique official Morango 50g
+    // column must remain usable even if the catalog category mentions hygiene.
+    if (matching.length > 1 && sourceHygiene) {
+      matching = matching.filter((candidate) => candidate.hygieneStatus === sourceHygiene);
+    }
     if (matching.length !== 1) return { status: "ambiguous" };
     return { column: matching[0].column, status: "matched" };
   }
@@ -160,9 +165,11 @@ export function resolveInNaturaHeader(
   const sourceWeight = weightMarker(subcategory);
   if (sourceWeight) matching = matching.filter((candidate) => weightMarker(candidate.header) === sourceWeight);
 
-  // Hygiene is a product presentation discriminator just like weight or
-  // packaging. It must never be guessed when the order/catalog does not say.
-  if (sourceHygiene) {
+  // The green/blue convention distinguishes hygiene only where the template
+  // repeats the same product. It must not reject a unique official column
+  // (for example PÊSSEGO or Kiwi) because its fill is neutral or differs from
+  // a broad catalog category label.
+  if (matching.length > 1 && sourceHygiene) {
     matching = matching.filter((candidate) => candidate.hygieneStatus === sourceHygiene);
   }
 

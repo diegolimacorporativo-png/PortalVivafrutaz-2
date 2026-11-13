@@ -31,6 +31,23 @@ function normalize(value: string): string {
     .replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
 }
 
+function isIndustrializedExportItem(
+  item: ProductionExportItem,
+  source: ProductionExportSource,
+  mappedToIndustrializedHeader: boolean,
+): boolean {
+  if (source.isIndustrialized === true || mappedToIndustrializedHeader) return true;
+
+  const category = normalize(item.category ?? "");
+  const name = normalize(item.productName);
+  // Catalog entries in these approved operational groups (industrialized
+  // goods and beverages such as soda/juice) belong in the existing generic
+  // "Produtos Industrializados" area of the In Natura workbook. Keep the
+  // match limited to explicit category/name markers; never invent a column.
+  return /\bindustrializad[oa]s?\b/.test(category) || /\bbebidas\b/.test(category) ||
+    /^(?:coca cola|suco|barrinha|barrinhas)(?: |$)/.test(name);
+}
+
 function collectSources(batch: ProductionExportBatch, classification: ProductionExportItem["productionClassification"]): Array<{
   item: ProductionExportItem;
   source: ProductionExportSource;
@@ -67,6 +84,9 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
     industrializedProducts: Map<string, { productName: string; unit: string; quantity: number }>;
   }>();
   const unresolved: Array<Record<string, unknown>> = [];
+  // A template column is the approved operational identity. Different catalog
+  // IDs may intentionally map to the same official item (for example Pêssego
+  // and Pêssego Nacional); only incompatible units make a shared column unsafe.
   const columnOwners = new Map<number, string>();
   const industrializedHeaders = candidates.filter((candidate) =>
     normalize(candidate.header).startsWith("produtos industrializados"),
@@ -74,8 +94,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
   for (const { item, source } of collectSources(batch, "IN_NATURA")) {
     const industrializedHeader = industrializedHeaders.length === 1 ? industrializedHeaders[0] : null;
     const mappedToIndustrializedHeader = Boolean(industrializedHeader && source.manualExportHeader?.trim() === industrializedHeader.header.trim());
-    const isIndustrialized = source.isIndustrialized === true || mappedToIndustrializedHeader ||
-      /\bindustrializad[oa]s?\b/i.test(item.category ?? "");
+    const isIndustrialized = isIndustrializedExportItem(item, source, mappedToIndustrializedHeader);
     if (isIndustrialized) {
       if (!industrializedHeader) {
         unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, reason: industrializedHeaders.length ? "CABECALHO_INDUSTRIALIZADOS_AMBIGUO" : "COLUNA_INDUSTRIALIZADOS_AUSENTE" });
@@ -108,8 +127,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, sourceKey: source.itemId != null ? `item:${source.itemId}` : source.requestId ? `manual:${source.requestId}` : null, sourceType: source.sourceType, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, subCategoryId: source.subCategoryId ?? null, subCategoryName: source.subCategoryName ?? null, reason: resolved.status === "ambiguous" ? "CABECALHO_EXCEL_AMBIGUO" : "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO" });
       continue;
     }
-    const normalizedSubCategory = (source.subCategoryName ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
-    const identity = `${item.productId}:${item.unit}:${normalizedSubCategory}`;
+    const identity = normalize(item.unit);
     const columnOwner = columnOwners.get(resolved.column);
     if (columnOwner && columnOwner !== identity) {
       unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, reason: "COLISAO_GLOBAL_DE_IDENTIDADE_NA_COLUNA_EXCEL" });
@@ -119,10 +137,6 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
     const destination = companies.get(source.companyId) ?? { display: source.companyName, routes: new Set<string>(), productQuantities: new Map(), industrializedProducts: new Map() };
     if (source.routeName?.trim() && source.routeName !== "Sem Rota") destination.routes.add(source.routeName.trim());
     const previous = destination.productQuantities.get(resolved.column);
-    if (previous && (previous.productId !== item.productId || previous.subCategoryId !== (source.subCategoryId ?? null))) {
-      unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, reason: "COLISAO_DE_PRODUTO_OU_EMBALAGEM_NA_MESMA_COLUNA" });
-      continue;
-    }
     destination.productQuantities.set(resolved.column, {
       quantity: (previous?.quantity ?? 0) + Number(source.quantity),
       productId: item.productId,
