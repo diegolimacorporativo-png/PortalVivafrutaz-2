@@ -14,6 +14,8 @@ import {
   batchIdParamSchema,
   productionExportParamsSchema,
   productionExportQuerySchema,
+  manualBatchItemBodySchema,
+  manualExportMappingBodySchema,
 } from "./production.validation";
 import { PRODUCTION_ACCESS_ROLES } from "./production-authorization";
 
@@ -51,6 +53,13 @@ productionRouter.post(
   asyncHandler(productionController.generate),
 );
 
+productionRouter.patch(
+  "/batches/:id/manual-export-mapping",
+  validate(batchIdParamSchema, "params"),
+  validate(manualExportMappingBodySchema, "body"),
+  asyncHandler(productionController.updateManualExportMapping),
+);
+
 // Exports read the immutable global batch snapshot; the endpoint never
 // recalculates from current orders or catalog rows.
 productionRouter.get(
@@ -58,6 +67,15 @@ productionRouter.get(
   validate(productionExportParamsSchema, "params"),
   validate(productionExportQuerySchema, "query"),
   asyncHandler(productionController.exportBatch),
+);
+
+// Manual production-only source: it adds an auditable row to the batch snapshot,
+// without creating or changing commercial orders.
+productionRouter.post(
+  "/batches/:id/manual-items",
+  validate(batchIdParamSchema, "params"),
+  validate(manualBatchItemBodySchema, "body"),
+  asyncHandler(productionController.addManualBatchItem),
 );
 
 // GET  /api/production/batches/:id      — get batch + items

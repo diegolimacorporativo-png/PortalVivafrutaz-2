@@ -6,7 +6,7 @@ import {
   workflowEvents,
   type WorkflowEventPayload,
 } from "@shared/schema";
-import { legacyStatusFor, OrderStatus } from "./orders.workflow";
+import { assertDispatchHasEligibleDelivery, legacyStatusFor, OrderStatus } from "./orders.workflow";
 import { BadRequestError, ConflictError } from "../../shared/errors/AppError";
 import { areOrderDeliveriesDelivered } from "../logistics/delivery-completion.service";
 
@@ -246,7 +246,30 @@ export async function executeWorkflowTransaction(
       }
     }
 
-    // ── Step 3: Commit the state transition ─────────────────────────────────
+    let preNotaNumber: string | null = null;
+    let deliveryCreated = false;
+    let deliveryUpdated = false;
+
+    // ── Step 3: Claim an eligible delivery before dispatch ───────────────────
+    // Updating inside this transaction verifies eligibility and locks matching
+    // rows. Any later failure rolls this update back with the order and event.
+    if (to === OrderStatus.SHIPPED) {
+      const updated = rowsOf<{ id: number }>(
+        await tx.execute(
+          sql`UPDATE deliveries
+              SET    status     = 'em_rota',
+                     updated_at = NOW()
+              WHERE  order_id   = ${orderId}
+                AND  status     = 'pendente'
+              RETURNING id`,
+        ),
+      );
+
+      assertDispatchHasEligibleDelivery(updated.map(({ id }) => id));
+      deliveryUpdated = true;
+    }
+
+    // ── Step 4: Commit the state transition ──────────────────────────────────
     const [updatedOrder] = await tx
       .update(orders)
       .set({ workflowStatus: to, status: newLegacyStatus })
@@ -263,11 +286,7 @@ export async function executeWorkflowTransaction(
       );
     }
 
-    let preNotaNumber: string | null = null;
-    let deliveryCreated = false;
-    let deliveryUpdated = false;
-
-    // ── Step 4a: APPROVED — create an initial delivery atomically ──────────
+    // ── Step 4a: APPROVED — create an initial delivery atomically ────────────
     if (to === OrderStatus.APPROVED) {
       // The workflow lock above also serializes the auto-delivery path.
       const existingDelivery = await tx
@@ -296,23 +315,6 @@ export async function executeWorkflowTransaction(
         });
         deliveryCreated = true;
       }
-    }
-
-    // ── Step 4b: SHIPPED — conditional delivery row update ──────────────────
-    if (to === OrderStatus.SHIPPED) {
-      // Only update if currently 'pendente' — idempotent and status-safe.
-      const updated = rowsOf<{ id: number }>(
-        await tx.execute(
-          sql`UPDATE deliveries
-              SET    status     = 'em_rota',
-                     updated_at = NOW()
-              WHERE  order_id   = ${orderId}
-                AND  status     = 'pendente'
-              RETURNING id`,
-        ),
-      );
-
-      deliveryUpdated = updated.length > 0;
     }
 
     // ── Step 5: Write outbox event (transactional reliability) ──────────────

@@ -1,3 +1,5 @@
+import { routeAuthorizesCompany } from "./auto-dispatch.policy";
+
 export type DeliveryCompletionActor = {
   id: number;
   name?: string | null;
@@ -10,6 +12,7 @@ export type DeliveryCompletionLink = {
   orderId: number | null;
   companyId: number | null;
   routeId: number | null;
+  driverId?: number | null;
 };
 
 export type DeliveryCompletionRow = DeliveryCompletionLink & {
@@ -34,7 +37,18 @@ export type OrderDeliveryForCompletion = {
   companyId: number | null;
   status: string;
   routeId: number | null;
+  driverId: number | null;
   routeCompanyId: number | null;
+  routeCompanyIds: unknown;
+  routeDriverId: number | null;
+};
+
+export type DeliveryCompletionRouteScope = {
+  id: number;
+  companyId: number | null;
+  companyIds: unknown;
+  driverId: number | null;
+  status: string;
 };
 
 export type DeliveryStopEventInput = {
@@ -75,7 +89,7 @@ export interface DeliveryCompletionTransaction {
     deliveryId: number,
     tenantId: number | null,
   ): Promise<DeliveryCompletionRow | undefined>;
-  getRouteCompany(routeId: number): Promise<number | null | undefined>;
+  getRouteScope(routeId: number): Promise<DeliveryCompletionRouteScope | undefined>;
   getDeliveriesForOrder(orderId: number): Promise<OrderDeliveryForCompletion[]>;
   hasDeliveredEvent(deliveryId: number): Promise<boolean>;
   hasStopStatusEvent(
@@ -183,10 +197,11 @@ export async function completeDelivery(
     observacao?: string | null;
     now?: Date;
     checklist?: DeliveryCompletionChecklistInput;
+    authenticatedDriverId?: number;
   },
 ): Promise<DeliveryCompletionResult | null> {
   return store.transaction(async (tx) => {
-    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId);
+    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId, input.authenticatedDriverId);
     if (!context) return null;
     const { delivery, order, siblingDeliveries } = context;
 
@@ -211,6 +226,11 @@ export async function completeDelivery(
     }
 
     const alreadyAtTarget = delivery.status === targetStatus;
+    if (TERMINAL_DELIVERY_STATUSES.has(delivery.status) && !alreadyAtTarget) {
+      throw new DeliveryCompletionConflictError(
+        "Uma entrega concluída ou cancelada não pode mudar para outro estado terminal.",
+      );
+    }
     let changed = false;
     let completedDelivery = delivery;
 
@@ -339,6 +359,7 @@ export async function updateDeliveryNonterminal(
     status: string;
     additionalUpdates?: Record<string, unknown>;
     recordStopEvent?: boolean;
+    authenticatedDriverId?: number;
     observacao?: string | null;
     now?: Date;
   },
@@ -348,7 +369,7 @@ export async function updateDeliveryNonterminal(
   registeredAt: Date | null;
 } | null> {
   return store.transaction(async (tx) => {
-    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId);
+    const context = await loadDeliveryContext(tx, input.deliveryId, input.tenantId, input.authenticatedDriverId);
     if (!context) return null;
     const { delivery, order } = context;
 
@@ -476,6 +497,7 @@ async function loadDeliveryContext(
   tx: DeliveryCompletionTransaction,
   deliveryId: number,
   tenantId: number | null,
+  authenticatedDriverId?: number,
 ): Promise<{
   delivery: DeliveryCompletionRow;
   order: DeliveryCompletionOrder | undefined;
@@ -484,7 +506,13 @@ async function loadDeliveryContext(
   const link = await tx.findDeliveryLink(deliveryId, tenantId);
   if (!link) return null;
 
-  // All delivery changes and order workflow changes take this lock first.
+  // Route scope is locked before order and delivery rows. Route editing and
+  // auto-dispatch use this same route -> delivery lock order, avoiding an
+  // inversion with route completion while keeping authorization stable.
+  const routeScope = link.routeId == null
+    ? undefined
+    : await tx.getRouteScope(link.routeId);
+
   if (link.orderId != null) {
     await tx.lockOrderSerialization(link.orderId);
   }
@@ -498,7 +526,8 @@ async function loadDeliveryContext(
   if (
     delivery.orderId !== link.orderId ||
     delivery.companyId !== link.companyId ||
-    delivery.routeId !== link.routeId
+    delivery.routeId !== link.routeId ||
+    (delivery.driverId ?? null) !== (link.driverId ?? null)
   ) {
     throw new DeliveryCompletionConflictError();
   }
@@ -519,11 +548,12 @@ async function loadDeliveryContext(
   if (order) {
     siblingDeliveries = await tx.getDeliveriesForOrder(order.id);
     validateOrderDeliveryLinks(siblingDeliveries, order.companyId, delivery.id);
-  } else if (delivery.routeId != null) {
-    const routeCompanyId = await tx.getRouteCompany(delivery.routeId);
-    if (routeCompanyId == null || routeCompanyId !== effectiveCompanyId) {
-      throw new DeliveryCompletionLinkError();
-    }
+  }
+
+  if (delivery.routeId == null) {
+    if (authenticatedDriverId != null) throw new DeliveryCompletionLinkError("A entrega não pertence a uma rota atribuída ao motorista.");
+  } else {
+    validateDeliveryRouteScope(routeScope, delivery, effectiveCompanyId, authenticatedDriverId);
   }
 
   return { delivery, order, siblingDeliveries };
@@ -542,9 +572,42 @@ function validateOrderDeliveryLinks(
     const effectiveCompanyId = delivery.companyId ?? orderCompanyId;
     if (
       effectiveCompanyId !== orderCompanyId ||
-      (delivery.routeId != null && delivery.routeCompanyId !== orderCompanyId)
+      (delivery.routeId != null && (
+        !routeAuthorizesCompany(delivery.routeCompanyIds, effectiveCompanyId) ||
+        (delivery.routeDriverId != null && delivery.driverId != null && delivery.routeDriverId !== delivery.driverId)
+      ))
     ) {
       throw new DeliveryCompletionLinkError();
+    }
+  }
+}
+
+function validateDeliveryRouteScope(
+  route: DeliveryCompletionRouteScope | undefined,
+  delivery: DeliveryCompletionRow,
+  effectiveCompanyId: number,
+  authenticatedDriverId?: number,
+): void {
+  if (!route || route.id !== delivery.routeId || !routeAuthorizesCompany(route.companyIds, effectiveCompanyId)) {
+    throw new DeliveryCompletionLinkError("A empresa da entrega não está autorizada na rota vinculada.");
+  }
+  if (["CANCELLED", "CANCELED", "CANCELADO"].includes(route.status.toUpperCase())) {
+    throw new DeliveryCompletionLinkError("A entrega está vinculada a uma rota cancelada.");
+  }
+  if (delivery.driverId != null && route.driverId !== delivery.driverId) {
+    throw new DeliveryCompletionLinkError("O motorista da entrega não corresponde ao motorista da rota.");
+  }
+  if (authenticatedDriverId != null && (
+    route.driverId !== authenticatedDriverId ||
+    (delivery.driverId != null && delivery.driverId !== authenticatedDriverId)
+  )) {
+    throw new DeliveryCompletionLinkError("A rota não está atribuída ao motorista autenticado.");
+  }
+  if (authenticatedDriverId != null) {
+    const routeStatus = route.status.toUpperCase();
+    const deliveryTerminal = TERMINAL_DELIVERY_STATUSES.has(delivery.status);
+    if (routeStatus !== "IN_PROGRESS" && !(routeStatus === "COMPLETED" && deliveryTerminal)) {
+      throw new DeliveryCompletionLinkError("A rota não está em andamento para registrar a parada.");
     }
   }
 }

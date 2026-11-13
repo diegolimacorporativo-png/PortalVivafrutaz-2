@@ -25,6 +25,7 @@ import {
   Building2,
   Filter,
   Check,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,13 +81,18 @@ type PrintMode = "all" | "category" | "product" | "selected";
 
 interface OrderBreakdown {
   itemId?: number;
-  orderId: number;
-  orderCode: string;
+  orderId?: number | null;
+  orderCode?: string | null;
   companyId: number;
   companyName: string;
   quantity: number;
   deliveryDate?: string;
-  origin?: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
+  origin?: "FREE" | "CONTRACT_FIXED" | "SPECIAL" | "MANUAL";
+  sourceType?: "ORDER" | "MANUAL_PRODUCTION";
+  manualReference?: string | null;
+  justification?: string;
+  recordedByUserId?: number;
+  recordedAt?: string;
   routeId?: number | null;
   routeName?: string;
   subCategoryId?: number | null;
@@ -479,6 +485,23 @@ export default function AdminProduction() {
   const [exportingWorkbook, setExportingWorkbook] = useState<"in-natura" | "processed" | null>(null);
   const [processedExportOpen, setProcessedExportOpen] = useState(false);
   const [processedShift, setProcessedShift] = useState<"morning" | "afternoon" | "">("");
+  const [manualEntryOpen, setManualEntryOpen] = useState(false);
+  const [manualCompanyId, setManualCompanyId] = useState("");
+  const [manualProductId, setManualProductId] = useState("");
+  const [manualSubCategoryId, setManualSubCategoryId] = useState("");
+  const [manualClassification, setManualClassification] = useState<"IN_NATURA" | "PROCESSADOS">("IN_NATURA");
+  const [manualQuantity, setManualQuantity] = useState("");
+  const [manualReference, setManualReference] = useState("");
+  const [manualJustification, setManualJustification] = useState("");
+  const [manualMappingProblem, setManualMappingProblem] = useState<{
+    kind: "in-natura" | "processed";
+    shift?: "morning" | "afternoon";
+    unresolved: Array<{ batchItemId?: number; itemId?: number; sourceKey?: string | null; sourceType?: string; orderId?: number | null; companyName?: string; productName?: string; reason: string }>;
+  } | null>(null);
+  const [mappingSourceKey, setMappingSourceKey] = useState("");
+  const [mappingHeader, setMappingHeader] = useState("");
+  const [mappingPackaging, setMappingPackaging] = useState("");
+  const [mappingJustification, setMappingJustification] = useState("");
 
   // ── Queries ──────────────────────────────────────────────────
 
@@ -514,6 +537,36 @@ export default function AdminProduction() {
       return json.data as Batch;
     },
     enabled: activeBatchId != null,
+  });
+
+  const manualCompaniesQuery = useQuery({
+    queryKey: ["/api/companies/tenant-options", "production-manual"],
+    queryFn: async () => {
+      const response = await fetchWithAuth("/api/companies/tenant-options");
+      if (!response.ok) throw new Error("Não foi possível carregar empresas ativas");
+      return await response.json() as Array<{ id: number; companyName: string }>;
+    },
+    enabled: manualEntryOpen,
+  });
+  const manualProductsQuery = useQuery({
+    queryKey: ["/api/products", "production-manual"],
+    queryFn: async () => {
+      const response = await fetchWithAuth("/api/products");
+      if (!response.ok) throw new Error("Não foi possível carregar o catálogo");
+      const result = await response.json();
+      return (Array.isArray(result) ? result : result.data ?? []) as Array<{ id: number; name: string; unit: string; active?: boolean; productionClassification?: string | null }>;
+    },
+    enabled: manualEntryOpen,
+  });
+  const manualSubcategoriesQuery = useQuery({
+    queryKey: ["/api/products", manualProductId, "sub-categories", "production-manual"],
+    queryFn: async () => {
+      const response = await fetchWithAuth(`/api/products/${manualProductId}/sub-categories`);
+      if (!response.ok) throw new Error("Não foi possível carregar embalagens/subcategorias");
+      const result = await response.json();
+      return (Array.isArray(result) ? result : result.data ?? []) as Array<{ id: number; categoryName: string; active?: boolean }>;
+    },
+    enabled: manualEntryOpen && Boolean(manualProductId),
   });
 
   const activeBatch = batchDetailQuery.data ?? null;
@@ -647,6 +700,37 @@ export default function AdminProduction() {
     },
   });
 
+  const manualEntryMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeBatch) throw new Error("Selecione um lote de produção");
+      const response = await fetchWithAuth(`/api/production/batches/${activeBatch.id}/manual-items`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          companyId: Number(manualCompanyId),
+          productId: Number(manualProductId),
+          subCategoryId: manualSubCategoryId && manualSubCategoryId !== "none" ? Number(manualSubCategoryId) : null,
+          quantity: Number(manualQuantity),
+          classification: manualClassification,
+          manualReference: manualReference.trim() || undefined,
+          justification: manualJustification.trim(),
+          requestId: crypto.randomUUID(),
+        }),
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(productionErrorMessage(result, `Não foi possível registrar (HTTP ${response.status}).`));
+      return result;
+    },
+    onSuccess: () => {
+      toast({ title: "Registro manual incluído no lote", description: "O pedido comercial original não foi criado nem alterado." });
+      setManualEntryOpen(false);
+      setManualCompanyId(""); setManualProductId(""); setManualSubCategoryId(""); setManualQuantity(""); setManualReference(""); setManualJustification("");
+      queryClient.invalidateQueries({ queryKey: ["/api/production/batches", activeBatchId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/production/batches"] });
+    },
+    onError: (error: Error) => toast({ title: "Registro manual não concluído", description: error.message, variant: "destructive" }),
+  });
+
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetchWithAuth(`/api/production/batches/${id}`, {
@@ -728,6 +812,11 @@ export default function AdminProduction() {
       const response = await fetchWithAuth(`/api/production/batches/${activeBatch.id}/export/${kind}${query}`);
       if (!response.ok) {
         const error = await response.json().catch(() => null);
+        const errorBody = error?.error && typeof error.error === "object" ? error.error : error;
+        const unresolved = errorBody?.details?.unresolved;
+        if (Array.isArray(unresolved) && unresolved.some((entry: any) => Number.isInteger(entry?.batchItemId) && typeof entry?.sourceKey === "string")) {
+          setManualMappingProblem({ kind, shift, unresolved });
+        }
         throw new Error(productionErrorMessage(error, `Não foi possível exportar a planilha (HTTP ${response.status}).`));
       }
       const blob = await response.blob();
@@ -747,6 +836,34 @@ export default function AdminProduction() {
     } finally {
       setExportingWorkbook(null);
     }
+  };
+
+  const saveManualExportMapping = async () => {
+    if (!activeBatch || !manualMappingProblem) return;
+    const [batchItemIdRaw, ...sourceKeyParts] = mappingSourceKey.split("|");
+    const batchItemId = Number(batchItemIdRaw);
+    const sourceKey = sourceKeyParts.join("|");
+    if (!batchItemId || !sourceKey || !mappingJustification.trim()) return;
+    const payload = {
+      batchItemId,
+      sourceKey,
+      destination: manualMappingProblem.kind === "in-natura" ? "IN_NATURA" : "PROCESSADOS",
+      ...(manualMappingProblem.kind === "in-natura" ? { excelHeader: mappingHeader.trim() } : { packaging: mappingPackaging }),
+      justification: mappingJustification.trim(),
+    };
+    const response = await fetchWithAuth(`/api/production/batches/${activeBatch.id}/manual-export-mapping`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) {
+      toast({ title: "Mapeamento manual não salvo", description: productionErrorMessage(result, "Confira os dados informados."), variant: "destructive" });
+      return;
+    }
+    const { kind, shift } = manualMappingProblem;
+    setManualMappingProblem(null); setMappingSourceKey(""); setMappingHeader(""); setMappingPackaging(""); setMappingJustification("");
+    await queryClient.invalidateQueries({ queryKey: ["/api/production/batches", activeBatchId] });
+    const exported = await downloadOfficialWorkbook(kind, shift);
+    if (exported && kind === "processed") setProcessedExportOpen(false);
   };
 
   const batches = batchesQuery.data ?? [];
@@ -1051,6 +1168,9 @@ export default function AdminProduction() {
                 : "—"}
             </CardDescription>
             <div className="flex flex-wrap gap-2 pt-2">
+              <Button variant="outline" onClick={() => setManualEntryOpen(true)} disabled={activeBatch.status === "FINALIZADO"}>
+                <Plus className="mr-2 h-4 w-4" /> Registrar demanda manual
+              </Button>
               <Button variant="outline" onClick={() => downloadOfficialWorkbook("in-natura")} disabled={exportingWorkbook !== null || !hasInNaturaItems}>
                 {exportingWorkbook === "in-natura" ? "Gerando In Natura..." : "Excel oficial — In Natura"}
               </Button>
@@ -1242,7 +1362,8 @@ export default function AdminProduction() {
                               {item.unit}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {item.orderBreakdown.length} pedido(s)
+                              {item.orderBreakdown.filter((source) => source.sourceType !== "MANUAL_PRODUCTION").length} pedido(s)
+                              {item.orderBreakdown.some((source) => source.sourceType === "MANUAL_PRODUCTION") ? " + manual" : ""}
                             </TableCell>
                           </TableRow>
                           {expandedItems.has(item.id) && (
@@ -1256,10 +1377,11 @@ export default function AdminProduction() {
                                       className="flex items-center justify-between"
                                     >
                                       <span className="text-muted-foreground">
-                                        {o.companyName} · Pedido {o.orderCode}
+                                        {o.companyName} · {o.sourceType === "MANUAL_PRODUCTION" ? `Registro manual${o.manualReference ? ` (${o.manualReference})` : ""}` : `Pedido ${o.orderCode ?? "—"}`}
                                         {o.itemId ? ` · Item ${o.itemId}` : ""}
                                         {o.deliveryDate ? ` · ${o.deliveryDate}` : ""}
                                         {o.routeName && o.routeName !== "Sem Rota" ? ` · ${o.routeName}` : ""}
+                                        {o.justification ? ` · Justificativa: ${o.justification}` : ""}
                                       </span>
                                       <span className="font-mono font-medium">
                                         {fmt(o.quantity)} {item.unit}
@@ -1522,6 +1644,111 @@ export default function AdminProduction() {
               }}
             >
               {exportingWorkbook === "processed" ? "Gerando Processados..." : "Exportar planilha"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manualEntryOpen} onOpenChange={setManualEntryOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar demanda manual no lote</DialogTitle>
+            <DialogDescription>
+              Informe empresa, produto e quantidade. O registro ficará identificado como manual e não criará nem modificará um pedido comercial.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label className="block text-sm font-medium">Empresa</label>
+            <Select value={manualCompanyId} onValueChange={setManualCompanyId}>
+              <SelectTrigger><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+              <SelectContent>{(manualCompaniesQuery.data ?? []).map((company) => <SelectItem key={company.id} value={String(company.id)}>{company.companyName}</SelectItem>)}</SelectContent>
+            </Select>
+            <label className="block text-sm font-medium">Produto do catálogo</label>
+            <Select value={manualProductId} onValueChange={(value) => {
+              setManualProductId(value); setManualSubCategoryId("");
+              const product = (manualProductsQuery.data ?? []).find((entry) => entry.id === Number(value));
+              if (product?.productionClassification === "PROCESSADOS") setManualClassification("PROCESSADOS");
+              else if (product?.productionClassification === "IN_NATURA") setManualClassification("IN_NATURA");
+            }}>
+              <SelectTrigger><SelectValue placeholder="Selecione o produto" /></SelectTrigger>
+              <SelectContent>{(manualProductsQuery.data ?? []).filter((product) => product.active !== false).map((product) => <SelectItem key={product.id} value={String(product.id)}>{product.name}</SelectItem>)}</SelectContent>
+            </Select>
+            <label className="block text-sm font-medium">Subcategoria / embalagem</label>
+            <Select value={manualSubCategoryId} onValueChange={setManualSubCategoryId} disabled={!manualProductId}>
+              <SelectTrigger><SelectValue placeholder="Selecione Bio, P07 plástico ou outra apresentação" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Sem subcategoria</SelectItem>
+                {(manualSubcategoriesQuery.data ?? []).filter((subcategory) => subcategory.active !== false).map((subcategory) => <SelectItem key={subcategory.id} value={String(subcategory.id)}>{subcategory.categoryName}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">P07 é pote plástico; Bio é pote biodegradável. Selecione a apresentação correta para manter os blocos separados na planilha Processados.</p>
+            <label className="block text-sm font-medium">Planilha de destino</label>
+            <Select value={manualClassification} onValueChange={(value) => setManualClassification(value as "IN_NATURA" | "PROCESSADOS")}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="IN_NATURA">In Natura</SelectItem><SelectItem value="PROCESSADOS">Processados</SelectItem></SelectContent>
+            </Select>
+            <label className="block text-sm font-medium">Quantidade</label>
+            <Input type="number" min="0.001" step="0.001" value={manualQuantity} onChange={(event) => setManualQuantity(event.target.value)} placeholder="Quantidade" />
+            <label className="block text-sm font-medium">Referência do pedido (opcional)</label>
+            <Input value={manualReference} onChange={(event) => setManualReference(event.target.value)} placeholder="Número informado pela equipe" maxLength={100} />
+            <label className="block text-sm font-medium">Justificativa (obrigatória)</label>
+            <Input value={manualJustification} onChange={(event) => setManualJustification(event.target.value)} placeholder="Por que a demanda foi digitada manualmente?" maxLength={500} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualEntryOpen(false)}>Cancelar</Button>
+            <Button
+              className="bg-orange-500 hover:bg-orange-600 text-white"
+              disabled={manualEntryMutation.isPending || !manualCompanyId || !manualProductId || !Number(manualQuantity) || !manualJustification.trim() || (manualClassification === "PROCESSADOS" && (!manualSubCategoryId || manualSubCategoryId === "none"))}
+              onClick={() => manualEntryMutation.mutate()}
+            >
+              {manualEntryMutation.isPending ? "Registrando..." : "Adicionar ao lote"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manualMappingProblem !== null} onOpenChange={(open) => { if (!open) setManualMappingProblem(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Corrigir mapeamento da exportação</DialogTitle>
+            <DialogDescription>
+              Digite o cabeçalho exatamente como aparece no modelo oficial ou selecione a embalagem. A correção fica registrada somente no snapshot deste lote, com responsável e justificativa.
+            </DialogDescription>
+          </DialogHeader>
+          {manualMappingProblem && <div className="space-y-3 py-2">
+            <div className="rounded border bg-muted/30 p-3 text-sm">
+              <p className="font-medium">Pendências encontradas</p>
+              <ul className="mt-1 list-disc pl-5">{manualMappingProblem.unresolved.map((entry, index) => <li key={`${entry.batchItemId}:${entry.sourceKey}:${index}`}>{entry.companyName} · {entry.sourceType === "MANUAL_PRODUCTION" ? "Registro manual" : `Pedido ${entry.orderId ?? "—"}`} · {entry.productName} · {entry.reason}</li>)}</ul>
+            </div>
+            <label className="block text-sm font-medium">Item que será corrigido</label>
+            <Select value={mappingSourceKey} onValueChange={setMappingSourceKey}>
+              <SelectTrigger><SelectValue placeholder="Selecione a pendência" /></SelectTrigger>
+              <SelectContent>{manualMappingProblem.unresolved.filter((entry) => entry.batchItemId && entry.sourceKey).map((entry, index) => <SelectItem key={`${entry.batchItemId}:${entry.sourceKey}:${index}`} value={`${entry.batchItemId}|${entry.sourceKey}`}>{entry.companyName} · {entry.sourceType === "MANUAL_PRODUCTION" ? "Registro manual" : `Pedido ${entry.orderId ?? "—"}`} · {entry.productName}</SelectItem>)}</SelectContent>
+            </Select>
+            {manualMappingProblem.kind === "in-natura" ? <>
+              <label className="block text-sm font-medium">Cabeçalho exato da coluna In Natura</label>
+              <Input value={mappingHeader} onChange={(event) => setMappingHeader(event.target.value)} placeholder="Digite exatamente como aparece na planilha" maxLength={120} />
+            </> : <>
+              <label className="block text-sm font-medium">Bloco de embalagem Processados</label>
+              <Select value={mappingPackaging} onValueChange={setMappingPackaging}>
+                <SelectTrigger><SelectValue placeholder="Selecione o bloco correto" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="BIO_100G">Pote Bio biodegradável 100g</SelectItem>
+                  <SelectItem value="P07_PLASTIC_100G">P07 pote plástico 100g</SelectItem>
+                  <SelectItem value="POT_200G">Pote 200g</SelectItem>
+                  <SelectItem value="PET">PET</SelectItem>
+                  <SelectItem value="KG">Quilograma (KG)</SelectItem>
+                </SelectContent>
+              </Select>
+            </>}
+            <label className="block text-sm font-medium">Justificativa (obrigatória)</label>
+            <Input value={mappingJustification} onChange={(event) => setMappingJustification(event.target.value)} placeholder="Informe como confirmou o mapeamento" maxLength={500} />
+          </div>}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManualMappingProblem(null)}>Cancelar</Button>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white" onClick={saveManualExportMapping}
+              disabled={!mappingSourceKey || !mappingJustification.trim() || (manualMappingProblem?.kind === "in-natura" ? !mappingHeader.trim() : !mappingPackaging)}>
+              Salvar e tentar exportar
             </Button>
           </DialogFooter>
         </DialogContent>

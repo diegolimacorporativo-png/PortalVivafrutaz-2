@@ -3,6 +3,7 @@ import { db } from "../../database/db";
 import {
   productionBatches,
   productionBatchItems,
+  productSubCategories,
   orders,
   orderItems,
   products,
@@ -15,7 +16,7 @@ import {
   specialOrderRequests,
   companyAddresses,
 } from "@shared/schema";
-import { ForbiddenError, NotFoundError, UnauthorizedError } from "../../shared/errors/AppError";
+import { BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError } from "../../shared/errors/AppError";
 import { getTenantContext } from "../../core/tenant/context";
 import { GLOBAL_SCOPE_ROLES } from "@shared/user-roles";
 import type {
@@ -25,18 +26,28 @@ import type {
 import { isProductionOrderEligible } from "./production-eligibility";
 import type { ProductionConsolidationSource, MissingContractOccurrence } from "./production-consolidation";
 import { assertProductionGlobalAccess } from "./production-authorization";
+import { isManualCatalogSelectionCompatible } from "./manual-catalog-scope.policy";
 
 // ─── Types ─────────────────────────────────────────────────────
 
 export interface OrderBreakdownEntry {
   itemId?: number;
-  orderId: number;
-  orderCode: string;
+  orderId?: number | null;
+  orderCode?: string | null;
   companyId: number;
   companyName: string;
   quantity: number;
   deliveryDate?: string;
   origin?: "FREE" | "CONTRACT_FIXED" | "SPECIAL";
+  sourceType?: "ORDER" | "MANUAL_PRODUCTION";
+  manualReference?: string | null;
+  requestId?: string;
+  recordedByUserId?: number;
+  recordedAt?: string;
+  justification?: string;
+  manualExportHeader?: string;
+  manualPackaging?: "BIO_100G" | "P07_PLASTIC_100G" | "POT_200G" | "PET" | "KG";
+  manualMappingAudit?: { userId: number; at: string; justification: string };
   routeId?: number | null;
   routeName?: string;
   subCategoryId?: number | null;
@@ -383,6 +394,156 @@ export const productionRepository = {
         routeBreakdown: (item.routeBreakdown as RouteBreakdownEntry[]) ?? [],
       })),
     };
+  },
+
+  /** Adds a production-only manual source to an existing global batch. It never creates or edits an order. */
+  async addManualGlobalBatchItem(input: {
+    batchId: number;
+    companyId: number;
+    productId: number;
+    subCategoryId?: number | null;
+    quantity: number;
+    classification: "IN_NATURA" | "PROCESSADOS";
+    manualReference?: string | null;
+    justification: string;
+    recordedByUserId: number;
+    requestId: string;
+  }) {
+    assertProductionGlobalAccess();
+    return db.transaction(async (tx) => {
+      const [batch] = await tx.select().from(productionBatches).where(and(
+        eq(productionBatches.id, input.batchId), isNull(productionBatches.empresaId),
+      )).for("update").limit(1);
+      if (!batch) throw new NotFoundError("Lote global de produção não encontrado");
+      if (batch.status === "FINALIZADO") throw new ForbiddenError("Não é possível incluir registro manual em lote finalizado");
+
+      // Idempotency key lives in the existing JSON snapshot; no schema migration is needed.
+      const priorItems = await tx.select({ orderBreakdown: productionBatchItems.orderBreakdown })
+        .from(productionBatchItems).where(eq(productionBatchItems.batchId, input.batchId));
+      if (priorItems.some((row) => ((row.orderBreakdown as OrderBreakdownEntry[]) ?? [])
+        .some((source) => source.sourceType === "MANUAL_PRODUCTION" && source.requestId === input.requestId))) {
+        return this.getGlobalBatchById(input.batchId);
+      }
+
+      const [company] = await tx.select({ id: companies.id, companyName: companies.companyName })
+        .from(companies).where(and(eq(companies.id, input.companyId), eq(companies.active, true))).limit(1);
+      if (!company) throw new NotFoundError("Empresa ativa não encontrada");
+
+      const [product] = await tx.select({
+        id: products.id, name: products.name, category: products.category, unit: products.unit,
+        productionClassification: products.productionClassification, active: products.active,
+        empresaId: products.empresaId,
+      }).from(products).where(and(eq(products.id, input.productId), eq(products.active, true))).limit(1);
+      if (!product) throw new NotFoundError("Produto ativo não encontrado");
+
+      let subCategoryName: string | null = null;
+      let subcategoryCompanyId: number | null | undefined;
+      if (input.subCategoryId != null) {
+        const [subcategory] = await tx.select({
+          id: productSubCategories.id,
+          categoryName: productSubCategories.categoryName,
+          empresaId: productSubCategories.empresaId,
+        })
+          .from(productSubCategories).where(and(
+            eq(productSubCategories.id, input.subCategoryId),
+            eq(productSubCategories.productId, input.productId),
+            eq(productSubCategories.active, true),
+          )).limit(1);
+        if (!subcategory) throw new BadRequestError("A subcategoria não pertence ao produto selecionado ou está inativa");
+        subCategoryName = subcategory.categoryName;
+        subcategoryCompanyId = subcategory.empresaId;
+      }
+      if (!isManualCatalogSelectionCompatible({
+        companyId: company.id,
+        productId: product.id,
+        productCompanyId: product.empresaId,
+        subcategory: input.subCategoryId == null ? null : {
+          productId: input.productId,
+          companyId: subcategoryCompanyId ?? null,
+        },
+      })) {
+        throw new BadRequestError("O produto ou a subcategoria pertence a outra empresa e não pode ser usado neste registro manual");
+      }
+
+      const now = new Date().toISOString();
+      const manualSource: OrderBreakdownEntry & { sourceType: "MANUAL_PRODUCTION"; requestId: string } = {
+        orderId: null,
+        orderCode: null,
+        itemId: undefined,
+        companyId: company.id,
+        companyName: company.companyName,
+        quantity: input.quantity,
+        deliveryDate: String(batch.productionDate).slice(0, 10),
+        sourceType: "MANUAL_PRODUCTION",
+        manualReference: input.manualReference?.trim() || null,
+        recordedByUserId: input.recordedByUserId,
+        recordedAt: now,
+        justification: input.justification.trim(),
+        requestId: input.requestId,
+        subCategoryId: input.subCategoryId ?? null,
+        subCategoryName,
+      };
+      const [item] = await tx.insert(productionBatchItems).values({
+        batchId: input.batchId,
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        productionClassification: input.classification,
+        unit: product.unit,
+        totalQuantity: String(input.quantity),
+        checkedQuantity: "0",
+        orderBreakdown: [manualSource],
+        routeBreakdown: [],
+        notes: input.justification.trim(),
+      }).returning();
+      await tx.update(productionBatches).set({
+        updatedAt: new Date(),
+        ...(batch.status === "CONFERIDO" ? { status: "EM_PRODUCAO" as const } : {}),
+      }).where(eq(productionBatches.id, input.batchId));
+      return { ...item, totalQuantity: String(item.totalQuantity), checkedQuantity: String(item.checkedQuantity ?? "0"), orderBreakdown: [manualSource], routeBreakdown: [] };
+    });
+  },
+
+  async updateManualExportMapping(input: {
+    batchId: number;
+    batchItemId: number;
+    sourceKey: string;
+    destination: "IN_NATURA" | "PROCESSADOS";
+    excelHeader?: string;
+    packaging?: "BIO_100G" | "P07_PLASTIC_100G" | "POT_200G" | "PET" | "KG";
+    justification: string;
+    userId: number;
+  }) {
+    assertProductionGlobalAccess();
+    return db.transaction(async (tx) => {
+      const [batch] = await tx.select({ id: productionBatches.id, status: productionBatches.status })
+        .from(productionBatches).where(and(eq(productionBatches.id, input.batchId), isNull(productionBatches.empresaId)))
+        .for("update").limit(1);
+      if (!batch) throw new NotFoundError("Lote global de produção não encontrado");
+      if (batch.status === "FINALIZADO") throw new ForbiddenError("Não é possível ajustar o mapeamento de lote finalizado");
+      const [item] = await tx.select().from(productionBatchItems).where(and(
+        eq(productionBatchItems.id, input.batchItemId), eq(productionBatchItems.batchId, input.batchId),
+      )).for("update").limit(1);
+      if (!item) throw new NotFoundError("Item do lote não encontrado");
+      if (item.productionClassification !== input.destination) {
+        throw new BadRequestError("O mapeamento manual deve permanecer na classificação já salva no lote");
+      }
+      const breakdown = (item.orderBreakdown as OrderBreakdownEntry[]) ?? [];
+      const index = breakdown.findIndex((source) => {
+        const sourceKey = source.itemId != null ? `item:${source.itemId}` : source.requestId ? `manual:${source.requestId}` : "";
+        return sourceKey === input.sourceKey;
+      });
+      if (index < 0) throw new NotFoundError("Item de pedido de origem não encontrado no snapshot");
+      const next = [...breakdown];
+      next[index] = {
+        ...next[index],
+        ...(input.destination === "IN_NATURA" ? { manualExportHeader: input.excelHeader?.trim(), manualPackaging: undefined } : { manualPackaging: input.packaging, manualExportHeader: undefined }),
+        manualMappingAudit: { userId: input.userId, at: new Date().toISOString(), justification: input.justification.trim() },
+      };
+      const [updated] = await tx.update(productionBatchItems).set({ orderBreakdown: next }).where(eq(productionBatchItems.id, input.batchItemId)).returning();
+      await tx.update(productionBatches).set({ updatedAt: new Date() }).where(eq(productionBatches.id, input.batchId));
+      return updated;
+    });
   },
 
   async createGlobalBatchInTransaction(tx: any, productionDate: string, itemsData: Array<{

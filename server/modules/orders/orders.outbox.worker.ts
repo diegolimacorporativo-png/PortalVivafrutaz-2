@@ -68,7 +68,7 @@ const STATUS_LABELS: Record<string, string> = {
   CUSTOMER_CONFIRMED: "Confirmado pelo cliente; aguardando liberação operacional",
   APPROVED:         "Aprovado",
   REJECTED:         "Rejeitado",
-  INVOICED:         "Liberado para entrega",
+  INVOICED:         "Faturado (registro histórico)",
   SHIPPED:          "Em expedição",
   DELIVERED:        "Entregue",
   CANCELLED:        "Cancelado",

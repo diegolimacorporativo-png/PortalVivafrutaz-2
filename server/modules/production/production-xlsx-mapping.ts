@@ -1,6 +1,7 @@
 export interface ProductionExportSource {
   itemId?: number;
-  orderId: number;
+  orderId?: number | null;
+  orderCode?: string | null;
   companyId: number;
   companyName: string;
   quantity: number;
@@ -20,9 +21,16 @@ export interface ProductionExportSource {
     estado: string | null;
     cep: string | null;
   } | null;
+  manualExportHeader?: string;
+  manualPackaging?: ProcessedPackaging;
+  manualMappingAudit?: { userId: number; at: string; justification: string };
+  sourceType?: "ORDER" | "MANUAL_PRODUCTION";
+  manualReference?: string | null;
+  requestId?: string;
 }
 
 export interface ProductionExportItem {
+  batchItemId?: number;
   productId: number;
   productName: string;
   category?: string | null;
@@ -104,23 +112,32 @@ export type ProcessedPackaging = "BIO_100G" | "P07_PLASTIC_100G" | "POT_200G" | 
 export function classifyProcessedPackaging(
   subCategoryName: string | null | undefined,
   categoryName?: string | null,
-  productName?: string | null,
+  _productName?: string | null,
 ): ProcessedPackaging | null {
   const value = subCategoryName ?? "";
   const category = categoryName ?? "";
-  const normalizedProduct = normalize(productName ?? "");
-  const processedPlastic = hasPlasticMarker(value) || hasPlasticMarker(category);
-  // The approved catalog item is a 170g plastic fruit-and-yogurt pot; the
-  // official Processados template places that exact item in the PET block.
-  if ((normalizedProduct === "de manga e iogurte grego" || normalizedProduct === "manga e iogurte grego") && processedPlastic) return "PET";
-  if (hasBioMarker(value)) return /100\s*g/i.test(value) ? "BIO_100G" : null;
-  if (hasPlasticMarker(value) || hasPlasticMarker(category)) {
-    const packagingDescription = `${value} ${category}`;
-    if (/\bpet\b/i.test(packagingDescription)) return "PET";
-    return /100\s*g/i.test(packagingDescription) ? "P07_PLASTIC_100G" : null;
+  const packagingDescription = `${value} ${category}`;
+  const bio = hasBioMarker(packagingDescription);
+  const p07 = /\bp07\b/i.test(packagingDescription);
+  const plastic = hasPlasticMarker(packagingDescription);
+  const pet = /\bpet\b/i.test(packagingDescription);
+  const weights = [...new Set((packagingDescription.toLocaleLowerCase("pt-BR").match(/\b\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l)\b/g) ?? [])
+    .map((weight) => weight.replace(/\s+/g, "")))];
+  if (weights.length > 1) return null;
+  const weight = weights[0] ?? null;
+
+  // Conflicting package markers must be reviewed instead of guessed.
+  if (Number(bio) + Number(p07) + Number(pet) > 1) return null;
+  if (bio) return weight === "100g" ? "BIO_100G" : null;
+  if (pet) return "PET";
+  if (p07) {
+    // P07 is a plastic package, but the supported P07 block is specifically
+    // 100g. A 200g P07 must not be silently written into that block.
+    if (weight !== "100g") return null;
+    return "P07_PLASTIC_100G";
   }
-  if (/\bpet\b/i.test(value)) return "PET";
-  if (/200\s*g/i.test(value)) return "POT_200G";
-  if (/\bkg\b/i.test(value)) return "KG";
+  if (plastic && weight === "100g") return "P07_PLASTIC_100G";
+  if (weight === "200g") return "POT_200G";
+  if (weight === "kg") return "KG";
   return null;
 }

@@ -29,6 +29,7 @@ function makeRepo(overrides: Record<string, any> = {}) {
     updateVehicleOwned: track("updateVehicleOwned", (id, _tenantId, data) => ({ id, ...data })),
     updateRoute: track("updateRoute", (id, data) => ({ id, ...data })),
     updateRouteOwned: track("updateRouteOwned", (id, _tenantId, data) => ({ id, ...data })),
+    updateRouteCompanyScope: track("updateRouteCompanyScope", (id, empresaId, data, companyIds) => ({ id, empresaId, ...data, companyIds })),
     updateMaintenance: track("updateMaintenance", (id, data) => ({ id, ...data })),
     updateMaintenanceOwned: track("updateMaintenanceOwned", (id, _tenantId, data) => ({ id, ...data })),
     log: track("log", () => undefined),
@@ -106,7 +107,7 @@ describe("logistics — mass assignment and ownership", () => {
       tenantActor,
     );
 
-    assert.deepEqual(repo._calls.updateRouteOwned[0], [
+    assert.deepEqual(repo._calls.updateRouteCompanyScope[0], [
       5,
       10,
       {
@@ -116,7 +117,9 @@ describe("logistics — mass assignment and ownership", () => {
         vehicleId: 31,
         companyIds: [10],
       },
+      [10],
     ]);
+    assert.equal(repo._calls.updateRouteOwned, undefined);
   });
 
   test("maintenance update rejects a vehicle from another tenant", async () => {
@@ -183,5 +186,103 @@ describe("logistics — mass assignment and ownership", () => {
     assert.equal(repo._calls.createMaintenance[0][0].vehicleId, 31);
     assert.equal(repo._calls.createMaintenance[0][0].type, "PREVENTIVE");
     assert.equal(repo._calls.createMaintenance[0][0].createdAt, undefined);
+  });
+
+  test("internal logistics actor can create a route for multiple active companies while empresaId stays the selected context", async () => {
+    const checkedIds: number[] = [];
+    const repo = makeRepo({ getCompany: async (id: number) => { checkedIds.push(id); return { id, active: true }; } });
+    const service = new LogisticsService(repo);
+
+    const route = await service.createRoute(
+      { name: "Rota multiempresa", companyIds: [10, 20, 30] },
+      { ...tenantActor, role: "LOGISTICS", identityType: "internal" },
+    );
+
+    assert.deepEqual(repo._calls.createRoute[0][0].companyIds, [10, 20, 30]);
+    assert.equal(repo._calls.createRoute[0][0].empresaId, 10);
+    assert.deepEqual(route.companyIds, [10, 20, 30]);
+    assert.deepEqual(checkedIds, [10, 20, 30]);
+  });
+
+  test("tenant-bound single-company route keeps backward-compatible default scope", async () => {
+    const repo = makeRepo({ getCompany: async (id: number) => ({ id, active: true }) });
+    const service = new LogisticsService(repo);
+
+    await service.createRoute({ name: "Rota antiga" }, tenantActor);
+
+    assert.deepEqual(repo._calls.createRoute[0][0].companyIds, [10]);
+    assert.equal(repo._calls.createRoute[0][0].empresaId, 10);
+  });
+
+  test("rejects a company outside a non-cross-company actor scope", async () => {
+    const repo = makeRepo({ getCompany: async (id: number) => ({ id, active: true }) });
+    const service = new LogisticsService(repo);
+
+    await assert.rejects(
+      service.createRoute({ name: "Rota", companyIds: [10, 20] }, tenantActor),
+      /não está autorizado para todas as empresas/,
+    );
+    assert.equal(repo._calls.createRoute, undefined);
+  });
+
+  test("rejects nonexistent or inactive companies in a cross-company route", async () => {
+    const repo = makeRepo({
+      getCompany: async (id: number) => id === 20 ? undefined : ({ id, active: id !== 30 }),
+    });
+    const service = new LogisticsService(repo);
+    const actor = { ...tenantActor, role: "LOGISTICS", identityType: "internal" as const };
+
+    await assert.rejects(service.createRoute({ name: "Rota", companyIds: [10, 20] }, actor), /inexistente ou inativa/);
+    await assert.rejects(service.createRoute({ name: "Rota", companyIds: [10, 30] }, actor), /inexistente ou inativa/);
+    assert.equal(repo._calls.createRoute, undefined);
+  });
+
+  test("route company scope edits use the transactional repository guard", async () => {
+    const repo = makeRepo({
+      getCompany: async (id: number) => ({ id, active: true }),
+    });
+    const service = new LogisticsService(repo);
+
+    const result = await service.updateRoute(5, { companyIds: [10, 20], notes: "Atualizada" }, { ...tenantActor, role: "LOGISTICS", identityType: "internal" });
+
+    assert.deepEqual(repo._calls.updateRouteCompanyScope[0], [
+      5,
+      10,
+      { companyIds: [10, 20], notes: "Atualizada" },
+      [10, 20],
+    ]);
+    assert.equal((result as any).empresaId, 10);
+    assert.equal(repo._calls.updateRouteOwned, undefined);
+  });
+
+  test("route date and driver edits also use the transactional route guard", async () => {
+    const repo = makeRepo({
+      getDriversSafe: async () => [{ id: 21, empresaId: 10 }],
+    });
+    const service = new LogisticsService(repo);
+
+    await service.updateRoute(5, { driverId: 21, deliveryDate: "2026-11-12" }, tenantActor);
+
+    assert.deepEqual(repo._calls.updateRouteCompanyScope[0], [
+      5,
+      10,
+      { driverId: 21, deliveryDate: "2026-11-12" },
+      undefined,
+    ]);
+  });
+
+  test("route completion uses the transactional scope guard", async () => {
+    const repo = makeRepo();
+    const service = new LogisticsService(repo);
+
+    await service.updateRoute(5, { status: "COMPLETED" }, tenantActor);
+
+    assert.deepEqual(repo._calls.updateRouteCompanyScope[0], [
+      5,
+      10,
+      { status: "COMPLETED" },
+      undefined,
+    ]);
+    assert.equal(repo._calls.updateRouteOwned, undefined);
   });
 });

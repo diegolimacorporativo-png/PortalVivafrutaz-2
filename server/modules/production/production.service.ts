@@ -4,7 +4,7 @@ import { productionRepository } from "./production.repository";
 import type { BatchWithItems } from "./production.repository";
 import { consolidateProduction } from "./production-consolidation";
 import { assessProductionPreview, fingerprintProductionConsolidation } from "./production-preview";
-import type { GenerateBatchBody } from "./production.validation";
+import type { GenerateBatchBody, ManualBatchItemBody, ManualExportMappingBody } from "./production.validation";
 
 const ALLOWED_TRANSITIONS: Record<string, string[]> = {
   PENDENTE: ["EM_PRODUCAO"],
@@ -117,6 +117,16 @@ export const productionService = {
   async updateItemCheck(itemId: number, _empresaId: number | null, checkedQuantity: number, notes?: string) {
     assertProductionGlobalAccess();
     return productionRepository.updateGlobalItemCheck(itemId, checkedQuantity, notes);
+  },
+
+  async addManualBatchItem(batchId: number, body: ManualBatchItemBody, recordedByUserId: number) {
+    assertProductionGlobalAccess();
+    return productionRepository.addManualGlobalBatchItem({ ...body, batchId, recordedByUserId });
+  },
+
+  async updateManualExportMapping(batchId: number, body: ManualExportMappingBody, userId: number) {
+    assertProductionGlobalAccess();
+    return productionRepository.updateManualExportMapping({ ...body, batchId, userId });
   },
 
   async deleteBatch(id: number, _empresaId: number | null) {

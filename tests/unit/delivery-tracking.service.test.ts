@@ -32,6 +32,7 @@ const activeDelivery = {
   company_latitude: "-23.55",
   company_longitude: "-46.63",
   route_company_id: 3,
+  route_company_ids: [3],
   route_driver_id: 7,
   route_status: "IN_PROGRESS",
   route_start_time: "08:00",
@@ -44,6 +45,7 @@ const routeRow = {
   route_id: 12,
   company_id: 3,
   route_company_id: 3,
+  route_company_ids: [3],
 };
 
 async function withDbResults<T>(
@@ -119,13 +121,6 @@ function validTrackingResults(overrides: {
     [delivery],
     journey ? [journey] : [],
     gps ? [gps] : [],
-    overrides.routeStops ?? [{
-      company_id: 3,
-      ordem_parada: 1,
-      janela_inicio: null,
-      janela_fim: null,
-      tempo_estimado_min: 8,
-    }],
     overrides.routeDeliveries ?? [{
       id: 40,
       route_position: 1,
@@ -264,12 +259,12 @@ describe("public delivery tracking operational availability", () => {
       validTrackingResults(),
       (database) => getPublicDeliveryTracking(40, now, database),
     );
-    assert.equal(calls(), 6);
+      assert.equal(calls(), 5);
     assert.equal(result?.trackingAvailable, true);
     assert.equal(result?.deliveryStatus, "in_transit");
     assert.ok(result?.etaRange);
-    assert.equal(result?.stopsBefore, 0);
-    assert.equal(result?.isNextStop, true);
+    assert.equal(result?.stopsBefore, null);
+    assert.equal(result?.isNextStop, false);
     assert.equal("speed" in (result?.driverPosition ?? {}), false);
     assert.equal("operationalState" in (result ?? {}), false);
   });
@@ -312,35 +307,13 @@ describe("public delivery tracking operational availability", () => {
     assert.notDeepEqual(far.result?.etaRange, near.result?.etaRange);
   });
 
-  test("uses stop order from route_stops instead of stale delivery route_position values", async () => {
+  test("uses global delivery route_position across companies, not coordinate matching", async () => {
     const result = await withDbResults(
       validTrackingResults({
-        routeStops: [
-          {
-            id: 101,
-            company_id: 3,
-            ordem_parada: 1,
-            latitude: "-23.55",
-            longitude: "-46.70",
-            janela_inicio: null,
-            janela_fim: null,
-            tempo_estimado_min: 8,
-          },
-          {
-            id: 102,
-            company_id: 3,
-            ordem_parada: 2,
-            latitude: "-23.55",
-            longitude: "-46.63",
-            janela_inicio: null,
-            janela_fim: null,
-            tempo_estimado_min: 8,
-          },
-        ],
         routeDeliveries: [
           {
             id: 40,
-            route_position: 0,
+            route_position: 2,
             status: "pendente",
             stop_status: null,
             effective_company_id: 3,
@@ -363,47 +336,36 @@ describe("public delivery tracking operational availability", () => {
       (database) => getPublicDeliveryTracking(40, now, database),
     );
     assert.equal(result.result?.trackingAvailable, true);
-    assert.equal(result.result?.stopsBefore, 1);
+    assert.equal(result.result?.stopsBefore, null);
     assert.equal(result.result?.isNextStop, false);
   });
 
-  test("uses route_stops order and window, and refuses legacy-order fallback for an unrepresented target", async () => {
-    const routeStops = [
-      {
-        company_id: 3,
-        ordem_parada: 2,
-        janela_inicio: "09:00",
-        janela_fim: "11:00",
-        tempo_estimado_min: 12,
-      },
-    ];
-    const included = await withDbResults(
-      validTrackingResults({ routeStops }),
-      (database) => getPublicDeliveryTracking(40, now, database),
-    );
-    assert.equal(included.result?.trackingAvailable, true);
-    assert.deepEqual(included.result?.deliveryWindow, {
-      startTime: "09:00",
-      endTime: "11:00",
-    });
-
-    const unrepresented = await withDbResults(
+  test("rejects the public token when delivery company is outside route.company_ids", async () => {
+    const { result } = await withDbResults(
       validTrackingResults({
-        routeStops,
-        routeDeliveries: [{
-          id: 40,
-          route_position: 1,
-          status: "pendente",
-          stop_status: null,
-          effective_company_id: 99,
-          latitude: "-23.55",
-          longitude: "-46.63",
-          latest_event_status: null,
-        }],
+        delivery: { company_id: 4, order_company_id: 4, route_company_ids: [3] },
+        finalRoute: { ...routeRow, company_id: 4, route_company_ids: [3] },
       }),
       (database) => getPublicDeliveryTracking(40, now, database),
     );
-    assert.equal(unrepresented.result?.trackingAvailable, false);
+    assert.equal(result, null);
+  });
+
+  test("allows a company B delivery on company A's route when B is explicitly scoped", async () => {
+    const { result } = await withDbResults(
+      validTrackingResults({
+        delivery: { company_id: 4, order_company_id: 4, route_company_id: 3, route_company_ids: [3, 4], driver_company_id: 3 },
+        routeDeliveries: [{
+          id: 40, route_position: 1, status: "em_rota", stop_status: null,
+          effective_company_id: 4, latitude: "-23.55", longitude: "-46.63", latest_event_status: null,
+        }],
+        finalRoute: { ...routeRow, company_id: 4, route_company_id: 3, route_company_ids: [3, 4] },
+      }),
+      (database) => getPublicDeliveryTracking(40, now, database),
+    );
+    assert.equal(result?.trackingAvailable, true);
+    assert.equal("route_company_ids" in (result ?? {}), false);
+    assert.equal("company_ids" in (result ?? {}), false);
   });
 
   test("does not release detailed tracking when the route has not started", async () => {
@@ -414,23 +376,21 @@ describe("public delivery tracking operational availability", () => {
     assert.equal(result?.trackingAvailable, false);
   });
 
-  test("does not use legacy order when the route has official stops owned by another scope", async () => {
+  test("does not expose route or other-company fields in the individual public payload", async () => {
     const { result } = await withDbResults(
-      [
-        [activeDelivery],
-        [{ id: 5, started_at: new Date(now.getTime() - 60_000) }],
-        [{
-          latitude: "-23.56",
-          longitude: "-46.64",
-          speed: null,
-          recorded_at: new Date(now.getTime() - 15_000),
-        }],
-        [],
-        [routeRow],
-      ],
+      validTrackingResults({
+        delivery: { route_company_ids: [3, 4] },
+        routeDeliveries: [
+          { id: 39, route_position: 1, status: "em_rota", effective_company_id: 4, latitude: "-23.54", longitude: "-46.62" },
+          { id: 40, route_position: 2, status: "pendente", effective_company_id: 3, latitude: "-23.55", longitude: "-46.63" },
+        ],
+        finalRoute: { ...routeRow, route_company_ids: [3, 4] },
+      }),
       (database) => getPublicDeliveryTracking(40, now, database),
     );
-    assert.equal(result?.trackingAvailable, false);
+    assert.equal(result?.trackingAvailable, true);
+    assert.equal("companyId" in (result ?? {}), false);
+    assert.equal("companyIds" in (result ?? {}), false);
   });
 
   test("uses a future planned route start as the earliest possible ETA", async () => {
@@ -482,10 +442,10 @@ describe("public delivery tracking operational availability", () => {
     assert.equal(oldDelivery.result, null);
   });
 
-  test("rejects public tracking when the route no longer belongs to the delivery tenant", async () => {
+  test("rejects public tracking when the delivery company is no longer in the route scope", async () => {
     const { result } = await withDbResults(
       validTrackingResults({
-        finalRoute: { ...routeRow, route_company_id: 9 },
+        finalRoute: { ...routeRow, route_company_ids: [9] },
       }),
       (database) => getPublicDeliveryTracking(40, now, database),
     );

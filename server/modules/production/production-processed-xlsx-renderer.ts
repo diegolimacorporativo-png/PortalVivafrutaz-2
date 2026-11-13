@@ -105,7 +105,7 @@ function productSlots(sheet: XLSX.WorkSheet, group: RowGroup): ProductSlot[] {
 
 function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, CompanyDemand[]> {
   const grouped = new Map<ProcessedPackaging, Map<number, CompanyDemand>>();
-  const unsupported: Array<{ itemId?: number; orderId: number; productId: number; reason: string }> = [];
+  const unsupported: Array<Record<string, unknown>> = [];
   const productNames = new Map<number, string>();
 
   for (const item of batch.items.filter((candidate) => candidate.productionClassification === "PROCESSADOS")) {
@@ -121,9 +121,9 @@ function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, Co
       continue;
     }
     for (const source of item.orderBreakdown) {
-      const packaging = classifyProcessedPackaging(source.subCategoryName, item.category, item.productName);
+      const packaging = source.manualPackaging ?? classifyProcessedPackaging(source.subCategoryName, item.category, item.productName);
       if (!packaging) {
-        unsupported.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, reason: "EMBALAGEM_OU_BLOCO_NAO_IDENTIFICADO" });
+        unsupported.push({ batchItemId: item.batchItemId, itemId: source.itemId, sourceKey: source.itemId != null ? `item:${source.itemId}` : source.requestId ? `manual:${source.requestId}` : null, sourceType: source.sourceType, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, subCategoryName: source.subCategoryName, reason: "EMBALAGEM_OU_BLOCO_NAO_IDENTIFICADO" });
         continue;
       }
       if (!Number.isFinite(Number(source.quantity)) || Number(source.quantity) <= 0) {
@@ -144,7 +144,7 @@ function collectDemand(batch: ProductionExportBatch): Map<ProcessedPackaging, Co
     }
   }
   if (unsupported.length) {
-    throw new ValidationError("A exportação de Processados foi bloqueada: existem embalagens ou endereços que não podem ser mapeados com segurança no modelo oficial.", { unresolved: unsupported });
+    throw new ValidationError("A exportação de Processados foi bloqueada: existem embalagens, quantidades ou origens que precisam de conferência manual.", { unresolved: unsupported });
   }
   return new Map([...grouped].map(([packaging, addresses]) => [packaging, [...addresses.values()]]));
 }

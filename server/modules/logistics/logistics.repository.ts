@@ -116,6 +116,14 @@ export class LogisticsRepository {
   updateRouteOwned(id: number, empresaId: number, data: Partial<LogisticsRoute>): Promise<LogisticsRoute | null> {
     return this.db.updateRouteOwned(id, empresaId, data);
   }
+  updateRouteCompanyScope(
+    id: number,
+    empresaId: number | null,
+    data: Partial<LogisticsRoute>,
+    companyIds?: number[],
+  ): Promise<LogisticsRoute | null> {
+    return this.db.updateRouteCompanyScope(id, empresaId, data, companyIds);
+  }
   deleteRoute(id: number): Promise<void> {
     return this.db.deleteRoute(id);
   }

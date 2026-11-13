@@ -26,6 +26,7 @@ import { db } from "../../database/db";
 import { logisticsDrivers } from "@shared/schema";
 import { eq, and, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
+import { canUseTenantScopedNameFallback, uniqueDriverId } from "./driver-identity.policy";
 
 /** Canonical "internal logistics user" set (re-uses the existing constant). */
 export const LOGISTICS_INTERNAL_ROLES: readonly string[] = LOGISTICS_AUTH_ROLES;
@@ -138,8 +139,9 @@ export function resolveDriverGpsSubmissionId(
  * (tenant) + email/name match — no full-table scan, no in-memory find().
  *
  * Matching strategy:
- *   1. Exact email match (preferred).
- *   2. Exact name match (fallback for legacy seed data without email).
+ *   1. Exact email match, accepted only when unique across the candidate scope.
+ *   2. Exact name match only inside a pinned company and only for legacy rows
+ *      that do not have an email. Global name-only resolution is forbidden.
  *
  * The first parameter (`_storageCompat`) is kept for backward compatibility
  * with existing callers and is intentionally ignored.
@@ -159,9 +161,7 @@ export async function resolveOwnDriverId(
 ): Promise<number | null> {
   if (!actor) return null;
 
-  // Legacy accounts are not consistent about capitalization or trailing
-  // whitespace (for example, "Alex " and "Alex@..."). Normalize both sides
-  // in SQL so the lookup behaves like the login identity lookup.
+  // Normalize casing/whitespace, but never accept an arbitrary first result.
   const tenantId = actor.empresaId ?? null;
   const tenantCondition = (identity: SQL<unknown>) =>
     tenantId == null
@@ -180,21 +180,28 @@ export async function resolveOwnDriverId(
           sql`lower(trim(${logisticsDrivers.email})) = lower(trim(${actor.email.trim()}))`,
         ),
       )
-      .limit(1);
-    if (emailRows[0]?.id) return emailRows[0].id;
+      .limit(2);
+    if (emailRows.length > 0) return uniqueDriverId(emailRows);
   }
 
-  if (actor.name?.trim()) {
+  // A global name-only match cannot prove which tenant's driver owns the
+  // account. Tenant-bound legacy accounts may still resolve by exact name,
+  // but only against rows without a conflicting email identity.
+  if (actor.name?.trim() && canUseTenantScopedNameFallback(tenantId)) {
+    const legacyIdentity = actor.email?.trim()
+      ? sql`coalesce(trim(${logisticsDrivers.email}), '') = ''`
+      : sql`TRUE`;
     const nameRows = await db
       .select({ id: logisticsDrivers.id })
       .from(logisticsDrivers)
       .where(
-        tenantCondition(
-          sql`lower(trim(${logisticsDrivers.name})) = lower(trim(${actor.name.trim()}))`,
+        and(
+          tenantCondition(sql`lower(trim(${logisticsDrivers.name})) = lower(trim(${actor.name.trim()}))`),
+          legacyIdentity,
         ),
       )
-      .limit(1);
-    if (nameRows[0]?.id) return nameRows[0].id;
+      .limit(2);
+    return uniqueDriverId(nameRows);
   }
 
   return null;

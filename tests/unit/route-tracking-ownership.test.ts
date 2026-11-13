@@ -124,6 +124,7 @@ async function withTrackingDb<T>(
 
 const routeRow = {
   id: 10,
+  company_ids: [33],
   driver_id: null,
   vehicle_id: null,
   status: "planned",
@@ -251,6 +252,60 @@ describe("public route token authorization", () => {
     assert.equal(result.payload.viewerScope, "internal");
     assert.equal(result.payload.route.name, "Rota A");
     assert.deepEqual(result.payload.stops, []);
+  });
+
+  test("route map includes only stops and deliveries in the explicit company scope", async () => {
+    const issued = createPublicTrackingToken("route", 10);
+    const actor = { id: 1, role: "LOGISTICS", empresaId: 1 };
+    const { controller } = makeController({
+      actor,
+      ownedRoute: { id: 10, empresaId: 1 },
+    });
+    const responses = [
+      [{ ...routeRow, route_company_id: 1, company_ids: [33] }],
+      [
+        { id: 501, company_id: 33, latitude: "0", longitude: "1", ordem_parada: 1 },
+        { id: 502, company_id: 44, latitude: "0", longitude: "2", ordem_parada: 2 },
+        { id: 503, company_id: null, latitude: "0", longitude: "3", ordem_parada: 3 },
+      ],
+      [
+        {
+          id: 601, order_id: 701, delivery_company_id: 33, order_company_id: 33,
+          company_id: 33, status: "pendente", route_position: 1,
+          latitude: "0", longitude: "1", scheduled_date: "2026-09-10",
+          company_delivery_config_json: null, company_name: "Empresa autorizada",
+        },
+        {
+          id: 602, order_id: 702, delivery_company_id: 44, order_company_id: 44,
+          company_id: 44, status: "pendente", route_position: 2,
+          latitude: "0", longitude: "2", scheduled_date: "2026-09-10",
+          company_delivery_config_json: null, company_name: "Empresa fora do escopo",
+        },
+        {
+          id: 603, order_id: 703, delivery_company_id: 33, order_company_id: 44,
+          company_id: 33, status: "pendente", route_position: 3,
+          latitude: "0", longitude: "3", scheduled_date: "2026-09-10",
+          company_delivery_config_json: null, company_name: "Empresa inconsistente",
+        },
+        {
+          id: 604, order_id: 704, delivery_company_id: null, order_company_id: 33,
+          company_id: 33, status: "pendente", route_position: 4,
+          latitude: "0", longitude: "4", scheduled_date: "2026-09-10",
+          company_delivery_config_json: null, company_name: "Empresa pelo pedido",
+        },
+      ],
+    ];
+    let responseIndex = 0;
+    const { result } = await withTrackingDb(
+      async () => responses[responseIndex++] ?? [],
+      () => callTracking(controller, issued.token, actor),
+    );
+
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(result.payload.stops.map((stop: any) => stop.id), [501]);
+    assert.deepEqual(result.payload.deliveries.map((delivery: any) => delivery.id), [601, 604]);
+    assert.ok(!JSON.stringify(result.payload).includes("Empresa fora do escopo"));
+    assert.ok(!JSON.stringify(result.payload).includes("Empresa inconsistente"));
   });
 
   test("a stale GPS position never produces route ETAs", async () => {
@@ -456,13 +511,15 @@ describe("public route token authorization", () => {
     assert.equal(result.payload.gpsStatus, "fresh");
     assert.equal(result.payload.etaAvailable, true);
     assert.equal(result.payload.eta.avgSpeedKmh, 35);
-    assert.ok(result.payload.stops[0].etaMinutes > 0);
-    assert.ok(result.payload.stops[1].etaMinutes > result.payload.stops[0].etaMinutes);
+    assert.equal(result.payload.stops[0].etaMinutes, null);
+    assert.equal(result.payload.stops[1].etaMinutes, null);
+    assert.ok(result.payload.deliveries[0].etaMinutes > 0);
     assert.ok(
       result.payload.deliveries[1].etaMinutes >
         result.payload.deliveries[0].etaMinutes,
     );
-    assert.ok(result.payload.stops[0].etaTime);
+    assert.equal(result.payload.stops[0].etaTime, null);
+    assert.ok(result.payload.deliveries[0].etaTime);
   });
 
   test("inactive assigned driver is hidden from route details and live GPS", async () => {

@@ -55,16 +55,21 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
   const unresolved: Array<Record<string, unknown>> = [];
   const columnOwners = new Map<number, string>();
   for (const { item, source } of collectSources(batch, "IN_NATURA")) {
-    const resolved = resolveInNaturaHeader(item.productName, source.subCategoryName, candidates);
+    const manualMatches = source.manualExportHeader
+      ? candidates.filter((candidate) => candidate.header.trim() === source.manualExportHeader?.trim())
+      : [];
+    const resolved = source.manualExportHeader
+      ? (manualMatches.length === 1 ? { column: manualMatches[0].column, status: "matched" as const } : { status: manualMatches.length ? "ambiguous" as const : "unmatched" as const })
+      : resolveInNaturaHeader(item.productName, source.subCategoryName, candidates);
     if (resolved.status !== "matched") {
-      unresolved.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, productName: item.productName, subCategoryId: source.subCategoryId ?? null, subCategoryName: source.subCategoryName ?? null, reason: resolved.status === "ambiguous" ? "CABECALHO_EXCEL_AMBIGUO" : "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO" });
+      unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, sourceKey: source.itemId != null ? `item:${source.itemId}` : source.requestId ? `manual:${source.requestId}` : null, sourceType: source.sourceType, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, subCategoryId: source.subCategoryId ?? null, subCategoryName: source.subCategoryName ?? null, reason: resolved.status === "ambiguous" ? "CABECALHO_EXCEL_AMBIGUO" : "PRODUTO_SEM_COLUNA_EXATA_NO_MODELO" });
       continue;
     }
     const normalizedSubCategory = (source.subCategoryName ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
     const identity = `${item.productId}:${item.unit}:${normalizedSubCategory}`;
     const columnOwner = columnOwners.get(resolved.column);
     if (columnOwner && columnOwner !== identity) {
-      unresolved.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, productName: item.productName, reason: "COLISAO_GLOBAL_DE_IDENTIDADE_NA_COLUNA_EXCEL" });
+      unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, reason: "COLISAO_GLOBAL_DE_IDENTIDADE_NA_COLUNA_EXCEL" });
       continue;
     }
     columnOwners.set(resolved.column, identity);
@@ -72,7 +77,7 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
     if (source.routeName?.trim() && source.routeName !== "Sem Rota") destination.routes.add(source.routeName.trim());
     const previous = destination.productQuantities.get(resolved.column);
     if (previous && (previous.productId !== item.productId || previous.subCategoryId !== (source.subCategoryId ?? null))) {
-      unresolved.push({ itemId: source.itemId, orderId: source.orderId, productId: item.productId, productName: item.productName, reason: "COLISAO_DE_PRODUTO_OU_EMBALAGEM_NA_MESMA_COLUNA" });
+      unresolved.push({ batchItemId: item.batchItemId, itemId: source.itemId, orderId: source.orderId, companyId: source.companyId, companyName: source.companyName, productId: item.productId, productName: item.productName, reason: "COLISAO_DE_PRODUTO_OU_EMBALAGEM_NA_MESMA_COLUNA" });
       continue;
     }
     destination.productQuantities.set(resolved.column, {
@@ -93,7 +98,9 @@ export function renderInNaturaWorkbook(template: Buffer, batch: ProductionExport
       }
     };
     const examples = unresolved.slice(0, 3).map((entry) => {
-      const subject = entry.productName ? `produto “${entry.productName}”, pedido ${entry.orderId}` : `pedido ${entry.orderId}`;
+      const subject = entry.sourceType === "MANUAL_PRODUCTION"
+        ? `registro manual da empresa ${entry.companyName ?? "não identificada"}`
+        : entry.productName ? `produto “${entry.productName}”, pedido ${entry.orderId ?? "não identificado"}` : `pedido ${entry.orderId ?? "não identificado"}`;
       return `${subject}: ${explain(entry.reason)}`;
     }).join("; ");
     throw new ValidationError(

@@ -91,19 +91,26 @@ test("uses Bio and P07 plastic markers as different packaging classes", () => {
   assert.notEqual(classifyProcessedPackaging("Pote biodegradável 100g"), classifyProcessedPackaging("P07 plástico 100g"));
   assert.equal(classifyProcessedPackaging("Pote biodegradável 200g"), null);
   assert.equal(classifyProcessedPackaging("P07 plástico 200g"), null);
+  assert.equal(classifyProcessedPackaging("P07 plástico 100g", "FRUTAS PROCESSADAS"), "P07_PLASTIC_100G");
+  assert.equal(classifyProcessedPackaging("P07 plástico", "FRUTAS PROCESSADAS 200g"), null);
+  assert.equal(classifyProcessedPackaging("Pote plástico 200g"), "POT_200G");
+  assert.equal(classifyProcessedPackaging("Embalagem PET", "FRUTAS PROCESSADAS - (EMBALAGEM PLÁSTICA)"), "PET");
+  assert.equal(classifyProcessedPackaging("Pote Bio 100g", "FRUTAS PROCESSADAS - BIODEGRADÁVEL"), "BIO_100G");
+  assert.equal(classifyProcessedPackaging("P07 Bio 100g"), null);
+  assert.equal(classifyProcessedPackaging("P07 plástico 100g", "Embalagem 200g"), null);
 });
 
-test("classifies the catalog's 170g Manga e Iogurte Grego plastic pot into the official PET block", () => {
+test("does not infer a PET block from a generic plastic category and product name", () => {
   assert.equal(classifyProcessedPackaging(
     null,
     "FRUTAS PROCESSADAS - (EMBALAGEM PLÁSTICA)",
     "Pote de Manga e Iogurte Grego",
-  ), "PET");
+  ), null);
 });
 
-test("exports the 170g Manga e Iogurte Grego item to the official PET block", () => {
+test("blocks export until the plastic pot packaging is explicitly identified", () => {
   const template = readFileSync("server/modules/production/templates/processed-template.xlsx");
-  const output = renderProcessedWorkbook(template, {
+  assert.throws(() => renderProcessedWorkbook(template, {
     id: 81,
     productionDate: "2026-11-10",
     items: [{
@@ -115,17 +122,10 @@ test("exports the 170g Manga e Iogurte Grego item to the official PET block", ()
       totalQuantity: 4,
       orderBreakdown: [{
         itemId: 1104, orderId: 604, companyId: 26, companyName: "Empresa Processados teste", quantity: 4,
-        routeName: "Rota PET",
+        routeName: "Rota teste",
       }],
     }],
-  }, { shift: "morning", responsibleName: "Responsável sintético" });
-  const workbook = XLSX.read(output, { type: "buffer", cellStyles: true, cellFormula: true });
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const values = Object.values(sheet).filter((cell: any) => cell && typeof cell === "object").map((cell: any) => cell.v);
-  assert.ok(values.includes("Empresa Processados teste"));
-  assert.ok(values.includes("Rota PET"));
-  assert.ok(values.includes("Pote de Manga e Iogurte Grego"));
-  assert.ok(values.includes(4));
+  }, { shift: "morning", responsibleName: "Responsável sintético" }), /conferência manual/);
 });
 
 test("renders one In Natura row per company and preserves the workbook structure", () => {

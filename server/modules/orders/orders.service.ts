@@ -25,6 +25,7 @@ import { auditLog } from "../../utils/auditLogger";
 // cujo `createdAt` cai num mês já consolidado para a empresa. NÃO altera
 // qualquer caminho de leitura nem a ausência de fechamento (default = aberto).
 import { isPeriodClosed } from "../../services/fiscal/fiscal-closure.service";
+import { assertFiscalMutationEnabled } from "../nfe/nfe-issuance-lock";
 import type { Order, OrderDetail, OrdersListFilter } from "./orders.types";
 import {
   OrderStatus,
@@ -2384,6 +2385,7 @@ export class OrdersService {
     actor: ActorContext,
   ): Promise<Order> {
     const user = await this.requireRole(actor, FISCAL_ROLES, "Sem permissão");
+    assertFiscalMutationEnabled();
     const updates: any = {};
     if (body.fiscalStatus) updates.fiscalStatus = body.fiscalStatus;
     if (body.preNotaNumber !== undefined)
@@ -2414,6 +2416,7 @@ export class OrdersService {
     id: number,
     actor: ActorContext,
   ): Promise<{ preNotaNumber: string; order?: Order }> {
+    assertFiscalMutationEnabled();
     await this.requireRole(actor, FISCAL_ROLES, "Sem permissão");
     const orderData = await this.repo.get(id);
     if (!orderData) throw new NotFoundError("Pedido não encontrado");

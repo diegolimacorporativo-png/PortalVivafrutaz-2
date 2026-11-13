@@ -13,7 +13,8 @@ import { BadRequestError, ForbiddenError } from "../../shared/errors/AppError";
  *
  * Mapping rationale:
  *  CREATED / PENDING_APPROVAL / CUSTOMER_CONFIRMED → "ACTIVE" (not operationally released)
- *  APPROVED / INVOICED / SHIPPED → "CONFIRMED" (operationally released, progressing)
+ *  APPROVED / PROCESSING / READY / INVOICED / SHIPPED → "CONFIRMED" (legacy compatibility;
+ *  INVOICED is retained only for historical fiscal records)
  *  DELIVERED  → "DELIVERED"
  *  REJECTED   → "CANCELLED"  (terminal rejection ≡ cancelled in legacy)
  *  CANCELLED  → "CANCELLED"
@@ -75,9 +76,11 @@ export type OrderStatus = (typeof OrderStatus)[keyof typeof OrderStatus];
  *  CREATED          → PENDING_APPROVAL | CANCELLED
  *  CUSTOMER_CONFIRMED → APPROVED (automatic operational release) | CANCELLED
  *  PENDING_APPROVAL → APPROVED (admin approves) | REJECTED (admin rejects) | CANCELLED
- *  APPROVED         → INVOICED (operationally released for delivery) | CANCELLED
+ *  APPROVED         → PROCESSING | CANCELLED
+ *  PROCESSING       → READY | CANCELLED
+ *  READY            → SHIPPED (dispatch; no invoice prerequisite) | CANCELLED
  *  REJECTED         → terminal (no recovery — create a new order if needed)
- *  INVOICED         → SHIPPED (logistics dispatches) | CANCELLED
+ *  INVOICED         → SHIPPED (legacy records only) | CANCELLED
  *  SHIPPED          → DELIVERED (delivery confirmed)
  *  DELIVERED        → terminal
  *  CANCELLED        → terminal
@@ -86,11 +89,9 @@ export const ALLOWED_TRANSITIONS: Record<OrderStatus, OrderStatus[]> = {
   [OrderStatus.CREATED]:          [OrderStatus.PENDING_APPROVAL, OrderStatus.CANCELLED],
   [OrderStatus.CUSTOMER_CONFIRMED]: [OrderStatus.APPROVED, OrderStatus.CANCELLED],
   [OrderStatus.PENDING_APPROVAL]: [OrderStatus.APPROVED, OrderStatus.REJECTED, OrderStatus.CANCELLED],
-  // APPROVED can either go straight to INVOICED (legacy fast path) or step
-  // through the operational pipeline PROCESSING → READY before invoicing.
-  [OrderStatus.APPROVED]:         [OrderStatus.PROCESSING, OrderStatus.INVOICED, OrderStatus.CANCELLED],
+  [OrderStatus.APPROVED]:         [OrderStatus.PROCESSING, OrderStatus.CANCELLED],
   [OrderStatus.PROCESSING]:       [OrderStatus.READY, OrderStatus.CANCELLED],
-  [OrderStatus.READY]:            [OrderStatus.INVOICED, OrderStatus.CANCELLED],
+  [OrderStatus.READY]:            [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
   [OrderStatus.REJECTED]:         [],
   [OrderStatus.INVOICED]:         [OrderStatus.SHIPPED, OrderStatus.CANCELLED],
   [OrderStatus.SHIPPED]:          [OrderStatus.DELIVERED],
@@ -144,14 +145,20 @@ export function assertTransitionRole(to: OrderStatus, userRole: string): void {
   }
 }
 
+/** A SHIPPED transition is valid only when its transaction updated a pending delivery. */
+export function assertDispatchHasEligibleDelivery(updatedDeliveryIds: readonly number[]): void {
+  if (updatedDeliveryIds.length === 0) {
+    throw new BadRequestError("O pedido não possui entrega elegível para despacho.");
+  }
+}
+
 /**
  * Business rules checked BEFORE each sensitive transition is persisted.
  * Each rule is async so it can query the DB. Throw `BadRequestError` to veto.
  *
  * Rules:
  *  → APPROVED  : customer must be active (not locked)
- *  → INVOICED  : order must already be APPROVED (enforced by transition map)
- *  → SHIPPED   : no fiscal document is required; fiscal processing is separate
+ *  → SHIPPED   : dispatch does not require a fiscal document
  */
 export type PreTransitionContext = {
   orderId: number;

@@ -1,186 +1,83 @@
 /**
- * FASE NF.7.1.1 — Testes de estrutura ICMS por CST.
- *
- * Trava o XML de ICMS gerado por `gerarNFeXML` contra regressão estrutural.
- * Não testa cálculo (NF.7.2 fará isso). Apenas assegura que cada CST produz
- * o conjunto correto de tags exigido pela SEFAZ:
- *
- *   CST 00 → estrutura completa com base e imposto
- *   CST 20 → inclui <pRedBC> além da base/imposto
- *   CST 40 → apenas <orig> + <CST> (sem base nem imposto)
- *   CST 60 → estrutura mínima (sem base nem imposto)
- *   CRT 1  → ignora cst e usa <ICMSSN${csosn}>
- *   default→ sem cst → cai em <ICMS00> (backward-compat)
- *
- * Run with: npx tsx --test tests/unit/nfeIcmsStructure.test.ts
+ * Pure ICMS-structure contract tests. No test invokes gerarNFeXML or constructs
+ * a fiscal XML document while issuance remains paused.
  */
-import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { gerarNFeXML } from "../../server/services/nfe/nfeGenerator";
-import type { NFeInput } from "../../server/services/nfe/nfeValidator";
+import test from "node:test";
+import { buildIcmsItemStructure, calculateIcmsForItem } from "../../server/services/nfe/nfeGenerator";
 
-function makeInput(opts: { crt?: any; csosn?: any; cst?: any } = {}): NFeInput {
-  const crt = "crt" in opts ? opts.crt : "3";
-  return {
-    emitente: {
-      cnpj: "11222333000181",
-      xNome: "Empresa Teste LTDA",
-      xFant: "Empresa Teste",
-      ie: "123456789",
-      crt,
-      logradouro: "Rua Teste",
-      numero: "100",
-      bairro: "Centro",
-      cMun: "3550308",
-      xMun: "São Paulo",
-      uf: "SP",
-      cep: "01001000",
-    },
-    destinatario: {
-      cnpj: "11444777000161",
-      xNome: "Cliente Teste",
-      logradouro: "Av Cliente",
-      numero: "200",
-      bairro: "Bela Vista",
-      cMun: "3550308",
-      xMun: "São Paulo",
-      uf: "SP",
-      cep: "01310100",
-    },
-    produtos: [
-      {
-        cProd: "000001",
-        xProd: "Banana Prata",
-        ncm: "08039000",
-        cfop: "5102",
-        uCom: "KG",
-        qCom: 10,
-        vUnCom: 5,
-        vProd: 50,
-        csosn: opts.csosn,
-        ...("cst" in opts ? { cst: opts.cst } : {}),
-      },
-    ],
-    natOp: "Venda de mercadoria adquirida",
-    tpAmb: "2",
-    orderId: 1,
-  };
-}
+const calculate = (crt: string, cst?: string, csosn?: string) =>
+  calculateIcmsForItem({ crt, cst, csosn, productValue: 50, ufOrigem: "SP", ufDestino: "SP" });
 
-/**
- * Extrai o conteúdo entre <ICMS${cst}> e </ICMS${cst}> ou
- * <ICMSSN${csosn}> e </ICMSSN${csosn}>, para asserts focados sem
- * vazamento de outras tags do XML.
- */
-function extractIcmsBlock(xml: string, tag: string): string {
-  const open = `<${tag}>`;
-  const close = `</${tag}>`;
-  const start = xml.indexOf(open);
-  const end = xml.indexOf(close, start);
-  if (start < 0 || end < 0) return "";
-  return xml.slice(start, end + close.length);
-}
+test("CST 00 e default declaram estrutura completa sem compor XML", () => {
+  for (const cst of [undefined, "00"]) {
+    const result = calculate("3", cst);
+    assert.equal(result.rawCst, "00");
+    assert.equal(result.emitsBaseAndTax, true);
+    assert.equal(result.reducesBase, false);
+    assert.equal(result.rate, 18);
+    assert.equal(result.amount, 9);
+    assert.deepEqual(buildIcmsItemStructure(result), {
+      kind: "normal_calculated",
+      taxCode: "00",
+      baseMode: "3",
+      base: 50,
+      reductionRate: null,
+      rate: 18,
+      amount: 9,
+    });
+  }
+});
 
-describe("NF.7.1 — estrutura ICMS por CST (CRT='3')", () => {
-  test("TESTE 1 — CST '00' gera estrutura completa (NF.7.2: pICMS=18, vICMS=vBC*0.18)", async () => {
-    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "00" }), 700);
-    const block = extractIcmsBlock(out.xmlGerado, "ICMS00");
-    assert.ok(block.length > 0, "deve conter <ICMS00>...</ICMS00>");
-    assert.match(block, /<modBC>3<\/modBC>/);
-    assert.match(block, /<vBC>50\.00<\/vBC>/);
-    // NF.7.2 — alíquota fixa 18% sobre vBC=50 → vICMS=9.00
-    assert.match(block, /<pICMS>18\.00<\/pICMS>/);
-    assert.match(block, /<vICMS>9\.00<\/vICMS>/);
-    // pRedBC não pertence ao CST 00
-    assert.ok(!/<pRedBC>/.test(block), "CST 00 não deve emitir <pRedBC>");
-  });
-
-  test("TESTE 2 — CST '20' inclui <pRedBC> + base (NF.7.2: cálculo aplicado)", async () => {
-    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "20" }), 701);
-    const block = extractIcmsBlock(out.xmlGerado, "ICMS20");
-    assert.ok(block.length > 0, "deve conter <ICMS20>...</ICMS20>");
-    assert.match(block, /<modBC>3<\/modBC>/);
-    assert.match(block, /<vBC>50\.00<\/vBC>/);
-    // pRedBC continua 0.00 (NF.7.x cuidará da redução real)
-    assert.match(block, /<pRedBC>0\.00<\/pRedBC>/);
-    // NF.7.2 — cálculo é aplicado no CST 20 também
-    assert.match(block, /<pICMS>18\.00<\/pICMS>/);
-    assert.match(block, /<vICMS>9\.00<\/vICMS>/);
-    // não deve cair na tag fixa antiga
-    assert.ok(!/<ICMS00>/.test(out.xmlGerado), "não deve emitir <ICMS00>");
-  });
-
-  test("TESTE 3 — CST '40' (isento) só com <orig> + <CST>", async () => {
-    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "40" }), 702);
-    const block = extractIcmsBlock(out.xmlGerado, "ICMS40");
-    assert.ok(block.length > 0, "deve conter <ICMS40>...</ICMS40>");
-    assert.match(block, /<orig>0<\/orig>/);
-    assert.match(block, /<CST>40<\/CST>/);
-    // proibições do CST 40/41/50
-    assert.ok(!/<modBC>/.test(block), "CST 40 não deve emitir <modBC>");
-    assert.ok(!/<vBC>/.test(block), "CST 40 não deve emitir <vBC>");
-    assert.ok(!/<pICMS>/.test(block), "CST 40 não deve emitir <pICMS>");
-    assert.ok(!/<vICMS>/.test(block), "CST 40 não deve emitir <vICMS>");
-  });
-
-  test("TESTE 3b — CST '41' e '50' seguem a mesma regra do '40'", async () => {
-    for (const cst of ["41", "50"] as const) {
-      const out = await gerarNFeXML(makeInput({ crt: "3", cst }), 7020);
-      const block = extractIcmsBlock(out.xmlGerado, `ICMS${cst}`);
-      assert.ok(block.length > 0, `deve conter <ICMS${cst}>`);
-      assert.match(block, new RegExp(`<CST>${cst}</CST>`));
-      assert.ok(!/<modBC>/.test(block), `CST ${cst} sem <modBC>`);
-      assert.ok(!/<vBC>/.test(block), `CST ${cst} sem <vBC>`);
-      assert.ok(!/<pICMS>/.test(block), `CST ${cst} sem <pICMS>`);
-      assert.ok(!/<vICMS>/.test(block), `CST ${cst} sem <vICMS>`);
-    }
-  });
-
-  test("TESTE 4 — CST '60' (ICMS ST) com estrutura mínima", async () => {
-    const out = await gerarNFeXML(makeInput({ crt: "3", cst: "60" }), 703);
-    const block = extractIcmsBlock(out.xmlGerado, "ICMS60");
-    assert.ok(block.length > 0, "deve conter <ICMS60>...</ICMS60>");
-    assert.match(block, /<orig>0<\/orig>/);
-    assert.match(block, /<CST>60<\/CST>/);
-    assert.ok(!/<vBC>/.test(block), "CST 60 (estrutura mínima) sem <vBC>");
-    assert.ok(!/<pICMS>/.test(block), "CST 60 (estrutura mínima) sem <pICMS>");
-    assert.ok(!/<vICMS>/.test(block), "CST 60 (estrutura mínima) sem <vICMS>");
+test("CST 20 sinaliza estrutura com redução e mantém o cálculo vigente", () => {
+  const result = calculate("3", "20");
+  assert.equal(result.reducesBase, true);
+  assert.equal(result.emitsBaseAndTax, true);
+  assert.equal(result.amount, 9);
+  assert.deepEqual(buildIcmsItemStructure(result), {
+    kind: "normal_calculated",
+    taxCode: "20",
+    baseMode: "3",
+    base: 50,
+    reductionRate: 0,
+    rate: 18,
+    amount: 9,
   });
 });
 
-describe("NF.7.1 — Simples Nacional ignora CST", () => {
-  test("TESTE 5 — CRT '1' + csosn '102' + cst '20' usa <ICMSSN102>", async () => {
-    const out = await gerarNFeXML(
-      makeInput({ crt: "1", csosn: "102", cst: "20" }),
-      704,
-    );
-    assert.match(out.xmlGerado, /<ICMSSN102>/);
-    assert.match(out.xmlGerado, /<CSOSN>102<\/CSOSN>/);
-    // mesmo passando cst='20', NÃO deve cair no branch CRT=3
-    assert.ok(
-      !/<ICMS20>/.test(out.xmlGerado),
-      "Simples Nacional não deve emitir <ICMS20>",
-    );
-    assert.ok(
-      !/<ICMS00>/.test(out.xmlGerado),
-      "Simples Nacional não deve emitir <ICMS00>",
-    );
+test("CST 40, 41 e 50 usam forma isenta sem campos de base/imposto", () => {
+  for (const cst of ["40", "41", "50"]) {
+    const result = calculate("3", cst);
+    assert.equal(result.rawCst, cst);
+    assert.equal(result.emitsBaseAndTax, false);
+    assert.equal(result.includeInTotals, false);
+    assert.deepEqual(buildIcmsItemStructure(result), {
+      kind: "normal_minimal",
+      taxCode: cst,
+    });
+  }
+});
+
+test("CST 60 usa forma mínima sem base/imposto", () => {
+  const result = calculate("3", "60");
+  assert.equal(result.emitsBaseAndTax, false);
+  assert.equal(result.includeInTotals, false);
+  assert.deepEqual(buildIcmsItemStructure(result), {
+    kind: "normal_minimal",
+    taxCode: "60",
   });
 });
 
-describe("NF.7.1 — backward compat (default sem CST)", () => {
-  test("TESTE 6 — CRT '3' sem cst cai em <ICMS00> com cálculo NF.7.2 aplicado", async () => {
-    const out = await gerarNFeXML(makeInput({ crt: "3" }), 705);
-    const block = extractIcmsBlock(out.xmlGerado, "ICMS00");
-    assert.ok(block.length > 0, "deve conter <ICMS00>...</ICMS00>");
-    assert.match(block, /<orig>0<\/orig>/);
-    assert.match(block, /<CST>00<\/CST>/);
-    assert.match(block, /<modBC>3<\/modBC>/);
-    assert.match(block, /<vBC>50\.00<\/vBC>/);
-    // NF.7.2 — alíquota fixa 18% sobre vBC=50 → vICMS=9.00
-    assert.match(block, /<pICMS>18\.00<\/pICMS>/);
-    assert.match(block, /<vICMS>9\.00<\/vICMS>/);
-    // pRedBC não vaza para o default
-    assert.ok(!/<pRedBC>/.test(block), "default não deve emitir <pRedBC>");
-  });
+test("CRT 1/2 escolhe regime Simples e CSOSN, sem base/imposto normal", () => {
+  for (const crt of ["1", "2"]) {
+    const result = calculate(crt, "20", "102");
+    assert.equal(result.regime, "simples");
+    assert.equal(result.rawCsosn, "102");
+    assert.equal(result.emitsBaseAndTax, false);
+    assert.equal(result.includeInTotals, false);
+    assert.deepEqual(buildIcmsItemStructure(result), {
+      kind: "simples",
+      taxCode: "102",
+    });
+  }
 });

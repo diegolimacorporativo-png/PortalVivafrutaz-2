@@ -27,6 +27,7 @@ function asBatch(value: Awaited<ReturnType<typeof productionRepository.getGlobal
     id: value.id,
     productionDate: String(value.productionDate).slice(0, 10),
     items: value.items.map((item) => ({
+      batchItemId: item.id,
       productId: item.productId,
       productName: item.productName,
       category: item.category,

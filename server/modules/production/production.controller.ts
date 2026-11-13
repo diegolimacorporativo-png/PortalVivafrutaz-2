@@ -2,12 +2,15 @@ import type { Request, Response } from "express";
 import { productionService } from "./production.service";
 import type {
   GenerateBatchBody,
+  ManualBatchItemBody,
+  ManualExportMappingBody,
   UpdateBatchStatusBody,
   UpdateItemCheckBody,
   ListBatchesQuery,
 } from "./production.validation";
 import { productionExportService, type ProductionWorkbookKind } from "./production-export.service";
 import { storage } from "../../services/storage";
+import { UnauthorizedError } from "../../shared/errors/AppError";
 
 export const productionController = {
   /** GET /api/production/batches */
@@ -89,6 +92,26 @@ export const productionController = {
       body.notes,
     );
     res.json({ success: true, data: updated });
+  },
+
+  /** POST /api/production/batches/:id/manual-items — production-only addition, never an order mutation. */
+  async addManualBatchItem(req: Request, res: Response) {
+    const id = Number((req.params as any).id);
+    const body = req.body as ManualBatchItemBody;
+    const userId = Number((req as any).session?.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) throw new UnauthorizedError();
+    const item = await productionService.addManualBatchItem(id, body, userId);
+    res.status(201).json({ success: true, data: item });
+  },
+
+  /** PATCH /api/production/batches/:id/manual-export-mapping — audited mapping override for one source item. */
+  async updateManualExportMapping(req: Request, res: Response) {
+    const id = Number((req.params as any).id);
+    const body = req.body as ManualExportMappingBody;
+    const userId = Number((req as any).session?.userId);
+    if (!Number.isSafeInteger(userId) || userId <= 0) throw new UnauthorizedError();
+    const item = await productionService.updateManualExportMapping(id, body, userId);
+    res.json({ success: true, data: item });
   },
 
   /** DELETE /api/production/batches/:id */

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { calculateDistance } from "../../services/logistics/routeOptimizer";
+import { routeAuthorizesCompany } from "./auto-dispatch.policy";
 import { calculateRoadEta, isRoadRoutingConfigured } from "./road-routing.service";
 import {
   calculateTrackingDelay,
@@ -155,15 +155,11 @@ async function getDeliveryTracking(
            c.latitude::text AS company_latitude,
            c.longitude::text AS company_longitude,
            r.empresa_id AS route_company_id,
+           r.company_ids AS route_company_ids,
            r.driver_id AS route_driver_id,
            r.status AS route_status,
            r.start_time AS route_start_time,
            ld.active AS driver_active,
-           EXISTS (
-             SELECT 1
-             FROM route_stops official_stops
-             WHERE official_stops.route_id = d.route_id
-           ) AS route_has_stops,
            ld.empresa_id AS driver_company_id
     FROM deliveries d
     LEFT JOIN orders o ON o.id = d.order_id
@@ -237,14 +233,14 @@ async function getDeliveryTracking(
   const routeCompanyId = Number(delivery.route_company_id);
   const driverCompanyId = Number(delivery.driver_company_id);
   if (!Number.isInteger(routeId) || routeId <= 0) return fallback();
-  if (routeCompanyId !== companyId) return fallback();
+  if (!routeAuthorizesCompany(delivery.route_company_ids, companyId)) return fallback();
   if (!Number.isInteger(driverId) || driverId <= 0) return fallback("awaiting_assignment");
 
   const consistentRoute =
     (delivery.driver_id == null || delivery.route_driver_id == null ||
       Number(delivery.driver_id) === Number(delivery.route_driver_id)) &&
-    (delivery.driver_id == null || driverCompanyId === companyId) &&
-    (delivery.route_driver_id == null || driverCompanyId === companyId);
+    Number.isInteger(routeCompanyId) && routeCompanyId > 0 &&
+    driverCompanyId === routeCompanyId;
 
   // A public delivery capability is no longer useful after route unlinking.
   // The authenticated order page still receives the safe scheduled state.
@@ -314,7 +310,7 @@ async function getDeliveryTracking(
     FROM driver_journeys
     WHERE driver_id = ${driverId}
       AND status = 'active'
-      AND (empresa_id = ${companyId} OR empresa_id IS NULL)
+      AND (empresa_id = ${routeCompanyId} OR empresa_id IS NULL)
     ORDER BY started_at DESC, id DESC
     LIMIT 1
   `));
@@ -345,35 +341,9 @@ async function getDeliveryTracking(
     return fallback("awaiting_gps", gps.recorded_at);
   }
 
-  const routeStopRows = rowsOf<DbRow>(await database.execute(sql`
-    SELECT id,
-           company_id,
-           ordem_parada,
-           latitude::text AS latitude,
-           longitude::text AS longitude,
-           janela_inicio,
-           janela_fim,
-           tempo_estimado_min
-    FROM route_stops
-    WHERE route_id = ${routeId}
-      AND company_id = ${companyId}
-    ORDER BY ordem_parada ASC NULLS LAST, id ASC
-  `));
-  const hasOfficialRouteStops =
-    delivery.route_has_stops === true ||
-    delivery.route_has_stops === "true" ||
-    delivery.route_has_stops === "t" ||
-    routeStopRows.length > 0;
-  if (hasOfficialRouteStops && routeStopRows.length === 0) return basePayload;
-  const routeStopsWithPosition: Array<DbRow & {
-    sequencePosition: number;
-    stopId: number;
-  }> = routeStopRows.map((stop, index) => ({
-    ...stop,
-    sequencePosition: index,
-    stopId: Number(stop.id),
-  }));
-
+  // Deliveries are the canonical stops for a multi-company route. route_stops
+  // has no delivery_id link, so coordinates/order similarity cannot prove
+  // which delivery a manual stop represents.
   const routeRows = rowsOf<DbRow>(await database.execute(sql`
     SELECT d.id,
            d.route_position,
@@ -395,57 +365,18 @@ async function getDeliveryTracking(
       LIMIT 1
     ) latest_event ON TRUE
     WHERE d.route_id = ${routeId}
-      AND COALESCE(d.company_id, o.company_id) = ${companyId}
     ORDER BY d.route_position ASC NULLS LAST, d.id ASC
   `));
-  const routeStopByDeliveryId = new Map<number, DbRow>();
-  const usedRouteStopIds = new Set<number>();
-  for (const row of routeRows) {
-    const rowCompanyId = Number(row.effective_company_id);
-    const candidates = routeStopsWithPosition.filter(
-      (stop) => Number(stop.company_id) === rowCompanyId,
-    );
-    if (candidates.length === 0) continue;
-
-    const available = candidates.filter((stop) => !usedRouteStopIds.has(stop.stopId));
-    const candidatePool = available.length > 0 ? available : candidates;
-    const hasDeliveryCoordinates = hasValidTrackingCoordinates(
-      row.latitude,
-      row.longitude,
-    );
-    const officialStop = candidatePool.reduce<DbRow | null>((best, stop) => {
-      if (!hasDeliveryCoordinates) return best ?? stop;
-      if (!hasValidTrackingCoordinates(stop.latitude, stop.longitude)) return best;
-      const deliveryLat = Number(row.latitude);
-      const deliveryLng = Number(row.longitude);
-      const stopLat = Number(stop.latitude);
-      const stopLng = Number(stop.longitude);
-      const distance = calculateDistance(
-        { lat: deliveryLat, lng: deliveryLng },
-        { lat: stopLat, lng: stopLng },
-      );
-      if (!best) return { ...stop, matchDistance: distance };
-      return distance < Number(best.matchDistance)
-        ? { ...stop, matchDistance: distance }
-        : best;
-    }, null) ?? candidatePool[0];
-
-    if (available.length > 0) usedRouteStopIds.add(officialStop.stopId);
-    routeStopByDeliveryId.set(Number(row.id), officialStop);
-  }
   const routeStops: TrackingStop[] = routeRows.map((row) => {
-    const officialStop = routeStopByDeliveryId.get(Number(row.id));
     const effectiveWindow = getEffectiveDeliveryWindow(
       row.company_delivery_config_json ?? delivery.delivery_config_json,
       scheduledDate,
-      officialStop?.janela_inicio == null ? null : String(officialStop.janela_inicio),
-      officialStop?.janela_fim == null ? null : String(officialStop.janela_fim),
+      null,
+      null,
     );
     return {
       id: Number(row.id),
-      routePosition: hasOfficialRouteStops
-        ? officialStop?.sequencePosition ?? null
-        : row.route_position == null ? null : Number(row.route_position),
+      routePosition: row.route_position == null ? null : Number(row.route_position),
       status: row.status == null ? null : String(row.status),
       stopStatus: row.latest_event_status == null
         ? row.stop_status == null ? null : String(row.stop_status)
@@ -455,15 +386,9 @@ async function getDeliveryTracking(
         : String(row.latest_event_status),
       latitude: row.latitude,
       longitude: row.longitude,
-      tempoEstimadoMin: officialStop?.tempo_estimado_min == null
-        ? null
-        : Number(officialStop.tempo_estimado_min),
-      routeWindowStart: officialStop?.janela_inicio == null
-        ? null
-        : String(officialStop.janela_inicio),
-      routeWindowEnd: officialStop?.janela_fim == null
-        ? null
-        : String(officialStop.janela_fim),
+      tempoEstimadoMin: null,
+      routeWindowStart: null,
+      routeWindowEnd: null,
       windowStartAt: effectiveWindow && scheduledDate
         ? localDateTimeToInstant(scheduledDate, effectiveWindow.startTime)
         : null,
@@ -472,14 +397,6 @@ async function getDeliveryTracking(
         : null,
     };
   });
-  // When route_stops exists it is authoritative. If the target delivery is
-  // not represented there, a legacy route_position must not silently replace
-  // the official operational sequence.
-  if (
-    hasOfficialRouteStops &&
-    !routeStops.some((stop) => stop.id === Number(delivery.id) && stop.routePosition != null)
-  ) return fallback("awaiting_route_data");
-
   const plannedRouteStart = scheduledDate && delivery.route_start_time
     ? localDateTimeToInstant(scheduledDate, String(delivery.route_start_time))
     : null;
@@ -515,12 +432,11 @@ async function getDeliveryTracking(
   const targetEta = roadEta?.stops.at(-1);
   const etaAt = targetEta?.etaTime ? new Date(targetEta.etaTime) : null;
 
-  const targetRouteStop = routeStopByDeliveryId.get(Number(delivery.id));
   const window = getEffectiveDeliveryWindow(
     delivery.delivery_config_json,
     scheduledDate,
-    targetRouteStop?.janela_inicio == null ? null : String(targetRouteStop.janela_inicio),
-    targetRouteStop?.janela_fim == null ? null : String(targetRouteStop.janela_fim),
+    null,
+    null,
   );
   const windowStart = window && scheduledDate
     ? localDateTimeToInstant(scheduledDate, window.startTime)
@@ -557,8 +473,10 @@ async function getDeliveryTracking(
     deliveredAt: null,
     lastUpdatedAt: gps.recorded_at,
     etaRange,
-    stopsBefore,
-    isNextStop: stopsBefore === 0,
+    // Route-level stop counts can reveal operational activity from other
+    // companies. Keep the ETA but expose no cross-company stop metadata.
+    stopsBefore: null,
+    isNextStop: false,
     isDriverNearby: isNearby,
     etaMethod: etaAt ? "osrm_openstreetmap" : null,
     roadDistanceKm: targetEta?.distanceKm == null
@@ -739,7 +657,8 @@ export async function getPublicDeliveryTracking(
   const routeRows = rowsOf(await database.execute(sql`
     SELECT d.route_id,
            COALESCE(d.company_id, o.company_id) AS company_id,
-           r.empresa_id AS route_company_id
+           r.empresa_id AS route_company_id,
+           r.company_ids AS route_company_ids
     FROM deliveries d
     LEFT JOIN orders o ON o.id = d.order_id
     LEFT JOIN logistics_routes r ON r.id = d.route_id
@@ -747,7 +666,7 @@ export async function getPublicDeliveryTracking(
     LIMIT 1
   `));
   const route = routeRows[0];
-  if (!route?.route_id || Number(route.company_id) !== Number(route.route_company_id)) return null;
+  if (!route?.route_id || !routeAuthorizesCompany(route.route_company_ids, Number(route.company_id))) return null;
   if (isTerminal && payload.deliveryStatus !== "delivered") return null;
   return payload;
 }

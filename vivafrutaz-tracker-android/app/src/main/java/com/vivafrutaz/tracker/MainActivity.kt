@@ -387,7 +387,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun renderDelivery(container: LinearLayout, routeStatus: TextView, delivery: DriverDelivery) {
         val card = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(Color.WHITE); setPadding(dp(16), dp(14), dp(16), dp(14)) }
-        card.addView(TextView(this).apply { text = "${delivery.routePosition?.let { "$it. " } ?: ""}${delivery.companyName}"; textSize = 17f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(35, 55, 35)) })
+        card.addView(TextView(this).apply { text = "${delivery.routePosition?.let { "$it. " } ?: "${if (delivery.routePositionMissing) "Ordem pendente • " else ""}}${delivery.companyName}"; textSize = 17f; setTypeface(typeface, android.graphics.Typeface.BOLD); setTextColor(Color.rgb(35, 55, 35)) })
         card.addView(TextView(this).apply { text = listOf(delivery.address, delivery.city).filter { it.isNotBlank() }.joinToString(" • ").ifBlank { "Endereço não informado" }; textSize = 14f; setPadding(0, dp(5), 0, 0) })
         card.addView(TextView(this).apply { text = "Status: ${delivery.status}${delivery.deliveryWindow?.let { " • Janela: $it" } ?: ""}"; textSize = 13f; setTextColor(Color.DKGRAY); setPadding(0, dp(5), 0, 0) })
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER_VERTICAL }

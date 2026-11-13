@@ -19,6 +19,7 @@ import { db } from "../database/db";
 import { sql } from "drizzle-orm";
 import { storage } from "../services/storage";
 import { canEmitNFe } from "../modules/nfe/faturamento.guard";
+import { assertNfeIssuanceEnabled, NFE_ISSUANCE_PAUSED } from "../modules/nfe/nfe-issuance-lock";
 import { hasBlockingNFe } from "../modules/nfe/nfe-idempotency.guard";
 import {
   incrementBlocked as incNfeIdemBlocked,
@@ -174,6 +175,9 @@ export async function runFaturamentoCron(
   triggeredBy: "schedule" | "manual" = "schedule",
   triggeredByUserId: number | null = null,
 ): Promise<CronFaturamentoResult> {
+  // Fail before DB reads/writes or document generation while the operational
+  // workflow is being decoupled from billing.
+  assertNfeIssuanceEnabled();
   // FASE 14 — gera requestId próprio do cron e propaga via ALS.
   // Prefixo `cron-` permite distinguir de requests HTTP nos logs.
   const requestId = `cron-${randomUUID()}`;
@@ -431,6 +435,11 @@ let cronStarted = false;
 export function startFaturamentoCron(): void {
   if (cronStarted) return;
   cronStarted = true;
+
+  if (NFE_ISSUANCE_PAUSED) {
+    console.warn("[CRON_FATURAMENTO_PAUSADO] emissão fiscal bloqueada durante atualização do fluxo operacional");
+    return;
+  }
 
   const FATURAMENTO_JOB = "faturamento-cron";
   registerJob(FATURAMENTO_JOB);

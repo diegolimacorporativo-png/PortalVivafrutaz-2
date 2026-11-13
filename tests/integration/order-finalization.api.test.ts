@@ -12,11 +12,17 @@ import {
   isRemoteHomologationMode,
   validateRemoteHomologationApiUrl,
   validateRemoteHomologationConfig,
+  validateIsolatedPreviewApiUrl,
   validateIsolatedPreviewDatabaseUrl,
   verifyRemoteHomologationDatabaseIdentity,
 } from "../../server/core/runtimeMode";
 
 const remoteMode = isRemoteHomologationMode();
+if (remoteMode && process.env.ISOLATED_PREVIEW_API_URL?.trim()) {
+  throw new Error(
+    "A URL HTTP local foi configurada junto com o modo remoto; selecione um único ambiente de homologação.",
+  );
+}
 const remoteConfig = remoteMode ? validateRemoteHomologationConfig() : undefined;
 const databaseUrl = remoteMode
   ? remoteConfig!.databaseUrl
@@ -198,13 +204,9 @@ test(
         process.env.ISOLATED_REMOTE_HOMOLOGATION_API_URL,
       );
     } else {
-      const devDomain = process.env.REPLIT_DEV_DOMAIN;
-      assert.ok(
-        devDomain && !devDomain.includes("://"),
-        "REPLIT_DEV_DOMAIN é obrigatório; o teste não usa URL de produção",
+      baseUrl = validateIsolatedPreviewApiUrl(
+        process.env.ISOLATED_PREVIEW_API_URL,
       );
-      baseUrl = new URL(`https://${devDomain}`);
-      assert.equal(baseUrl.protocol, "https:");
     }
 
     const pool = new Pool({

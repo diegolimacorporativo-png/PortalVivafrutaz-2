@@ -4,6 +4,7 @@ const forge: typeof forgeNs = (forgeNs as any).default ?? forgeNs;
 import * as SignedXml from 'xml-crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { assertNfeIssuanceEnabled } from '../../modules/nfe/nfe-issuance-lock';
 
 export interface CertificadoInfo {
   cnpj: string;
@@ -58,6 +59,7 @@ function loadPfx(pfxPath: string, senha: string): { pem: string; certPem: string
 }
 
 export async function assinarXML(xml: string, pfxPathOrBase64: string, senha: string): Promise<AssinaturaResult> {
+  assertNfeIssuanceEnabled();
   const { pem, certPem, info } = loadPfx(pfxPathOrBase64, senha);
 
   // Remove PEM headers for xml-crypto
@@ -123,6 +125,7 @@ export function getCertPathFromEnv(): { path?: string; senha?: string } {
  * O padrão de assinatura segue a NT 2011/004 do Manual de Integração NF-e 4.0.
  */
 export async function assinarEvento(xml: string, pfxPathOrBase64: string, senha: string): Promise<AssinaturaResult> {
+  assertNfeIssuanceEnabled();
   const { pem, certPem, info } = loadPfx(pfxPathOrBase64, senha);
 
   const certDer = certPem
